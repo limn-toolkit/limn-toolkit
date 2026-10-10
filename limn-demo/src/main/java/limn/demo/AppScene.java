@@ -241,18 +241,18 @@ final class AppScene {
 
         Scene scene = new Scene(new Padding(Insets.all(16), page));
         scene.setBackground(Theme.current().background());
-        theme.onSelect(() -> Theme.setCurrent(Theme.builtins().get(theme.selectedIndex())));
-        // Whoever changes the theme, this picker or a launch option or the system: the picker
-        // says which it is, and the colour cleared behind the widgets is that palette's.
+        // The call a theme picker makes: the palette becomes current, its face is applied, and
+        // the scene clears to its background and repaints. A palette is a repaint, never a
+        // re-measure; the face, when it changes, has every scene laid out again by itself.
+        theme.onSelect(() -> Theme.builtins().get(theme.selectedIndex()).apply(scene));
+        // And when something else changes the theme, a launch option or the system's
+        // appearance: the picker says which it is, and the window repaints in it.
         Theme.observeChanges(() -> {
             int now = Theme.builtins().indexOf(Theme.current());
             if (now >= 0 && now != theme.selectedIndex()) {
                 theme.setSelectedIndex(now);
             }
             scene.setBackground(Theme.current().background());
-            // Sizes and faces come from the theme through the layout, and nothing lays a scene
-            // out again for a theme: the language, the direction and the size do it themselves.
-            scene.root().markNeedsLayout();
             scene.root().invalidate();
         });
 
