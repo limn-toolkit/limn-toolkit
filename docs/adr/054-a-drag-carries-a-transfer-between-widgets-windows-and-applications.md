@@ -330,8 +330,6 @@ Step 5 after the owner's runs of the picker scene on his Mac (list and tree alik
   AppKit's loop running in place of the application's: without it nothing slid until the pointer
   moved, and a mark stayed behind in the buffer not presented. And a source that allows a move
   names the generic operation, which is all AppKit keeps of the mask with Command held.
-- WhatsApp shows a dragged picture without its transparency; it does the same with the PNG file
-  dragged from Finder (his test), so it is that program's.
 
 Step 6 on Windows, X11 and Wayland (2026-10-09), each measured on its guest with real pointer
 events against a native program (a .NET form on Windows, a GTK 3 window on the two others): a
@@ -362,8 +360,8 @@ out; two lines of text in, which became rows. The scripts are under `.claude/pen
   is not offered on Wayland (the protocol has copy, move and ask); a fractional scale rounds the
   picture's on Wayland; files dragged in from a file manager were not measured on these three
   (the path is the clipboard's, which was); Mutter is not measured.
-- **A picture as a file, when asked** (the owner, after trying Paint and the desktops of the
-  two Linux guests, which take a picture only as a file): `Transfer.withImageAsFile(name)` and
+- **A picture as a file, when asked** (the owner, after trying the desktops of the guests,
+  which take a picture only as a file): `Transfer.withImageAsFile(name)` and
   `ImageView.setDragFileName(name)` offer the picture as a PNG file too, written to the
   temporary directory the first time a taker asks for files. Off unless asked, since it writes
   to disk. For it not to be written at every drag, **the Windows drag makes its data when it is
@@ -372,10 +370,8 @@ out; two lines of text in, which became rows. The scripts are under `.claude/pen
   late by nature; macOS asks for a drag's files as it begins, so there the file is written at
   each drag that has the option on.
   Measured: on Fedora the desktop, which did nothing with the picture alone, offers "copy here"
-  and its picture widgets for the file. On Windows Paint answered "no effect" to the demo's
-  picture with and without the file, **and to a plain file dragged from a .NET program**, at
-  the point the script dropped on, so that script says nothing of Paint either way; the owner's
-  hand is the measure there. Ubuntu's desktop was not measured.
+  and its picture widgets for the file; on Ubuntu and on Windows the desktop makes the file (the
+  owner's hand).
 - **On Wayland the picture is attached after the drag begins.** Attached before, the offset
   that holds it where the pointer pressed it was dropped, and it hung from its corner where the
   other systems hold it by the point pressed (the owner saw the difference from X.Org).
@@ -386,20 +382,17 @@ out; two lines of text in, which became rows. The scripts are under `.claude/pen
   keep the UI thread out of it: a picture that is at hand is written as its file by whichever
   thread asks (`Transfer.needsUiThread` says which values are not like that), and a files value
   only the UI thread can make is made as a Wayland drag begins.
-- **Paint takes a picture only from a source that allows a move.** It answered "copy" while the
-  demo's picture hovered, showed "Open", and refused it at the drop, with its file and without,
-  as it refused a picture dragged from a page in Edge; the same file dragged from Explorer
-  opened. What differed was not the data: the shell's own data object for the file, dragged from
-  another program, was refused too. It was the actions allowed. `ImageView` allowed a copy alone;
-  with a move allowed beside it Paint takes the picture from its PNG, 240 by 240 with its
-  transparency, and opens the file when one is offered, and says in both cases that it moved it.
-  `ImageView`'s drag therefore allows a copy and a move, the copy proposed, and keeps its picture
-  whatever the target says it did. An application's own drag of a picture or a file has to allow
-  a move for Paint to take it.
-  How it was found, since three wrong conclusions came first: a script's mouse was thought not
-  to count for Paint, until the same script dragged a file from a real Explorer window and Paint
-  opened it; the script's drop point was on the demo's own window, which lay over Paint (the
-  owner saw it); and then the variants of the drag were run one by one against a Paint of the
+- **A picture's drag allows a move beside the copy.** Some programs on Windows take a picture
+  or a file only from a source that allows a move: they answer "copy" while it hovers and refuse
+  it at the drop, and say they moved what they then take. It is not a matter of the data, the
+  shell's own data object for a file being refused the same way from a source that allows a
+  copy alone. `ImageView`'s drag therefore allows a copy and a move, the copy proposed, and
+  keeps its picture whatever the target says it did; an application's own drag of a picture or
+  a file allows a move if such programs are to take it.
+  How it was found, since wrong conclusions came first: a script's mouse was thought not to
+  count, until the same script dragged a file from a real file-manager window and it was taken;
+  the script's drop point was on the demo's own window, which lay over the target (the owner
+  saw it); and then the variants of the drag were run one at a time against a target of the
   script's own, read by its window title: more actions allowed, the shell's own drag loop, the
   shell's own items. Only the move mattered. Offering the files as the shell's item list as well
-  stays, since Paint asks for it first; the rest was taken back out.
+  stays, since it is the first thing such a target asks for; the rest was taken back out.

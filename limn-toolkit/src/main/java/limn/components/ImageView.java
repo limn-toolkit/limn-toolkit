@@ -140,7 +140,7 @@ public final class ImageView extends Widget<ImageView> {
         return Drag.of(file == null ? content : content.withImageAsFile(file))
                 // A copy is what is proposed; a move is allowed beside it because some programs
                 // take a picture only from a source that allows one, and say they moved it when
-                // they have only taken it (Windows' Paint). The view keeps its picture either way.
+                // they have only taken it. The view keeps its picture either way.
                 .allow(limn.transfer.DropAction.COPY, limn.transfer.DropAction.MOVE)
                 .preview(width() * scale, height() * scale, holdX, holdY, canvas -> {
                     canvas.save();

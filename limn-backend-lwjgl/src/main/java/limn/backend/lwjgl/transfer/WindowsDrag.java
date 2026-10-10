@@ -753,7 +753,7 @@ public final class WindowsDrag {
      * makes each when it is asked for, in memory of the asker's own. <b>It outlives the drag for
      * as long as a target holds it</b>, counted as COM counts: a program that takes a drop and
      * reads it afterwards, as the newer Windows programs do, asked an object that had already
-     * forgotten its drag, and got nothing (Paint showed "Open" and opened nothing).
+     * forgotten its drag, and got nothing.
      */
     private static long lazyObject(List<Integer> formats, java.util.function.IntFunction<byte[]> bytes) {
         if (lazyTable == NULL) {
