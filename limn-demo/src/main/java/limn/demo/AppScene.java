@@ -324,14 +324,16 @@ final class AppScene {
         statusRow.add(busy);
 
         limn.scene.layout.Column page = new limn.scene.layout.Column();
-        page.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
+        // Nothing around the window's content: the menu bar and the panes go from edge to edge,
+        // as a window's do, and only the two lines of text between them are set in from it.
+        page.crossAlignment(Flex.CrossAlignment.STRETCH);
         page.add(menuBar);
-        page.add(band);
+        page.add(new Padding(Insets.symmetric(8, 12), band));
         page.add(Expanded.of(body, 1));
-        page.add(new SizedBox(SizedBox.UNSET, 18, statusRow));
+        page.add(new Padding(Insets.symmetric(6, 12), new SizedBox(SizedBox.UNSET, 18, statusRow)));
         page.add(performance);
 
-        Scene scene = new Scene(new Padding(Insets.all(16), page));
+        Scene scene = new Scene(page);
         scene.setBackground(Theme.current().background());
 
         // The call a theme picker makes: the palette becomes current, its face is applied, and
@@ -408,7 +410,7 @@ final class AppScene {
                         .addItem("1280×720", () -> fullscreen(scene, status, 1280, 720))));
         menuBar.addMenu(ShowcaseStrings.MENU_GO, goMenu(navigation, top));
         menuBar.addMenu(ShowcaseStrings.MENU_HELP, new Menu()
-                .addItem(ShowcaseStrings.MENU_DOCUMENTATION, () -> openDocumentation("docs/", status))
+                .addItem(ShowcaseStrings.MENU_DOCUMENTATION, () -> openDocumentation(status, "docs/", status))
                 .addSeparator()
                 .addItem(ShowcaseStrings.TAB_ABOUT, () -> new Dialog(I18nString.literal(TITLE),
                         ShowcaseStrings.ABOUT_BLURB)
@@ -446,21 +448,14 @@ final class AppScene {
     }
 
     /**
-     * Opens a page of the site in the system's browser, and says in the status line which. By the
-     * system's own command for it, the toolkit having no call for this yet; where the command is
-     * missing the address in the status line is what is left.
+     * Opens a page of the site in the system's browser, and says in the status line which: the
+     * address stays there to copy where the system opened nothing.
      */
-    private static void openDocumentation(String path, Label status) {
-        String address = SITE + path;
-        limn.backend.Platform platform = limn.backend.Platform.current();
-        List<String> command = platform.isMacOs() ? List.of("open", address)
-                : platform.isWindows() ? List.of("rundll32", "url.dll,FileProtocolHandler", address)
-                : List.of("xdg-open", address);
-        try {
-            new ProcessBuilder(command).redirectErrorStream(true)
-                    .redirectOutput(ProcessBuilder.Redirect.DISCARD).start();
-        } catch (java.io.IOException noSuchCommand) {
-            // The address below is the answer then.
+    private static void openDocumentation(Widget<?> asker, String path, Label status) {
+        java.net.URI address = java.net.URI.create(SITE + path);
+        Scene scene = asker.scene();
+        if (scene != null && scene.window() != null) {
+            scene.window().launcher().openAddress(address);
         }
         status.setText(ShowcaseStrings.MENU_DOCUMENTATION.get() + ": " + address);
     }
@@ -477,7 +472,7 @@ final class AppScene {
         Button link = new Button(ShowcaseStrings.MENU_DOCUMENTATION).setSecondary(true);
         link.setControlSize(ControlSize.SMALL);
         link.setTooltip(SITE + place.documentation);
-        link.onAction(() -> openDocumentation(place.documentation, status));
+        link.onAction(() -> openDocumentation(link, place.documentation, status));
         Row head = new Row();
         head.gap(10).crossAlignment(Flex.CrossAlignment.CENTER);
         head.add(new Label(place.name).setRole(Label.Role.TITLE));

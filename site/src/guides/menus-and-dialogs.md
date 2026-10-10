@@ -229,6 +229,37 @@ cancelled. A window shows one chooser at a time; asking again while one is open 
 On a headless machine there is no chooser, and every call resolves empty, exactly as a cancel
 does, so your code does not need a special case.
 
+## Opening a link, a file, or its folder
+
+`window.launcher()` hands something to the system the window is on: an address to the browser
+or the mail program, a file to the program registered for its type, or a file to the file
+manager, shown selected in its folder. It is what an About box's link, an "Open the report" and
+a "Show in folder" call.
+
+{% snippet guide:launcher %}
+
+Each call returns at once and answers later, on the UI thread. `true` means the system took
+what it was handed, which is all a system tells a program; `false` means it did not (no program
+is registered, the file is gone, or the window is headless), and the reason is in the log.
+
+**Which addresses.** An address often comes from data, and text handed to a system as it is can
+start a program. So `openAddress` takes `http`, `https` and `mailto` and refuses everything
+else, answering `false`. If your application's own addresses are of another kind, say so once
+where it starts:
+
+```java
+Launcher.allowScheme("tel");
+```
+
+A `file:` address is never taken. A file is opened by `openFile`, which takes a path your code
+built; on a program file it does what a double click does, which is run it. `Launcher.isAllowed`
+answers what `openAddress` would refuse, for a link you would rather disable than have do
+nothing.
+
+On Linux an address goes through the desktop portal, which also works inside a Flatpak or Snap
+sandbox, and through `xdg-open` where no portal answers. On Wayland the program may open behind
+your window, with the desktop announcing it: nothing a client can do raises it there.
+
 ## Files dropped onto your window
 
 Files dragged from the desktop are a drop like any other. The widget under the pointer is asked

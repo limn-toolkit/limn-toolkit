@@ -170,6 +170,7 @@ final class LwjglWindow implements WindowPeer {
     /** Whether typed characters go to the scene: every request but {@code TextInput.NONE}. */
     private boolean charactersWanted = true;
     private @Nullable WindowFileDialogs fileDialogs;
+    private limn.backend.Launcher launcher;
     private limn.backend.ClosePolicy closePolicy = limn.backend.ClosePolicy.DISPOSE;
     private WindowInput input;
     private int framebufferWidth;
@@ -1550,6 +1551,15 @@ final class LwjglWindow implements WindowPeer {
             return "";
         }
         return "x11:" + Long.toHexString(org.lwjgl.glfw.GLFWNativeX11.glfwGetX11Window(handle));
+    }
+
+    @Override
+    public limn.backend.Launcher launcher() {
+        backend.uiRuntime().checkUiThread();
+        if (launcher == null) {
+            launcher = new limn.backend.Launcher(new WindowLauncher(this));
+        }
+        return launcher;
     }
 
     @Override

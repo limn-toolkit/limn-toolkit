@@ -1062,6 +1062,7 @@ class DialogTest extends ComponentTestBase {
         @Override public limn.backend.ClosePolicy closePolicy() { return limn.backend.ClosePolicy.DISPOSE; }
         /** No chooser here: every dialog answers empty, as if cancelled. */
         @Override public limn.backend.FileDialogs fileDialogs() { return limn.backend.FileDialogs.NONE; }
+        @Override public limn.backend.Launcher launcher() { return limn.backend.Launcher.NONE; }
         @Override public void setTextInput(limn.backend.spi.TextInput input) { }
         @Override public void setPreeditCaretRect(float x, float y, float width, float height) { }
         @Override public void resetPreedit() { }

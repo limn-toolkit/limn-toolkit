@@ -115,6 +115,10 @@ public final class Main {
             // machine gives no context, so a script can tell without parsing.
             System.exit(GlInfo.run() ? 0 : 1);
         }
+        if (args.length > 1 && (args[0].equals("--open") || args[0].equals("--show"))) {
+            // Diagnostic: one request to the system's launcher, answered in the exit code.
+            System.exit(LauncherProbe.run(args[0], args[1]) ? 0 : 1);
+        }
         if (args.length > 0 && args[0].equals("--bench")) {
             // Heavy-screen benchmark (Swing twin: scripts/bench/SwingBench.java).
             Bench.run(args.length < 2 || !args[1].equals("off"));
