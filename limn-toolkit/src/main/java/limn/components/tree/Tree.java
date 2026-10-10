@@ -486,6 +486,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
             markNeedsContainedLayout();
             invalidate();
             vBar.onScrolled();
+            notifyChange(Change.of(Change.Aspect.VALUE, origin)); // a watcher hears a scroll
         }
     }
 
@@ -678,7 +679,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
 
             @Override
             public void setOffset(float value) {
-                scrollHorizontally(value - offsetX);
+                scrollHorizontally(value - offsetX, Change.Origin.USER);
             }
         });
         add(hBar);
@@ -2124,15 +2125,15 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     public void scrollBy(float dx, float dy) {
         Ui.checkUiThread();
         if (dx != 0) {
-            scrollHorizontally(dx);
+            scrollHorizontally(dx, Change.Origin.CODE);
         }
         if (dy != 0) {
-            scrollVertically(dy);
+            scrollVertically(dy, Change.Origin.CODE);
         }
     }
 
-    private void scrollVertically(float dy) {
-        engine.scrollBy(dy, Change.Origin.CODE);
+    private void scrollVertically(float dy, Change.Origin origin) {
+        engine.scrollBy(dy, origin);
     }
 
     /** Whether a scroll of {@code dy} would move anything: not at the end it points to. */
@@ -2146,7 +2147,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         return dx < 0 ? offsetX > 0 : offsetX < max;
     }
 
-    private void scrollHorizontally(float dx) {
+    private void scrollHorizontally(float dx, Change.Origin origin) {
         float max = Math.max(0, contentWidth - gutters.viewportWidth(width()));
         float next = Math.min(Math.max(0, offsetX + dx), max);
         if (next == offsetX) {
@@ -2162,6 +2163,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         markNeedsContainedLayout();
         invalidate();
         hBar.onScrolled();
+        notifyChange(Change.of(Change.Aspect.VALUE, origin)); // a watcher hears a scroll
     }
 
     @Override
@@ -2174,9 +2176,9 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     private void revealVertically(float y, float rectHeight) {
         float viewH = viewportHeight();
         if (y < 0) {
-            scrollVertically(y);
+            scrollVertically(y, Change.Origin.ADJUSTMENT);
         } else if (y + rectHeight > viewH) {
-            scrollVertically(Math.min(y, y + rectHeight - viewH));
+            scrollVertically(Math.min(y, y + rectHeight - viewH), Change.Origin.ADJUSTMENT);
         }
     }
 
@@ -2196,7 +2198,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
             dx = Math.min(x - left, x + rectWidth - (left + viewW));
         }
         if (dx != 0) {
-            scrollHorizontally(isRightToLeft() ? -dx : dx);
+            scrollHorizontally(isRightToLeft() ? -dx : dx, Change.Origin.ADJUSTMENT);
         }
     }
 
@@ -3339,8 +3341,8 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         switch (event.shortcutKey()) {
             case Keys.DOWN -> consumeAnd(event, () -> moveLead(1, extend));
             case Keys.UP -> consumeAnd(event, () -> moveLead(-1, extend));
-            case Keys.PAGE_DOWN -> consumeAnd(event, () -> moveLead(rowsPerPage(tokens()), extend));
-            case Keys.PAGE_UP -> consumeAnd(event, () -> moveLead(-rowsPerPage(tokens()), extend));
+            case Keys.PAGE_DOWN -> consumeAnd(event, () -> pageLead(rowsPerPage(tokens()), extend));
+            case Keys.PAGE_UP -> consumeAnd(event, () -> pageLead(-rowsPerPage(tokens()), extend));
             case Keys.HOME -> consumeAnd(event, () -> selectAt(0, 1, extend));
             case Keys.END -> consumeAnd(event, () -> selectAt(rows.size() - 1, -1, extend));
             case Keys.A -> {
@@ -3420,6 +3422,26 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
      * second. {@code ListView} answers the same way for the same reason — a dead-ended arrow is
      * not a programming error, and neither is a first one.
      */
+    /**
+     * Page Up and Page Down: the cursor goes a page and the view goes as far with it, so the
+     * cursor keeps its place in the box, when the row it left was wholly in sight. The view is
+     * moved from where it stood before the cursor went, whatever the cursor's own reveal did.
+     */
+    private void pageLead(int delta, boolean extend) {
+        int from = cursor == null ? -1 : indexOf(cursor);
+        boolean inSight = from >= 0 && engine.isWhollyInSight(from);
+        int anchor = engine.anchorIndex();
+        float top = engine.anchorTop();
+        moveLead(delta, extend);
+        int to = cursor == null ? -1 : indexOf(cursor);
+        if (inSight && to >= 0 && to != from) {
+            engine.moveViewTo(anchor + (to - from), top);
+            markNeedsContainedLayout(); // the pass clamps the view at the last row
+            invalidate();
+            vBar.onScrolled();
+        }
+    }
+
     private void moveLead(int delta, boolean extend) {
         if (rows.isEmpty()) {
             return;
@@ -3504,11 +3526,11 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
                 float dy = swap ? 0 : -event.scrollY() * Strokes.WHEEL_STEP;
                 boolean moved = false;
                 if (dy != 0 && canScrollBy(dy)) {
-                    scrollVertically(dy);
+                    scrollVertically(dy, Change.Origin.USER);
                     moved = true;
                 }
                 if (dx != 0 && canScrollHorizontallyBy(dx)) {
-                    scrollHorizontally(dx);
+                    scrollHorizontally(dx, Change.Origin.USER);
                     moved = true;
                 }
                 if (moved) {

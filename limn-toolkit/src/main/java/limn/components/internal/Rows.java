@@ -589,6 +589,34 @@ public final class Rows<E> {
     }
 
     /**
+     * @param index a row
+     * @return whether the last pass placed it wholly inside the box
+     */
+    public boolean isWhollyInSight(int index) {
+        float top = topOf(index);
+        int at = indexOfRow(index);
+        return !Float.isNaN(top) && at >= 0 && top >= 0 && top + heights[at] <= host.viewportHeight();
+    }
+
+    /**
+     * Puts the anchor where the widget says, and forgets a reveal not yet settled: the widget
+     * moved the view itself. The next pass clamps it at either end.
+     *
+     * @param index the row to begin the box, or cut by its top; before the first is the first
+     * @param top   where that row's top is, from the top of the box
+     */
+    public void moveViewTo(int index, float top) {
+        if (index <= 0) {
+            anchorIndex = 0;
+            anchorTop = 0;
+        } else {
+            anchorIndex = Math.min(index, Math.max(0, host.count() - 1));
+            anchorTop = top;
+        }
+        revealPending = null;
+    }
+
+    /**
      * Moves the view as far as the cursor went, so that the cursor keeps its place in the box:
      * what Page Up and Page Down do. Only when the row it left was wholly in sight; from a row
      * out of sight there is no place to keep, and the reveal the widget asked for stands.
@@ -598,21 +626,10 @@ public final class Rows<E> {
      * @return whether the view was moved
      */
     public boolean pageWith(int from, int to) {
-        int count = host.count();
-        float top = topOf(from);
-        int at = indexOfRow(from);
-        if (to == from || count == 0 || Float.isNaN(top) || at < 0 || top < 0
-                || top + heights[at] > host.viewportHeight()) {
+        if (to == from || host.count() == 0 || !isWhollyInSight(from)) {
             return false;
         }
-        int anchor = anchorIndex + (to - from);
-        if (anchor <= 0) {
-            anchorIndex = 0;
-            anchorTop = 0;
-        } else {
-            anchorIndex = Math.min(anchor, count - 1); // the pass closes the gap at the last row
-        }
-        revealPending = null;
+        moveViewTo(anchorIndex + (to - from), anchorTop);
         return true;
     }
 

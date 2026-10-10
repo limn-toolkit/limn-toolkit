@@ -297,6 +297,12 @@ class RowsTest {
         assertEquals(30f, rows.topOf(7), "where row 2 was");
 
         assertFalse(rows.pageWith(900, 905), "from a row out of sight there is no place to keep");
+        assertTrue(rows.isWhollyInSight(7));
+        assertFalse(rows.isWhollyInSight(10), "cut by the foot");
+
+        rows.moveViewTo(-3, 5);
+        assertEquals(0, rows.anchorIndex(), "before the first row is the first row");
+        assertEquals(0f, rows.anchorTop());
     }
 
     @Test

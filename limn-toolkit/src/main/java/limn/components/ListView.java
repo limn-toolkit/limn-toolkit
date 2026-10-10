@@ -258,6 +258,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
             markNeedsContainedLayout();
             invalidate();
             vBar.onScrolled();
+            notifyChange(Change.of(Change.Aspect.VALUE, origin)); // a watcher hears a scroll
         }
     }
 
@@ -1704,9 +1705,9 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
     public void revealRect(float x, float y, float rectWidth, float rectHeight) {
         Ui.checkUiThread();
         if (y < 0) {
-            scrollBy(y); // above the viewport: scroll back
+            engine.scrollBy(y, Change.Origin.ADJUSTMENT); // above the viewport: scroll back
         } else if (y + rectHeight > height()) {
-            scrollBy(Math.min(y, y + rectHeight - height())); // oversize rows align their top
+            engine.scrollBy(Math.min(y, y + rectHeight - height()), Change.Origin.ADJUSTMENT); // oversize rows align their top
         }
     }
 
@@ -2050,7 +2051,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
                     // the list, as a list whose content fits already left every detent. Without
                     // this a list inside a scroll pane was a wall the wheel could not get past.
                     if (dy < 0 ? offset > 0 : offset < max) {
-                        scrollBy(dy);
+                        engine.scrollBy(dy, Change.Origin.USER);
                         event.consume();
                     }
                 }
@@ -2139,8 +2140,8 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
             case Keys.UP -> consumeAnd(event, () -> moveSelection(-1, extend));
             // The page size is resolved inside the branch that needs it: the other keys never
             // touch the token row, and one resolution per key press is one answer per press.
-            case Keys.PAGE_DOWN -> consumeAnd(event, () -> moveSelection(rowsPerPage(tokens()), extend));
-            case Keys.PAGE_UP -> consumeAnd(event, () -> moveSelection(-rowsPerPage(tokens()), extend));
+            case Keys.PAGE_DOWN -> consumeAnd(event, () -> pageSelection(rowsPerPage(tokens()), extend));
+            case Keys.PAGE_UP -> consumeAnd(event, () -> pageSelection(-rowsPerPage(tokens()), extend));
             case Keys.HOME -> consumeAnd(event, () -> selectClamped(0, extend));
             case Keys.END -> consumeAnd(event, () -> selectClamped(items.size() - 1, extend));
             case Keys.A -> {
@@ -2178,6 +2179,21 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
             selectClamped(engine.anchorIndex(), false);
         } else {
             selectClamped(cursor + delta, extend);
+        }
+    }
+
+    /**
+     * Page Up and Page Down: the cursor goes a page and the view goes as far with it, so the
+     * cursor keeps its place in the box, when the row it left was wholly in sight. Paging does
+     * not throw the cursor between the top and the foot of the list.
+     */
+    private void pageSelection(int delta, boolean extend) {
+        int from = cursor;
+        moveSelection(delta, extend);
+        if (from >= 0 && engine.pageWith(from, cursor)) {
+            markNeedsContainedLayout(); // the pass clamps the view at the last row
+            invalidate();
+            vBar.onScrolled();
         }
     }
 
