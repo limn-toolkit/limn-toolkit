@@ -122,8 +122,8 @@ final class Viewport3DScene {
      * light. Everything the others add is a variation on top of what these two already do.
      */
     private static final String[] SHOWCASE = {
-            "PBR metallic-roughness under 3 lights (directional + point + spot); click to select.",
-            "Shadow mapping: depth pass from the light + PCF; the objects cast shadows on the ground.",
+            "Metal and roughness under three lights; click an object to select it, drag to orbit.",
+            "Objects casting shadows on the ground; drag to orbit.",
     };
 
     /**

@@ -57,8 +57,7 @@ final class ListScene {
 
     static Scene create() {
         Theme.setCurrent(Theme.dark());
-        Label status = new Label("Wheel scrolls · click selects · ↑↓/PgUp/PgDn/Home/End navigate · "
-                + "Tab focuses buttons/switch · Enter activates. Headers and cards have different heights.")
+        Label status = new Label("Rows of different heights; only the ones in view are built.")
                 .setMuted(true);
         ListView<Integer> list = buildList(status::setText);
 

@@ -43,13 +43,7 @@ final class SplitPaneScene {
         Column col = new Column();
         col.gap(14).crossAlignment(Flex.CrossAlignment.STRETCH);
         col.add(new Label("Split pane").setRole(Label.Role.TITLE).setStrong(true));
-        col.add(new Label("Drag a divider to share the space; it is thin to look at and "
-                + "wide to hit, and it takes the accent one shade lighter for hover than "
-                + "for focus, lighter again while it is being dragged. A divider is not a "
-                + "tab stop until asked; setDividerFocusable(true), on for both of these, "
-                + "gives it the arrows: Shift for a single point, Home and End to park it "
-                + "against either minimum. The split is a ratio, so both panes grow when "
-                + "the window does.")
+        col.add(new Label("Drag a divider, or focus it and use the arrows.")
                 .setMuted(true).setWrap(true));
 
         SplitPane inner = SplitPane.vertical(

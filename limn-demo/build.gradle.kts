@@ -133,15 +133,15 @@ sourceSets {
     }
 }
 
-// The smallest Big Buck Bunny excerpt from media/, into the jar, with its licence beside it.
+// The Big Buck Bunny excerpt from media/, into the jar, with its licence beside it.
 // The MP4 entry of the video screen used to encode its own clip, and the payload that ships
 // has no encoder (ADR 011: no GPL component, so no x264), so every copy of this program that
 // somebody ran from its coordinate opened that entry on nothing. ADR 027 keeps media/ out of
 // the modules' payloads and says why; the dated note under its "not media in a module" bullet
-// records this one exception: the demo is an application, not a library, and one megabyte of
+// records this one exception: the demo is an application, not a library, and two megabytes of
 // licensed H.264 is what makes its decoder demonstrable to a stranger.
 tasks.named<ProcessResources>("processResources") {
-    from(rootProject.files("media/Big_Buck_Bunny_360_10s_1MB.mp4", "media/LICENSE-CC-BY-3.0.txt")) {
+    from(rootProject.files("media/Big_Buck_Bunny_640x360_10s.mp4", "media/LICENSE-CC-BY-3.0.txt")) {
         into("limn/demo/media")
     }
 }

@@ -9,13 +9,16 @@ cannot reach into the website's tree.
 
 ## Big Buck Bunny
 
-| File | Resolution | Duration | Size |
-| --- | --- | --- | --- |
-| `Big_Buck_Bunny_360_10s_1MB.mp4` | 640 × 360 | 10 s | 0.95 MB |
-| `Big_Buck_Bunny_720_10s_2MB.mp4` | 1280 × 720 | 10 s | 1.89 MB |
-| `Big_Buck_Bunny_1080_10s_5MB.mp4` | 1920 × 1080 | 10 s | 5.00 MB |
+| File | Picture | Sound | Duration | Size |
+| --- | --- | --- | --- | --- |
+| `Big_Buck_Bunny_640x360_10s.mp4` | H.264, 640 × 359, 24 per second | AAC, stereo | 10 s | 2.05 MB |
 
-H.264 video in an ISO base media container (`avc1` / `isom`).
+The picture is 640 × 359, a row short of the name: the original is, whatever its own name says,
+and nothing here was encoded again. The name is kept close to the original's so that it can be
+found again.
+
+One excerpt, with its picture **and its sound**: a sample of video is here to validate both, and
+the three excerpts this folder held before were picture alone.
 
 **© 2008 Blender Foundation: <https://peach.blender.org/>, <https://www.bigbuckbunny.org/>**
 **Licensed under the Creative Commons Attribution 3.0 Unported licence.** The full text is in
@@ -23,30 +26,31 @@ H.264 video in an ISO base media container (`avc1` / `isom`).
 <https://creativecommons.org/licenses/by/3.0/>. It permits redistribution, modification and
 commercial use, and requires that the Blender Foundation be credited.
 
-**Provenance.** These are not the Blender Foundation's own files. They are ten-second excerpts
-transcoded with FFmpeg and published by <https://test-videos.co.uk/bigbuckbunny/mp4-h264>, which
-states that they are free to use on the same terms as the original and links both the licence and
-the source. The originals are much larger (the Blender Foundation's own H.264 rendition on the
-Internet Archive is 249 MB for 480p), and the whole point of these is to be small enough to sit in
-a repository.
-
-Downloaded 2026-08-11, verified by digest:
+**Provenance.** Cut from the Blender Foundation's own file, `BigBuckBunny_640x360.m4v`, as
+published in `BigBuckBunny_640x360.m4v.zip` at
+<https://download.blender.org/peach/bigbuckbunny_movies/> (downloaded 2026-10-10, 121,284,117
+bytes, SHA-256 `7118242b6728d40c871479c5b3c0f0fb27d748089df15d7f1b469f297c74a2d6`). The excerpt
+is the ten seconds from 0:10 to 0:20, which begin on a key frame and are where the opening music
+is loudest. **Nothing was encoded again:** the picture and the sound are the original's own
+samples, copied into an MP4 by `scripts/media/cut.swift`, which asks the system's media framework
+for a passthrough export:
 
 ```
-77145c94c11f3754207499158df22406e1fe7635553c1c86dc5e881dfeb32016  Big_Buck_Bunny_360_10s_1MB.mp4
-6c92c730490901544a5564ed80f0f708fd582b2aacac580af2166578a5510611  Big_Buck_Bunny_720_10s_2MB.mp4
-e131ad42621442758a3acb899bfbdfeeab0b40c7e2f7c7e66683f58a09a99aee  Big_Buck_Bunny_1080_10s_5MB.mp4
+swift scripts/media/cut.swift BigBuckBunny_640x360.m4v Big_Buck_Bunny_640x360_10s.mp4 10 10
 ```
 
-The upstream file names are kept exactly as published. A renamed file is a file somebody has to
-take on trust; these can be fetched again and compared.
+Digest of the excerpt as committed:
 
-## Why these files and not a clip this repository makes
+```
+cfe423021094d8e5dbc7bbaba78b876d97fa5449b9862619f41b25a22bf0fa08  Big_Buck_Bunny_640x360_10s.mp4
+```
+
+## Why this file and not a clip this repository makes
 
 The FFmpeg build carries no H.264 **encoder** and deliberately never will: the encoder is x264,
 which is GPL, and the licence position in `docs/adr/011` depends on no GPL component being present.
 So a clip that exercises the decoder this project actually ships cannot be produced by this project.
-That is the gap these fill: the shipping `player` profile decodes h264, hevc, vp9 and vp8, and until
+That is the gap this fills: the shipping `player` profile decodes h264, hevc, vp9 and vp8, and until
 now nothing in the repository could prove the first of them.
 
 ## Adding more

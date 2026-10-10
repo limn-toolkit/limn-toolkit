@@ -66,13 +66,7 @@ final class PickerScene {
         Column column = new Column();
         column.gap(14).crossAlignment(Flex.CrossAlignment.STRETCH);
         column.add(new Label("Lists that drag").setRole(Label.Role.TITLE));
-        column.add(new Label("Drag rows to another place in their list or to the other list; "
-                + (mac ? "Cmd" : "Ctrl") + " or Shift and a click select several, and they go together; "
-                + (mac ? "Option" : "Ctrl") + " held at the drop copies. Text dragged from another program "
-                + "becomes rows. By keyboard: Alt+Shift+Up and Down move the selected rows, and "
-                + (mac ? "Cmd" : "Ctrl") + "+Shift+D picks them up (Tab changes list, the arrows choose the "
-                + "place, Enter drops). In the outline a row dropped on a folder goes into it, near its edge "
-                + "before or after it, and Alt+Shift+Left and Right move it out and in.").setMuted(true).setWrap(true));
+        column.add(new Label("Drag rows within a list, to the other list, or into the outline.").setMuted(true).setWrap(true));
 
         Label status = new Label("Nothing moved yet.").setMuted(true);
         List<Field> available = new ArrayList<>();

@@ -68,11 +68,7 @@ final class TransferScene {
         Column column = new Column();
         column.gap(14).crossAlignment(Flex.CrossAlignment.STRETCH);
         column.add(new Label("Drag and drop").setRole(Label.Role.TITLE));
-        column.add(new Label("Drag a card to another place or to the other board; hold "
-                + (limn.backend.Platform.current().isMacOs() ? "Option" : "Ctrl") + " to copy, Escape cancels. "
-                + "By keyboard: click a board, Up and Down choose a card, "
-                + (limn.backend.Platform.current().isMacOs() ? "Cmd" : "Ctrl")
-                + "+Shift+D picks it up, Tab changes board, the arrows choose the place, Enter drops.")
+        column.add(new Label("Drag a card to another place or to the other board.")
                 .setMuted(true).setWrap(true));
 
         Label status = new Label("Nothing dragged yet.").setMuted(true);
@@ -90,8 +86,7 @@ final class TransferScene {
         column.add(status);
 
         column.add(new Label("Clipboard").setRole(Label.Role.TITLE));
-        Label clip = new Label("Copy puts text, HTML, a picture and two files on the clipboard; paste it into "
-                + "another program, or copy something there and press Paste.").setMuted(true).setWrap(true);
+        Label clip = new Label("Copy here and paste in another program, or the other way round.").setMuted(true).setWrap(true);
         ImageView pasted = new ImageView(null).setPreferredSize(160, 100);
         Row buttons = new Row();
         buttons.gap(8).crossAlignment(Flex.CrossAlignment.CENTER);
@@ -349,7 +344,7 @@ final class TransferScene {
                     theme.surfaceRaised(), 1, theme.outline());
             Font font = theme.body();
             TextMetrics m = textRuler().measure("Hg", font);
-            canvas.drawText(names.isEmpty() ? "Drop files from Finder here" : "Dropped (" + names.size() + ")",
+            canvas.drawText(names.isEmpty() ? "Drop files here" : "Dropped (" + names.size() + ")",
                     12, (34 - m.height()) / 2 + m.ascent(), font, theme.textMuted());
             for (int i = 0; i < Math.min(names.size(), 8); i++) {
                 canvas.drawText(names.get(i), 12, 34 + i * 32 + (32 - m.height()) / 2 + m.ascent(), font,

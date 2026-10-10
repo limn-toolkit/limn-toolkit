@@ -45,16 +45,7 @@ final class GlassScene {
         column.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
 
         column.add(new Label("Backdrop effects").setFont(Theme.current().title()));
-        column.add(new Label("Each panel below samples the picture behind it and puts it through "
-                + "one effect. Clear gives the shape a body: a rounded rim whose width is also its "
-                + "optical depth, refracting by Snell's law, so the flat middle bends nothing and "
-                + "the last fraction of the bevel bends hard, the way real glass does, and the "
-                + "channels split by a fringe. Wash moves saturation and lifts. Pixelate "
-                + "is redaction: one sample per cell, nothing recoverable. Crt is a tube: an "
-                + "aperture grille of RGB triads, a scan whose bright lines swell the way a "
-                + "phosphor does, a bulged face and a falloff at the corners. Unlike Pixelate it "
-                + "anchors all of that to the SHAPE rather than to the framebuffer, because a "
-                + "tube carries its own curve and its own lines wherever it is put.")
+        column.add(new Label("Each panel samples what is behind it and applies one effect.")
                 .setMuted(true).setWrap(true));
 
         Image picture = plate();
@@ -82,11 +73,7 @@ final class GlassScene {
                 "Crt", "a tube: grille + scan + bulge"));
         column.add(bottom);
 
-        column.add(new Label("Stacked, which is how these compose: each pass reads the "
-                + "framebuffer the one before it wrote, so a frosted pane is built out of the "
-                + "pieces rather than out of one variant with four parameters. It is also what "
-                + "makes the blur affordable, since a separable blur IS two passes: across, then "
-                + "down, at 2r samples instead of r squared.")
+        column.add(new Label("Effects stacked: each reads what the one before it wrote.")
                 .setMuted(true).setWrap(true));
 
         Row stacked = new Row();
@@ -104,10 +91,7 @@ final class GlassScene {
                 new BackdropEffect.Wash(Color.TRANSPARENT, 0.35f, 0.18f)));
         column.add(stacked);
 
-        column.add(new Label("A panel costs one batch break and one copy of its own bounds. Over "
-                + "content that repaints anyway (video, a viewport), that is the whole cost. With "
-                + "partial rendering on, a panel over content that changes without invalidating it "
-                + "keeps showing the older backdrop; that is the known limit of this first step.")
+        column.add(new Label("A panel over moving content repaints with it.")
                 .setMuted(true).setWrap(true));
 
         return new ScrollView(column);

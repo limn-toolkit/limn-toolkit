@@ -697,9 +697,11 @@ public final class Theme {
 
     /**
      * Switches the process-wide palette and tells whoever is listening, and does nothing else:
-     * no scene repaints and no font changes. That is the call for a colour well that switches the
-     * palette on every frame of a drag and repaints its own preview; everything else wants
-     * {@link #apply}, which is this plus the repaint and the font.
+     * <b>no scene repaints and no font changes</b>. A theme picker, a settings screen and a
+     * switch between light and dark want {@link #apply}, which is this plus the repaint and the
+     * font; called from one of those, this leaves the window showing the old colours until
+     * something else repaints it. This is the call for a colour well that switches the palette
+     * on every frame of a drag and repaints its own preview.
      *
      * <p><b>Why a scene does not subscribe itself, unlike the four measurement axes.</b>
      * {@code Scene} is {@code limn.scene}, the layer this package is built on, and no file there

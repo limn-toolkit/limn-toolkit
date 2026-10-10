@@ -32,7 +32,7 @@ public final class Main {
             "kitchen-icons", "video", "icons", "icons-light", "icons-search",
             "dialog-decorated", "dialog-opaque", "dialog-glass", "textfield-selected",
             "textfield-ime", "password-ramp", "fonts", "fonts-switched", "ellipsis",
-            "textarea-scroll", "textarea-ime", "tabs", "tabs-overflow", "combo-overflow", "combos", "transfer", "picker",
+            "textarea-scroll", "textarea-ime", "tabs", "tabs-overflow", "combo-overflow", "combos", "transfer", "picker", "app",
             "showcase", "showcase-light", "dialog-open", "forms", "forms-light", "forms-popup",
             "components", "components-light", "widgets", "list", "table", "tree", "tree-scroll", "tree-deep", "tree-reserved", "tree-loading", "dates", "dates-light", "dates-popup", "dates-months", "dates-years", "dates-months-cursor", "dates-years-cursor", "dates-month-picker", "dates-month-picker-light", "dates-time-row", "dates-time-row-light", "dates-month-range", "dates-month-range-light", "form", "animations", "cursors",
             "sprites", "audio", "controls", "control-sizes", "control-sizes-audit",
@@ -46,6 +46,9 @@ public final class Main {
 
     private static final int LOGICAL_WIDTH = 800;
     private static final int LOGICAL_HEIGHT = 640;
+    /** The application's own window: a table beside a form, and a navigation beside both. */
+    private static final int APP_WIDTH = 1180;
+    private static final int APP_HEIGHT = 740;
 
     /** Frames rendered before capturing, so the swapchain is warmed up. */
     private static final int SCREENSHOT_WARMUP_FRAMES = 3;
@@ -154,7 +157,9 @@ public final class Main {
 
         try (Backend backend = new LwjglBackend()) {
             NativeWindow window = backend.createWindow(WindowConfig.of(
-                    "Limn UI: Kitchen Sink", LOGICAL_WIDTH, LOGICAL_HEIGHT).visible(!screenshotMode));
+                    scene.equals("app") ? "Limn Showcase" : "Limn UI: Kitchen Sink",
+                    scene.equals("app") ? APP_WIDTH : LOGICAL_WIDTH,
+                    scene.equals("app") ? APP_HEIGHT : LOGICAL_HEIGHT).visible(!screenshotMode));
 
             float monitorScale = window.contentScale();
             if (options.scale() > 0) {
@@ -290,6 +295,9 @@ public final class Main {
             } else if (scene.equals("combos")) {
                 // Every kind of combo box, enabled and disabled (ADR 051 and 052), to try by hand.
                 widgetScene = CombosScene.create();
+            } else if (scene.equals("app")) {
+                // The application the demo is to open on, and the way to everything else.
+                widgetScene = AppScene.create();
             } else if (scene.equals("picker")) {
                 // The ready-made widgets that drag (ADR 054 §4): two lists and a picture.
                 widgetScene = PickerScene.create();

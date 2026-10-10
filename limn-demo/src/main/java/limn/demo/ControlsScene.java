@@ -53,10 +53,7 @@ final class ControlsScene {
         column.add(sliderRow("Disabled", disabledSlider, new Label("40").setMuted(true)));
 
         column.add(heading("Spinner"));
-        column.add(new Label("Buttons and keyboard (arrows, PageUp/Down, Home/End), or type the "
-                + "value: a digit starts an edit with the old number selected, Enter commits, "
-                + "Escape puts it back, and copy/paste work either way. The wheel is "
-                + "deliberately not a value gesture.").setMuted(true).setWrap(true));
+        column.add(new Label("Click the arrows, use the keyboard, or type a value.").setMuted(true).setWrap(true));
 
         Spinner disabledSpinner = new Spinner(0, 10, 1).setValue(3);
         disabledSpinner.setEnabled(false);

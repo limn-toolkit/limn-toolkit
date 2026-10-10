@@ -128,7 +128,7 @@ final class VideoScene {
     static Scene create(boolean light) {
         Theme.setCurrent(light ? Theme.light() : Theme.dark());
         Scene scene = new Scene(new Padding(Insets.all(20),
-                tabContent(SCENE_PICTURE_WIDTH, SCENE_PICTURE_HEIGHT, SOURCES)));
+                tabContent(SCENE_PICTURE_WIDTH, SCENE_PICTURE_HEIGHT, SOURCES, true)));
         scene.setBackground(Theme.current().background());
         return scene;
     }
@@ -477,8 +477,7 @@ final class VideoScene {
     }
 
     private static final List<Source> SOURCES = List.of(
-            new Source("Bars", "Colour bars in the studio BT.709 code table, 4:2:0. A wrong matrix "
-                    + "or range does not read as \"slightly off\"; it reads as the wrong bars.",
+            new Source("Bars", "Colour bars, generated.",
                     viaFacade(() -> bars(SyntheticPattern.BARS).path())),
             new Source("Counter", "The same bars with the picture index over them, so a stream that "
                     + "is not stepping is visible without a stopwatch.",
@@ -508,12 +507,7 @@ final class VideoScene {
             new Source("Y4M file", "The same pictures written to a real YUV4MPEG2 file in the "
                     + "temporary directory and read back, header, FRAME lines and all.",
                     writingFirst(VideoScene::y4mFile)),
-            new Source("MP4", "A real encoded container, demultiplexed by a trimmed FFmpeg behind "
-                    + "a JNI shim, with the soundtrack that is inside the file rather than the "
-                    + "generated one: ten seconds of Big Buck Bunny in H.264, shipped with this "
-                    + "program (CC BY 3.0, Blender Foundation). A build that carries an encoder "
-                    + "writes its own clip instead, with two soundtracks and two subtitle tracks "
-                    + "for the pickers. Or set -Dlimn.demo.video to play a file of your own.",
+            new Source("MP4", "Ten seconds of Big Buck Bunny (CC BY 3.0, Blender Foundation).",
                     onAWorker(VideoScene::openEncoded)),
             new Source("10-bit", "The Gradient entry's pattern in 10-bit 4:2:0, and the difference "
                     + "is countable: the same one-code-per-column ramp has four times as many "
@@ -2044,7 +2038,15 @@ final class VideoScene {
         /** On a timer, for the reason {@code AudioTracks} gives: a ticker would cost every frame. */
         @Override
         protected void onPaint(limn.graphics.Canvas canvas) {
-            label.setText(describePlayer(open.player));
+            if (!ticking) {
+                // Not from the paint itself, which may not change what it paints: after the
+                // frame, and only when the words would differ, so a still player asks for no
+                // frame it does not need. While the player runs, the timer below does it.
+                String now = describePlayer(open.player);
+                if (!now.equals(label.text())) {
+                    limn.concurrent.Ui.post(() -> label.setText(describePlayer(open.player)));
+                }
+            }
             if (ticking || scene() == null || !isShowing() || open.player == null) {
                 return; // nothing to describe: a poll here would wake the loop to read a null
             }
@@ -2117,7 +2119,12 @@ final class VideoScene {
 
     /** The Kitchen Sink's Video tab. */
     static Widget<?> tabContent() {
-        return tabContent(TAB_PICTURE_WIDTH, TAB_PICTURE_HEIGHT, sourcesNamed(TAB_SOURCES));
+        return tabContent(TAB_PICTURE_WIDTH, TAB_PICTURE_HEIGHT, sourcesNamed(TAB_SOURCES), true);
+    }
+
+    /** The application's Video page: the same two sources in a picture as tall as the 3D viewport's. */
+    static Widget<?> pageContent() {
+        return tabContent(568, 320, sourcesNamed(TAB_SOURCES), false);
     }
 
     /**
@@ -2137,7 +2144,8 @@ final class VideoScene {
     }
 
     /** The tab's content: a source picker, the picture, and what the stream says about itself. */
-    private static Widget<?> tabContent(float pictureWidth, float pictureHeight, List<Source> sources) {
+    private static Widget<?> tabContent(float pictureWidth, float pictureHeight, List<Source> sources,
+            boolean details) {
         Theme theme = Theme.current();
         int initial = Math.max(0, Math.min(initialSource, sources.size() - 1));
         Label caption = new Label(sources.get(initial).caption()).setMuted(true).setWrap(true);
@@ -2152,7 +2160,9 @@ final class VideoScene {
         // screen inside a tab body, because a picture you have to scroll to is a picture nobody
         // checks.
         view.setPreferredSize(pictureWidth, pictureHeight).setLooping(true);
-        view.setTooltip("Decoded planes uploaded to a video surface and composited as one quad");
+        if (details) {
+            view.setTooltip("Decoded planes uploaded to a video surface and composited as one quad");
+        }
 
         // What this scene has open. Neither the widget nor the player closes a stream (neither
         // opened it), so switching sources is where the previous one is released.
@@ -2292,7 +2302,7 @@ final class VideoScene {
         // still a caption, and a picture below three paragraphs is not a picture.
         Column column = new Column();
         column.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
-        column.add(new Label("Video: decoded planes, converted on the device")
+        column.add(new Label("Video")
                 .setFont(theme.title()).setStrong(true));
         column.add(picker);
         column.add(picture);
@@ -2301,20 +2311,13 @@ final class VideoScene {
             column.add(soundControls);
         }
         column.add(caption);
-        column.add(facts);
-        column.add(new Label("Two pure-Java decoders (a YUV4MPEG2 reader and a generator whose "
-                + "every sample is arithmetic) and one with a trimmed FFmpeg behind a JNI shim, "
-                + "which is absent unless it has been built and says so rather than failing. No "
-                + "media file is committed here: every one of these is produced on the way in.")
-                .setMuted(true).setWrap(true));
-        if (soundAllowed && staticFrame < 0) {
-            column.add(new PlayerStatus(open));
-            column.add(new Label("The soundtrack clicks once a second and higher every fifth, and "
-                    + "the counter pattern draws the picture index, so a click landing anywhere "
-                    + "but on a multiple of thirty is audible drift, not a matter of taste. It is "
-                    + "generated sample by sample and handed over already open, the way a "
-                    + "container's audio track is; no file is written and none is committed.")
-                    .setMuted(true).setWrap(true));
+        if (details) {
+            // What the stream says of itself and how the player is keeping time: a lab's
+            // reading, which the application's page leaves to the documentation.
+            column.add(facts);
+            if (soundAllowed && staticFrame < 0) {
+                column.add(new PlayerStatus(open));
+            }
         }
         if (staticFrame >= 0) {
             column.add(new Label("Frozen on picture " + staticFrame + " (--video-frame)")
@@ -2325,7 +2328,7 @@ final class VideoScene {
 
     /** The standalone scene, for {@code --scene video}: every source, at twice the picture. */
     static Widget<?> content() {
-        return new ScrollView(tabContent(SCENE_PICTURE_WIDTH, SCENE_PICTURE_HEIGHT, SOURCES));
+        return new ScrollView(tabContent(SCENE_PICTURE_WIDTH, SCENE_PICTURE_HEIGHT, SOURCES, true));
     }
 
     /** Opens {@code entry} and plays it from its first picture. */

@@ -184,8 +184,7 @@ final class BidiScene {
         page.gap(12).crossAlignment(Flex.CrossAlignment.START);
         page.add(new Label("Bidi and complex scripts").setRole(Label.Role.TITLE));
         page.add(new SizedBox(SPECIMEN_COLUMN + COLUMN_GAP + PARAGRAPH_COLUMN, SizedBox.UNSET,
-                new Label("A shaper chooses the glyphs and java.text.Bidi puts them in order. "
-                        + "The layout is not mirrored: right-to-left text, left-to-right screen.")
+                new Label("Right-to-left text, shaped and ordered, in a left-to-right screen.")
                         .setMuted(true).setWrap(true)));
 
         Row columns = new Row();

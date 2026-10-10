@@ -44,11 +44,7 @@ final class ColorPickerScene {
         Column col = new Column();
         col.gap(14).crossAlignment(Flex.CrossAlignment.STRETCH);
         col.add(new Label("Colour picker").setFont(theme.title()).setStrong(true));
-        col.add(new Label("Saturation/value field, hue ramp, a before/after swatch, a hex "
-                + "field, and one line per channel in RGB, HSV or CMYK (letter, rail, "
-                + "number), with alpha as one more line when the mode offers it. Drag the "
-                + "field, the ramp or any rail; arrows nudge the stepper beside it, "
-                + "Shift+arrow by ten.").setMuted(true).setWrap(true));
+        col.add(new Label("Drag the field, the ramp or a rail; the arrows nudge.").setMuted(true).setWrap(true));
 
         ColorPicker inline = new ColorPicker();
         inline.setInitialColor(Color.rgb(0x3B82F6));
@@ -62,11 +58,7 @@ final class ColorPickerScene {
 
         col.add(new Label("In a dialog, opened from a swatch: ColorPickerButton")
                 .setStrong(true));
-        col.add(new Label("One widget: the chip is the value, clicking it raises the picker "
-                + "over the button, and the answer comes back through onChange, including "
-                + "the one Cancel puts back, so the caller never has to remember what the "
-                + "colour was. This one runs with alpha off, which is the right mode "
-                + "whenever the thing being coloured cannot be translucent.")
+        col.add(new Label("A button that opens the picker over itself.")
                 .setMuted(true).setWrap(true));
         col.add(swatchRow());
         return col;

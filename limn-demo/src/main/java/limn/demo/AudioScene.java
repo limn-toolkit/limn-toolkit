@@ -58,8 +58,7 @@ final class AudioScene {
         AudioClip boom = AudioClip.tone(160f, 0.25f, 0.6f);
 
         column.add(heading("Effects: pitch + pan (PlayOptions)"));
-        column.add(new Label("Every press plays the SAME clip: withPitch(random) "
-                + "de-repetifies it, the slider pans it left/right (mono clips).")
+        column.add(new Label("Each press plays the same clip at another pitch; the slider pans it.")
                 .setMuted(true).setWrap(true));
         Slider pan = new Slider(-100, 100).setValue(0);
         // Pan is physical space, not reading order: -100 is the LEFT speaker in any language,
@@ -83,17 +82,14 @@ final class AudioScene {
         column.add(sfxRow);
 
         column.add(heading("Mixer buses (live)"));
-        column.add(new Label("The options-screen model: master × bus × play gains, "
-                + "applied live to everything already sounding. Drag while the music plays.")
+        column.add(new Label("Master, music and effects volumes, applied live.")
                 .setMuted(true).setWrap(true));
         column.add(mixerRow("Master", value -> Sounds.setMasterGain(value)));
         column.add(mixerRow("Music", value -> Sounds.setBusGain(AudioBus.MUSIC, value)));
         column.add(mixerRow("Effects", value -> Sounds.setBusGain(AudioBus.SFX, value)));
 
         column.add(heading("Streamed music + priority"));
-        column.add(new Label("The track is a generated WAV streamed from disk (decoded "
-                + "incrementally, no whole-clip on the heap) on the MUSIC bus at HIGH "
-                + "priority: \"Burst 30 blips\" floods every voice, the music survives.")
+        column.add(new Label("Music streamed from disk; the burst floods every voice and the music survives.")
                 .setMuted(true).setWrap(true));
         MusicPanel music = new MusicPanel();
         column.add(music);
@@ -108,9 +104,7 @@ final class AudioScene {
         column.add(burst);
 
         column.add(heading("Positional 3D"));
-        column.add(new Label("Click/drag to place a looping emitter around the listener "
-                + "(the center dot, facing up-screen): left/right and distance are audible. "
-                + "Click the center to stop.").setMuted(true).setWrap(true));
+        column.add(new Label("Click or drag to place a looping sound around the listener; click the centre to stop.").setMuted(true).setWrap(true));
         column.add(new PositionalPad());
 
         return new ScrollView(column);

@@ -169,20 +169,19 @@ FFmpeg: libavcodec, libavformat, libavutil, libswresample
 Sample media (media/)
 --------------------------------------------------------------------------------
 
-Big Buck Bunny: three ten-second H.264 excerpts
+Big Buck Bunny: a ten-second excerpt, H.264 picture and AAC sound
   (c) copyright 2008, Blender Foundation
   https://peach.blender.org/ and https://www.bigbuckbunny.org/
   Creative Commons Attribution 3.0 Unported:
   https://creativecommons.org/licenses/by/3.0/
-  Full text in media/LICENSE-CC-BY-3.0.txt. The 360p excerpt and that text also
+  Full text in media/LICENSE-CC-BY-3.0.txt. The excerpt and that text also
   travel inside the limn-demo jar (limn/demo/media/), so the program that plays
   it from its coordinate carries its attribution with it.
 
-  Redistributed unmodified. The excerpts were transcoded from the original by
-  https://test-videos.co.uk/bigbuckbunny/mp4-h264, which publishes them on the
-  same terms; provenance and the digest of each file are in media/README.md.
+  Cut from the Blender Foundation's own 640x360 file, ten seconds of it, with
+  nothing encoded again; provenance and the digest are in media/README.md.
 
-  They exist because the FFmpeg build this project ships carries no H.264
+  It exists because the FFmpeg build this project ships carries no H.264
   encoder and never will (that encoder is x264, which is GPL), so a clip
   exercising the decoder cannot be produced by this project.
 

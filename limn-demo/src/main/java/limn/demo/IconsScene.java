@@ -150,10 +150,7 @@ final class IconsScene {
 
         Label heading = new Label("Tabler icons: the whole pack, virtualized")
                 .setRole(Label.Role.TITLE);
-        Label blurb = new Label("Every icon of an opt-in module that nothing else depends on. "
-                + "The list mounts only the rows on screen, so scrolling the catalogue rasterizes "
-                + "what you can see and no more. Names are checked by the compiler through one "
-                + "enum per upstream category; this row is TablerSystem.SEARCH.")
+        Label blurb = new Label("Search the icon set; only the rows in view are drawn.")
                 .setWrap(true).setMuted(true);
 
         // A compiled-in constant beside the searchable names, which is the point of the enums:

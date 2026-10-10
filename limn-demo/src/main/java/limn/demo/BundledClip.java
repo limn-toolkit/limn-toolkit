@@ -8,7 +8,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
- * The ten-second Big Buck Bunny excerpt this jar carries, as a file a decoder can open.
+ * The ten-second Big Buck Bunny excerpt this jar carries, picture and sound, as a file a decoder
+ * can open.
  *
  * <p>The build copies it out of the repository's {@code media/} into {@code limn/demo/media/}, with
  * its licence beside it, because the shipping FFmpeg payload has no H.264 <em>encoder</em> (every
@@ -27,7 +28,7 @@ import java.nio.file.Path;
 public final class BundledClip {
 
     /** The resource the build writes; see {@code limn-demo/build.gradle.kts}. */
-    public static final String RESOURCE = "/limn/demo/media/Big_Buck_Bunny_360_10s_1MB.mp4";
+    public static final String RESOURCE = "/limn/demo/media/Big_Buck_Bunny_640x360_10s.mp4";
 
     private static Path unpacked;
 
