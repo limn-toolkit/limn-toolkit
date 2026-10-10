@@ -41,7 +41,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="media/readme/showcase-app-dark.webp">
-    <img src="media/readme/showcase-app-light.webp" alt="تطبيق من Limn: شريط قوائم وتنقل وجدول طلبات ونموذج ومنتقي سمات" width="900">
+    <img src="media/readme/showcase-app-light.webp" alt="تطبيق من Limn: شريط قوائم وتنقل وجدول طلبات ومنتقي سمات" width="900">
   </picture>
 </p>
 

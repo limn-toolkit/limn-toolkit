@@ -39,7 +39,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="media/readme/showcase-app-dark.webp">
-    <img src="media/readme/showcase-app-light.webp" alt="Приложение на Limn: строка меню, навигация, таблица заказов, форма и выбор темы" width="900">
+    <img src="media/readme/showcase-app-light.webp" alt="Приложение на Limn: строка меню, навигация, таблица заказов и выбор темы" width="900">
   </picture>
 </p>
 

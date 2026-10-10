@@ -205,7 +205,7 @@ export const de: Catalog = {
     "Keine Ausschnitte und keine Mock-ups. Jedes davon ist ein Fenster, das das Toolkit gerendert hat, während diese Website gebaut wurde.",
   "showcase.app.heading": "Die Demo-Anwendung",
   "showcase.app.body":
-    "Ein Bestellbildschirm — eine Tabelle, die sortiert und filtert, neben dem Formular der ausgewählten Bestellung — und an der Seite jede Komponente nach Kategorie. Die vier Auswahlfelder oben wechseln Sprache, Richtung, Größe und Design des ganzen Fensters.",
+    "Ein Bestellbildschirm — eine Tabelle, die sortiert und filtert, jede Bestellung in einem Bereich geöffnet, der daneben hereingleitet — und an der Seite jede Komponente nach Kategorie. Die vier Auswahlfelder oben wechseln Sprache, Richtung, Größe und Design des ganzen Fensters.",
   "showcase.forms.heading": "Ein Formular",
   "showcase.forms.body":
     "Beschriftungen, ein validiertes Feld, eine Auswahl, ein Schalter und die Aktionszeile: das ausgearbeitete Beispiel aus der Formular-Anleitung.",

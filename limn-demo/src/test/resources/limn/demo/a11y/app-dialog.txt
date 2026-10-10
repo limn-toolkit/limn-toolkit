@@ -62,105 +62,117 @@
  61       button "Clear" [disabled]
  62     combo box "Status" (explicit) [disabled, expandable, has-popup, read-only] value=0 [0..5 step 1] "None selected" read-only collapsed
  63     button "New order" [disabled, offscreen]
- 64     split pane "Order" (explicit) [disabled]
- 65       table "Orders" (explicit) [disabled] selection=single scroll v=0% view 25% h=0% view 65% table 48x4
- 66         group "" [disabled]
- 67           column header "Order" desc "Sorted descending" [disabled] cell header,0 sort descending
- 68           column header "Customer" [disabled] cell header,1
- 69           column header "Status" [disabled] cell header,2
- 70           column header "Total" [disabled, offscreen] cell header,3
- 71         row "#1089 Kestrel Outdoor Overdue $4,099.75" [disabled, selectable, selected] item 1 of 48 selected
- 72           cell "#1089" [disabled] cell 0,0
- 73           cell "Kestrel Outdoor" [disabled] cell 0,1
- 74           cell "Overdue" [disabled] cell 0,2
- 75           cell "$4,099.75" [disabled, offscreen] cell 0,3
- 76         row "#1088 Corvid Print Shipped $3,122.50" [disabled, selectable] item 2 of 48 unselected
- 77           cell "#1088" [disabled] cell 1,0
- 78           cell "Corvid Print" [disabled] cell 1,1
- 79           cell "Shipped" [disabled] cell 1,2
- 80           cell "$3,122.50" [disabled, offscreen] cell 1,3
- 81         row "#1087 Aurum Jewellers Cancelled $2,145.25" [disabled, selectable] item 3 of 48 unselected
- 82           cell "#1087" [disabled] cell 2,0
- 83           cell "Aurum Jewellers" [disabled] cell 2,1
- 84           cell "Cancelled" [disabled] cell 2,2
- 85           cell "$2,145.25" [disabled, offscreen] cell 2,3
- 86         row "#1086 Tessera Tiles Shipped $1,168.00" [disabled, selectable] item 4 of 48 unselected
- 87           cell "#1086" [disabled] cell 3,0
- 88           cell "Tessera Tiles" [disabled] cell 3,1
- 89           cell "Shipped" [disabled] cell 3,2
- 90           cell "$1,168.00" [disabled, offscreen] cell 3,3
- 91         row "#1085 Zephyr Air Cancelled $191.75" [disabled, selectable] item 5 of 48 unselected
- 92           cell "#1085" [disabled] cell 4,0
- 93           cell "Zephyr Air" [disabled] cell 4,1
- 94           cell "Cancelled" [disabled] cell 4,2
- 95           cell "$191.75" [disabled, offscreen] cell 4,3
- 96         row "#1084 Vantage Cycles Paid $3,414.50" [disabled, selectable] item 6 of 48 unselected
- 97           cell "#1084" [disabled] cell 5,0
- 98           cell "Vantage Cycles" [disabled] cell 5,1
- 99           cell "Paid" [disabled] cell 5,2
-100           cell "$3,414.50" [disabled, offscreen] cell 5,3
-101         row "#1083 Halcyon Foods Open $2,437.25" [disabled, selectable] item 7 of 48 unselected
-102           cell "#1083" [disabled] cell 6,0
-103           cell "Halcyon Foods" [disabled] cell 6,1
-104           cell "Open" [disabled] cell 6,2
-105           cell "$2,437.25" [disabled, offscreen] cell 6,3
-106         row "#1082 Sable Paper Overdue $1,460.00" [disabled, selectable] item 8 of 48 unselected
-107           cell "#1082" [disabled] cell 7,0
-108           cell "Sable Paper" [disabled] cell 7,1
-109           cell "Overdue" [disabled] cell 7,2
-110           cell "$1,460.00" [disabled, offscreen] cell 7,3
-111         row "#1081 Lumen Optics Open $483.75" [disabled, selectable] item 9 of 48 unselected
-112           cell "#1081" [disabled] cell 8,0
-113           cell "Lumen Optics" [disabled] cell 8,1
-114           cell "Open" [disabled] cell 8,2
-115           cell "$483.75" [disabled, offscreen] cell 8,3
-116         row "#1080 Quill Stationery Overdue $3,706.50" [disabled, selectable] item 10 of 48 unselected
-117           cell "#1080" [disabled] cell 9,0
-118           cell "Quill Stationery" [disabled] cell 9,1
-119           cell "Overdue" [disabled] cell 9,2
-120           cell "$3,706.50" [disabled, offscreen] cell 9,3
-121         row "#1079 Orrery Instruments Shipped $2,729.25" [disabled, selectable] item 11 of 48 unselected
-122           cell "#1079" [disabled] cell 10,0
-123           cell "Orrery Instruments" [disabled] cell 10,1
-124           cell "Shipped" [disabled] cell 10,2
-125           cell "$2,729.25" [disabled, offscreen] cell 10,3
-126         row "#1078 Meridian Logistics Cancelled $1,752.00" [disabled, selectable] item 12 of 48 unselected
-127           cell "#1078" [disabled] cell 11,0
-128           cell "Meridian Logistics" [disabled] cell 11,1
-129           cell "Cancelled" [disabled] cell 11,2
-130           cell "$1,752.00" [disabled, offscreen] cell 11,3
-131         group "" [disabled]
-132           cell "48" [disabled] cell footer,0
-133           cell "$106,914.00" [disabled, offscreen] cell footer,3
-134         scroll bar "" [disabled, vertical] value=0 [0..1152 step 384]
-135         scroll bar "" [disabled, horizontal] value=0 [0..172 step 320]
-136       splitter "Divider" [disabled, horizontal] value=320 [320..320 step 10]
-137       scroll pane "" [disabled] scroll none
-138         label "Order #1089" [disabled]
-139         separator "" [disabled, horizontal]
-140         label "Customer" [disabled] | label for #141 "Customer"
-141         text field "Customer" (label) [disabled, editable] text="Kestrel Outdoor" caret=15 | labelled by #140 "Customer"
-142         label "Status" [disabled] | label for #143 "Status"
-143         combo box "Status" (label) [disabled, expandable, has-popup] value=3 [0..4 step 1] "Overdue" collapsed | labelled by #142 "Status"
-144         label "Placed" [disabled] | label for #145 "Placed"
-145         group "Placed" (label) [disabled, expandable, has-popup] collapsed | labelled by #144 "Placed"
-146           spin button "Month" [disabled] value=10 [1..12 step 1] "10"
-147           spin button "Day" [disabled] value=10 [1..31 step 1] "10"
-148           spin button "Year" [disabled] value=2026 [1..9999 step 1] "2026"
-149         button "Open calendar" [disabled]
-150         label "Due" [disabled] | label for #151 "Due"
-151         group "Due" (label) [disabled, expandable, has-popup] collapsed | labelled by #150 "Due"
-152           spin button "Month" [disabled] value=11 [1..12 step 1] "11"
-153           spin button "Day" [disabled] value=9 [1..30 step 1] "9"
-154           spin button "Year" [disabled] value=2026 [1..9999 step 1] "2026"
-155         button "Open calendar" [disabled]
-156         label "Notes" [disabled] | label for #157 "Notes"
-157         text area "Notes" (label) [disabled, editable, multi-line] text="" caret=0 scroll none | labelled by #156 "Notes"
-158         button "Revert" [disabled]
-159         button "Save" [disabled]
-160   label "Ready." [disabled]
-161   progress bar "Loading…" (explicit) [disabled, hidden, offscreen, read-only, horizontal] value=0 [0..100] read-only
-162   group "Performance" (explicit) [disabled, hidden, offscreen]
+ 64     table "Orders" (explicit) [disabled] selection=single scroll v=0% view 19% h=0% view 77% table 48x6
+ 65       group "" [disabled]
+ 66         column header "Order" [disabled] cell header,0
+ 67         column header "Customer" [disabled] cell header,1
+ 68         column header "Placed" desc "Sorted descending" [disabled] cell header,2 sort descending
+ 69         column header "Status" [disabled] cell header,3
+ 70         column header "Total" [disabled] cell header,4
+ 71         column header "" [disabled, offscreen] cell header,5
+ 72       row "#1089 Kestrel Outdoor 10/10/26 Overdue $4,099.75" [disabled, selectable, selected] item 1 of 48 selected
+ 73         cell "#1089" [disabled] cell 0,0
+ 74         cell "Kestrel Outdoor" [disabled] cell 0,1
+ 75         cell "10/10/26" [disabled] cell 0,2
+ 76         cell "Overdue" [disabled] cell 0,3
+ 77         cell "$4,099.75" [disabled] cell 0,4
+ 78         button "Order #1089" (explicit) [disabled, offscreen] cell 0,5
+ 79       row "#1088 Corvid Print 10/9/26 Shipped $3,122.50" [disabled, selectable] item 2 of 48 unselected
+ 80         cell "#1088" [disabled] cell 1,0
+ 81         cell "Corvid Print" [disabled] cell 1,1
+ 82         cell "10/9/26" [disabled] cell 1,2
+ 83         cell "Shipped" [disabled] cell 1,3
+ 84         cell "$3,122.50" [disabled] cell 1,4
+ 85         button "Order #1088" (explicit) [disabled, offscreen] cell 1,5
+ 86       row "#1087 Aurum Jewellers 10/8/26 Cancelled $2,145.25" [disabled, selectable] item 3 of 48 unselected
+ 87         cell "#1087" [disabled] cell 2,0
+ 88         cell "Aurum Jewellers" [disabled] cell 2,1
+ 89         cell "10/8/26" [disabled] cell 2,2
+ 90         cell "Cancelled" [disabled] cell 2,3
+ 91         cell "$2,145.25" [disabled] cell 2,4
+ 92         button "Order #1087" (explicit) [disabled, offscreen] cell 2,5
+ 93       row "#1086 Tessera Tiles 10/7/26 Shipped $1,168.00" [disabled, selectable] item 4 of 48 unselected
+ 94         cell "#1086" [disabled] cell 3,0
+ 95         cell "Tessera Tiles" [disabled] cell 3,1
+ 96         cell "10/7/26" [disabled] cell 3,2
+ 97         cell "Shipped" [disabled] cell 3,3
+ 98         cell "$1,168.00" [disabled] cell 3,4
+ 99         button "Order #1086" (explicit) [disabled, offscreen] cell 3,5
+100       row "#1084 Vantage Cycles 10/6/26 Paid $3,414.50" [disabled, selectable] item 5 of 48 unselected
+101         cell "#1084" [disabled] cell 4,0
+102         cell "Vantage Cycles" [disabled] cell 4,1
+103         cell "10/6/26" [disabled] cell 4,2
+104         cell "Paid" [disabled] cell 4,3
+105         cell "$3,414.50" [disabled] cell 4,4
+106         button "Order #1084" (explicit) [disabled, offscreen] cell 4,5
+107       row "#1085 Zephyr Air 10/6/26 Cancelled $191.75" [disabled, selectable] item 6 of 48 unselected
+108         cell "#1085" [disabled] cell 5,0
+109         cell "Zephyr Air" [disabled] cell 5,1
+110         cell "10/6/26" [disabled] cell 5,2
+111         cell "Cancelled" [disabled] cell 5,3
+112         cell "$191.75" [disabled] cell 5,4
+113         button "Order #1085" (explicit) [disabled, offscreen] cell 5,5
+114       row "#1083 Halcyon Foods 10/5/26 Open $2,437.25" [disabled, selectable] item 7 of 48 unselected
+115         cell "#1083" [disabled] cell 6,0
+116         cell "Halcyon Foods" [disabled] cell 6,1
+117         cell "10/5/26" [disabled] cell 6,2
+118         cell "Open" [disabled] cell 6,3
+119         cell "$2,437.25" [disabled] cell 6,4
+120         button "Order #1083" (explicit) [disabled, offscreen] cell 6,5
+121       row "#1082 Sable Paper 10/4/26 Overdue $1,460.00" [disabled, selectable] item 8 of 48 unselected
+122         cell "#1082" [disabled] cell 7,0
+123         cell "Sable Paper" [disabled] cell 7,1
+124         cell "10/4/26" [disabled] cell 7,2
+125         cell "Overdue" [disabled] cell 7,3
+126         cell "$1,460.00" [disabled] cell 7,4
+127         button "Order #1082" (explicit) [disabled, offscreen] cell 7,5
+128       row "#1081 Lumen Optics 10/3/26 Open $483.75" [disabled, selectable] item 9 of 48 unselected
+129         cell "#1081" [disabled] cell 8,0
+130         cell "Lumen Optics" [disabled] cell 8,1
+131         cell "10/3/26" [disabled] cell 8,2
+132         cell "Open" [disabled] cell 8,3
+133         cell "$483.75" [disabled] cell 8,4
+134         button "Order #1081" (explicit) [disabled, offscreen] cell 8,5
+135       row "#1080 Quill Stationery 10/2/26 Overdue $3,706.50" [disabled, selectable] item 10 of 48 unselected
+136         cell "#1080" [disabled] cell 9,0
+137         cell "Quill Stationery" [disabled] cell 9,1
+138         cell "10/2/26" [disabled] cell 9,2
+139         cell "Overdue" [disabled] cell 9,3
+140         cell "$3,706.50" [disabled] cell 9,4
+141         button "Order #1080" (explicit) [disabled, offscreen] cell 9,5
+142       group "" [disabled]
+143         cell "48" [disabled] cell footer,0
+144         cell "$106,914.00" [disabled] cell footer,4
+145       scroll bar "" [disabled, vertical] value=0 [0..1632 step 384]
+146       scroll bar "" [disabled, horizontal] value=0 [0..161 step 539]
+147     scroll pane "" [disabled, hidden, offscreen] scroll none
+148       label "Order #1089" [disabled, hidden, offscreen]
+149       button "Close" (explicit) desc "Close" [disabled, hidden, offscreen]
+150       separator "" [disabled, hidden, offscreen, horizontal]
+151       label "Customer" [disabled, hidden, offscreen] | label for #152 "Customer"
+152       text field "Customer" (label) [disabled, hidden, offscreen, editable] text="Kestrel Outdoor" caret=15 | labelled by #151 "Customer"
+153       label "Status" [disabled, hidden, offscreen] | label for #154 "Status"
+154       combo box "Status" (label) [disabled, hidden, offscreen, expandable, has-popup] value=3 [0..4 step 1] "Overdue" collapsed | labelled by #153 "Status"
+155       label "Placed" [disabled, hidden, offscreen] | label for #156 "Placed"
+156       group "Placed" (label) [disabled, hidden, offscreen, expandable, has-popup] collapsed | labelled by #155 "Placed"
+157         spin button "Month" [disabled, hidden, offscreen] value=10 [1..12 step 1] "10"
+158         spin button "Day" [disabled, hidden, offscreen] value=10 [1..31 step 1] "10"
+159         spin button "Year" [disabled, hidden, offscreen] value=2026 [1..9999 step 1] "2026"
+160       button "Open calendar" [disabled, hidden, offscreen]
+161       label "Due" [disabled, hidden, offscreen] | label for #162 "Due"
+162       group "Due" (label) [disabled, hidden, offscreen, expandable, has-popup] collapsed | labelled by #161 "Due"
+163         spin button "Month" [disabled, hidden, offscreen] value=11 [1..12 step 1] "11"
+164         spin button "Day" [disabled, hidden, offscreen] value=9 [1..30 step 1] "9"
+165         spin button "Year" [disabled, hidden, offscreen] value=2026 [1..9999 step 1] "2026"
+166       button "Open calendar" [disabled, hidden, offscreen]
+167       label "Notes" [disabled, hidden, offscreen] | label for #168 "Notes"
+168       text area "Notes" (label) [disabled, hidden, offscreen, editable, multi-line] text="" caret=0 scroll v=0% view 0% | labelled by #167 "Notes"
+169         scroll bar "" [disabled, hidden, offscreen, vertical] value=0 [0..12]
+170       button "Revert" [disabled, hidden, offscreen]
+171       button "Save" [disabled, hidden, offscreen]
+172   label "Ready." [disabled]
+173   progress bar "Loading…" (explicit) [disabled, hidden, offscreen, read-only, horizontal] value=0 [0..100] read-only
+174   group "Performance" (explicit) [disabled, hidden, offscreen]
 == window "New order" (modal) ==
 1 window "New order" (explicit) [active] window modal normal
 2   dialog "New order" actions: cancel | popup for #? (not in this tree)

@@ -203,7 +203,7 @@ export const ptBR: Catalog = {
     "Não são recortes nem mock-ups. Cada uma delas é uma janela que o toolkit renderizou enquanto este site era construído.",
   "showcase.app.heading": "A aplicação de demonstração",
   "showcase.app.body":
-    "Uma tela de pedidos — uma tabela que ordena e filtra ao lado do formulário do pedido selecionado — e, na lateral, todos os componentes por categoria. Os quatro seletores no topo trocam idioma, direção, tamanho e tema da janela inteira.",
+    "Uma tela de pedidos — uma tabela que ordena e filtra, cada pedido aberto num painel que desliza ao lado dela — e, na lateral, todos os componentes por categoria. Os quatro seletores no topo trocam idioma, direção, tamanho e tema da janela inteira.",
   "showcase.forms.heading": "Um formulário",
   "showcase.forms.body":
     "Rótulos, um campo validado, uma escolha, um switch e a linha de ações: o exemplo completo do guia de formulários.",
