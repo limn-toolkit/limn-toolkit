@@ -169,7 +169,27 @@ surface does not darken itself.
    `OVERLAY`; the card of a dialog in the scene casts `MODAL`'s, fading in with it. Each counts
    the shadow's reach in what its repaints damage, the tooltip's being the scene's to count
    since the scene paints it. In a window of their own they draw none: that shadow is step 3.
-3. **The popup windows**, measured on the four systems before it is decided how.
+3. **The popup windows**, measured before it is decided how. Read on 2026-10-10 from a picture
+   of each guest's screen with the demo's size list open as a window of its own
+   (`-Dlimn.demo.popup=true`):
+
+   | system | around a popup window of ours |
+   |---|---|
+   | macOS 27 | the system's shadow, soft and whole |
+   | Ubuntu 24.04, GNOME, X11 | nothing: the list's own outline on the page |
+   | Fedora 44, KDE, Wayland | nothing seen; the picture came out dimmed and is to be retaken |
+   | Windows 11 | not measured: the guest did not come up |
+
+   So the compositor's shadow, which §2.5 meant to keep, exists on one system of the three
+   read. Decided from that: where the compositor casts one (macOS) the toolkit draws none, or
+   there would be two; elsewhere the popup's window is made larger than its panel by the
+   shadow's reach on every side, the panel is laid out inset in it and the shadow drawn in the
+   margin, which is transparent. A backend says which case it is. A press in the margin closes
+   the popup, as a press outside it does, and is not passed to what is under it: no system
+   lets a client pass part of a window's presses on without a call of its own per system, and a
+   press beside an open list has always been one that closes it. To build: one frame widget
+   shared by the three that open such windows (combo box, date picker, menu), and the margin
+   in each one's size and position, including where a list is resized as it is filtered.
 4. **The theme editor**: a preview by level and the five numbers of each.
 
 Seen on the demo's panel (macOS guest, light and dark): the shadow is there and soft, and
