@@ -84,6 +84,12 @@ public final class WaylandClipboard implements NativeClipboard {
     private static final boolean TRACE = Boolean.getBoolean("limn.drag.trace");
     private static final int ACTION_COPY = 1;
     private static final int ACTION_MOVE = 2;
+    /** What the UI thread last answered a drag over a window of ours, for the trace alone. */
+    private limn.transfer.@org.jspecify.annotations.Nullable DropAction lastAnswered;
+    /** For how long the files the window library read of a drop stand for that drop's files. */
+    private static final long FILES_ELSEWHERE_NANOS = 5_000_000_000L;
+    private volatile @org.jspecify.annotations.Nullable List<java.nio.file.Path> filesReadElsewhere;
+    private volatile long filesReadElsewhereAt;
     private long compositor;
     private long shm;
     /** The serial of the last button pressed: what the compositor asks a drag to begin with. */
@@ -351,6 +357,11 @@ public final class WaylandClipboard implements NativeClipboard {
         over.ui.post(() -> {
             limn.backend.spi.WindowInput in = over.input.get();
             limn.transfer.DropAction action = in == null ? null : in.dragOver(data, allowed, x, y);
+            if (TRACE && action != lastAnswered) {
+                System.err.println("limn.drag(wayland): answers " + action + " at " + x + "," + y
+                        + ", the source allowing " + allowed);
+            }
+            lastAnswered = action;
             synchronized (lock) {
                 if (offer != dragOffer || dragDropped || closing) {
                     return;
@@ -422,6 +433,10 @@ public final class WaylandClipboard implements NativeClipboard {
             over = dragOver;
             data = dragData;
             offer = dragOffer;
+            if (TRACE) {
+                System.err.println("limn.drag(wayland): drop, " + (over == null ? "over no window of ours"
+                        : data == null || offer == NULL ? "with nothing offered" : "taken=" + dragTaken));
+            }
             if (over == null || data == null || offer == NULL) {
                 return;
             }
@@ -434,6 +449,9 @@ public final class WaylandClipboard implements NativeClipboard {
         over.ui.post(() -> {
             limn.backend.spi.WindowInput in = over.input.get();
             limn.transfer.DropAction done = in == null ? null : in.dropped(data, allowed, x, y);
+            if (TRACE) {
+                System.err.println("limn.drag(wayland): dropped at " + x + "," + y + ", done " + done);
+            }
             synchronized (lock) {
                 dragTaken = done != null;
             }
@@ -488,8 +506,23 @@ public final class WaylandClipboard implements NativeClipboard {
                     }
                     all.write(chunk, 0, n);
                 }
-                result.complete(all.toByteArray());
+                if (TRACE && ofDrag) {
+                    System.err.println("limn.drag(wayland): read " + all.size() + " bytes of " + mime);
+                }
+                byte[] read = all.toByteArray();
+                List<java.nio.file.Path> elsewhere = filesReadElsewhere;
+                if (ofDrag && read.length == 0 && ClipboardTypes.FILES.equals(type) && elsewhere != null
+                        && System.nanoTime() - filesReadElsewhereAt < FILES_ELSEWHERE_NANOS) {
+                    // The window library has a data device of its own on this connection and reads
+                    // the files of a drop itself; once it has let go of its offer the source
+                    // gives this one nothing. What it read is what was dropped.
+                    read = UriLists.encode(elsewhere);
+                }
+                result.complete(read);
             } catch (IOException failed) {
+                if (TRACE && ofDrag) {
+                    System.err.println("limn.drag(wayland): " + mime + " could not be read: " + failed);
+                }
                 result.completeExceptionally(new TransferGoneException(type + " could not be read", failed));
             } finally {
                 wl.close(readEnd);
@@ -504,6 +537,18 @@ public final class WaylandClipboard implements NativeClipboard {
     }
 
     // ---- a drag of ours ----------------------------------------------------------------------------
+
+    /**
+     * The files the window library read of a drop on one of this program's windows. It keeps a
+     * data device of its own and takes a drop of files itself, after which the source gives the
+     * offer made to this one nothing: these are then what a read of that drop's files answers.
+     *
+     * @param files the files it read
+     */
+    public void filesOfADrop(List<java.nio.file.Path> files) {
+        filesReadElsewhereAt = System.nanoTime();
+        filesReadElsewhere = List.copyOf(files);
+    }
 
     /**
      * Makes a window a source and a destination of the system's drags. UI thread.

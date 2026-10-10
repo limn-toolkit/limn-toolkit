@@ -511,9 +511,10 @@ final class LwjglWindow implements WindowPeer {
         }
         if (backend.nativeClipboard() instanceof limn.backend.lwjgl.transfer.X11Clipboard x11) {
             // The system's drag and drop on X11, spoken on the clipboard's connection.
+            x11Drag = true;
             linuxDrag = x11.drags(backend.uiRuntime()).register(
                     org.lwjgl.glfw.GLFWNativeX11.glfwGetX11Window(handle),
-                    () -> inputBlocked() ? null : input, this::toLogical);
+                    () -> inputBlocked() ? null : input, this::toLogical, this::reapplyCursor);
         }
         if (MACOS) {
             long view = org.lwjgl.glfw.GLFWNativeCocoa.glfwGetCocoaView(handle);
@@ -595,9 +596,26 @@ final class LwjglWindow implements WindowPeer {
             }
         });
         glfwSetDropCallback(handle, (win, count, names) -> {
+            if (Boolean.getBoolean("limn.drag.trace")) {
+                System.err.println("limn.drag(glfw): its own drop of " + count + " file(s)");
+            }
+            if (backend.nativeClipboard() instanceof limn.backend.lwjgl.transfer.WaylandClipboard wayland) {
+                // On Wayland GLFW reads a drop's files from an offer of its own, and the offer
+                // made to the clipboard's device then reads empty: it is told what GLFW read.
+                java.util.List<java.nio.file.Path> read = new java.util.ArrayList<>(count);
+                for (int i = 0; i < count; i++) {
+                    read.add(java.nio.file.Path.of(GLFWDropCallback.getName(names, i)));
+                }
+                wayland.filesOfADrop(read);
+            }
             // Where this backend answers the system's drags itself, files arrive as any other
-            // drop does, and GLFW's own word of the same drop would be a second one.
-            if (input != null && !inputBlocked() && linuxDrag == null && windowsDrag == null && macDrag == null) {
+            // drop does, and GLFW's own word of the same drop would be a second one. Except on
+            // X11, where GLFW hears of a drop only when the source went round the proxy this
+            // window names: one that honours it never tells GLFW, and one that does not (GTK 4
+            // talks to the window itself from its second message on) tells nobody else, so its
+            // files are taken from GLFW or not at all.
+            if (input != null && !inputBlocked() && windowsDrag == null && macDrag == null
+                    && (linuxDrag == null || x11Drag)) {
                 java.util.List<java.nio.file.Path> paths = new java.util.ArrayList<>(count);
                 for (int i = 0; i < count; i++) {
                     paths.add(java.nio.file.Path.of(GLFWDropCallback.getName(names, i)));
@@ -1402,6 +1420,13 @@ final class LwjglWindow implements WindowPeer {
     // Active custom cursor; while set it overrides the standard shape, which
     // stays recorded in 'cursor' and is restored when the image clears.
     private limn.backend.ImageCursor imageCursor;
+
+    /** The pointer shape this window was last asked for, set again after something else changed it. */
+    private void reapplyCursor() {
+        if (!destroyed) {
+            glfwSetCursor(handle, cursor == Cursor.DEFAULT ? NULL : backend.cursorHandle(cursor));
+        }
+    }
 
     @Override
     public void setCursor(Cursor newCursor) {
@@ -2231,6 +2256,8 @@ final class LwjglWindow implements WindowPeer {
     private limn.backend.lwjgl.transfer.@org.jspecify.annotations.Nullable MacDrag macDrag;
     private limn.backend.lwjgl.transfer.@org.jspecify.annotations.Nullable WindowsDrag windowsDrag;
     private limn.backend.lwjgl.transfer.@org.jspecify.annotations.Nullable WindowDrag linuxDrag;
+    /** Whether {@link #linuxDrag} is X11's, whose proxy some sources go round. */
+    private boolean x11Drag;
 
     /** The pointer in logical points, x then y, and the content's logical height: what a drag is placed by. */
     private float[] pointerForDrag() {

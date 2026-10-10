@@ -446,3 +446,44 @@ Step 7 (2026-10-10):
   would rather move. Rows moved within their own widget are a move whatever it says.
 - **ADR 053 owes nothing more**: several files on macOS were measured on the owner's Mac
   against Finder, both ways, and Mutter is a declared limit. That record says how.
+
+After step 7, the small things left (2026-10-10, the owner: "all the small and cheap ones"),
+each measured on its guest with the drivers of step 6, scripts under `.claude/pending/2026-10-10/`:
+
+- **The focus ring of a cell under frozen columns** is clipped to the scrolling columns, in the
+  rows and in the header: it was drawn after the kept columns and unclipped.
+- **On X11 the pointer says the target's answer.** X has no drag to give a shape to, but the
+  press that began the drag grabbed the pointer for the window it began in, and while that
+  lasts the server shows that window's shape wherever the pointer goes: the shape is set on
+  that window, from the theme's own by the names the desktops use (`copy`, `move`, `link`,
+  `no-drop`), and the window's own is put back at the end. Read with no eyes, by comparing the
+  cursor on screen with the theme's named ones: move over our other list, no-drop over what
+  takes nothing, move over the peer, copy with Control held, the arrow again after the drop.
+- **The modifier keys, measured.** X11, a drag of ours out: no key a move (the list proposes
+  it), Control a copy, Shift a move, both a link, which a list does not allow, so the proposed
+  one. Wayland on KWin, out: Control a copy, Shift a move, and with no key a copy, the
+  target's preference, which is what the protocol has decide. Windows, a drag in: no key a
+  copy, Control a copy, Shift a move; out, it is the target that reads the keys.
+- **Files from a file manager, measured, and two defects found by it.**
+  Windows, from the shell's own window: taken.
+  **X11, from GNOME's file manager: nothing arrived.** Its own log (`GDK_DEBUG=dnd`) showed
+  why: GTK 4 sends the enter and the first position to the window `XdndProxy` names, and from
+  the second on speaks to the window under the pointer itself, whatever was answered (a
+  refusal, an acceptance and an acceptance of anything were each tried, one variable a run).
+  From then on it is GLFW that answers, on a connection nothing else reads, accepting
+  everything and taking only files. GTK 3 keeps to the proxy, which is why step 6, measured
+  against a GTK 3 peer, did not see it. So on X11 GLFW's own word of a drop of files is
+  listened to again: a source that honours the proxy never tells GLFW, and one that does not
+  tells nobody else. The files arrive; there is no answer while they hover, and what is not
+  a file does not arrive from such a source. A declared limit: answering it would take
+  reading GLFW's own connection.
+  **Wayland, from KDE's file manager: the drop arrived with no files in it.** GLFW keeps a
+  data device of its own on the same connection and reads a drop's files from its own offer;
+  once it lets go of that offer the source gives ours nothing, and the read came back empty
+  (0 bytes, traced). The clipboard's device is now told what GLFW read, and answers a read of
+  that drop's files with it. Text, which GLFW does not take, was never affected, which again
+  is why step 6 did not see it.
+- With `-Dlimn.drag.trace=true` the X11 and Wayland sides now say what they answer a drag
+  over a window of ours, the drop, and what was read of it.
+- Left as it is: a fractional scale's rounded picture on Wayland; Mutter.
+

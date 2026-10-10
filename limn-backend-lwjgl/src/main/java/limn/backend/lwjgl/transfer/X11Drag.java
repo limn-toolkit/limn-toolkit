@@ -113,17 +113,27 @@ public final class X11Drag {
     private long pictureColormap;
     private int pictureHoldX;
     private int pictureHoldY;
+    /** The window a drag of ours began in, whose pointer says the target's answer while it lasts. */
+    private @Nullable Entry outgoingFrom;
+    /** The pointer shape that window wears now: one of {@link #shapes}' values, or none of ours. */
+    private long shapeShown;
+    /** The theme's pointer shapes by what they say; absent where the theme, or its library, has none. */
+    private final java.util.Map<String, Long> shapes = new java.util.HashMap<>();
+    private org.lwjgl.system.@Nullable SharedLibrary xcursor;
+    private boolean xcursorTried;
 
     /** One of this program's windows, as a destination. */
     private static final class Entry {
         final long xwindow;
         final Supplier<WindowInput> input;
         final DoubleUnaryOperator toLogical;
+        final Runnable ownPointer;
 
-        Entry(long xwindow, Supplier<WindowInput> input, DoubleUnaryOperator toLogical) {
+        Entry(long xwindow, Supplier<WindowInput> input, DoubleUnaryOperator toLogical, Runnable ownPointer) {
             this.xwindow = xwindow;
             this.input = input;
             this.toLogical = toLogical;
+            this.ownPointer = ownPointer;
         }
     }
 
@@ -138,10 +148,13 @@ public final class X11Drag {
      * @param xwindow   the window's X id
      * @param input     the window's input, as it is at the time of each call; may answer null
      * @param toLogical from the server's pixels to the window's logical points
+     * @param ownPointer puts the window's own pointer shape back, on the UI thread, after a drag
+     *                   that began in it changed the shape to say what a target answered
      * @return the window's drag
      */
-    public WindowDrag register(long xwindow, Supplier<WindowInput> input, DoubleUnaryOperator toLogical) {
-        Entry entry = new Entry(xwindow, input, toLogical);
+    public WindowDrag register(long xwindow, Supplier<WindowInput> input, DoubleUnaryOperator toLogical,
+            Runnable ownPointer) {
+        Entry entry = new Entry(xwindow, input, toLogical, ownPointer);
         windows.put(xwindow, entry);
         x.post(() -> {
             prepare();
@@ -155,6 +168,7 @@ public final class X11Drag {
                 x.post(() -> {
                     begin(request, types, bytes);
                     if (outgoing == request) {
+                        outgoingFrom = entry;
                         showPicture(request, entry);
                     }
                 });
@@ -288,6 +302,7 @@ public final class X11Drag {
             List<String> spellings = incomingSpellings;
             incomingOffer = PlatformClipboard.offer(ClipboardTypes.canonical(names),
                     kind -> x.read(selection, kind, () -> spellings, incomingTime), ui);
+            tracedPositions = 0;
             if (TRACE) {
                 System.err.println("limn.drag(x11): enter from " + l0 + " types " + names);
             }
@@ -298,6 +313,11 @@ public final class X11Drag {
             int rootY = (int) l2 & 0xffff;
             Entry over = entryAt(memGetAddress(event + 32), rootX, rootY);
             Offer offer = incomingOffer;
+            if (TRACE && tracedPositions++ < 6) {
+                System.err.println("limn.drag(x11): position " + rootX + "," + rootY + " for window "
+                        + memGetAddress(event + 32) + ", " + (over == null ? "none of ours" : "ours")
+                        + (offer == null ? ", no offer" : ", formats " + offer.formats()));
+            }
             if (over == null || offer == null) {
                 send(l0, l0, status, memGetAddress(event + 32), 0, 0, 0, NULL);
                 return;
@@ -313,6 +333,11 @@ public final class X11Drag {
             ui.post(() -> {
                 WindowInput in = over.input.get();
                 DropAction action = in == null ? null : in.dragOver(offer, allowed, at[0], at[1]);
+                if (TRACE && action != lastAnswered) {
+                    System.err.println("limn.drag(x11): answers " + action + " at " + at[0] + "," + at[1]
+                            + ", the source allowing " + allowed);
+                }
+                lastAnswered = action;
                 x.post(() -> {
                     if (source == incomingSource) {
                         send(source, source, status, over.xwindow, action == null ? 0 : 3, 0, 0, atomOf(action));
@@ -329,6 +354,9 @@ public final class X11Drag {
             incomingTime = l2;
             Entry over = incomingTarget;
             Offer offer = incomingOffer;
+            if (TRACE) {
+                System.err.println("limn.drag(x11): drop message, over " + (over == null ? "none of ours" : "a window of ours"));
+            }
             if (over == null || offer == null) {
                 send(l0, l0, finished, memGetAddress(event + 32), 0, NULL, 0, 0);
                 forgetIncoming();
@@ -339,6 +367,9 @@ public final class X11Drag {
             ui.post(() -> {
                 WindowInput in = over.input.get();
                 DropAction done = in == null ? null : in.dropped(offer, allowed, at[0], at[1]);
+                if (TRACE) {
+                    System.err.println("limn.drag(x11): dropped at " + at[0] + "," + at[1] + ", done " + done);
+                }
                 x.post(() -> {
                     // Told once what was dropped has been read, or the source lets go of it first.
                     finishing = true;
@@ -361,6 +392,9 @@ public final class X11Drag {
     }
 
     private long lastIncomingAction;
+    /** What the UI thread last answered a drag over a window of ours, for the trace alone. */
+    private @Nullable DropAction lastAnswered;
+    private int tracedPositions;
 
     private static void left(Entry over) {
         WindowInput in = over.input.get();
@@ -533,6 +567,7 @@ public final class X11Drag {
             }
             return;
         }
+        showAnswer();
         long[] under = awareAt(pointer[0], pointer[1]);
         if (under[0] != target) {
             if (target != NULL) {
@@ -704,6 +739,75 @@ public final class X11Drag {
         }
     }
 
+    /**
+     * Has the pointer say what the target under it answered: a copy, a move, a link, or that it
+     * takes nothing. X has no drag to give a pointer shape to; but the press that began the drag
+     * grabbed the pointer for the window it began in, and while that lasts the server shows that
+     * window's shape wherever the pointer goes, so the shape is set on that window. The shapes
+     * are the theme's, by the names the desktops use; a theme or a machine without them leaves
+     * the window's own shape, as before.
+     */
+    private void showAnswer() {
+        Entry from = outgoingFrom;
+        if (from == null) {
+            return;
+        }
+        long shape;
+        if (target == NULL || !accepted) {
+            shape = shape("no-drop", "dnd-no-drop", "not-allowed", "dnd-none");
+        } else if (acceptedAction == actionMove) {
+            shape = shape("move", "dnd-move");
+        } else if (acceptedAction == actionLink) {
+            shape = shape("link", "alias", "dnd-link");
+        } else {
+            shape = shape("copy", "dnd-copy");
+        }
+        if (shape != NULL && shape != shapeShown) {
+            shapeShown = shape;
+            x.x("XDefineCursor", "ppp>i", x.display(), from.xwindow, shape);
+            x.x("XFlush", "p>i", x.display());
+        }
+    }
+
+    private long shape(String... names) {
+        Long known = shapes.get(names[0]);
+        if (known != null) {
+            return known;
+        }
+        if (!xcursorTried) {
+            xcursorTried = true;
+            try {
+                xcursor = org.lwjgl.system.APIUtil.apiCreateLibrary("libXcursor.so.1");
+            } catch (RuntimeException | LinkageError absent) {
+                xcursor = null;
+            }
+        }
+        long found = NULL;
+        org.lwjgl.system.SharedLibrary library = xcursor;
+        if (library != null) {
+            long load = org.lwjgl.system.APIUtil.apiGetFunctionAddress(library, "XcursorLibraryLoadCursor");
+            try (org.lwjgl.system.MemoryStack stack = org.lwjgl.system.MemoryStack.stackPush()) {
+                for (int i = 0; i < names.length && found == NULL; i++) {
+                    found = Ffi.call(load, "pp>p", x.display(), org.lwjgl.system.MemoryUtil.memAddress(stack.ASCII(names[i])));
+                }
+            }
+        }
+        shapes.put(names[0], found);
+        return found;
+    }
+
+    /** The window the drag began in wears its own pointer shape again. */
+    private void ownPointerAgain() {
+        Entry from = outgoingFrom;
+        outgoingFrom = null;
+        if (from != null && shapeShown != NULL) {
+            shapeShown = NULL;
+            x.x("XUndefineCursor", "pp>i", x.display(), from.xwindow);
+            x.x("XFlush", "p>i", x.display());
+            ui.post(from.ownPointer);
+        }
+    }
+
     private void end(@Nullable DropAction action) {
         DragRequest request = outgoing;
         outgoing = null;
@@ -711,6 +815,7 @@ public final class X11Drag {
         dropped = false;
         x.pollMillis = 250;
         hidePicture();
+        ownPointerAgain();
         if (TRACE) {
             System.err.println("limn.drag(x11): ended with " + action);
         }

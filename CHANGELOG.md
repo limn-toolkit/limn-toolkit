@@ -527,13 +527,14 @@ Maven Central say which number that was.
 
 - The clipboard and the drag on GNOME under Wayland (Mutter) are not measured yet; under
   Wayland both were measured on KWin.
-- Of a drag between programs: files dragged in from a file manager were measured on macOS
-  only, and the modifier keys that choose copy, move or link during a drag handed to the
-  system were not exercised on any. Under Wayland there is no link, the protocol having copy
-  and move only, and at a fractional scale the picture that follows the pointer is rounded to
-  a whole one. On X11 the pointer does not change shape to show a target's answer.
-- In a `Table` with frozen columns, the focus ring of a cell scrolled under them is drawn over
-  them.
+- Of a drag between programs. Under Wayland there is no link, the protocol having copy and
+  move only; with no key held it is the target's preference that decides between those two,
+  not the source's; and at a fractional scale the picture that follows the pointer is rounded
+  to a whole one. On X11 a program built on GTK 4 talks to the window itself from its second
+  message on and goes round the channel this toolkit answers drags on: its files are taken
+  all the same, at the drop and with no answer while they hover, and anything else it drags,
+  text for one, does not arrive. Programs built on GTK 3 and the other toolkits tried are
+  answered in full.
 
 - In a combo holding many, VoiceOver reads each toggle as the field's new value followed by "text
   inserted", and now and then a lone "None" around the Escape that closes an editable one's list

@@ -227,4 +227,54 @@ class TableColumnsTest extends ComponentTestBase {
         layout();
         assertEquals(List.of(people, name, state, code), table.columns());
     }
+    /** Notes, for each ring drawn, its left edge and the left edge of the clip it was drawn in. */
+    private static final class Rings extends limn.testing.NoopCanvas {
+        final java.util.ArrayDeque<Float> saved = new java.util.ArrayDeque<>();
+        final List<float[]> drawn = new ArrayList<>();
+        float clipLeft;
+
+        Rings() {
+            super(220, 300);
+        }
+
+        @Override
+        public void save() {
+            super.save();
+            saved.push(clipLeft);
+        }
+
+        @Override
+        public void restore() {
+            super.restore();
+            if (!saved.isEmpty()) {
+                clipLeft = saved.pop();
+            }
+        }
+
+        @Override
+        public void clipRect(float x, float y, float w, float h) {
+            clipLeft = Math.max(clipLeft, x);
+        }
+
+        @Override
+        public void drawRoundRect(limn.graphics.RoundRect ring, float strokeWidth, limn.graphics.Paint paint) {
+            drawn.add(new float[] {ring.x(), clipLeft});
+        }
+    }
+
+    @Test
+    void theRingOfACellScrolledUnderTheKeptColumnsIsDrawnUnderThem() {
+        build(220);
+        table.setFrozenColumns(1);
+        layout();
+        press(150, firstRowY());         // People, beside the kept Name
+        release(150, firstRowY());
+        table.scrollBy(40, 0);           // and now People starts 40 points under Name
+        layout();
+        Rings canvas = new Rings();
+        scene.renderFrame(canvas);
+        List<float[]> under = canvas.drawn.stream().filter(ring -> ring[0] < 100).toList();
+        assertEquals(1, under.size(), "the cell's ring, which begins under Name");
+        assertEquals(100f, under.get(0)[1], "and is cut where Name ends");
+    }
 }
