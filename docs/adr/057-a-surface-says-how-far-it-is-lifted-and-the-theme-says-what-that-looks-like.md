@@ -187,9 +187,20 @@ surface does not darken itself.
    margin, which is transparent. A backend says which case it is. A press in the margin closes
    the popup, as a press outside it does, and is not passed to what is under it: no system
    lets a client pass part of a window's presses on without a call of its own per system, and a
-   press beside an open list has always been one that closes it. To build: one frame widget
-   shared by the three that open such windows (combo box, date picker, menu), and the margin
-   in each one's size and position, including where a list is resized as it is filtered.
+   press beside an open list has always been one that closes it.
+
+   Built (2026-10-10): `Backend.compositorShadowsPopups()`, true by default; a frame widget of
+   `limn.components.internal` that lays a popup's panel out inset by the margin and closes the
+   popup on a press in it; and the margin in the size and the position of the windows of the
+   combo box's list (where it opens and where it is resized as it is filtered), the date
+   picker's calendar and the menu, whose one window already spanned its cascade and now spans
+   each column's shadow too. **Seen on Ubuntu under X11**: a list, a menu with its check and
+   submenu arrow, and a calendar, each with its shadow and where it was before. **Not seen
+   under Wayland**: the Fedora guest's screen was asleep and every picture of it came back
+   blank, so the backend answers for X11 only and a Wayland session keeps popups with no
+   shadow, as before. **Not seen on Windows**: the guest did not come up. A dialog that is a
+   window of its own is not part of this: it is a system window with the system's shadow where
+   it is decorated, and where it is not, it is still to do.
 4. **The theme editor**: a preview by level and the five numbers of each.
 
 Seen on the demo's panel (macOS guest, light and dark): the shadow is there and soft, and

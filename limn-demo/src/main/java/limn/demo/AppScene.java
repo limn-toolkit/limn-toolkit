@@ -421,10 +421,28 @@ final class AppScene {
             tour(scene, navigation, top);
         }
         lab(scene, navigation, top, performance);
-        if (Boolean.getBoolean("limn.demo.popup")) {
-            // The lab's: the size picker's list opened by itself, to photograph a popup window
-            // as the system's compositor shows it.
-            Ui.postDelayed(size::open, 1800);
+        String popup = System.getProperty("limn.demo.popup");
+        if (popup != null) {
+            // The lab's: a popup opened by itself, to photograph its window as the system's
+            // compositor shows it: the size picker's list, a menu with a submenu, or the calendar
+            // of the order's panel.
+            Ui.postDelayed(() -> {
+                switch (popup) {
+                    case "menu" -> new limn.components.PopupMenu(new Menu()
+                            .addItem(ShowcaseStrings.MENU_COPY, () -> { })
+                            .addItem(ShowcaseStrings.MENU_PASTE, () -> { })
+                            .addSeparator()
+                            .addCheck(ShowcaseStrings.MENU_BOLD, true, on -> { })
+                            .addSubmenu(ShowcaseStrings.MENU_EXPORT, new Menu()
+                                    .addItem("PDF", () -> { }).addItem("PNG", () -> { })))
+                            .showAt(scene, 420, 260);
+                    case "calendar" -> {
+                        orders.drawer.setOpen(true);
+                        Ui.postDelayed(orders.placedField::open, 600);
+                    }
+                    default -> size.open();
+                }
+            }, 1800);
         }
         if (Boolean.getBoolean("limn.demo.order")) {
             // The lab's: the order under the cursor opened by itself, to photograph the panel.
@@ -782,6 +800,7 @@ final class AppScene {
         private final ProgressBar busy;
         private final Runnable filter;
         private final Drawer drawer;
+        private final DatePicker placedField;
         private boolean refreshing;
 
         Orders(Label status, ProgressBar busy) {
@@ -865,6 +884,7 @@ final class AppScene {
             TextField customerField = new TextField();
             ComboBox<I18nString> statusField = ComboBox.localized(Status.labels());
             DatePicker placedField = new DatePicker();
+            this.placedField = placedField;
             DatePicker dueField = new DatePicker();
             TextArea notes = new TextArea().setSoftWrap(true);
             Button save = new Button(ShowcaseStrings.ACTION_SAVE);

@@ -713,6 +713,19 @@ public final class LwjglBackend implements BackendPeer {
         return window;
     }
 
+    /**
+     * Read from each system's screen with a list open (2026-10-10): macOS casts a shadow around
+     * such a window, and GNOME under X11 casts none, where the toolkit's own was then seen around
+     * a list, a menu and a calendar. Under Wayland and on Windows nothing has been seen yet,
+     * neither what the compositor casts nor how a window with a margin is placed, so both keep
+     * what they had: no shadow of the toolkit's.
+     */
+    @Override
+    public boolean compositorShadowsPopups() {
+        return !(limn.backend.Platform.current().isLinux()
+                && org.lwjgl.glfw.GLFW.glfwGetPlatform() == org.lwjgl.glfw.GLFW.GLFW_PLATFORM_X11);
+    }
+
     @Override
     public limn.backend.GraphicsInfo graphicsInfo() {
         uiRuntime.checkUiThread();
