@@ -525,8 +525,6 @@ Maven Central say which number that was.
 
 ### Known, and left for later
 
-- The clipboard and the drag on GNOME under Wayland (Mutter) are not measured yet; under
-  Wayland both were measured on KWin.
 - Of a drag between programs. Under Wayland there is no link, the protocol having copy and
   move only; with no key held it is the target's preference that decides between those two,
   not the source's; and at a fractional scale the picture that follows the pointer is rounded

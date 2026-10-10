@@ -485,5 +485,11 @@ each measured on its guest with the drivers of step 6, scripts under `.claude/pe
   is why step 6 did not see it.
 - With `-Dlimn.drag.trace=true` the X11 and Wayland sides now say what they answer a drag
   over a window of ours, the drop, and what was read of it.
-- Left as it is: a fractional scale's rounded picture on Wayland; Mutter.
+- **Mutter, measured** (GNOME 46 on Wayland, the Ubuntu guest in that session): a row to the
+  other list through the system's drag; a row's text out to a GTK 3 peer, a copy with no key
+  and with Control, a move with Shift, the row then leaving its list; two lines of text in
+  from the peer, which became rows; the picture out, taken as a PNG of 240 by 240 with its
+  alpha; and a file from GNOME's file manager, a GTK 4 program, which arrived. Driven through
+  Mutter's own RemoteDesktop interface, since nothing else moves a pointer there without root.
+- Left as it is: a fractional scale's rounded picture on Wayland.
 
