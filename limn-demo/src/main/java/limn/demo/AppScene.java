@@ -421,6 +421,11 @@ final class AppScene {
             tour(scene, navigation, top);
         }
         lab(scene, navigation, top, performance);
+        if (Boolean.getBoolean("limn.demo.docs")) {
+            // The lab's: the documentation asked for by itself, from this window, to see whether
+            // what the system opens comes in front of the window that asked.
+            Ui.postDelayed(() -> openDocumentation(status, "docs/", status), 3000);
+        }
         String popup = System.getProperty("limn.demo.popup");
         if (popup != null) {
             // The lab's: a popup opened by itself, to photograph its window as the system's
@@ -436,6 +441,9 @@ final class AppScene {
                             .addSubmenu(ShowcaseStrings.MENU_EXPORT, new Menu()
                                     .addItem("PDF", () -> { }).addItem("PNG", () -> { })))
                             .showAt(scene, 420, 260);
+                    case "dialog" -> new Dialog(I18nString.literal(TITLE), ShowcaseStrings.ABOUT_BLURB)
+                            .addPrimaryButton(ShowcaseStrings.ACTION_CLOSE, "close")
+                            .setCancelResult("close").show(scene);
                     case "calendar" -> {
                         orders.drawer.setOpen(true);
                         Ui.postDelayed(orders.placedField::open, 600);
@@ -447,6 +455,12 @@ final class AppScene {
         if (Boolean.getBoolean("limn.demo.order")) {
             // The lab's: the order under the cursor opened by itself, to photograph the panel.
             Ui.postDelayed(() -> orders.drawer.setOpen(true), 1800);
+            if (Boolean.getBoolean("limn.demo.order.trace")) {
+                // And closed and opened again: the first slide also lays the form out for the
+                // first time, and the ones after it are what a user goes on seeing.
+                Ui.postDelayed(() -> orders.drawer.setOpen(false), 2800);
+                Ui.postDelayed(() -> orders.drawer.setOpen(true), 3800);
+            }
         }
         return new Built(scene, followSystemAppearance, () -> {
             navigation.setSelected(ordersPlace);
@@ -585,7 +599,7 @@ final class AppScene {
                     scene.window().captureNextFrame(image -> limn.graphics.Images.save(image,
                             limn.graphics.ImageFormat.PNG, java.nio.file.Path.of(film, String.format("f%03d.png", n))));
                 }
-                Ui.postDelayed(take[0], 500);
+                Ui.postDelayed(take[0], Long.getLong("limn.demo.film.ms", 500));
             };
             Ui.postDelayed(take[0], 1500);
         }
@@ -665,6 +679,8 @@ final class AppScene {
     static final class Drawer extends Widget<Drawer> {
         private static final float PANEL_WIDTH = 320;
         private static final double SECONDS = 0.22;
+        private static final boolean TRACE = Boolean.getBoolean("limn.demo.order.trace");
+        private final long traceStart = System.nanoTime();
 
         private final Widget<?> main;
         private final limn.components.Surface panel;
@@ -705,6 +721,12 @@ final class AppScene {
                 scene().addRealTimeTicker(dt -> {
                     float step = (float) (dt / SECONDS);
                     progress = open ? Math.min(1, progress + step) : Math.max(0, progress - step);
+                    if (TRACE) {
+                        // The lab's: each frame of the slide, when it came and how far in the panel is.
+                        System.out.printf(Locale.ROOT, "slide t=%.1f ms dt=%.1f ms in=%.3f%n",
+                                (System.nanoTime() - traceStart) / 1e6, dt * 1000,
+                                limn.animation.Easing.EASE_IN_OUT.apply(progress));
+                    }
                     boolean arrived = progress == (open ? 1f : 0f);
                     if (arrived) {
                         ticking = false;

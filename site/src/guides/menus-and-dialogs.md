@@ -257,8 +257,11 @@ answers what `openAddress` would refuse, for a link you would rather disable tha
 nothing.
 
 On Linux an address goes through the desktop portal, which also works inside a Flatpak or Snap
-sandbox, and through `xdg-open` where no portal answers. On Wayland the program may open behind
-your window, with the desktop announcing it: nothing a client can do raises it there.
+sandbox, and through `xdg-open` where no portal answers. A browser that is not running opens in
+front of your window. One that is already running behind it takes the page in a new tab and
+stays behind, with the desktop marking it as wanting attention, under X11 and under Wayland
+alike: the desktop decides which window is in front, and the toolkit has no way yet to pass
+it the user's consent.
 
 ## Files dropped onto your window
 

@@ -200,9 +200,17 @@ surface does not darken itself.
    on Fedora under Wayland**, by the desktop's own screenshot program once the guest's screen
    was awake: the same three with their shadow, drawn in the scene, the two runs identical to
    the byte since no window of this kind is made there. The backend answers that the compositor
-   casts none on Windows and under X11. A dialog that is a
-   window of its own is not part of this: it is a system window with the system's shadow where
-   it is decorated, and where it is not, it is still to do.
+   casts none on Windows and under X11. 
+
+   **A dialog with no frame** is a window of the same kind and got the same treatment after
+   it was looked at on the four guests (2026-10-10): around it macOS casts the system's
+   shadow, and Windows 11, GNOME under X11 and KDE under Wayland cast none, a dialog being a
+   window of its own under Wayland where a list is not. Its window is now larger than its card
+   by `MODAL`'s reach where the compositor casts none, a press in the margin doing nothing, and
+   the backend's answer is one for every undecorated window: the compositor casts a shadow on
+   macOS and nowhere else. Seen with its shadow on Ubuntu, Fedora and Windows. A dialog with
+   the system's frame, or an opaque one, is not touched: the first has the system's shadow and
+   the second no transparent margin to draw one in.
 4. **The theme editor** (done): a section, after the colours, with the five numbers of each
    level, opacity in whole percent, and `ThemeEditor.setElevation` for an application that
    drives it; its preview draws the card with `RAISED`'s shadow and two surfaces beside the

@@ -242,6 +242,11 @@ verteilt, ein Stapel überlagert, Padding rückt ein, und `Expanded` sagt, wer d
 bekommt. Es gibt keinen Constraint-Solver zu konfigurieren und keinen Layout-Manager zu
 installieren.
 
+**Tiefe, und eine Tür zum System.** Eine Fläche, die über einer anderen liegt, wirft den Schatten,
+den das Theme ihrer Ebene gibt: Menüs, Listen, Kalender und Dialoge tun es bereits, und `Surface`
+hebt ein eigenes Panel an. `window.launcher()` übergibt einen Link oder eine Datei an die
+Programme des Systems — den Browser, das E-Mail-Programm, den Dateimanager.
+
 **Das Aussehen Ihres Produkts, nicht das des Toolkits.** Ein Theme sind reine Daten — jede Farbe,
 der Eckenradius, die Größenstufe, die jedes Steuerelement erbt — und ein Aufruf tauscht es zur
 Laufzeit.

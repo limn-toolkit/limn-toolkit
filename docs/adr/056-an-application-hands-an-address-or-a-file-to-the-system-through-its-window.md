@@ -114,9 +114,10 @@ answers `false`.
   each is a different call on each system, and none was asked for.
 - **No address typed by this API into a field of another program**, and no reading of what the
   other program did.
-- **Wayland.** A program asked to open by a client that cannot hand it an activation token may
-  open behind the asking window, announced by the desktop rather than raised. GLFW gives no
-  such token. Declared, and measured in §7.
+- **Linux, a program already running.** A program asked to open by a client that cannot hand
+  it the user's consent to come in front (a startup id under X11, an activation token under
+  Wayland) may take the address behind the asking window, announced by the desktop rather than
+  raised. GLFW gives a client neither. Declared, and measured in §7.
 
 ## 6. Tests
 
@@ -146,8 +147,15 @@ answer in the exit code; they are how each line below was read (2026-10-10).
 | **Ubuntu 24.04, GNOME, X11** | the browser started, through the portal | `false`, nothing started | the file manager started, through `FileManager1` | the text editor started, by `xdg-open` | not asked |
 | **Windows 11** (guest) | the browser, showing the page | `false`, nothing started | the file manager's window at the folder, the file selected (read from the shell's own list of its windows) | the text editor, in front | not asked |
 
-On the two Linux guests what was read is the answer and the process that started, not the
-screen: whether the program came in front of the asking window, which §5 declares open on
-Wayland, was not looked at. Neither fallback (`xdg-open` for an address, the folder for a file
-with no file manager on the bus) ran on a guest, since both desktops have the first choice; the
-fallbacks are covered by reading, not by a run.
+**Whether what opens comes in front** was then looked at on the two Linux guests, the page
+asked for from the demo's own window. With no browser running, the browser opens in front of
+the window that asked, under X11 and under Wayland. With the browser already running behind
+that window, the page opens in a new tab and the browser stays behind, on both: GNOME under
+X11 keeps the asking window active, and KDE under Wayland marks the browser in its task bar as
+wanting attention. So what §5 declared for Wayland holds for X11 as well, and for the same
+reason: the request carries nothing a window manager accepts as the user's consent to change
+the window in front, a startup id under X11 or an activation token under Wayland, and GLFW
+gives a client neither. On macOS and on Windows what opened was in front. Neither fallback
+(`xdg-open` for an address, the folder for a file with no file manager on the bus) ran on a
+guest, since both desktops have the first choice; the fallbacks are covered by reading, not
+by a run.
