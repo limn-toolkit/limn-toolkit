@@ -7,6 +7,7 @@ import limn.accessibility.Accessible;
 import limn.accessibility.CellFacet;
 import limn.backend.Cursor;
 import limn.components.internal.a11y.GridAccessibility;
+import limn.components.internal.Rows;
 import limn.components.internal.a11y.RowsAccessibility;
 import limn.components.Accelerator;
 import limn.components.ScrollBar;
@@ -240,17 +241,144 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
     private float contentWidth;
     private float lastViewportWidth;
 
-    // Realized rows in data (view) order, the run the last layout placed, and the anchor.
-    private int[] mountedRows = new int[16];
-    private Slot[] mountedSlots = new Slot[16];
-    private int mountedCount;
-    private int placedFrom;
-    private int placedTo;
-    private int anchorIndex;
-    private float anchorTop;
-    private float measuredRowHeight;
+    /**
+     * The rows as they are scrolled and realized: the anchor, the slots in data (view) order, the
+     * one kept for the keyboard, the reveal. The widget cells of the realized rows are
+     * {@code children()} after the two bars, row by row in that order.
+     */
+    private final Rows<Slot> engine = new Rows<>(new RowsEngineHost());
     private float offsetX;
-    private int pendingEnsureVisible = -1;
+    /** What the pass in progress resolved once and every row is placed by. */
+    private float passRowX;
+    private float passRowW;
+    private float passHeaderH;
+    private boolean passRtl;
+    /** Set while a scroll on both axes is in hand, which repaints and tells its watchers once. */
+    private boolean scrollInHand;
+
+    private final class RowsEngineHost implements Rows.Host<Slot> {
+        @Override
+        public int count() {
+            return rows.size();
+        }
+
+        @Override
+        public Slot mount(int index, int position) {
+            Slot slot = new Slot(columns.size());
+            slot.row = index;
+            int insertAt = 2; // the two bars come first
+            for (int i = 0; i < position; i++) {
+                insertAt += engine.mountedAt(i).widgetCount;
+            }
+            int model = modelOf(index);
+            T row = rows.get(model);
+            slot.id = rowIdOf(model);
+            slot.key = keyOf(row);
+            Locale locale = locale();
+            for (int c = 0; c < columns.size(); c++) {
+                Column<T> column = columns.get(c);
+                if (column.isWidgetColumn()) {
+                    // A hidden widget column builds nothing: its widget was never laid out, but
+                    // it was a child, and so a Tab stop and a published node. The next layout to
+                    // show the column re-mounts the rows and builds it then.
+                    if (column.isVisible()) {
+                        Widget<?> widget = column.widgetFor(row);
+                        slot.widgets[c] = widget;
+                        add(insertAt + slot.widgetCount, widget);
+                        slot.widgetCount++;
+                    }
+                } else {
+                    slot.texts[c] = column.text(row, locale);
+                }
+            }
+            return slot;
+        }
+
+        @Override
+        public void unmount(Slot slot, boolean heldFocus) {
+            for (int c = 0; c < columns.size(); c++) {
+                if (slot.widgets[c] != null) {
+                    remove(slot.widgets[c]);
+                    slot.widgets[c] = null;
+                }
+            }
+            slot.widgetCount = 0;
+            if (slot.published) {
+                publishedLeftBehind = true; // a reader may hold its node; see followPublishedRows
+            }
+            if (heldFocus) {
+                requestFocus();
+            }
+        }
+
+        @Override
+        public float measure(Slot slot, int index) {
+            SizeTokens t = tokens();
+            float lineBox = textRuler().measure("Hg", t.body()).height();
+            float h = Math.max(t.controlHeight(), lineBox + 2 * t.padV());
+            for (int s = 0; s < shownCount; s++) {
+                Widget<?> widget = slot.widgets[shownIndex[s]];
+                if (widget != null) {
+                    float inner = Math.max(0, colW[s] - 2 * t.padH());
+                    Size size = widget.measure(
+                            new Constraints(0, inner, 0, Constraints.UNBOUNDED_LIMIT));
+                    h = Math.max(h, size.height() + 2 * t.padV());
+                }
+            }
+            slot.height = h;
+            return h;
+        }
+
+        @Override
+        public void place(Slot slot, int index, float y, float height) {
+            // The rows' box begins under the header band.
+            placeRow(slot, passHeaderH + y, height, passRowX, passRowW, passRtl, tokens());
+        }
+
+        @Override
+        public void shift(Slot slot, float dy) {
+            for (Widget<?> w : slot.widgets) {
+                if (w != null) {
+                    moveChild(w, w.x(), w.y() + dy);
+                }
+            }
+        }
+
+        @Override
+        public boolean holdsFocus(Slot slot) {
+            return containsFocus(slot);
+        }
+
+        @Override
+        public int cursorIndex() {
+            // The focus cell's row is realized wherever the viewport is while the table holds
+            // the keyboard (decision 22 of 2026-09-14): a reader's cursor stands on that cell
+            // whether or not it is in view.
+            return isFocused() ? focusRow : -1;
+        }
+
+        @Override
+        public float viewportHeight() {
+            return rowsViewportHeight();
+        }
+
+        @Override
+        public float seedHeight() {
+            return tokens().listRowSeed();
+        }
+
+        @Override
+        public void scrolled(Change.Origin origin) {
+            vBar.onScrolled();
+            if (!scrollInHand) {
+                // Contained: a scroll changes which rows are realized and where they sit, inside
+                // a box this widget clips and whose own size a scroll cannot move.
+                markNeedsContainedLayout();
+                invalidate();
+                notifyChange(Change.of(Change.Aspect.VALUE, origin));
+            }
+        }
+    }
 
     // Looks.
     private boolean striped = true;
@@ -635,8 +763,8 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
      */
     private void settleMountedRows() {
         publishedLeftBehind = false;
-        for (int i = 0; i < mountedCount; i++) {
-            mountedSlots[i].published = false;
+        for (int i = 0; i < engine.mountedCount(); i++) {
+            engine.mountedAt(i).published = false;
         }
     }
 
@@ -744,8 +872,8 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         if (publishedByRefresh) {
             for (int p = 0; p < publishedCount && !publishedLeftBehind; p++) {
                 boolean shown = false;
-                for (int i = 0; i < mountedCount && !shown; i++) {
-                    shown = mountedSlots[i].id == publishedIds[p];
+                for (int i = 0; i < engine.mountedCount() && !shown; i++) {
+                    shown = engine.mountedAt(i).id == publishedIds[p];
                 }
                 publishedLeftBehind = !shown;
             }
@@ -753,25 +881,25 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         }
         if (rowKey == null) {
             int deepest = -1;
-            for (int i = 0; i < mountedCount; i++) {
-                if (!mountedSlots[i].ordinalKnown) {
-                    deepest = Math.max(deepest, modelOf(mountedSlots[i].row));
+            for (int i = 0; i < engine.mountedCount(); i++) {
+                if (!engine.mountedAt(i).ordinalKnown) {
+                    deepest = Math.max(deepest, modelOf(engine.mountedAt(i).row));
                 }
             }
             if (deepest >= occurrencesRead) {
                 readOccurrences(deepest + 1);
             }
         }
-        if (publishedModels.length < mountedCount) {
-            int grown = Math.max(mountedCount, publishedModels.length * 2);
+        if (publishedModels.length < engine.mountedCount()) {
+            int grown = Math.max(engine.mountedCount(), publishedModels.length * 2);
             publishedModels = new int[grown];
             publishedIds = new long[grown];
             publishedKeys = new Object[grown];
             publishedOrdinals = new int[grown];
         }
         int n = 0;
-        for (int i = 0; i < mountedCount; i++) {
-            Slot slot = mountedSlots[i];
+        for (int i = 0; i < engine.mountedCount(); i++) {
+            Slot slot = engine.mountedAt(i);
             int model = modelOf(slot.row);
             if (!slot.ordinalKnown) {
                 // Keys are unique by the contract rowKey states; else the row's occurrence.
@@ -882,7 +1010,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
 
             @Override
             public void setOffset(float value) {
-                scrollToOffset(value, tokens());
+                engine.scrollTo(value, Change.Origin.USER);
             }
         });
         hBar = new ScrollBar(ScrollBar.Orientation.HORIZONTAL, new ScrollBar.Model() {
@@ -942,12 +1070,8 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         focusRow = -1;
         records.clear();
         resetRowIds();
-        anchorIndex = 0;
-        anchorTop = 0;
-        // A reveal still waiting for the first layout was asked of the old rows.
-        pendingEnsureVisible = -1;
         resort();
-        unmountAll();
+        engine.reset(); // back to the start, and a reveal still waiting was asked of the old rows
         recomputeFooter();
         markNeedsLayout();
         invalidate();
@@ -1440,7 +1564,6 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
             rangeAnchor = Math.min(rangeAnchor, count - 1);
             resort();
         }
-        anchorIndex = Math.max(0, Math.min(anchorIndex, Math.max(0, count - 1)));
         unmountAllKeeping(keepModel >= 0 ? keep : null, keepModel);
         textEpoch++;
         recomputeFooter();
@@ -1450,7 +1573,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
             // A refresh that answers a sort request is the application's sort, and reveals the
             // focus row as the table's own does (decision 40); any other refresh keeps the
             // scroll position it promised to keep.
-            pendingEnsureVisible = focusRow;
+            ensureVisible(focusRow);
         }
         if (moved) {
             notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.ADJUSTMENT));
@@ -1479,8 +1602,8 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         forgetOccurrences();
         records.clear();
         syncRecords();
-        for (int i = 0; i < mountedCount; i++) {
-            Slot slot = mountedSlots[i];
+        for (int i = 0; i < engine.mountedCount(); i++) {
+            Slot slot = engine.mountedAt(i);
             slot.key = keyOf(rows.get(modelOf(slot.row)));
             slot.ordinalKnown = false;
         }
@@ -1915,7 +2038,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         if (focusRow >= 0) {
             // Deferred to the layout that re-places the rows: nothing is realized now, so the
             // reveal could only put the row at the top, and the least scroll needs the run.
-            pendingEnsureVisible = focusRow;
+            ensureVisible(focusRow);
         }
         return wasFocusRow;
     }
@@ -1979,7 +2102,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
 
     /** @return the first row shown, as a view index; for tests and inspection */
     public int firstVisibleRow() {
-        return anchorIndex;
+        return engine.anchorIndex();
     }
 
     // ----------------------------------------------------------------------------- looks
@@ -2113,29 +2236,11 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
     private boolean scrollBy(float dx, float dy, Change.Origin origin) {
         boolean moved = false;
         if (dy != 0) {
-            SizeTokens t = tokens();
-            float offset = estimatedOffset(t);
-            float max = Math.max(0, estimatedContentHeight(t) - rowsViewportHeight());
-            float applied = Math.min(Math.max(0, offset + dy), max) - offset;
-            if (Math.abs(applied) > JUMP_VIEWPORTS * rowsViewportHeight()) {
-                // Far: land by estimate, as a drag of the bar does. Moving the anchor this far
-                // made the next layout walk and measure every row on the way, 1.35-1.95 s for
-                // 100,000 rows; near, the walk is a few rows and the landing stays exact.
-                placeAt(offset + applied, t);
-                vBar.onScrolled();
-                moved = true;
-            } else if (applied != 0) {
-                anchorTop -= applied;
-                for (int i = 0; i < mountedCount; i++) {
-                    Slot slot = mountedSlots[i];
-                    for (Widget<?> w : slot.widgets) {
-                        if (w != null) {
-                            moveChild(w, w.x(), w.y() - applied);
-                        }
-                    }
-                }
-                vBar.onScrolled();
-                moved = true;
+            scrollInHand = true;
+            try {
+                moved = engine.scrollBy(dy, origin);
+            } finally {
+                scrollInHand = false;
             }
         }
         if (dx != 0) {
@@ -2145,8 +2250,8 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
                 float applied = next - offsetX;
                 offsetX = next;
                 float sign = isRightToLeft() ? 1 : -1;
-                for (int i = 0; i < mountedCount; i++) {
-                    Slot slot = mountedSlots[i];
+                for (int i = 0; i < engine.mountedCount(); i++) {
+                    Slot slot = engine.mountedAt(i);
                     for (Widget<?> w : slot.widgets) {
                         if (w != null) {
                             moveChild(w, w.x() + sign * applied, w.y());
@@ -2202,45 +2307,15 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
     }
 
     private float avgRowHeight(SizeTokens t) {
-        return measuredRowHeight > 0 ? measuredRowHeight : t.listRowSeed();
+        return engine.meanHeight();
     }
 
     private float estimatedContentHeight(SizeTokens t) {
-        return rows.size() * avgRowHeight(t);
+        return engine.contentHeight();
     }
 
     private float estimatedOffset(SizeTokens t) {
-        float avg = avgRowHeight(t);
-        float max = Math.max(0, estimatedContentHeight(t) - rowsViewportHeight());
-        return Math.max(0, Math.min(anchorIndex * avg - anchorTop, max));
-    }
-
-    /**
-     * How far a {@link #scrollBy} goes, in viewport heights, before it lands by estimate instead
-     * of walking the rows between.
-     */
-    private static final float JUMP_VIEWPORTS = 2;
-
-    /** Puts the anchor at an offset by the mean row height, the estimate the bar is drawn from. */
-    private void placeAt(float offset, SizeTokens t) {
-        float clamped = Math.max(0, offset);
-        float avg = avgRowHeight(t);
-        anchorIndex = avg > 0 ? (int) (clamped / avg) : 0;
-        anchorIndex = Math.max(0, Math.min(anchorIndex, Math.max(0, rows.size() - 1)));
-        anchorTop = anchorIndex * avg - clamped;
-    }
-
-    /** The vertical bar's model writing the offset: the user dragging or paging the bar. */
-    private void scrollToOffset(float offset, SizeTokens t) {
-        int wasAnchor = anchorIndex;
-        float wasTop = anchorTop;
-        placeAt(offset, t);
-        markNeedsContainedLayout(); // a drag of the bar is a scroll; see the wheel and ensureVisible
-        invalidate();
-        vBar.onScrolled();
-        if (anchorIndex != wasAnchor || anchorTop != wasTop) {
-            notifyChange(Change.of(Change.Aspect.VALUE, Change.Origin.USER));
-        }
+        return engine.offset();
     }
 
     private float headerHeight(SizeTokens t) {
@@ -2475,8 +2550,8 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         boolean handBack = false;
         int childAt = 2; // the two bars come first
         int count = rows.size();
-        for (int i = 0; i < mountedCount; i++) {
-            Slot slot = mountedSlots[i];
+        for (int i = 0; i < engine.mountedCount(); i++) {
+            Slot slot = engine.mountedAt(i);
             for (int c = 0; c < columns.size(); c++) {
                 Column<T> column = columns.get(c);
                 Widget<?> widget = slot.widgets[c];
@@ -2562,8 +2637,8 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
                     notifyChange(Change.of(Change.Aspect.CHILDREN, Change.Origin.ADJUSTMENT));
                 }
             }
-            for (int i = 0; i < mountedCount; i++) {
-                rebind(mountedSlots[i]);
+            for (int i = 0; i < engine.mountedCount(); i++) {
+                rebind(engine.mountedAt(i));
             }
             recomputeFooter();
         }
@@ -2589,78 +2664,13 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         hBar.layoutBox(rtl ? box - w : 0, boxH - barT, w, barT);
         float rowX = rtl ? box - w : 0;
 
-        int count = rows.size();
-        if (count == 0) {
-            unmountAll();
-            anchorIndex = 0;
-            anchorTop = 0;
-            vBar.refresh();
-            hBar.refresh();
-            return;
-        }
-        anchorIndex = Math.min(anchorIndex, count - 1);
-        normalizeUp(t);
-        normalizeDown(count, t);
-        float bottom = placeDown(count, rowX, w, viewH, headerH, rtl, t);
-        if (bottom < viewH && !(anchorIndex == 0 && anchorTop >= 0)) {
-            anchorTop += viewH - bottom;
-            normalizeUp(t);
-            normalizeDown(count, t);
-            bottom = placeDown(count, rowX, w, viewH, headerH, rtl, t);
-        }
-        recycleExcept(placedFrom, placedTo, count);
-        if (isFocused() && focusRow >= 0 && focusRow < count && slotFor(focusRow) == null) {
-            // The focus cell's row is realized wherever the viewport is while the table holds the
-            // keyboard (decision 22 of 2026-09-14): a refresh or a sort unmounted everything, and
-            // a reader's cursor stands on that cell whether or not it is in view.
-            mount(focusRow);
-        }
-        placeKeptOutside(rowX, w, headerH, bottom, rtl, t);
-        updateAverageHeight();
+        passRowX = rowX;
+        passRowW = w;
+        passHeaderH = headerH;
+        passRtl = rtl;
+        engine.layout();
         vBar.refresh();
         hBar.refresh();
-        if (pendingEnsureVisible >= 0) {
-            int pending = Math.min(pendingEnsureVisible, count - 1);
-            pendingEnsureVisible = -1;
-            ensureVisible(pending);
-        }
-    }
-
-    private void normalizeUp(SizeTokens t) {
-        while (anchorTop > 0 && anchorIndex > 0) {
-            anchorTop -= measuredHeight(anchorIndex - 1, t);
-            anchorIndex--;
-        }
-        if (anchorIndex == 0 && anchorTop > 0) {
-            anchorTop = 0;
-        }
-    }
-
-    private void normalizeDown(int count, SizeTokens t) {
-        while (anchorIndex < count - 1) {
-            float h = measuredHeight(anchorIndex, t);
-            if (anchorTop + h <= 0) {
-                anchorTop += h;
-                anchorIndex++;
-            } else {
-                break;
-            }
-        }
-    }
-
-    private float placeDown(int count, float rowX, float w, float viewH, float headerH,
-                            boolean rtl, SizeTokens t) {
-        float y = anchorTop;
-        int i = anchorIndex;
-        while (i < count && y < viewH) {
-            float h = measuredHeight(i, t);
-            placeRow(slotFor(i), headerH + y, h, rowX, w, rtl, t);
-            y += h;
-            i++;
-        }
-        placedFrom = anchorIndex;
-        placedTo = i;
-        return y;
     }
 
     /** Lays out a row's widget cells into their column boxes; a value cell has no layout. */
@@ -2684,93 +2694,22 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         }
     }
 
-    /** The height row {@code index} takes, realizing it if it is not yet. */
-    private float measuredHeight(int index, SizeTokens t) {
-        Slot slot = slotFor(index);
-        if (slot == null) {
-            slot = mount(index);
-        }
-        float lineBox = textRuler().measure("Hg", t.body()).height();
-        float h = Math.max(t.controlHeight(), lineBox + 2 * t.padV());
-        for (int s = 0; s < shownCount; s++) {
-            Widget<?> widget = slot.widgets[shownIndex[s]];
-            if (widget != null) {
-                float inner = Math.max(0, colW[s] - 2 * t.padH());
-                Size size = widget.measure(
-                        new Constraints(0, inner, 0, Constraints.UNBOUNDED_LIMIT));
-                h = Math.max(h, size.height() + 2 * t.padV());
-            }
-        }
-        slot.height = h;
-        return h;
-    }
-
     // ------------------------------------------------------------------------- mounting
 
-    private Slot slotFor(int index) {
-        for (int i = 0; i < mountedCount; i++) {
-            if (mountedRows[i] == index) {
-                return mountedSlots[i];
-            }
-        }
-        return null;
+    private @Nullable Slot slotFor(int index) {
+        return engine.mounted(index);
     }
 
     /** Where {@code widget} sits: the mounted position of its row, or {@code -1}. */
     private int mountedPositionOf(Widget<?> widget) {
-        for (int i = 0; i < mountedCount; i++) {
-            for (Widget<?> w : mountedSlots[i].widgets) {
+        for (int i = 0; i < engine.mountedCount(); i++) {
+            for (Widget<?> w : engine.mountedAt(i).widgets) {
                 if (w == widget) {
                     return i;
                 }
             }
         }
         return -1;
-    }
-
-    /** Realizes row {@code index} into the mounted run, keeping the run and the children in data order. */
-    private Slot mount(int index) {
-        int at = 0;
-        while (at < mountedCount && mountedRows[at] < index) {
-            at++;
-        }
-        if (mountedCount == mountedRows.length) {
-            mountedRows = Arrays.copyOf(mountedRows, mountedCount * 2);
-            mountedSlots = Arrays.copyOf(mountedSlots, mountedCount * 2);
-        }
-        System.arraycopy(mountedRows, at, mountedRows, at + 1, mountedCount - at);
-        System.arraycopy(mountedSlots, at, mountedSlots, at + 1, mountedCount - at);
-        Slot slot = new Slot(columns.size());
-        slot.row = index;
-        mountedRows[at] = index;
-        mountedSlots[at] = slot;
-        mountedCount++;
-        int insertAt = 2; // the two bars come first
-        for (int i = 0; i < at; i++) {
-            insertAt += mountedSlots[i].widgetCount;
-        }
-        int model = modelOf(index);
-        T row = rows.get(model);
-        slot.id = rowIdOf(model);
-        slot.key = keyOf(row);
-        Locale locale = locale();
-        for (int c = 0; c < columns.size(); c++) {
-            Column<T> column = columns.get(c);
-            if (column.isWidgetColumn()) {
-                // A hidden widget column builds nothing: its widget was never laid out, but it was
-                // a child, and so a Tab stop and a published node. The next layout to show the
-                // column re-mounts the rows and builds it then.
-                if (column.isVisible()) {
-                    Widget<?> widget = column.widgetFor(row);
-                    slot.widgets[c] = widget;
-                    add(insertAt + slot.widgetCount, widget);
-                    slot.widgetCount++;
-                }
-            } else {
-                slot.texts[c] = column.text(row, locale);
-            }
-        }
-        return slot;
     }
 
     /** Re-reads a mounted row's texts after the language moved; widgets follow it themselves. */
@@ -2788,14 +2727,14 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
     }
 
     private void unmountAll() {
-        recycleExcept(0, 0, 0);
+        engine.refresh(null, -1);
     }
 
     /** The mounted row one of whose widget cells holds the keyboard, or {@code null}. */
     private Slot focusedWidgetSlot() {
-        for (int i = 0; i < mountedCount; i++) {
-            if (mountedSlots[i].widgetCount > 0 && containsFocus(mountedSlots[i])) {
-                return mountedSlots[i];
+        for (int i = 0; i < engine.mountedCount(); i++) {
+            if (engine.mountedAt(i).widgetCount > 0 && containsFocus(engine.mountedAt(i))) {
+                return engine.mountedAt(i);
             }
         }
         return null;
@@ -2840,106 +2779,19 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
             unmountAll();
             return;
         }
-        int at = 0;
-        while (mountedSlots[at] != keep) {
-            at++;
-        }
-        // Out of the run for the release, then back as the only mounted row.
-        System.arraycopy(mountedRows, at + 1, mountedRows, at, mountedCount - at - 1);
-        System.arraycopy(mountedSlots, at + 1, mountedSlots, at, mountedCount - at - 1);
-        mountedCount--;
-        unmountAll();
         int view = viewOf(model);
+        // Every other row is let go of, and this one is the only realized row, at its new index.
+        engine.refresh(keep, view);
         keep.row = view;
         keep.top = Float.NaN;
         keep.id = rowIdOf(model);
         keep.key = keyOf(rows.get(model));
         keep.ordinalKnown = false;
         rebind(keep);
-        mountedRows[0] = view;
-        mountedSlots[0] = keep;
-        mountedCount = 1;
-    }
-
-    /**
-     * Releases every mounted row outside {@code [from, toExclusive)} except two: the one holding
-     * the keyboard focus in a widget cell, which stays mounted while its index is still below
-     * {@code count} — the reason is {@code ListView}'s — and, while the table itself holds the
-     * keyboard, the focus cell's row: a reader's cursor stands on that cell, and a wheel that
-     * recycled it left the reader on nothing until the next arrow key. Released by the first pass
-     * after the focus leaves.
-     */
-    private void recycleExcept(int from, int toExclusive, int count) {
-        int kept = 0;
-        boolean cursorKept = isFocused();
-        for (int i = 0; i < mountedCount; i++) {
-            int row = mountedRows[i];
-            Slot slot = mountedSlots[i];
-            boolean inRun = row >= from && row < toExclusive;
-            boolean hasFocus = !inRun && containsFocus(slot);
-            boolean isCursor = !inRun && cursorKept && row == focusRow;
-            if (inRun || ((hasFocus || isCursor) && row < count)) {
-                mountedRows[kept] = row;
-                mountedSlots[kept] = slot;
-                kept++;
-                continue;
-            }
-            for (int c = 0; c < columns.size(); c++) {
-                if (slot.widgets[c] != null) {
-                    remove(slot.widgets[c]);
-                    slot.widgets[c] = null;
-                }
-            }
-            slot.widgetCount = 0;
-            if (slot.published) {
-                publishedLeftBehind = true; // a reader may hold its node; see followPublishedRows
-            }
-            if (hasFocus) {
-                requestFocus();
-            }
-        }
-        for (int i = kept; i < mountedCount; i++) {
-            mountedSlots[i] = null;
-        }
-        mountedCount = kept;
-    }
-
-    private void placeKeptOutside(float rowX, float w, float headerH, float bottom, boolean rtl,
-                                  SizeTokens t) {
-        if (mountedCount == placedTo - placedFrom) {
-            return;
-        }
-        float avg = avgRowHeight(t);
-        for (int i = 0; i < mountedCount; i++) {
-            int row = mountedRows[i];
-            if (row >= placedFrom && row < placedTo) {
-                continue;
-            }
-            float h = measuredHeight(row, t);
-            float y = row < placedFrom
-                    ? anchorTop - (placedFrom - 1 - row) * avg - h
-                    : bottom + (row - placedTo) * avg;
-            placeRow(mountedSlots[i], headerH + y, h, rowX, w, rtl, t);
-        }
     }
 
     private boolean isPlaced(int index) {
-        return index >= placedFrom && index < placedTo;
-    }
-
-    private void updateAverageHeight() {
-        float sum = 0;
-        int n = 0;
-        for (int i = 0; i < mountedCount; i++) {
-            float h = mountedSlots[i].height;
-            if (h > 0) {
-                sum += h;
-                n++;
-            }
-        }
-        if (n > 0) {
-            measuredRowHeight = sum / n;
-        }
+        return engine.isPlaced(index);
     }
 
     private boolean containsFocus(Slot slot) {
@@ -2965,53 +2817,30 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         return false;
     }
 
-    /** The top of row {@code index}'s box in this widget's coordinates, or NaN when unrealized. */
+    /** A placed row's top in the table's own box, under the header; NaN for any other row. */
     private float rowTop(int index) {
-        float y = anchorTop + rowsTop();
-        for (int i = anchorIndex; i < placedTo; i++) {
-            Slot slot = slotFor(i);
-            if (slot == null) {
-                return Float.NaN;
-            }
-            if (i == index) {
-                return y;
-            }
-            y += slot.height;
-        }
-        return Float.NaN;
+        float y = engine.topOf(index);
+        return Float.isNaN(y) ? Float.NaN : y + rowsTop();
     }
 
+    /**
+     * Has a row in sight after the next pass, which brings it in by the least scroll from the
+     * edge it lies beyond, by the heights it measures, and moves nothing for a row already in
+     * the box.
+     */
     private void ensureVisible(int index) {
-        if (height() <= 0) {
-            pendingEnsureVisible = index;
+        float top = isPlaced(index) ? rowTop(index) : Float.NaN;
+        Slot slot = slotFor(index);
+        if (!Float.isNaN(top) && slot != null && top >= rowsTop()
+                && top + slot.height <= rowsTop() + rowsViewportHeight()) {
+            // In the box already: no pass is asked for, which would repaint the table for an
+            // arrow that moved between two rows in sight; and a reveal asked before is forgotten.
+            engine.cancelReveal();
             return;
         }
-        float top = isPlaced(index) ? rowTop(index) : Float.NaN;
-        if (!Float.isNaN(top)) {
-            float viewTop = rowsTop();
-            float viewBottom = viewTop + rowsViewportHeight();
-            float bottom = top + slotFor(index).height;
-            if (top < viewTop) {
-                anchorTop -= top - viewTop;
-            } else if (bottom > viewBottom) {
-                anchorTop -= bottom - viewBottom;
-            } else {
-                return;
-            }
-        } else if (placedTo > placedFrom && index >= placedTo) {
-            // Below the run: the least scroll that shows it puts it last, so the anchor is the
-            // row itself, set to end at the viewport's foot; the layout walks the rows above it
-            // up from there (decision 40 of 2026-09-14).
-            anchorIndex = index;
-            anchorTop = rowsViewportHeight() - measuredHeight(index, tokens());
-        } else {
-            anchorIndex = index;
-            anchorTop = 0;
-        }
-        // Contained, for the reason the wheel path already gives: a reveal changes which rows are
-        // mounted and where they sit, and both are inside a box this widget clips and whose own
-        // size a reveal cannot move. A full layout here made every Page key and every keyboard
-        // walk off the edge a whole-window repaint.
+        engine.reveal(() -> Math.min(index, rows.size() - 1));
+        // Contained: a reveal changes which rows are realized and where they sit, inside a box
+        // this widget clips and whose own size a reveal cannot move.
         markNeedsContainedLayout();
     }
 
@@ -3239,24 +3068,12 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         if (count == 0) {
             return;
         }
-        int from = focusRow < 0 ? anchorIndex : Math.min(focusRow, count - 1);
+        int from = focusRow < 0 ? engine.anchorIndex() : Math.min(focusRow, count - 1);
         int target = Math.min(Math.max(0, from + delta), count - 1);
-        float top = isPlaced(from) && slotFor(from) != null ? rowTop(from) : Float.NaN;
-        boolean onScreen = !Float.isNaN(top) && top >= rowsTop()
-                && top + slotFor(from).height <= rowsTop() + rowsViewportHeight();
-        int wasAnchor = anchorIndex;
-        float wasAnchorTop = anchorTop;
         moveFocusRow(target, modifiers);
-        if (onScreen && target != from) {
-            int anchor = wasAnchor + (target - from);
-            if (anchor <= 0) {
-                anchorIndex = 0;
-                anchorTop = 0;
-            } else {
-                anchorIndex = Math.min(anchor, count - 1);
-                anchorTop = wasAnchorTop;
-            }
-            pendingEnsureVisible = -1;
+        // The view goes as far as the cursor did, so the cursor keeps its place in the box,
+        // when the row it left was wholly in sight.
+        if (engine.pageWith(from, target)) {
             markNeedsContainedLayout(); // the layout clamps the view at the last row
             invalidate();
         }
@@ -3452,9 +3269,9 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         try {
             canvas.clipRect(rowX, headerH, w, viewH);
             // Rows in data order: stripe, selection, then each shown column's text or widget.
-            for (int i = 0; i < mountedCount; i++) {
-                int row = mountedRows[i];
-                Slot slot = mountedSlots[i];
+            for (int i = 0; i < engine.mountedCount(); i++) {
+                int row = engine.rowAt(i);
+                Slot slot = engine.mountedAt(i);
                 float top = rowTop(row);
                 if (Float.isNaN(top) || top >= headerH + viewH || top + slot.height <= headerH) {
                     continue; // the focused row a scroll spared, kept outside the viewport
@@ -3753,10 +3570,10 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         if (y < rowsTop() || y >= rowsTop() + rowsViewportHeight()) {
             return -1;
         }
-        for (int i = 0; i < mountedCount; i++) {
-            int row = mountedRows[i];
+        for (int i = 0; i < engine.mountedCount(); i++) {
+            int row = engine.rowAt(i);
             float top = rowTop(row);
-            if (!Float.isNaN(top) && y >= top && y < top + mountedSlots[i].height) {
+            if (!Float.isNaN(top) && y >= top && y < top + engine.mountedAt(i).height) {
                 return row;
             }
         }
@@ -3957,9 +3774,9 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         }
         switch (event.shortcutKey()) {
             case Keys.DOWN -> consumeAnd(event, () -> moveFocusRow(
-                    focusRow < 0 ? anchorIndex : focusRow + 1, mods));
+                    focusRow < 0 ? engine.anchorIndex() : focusRow + 1, mods));
             case Keys.UP -> consumeAnd(event, () -> moveFocusRow(
-                    focusRow < 0 ? anchorIndex : focusRow - 1, mods));
+                    focusRow < 0 ? engine.anchorIndex() : focusRow - 1, mods));
             case Keys.PAGE_DOWN -> consumeAnd(event, () -> pageFocusRow(rowsPerPage(tokens()), mods));
             case Keys.PAGE_UP -> consumeAnd(event, () -> pageFocusRow(-rowsPerPage(tokens()), mods));
             case Keys.HOME -> consumeAnd(event, () -> moveFocusRow(0, mods));
@@ -4253,7 +4070,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         if (at < 0) {
             return 0;
         }
-        Widget<?>[] widgets = mountedSlots[at].widgets;
+        Widget<?>[] widgets = engine.mountedAt(at).widgets;
         for (int c = 0; c < widgets.length; c++) {
             if (widgets[c] == child) {
                 int shown = shownIndexOf(c);
@@ -4355,9 +4172,9 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
             a.endChild();
         }
 
-        for (int i = 0; i < mountedCount; i++) {
-            int row = mountedRows[i];
-            Slot slot = mountedSlots[i];
+        for (int i = 0; i < engine.mountedCount(); i++) {
+            int row = engine.rowAt(i);
+            Slot slot = engine.mountedAt(i);
             int model = modelOf(row);
             float top = rowTop(row);
             boolean shown = !Float.isNaN(top);
@@ -4366,7 +4183,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
                 // rows' viewport, so the ROW and a widget cell inside it agree on a box; before a
                 // layout has placed it, where the estimate would.
                 top = Float.isNaN(slot.top)
-                        ? (row < placedFrom ? headerH - slot.height : headerH + viewH)
+                        ? (row < engine.placedFrom() ? headerH - slot.height : headerH + viewH)
                         : slot.top;
             }
             boolean rowOffScreen = !shown || top + slot.height <= headerH
@@ -4535,7 +4352,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         if (at < 0) {
             return;
         }
-        Slot slot = mountedSlots[at];
+        Slot slot = engine.mountedAt(at);
         int c = 0;
         while (slot.widgets[c] != child) {
             c++;
@@ -4553,7 +4370,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         if (at < 0) {
             return;
         }
-        Slot slot = mountedSlots[at];
+        Slot slot = engine.mountedAt(at);
         int c = 0;
         while (slot.widgets[c] != child) {
             c++;

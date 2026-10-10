@@ -5,6 +5,8 @@ import limn.components.SelectionMode;
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.components.internal.RowDragPicture;
+import limn.components.internal.RowSlides;
+import limn.components.internal.Rows;
 import limn.components.internal.a11y.RowsAccessibility;
 import limn.components.Accelerator;
 import limn.components.ScrollBar;
@@ -376,54 +378,119 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     private long nextId = 1;
 
     /**
-     * The realized rows, in traversal order: {@code mountedRows[i]} is the row index
-     * {@code mountedCells[i]} is bound to, ascending, and {@code children()} holds the bar and
-     * then exactly these cells in exactly this order — which is reading order and Tab order both,
-     * and is why they are mounted by position rather than appended (see {@code ListView}).
+     * A realized row: its cell, what it draws, and the name derived for it. What it draws is the
+     * node, or the line under a row: a row index is only an address until the rows move, and
+     * opening, closing or loading a row moves every row below it, so this is what lets a cell
+     * follow its node to the new address instead of drawing whichever node arrived at the old one.
      */
-    private int[] mountedRows = new int[16];
-    private Widget<?>[] mountedCells = new Widget<?>[16];
+    private static final class Cell {
+        final Widget<?> widget;
+        final Object key;
+        /**
+         * The name the tree derived for a cell that names itself no other way, the text of its
+         * labels in order, kept so a quiet frame compares and allocates nothing; {@code null}
+         * where the cell or the model names the row.
+         */
+        @Nullable String name;
+
+        Cell(Widget<?> widget, Object key) {
+            this.widget = widget;
+            this.key = key;
+        }
+    }
+
     /**
-     * The node each mounted cell draws. A row index is only an address until the rows move, and
-     * opening, closing or loading a row moves every row below it; this is what lets a cell follow
-     * its node to the new address instead of drawing whichever node arrived at the old one.
+     * The rows as they are scrolled and realized: the anchor, the cells in traversal order, the
+     * one kept for the keyboard, the reveal. {@code children()} holds the two bars and then the
+     * realized cells in row order, which is reading order and Tab order both. A cell whose row
+     * vanished between two passes stays a child until the next pass lets go of it: taking a child
+     * out of a widget outside a layout pass declares a global layout, which is a full frame, and
+     * the scene absorbs the same removal inside a pass over this subtree.
      */
-    private Object[] mountedNodes = new Object[16];
-    /**
-     * The name the tree derived for each mounted cell that names itself no other way — the text of
-     * its labels, in order — kept so a quiet frame compares and allocates nothing; {@code null}
-     * where the cell or the model names the row.
-     */
-    private String[] mountedNames = new String[16];
-    private int mountedCount;
+    private final Rows<Cell> engine = new Rows<>(new RowsEngineHost());
     /** Reused per walk to assemble a row's derived name before comparing it with the kept one. */
     private final StringBuilder nameBuilder = new StringBuilder();
-    /**
-     * Cells whose row vanished between two layout passes — a collapse, a load landing, a reorder —
-     * kept as children until the tree's next pass releases them. Taking a child out of a widget
-     * outside a layout pass declares a global layout, which is a full frame by the toolkit's
-     * structural invariant, and the scene absorbs the same removal inside a pass over this subtree:
-     * a collapse that released its cells on the spot repainted the window for one gesture on one
-     * widget, which the damage ratchet's LEFT caught (2026-09-14).
-     */
-    private final List<Widget<?>> orphanCells = new ArrayList<>();
-    private final List<Object> orphanKeys = new ArrayList<>();
+    /** Where the pass in progress puts a row's leading edge, and how wide the viewport is. */
+    private float passRowX;
+    private float passViewW;
+    /** The cursor's row for the pass in progress, looked up once; {@link #UNKNOWN} outside one. */
+    private int passCursor = UNKNOWN;
+    private static final int UNKNOWN = -2;
 
-    /** The half-open run of rows the last pass laid out, which is what a recycle keeps. */
-    private int placedFrom;
-    private int placedTo;
+    private final class RowsEngineHost implements Rows.Host<Cell> {
+        @Override
+        public int count() {
+            return rows.size();
+        }
 
-    // Anchor scroll state: the top edge of row `anchorIndex` sits at y = anchorTop.
-    private int anchorIndex;
-    private float anchorTop;
-    /** Mean measured row height, or 0 until a pass has measured one; the step's seed stands in. */
-    private float measuredRowHeight;
-    /**
-     * The node {@link #revealNode} left for the next pass to bring into the box, or null: a row
-     * outside the viewport is revealed where the pass can measure the rows between, see
-     * {@link #settleReveal}.
-     */
-    private T revealPending;
+        @Override
+        public Cell mount(int index, int position) {
+            Row<T> row = rows.get(index);
+            Widget<?> cell = row.placeholder ? lineUnderRow(row.loading)
+                    : Objects.requireNonNull(model.cellFor(row.node), "Model.cellFor returned null");
+            add(position + 2, cell); // the two bars are children() zero and one
+            cell.setVisible(true);
+            return new Cell(cell, mountKey(row));
+        }
+
+        @Override
+        public void unmount(Cell row, boolean heldFocus) {
+            Tree.this.unmount(row.widget, row.key, heldFocus);
+        }
+
+        @Override
+        public float measure(Cell row, int index) {
+            float available = Math.max(0, contentWidth - cellLeft(tokens(), index, contentWidth));
+            return row.widget.measure(new Constraints(available, available, 0, Constraints.UNBOUNDED_LIMIT))
+                    .height();
+        }
+
+        @Override
+        public void place(Cell row, int index, float y, float height) {
+            // The content width and not the viewport: a row is laid out at the width it was
+            // measured at, which past the clamp is wider than the box.
+            float lead = cellLeft(tokens(), index, contentWidth);
+            float cellW = Math.max(0, contentWidth - lead);
+            row.widget.layoutBox(cellX(passRowX, passViewW, lead, cellW, isRightToLeft()), y, cellW, height);
+        }
+
+        @Override
+        public void shift(Cell row, float dy) {
+            moveChild(row.widget, row.widget.x(), row.widget.y() + dy);
+        }
+
+        @Override
+        public boolean holdsFocus(Cell row) {
+            return containsFocus(row.widget);
+        }
+
+        @Override
+        public int cursorIndex() {
+            if (passCursor != UNKNOWN) {
+                return passCursor;
+            }
+            return cursor != null && isFocused() ? indexOf(cursor) : -1;
+        }
+
+        @Override
+        public float viewportHeight() {
+            return Tree.this.viewportHeight();
+        }
+
+        @Override
+        public float seedHeight() {
+            return tokens().listRowSeed();
+        }
+
+        @Override
+        public void scrolled(Change.Origin origin) {
+            markNeedsContainedLayout();
+            invalidate();
+            vBar.onScrolled();
+            notifyChange(Change.of(Change.Aspect.VALUE, origin)); // a watcher hears a scroll
+        }
+    }
+
     /**
      * How far the outline is scrolled sideways, in points from its leading edge.
      *
@@ -535,25 +602,48 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     private float liftedHeight;
     /** Whether the place a drop would take was chosen by the keyboard, which opens no room. */
     private boolean placeByKeyboard;
-    /**
-     * How far from where it belongs each row is drawn at this moment, by row: what is left of a
-     * slide, which a ticker wears down. And where each row was last said to belong, against which
-     * the next change is measured.
-     */
-    private final HashMap<Integer, Float> sliding = new HashMap<>();
-    private final HashMap<Integer, Float> belonged = new HashMap<>();
-    private boolean slideTicking;
-    /**
-     * Rows a drag gave back that are not drawn yet: the rows that closed over their places are
-     * still sliding off them, and drawn at once they stood on top of those.
-     */
-    private java.util.@Nullable BitSet returning;
-    /** Where the rows were drawn before the model changed under them, by node, until the next layout. */
-    private @Nullable HashMap<Object, Float> drawnBefore;
-    private float[] offsets = new float[16];
+    /** The rows out of the tree for the drag in flight: the dragged nodes' and every row under them. */
     private final java.util.BitSet liftedRows = new java.util.BitSet();
-    /** How long a row takes to cover most of the way to its new place, in seconds. */
-    private static final double SLIDE_SECONDS = 0.08;
+    /**
+     * Where the realized rows are drawn against where the layout put them: closed over the rows
+     * a drag lifted out, apart where a drop would land, and sliding to wherever that puts them.
+     */
+    private final RowSlides slides = new RowSlides(engine, new RowSlides.Host() {
+        @Override
+        public void prepare() {
+            markLifted();
+        }
+
+        @Override
+        public boolean isLifted(int row) {
+            return liftedRows.get(row);
+        }
+
+        @Override
+        public int roomFrom() {
+            return Tree.this.roomFrom();
+        }
+
+        @Override
+        public @Nullable Object keyOf(int row) {
+            return row < rows.size() && !rows.get(row).placeholder ? rows.get(row).node : null;
+        }
+
+        @Override
+        public float yAt(int position) {
+            return engine.mountedAt(position).widget.y();
+        }
+
+        @Override
+        public limn.scene.@Nullable Scene scene() {
+            return Tree.this.scene();
+        }
+
+        @Override
+        public void invalidate() {
+            Tree.this.invalidate();
+        }
+    }, false); // by equality, as a node is the same node for as long as its equals says so
 
     private enum Where { BEFORE, AFTER, INTO }
 
@@ -591,7 +681,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
 
             @Override
             public void setOffset(float value) {
-                scrollToOffset(value, tokens());
+                engine.scrollTo(value, Change.Origin.USER);
             }
         });
         add(vBar);
@@ -613,7 +703,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
 
             @Override
             public void setOffset(float value) {
-                scrollHorizontally(value - offsetX);
+                scrollHorizontally(value - offsetX, Change.Origin.USER);
             }
         });
         add(hBar);
@@ -643,8 +733,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         recordPaths();
         loaded.clear();
         cancelAllLoads();
-        releaseOrphans();
-        recycleExcept(0, 0, 0);
+        engine.refresh(null, -1);
         rebuildRows();
         forgetRevealedPaths();
         verifyHidden();
@@ -890,9 +979,9 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         if (named != null) {
             return named.get();
         }
-        for (int i = 0; i < mountedCount; i++) {
-            if (node.equals(mountedNodes[i])) {
-                return derivedName(i, mountedCells[i]);
+        for (int i = 0; i < engine.mountedCount(); i++) {
+            if (node.equals(engine.mountedAt(i).key)) {
+                return derivedName(i, engine.mountedAt(i).widget);
             }
         }
         return null;
@@ -1042,26 +1131,20 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     }
 
     /**
-     * Re-binds every mounted cell to the row its node sits at now, and releases the cells whose
-     * node is no longer a row.
-     *
-     * <p>Without this a cell stays bound to its old index, so opening a row above it made it draw
-     * whatever node the shift carried there: the opened row's children were never drawn, the rows
-     * below were drawn twice, and every per-row fact published to a reader — the expand state, the
-     * name a cell supplies — sat on the wrong row by exactly the number of rows inserted.
-     *
-     * <p>Order is kept rather than re-sorted: a node that stays visible keeps its place relative
-     * to every other node that does, which is what {@code children()} being in traversal order
-     * relies on. A cell whose node moved against that order — a model that reordered itself
-     * without {@link #refresh} — is released instead, and the next layout mounts it afresh.
+     * The realized cells follow their nodes to the indexes they have now. Order is kept rather
+     * than re-sorted: a node that stays visible keeps its place relative to every other that
+     * does, which is what {@code children()} being in traversal order relies on. A cell whose
+     * node is gone, or moved against that order (a model that reordered itself without
+     * {@link #refresh}), is let go of by the next pass, which mounts it afresh.
      */
     private void followMountedNodes() {
+        int mountedCount = engine.mountedCount();
         if (mountedCount == 0) {
             return;
         }
         Map<Object, Integer> slotOf = new HashMap<>(mountedCount * 2);
         for (int i = 0; i < mountedCount; i++) {
-            slotOf.putIfAbsent(mountedNodes[i], i);
+            slotOf.putIfAbsent(engine.mountedAt(i).key, i);
         }
         int[] now = new int[mountedCount];
         Arrays.fill(now, -1);
@@ -1073,28 +1156,11 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
                 found++;
             }
         }
-        int kept = 0;
-        int last = -1;
+        java.util.IdentityHashMap<Cell, Integer> to = new java.util.IdentityHashMap<>(mountedCount * 2);
         for (int i = 0; i < mountedCount; i++) {
-            Widget<?> cell = mountedCells[i];
-            if (now[i] <= last) { // gone, or moved against the traversal
-                orphanCells.add(cell); // released by the next pass, never here (see the field)
-                orphanKeys.add(mountedNodes[i]);
-                continue;
-            }
-            last = now[i];
-            mountedRows[kept] = now[i];
-            mountedCells[kept] = cell;
-            mountedNodes[kept] = mountedNodes[i];
-            mountedNames[kept] = mountedNames[i];
-            kept++;
+            to.put(engine.mountedAt(i), now[i]);
         }
-        for (int i = kept; i < mountedCount; i++) {
-            mountedCells[i] = null;
-            mountedNodes[i] = null;
-            mountedNames[i] = null;
-        }
-        mountedCount = kept;
+        engine.renumber(to::get);
     }
 
     /**
@@ -1916,15 +1982,15 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     }
 
     private float avgRowHeight(SizeTokens t) {
-        return measuredRowHeight > 0 ? measuredRowHeight : t.listRowSeed();
+        return engine.meanHeight();
     }
 
     private float estimatedContentHeight(SizeTokens t) {
-        return rows.size() * avgRowHeight(t);
+        return engine.contentHeight();
     }
 
     private float estimatedOffset(SizeTokens t) {
-        return Math.max(0, anchorIndex * avgRowHeight(t) - anchorTop);
+        return engine.offset();
     }
 
     /**
@@ -2005,116 +2071,21 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         hBar.layoutBox(rtl ? box - w : 0, h - barT, w, barT);
         float rowX = rtl ? box - w : 0;
 
-        releaseOrphans(); // inside the pass, where the scene absorbs the removal
-        int count = rows.size();
-        if (count == 0) {
-            recycleExcept(0, 0, 0);
-            anchorIndex = 0;
-            anchorTop = 0;
-            vBar.refresh();
-            hBar.refresh();
-            return;
+        passRowX = rowX;
+        passViewW = w;
+        passCursor = cursor != null && isFocused() ? indexOf(cursor) : -1;
+        try {
+            // Past the foot by what a drag lifted out: the rows below close up, and the ones
+            // that come into view from under the edge have to be there to slide in.
+            engine.setOverscan(liftedHeight);
+            engine.layout();
+        } finally {
+            passCursor = UNKNOWN;
         }
-        anchorIndex = Math.min(anchorIndex, count - 1);
-
-        // The content width and not the viewport: a row is measured at the width it will be laid
-        // out at, which past the clamp is wider than the box.
-        normalizeUp(contentWidth);
-        normalizeDown(count, contentWidth);
-        if (revealPending != null) {
-            settleReveal(count, viewH);
-        }
-        float bottom = placeDown(count, rowX, w, viewH);
-        if (bottom < viewH && !(anchorIndex == 0 && anchorTop >= 0)) {
-            anchorTop += viewH - bottom;
-            normalizeUp(contentWidth);
-            normalizeDown(count, contentWidth);
-            bottom = placeDown(count, rowX, w, viewH);
-        }
-        recycleExcept(placedFrom, placedTo, count);
-        keepCursorRowRealized(count);
-        placeKeptOutside(rowX, w, bottom);
-        updateAverageHeight();
         vBar.refresh();
         hBar.refresh();
-        newRowsSlideToo();
-        slideToLayout();
-    }
-
-    /**
-     * Brings the row {@link #revealNode} deferred into the viewport by the least scroll, from the
-     * rows' measured heights: a row above the box, or cut by its top, is placed with its top on
-     * the box's top; a row below it, or cut by its foot, with its bottom on the box's bottom — or
-     * its top on the top, when it is taller than the box, which is {@link #revealVertically}'s
-     * rule. The anchor is set to the row itself, so the distance is exact whatever the rows between
-     * measure; only the rows from the anchor to the box's foot are measured to see whether the row
-     * is already in it, and those the pass places anyway. A node no longer visible is dropped.
-     */
-    private void settleReveal(int count, float viewH) {
-        int index = indexOf(revealPending);
-        revealPending = null;
-        if (index < 0 || index >= count) {
-            return;
-        }
-        if (index < anchorIndex || (index == anchorIndex && anchorTop < 0)) {
-            anchorIndex = index;
-            anchorTop = 0;
-            return;
-        }
-        float top = anchorTop;
-        for (int i = anchorIndex; i < index && top < viewH; i++) {
-            top += measuredHeight(i, contentWidth);
-        }
-        float rowH = measuredHeight(index, contentWidth);
-        if (top < viewH && top + rowH <= viewH) {
-            return;
-        }
-        anchorIndex = index;
-        anchorTop = Math.max(0, viewH - rowH);
-        normalizeUp(contentWidth);
-    }
-
-    private void normalizeUp(float w) {
-        while (anchorTop > 0 && anchorIndex > 0) {
-            anchorTop -= measuredHeight(anchorIndex - 1, w);
-            anchorIndex--;
-        }
-        if (anchorIndex == 0 && anchorTop > 0) {
-            anchorTop = 0;
-        }
-    }
-
-    private void normalizeDown(int count, float w) {
-        while (anchorIndex < count - 1) {
-            float h = measuredHeight(anchorIndex, w);
-            if (anchorTop + h <= 0) {
-                anchorTop += h;
-                anchorIndex++;
-            } else {
-                break;
-            }
-        }
-    }
-
-    private float placeDown(int count, float rowX, float viewW, float viewport) {
-        SizeTokens t = tokens();
-        boolean rtl = isRightToLeft();
-        float y = anchorTop;
-        int i = anchorIndex;
-        // Past the viewport by what a drag lifted out of it: the rows below close up, and the
-        // ones that come into view from under the edge have to be there to slide in.
-        while (i < count && y < viewport + liftedHeight) {
-            float rowH = measuredHeight(i, contentWidth);
-            Widget<?> cell = cellFor(i);
-            float lead = cellLeft(t, i, contentWidth);
-            float cellW = Math.max(0, contentWidth - lead);
-            cell.layoutBox(cellX(rowX, viewW, lead, cellW, rtl), y, cellW, rowH);
-            y += rowH;
-            i++;
-        }
-        placedFrom = anchorIndex;
-        placedTo = i;
-        return y;
+        slides.newRowsSlideToo();
+        slides.slideToLayout();
     }
 
     /**
@@ -2135,102 +2106,9 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         return Math.min(lead, Math.max(0, w - t.chevronHalfW() * 2));
     }
 
-    private float measuredHeight(int index, float w) {
-        SizeTokens t = tokens();
-        Widget<?> cell = cellFor(index);
-        if (cell == null) {
-            Row<T> row = rows.get(index);
-            cell = row.placeholder ? lineUnderRow(row.loading)
-                    : Objects.requireNonNull(model.cellFor(row.node), "Model.cellFor returned null");
-            mount(index, cell);
-            cell.setVisible(true);
-        }
-        float available = Math.max(0, w - cellLeft(t, index, w));
-        return cell.measure(new Constraints(available, available, 0, Constraints.UNBOUNDED_LIMIT))
-                .height();
-    }
-
-    private Widget<?> cellFor(int index) {
-        for (int i = 0; i < mountedCount; i++) {
-            if (mountedRows[i] == index) {
-                return mountedCells[i];
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Mounts {@code cell} as row {@code index}, into the position that keeps both the mounted run
-     * and {@code children()} in traversal order — which is reading order and Tab order, and is
-     * not the order an upward scroll realizes rows in.
-     */
-    private void mount(int index, Widget<?> cell) {
-        int at = 0;
-        while (at < mountedCount && mountedRows[at] < index) {
-            at++;
-        }
-        add(at + 2, cell); // the two bars are children() zero and one
-        if (mountedCount == mountedRows.length) {
-            mountedRows = Arrays.copyOf(mountedRows, mountedCount * 2);
-            mountedCells = Arrays.copyOf(mountedCells, mountedCount * 2);
-            mountedNodes = Arrays.copyOf(mountedNodes, mountedCount * 2);
-            mountedNames = Arrays.copyOf(mountedNames, mountedCount * 2);
-        }
-        System.arraycopy(mountedRows, at, mountedRows, at + 1, mountedCount - at);
-        System.arraycopy(mountedCells, at, mountedCells, at + 1, mountedCount - at);
-        System.arraycopy(mountedNodes, at, mountedNodes, at + 1, mountedCount - at);
-        System.arraycopy(mountedNames, at, mountedNames, at + 1, mountedCount - at);
-        mountedRows[at] = index;
-        mountedCells[at] = cell;
-        mountedNodes[at] = mountKey(rows.get(index));
-        mountedNames[at] = null;
-        mountedCount++;
-    }
-
-    /**
-     * Recycles every mounted row outside {@code [from, toExclusive)}, sparing the one holding the
-     * keyboard focus while its index is still below {@code count} — a reader whose cursor follows
-     * the focus loses its place when the node it stands on leaves the tree — and, while the tree
-     * itself holds the keyboard, the cursor row: the reader's cursor is that row's {@code ACTIVE}
-     * node, and a wheel that recycled it took the cursor away. Released by the first pass after the
-     * focus leaves.
-     */
-    private void recycleExcept(int from, int toExclusive, int count) {
-        int kept = 0;
-        boolean keepCursor = cursor != null && isFocused();
-        for (int i = 0; i < mountedCount; i++) {
-            int row = mountedRows[i];
-            Widget<?> cell = mountedCells[i];
-            boolean inRun = row >= from && row < toExclusive;
-            boolean hasFocus = !inRun && containsFocus(cell);
-            boolean isCursor = !inRun && keepCursor && row < count
-                    && !rows.get(row).placeholder && rows.get(row).node.equals(cursor);
-            if (inRun || (hasFocus && row < count) || isCursor) {
-                mountedRows[kept] = row;
-                mountedCells[kept] = cell;
-                mountedNodes[kept] = mountedNodes[i];
-                mountedNames[kept] = mountedNames[i];
-                kept++;
-                continue;
-            }
-            unmount(cell, mountedNodes[i], hasFocus);
-        }
-        for (int i = kept; i < mountedCount; i++) {
-            mountedCells[i] = null;
-            mountedNodes[i] = null;
-            mountedNames[i] = null;
-        }
-        mountedCount = kept;
-    }
-
-    /** Releases the cells whose rows vanished since the last pass; see {@link #orphanCells}. */
-    private void releaseOrphans() {
-        for (int i = 0; i < orphanCells.size(); i++) {
-            Widget<?> cell = orphanCells.get(i);
-            unmount(cell, orphanKeys.get(i), containsFocus(cell));
-        }
-        orphanCells.clear();
-        orphanKeys.clear();
+    private @Nullable Widget<?> cellFor(int index) {
+        Cell cell = engine.mounted(index);
+        return cell == null ? null : cell.widget;
     }
 
     /**
@@ -2258,75 +2136,6 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         return false;
     }
 
-    /**
-     * Mounts the cursor row when the tree holds the keyboard and the pass left it unrealized: a
-     * refresh releases every cell, because each is bound to data the model may have replaced, and a
-     * reorder releases a cell that moved against the traversal; the cursor row comes back fresh
-     * from the model either way, placed outside the viewport by {@link #placeKeptOutside}. Nothing
-     * to do while the row is in the placed run, which is where a scroll that did not spare it would
-     * have put it.
-     */
-    private void keepCursorRowRealized(int count) {
-        if (cursor == null || !isFocused()) {
-            return;
-        }
-        int index = indexOf(cursor);
-        if (index < 0 || index >= count || cellFor(index) != null) {
-            return;
-        }
-        measuredHeight(index, contentWidth); // mounts it; placeKeptOutside lays it out
-    }
-
-    /**
-     * Puts a spared row wholly outside the viewport, on the side its index lies, at the height
-     * it measures — the placed run's own rule. A cell the pass just mounted has no height of its
-     * own yet, and the row laid out at that height stood at zero: a zero-height {@code ACTIVE}
-     * node to a reader, and a zero in the average that sizes the scroll estimate.
-     */
-    private void placeKeptOutside(float rowX, float viewW, float bottom) {
-        SizeTokens t = tokens();
-        boolean rtl = isRightToLeft();
-        for (int i = 0; i < mountedCount; i++) {
-            int row = mountedRows[i];
-            if (row >= placedFrom && row < placedTo) {
-                continue;
-            }
-            Widget<?> cell = mountedCells[i];
-            float rowH = measuredHeight(row, contentWidth);
-            float lead = cellLeft(t, row, contentWidth);
-            float cellW = Math.max(0, contentWidth - lead);
-            float y = row < placedFrom ? Math.min(anchorTop, 0) - rowH
-                    : Math.max(bottom, viewportHeight());
-            cell.layoutBox(cellX(rowX, viewW, lead, cellW, rtl), y, cellW, rowH);
-        }
-    }
-
-    /**
-     * The mean height of the rows the pass laid out in the viewport's run, and of no other mounted
-     * cell. The cursor row the tree keeps while it holds the keyboard, and a cell kept because a
-     * control inside it has focus, are mounted wherever they sit; averaged in, a kept row of
-     * another height skewed the estimate the scroll clamps and the wheel's hand-off read, so at
-     * the real end the estimate sat short of its maximum (a kept row taller than the rest: every
-     * detent taken, nothing moved, the wheel walled in a scroll pane) or past it (shorter: the
-     * tree stopped short of its last row and the pane moved). Over the placed run alone the
-     * estimate's remaining distance is exact once the last row is placed — {@code (count −
-     * anchorIndex) × mean} is then the run's own height — and positive while any row is not.
-     */
-    private void updateAverageHeight() {
-        float total = 0;
-        int counted = 0;
-        for (int i = 0; i < mountedCount; i++) {
-            int row = mountedRows[i];
-            if (row >= placedFrom && row < placedTo) {
-                total += mountedCells[i].height();
-                counted++;
-            }
-        }
-        if (counted > 0) {
-            measuredRowHeight = total / counted;
-        }
-    }
-
     // --------------------------------------------------------------------------- scroll
 
     /**
@@ -2340,61 +2149,20 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     public void scrollBy(float dx, float dy) {
         Ui.checkUiThread();
         if (dx != 0) {
-            scrollHorizontally(dx);
+            scrollHorizontally(dx, Change.Origin.CODE);
         }
         if (dy != 0) {
-            scrollVertically(dy);
+            scrollVertically(dy, Change.Origin.CODE);
         }
     }
 
-    private void scrollVertically(float dy) {
-        revealPending = null; // a scroll after a reveal the pass has not settled moves from here
-        SizeTokens t = tokens();
-        float offset = estimatedOffset(t);
-        float max = Math.max(0, estimatedContentHeight(t) - viewportHeight());
-        float applied = Math.min(Math.max(0, offset + dy), max) - offset;
-        if (applied == 0) {
-            return;
-        }
-        anchorTop -= applied;
-        for (int i = 0; i < mountedCount; i++) {
-            Widget<?> cell = mountedCells[i];
-            moveChild(cell, cell.x(), cell.y() - applied);
-        }
-        markNeedsContainedLayout();
-        invalidate();
-        vBar.onScrolled();
+    private void scrollVertically(float dy, Change.Origin origin) {
+        engine.scrollBy(dy, origin);
     }
 
-    /**
-     * The vertical bar's model writing the offset: the user dragging or paging the bar. It jumps to
-     * the row the estimate puts there, as Table and ListView do, rather than scrolling by the
-     * difference: a scroll walks and measures every row it passes, which made a
-     * thumb dragged to the end of 100,000 rows take 1.4–2.3 s where the table took 7–10 ms.
-     */
-    private void scrollToOffset(float offset, SizeTokens t) {
-        revealPending = null;
-        float avg = avgRowHeight(t);
-        float max = Math.max(0, estimatedContentHeight(t) - viewportHeight());
-        float clamped = Math.max(0, Math.min(offset, max));
-        anchorIndex = avg > 0 ? (int) (clamped / avg) : 0;
-        anchorIndex = Math.max(0, Math.min(anchorIndex, Math.max(0, rows.size() - 1)));
-        anchorTop = anchorIndex * avg - clamped;
-        markNeedsContainedLayout();
-        invalidate();
-        vBar.onScrolled();
-    }
-
-    /**
-     * Whether a scroll of {@code dy} would move anything: not at the end it points to. Read off
-     * the estimate, which agrees with the layout at either end, up to rounding, because
-     * {@link #updateAverageHeight} averages only the rows the pass placed.
-     */
+    /** Whether a scroll of {@code dy} would move anything: not at the end it points to. */
     private boolean canScrollBy(float dy) {
-        SizeTokens t = tokens();
-        float offset = estimatedOffset(t);
-        float max = Math.max(0, estimatedContentHeight(t) - viewportHeight());
-        return dy < 0 ? offset > 0 : offset < max;
+        return engine.canScrollBy(dy);
     }
 
     /** Whether a sideways scroll of {@code dx} would move anything. */
@@ -2403,7 +2171,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         return dx < 0 ? offsetX > 0 : offsetX < max;
     }
 
-    private void scrollHorizontally(float dx) {
+    private void scrollHorizontally(float dx, Change.Origin origin) {
         float max = Math.max(0, contentWidth - gutters.viewportWidth(width()));
         float next = Math.min(Math.max(0, offsetX + dx), max);
         if (next == offsetX) {
@@ -2412,13 +2180,14 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         float applied = next - offsetX;
         offsetX = next;
         float sign = isRightToLeft() ? 1 : -1;
-        for (int i = 0; i < mountedCount; i++) {
-            Widget<?> cell = mountedCells[i];
+        for (int i = 0; i < engine.mountedCount(); i++) {
+            Widget<?> cell = engine.mountedAt(i).widget;
             moveChild(cell, cell.x() + sign * applied, cell.y());
         }
         markNeedsContainedLayout();
         invalidate();
         hBar.onScrolled();
+        notifyChange(Change.of(Change.Aspect.VALUE, origin)); // a watcher hears a scroll
     }
 
     @Override
@@ -2431,9 +2200,9 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     private void revealVertically(float y, float rectHeight) {
         float viewH = viewportHeight();
         if (y < 0) {
-            scrollVertically(y);
+            scrollVertically(y, Change.Origin.ADJUSTMENT);
         } else if (y + rectHeight > viewH) {
-            scrollVertically(Math.min(y, y + rectHeight - viewH));
+            scrollVertically(Math.min(y, y + rectHeight - viewH), Change.Origin.ADJUSTMENT);
         }
     }
 
@@ -2453,7 +2222,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
             dx = Math.min(x - left, x + rectWidth - (left + viewW));
         }
         if (dx != 0) {
-            scrollHorizontally(isRightToLeft() ? -dx : dx);
+            scrollHorizontally(isRightToLeft() ? -dx : dx, Change.Origin.ADJUSTMENT);
         }
     }
 
@@ -2479,7 +2248,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         if (cell != null && cell.y() + cell.height() > 0 && cell.y() < viewportHeight()) {
             // Nothing moves until a pass settles a deferred reveal, so this box is where the row
             // stands; the later reveal is the one kept (End then Home in one batch ends on top).
-            revealPending = null;
+            engine.cancelReveal();
             revealVertically(cell.y(), cell.height());
         } else {
             // A row outside the viewport has no box that says how far to scroll: one not mounted
@@ -2487,8 +2256,8 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
             // keyboard (decision 22), or a cell holding the focus — is laid out at the viewport's
             // edge and not where it stands in the outline. The anchor's estimate counted the
             // rows between in average rows and stopped short over rows of uneven height, so the
-            // pass settles it from their measured heights instead (settleReveal).
-            revealPending = node;
+            // pass settles it from their measured heights instead.
+            engine.reveal(() -> indexOf(node));
             markNeedsContainedLayout();
             invalidate();
             vBar.onScrolled();
@@ -2538,12 +2307,12 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
      * slots are a screenful.
      */
     private Widget<?> mountedCellOf(T node) {
-        for (int i = 0; i < mountedCount; i++) {
-            int index = mountedRows[i];
+        for (int i = 0; i < engine.mountedCount(); i++) {
+            int index = engine.rowAt(i);
             if (index < rows.size()) {
                 Row<T> row = rows.get(index);
                 if (!row.placeholder && row.node.equals(node)) {
-                    return mountedCells[i];
+                    return engine.mountedAt(i).widget;
                 }
             }
         }
@@ -2811,18 +2580,18 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         droppedWithin = false;
         if (!event.isKeyboard()) {
             // Under the pointer from now on, and no longer in the tree: the rows below close up.
-            rowsAreHere();
-            returning = null;
+            slides.rowsAreHere();
+            slides.setReturning(null);
             lifted = true;
             markLifted();
             liftedHeight = 0;
-            for (int i = 0; i < mountedCount; i++) {
-                if (liftedRows.get(mountedRows[i]) && isPlaced(mountedRows[i])) {
-                    liftedHeight += mountedCells[i].height();
+            for (int i = 0; i < engine.mountedCount(); i++) {
+                if (liftedRows.get(engine.rowAt(i)) && isPlaced(engine.rowAt(i))) {
+                    liftedHeight += engine.mountedAt(i).widget.height();
                 }
             }
             markNeedsLayout();
-            rowsBelongElsewhere();
+            slides.rowsBelongElsewhere();
         }
         return drag.onEnd(action -> {
             boolean elsewhere = action == DropAction.MOVE && !droppedWithin;
@@ -2830,16 +2599,16 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
             Consumer<? super List<T>> out = onMoveOut;
             if (elsewhere && out != null) {
                 // They are gone from the model: nothing slides back into their places.
-                forgetSlides();
+                slides.forget();
                 putDown();
             }
             if (lifted) {
-                rowsAreHere();
+                slides.rowsAreHere();
                 java.util.BitSet back = (java.util.BitSet) liftedRows.clone();
                 putDown();
                 if (!within) {
-                    rowsBelongElsewhere(); // put back: the rows below make room again
-                    returning = !sliding.isEmpty() ? back : null;
+                    slides.rowsBelongElsewhere(); // put back: the rows below make room again
+                    slides.setReturning(slides.isSliding() ? back : null);
                 }
             }
             dragged = null;
@@ -2882,7 +2651,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     }
 
     private boolean isPlaced(int index) {
-        return index >= placedFrom && index < placedTo;
+        return engine.isPlaced(index);
     }
 
     /** The rows a drag lifted out are rows of the tree again. */
@@ -2938,207 +2707,6 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         return last + 1;
     }
 
-    /** The room opened where a drop would land: a share of the height of what is dragged, as far as the tree knows. */
-    private float roomHeight() {
-        float room = 0;
-        for (int i = 0; lifted && i < mountedCount; i++) {
-            if (liftedRows.get(mountedRows[i]) && isPlaced(mountedRows[i])) {
-                room += mountedCells[i].height();
-            }
-        }
-        return (room > 0 ? room : avgRowHeight(tokens())) * ROOM_SHARE;
-    }
-
-    /**
-     * How much of the height of what is dragged the room opened for it takes. Half: a row is
-     * mostly its own margins, and the rows on either side of the room bring theirs, so room as
-     * tall as the row read as twice the space the item needs (the owner, three times). What is
-     * dropped takes the rest by pushing its neighbours apart, which slides like everything else.
-     */
-    private static final float ROOM_SHARE = 0.5f;
-
-    /**
-     * How far from where the layout put it each realized row belongs, in the order they are
-     * mounted: up by the rows lifted out above it, down by the room opened at or above it. NaN
-     * for a row that is lifted, which is not drawn.
-     */
-    private float[] belongs() {
-        if (offsets.length < mountedCount) {
-            offsets = new float[mountedCells.length];
-        }
-        markLifted();
-        int from = roomFrom();
-        float room = from < 0 ? 0 : roomHeight();
-        float up = 0;
-        for (int i = 0; i < mountedCount; i++) {
-            int row = mountedRows[i];
-            if (liftedRows.get(row)) {
-                offsets[i] = Float.NaN;
-                if (isPlaced(row)) {
-                    up += mountedCells[i].height();
-                }
-            } else {
-                offsets[i] = -up + (room > 0 && row >= from ? room : 0);
-            }
-        }
-        return offsets;
-    }
-
-    /** {@link #belongs} with what is left of each row's slide: where the rows are drawn now. */
-    private float[] drawnOffsets() {
-        float[] at = belongs();
-        if (!sliding.isEmpty()) {
-            for (int i = 0; i < mountedCount; i++) {
-                Float left = sliding.get(mountedRows[i]);
-                if (left != null && !Float.isNaN(at[i])) {
-                    at[i] += left;
-                }
-            }
-        }
-        return at;
-    }
-
-    /**
-     * The rows belong somewhere else than a moment ago (rows lifted or put back, room opened,
-     * moved or closed): each slides there from where it is drawn now.
-     */
-    private void rowsBelongElsewhere() {
-        float[] now = belongs();
-        boolean still = limn.animation.Motion.reduced() || scene() == null;
-        boolean any = false;
-        for (int i = 0; i < mountedCount; i++) {
-            Integer row = mountedRows[i];
-            if (Float.isNaN(now[i])) {
-                sliding.remove(row);
-                belonged.remove(row);
-                continue;
-            }
-            Float was = belonged.put(row, now[i]);
-            if (was != null && !still) {
-                float left = was + sliding.getOrDefault(row, 0f) - now[i];
-                if (Math.abs(left) >= 0.5f) {
-                    sliding.put(row, left);
-                    any = true;
-                } else {
-                    sliding.remove(row);
-                }
-            }
-        }
-        invalidate();
-        if (any) {
-            slide();
-        }
-    }
-
-    /**
-     * Notes where every realized row belongs now, before what decides it changes: a row slides
-     * from where it was drawn, and one realized since the last change (scrolled in, or placed
-     * under the edge for a drag) was drawn where it belonged, which nothing else remembers. Taken
-     * for a row at rest where the layout put it, such a row jumped there, over its neighbours,
-     * and slid back.
-     */
-    private void rowsAreHere() {
-        float[] now = belongs();
-        for (int i = 0; i < mountedCount; i++) {
-            if (!Float.isNaN(now[i])) {
-                belonged.put(mountedRows[i], now[i]);
-            }
-        }
-    }
-
-    /**
-     * After a layout: a row realized while the others slide comes in with them, by as much as the
-     * row above it has left to go, and not at once where it belongs.
-     */
-    private void newRowsSlideToo() {
-        if (sliding.isEmpty()) {
-            return;
-        }
-        for (int i = 1; i < mountedCount; i++) {
-            Integer row = mountedRows[i];
-            Float above = sliding.get(mountedRows[i - 1]);
-            if (above != null && isPlaced(row) && !belonged.containsKey(row) && !sliding.containsKey(row)
-                    && !liftedRows.get(row)) {
-                sliding.put(row, above);
-            }
-        }
-        rowsAreHere();
-    }
-
-    private void slide() {
-        limn.scene.Scene scene = scene();
-        if (slideTicking || scene == null) {
-            return;
-        }
-        slideTicking = true;
-        scene.addRealTimeTicker(dt -> {
-            float keep = (float) Math.exp(-dt / SLIDE_SECONDS);
-            sliding.replaceAll((row, left) -> left * keep);
-            sliding.values().removeIf(left -> Math.abs(left) < 0.5f);
-            slideTicking = !sliding.isEmpty();
-            if (!slideTicking) {
-                returning = null;
-            }
-            invalidate();
-            return slideTicking;
-        });
-    }
-
-    private void forgetSlides() {
-        returning = null;
-        sliding.clear();
-        belonged.clear();
-    }
-
-    /**
-     * Remembers where every row is drawn, by node, before the model changes under them: the next
-     * layout slides each from there to where it then stands.
-     */
-    private void slideFromHere() {
-        if (limn.animation.Motion.reduced() || scene() == null) {
-            forgetSlides();
-            return;
-        }
-        float[] at = drawnOffsets();
-        HashMap<Object, Float> drawn = new HashMap<>();
-        for (int i = 0; i < mountedCount; i++) {
-            int index = mountedRows[i];
-            if (!Float.isNaN(at[i]) && isPlaced(index) && index < rows.size() && !rows.get(index).placeholder) {
-                drawn.put(rows.get(index).node, mountedCells[i].y() + at[i]);
-            }
-        }
-        forgetSlides();
-        drawnBefore = drawn;
-        // For the layout the change brings, and no later one: a drop the application refused
-        // changes nothing, and what was remembered here is not where a scroll finds the rows.
-        Ui.postDelayed(() -> {
-            if (drawnBefore == drawn) {
-                drawnBefore = null;
-            }
-        }, 300);
-    }
-
-    /** After a layout: the rows remembered by {@link #slideFromHere} slide to where they stand. */
-    private void slideToLayout() {
-        HashMap<Object, Float> drawn = drawnBefore;
-        if (drawn == null) {
-            return;
-        }
-        drawnBefore = null;
-        boolean any = false;
-        for (int i = 0; i < mountedCount; i++) {
-            int index = mountedRows[i];
-            Float was = index < rows.size() && !rows.get(index).placeholder ? drawn.get(rows.get(index).node) : null;
-            if (was != null && Math.abs(was - mountedCells[i].y()) >= 0.5f) {
-                sliding.put(index, was - mountedCells[i].y());
-                any = true;
-            }
-        }
-        if (any) {
-            slide();
-        }
-    }
-
     /**
      * The place under the pointer: on a branch, its upper quarter is before it, its lower after
      * and the rest into it; a leaf is halves. After an open branch is its first place inside,
@@ -3153,9 +2721,9 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         int index = -1;
         float part = 0;
         float up = 0;
-        for (int i = 0; i < mountedCount && index < 0; i++) {
-            int at = mountedRows[i];
-            Widget<?> cell = mountedCells[i];
+        for (int i = 0; i < engine.mountedCount() && index < 0; i++) {
+            int at = engine.rowAt(i);
+            Widget<?> cell = engine.mountedAt(i).widget;
             if (!isPlaced(at)) {
                 continue; // a row kept realized outside the viewport
             }
@@ -3251,10 +2819,10 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
 
     private void setDropPlace(@Nullable Place<T> place, boolean byKeyboard) {
         if (!Objects.equals(place, dropPlace) || placeByKeyboard != byKeyboard) {
-            rowsAreHere();
+            slides.rowsAreHere();
             dropPlace = place;
             placeByKeyboard = byKeyboard;
-            rowsBelongElsewhere(); // the rows from there down make room, or close it
+            slides.rowsBelongElsewhere(); // the rows from there down make room, or close it
             invalidate();
         }
     }
@@ -3333,7 +2901,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
                 return;
             }
             springNode = null;
-            forgetSlides(); // the rows are renumbered under them
+            slides.forget(); // the rows are renumbered under them
             setExpanded(resting, true, Change.Origin.USER);
             setDropPlace(new Place<>(resting, childrenOf(resting).size(), resting, Where.INTO));
         }, SPRING_MILLIS);
@@ -3352,7 +2920,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         boolean own = isOwnNodes(event.source()) && moving != null;
         // What is dropped takes the room that was opened for it: the other rows stay where they
         // are drawn, and slide only as far as the new model puts them elsewhere.
-        slideFromHere();
+        slides.slideFromHere();
         dropPlace = null;
         if (own) {
             putDown();
@@ -3465,10 +3033,10 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         // The node they went into is said when it is a new one: among their own siblings the
         // place alone says what moved.
         String into = parent == null || allHere ? null : announcementName(parent);
-        if (drawnBefore == null) {
+        if (!slides.isRemembering()) {
             // Moved by the keyboard: every row slides from where it is to where it goes, the ones
             // that gave way as much as the ones moved, or nothing on screen says which moved.
-            slideFromHere();
+            slides.slideFromHere();
         }
         handler.move(nodes, parent, place);
         if (parent != null) {
@@ -3511,11 +3079,11 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         if (cell == null) {
             return;
         }
-        float[] at = belongs();
+        float[] at = slides.belongs();
         if (place.where() == Where.INTO) {
             float shift = 0;
-            for (int i = 0; i < mountedCount; i++) {
-                if (mountedCells[i] == cell) {
+            for (int i = 0; i < engine.mountedCount(); i++) {
+                if (engine.mountedAt(i).widget == cell) {
                     shift = at[i];
                 }
             }
@@ -3535,21 +3103,21 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
                 from++;
             }
         }
-        float room = roomFrom() < 0 ? 0 : roomHeight();
+        float room = slides.room();
         float up = 0;
         float y = Float.NaN;
         float foot = 0;
-        for (int i = 0; i < mountedCount && Float.isNaN(y); i++) {
-            int index = mountedRows[i];
+        for (int i = 0; i < engine.mountedCount() && Float.isNaN(y); i++) {
+            int index = engine.rowAt(i);
             if (!isPlaced(index)) {
                 continue;
             }
             if (liftedRows.get(index)) {
-                up += mountedCells[i].height();
+                up += engine.mountedAt(i).widget.height();
             } else if (index >= from) {
-                y = mountedCells[i].y() - up;
+                y = engine.mountedAt(i).widget.y() - up;
             } else {
-                foot = mountedCells[i].y() - up + mountedCells[i].height();
+                foot = engine.mountedAt(i).widget.y() - up + engine.mountedAt(i).widget.height();
             }
         }
         if (Float.isNaN(y)) {
@@ -3596,8 +3164,8 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         switch (event.shortcutKey()) {
             case Keys.DOWN -> consumeAnd(event, () -> moveLead(1, extend));
             case Keys.UP -> consumeAnd(event, () -> moveLead(-1, extend));
-            case Keys.PAGE_DOWN -> consumeAnd(event, () -> moveLead(rowsPerPage(tokens()), extend));
-            case Keys.PAGE_UP -> consumeAnd(event, () -> moveLead(-rowsPerPage(tokens()), extend));
+            case Keys.PAGE_DOWN -> consumeAnd(event, () -> pageLead(rowsPerPage(tokens()), extend));
+            case Keys.PAGE_UP -> consumeAnd(event, () -> pageLead(-rowsPerPage(tokens()), extend));
             case Keys.HOME -> consumeAnd(event, () -> selectAt(0, 1, extend));
             case Keys.END -> consumeAnd(event, () -> selectAt(rows.size() - 1, -1, extend));
             case Keys.A -> {
@@ -3677,16 +3245,36 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
      * second. {@code ListView} answers the same way for the same reason — a dead-ended arrow is
      * not a programming error, and neither is a first one.
      */
+    /**
+     * Page Up and Page Down: the cursor goes a page and the view goes as far with it, so the
+     * cursor keeps its place in the box, when the row it left was wholly in sight. The view is
+     * moved from where it stood before the cursor went, whatever the cursor's own reveal did.
+     */
+    private void pageLead(int delta, boolean extend) {
+        int from = cursor == null ? -1 : indexOf(cursor);
+        boolean inSight = from >= 0 && engine.isWhollyInSight(from);
+        int anchor = engine.anchorIndex();
+        float top = engine.anchorTop();
+        moveLead(delta, extend);
+        int to = cursor == null ? -1 : indexOf(cursor);
+        if (inSight && to >= 0 && to != from) {
+            engine.moveViewTo(anchor + (to - from), top);
+            markNeedsContainedLayout(); // the pass clamps the view at the last row
+            invalidate();
+            vBar.onScrolled();
+        }
+    }
+
     private void moveLead(int delta, boolean extend) {
         if (rows.isEmpty()) {
             return;
         }
         if (cursor == null) {
-            selectAt(anchorIndex, 1, extend);
+            selectAt(engine.anchorIndex(), 1, extend);
             return;
         }
         int from = indexOf(cursor);
-        selectAt(from < 0 ? anchorIndex : from + delta, delta, extend);
+        selectAt(from < 0 ? engine.anchorIndex() : from + delta, delta, extend);
     }
 
     private void selectAt(int index) {
@@ -3761,11 +3349,11 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
                 float dy = swap ? 0 : -event.scrollY() * Strokes.WHEEL_STEP;
                 boolean moved = false;
                 if (dy != 0 && canScrollBy(dy)) {
-                    scrollVertically(dy);
+                    scrollVertically(dy, Change.Origin.USER);
                     moved = true;
                 }
                 if (dx != 0 && canScrollHorizontallyBy(dx)) {
-                    scrollHorizontally(dx);
+                    scrollHorizontally(dx, Change.Origin.USER);
                     moved = true;
                 }
                 if (moved) {
@@ -3869,10 +3457,10 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     }
 
     private int rowAtLocalY(float localY) {
-        for (int i = 0; i < mountedCount; i++) {
-            Widget<?> cell = mountedCells[i];
+        for (int i = 0; i < engine.mountedCount(); i++) {
+            Widget<?> cell = engine.mountedAt(i).widget;
             if (localY >= cell.y() && localY < cell.y() + cell.height()) {
-                return mountedRows[i];
+                return engine.rowAt(i);
             }
         }
         return -1;
@@ -3937,17 +3525,16 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
             canvas.clipRect(viewportLeft(), 0, gutters.viewportWidth(width()), viewH);
             // Where each row is drawn against where the layout put it: rows slide, close over
             // rows lifted out by a drag, and make room where a drop would land.
-            float[] at = drawnOffsets();
+            float[] at = slides.drawnOffsets();
             float cursorAt = 0;
-            for (int i = 0; i < mountedCount; i++) {
-                int index = mountedRows[i];
-                Widget<?> cell = mountedCells[i];
+            for (int i = 0; i < engine.mountedCount(); i++) {
+                int index = engine.rowAt(i);
+                Widget<?> cell = engine.mountedAt(i).widget;
                 Row<T> row = rows.get(index);
                 if (!row.placeholder && row.node.equals(cursor)) {
                     cursorAt = at[i];
                 }
-                java.util.BitSet back = returning;
-                if (Float.isNaN(at[i]) || (back != null && back.get(index))) {
+                if (Float.isNaN(at[i]) || slides.isReturning(index)) {
                     continue; // under the pointer, and not in the tree; or not back in it yet
                 }
                 if (!isPlaced(index) || cell.y() + at[i] >= viewH || cell.y() + at[i] + cell.height() <= 0) {
@@ -4145,12 +3732,12 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     private void damageSpinners() {
         SizeTokens t = tokens();
         float band = twistyBand(t);
-        for (int i = 0; i < mountedCount; i++) {
-            Row<T> row = rows.get(mountedRows[i]);
+        for (int i = 0; i < engine.mountedCount(); i++) {
+            Row<T> row = rows.get(engine.rowAt(i));
             if (!row.loading || !row.expanded || row.placeholder) {
                 continue;
             }
-            Widget<?> cell = mountedCells[i];
+            Widget<?> cell = engine.mountedAt(i).widget;
             // Clamped to the viewport and not the box: a band scrolled under a reserved bar strip
             // is clipped out of the paint, and damaging the strip would repaint the bar for it.
             float viewLeft = viewportLeft();
@@ -4242,8 +3829,8 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
 
     /** The mounted slot a cell sits in, or {@code -1} for the bars. */
     private int slotOfCell(Widget<?> child) {
-        for (int i = 0; i < mountedCount; i++) {
-            if (mountedCells[i] == child) {
+        for (int i = 0; i < engine.mountedCount(); i++) {
+            if (engine.mountedAt(i).widget == child) {
                 return i;
             }
         }
@@ -4256,7 +3843,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     }
 
     private Row<T> rowOfSlot(int slot) {
-        int index = slot < 0 ? -1 : mountedRows[slot];
+        int index = slot < 0 ? -1 : engine.rowAt(slot);
         if (index < 0 || index >= rows.size()) {
             return null;
         }
@@ -4280,16 +3867,16 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     private String derivedName(int slot, Widget<?> cell) {
         nameBuilder.setLength(0);
         appendLabelText(cell);
-        String kept = mountedNames[slot];
+        String kept = engine.mountedAt(slot).name;
         if (nameBuilder.length() == 0) {
-            mountedNames[slot] = null;
+            engine.mountedAt(slot).name = null;
             return null;
         }
         if (kept != null && kept.contentEquals(nameBuilder)) {
             return kept;
         }
         String fresh = nameBuilder.toString();
-        mountedNames[slot] = fresh;
+        engine.mountedAt(slot).name = fresh;
         return fresh;
     }
 
@@ -4346,7 +3933,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         }
         // The depth and the flat row index (ADR 039 §1.2, amended 2026-09-14): what a reader
         // speaks as "level 2" and what the macOS outline addresses its rows by.
-        a.hierarchy(row.depth + 1, itemOf(mountedRows[slot]), itemCount);
+        a.hierarchy(row.depth + 1, itemOf(engine.rowAt(slot)), itemCount);
         if (row.loading) {
             // What the spinner and the loading line say to a sighted user: this row is open and
             // what it holds has not arrived. Without it an open row with no children reads to a

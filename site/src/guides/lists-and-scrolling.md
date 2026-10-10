@@ -71,11 +71,21 @@ there was none), `selectedIndices()` and `selectedItems()` are all of them, and
 `cursorIndex()` is the row the keyboard is on, which in `MULTI` need not be selected.
 
 A list inside something that gives it no height of its own — a `Column`, a `ScrollView` — has to
-choose a height, and it asks for room for six rows. `setVisibleRows(n)` says how many you want
-instead; `Table` and `Tree` take the same call and ask for eight. The height comes from the
+choose a height, and it asks for room for eight rows, as `Table` and `Tree` do.
+`setVisibleRows(n)` says how many you want instead, on all three. The height comes from the
 theme's row height and not from an average of the rows built so far, so it does not change as you
 scroll. And a wheel that reaches the end of a list's own scroll passes to the scroller around it,
 so a list inside a page does not trap the wheel where its content stops.
+
+Three things are the same in `ListView`, `Table` and `Tree`, which walk their rows with the
+same code. A row brought into view from outside it, by a key, by `setSelectedIndex`, by a
+refresh, comes in by the least scroll: it stops at the edge it came from, and a row already
+in view moves nothing. Page Down and Page Up move the cursor a page and the view with it, so
+the cursor keeps its place on screen and paging does not throw it between the top and the
+foot. And a watcher hears a scroll: `observeChanges` is told a `VALUE` change whose origin says
+who scrolled, `USER` for the wheel and the bar, `CODE` for `scrollBy`, `ADJUSTMENT` for a row
+the widget brought into view itself. That is where to load more rows as the user nears the end,
+or to keep two lists side by side on the same row.
 
 `onSelect` runs when the *user* changes the selection, by a click or a key, and not when
 your code does; it reads what it needs from the list. `onActivate` is the *open this* gesture,
