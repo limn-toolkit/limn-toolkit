@@ -209,6 +209,8 @@ final class GalleryScenes {
                 // The specialised surfaces: an application asks for these by name.
                 new GalleryEntry("color-picker", "ColorPicker", "gallery:color-picker",
                         GalleryScenes::colorPicker),
+                new GalleryEntry("surface", "Surface", "gallery:surface",
+                        GalleryScenes::surface),
                 new GalleryEntry("backdrop-panel", "BackdropPanel", "gallery:backdrop-panel",
                         GalleryScenes::backdropPanel),
                 new GalleryEntry("video-view", "VideoView", "gallery:video-view",
@@ -741,6 +743,24 @@ final class GalleryScenes {
         // The picture can be dragged out, to a drop area of this program or to another one.
         view.setDragEnabled(true);
         return scene(view);
+    }
+    // #endregion
+
+    // #region gallery:surface
+    static Built surface() {
+        // One surface at each level that casts a shadow, on the page's own canvas: what the
+        // theme gives a card, a panel that covers and a dialog.
+        Row row = new Row();
+        row.gap(28).crossAlignment(Flex.CrossAlignment.CENTER);
+        for (limn.components.Elevation level : List.of(limn.components.Elevation.RAISED,
+                limn.components.Elevation.OVERLAY, limn.components.Elevation.MODAL)) {
+            String name = level.name().charAt(0) + level.name().substring(1).toLowerCase(java.util.Locale.ROOT);
+            row.add(new limn.components.Surface(
+                    new limn.scene.layout.Padding(limn.scene.Insets.symmetric(18, 22), new Label(name)))
+                    .setElevation(level));
+        }
+        // Room around the row for the widest shadow, which is painted outside its surface.
+        return scene(new limn.scene.layout.Padding(limn.scene.Insets.all(40), row));
     }
     // #endregion
 

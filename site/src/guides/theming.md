@@ -125,7 +125,9 @@ nothing but `limn-toolkit`, which is the point of the split below.
 ## Building one in the theme editor
 
 The theme editor is a program, not a dependency: it authors a palette with a live preview and
-a contrast audit beside it, and saves it as a `.limntheme` file.
+a contrast audit beside it, and saves it as a `.limntheme` file. Besides the colours it edits
+the corner roundness, the typeface and, at the end of its list, the shadow of each level of
+[elevation](#elevation).
 
 {% tabs os "Windows / Linux" macOS %}
 ```bash
@@ -152,7 +154,8 @@ loads in an application that has never heard of it.
 | `disabledFill` `disabledText` | unavailable controls |
 | `danger` `success` `warning` `info` | the four states |
 | `scrim` | the veil a modal dialog lays over what it blocks |
-| `cornerScale` | how round the corners are, the one metric a palette carries |
+| `cornerScale` | how round the corners are |
+| `elevation(level)` | the shadow of a raised surface, of one that covers and of a dialog: see [Elevation](#elevation) |
 | `fontFamily` | the face the palette prefers; applied by `apply`, or by `applyFontFamily()` |
 
 Each is an accessor on the palette. Read the palette through `Theme.of(this)` when you paint,
