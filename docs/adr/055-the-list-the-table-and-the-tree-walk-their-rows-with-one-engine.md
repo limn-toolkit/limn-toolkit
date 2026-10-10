@@ -1,9 +1,7 @@
 # ADR 055: The list, the table and the tree walk their rows with one engine
 
-- **Status:** Accepted, 2026-10-10, with the owner's answers below. Steps 1 to 4, 6 and 7 of §6
-  are built: the engine, the three widgets on it, the page keys and the scroll notification, the
-  guide and the CHANGELOG; §7 says where they depart from the text. Step 5, the lifting and
-  sliding of a drag, is not: the list and the tree still hold their own copies of it.
+- **Status:** Implemented, 2026-10-10, with the owner's answers below; §7 says where the build
+  departs from the text.
 - **Date:** 2026-10-10
 - **Scope:** `ListView`, `Table` and `Tree` keep one copy of what a scrolling run of rows is: the
   anchor and the walk over rows of uneven height, the mean height and the scroll estimate, which
@@ -180,7 +178,7 @@ Each step is a commit with the whole check green. Done when the three widgets ho
 no placed range, no realized-row arrays and no slide state of their own, the tests of §5 pass,
 and the three films show what they showed.
 
-## 7. As built so far
+## 7. As built
 
 Steps 1 to 4, 6 and 7 (2026-10-10), each a commit with the whole check green, 6,575 tests.
 
@@ -211,4 +209,26 @@ Steps 1 to 4, 6 and 7 (2026-10-10), each a commit with the whole check green, 6,
   last frames are what they were.
 - The list, the table and the tree are 2,525, 4,573 and 4,255 lines where they were 2,783,
   4,756 and 4,490, and the engine is 708.
+
+Step 5 (2026-10-10):
+
+- **`RowSlides`** holds what is left of each row's slide, where each last belonged, the rows a
+  drag gave back and not yet drawn, and what was drawn before the rows changed; and does the
+  arithmetic and the ticking. It is not reached through `Rows` as §2 sketched but made beside
+  it by the widget, with a host of its own: which rows are lifted, where the room begins, what
+  a row shows (by which it is known again after a change), and where the layout put it. The
+  list knows a row again by identity, two rows being free to show equal items, and the tree by
+  equality, as it knows a node; the tree works out its lifted rows, every row under a dragged
+  node, when it is asked.
+- **The room** is one sum in one place. The list's guard (no room for the keyboard's place) and
+  the tree's (none for a drop into a node) are each widget's answer to where the room begins.
+- **Known to be the same** by the films: all 231 frames of the list's and the tree's, which
+  move rows by the keyboard and so run the remembering, the sliding and the ticker, are what
+  they were before the step, frame for frame. What a pointer's drag adds, the lifting and the
+  room, no film shows, for ADR 054 §7's reason; `RowSlidesTest` holds its arithmetic against
+  rows of plain numbers, and the two drag tests its outcomes.
+- The list and the tree are 2,345 and 4,077 lines, and `RowSlides` 345. With the engine the
+  three widgets and what they share are 12,048 lines where the three alone were 12,029: what
+  was removed is 1,034 lines of the three, and what it is now written once in is 1,053, half
+  of it the words that say why.
 

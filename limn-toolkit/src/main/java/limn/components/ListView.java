@@ -4,6 +4,7 @@ import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.animation.Transition;
 import limn.components.internal.RowDragPicture;
+import limn.components.internal.RowSlides;
 import limn.components.internal.Rows;
 import limn.components.internal.a11y.RowsAccessibility;
 import limn.concurrent.Ui;
@@ -304,23 +305,44 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
     /** Whether the place a drop would take was chosen by the keyboard, which opens no room. */
     private boolean placeByKeyboard;
     /**
-     * How far from where it belongs each row is drawn at this moment, by row: what is left of a
-     * slide, which a ticker wears down. And where each row was last said to belong, against which
-     * the next change is measured.
+     * Where the realized rows are drawn against where the layout put them: closed over the rows
+     * a drag lifted out, apart where a drop would land, and sliding to wherever that puts them.
      */
-    private final java.util.HashMap<Integer, Float> sliding = new java.util.HashMap<>();
-    private final java.util.HashMap<Integer, Float> belonged = new java.util.HashMap<>();
-    private boolean slideTicking;
-    /**
-     * Rows a drag gave back that are not drawn yet: the rows that closed over their places are
-     * still sliding off them, and drawn at once they stood on top of those.
-     */
-    private java.util.@Nullable BitSet returning;
-    /** Where the rows were drawn before the items changed under them, by item, until the next layout. */
-    private java.util.@Nullable IdentityHashMap<Object, Float> drawnBefore;
-    private float[] offsets = new float[16];
-    /** How long a row takes to cover most of the way to its new place, in seconds. */
-    private static final double SLIDE_SECONDS = 0.08;
+    private final RowSlides slides = new RowSlides(engine, new RowSlides.Host() {
+        @Override
+        public void prepare() {
+        }
+
+        @Override
+        public boolean isLifted(int row) {
+            return ListView.this.isLifted(row);
+        }
+
+        @Override
+        public int roomFrom() {
+            return dropAt < 0 || placeByKeyboard ? -1 : dropAt; // the keyboard's place opens no room
+        }
+
+        @Override
+        public @Nullable Object keyOf(int row) {
+            return row < items.size() ? items.get(row) : null;
+        }
+
+        @Override
+        public float yAt(int position) {
+            return engine.mountedAt(position).y();
+        }
+
+        @Override
+        public limn.scene.@Nullable Scene scene() {
+            return ListView.this.scene();
+        }
+
+        @Override
+        public void invalidate() {
+            ListView.this.invalidate();
+        }
+    }, true); // by identity: two rows may show equal items
     /**
      * Fades the selected-row highlight between the resting outline and the focus ring.
      * The {@link Theme} reads here are <b>animation durations</b>, which are palette- and
@@ -764,8 +786,8 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         droppedWithin = false;
         if (!event.isKeyboard()) {
             // Under the pointer from now on, and no longer in the list: the rows below close up.
-            rowsAreHere();
-            returning = null;
+            slides.rowsAreHere();
+            slides.setReturning(null);
             lifted = true;
             liftedHeight = 0;
             for (int row : rows) {
@@ -773,7 +795,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
                 liftedHeight += each != null ? each.height() : 0;
             }
             markNeedsLayout();
-            rowsBelongElsewhere();
+            slides.rowsBelongElsewhere();
         }
         return drag.onEnd(action -> {
             boolean elsewhere = action == DropAction.MOVE && !droppedWithin;
@@ -781,21 +803,21 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
             Consumer<? super List<T>> out = onMoveOut;
             if (elsewhere && out != null) {
                 // They are gone from the items: nothing slides back into their places.
-                forgetSlides();
+                slides.forget();
                 putDown();
             }
             dragged = null;
             droppedWithin = false;
             if (lifted) {
-                rowsAreHere();
+                slides.rowsAreHere();
                 java.util.BitSet back = new java.util.BitSet();
                 for (int row : draggedRows) {
                     back.set(row);
                 }
                 putDown();
                 if (!within) {
-                    rowsBelongElsewhere(); // put back: the rows below make room again
-                    returning = !sliding.isEmpty() ? back : null;
+                    slides.rowsBelongElsewhere(); // put back: the rows below make room again
+                    slides.setReturning(slides.isSliding() ? back : null);
                 }
             }
             draggedRows = new int[0];
@@ -844,21 +866,21 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
             at = placeAt(event.y() - localToSceneY());
         }
         if (at != dropAt || placeByKeyboard != event.isKeyboard()) {
-            rowsAreHere();
+            slides.rowsAreHere();
             dropAt = at;
             placeByKeyboard = event.isKeyboard();
-            rowsBelongElsewhere(); // the rows from there down make room
+            slides.rowsBelongElsewhere(); // the rows from there down make room
             invalidate();
             if (Boolean.getBoolean("limn.drag.trace")) {
                 StringBuilder rowsNow = new StringBuilder();
-                float[] where = belongs();
+                float[] where = slides.belongs();
                 for (int i = 0; i < engine.mountedCount(); i++) {
                     rowsNow.append(' ').append(engine.rowAt(i)).append(':').append(Math.round(engine.mountedAt(i).y()))
                             .append('+').append(Float.isNaN(where[i]) ? "lifted" : String.valueOf(Math.round(where[i])))
                             .append('h').append(Math.round(engine.mountedAt(i).height()));
                 }
                 System.err.println("limn.drag(list " + System.identityHashCode(this) % 1000 + "): drop at " + dropAt
-                        + " room " + roomHeight() + " lifted " + lifted + " rows" + rowsNow);
+                        + " room " + slides.room() + " lifted " + lifted + " rows" + rowsNow);
             }
         }
         DropAction asked = dropAction;
@@ -883,207 +905,6 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
     /** Whether a row is out of the list for the drag in flight. */
     private boolean isLifted(int row) {
         return lifted && Arrays.binarySearch(draggedRows, row) >= 0;
-    }
-
-    /** The room opened where a drop would land: a share of the height of what is dragged, as far as the list knows. */
-    private float roomHeight() {
-        if (dropAt < 0 || placeByKeyboard) {
-            return 0;
-        }
-        float room = 0;
-        for (int i = 0; lifted && i < engine.mountedCount(); i++) {
-            if (isLifted(engine.rowAt(i)) && isPlaced(engine.rowAt(i))) {
-                room += engine.mountedAt(i).height();
-            }
-        }
-        return (room > 0 ? room : avgRowHeight(tokens())) * ROOM_SHARE;
-    }
-
-    /**
-     * How much of the height of what is dragged the room opened for it takes. Half: a row is
-     * mostly its own margins, and the rows on either side of the room bring theirs, so room as
-     * tall as the row read as twice the space the item needs (the owner, three times). What is
-     * dropped takes the rest by pushing its neighbours apart, which slides like everything else.
-     */
-    private static final float ROOM_SHARE = 0.5f;
-
-    /**
-     * How far from where the layout put it each realized row belongs, in the order they are
-     * mounted: up by the rows lifted out above it, down by the room opened at or above it. NaN
-     * for a row that is lifted, which is not drawn.
-     */
-    private float[] belongs() {
-        if (offsets.length < engine.mountedCount()) {
-            offsets = new float[Math.max(16, engine.mountedCount() * 2)];
-        }
-        float room = roomHeight();
-        float up = 0;
-        for (int i = 0; i < engine.mountedCount(); i++) {
-            int row = engine.rowAt(i);
-            if (isLifted(row)) {
-                offsets[i] = Float.NaN;
-                if (isPlaced(row)) {
-                    up += engine.mountedAt(i).height();
-                }
-            } else {
-                offsets[i] = -up + (room > 0 && row >= dropAt ? room : 0);
-            }
-        }
-        return offsets;
-    }
-
-    /** {@link #belongs} with what is left of each row's slide: where the rows are drawn now. */
-    private float[] drawnOffsets() {
-        float[] at = belongs();
-        if (!sliding.isEmpty()) {
-            for (int i = 0; i < engine.mountedCount(); i++) {
-                Float left = sliding.get(engine.rowAt(i));
-                if (left != null && !Float.isNaN(at[i])) {
-                    at[i] += left;
-                }
-            }
-        }
-        return at;
-    }
-
-    /**
-     * The rows belong somewhere else than a moment ago (rows lifted or put back, room opened,
-     * moved or closed): each slides there from where it is drawn now.
-     */
-    private void rowsBelongElsewhere() {
-        float[] now = belongs();
-        boolean still = limn.animation.Motion.reduced() || scene() == null;
-        boolean any = false;
-        for (int i = 0; i < engine.mountedCount(); i++) {
-            Integer row = engine.rowAt(i);
-            if (Float.isNaN(now[i])) {
-                sliding.remove(row);
-                belonged.remove(row);
-                continue;
-            }
-            Float was = belonged.put(row, now[i]);
-            if (was != null && !still) {
-                float left = was + sliding.getOrDefault(row, 0f) - now[i];
-                if (Math.abs(left) >= 0.5f) {
-                    sliding.put(row, left);
-                    any = true;
-                } else {
-                    sliding.remove(row);
-                }
-            }
-        }
-        invalidate();
-        if (any) {
-            slide();
-        }
-    }
-
-    /**
-     * Notes where every realized row belongs now, before what decides it changes: a row slides
-     * from where it was drawn, and one realized since the last change (scrolled in, or placed
-     * under the edge for a drag) was drawn where it belonged, which nothing else remembers. Taken
-     * for a row at rest where the layout put it, such a row jumped there, over its neighbours,
-     * and slid back.
-     */
-    private void rowsAreHere() {
-        float[] now = belongs();
-        for (int i = 0; i < engine.mountedCount(); i++) {
-            if (!Float.isNaN(now[i])) {
-                belonged.put(engine.rowAt(i), now[i]);
-            }
-        }
-    }
-
-    /**
-     * After a layout: a row realized while the others slide comes in with them, by as much as the
-     * row above it has left to go, and not at once where it belongs.
-     */
-    private void newRowsSlideToo() {
-        if (sliding.isEmpty()) {
-            return;
-        }
-        for (int i = 1; i < engine.mountedCount(); i++) {
-            Integer row = engine.rowAt(i);
-            Float above = sliding.get(engine.rowAt(i - 1));
-            if (above != null && isPlaced(row) && !belonged.containsKey(row) && !sliding.containsKey(row)
-                    && !isLifted(row)) {
-                sliding.put(row, above);
-            }
-        }
-        rowsAreHere();
-    }
-
-    private void slide() {
-        limn.scene.Scene scene = scene();
-        if (slideTicking || scene == null) {
-            return;
-        }
-        slideTicking = true;
-        scene.addRealTimeTicker(dt -> {
-            float keep = (float) Math.exp(-dt / SLIDE_SECONDS);
-            sliding.replaceAll((row, left) -> left * keep);
-            sliding.values().removeIf(left -> Math.abs(left) < 0.5f);
-            slideTicking = !sliding.isEmpty();
-            if (!slideTicking) {
-                returning = null;
-            }
-            invalidate();
-            return slideTicking;
-        });
-    }
-
-    private void forgetSlides() {
-        returning = null;
-        sliding.clear();
-        belonged.clear();
-    }
-
-    /**
-     * Remembers where every row is drawn, by item, before the items change under them: the next
-     * layout slides each from there to where it then stands.
-     */
-    private void slideFromHere() {
-        if (limn.animation.Motion.reduced() || scene() == null) {
-            forgetSlides();
-            return;
-        }
-        float[] at = drawnOffsets();
-        java.util.IdentityHashMap<Object, Float> drawn = new java.util.IdentityHashMap<>();
-        for (int i = 0; i < engine.mountedCount(); i++) {
-            if (!Float.isNaN(at[i]) && isPlaced(engine.rowAt(i)) && engine.rowAt(i) < items.size()) {
-                drawn.put(items.get(engine.rowAt(i)), engine.mountedAt(i).y() + at[i]);
-            }
-        }
-        forgetSlides();
-        drawnBefore = drawn;
-        // For the layout the change brings, and no later one: a drop the application refused
-        // changes nothing, and what was remembered here is not where a scroll finds the rows.
-        Ui.postDelayed(() -> {
-            if (drawnBefore == drawn) {
-                drawnBefore = null;
-            }
-        }, 300);
-    }
-
-    /** After a layout: the rows remembered by {@link #slideFromHere} slide to where they stand. */
-    private void slideToLayout() {
-        java.util.IdentityHashMap<Object, Float> drawn = drawnBefore;
-        if (drawn == null) {
-            return;
-        }
-        drawnBefore = null;
-        boolean any = false;
-        for (int i = 0; i < engine.mountedCount(); i++) {
-            int row = engine.rowAt(i);
-            Float was = row < items.size() ? drawn.get(items.get(row)) : null;
-            if (was != null && Math.abs(was - engine.mountedAt(i).y()) >= 0.5f) {
-                sliding.put(row, was - engine.mountedAt(i).y());
-                any = true;
-            }
-        }
-        if (any) {
-            slide();
-        }
     }
 
     /**
@@ -1114,9 +935,9 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
     @Override
     protected void onDragExit(DragEvent event) {
         if (dropAt >= 0) {
-            rowsAreHere();
+            slides.rowsAreHere();
             dropAt = -1;
-            rowsBelongElsewhere(); // the room closes
+            slides.rowsBelongElsewhere(); // the room closes
             invalidate();
         }
     }
@@ -1128,7 +949,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         boolean own = isOwnRows(event.source()) && rows != null;
         // What is dropped takes the room that was opened for it: the other rows stay where they
         // are drawn, and slide only as far as the new items put them elsewhere.
-        slideFromHere();
+        slides.slideFromHere();
         dropAt = -1;
         if (own) {
             putDown();
@@ -1186,10 +1007,10 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
             return false; // dropped where they already were
         }
         int cursorWithin = Math.max(0, Arrays.binarySearch(from, cursor));
-        if (drawnBefore == null) {
+        if (!slides.isRemembering()) {
             // Moved by the keyboard: every row slides from where it is to where it goes, the ones
             // that gave way as much as the ones moved, or nothing on screen says which moved.
-            slideFromHere();
+            slides.slideFromHere();
         }
         handler.reorder(rows, index);
         refresh();
@@ -1791,8 +1612,8 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         engine.setOverscan(liftedHeight);
         engine.layout();
         vBar.refresh();
-        newRowsSlideToo();
-        slideToLayout();
+        slides.newRowsSlideToo();
+        slides.slideToLayout();
     }
 
     private boolean isPlaced(int index) {
@@ -1896,11 +1717,10 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
             canvas.clipRect(0, 0, width(), height());
             // Where each row is drawn against where the layout put it: rows slide, close over
             // rows lifted out by a drag, and make room where a drop would land.
-            float[] at = drawnOffsets();
+            float[] at = slides.drawnOffsets();
             for (int m = 0; m < engine.mountedCount(); m++) {
                 Widget<?> child = engine.mountedAt(m);
-                java.util.BitSet back = returning;
-                if (Float.isNaN(at[m]) || (back != null && back.get(engine.rowAt(m)))) {
+                if (Float.isNaN(at[m]) || slides.isReturning(engine.rowAt(m))) {
                     continue; // under the pointer, and not in the list; or not back in it yet
                 }
                 if (!isPlaced(engine.rowAt(m)) || child.y() + at[m] >= height()
@@ -1984,7 +1804,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         if (dropAt < 0) {
             return;
         }
-        float room = roomHeight();
+        float room = slides.room();
         float up = 0;
         float y = Float.NaN;
         float end = Float.NaN;
