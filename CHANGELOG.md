@@ -398,6 +398,16 @@ Maven Central say which number that was.
 
 ### Changed
 
+- `ListView`, `Table` and `Tree` walk their rows with one engine, and behave alike where they
+  did not. A row brought into view from outside it stops at the edge it came from, by its
+  measured height: a list put it at the top whichever side it came from, so a row moved or
+  selected just below the box threw the rows above it out of sight. Page Down and Page Up move
+  the view with the cursor in all three, which keeps its place on screen, as it did in the
+  table. All three tell a watcher of a scroll, a `VALUE` change with its origin, as the table
+  did. A list given no height by its layout is eight rows tall, as the other two are, where it
+  was six; `setVisibleRows` says otherwise. A scroll that follows a reveal not yet shown takes
+  its place, and a tree scrolled by more than two boxes lands by its estimate instead of
+  measuring every row on the way.
 - A table's header sorts when it is clicked, on the release, and no longer on the press: a press
   that travels now moves the column.
 - A popup menu in a window of its own leaves the keyboard focus on the window that opened it, as

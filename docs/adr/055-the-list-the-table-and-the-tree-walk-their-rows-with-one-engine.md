@@ -1,7 +1,9 @@
 # ADR 055: The list, the table and the tree walk their rows with one engine
 
-- **Status:** Accepted, 2026-10-10, with the owner's answers below. Not built yet; §6 is the
-  order.
+- **Status:** Accepted, 2026-10-10, with the owner's answers below. Steps 1 to 4, 6 and 7 of §6
+  are built: the engine, the three widgets on it, the page keys and the scroll notification, the
+  guide and the CHANGELOG; §7 says where they depart from the text. Step 5, the lifting and
+  sliding of a drag, is not: the list and the tree still hold their own copies of it.
 - **Date:** 2026-10-10
 - **Scope:** `ListView`, `Table` and `Tree` keep one copy of what a scrolling run of rows is: the
   anchor and the walk over rows of uneven height, the mean height and the scroll estimate, which
@@ -177,3 +179,36 @@ found the defect §0 tells of, which no assertion had.
 Each step is a commit with the whole check green. Done when the three widgets hold no anchor,
 no placed range, no realized-row arrays and no slide state of their own, the tests of §5 pass,
 and the three films show what they showed.
+
+## 7. As built so far
+
+Steps 1 to 4, 6 and 7 (2026-10-10), each a commit with the whole check green, 6,575 tests.
+
+- **`Rows<E>`** is as §2 shows it, with these differences. `mount` is told how many realized
+  rows come before the one it makes, which is where the widget puts the child; `shift` moves a
+  realized row at once, for a scroll, which the host does with `moveChild` and no layout.
+  `reveal` takes what answers the row's index when the pass comes, since a tree's rows are
+  renumbered between the asking and the pass. `page(from, to)` is `pageWith`, beside
+  `isWhollyInSight` and `moveViewTo`, which the tree uses in two steps: its cursor's own
+  reveal scrolls at once for a row partly in sight, so the view is moved from where it stood
+  before the cursor went. The placed run is kept across a refresh and a renumbering, stale
+  until the next pass, as each widget kept it.
+- **The tree** was the reference and changed in one thing, the far scroll. Its cells carry the
+  node they draw and the name derived for them in one small class. The cursor's row is looked
+  up once a pass: the tree finds a node's index by walking its rows.
+- **The list** took the table's rows of §3 that were its own, and a fourth thing the record did
+  not foresee: a reveal of a row already in the box must ask for no pass at all, or an arrow
+  between two rows in sight repaints the whole list (`DamageContractTest` and
+  `SelectionDamageTest` said so at once). The same guard is in the table.
+- **The table** went onto the engine with every one of its tests unchanged. A scroll on both
+  axes still repaints and notifies once.
+- **Tests changed**, and only where §1 or §3 says the behaviour does: the list's default height
+  (four tests, six rows to eight) and where three pages leave the view
+  (`ListViewFocusedRowTest`, five expectations: the top of the box, then the foot by §3, then
+  the cursor's own slot by §1.1). New: `RowsTest`, thirteen cases against a host of plain
+  numbers, and `RowsPageAndScrollTest` for what the list and the tree took from the table.
+- **The films** of the list, the tree and the table were taken again after step 4 and their
+  last frames are what they were.
+- The list, the table and the tree are 2,525, 4,573 and 4,255 lines where they were 2,783,
+  4,756 and 4,490, and the engine is 708.
+
