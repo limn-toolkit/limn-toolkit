@@ -45,6 +45,7 @@ public final class ImageView extends Widget<ImageView> {
     private float preferredWidth = -1;
     private float preferredHeight = -1;
     private boolean dragEnabled;
+    private boolean dragWithinWindow;
     private @Nullable String dragFileName;
 
     /** The longest side of the picture shown under the pointer while a large view is dragged. */
@@ -120,6 +121,24 @@ public final class ImageView extends Widget<ImageView> {
         return this;
     }
 
+    /**
+     * Keeps a drag of the picture inside its window (default: not): no other program is offered
+     * it, and no other window. UI thread only.
+     *
+     * @param within whether a drag stays in the window it began in
+     * @return this view
+     */
+    public ImageView setDragWithinWindow(boolean within) {
+        Ui.checkUiThread();
+        dragWithinWindow = within;
+        return this;
+    }
+
+    /** @return whether a drag of the picture stays in its window */
+    public boolean isDragWithinWindow() {
+        return dragWithinWindow;
+    }
+
     /** @return whether the picture can be dragged */
     public boolean isDragEnabled() {
         return dragEnabled;
@@ -137,7 +156,11 @@ public final class ImageView extends Widget<ImageView> {
         // Named for a keyboard drag by the scene, from the name the application gave the view.
         Transfer content = Transfer.of(DataFormat.IMAGE, picture);
         String file = dragFileName;
-        return Drag.of(file == null ? content : content.withImageAsFile(file))
+        Drag drag = Drag.of(file == null ? content : content.withImageAsFile(file));
+        if (dragWithinWindow) {
+            drag.withinWindow();
+        }
+        return drag
                 // A copy is what is proposed; a move is allowed beside it because some programs
                 // take a picture only from a source that allows one, and say they moved it when
                 // they have only taken it. The view keeps its picture either way.

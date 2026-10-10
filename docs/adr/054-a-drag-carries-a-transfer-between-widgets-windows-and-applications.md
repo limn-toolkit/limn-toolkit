@@ -306,8 +306,8 @@ Step 5 (`ListView`, `Tree`, `ImageView`; the demo's `--scene picker`):
 - A drag does not begin on a scroll bar, on a tree's triangle, or on a focusable control inside
   a row.
 - Strings: four in the components' catalogue and six in the tree's, in the 21 languages.
-- Not done: a list or a tree dropped on cannot be told which action to prefer (it takes what
-  the source proposes; a widget of the application's own says `accept(DropAction)`).
+- A list or a tree dropped on took what the source proposed and could not be told which
+  action to prefer; step 7 gave it `setDropAction`.
 
 Step 5 after the owner's runs of the picker scene on his Mac (list and tree alike):
 
@@ -436,5 +436,13 @@ Step 7 (2026-10-10):
 - **What is left as it is**, each in the CHANGELOG's known limits: files dragged in from a file
   manager measured on macOS alone; the modifier keys not exercised during a drag the system
   drives; no link and a rounded picture at a fractional scale on Wayland; the pointer's shape
-  on X11; Mutter unmeasured; a list or a tree as a target taking the action proposed; the focus
-  ring of a cell under frozen columns.
+  on X11; Mutter unmeasured; the focus ring of a cell under frozen columns.
+- **Two setters before the interface is frozen** (the owner, the same day, on asking what
+  switch keeps a drag in its window and finding the ready-made widgets had none):
+  `setDragWithinWindow` on `ListView`, `Tree` and `ImageView`, which is `Drag.withinWindow()`
+  for the drags they build themselves; and `setDropAction` on `ListView` and `Tree`, the action
+  a drop from elsewhere is asked to be, taken where the source allows it and the proposed one
+  where it does not, so that a target that only copies is not at the mercy of a source that
+  would rather move. Rows moved within their own widget are a move whatever it says.
+- **ADR 053 owes nothing more**: several files on macOS were measured on the owner's Mac
+  against Finder, both ways, and Mutter is a declared limit. That record says how.

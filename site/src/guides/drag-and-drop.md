@@ -47,6 +47,11 @@ rows it was dropped at. `ListView.ITEMS` is the rows themselves, the very object
 ever travels inside your program. `event.action()` says whether the user asked for a copy or a
 move, which matters when a copy has to be a new object and not the same one twice.
 
+A list that only ever copies what it is given, or only ever takes it over, says so with
+`setDropAction(DropAction.COPY)` or `MOVE`: that is then what a drop does wherever the source
+allows it, whatever the source would rather. And rows that mean nothing outside their window
+stay in it with `setDragWithinWindow(true)`: no other program is offered them.
+
 A list can take what is not a row at all. Name `DataFormat.TEXT` among the formats and a
 paragraph dragged out of an editor arrives as text, for you to make rows of; name
 `DataFormat.FILES` and it takes files.
@@ -68,7 +73,8 @@ level, and the place among its children.
 
 By keyboard, Alt+Shift+Up and Down move the selected node among its siblings, Alt+Shift+Left
 takes it out one level, and Alt+Shift+Right puts it into the sibling before it. `onMoveOut`,
-`onDrop`, `setDropFormats` and `setDragContent` are the list's, with the parent added.
+`onDrop`, `setDropFormats`, `setDropAction`, `setDragContent` and `setDragWithinWindow` are the
+list's, with the parent added.
 
 ## A picture that leaves its view
 
@@ -87,6 +93,7 @@ macOS, where the system asks as the drag begins, at every drag.
 The view offers a copy and allows a move. It keeps its picture whatever the target says it
 did; the move is allowed because some programs on Windows take a picture or a file only from a
 source that allows one. If you build such a drag yourself, allow both.
+`setDragWithinWindow(true)` keeps the picture from being offered to any other program.
 
 ## Columns the user arranges
 
@@ -201,11 +208,6 @@ depends on the desktop's clipboard manager.
   drop itself is answered correctly.
 - **At a fractional display scale under Wayland**, the picture that follows the pointer is
   rounded to a whole scale and may look slightly soft.
-- **Several files copied at once on macOS** have been seen to arrive in another program as the
-  first one only.
-- **A list or a tree as a target takes the action the source proposes.** It can read which one
-  it was and refuse the drop, and a widget of your own can insist on one with
-  `accept(DropAction)`.
 - **In a test**, the headless window has a clipboard of its own and a drag stays inside its
   scene, so a press, a few moves and a release from the [test driver](/docs/testing/) exercise
   both without a display.

@@ -508,6 +508,8 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     private @Nullable Consumer<? super List<T>> onMoveOut;
     private @Nullable DropHandler<T> onDrop;
     private List<DataFormat<?>> dropFormats = List.of();
+    private @Nullable DropAction dropAction;
+    private boolean dragWithinWindow;
     /** The nodes of the drag this tree began and has not heard the end of, or null. */
     private @Nullable List<T> dragged;
     /** Whether that drag ended in this tree itself, which moved the nodes already. */
@@ -2652,6 +2654,47 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         return this;
     }
 
+    /**
+     * Says what a drop from elsewhere does here, whatever the source would rather: a tree that
+     * only ever copies what it is given asks for {@link DropAction#COPY}, one that takes things
+     * over for {@link DropAction#MOVE}. It is what the drop does where the source allows it;
+     * where it does not, and by default, the drop does what the user is asking for, the action
+     * the modifier keys name or the source's own preference. Nodes moved within this tree are
+     * always a move. UI thread only.
+     *
+     * @param action the action asked for, or {@code null} for the one proposed
+     * @return this tree
+     */
+    public Tree<T> setDropAction(@Nullable DropAction action) {
+        Ui.checkUiThread();
+        dropAction = action;
+        return this;
+    }
+
+    /** @return the action a drop from elsewhere is asked to be, or null for the one proposed */
+    public @Nullable DropAction dropAction() {
+        return dropAction;
+    }
+
+    /**
+     * Keeps a drag of this tree's nodes inside its window (default: not): no other program
+     * is offered them, and no other window. For nodes that mean nothing anywhere else. UI
+     * thread only.
+     *
+     * @param within whether a drag stays in the window it began in
+     * @return this tree
+     */
+    public Tree<T> setDragWithinWindow(boolean within) {
+        Ui.checkUiThread();
+        dragWithinWindow = within;
+        return this;
+    }
+
+    /** @return whether a drag of this tree's nodes stays in its window */
+    public boolean isDragWithinWindow() {
+        return dragWithinWindow;
+    }
+
     /** The row a row hangs from, or -1 for a root. */
     private int parentRow(int index) {
         int depth = rows.get(index).depth;
@@ -2746,6 +2789,9 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         boolean several = carried.size() > 1;
         String count = several ? TreeStrings.ITEMS.format(carried.size()) : null;
         Drag drag = Drag.of(content).describedAs(several ? count : textOf(node));
+        if (dragWithinWindow) {
+            drag.withinWindow();
+        }
         if (onMoveOut != null) {
             drag.allow(DropAction.MOVE, DropAction.COPY);
         } else if (onReorder != null) {
@@ -3256,8 +3302,11 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
             rest(place);
         }
         setDropPlace(place, event.isKeyboard());
+        DropAction asked = dropAction;
         if (own) {
             event.accept(DropAction.MOVE);
+        } else if (asked != null && event.sourceActions().contains(asked)) {
+            event.accept(asked);
         } else {
             event.accept();
         }

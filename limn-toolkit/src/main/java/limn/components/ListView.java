@@ -234,6 +234,8 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
     private @Nullable Consumer<? super List<T>> onMoveOut;
     private @Nullable DropHandler onDrop;
     private List<DataFormat<?>> dropFormats = List.of();
+    private @Nullable DropAction dropAction;
+    private boolean dragWithinWindow;
     /** The rows of the drag this list began and has not heard the end of, or null. */
     private @Nullable List<T> dragged;
     private int[] draggedRows = new int[0];
@@ -597,6 +599,47 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         return this;
     }
 
+    /**
+     * Says what a drop from elsewhere does here, whatever the source would rather: a list that
+     * only ever copies what it is given asks for {@link DropAction#COPY}, one that takes things
+     * over for {@link DropAction#MOVE}. It is what the drop does where the source allows it;
+     * where it does not, and by default, the drop does what the user is asking for, the action
+     * the modifier keys name or the source's own preference. Rows moved within this list are
+     * always a move. UI thread only.
+     *
+     * @param action the action asked for, or {@code null} for the one proposed
+     * @return this list
+     */
+    public ListView<T> setDropAction(@Nullable DropAction action) {
+        Ui.checkUiThread();
+        dropAction = action;
+        return this;
+    }
+
+    /** @return the action a drop from elsewhere is asked to be, or null for the one proposed */
+    public @Nullable DropAction dropAction() {
+        return dropAction;
+    }
+
+    /**
+     * Keeps a drag of this list's rows inside its window (default: not): no other program
+     * is offered them, and no other window. For rows that mean nothing anywhere else. UI
+     * thread only.
+     *
+     * @param within whether a drag stays in the window it began in
+     * @return this list
+     */
+    public ListView<T> setDragWithinWindow(boolean within) {
+        Ui.checkUiThread();
+        dragWithinWindow = within;
+        return this;
+    }
+
+    /** @return whether a drag of this list's rows stays in its window */
+    public boolean isDragWithinWindow() {
+        return dragWithinWindow;
+    }
+
     private String textOf(int index) {
         I18nString name = nameOf(index);
         return name != null ? name.get() : String.valueOf(items.get(index));
@@ -651,6 +694,9 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         Transfer content = custom != null ? Objects.requireNonNull(custom.apply(carried), "drag content")
                 : Transfer.of(ITEMS, carried).with(DataFormat.TEXT, text.toString());
         Drag drag = Drag.of(content).describedAs(describe(carried, rows[0]));
+        if (dragWithinWindow) {
+            drag.withinWindow();
+        }
         if (onMoveOut != null) {
             drag.allow(DropAction.MOVE, DropAction.COPY);
         } else if (onReorder != null) {
@@ -770,8 +816,11 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
                         + " room " + roomHeight() + " lifted " + lifted + " rows" + rowsNow);
             }
         }
+        DropAction asked = dropAction;
         if (own) {
             event.accept(DropAction.MOVE);
+        } else if (asked != null && event.sourceActions().contains(asked)) {
+            event.accept(asked);
         } else {
             event.accept();
         }

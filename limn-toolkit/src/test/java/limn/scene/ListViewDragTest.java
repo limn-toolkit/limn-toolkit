@@ -252,6 +252,26 @@ class ListViewDragTest {
     }
 
     @Test
+    void aListThatAsksForACopyIsGivenOneWhereTheSourceAllowsItAndTheRowsStayWhereTheyWere() {
+        right.setDropAction(DropAction.COPY); // the source, having onMoveOut, proposes a move
+        press(50, 30, 0);
+        move(60, 30);
+        move(200, 25);
+        release(200, 25);
+
+        assertEquals(List.of("drop [banana] at 1 COPY"), log, "copied, so the first list is not told they left");
+        assertEquals(5, fruit.size());
+
+        log.clear();
+        right.setDropAction(DropAction.LINK); // which a list's rows do not allow
+        press(50, 10, 0); // apple
+        move(60, 10);
+        move(200, 25);
+        release(200, 25);
+        assertEquals("drop [apple] at 1 MOVE", log.get(0), "what was proposed, where what is asked for is not allowed");
+    }
+
+    @Test
     void aListThatNamesNoFormatTakesNothing() {
         right.setDropFormats();
         press(50, 30, 0);

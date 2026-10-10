@@ -1,7 +1,8 @@
 # ADR 053: What is copied or dragged is a transfer, and the clipboard carries more than text
 
 - **Status:** Implemented, 2026-10-08, with the owner's answers below; §6 says what was
-  measured on each system and where the build departs from the text. Two things are owed: §6.
+  measured on each system and where the build departs from the text. Nothing is owed: of the
+  two things §6 listed, one was measured on 2026-10-10 and the other is a declared limit.
 - **Date:** 2026-10-08
 - **Scope:** a new package `limn.transfer` (`DataFormat`, `Transfer`, `Offer`) that says what a
   copy or a drag carries; `limn.backend.Clipboard` reshaped around it; text, image, HTML, files and
@@ -130,8 +131,8 @@ No shim: Win32 and COM through the calls the UIA bridge already makes, Objective
 - The X11 and Wayland primary selection (the middle-click paste): text controls do not have it
   today and it is additive.
 - Marking a copy as concealed from clipboard managers; rich text (RTF); a clipboard history.
-- Mutter (GNOME on Wayland) is not measured yet: the lab has no such session. It is owed before
-  this record is called implemented.
+- Mutter (GNOME on Wayland) is not measured: the lab has no such session. A declared limit
+  (the owner, 2026-10-10), said in the CHANGELOG; Wayland was measured on KWin.
 
 ## 5. Verification
 
@@ -176,13 +177,18 @@ Where the build departs from §2 and §3:
   dynamic identifier the system derives for a pasteboard type of that name.
 - `text()` waits at most a second on every system, not only on the two Linux ones.
 
-Owed:
+What was owed, and how it closed (2026-10-10):
 
-- **Several files on macOS.** Another process saw only the first of two files this toolkit
-  copied, and equally only the first of three copied by a plain AppKit tool, on the guest, where
-  every program involved was started from a shell and Finder could not be scripted. The same
-  process reads back all of them. It is to be checked against Finder by hand.
-- **Mutter** (GNOME on Wayland), as §4 says.
+- **Several files on macOS.** On the guest another process saw only the first of two files
+  this toolkit copied, and equally only the first of three copied by a plain AppKit tool, with
+  every program started from a shell and Finder not scriptable. Measured again on the owner's
+  Mac, with his leave, his clipboard saved before and put back after: another process sees
+  every file the toolkit copied, while it runs and after it has left; the toolkit reads the
+  three files Finder copied, which Finder writes as file-reference URLs and the read resolves
+  to paths; and Finder pastes the three files the toolkit copied, into a folder, the clipboard
+  having been emptied first so that nothing else could be what it pasted. The guest's result
+  was the guest's, and no fault of this code or of AppKit's.
+- **Mutter** (GNOME on Wayland) is a declared limit, as §4 says.
 
 The guests share their clipboard with the host (Parallels). The first runs therefore wrote to
 the owner's clipboard and read from it; later macOS runs paused the guest's sharing agent for

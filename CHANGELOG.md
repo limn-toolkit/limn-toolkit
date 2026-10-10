@@ -240,7 +240,8 @@ Maven Central say which number that was.
   into it, near its edge before or after it, and a closed node the pointer rests on opens.
   `onMoveOut` hears that they were moved somewhere else, and `onDrop` with `setDropFormats`
   takes what is dropped between two rows, from another list, another widget or another
-  program. What is dragged lifts out of its place, room opens where it would land and the rows
+  program; `setDropAction` has a drop be a copy, or a move, wherever the source allows it, and
+  `setDragWithinWindow(true)` keeps the rows from being offered to another program. What is dragged lifts out of its place, room opens where it would land and the rows
   slide to it, at once under reduced motion.
 - `ImageView.setDragEnabled(true)`: the picture is dragged out of its view with its own
   transparency, to a drop area of the program or to another program.
@@ -248,7 +249,7 @@ Maven Central say which number that was.
   application's own, offer it as a file too, for the targets that take a picture only as one,
   the desktop and a folder among them: a PNG written to the temporary directory when a target
   asks for files (on macOS at each drag) and deleted when the program ends. Not done unless
-  asked, since it writes to disk.
+  asked, since it writes to disk. `setDragWithinWindow(true)` keeps the picture in its window.
 - What is dragged shows under the pointer as it is painted. `Drag.preview(width, height, holdX,
   holdY, painter)` has the source paint the dragged thing alone on a transparent surface, so a
   card keeps its rounded corners and a picture its own transparency, inside the window and over
@@ -524,9 +525,6 @@ Maven Central say which number that was.
 
 ### Known, and left for later
 
-- On macOS, of several files copied at once another program may see only the first; the same
-  was seen between two native tools in the test machine, and it is to be checked against the
-  file manager.
 - The clipboard and the drag on GNOME under Wayland (Mutter) are not measured yet; under
   Wayland both were measured on KWin.
 - Of a drag between programs: files dragged in from a file manager were measured on macOS
@@ -534,9 +532,6 @@ Maven Central say which number that was.
   system were not exercised on any. Under Wayland there is no link, the protocol having copy
   and move only, and at a fractional scale the picture that follows the pointer is rounded to
   a whole one. On X11 the pointer does not change shape to show a target's answer.
-- A `ListView` or a `Tree` taking a drop takes the action the source proposes: its handler
-  reads which and may refuse, but cannot ask for another. A widget of the application's own
-  can, with `DragEvent.accept(DropAction)`.
 - In a `Table` with frozen columns, the focus ring of a cell scrolled under them is drawn over
   them.
 
