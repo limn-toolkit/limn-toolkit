@@ -47,10 +47,13 @@ import java.util.Objects;
  * decides which built-in the missing tones are taken from, so a file without it would
  * mean two different palettes. Every colour is optional and falls back to the built-in
  * {@link Theme#light()} or {@link Theme#dark()}, which is what makes a four-line palette
- * a usable one, and so is {@code cornerScale}, which falls back to the shipped ramp.
+ * a usable one, and so are {@code cornerScale}, which falls back to the shipped ramp, and the
+ * three shadows ({@code elevation.raised}, {@code elevation.overlay}, {@code elevation.modal}:
+ * five numbers each, the key layer's offset, blur and opacity and the ambient layer's blur and
+ * opacity), which fall back to the mode's.
  *
- * <p><b>What may not.</b> A key that is not {@code name}, {@code dark}, {@code cornerScale}
- * or a {@link Theme.Token#key()} is an error rather than a shrug, and so is a repeated key: a
+ * <p><b>What may not.</b> A key that is not {@code name}, {@code dark}, {@code cornerScale},
+ * {@code fontFamily}, a shadow's or a {@link Theme.Token#key()} is an error rather than a shrug, and so is a repeated key: a
  * palette that silently ignored {@code primaryHovor} would be debugged by eye, in a
  * running application, against a tone that never moved.
  */
@@ -144,7 +147,46 @@ public final class ThemeFormat {
         for (Theme.Token token : Theme.Token.values()) {
             out.append(token.key()).append(" = ").append(token.read(theme).toHex()).append('\n');
         }
+        for (Elevation level : Elevation.values()) {
+            if (level != Elevation.FLAT) {
+                ElevationShadow shadow = theme.elevation(level);
+                out.append(elevationKey(level)).append(" = ").append(shadow.keyOffset()).append(' ')
+                        .append(shadow.keyBlur()).append(' ').append(shadow.keyOpacity()).append(' ')
+                        .append(shadow.ambientBlur()).append(' ').append(shadow.ambientOpacity()).append('\n');
+            }
+        }
         return out.toString();
+    }
+
+    /** {@code elevation.raised}, {@code elevation.overlay}, {@code elevation.modal}. */
+    private static String elevationKey(Elevation level) {
+        return "elevation." + level.name().toLowerCase(java.util.Locale.ROOT);
+    }
+
+    private static Elevation elevationByKey(String key) {
+        for (Elevation level : Elevation.values()) {
+            if (level != Elevation.FLAT && elevationKey(level).equals(key)) {
+                return level;
+            }
+        }
+        return null;
+    }
+
+    /** Five numbers: the key layer's offset, blur and opacity, then the ambient layer's blur and opacity. */
+    private static ElevationShadow parseShadow(int line, String key, String value, String content) {
+        String[] parts = value.split("\\s+");
+        if (parts.length != 5) {
+            throw malformed(line, "'" + key + "' is five numbers: the key layer's offset, blur and "
+                    + "opacity, then the ambient layer's blur and opacity", content);
+        }
+        try {
+            return new ElevationShadow(Float.parseFloat(parts[0]), Float.parseFloat(parts[1]),
+                    Float.parseFloat(parts[2]), Float.parseFloat(parts[3]), Float.parseFloat(parts[4]));
+        } catch (NumberFormatException notANumber) {
+            throw malformed(line, "'" + key + "' must be five numbers", content);
+        } catch (IllegalArgumentException outOfRange) {
+            throw malformed(line, outOfRange.getMessage(), content);
+        }
     }
 
     private static void requireSingleLine(String key, String value) {
@@ -173,6 +215,7 @@ public final class ThemeFormat {
             text = text.substring(1); // only at the head: elsewhere U+FEFF is not a mark
         }
         Map<Theme.Token, Color> colors = new EnumMap<>(Theme.Token.class);
+        Map<Elevation, ElevationShadow> shadows = new EnumMap<>(Elevation.class);
         String name = null;
         Boolean dark = null;
         Float cornerScale = null;
@@ -243,6 +286,14 @@ public final class ThemeFormat {
                     fontFamily = value;
                 }
                 default -> {
+                    Elevation level = elevationByKey(key);
+                    if (level != null) {
+                        if (shadows.containsKey(level)) {
+                            throw malformed(line, "'" + key + "' was already given", content);
+                        }
+                        shadows.put(level, parseShadow(line, key, value, content));
+                        continue;
+                    }
                     Theme.Token token = Theme.Token.byKey(key);
                     if (token == null) {
                         throw malformed(line, "unknown key '" + key + "'", content);
@@ -275,6 +326,9 @@ public final class ThemeFormat {
         }
         for (Map.Entry<Theme.Token, Color> entry : colors.entrySet()) {
             builder.set(entry.getKey(), entry.getValue());
+        }
+        for (Map.Entry<Elevation, ElevationShadow> entry : shadows.entrySet()) {
+            builder.elevation(entry.getKey(), entry.getValue());
         }
         return builder.build();
     }

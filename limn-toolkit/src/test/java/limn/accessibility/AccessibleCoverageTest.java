@@ -139,6 +139,9 @@ class AccessibleCoverageTest {
             // by limn.components.BackdropPanelAccessibilityTest, and the seam it stands on by
             // limn.scene.AccessiblePaintWarningTest.
             "limn.components.BackdropPanel",
+            // The same case: a fill and a shadow behind one child, declared decoration, so the
+            // surface is deleted and its child stands in its place.
+            "limn.components.Surface",
             // A Row with one onMeasure that pushes the gapButtonRow token, and nothing in the
             // chain declares a role, name, action or state, overrides onPaint, clips, or is
             // focusable of its own accord, so §1.6's predicate deletes it in silence and hoists

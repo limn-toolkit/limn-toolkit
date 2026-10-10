@@ -1,7 +1,7 @@
 # ADR 057: A surface says how far it is lifted, and the theme says what that looks like
 
-- **Status:** Proposed, 2026-10-10. §4 holds the questions that are the owner's; nothing is
-  built until they are answered.
+- **Status:** Accepted, 2026-10-10, with the owner's answers in §4; being built in the four
+  steps of §5, the first of which is done.
 - **Date:** 2026-10-10
 - **Scope:** elevation: how a surface that lies over another is told apart from it. A small
   scale of levels, what each level draws (a shadow, a tone, an outline), where the numbers live
@@ -146,14 +146,29 @@ surface does not darken itself.
   what the tone step is for.
 - Theme files gain a section; the editor needs a way to show and change it.
 
-## 4. For the owner
+## 4. The owner's answers (2026-10-10)
 
-1. **The scale**: four named levels, or the six of the two larger systems?
-2. **The panel beside the table**: a shadow is, in all three systems, for a surface that
-   covers. A panel that pushes the table aside shares the plane with it and would take a line.
-   Should the demo's panel come *over* the table, with the shadow, or keep pushing it and take
-   the shadow anyway?
-3. **How far this goes now**: the primitive, the theme tokens and the in-scene overlays; or
-   the popup windows too?
-4. **The theme editor**: shown and editable now, or tokens with defaults now and the editor
-   later?
+1. **The scale**: four named levels.
+2. **The panel beside the table**: it comes over the table, with the shadow.
+3. **How far this goes now**: the popup windows too, not only the surfaces drawn in a scene.
+   §2.5's first item is therefore in, and is the step with the most to measure.
+4. **The theme editor**: shows and edits the shadows now.
+
+## 5. Steps, and where it stands
+
+1. **The base** (done): `limn.graphics.Shadow` and `Canvas.drawShadow`, drawn by the GL canvas
+   as the error function of the shape's distance field, one quad a layer; `Elevation`;
+   `ElevationShadow`, five numbers a level, in `Theme` with a default by mode and in the theme
+   file as `elevation.raised`, `elevation.overlay` and `elevation.modal`; the `Surface`
+   container; the demo's panel over its table. The shadow is black: a colour of its own is not
+   a token. A shadow is drawn whole and the surface painted over it, so §2.3's "outside its
+   shape only" is not what was built: a translucent surface would show its own shadow through
+   itself, and none of the toolkit's is translucent.
+2. **The overlays drawn in a scene**: menu, list, calendar, tooltip, dialog.
+3. **The popup windows**, measured on the four systems before it is decided how.
+4. **The theme editor**: a preview by level and the five numbers of each.
+
+Seen on the demo's panel (macOS guest, light and dark): the shadow is there and soft, and
+faint at the side of a panel that meets the window's top and bottom, since the light is above
+and only the blur's spread reaches sideways. Whether the default for a surface that covers
+should be stronger is the owner's eye to say.

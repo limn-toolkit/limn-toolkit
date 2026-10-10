@@ -243,6 +243,24 @@ public interface Canvas {
     }
 
     /**
+     * Draws one layer of the shadow a rounded rectangle casts: the shape moved by the layer's
+     * offset, its edge softened over the layer's blur, in the layer's colour. Drawn whole, under
+     * where the shape will be: paint the shape after it. Ink reaches {@link Shadow#reach()} past
+     * the shape's box.
+     *
+     * <p>The default draws nothing: a shadow is decoration a canvas may go without, and a
+     * recording or counting canvas has nothing to say about it.
+     *
+     * @param shape  the shape that casts it
+     * @param shadow the layer
+     * @throws NullPointerException if either argument is null
+     */
+    default void drawShadow(RoundRect shape, Shadow shadow) {
+        java.util.Objects.requireNonNull(shape, "shape");
+        java.util.Objects.requireNonNull(shadow, "shadow");
+    }
+
+    /**
      * Fills {@code roundRect} with what this frame has <em>already drawn</em> underneath it, put
      * through {@code effect}: a glass panel, a wash over video, a redacted field. The shape is
      * opaque within its coverage: the effect replaces the pixels behind it with a transformed copy

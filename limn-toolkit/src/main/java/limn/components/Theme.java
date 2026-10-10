@@ -191,6 +191,9 @@ public final class Theme {
      */
     private final SizeTokens[] rows;
 
+    /** The shadow of each {@link Elevation}, by its ordinal. */
+    private final ElevationShadow[] elevation;
+
     private Theme(String name, boolean dark, float cornerScale, String fontFamily,
                   Color background, Color surface, Color surfaceRaised,
                   Color primary, Color primaryHover, Color primaryPressed, Color onPrimary,
@@ -220,6 +223,77 @@ public final class Theme {
         this.success = success;
         this.warning = warning;
         this.info = info;
+        this.elevation = defaultElevation(dark);
+    }
+
+    /** The same palette with other shadows: what a builder that was given some ends with. */
+    private Theme(Theme base, ElevationShadow[] elevation) {
+        this.name = base.name;
+        this.dark = base.dark;
+        this.cornerScale = base.cornerScale;
+        this.fontFamily = base.fontFamily;
+        this.rows = base.rows;
+        this.background = base.background;
+        this.surface = base.surface;
+        this.surfaceRaised = base.surfaceRaised;
+        this.primary = base.primary;
+        this.primaryHover = base.primaryHover;
+        this.primaryPressed = base.primaryPressed;
+        this.onPrimary = base.onPrimary;
+        this.text = base.text;
+        this.textMuted = base.textMuted;
+        this.outline = base.outline;
+        this.focusRing = base.focusRing;
+        this.disabledFill = base.disabledFill;
+        this.disabledText = base.disabledText;
+        this.scrim = base.scrim;
+        this.danger = base.danger;
+        this.success = base.success;
+        this.warning = base.warning;
+        this.info = base.info;
+        this.elevation = elevation.clone();
+    }
+
+    /**
+     * The shadows a palette has when it names none, by level: tight and faint for a raised
+     * surface, wider for one that covers, widest for a dialog. Twice as dark in a dark palette,
+     * where a shadow has little to darken and the surface's lighter tone does most of the work.
+     */
+    private static ElevationShadow[] defaultElevation(boolean dark) {
+        float key = dark ? 0.28f : 0.14f;
+        float ambient = dark ? 0.14f : 0.12f;
+        return new ElevationShadow[] {
+                ElevationShadow.NONE,
+                new ElevationShadow(1, 2, key, 2, ambient),
+                new ElevationShadow(8, 16, key, 2, ambient),
+                new ElevationShadow(14, 28, dark ? 0.28f : 0.24f, 8, 0.20f),
+        };
+    }
+
+    /**
+     * The shadow this palette gives a surface lifted to a level.
+     *
+     * @param level the level
+     * @return its shadow; {@link ElevationShadow#NONE} for {@link Elevation#FLAT}
+     */
+    public ElevationShadow elevation(Elevation level) {
+        return elevation[Objects.requireNonNull(level, "level").ordinal()];
+    }
+
+    /**
+     * Draws the shadow of a surface lifted to a level, under where the surface will be painted:
+     * call it before the surface's own fill. A widget that does adds
+     * {@code elevation(level).reach()} to its {@code paintOutset()}, so a repaint covers what the
+     * shadow touches.
+     *
+     * @param canvas the canvas
+     * @param shape  the surface's outline
+     * @param level  how far it is lifted
+     */
+    public void drawElevation(limn.graphics.Canvas canvas, limn.graphics.RoundRect shape, Elevation level) {
+        for (limn.graphics.Shadow layer : elevation(level).layers()) {
+            canvas.drawShadow(shape, layer);
+        }
     }
 
     // Default semantic state colors, by mode: readable on any light/dark surface.
@@ -948,7 +1022,10 @@ public final class Theme {
         private Color warning;
         private Color info;
 
+        private ElevationShadow[] elevation;
+
         private Builder(Theme base) {
+            this.elevation = base.elevation.clone();
             this.name = base.name;
             this.dark = base.dark;
             this.cornerScale = base.cornerScale;
@@ -1214,10 +1291,31 @@ public final class Theme {
          * usable afterwards and builds a fresh palette each call.
          */
         public Theme build() {
-            return new Theme(name, dark, cornerScale, fontFamily, background, surface, surfaceRaised,
+            Theme built = new Theme(name, dark, cornerScale, fontFamily, background, surface, surfaceRaised,
                     primary, primaryHover, primaryPressed, onPrimary,
                     text, textMuted, outline, focusRing, disabledFill, disabledText, scrim,
                     danger, success, warning, info);
+            return new Theme(built, elevation);
+        }
+
+        /**
+         * The shadow of a level. {@link Elevation#FLAT} casts none and cannot be given one: a
+         * surface in the plane of its neighbours has nothing to cast it on.
+         *
+         * @param level  the level
+         * @param shadow its shadow; {@link ElevationShadow#NONE} for a palette that says depth
+         *               by tone and outline alone
+         * @return this builder
+         * @throws IllegalArgumentException for a shadow on {@code FLAT}
+         */
+        public Builder elevation(Elevation level, ElevationShadow shadow) {
+            Objects.requireNonNull(level, "level");
+            Objects.requireNonNull(shadow, "shadow");
+            if (level == Elevation.FLAT && !shadow.isNone()) {
+                throw new IllegalArgumentException("a flat surface casts no shadow");
+            }
+            elevation[level.ordinal()] = shadow;
+            return this;
         }
     }
 
@@ -1245,7 +1343,7 @@ public final class Theme {
                 return false;
             }
         }
-        return true;
+        return java.util.Arrays.equals(elevation, that.elevation);
     }
 
     @Override
@@ -1254,7 +1352,7 @@ public final class Theme {
         for (Token token : Token.values()) {
             result = 31 * result + token.read(this).hashCode();
         }
-        return result;
+        return 31 * result + java.util.Arrays.hashCode(elevation);
     }
 
     /** The palette's name. A theme picker shows {@link #displayName()}, not this. */

@@ -302,6 +302,7 @@ class DamageContractTest extends ComponentTestBase {
             natural("Spinner", () -> new Spinner(0, 99, 1), both()),
             boxed("SplitPane", () -> SplitPane.horizontal(new Plain(), new Plain()), List.of(
                     hover().ceiling(0.15f), unhover().ceiling(0.15f))),
+            inert("Surface", () -> new Surface(new Plain()), "a fill and a shadow: nothing to press, focus or hover"),
             boxed("TabbedPane", () -> new TabbedPane().addTab("Alpha", new Plain())
                     .addTab("Beta", new Plain()).addTab("Gamma", new Plain()), List.of(
                     hoverAt("pointer onto a tab", 90, 14).ceiling(0.1f),

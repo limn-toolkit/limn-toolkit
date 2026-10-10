@@ -631,30 +631,31 @@ final class AppScene {
     }
 
     /**
-     * A panel that comes in beside what it is about and goes away again: the main widget has
-     * the whole box while the panel is closed, and gives up the panel's width at its trailing
-     * edge while it is open. The panel slides in at its full width, clipped by the box, so its
-     * fields are laid out once and not squeezed frame by frame; the main widget is laid out
-     * again at each frame of the slide, which takes about a fifth of a second and no time at
-     * all when the user has asked the system for less motion. Trailing is the right in a
-     * layout that reads from the left and the left in one that reads from the right. Escape,
-     * from anywhere inside the panel, closes it.
+     * A panel that comes in over what it is about and goes away again: the main widget keeps
+     * the whole box, and the panel slides over its trailing edge as a surface lifted above it,
+     * with the shadow the theme gives one that covers. Nothing under it is laid out again while
+     * it moves. The slide takes about a fifth of a second and no time at all when the user has
+     * asked the system for less motion. Trailing is the right in a layout that reads from the
+     * left and the left in one that reads from the right. Escape, from anywhere inside the
+     * panel, closes it.
      */
     static final class Drawer extends Widget<Drawer> {
-        private static final float PANEL_WIDTH = 300;
-        private static final float GAP = 10;
+        private static final float PANEL_WIDTH = 320;
         private static final double SECONDS = 0.22;
 
         private final Widget<?> main;
-        private final Widget<?> panel;
+        private final limn.components.Surface panel;
         private boolean open;
         /** How far in the panel is, from 0 to 1, in time; eased when it is laid out. */
         private float progress;
         private boolean ticking;
 
-        Drawer(Widget<?> main, Widget<?> panel) {
+        Drawer(Widget<?> main, Widget<?> content) {
             this.main = main;
-            this.panel = panel;
+            // Square: it meets the box's edge on three sides, and a corner there would show the
+            // table through it.
+            this.panel = new limn.components.Surface(content)
+                    .setElevation(limn.components.Elevation.OVERLAY).setCornerRadius(0);
             add(main);
             add(panel);
             panel.setVisible(false);
@@ -707,16 +708,13 @@ final class AppScene {
 
         @Override
         protected void onLayout() {
-            float panelWidth = Math.min(PANEL_WIDTH, width() * 0.5f);
-            float eased = limn.animation.Easing.EASE_IN_OUT.apply(progress);
-            float taken = (panelWidth + GAP) * eased;
-            float mainWidth = Math.max(0, width() - taken);
-            boolean rtl = isRightToLeft();
-            main.measure(limn.scene.Constraints.tight(mainWidth, height()));
-            main.layoutBox(rtl ? taken : 0, 0, mainWidth, height());
+            main.measure(limn.scene.Constraints.tight(width(), height()));
+            main.layoutBox(0, 0, width(), height());
             if (panel.isVisible()) {
+                float panelWidth = Math.min(PANEL_WIDTH, width() * 0.6f);
+                float shown = panelWidth * limn.animation.Easing.EASE_IN_OUT.apply(progress);
                 panel.measure(limn.scene.Constraints.tight(panelWidth, height()));
-                panel.layoutBox(rtl ? taken - GAP - panelWidth : width() - taken + GAP, 0, panelWidth, height());
+                panel.layoutBox(isRightToLeft() ? shown - panelWidth : width() - shown, 0, panelWidth, height());
             }
         }
 
@@ -936,9 +934,9 @@ final class AppScene {
             buttons.add(save);
             form.add(buttons);
 
-            // The order is opened on demand: Enter or a double click on a row brings its form in
-            // from the trailing edge, the arrows go on walking the rows with it open, and the
-            // table has the whole width back when it is closed.
+            // The order is opened on demand: Enter, a double click or a row's button brings its
+            // form in over the table's trailing edge, and the arrows go on walking the rows
+            // with it open.
             Drawer drawer = new Drawer(table, new ScrollView(new Padding(Insets.all(12), form)));
             table.onActivate(row -> drawer.setOpen(true));
             close.onAction(() -> {

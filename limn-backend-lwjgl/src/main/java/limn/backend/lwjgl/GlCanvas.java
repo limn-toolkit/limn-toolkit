@@ -46,6 +46,7 @@ final class GlCanvas implements Canvas {
     private static final int KIND_GLYPH = 4;
     private static final int KIND_IMAGE = 5;
     private static final int KIND_IMAGE_MASK = 6; // texel alpha = coverage, colored by tint (icons)
+    private static final int KIND_SHADOW = 9;      // a rounded rect blurred analytically
     private static final int KIND_BACKDROP = 8;    // samples a copy of the framebuffer under it
     private static final int KIND_HDR_SURFACE = 7; // 3D target: premultiplied linear;
                                                    // the shader applies the display transform
@@ -609,6 +610,26 @@ final class GlCanvas implements Canvas {
         }
         emitRoundRect(rr.x(), rr.y(), rr.width(), rr.height(),
                 rr.topLeft(), rr.topRight(), rr.bottomRight(), rr.bottomLeft(), -1, paint);
+    }
+
+    @Override
+    public void drawShadow(RoundRect shape, limn.graphics.Shadow shadow) {
+        java.util.Objects.requireNonNull(shadow, "shadow");
+        RoundRect rr = shape.normalized();
+        if (rr.width() <= 0 || rr.height() <= 0 || shadow.color().a() <= 0) {
+            return;
+        }
+        ensureInFrame();
+        float halfW = rr.width() / 2f;
+        float halfH = rr.height() / 2f;
+        float max = Math.min(halfW, halfH);
+        // The quad reaches three deviations past the shape, the blur being two: past that the
+        // shadow is under a thousandth of itself, which no display shows.
+        float reach = Math.max(shadow.blur() * 1.5f, 0);
+        emitSdfQuad(KIND_SHADOW, rr.x() + halfW + shadow.offsetX(), rr.y() + halfH + shadow.offsetY(),
+                halfW, halfH, Math.min(rr.topLeft(), max), Math.min(rr.topRight(), max),
+                Math.min(rr.bottomRight(), max), Math.min(rr.bottomLeft(), max), reach, 1, 0,
+                shadow.color());
     }
 
     @Override
