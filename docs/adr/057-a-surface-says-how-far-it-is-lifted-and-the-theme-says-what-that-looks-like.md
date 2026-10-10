@@ -1,7 +1,7 @@
 # ADR 057: A surface says how far it is lifted, and the theme says what that looks like
 
 - **Status:** Accepted, 2026-10-10, with the owner's answers in §4; being built in the four
-  steps of §5: all four are built; what step 3 could not see, under Wayland and on Windows, is open.
+  steps of §5: all four are built and seen on the four systems.
 - **Date:** 2026-10-10
 - **Scope:** elevation: how a surface that lies over another is told apart from it. A small
   scale of levels, what each level draws (a shadow, a tone, an outline), where the numbers live
@@ -177,8 +177,8 @@ surface does not darken itself.
    |---|---|
    | macOS 27 | the system's shadow, soft and whole |
    | Ubuntu 24.04, GNOME, X11 | nothing: the list's own outline on the page |
-   | Fedora 44, KDE, Wayland | nothing seen; the picture came out dimmed and is to be retaken |
-   | Windows 11 | not measured: the guest did not come up |
+   | Windows 11 | nothing: the same |
+   | Fedora 44, KDE, Wayland | no such window: there a list, a menu and a calendar are drawn in the owner's scene, where step 2 gives them their shadow |
 
    So the compositor's shadow, which §2.5 meant to keep, exists on one system of the three
    read. Decided from that: where the compositor casts one (macOS) the toolkit draws none, or
@@ -194,11 +194,13 @@ surface does not darken itself.
    popup on a press in it; and the margin in the size and the position of the windows of the
    combo box's list (where it opens and where it is resized as it is filtered), the date
    picker's calendar and the menu, whose one window already spanned its cascade and now spans
-   each column's shadow too. **Seen on Ubuntu under X11**: a list, a menu with its check and
-   submenu arrow, and a calendar, each with its shadow and where it was before. **Not seen
-   under Wayland**: the Fedora guest's screen was asleep and every picture of it came back
-   blank, so the backend answers for X11 only and a Wayland session keeps popups with no
-   shadow, as before. **Not seen on Windows**: the guest did not come up. A dialog that is a
+   each column's shadow too. **Seen on Ubuntu under X11 and on Windows 11**, each with
+   the toolkit's shadow forced off and on (`-Dlimn.popupShadow`): a list, a menu with its check
+   and submenu arrow, and a calendar, each with its shadow and where it was without it. **Seen
+   on Fedora under Wayland**, by the desktop's own screenshot program once the guest's screen
+   was awake: the same three with their shadow, drawn in the scene, the two runs identical to
+   the byte since no window of this kind is made there. The backend answers that the compositor
+   casts none on Windows and under X11. A dialog that is a
    window of its own is not part of this: it is a system window with the system's shadow where
    it is decorated, and where it is not, it is still to do.
 4. **The theme editor** (done): a section, after the colours, with the five numbers of each

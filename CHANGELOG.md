@@ -221,8 +221,9 @@ Maven Central say which number that was.
   `Canvas.drawShadow` draws one layer under any rounded rectangle. The toolkit's own surfaces
   cast theirs: a menu, the list of a combo box, a calendar and a tooltip cast `OVERLAY`'s, and
   a dialog drawn in the scene `MODAL`'s. A popup that is a window of its own keeps the
-  system's shadow where the compositor casts one (macOS) and draws the toolkit's where it was
-  seen to cast none (X11); under Wayland and on Windows such a window has none yet. The theme
+  system's shadow where the compositor casts one (macOS) and draws the toolkit's where it
+  casts none (Windows, X11), in a transparent margin of the window where a press closes the
+  popup. The theme
   editor edits each level's five numbers and shows the three shadows in its preview.
 - `window.launcher()` hands an address or a file to the system: `openAddress` opens a web page
   in the browser or a `mailto:` in the mail program, `openFile` a file in the program registered
