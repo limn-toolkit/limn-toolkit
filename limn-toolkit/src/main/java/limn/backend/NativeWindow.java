@@ -127,6 +127,16 @@ public sealed interface NativeWindow extends AutoCloseable permits WindowPeer {
     void hide();
 
     /**
+     * Minimizes the window: it leaves the screen and stays in the desktop's dock or task bar,
+     * from where the user brings it back. Unlike {@link #hide}, the user can reach it again
+     * without the application's help. UI thread only.
+     *
+     * <p>The default does nothing, which is the answer of a window with no desktop under it.
+     */
+    default void minimize() {
+    }
+
+    /**
      * Sets the whole-window opacity in {@code [0..1]} at the compositor level,
      * the fade primitive behind {@link limn.scene.Scene#fadeWindow}. Affects
      * the entire window uniformly, decorations included. A no-op where the

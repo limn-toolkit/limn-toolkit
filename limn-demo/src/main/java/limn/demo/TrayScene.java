@@ -38,8 +38,34 @@ final class TrayScene {
     private TrayScene() {
     }
 
+    /** The backend the icon is made from; none in a capture or a test, which have no desktop. */
+    private static Backend backend;
+    /** One icon for the life of the process, whichever page or scene shows its switches. */
+    private static Tray shared;
+    private static limn.concurrent.Subscription availability;
+    private static boolean iconOn;
+    private static boolean shapeOn;
+    private static boolean attentionOn;
+    private static boolean activatesOn;
+    private static String tooltipNow = "Limn Showcase";
+    private static boolean started;
+
+    /** Says which backend the icon is made from. Called once, before a scene is built. */
+    static void use(Backend running) {
+        backend = running;
+    }
+
+    /** The page of the Showcase's gallery. */
+    static Widget<?> page(Label status) {
+        if (backend == null) {
+            return new Label("The tray icon needs a desktop to be shown on.").setMuted(true);
+        }
+        return content(backend, status);
+    }
+
     /** Standalone {@code --scene tray}. */
     static Scene create(Backend backend) {
+        use(backend);
         Label status = new Label("").setMuted(true);
         Column page = new Column();
         page.gap(16).crossAlignment(Flex.CrossAlignment.STRETCH);
@@ -61,14 +87,21 @@ final class TrayScene {
         Icon shape = BitmapIcon.mask(Images.fromResource("/limn/demo/images/icon-star.png"));
         Set<String> on = Set.of(System.getProperty("limn.demo.tray", "").split(","));
 
-        Tray tray = Tray.create(backend, "limn-showcase");
-        tray.setTitle("Limn Showcase").setTooltip("Limn Showcase");
+        if (shared == null) {
+            shared = Tray.create(backend, "limn-showcase");
+            shared.setTitle("Limn Showcase").setTooltip(tooltipNow);
+        }
+        Tray tray = shared;
 
         Checkbox shown = new Checkbox(Checkbox.Variant.SWITCH, "Icon in the tray");
         Checkbox monochrome = new Checkbox(Checkbox.Variant.SWITCH, "Monochrome icon");
         Checkbox attention = new Checkbox(Checkbox.Variant.SWITCH, "Asks for attention");
         Checkbox activates = new Checkbox(Checkbox.Variant.SWITCH, "A click brings this window");
-        TextField tooltip = new TextField().setText("Limn Showcase");
+        TextField tooltip = new TextField().setText(tooltipNow);
+        shown.setChecked(iconOn);
+        monochrome.setChecked(shapeOn);
+        attention.setChecked(attentionOn);
+        activates.setChecked(activatesOn);
         Label available = new Label("").setMuted(true);
 
         int[] opened = {0};
@@ -95,47 +128,67 @@ final class TrayScene {
 
         Runnable tell = () -> available.setText(tray.isAvailable()
                 ? "The system took the icon." : "No tray took the icon.");
-        tray.onAvailabilityChange(() -> {
+        if (availability != null) {
+            availability.cancel();   // the page was built before; its label is gone
+        }
+        availability = tray.onAvailabilityChange(() -> {
             tell.run();
             say(status, "available " + tray.isAvailable());
         });
 
         shown.onChange(value -> {
+            iconOn = value;
             tray.setIcon(value ? picture : null);
-            if (!value) {
-                tray.setMonochromeIcon(null);
-                monochrome.setChecked(false);
-            }
             tell.run();
         });
-        monochrome.onChange(value -> tray.setMonochromeIcon(value ? shape : null));
-        attention.onChange(tray::setAttention);
-        activates.onChange(value -> tray.onActivate(value ? () -> {
+        monochrome.onChange(value -> {
+            shapeOn = value;
+            tray.setMonochromeIcon(value ? shape : null);
+            tell.run();
+        });
+        attention.onChange(value -> {
+            attentionOn = value;
+            tray.setAttention(value);
+        });
+        Runnable activation = () -> {
             say(status, "activated");
             bring(shown);
-        } : null));
-        tooltip.onChange(tray::setTooltip);
+        };
+        activates.onChange(value -> {
+            activatesOn = value;
+            tray.onActivate(value ? activation : null);
+        });
+        if (activatesOn) {
+            tray.onActivate(activation);   // to this page's widgets, not to those of a page left
+        }
+        tooltip.onChange(text -> {
+            tooltipNow = text;
+            tray.setTooltip(text);
+        });
 
-        if (on.contains("icon")) {
+        if (!started && on.contains("icon")) {
+            iconOn = true;
             shown.setChecked(true);
             tray.setIcon(picture);
         }
-        if (on.contains("mono")) {
+        if (!started && on.contains("mono")) {
+            shapeOn = true;
             monochrome.setChecked(true);
             tray.setMonochromeIcon(shape);
         }
-        if (on.contains("attention")) {
+        if (!started && on.contains("attention")) {
+            attentionOn = true;
             attention.setChecked(true);
             tray.setAttention(true);
         }
-        if (on.contains("activate")) {
+        if (!started && on.contains("activate")) {
+            activatesOn = true;
             activates.setChecked(true);
-            tray.onActivate(() -> {
-                say(status, "activated");
-                bring(shown);
-            });
+            tray.onActivate(activation);
         }
-        if (Boolean.getBoolean("limn.demo.tray.script")) {
+        boolean first = !started;
+        started = true;
+        if (first && Boolean.getBoolean("limn.demo.tray.script")) {
             // What a panel shows of a change made while the icon is there, with nobody at the keys.
             Ui.postDelayed(() -> {
                 tray.setTooltip("Changed while shown");
@@ -152,7 +205,7 @@ final class TrayScene {
                 say(status, "script: attention off");
             }, 24000);
         }
-        if (Boolean.getBoolean("limn.demo.tray.second")) {
+        if (first && Boolean.getBoolean("limn.demo.tray.second")) {
             // A second icon of the same application, taken away after a while.
             Tray second = Tray.create(backend, "limn-showcase-second");
             second.setTitle("Limn, second icon").setIcon(BitmapIcon.picture(

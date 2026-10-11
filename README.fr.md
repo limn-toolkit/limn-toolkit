@@ -248,6 +248,7 @@ page à installer.
 l’ombre que le thème donne à son niveau : menus, listes, calendriers et dialogues le font déjà, et
 `Surface` soulève un panneau à vous. `window.launcher()` confie un lien ou un fichier aux
 programmes du système — le navigateur, le programme de messagerie, le gestionnaire de fichiers.
+`Tray` garde une icône dans la zone de notification, avec un menu que le système dessine lui-même.
 
 **L’apparence de votre produit, pas celle du toolkit.** Un thème est une donnée brute — chaque
 couleur, le rayon des angles, le pas de taille dont hérite chaque contrôle — et un appel le

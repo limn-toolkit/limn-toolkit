@@ -238,6 +238,7 @@ constraint solver to configure, no layout manager to install.
 has in the theme: menus, lists, calendars and dialogs already do, and `Surface` lifts a panel of
 your own. `window.launcher()` hands a link or a file to the system's own programs — the browser,
 the mail program, the file manager.
+`Tray` keeps an icon in the system's tray, with a menu the system draws.
 
 **Your product's look, not the toolkit's.** A theme is plain data — every colour, the corner
 radius, the size step every control inherits — and one call swaps it at runtime.

@@ -313,6 +313,7 @@ public final class Main {
                 // no scene named it follows the system's appearance until the user picks a theme;
                 // a named scene, a capture or --theme keeps the palette it asked for, and a
                 // desktop with no preference keeps the one it opens with.
+                TrayScene.use(backend);
                 AppScene.Built built = AppScene.create();
                 widgetScene = built.scene();
                 if (options.scene().equals("default") && !screenshotMode && options.theme() == null) {

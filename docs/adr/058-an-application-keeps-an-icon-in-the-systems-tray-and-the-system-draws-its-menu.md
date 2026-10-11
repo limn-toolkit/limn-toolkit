@@ -1,8 +1,8 @@
 # ADR 058: An application keeps an icon in the system's tray, and the system draws its menu
 
-- **Status:** Proposed, 2026-10-11, with the owner's answers in §1, the measurements of §3 and the
-  corrections of a second reading (§13). Nothing is built. §12 lists what is seen on a guest
-  before this is accepted.
+- **Status:** Accepted and implemented, 2026-10-11, with the owner's answers in §1, the
+  measurements of §3, the corrections of a second reading (§13), and §15: what was built, where it
+  departs from the text above it, what was seen on the guests and what was not.
 - **Date:** 2026-10-11
 - **Scope:** an icon an application keeps in the place each system has for one (the notification
   area on Windows, the menu bar's status items on macOS, the panel's tray on a Linux desktop), with
@@ -369,3 +369,71 @@ out of the toolkit (§6, with the owner's word after §3's measurement).
 4. macOS, measured as it is built.
 5. The demo's icon, the guide with the "close to the tray" recipe and the stand-in's, the
    changelog.
+
+## 15. As built and measured (2026-10-11)
+
+Built in the five steps of §14. Where what was built departs from the text above:
+
+- **The title is the identifier until set** (§4): a backend has no reading of the application's
+  name to default to.
+- **`setLayoutDirection`** is on `Tray` (§4): a scene has a direction and a tray is in none, so
+  the application says it.
+- **Each backend escapes a label** for its system, not `Tray` (§4): the rows carry the text as
+  written and the access letter beside it.
+- **`BackendPeer.createTray` has a default**, the peer that shows nothing, which is the right
+  answer of a backend with no desktop; only the toolkit's desktop backend overrides it.
+- **Windows, a thread per tray** (§5.2), each with its window, and not one thread for all.
+- **Linux, the sizes** are 16, 22, 24, 32, 44, 48, 64 and 96 (§5.1), after the owner asked that
+  high-density screens be served: each is drawn for its size.
+- **Linux, a monochrome icon alone is white on GNOME** (§8) and the grey elsewhere. The owner
+  asked that it go from black to white with the system; the desktop's light or dark setting
+  turned out not to be the panel's colour (below), and GNOME's bar is the one whose colour is
+  known.
+- **With no tray, the recipe lets the close end the application** (§6), where the text said
+  "minimize": a window could not minimize itself. `NativeWindow.minimize()` was then added, with
+  a default that does nothing, for the recipe of an application with no main window, which shows
+  its commands in a small window and minimizes it again; that recipe needs no telling that the
+  window was brought back.
+
+**Seen on the guests, with a real click each:**
+
+| | KDE, Wayland | GNOME, X11 | Windows 11 | macOS |
+|---|---|---|---|---|
+| the icon, the tooltip, the menu | yes | yes | yes | yes |
+| an item chosen runs its action | yes | not clicked | yes | yes |
+| the menu changed between two openings, no signal | yes | yes | yes | yes |
+| with no `onActivate`, a left click opens the menu | yes | yes | yes | yes |
+| with it, the click activates and the window comes in front | activates; in front not looked at | not clicked | yes, in front | activates; in front not looked at |
+| with it, the other button opens the menu | measured by the probe | measured by the probe | not clicked | yes |
+| the tray appearing and going while running | not tried | yes, both ways | the shell restarted: the icon is back | has none to lose |
+| two icons, and one disposed | yes | yes | not tried | not tried |
+| the monochrome icon | grey | white | black on a light bar, white on a dark one, changed while running | white over a dark picture, black over a light one |
+| the attention dot | yes | yes | yes, over the tinted shape | yes, over the tinted shape, following the bar both ways |
+| the scale | 100 % | 100 % | 250 %, sharp | 200 %, sharp |
+
+- **Windows, the menu open:** a change scripted for the eighth second was applied with the menu
+  open since the fifth, the tooltip showing the new text beside the open menu: the UI thread
+  runs while the system tracks the menu.
+- **Windows, dark:** with the system switched to dark while the application ran, the menu was
+  dark and the monochrome icon white; back to light, both followed.
+- **The panel's colour is not the desktop's setting.** On both Linux guests the system was set
+  to light (the portal's colour scheme says so on KDE, and GNOME's setting is its default) and
+  the panel was dark. So a monochrome icon cannot follow the setting there.
+- **macOS, the bar's appearance arrives late.** A picture drawn by the toolkit when the item was
+  made was black over a dark bar; the item's effective appearance is observed, and the picture
+  drawn again when it changes.
+
+**Not seen, and still owed to §12:**
+
+- A screen reader on the icon and its menu, on any system.
+- GNOME under Wayland and KDE under X11.
+- GNOME's wait on a left click when the item activates, which is read from the extension's
+  source and not timed.
+- A token nobody uses, and whether GNOME shows a busy pointer for it.
+- A process killed with its icon shown on Windows; the shutdown hook is written and not tried.
+- What else the dark declaration changes in the process: the file chooser, the driver dialog,
+  a window's system menu.
+- Whether the toolkit's frames go on while a menu is open on macOS.
+- The Linux pictures at a scale above 100 %.
+- A key on the Windows icon, and its two messages for Enter.
+

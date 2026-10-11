@@ -1369,6 +1369,15 @@ final class LwjglWindow implements WindowPeer {
     }
 
     @Override
+    public void minimize() {
+        backend.uiRuntime().checkUiThread();
+        if (destroyed) {
+            return;
+        }
+        org.lwjgl.glfw.GLFW.glfwIconifyWindow(handle);
+    }
+
+    @Override
     public void setOpacity(float value) {
         backend.uiRuntime().checkUiThread();
         float clamped = Math.max(0f, Math.min(1f, value));
