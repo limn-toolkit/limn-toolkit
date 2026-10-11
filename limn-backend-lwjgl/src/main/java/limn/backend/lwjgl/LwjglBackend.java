@@ -1344,6 +1344,9 @@ public final class LwjglBackend implements BackendPeer {
         if (Platform.current().isWindows()) {
             return new WindowsTray(id, host, uiRuntime::post);
         }
+        if (Platform.current().isMacOs()) {
+            return MacTray.canShow() ? new MacTray(id, host, uiRuntime::post) : TrayPeer.NONE;
+        }
         if (Platform.current().isLinux()) {
             return StatusNotifierTray.create(id, host, uiRuntime::post, System.getenv("DBUS_SESSION_BUS_ADDRESS"));
         }
