@@ -456,6 +456,9 @@ Built in the five steps of §14. Where what was built departs from the text abov
 - **An X11 client on KDE:** the toolkit run through XWayland on the KDE guest showed the icon,
   and its activation brought the window in front and made it the active one.
 
+- **The file chooser under the declaration** on a dark system is the system's own dark one, as it
+  is without it.
+
 **Not seen, and still owed to §12:**
 
 - A screen reader's voice on macOS and on Linux; there the name was read through the
@@ -463,5 +466,6 @@ Built in the five steps of §14. Where what was built departs from the text abov
 - A GNOME session under Wayland and a Plasma session under X11. Both exist on the guests and
   need somebody to log in to them; a GNOME shell nested in the X11 session started, and the
   toolkit's window never appeared in it, which says nothing of a real session.
-- The file chooser and the driver dialog under the dark declaration.
+- The driver dialog under the dark declaration, which shows only on a machine with no graphics
+  driver.
 
