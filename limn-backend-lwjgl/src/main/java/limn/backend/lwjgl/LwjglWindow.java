@@ -396,6 +396,7 @@ final class LwjglWindow implements WindowPeer {
         updatePixelsPerScreenCoord();
 
         glfwSetFramebufferSizeCallback(handle, (win, width, height) -> {
+            stateMayHaveChanged(); // a size the system reports here and not as a window size
             framebufferWidth = width;
             framebufferHeight = height;
             windowed.answered(); // an answer to a window leaving fullscreen, while one is watched
@@ -567,7 +568,13 @@ final class LwjglWindow implements WindowPeer {
         }
         // Open popups are separate top-level windows at absolute screen positions; nothing in the
         // OS ties them to this one. Without this they stay put while their owner is dragged away.
-        glfwSetWindowPosCallback(handle, (win, x, y) -> windowMovedTo(x, y));
+        glfwSetWindowPosCallback(handle, (win, x, y) -> {
+            windowMovedTo(x, y);
+            stateMayHaveChanged();
+        });
+        org.lwjgl.glfw.GLFW.glfwSetWindowIconifyCallback(handle, (win, iconified) -> stateMayHaveChanged());
+        org.lwjgl.glfw.GLFW.glfwSetWindowMaximizeCallback(handle, (win, maximized) -> stateMayHaveChanged());
+        org.lwjgl.glfw.GLFW.glfwSetWindowSizeCallback(handle, (win, w, h) -> stateMayHaveChanged());
         glfwSetWindowContentScaleCallback(handle, (win, scaleX, scaleY) -> {
             contentScale = scaleX;
             refreshRateMayHaveChanged(); // a new scale is usually a new monitor
@@ -1353,6 +1360,7 @@ final class LwjglWindow implements WindowPeer {
             return; // closed is not hidden: there is nothing left to show
         }
         glfwShowWindow(handle);
+        stateMayHaveChanged();
         if (nsglContext != NULL) {
             // A window built hidden (every popup) gets its drawable here.
             MacSoftwareGl.update(nsglContext);
@@ -1366,6 +1374,115 @@ final class LwjglWindow implements WindowPeer {
             return;
         }
         glfwHideWindow(handle);
+        stateMayHaveChanged();
+    }
+
+    private final java.util.List<java.util.function.Consumer<limn.backend.WindowState>> stateListeners =
+            new java.util.ArrayList<>();
+    private limn.backend.@org.jspecify.annotations.Nullable WindowState toldState;
+    private boolean stateCheckPosted;
+
+    @Override
+    public limn.concurrent.Subscription observeState(java.util.function.Consumer<limn.backend.WindowState> listener) {
+        backend.uiRuntime().checkUiThread();
+        java.util.Objects.requireNonNull(listener, "listener");
+        if (stateListeners.isEmpty()) {
+            toldState = state();   // what a first listener is told is what changes from here
+        }
+        stateListeners.add(listener);
+        return () -> stateListeners.remove(listener);
+    }
+
+    /**
+     * Has the state compared with what the listeners were last told, after the event that may
+     * have changed it and never inside it: the system's callbacks arrive in the middle of a
+     * poll, and a listener that shows or resizes a window there would do it inside the system's
+     * own handling of this one.
+     */
+    private limn.backend.@org.jspecify.annotations.Nullable ScreenRect boundsBeforeMinimizing;
+
+    /**
+     * The state with what two systems report of a minimized window put right: Windows parks one
+     * far off the screen at no size, and macOS says it is not shown. A minimized window is a
+     * shown one, at the place and size it comes back to.
+     */
+    @Override
+    public limn.backend.WindowState state() {
+        backend.uiRuntime().checkUiThread();
+        boolean minimized = isMinimized();
+        limn.backend.ScreenRect bounds;
+        if (minimized && boundsBeforeMinimizing != null) {
+            bounds = boundsBeforeMinimizing;
+        } else {
+            bounds = bounds();
+            if (!minimized) {
+                boundsBeforeMinimizing = bounds;
+            }
+        }
+        return new limn.backend.WindowState(isVisible() || minimized, minimized, isMaximized(), isFullscreen(),
+                bounds);
+    }
+
+    private void stateMayHaveChanged() {
+        if (stateListeners.isEmpty() || stateCheckPosted || destroyed) {
+            return;
+        }
+        if (!isMinimized()) {
+            boundsBeforeMinimizing = bounds();   // kept current, so that minimizing finds it
+        }
+        stateCheckPosted = true;
+        backend.uiRuntime().post(() -> {
+            stateCheckPosted = false;
+            if (destroyed || stateListeners.isEmpty()) {
+                return;
+            }
+            limn.backend.WindowState now = state();
+            if (!now.equals(toldState)) {
+                toldState = now;
+                for (java.util.function.Consumer<limn.backend.WindowState> listener : java.util.List.copyOf(stateListeners)) {
+                    listener.accept(now);
+                }
+            }
+        });
+    }
+
+    @Override
+    public void minimize() {
+        backend.uiRuntime().checkUiThread();
+        if (destroyed) {
+            return;
+        }
+        org.lwjgl.glfw.GLFW.glfwIconifyWindow(handle);
+    }
+
+    @Override
+    public void maximize() {
+        backend.uiRuntime().checkUiThread();
+        if (destroyed || isFullscreen()) {
+            return;
+        }
+        org.lwjgl.glfw.GLFW.glfwMaximizeWindow(handle);
+    }
+
+    @Override
+    public void restore() {
+        backend.uiRuntime().checkUiThread();
+        if (destroyed || isFullscreen()) {
+            return;
+        }
+        glfwRestoreWindow(handle);
+    }
+
+    @Override
+    public boolean isMinimized() {
+        backend.uiRuntime().checkUiThread();
+        return !destroyed && glfwGetWindowAttrib(handle, org.lwjgl.glfw.GLFW.GLFW_ICONIFIED) == GLFW_TRUE;
+    }
+
+    @Override
+    public boolean isMaximized() {
+        backend.uiRuntime().checkUiThread();
+        return !destroyed && glfwGetWindowAttrib(handle, GLFW_MAXIMIZED) == GLFW_TRUE;
     }
 
     @Override

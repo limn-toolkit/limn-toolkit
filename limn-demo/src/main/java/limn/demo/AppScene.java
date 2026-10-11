@@ -186,6 +186,8 @@ final class AppScene {
                         () -> scrolling(PickerScene.content())),
                 new Place(ShowcaseStrings.NAV_CLIPBOARD, "docs/drag-and-drop/#the-clipboard",
                         () -> scrolling(TransferScene.content())),
+                new Place(ShowcaseStrings.NAV_TRAY, "docs/menus-and-dialogs/#an-icon-in-the-tray",
+                        () -> scrolling(TrayScene.page(status))),
                 new Place(ShowcaseStrings.NAV_CHARTS, "docs/charts/", () -> scrolling(ChartsScene.content())),
                 new Place(ShowcaseStrings.NAV_TEXT, "docs/text-and-languages/",
                         () -> scrolling(BidiScene.tabContent())),

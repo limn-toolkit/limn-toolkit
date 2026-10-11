@@ -58,6 +58,10 @@ import static org.lwjgl.glfw.GLFW.glfwWaitEvents;
 import static org.lwjgl.glfw.GLFW.glfwWaitEventsTimeout;
 import static org.lwjgl.system.MemoryUtil.NULL;
 import limn.backend.spi.WindowPeer;
+import limn.backend.spi.TrayHost;
+import limn.backend.spi.TrayPeer;
+import limn.backend.spi.TrayState;
+import limn.backend.lwjgl.a11y.linux.StatusNotifierTray;
 import limn.backend.spi.BackendPeer;
 
 /**
@@ -957,6 +961,7 @@ public final class LwjglBackend implements BackendPeer {
             } else if (Platform.current().isWindows()) {
                 limn.scene.SystemPreferences.report(WindowsSystemPreferences.read());
                 windowsPreferences = WindowsSystemPreferences.follow(preferencesChanged);
+                WindowsDarkMenus.declare();   // once, here, so the process looks one way with or without a tray
             } else {
                 String bus = System.getenv("DBUS_SESSION_BUS_ADDRESS");
                 if (limn.backend.lwjgl.a11y.linux.PortalAppearanceWatch.canWatch(bus)) {
@@ -1301,6 +1306,53 @@ public final class LwjglBackend implements BackendPeer {
         wakeLoop();
     }
 
+    /** The trays made and not yet disposed, so that closing takes their icons away. */
+    private final List<TrayPeer> trays = new ArrayList<>();
+
+    @Override
+    public TrayPeer createTray(String id, TrayHost host) {
+        uiRuntime.checkUiThread();
+        TrayPeer made = platformTray(id, host);
+        if (made == TrayPeer.NONE) {
+            return made;
+        }
+        TrayPeer tracked = new TrayPeer() {
+            @Override
+            public void update(TrayState state) {
+                made.update(state);
+            }
+
+            @Override
+            public boolean isAvailable() {
+                return made.isAvailable();
+            }
+
+            @Override
+            public void dispose() {
+                trays.remove(this);
+                made.dispose();
+            }
+        };
+        trays.add(tracked);
+        return tracked;
+    }
+
+    private TrayPeer platformTray(String id, TrayHost host) {
+        if (terminated) {
+            return TrayPeer.NONE;
+        }
+        if (Platform.current().isWindows()) {
+            return new WindowsTray(id, host, uiRuntime::post);
+        }
+        if (Platform.current().isMacOs()) {
+            return MacTray.canShow() ? new MacTray(id, host, uiRuntime::post) : TrayPeer.NONE;
+        }
+        if (Platform.current().isLinux()) {
+            return StatusNotifierTray.create(id, host, uiRuntime::post, System.getenv("DBUS_SESSION_BUS_ADDRESS"));
+        }
+        return TrayPeer.NONE;
+    }
+
     @Override
     public void close() {
         if (terminated) {
@@ -1308,6 +1360,10 @@ public final class LwjglBackend implements BackendPeer {
         }
         uiRuntime.checkUiThread();
         running = false;
+        for (TrayPeer tray : List.copyOf(trays)) {
+            tray.dispose();   // an icon left behind would outlive the process on some systems
+        }
+        trays.clear();
         if (systemClipboard != null) {
             systemClipboard.close(); // its thread and its proxies, while the display is still open
             systemClipboard = null;

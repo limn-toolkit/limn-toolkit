@@ -17,6 +17,10 @@ file.addCheck("Word wrap", true, editor::setSoftWrap);
 file.addSubmenu("Recent", recentMenu);
 ```
 
+An item can carry a picture before its label, `MenuItem.of("Preferences", this::preferences)
+.setIcon(gear)`. A menu with an icon on any item keeps the same room on every item, so the
+labels stay in line, and a tintable icon takes the label's colour.
+
 **As a menu bar**, drawn at the top of your window like any other widget:
 
 ```java
@@ -210,6 +214,28 @@ tray keeps running with no window open after
 `backend.setLoopLifetime(LoopLifetime.UNTIL_QUIT)`, and then ends only through
 `requestQuit()` or `stop()`.
 
+### Minimizing, maximizing and bringing in front
+
+`window.minimize()`, `maximize()` and `restore()` do what the title bar's buttons do, and
+`isMinimized()` and `isMaximized()` say where the window is. `window.toFront()` is the one a
+"show the window" command calls: it shows a hidden window, restores a minimized one and gives
+it the keyboard.
+
+To act when any of it changes, whoever did it, observe the window's state:
+
+```java
+window.observeState(state -> {
+    preferences.put("window", state.bounds());       // its place and size, to open there next time
+    pause.setEnabled(!state.minimized());
+});
+```
+
+The listener is told on the UI thread after the window is shown or hidden, minimized, maximized
+or restored, enters or leaves fullscreen, is moved or changes size, with a `WindowState` of all
+of it; `window.state()` and `window.bounds()` answer the same at any time. Under Wayland a
+window is told neither that it is minimized nor where it is, so there `minimized` is `false`
+and the place is the origin.
+
 ## Native file dialogs
 
 `window.fileDialogs()` gives you the platform's own chooser, owned by that window: the real one,
@@ -262,6 +288,67 @@ front of your window. One that is already running behind it takes the page in a 
 stays behind, with the desktop marking it as wanting attention, under X11 and under Wayland
 alike: the desktop decides which window is in front, and the toolkit has no way yet to pass
 it the user's consent.
+
+## An icon in the tray
+
+A `Tray` keeps an icon in the place each system has for one: the notification area on Windows,
+the menu bar on macOS, the panel's tray on a Linux desktop. It has a title, a tooltip, a menu
+and, if you want one, a click that brings your window.
+
+{% snippet guide:tray %}
+
+**The system draws the menu**, from the same `Menu` a menu bar takes, so it looks like every
+other menu of that system, light or dark as the system is. It is read each time it is about to
+open: change the menu, an item's check mark or whether it is enabled as you would anywhere, and
+the next opening shows it. Of an item the system shows its label, its icon, whether it is
+enabled and checked, a separator, a submenu, and its accelerator: on macOS as the system's own
+key equivalent, which also runs the item while the menu is open, and on Windows and KDE as the
+words beside the label. GNOME's menu shows the icon and not the accelerator.
+
+**What a click does.** With no `onActivate`, any click on the icon opens the menu. With one, the
+click that means "this application" runs it and the other click opens the menu: the left click
+on Windows, on macOS and on KDE, and a double click on GNOME, where a single one opens the
+menu. A panel may never send an activation at all, so make what it does an item of the menu
+too, as above.
+
+**Two icons.** `setIcon` is shown as it is. `setMonochromeIcon` takes a shape, a tintable icon,
+and shows it in the bar's own colour: macOS colours it as it does its own status items, Windows
+shows it black on a light task bar and white on a dark one, and follows a change while you run.
+A Linux panel does not say its colour, so there the icon of `setIcon` is used when you gave
+one; the shape alone is coloured by the panel itself on KDE, is white on GNOME, whose top bar is
+always dark, and a mid grey elsewhere.
+Give both, and each system shows the better one. Icons are asked for at the size the system
+draws them, so a vector icon is sharp at any scale.
+
+**Asking for attention.** `setAttention(true)` shows the icon with a dot at its top trailing
+corner, over the monochrome icon too, until you turn it off. `setAttentionIcon` shows an icon of
+yours instead. On Linux a panel that tucks idle icons away may bring this one out.
+
+**A desktop may have no tray.** Windows and macOS always have the place; a Linux desktop has it
+when its panel does, and GNOME needs an extension for it, which several distributions ship
+turned on. `isAvailable()` says whether the system took the icon, and `onAvailabilityChange`
+tells you when that changes, which it does when the user turns the extension on while you run.
+It says the icon was taken, not that it is seen: Windows starts a new icon among its hidden
+ones, where the user promotes it.
+
+### Closing to the tray
+
+Closing the window while the application stays, with the icon as the way back, is three things
+you already have: a window that hides when closed, a loop that outlives its windows, and the
+icon's click. Where the desktop has no tray, a hidden window would be lost, so let the close
+end the application there:
+
+{% snippet guide:tray-close %}
+
+### With no main window, and no tray
+
+An application that is only an icon has nothing to fall back on where there is no tray. The
+usual answer is a small window of its commands that stays minimized in the dock: the user
+brings it back, picks a command, and it minimizes again. It is an entry of its own only while
+it is the application's one window, since a desktop shows one entry for all of an application's
+windows, and its picture is the one your installer's desktop file names.
+
+{% snippet guide:tray-standin %}
 
 ## Files dropped onto your window
 

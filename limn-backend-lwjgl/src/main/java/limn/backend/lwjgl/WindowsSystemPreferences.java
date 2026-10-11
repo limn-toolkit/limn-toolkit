@@ -103,6 +103,34 @@ final class WindowsSystemPreferences {
         }
     }
 
+    /**
+     * @return whether the task bar and the rest of the system's own surfaces are light, which is
+     *         a setting apart from the applications' one; light when the user never chose
+     */
+    static boolean systemSurfacesAreLight() {
+        if (REG_GET_VALUE == NULL) {
+            return true;
+        }
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            IntBuffer value = stack.ints(1);
+            IntBuffer size = stack.ints(4);
+            int status = JNI.invokePPPPPPPI(HKEY_CURRENT_USER, MemoryUtil.memAddress(stack.UTF16(PERSONALIZE)),
+                    MemoryUtil.memAddress(stack.UTF16("SystemUsesLightTheme")), RRF_RT_REG_DWORD, NULL,
+                    MemoryUtil.memAddress(value), MemoryUtil.memAddress(size), REG_GET_VALUE);
+            return status != 0 || value.get(0) != 0;
+        }
+    }
+
+    /** @return whether the user's applications are set to dark */
+    static boolean applicationsAreDark() {
+        return scheme() == ColorScheme.DARK;
+    }
+
+    /** @return whether a high-contrast scheme is on */
+    static boolean highContrastOn() {
+        return highContrast();
+    }
+
     private static boolean clientAreaAnimation() {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             IntBuffer on = stack.ints(1);

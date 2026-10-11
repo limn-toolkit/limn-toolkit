@@ -30,6 +30,7 @@ module limn.toolkit {
     exports limn.components.table;
     exports limn.components.tree;
     exports limn.concurrent;
+    exports limn.desktop;
     exports limn.graphics;
     exports limn.i18n;
     exports limn.input;

@@ -20,9 +20,10 @@ import static org.lwjgl.system.MemoryUtil.memPutAddress;
  * Calling a C function, and being called by one, by a signature written as a string: {@code p} is
  * a pointer or anything as wide ({@code long}, {@code Atom}, {@code Window}), {@code i} a 32-bit
  * integer, and after {@code >} the result, {@code v} for none. It is libffi under LWJGL, and what
- * spares this package a native shim for a few dozen calls into Xlib and the C library.
+ * spares the backend a native shim for a few dozen calls into Xlib, the C library and the
+ * Windows shell. Public for the backend's other packages; the module does not export this one.
  */
-final class Ffi {
+public final class Ffi {
 
     private static final Map<String, FFICIF> CIFS = new ConcurrentHashMap<>();
 
@@ -57,7 +58,7 @@ final class Ffi {
      * @param args      the arguments, each widened to a long
      * @return the result, widened; 0 for {@code v}
      */
-    static long call(long function, String signature, long... args) {
+    public static long call(long function, String signature, long... args) {
         int arrow = signature.indexOf('>');
         if (arrow != args.length) {
             throw new IllegalArgumentException(signature + " takes " + arrow + " arguments, got " + args.length);
@@ -80,7 +81,7 @@ final class Ffi {
     }
 
     /** What a C caller is answered by: its arguments widened, and a result that is widened back. */
-    interface Handler {
+    public interface Handler {
         long on(long[] args);
     }
 
@@ -130,7 +131,7 @@ final class Ffi {
      * @param handler   what answers
      * @return the callback, whose {@code address()} is the function pointer
      */
-    static Callback callback(String signature, Handler handler) {
+    public static Callback callback(String signature, Handler handler) {
         return new Closure(new Callback.Descriptor(Closure.class, MethodHandles.lookup(), cif(signature)),
                 signature, handler);
     }

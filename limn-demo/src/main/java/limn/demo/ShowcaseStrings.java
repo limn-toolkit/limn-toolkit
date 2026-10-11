@@ -40,6 +40,8 @@ final class ShowcaseStrings {
             new I18nString("showcase.nav.dragDrop", "Drag and drop");
     static final I18nString NAV_CLIPBOARD =
             new I18nString("showcase.nav.clipboard", "Clipboard");
+    static final I18nString NAV_TRAY =
+            new I18nString("showcase.nav.tray", "Tray icon");
     static final I18nString NAV_CHARTS =
             new I18nString("showcase.nav.charts", "Charts");
     static final I18nString NAV_TEXT =

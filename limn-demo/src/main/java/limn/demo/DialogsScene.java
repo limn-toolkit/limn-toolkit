@@ -167,8 +167,12 @@ final class DialogsScene {
     /** A menu with commands, checkable items, a separator, a submenu and a disabled entry. */
     private static Menu sampleMenu(Label status) {
         return new Menu()
-                .addItem(ShowcaseStrings.MENU_COPY, () -> status.setText(ShowcaseStrings.STATUS_COPY))
-                .addItem(ShowcaseStrings.MENU_PASTE, () -> status.setText(ShowcaseStrings.STATUS_PASTE))
+                .add(MenuItem.of(ShowcaseStrings.MENU_COPY, () -> status.setText(ShowcaseStrings.STATUS_COPY))
+                        .setIcon(limn.graphics.BitmapIcon.mask(
+                                limn.graphics.Images.fromResource("/limn/demo/images/icon-star.png"))))
+                .add(MenuItem.of(ShowcaseStrings.MENU_PASTE, () -> status.setText(ShowcaseStrings.STATUS_PASTE))
+                        .setIcon(limn.graphics.BitmapIcon.mask(
+                                limn.graphics.Images.fromResource("/limn/demo/images/icon-download.png"))))
                 .addSeparator()
                 .addCheck(ShowcaseStrings.MENU_BOLD, true,
                         on -> status.setText(ShowcaseStrings.STATUS_BOLD.format(String.valueOf(on))))

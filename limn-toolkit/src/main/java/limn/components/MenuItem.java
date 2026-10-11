@@ -33,6 +33,7 @@ public final class MenuItem {
     private Consumer<Boolean> onToggle = checked -> { };
     private Menu submenu;
     private boolean enabled = true;
+    private limn.graphics.@Nullable Icon icon;
     private boolean checked;
     private Accelerator accelerator;
     /** The access letter, uppercased; {@code 0} when none is declared. */
@@ -128,6 +129,27 @@ public final class MenuItem {
     /** Whether the item can be chosen; a disabled one still occupies a row. */
     public boolean isEnabled() {
         return enabled;
+    }
+
+    /**
+     * @return the picture shown before the label, or {@code null}
+     */
+    public limn.graphics.@Nullable Icon icon() {
+        return icon;
+    }
+
+    /**
+     * Sets a picture shown before the label, in a menu the toolkit draws and in one the system
+     * draws, a tray's among them. A menu with an icon on any item keeps the same room on every
+     * item, so the labels stay in line. A tintable icon takes the label's colour.
+     *
+     * @param value the icon, or {@code null} for none
+     * @return this item
+     */
+    public MenuItem setIcon(limn.graphics.@Nullable Icon value) {
+        Ui.checkUiThread();
+        this.icon = value;
+        return this;
     }
 
     /** Enables or disables the item. */

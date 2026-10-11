@@ -19,7 +19,8 @@ twenty-minute version of everything else: the four ideas the rest of the guide b
 first, and both carry a complete worked example with the screenshot it produces.
 [Lists and scrolling](/docs/lists-and-scrolling/) covers long content;
 [Menus and dialogs](/docs/menus-and-dialogs/) covers the parts that leave the window, the
-system's file choosers and handing a link or a file to the system's own programs;
+system's file choosers, handing a link or a file to the system's own programs, and an icon in
+the system's tray;
 [Drag and drop](/docs/drag-and-drop/) covers rows that rearrange, what is dragged to and from
 other programs, and the clipboard; and [Charts](/docs/charts/) covers bars, lines and donuts.
 

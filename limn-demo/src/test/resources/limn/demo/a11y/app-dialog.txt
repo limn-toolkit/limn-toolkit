@@ -11,54 +11,54 @@
  10   combo box "Size" (explicit) [disabled, expandable, has-popup] value=2 [0..4 step 1] "MEDIUM" collapsed
  11   combo box "Theme" (explicit) [disabled, expandable, has-popup] value=1 [0..14 step 1] "Dark" collapsed
  12   split pane "Pages" (explicit) [disabled]
- 13     tree "Pages" (explicit) [disabled] selection=single scroll v=0% view 85%
- 14       scroll bar "" [disabled, vertical] value=0 [0..94 step 530]
- 15       tree item "Orders" [disabled, selectable, selected] item 1 of 3 selected level 1 row 1 of 26
+ 13     tree "Pages" (explicit) [disabled] selection=single scroll v=0% view 82%
+ 14       scroll bar "" [disabled, vertical] value=0 [0..118 step 530]
+ 15       tree item "Orders" [disabled, selectable, selected] item 1 of 3 selected level 1 row 1 of 27
  16         label "Orders" [disabled]
- 17       tree item "Components" [disabled, selectable, expanded, expandable] item 2 of 3 unselected expanded level 1 row 2 of 26
+ 17       tree item "Components" [disabled, selectable, expanded, expandable] item 2 of 3 unselected expanded level 1 row 2 of 27
  18         label "Components" [disabled]
- 19       tree item "Buttons and inputs" [disabled, selectable] item 1 of 18 unselected level 2 row 3 of 26
+ 19       tree item "Buttons and inputs" [disabled, selectable] item 1 of 19 unselected level 2 row 3 of 27
  20         label "Buttons and inputs" [disabled]
- 21       tree item "Combo boxes" [disabled, selectable] item 2 of 18 unselected level 2 row 4 of 26
+ 21       tree item "Combo boxes" [disabled, selectable] item 2 of 19 unselected level 2 row 4 of 27
  22         label "Combo boxes" [disabled]
- 23       tree item "Sliders and more" [disabled, selectable] item 3 of 18 unselected level 2 row 5 of 26
+ 23       tree item "Sliders and more" [disabled, selectable] item 3 of 19 unselected level 2 row 5 of 27
  24         label "Sliders and more" [disabled]
- 25       tree item "Dates" [disabled, selectable] item 4 of 18 unselected level 2 row 6 of 26
+ 25       tree item "Dates" [disabled, selectable] item 4 of 19 unselected level 2 row 6 of 27
  26         label "Dates" [disabled]
- 27       tree item "Lists" [disabled, selectable] item 5 of 18 unselected level 2 row 7 of 26
+ 27       tree item "Lists" [disabled, selectable] item 5 of 19 unselected level 2 row 7 of 27
  28         label "Lists" [disabled]
- 29       tree item "Tables" [disabled, selectable] item 6 of 18 unselected level 2 row 8 of 26
+ 29       tree item "Tables" [disabled, selectable] item 6 of 19 unselected level 2 row 8 of 27
  30         label "Tables" [disabled]
- 31       tree item "Trees" [disabled, selectable] item 7 of 18 unselected level 2 row 9 of 26
+ 31       tree item "Trees" [disabled, selectable] item 7 of 19 unselected level 2 row 9 of 27
  32         label "Trees" [disabled]
- 33       tree item "Dialogs" [disabled, selectable] item 8 of 18 unselected level 2 row 10 of 26
+ 33       tree item "Dialogs" [disabled, selectable] item 8 of 19 unselected level 2 row 10 of 27
  34         label "Dialogs" [disabled]
- 35       tree item "Menus" [disabled, selectable] item 9 of 18 unselected level 2 row 11 of 26
+ 35       tree item "Menus" [disabled, selectable] item 9 of 19 unselected level 2 row 11 of 27
  36         label "Menus" [disabled]
- 37       tree item "Drag and drop" [disabled, selectable] item 10 of 18 unselected level 2 row 12 of 26
+ 37       tree item "Drag and drop" [disabled, selectable] item 10 of 19 unselected level 2 row 12 of 27
  38         label "Drag and drop" [disabled]
- 39       tree item "Clipboard" [disabled, selectable] item 11 of 18 unselected level 2 row 13 of 26
+ 39       tree item "Clipboard" [disabled, selectable] item 11 of 19 unselected level 2 row 13 of 27
  40         label "Clipboard" [disabled]
- 41       tree item "Charts" [disabled, selectable] item 12 of 18 unselected level 2 row 14 of 26
- 42         label "Charts" [disabled]
- 43       tree item "Text and scripts" [disabled, selectable] item 13 of 18 unselected level 2 row 15 of 26
- 44         label "Text and scripts" [disabled]
- 45       tree item "Icons" [disabled, selectable] item 14 of 18 unselected level 2 row 16 of 26
- 46         label "Icons" [disabled]
- 47       tree item "Files" [disabled, selectable] item 15 of 18 unselected level 2 row 17 of 26
- 48         label "Files" [disabled]
- 49       tree item "Colours" [disabled, selectable] item 16 of 18 unselected level 2 row 18 of 26
- 50         label "Colours" [disabled]
- 51       tree item "Split panes" [disabled, selectable] item 17 of 18 unselected level 2 row 19 of 26
- 52         label "Split panes" [disabled]
- 53       tree item "Motion" [disabled, selectable] item 18 of 18 unselected level 2 row 20 of 26
- 54         label "Motion" [disabled]
- 55       tree item "Media and 3D" [disabled, selectable, expanded, expandable] item 3 of 3 unselected expanded level 1 row 21 of 26
- 56         label "Media and 3D" [disabled]
- 57       tree item "Video" [disabled, selectable] item 1 of 5 unselected level 2 row 22 of 26
- 58         label "Video" [disabled]
- 59       tree item "3D viewport" [disabled, selectable] item 2 of 5 unselected level 2 row 23 of 26
- 60         label "3D viewport" [disabled, offscreen]
+ 41       tree item "Tray icon" [disabled, selectable] item 12 of 19 unselected level 2 row 14 of 27
+ 42         label "Tray icon" [disabled]
+ 43       tree item "Charts" [disabled, selectable] item 13 of 19 unselected level 2 row 15 of 27
+ 44         label "Charts" [disabled]
+ 45       tree item "Text and scripts" [disabled, selectable] item 14 of 19 unselected level 2 row 16 of 27
+ 46         label "Text and scripts" [disabled]
+ 47       tree item "Icons" [disabled, selectable] item 15 of 19 unselected level 2 row 17 of 27
+ 48         label "Icons" [disabled]
+ 49       tree item "Files" [disabled, selectable] item 16 of 19 unselected level 2 row 18 of 27
+ 50         label "Files" [disabled]
+ 51       tree item "Colours" [disabled, selectable] item 17 of 19 unselected level 2 row 19 of 27
+ 52         label "Colours" [disabled]
+ 53       tree item "Split panes" [disabled, selectable] item 18 of 19 unselected level 2 row 20 of 27
+ 54         label "Split panes" [disabled]
+ 55       tree item "Motion" [disabled, selectable] item 19 of 19 unselected level 2 row 21 of 27
+ 56         label "Motion" [disabled]
+ 57       tree item "Media and 3D" [disabled, selectable, expanded, expandable] item 3 of 3 unselected expanded level 1 row 22 of 27
+ 58         label "Media and 3D" [disabled]
+ 59       tree item "Video" [disabled, selectable] item 1 of 5 unselected level 2 row 23 of 27
+ 60         label "Video" [disabled, offscreen]
  61     splitter "Divider" [disabled, horizontal] value=196 [196..371 step 10]
  62     heading "Orders" [disabled]
  63     label "48 of 48" [disabled]

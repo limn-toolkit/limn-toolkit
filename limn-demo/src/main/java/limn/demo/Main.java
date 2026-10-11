@@ -29,7 +29,7 @@ public final class Main {
             "app", "video", "icons", "icons-light", "icons-search",
             "dialog-decorated", "dialog-opaque", "dialog-glass", "textfield-selected",
             "textfield-ime", "password-ramp", "fonts", "fonts-switched", "ellipsis",
-            "textarea-scroll", "textarea-ime", "tabs", "tabs-overflow", "combo-overflow", "combos", "transfer", "picker",
+            "textarea-scroll", "textarea-ime", "tabs", "tabs-overflow", "combo-overflow", "combos", "transfer", "picker", "tray",
             "showcase", "showcase-light", "dialog-open", "forms", "forms-light", "forms-popup",
             "components", "components-light", "widgets", "list", "table", "tree", "tree-scroll", "tree-deep", "tree-reserved", "tree-loading", "dates", "dates-light", "dates-popup", "dates-months", "dates-years", "dates-months-cursor", "dates-years-cursor", "dates-month-picker", "dates-month-picker-light", "dates-time-row", "dates-time-row-light", "dates-month-range", "dates-month-range-light", "form", "animations", "cursors",
             "sprites", "audio", "controls", "control-sizes", "control-sizes-audit",
@@ -313,6 +313,7 @@ public final class Main {
                 // no scene named it follows the system's appearance until the user picks a theme;
                 // a named scene, a capture or --theme keeps the palette it asked for, and a
                 // desktop with no preference keeps the one it opens with.
+                TrayScene.use(backend);
                 AppScene.Built built = AppScene.create();
                 widgetScene = built.scene();
                 if (options.scene().equals("default") && !screenshotMode && options.theme() == null) {
@@ -321,6 +322,9 @@ public final class Main {
             } else if (scene.equals("picker")) {
                 // The ready-made widgets that drag (ADR 054 §4): two lists and a picture.
                 widgetScene = PickerScene.create();
+            } else if (scene.equals("tray")) {
+                // The tray icon (ADR 058), to try by hand.
+                widgetScene = TrayScene.create(backend);
             } else if (scene.equals("transfer")) {
                 // Drag and drop and the clipboard (ADR 053 and 054), to try by hand.
                 widgetScene = TransferScene.create();
@@ -791,6 +795,24 @@ public final class Main {
                                 workerName, Thread.currentThread().getName());
                     });
 
+            if (Boolean.getBoolean("limn.demo.window.trace")) {
+                // A window's states, to try with nobody at the keys: each change is written, and
+                // with the script the window walks through them by itself.
+                window.observeState(state -> {
+                    System.out.println("WINDOW " + state);
+                    System.out.flush();
+                });
+                if (Boolean.getBoolean("limn.demo.window.script")) {
+                    limn.concurrent.Ui.postDelayed(window::maximize, 3000);
+                    limn.concurrent.Ui.postDelayed(window::restore, 5000);
+                    limn.concurrent.Ui.postDelayed(window::minimize, 7000);
+                    limn.concurrent.Ui.postDelayed(window::toFront, 9000);
+                    limn.concurrent.Ui.postDelayed(window::hide, 11000);
+                    limn.concurrent.Ui.postDelayed(window::toFront, 13000);
+                    limn.concurrent.Ui.postDelayed(() -> window.setSize(700, 500), 14000);
+                    limn.concurrent.Ui.postDelayed(() -> window.setScreenPosition(window.screenX() + 60, window.screenY() + 40), 15000);
+                }
+            }
             backend.runEventLoop();
         }
     }

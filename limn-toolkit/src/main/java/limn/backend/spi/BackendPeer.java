@@ -69,4 +69,20 @@ public non-sealed interface BackendPeer extends Backend {
      * UI thread only.
      */
     void signalModalBlocked();
+
+    /**
+     * Makes the peer of a tray icon. Nothing is shown until its first {@link TrayPeer#update}.
+     * UI thread only.
+     *
+     * <p>The default is the answer of a backend with no desktop under it: a peer that shows
+     * nothing and is never available.
+     *
+     * @param id   the application's identifier for this icon: ASCII letters, digits, a dot, a
+     *             hyphen and an underscore, already checked, and no other tray of this backend has it
+     * @param host what the peer asks the menu of and tells of a click
+     * @return the peer
+     */
+    default TrayPeer createTray(String id, TrayHost host) {
+        return TrayPeer.NONE;
+    }
 }
