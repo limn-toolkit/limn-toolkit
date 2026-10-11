@@ -25,6 +25,10 @@ import java.util.function.Consumer;
  */
 public final class Menu {
 
+    static {
+        MenuBridgeAccess.installOnce();
+    }
+
     private final List<MenuItem> items = new ArrayList<>();
     private final List<MenuItem> view = Collections.unmodifiableList(items);
     private int modCount;
