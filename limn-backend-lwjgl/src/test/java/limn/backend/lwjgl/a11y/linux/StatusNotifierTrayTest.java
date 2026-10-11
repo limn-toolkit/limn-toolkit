@@ -124,6 +124,33 @@ class StatusNotifierTrayTest {
     }
 
     @Test
+    void aShapeIsNamedOnlyForThePanelThatColoursOne() {
+        assertTrue(TrayWire.panelColoursNamedShapes("KDE"));
+        assertFalse(TrayWire.panelColoursNamedShapes("ubuntu:GNOME"));
+        assertFalse(TrayWire.panelColoursNamedShapes(null));
+        TrayState only = new TrayState("Orders", "", null, new TrayPicture(square(0, true), null, false), true,
+                false, false);
+        Map<String, DBus.Variant> p = TrayWire.itemProperties(only, "orders", TrayWire.PANEL_GREY,
+                new TrayWire.Named("limn-orders-1-symbolic", "/run/user/1000/limn-tray/1-orders/icons"));
+        assertEquals("limn-orders-1-symbolic", p.get("IconName").value);
+        assertEquals("limn-orders-1-symbolic", p.get("AttentionIconName").value);
+        assertEquals("/run/user/1000/limn-tray/1-orders/icons", p.get("IconThemePath").value);
+        assertEquals(TrayWire.SIZES.length, ((List<?>) p.get("IconPixmap").value).size(), "the pixels stay, for a panel that reads no file");
+    }
+
+    @Test
+    void theShapesFileIsARectangleInThePanelsColourSeenThroughTheShape() {
+        String svg = TrayWire.symbolicSvg(new byte[] {1, 2, 3}, limn.graphics.Color.rgb(0xE53935), false);
+        assertTrue(svg.contains("class=\"ColorScheme-Text\" fill=\"currentColor\""));
+        assertTrue(svg.contains("data:image/png;base64,AQID"));
+        assertTrue(svg.contains("mask=\"url(#m)\""));
+        assertTrue(svg.contains("fill=\"#e53935\""), "the dot keeps its colour");
+        assertTrue(svg.contains("cx=\"17.16\""), "at the top right");
+        assertFalse(TrayWire.symbolicSvg(new byte[] {1}, null, false).contains("<circle"));
+        assertTrue(TrayWire.symbolicSvg(new byte[] {1}, limn.graphics.Color.rgb(0), true).contains("cx=\"4.84\""));
+    }
+
+    @Test
     void aPictureIsSentAtEverySizeDrawnForIt() {
         List<?> pixmaps = TrayWire.pixmaps(state(false, false), TrayWire.PANEL_GREY);
         for (int i = 0; i < TrayWire.SIZES.length; i++) {

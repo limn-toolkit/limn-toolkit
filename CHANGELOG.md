@@ -218,7 +218,7 @@ Maven Central say which number that was.
   draws**, read each time it is about to open. `onActivate` is the click that means "this
   application"; without it any click opens the menu. `setMonochromeIcon` takes a shape that is
   shown in the bar's own colour, black or white as the Windows task bar and the macOS menu bar
-  are, following a change while the application runs; `setAttention` shows the icon with a dot
+  are, following a change while the application runs, and on KDE by the panel itself; `setAttention` shows the icon with a dot
   the toolkit composes, over the monochrome icon too. `isAvailable()` says whether the system
   took the icon and `onAvailabilityChange` when that changes, as it does on a GNOME desktop
   whose tray extension is turned on while the application runs. It is the toolkit's own code on

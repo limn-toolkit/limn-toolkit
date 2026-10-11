@@ -66,6 +66,25 @@ final class TrayWire {
      * @return every property of the status item
      */
     static Map<String, DBus.Variant> itemProperties(TrayState state, String id, Color monochromeTint) {
+        return itemProperties(state, id, monochromeTint, null);
+    }
+
+    /**
+     * A picture the panel is given by name, from a folder of ours: the way a panel colours a
+     * shape itself, as it does its own icons.
+     *
+     * @param name   the icon's name in the folder
+     * @param folder the folder
+     */
+    record Named(String name, String folder) {
+    }
+
+    /**
+     * @param named the monochrome icon as a file the panel colours, or {@code null} to send
+     *              pixels only
+     */
+    static Map<String, DBus.Variant> itemProperties(TrayState state, String id, Color monochromeTint,
+            @Nullable Named named) {
         List<Object> pixmaps = pixmaps(state, monochromeTint);
         Map<String, DBus.Variant> p = new LinkedHashMap<>();
         p.put("Category", DBus.v("s", "ApplicationStatus"));
@@ -73,17 +92,17 @@ final class TrayWire {
         p.put("Title", DBus.v("s", state.title()));
         p.put("Status", DBus.v("s", status(state)));
         p.put("WindowId", DBus.v("i", 0));
-        p.put("IconName", DBus.v("s", ""));
+        p.put("IconName", DBus.v("s", named == null ? "" : named.name()));
         p.put("IconPixmap", DBus.v("a(iiay)", pixmaps));
         p.put("OverlayIconName", DBus.v("s", ""));
         p.put("OverlayIconPixmap", DBus.v("a(iiay)", List.of()));
-        p.put("AttentionIconName", DBus.v("s", ""));
+        p.put("AttentionIconName", DBus.v("s", named == null || !state.attention() ? "" : named.name()));
         // The same picture, which already carries what shows attention: a panel that swaps to
         // this one while the status asks and one that does not show the same thing.
         p.put("AttentionIconPixmap", DBus.v("a(iiay)", state.attention() ? pixmaps : List.of()));
         p.put("AttentionMovieName", DBus.v("s", ""));
         p.put("ToolTip", DBus.v("(sa(iiay)ss)", new Object[] {"", List.of(), tooltipTitle(state), ""}));
-        p.put("IconThemePath", DBus.v("s", ""));
+        p.put("IconThemePath", DBus.v("s", named == null ? "" : named.folder()));
         p.put("ItemIsMenu", DBus.v("b", !state.activates()));
         p.put("Menu", DBus.v("o", MENU_PATH));
         return p;
@@ -114,6 +133,45 @@ final class TrayWire {
             out.add(new Object[] {size, size, argb(picture.render(size, tint, false))});
         }
         return out;
+    }
+
+    /** Whether KDE's panel is the one that will show the item, which colours a named shape itself. */
+    static boolean panelColoursNamedShapes(@Nullable String desktop) {
+        return desktop != null && desktop.toUpperCase(java.util.Locale.ROOT).contains("KDE");
+    }
+
+    /**
+     * A shape as a file a panel colours: a rectangle in the panel's text colour, which the panel
+     * substitutes by the class it knows, seen through the shape as a mask. Read on a KDE guest on
+     * 2026-10-11: the panel drew such a file, with the mask a picture inside it, in the white of
+     * its own icons. The attention dot is a circle of its own colour over it, which the panel
+     * leaves alone.
+     *
+     * @param maskPng     the shape as a PNG, white where it is
+     * @param badge       the dot's colour, or {@code null}
+     * @param badgeAtLeft whether the dot is at the top left
+     * @return the file's text
+     */
+    static String symbolicSvg(byte[] maskPng, @Nullable Color badge, boolean badgeAtLeft) {
+        StringBuilder svg = new StringBuilder(maskPng.length * 2 + 1024);
+        svg.append("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"")
+                .append(" width=\"22\" height=\"22\" viewBox=\"0 0 22 22\"><defs>")
+                .append("<style id=\"current-color-scheme\" type=\"text/css\">")
+                .append(".ColorScheme-Text { color:#232629; }</style>")
+                .append("<mask id=\"m\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"22\" height=\"22\">")
+                .append("<image width=\"22\" height=\"22\" xlink:href=\"data:image/png;base64,")
+                .append(java.util.Base64.getEncoder().encodeToString(maskPng))
+                .append("\"/></mask></defs>")
+                .append("<rect class=\"ColorScheme-Text\" fill=\"currentColor\" width=\"22\" height=\"22\"")
+                .append(" mask=\"url(#m)\"/>");
+        if (badge != null) {
+            double radius = 22 * 0.22;
+            svg.append(String.format(java.util.Locale.ROOT,
+                    "<circle cx=\"%.2f\" cy=\"%.2f\" r=\"%.2f\" fill=\"#%02x%02x%02x\"/>",
+                    badgeAtLeft ? radius : 22 - radius, radius, radius,
+                    Color.toByte(badge.r()), Color.toByte(badge.g()), Color.toByte(badge.b())));
+        }
+        return svg.append("</svg>").toString();
     }
 
     static byte[] argb(Image image) {

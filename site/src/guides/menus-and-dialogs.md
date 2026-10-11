@@ -287,7 +287,8 @@ too, as above.
 and shows it in the bar's own colour: macOS colours it as it does its own status items, Windows
 shows it black on a light task bar and white on a dark one, and follows a change while you run.
 A Linux panel does not say its colour, so there the icon of `setIcon` is used when you gave
-one; the shape alone is white on GNOME, whose top bar is always dark, and a mid grey elsewhere.
+one; the shape alone is coloured by the panel itself on KDE, is white on GNOME, whose top bar is
+always dark, and a mid grey elsewhere.
 Give both, and each system shows the better one. Icons are asked for at the size the system
 draws them, so a vector icon is sharp at any scale.
 

@@ -38,6 +38,8 @@ final class TrayScene {
     private TrayScene() {
     }
 
+    private static final long STARTED = System.currentTimeMillis();
+
     /** The backend the icon is made from; none in a capture or a test, which have no desktop. */
     private static Backend backend;
     /** One icon for the life of the process, whichever page or scene shows its switches. */
@@ -78,7 +80,7 @@ final class TrayScene {
 
     private static void say(Label status, String text) {
         status.setText(text);
-        System.out.println("TRAY " + text);
+        System.out.println("TRAY " + text + " @" + (System.currentTimeMillis() - STARTED));
         System.out.flush();
     }
 

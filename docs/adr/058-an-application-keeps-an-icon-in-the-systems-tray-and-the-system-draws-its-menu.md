@@ -385,10 +385,13 @@ Built in the five steps of §14. Where what was built departs from the text abov
 - **Windows, a thread per tray** (§5.2), each with its window, and not one thread for all.
 - **Linux, the sizes** are 16, 22, 24, 32, 44, 48, 64 and 96 (§5.1), after the owner asked that
   high-density screens be served: each is drawn for its size.
-- **Linux, a monochrome icon alone is white on GNOME** (§8) and the grey elsewhere. The owner
+- **Linux, a monochrome icon alone follows the panel where there is a way** (§8). The owner
   asked that it go from black to white with the system; the desktop's light or dark setting
-  turned out not to be the panel's colour (below), and GNOME's bar is the one whose colour is
-  known.
+  turned out not to be the panel's colour (below). On GNOME, whose bar is dark in both settings,
+  it is white. On KDE the panel colours it itself: the shape is written as a file in the
+  session's runtime folder, a rectangle in the panel's text colour seen through the shape as a
+  mask, and the item names it, with the attention dot a circle of its own colour over it. Not
+  inside a sandbox, where the panel could not read the folder. Elsewhere it is the grey.
 - **With no tray, the recipe lets the close end the application** (§6), where the text said
   "minimize": a window could not minimize itself. `NativeWindow.minimize()` was then added, with
   a default that does nothing, for the recipe of an application with no main window, which shows
@@ -407,9 +410,9 @@ Built in the five steps of §14. Where what was built departs from the text abov
 | with it, the other button opens the menu | measured by the probe | measured by the probe | not clicked | yes |
 | the tray appearing and going while running | not tried | yes, both ways | the shell restarted: the icon is back | has none to lose |
 | two icons, and one disposed | yes | yes | not tried | not tried |
-| the monochrome icon | grey | white | black on a light bar, white on a dark one, changed while running | white over a dark picture, black over a light one |
+| the monochrome icon | the panel's own white, coloured by the panel | white | black on a light bar, white on a dark one, changed while running | white over a dark picture, black over a light one |
 | the attention dot | yes | yes | yes, over the tinted shape | yes, over the tinted shape, following the bar both ways |
-| the scale | 100 % | 100 % | 250 %, sharp | 200 %, sharp |
+| the scale | 100 %, and sharp at 200 % | 100 % | 250 %, sharp | 200 %, sharp |
 
 - **Windows, the menu open:** a change scripted for the eighth second was applied with the menu
   open since the fifth, the tooltip showing the new text beside the open menu: the UI thread
@@ -423,17 +426,27 @@ Built in the five steps of §14. Where what was built departs from the text abov
   made was black over a dark bar; the item's effective appearance is observed, and the picture
   drawn again when it changes.
 
+**Seen after the first account of this section:**
+
+- **The name a reader says** is there on three systems, read through each system's own
+  accessibility interface and not by a reader's voice: on macOS the status item's description
+  is the title and its help the tooltip; on Windows the task bar has a button named by the
+  tooltip; on GNOME the shell has a button and a menu named by the title.
+- **Windows, the icon invoked as a reader invokes it** opens the menu, with the access letters
+  underlined as for a keyboard.
+- **GNOME's wait:** with no activation the menu opened 56 ms after the click; with one, 458 ms,
+  the desktop's double-click time being 400.
+- **Windows, the process killed** with its icon shown: the icon was gone from the task bar two
+  seconds later, with nothing passing over it.
+- **macOS, the menu open:** a task due at the eighth second ran at the fourteenth, when the menu
+  opened at the fifth was closed. The toolkit waits there, as §5.3 declared.
+
 **Not seen, and still owed to §12:**
 
-- A screen reader on the icon and its menu, on any system.
-- GNOME under Wayland and KDE under X11.
-- GNOME's wait on a left click when the item activates, which is read from the extension's
-  source and not timed.
-- A token nobody uses, and whether GNOME shows a busy pointer for it.
-- A process killed with its icon shown on Windows; the shutdown hook is written and not tried.
+- A screen reader's voice on the icon and its menu.
+- GNOME under Wayland and KDE under X11, which need the guests logged in to another session.
+- A token nobody uses, and whether GNOME shows a busy pointer for it: a capture of the screen
+  does not show the pointer.
 - What else the dark declaration changes in the process: the file chooser, the driver dialog,
   a window's system menu.
-- Whether the toolkit's frames go on while a menu is open on macOS.
-- The Linux pictures at a scale above 100 %.
-- A key on the Windows icon, and its two messages for Enter.
 
