@@ -961,6 +961,7 @@ public final class LwjglBackend implements BackendPeer {
             } else if (Platform.current().isWindows()) {
                 limn.scene.SystemPreferences.report(WindowsSystemPreferences.read());
                 windowsPreferences = WindowsSystemPreferences.follow(preferencesChanged);
+                WindowsDarkMenus.declare();   // once, here, so the process looks one way with or without a tray
             } else {
                 String bus = System.getenv("DBUS_SESSION_BUS_ADDRESS");
                 if (limn.backend.lwjgl.a11y.linux.PortalAppearanceWatch.canWatch(bus)) {
@@ -1339,6 +1340,9 @@ public final class LwjglBackend implements BackendPeer {
     private TrayPeer platformTray(String id, TrayHost host) {
         if (terminated) {
             return TrayPeer.NONE;
+        }
+        if (Platform.current().isWindows()) {
+            return new WindowsTray(id, host, uiRuntime::post);
         }
         if (Platform.current().isLinux()) {
             return StatusNotifierTray.create(id, host, uiRuntime::post, System.getenv("DBUS_SESSION_BUS_ADDRESS"));
