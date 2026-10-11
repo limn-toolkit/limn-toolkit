@@ -212,10 +212,18 @@ Maven Central say which number that was.
 
 ### New
 
+- A menu item can have an icon: `MenuItem.setIcon` shows a picture before the label, in a
+  popup menu and a menu bar's menus, which keep the same room on every item of a column once one
+  has an icon, and in the menu a system draws for a tray. A tintable icon takes the label's
+  colour.
+- A window can be minimized, maximized, restored and brought in front: `NativeWindow.minimize()`,
+  `maximize()`, `restore()`, `isMinimized()`, `isMaximized()` and `toFront()`, which shows a hidden
+  window, restores a minimized one and gives it the keyboard. Each has a default for a window
+  with no desktop under it.
 - A tray icon: `Tray.create(backend, "id")` in the new package `limn.desktop` keeps an icon in
   the system's place for one, the notification area on Windows, the menu bar on macOS and the
   panel's tray on a Linux desktop, with a title, a tooltip and a `Menu` that **the system
-  draws**, read each time it is about to open. `onActivate` is the click that means "this
+  draws**, read each time it is about to open, with each item's icon and accelerator. `onActivate` is the click that means "this
   application"; without it any click opens the menu. `setMonochromeIcon` takes a shape that is
   shown in the bar's own colour, black or white as the Windows task bar and the macOS menu bar
   are, following a change while the application runs, and on KDE by the panel itself; `setAttention` shows the icon with a dot
@@ -226,8 +234,7 @@ Maven Central say which number that was.
   on macOS, and on Linux the desktop's status-item protocol over the session bus, with no GTK.
   On Windows a process now tells the system it accepts dark menus, so a menu the system draws
   for it is dark when the user's applications are; `-Dlimn.windows.darkMenus=false` leaves the
-  system's default. `NativeWindow` gains `minimize()`, with a default that does nothing. A
-  backend of your own gains `BackendPeer.createTray`, with a default for a backend with no
+  system's default. A backend of your own gains `BackendPeer.createTray`, with a default for a backend with no
   desktop. The guide has the menu, the two icons, "close to the tray" as a recipe over the
   window's close policy, and what to do on a desktop with no tray; the demo has a page with a
   switch for each.

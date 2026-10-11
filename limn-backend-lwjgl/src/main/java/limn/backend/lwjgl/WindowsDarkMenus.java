@@ -74,6 +74,11 @@ final class WindowsDarkMenus {
         }
     }
 
+    /** @return whether this process told the system it accepts dark menus */
+    static synchronized boolean isDeclared() {
+        return flush != NULL;
+    }
+
     /** Has the menus' themes read again, after the user went from light to dark or back. */
     static synchronized void flush() {
         if (flush != NULL) {

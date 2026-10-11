@@ -120,6 +120,11 @@ public record Accelerator(int key, int modifiers) {
         return display(MAC);
     }
 
+    /** @return the key's own name with no modifier, as menus write it: {@code S}, {@code F5} */
+    String keyLabel() {
+        return keyName(key, false);
+    }
+
     /** {@link #display()} for a chosen platform, the seam both branches are tested through. */
     String display(boolean mac) {
         StringBuilder out = new StringBuilder();

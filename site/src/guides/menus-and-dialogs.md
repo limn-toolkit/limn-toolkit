@@ -17,6 +17,10 @@ file.addCheck("Word wrap", true, editor::setSoftWrap);
 file.addSubmenu("Recent", recentMenu);
 ```
 
+An item can carry a picture before its label, `MenuItem.of("Preferences", this::preferences)
+.setIcon(gear)`. A menu with an icon on any item keeps the same room on every item, so the
+labels stay in line, and a tintable icon takes the label's colour.
+
 **As a menu bar**, drawn at the top of your window like any other widget:
 
 ```java
@@ -210,6 +214,14 @@ tray keeps running with no window open after
 `backend.setLoopLifetime(LoopLifetime.UNTIL_QUIT)`, and then ends only through
 `requestQuit()` or `stop()`.
 
+### Minimizing, maximizing and bringing in front
+
+`window.minimize()`, `maximize()` and `restore()` do what the title bar's buttons do, and
+`isMinimized()` and `isMaximized()` say where the window is. `window.toFront()` is the one a
+"show the window" command calls: it shows a hidden window, restores a minimized one and gives
+it the keyboard. Under Wayland a window is not told that it is minimized, so `isMinimized()`
+answers `false` there.
+
 ## Native file dialogs
 
 `window.fileDialogs()` gives you the platform's own chooser, owned by that window: the real one,
@@ -274,8 +286,10 @@ and, if you want one, a click that brings your window.
 **The system draws the menu**, from the same `Menu` a menu bar takes, so it looks like every
 other menu of that system, light or dark as the system is. It is read each time it is about to
 open: change the menu, an item's check mark or whether it is enabled as you would anywhere, and
-the next opening shows it. Of an item the system shows its label, whether it is enabled and
-checked, a separator and a submenu.
+the next opening shows it. Of an item the system shows its label, its icon, whether it is
+enabled and checked, a separator, a submenu, and its accelerator: on macOS as the system's own
+key equivalent, which also runs the item while the menu is open, and on Windows and KDE as the
+words beside the label. GNOME's menu shows the icon and not the accelerator.
 
 **What a click does.** With no `onActivate`, any click on the icon opens the menu. With one, the
 click that means "this application" runs it and the other click opens the menu: the left click

@@ -2,6 +2,8 @@ package limn.backend.spi;
 
 import java.util.List;
 import java.util.Objects;
+import limn.graphics.Icon;
+import org.jspecify.annotations.Nullable;
 
 /**
  * One row of a tray's menu as a backend is handed it: what the three systems can draw of a menu's
@@ -19,9 +21,44 @@ import java.util.Objects;
  * @param checked  for a {@link Kind#CHECK}, whether it is checked
  * @param mnemonic the access letter, uppercased, or 0
  * @param children a submenu's rows; empty for any other kind
+ * @param icon     the picture before the label, or {@code null}
+ * @param shortcutKey the name of the accelerator's key with no modifier, as {@code Q} or
+ *                 {@code F5}; empty for no accelerator. A system shows it beside the label, and
+ *                 where the system runs a menu's keys while the menu is open, it chooses the row
+ * @param shortcutModifiers the accelerator's {@link limn.input.Keys} modifier bits
  */
 public record TrayRow(int id, Kind kind, String label, boolean enabled, boolean checked, char mnemonic,
-        List<TrayRow> children) {
+        List<TrayRow> children, @Nullable Icon icon, String shortcutKey, int shortcutModifiers) {
+
+    /** A row with no picture and no accelerator. */
+    public TrayRow(int id, Kind kind, String label, boolean enabled, boolean checked, char mnemonic,
+            List<TrayRow> children) {
+        this(id, kind, label, enabled, checked, mnemonic, children, null, "", 0);
+    }
+
+    /**
+     * @return the accelerator as the words a menu shows where it shows words, {@code Ctrl+Shift+S},
+     *         or {@code ""} for none
+     */
+    public String shortcutText() {
+        if (shortcutKey.isEmpty()) {
+            return "";
+        }
+        StringBuilder out = new StringBuilder();
+        if ((shortcutModifiers & limn.input.Keys.MOD_CONTROL) != 0) {
+            out.append("Ctrl+");
+        }
+        if ((shortcutModifiers & limn.input.Keys.MOD_ALT) != 0) {
+            out.append("Alt+");
+        }
+        if ((shortcutModifiers & limn.input.Keys.MOD_SHIFT) != 0) {
+            out.append("Shift+");
+        }
+        if ((shortcutModifiers & limn.input.Keys.MOD_SUPER) != 0) {
+            out.append("Win+");
+        }
+        return out.append(shortcutKey).toString();
+    }
 
     /** What a row is. */
     public enum Kind {
@@ -44,6 +81,7 @@ public record TrayRow(int id, Kind kind, String label, boolean enabled, boolean 
         }
         Objects.requireNonNull(kind, "kind");
         Objects.requireNonNull(label, "label");
+        Objects.requireNonNull(shortcutKey, "shortcutKey");
         children = List.copyOf(children);
     }
 }

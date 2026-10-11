@@ -239,6 +239,24 @@ class TrayTest {
     }
 
     @Test
+    void aRowCarriesItsItemsIconAndAccelerator() {
+        Icon gear = square(0, true);
+        tray.setMenu(new Menu()
+                .add(MenuItem.of("Preferences", () -> { }).setIcon(gear)
+                        .setAccelerator(limn.components.Accelerator.of(limn.input.Keys.COMMA, limn.input.Keys.MOD_CONTROL)))
+                .add(MenuItem.of("Save as", () -> { }).setAccelerator(limn.components.Accelerator.of(
+                        limn.input.Keys.S, limn.input.Keys.MOD_CONTROL | limn.input.Keys.MOD_SHIFT)))
+                .addItem("Plain", () -> { }));
+        List<TrayRow> rows = peer.host.menu();
+        assertEquals(gear, rows.get(0).icon());
+        assertEquals(",", rows.get(0).shortcutKey());
+        assertEquals("Ctrl+,", rows.get(0).shortcutText());
+        assertEquals("Ctrl+Shift+S", rows.get(1).shortcutText());
+        assertNull(rows.get(2).icon());
+        assertEquals("", rows.get(2).shortcutText());
+    }
+
+    @Test
     void noMenuIsNoRows() {
         assertTrue(peer.host.menu().isEmpty());
     }

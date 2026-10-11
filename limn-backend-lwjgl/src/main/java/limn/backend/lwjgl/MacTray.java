@@ -246,6 +246,70 @@ final class MacTray implements TrayPeer {
         ObjC.msgVoid(button, "setImage:", nsImage);
     }
 
+    private static final int MENU_POINTS = 16;
+    private static final int MENU_PIXELS = 32;
+
+    /**
+     * The key of an accelerator as AppKit takes one: a letter in lower case, since an upper-case
+     * one means Shift, a function key by its private-use character, any other single character
+     * as it is; empty for a key with no such form, whose accelerator is then not shown.
+     */
+    static String keyEquivalent(String key) {
+        if (key.length() == 1) {
+            return key.toLowerCase(java.util.Locale.ROOT);
+        }
+        if (key.length() <= 3 && key.startsWith("F")) {
+            try {
+                int n = Integer.parseInt(key.substring(1));
+                if (n >= 1 && n <= 35) {
+                    return String.valueOf((char) (0xF703 + n));   // NSF1FunctionKey is 0xF704
+                }
+            } catch (NumberFormatException notAFunctionKey) {
+                // A key whose name only starts with F.
+            }
+        }
+        return "";
+    }
+
+    /** The modifier bits as AppKit's event mask has them. */
+    static long modifierMask(int modifiers) {
+        long mask = 0;
+        if ((modifiers & limn.input.Keys.MOD_SHIFT) != 0) {
+            mask |= 1L << 17;
+        }
+        if ((modifiers & limn.input.Keys.MOD_CONTROL) != 0) {
+            mask |= 1L << 18;
+        }
+        if ((modifiers & limn.input.Keys.MOD_ALT) != 0) {
+            mask |= 1L << 19;
+        }
+        if ((modifiers & limn.input.Keys.MOD_SUPER) != 0) {
+            mask |= 1L << 20;
+        }
+        return mask;
+    }
+
+    /** An image of AppKit's from pixels, at a size in points, a template when it takes the menu's colour. */
+    private static long nsImage(Image image, int points, boolean template) {
+        byte[] png = Images.encode(image, ImageFormat.PNG);
+        long bytes = MemoryUtil.nmemAlloc(png.length);
+        long data;
+        try {
+            for (int i = 0; i < png.length; i++) {
+                MemoryUtil.memPutByte(bytes + i, png[i]);
+            }
+            data = ObjC.msg(ObjC.cls("NSData"), "dataWithBytes:length:", bytes, png.length);
+        } finally {
+            MemoryUtil.nmemFree(bytes);
+        }
+        long made = ObjC.msg(ObjC.msg(ObjC.msg(ObjC.cls("NSImage"), "alloc"), "initWithData:", data), "autorelease");
+        if (made != NULL) {
+            sendTwoDoubles(made, "setSize:", points, points);
+            ObjC.msgVoid(made, "setTemplate:", template ? 1 : 0);
+        }
+        return made;
+    }
+
     /** Whether the menu bar under the item is dark now, which follows the picture behind it and not the theme. */
     private boolean barIsDark() {
         long appearance = ObjC.msg(button, "effectiveAppearance");
@@ -280,6 +344,19 @@ final class MacTray implements TrayPeer {
             ObjC.msgVoid(entry, "setTag:", row.id());
             ObjC.msgVoid(entry, "setEnabled:", row.enabled() ? 1 : 0);
             ObjC.msgVoid(entry, "setState:", row.checked() ? 1 : 0);
+            String key = keyEquivalent(row.shortcutKey());
+            if (!key.isEmpty()) {
+                // The system writes it beside the item and, while the menu is open, runs it.
+                ObjC.msgVoid(entry, "setKeyEquivalent:", nsString(key));
+                ObjC.msgVoid(entry, "setKeyEquivalentModifierMask:", modifierMask(row.shortcutModifiers()));
+            }
+            if (row.icon() != null) {
+                long image = nsImage(new TrayPicture(row.icon(), null, false)
+                        .render(MENU_PIXELS, Color.rgb(0x000000), false), MENU_POINTS, row.icon().tintable());
+                if (image != NULL) {
+                    ObjC.msgVoid(entry, "setImage:", image);
+                }
+            }
             if (row.kind() == TrayRow.Kind.SUBMENU && !row.children().isEmpty()) {
                 long sub = ObjC.msg(ObjC.msg(ObjC.msg(ObjC.cls("NSMenu"), "alloc"), "init"), "autorelease");
                 ObjC.msgVoid(sub, "setAutoenablesItems:", 0);

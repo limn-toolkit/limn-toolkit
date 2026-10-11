@@ -44,8 +44,9 @@ import org.jspecify.annotations.Nullable;
  * <p><b>The system draws the menu</b>, from the same {@link Menu} a window's menu bar takes. It is
  * read each time it is about to open, so an application changes its menu, an item's check mark or
  * whether it is enabled as it does anywhere, and the next opening shows it. Of an item the system
- * shows its label, whether it is enabled and checked, a separator and a submenu; an accelerator
- * is not shown, there being no window whose keys would run it.
+ * shows its label, its icon, whether it is enabled and checked, a separator, a submenu and its
+ * accelerator, which macOS also runs while the menu is open and the other systems only show,
+ * where their menu shows one.
  *
  * <p><b>What a click does.</b> With no {@link #onActivate}, any click on the icon opens the menu.
  * With one, the click that means "this application" on that system runs it and the other click

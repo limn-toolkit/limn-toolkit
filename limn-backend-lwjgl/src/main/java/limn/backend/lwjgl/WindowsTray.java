@@ -533,7 +533,8 @@ final class WindowsTray implements TrayPeer {
             return;
         }
         List<Long> texts = new ArrayList<>();
-        long popup = build(rows, texts);
+        List<Long> bitmaps = new ArrayList<>();
+        long popup = build(rows, texts, bitmaps);
         try {
             // The system asks for both: the window in front for the menu to close on a click
             // elsewhere, and a message after it for the next one to open.
@@ -551,26 +552,88 @@ final class WindowsTray implements TrayPeer {
             for (long text : texts) {
                 MemoryUtil.nmemFree(text);
             }
+            for (long bitmap : bitmaps) {
+                gdi("DeleteObject", "p>i", bitmap);
+            }
         }
     }
 
-    private static long build(List<TrayRow> rows, List<Long> texts) {
+    private static long build(List<TrayRow> rows, List<Long> texts, List<Long> bitmaps) {
         long menu = user("CreatePopupMenu", ">p");
+        int position = 0;
         for (TrayRow row : rows) {
             if (row.kind() == TrayRow.Kind.SEPARATOR) {
                 user("AppendMenuW", "pipp>i", menu, MF_SEPARATOR, 0, NULL);
+                position++;
                 continue;
             }
             long text = wide(label(row));
             texts.add(text);
             int flags = (row.enabled() ? 0 : MF_GRAYED) | (row.checked() ? MF_CHECKED : 0);
             if (row.kind() == TrayRow.Kind.SUBMENU && !row.children().isEmpty()) {
-                user("AppendMenuW", "pipp>i", menu, flags | MF_POPUP, build(row.children(), texts), text);
+                user("AppendMenuW", "pipp>i", menu, flags | MF_POPUP, build(row.children(), texts, bitmaps), text);
             } else {
                 user("AppendMenuW", "pipp>i", menu, flags, row.id(), text);
             }
+            if (row.icon() != null) {
+                long bitmap = menuBitmap(row);
+                if (bitmap != NULL) {
+                    bitmaps.add(bitmap);
+                    try (MemoryStack stack = MemoryStack.stackPush()) {
+                        long info = stack.ncalloc(8, ITEM_INFO_SIZE, 1);      // MENUITEMINFOW
+                        MemoryUtil.memPutInt(info, ITEM_INFO_SIZE);
+                        MemoryUtil.memPutInt(info + 4, MIIM_BITMAP);
+                        MemoryUtil.memPutLong(info + ITEM_INFO_BITMAP, bitmap);
+                        user("SetMenuItemInfoW", "piip>i", menu, position, 1, info);
+                    }
+                }
+            }
+            position++;
         }
         return menu;
+    }
+
+    /** {@code MENUITEMINFOW} on 64-bit Windows, and where its item bitmap is. */
+    static final int ITEM_INFO_SIZE = 80;
+    static final int ITEM_INFO_BITMAP = 72;
+    private static final int MIIM_BITMAP = 0x80;
+
+    /**
+     * A row's picture as the bitmap a menu draws beside its text: the small icon's size, alpha
+     * multiplied into the colours as a menu expects, a tintable icon in the menu's text colour,
+     * white on a dark menu and black on a light one.
+     */
+    private static long menuBitmap(TrayRow row) {
+        int size = smallIconSize();
+        boolean dark = WindowsDarkMenus.isDeclared()
+                && WindowsSystemPreferences.applicationsAreDark();
+        Image image = new TrayPicture(row.icon(), null, false)
+                .render(size, dark ? Color.rgb(0xFFFFFF) : Color.rgb(0x000000), dark);
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            long header = stack.ncalloc(8, 40, 1);                  // BITMAPINFOHEADER
+            MemoryUtil.memPutInt(header, 40);
+            MemoryUtil.memPutInt(header + 4, size);
+            MemoryUtil.memPutInt(header + 8, -size);                // top-down
+            MemoryUtil.memPutShort(header + 12, (short) 1);
+            MemoryUtil.memPutShort(header + 14, (short) 32);
+            long bitsOut = stack.ncalloc(8, 8, 1);
+            long dc = user("GetDC", "p>p", NULL);
+            long bitmap = gdi("CreateDIBSection", "ppippi>p", dc, header, 0, bitsOut, NULL, 0);
+            user("ReleaseDC", "pp>i", NULL, dc);
+            if (bitmap == NULL) {
+                return NULL;
+            }
+            long bits = MemoryUtil.memGetAddress(bitsOut);
+            byte[] rgba = image.pixels();
+            for (int i = 0; i < rgba.length; i += 4) {
+                int alpha = rgba[i + 3] & 0xFF;
+                MemoryUtil.memPutByte(bits + i, (byte) ((rgba[i + 2] & 0xFF) * alpha / 255));
+                MemoryUtil.memPutByte(bits + i + 1, (byte) ((rgba[i + 1] & 0xFF) * alpha / 255));
+                MemoryUtil.memPutByte(bits + i + 2, (byte) ((rgba[i] & 0xFF) * alpha / 255));
+                MemoryUtil.memPutByte(bits + i + 3, (byte) alpha);
+            }
+            return bitmap;
+        }
     }
 
     /**
@@ -594,6 +657,11 @@ final class WindowsTray implements TrayPeer {
             if (c == '&') {
                 out.append('&');
             }
+        }
+        // After a tab a menu draws its second column, where an accelerator is written.
+        String shortcut = row.shortcutText();
+        if (!shortcut.isEmpty()) {
+            out.append('\t').append(shortcut);
         }
         return out.toString();
     }

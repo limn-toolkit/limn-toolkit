@@ -31,6 +31,12 @@ final class MenuBridgeAccess extends MenuBridge {
     }
 
     @Override
+    public String acceleratorKey(MenuItem item) {
+        Accelerator accelerator = item.accelerator();
+        return accelerator == null ? "" : accelerator.keyLabel();
+    }
+
+    @Override
     public void choose(MenuItem item) {
         if (item.isSelectable()) {
             item.activate(Change.Origin.USER);

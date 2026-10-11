@@ -1354,9 +1354,17 @@ public final class PopupMenu {
                 // column's snapshot, measured with the call the paint draws through: measuring
                 // here instead would run for every visible row of every column of every frame.
                 ShapedText label = col.label[i];
+                limn.graphics.Icon picture = item.icon();
+                if (picture != null && col.iconSlot > 0) {
+                    // After the check's gutter and before the label, so a checked item with a
+                    // picture shows both; mirrored with the label it belongs to.
+                    float side = iconSide(ruler, t);
+                    float iconX = rtl ? x + col.w - t.menuCheckGutter() - side : x + t.menuCheckGutter();
+                    picture.paint(canvas, iconX, iy + (rowH - side) / 2, side, ink, theme.isDark());
+                }
                 float labelX = rtl
-                        ? x + col.w - t.menuCheckGutter() - label.metrics().width()
-                        : x + t.menuCheckGutter();
+                        ? x + col.w - t.menuCheckGutter() - col.iconSlot - label.metrics().width()
+                        : x + t.menuCheckGutter() + col.iconSlot;
                 canvas.drawText(label, labelX, baseline, ink);
                 // The rule takes both its edges off the line's own shaping and copes with a
                 // right-to-left run itself, so the mirrored left edge is all it needs -- and it is
@@ -2487,6 +2495,11 @@ public final class PopupMenu {
         return collapsed;
     }
 
+    /** The side of an item's picture: the line's own height, so it sits with the text. */
+    private static float iconSide(TextRuler ruler, SizeTokens t) {
+        return Math.round(ruler.measure("Hg", t.body()).height());
+    }
+
     private final class Column {
         final Menu menu;
         final int parentItem;
@@ -2520,6 +2533,11 @@ public final class PopupMenu {
         final ShapedText[] label;
         /** Per-item accelerator hint as one shaped line, {@code null} where {@link #accel} is. */
         final ShapedText[] accelLine;
+        /**
+         * The room every row keeps before its label for a picture, zero when no item of the
+         * column has one: a column pays for it once, so the labels stay in one line.
+         */
+        final float iconSlot;
         final float contentW; // natural width: the widest label plus both gutters
         final float h;      // full content height
         float x;
@@ -2552,6 +2570,7 @@ public final class PopupMenu {
             ShapedText.Direction base = isRtl() ? ShapedText.Direction.RTL : ShapedText.Direction.LTR;
             float maxLabel = 0;
             float maxAccel = 0;
+            boolean anyIcon = false;
             float yy = t.menuPadV();
             for (int i = 0; i < items.size(); i++) {
                 MenuItem item = items.get(i);
@@ -2564,6 +2583,7 @@ public final class PopupMenu {
                 hgt[i] = ih;
                 yy += ih;
                 if (!item.isSeparator()) {
+                    anyIcon |= item.icon() != null;
                     String text = item.label();
                     label[i] = ruler.shape(text, font, ShapedText.Direction.of(text, base));
                     maxLabel = Math.max(maxLabel, label[i].metrics().width());
@@ -2591,8 +2611,9 @@ public final class PopupMenu {
             // Mirroring swaps which gutter holds the check and which holds the arrow, and the
             // sum is the same either way: the column width, fit(), maxScroll(), the bounding
             // box and the native window size are all the same numbers in both directions.
+            this.iconSlot = anyIcon ? iconSide(ruler, t) + t.spacingSmall() : 0;
             this.contentW = Math.max(t.menuMinWidth(),
-                    t.menuCheckGutter() + maxLabel + hintColumn + t.menuArrowGutter());
+                    t.menuCheckGutter() + iconSlot + maxLabel + hintColumn + t.menuArrowGutter());
             this.w = this.contentW;
         }
 

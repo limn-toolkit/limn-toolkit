@@ -56,6 +56,26 @@ class WindowsTrayTest {
     }
 
     @Test
+    void anAcceleratorGoesInTheMenusSecondColumn() {
+        TrayRow row = new TrayRow(1, TrayRow.Kind.COMMAND, "Quit", true, false, 'Q', List.of(), null, "Q",
+                limn.input.Keys.MOD_CONTROL);
+        assertEquals("&Quit\tCtrl+Q", WindowsTray.label(row));
+        // MENUITEMINFOW, 64-bit: the item's bitmap is its last member.
+        assertEquals(WindowsTray.ITEM_INFO_BITMAP + 8, WindowsTray.ITEM_INFO_SIZE);
+    }
+
+    @Test
+    void onMacOsAKeyIsALowerCaseLetterOrAFunctionKeysCharacter() {
+        assertEquals("q", MacTray.keyEquivalent("Q"));
+        assertEquals(",", MacTray.keyEquivalent(","));
+        assertEquals(String.valueOf((char) 0xF708), MacTray.keyEquivalent("F5"));
+        assertEquals("", MacTray.keyEquivalent("Home"), "a key with no such form is not shown");
+        assertEquals("", MacTray.keyEquivalent(""));
+        assertEquals(1L << 20 | 1L << 17,
+                MacTray.modifierMask(limn.input.Keys.MOD_SUPER | limn.input.Keys.MOD_SHIFT));
+    }
+
+    @Test
     void darkMenusAreDeclaredFromTheBuildThatTakesAModeUnlessTurnedOff() {
         assertFalse(WindowsDarkMenus.wanted(17763, null), "the number is another function there");
         assertFalse(WindowsDarkMenus.wanted(0, null));

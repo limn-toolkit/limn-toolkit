@@ -309,7 +309,54 @@ final class TrayWire {
         if (row.kind() == TrayRow.Kind.SUBMENU) {
             p.put("children-display", DBus.v("s", "submenu"));
         }
+        byte[] icon = iconPng(row);
+        if (icon != null) {
+            p.put("icon-data", DBus.v("ay", icon));
+        }
+        if (!row.shortcutKey().isEmpty()) {
+            p.put("shortcut", DBus.v("aas", List.of(shortcut(row))));
+        }
         return p;
+    }
+
+    /** The side a row's picture is sent at: a menu's line at up to twice the scale. */
+    static final int ROW_ICON = 32;
+
+    /**
+     * A row's picture as a PNG, a tintable one in the grey that reads on a light and on a dark
+     * menu, since the protocol says the colour of neither; {@code null} with no picture or no
+     * encoder.
+     */
+    static byte @Nullable [] iconPng(TrayRow row) {
+        if (row.icon() == null) {
+            return null;
+        }
+        try {
+            Image image = new TrayPicture(row.icon(), null, false).render(ROW_ICON, PANEL_GREY, false);
+            return limn.graphics.Images.encode(image, limn.graphics.ImageFormat.PNG);
+        } catch (RuntimeException noEncoder) {
+            return null;
+        }
+    }
+
+    /** An accelerator as the protocol writes one: the modifiers by name, then the key. */
+    static List<String> shortcut(TrayRow row) {
+        List<String> keys = new ArrayList<>();
+        int modifiers = row.shortcutModifiers();
+        if ((modifiers & limn.input.Keys.MOD_CONTROL) != 0) {
+            keys.add("Control");
+        }
+        if ((modifiers & limn.input.Keys.MOD_ALT) != 0) {
+            keys.add("Alt");
+        }
+        if ((modifiers & limn.input.Keys.MOD_SHIFT) != 0) {
+            keys.add("Shift");
+        }
+        if ((modifiers & limn.input.Keys.MOD_SUPER) != 0) {
+            keys.add("Super");
+        }
+        keys.add(row.shortcutKey());
+        return keys;
     }
 
     /**

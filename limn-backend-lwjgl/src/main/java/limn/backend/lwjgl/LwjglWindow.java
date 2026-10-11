@@ -1378,6 +1378,36 @@ final class LwjglWindow implements WindowPeer {
     }
 
     @Override
+    public void maximize() {
+        backend.uiRuntime().checkUiThread();
+        if (destroyed || isFullscreen()) {
+            return;
+        }
+        org.lwjgl.glfw.GLFW.glfwMaximizeWindow(handle);
+    }
+
+    @Override
+    public void restore() {
+        backend.uiRuntime().checkUiThread();
+        if (destroyed || isFullscreen()) {
+            return;
+        }
+        glfwRestoreWindow(handle);
+    }
+
+    @Override
+    public boolean isMinimized() {
+        backend.uiRuntime().checkUiThread();
+        return !destroyed && glfwGetWindowAttrib(handle, org.lwjgl.glfw.GLFW.GLFW_ICONIFIED) == GLFW_TRUE;
+    }
+
+    @Override
+    public boolean isMaximized() {
+        backend.uiRuntime().checkUiThread();
+        return !destroyed && glfwGetWindowAttrib(handle, GLFW_MAXIMIZED) == GLFW_TRUE;
+    }
+
+    @Override
     public void setOpacity(float value) {
         backend.uiRuntime().checkUiThread();
         float clamped = Math.max(0f, Math.min(1f, value));

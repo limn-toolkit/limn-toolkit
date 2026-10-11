@@ -459,6 +459,25 @@ Built in the five steps of §14. Where what was built departs from the text abov
 - **The file chooser under the declaration** on a dark system is the system's own dark one, as it
   is without it.
 
+**Added at the owner's asking, after he saw the menus (2026-10-11):**
+
+- **An item's icon.** `MenuItem.setIcon`, which the toolkit's own menus draw before the label
+  and a tray's rows carry to the system: a picture beside the item on Windows, on macOS, where a
+  tintable one is a template, and through the menu protocol on Linux, where a tintable one is
+  the grey, the protocol saying a menu's colour no more than a panel's. Seen on the four guests;
+  GNOME puts it at the trailing side, as it does its own.
+- **An item's accelerator**, which §4 had left out for want of a window whose keys would run
+  it. The owner showed a status menu of the macOS host with accelerators beside its items. A
+  row now carries the key and its modifiers: on macOS they are the item's key equivalent, which
+  the system writes and, while the menu is open, runs; on Windows they are the words in the
+  menu's second column and on Linux the protocol's shortcut, both shown and neither run. Seen
+  on macOS, Windows and KDE; GNOME's menu does not show it. That the key runs the item on macOS
+  is read, not pressed.
+- **A window's states.** `NativeWindow.maximize()`, `restore()`, `isMinimized()`,
+  `isMaximized()` and `toFront()` beside `minimize()`, each with a default; the recipes bring a
+  window with `toFront()`, which the demo's activation used on the four guests. Maximizing and
+  restoring were not tried on a guest.
+
 **Not seen, and still owed to §12:**
 
 - A screen reader's voice on macOS and on Linux; there the name was read through the

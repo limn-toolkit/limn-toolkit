@@ -115,17 +115,20 @@ final class TrayScene {
                 .add(MenuItem.of("Open the window", () -> {
                     say(status, "chose Open the window");
                     bring(shown);
-                }).setMnemonic('O'))
+                }).setMnemonic('O').setIcon(picture))
+                .add(MenuItem.of("Preferences", () -> say(status, "chose Preferences"))
+                        .setIcon(BitmapIcon.mask(Images.fromResource("/limn/demo/images/icon-gear.png")))
+                        .setAccelerator(limn.components.Accelerator.command(limn.input.Keys.COMMA)))
                 .add(MenuItem.of("Copy", () -> say(status, "chose Copy")).setEnabled(false))
                 .addSeparator()
                 .add(bold)
                 .addSubmenu("Export", export)
                 .addSeparator()
                 .addItem("Count this opening", () -> say(status, "chose Count, " + ++opened[0]))
-                .addItem("Quit", () -> {
+                .add(MenuItem.of("Quit", () -> {
                     say(status, "chose Quit");
                     backend.requestQuit();
-                });
+                }).setAccelerator(limn.components.Accelerator.command(limn.input.Keys.Q)));
         tray.setMenu(menu);
 
         Runnable tell = () -> available.setText(tray.isAvailable()
@@ -240,8 +243,7 @@ final class TrayScene {
     private static void bring(Widget<?> inside) {
         if (inside.scene() != null && inside.scene().window() != null) {
             NativeWindow window = inside.scene().window();
-            window.show();
-            window.focus();
+            window.toFront();
         }
     }
 }

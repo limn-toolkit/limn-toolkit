@@ -214,6 +214,15 @@ class StatusNotifierTrayTest {
     }
 
     @Test
+    void anAcceleratorIsWrittenAsItsModifiersThenItsKey() {
+        TrayRow row = new TrayRow(1, TrayRow.Kind.COMMAND, "Save as", true, false, (char) 0, List.of(), null, "S",
+                limn.input.Keys.MOD_CONTROL | limn.input.Keys.MOD_SHIFT);
+        assertEquals(List.of(List.of("Control", "Shift", "S")), TrayWire.rowProperties(row).get("shortcut").value);
+        assertFalse(TrayWire.rowProperties(row(1, TrayRow.Kind.COMMAND, "Open")).containsKey("shortcut"));
+        assertFalse(TrayWire.rowProperties(row(1, TrayRow.Kind.COMMAND, "Open")).containsKey("icon-data"));
+    }
+
+    @Test
     void anUnderscoreInALabelIsTheTextsAndTheAccessLetterIsMarked() {
         assertEquals("report__final.pdf", TrayWire.label(row(1, TrayRow.Kind.COMMAND, "report_final.pdf")));
         assertEquals("_Open", TrayWire.label(new TrayRow(1, TrayRow.Kind.COMMAND, "Open", true, false, 'O', List.of())));

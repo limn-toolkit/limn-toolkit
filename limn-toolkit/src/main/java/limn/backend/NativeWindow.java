@@ -131,9 +131,52 @@ public sealed interface NativeWindow extends AutoCloseable permits WindowPeer {
      * from where the user brings it back. Unlike {@link #hide}, the user can reach it again
      * without the application's help. UI thread only.
      *
-     * <p>The default does nothing, which is the answer of a window with no desktop under it.
+     * <p>The default does nothing, which is the answer of a window with no desktop under it;
+     * so do {@link #maximize}, {@link #restore} and the two readings beside them.
      */
     default void minimize() {
+    }
+
+    /**
+     * Maximizes the window: it fills the screen's work area, keeping its frame. A window in
+     * fullscreen is left as it is. UI thread only.
+     */
+    default void maximize() {
+    }
+
+    /**
+     * Puts a minimized or a maximized window back to the size and the place it had before.
+     * A window that is neither is left as it is. UI thread only.
+     */
+    default void restore() {
+    }
+
+    /**
+     * @return whether the window is minimized now. Under Wayland a client is not told, and the
+     *         answer is {@code false}
+     */
+    default boolean isMinimized() {
+        return false;
+    }
+
+    /** @return whether the window is maximized now */
+    default boolean isMaximized() {
+        return false;
+    }
+
+    /**
+     * Brings the window in front of the others and gives it the keyboard, whatever state it is
+     * in: shown if it was hidden, restored if it was minimized. It is what a click on an
+     * application's tray icon or on a "show the window" command calls. Whether a window may come
+     * in front of another application's is the desktop's to allow, as for {@link #focus}.
+     * UI thread only.
+     */
+    default void toFront() {
+        if (isMinimized()) {
+            restore();
+        }
+        show();
+        focus();
     }
 
     /**

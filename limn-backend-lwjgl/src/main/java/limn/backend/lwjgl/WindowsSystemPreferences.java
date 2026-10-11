@@ -121,6 +121,11 @@ final class WindowsSystemPreferences {
         }
     }
 
+    /** @return whether the user's applications are set to dark */
+    static boolean applicationsAreDark() {
+        return scheme() == ColorScheme.DARK;
+    }
+
     /** @return whether a high-contrast scheme is on */
     static boolean highContrastOn() {
         return highContrast();

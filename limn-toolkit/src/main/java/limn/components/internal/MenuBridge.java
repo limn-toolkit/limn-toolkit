@@ -61,6 +61,12 @@ public abstract class MenuBridge {
     public abstract @Nullable Menu submenu(MenuItem item);
 
     /**
+     * @param item an item
+     * @return the name of its accelerator's key with no modifier, or {@code ""} when it has none
+     */
+    public abstract String acceleratorKey(MenuItem item);
+
+    /**
      * Does what the user's choosing the item does: runs a command, flips a check and tells its
      * listener. Nothing for a disabled item, a submenu or a separator.
      *

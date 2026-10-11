@@ -90,19 +90,22 @@ final class TrayMenu {
             int id = next++;
             items.put(id, item);
             String label = item.label() == null ? "" : item.label();
+            String key = bridge.acceleratorKey(item);
+            int modifiers = item.accelerator() == null ? 0 : item.accelerator().modifiers();
             switch (kind) {
                 case CHECK -> out.add(new TrayRow(id, TrayRow.Kind.CHECK, label, item.isEnabled(),
-                        item.isChecked(), item.mnemonic(), List.of()));
+                        item.isChecked(), item.mnemonic(), List.of(), item.icon(), key, modifiers));
                 case SUBMENU -> {
                     Menu submenu = bridge.submenu(item);
                     // A menu that is its own ancestor, or one deeper than anybody opens, opens nothing.
                     List<TrayRow> children = submenu == null || above.contains(submenu)
                             || above.size() >= MAX_DEPTH ? List.of() : read(submenu, above);
                     out.add(new TrayRow(id, TrayRow.Kind.SUBMENU, label,
-                            item.isEnabled() && !children.isEmpty(), false, item.mnemonic(), children));
+                            item.isEnabled() && !children.isEmpty(), false, item.mnemonic(), children,
+                            item.icon(), "", 0));
                 }
                 default -> out.add(new TrayRow(id, TrayRow.Kind.COMMAND, label, item.isEnabled(), false,
-                        item.mnemonic(), List.of()));
+                        item.mnemonic(), List.of(), item.icon(), key, modifiers));
             }
         }
         above.remove(above.size() - 1);

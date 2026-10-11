@@ -41,8 +41,7 @@ public final class TrayExample {
     }
 
     static void bring(NativeWindow window) {
-        window.show();
-        window.focus();
+        window.toFront();   // shown if hidden, restored if minimized, in front and focused
     }
     // #endregion
 
