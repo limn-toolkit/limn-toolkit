@@ -495,13 +495,20 @@ Built in the five steps of §14. Where what was built departs from the text abov
   declaration made and without: the same light dialog both times. The declaration does not
   reach it.
 
+**Plasma under X11, seen without logging anybody out.** On the KDE guest, on an X server and a
+bus of their own beside the running session: the window manager for X11, the daemon that watches
+status items and the Plasma shell with its panel, and the toolkit as their X11 client. The
+watcher and a host were on that bus; the icon was in the panel with its attention dot, on a
+light panel this time; the other button opened the menu, and the main one sent the activation
+with the pointer's place, which the application heard. It is the desktop's own programs for
+X11, not a login to its X11 session.
+
 **Not seen, and still owed to §12:**
 
-- A GNOME session under Wayland and a Plasma session under X11. Both exist on the guests and
-  need somebody to log in to them, which ends what runs in the session there now. Two ways
-  round were tried on the GNOME guest and neither is a session: a shell nested in the X11 one,
-  in which the toolkit's window never appeared, and a shell with no screen on a bus of its own,
-  which ended when it was asked anything. What stands in for the two meanwhile: the toolkit as
-  an X11 client on KDE, above, and the tray on GNOME itself, which is the same bus and the same
-  extension under either session.
-
+- A GNOME session under Wayland. It needs somebody to log in to it on the guest, which ends
+  what runs in the session there now. Two ways round were tried and neither is a session: a
+  shell nested in the X11 one, and a shell with no screen on a bus of its own. In both the
+  shell came up with its watcher, and the toolkit never got as far as a tray: its windowing
+  library did not return from starting under a compositor with no seat, which a real session
+  has. What stands in meanwhile is the tray on GNOME under X11, which is the same bus and the
+  same extension under either session.
