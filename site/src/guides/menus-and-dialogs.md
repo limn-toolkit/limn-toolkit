@@ -219,8 +219,22 @@ tray keeps running with no window open after
 `window.minimize()`, `maximize()` and `restore()` do what the title bar's buttons do, and
 `isMinimized()` and `isMaximized()` say where the window is. `window.toFront()` is the one a
 "show the window" command calls: it shows a hidden window, restores a minimized one and gives
-it the keyboard. Under Wayland a window is not told that it is minimized, so `isMinimized()`
-answers `false` there.
+it the keyboard.
+
+To act when any of it changes, whoever did it, observe the window's state:
+
+```java
+window.observeState(state -> {
+    preferences.put("window", state.bounds());       // its place and size, to open there next time
+    pause.setEnabled(!state.minimized());
+});
+```
+
+The listener is told on the UI thread after the window is shown or hidden, minimized, maximized
+or restored, enters or leaves fullscreen, is moved or changes size, with a `WindowState` of all
+of it; `window.state()` and `window.bounds()` answer the same at any time. Under Wayland a
+window is told neither that it is minimized nor where it is, so there `minimized` is `false`
+and the place is the origin.
 
 ## Native file dialogs
 

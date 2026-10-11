@@ -165,6 +165,40 @@ public sealed interface NativeWindow extends AutoCloseable permits WindowPeer {
     }
 
     /**
+     * @return the window's content's place and size in native screen coordinates: {@link #screenX},
+     *         {@link #screenY}, and its logical size by {@link #logicalToScreenFactor}. UI thread only
+     */
+    default ScreenRect bounds() {
+        float toScreen = logicalToScreenFactor();
+        return new ScreenRect(screenX(), screenY(), Math.round(logicalWidth() * toScreen),
+                Math.round(logicalHeight() * toScreen));
+    }
+
+    /**
+     * @return where the window is, how large and in which state, now. UI thread only
+     */
+    default WindowState state() {
+        return new WindowState(isVisible(), isMinimized(), isMaximized(), isFullscreen(), bounds());
+    }
+
+    /**
+     * Observes the window's state: the listener is told each time the window is shown or
+     * hidden, minimized, maximized or restored, enters or leaves fullscreen, is moved or changes
+     * size, whether the application did it or the user. It is told on the UI thread, after the
+     * change and once for it, with the state as it then is; a window the user drags or resizes
+     * tells it at each place and size along the way.
+     *
+     * <p>The default tells nothing, which is the answer of a window with no desktop under it.
+     *
+     * @param listener what to tell
+     * @return a handle that unsubscribes; cancelling it twice is a no-op. UI thread only
+     */
+    default limn.concurrent.Subscription observeState(java.util.function.Consumer<WindowState> listener) {
+        java.util.Objects.requireNonNull(listener, "listener");
+        return () -> { };
+    }
+
+    /**
      * Brings the window in front of the others and gives it the keyboard, whatever state it is
      * in: shown if it was hidden, restored if it was minimized. It is what a click on an
      * application's tray icon or on a "show the window" command calls. Whether a window may come

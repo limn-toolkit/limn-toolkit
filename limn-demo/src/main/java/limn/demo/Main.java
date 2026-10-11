@@ -795,6 +795,24 @@ public final class Main {
                                 workerName, Thread.currentThread().getName());
                     });
 
+            if (Boolean.getBoolean("limn.demo.window.trace")) {
+                // A window's states, to try with nobody at the keys: each change is written, and
+                // with the script the window walks through them by itself.
+                window.observeState(state -> {
+                    System.out.println("WINDOW " + state);
+                    System.out.flush();
+                });
+                if (Boolean.getBoolean("limn.demo.window.script")) {
+                    limn.concurrent.Ui.postDelayed(window::maximize, 3000);
+                    limn.concurrent.Ui.postDelayed(window::restore, 5000);
+                    limn.concurrent.Ui.postDelayed(window::minimize, 7000);
+                    limn.concurrent.Ui.postDelayed(window::toFront, 9000);
+                    limn.concurrent.Ui.postDelayed(window::hide, 11000);
+                    limn.concurrent.Ui.postDelayed(window::toFront, 13000);
+                    limn.concurrent.Ui.postDelayed(() -> window.setSize(700, 500), 14000);
+                    limn.concurrent.Ui.postDelayed(() -> window.setScreenPosition(window.screenX() + 60, window.screenY() + 40), 15000);
+                }
+            }
             backend.runEventLoop();
         }
     }

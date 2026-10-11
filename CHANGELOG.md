@@ -218,8 +218,11 @@ Maven Central say which number that was.
   colour.
 - A window can be minimized, maximized, restored and brought in front: `NativeWindow.minimize()`,
   `maximize()`, `restore()`, `isMinimized()`, `isMaximized()` and `toFront()`, which shows a hidden
-  window, restores a minimized one and gives it the keyboard. Each has a default for a window
-  with no desktop under it.
+  window, restores a minimized one and gives it the keyboard. `observeState` tells a listener each
+  time the window is shown or hidden, minimized, maximized, restored, moved or resized, by the
+  application or by the user, with a `WindowState` of its state and its `bounds`; `state()` and
+  `bounds()` answer the same at any time. Each has a default for a window with no desktop under
+  it.
 - A tray icon: `Tray.create(backend, "id")` in the new package `limn.desktop` keeps an icon in
   the system's place for one, the notification area on Windows, the menu bar on macOS and the
   panel's tray on a Linux desktop, with a title, a tooltip and a `Menu` that **the system

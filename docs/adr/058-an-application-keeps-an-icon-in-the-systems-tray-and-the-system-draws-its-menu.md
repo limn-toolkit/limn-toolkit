@@ -474,14 +474,24 @@ Built in the five steps of §14. Where what was built departs from the text abov
   on macOS, Windows and KDE; GNOME's menu does not show it. That the key runs the item on macOS
   is read, not pressed.
 - **A window's states.** `NativeWindow.maximize()`, `restore()`, `isMinimized()`,
-  `isMaximized()` and `toFront()` beside `minimize()`, each with a default; the recipes bring a
-  window with `toFront()`, which the demo's activation used on the four guests. Maximizing and
-  restoring were not tried on a guest.
+  `isMaximized()` and `toFront()` beside `minimize()`, and `observeState`, which tells a
+  listener each change with a `WindowState`: shown, minimized, maximized, fullscreen and the
+  bounds, place and size as one rectangle. Each has a default; the recipes bring a window with
+  `toFront()`. A window walked through maximize, restore, minimize, toFront, hide, toFront, a
+  new size and a new place on the four guests, and the listener was told each: all of it on
+  GNOME under X11, on Windows and on macOS; under Wayland on KDE neither the minimizing nor the
+  place, which a client is not told there. Two reports were put right as they came: Windows
+  gives a minimized window no size at a place far off the screen, and macOS says one is not
+  shown, so a minimized window's state keeps the bounds it comes back to and is a shown one.
+- **A reader's voice on macOS and on Linux.** VoiceOver, taken to the status menus, said
+  "Limn Showcase, status menu". Orca said "Limn Showcase push button" with the icon focused. On
+  neither did keys sent by a script walk the menu's items, which only the Windows reader was
+  heard reading.
 
 **Not seen, and still owed to §12:**
 
-- A screen reader's voice on macOS and on Linux; there the name was read through the
-  accessibility interface only.
+- A screen reader reading the menu's items on macOS and on Linux; the icon's name was heard on
+  both.
 - A GNOME session under Wayland and a Plasma session under X11. Both exist on the guests and
   need somebody to log in to them; a GNOME shell nested in the X11 session started, and the
   toolkit's window never appeared in it, which says nothing of a real session.
