@@ -514,6 +514,17 @@ session, nested and with no screen, had come to nothing: there the windowing lib
 its first round trip for an answer the compositor never sends (read from the process's native
 stack), which a real session's compositor does send.
 
+**Plasma under X11, in its real session.** The KDE guest's automatic login was put in its X11
+session and the guest restarted, and put back after. The toolkit started on X11 and the tray
+was taken; the icon was in the panel with its dot, and a shape alone in the white the panel
+gives it; the other button drew the menu with its icons and accelerators, and an item chosen
+there with the keyboard ran; the main button sent the activation with the pointer's place,
+which the application heard. **With another application's window active, the toolkit's window
+did not become the active one**: the window manager refuses a request to activate that carries
+no proof of the user's consent, which is the token of §7 that the toolkit does not use yet. On
+Windows and macOS the window came in front; on Linux it does where the desktop lets it, as §7
+declared, and this is the case where it does not.
+
 **Nothing of §12 is left unseen.** What stays declared is what the systems do not offer: under
 Wayland a window is told neither that it is minimized nor where it is; on macOS the toolkit
 waits while a menu is open; GNOME's menu shows no accelerator and puts an item's icon at its
