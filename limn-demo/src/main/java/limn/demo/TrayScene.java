@@ -158,6 +158,8 @@ final class TrayScene {
         Runnable activation = () -> {
             say(status, "activated");
             bring(shown);
+            // For a run nobody watches: whether the window that was asked in front has the keyboard.
+            Ui.postDelayed(() -> say(status, "focused " + (shown.scene() != null && shown.scene().isWindowFocused())), 900);
         };
         activates.onChange(value -> {
             activatesOn = value;
@@ -222,14 +224,32 @@ final class TrayScene {
             }, 14000);
         }
         Ui.postDelayed(tell, 1500);
+        Ui.postDelayed(() -> {
+            // For a run nobody watches: that the window lost the keyboard before it is asked back.
+            if (shown.scene() != null) {
+                shown.scene().observeWindowBlur(() -> say(status, "blurred"));
+            }
+        }, 1500);
 
         Row tip = new Row();
         tip.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
         tip.add(new Label("Tooltip"));
         tip.add(new SizedBox(280, SizedBox.UNSET, tooltip));
 
+        // The launcher from a window, for the same run: whether what it opens comes in front.
+        limn.components.Button documentation = new limn.components.Button("Open the documentation")
+                .setSecondary(true);
+        documentation.onAction(() -> {
+            if (documentation.scene() != null && documentation.scene().window() != null) {
+                documentation.scene().window().launcher()
+                        .openAddress(java.net.URI.create("https://limn-toolkit.github.io/limn-toolkit/docs/"))
+                        .thenAccept(taken -> say(status, "launched " + taken));
+            }
+        });
+
         Column page = new Column();
         page.gap(12).crossAlignment(Flex.CrossAlignment.START);
+        page.add(documentation);
         page.add(shown);
         page.add(monochrome);
         page.add(attention);

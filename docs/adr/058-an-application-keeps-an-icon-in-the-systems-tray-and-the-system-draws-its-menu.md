@@ -521,7 +521,9 @@ gives it; the other button drew the menu with its icons and accelerators, and an
 there with the keyboard ran; the main button sent the activation with the pointer's place,
 which the application heard. **With another application's window active, the toolkit's window
 did not become the active one**: the window manager refuses a request to activate that carries
-no proof of the user's consent, which is the token of §7 that the toolkit does not use yet. On
+no proof of the user's consent, which is the token of §7 that the toolkit did not use then.
+[ADR 059](059-on-linux-a-window-comes-in-front-with-the-proof-that-the-user-asked.md) uses it,
+and the window comes in front there. On
 Windows and macOS the window came in front; on Linux it does where the desktop lets it, as §7
 declared, and this is the case where it does not.
 

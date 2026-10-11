@@ -828,7 +828,85 @@ final class LwjglWindow implements WindowPeer {
         // Only visible windows can take focus (and we must not force-show a
         // hidden window, e.g. offscreen screenshot mode).
         if (!destroyed && glfwGetWindowAttrib(handle, GLFW_VISIBLE) == GLFW_TRUE) {
-            glfwFocusWindow(handle);
+            if (!focusWithTheUsersConsent()) {
+                glfwFocusWindow(handle);
+            }
+        }
+    }
+
+    /**
+     * On a Linux desktop, brings the window in front with the proof that the user asked, when
+     * the user just acted on something of ours outside our windows. Without that proof a desktop
+     * that guards the focus leaves the window behind and marks it as wanting attention, which is
+     * what the windowing library's own request gets there.
+     *
+     * @return whether the request went with the proof, and the library's own is not to be made
+     */
+    private boolean focusWithTheUsersConsent() {
+        if (!Platform.current().isLinux() || !backend.userJustActed()
+                || "false".equalsIgnoreCase(System.getProperty("limn.linux.activationProof"))) {
+            return false;   // the property is for measuring a desktop with and without the proof
+        }
+        String token = backend.consentToken();
+        try {
+            if (org.lwjgl.glfw.GLFW.glfwGetPlatform() == org.lwjgl.glfw.GLFW.GLFW_PLATFORM_WAYLAND) {
+                if (token != null && backend.systemClipboard() != null
+                        && backend.nativeClipboard() instanceof limn.backend.lwjgl.transfer.WaylandClipboard wayland
+                        && wayland.canActivate()) {
+                    long surface = org.lwjgl.glfw.GLFWNativeWayland.glfwGetWaylandWindow(handle);
+                    boolean sent = wayland.activate(token, surface);
+                    // A window shown a moment ago has no picture yet, and a compositor may pass
+                    // over a surface with none: asked once more when it has drawn.
+                    backend.uiRuntime().postDelayed(() -> {
+                        if (!destroyed) {
+                            wayland.activate(token, surface);
+                        }
+                    }, 150);
+                    return sent;
+                }
+                return false;
+            }
+            return X11Activation.activate(org.lwjgl.glfw.GLFWNativeX11.glfwGetX11Display(),
+                    org.lwjgl.glfw.GLFWNativeX11.glfwGetX11Window(handle), token);
+        } catch (RuntimeException | LinkageError failed) {
+            LOG.log(Level.DEBUG, "the window was not brought in front with the user's consent", failed);
+            return false;
+        }
+    }
+
+    /**
+     * On a Linux desktop, the user's consent for a program this window starts to come in front of
+     * it, asked for now and read later: the launcher is called on the UI thread in answer to the
+     * user's press, which is when the compositor will vouch for it, and hands the address over on
+     * a thread of its own, which is where the answer is waited for.
+     *
+     * @return what answers the token on the launcher's thread, {@code ""} where there is none
+     */
+    java.util.function.Supplier<String> launchToken() {
+        if (!Platform.current().isLinux() || destroyed
+                || "false".equalsIgnoreCase(System.getProperty("limn.linux.activationProof"))) {
+            return () -> "";
+        }
+        try {
+            if (org.lwjgl.glfw.GLFW.glfwGetPlatform() == org.lwjgl.glfw.GLFW.GLFW_PLATFORM_WAYLAND) {
+                if (backend.systemClipboard() != null
+                        && backend.nativeClipboard() instanceof limn.backend.lwjgl.transfer.WaylandClipboard wayland
+                        && wayland.canActivate()) {
+                    java.util.concurrent.CompletableFuture<String> asked = wayland.requestToken(
+                            org.lwjgl.glfw.GLFWNativeWayland.glfwGetWaylandWindow(handle));
+                    return () -> {
+                        try {
+                            return asked.get(700, java.util.concurrent.TimeUnit.MILLISECONDS);
+                        } catch (Exception late) {
+                            return "";   // a compositor that does not answer gives no consent
+                        }
+                    };
+                }
+                return () -> "";
+            }
+            return X11Activation::startupToken;   // the server's time, read on the launcher's thread
+        } catch (RuntimeException | LinkageError failed) {
+            return () -> "";
         }
     }
 

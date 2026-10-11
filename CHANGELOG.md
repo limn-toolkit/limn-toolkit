@@ -223,6 +223,13 @@ Maven Central say which number that was.
   application or by the user, with a `WindowState` of its state and its `bounds`; `state()` and
   `bounds()` answer the same at any time. Each has a default for a window with no desktop under
   it.
+- On Linux a window comes in front when the user asked. A window brought in front from the
+  tray icon, and a program `window.launcher()` starts or hands an address to, now carry the proof
+  a Linux desktop asks for before it changes the window in front: an activation token under
+  Wayland, the time of the user's action under X11. Before, a browser that was already running
+  took the page behind the window that asked, and on KDE under X11 and on GNOME under Wayland a
+  window asked in front from its tray icon stayed behind. Call the launcher from the user's key
+  or button, since that is what the desktop vouches for.
 - A tray icon: `Tray.create(backend, "id")` in the new package `limn.desktop` keeps an icon in
   the system's place for one, the notification area on Windows, the menu bar on macOS and the
   panel's tray on a Linux desktop, with a title, a tooltip and a `Menu` that **the system

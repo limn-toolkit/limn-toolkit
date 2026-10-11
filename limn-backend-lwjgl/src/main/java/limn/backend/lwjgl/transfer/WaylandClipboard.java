@@ -186,6 +186,7 @@ public final class WaylandClipboard implements NativeClipboard {
         int[] managerGlobal = new int[2];
         int[] compositorGlobal = new int[2];
         int[] shmGlobal = new int[2];
+        int[] activationGlobal = new int[2];
         registry = wl.request(wrapper, 1, wl.function("wl_registry_interface"), 0, 0L);
         wl.listen(registry, wl.table(
                 wl.on("ppipi", a -> {
@@ -202,6 +203,9 @@ public final class WaylandClipboard implements NativeClipboard {
                     } else if (name.equals("wl_shm") && shmGlobal[1] == 0) {
                         shmGlobal[0] = (int) a[2];
                         shmGlobal[1] = (int) a[4];
+                    } else if (name.equals(ACTIVATION) && activationGlobal[1] == 0) {
+                        activationGlobal[0] = (int) a[2];
+                        activationGlobal[1] = (int) a[4];
                     }
                 }),
                 wl.ignore("ppi")));
@@ -215,6 +219,11 @@ public final class WaylandClipboard implements NativeClipboard {
                 Math.min(SEAT_VERSION, seatGlobal[1]));
         manager = wl.bind(registry, managerGlobal[0], wl.function("wl_data_device_manager_interface"),
                 "wl_data_device_manager", Math.min(MANAGER_VERSION, managerGlobal[1]));
+        if (activationGlobal[1] != 0) {
+            long[] interfaces = activationInterfaces();
+            tokenInterface = interfaces[1];
+            activation = wl.bind(registry, activationGlobal[0], interfaces[0], ACTIVATION, 1);
+        }
         if (compositorGlobal[1] != 0 && shmGlobal[1] != 0) {
             // For the picture a drag shows: a surface of ours and the memory it is drawn from.
             compositor = wl.bind(registry, compositorGlobal[0], wl.function("wl_compositor_interface"),
@@ -247,6 +256,138 @@ public final class WaylandClipboard implements NativeClipboard {
 
     private void roundtrip() {
         JNI.invokePPI(display, queue, wl.function("wl_display_roundtrip_queue"));
+    }
+
+    // ---- the user's consent to come in front ----------------------------------------------------
+
+    private static final String ACTIVATION = "xdg_activation_v1";
+    /** The activation manager, or {@code NULL} on a compositor that has none. */
+    private long activation;
+    private long tokenInterface;
+
+    /**
+     * The two interfaces of the activation protocol, laid out as the client library reads them.
+     * It exports its own protocol's and not this one's, and what is sent through a proxy is
+     * marshalled from these tables: a name, a version, and each request and event with its
+     * signature and the interfaces of its object arguments.
+     *
+     * @return the manager's interface and the token's
+     */
+    private long[] activationInterfaces() {
+        long surface = wl.function("wl_surface_interface");
+        long seatInterface = wl.function("wl_seat_interface");
+        long token = org.lwjgl.system.MemoryUtil.nmemCalloc(1, 40);
+        long manager = org.lwjgl.system.MemoryUtil.nmemCalloc(1, 40);
+        long tokenRequests = messages(
+                message("set_serial", "uo", NULL, seatInterface),
+                message("set_app_id", "s", NULL),
+                message("set_surface", "o", surface),
+                message("commit", ""),
+                message("destroy", ""));
+        long tokenEvents = messages(message("done", "s", NULL));
+        fillInterface(token, "xdg_activation_token_v1", 5, tokenRequests, 1, tokenEvents);
+        long managerRequests = messages(
+                message("destroy", ""),
+                message("get_activation_token", "n", token),
+                message("activate", "so", NULL, surface));
+        fillInterface(manager, ACTIVATION, 3, managerRequests, 0, NULL);
+        return new long[] {manager, token};
+    }
+
+    /** One message: its name, its signature and the interface of each argument, kept for good. */
+    private static long[] message(String name, String signature, long... types) {
+        long typeTable = org.lwjgl.system.MemoryUtil.nmemCalloc(Math.max(1, types.length), 8);
+        for (int i = 0; i < types.length; i++) {
+            org.lwjgl.system.MemoryUtil.memPutAddress(typeTable + 8L * i, types[i]);
+        }
+        return new long[] {cString(name), cString(signature), typeTable};
+    }
+
+    private static long messages(long[]... each) {
+        long table = org.lwjgl.system.MemoryUtil.nmemCalloc(each.length, 24);
+        for (int i = 0; i < each.length; i++) {
+            for (int j = 0; j < 3; j++) {
+                org.lwjgl.system.MemoryUtil.memPutAddress(table + 24L * i + 8L * j, each[i][j]);
+            }
+        }
+        return table;
+    }
+
+    private static void fillInterface(long at, String name, int requests, long requestTable, int events,
+            long eventTable) {
+        org.lwjgl.system.MemoryUtil.memPutAddress(at, cString(name));
+        org.lwjgl.system.MemoryUtil.memPutInt(at + 8, 1);
+        org.lwjgl.system.MemoryUtil.memPutInt(at + 12, requests);
+        org.lwjgl.system.MemoryUtil.memPutAddress(at + 16, requestTable);
+        org.lwjgl.system.MemoryUtil.memPutInt(at + 24, events);
+        org.lwjgl.system.MemoryUtil.memPutAddress(at + 32, eventTable);
+    }
+
+    private static long cString(String text) {
+        byte[] bytes = text.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        long memory = org.lwjgl.system.MemoryUtil.nmemCalloc(1, bytes.length + 1);
+        for (int i = 0; i < bytes.length; i++) {
+            org.lwjgl.system.MemoryUtil.memPutByte(memory + i, bytes[i]);
+        }
+        return memory;
+    }
+
+    /** @return whether this compositor can be shown a token */
+    public boolean canActivate() {
+        return activation != NULL;
+    }
+
+    /**
+     * Asks the compositor to bring a surface in front, with a token that says the user asked.
+     * Any thread.
+     *
+     * @param token   the token, from a panel or from {@link #requestToken}
+     * @param surface the window's {@code wl_surface}
+     * @return whether the request was sent; what the compositor does with it is its own
+     */
+    public boolean activate(String token, long surface) {
+        if (activation == NULL || surface == NULL || closing) {
+            return false;
+        }
+        long text = cString(token);
+        try {
+            wl.request(activation, 2, NULL, 0, text, surface);
+            wl.flush(display);
+            return true;
+        } finally {
+            org.lwjgl.system.MemoryUtil.nmemFree(text);
+        }
+    }
+
+    /**
+     * Asks the compositor for a token that says the user is acting in a surface of ours now: the
+     * last key or button it was given, and the surface. A program handed the token may come in
+     * front of that surface. Any thread.
+     *
+     * @param surface the {@code wl_surface} the user is acting in
+     * @return the token, or an empty string where the compositor gives none; completed on the
+     *         thread that hears the compositor, or at once
+     */
+    public CompletableFuture<String> requestToken(long surface) {
+        CompletableFuture<String> answer = new CompletableFuture<>();
+        if (activation == NULL || surface == NULL || closing) {
+            answer.complete("");
+            return answer;
+        }
+        long request = wl.request(activation, 1, tokenInterface, 0, 0L);
+        if (request == NULL) {
+            answer.complete("");
+            return answer;
+        }
+        wl.listen(request, wl.table(wl.on("ppp", a -> {
+            answer.complete(a[2] == NULL ? "" : memUTF8(a[2]));
+            wl.request(request, 4, NULL, Wl.DESTROY);   // done is the token's one event
+        })));
+        wl.request(request, 0, NULL, 0, Integer.toUnsignedLong(serial), seat);
+        wl.request(request, 2, NULL, 0, surface);
+        wl.request(request, 3, NULL, 0);
+        wl.flush(display);
+        return answer;
     }
 
     // ---- events, on the dispatch thread (or inside a roundtrip of the constructor) --------------

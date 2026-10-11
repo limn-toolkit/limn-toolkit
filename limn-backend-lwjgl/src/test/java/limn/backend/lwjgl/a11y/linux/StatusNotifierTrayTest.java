@@ -303,7 +303,8 @@ class StatusNotifierTrayTest {
 
     /** Shows the tray and plays the bus up to the watcher's answer to the registration. */
     private void show(TrayState first, boolean watcher) throws IOException {
-        tray = StatusNotifierTray.create("orders", host, ui, "unix:path=" + directory.resolve("bus"));
+        tray = StatusNotifierTray.create("orders", host, ui, "unix:path=" + directory.resolve("bus"),
+                token -> host.heard.add("acted " + token));
         tray.update(first);
         accept(watcher);
     }
@@ -432,8 +433,10 @@ class StatusNotifierTrayTest {
             ask(TrayWire.ITEM_PATH, TrayWire.ITEM, "Activate", "ii", 10, 20);
             ask(TrayWire.ITEM_PATH, TrayWire.ITEM, "SecondaryActivate", "ii", 10, 20);
         });
-        await(() -> assertEquals(List.of("availability", "choose 1", "activate"), host.heard));
-        assertEquals("token-1", ((StatusNotifierTray) tray).activationToken());
+        // Each click is told with the token the panel handed over for it, before the host hears.
+        await(() -> assertEquals(List.of("availability", "acted null", "choose 1", "acted token-1", "activate"),
+                host.heard));
+        assertNull(((StatusNotifierTray) tray).activationToken(), "a token is one click's");
     }
 
     @Test

@@ -117,7 +117,9 @@ answers `false`.
 - **Linux, a program already running.** A program asked to open by a client that cannot hand
   it the user's consent to come in front (a startup id under X11, an activation token under
   Wayland) may take the address behind the asking window, announced by the desktop rather than
-  raised. GLFW gives a client neither. Declared, and measured in §7.
+  raised. GLFW gives a client neither. Declared, and measured in §7. **Closed by
+  [ADR 059](059-on-linux-a-window-comes-in-front-with-the-proof-that-the-user-asked.md)**: the
+  backend asks for the proof itself and hands it on.
 
 ## 6. Tests
 
