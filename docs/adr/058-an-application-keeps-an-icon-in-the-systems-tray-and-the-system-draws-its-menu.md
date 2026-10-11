@@ -509,6 +509,7 @@ X11, not a login to its X11 session.
   what runs in the session there now. Two ways round were tried and neither is a session: a
   shell nested in the X11 one, and a shell with no screen on a bus of its own. In both the
   shell came up with its watcher, and the toolkit never got as far as a tray: its windowing
-  library did not return from starting under a compositor with no seat, which a real session
-  has. What stands in meanwhile is the tray on GNOME under X11, which is the same bus and the
+  library did not return from starting, waiting in its first round trip for an answer the
+  compositor never sent (read from the process's native stack). Why such a compositor does not
+  answer was not found; a real session's does, as the KDE guest's does every day. What stands in meanwhile is the tray on GNOME under X11, which is the same bus and the
   same extension under either session.
