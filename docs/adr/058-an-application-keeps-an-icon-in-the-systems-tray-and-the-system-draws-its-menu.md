@@ -498,6 +498,10 @@ Built in the five steps of §14. Where what was built departs from the text abov
 **Not seen, and still owed to §12:**
 
 - A GNOME session under Wayland and a Plasma session under X11. Both exist on the guests and
-  need somebody to log in to them; a GNOME shell nested in the X11 session started, and the
-  toolkit's window never appeared in it, which says nothing of a real session.
+  need somebody to log in to them, which ends what runs in the session there now. Two ways
+  round were tried on the GNOME guest and neither is a session: a shell nested in the X11 one,
+  in which the toolkit's window never appeared, and a shell with no screen on a bus of its own,
+  which ended when it was asked anything. What stands in for the two meanwhile: the toolkit as
+  an X11 client on KDE, above, and the tray on GNOME itself, which is the same bus and the same
+  extension under either session.
 
