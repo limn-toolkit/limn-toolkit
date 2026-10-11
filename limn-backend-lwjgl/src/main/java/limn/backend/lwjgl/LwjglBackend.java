@@ -1306,6 +1306,34 @@ public final class LwjglBackend implements BackendPeer {
         wakeLoop();
     }
 
+    /** How long after the user acted outside our windows a window may still ride on it. */
+    private static final long CONSENT_NANOS = 5_000_000_000L;
+    private @Nullable String consentToken;
+    private long consentAt;
+    private boolean consented;
+
+    /**
+     * Notes that the user just acted on something of this application's outside its windows, a
+     * tray's icon or an item of its menu, with the token the desktop gave for it if it gave one.
+     * A window brought in front soon after does it with that proof. UI thread.
+     */
+    void userActed(@Nullable String token) {
+        uiRuntime.checkUiThread();
+        consentToken = token;
+        consentAt = System.nanoTime();
+        consented = true;
+    }
+
+    /** @return whether the user acted outside our windows a moment ago */
+    boolean userJustActed() {
+        return consented && System.nanoTime() - consentAt < CONSENT_NANOS;
+    }
+
+    /** @return the token of that action, or null when the desktop gave none */
+    @Nullable String consentToken() {
+        return userJustActed() ? consentToken : null;
+    }
+
     /** The trays made and not yet disposed, so that closing takes their icons away. */
     private final List<TrayPeer> trays = new ArrayList<>();
 
@@ -1348,7 +1376,8 @@ public final class LwjglBackend implements BackendPeer {
             return MacTray.canShow() ? new MacTray(id, host, uiRuntime::post) : TrayPeer.NONE;
         }
         if (Platform.current().isLinux()) {
-            return StatusNotifierTray.create(id, host, uiRuntime::post, System.getenv("DBUS_SESSION_BUS_ADDRESS"));
+            return StatusNotifierTray.create(id, host, uiRuntime::post, System.getenv("DBUS_SESSION_BUS_ADDRESS"),
+                    this::userActed);
         }
         return TrayPeer.NONE;
     }

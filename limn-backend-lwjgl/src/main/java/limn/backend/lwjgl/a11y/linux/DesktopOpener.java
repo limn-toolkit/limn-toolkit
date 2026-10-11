@@ -41,9 +41,23 @@ public final class DesktopOpener {
      * @return whether the portal, or {@code xdg-open} where none answers, took it
      */
     public static boolean openAddress(@Nullable String sessionAddress, String parent, URI address) {
+        return openAddress(sessionAddress, parent, address, "");
+    }
+
+    /**
+     * @param token the user's consent for what opens to come in front, as the desktop spells it
+     *              (an activation token under Wayland, a startup identifier under X11), or
+     *              {@code ""}: a program that is already running then takes the address behind
+     *              the window that asked
+     * @return whether the portal, or {@code xdg-open} where none answers, took it
+     */
+    public static boolean openAddress(@Nullable String sessionAddress, String parent, URI address, String token) {
         if (PortalFileChooser.canAsk(sessionAddress)) {
             try {
                 Map<String, DBus.Variant> options = new LinkedHashMap<>();
+                if (!token.isEmpty()) {
+                    options.put("activation_token", DBus.v("s", token));
+                }
                 call(sessionAddress, PortalFileChooser.PORTAL, PortalFileChooser.PORTAL_PATH, OPEN_URI,
                         "OpenURI", "ssa{sv}", parent, address.toString(), options);
                 return true;
@@ -52,7 +66,7 @@ public final class DesktopOpener {
                         noPortal);
             }
         }
-        return xdgOpen(address.toString());
+        return xdgOpen(address.toString(), token);
     }
 
     /**
@@ -60,7 +74,15 @@ public final class DesktopOpener {
      * @return whether {@code xdg-open} took it
      */
     public static boolean openFile(Path file) {
-        return xdgOpen(file.toString());
+        return openFile(file, "");
+    }
+
+    /**
+     * @param token the user's consent for what opens to come in front, or {@code ""}
+     * @return whether {@code xdg-open} took it
+     */
+    public static boolean openFile(Path file, String token) {
+        return xdgOpen(file.toString(), token);
     }
 
     /**
@@ -70,11 +92,20 @@ public final class DesktopOpener {
      *         answers to the name
      */
     public static boolean showInFolder(@Nullable String sessionAddress, Path file) {
+        return showInFolder(sessionAddress, file, "");
+    }
+
+    /**
+     * @param token the user's consent for the file manager to come in front, or {@code ""}
+     * @return whether a file manager was asked to show it, or its folder was opened where none
+     *         answers to the name
+     */
+    public static boolean showInFolder(@Nullable String sessionAddress, Path file, String token) {
         if (PortalFileChooser.canAsk(sessionAddress)) {
             try {
                 List<Object> uris = new ArrayList<>();
                 uris.add(file.toUri().toString());
-                call(sessionAddress, FILE_MANAGER, FILE_MANAGER_PATH, FILE_MANAGER, "ShowItems", "ass", uris, "");
+                call(sessionAddress, FILE_MANAGER, FILE_MANAGER_PATH, FILE_MANAGER, "ShowItems", "ass", uris, token);
                 return true;
             } catch (IOException | RuntimeException noFileManager) {
                 LOG.log(System.Logger.Level.INFO,
@@ -82,7 +113,7 @@ public final class DesktopOpener {
             }
         }
         Path folder = file.getParent();
-        return xdgOpen((folder == null ? file : folder).toString());
+        return xdgOpen((folder == null ? file : folder).toString(), token);
     }
 
     /** One call on a connection of its own, on this thread; an error reply is thrown. */
@@ -106,9 +137,22 @@ public final class DesktopOpener {
      * stays for as long as what it opened, which is taken too.
      */
     static boolean xdgOpen(String target) {
+        return xdgOpen(target, "");
+    }
+
+    /**
+     * @param token handed to what opens by the two names a program reads the user's consent
+     *              under, one for each windowing system; {@code ""} for none
+     */
+    static boolean xdgOpen(String target, String token) {
         try {
-            Process process = new ProcessBuilder(xdgOpenCommand(target))
-                    .redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start();
+            ProcessBuilder builder = new ProcessBuilder(xdgOpenCommand(target))
+                    .redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD);
+            if (!token.isEmpty()) {
+                builder.environment().put("XDG_ACTIVATION_TOKEN", token);
+                builder.environment().put("DESKTOP_STARTUP_ID", token);
+            }
+            Process process = builder.start();
             if (!process.waitFor(XDG_OPEN_SECONDS, TimeUnit.SECONDS)) {
                 return true;
             }

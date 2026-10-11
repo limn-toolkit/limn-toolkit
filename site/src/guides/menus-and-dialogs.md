@@ -283,11 +283,10 @@ answers what `openAddress` would refuse, for a link you would rather disable tha
 nothing.
 
 On Linux an address goes through the desktop portal, which also works inside a Flatpak or Snap
-sandbox, and through `xdg-open` where no portal answers. A browser that is not running opens in
-front of your window. One that is already running behind it takes the page in a new tab and
-stays behind, with the desktop marking it as wanting attention, under X11 and under Wayland
-alike: the desktop decides which window is in front, and the toolkit has no way yet to pass
-it the user's consent.
+sandbox, and through `xdg-open` where no portal answers. What opens comes in front of your
+window, a browser that was already running included: a Linux desktop lets a program in front only
+with proof that the user asked, and the launcher hands that proof on, from the key or the button
+that called it. Call it from the user's action, then, and not from a timer.
 
 ## An icon in the tray
 

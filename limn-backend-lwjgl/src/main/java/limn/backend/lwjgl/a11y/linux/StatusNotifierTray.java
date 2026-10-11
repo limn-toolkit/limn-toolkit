@@ -61,10 +61,14 @@ public final class StatusNotifierTray implements TrayPeer {
     private int revision = 1;
     private final limn.graphics.Color monochromeTint = TrayWire.panelTint(System.getenv("XDG_CURRENT_DESKTOP"));
 
-    private StatusNotifierTray(String id, TrayHost host, Executor ui, String address) {
+    private final java.util.function.Consumer<@Nullable String> acted;
+
+    private StatusNotifierTray(String id, TrayHost host, Executor ui, String address,
+            java.util.function.Consumer<@Nullable String> acted) {
         this.id = id;
         this.host = host;
         this.ui = ui;
+        this.acted = acted;
         this.address = address;
         this.worker = Threads.daemon("limn-tray-" + id, this::workLoop);
     }
@@ -78,10 +82,22 @@ public final class StatusNotifierTray implements TrayPeer {
      *         can reach
      */
     public static TrayPeer create(String id, TrayHost host, Executor ui, @Nullable String sessionAddress) {
+        return create(id, host, ui, sessionAddress, token -> { });
+    }
+
+    /**
+     * @param acted told on the UI thread, just before the host hears of a click on the icon or
+     *              on an item of its menu, with the token the panel handed over for it, or null:
+     *              the user's consent for a window to come in front
+     * @return the tray's peer, or {@link TrayPeer#NONE} when there is no session bus this client
+     *         can reach
+     */
+    public static TrayPeer create(String id, TrayHost host, Executor ui, @Nullable String sessionAddress,
+            java.util.function.Consumer<@Nullable String> acted) {
         if (!AtspiStatusWatch.canWatch(sessionAddress)) {
             return TrayPeer.NONE;
         }
-        return new StatusNotifierTray(id, host, ui, sessionAddress);
+        return new StatusNotifierTray(id, host, ui, sessionAddress, acted);
     }
 
     // ---- the UI thread ------------------------------------------------------------------------
@@ -249,6 +265,13 @@ public final class StatusNotifierTray implements TrayPeer {
         }
     }
 
+    /** The token a panel handed over for the click being answered, once: the next click brings its own. */
+    private @Nullable String takeToken() {
+        String token = activationToken;
+        activationToken = null;
+        return token;
+    }
+
     private void signal(DBus.Conn c, String name) {
         send(c, DBus.Msg.signal(TrayWire.ITEM_PATH, TrayWire.ITEM, name, null));
     }
@@ -409,7 +432,11 @@ public final class StatusNotifierTray implements TrayPeer {
                 if (!now.activates()) {
                     return null;   // an item that is a menu has no activation to call
                 }
-                ui.execute(host::activate);
+                String token = takeToken();
+                ui.execute(() -> {
+                    acted.accept(token);
+                    host.activate();
+                });
             }
             default -> {
                 // A secondary activation, a scroll, a context menu from a panel that draws none:
@@ -498,7 +525,11 @@ public final class StatusNotifierTray implements TrayPeer {
     private void event(int rowId, String what) {
         // The row that stands for a menu nobody set is not one of the application's.
         if ("clicked".equals(what) && !placeholder) {
-            ui.execute(() -> host.choose(rowId));
+            String token = takeToken();
+            ui.execute(() -> {
+                acted.accept(token);
+                host.choose(rowId);
+            });
         }
     }
 

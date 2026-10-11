@@ -39,7 +39,8 @@ final class WindowLauncher implements LauncherPeer {
         }
         String session = System.getenv("DBUS_SESSION_BUS_ADDRESS");
         String parent = window.isClosed() ? "" : window.portalParent();
-        return onItsOwnThread(() -> DesktopOpener.openAddress(session, parent, address));
+        java.util.function.Supplier<String> token = window.launchToken();
+        return onItsOwnThread(() -> DesktopOpener.openAddress(session, parent, address, token.get()));
     }
 
     @Override
@@ -51,7 +52,8 @@ final class WindowLauncher implements LauncherPeer {
             long owner = owner();
             return onItsOwnThread(() -> WindowsLauncher.open(owner, file.toString()));
         }
-        return onItsOwnThread(() -> DesktopOpener.openFile(file));
+        java.util.function.Supplier<String> token = window.launchToken();
+        return onItsOwnThread(() -> DesktopOpener.openFile(file, token.get()));
     }
 
     @Override
@@ -64,7 +66,8 @@ final class WindowLauncher implements LauncherPeer {
             return onItsOwnThread(() -> WindowsLauncher.showInFolder(owner, file));
         }
         String session = System.getenv("DBUS_SESSION_BUS_ADDRESS");
-        return onItsOwnThread(() -> DesktopOpener.showInFolder(session, file));
+        java.util.function.Supplier<String> token = window.launchToken();
+        return onItsOwnThread(() -> DesktopOpener.showInFolder(session, file, token.get()));
     }
 
     /** The window's handle for the system to own what it opens by, or none once it is closed. */
