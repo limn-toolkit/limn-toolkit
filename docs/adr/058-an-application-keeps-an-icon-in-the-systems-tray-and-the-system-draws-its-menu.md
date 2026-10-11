@@ -441,12 +441,27 @@ Built in the five steps of §14. Where what was built departs from the text abov
 - **macOS, the menu open:** a task due at the eighth second ran at the fourteenth, when the menu
   opened at the fifth was closed. The toolkit waits there, as §5.3 declared.
 
+**Seen in a third pass:**
+
+- **A reader's voice, on Windows.** With the task bar's button focused the reader said the
+  title, "button, 1 of 1"; Enter opened the menu, announced as a context menu; the arrows read
+  "Open the window", "Copy, unavailable", "Bold, checked", "Export, submenu", each with its
+  access letter; and Escape put the focus back on the icon, which was said again.
+- **The dark declaration's other effect.** On a dark system the window's own system menu, the
+  one of its title bar, is dark with the declaration and light with the property turned off. So
+  it does what it says for every menu the system draws for the process, which is the reason it
+  is made at the backend's start.
+- **A token nobody uses leaves no busy pointer** on GNOME 46 under X11: the pointer's shape,
+  read from the server once a second for eight seconds after an activation, stayed the default.
+- **An X11 client on KDE:** the toolkit run through XWayland on the KDE guest showed the icon,
+  and its activation brought the window in front and made it the active one.
+
 **Not seen, and still owed to §12:**
 
-- A screen reader's voice on the icon and its menu.
-- GNOME under Wayland and KDE under X11, which need the guests logged in to another session.
-- A token nobody uses, and whether GNOME shows a busy pointer for it: a capture of the screen
-  does not show the pointer.
-- What else the dark declaration changes in the process: the file chooser, the driver dialog,
-  a window's system menu.
+- A screen reader's voice on macOS and on Linux; there the name was read through the
+  accessibility interface only.
+- A GNOME session under Wayland and a Plasma session under X11. Both exist on the guests and
+  need somebody to log in to them; a GNOME shell nested in the X11 session started, and the
+  toolkit's window never appeared in it, which says nothing of a real session.
+- The file chooser and the driver dialog under the dark declaration.
 
