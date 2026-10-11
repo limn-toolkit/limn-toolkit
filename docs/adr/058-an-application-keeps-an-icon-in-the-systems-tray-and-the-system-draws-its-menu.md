@@ -503,13 +503,18 @@ light panel this time; the other button opened the menu, and the main one sent t
 with the pointer's place, which the application heard. It is the desktop's own programs for
 X11, not a login to its X11 session.
 
-**Not seen, and still owed to §12:**
+**GNOME under Wayland, in its real session.** With the owner's leave the Ubuntu guest's automatic
+login was put in its Wayland session and the display manager restarted, and put back after. The
+toolkit started on Wayland and the tray was taken. With a pointer made in the kernel, which the
+compositor takes as the user's: a single click on the icon opened the menu, a click elsewhere
+closed it, and a double click handed the item a token and sent the activation with the pointer's
+place, which the application heard. No picture of it: that session lets no program of the lab
+photograph the screen. The two earlier tries at a GNOME under Wayland beside the running
+session, nested and with no screen, had come to nothing: there the windowing library waits in
+its first round trip for an answer the compositor never sends (read from the process's native
+stack), which a real session's compositor does send.
 
-- A GNOME session under Wayland. It needs somebody to log in to it on the guest, which ends
-  what runs in the session there now. Two ways round were tried and neither is a session: a
-  shell nested in the X11 one, and a shell with no screen on a bus of its own. In both the
-  shell came up with its watcher, and the toolkit never got as far as a tray: its windowing
-  library did not return from starting, waiting in its first round trip for an answer the
-  compositor never sent (read from the process's native stack). Why such a compositor does not
-  answer was not found; a real session's does, as the KDE guest's does every day. What stands in meanwhile is the tray on GNOME under X11, which is the same bus and the
-  same extension under either session.
+**Nothing of §12 is left unseen.** What stays declared is what the systems do not offer: under
+Wayland a window is told neither that it is minimized nor where it is; on macOS the toolkit
+waits while a menu is open; GNOME's menu shows no accelerator and puts an item's icon at its
+trailing side; a panel with no tray takes no icon.
