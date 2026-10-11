@@ -29,7 +29,7 @@ public final class Main {
             "app", "video", "icons", "icons-light", "icons-search",
             "dialog-decorated", "dialog-opaque", "dialog-glass", "textfield-selected",
             "textfield-ime", "password-ramp", "fonts", "fonts-switched", "ellipsis",
-            "textarea-scroll", "textarea-ime", "tabs", "tabs-overflow", "combo-overflow", "combos", "transfer", "picker",
+            "textarea-scroll", "textarea-ime", "tabs", "tabs-overflow", "combo-overflow", "combos", "transfer", "picker", "tray",
             "showcase", "showcase-light", "dialog-open", "forms", "forms-light", "forms-popup",
             "components", "components-light", "widgets", "list", "table", "tree", "tree-scroll", "tree-deep", "tree-reserved", "tree-loading", "dates", "dates-light", "dates-popup", "dates-months", "dates-years", "dates-months-cursor", "dates-years-cursor", "dates-month-picker", "dates-month-picker-light", "dates-time-row", "dates-time-row-light", "dates-month-range", "dates-month-range-light", "form", "animations", "cursors",
             "sprites", "audio", "controls", "control-sizes", "control-sizes-audit",
@@ -321,6 +321,9 @@ public final class Main {
             } else if (scene.equals("picker")) {
                 // The ready-made widgets that drag (ADR 054 §4): two lists and a picture.
                 widgetScene = PickerScene.create();
+            } else if (scene.equals("tray")) {
+                // The tray icon (ADR 058), to try by hand.
+                widgetScene = TrayScene.create(backend);
             } else if (scene.equals("transfer")) {
                 // Drag and drop and the clipboard (ADR 053 and 054), to try by hand.
                 widgetScene = TransferScene.create();

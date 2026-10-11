@@ -212,6 +212,8 @@ final class DBus {
                             write(w, kv.get(1), pair[1]);
                         }
                     }
+                } else if (v instanceof byte[] bytes && elem.equals("y")) {
+                    w.raw(bytes);   // a picture's pixels, which a list of boxed bytes would be slow for
                 } else {
                     for (Object o : asList(v)) write(w, elem, o);
                 }
@@ -854,6 +856,13 @@ final class DBus {
             }
         }
 
+        /**
+         * Hears the signals this connection receives, on the reader thread, where the rule of
+         * every handler holds: no blocking call on this connection. None are heard without it.
+         */
+        void onSignal(java.util.function.Consumer<Msg> listener) { signalListener = listener; }
+        private volatile java.util.function.Consumer<Msg> signalListener;
+
         void export(String path, Handler h) { exports.put(path, h); }
         /** Answers calls on any path with no exact export — used to serve the node tree. */
         void exportFallback(Handler h) { fallback = h; }
@@ -1000,6 +1009,8 @@ final class DBus {
             }
             if (m.type == SIGNAL) {
                 if (TRACE) System.err.println("[signal] " + m);
+                java.util.function.Consumer<Msg> listener = signalListener;
+                if (listener != null) listener.accept(m);
                 return;
             }
             lastHandlerThread = Thread.currentThread();
