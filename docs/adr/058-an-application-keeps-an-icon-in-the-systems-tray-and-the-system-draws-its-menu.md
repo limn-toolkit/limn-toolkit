@@ -491,11 +491,13 @@ Built in the five steps of §14. Where what was built departs from the text abov
   "Count this opening" and "Quit", passing over the disabled item as it does in any menu of the
   shell.
 
+- **The driver dialog under the declaration** on a dark system, shown by its probe with the
+  declaration made and without: the same light dialog both times. The declaration does not
+  reach it.
+
 **Not seen, and still owed to §12:**
 
 - A GNOME session under Wayland and a Plasma session under X11. Both exist on the guests and
   need somebody to log in to them; a GNOME shell nested in the X11 session started, and the
   toolkit's window never appeared in it, which says nothing of a real session.
-- The driver dialog under the dark declaration, which shows only on a machine with no graphics
-  driver.
 
