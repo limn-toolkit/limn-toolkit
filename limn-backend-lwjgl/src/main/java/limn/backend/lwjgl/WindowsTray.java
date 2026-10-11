@@ -55,6 +55,7 @@ final class WindowsTray implements TrayPeer {
 
     private static final int WM_NULL = 0x0000;
     private static final int WM_SETTINGCHANGE = 0x001A;
+    private static final int WM_DISPLAYCHANGE = 0x007E;
     private static final int WM_CONTEXTMENU = 0x007B;
     private static final int WM_APP_ICON = 0x8000 + 1;
     private static final int WM_APP_UPDATE = 0x8000 + 2;
@@ -197,7 +198,9 @@ final class WindowsTray implements TrayPeer {
                 return;
             }
             BY_WINDOW.put(window, this);
-            taskbarCreated = (int) user("RegisterWindowMessageW", "p>i", wide("TaskbarCreated"));
+            long broadcast = wide("TaskbarCreated");
+            taskbarCreated = (int) user("RegisterWindowMessageW", "p>i", broadcast);
+            MemoryUtil.nmemFree(broadcast);
             data = MemoryUtil.nmemCalloc(1, DATA_SIZE);
             hwnd = window;
             apply();
@@ -312,6 +315,11 @@ final class WindowsTray implements TrayPeer {
                 clicked((int) (lParam & 0xFFFF), (short) (wParam & 0xFFFF), (short) ((wParam >> 16) & 0xFFFF));
                 return true;
             }
+            case WM_DISPLAYCHANGE -> {
+                applied = null;   // the task bar's monitor may be another, at another scale
+                apply();
+                return false;
+            }
             case WM_SETTINGCHANGE -> {
                 // The task bar may have gone light or dark, which a monochrome icon follows.
                 WindowsDarkMenus.flush();
@@ -386,7 +394,7 @@ final class WindowsTray implements TrayPeer {
 
     /** The picture at the small icon's size: the monochrome one in the task bar's colour when there is one. */
     private long icon(TrayState now) {
-        int size = Math.max(16, (int) user("GetSystemMetrics", "i>i", SM_CXSMICON));
+        int size = smallIconSize();
         boolean lightBar = WindowsSystemPreferences.systemSurfacesAreLight();
         TrayPicture shape = now.monochrome();
         Image image;
@@ -405,6 +413,32 @@ final class WindowsTray implements TrayPeer {
             return NULL;
         }
         return iconOf(image);
+    }
+
+    /**
+     * The small icon's side in pixels on the monitor the task bar is on, which with monitors of
+     * different scales is not the size the process was started at; the system's own answer where
+     * the task bar cannot be asked.
+     */
+    private static int smallIconSize() {
+        try {
+            long name = wide("Shell_TrayWnd");
+            long taskBar;
+            try {
+                taskBar = user("FindWindowW", "pp>p", name, NULL);
+            } finally {
+                MemoryUtil.nmemFree(name);
+            }
+            if (taskBar != NULL) {
+                int dpi = (int) user("GetDpiForWindow", "p>i", taskBar);
+                if (dpi > 0) {
+                    return Math.max(16, (int) user("GetSystemMetricsForDpi", "ii>i", SM_CXSMICON, dpi));
+                }
+            }
+        } catch (RuntimeException | LinkageError older) {
+            // Before Windows 10's build 14393 neither call exists.
+        }
+        return Math.max(16, (int) user("GetSystemMetrics", "i>i", SM_CXSMICON));
     }
 
     /** An icon handle from straight-alpha pixels, by a 32-bit colour bitmap and an empty mask. */

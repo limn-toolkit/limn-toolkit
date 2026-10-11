@@ -77,13 +77,13 @@ class StatusNotifierTrayTest {
 
     @Test
     void theItemsPropertiesAreTheStates() {
-        Map<String, DBus.Variant> p = TrayWire.itemProperties(state(false, false), "orders");
+        Map<String, DBus.Variant> p = TrayWire.itemProperties(state(false, false), "orders", TrayWire.PANEL_GREY);
         assertEquals("orders", p.get("Id").value);
         assertEquals("Orders", p.get("Title").value);
         assertEquals("Active", p.get("Status").value);
         assertEquals(TrayWire.MENU_PATH, p.get("Menu").value);
         assertEquals(true, p.get("ItemIsMenu").value, "with no activation every click opens the menu");
-        assertEquals(false, TrayWire.itemProperties(state(true, false), "orders").get("ItemIsMenu").value);
+        assertEquals(false, TrayWire.itemProperties(state(true, false), "orders", TrayWire.PANEL_GREY).get("ItemIsMenu").value);
         assertEquals("3 waiting", ((Object[]) p.get("ToolTip").value)[2]);
         List<?> pixmaps = (List<?>) p.get("IconPixmap").value;
         assertEquals(TrayWire.SIZES.length, pixmaps.size());
@@ -99,7 +99,7 @@ class StatusNotifierTrayTest {
 
     @Test
     void attentionIsAStatusWithItsPicture() {
-        Map<String, DBus.Variant> p = TrayWire.itemProperties(state(false, true), "orders");
+        Map<String, DBus.Variant> p = TrayWire.itemProperties(state(false, true), "orders", TrayWire.PANEL_GREY);
         assertEquals("NeedsAttention", p.get("Status").value);
         assertEquals(TrayWire.SIZES.length, ((List<?>) p.get("AttentionIconPixmap").value).size());
     }
@@ -108,16 +108,35 @@ class StatusNotifierTrayTest {
     void aMonochromeIconAloneIsDrawnInTheGrey() {
         TrayState only = new TrayState("Orders", "", null, new TrayPicture(square(0, true), null, false), false,
                 false, false);
-        byte[] argb = (byte[]) ((Object[]) ((List<?>) TrayWire.itemProperties(only, "orders").get("IconPixmap").value)
+        byte[] argb = (byte[]) ((Object[]) ((List<?>) TrayWire.itemProperties(only, "orders", TrayWire.panelTint("KDE")).get("IconPixmap").value)
                 .get(0))[2];
         assertEquals((byte) 0x8C, argb[1]);
-        assertEquals("Orders", ((Object[]) TrayWire.itemProperties(only, "orders").get("ToolTip").value)[2],
+        assertEquals("Orders", ((Object[]) TrayWire.itemProperties(only, "orders", TrayWire.panelTint("KDE")).get("ToolTip").value)[2],
                 "with no tooltip the name is what there is to say");
     }
 
     @Test
+    void onGnomeAMonochromeIconIsTheWhiteOfTheBarsOwn() {
+        assertEquals(limn.graphics.Color.rgb(0xFFFFFF), TrayWire.panelTint("ubuntu:GNOME"));
+        assertEquals(limn.graphics.Color.rgb(0xFFFFFF), TrayWire.panelTint("GNOME"));
+        assertEquals(TrayWire.PANEL_GREY, TrayWire.panelTint("KDE"));
+        assertEquals(TrayWire.PANEL_GREY, TrayWire.panelTint(null));
+    }
+
+    @Test
+    void aPictureIsSentAtEverySizeDrawnForIt() {
+        List<?> pixmaps = TrayWire.pixmaps(state(false, false), TrayWire.PANEL_GREY);
+        for (int i = 0; i < TrayWire.SIZES.length; i++) {
+            Object[] one = (Object[]) pixmaps.get(i);
+            assertEquals(TrayWire.SIZES[i], one[0]);
+            assertEquals(TrayWire.SIZES[i] * TrayWire.SIZES[i] * 4, ((byte[]) one[2]).length);
+        }
+        assertEquals(96, TrayWire.SIZES[TrayWire.SIZES.length - 1], "three times a 32-pixel slot");
+    }
+
+    @Test
     void everyPropertyAndTheLayoutCanBeWritten() {
-        Map<String, DBus.Variant> p = TrayWire.itemProperties(state(true, true), "orders");
+        Map<String, DBus.Variant> p = TrayWire.itemProperties(state(true, true), "orders", TrayWire.PANEL_GREY);
         byte[] wire = DBus.writeArgs("a{sv}", new Object[] {p});
         Object[] back = DBus.readArgs(wire, ByteOrder.LITTLE_ENDIAN, "a{sv}");
         assertEquals(p.size(), ((Map<?, ?>) back[0]).size());

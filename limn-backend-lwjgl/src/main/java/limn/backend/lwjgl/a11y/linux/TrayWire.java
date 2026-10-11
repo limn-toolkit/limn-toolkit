@@ -24,11 +24,30 @@ final class TrayWire {
     static final String WATCHER = "org.kde.StatusNotifierWatcher";
     static final String WATCHER_PATH = "/StatusNotifierWatcher";
 
-    /** The sizes a picture is sent at: what panels draw at from 100 % to 300 %. */
-    static final int[] SIZES = {16, 22, 24, 32, 48, 64};
+    /**
+     * The sizes a picture is sent at, each drawn for that size and not scaled from another: what
+     * panels draw an item at, 16 to 32, and the same at 200 % and 300 %, where a panel takes the
+     * size nearest what it needs.
+     */
+    static final int[] SIZES = {16, 22, 24, 32, 44, 48, 64, 96};
 
-    /** The grey a monochrome icon is drawn in where the panel does not say its colour. */
+    /** The grey a monochrome icon is drawn in where nothing says the panel's colour. */
     static final Color PANEL_GREY = Color.rgb(0x8C8C8C);
+
+    /**
+     * The colour a monochrome icon is drawn in. The protocol does not say the panel's colour, and
+     * the desktop's light or dark setting is not it: read on 2026-10-11, KDE's panel and GNOME's
+     * top bar were both dark with the system set to light. What is known is GNOME's bar, dark in
+     * both settings, so there the icon is the white of the bar's own; anywhere else it is a grey
+     * that reads on a light and on a dark panel.
+     *
+     * @param desktop {@code XDG_CURRENT_DESKTOP}, or null
+     * @return the tint
+     */
+    static Color panelTint(@Nullable String desktop) {
+        return desktop != null && desktop.toUpperCase(java.util.Locale.ROOT).contains("GNOME")
+                ? Color.rgb(0xFFFFFF) : PANEL_GREY;
+    }
 
     /** The number of the row that stands for a menu the application did not set. */
     static final int PLACEHOLDER_ROW = 1;
@@ -43,10 +62,11 @@ final class TrayWire {
     /**
      * @param state what the tray shows
      * @param id    the application's identifier for the icon
+     * @param monochromeTint the colour of a monochrome icon shown for want of another
      * @return every property of the status item
      */
-    static Map<String, DBus.Variant> itemProperties(TrayState state, String id) {
-        List<Object> pixmaps = pixmaps(state);
+    static Map<String, DBus.Variant> itemProperties(TrayState state, String id, Color monochromeTint) {
+        List<Object> pixmaps = pixmaps(state, monochromeTint);
         Map<String, DBus.Variant> p = new LinkedHashMap<>();
         p.put("Category", DBus.v("s", "ApplicationStatus"));
         p.put("Id", DBus.v("s", id));
@@ -79,12 +99,12 @@ final class TrayWire {
     }
 
     /** The picture at every size, each as width, height and ARGB in network byte order. */
-    static List<Object> pixmaps(TrayState state) {
+    static List<Object> pixmaps(TrayState state, Color monochromeTint) {
         TrayPicture picture = state.picture();
         Color tint = null;
         if (picture == null) {
             picture = state.monochrome();
-            tint = PANEL_GREY;
+            tint = monochromeTint;
         }
         List<Object> out = new ArrayList<>();
         if (picture == null) {

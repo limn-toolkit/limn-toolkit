@@ -59,6 +59,7 @@ public final class StatusNotifierTray implements TrayPeer {
     private volatile boolean disposed;
     private volatile @Nullable String activationToken;
     private int revision = 1;
+    private final limn.graphics.Color monochromeTint = TrayWire.panelTint(System.getenv("XDG_CURRENT_DESKTOP"));
 
     private StatusNotifierTray(String id, TrayHost host, Executor ui, String address) {
         this.id = id;
@@ -285,7 +286,7 @@ public final class StatusNotifierTray implements TrayPeer {
             return DBus.Msg.ret(m, "s", TrayWire.itemIntrospection(now.activates()));
         }
         if (PROPERTIES.equals(m.iface)) {
-            Map<String, DBus.Variant> properties = TrayWire.itemProperties(now, id);
+            Map<String, DBus.Variant> properties = TrayWire.itemProperties(now, id, monochromeTint);
             if ("GetAll".equals(m.member)) {
                 return DBus.Msg.ret(m, "a{sv}", properties);
             }
