@@ -484,14 +484,15 @@ Built in the five steps of §14. Where what was built departs from the text abov
   gives a minimized window no size at a place far off the screen, and macOS says one is not
   shown, so a minimized window's state keeps the bounds it comes back to and is a shown one.
 - **A reader's voice on macOS and on Linux.** VoiceOver, taken to the status menus, said
-  "Limn Showcase, status menu". Orca said "Limn Showcase push button" with the icon focused. On
-  neither did keys sent by a script walk the menu's items, which only the Windows reader was
-  heard reading.
+  "Limn Showcase, status menu", and with the item pressed through accessibility said "menu" and
+  then, arrow by arrow, "Preferences" with its accelerator, "Copy, dimmed", "Bold" with its
+  check and "Export, submenu". Orca said "Limn Showcase push button" with the icon focused and,
+  with the menu open, "Open the window", "Preferences", "Bold, checked", "Export, collapsed",
+  "Count this opening" and "Quit", passing over the disabled item as it does in any menu of the
+  shell.
 
 **Not seen, and still owed to §12:**
 
-- A screen reader reading the menu's items on macOS and on Linux; the icon's name was heard on
-  both.
 - A GNOME session under Wayland and a Plasma session under X11. Both exist on the guests and
   need somebody to log in to them; a GNOME shell nested in the X11 session started, and the
   toolkit's window never appeared in it, which says nothing of a real session.
