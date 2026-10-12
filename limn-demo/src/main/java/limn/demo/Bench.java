@@ -201,8 +201,14 @@ final class Bench {
                                   NativeWindow window) {
         cpu.phase = "idle";
         long idleStart = scene.metrics().totalFrames();
+        // The second half apart: a window still being placed by the desktop is repainted for a
+        // moment after it shows, and that is settling, where a frame in the last two seconds is
+        // a screen that never rests.
+        long[] halfway = {idleStart};
+        Ui.postDelayed(() -> halfway[0] = scene.metrics().totalFrames(), 2000);
         Ui.postDelayed(() -> {
             out.append(kv("idle_paints", scene.metrics().totalFrames() - idleStart));
+            out.append(kv("idle_paints_last_2s", scene.metrics().totalFrames() - halfway[0]));
             out.append(kv("idle_cpu_pct", cpu.pct("idle")));
             startAnim(cpu, out, scene, topBars, status, scroll, window);
         }, 4000);

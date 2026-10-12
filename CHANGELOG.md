@@ -212,6 +212,11 @@ Maven Central say which number that was.
 
 ### New
 
+- `HeadlessWindow.takeFrameRequests()`, in `limn-test`: how many frames a scene asked its window
+  for since the last call. A test frames a screen until it answers zero and has shown that the
+  screen costs nothing while nobody touches it. The toolkit holds itself to it, and to counts of
+  work that are the same on every machine, in `check`: a list, a table and a tree of a hundred
+  thousand rows cost a frame what ten thousand do.
 - A menu item can have an icon: `MenuItem.setIcon` shows a picture before the label, in a
   popup menu and a menu bar's menus, which keep the same room on every item of a column once one
   has an icon, and in the menu a system draws for a tray. A tintable icon takes the label's

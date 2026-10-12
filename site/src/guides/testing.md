@@ -84,6 +84,27 @@ there is nowhere for it to open. `HeadlessBackend` supplies one: every window it
 and `scene()` answering the scene bound to each. `frame()` on a window runs one frame, and
 `key(...)` presses a key in that window.
 
+## What a screen costs
+
+A test can hold a screen to what it costs without a stopwatch, in counts that are the same on
+every machine. `window.takeFrameRequests()` answers how many frames the scene asked a
+`HeadlessWindow` for since it was last read: frame the window until that is zero, frame it some
+more, and a screen nobody touches must still answer zero. `scene.metrics().paintedWidgets().last()`
+is how many widgets the last frame painted, which for a list of a hundred thousand rows is the
+rows on screen. `AllocationProbe.leastAllocatedBy(step, attempts)` is the bytes a step allocates.
+
+```java
+window.frame();
+while (window.takeFrameRequests() > 0) {
+    window.frame();
+}
+window.frame();
+assertEquals(0, window.takeFrameRequests());
+```
+
+A transition runs on the wall clock unless the scene was built with a clock of its own, so a
+screen that animates as it opens needs real time to come to rest.
+
 ## Accessibility
 
 A widget of your own can be held to the same contracts the toolkit's widgets are. An
