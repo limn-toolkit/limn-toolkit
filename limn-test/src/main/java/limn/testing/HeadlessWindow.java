@@ -336,7 +336,23 @@ public final class HeadlessWindow implements WindowPeer {
     @Override public float logicalToScreenFactor() { return 1; }
     @Override public void captureNextFrame(Consumer<Image> sink) { }
     @Override public void setContentScaleListener(ContentScaleListener listener) { }
-    @Override public void requestFrame() { }
+    @Override public void requestFrame() { frameRequests++; }
+
+    private int frameRequests;
+
+    /**
+     * How many frames the scene has asked this window for since the last call, which also sets
+     * the count back to nothing. A scene that is at rest asks for none: a test that shows a screen,
+     * lets it settle and then reads zero here has shown that the screen costs nothing while
+     * nobody touches it.
+     *
+     * @return the frames asked for since this was last read
+     */
+    public int takeFrameRequests() {
+        int asked = frameRequests;
+        frameRequests = 0;
+        return asked;
+    }
     @Override public void requestClose() { close(); }
 
     /**
