@@ -89,8 +89,22 @@ The window is repainted about twenty times in the two seconds after it shows, wh
 places it, and not once after: the bench now reports the second half of its rest apart
 (`idle_paints_last_2s`), which is the number that says whether a screen rests.
 
-The macOS guest, which has no graphics card at all, was the machine meant for this; its session
-was locked, a locked session paints nothing, and its numbers were thrown away.
+The macOS guest, four cores and 8 GB, has no graphics card at all and draws every pixel of a
+display at twice the density on the processor. Its first run was thrown away: its session was
+locked, and a locked session paints nothing. Measured the same day with the session open:
+
+| | Partial rendering | Full repaint |
+|---|---|---|
+| First frame on screen | 1.76 s | 1.69 s |
+| Frames at rest, four seconds | 3 | 2 |
+| Animation, ten bars and a label at 60 Hz | 64 frames/s, 0.2 ms a frame, 12 % | 11 frames/s, 85 ms a frame, 25 % |
+| Scrolling the form | 6 frames/s, 84 ms a frame, 25 % | 5 frames/s, 90 ms a frame, 25 % |
+
+Partial rendering is what keeps a small change at full rate on that machine, and a scroll, which
+repaints the whole form, is filled at six frames a second with it or without: the cost there is
+pixels, which no count of §1 sees and no change in the toolkit's own work would move. It is the
+case the owner's open decision about drawing at single density under software rendering on
+macOS is about.
 
 ## 5. Consequences
 
