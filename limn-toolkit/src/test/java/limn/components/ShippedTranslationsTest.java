@@ -64,7 +64,8 @@ class ShippedTranslationsTest extends ComponentTestBase {
         // build a date widget, so this class passed in the suite and failed on its own, calling
         // every dates key an orphan.
         initialise("limn.components.date.DateStrings", "limn.components.tree.TreeStrings",
-                "limn.components.table.TableStrings", "limn.scene.DragStrings");
+                "limn.components.table.TableStrings", "limn.scene.DragStrings",
+                "limn.backend.spi.SystemMenuLabels");
         return I18n.declaredKeys().keySet().stream()
                 .filter(key -> key.startsWith("limn."))
                 .collect(Collectors.toCollection(TreeSet::new));

@@ -53,6 +53,10 @@ public final class SceneAccess {
          */
         Subscription observeWindowFocus(Scene scene, Runnable observer);
 
+        Subscription observeWindowBound(Scene scene, Runnable observer);
+
+        @org.jspecify.annotations.Nullable Widget<?> focusedBefore(Scene scene);
+
         /**
          * Routes {@code scene}'s keyboard to {@code route}; see {@link SceneAccess#routeKeyboard}.
          *
@@ -151,6 +155,16 @@ public final class SceneAccess {
      * @param overlay   the overlay's root, holding content {@code movedFrom} drew until now
      * @param movedFrom the scene that content comes from, which lets go of its focus
      */
+    /** Tells {@code observer} each time {@code scene} is bound to a window. */
+    public static Subscription observeWindowBound(Scene scene, Runnable observer) {
+        return hook().observeWindowBound(java.util.Objects.requireNonNull(scene, "scene"), observer);
+    }
+
+    /** @return the widget that had the keyboard in {@code scene} before the one that has it now, or null */
+    public static @org.jspecify.annotations.Nullable Widget<?> focusedBefore(Scene scene) {
+        return hook().focusedBefore(java.util.Objects.requireNonNull(scene, "scene"));
+    }
+
     public static void pushMovedOverlay(Scene scene, Widget<?> overlay, Scene movedFrom) {
         java.util.Objects.requireNonNull(scene, "scene");
         hook().pushMovedOverlay(scene, overlay, movedFrom);

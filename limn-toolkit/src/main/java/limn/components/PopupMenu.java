@@ -401,6 +401,7 @@ public final class PopupMenu {
 
     private void show(Scene ownerScene, Widget<?> host, float ax, float ay, float aw, float ah) {
         Ui.checkUiThread();
+        EditTarget.opening(ownerScene);
         NativeWindow win = ownerScene == null ? null : ownerScene.window();
         if (open || rootMenu.isEmpty() || win == null || win.display() == null) {
             return; // native menus need a real window + display

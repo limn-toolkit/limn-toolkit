@@ -246,7 +246,7 @@ installieren.
 den das Theme ihrer Ebene gibt: Menüs, Listen, Kalender und Dialoge tun es bereits, und `Surface`
 hebt ein eigenes Panel an. `window.launcher()` übergibt einen Link oder eine Datei an die
 Programme des Systems — den Browser, das E-Mail-Programm, den Dateimanager.
-`Tray` hält ein Symbol im Infobereich des Systems, mit einem Menü, das das System selbst zeichnet.
+`Tray` hält ein Symbol im Infobereich des Systems, mit einem Menü, das das System selbst zeichnet. Unter macOS erscheint ein `MenuBar` in der Menüleiste des Systems.
 
 **Das Aussehen Ihres Produkts, nicht das des Toolkits.** Ein Theme sind reine Daten — jede Farbe,
 der Eckenradius, die Größenstufe, die jedes Steuerelement erbt — und ein Aufruf tauscht es zur

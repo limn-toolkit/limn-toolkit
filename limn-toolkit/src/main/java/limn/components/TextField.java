@@ -1208,6 +1208,44 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         }
     }
 
+    /**
+     * The selection this widget had when it lost the keyboard, as start, end and the text's
+     * version then; {@code null} when it had none. A menu takes the keyboard to be walked, and
+     * its Cut and Copy are for what was selected before it did: the selection itself is let go
+     * with the focus, as it always was, and comes back for the command.
+     */
+    private long @Nullable [] selectionLeft;
+
+    private boolean hasSelectionLeft() {
+        long[] left = selectionLeft;
+        return left != null && !isFocused() && left[2] == model.textVersion();
+    }
+
+    @Override
+    protected boolean onCanEdit(limn.scene.EditCommand command) {
+        TextContextMenu.Host host = contextMenuHost();
+        TextContextMenu.Rows rows = TextContextMenu.rowsFor(host);
+        boolean left = hasSelectionLeft() && host.allowsCopy();
+        return switch (command) {
+            case UNDO -> isEnabled() && model.canUndo();
+            case REDO -> isEnabled() && model.canRedo();
+            case CUT -> rows.cut() || left && host.isEditable();
+            case COPY -> rows.copy() || left;
+            case PASTE -> rows.paste();
+            case SELECT_ALL -> rows.selectAll();
+        };
+    }
+
+    @Override
+    protected boolean onEdit(limn.scene.EditCommand command) {
+        long[] left = selectionLeft;
+        if (left != null && hasSelectionLeft()
+                && (command == limn.scene.EditCommand.CUT || command == limn.scene.EditCommand.COPY)) {
+            select((int) left[0], (int) left[1]);
+        }
+        return limn.components.internal.EditKeys.send(command, this::onKeyEvent);
+    }
+
     @Override
     protected void onKeyEvent(KeyEvent event) {
         if (event.isPressed() && !preedit.isEmpty()) {
@@ -1873,6 +1911,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
 
     @Override
     protected void onFocusGained() {
+        selectionLeft = null;
         focusFade.to(1);
         resetBlink();
         // Tabbed into: take the contents, so the first keystroke replaces them and a copy needs
@@ -1888,6 +1927,8 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         focusFade.to(0);
         blinkGeneration++; // stop the pending blink
         cursorVisible = true;
+        selectionLeft = model.hasSelection()
+                ? new long[] {model.selectionStart(), model.selectionEnd(), model.textVersion()} : null;
         model.clearSelection();
         preedit = ""; // drop any in-progress composition
         preeditCaret = 0;

@@ -3,7 +3,7 @@ package limn.backend.lwjgl.a11y.linux;
 import limn.backend.spi.TrayHost;
 import limn.backend.spi.TrayPeer;
 import limn.backend.spi.TrayPicture;
-import limn.backend.spi.TrayRow;
+import limn.backend.spi.MenuRow;
 import limn.backend.spi.TrayState;
 import limn.graphics.Icon;
 import limn.graphics.Image;
@@ -69,8 +69,8 @@ class StatusNotifierTrayTest {
                 attention, activates, false);
     }
 
-    private static TrayRow row(int id, TrayRow.Kind kind, String label, TrayRow... children) {
-        return new TrayRow(id, kind, label, true, false, (char) 0, List.of(children));
+    private static MenuRow row(int id, MenuRow.Kind kind, String label, MenuRow... children) {
+        return new MenuRow(id, kind, label, true, false, (char) 0, List.of(children));
     }
 
     // ---- values -------------------------------------------------------------------------------
@@ -168,8 +168,8 @@ class StatusNotifierTrayTest {
         Object[] back = DBus.readArgs(wire, ByteOrder.LITTLE_ENDIAN, "a{sv}");
         assertEquals(p.size(), ((Map<?, ?>) back[0]).size());
 
-        List<TrayRow> rows = List.of(row(1, TrayRow.Kind.COMMAND, "Open"),
-                row(2, TrayRow.Kind.SUBMENU, "Export", row(3, TrayRow.Kind.COMMAND, "PDF")));
+        List<MenuRow> rows = List.of(row(1, MenuRow.Kind.COMMAND, "Open"),
+                row(2, MenuRow.Kind.SUBMENU, "Export", row(3, MenuRow.Kind.COMMAND, "PDF")));
         Object[] layout = TrayWire.layout(0, -1, rows);
         byte[] bytes = DBus.writeArgs("u(ia{sv}av)", new Object[] {7, layout});
         assertEquals(7, DBus.readArgs(bytes, ByteOrder.LITTLE_ENDIAN, "u(ia{sv}av)")[0]);
@@ -183,8 +183,8 @@ class StatusNotifierTrayTest {
 
     @Test
     void theLayoutFollowsTheRowsToTheDepthAsked() {
-        List<TrayRow> rows = List.of(row(1, TrayRow.Kind.COMMAND, "Open"),
-                row(2, TrayRow.Kind.SUBMENU, "Export", row(3, TrayRow.Kind.COMMAND, "PDF")));
+        List<MenuRow> rows = List.of(row(1, MenuRow.Kind.COMMAND, "Open"),
+                row(2, MenuRow.Kind.SUBMENU, "Export", row(3, MenuRow.Kind.COMMAND, "PDF")));
         Object[] all = TrayWire.layout(0, -1, rows);
         assertEquals(0, all[0]);
         List<?> top = (List<?>) all[2];
@@ -203,36 +203,36 @@ class StatusNotifierTrayTest {
 
     @Test
     void aRowsPropertiesLeaveOutWhatIsAtItsDefault() {
-        assertEquals(Map.of("label", "Open").keySet(), TrayWire.rowProperties(row(1, TrayRow.Kind.COMMAND, "Open")).keySet());
+        assertEquals(Map.of("label", "Open").keySet(), TrayWire.rowProperties(row(1, MenuRow.Kind.COMMAND, "Open")).keySet());
         Map<String, DBus.Variant> check = TrayWire.rowProperties(
-                new TrayRow(2, TrayRow.Kind.CHECK, "Bold", false, true, (char) 0, List.of()));
+                new MenuRow(2, MenuRow.Kind.CHECK, "Bold", false, true, (char) 0, List.of()));
         assertEquals(false, check.get("enabled").value);
         assertEquals("checkmark", check.get("toggle-type").value);
         assertEquals(1, check.get("toggle-state").value);
         assertEquals("separator", TrayWire.rowProperties(
-                new TrayRow(3, TrayRow.Kind.SEPARATOR, "", false, false, (char) 0, List.of())).get("type").value);
+                new MenuRow(3, MenuRow.Kind.SEPARATOR, "", false, false, (char) 0, List.of())).get("type").value);
     }
 
     @Test
     void anAcceleratorIsWrittenAsItsModifiersThenItsKey() {
-        TrayRow row = new TrayRow(1, TrayRow.Kind.COMMAND, "Save as", true, false, (char) 0, List.of(), null, "S",
+        MenuRow row = new MenuRow(1, MenuRow.Kind.COMMAND, "Save as", true, false, (char) 0, List.of(), null, "S",
                 limn.input.Keys.MOD_CONTROL | limn.input.Keys.MOD_SHIFT);
         assertEquals(List.of(List.of("Control", "Shift", "S")), TrayWire.rowProperties(row).get("shortcut").value);
-        assertFalse(TrayWire.rowProperties(row(1, TrayRow.Kind.COMMAND, "Open")).containsKey("shortcut"));
-        assertFalse(TrayWire.rowProperties(row(1, TrayRow.Kind.COMMAND, "Open")).containsKey("icon-data"));
+        assertFalse(TrayWire.rowProperties(row(1, MenuRow.Kind.COMMAND, "Open")).containsKey("shortcut"));
+        assertFalse(TrayWire.rowProperties(row(1, MenuRow.Kind.COMMAND, "Open")).containsKey("icon-data"));
     }
 
     @Test
     void anUnderscoreInALabelIsTheTextsAndTheAccessLetterIsMarked() {
-        assertEquals("report__final.pdf", TrayWire.label(row(1, TrayRow.Kind.COMMAND, "report_final.pdf")));
-        assertEquals("_Open", TrayWire.label(new TrayRow(1, TrayRow.Kind.COMMAND, "Open", true, false, 'O', List.of())));
-        assertEquals("E_xit", TrayWire.label(new TrayRow(1, TrayRow.Kind.COMMAND, "Exit", true, false, 'X', List.of())));
-        assertEquals("Open", TrayWire.label(new TrayRow(1, TrayRow.Kind.COMMAND, "Open", true, false, 'Z', List.of())));
+        assertEquals("report__final.pdf", TrayWire.label(row(1, MenuRow.Kind.COMMAND, "report_final.pdf")));
+        assertEquals("_Open", TrayWire.label(new MenuRow(1, MenuRow.Kind.COMMAND, "Open", true, false, 'O', List.of())));
+        assertEquals("E_xit", TrayWire.label(new MenuRow(1, MenuRow.Kind.COMMAND, "Exit", true, false, 'X', List.of())));
+        assertEquals("Open", TrayWire.label(new MenuRow(1, MenuRow.Kind.COMMAND, "Open", true, false, 'Z', List.of())));
     }
 
     @Test
     void noMenuIsOneDisabledRowOfTheTitle() {
-        List<TrayRow> shown = TrayWire.shown(List.of(), "Orders");
+        List<MenuRow> shown = TrayWire.shown(List.of(), "Orders");
         assertEquals(1, shown.size());
         assertEquals("Orders", shown.get(0).label());
         assertFalse(shown.get(0).enabled());
@@ -249,11 +249,11 @@ class StatusNotifierTrayTest {
 
     /** The toolkit's side: a menu that can be changed, and what was chosen and activated. */
     private static final class Host implements TrayHost {
-        volatile List<TrayRow> menu = List.of();
+        volatile List<MenuRow> menu = List.of();
         final List<String> heard = new CopyOnWriteArrayList<>();
 
         @Override
-        public List<TrayRow> menu() {
+        public List<MenuRow> menu() {
             return menu;
         }
 
@@ -401,7 +401,7 @@ class StatusNotifierTrayTest {
 
     @Test
     void theMenuIsReadAgainWhenItIsAboutToShow() throws Exception {
-        host.menu = List.of(row(1, TrayRow.Kind.COMMAND, "Open"));
+        host.menu = List.of(row(1, MenuRow.Kind.COMMAND, "Open"));
         assertTimeoutPreemptively(SOON, () -> show(state(false, false), true));
         DBus.Msg first = assertTimeoutPreemptively(SOON,
                 () -> ask(TrayWire.MENU_PATH, TrayWire.MENU, "GetLayout", "iias", 0, -1, List.of()));
@@ -411,7 +411,7 @@ class StatusNotifierTrayTest {
         DBus.Msg same = ask(TrayWire.MENU_PATH, TrayWire.MENU, "AboutToShow", "i", 0);
         assertEquals(false, same.body[0], "nothing changed, so the panel keeps what it has");
 
-        host.menu = List.of(row(1, TrayRow.Kind.COMMAND, "Open"), row(2, TrayRow.Kind.CHECK, "Bold"));
+        host.menu = List.of(row(1, MenuRow.Kind.COMMAND, "Open"), row(2, MenuRow.Kind.CHECK, "Bold"));
         signals.clear();
         DBus.Msg changed = ask(TrayWire.MENU_PATH, TrayWire.MENU, "AboutToShow", "i", 0);
         assertEquals(true, changed.body[0]);
@@ -423,7 +423,7 @@ class StatusNotifierTrayTest {
 
     @Test
     void aClickOnARowAndAnActivationReachTheHost() throws Exception {
-        host.menu = List.of(row(1, TrayRow.Kind.COMMAND, "Open"));
+        host.menu = List.of(row(1, MenuRow.Kind.COMMAND, "Open"));
         assertTimeoutPreemptively(SOON, () -> show(state(true, false), true));
         assertTimeoutPreemptively(SOON, () -> {
             ask(TrayWire.MENU_PATH, TrayWire.MENU, "GetLayout", "iias", 0, -1, List.of());

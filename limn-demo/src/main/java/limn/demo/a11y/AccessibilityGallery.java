@@ -1617,6 +1617,8 @@ public final class AccessibilityGallery {
         if (args.length > 0) {
             initial = entries.indexOf(entry(String.join(" ", args)));
         }
+        // A gallery shows a menu bar as a subject, in its window, on every system.
+        System.setProperty("limn.macos.systemMenuBar", "false");
         try (Backend backend = new LwjglBackend()) {
             NativeWindow window = backend.createWindow(
                     WindowConfig.of("Limn accessibility gallery", WIDTH, HEIGHT));

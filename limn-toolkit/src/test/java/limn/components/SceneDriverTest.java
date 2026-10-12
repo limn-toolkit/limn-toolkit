@@ -67,6 +67,16 @@ class SceneDriverTest extends ComponentTestBase {
             }
 
             @Override
+            public limn.concurrent.Subscription observeWindowBound(Scene scene, Runnable observer) {
+                return null;
+            }
+
+            @Override
+            public limn.scene.Widget<?> focusedBefore(Scene scene) {
+                return null;
+            }
+
+            @Override
             public limn.concurrent.Subscription routeKeyboard(Scene scene, SceneAccess.KeyRoute route) {
                 return null;
             }

@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import limn.backend.spi.TrayRow;
+import limn.backend.spi.MenuRow;
 import limn.components.Menu;
 import limn.components.MenuItem;
 import limn.components.internal.MenuBridge;
@@ -21,7 +21,7 @@ final class TrayMenu {
 
     private final MenuBridge bridge = MenuBridge.get();
     private final Map<Integer, MenuItem> items = new HashMap<>();
-    private final List<TrayRow> rows;
+    private final List<MenuRow> rows;
     private int next = 1;
 
     private TrayMenu(@Nullable Menu menu) {
@@ -36,7 +36,7 @@ final class TrayMenu {
         return new TrayMenu(menu);
     }
 
-    List<TrayRow> rows() {
+    List<MenuRow> rows() {
         return rows;
     }
 
@@ -72,9 +72,9 @@ final class TrayMenu {
         return false;
     }
 
-    private List<TrayRow> read(Menu menu, List<Menu> above) {
+    private List<MenuRow> read(Menu menu, List<Menu> above) {
         above.add(menu);
-        List<TrayRow> out = new ArrayList<>();
+        List<MenuRow> out = new ArrayList<>();
         boolean separatorOwed = false;
         for (MenuItem item : menu.items()) {
             MenuBridge.Kind kind = bridge.kind(item);
@@ -84,7 +84,7 @@ final class TrayMenu {
                 continue;
             }
             if (separatorOwed) {
-                out.add(new TrayRow(next++, TrayRow.Kind.SEPARATOR, "", false, false, (char) 0, List.of()));
+                out.add(new MenuRow(next++, MenuRow.Kind.SEPARATOR, "", false, false, (char) 0, List.of()));
                 separatorOwed = false;
             }
             int id = next++;
@@ -93,18 +93,20 @@ final class TrayMenu {
             String key = bridge.acceleratorKey(item);
             int modifiers = item.accelerator() == null ? 0 : item.accelerator().modifiers();
             switch (kind) {
-                case CHECK -> out.add(new TrayRow(id, TrayRow.Kind.CHECK, label, item.isEnabled(),
+                case CHECK -> out.add(new MenuRow(id, MenuRow.Kind.CHECK, label, item.isEnabled(),
                         item.isChecked(), item.mnemonic(), List.of(), item.icon(), key, modifiers));
                 case SUBMENU -> {
                     Menu submenu = bridge.submenu(item);
                     // A menu that is its own ancestor, or one deeper than anybody opens, opens nothing.
-                    List<TrayRow> children = submenu == null || above.contains(submenu)
+                    List<MenuRow> children = submenu == null || above.contains(submenu)
                             || above.size() >= MAX_DEPTH ? List.of() : read(submenu, above);
-                    out.add(new TrayRow(id, TrayRow.Kind.SUBMENU, label,
+                    out.add(new MenuRow(id, MenuRow.Kind.SUBMENU, label,
                             item.isEnabled() && !children.isEmpty(), false, item.mnemonic(), children,
                             item.icon(), "", 0));
                 }
-                default -> out.add(new TrayRow(id, TrayRow.Kind.COMMAND, label, item.isEnabled(), false,
+                // An item of an editing role acts on the widget with the keyboard, and a tray has none.
+                default -> out.add(new MenuRow(id, MenuRow.Kind.COMMAND, label,
+                        item.role().editCommand() == null && item.isEnabled(), false,
                         item.mnemonic(), List.of(), item.icon(), key, modifiers));
             }
         }

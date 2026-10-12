@@ -31,6 +31,10 @@ bar.addMenu("File", file);
 It takes the width it is given, so at the top of a `Column` it spans the window the way
 a platform's menu bar does. Arrow keys move between menus, Down or Enter opens one.
 
+On macOS the same bar is shown where a Mac user looks for it, in the system's menu bar at
+the top of the screen, and takes no room in your window. You write nothing for that; [the
+menu bar on macOS](#the-menu-bar-on-macos) says what the system does with it.
+
 **As a dropdown**, with `PopupMenu`:
 
 ```java
@@ -65,6 +69,94 @@ once and it reads correctly in both places.
 The modifiers have to match exactly, so `Ctrl+S` and `Ctrl+Shift+S` can be two different
 commands. A disabled item still shows its shortcut and refuses to run it: a hint that
 disappears whenever the command is unavailable reads as a shortcut that does not exist.
+
+The widget that has the keyboard is asked first, and the menu bar only gets a shortcut it
+did not use, so `Ctrl+C` in a text field copies from the field whatever your menus say.
+**On macOS, with the bar in the system's, it is the other way around:** the system runs the
+bar's item before your window sees the key. That is why the six editing commands are not
+items you write an action for.
+
+## Undo, cut, copy and paste
+
+An Edit menu is six items the toolkit makes for you:
+
+```java
+bar.addMenu("Edit", new Menu()
+        .add(MenuItem.of(MenuItem.Role.UNDO))
+        .add(MenuItem.of(MenuItem.Role.REDO))
+        .addSeparator()
+        .add(MenuItem.of(MenuItem.Role.CUT))
+        .add(MenuItem.of(MenuItem.Role.COPY))
+        .add(MenuItem.of(MenuItem.Role.PASTE))
+        .add(MenuItem.of(MenuItem.Role.SELECT_ALL)));
+```
+
+Each comes with its name in the user's language and the shortcut the platform gives it,
+and has no action: it acts on **whatever widget has the keyboard**. Copy copies from the
+focused text field, Select All selects every row of the focused list, and an item is greyed
+while the focused widget cannot do it, with nothing selected or nothing to paste. The same
+items work in a context menu and in a tool bar's menu.
+
+For a button, `scene.canEdit(EditCommand.COPY)` and `scene.edit(EditCommand.COPY)` are the
+same question and the same act. A widget of your own takes part by overriding `onCanEdit`
+and `onEdit`.
+
+What to avoid is an ordinary item on one of those shortcuts, a "Select None" on `Cmd+A`:
+on macOS it takes the shortcut from every list and text field, and the toolkit logs a line
+when it sees one.
+
+## The menu bar on macOS
+
+A `MenuBar` in a window's scene is shown in the system's menu bar while that window is the
+one the user is working in. Switch to another window and the bar is that window's; a window
+with no bar, a dialog, or no window at all shows a short bar with the application's own menu
+and a Window menu. A palette that belongs to a window shows its owner's bar.
+
+Three items live in the **application's menu** on a Mac, the one named after your
+application, and in the File, Edit and Help menus everywhere else. Write them where they go
+on Windows and Linux, and say what they are:
+
+```java
+help.add(MenuItem.of("About", this::showAbout).setRole(MenuItem.Role.ABOUT));
+edit.add(MenuItem.of("Preferences…", this::showSettings).setRole(MenuItem.Role.SETTINGS));
+file.add(MenuItem.of("Exit", backend::requestQuit).setRole(MenuItem.Role.QUIT));
+```
+
+On macOS they leave those menus. About and Settings appear in the application's menu under
+the system's own wording, Settings on `Cmd+,`, and run your action. Quit is the system's:
+it asks `backend.requestQuit()`, exactly as `Cmd+Q` and the Dock do, and your Exit item is
+not shown, so whatever must happen before quitting belongs in `backend.setQuitHandler`,
+where every way of quitting finds it.
+
+Two menus are worth naming, because the system fills them:
+
+```java
+bar.setWindowMenu(windowMenu);   // gains the list of windows, tiling, Minimize All
+bar.setHelpMenu(helpMenu);       // gains the search field
+```
+
+With no Window menu named you are given one, with Minimize and Zoom.
+
+**The application's name** in that menu and in bold beside the Apple menu comes from the
+application's package. Run from a jar it would read `java`, so say the name when you make
+the backend, `new LwjglBackend("Orders")`, or pass `-Dlimn.application.name=Orders`; it
+has to be known before the first window. What the system adds to your menus is in the
+system's language once the application is packaged.
+
+A few things are the system's and not the toolkit's:
+
+- While a menu of the system's bar is open the window stands still: an animation or a
+  video's picture waits for the menu to close. Sound goes on.
+- A shortcut on a key that types a character, alone or with Option only, is not run by the
+  system; the toolkit runs it, the focused widget first, as in a window.
+- Under a fullscreen that takes the whole monitor the system's bar is covered, so the bar
+  comes back into the window for as long as it lasts. The green button's fullscreen keeps
+  the system's bar, which slides in at the top edge.
+- An application packaged as an agent, with no icon in the Dock (`LSUIElement`), has no
+  bar in the system's: its `MenuBar` is drawn in the window, as on Windows.
+
+To keep a bar in its window on macOS, for a tool window with commands of its own:
+`bar.setPlacement(MenuBar.Placement.IN_WINDOW)`. `bar.isInSystemBar()` says where it is.
 
 ## Context menus
 
@@ -200,7 +292,8 @@ keeps the window to show again, which suits a palette or a preferences window.
 `ClosePolicy.END_APPLICATION` makes the close button end the whole application, which suits
 a main window.
 
-To end the application from a Quit item, call `backend.requestQuit()`. It asks every window,
+To end the application from a Quit item, call `backend.requestQuit()`, and give the item the
+role `MenuItem.Role.QUIT` so that macOS shows its own Quit in its place. It asks every window,
 the one the user worked in last first, and one at a time, so at most one question is on
 screen. If any window refuses, nothing closes. Once all of them agree, every window closes
 and `runEventLoop()` returns `LoopEnd.QUIT`. On macOS, Cmd-Q, the application menu and the

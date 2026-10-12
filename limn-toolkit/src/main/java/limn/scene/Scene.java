@@ -392,6 +392,36 @@ public final class Scene {
         // dead. Nothing above it waits for it: the frame it would be read from cannot run until the
         // pump turns, which is after bind returns (2026-09-16 review).
         publishTheWindowNodeIfOwed();
+        runObservers(windowBoundObservers);
+    }
+
+    private Runnable[] windowBoundObservers;
+
+    /** The widget that had the keyboard before the one that has it now; see {@link #focusedBefore()}. */
+    private java.lang.ref.WeakReference<Widget<?>> focusedBefore = new java.lang.ref.WeakReference<>(null);
+
+    /**
+     * Not API: for a menu bar, which takes the keyboard when it is pressed and whose editing items
+     * act on the widget that had it.
+     *
+     * @return the widget focused before the current one, when it is still in this scene
+     */
+    @Nullable Widget<?> focusedBefore() {
+        Widget<?> before = focusedBefore.get();
+        return before != null && before.scene() == this ? before : null;
+    }
+
+    /**
+     * Not API: a widget whose presentation depends on the window, which a scene made before its
+     * window does not have when the widget is attached.
+     *
+     * @param observer told at the end of each {@link #bind}
+     */
+    Subscription observeWindowBound(Runnable observer) {
+        Ui.checkUiThread();
+        Objects.requireNonNull(observer, "observer");
+        windowBoundObservers = Listeners.added(windowBoundObservers, observer, NO_RUNNABLES);
+        return once(() -> windowBoundObservers = Listeners.removed(windowBoundObservers, observer));
     }
 
     /**
@@ -2649,6 +2679,9 @@ public final class Scene {
             return;
         }
         Widget<?> old = focused;
+        if (focused != null && focused != widget) {
+            focusedBefore = new java.lang.ref.WeakReference<>(focused);
+        }
         focused = widget;
         composing = false; // an open one was the old widget's; the platform's is cancelled below
         if (old != null) {
@@ -3057,6 +3090,8 @@ public final class Scene {
             return Scene.this.systemDropped(offer, allowed, x, y);
         }
         @Override public void windowFocusChanged(boolean focused) { Scene.this.windowFocusChanged(focused); }
+        @Override public boolean canEditFocused(EditCommand command) { return Scene.this.canEdit(command); }
+        @Override public boolean editFocused(EditCommand command) { return Scene.this.edit(command); }
         @Override public void windowFullscreenChanged(boolean fullscreen) {
             Scene.this.windowFullscreenChanged(fullscreen);
         }
@@ -3090,6 +3125,16 @@ public final class Scene {
             @Override
             public Subscription observeWindowFocus(Scene scene, Runnable observer) {
                 return scene.observeWindowFocus(observer);
+            }
+
+            @Override
+            public Subscription observeWindowBound(Scene scene, Runnable observer) {
+                return scene.observeWindowBound(observer);
+            }
+
+            @Override
+            public @Nullable Widget<?> focusedBefore(Scene scene) {
+                return scene.focusedBefore();
             }
 
             @Override
@@ -3667,6 +3712,10 @@ public final class Scene {
      * whose trigger is a modifier let go of (a bare Alt reaching for the menu bar) has nothing
      * else to key on.
      *
+     * <p>One system reverses the first two for a menu bar: where the bar is shown in the system's
+     * own, on macOS, the system runs a bar's accelerator before the key is sent to the window at
+     * all. See {@link limn.components.MenuBar}.
+     *
      * <p>Handlers are <b>not</b> consulted while a modal overlay owns the scene: an open dialog
      * or an in-scene menu has the keyboard, and a shortcut belonging to what it covers must not
      * fire behind it.
@@ -3693,6 +3742,66 @@ public final class Scene {
      * started with: a handler that unregisters itself (the ordinary shape for one that closes
      * what it opened) would otherwise shift the list under the loop and skip its neighbour.
      */
+    /**
+     * Whether an editing command can be done now by the widget that has the keyboard here, or by
+     * one of its ancestors. What a menu's item of an editing role is enabled by, and what a tool
+     * bar's button for the command may be.
+     *
+     * @return {@code false} with nothing focused
+     */
+    public boolean canEdit(EditCommand command) {
+        Ui.checkUiThread();
+        return editorOf(command, focused) != null;
+    }
+
+    /**
+     * Whether an editing command can be done now by {@code from} or by one of its ancestors: the
+     * question {@link #canEdit(EditCommand)} asks of the focused widget, asked of a widget the
+     * caller remembered, as a menu does of the one that had the keyboard before it opened.
+     *
+     * @param from a widget of this scene, or {@code null}, which can do nothing
+     */
+    public boolean canEdit(EditCommand command, @Nullable Widget<?> from) {
+        Ui.checkUiThread();
+        return editorOf(command, from) != null;
+    }
+
+    /**
+     * Does an editing command in the widget that has the keyboard here, or in the first of its
+     * ancestors that can, as the user's own act: what the command's chord does there.
+     *
+     * @return whether a widget did it
+     */
+    public boolean edit(EditCommand command) {
+        Ui.checkUiThread();
+        return edit(command, focused);
+    }
+
+    /**
+     * Does an editing command in {@code from}, or in the first of its ancestors that can.
+     *
+     * @param from a widget of this scene, or {@code null}, which does nothing
+     * @return whether a widget did it
+     */
+    public boolean edit(EditCommand command, @Nullable Widget<?> from) {
+        Ui.checkUiThread();
+        Widget<?> editor = editorOf(command, from);
+        return editor != null && editor.onEdit(command);
+    }
+
+    private @Nullable Widget<?> editorOf(EditCommand command, @Nullable Widget<?> from) {
+        java.util.Objects.requireNonNull(command, "command");
+        if (from != null && from.scene() != this) {
+            return null;
+        }
+        for (Widget<?> widget = from; widget != null; widget = widget.parent()) {
+            if (widget.isEnabled() && widget.onCanEdit(command)) {
+                return widget;
+            }
+        }
+        return null;
+    }
+
     private void offerToShortcutHandlers(KeyEvent event) {
         java.util.function.Predicate<KeyEvent>[] snapshot = shortcutHandlers;
         if (event.isConsumed() || snapshot == null || topOverlay() != null) {

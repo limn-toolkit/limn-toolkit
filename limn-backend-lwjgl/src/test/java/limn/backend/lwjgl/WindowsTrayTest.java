@@ -1,6 +1,6 @@
 package limn.backend.lwjgl;
 
-import limn.backend.spi.TrayRow;
+import limn.backend.spi.MenuRow;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -13,8 +13,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /** What the Windows tray works out before it asks the system anything. */
 class WindowsTrayTest {
 
-    private static TrayRow row(String label, char mnemonic) {
-        return new TrayRow(1, TrayRow.Kind.COMMAND, label, true, false, mnemonic, List.of());
+    private static MenuRow row(String label, char mnemonic) {
+        return new MenuRow(1, MenuRow.Kind.COMMAND, label, true, false, mnemonic, List.of());
     }
 
     @Test
@@ -57,7 +57,7 @@ class WindowsTrayTest {
 
     @Test
     void anAcceleratorGoesInTheMenusSecondColumn() {
-        TrayRow row = new TrayRow(1, TrayRow.Kind.COMMAND, "Quit", true, false, 'Q', List.of(), null, "Q",
+        MenuRow row = new MenuRow(1, MenuRow.Kind.COMMAND, "Quit", true, false, 'Q', List.of(), null, "Q",
                 limn.input.Keys.MOD_CONTROL);
         assertEquals("&Quit\tCtrl+Q", WindowsTray.label(row));
         // MENUITEMINFOW, 64-bit: the item's bitmap is its last member.
@@ -69,7 +69,8 @@ class WindowsTrayTest {
         assertEquals("q", MacTray.keyEquivalent("Q"));
         assertEquals(",", MacTray.keyEquivalent(","));
         assertEquals(String.valueOf((char) 0xF708), MacTray.keyEquivalent("F5"));
-        assertEquals("", MacTray.keyEquivalent("Home"), "a key with no such form is not shown");
+        assertEquals("\uF729", MacTray.keyEquivalent("Home"), "a key that types nothing has AppKit's character for it");
+        assertEquals("", MacTray.keyEquivalent("Key400"), "a key with no such form is not shown");
         assertEquals("", MacTray.keyEquivalent(""));
         assertEquals(1L << 20 | 1L << 17,
                 MacTray.modifierMask(limn.input.Keys.MOD_SUPER | limn.input.Keys.MOD_SHIFT));

@@ -159,6 +159,24 @@ public final class HeadlessBackend implements BackendPeer {
         ending.setQuitHandler(handler);
     }
 
+    private limn.backend.spi.@Nullable SystemMenuBar systemMenuBar;
+
+    /**
+     * Gives this backend a menu bar outside its windows, which it has none of, for a test of what
+     * a {@code MenuBar} does where the system keeps the bar: it is asked for the bar as a real
+     * backend is on such a system.
+     *
+     * @param bar what answers for the system's bar, or {@code null} for none again
+     */
+    public void setSystemMenuBar(limn.backend.spi.@Nullable SystemMenuBar bar) {
+        this.systemMenuBar = bar;
+    }
+
+    @Override
+    public limn.backend.spi.@Nullable SystemMenuBar systemMenuBar() {
+        return systemMenuBar;
+    }
+
     @Override
     public void pushModal(NativeWindow modal, @Nullable NativeWindow parent) {
         if (modal instanceof HeadlessWindow own) {

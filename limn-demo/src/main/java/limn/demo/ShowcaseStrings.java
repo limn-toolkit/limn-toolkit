@@ -214,6 +214,8 @@ final class ShowcaseStrings {
             new I18nString("showcase.status.fullscreenAt", "Exclusive fullscreen {0}×{1}");
     static final I18nString MENU_FILE =
             new I18nString("showcase.menu.file", "File");
+    static final I18nString MENU_EDIT =
+            new I18nString("showcase.menu.edit", "Edit");
     static final I18nString MENU_FULLSCREEN =
             new I18nString("showcase.menu.fullscreen", "Fullscreen");
     static final I18nString MENU_CURRENT_RESOLUTION =

@@ -56,6 +56,13 @@ final class ComponentStrings {
     static final I18nString TEXT_MENU_SELECT_ALL =
             new I18nString("limn.textMenu.selectAll", "Select All");
 
+    // The two editing commands the text widgets' own menu does not list, for an item of the role.
+    static final I18nString EDIT_UNDO =
+            new I18nString("limn.edit.undo", "Undo");
+
+    static final I18nString EDIT_REDO =
+            new I18nString("limn.edit.redo", "Redo");
+
     // What a screen reader calls the bar between a split's two panes. The toolkit has to supply
     // it: the divider paints a line and no text, it has no tooltip, and an application cannot
     // reach it to name it, so without this a split whose divider was made a tab stop publishes a

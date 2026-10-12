@@ -1446,6 +1446,24 @@ public final class Spinner extends Widget<Spinner> {
     }
 
     @Override
+    protected boolean onCanEdit(limn.scene.EditCommand command) {
+        boolean edits = editable && isEnabled();
+        return switch (command) {
+            case UNDO -> edit != null && edit.canUndo();
+            case REDO -> edit != null && edit.canRedo();
+            case CUT -> edits && edit != null && edit.hasSelection();
+            case COPY -> edit == null || edit.hasSelection();
+            case PASTE -> edits && !clipboard().text().isEmpty();
+            case SELECT_ALL -> edits;
+        };
+    }
+
+    @Override
+    protected boolean onEdit(limn.scene.EditCommand command) {
+        return limn.components.internal.EditKeys.send(command, this::onKeyEvent);
+    }
+
+    @Override
     protected void onKeyEvent(KeyEvent event) {
         if (!event.isPressed() || !isEnabled()) {
             return;
