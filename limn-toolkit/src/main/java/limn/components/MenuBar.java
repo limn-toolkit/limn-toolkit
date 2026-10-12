@@ -353,6 +353,12 @@ public final class MenuBar extends Widget<MenuBar> {
         }
 
         @Override
+        public limn.backend.spi.@Nullable WindowInput input() {
+            Scene scene = scene();
+            return scene == null ? null : limn.scene.internal.SceneAccess.input(scene);
+        }
+
+        @Override
         public void heldChanged() {
             Ui.checkUiThread();
             syncPlacement();

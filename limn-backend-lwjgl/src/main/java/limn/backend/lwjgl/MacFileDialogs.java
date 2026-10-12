@@ -55,7 +55,7 @@ final class MacFileDialogs {
     private static long descriptor = NULL;
     private static long globalBlockIsa = NULL;
 
-    private record Pending(long panel, WindowFileDialogs.Kind kind, Consumer<List<Path>> answer) {
+    private record Pending(long panel, long owner, WindowFileDialogs.Kind kind, Consumer<List<Path>> answer) {
     }
 
     private MacFileDialogs() {
@@ -103,7 +103,7 @@ final class MacFileDialogs {
             MemoryUtil.memPutInt(block + 12, 0);
             MemoryUtil.memPutAddress(block + 16, invoke.address());
             MemoryUtil.memPutAddress(block + 24, descriptor);
-            PENDING.put(block, new Pending(panel, kind, answer));
+            PENDING.put(block, new Pending(panel, onScreen ? nsWindow : NULL, kind, answer));
             if (onScreen && nsWindow != NULL) {
                 ObjC.msgVoid(panel, "beginSheetModalForWindow:completionHandler:", nsWindow, block);
             } else {
@@ -170,8 +170,34 @@ final class MacFileDialogs {
         limn.concurrent.Ui.post(() -> {
             ObjC.msgVoid(pending.panel, "release");
             MemoryUtil.nmemFree(block);
+            giveTheKeyboardBack(pending.owner);
             pending.answer.accept(List.copyOf(chosen));
         });
+    }
+
+    /**
+     * Makes the owner the key window again once its sheet is gone, when the system left the
+     * application with none: measured, a window whose panel was dismissed stayed the main window
+     * and was not the key one, and nothing typed reached it until it was clicked. Asked now and
+     * once more after the sheet's own leaving, which is when the system would have refused.
+     */
+    private static void giveTheKeyboardBack(long owner) {
+        if (owner == NULL) {
+            return;
+        }
+        Runnable ask = () -> {
+            try {
+                long app = ObjC.msg(ObjC.cls("NSApplication"), "sharedApplication");
+                if (ObjC.msg(app, "keyWindow") == NULL && ObjC.msg(app, "isActive") != 0
+                        && ObjC.msg(owner, "isVisible") != 0 && ObjC.msg(owner, "attachedSheet") == NULL) {
+                    ObjC.msgVoid(owner, "makeKeyWindow");
+                }
+            } catch (RuntimeException error) {
+                LOG.log(Level.DEBUG, "the owner of a file panel was not made the key window again", error);
+            }
+        };
+        ask.run();
+        limn.concurrent.Ui.postDelayed(ask, 400);
     }
 
     private static void addPath(List<Path> into, long url) {

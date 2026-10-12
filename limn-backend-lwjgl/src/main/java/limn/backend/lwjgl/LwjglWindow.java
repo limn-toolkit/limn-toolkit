@@ -268,7 +268,11 @@ final class LwjglWindow implements WindowPeer {
      */
     private final WindowedGeometry windowed = new WindowedGeometry();
 
+    /** Whether the window was made as a popup; see {@link #isPopupWindow()}. */
+    private final boolean popupWindow;
+
     LwjglWindow(LwjglBackend backend, WindowConfig config) {
+        this.popupWindow = config.isPopup();
         this.backend = backend;
         this.title = config.title();
         this.resizable = config.resizable();
@@ -1727,6 +1731,21 @@ final class LwjglWindow implements WindowPeer {
     private static int layoutCodePoint(int key, int scancode) {
         String name = org.lwjgl.glfw.GLFW.glfwGetKeyName(key, scancode);
         return name == null || name.isEmpty() ? 0 : name.codePointAt(0);
+    }
+
+    /** @return whether this window was made as a popup: a dropdown, a menu, a tooltip */
+    boolean isPopupWindow() {
+        return popupWindow;
+    }
+
+    /** @return whether this window is fullscreen in the way that covers the system's menu bar */
+    boolean coversSystemBar() {
+        return monitorFullscreen || monitorFullscreenAfterNative != null;
+    }
+
+    /** @return what this window's scene hears through, or {@code null} before a scene is bound */
+    @Nullable WindowInput input() {
+        return input;
     }
 
     /** @return this window's {@code NSWindow}, or {@code 0} off macOS or once destroyed */

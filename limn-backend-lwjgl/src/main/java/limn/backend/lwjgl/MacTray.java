@@ -246,8 +246,8 @@ final class MacTray implements TrayPeer {
         ObjC.msgVoid(button, "setImage:", nsImage);
     }
 
-    private static final int MENU_POINTS = 16;
-    private static final int MENU_PIXELS = 32;
+    static final int MENU_POINTS = 16;
+    static final int MENU_PIXELS = 32;
 
     /**
      * The key of an accelerator as AppKit takes one: a letter in lower case, since an upper-case
@@ -268,7 +268,26 @@ final class MacTray implements TrayPeer {
                 // A key whose name only starts with F.
             }
         }
-        return "";
+        // The keys that type no character, by the names the toolkit gives them and the
+        // characters AppKit knows them by.
+        return switch (key) {
+            case "Space" -> " ";
+            case "Esc" -> "\u001B";
+            case "Enter" -> "\r";
+            case "Tab" -> "\t";
+            case "Backspace" -> "\b";
+            case "Del" -> "\uF728";
+            case "Ins" -> "\uF727";
+            case "Up" -> "\uF700";
+            case "Down" -> "\uF701";
+            case "Left" -> "\uF702";
+            case "Right" -> "\uF703";
+            case "Home" -> "\uF729";
+            case "End" -> "\uF72B";
+            case "PgUp" -> "\uF72C";
+            case "PgDn" -> "\uF72D";
+            default -> "";
+        };
     }
 
     /** The modifier bits as AppKit's event mask has them. */
@@ -290,7 +309,8 @@ final class MacTray implements TrayPeer {
     }
 
     /** An image of AppKit's from pixels, at a size in points, a template when it takes the menu's colour. */
-    private static long nsImage(Image image, int points, boolean template) {
+    static long nsImage(Image image, int points, boolean template) {
+        ensureClass(); // the call that sizes the image is prepared with the class; the menu bar comes here too
         byte[] png = Images.encode(image, ImageFormat.PNG);
         long bytes = MemoryUtil.nmemAlloc(png.length);
         long data;
@@ -450,7 +470,7 @@ final class MacTray implements TrayPeer {
 
     // ---- calls ----------------------------------------------------------------------------------
 
-    private static long nsString(String text) {
+    static long nsString(String text) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             return ObjC.msg(ObjC.cls("NSString"), "stringWithUTF8String:", MemoryUtil.memAddress(stack.UTF8(text)));
         }

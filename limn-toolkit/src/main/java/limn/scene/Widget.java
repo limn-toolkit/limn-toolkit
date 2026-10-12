@@ -1746,7 +1746,7 @@ public abstract class Widget<W extends Widget<W>> {
      * would only bury it.
      */
     public final void paintWidget(Canvas canvas) {
-        if (!visible) {
+        if (!isVisible()) {
             return;
         }
         if (scene != null && scene.culledFromPaint(this)) {
@@ -1948,7 +1948,7 @@ public abstract class Widget<W extends Widget<W>> {
      * because they paint on top.
      */
     public @Nullable Widget<?> hitTest(float localX, float localY) {
-        if (!visible || !enabled
+        if (!isVisible() || !enabled
                 || localX < 0 || localY < 0 || localX >= width || localY >= height) {
             return null;
         }

@@ -240,9 +240,41 @@ public final class LwjglBackend implements BackendPeer {
      *                               the message says why and what to try
      */
     public LwjglBackend() {
+        this(null);
+    }
+
+    /**
+     * Starts the backend as {@link #LwjglBackend()} does, for an application with a name.
+     *
+     * <p>The name is what macOS writes in bold in its menu bar and in the items of the
+     * application's menu there, for an application that is not packaged: a packaged one is named
+     * by its package, and an unpackaged one given no name here is shown under the name of the
+     * program that launched it. It has to be given here because the system reads it once, as
+     * the windowing library starts. {@code -Dlimn.application.name} gives it to a launch that
+     * calls the other constructor. On every system it is also what {@link #setApplicationName}
+     * would set.
+     *
+     * @param applicationName the application's name, or {@code null} for none
+     * @throws IllegalStateException as {@link #LwjglBackend()}
+     */
+    public LwjglBackend(@org.jspecify.annotations.Nullable String applicationName) {
+        String name = applicationName != null ? applicationName : System.getProperty(NAME_PROPERTY);
+        if (name != null && !name.isBlank()) {
+            this.applicationName = name;
+        }
         boolean initialized;
         try {
             selectPlatform();
+            if (Platform.current().isMacOs()) {
+                macAgent = MacApplication.isAgent();
+                if (macAgent) {
+                    // No bar of the library's and, with it, no making of an ordinary application
+                    // out of one whose package says it lives in the tray.
+                    glfwInitHint(org.lwjgl.glfw.GLFW.GLFW_COCOA_MENUBAR, org.lwjgl.glfw.GLFW.GLFW_FALSE);
+                } else if (this.applicationName != null) {
+                    MacApplication.name(this.applicationName);
+                }
+            }
             initialized = glfwInit();
         } catch (UnsatisfiedLinkError missing) {
             throw nativesMissing(missing);
@@ -270,6 +302,16 @@ public final class LwjglBackend implements BackendPeer {
         uiRuntime.bindToCurrentThread();
         if (Platform.current().isMacOs()) {
             MacQuitCommand.route(quitCommand); // GLFW made its delegate in glfwInit
+        }
+        if (Platform.current().isMacOs() && !macAgent
+                && !"false".equalsIgnoreCase(System.getProperty("limn.macos.systemMenuBar"))) {
+            try {
+                macMenuBar = new MacMenuBar(this, uiRuntime::post);
+                macMenuBar.sync(); // the minimal bar, in place of the windowing library's own
+            } catch (Throwable unavailable) {
+                macMenuBar = null;
+                LOG.log(Level.WARNING, "the system's menu bar is left as the windowing library made it", unavailable);
+            }
         }
         fontStore = new FontStore();
         // A class rather than the measuring lambda it used to be: the ruler now also shapes, and
@@ -817,6 +859,9 @@ public final class LwjglBackend implements BackendPeer {
                     } finally {
                         parkedInPump = false;
                     }
+                    if (macMenuBar != null) {
+                        macMenuBar.sync(); // the window with the keyboard may have changed
+                    }
                 } catch (Crashes.ShutdownRequested shutdown) {
                     throw shutdown;
                 } catch (Throwable error) {
@@ -1334,6 +1379,66 @@ public final class LwjglBackend implements BackendPeer {
         return userJustActed() ? consentToken : null;
     }
 
+    /** {@code -Dlimn.application.name}: the application's name for a launch that passes none. */
+    private static final String NAME_PROPERTY = "limn.application.name";
+
+    /** Whether the application's package makes it an agent on macOS: no Dock icon, no bar of its own. */
+    private boolean macAgent;
+
+    /** The system's menu bar on macOS, or {@code null}: another system, an agent, or the property that says no. */
+    private @org.jspecify.annotations.Nullable MacMenuBar macMenuBar;
+
+    @Override
+    public limn.backend.spi.@org.jspecify.annotations.Nullable SystemMenuBar systemMenuBar() {
+        return macMenuBar;
+    }
+
+    /** @return the windows that are open, for the menu bar's rule of which bar is shown */
+    List<LwjglWindow> openWindows() {
+        return windows;
+    }
+
+    /** @return the window {@code window} is a popup of or is owned by, or {@code null} */
+    @org.jspecify.annotations.Nullable LwjglWindow ownerOf(LwjglWindow window) {
+        for (LwjglWindow candidate : windows) {
+            if (candidate != window && candidate.ownsPopup(window)) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Whether a dialog, as a window or drawn in a scene, keeps {@code window}'s commands out of
+     * reach: {@code window} is the dialog, or is one it blocks. A menu or a dropdown that holds
+     * the keyboard as a modal does is no dialog.
+     */
+    boolean aDialogKeepsOutOfReach(LwjglWindow window) {
+        for (ModalStack.Active active : modalStack.active()) {
+            Object modal = active.modal();
+            if (modal instanceof LwjglWindow popup && popup.isPopupWindow()) {
+                continue;
+            }
+            Object parent = active.parent();
+            if (modal == window || parent == null || parent == window
+                    || modal instanceof SceneModalToken token && token.owner() == window
+                    || parent instanceof LwjglWindow owner && owner.ownsPopup(window)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** @return the application's name as the system's menu bar should write it in its items */
+    String applicationNameForTheSystem() {
+        String given = applicationName;
+        if (given != null) {
+            return given;
+        }
+        String shown = MacApplication.shownName();
+        return shown != null ? shown : applicationName();
+    }
+
     /** The trays made and not yet disposed, so that closing takes their icons away. */
     private final List<TrayPeer> trays = new ArrayList<>();
 
@@ -1391,6 +1496,9 @@ public final class LwjglBackend implements BackendPeer {
         running = false;
         for (TrayPeer tray : List.copyOf(trays)) {
             tray.dispose();   // an icon left behind would outlive the process on some systems
+        }
+        if (macMenuBar != null) {
+            macMenuBar.dispose();
         }
         trays.clear();
         if (systemClipboard != null) {

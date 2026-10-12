@@ -167,6 +167,7 @@ class SystemMenuBarTest extends ComponentTestBase {
         assertTrue(bar.isInSystemBar());
         assertFalse(bar.isVisible(), "laid out as a widget that is not there");
         assertEquals(0f, below.y(), 1e-3f, "what was under the bar is at the top");
+        assertNull(scene.root().hitTest(5, 5) == bar ? bar : null, "nothing of the bar is left to press");
         assertEquals(1, system.hosts.size());
 
         MenuBarReading reading = system.hosts.get(0).read();

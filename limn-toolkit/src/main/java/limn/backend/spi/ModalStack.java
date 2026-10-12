@@ -134,6 +134,25 @@ public final class ModalStack {
         return owner != null && stack.removeIf(m -> m.ownerException == owner);
     }
 
+    /**
+     * One active modal, for a backend's own rule over them.
+     *
+     * @param modal  the window or token that was pushed
+     * @param parent the window whose scope it locks, or {@code null} for one that locks every
+     *               window
+     */
+    public record Active(Object modal, @Nullable Object parent) {
+    }
+
+    /** @return the active modals, the oldest first */
+    public List<Active> active() {
+        List<Active> out = new ArrayList<>(stack.size());
+        for (Modal m : stack) {
+            out.add(new Active(m.window, m.parent));
+        }
+        return out;
+    }
+
     /** @return whether no modal is active */
     public boolean isEmpty() {
         return stack.isEmpty();

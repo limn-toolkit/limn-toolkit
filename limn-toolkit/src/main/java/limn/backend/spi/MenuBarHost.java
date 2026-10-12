@@ -12,6 +12,13 @@ public interface MenuBarHost {
      */
     MenuBarReading read();
 
+    /**
+     * What the scene this bar is in hears its window through, or {@code null} once the bar is in
+     * no scene. A window shows the bar of the scene bound to it: a bar whose answer is not the
+     * window's own input belongs to a scene the window has left, and gives way to another.
+     */
+    @org.jspecify.annotations.Nullable WindowInput input();
+
     /** The user chose a row of the last reading. A number of an older reading does nothing. */
     void choose(int id);
 

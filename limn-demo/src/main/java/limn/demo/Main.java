@@ -29,7 +29,7 @@ public final class Main {
             "app", "video", "icons", "icons-light", "icons-search",
             "dialog-decorated", "dialog-opaque", "dialog-glass", "textfield-selected",
             "textfield-ime", "password-ramp", "fonts", "fonts-switched", "ellipsis",
-            "textarea-scroll", "textarea-ime", "tabs", "tabs-overflow", "combo-overflow", "combos", "transfer", "picker", "tray",
+            "textarea-scroll", "textarea-ime", "tabs", "tabs-overflow", "combo-overflow", "combos", "transfer", "picker", "tray", "menubar",
             "showcase", "showcase-light", "dialog-open", "forms", "forms-light", "forms-popup",
             "components", "components-light", "widgets", "list", "table", "tree", "tree-scroll", "tree-deep", "tree-reserved", "tree-loading", "dates", "dates-light", "dates-popup", "dates-months", "dates-years", "dates-months-cursor", "dates-years-cursor", "dates-month-picker", "dates-month-picker-light", "dates-time-row", "dates-time-row-light", "dates-month-range", "dates-month-range-light", "form", "animations", "cursors",
             "sprites", "audio", "controls", "control-sizes", "control-sizes-audit",
@@ -170,7 +170,7 @@ public final class Main {
             System.exit(2);
         }
 
-        try (Backend backend = new LwjglBackend()) {
+        try (Backend backend = new LwjglBackend(AppScene.TITLE)) {
             int logicalWidth = scene.equals("app") ? APP_WIDTH : LAB_WIDTH;
             int logicalHeight = scene.equals("app") ? APP_HEIGHT : LAB_HEIGHT;
             NativeWindow window = backend.createWindow(WindowConfig.of(
@@ -322,6 +322,9 @@ public final class Main {
             } else if (scene.equals("picker")) {
                 // The ready-made widgets that drag (ADR 054 §4): two lists and a picture.
                 widgetScene = PickerScene.create();
+            } else if (scene.equals("menubar")) {
+                // The menu bar in the system's bar and the editing commands (ADR 060), to try by hand.
+                widgetScene = MenuBarLabScene.create(backend, window);
             } else if (scene.equals("tray")) {
                 // The tray icon (ADR 058), to try by hand.
                 widgetScene = TrayScene.create(backend);
