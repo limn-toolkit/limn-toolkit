@@ -33,10 +33,16 @@ public sealed interface Backend extends AutoCloseable permits BackendPeer {
      * <p>On Linux, AT-SPI2 shows one application object per process with every window beneath it,
      * and a screen reader says that name when the user moves into the application; left unset, a
      * backend uses the title of the first window it created, which is right for a one-window
-     * program and wrong for one whose first window is a splash or a login. Windows and macOS name an
-     * application from the process itself and read nothing here. Call it before the first window
+     * program and wrong for one whose first window is a splash or a login. Windows names an
+     * application from the process itself and reads nothing here. Call it before the first window
      * for the name to be there from the start; a later call renames the application for the next
      * client that asks.
+     *
+     * <p>On macOS the name is also what the toolkit writes in the items of the application's menu
+     * (About, Hide, Quit). It is <b>not</b> what the system writes in bold at the head of its menu
+     * bar: the system reads that once, as the windowing library starts, from the application's
+     * package, and for an application that is not packaged from the name the backend was made
+     * with. A backend that takes a name at its construction says so there.
      *
      * @param name what the desktop should call this application; never {@code null}
      * @throws NullPointerException if {@code name} is {@code null}

@@ -33,7 +33,10 @@ final class EditTarget {
     static void opening(@Nullable Scene over) {
         Widget<?> focused = over == null ? null : over.focusedWidget();
         if (focused instanceof MenuBar bar) {
-            focused = bar.focusBeforeBar();
+            // Walked to with Alt or F10, the bar remembers who had the keyboard; pressed with the
+            // pointer, it took the keyboard as any widget does and the scene remembers.
+            Widget<?> before = bar.focusBeforeBar();
+            focused = before != null ? before : limn.scene.internal.SceneAccess.focusedBefore(over);
         }
         scene = new WeakReference<>(over);
         from = new WeakReference<>(focused);
@@ -53,6 +56,16 @@ final class EditTarget {
         Scene over = scene.get();
         Widget<?> widget = from.get();
         ANSWERS.clear();
-        return over != null && widget != null && widget.scene() == over && over.edit(command, widget);
+        if (over == null || widget == null || widget.scene() != over) {
+            return false;
+        }
+        boolean done = over.edit(command, widget);
+        if (over.focusedWidget() instanceof MenuBar && widget.isFocusable() && widget.isVisible()
+                && widget.isEnabled()) {
+            // The command was done in the widget the bar took the keyboard from: it has it back,
+            // so that what was done is seen and typing goes on where it was.
+            over.requestFocus(widget);
+        }
+        return done;
     }
 }

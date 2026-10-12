@@ -245,7 +245,8 @@ final class MacMenuBar implements SystemMenuBar {
             // tells nobody when it has one again that is not a window made here.
             recheck = true;
             rechecks++;
-            limn.concurrent.Ui.postDelayed(() -> {
+            // The backend's own runtime: the first look is made before the toolkit's services are installed.
+            backend.uiRuntime().postDelayed(() -> {
                 recheck = false;
                 sync();
             }, RECHECK_MILLIS);
@@ -327,6 +328,7 @@ final class MacMenuBar implements SystemMenuBar {
     private MenuBarReading read() {
         if (!fresh) {
             fresh = true;
+            long began = TRACE ? System.nanoTime() : 0;
             keyAtReading = keyWindow();
             MenuBarHost bar = shown;
             reading = bar == null ? MenuBarReading.EMPTY : bar.read();
@@ -339,6 +341,9 @@ final class MacMenuBar implements SystemMenuBar {
                 rolesReading = MenuBarReading.EMPTY;
             }
             ui.execute(() -> fresh = false);
+            if (TRACE) {
+                System.out.println("MENUBAR-TRACE read " + (System.nanoTime() - began) / 1000 + " us");
+            }
         }
         return reading;
     }
@@ -605,6 +610,17 @@ final class MacMenuBar implements SystemMenuBar {
         if (disposed) {
             return;
         }
+        long began = TRACE ? System.nanoTime() : 0;
+        try {
+            updateNow(menu);
+        } finally {
+            if (TRACE) {
+                System.out.println("MENUBAR-TRACE update " + (System.nanoTime() - began) / 1000 + " us");
+            }
+        }
+    }
+
+    private void updateNow(long menu) {
         MenuBarReading now = read();
         if (menu == appMenu) {
             fillApplicationMenu(labels());

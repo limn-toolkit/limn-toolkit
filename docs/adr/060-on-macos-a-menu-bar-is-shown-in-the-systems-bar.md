@@ -1,8 +1,8 @@
 # ADR 060: On macOS a menu bar is shown in the system's bar
 
-- **Status:** Proposed, 2026-10-11; revised the same day after an adversarial review by a second
-  reader (§11 says what it changed). The decisions of §1 to §6 are the owner's, each taken after
-  the measurement of §0; nothing is built yet.
+- **Status:** Accepted and implemented, 2026-10-11, at the owner's word after an adversarial
+  review by a second reader (§11 says what it changed). The decisions of §1 to §6 are the
+  owner's, each taken after the measurement of §0. §12 says what was built and what was seen.
 - **Date:** 2026-10-11
 - **Scope:** where a `MenuBar` is shown on macOS, the three items the system keeps in the
   application's own menu (About, Settings, Quit), the two menus the system fills (Window, Help),
@@ -10,7 +10,8 @@
   every system, and what the window does while a menu is open. New public API:
   `MenuBar.setPlacement`, `MenuItem.setRole` and `MenuItem.of(Role)`, `MenuBar.setWindowMenu`,
   `MenuBar.setHelpMenu`, `EditCommand` with `Scene.canEdit` and `Scene.edit` and a widget's two
-  hooks for them, and the application's name given where the backend is made.
+  hooks for them, and the application's name given where the backend is made
+  (`new LwjglBackend(name)`, `-Dlimn.application.name`).
 - **Compatibility:** behaviour changes on macOS for every application. One with a `MenuBar`
   loses the strip in the window and has its menus in the system's bar, where an accelerator of
   the bar runs before the focused widget sees the key; one call puts the bar back (§2). One with
@@ -85,13 +86,14 @@ from the toolkit's own state:
 | is owned and not modal, with no bar of its own (a palette, an inspector) | its owner's |
 | is modal, or is blocked by a modal window, or has a modal dialog drawn in its scene, or a file panel of the system's over it | the *minimal bar* |
 | has no bar | the minimal bar |
-| there is none: every window hidden, closed or minimized | the minimal bar |
+| there is none: every window hidden or closed | the minimal bar |
 
 The **minimal bar** is the application's menu of §3 and the Window menu of §4, and nothing of
 any window's. While it is shown no accelerator of a window's bar runs, which is what the bar in
 the window does under a modal dialog today.
 
-A window that is not shown, or was never given the keyboard, never takes the bar. When the
+A window that is minimized is still the one the system gives the keyboard to, and its bar
+stays, as a native application's does. A window that is not shown, or was never given the keyboard, never takes the bar. When the
 window whose bar is shown is hidden or closed, or its `MenuBar` leaves the scene, or the scene
 leaves the window, the table is read again.
 
@@ -253,7 +255,11 @@ Wherever the item is shown, on every system:
   widget that had the keyboard before the menu took it. In a tray's menu it is disabled;
 - **choosing it does the command** in that scene.
 
-The text widgets' own context menu becomes four such items.
+**The selection a menu finds.** A text field lets its selection go when it loses the keyboard,
+and a menu takes the keyboard to be walked: the bar by Alt or F10 or a press, a menu drawn in the
+scene as it opens. So a text widget remembers the selection it had as it lost the keyboard, for
+as long as its text does not change, and Cut and Copy asked of it while it is not focused are
+for that selection. After an editing command chosen from a bar the widget has the keyboard back.
 
 ### 5.3 What that makes of the order
 
@@ -404,3 +410,65 @@ was done:
 - Smaller: the gap a widget of no height still cost, a held chord, the keyboard's layout, the
   chords of the toolkit's own items, a role on an item that cannot carry one, the two named
   menus given a menu the bar does not have, the stray release of a key.
+
+## 12. As built and measured
+
+Built as written above, with what follows said where it differs or was only then known.
+
+**Names.** The backend reads a bar through `SystemMenuBar`, `MenuBarHost`, `MenuBarReading` and
+the row renamed `MenuRow`, with `SystemMenuLabels` for the toolkit's own words; a window's scene
+answers an editing command through `WindowInput.canEditFocused` and `editFocused`;
+`ModalStack.active()` lists the modals for the rule of §1.2; `Widget.setPresentedElsewhere`
+is what lays a held bar out as a widget that is not there. The test backend takes a stand-in
+system bar, `HeadlessBackend.setSystemMenuBar`. `-Dlimn.macos.menuBar.trace=true` prints what
+the bar follows and what a reading costs.
+
+**What the building found.**
+
+- **A panel of the system's had no editing chords, and left its owner without the keyboard.**
+  A file panel's name field took no cut, copy, paste or select all, the bar having no Edit
+  menu for it to take them from: while a panel of the system's has the keyboard, the minimal
+  bar now carries an Edit menu of the system's own six commands. And the window that opened a
+  panel was the main window and not the key one after it closed, so nothing typed reached it
+  until it was clicked: it is made the key window again.
+- **A bar of a scene its window has left** gave way to nobody, a window having no way to tell
+  a scene it was replaced: a bar says which scene's input it is of, and one that is not the
+  window's own is taken for gone.
+- **The system runs a key that types nothing even alone**: a function key and Delete, measured.
+  §5.5's rule is by that: Command or Control with any key, or a key that types no character.
+- **A text field forgot its selection as the bar took the keyboard**, on every system, which
+  left Cut and Copy of a bar in the window greyed. §5.2's last paragraph is the answer.
+- **The bar's first look came before the toolkit's services were installed**, in an
+  application that was active as it started, which a packaged one is.
+
+**Seen on the macOS guest**, by the accessibility interface a screen reader reads the bar
+through, by the lab scene's own trace and by captures (the numbers are §10's):
+
+| | |
+|---|---|
+| 1 | The bar in the system's and none in the window, with no gap; `IN_WINDOW` and back. |
+| 2, 3 | A second window with its own bar and one with none; a text field's context menu open with the bar unchanged. A tooltip was not tried. |
+| 4 | The minimal bar under a dialog as a window, under one drawn in the scene and under a file panel, and no accelerator of the window's running meanwhile; the owner's bar under an owned window, whose own field an editing chord acted on. |
+| 5 | The minimal bar with the window hidden; the window's own with it minimized (§1.2). |
+| 6 | The bar detached and attached, hidden and shown, a menu added, another scene bound to the window. |
+| 7 | In the window under a fullscreen on the monitor and back after; kept under the system's own. |
+| 8 | About and Settings in the application's menu, gone from their menus, each running its action; Settings disabled there and its chord then doing nothing; a Help menu left with its other item. |
+| 9 | Quit by its chord, from the menu and from the Dock (the packaged one), each ending the application with the Exit item's own action not run. A quit sent by another program was not driven, an unpackaged process having no name to address; it is ADR 048's route, unchanged. |
+| 10 | The name given at the backend's making and by the property; `java` with neither; a packaged application under its package's name. |
+| 11 | The named Window menu and the given one, each with the system's additions and the window listed, no popup among them; the Help menu's search running an item of a submenu never opened. The system's additions in English from a jar and **in the system's language from a package**. |
+| 12 | Each accelerator once; Cmd-N held, once; a disabled item's doing nothing; a function key, Control alone and Delete alone run by the system; Option alone and a key that types run by the toolkit. With Option alone the focused field is also given the character the chord types, as with a bar in the window. |
+| 13 | The six by their chords in a text field, select all in a list, nothing with nothing focused; paste and select all in a file panel's name field. The text area, the password field and the date field answer by the same code and were not each driven. |
+| 15 | While an input method composes, an ordinary item's chord runs the item and the composition stays; an editing item the area cannot do lets the key through. |
+| 16 | A layout that moves the letters: the chord is on the key that types the letter, in the system's bar as in a window. A layout of another script: the system reads the chord as on a Latin keyboard. A punctuation key was not tried. |
+| 17 | The Showcase's bar read in 0.14 to 0.17 ms and each of its seven menus filled in 0.04 to 0.47 ms: some 2 ms a chord. |
+| 18 | An item's icon, check, submenu and every kind of accelerator; in Arabic the toolkit's labels translated and the menus right to left. |
+| 19 | Read through the accessibility interface throughout; a screen reader's own speech was not recorded. |
+| 20 | The tray's menu before and after the bar's. |
+| 21 | An item that closes its window and one that ends the application. |
+| 22 | Packaged as an agent: no icon in the Dock, a background process to the system, the bar in the window with every item where it was written, and with a tray icon its menu. |
+
+**Seen elsewhere** (14). GNOME under X11 and Windows 11: the bar in the window, its Edit menu
+with each item enabled as the focused widget can, Redo on Control-Y, and an item chosen by the
+pointer acting on the widget that had the keyboard, which has it back. Copy was chosen on
+GNOME; on Windows only Select All, the guests sharing their clipboard with the host. A Wayland
+session was not tried, the code being the toolkit's and the same.

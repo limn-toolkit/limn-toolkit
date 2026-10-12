@@ -151,6 +151,33 @@ class EditCommandTest extends ComponentTestBase {
     }
 
     @Test
+    void aMenuBarsCopyFindsTheSelectionTheFieldHadBeforeTheBarTookTheKeyboard() {
+        TextField text = new TextField();
+        MenuBar bar = new MenuBar().addMenu("Edit", new Menu().add(MenuItem.of(MenuItem.Role.COPY)));
+        Column page = new Column();
+        page.add(bar);
+        page.add(text);
+        scene = new Scene(page);
+        scene.setTextRuler(RULER);
+        clipboard = new TextFieldTest.MockClipboard();
+        scene.setClipboard(clipboard);
+        scene.layoutPass(240, 120);
+        text.setText("limn");
+        scene.requestFocus(text);
+        text.selectAll();
+
+        scene.requestFocus(bar); // as a press on the bar does
+        assertFalse(text.selectedText().equals("limn"), "the field lets its selection go with the keyboard");
+        EditTarget.opening(scene);
+        MenuItem copy = MenuItem.of(MenuItem.Role.COPY);
+        assertTrue(copy.isEnabled(), "and the bar's Copy still finds it");
+        copy.activate(limn.scene.Change.Origin.USER);
+        assertEquals("limn", clipboard.value);
+        assertEquals(text, scene.focusedWidget(), "the field has the keyboard back");
+        assertEquals("limn", text.selectedText());
+    }
+
+    @Test
     void aRoleIsRefusedWhereItMeansNothing() {
         assertThrows(IllegalArgumentException.class, () -> MenuItem.of(MenuItem.Role.ABOUT));
         assertThrows(IllegalStateException.class,

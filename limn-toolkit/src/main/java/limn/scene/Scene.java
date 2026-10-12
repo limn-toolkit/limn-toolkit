@@ -397,6 +397,20 @@ public final class Scene {
 
     private Runnable[] windowBoundObservers;
 
+    /** The widget that had the keyboard before the one that has it now; see {@link #focusedBefore()}. */
+    private java.lang.ref.WeakReference<Widget<?>> focusedBefore = new java.lang.ref.WeakReference<>(null);
+
+    /**
+     * Not API: for a menu bar, which takes the keyboard when it is pressed and whose editing items
+     * act on the widget that had it.
+     *
+     * @return the widget focused before the current one, when it is still in this scene
+     */
+    @Nullable Widget<?> focusedBefore() {
+        Widget<?> before = focusedBefore.get();
+        return before != null && before.scene() == this ? before : null;
+    }
+
     /**
      * Not API: a widget whose presentation depends on the window, which a scene made before its
      * window does not have when the widget is attached.
@@ -2665,6 +2679,9 @@ public final class Scene {
             return;
         }
         Widget<?> old = focused;
+        if (focused != null && focused != widget) {
+            focusedBefore = new java.lang.ref.WeakReference<>(focused);
+        }
         focused = widget;
         composing = false; // an open one was the old widget's; the platform's is cancelled below
         if (old != null) {
@@ -3113,6 +3130,11 @@ public final class Scene {
             @Override
             public Subscription observeWindowBound(Scene scene, Runnable observer) {
                 return scene.observeWindowBound(observer);
+            }
+
+            @Override
+            public @Nullable Widget<?> focusedBefore(Scene scene) {
+                return scene.focusedBefore();
             }
 
             @Override
@@ -3689,6 +3711,10 @@ public final class Scene {
      * Tab fallback. Handlers see presses, auto-repeats and <b>releases</b> alike: a shortcut
      * whose trigger is a modifier let go of (a bare Alt reaching for the menu bar) has nothing
      * else to key on.
+     *
+     * <p>One system reverses the first two for a menu bar: where the bar is shown in the system's
+     * own, on macOS, the system runs a bar's accelerator before the key is sent to the window at
+     * all. See {@link limn.components.MenuBar}.
      *
      * <p>Handlers are <b>not</b> consulted while a modal overlay owns the scene: an open dialog
      * or an in-scene menu has the keyboard, and a shortcut belonging to what it covers must not

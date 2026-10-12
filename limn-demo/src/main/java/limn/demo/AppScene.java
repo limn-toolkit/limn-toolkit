@@ -5,6 +5,7 @@ import limn.components.ComboBox;
 import limn.components.Dialog;
 import limn.components.Label;
 import limn.components.Menu;
+import limn.components.MenuItem;
 import limn.components.MenuBar;
 import limn.components.ProgressBar;
 import limn.components.ScrollView;
@@ -396,11 +397,22 @@ final class AppScene {
                 .addItem(ShowcaseStrings.MENU_NEW_ORDER, newOrder)
                 .addItem(ShowcaseStrings.ORDERS_REFRESH, orders::refresh)
                 .addSeparator()
-                .addItem(ShowcaseStrings.MENU_QUIT, () -> {
+                // Where the system keeps Quit in a menu of its own, this item is not shown and the
+                // system's asks the same question.
+                .add(MenuItem.of(ShowcaseStrings.MENU_QUIT, () -> {
                     if (scene.window() != null) {
-                        scene.window().requestClose();
+                        scene.window().backend().requestQuit();
                     }
-                }));
+                }).setRole(MenuItem.Role.QUIT)));
+        // The six editing commands, each acting on whatever has the keyboard.
+        menuBar.addMenu(ShowcaseStrings.MENU_EDIT, new Menu()
+                .add(MenuItem.of(MenuItem.Role.UNDO))
+                .add(MenuItem.of(MenuItem.Role.REDO))
+                .addSeparator()
+                .add(MenuItem.of(MenuItem.Role.CUT))
+                .add(MenuItem.of(MenuItem.Role.COPY))
+                .add(MenuItem.of(MenuItem.Role.PASTE))
+                .add(MenuItem.of(MenuItem.Role.SELECT_ALL)));
         menuBar.addMenu(ShowcaseStrings.MENU_VIEW, new Menu()
                 .addCheck(ShowcaseStrings.MENU_PERFORMANCE, false, performance::setVisible)
                 .addSeparator()
@@ -411,14 +423,16 @@ final class AppScene {
                         .addItem(ShowcaseStrings.MENU_CURRENT_RESOLUTION, () -> fullscreen(scene, status, 0, 0))
                         .addItem("1280×720", () -> fullscreen(scene, status, 1280, 720))));
         menuBar.addMenu(ShowcaseStrings.MENU_GO, goMenu(navigation, top));
-        menuBar.addMenu(ShowcaseStrings.MENU_HELP, new Menu()
+        Menu help = new Menu()
                 .addItem(ShowcaseStrings.MENU_DOCUMENTATION, () -> openDocumentation(status, "docs/", status))
                 .addSeparator()
-                .addItem(ShowcaseStrings.TAB_ABOUT, () -> new Dialog(I18nString.literal(TITLE),
+                .add(MenuItem.of(ShowcaseStrings.TAB_ABOUT, () -> new Dialog(I18nString.literal(TITLE),
                         ShowcaseStrings.ABOUT_BLURB)
                         .addPrimaryButton(ShowcaseStrings.ACTION_CLOSE, "close")
                         .setCancelResult("close")
-                        .show(scene)));
+                        .show(scene)).setRole(MenuItem.Role.ABOUT));
+        menuBar.addMenu(ShowcaseStrings.MENU_HELP, help);
+        menuBar.setHelpMenu(help);
         if (Boolean.getBoolean("limn.demo.tour")) {
             tour(scene, navigation, top);
         }

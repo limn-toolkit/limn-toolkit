@@ -215,6 +215,8 @@ public final class Gallery {
         }
 
         FrameWriter writer = new FrameWriter();
+        // A gallery shows a menu bar as a subject, in its window, on every system.
+        System.setProperty("limn.macos.systemMenuBar", "false");
         try (Backend backend = new LwjglBackend()) {
             // Invisible window: the capture must not depend on a desktop, and on CI there
             // is none. Sized ONCE: every entry shares this canvas.

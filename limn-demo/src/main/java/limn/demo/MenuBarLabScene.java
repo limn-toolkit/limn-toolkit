@@ -206,6 +206,12 @@ final class MenuBarLabScene {
             new Scene(body).bind(window);
             window.requestFrame();
         });
+        steps.put("fill", () -> {
+            field.setText("limn");
+            sceneOf[0].requestFocus(field);
+            field.selectAll();
+        });
+        steps.put("unselect", () -> field.select(0, 0));
         steps.put("focus-field", () -> sceneOf[0].requestFocus(field));
         steps.put("focus-area", () -> sceneOf[0].requestFocus(area));
         steps.put("focus-password", () -> sceneOf[0].requestFocus(password));

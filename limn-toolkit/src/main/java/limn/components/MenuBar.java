@@ -49,6 +49,17 @@ import java.util.Objects;
  * menu. All of it is offered only after the focused widget has declined the key, so a shortcut
  * never steals a keystroke from a text field that wanted it.
  *
+ * <p><b>Where the system keeps the menu bar outside the window</b>, which is macOS, the bar's
+ * menus are shown there and not here: see {@link #setPlacement} and {@link #isInSystemBar()}.
+ * The widget then takes no room in its scene, and what the paragraph above says of the keyboard
+ * is the system's to decide: it has its own keys for walking its bar, and it runs an item's
+ * accelerator <em>before</em> the focused widget sees the key. An item made for an editing
+ * command, {@link MenuItem#of(MenuItem.Role)}, is the one written for that order: it does the
+ * command in the focused widget, and lets the key through when the widget cannot. Three other
+ * roles move an item to the application's own menu there ({@link MenuItem.Role}), and two
+ * menus may be named for the system to add its own items to ({@link #setWindowMenu},
+ * {@link #setHelpMenu}).
+ *
  * <p><b>The strip mirrors</b> where it reads right to left: the first title is at the right
  * edge, each title's text sits on the pad of the side reading starts from, and Left selects the
  * visually-left title, which is then the <em>next</em> one in declaration order. The dropdown

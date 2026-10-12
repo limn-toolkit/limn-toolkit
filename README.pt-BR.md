@@ -244,7 +244,7 @@ Não há solver de restrições para configurar nem layout manager para instalar
 que o tema dá ao seu nível: menus, listas, calendários e diálogos já fazem isso, e `Surface`
 levanta um painel seu. `window.launcher()` entrega um link ou um arquivo aos programas do próprio
 sistema — o navegador, o programa de e-mail, o gerenciador de arquivos.
-`Tray` mantém um ícone na bandeja do sistema, com um menu que o próprio sistema desenha.
+`Tray` mantém um ícone na bandeja do sistema, com um menu que o próprio sistema desenha. No macOS, um `MenuBar` aparece na barra de menus do próprio sistema.
 
 **A aparência do seu produto, não a do toolkit.** Um tema é dado puro — cada cor, o raio dos cantos,
 o passo de tamanho que todo controle herda — e uma chamada troca tudo em tempo de execução.

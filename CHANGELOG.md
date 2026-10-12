@@ -230,6 +230,32 @@ Maven Central say which number that was.
   took the page behind the window that asked, and on KDE under X11 and on GNOME under Wayland a
   window asked in front from its tray icon stayed behind. Call the launcher from the user's key
   or button, since that is what the desktop vouches for.
+- On macOS a `MenuBar` is shown in the system's menu bar. The bar of the window the user is
+  working in is the one shown, and the widget takes no room in its scene; a window with no bar, a
+  dialog, or no window shows the application's menu and a Window menu. It is the default, and a
+  change for every application: `bar.setPlacement(MenuBar.Placement.IN_WINDOW)` keeps a bar in
+  its window, and `-Dlimn.macos.systemMenuBar=false` keeps them all. In the system's bar **the
+  system runs an item's accelerator before the focused widget sees the key**, the reverse of the
+  order in a window. `MenuItem.setRole` says what an item is to the system: `ABOUT` and `SETTINGS`
+  move to the application's menu under the system's wording, and `QUIT` gives way to the
+  system's Quit, which asks `requestQuit()` as `Cmd+Q` and the Dock do. `setWindowMenu` and
+  `setHelpMenu` name the menus the system adds its own items to, the list of windows and the
+  search field, and a Window menu is given where none is named. The application's name in bold
+  comes from its package, or from `new LwjglBackend("Name")` or `-Dlimn.application.name` for
+  one that is not packaged. An application packaged as an agent (`LSUIElement`) is now left one,
+  with no icon in the Dock, and keeps its bar in the window. A fullscreen that covers the monitor
+  brings the bar back into the window while it lasts.
+- Editing commands: `MenuItem.of(MenuItem.Role.COPY)`, and likewise `UNDO`, `REDO`, `CUT`,
+  `PASTE` and `SELECT_ALL`, makes an item with its translated label and the platform's shortcut
+  that acts on whatever widget has the keyboard and is greyed while that widget cannot, in a
+  menu bar, a context menu or a tool bar's menu, on every system. `Scene.canEdit` and
+  `Scene.edit` are the same for a button, and a widget of your own takes part through
+  `Widget.onCanEdit` and `onEdit`. A text field's Cut and Copy chosen from a menu find the
+  selection the field had before the menu took the keyboard, and the field has the keyboard back
+  after.
+- On macOS a file panel's text fields now take cut, copy, paste and select all by their
+  shortcuts, which they did not, and the window that opened a panel has the keyboard again when
+  the panel closes, where before nothing typed reached it until it was clicked.
 - A tray icon: `Tray.create(backend, "id")` in the new package `limn.desktop` keeps an icon in
   the system's place for one, the notification area on Windows, the menu bar on macOS and the
   panel's tray on a Linux desktop, with a title, a tooltip and a `Menu` that **the system
