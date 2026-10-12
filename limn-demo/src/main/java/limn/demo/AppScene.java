@@ -937,7 +937,11 @@ final class AppScene {
                 boolean has = order != null;
                 headed.run();
                 customerField.setText(has ? order.customer : "");
-                statusField.setSelectedIndex(has ? order.status.ordinal() : -1);
+                if (has) {
+                    // With no order the combo keeps what it showed, disabled below: one that
+                    // chooses a single item always holds one, and refuses an index that is none.
+                    statusField.setSelectedIndex(order.status.ordinal());
+                }
                 placedField.setDate(has ? order.placed : null);
                 dueField.setDate(has ? order.due : null);
                 notes.setText(has ? order.notes : "");
