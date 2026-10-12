@@ -103,7 +103,7 @@ class ThemeFormatTest {
      */
     @Test
     void aBlankFamilyIsAnError() {
-        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class,
+        limn.io.MalformedContentException failure = assertThrows(limn.io.MalformedContentException.class,
                 () -> ThemeFormat.parse("name = Blank\ndark = true\nfontFamily =\n"));
         assertTrue(failure.getMessage().contains("fontFamily"), failure.getMessage());
     }
@@ -175,7 +175,7 @@ class ThemeFormatTest {
         assertEquals(Theme.limn(), ThemeFormat.parse('﻿' + written));
 
         // Only at the head: further in, U+FEFF is an ordinary character and still an error.
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(limn.io.MalformedContentException.class,
                 () -> ThemeFormat.parse("name = Ocean\ndark = true\n﻿primary = #FFF\n"));
     }
 
@@ -227,7 +227,7 @@ class ThemeFormatTest {
 
     @Test
     void aMisspelledKeyIsAnErrorAndSaysWhereItIs() {
-        IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+        limn.io.MalformedContentException thrown = assertThrows(limn.io.MalformedContentException.class,
                 () -> ThemeFormat.parse("name = Ocean\ndark = true\nprimaryHovor = #FFFFFF\n"));
         assertTrue(thrown.getMessage().contains("line 3"), thrown.getMessage());
         assertTrue(thrown.getMessage().contains("primaryHovor"), thrown.getMessage());
@@ -235,28 +235,28 @@ class ThemeFormatTest {
 
     @Test
     void aRepeatedKeyIsAnError() {
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(limn.io.MalformedContentException.class,
                 () -> ThemeFormat.parse("name = Ocean\ndark = true\nprimary = #FFF\nprimary = #000\n"));
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(limn.io.MalformedContentException.class,
                 () -> ThemeFormat.parse("name = Ocean\nname = Sea\ndark = true\n"));
     }
 
     @Test
     void theTwoRequiredKeysAreRequired() {
-        assertThrows(IllegalArgumentException.class, () -> ThemeFormat.parse("dark = true\n"));
-        assertThrows(IllegalArgumentException.class, () -> ThemeFormat.parse("name = Ocean\n"));
-        assertThrows(IllegalArgumentException.class, () -> ThemeFormat.parse(""));
+        assertThrows(limn.io.MalformedContentException.class, () -> ThemeFormat.parse("dark = true\n"));
+        assertThrows(limn.io.MalformedContentException.class, () -> ThemeFormat.parse("name = Ocean\n"));
+        assertThrows(limn.io.MalformedContentException.class, () -> ThemeFormat.parse(""));
     }
 
     @Test
     void aValueThatIsNotWhatItsKeyMeansIsAnError() {
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(limn.io.MalformedContentException.class,
                 () -> ThemeFormat.parse("name = Ocean\ndark = yes\n"));
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(limn.io.MalformedContentException.class,
                 () -> ThemeFormat.parse("name = Ocean\ndark = true\nprimary = teal\n"));
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(limn.io.MalformedContentException.class,
                 () -> ThemeFormat.parse("name = Ocean\ndark = true\nprimary\n"));
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(limn.io.MalformedContentException.class,
                 () -> ThemeFormat.parse("name =\ndark = true\n"));
     }
 }

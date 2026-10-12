@@ -1,5 +1,7 @@
 package limn.render3d.gltf;
 
+import limn.io.MalformedContentException;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -11,7 +13,7 @@ import java.util.Map;
  * {@code Double}, plus {@code String}/{@code Boolean}/{@code null}. Enough for
  * glTF 2.0; not a general-purpose validator.
  *
- * <p>Text that is not JSON is refused with an {@link IllegalArgumentException} saying what was
+ * <p>Text that is not JSON is refused with a {@link MalformedContentException} saying what was
  * expected and at which index, and that includes text that ends in the middle of a value: every
  * read of the next character checks for the end first, because the document may have come from
  * anywhere and a file cut short is the commonest way for one to be broken.
@@ -109,7 +111,7 @@ final class Json {
 
     private void enter() {
         if (++depth > MAX_DEPTH) {
-            throw new IllegalArgumentException(
+            throw new MalformedContentException("glTF", 
                     "JSON nested deeper than " + MAX_DEPTH + " levels at " + i);
         }
     }
@@ -172,7 +174,7 @@ final class Json {
             // Refused like everything else here, saying where: what Double.parseDouble throws is
             // already an IllegalArgumentException, but it says only "For input string", and not
             // which of a document's numbers it was.
-            throw new IllegalArgumentException("JSON: malformed number \"" + text + "\" at index "
+            throw new MalformedContentException("glTF", "JSON: malformed number \"" + text + "\" at index "
                     + start);
         }
     }
@@ -223,12 +225,12 @@ final class Json {
         }
     }
 
-    private IllegalArgumentException endOfText() {
-        return new IllegalArgumentException("JSON: the text ends at index " + i
+    private MalformedContentException endOfText() {
+        return new MalformedContentException("glTF", "JSON: the text ends at index " + i
                 + " in the middle of a value");
     }
 
-    private IllegalArgumentException err(String expected) {
-        return new IllegalArgumentException("JSON: expected " + expected + " at index " + i);
+    private MalformedContentException err(String expected) {
+        return new MalformedContentException("glTF", "JSON: expected " + expected + " at index " + i);
     }
 }

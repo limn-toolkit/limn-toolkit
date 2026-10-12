@@ -1,5 +1,6 @@
 package limn.render3d.gltf;
 
+import limn.io.MalformedContentException;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -21,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * A malformed model is refused with an {@link IllegalArgumentException} and with nothing else,
+ * A malformed model is refused with a {@link MalformedContentException} and with nothing else,
  * whatever is wrong with it: {@link GltfLoader#load(byte[])} says so, and an application that
  * loads a user's file catches that one exception to tell the user the file is broken. Anything
  * else escaping is a crash that application did not know to expect.
@@ -35,7 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <p>What is asserted is the exception's <b>class</b>, exactly: not a subclass, so a
  * {@code NumberFormatException} saying only "For input string" does not pass for a refusal that
- * says where. And its causes, each of which must be an {@code IllegalArgumentException} as well,
+ * says where. And its causes, each of which must be one too, or an {@code IllegalArgumentException},
  * so that a blanket catch wrapping a {@code NullPointerException} or an
  * {@code IndexOutOfBoundsException} cannot hide a loader bug behind the right outer class. A
  * failure names each escaping class with the first frame inside the loader that threw it, which is
@@ -60,10 +61,10 @@ class GltfLoaderFuzzTest {
     private static final int CHUNK_JSON = 0x4E4F534A;
 
     @Test
-    void onlyAnIllegalArgumentExceptionEverEscapes() {
+    void onlyAMalformedContentExceptionEverEscapes() {
         Map<String, String> escapes = fuzz(SEED, ITERATIONS);
         assertEquals(Map.of(), escapes, "a malformed model escaped the loader as something other "
-                + "than an IllegalArgumentException, by class and the first loader frame that "
+                + "than a MalformedContentException, by class and the first loader frame that "
                 + "threw it, with one input that reaches it");
     }
 
@@ -83,9 +84,9 @@ class GltfLoaderFuzzTest {
             try {
                 GltfLoader.load(data);
                 loaded++;
-            } catch (IllegalArgumentException refusal) {
+            } catch (MalformedContentException refusal) {
                 String hidden = hiddenCause(refusal);
-                if (refusal.getClass() != IllegalArgumentException.class || hidden != null) {
+                if (hidden != null) {
                     escapes.putIfAbsent(name(refusal) + (hidden == null ? "" : " hiding " + hidden)
                             + " at " + site(refusal), sample(data, refusal));
                 } else {
@@ -139,10 +140,10 @@ class GltfLoaderFuzzTest {
         }
     }
 
-    /** The first cause in the chain that is not an IllegalArgumentException, or null. */
+    /** The first cause in the chain that is neither a refusal nor an IllegalArgumentException, or null. */
     private static String hiddenCause(Throwable refusal) {
         for (Throwable cause = refusal.getCause(); cause != null; cause = cause.getCause()) {
-            if (!(cause instanceof IllegalArgumentException)) {
+            if (!(cause instanceof IllegalArgumentException) && !(cause instanceof MalformedContentException)) {
                 return name(cause) + " at " + site(cause);
             }
         }

@@ -1,5 +1,7 @@
 package limn.render3d.gltf;
 
+import limn.io.MalformedContentException;
+
 import limn.concurrent.Progress;
 import limn.concurrent.Ui;
 import limn.concurrent.Work;
@@ -38,7 +40,7 @@ import java.util.concurrent.CancellationException;
  *
  * <p><b>One load creates at most 2<sup>26</sup> array elements</b> by default, a quarter of a
  * gigabyte of floats, and a model that needs more is refused with an
- * {@link IllegalArgumentException}; {@link #setElementBudget} moves that ceiling for the whole
+ * {@link MalformedContentException}; {@link #setElementBudget} moves that ceiling for the whole
  * process. What the default holds depends on whether the model carries its normals. A mesh that does costs six floats a
  * vertex and one index a triangle corner, so an indexed one of the usual shape, with about half as
  * many vertices as triangles, fits up to some eleven million triangles. A mesh without normals is
@@ -144,7 +146,7 @@ public final class GltfLoader {
      * decode of every embedded buffer and a copy per accessor, so see {@link #load(Path)} for the
      * cost and {@link #loadAsync(byte[])} for the same work on the worker pool.
      *
-     * @throws IllegalArgumentException if the document is malformed, whatever is wrong with it: text
+     * @throws MalformedContentException if the document is malformed, whatever is wrong with it: text
      *         that is not JSON or ends early, a member of the wrong type or missing, an index past
      *         the end of the list it names, and one that declares more elements or bytes than the
      *         buffer behind them holds, which is refused before the array for them is allocated, so
@@ -246,7 +248,7 @@ public final class GltfLoader {
                 // The magic alone makes it a GLB, and the three header words are read before any
                 // chunk is, so a file cut short inside them underflowed the buffer rather than
                 // being refused.
-                throw new IllegalArgumentException("malformed GLB: " + data.length
+                throw new MalformedContentException("glTF", "malformed GLB: " + data.length
                         + " bytes, shorter than the 12-byte header");
             }
             ByteBuffer bb = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN);
@@ -259,7 +261,7 @@ public final class GltfLoader {
                 int len = bb.getInt();
                 int type = bb.getInt();
                 if (len < 0 || len > bb.remaining()) {
-                    throw new IllegalArgumentException("malformed GLB: chunk declares "
+                    throw new MalformedContentException("glTF", "malformed GLB: chunk declares "
                             + (len & 0xFFFFFFFFL) + " bytes but " + bb.remaining() + " remain");
                 }
                 byte[] chunk = new byte[len];
@@ -271,7 +273,7 @@ public final class GltfLoader {
                 }
             }
             if (parsedJson == null) {
-                throw new IllegalArgumentException("malformed GLB: no JSON chunk");
+                throw new MalformedContentException("glTF", "malformed GLB: no JSON chunk");
             }
             json = parsedJson;
             glbBin = parsedBin;
@@ -300,7 +302,7 @@ public final class GltfLoader {
         private void spend(long elements, String what) {
             spent += elements;
             if (spent > budget) {
-                throw new IllegalArgumentException("glTF " + what + " takes the model past "
+                throw new MalformedContentException("glTF", "glTF " + what + " takes the model past "
                         + budget + " elements, the most one load creates"
                         + " (GltfLoader.setElementBudget moves it)");
             }
@@ -325,7 +327,7 @@ public final class GltfLoader {
                 } else if (uri.startsWith("data:")) {
                     buffers.add(dataUriBytes(uri));
                 } else {
-                    throw new IllegalArgumentException("external glTF buffer not supported: " + uri);
+                    throw new MalformedContentException("glTF", "external glTF buffer not supported: " + uri);
                 }
             }
         }
@@ -381,6 +383,18 @@ public final class GltfLoader {
             return model;
         }
 
+        /**
+         * Adds an attribute's array to a primitive. The mesh refuses one that disagrees with the
+         * arrays it already has, as a caller's mistake; here it is the file's.
+         */
+        private static void put(MeshData data, VertexAttribute attribute, float[] values) {
+            try {
+                data.put(attribute, values);
+            } catch (IllegalArgumentException disagrees) {
+                throw new MalformedContentException("glTF", "glTF primitive: " + disagrees.getMessage(), disagrees);
+            }
+        }
+
         private GltfModel.MeshDef parseMesh(Map<String, Object> mesh) {
             List<GltfModel.Primitive> prims = new ArrayList<>();
             List<Object> primitives = arr(mesh, "primitives");
@@ -391,15 +405,15 @@ public final class GltfLoader {
                 Map<String, Object> attrs = object(prim, "attributes");
                 MeshData data = new MeshData();
                 if (attrs.containsKey("POSITION")) {
-                    data.put(VertexAttribute.POSITION,
+                    put(data, VertexAttribute.POSITION,
                             readFloats(intOf(attrs, "POSITION"), 3, "POSITION"));
                 }
                 if (attrs.containsKey("NORMAL")) {
-                    data.put(VertexAttribute.NORMAL,
+                    put(data, VertexAttribute.NORMAL,
                             readFloats(intOf(attrs, "NORMAL"), 3, "NORMAL"));
                 }
                 if (attrs.containsKey("TEXCOORD_0")) {
-                    data.put(VertexAttribute.UV0,
+                    put(data, VertexAttribute.UV0,
                             readFloats(intOf(attrs, "TEXCOORD_0"), 2, "TEXCOORD_0"));
                 }
                 if (!prim.containsKey("indices")) {
@@ -421,7 +435,7 @@ public final class GltfLoader {
                             : java.util.Arrays.copyOf(indices, indices.length - indices.length % 3);
                     case 5 -> stripToTriangles(indices);
                     case 6 -> fanToTriangles(indices);
-                    default -> throw new IllegalArgumentException(
+                    default -> throw new MalformedContentException("glTF", 
                             "unsupported glTF primitive mode " + mode + " (points/lines/loops)");
                 });
                 if (data.has(VertexAttribute.POSITION) && !data.has(VertexAttribute.NORMAL)) {
@@ -547,21 +561,21 @@ public final class GltfLoader {
             for (int i = 0; i < nodes.size(); i++) {
                 int mesh = nodes.get(i).mesh();
                 if (mesh < -1 || mesh >= meshCount) {
-                    throw new IllegalArgumentException("glTF node " + i + " names mesh "
+                    throw new MalformedContentException("glTF", "glTF node " + i + " names mesh "
                             + mesh + ", but the file has " + meshCount);
                 }
             }
             for (int i = 0; i < textures.size(); i++) {
                 int source = textures.get(i).image();
                 if (source < -1 || source >= imageCount) {
-                    throw new IllegalArgumentException("glTF texture " + i + " names image "
+                    throw new MalformedContentException("glTF", "glTF texture " + i + " names image "
                             + source + ", but the file has " + imageCount);
                 }
             }
             for (int i = 0; i < materials.size(); i++) {
                 int texture = materials.get(i).baseColorTexture();
                 if (texture < -1 || texture >= textures.size()) {
-                    throw new IllegalArgumentException("glTF material " + i + " names texture "
+                    throw new MalformedContentException("glTF", "glTF material " + i + " names texture "
                             + texture + ", but the file has " + textures.size());
                 }
             }
@@ -597,7 +611,7 @@ public final class GltfLoader {
                 System.arraycopy(buffer, offset, bytes, 0, length);
                 return new GltfModel.ImageDef(bytes, strOr(image, "mimeType", "image/png"));
             }
-            throw new IllegalArgumentException("external glTF image not supported: " + uri);
+            throw new MalformedContentException("glTF", "external glTF image not supported: " + uri);
         }
 
         private GltfModel.NodeDef parseNode(Map<String, Object> node) {
@@ -633,11 +647,11 @@ public final class GltfLoader {
             for (int i = 0; i < count; i++) {
                 for (int child : nodes.get(i).children()) {
                     if (child < 0 || child >= count) {
-                        throw new IllegalArgumentException("glTF node " + i + " names child "
+                        throw new MalformedContentException("glTF", "glTF node " + i + " names child "
                                 + child + ", and there are " + count + " nodes");
                     }
                     if (parent[child] >= 0 || child == i) {
-                        throw new IllegalArgumentException("glTF node " + child + " has more than"
+                        throw new MalformedContentException("glTF", "glTF node " + child + " has more than"
                                 + " one parent (" + (child == i ? "itself" : parent[child] + " and "
                                 + i) + "): the nodes of a glTF form trees");
                     }
@@ -648,7 +662,7 @@ public final class GltfLoader {
             int[] stack = new int[count];
             for (int root : roots) {
                 if (root < 0 || root >= count || parent[root] >= 0) {
-                    throw new IllegalArgumentException("glTF scene root " + root
+                    throw new MalformedContentException("glTF", "glTF scene root " + root
                             + " is not a node without a parent");
                 }
                 int top = 0;
@@ -659,7 +673,7 @@ public final class GltfLoader {
                     for (int child : nodes.get(at).children()) {
                         depth[child] = depth[at] + 1;
                         if (depth[child] > MAX_DEPTH) {
-                            throw new IllegalArgumentException("glTF node " + child + " sits "
+                            throw new MalformedContentException("glTF", "glTF node " + child + " sits "
                                     + depth[child] + " levels deep, past the " + MAX_DEPTH
                                     + " a scene is built to");
                         }
@@ -725,7 +739,7 @@ public final class GltfLoader {
         private static void checkFits(int count, int base, int stride, int element,
                                       long limit, String what) {
             if (count < 0 || base < 0 || stride < 0) {
-                throw new IllegalArgumentException("glTF " + what + " declares a negative count, "
+                throw new MalformedContentException("glTF", "glTF " + what + " declares a negative count, "
                         + "offset or stride (" + count + ", " + base + ", " + stride + ")");
             }
             if (count == 0) {
@@ -733,7 +747,7 @@ public final class GltfLoader {
             }
             long needed = (long) base + (long) (count - 1) * stride + element;
             if (needed > limit) {
-                throw new IllegalArgumentException("glTF " + what + " declares " + count
+                throw new MalformedContentException("glTF", "glTF " + what + " declares " + count
                         + " elements, which need " + needed + " bytes of the " + limit
                         + " it has");
             }
@@ -756,11 +770,11 @@ public final class GltfLoader {
         /** The accessor's bufferView, rejecting the unsupported shapes descriptively. */
         private Map<String, Object> viewOf(Map<String, Object> acc, String what) {
             if (acc.containsKey("sparse")) {
-                throw new IllegalArgumentException(
+                throw new MalformedContentException("glTF", 
                         "sparse accessors are not supported (" + what + ")");
             }
             if (acc.get("bufferView") == null) {
-                throw new IllegalArgumentException(
+                throw new MalformedContentException("glTF", 
                         "accessor without a bufferView is not supported (" + what + ")");
             }
             return bufferView(intOf(acc, "bufferView"));
@@ -785,7 +799,7 @@ public final class GltfLoader {
         private byte[] buffer(int index) {
             byte[] bytes = at(buffers, index, "buffer");
             if (bytes == null) {
-                throw new IllegalArgumentException("glTF buffer " + index + " has no uri, and the "
+                throw new MalformedContentException("glTF", "glTF buffer " + index + " has no uri, and the "
                         + "file has no GLB binary chunk to stand in for it");
             }
             return bytes;
@@ -802,7 +816,7 @@ public final class GltfLoader {
                 case 5120, 5121 -> 1; // BYTE, UNSIGNED_BYTE
                 case 5122, 5123 -> 2; // SHORT, UNSIGNED_SHORT
                 case 5126 -> 4;       // FLOAT
-                default -> throw new IllegalArgumentException("unsupported componentType "
+                default -> throw new MalformedContentException("glTF", "unsupported componentType "
                         + componentType + " for " + what);
             };
             int stride = intOr(bv, "byteStride", 0);
@@ -811,7 +825,7 @@ public final class GltfLoader {
             } else if (stride < components * componentSize) {
                 // The spec's own rule, and the one that bounds a count by the bytes: elements that
                 // overlap let a short buffer declare as many as it has bytes.
-                throw new IllegalArgumentException("glTF " + what + " declares a byteStride of "
+                throw new MalformedContentException("glTF", "glTF " + what + " declares a byteStride of "
                         + stride + ", shorter than its " + components * componentSize + "-byte element");
             }
             int count = intOr(acc, "count", 0);
@@ -865,7 +879,7 @@ public final class GltfLoader {
                 case 5121 -> 1;
                 case 5123 -> 2;
                 case 5125 -> 4;
-                default -> throw new IllegalArgumentException(
+                default -> throw new MalformedContentException("glTF", 
                         "unsupported index componentType " + componentType);
             };
             checkFits(count, base, indexSize, indexSize, limitOf(bv, buffer), "indices");
@@ -880,7 +894,7 @@ public final class GltfLoader {
                     default -> 0; // unreachable: indexSize already threw
                 };
                 if (index < 0 || index >= vertexCount) {
-                    throw new IllegalArgumentException("index " + i + " of accessor " + accessorIndex
+                    throw new MalformedContentException("glTF", "index " + i + " of accessor " + accessorIndex
                             + " is " + (index < 0 ? index & 0xFFFFFFFFL : index)
                             + ", outside the primitive's " + vertexCount + " vertices");
                 }
@@ -903,20 +917,20 @@ public final class GltfLoader {
     private static byte[] dataUriBytes(String uri) {
         int comma = uri.indexOf(',');
         if (comma < 5) {
-            throw new IllegalArgumentException("malformed data URI (no comma separator): "
+            throw new MalformedContentException("glTF", "malformed data URI (no comma separator): "
                     + uri.substring(0, Math.min(uri.length(), 40)));
         }
         String header = uri.substring(5, comma);
         String payload = uri.substring(comma + 1);
         if (!header.contains(";base64")) {
-            throw new IllegalArgumentException("only base64 data URIs supported: " + header);
+            throw new MalformedContentException("glTF", "only base64 data URIs supported: " + header);
         }
         try {
             return Base64.getDecoder().decode(payload);
         } catch (IllegalArgumentException notBase64) {
             // Already the right exception, but saying only "Illegal base64 character 5f", with no
             // word that it was a data URI being read.
-            throw new IllegalArgumentException("malformed data URI (" + header + "): "
+            throw new MalformedContentException("glTF", "malformed data URI (" + header + "): "
                     + notBase64.getMessage(), notBase64);
         }
     }
@@ -999,7 +1013,7 @@ public final class GltfLoader {
         if (value instanceof Map<?, ?> map) {
             return (Map<String, Object>) map;
         }
-        throw new IllegalArgumentException("glTF " + what + " must be an object, not "
+        throw new MalformedContentException("glTF", "glTF " + what + " must be an object, not "
                 + describe(value));
     }
 
@@ -1021,7 +1035,7 @@ public final class GltfLoader {
         if (value instanceof List<?> list) {
             return (List<Object>) list;
         }
-        throw new IllegalArgumentException("glTF \"" + key + "\" must be an array, not "
+        throw new MalformedContentException("glTF", "glTF \"" + key + "\" must be an array, not "
                 + describe(value));
     }
 
@@ -1033,7 +1047,7 @@ public final class GltfLoader {
      */
     private static <T> T at(List<T> list, int index, String what) {
         if (index < 0 || index >= list.size()) {
-            throw new IllegalArgumentException("glTF names " + what + " " + index
+            throw new MalformedContentException("glTF", "glTF names " + what + " " + index
                     + ", but the file has " + list.size());
         }
         return list.get(index);
@@ -1062,7 +1076,7 @@ public final class GltfLoader {
         if (v instanceof String s) {
             return s;
         }
-        throw new IllegalArgumentException("glTF \"" + key + "\" must be a string, not "
+        throw new MalformedContentException("glTF", "glTF \"" + key + "\" must be a string, not "
                 + describe(v));
     }
 
@@ -1071,7 +1085,7 @@ public final class GltfLoader {
         if (value instanceof Double d) {
             return d;
         }
-        throw new IllegalArgumentException("glTF \"" + key + "\" must be a number, not "
+        throw new MalformedContentException("glTF", "glTF \"" + key + "\" must be a number, not "
                 + describe(value));
     }
 
@@ -1102,7 +1116,7 @@ public final class GltfLoader {
             return null;
         }
         if (a.size() < needed) {
-            throw new IllegalArgumentException("glTF \"" + key + "\" must hold " + needed
+            throw new MalformedContentException("glTF", "glTF \"" + key + "\" must hold " + needed
                     + " numbers, not " + a.size());
         }
         float[] out = new float[needed];

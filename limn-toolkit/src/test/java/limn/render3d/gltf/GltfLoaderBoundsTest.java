@@ -1,5 +1,7 @@
 package limn.render3d.gltf;
 
+import limn.io.MalformedContentException;
+
 import limn.render3d.MeshData;
 import limn.render3d.VertexAttribute;
 import org.junit.jupiter.api.Test;
@@ -22,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <p>Each case asserts the exception <b>type</b>, which is the whole point: a loader that allocates
  * first and discovers the buffer is too short while reading it throws {@code OutOfMemoryError} or
- * {@code IndexOutOfBoundsException}, and neither is an {@code IllegalArgumentException}. The
+ * {@code IndexOutOfBoundsException}, and neither is an {@code MalformedContentException}. The
  * declaration has to be refused against the bytes behind it before the array exists.
  */
 class GltfLoaderBoundsTest {
@@ -100,7 +102,7 @@ class GltfLoaderBoundsTest {
         assertEquals(GltfLoader.DEFAULT_ELEMENT_BUDGET, GltfLoader.elementBudget());
         try {
             GltfLoader.setElementBudget(10);
-            IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+            MalformedContentException refused = assertThrows(MalformedContentException.class,
                     () -> GltfLoader.load(model(4, 6)));
             assertTrue(refused.getMessage().contains("10 elements")
                     && refused.getMessage().contains("setElementBudget"), refused.getMessage());
@@ -116,7 +118,7 @@ class GltfLoaderBoundsTest {
      * An index into another list of the document is checked where it is read: a texture naming an
      * image the file does not have, and a material naming a texture the file does not have, both
      * loaded and threw ArrayIndexOutOfBoundsException later, from the texture decode or upload,
-     * instead of the IllegalArgumentException a malformed file gets. A texture with no image at
+     * instead of the MalformedContentException a malformed file gets. A texture with no image at
      * all is legal glTF (an extension may supply one) and loads as no texture: it threw from the
      * decode too.
      */
@@ -131,7 +133,7 @@ class GltfLoaderBoundsTest {
                         + "\"pbrMetallicRoughness\": {\"baseColorTexture\": {\"index\": 2}}}]}",
         };
         for (String document : documents) {
-            assertThrows(IllegalArgumentException.class,
+            assertThrows(MalformedContentException.class,
                     () -> GltfLoader.load(document.getBytes(StandardCharsets.UTF_8)), document);
         }
         String honest = "{\"asset\": {\"version\": \"2.0\"}, " + image
@@ -148,32 +150,32 @@ class GltfLoaderBoundsTest {
     @Test
     void aVertexCountBeyondItsBufferIsRefusedBeforeTheArrayIsAllocated() {
         // 100 million VEC3 floats is 1.2 GB asked for by a file of a few hundred bytes.
-        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+        MalformedContentException refused = assertThrows(MalformedContentException.class,
                 () -> GltfLoader.load(model(100_000_000, 6)));
         assertTrue(refused.getMessage().contains("100000000"), refused.getMessage());
 
         // And the near miss: five VEC3 positions in a bufferView that holds four.
-        assertThrows(IllegalArgumentException.class, () -> GltfLoader.load(model(5, 6)));
+        assertThrows(MalformedContentException.class, () -> GltfLoader.load(model(5, 6)));
     }
 
     @Test
     void anIndexCountBeyondItsBufferIsRefusedBeforeTheArrayIsAllocated() {
-        assertThrows(IllegalArgumentException.class, () -> GltfLoader.load(model(4, 500_000_000)));
-        assertThrows(IllegalArgumentException.class, () -> GltfLoader.load(model(4, 7)));
+        assertThrows(MalformedContentException.class, () -> GltfLoader.load(model(4, 500_000_000)));
+        assertThrows(MalformedContentException.class, () -> GltfLoader.load(model(4, 7)));
     }
 
     @Test
     void aNegativeCountIsRefusedRatherThanReachingTheAllocator() {
         // new float[-1] is a NegativeArraySizeException, which says nothing about the model.
-        assertThrows(IllegalArgumentException.class, () -> GltfLoader.load(model(-1, 6)));
-        assertThrows(IllegalArgumentException.class, () -> GltfLoader.load(model(4, -1)));
+        assertThrows(MalformedContentException.class, () -> GltfLoader.load(model(-1, 6)));
+        assertThrows(MalformedContentException.class, () -> GltfLoader.load(model(4, -1)));
     }
 
     @Test
     void aCountThatOverflowsTheByteArithmeticIsRefused() {
         // count * stride wraps int negative at exactly the sizes this exists to refuse, and a
         // wrapped negative compares as comfortably inside the buffer.
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(MalformedContentException.class,
                 () -> GltfLoader.load(model(Integer.MAX_VALUE, 6)));
     }
 
@@ -181,7 +183,7 @@ class GltfLoaderBoundsTest {
     void anIndexBeyondThePrimitivesVerticesIsRefusedBeforeItReachesTheDevice() {
         // The accessor fits its buffer; the value in it points past the four vertices, and
         // glDrawElements would have read the vertex buffer there.
-        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+        MalformedContentException error = assertThrows(MalformedContentException.class,
                 () -> GltfLoader.load(model(4, 6, new int[]{0, 1, 2, 0, 2, 7})));
         assertTrue(error.getMessage().contains("7"), error.getMessage());
         assertTrue(error.getMessage().contains("4 vertices"), error.getMessage());
@@ -190,7 +192,7 @@ class GltfLoaderBoundsTest {
     @Test
     void aDocumentOfNothingButBracketsIsRefusedRatherThanOverflowingTheStack() {
         byte[] brackets = "[".repeat(200_000).getBytes(StandardCharsets.UTF_8);
-        assertThrows(IllegalArgumentException.class, () -> GltfLoader.load(brackets));
+        assertThrows(MalformedContentException.class, () -> GltfLoader.load(brackets));
     }
 
     @Test
@@ -205,7 +207,7 @@ class GltfLoaderBoundsTest {
                   "buffers": [{"uri": "data:application/octet-stream;base64,AAAA", "byteLength": 3}]
                 }
                 """;
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(MalformedContentException.class,
                 () -> GltfLoader.load(json.getBytes(StandardCharsets.UTF_8)));
     }
 }

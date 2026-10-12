@@ -1,5 +1,7 @@
 package limn.video.decode;
 
+import limn.io.MalformedContentException;
+
 import limn.io.internal.Closeables;
 import limn.internal.lang.Checks;
 import limn.video.PixelFormat;
@@ -408,7 +410,7 @@ final class Y4mSource implements VideoStreamSource {
                     return new String(scratch, 0, length, StandardCharsets.US_ASCII);
                 }
                 if (length == scratch.length) {
-                    throw new IllegalStateException("malformed Y4M in " + file + ": a line runs past "
+                    throw new MalformedContentException("Y4M", "malformed Y4M in " + file + ": a line runs past "
                             + MAX_LINE_BYTES + " bytes with no newline");
                 }
                 scratch[length++] = value;
@@ -417,7 +419,7 @@ final class Y4mSource implements VideoStreamSource {
                 if (length == 0) {
                     return null;
                 }
-                throw new IllegalStateException("malformed Y4M in " + file
+                throw new MalformedContentException("Y4M", "malformed Y4M in " + file
                         + ": the input ends inside a line ('"
                         + shorten(new String(scratch, 0, length, StandardCharsets.US_ASCII)) + "')");
             }
@@ -435,8 +437,8 @@ final class Y4mSource implements VideoStreamSource {
         return read > 0;
     }
 
-    private IllegalStateException malformed(String reason) {
-        return new IllegalStateException("malformed Y4M in " + file + ": " + reason);
+    private MalformedContentException malformed(String reason) {
+        return new MalformedContentException("Y4M", "malformed Y4M in " + file + ": " + reason);
     }
 
 
@@ -456,10 +458,10 @@ final class Y4mSource implements VideoStreamSource {
             throws IOException {
         String line = readLine(file, channel, input, new byte[MAX_LINE_BYTES]);
         if (line == null) {
-            throw new IllegalStateException("malformed Y4M in " + file + ": the input is empty");
+            throw new MalformedContentException("Y4M", "malformed Y4M in " + file + ": the input is empty");
         }
         if (!line.startsWith(MAGIC)) {
-            throw new IllegalStateException("malformed Y4M in " + file + ": expected '" + MAGIC
+            throw new MalformedContentException("Y4M", "malformed Y4M in " + file + ": expected '" + MAGIC
                     + "', found '" + shorten(line) + "'");
         }
         Header header = new Header();
@@ -485,7 +487,7 @@ final class Y4mSource implements VideoStreamSource {
                 case 'F' -> {
                     int colon = value.indexOf(':');
                     if (colon < 1) {
-                        throw new IllegalStateException("malformed Y4M in " + file
+                        throw new MalformedContentException("Y4M", "malformed Y4M in " + file
                                 + ": frame rate must be F<num>:<den>, found 'F" + value + "'");
                     }
                     header.rateNum = parseRatePart(file, value.substring(0, colon));
@@ -506,7 +508,7 @@ final class Y4mSource implements VideoStreamSource {
             }
         }
         if (!hasWidth || !hasHeight) {
-            throw new IllegalStateException("malformed Y4M in " + file
+            throw new MalformedContentException("Y4M", "malformed Y4M in " + file
                     + ": the header has no " + (hasWidth ? "H" : "W") + " tag ('" + shorten(line) + "')");
         }
         header.format = formatOf(file, colorTag);
@@ -554,11 +556,11 @@ final class Y4mSource implements VideoStreamSource {
         try {
             parsed = Integer.parseInt(value);
         } catch (NumberFormatException error) {
-            throw new IllegalStateException("malformed Y4M in " + file
+            throw new MalformedContentException("Y4M", "malformed Y4M in " + file
                     + ": tag F needs whole numbers, found '" + value + "'");
         }
         if (parsed < 1) {
-            throw new IllegalStateException("malformed Y4M in " + file
+            throw new MalformedContentException("Y4M", "malformed Y4M in " + file
                     + ": tag F has a term of " + parsed + ", which is not a rate");
         }
         return parsed;
@@ -569,11 +571,11 @@ final class Y4mSource implements VideoStreamSource {
         try {
             parsed = Integer.parseInt(value);
         } catch (NumberFormatException error) {
-            throw new IllegalStateException("malformed Y4M in " + file + ": tag " + tag
+            throw new MalformedContentException("Y4M", "malformed Y4M in " + file + ": tag " + tag
                     + " needs a whole number, found '" + value + "'");
         }
         if (parsed < 1 || parsed > PixelFormat.MAX_DIMENSION) {
-            throw new IllegalStateException("malformed Y4M in " + file + ": tag " + tag + " is "
+            throw new MalformedContentException("Y4M", "malformed Y4M in " + file + ": tag " + tag + " is "
                     + parsed + ", outside [1.." + PixelFormat.MAX_DIMENSION + "]");
         }
         return parsed;

@@ -92,7 +92,7 @@ public final class ThemeFormat {
      * and when to wrap it in {@code Ui.work}.
      *
      * @throws IOException              if the file cannot be read
-     * @throws IllegalArgumentException if what it holds is not a palette, naming the line
+     * @throws limn.io.MalformedContentException if what it holds is not a palette, naming the line
      */
     public static Theme load(Path file) throws IOException {
         Objects.requireNonNull(file, "file");
@@ -113,7 +113,7 @@ public final class ThemeFormat {
      * try-with-resources above by making the close double.
      *
      * @throws IOException              if the stream cannot be read
-     * @throws IllegalArgumentException if what it holds is not a palette, naming the line
+     * @throws limn.io.MalformedContentException if what it holds is not a palette, naming the line
      */
     public static Theme load(InputStream in) throws IOException {
         Objects.requireNonNull(in, "in");
@@ -205,7 +205,7 @@ public final class ThemeFormat {
      * <p>A comment is a whole line and never the tail of one: a colour value begins with
      * {@code #}, and there is no spelling of "comment" that could also let that through.
      *
-     * @throws IllegalArgumentException on any malformed, unknown, repeated or missing
+     * @throws limn.io.MalformedContentException on any malformed, unknown, repeated or missing
      *                                  key, naming the line it was on; the message is
      *                                  meant to be shown to whoever wrote the file
      */
@@ -310,31 +310,37 @@ public final class ThemeFormat {
             }
         }
         if (name == null) {
-            throw new IllegalArgumentException("theme: no 'name'; a palette must say what it is called");
+            throw new limn.io.MalformedContentException("theme", "theme: no 'name'; a palette must say what it is called");
         }
         if (dark == null) {
-            throw new IllegalArgumentException(
+            throw new limn.io.MalformedContentException("theme",
                     "theme '" + name + "': no 'dark'. It decides which palette the tones "
                             + "left out are taken from, so it cannot be guessed");
         }
-        Theme.Builder builder = Theme.builder(name, dark);
-        if (cornerScale != null) {
-            builder.cornerScale(cornerScale);
+        try {
+            Theme.Builder builder = Theme.builder(name, dark);
+            if (cornerScale != null) {
+                builder.cornerScale(cornerScale);
+            }
+            if (fontFamily != null) {
+                builder.fontFamily(fontFamily);
+            }
+            for (Map.Entry<Theme.Token, Color> entry : colors.entrySet()) {
+                builder.set(entry.getKey(), entry.getValue());
+            }
+            for (Map.Entry<Elevation, ElevationShadow> entry : shadows.entrySet()) {
+                builder.elevation(entry.getKey(), entry.getValue());
+            }
+            return builder.build();
+        } catch (IllegalArgumentException refusedByTheTheme) {
+            // What a theme refuses of a caller's argument is, read from a file, the file's fault.
+            throw new limn.io.MalformedContentException("theme",
+                    "theme '" + name + "': " + refusedByTheTheme.getMessage(), refusedByTheTheme);
         }
-        if (fontFamily != null) {
-            builder.fontFamily(fontFamily);
-        }
-        for (Map.Entry<Theme.Token, Color> entry : colors.entrySet()) {
-            builder.set(entry.getKey(), entry.getValue());
-        }
-        for (Map.Entry<Elevation, ElevationShadow> entry : shadows.entrySet()) {
-            builder.elevation(entry.getKey(), entry.getValue());
-        }
-        return builder.build();
     }
 
-    private static IllegalArgumentException malformed(int line, String why, String content) {
-        return new IllegalArgumentException(
-                "theme, line " + line + ": " + why + " (\"" + content + "\")");
+    private static limn.io.MalformedContentException malformed(int line, String why, String content) {
+        return new limn.io.MalformedContentException("theme",
+                "theme, line " + line + ": " + why + " (\"" + content + "\")", line, null);
     }
 }

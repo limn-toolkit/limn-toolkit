@@ -1,5 +1,7 @@
 package limn.render3d.gltf;
 
+import limn.io.MalformedContentException;
+
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
@@ -12,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * What a malformed model is refused with, site by site: an {@link IllegalArgumentException} of
+ * What a malformed model is refused with, site by site: an {@link MalformedContentException} of
  * exactly that class, saying which member it was reading and what it had to be, or which list an
  * index missed, or where in the text the JSON broke. {@link GltfLoaderFuzzTest} holds the class
  * over thousands of inputs; this holds the words for one input per kind of refusal, because a
@@ -27,18 +29,18 @@ class GltfLoaderRefusalTest {
 
     private static final String ASSET = "\"asset\": {\"version\": \"2.0\"}";
 
-    private static IllegalArgumentException refusal(String document) {
+    private static MalformedContentException refusal(String document) {
         return refusal(document.getBytes(StandardCharsets.UTF_8));
     }
 
-    private static IllegalArgumentException refusal(byte[] data) {
-        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+    private static MalformedContentException refusal(byte[] data) {
+        MalformedContentException refused = assertThrows(MalformedContentException.class,
                 () -> GltfLoader.load(data));
-        assertSame(IllegalArgumentException.class, refused.getClass(), refused.toString());
+        assertSame(MalformedContentException.class, refused.getClass(), refused.toString());
         return refused;
     }
 
-    private static void assertSays(String expected, IllegalArgumentException refused) {
+    private static void assertSays(String expected, MalformedContentException refused) {
         assertTrue(refused.getMessage().contains(expected),
                 "expected the refusal to say \"" + expected + "\", but it said \""
                         + refused.getMessage() + "\"");

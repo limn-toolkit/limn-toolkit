@@ -1,5 +1,7 @@
 package limn.render3d.gltf;
 
+import limn.io.MalformedContentException;
+
 import limn.render3d.MeshData;
 import limn.render3d.VertexAttribute;
 import org.junit.jupiter.api.Test;
@@ -223,8 +225,8 @@ class GltfLoaderTest {
 
     @Test
     void rejectsPointAndLineModesDescriptively() {
-        IllegalArgumentException error = org.junit.jupiter.api.Assertions.assertThrows(
-                IllegalArgumentException.class,
+        MalformedContentException error = org.junit.jupiter.api.Assertions.assertThrows(
+                MalformedContentException.class,
                 () -> GltfLoader.load(triangleWithQuantizedUvs(", \"mode\": 1")));
         assertTrue(error.getMessage().contains("mode"), error.getMessage());
     }
@@ -242,8 +244,8 @@ class GltfLoaderTest {
                   "buffers": []
                 }
                 """;
-        IllegalArgumentException error = org.junit.jupiter.api.Assertions.assertThrows(
-                IllegalArgumentException.class,
+        MalformedContentException error = org.junit.jupiter.api.Assertions.assertThrows(
+                MalformedContentException.class,
                 () -> GltfLoader.load(json.getBytes(StandardCharsets.UTF_8)));
         assertTrue(error.getMessage().contains("sparse"), error.getMessage());
     }
@@ -256,8 +258,8 @@ class GltfLoaderTest {
         bb.putInt(20);
         bb.putInt(0x7FFFFFFF); // chunk claims 2 GB
         bb.putInt(0x4E4F534A); // "JSON"
-        IllegalArgumentException error = org.junit.jupiter.api.Assertions.assertThrows(
-                IllegalArgumentException.class, () -> GltfLoader.load(bb.array()));
+        MalformedContentException error = org.junit.jupiter.api.Assertions.assertThrows(
+                MalformedContentException.class, () -> GltfLoader.load(bb.array()));
         assertTrue(error.getMessage().contains("GLB"), error.getMessage());
     }
 
@@ -270,8 +272,8 @@ class GltfLoaderTest {
                   "buffers": []
                 }
                 """;
-        IllegalArgumentException error = org.junit.jupiter.api.Assertions.assertThrows(
-                IllegalArgumentException.class,
+        MalformedContentException error = org.junit.jupiter.api.Assertions.assertThrows(
+                MalformedContentException.class,
                 () -> GltfLoader.load(json.getBytes(StandardCharsets.UTF_8)));
         assertTrue(error.getMessage().contains("data URI"), error.getMessage());
     }

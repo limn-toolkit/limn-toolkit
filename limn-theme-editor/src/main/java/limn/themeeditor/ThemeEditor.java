@@ -478,7 +478,7 @@ public final class ThemeEditor extends Widget<ThemeEditor> {
             load(ThemeFormat.parse(text));
             status.setText("");
             return true;
-        } catch (IllegalArgumentException malformed) {
+        } catch (limn.io.MalformedContentException malformed) {
             status.setText(ThemeEditorStrings.PASTE_FAILED.format(malformed.getMessage()));
             return false;
         }

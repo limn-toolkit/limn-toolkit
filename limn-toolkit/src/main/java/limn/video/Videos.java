@@ -180,6 +180,8 @@ public final class Videos {
      *                                       been cancelled, which it cannot have been here
      * @throws UnsupportedOperationException if decoders are installed and none claims the input;
      *                                       the message names every decoder asked, in order
+     * @throws limn.io.MalformedContentException if the decoder that claimed the input found it
+     *                                       malformed
      * @throws NullPointerException          if {@code file} is null
      */
     public static @Nullable VideoStreamSource open(Path file) {

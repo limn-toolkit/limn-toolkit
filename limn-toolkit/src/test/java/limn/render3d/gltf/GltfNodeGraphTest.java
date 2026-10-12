@@ -1,5 +1,7 @@
 package limn.render3d.gltf;
 
+import limn.io.MalformedContentException;
+
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -14,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * no deeper than {@link GltfLoader}'s limit, and all its arrays together stay within one budget. A
  * 609-byte file of nodes each naming the next one twice asked for 2<sup>28</sup> nodes, a node naming
  * itself recursed until the stack ran out, and a 168 KB file whose strips all reused one buffer asked
- * for more than two gigabytes. Each is refused as {@link IllegalArgumentException}, before the arrays
+ * for more than two gigabytes. Each is refused as {@link MalformedContentException}, before the arrays
  * exist.
  */
 class GltfNodeGraphTest {
@@ -57,7 +59,7 @@ class GltfNodeGraphTest {
 
     @Test
     void aNodeNamingItselfIsRefused() {
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(MalformedContentException.class,
                 () -> GltfLoader.load(withNodes("[{\"children\":[0]}]", "[0]")));
     }
 
@@ -69,22 +71,22 @@ class GltfNodeGraphTest {
                     .append(i + 1).append("]}");
         }
         nodes.append(",{\"mesh\":0}]");
-        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+        MalformedContentException refused = assertThrows(MalformedContentException.class,
                 () -> GltfLoader.load(withNodes(nodes.toString(), "[0]")));
         assertTrue(refused.getMessage().contains("more than one parent"), refused.getMessage());
     }
 
     @Test
     void aChildThatIsNoNodeAndARootThatIsAChildAreRefused() {
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(MalformedContentException.class,
                 () -> GltfLoader.load(withNodes("[{\"children\":[7]}]", "[0]")));
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(MalformedContentException.class,
                 () -> GltfLoader.load(withNodes("[{\"children\":[1]},{\"mesh\":0}]", "[0,1]")));
     }
 
     @Test
     void aChainDeeperThanTheLimitIsRefusedAndAnOrdinaryOneLoads() {
-        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+        MalformedContentException refused = assertThrows(MalformedContentException.class,
                 () -> GltfLoader.load(withNodes(chain(20_000), "[0]")));
         assertTrue(refused.getMessage().contains("levels deep"), refused.getMessage());
         GltfModel model = GltfLoader.load(withNodes(chain(200), "[0]"));
@@ -112,7 +114,7 @@ class GltfNodeGraphTest {
                 + Base64.getEncoder().encodeToString(buffer) + "\",\"byteLength\":65536}]}";
         // The same file under a budget a test can afford: forty times less than the real one.
         long budget = GltfLoader.DEFAULT_ELEMENT_BUDGET / 40;
-        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+        MalformedContentException refused = assertThrows(MalformedContentException.class,
                 () -> GltfLoader.load(json.getBytes(StandardCharsets.UTF_8), NEVER_CANCELLED, budget));
         assertTrue(refused.getMessage().contains(budget + " elements"), refused.getMessage());
         assertEquals(1L << 26, GltfLoader.DEFAULT_ELEMENT_BUDGET,
@@ -172,7 +174,7 @@ class GltfNodeGraphTest {
 
             long exact = read + made;
             GltfLoader.load(file, NEVER_CANCELLED, exact);
-            IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+            MalformedContentException refused = assertThrows(MalformedContentException.class,
                     () -> GltfLoader.load(file, NEVER_CANCELLED, exact - 1),
                     "a budget one element short of what the load allocates must refuse it, uv=" + uv);
             assertTrue(refused.getMessage().contains("flat normals"), refused.getMessage());
@@ -188,7 +190,7 @@ class GltfNodeGraphTest {
                 + "\"bufferViews\":[{\"buffer\":0,\"byteOffset\":0,\"byteLength\":48,\"byteStride\":1}],"
                 + "\"buffers\":[{\"uri\":\"data:application/octet-stream;base64,"
                 + Base64.getEncoder().encodeToString(buffer) + "\",\"byteLength\":48}]}";
-        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+        MalformedContentException refused = assertThrows(MalformedContentException.class,
                 () -> GltfLoader.load(json.getBytes(StandardCharsets.UTF_8)));
         assertTrue(refused.getMessage().contains("byteStride"), refused.getMessage());
     }

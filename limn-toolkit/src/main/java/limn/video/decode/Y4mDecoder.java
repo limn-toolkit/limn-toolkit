@@ -99,7 +99,7 @@ public final class Y4mDecoder implements VideoDecoder {
      *
      * @throws UnsupportedOperationException if the stream's {@code C} tag names a layout this
      *                                       toolkit has no {@link PixelFormat} for
-     * @throws IllegalStateException         if the header is missing, malformed, or gives a size
+     * @throws limn.io.MalformedContentException if the header is missing, malformed, or gives a size
      *                                       outside {@code [1..PixelFormat.MAX_DIMENSION]}
      * @throws java.io.UncheckedIOException  if the file cannot be read
      * @throws NullPointerException          if {@code file} is null

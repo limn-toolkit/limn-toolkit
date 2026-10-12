@@ -1,5 +1,7 @@
 package limn.video.decode;
 
+import limn.io.MalformedContentException;
+
 import limn.video.PixelFormat;
 import limn.video.VideoColor;
 import limn.video.VideoFrame;
@@ -149,7 +151,7 @@ class Y4mReaderTest {
     @Test
     void anEmptyFileIsNotAStream() throws IOException {
         Path file = write("empty.y4m", "");
-        IllegalStateException error = assertThrows(IllegalStateException.class,
+        MalformedContentException error = assertThrows(MalformedContentException.class,
                 () -> new Y4mDecoder().openStream(file));
         assertTrue(error.getMessage().contains("empty"), error.getMessage());
     }
@@ -157,7 +159,7 @@ class Y4mReaderTest {
     @Test
     void aFileWithoutTheSignatureIsNotAStream() throws IOException {
         Path file = write("wrong.y4m", "RIFF....WEBPVP8 \n");
-        IllegalStateException error = assertThrows(IllegalStateException.class,
+        MalformedContentException error = assertThrows(MalformedContentException.class,
                 () -> new Y4mDecoder().openStream(file));
         assertTrue(error.getMessage().contains("YUV4MPEG2"), error.getMessage());
     }
@@ -165,17 +167,17 @@ class Y4mReaderTest {
     @Test
     void aHeaderMissingASizeIsRefused() throws IOException {
         Path noHeight = write("no-h.y4m", "YUV4MPEG2 W4 F30:1 C420\n");
-        assertTrue(assertThrows(IllegalStateException.class,
+        assertTrue(assertThrows(MalformedContentException.class,
                 () -> new Y4mDecoder().openStream(noHeight)).getMessage().contains("H"));
 
         Path zeroWidth = write("zero-w.y4m", "YUV4MPEG2 W0 H4 F30:1 C420\n");
-        assertThrows(IllegalStateException.class, () -> new Y4mDecoder().openStream(zeroWidth));
+        assertThrows(MalformedContentException.class, () -> new Y4mDecoder().openStream(zeroWidth));
 
         Path notANumber = write("nan.y4m", "YUV4MPEG2 Wmany H4 F30:1 C420\n");
-        assertThrows(IllegalStateException.class, () -> new Y4mDecoder().openStream(notANumber));
+        assertThrows(MalformedContentException.class, () -> new Y4mDecoder().openStream(notANumber));
 
         Path badRate = write("bad-rate.y4m", "YUV4MPEG2 W4 H4 F30 C420\n");
-        assertThrows(IllegalStateException.class, () -> new Y4mDecoder().openStream(badRate));
+        assertThrows(MalformedContentException.class, () -> new Y4mDecoder().openStream(badRate));
     }
 
     @Test
@@ -186,8 +188,8 @@ class Y4mReaderTest {
                 planes(new int[]{1, 2, 3, 4}, new int[]{5}, new int[]{6}));
         try (VideoStreamSource source = new Y4mDecoder().openStream(file)) {
             assertEquals(64, source.width());
-            IllegalStateException error =
-                    assertThrows(IllegalStateException.class, source::readFrame);
+            MalformedContentException error =
+                    assertThrows(MalformedContentException.class, source::readFrame);
             assertTrue(error.getMessage().contains("ends inside a picture"), error.getMessage());
         }
     }
@@ -196,7 +198,7 @@ class Y4mReaderTest {
     void aHeaderAskingForGigabytesIsRefusedAtOpen() throws IOException {
         // Well formed, in range per axis, and 4.5 GiB of pictures for thirty bytes of input.
         Path file = write("huge.y4m", "YUV4MPEG2 W32768 H32768 F30:1 C420\n");
-        IllegalStateException error = assertThrows(IllegalStateException.class,
+        MalformedContentException error = assertThrows(MalformedContentException.class,
                 () -> new Y4mDecoder().openStream(file));
         assertTrue(error.getMessage().contains("MiB"), error.getMessage());
     }
@@ -208,8 +210,8 @@ class Y4mReaderTest {
         long before = FramePoolTest.directMemoryUsed();
         try (VideoStreamSource source = new Y4mDecoder().openStream(file)) {
             assertEquals(8000, source.width(), "open still answers from the header");
-            IllegalStateException error =
-                    assertThrows(IllegalStateException.class, source::readFrame);
+            MalformedContentException error =
+                    assertThrows(MalformedContentException.class, source::readFrame);
             assertTrue(error.getMessage().contains("ends inside a picture"), error.getMessage());
         }
         assertTrue(FramePoolTest.directMemoryUsed() - before < 16L << 20,
@@ -232,7 +234,7 @@ class Y4mReaderTest {
         Files.write(file, java.util.Arrays.copyOf(bytes, bytes.length - 2));
 
         try (VideoStreamSource source = new Y4mDecoder().openStream(file)) {
-            assertThrows(IllegalStateException.class, source::readFrame,
+            assertThrows(MalformedContentException.class, source::readFrame,
                     "a picture that stops halfway is a broken file, not the end of a stream");
         }
     }
@@ -241,8 +243,8 @@ class Y4mReaderTest {
     void somethingOtherThanFrameWhereAPictureBeginsIsRefused() throws IOException {
         Path file = write("junk.y4m", "YUV4MPEG2 W2 H2 F30:1 C420\nJUNK\n");
         try (VideoStreamSource source = new Y4mDecoder().openStream(file)) {
-            IllegalStateException error =
-                    assertThrows(IllegalStateException.class, source::readFrame);
+            MalformedContentException error =
+                    assertThrows(MalformedContentException.class, source::readFrame);
             assertTrue(error.getMessage().contains("JUNK"), error.getMessage());
         }
     }
