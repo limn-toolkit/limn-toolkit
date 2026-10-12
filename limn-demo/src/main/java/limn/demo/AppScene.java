@@ -873,12 +873,15 @@ final class AppScene {
                 return edit;
             }).width(72).sortable(false);
             table = new Table<>(List.of(number, customer, placed, state, total, open));
+            // What a tool driving the application from outside finds these three by.
+            table.setId("orders");
             table.setAccessibleName(ShowcaseStrings.NAV_ORDERS);
             table.setRows(shown);
             table.setSort(placed, SortOrder.DESCENDING);
 
             // ---- the filter: what is typed, and the statuses chosen
             SearchField search = new SearchField();
+            search.setId("orders-search");
             search.setPlaceholder(ShowcaseStrings.ORDERS_SEARCH_HINT);
             search.setAccessibleName(ShowcaseStrings.ORDERS_SEARCH_HINT);
             ComboBox<I18nString> statuses = ComboBox.localized(Status.labels());
@@ -926,6 +929,7 @@ final class AppScene {
             DatePicker dueField = new DatePicker();
             TextArea notes = new TextArea().setSoftWrap(true);
             Button save = new Button(ShowcaseStrings.ACTION_SAVE);
+            save.setId("order-save");
             Button revert = new Button(ShowcaseStrings.ORDERS_REVERT).setSecondary(true);
             Order[] editing = {null};
             Runnable headed = () -> heading.setText(editing[0] == null ? ShowcaseStrings.ORDERS_NONE.get()

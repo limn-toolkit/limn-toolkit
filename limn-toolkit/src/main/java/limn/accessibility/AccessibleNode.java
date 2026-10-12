@@ -30,6 +30,7 @@ public final class AccessibleNode {
     private static final AccessibleRelation[] NO_RELATIONS = new AccessibleRelation[0];
 
     private final long id;
+    private final String identifier;
     private final Accessible.Role role;
     private final String name;
     private final Accessible.NameFrom nameFrom;
@@ -61,7 +62,7 @@ public final class AccessibleNode {
     private final int selectionContainer;
     private final boolean inert;
 
-    AccessibleNode(long id, Accessible.Role role, String name, Accessible.NameFrom nameFrom,
+    AccessibleNode(long id, String identifier, Accessible.Role role, String name, Accessible.NameFrom nameFrom,
                    String description, Locale locale, long states,
                    float x, float y, float width, float height,
                    AccessibleRelation[] relations,
@@ -72,6 +73,7 @@ public final class AccessibleNode {
                    int parent, int firstChild, int lastChild,
                    int nextSibling, int previousSibling, int selectionContainer, boolean inert) {
         this.id = id;
+        this.identifier = identifier;
         this.role = role;
         this.name = name;
         this.nameFrom = nameFrom;
@@ -111,6 +113,19 @@ public final class AccessibleNode {
      */
     public long id() {
         return id;
+    }
+
+    /**
+     * What a tool that drives the application from outside finds this node by: the id the
+     * application gave the widget ({@code Widget.setId}), and where it gave none, {@link #id()}
+     * in decimal. It is what each platform's bridge publishes as the element's identifier.
+     * Nobody hears it. An application's id is as unique as the application made it; the number
+     * always is.
+     *
+     * @return the identifier; never empty
+     */
+    public String identifier() {
+        return identifier.isEmpty() ? Long.toString(id) : identifier;
     }
 
     /** @return what this node is; never {@code null} */

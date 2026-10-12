@@ -679,6 +679,11 @@ public abstract class Widget<W extends Widget<W>> {
         }
     }
 
+    /** Whether something outside the scene is showing this widget; read by the accessible walk. */
+    final boolean isPresentedElsewhere() {
+        return elsewhere;
+    }
+
     /** @return what {@link #setVisible} was last told, whatever {@link #setPresentedElsewhere} says */
     protected final boolean isVisibleByItsOwnFlag() {
         return visible;
@@ -2659,9 +2664,13 @@ public abstract class Widget<W extends Widget<W>> {
     }
 
     /**
-     * Names this widget for the code that looks it up: {@link Scene#find(String)}, and a test's
-     * driver clicking it by id. Nobody sees an id and no assistive technology reads one; that is
+     * Names this widget for the code that looks it up: {@link Scene#find(String)}, a test's
+     * driver clicking it by id, and a tool that drives the running application from outside,
+     * which finds it by the same id through the system's accessibility: UI Automation's
+     * automation id on Windows, the accessibility identifier on macOS, the accessible id on
+     * Linux. Nobody sees an id and no screen reader speaks one; that is
      * {@link #setAccessibleName}. An id need not be unique: a lookup answers the first match.
+     * A widget given none is published under a number that holds while it stays in the scene.
      * UI thread only.
      *
      * @param id the id, or {@code null} for none (the default)
@@ -2669,7 +2678,10 @@ public abstract class Widget<W extends Widget<W>> {
      */
     public final W setId(@Nullable String id) {
         Ui.checkUiThread();
-        this.id = id;
+        if (!java.util.Objects.equals(this.id, id)) {
+            this.id = id;
+            invalidateAccessible();
+        }
         return self();
     }
 

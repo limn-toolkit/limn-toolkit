@@ -739,7 +739,7 @@ final class AtspiTree {
         out.put("Parent", new DBus.Variant("(so)", parentRef(tree, node).toStruct()));
         out.put("ChildCount", new DBus.Variant("i", tree.children(node).size()));
         out.put("Locale", new DBus.Variant("s", LocaleServices.languageTag(node.locale())));
-        out.put("AccessibleId", new DBus.Variant("s", Long.toString(node.id())));
+        out.put("AccessibleId", new DBus.Variant("s", node.identifier()));
         // Empty, and deliberately not the description. AT-SPI2 2.52 added HelpText beside
         // Description as a SECOND string, and a bridge that answered the same text in both would
         // have a reader say it twice. This toolkit publishes one description per node; when a

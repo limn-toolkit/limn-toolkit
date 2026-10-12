@@ -81,6 +81,26 @@ class UiaPropertiesTest {
     }
 
     @Test
+    void aWidgetGivenAnIdIsFoundByItAndOneGivenNoneByItsNumber() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        a.begin(1001, 0, Locale.ENGLISH, 10, 20, 160, 40);
+        a.role(Accessible.Role.BUTTON);
+        a.identifier("save");
+        a.inherited(true, true, true, true, false);
+        a.end();
+        a.end();
+        AccessibleTree tree = a.publish(0, 0, 0, 1f, true);
+
+        assertEquals("save", UiaProperties.valueOf(tree.node(tree.indexOf(1001)), UiaIds.AUTOMATION_ID),
+                "what a tool that drives the application looks a control up by");
+        assertEquals("1000", UiaProperties.valueOf(tree.node(tree.indexOf(1000)), UiaIds.AUTOMATION_ID));
+    }
+
+    @Test
     void aNamelessNodeAnswersAnEmptyStringRatherThanNothing() {
         AccessibleNode node = control(publish(Accessible.Role.GROUP, null, null));
 

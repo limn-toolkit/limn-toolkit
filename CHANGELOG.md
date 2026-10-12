@@ -212,6 +212,10 @@ Maven Central say which number that was.
 
 ### New
 
+- A widget's id is what a tool that drives the application from outside finds it by:
+  `Widget.setId` is published as UI Automation's `AutomationId` on Windows, the accessibility
+  identifier on macOS and the accessible id on Linux, where each carried a number of the
+  toolkit's own. `AccessibleNode.identifier()` answers it. A widget given no id keeps the number.
 - `HeadlessWindow.takeFrameRequests()`, in `limn-test`: how many frames a scene asked its window
   for since the last call. A test frames a screen until it answers zero and has shown that the
   screen costs nothing while nobody touches it. The toolkit holds itself to it, and to counts of

@@ -197,6 +197,9 @@ public final class Accessibility {
         // reader can see, and the walk records it on every walk whether or not the tree moved.
         int delegated;
         String keyBinding;
+        // The id the application gave the widget, or empty: what a tool that drives the
+        // application finds a control by.
+        String identifier = "";
         int relationCount;
         Accessible.Relation[] relationKinds = new Accessible.Relation[0];
         Object[] relationTargets = new Object[0];
@@ -225,6 +228,7 @@ public final class Accessibility {
             descriptionLocale = null;
             descriptionEpoch = 0;
             descriptionText = "";
+            identifier = "";
             states = 0;
             declaredStates = 0;
             ignored = false;
@@ -532,6 +536,16 @@ public final class Accessibility {
         s.nameEpoch = I18n.epoch();
         s.nameText = cached == null ? "" : cached;
         s.nameFrom = s.nameText.isEmpty() ? Accessible.NameFrom.CONTENT : from;
+    }
+
+    /**
+     * Gives this node the id the application gave its widget: what a tool that drives the
+     * application from outside finds a control by. Nobody hears it.
+     *
+     * @param id the widget's id; {@code null} or empty for none
+     */
+    public void identifier(@Nullable String id) {
+        slot().identifier = id == null ? "" : id;
     }
 
     /**
@@ -1888,6 +1902,7 @@ public final class Accessibility {
                 || a.nameFrom != b.nameFrom
                 || !a.nameText.equals(b.nameText)
                 || !a.descriptionText.equals(b.descriptionText)
+                || !a.identifier.equals(b.identifier)
                 || !a.locale.equals(b.locale)
                 || a.states != b.states
                 || a.x != b.x || a.y != b.y || a.width != b.width || a.height != b.height
@@ -2136,7 +2151,7 @@ public final class Accessibility {
         if (s.hasSelection) {
             selection = new SelectionFacet(s.multiSelectable, s.selectionRequired);
         }
-        return new AccessibleNode(s.id, s.role, s.nameText, s.nameFrom, s.descriptionText,
+        return new AccessibleNode(s.id, s.identifier, s.role, s.nameText, s.nameFrom, s.descriptionText,
                 s.locale, s.states, s.x, s.y, s.width, s.height, relations,
                 s.toggle < 0 ? null : new ToggleFacet(ToggleFacet.State.values()[s.toggle]),
                 s.hasValue ? new ValueFacet(s.value, s.valueMin, s.valueMax, s.valueStep,
