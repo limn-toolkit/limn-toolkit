@@ -3,7 +3,7 @@ package limn.desktop;
 import limn.backend.spi.TrayHost;
 import limn.backend.spi.TrayPeer;
 import limn.backend.spi.TrayPicture;
-import limn.backend.spi.TrayRow;
+import limn.backend.spi.MenuRow;
 import limn.backend.spi.TrayState;
 import limn.components.Menu;
 import limn.components.MenuItem;
@@ -225,17 +225,17 @@ class TrayTest {
                 .addSeparator()
                 .addCheck("Bold", true, on -> { })
                 .addSubmenu("Export", export));
-        List<TrayRow> rows = peer.host.menu();
-        assertEquals(List.of("Open", "Copy", "", "Bold", "Export"), rows.stream().map(TrayRow::label).toList());
-        assertEquals(TrayRow.Kind.COMMAND, rows.get(0).kind());
+        List<MenuRow> rows = peer.host.menu();
+        assertEquals(List.of("Open", "Copy", "", "Bold", "Export"), rows.stream().map(MenuRow::label).toList());
+        assertEquals(MenuRow.Kind.COMMAND, rows.get(0).kind());
         assertFalse(rows.get(1).enabled());
-        assertEquals(TrayRow.Kind.SEPARATOR, rows.get(2).kind());
-        assertEquals(TrayRow.Kind.CHECK, rows.get(3).kind());
+        assertEquals(MenuRow.Kind.SEPARATOR, rows.get(2).kind());
+        assertEquals(MenuRow.Kind.CHECK, rows.get(3).kind());
         assertTrue(rows.get(3).checked());
-        assertEquals(TrayRow.Kind.SUBMENU, rows.get(4).kind());
-        assertEquals(List.of("PDF", "PNG"), rows.get(4).children().stream().map(TrayRow::label).toList());
-        assertEquals(List.of(1, 2, 3, 4, 5), rows.stream().map(TrayRow::id).toList());
-        assertEquals(List.of(6, 7), rows.get(4).children().stream().map(TrayRow::id).toList());
+        assertEquals(MenuRow.Kind.SUBMENU, rows.get(4).kind());
+        assertEquals(List.of("PDF", "PNG"), rows.get(4).children().stream().map(MenuRow::label).toList());
+        assertEquals(List.of(1, 2, 3, 4, 5), rows.stream().map(MenuRow::id).toList());
+        assertEquals(List.of(6, 7), rows.get(4).children().stream().map(MenuRow::id).toList());
     }
 
     @Test
@@ -247,7 +247,7 @@ class TrayTest {
                 .add(MenuItem.of("Save as", () -> { }).setAccelerator(limn.components.Accelerator.of(
                         limn.input.Keys.S, limn.input.Keys.MOD_CONTROL | limn.input.Keys.MOD_SHIFT)))
                 .addItem("Plain", () -> { }));
-        List<TrayRow> rows = peer.host.menu();
+        List<MenuRow> rows = peer.host.menu();
         assertEquals(gear, rows.get(0).icon());
         assertEquals(",", rows.get(0).shortcutKey());
         assertEquals("Ctrl+,", rows.get(0).shortcutText());
@@ -265,8 +265,8 @@ class TrayTest {
     void separatorsAreNeverFirstLastOrDoubled() {
         tray.setMenu(new Menu().addSeparator().addItem("A", () -> { }).addSeparator().addSeparator()
                 .addItem("B", () -> { }).addSeparator());
-        assertEquals(List.of(TrayRow.Kind.COMMAND, TrayRow.Kind.SEPARATOR, TrayRow.Kind.COMMAND),
-                peer.host.menu().stream().map(TrayRow::kind).toList());
+        assertEquals(List.of(MenuRow.Kind.COMMAND, MenuRow.Kind.SEPARATOR, MenuRow.Kind.COMMAND),
+                peer.host.menu().stream().map(MenuRow::kind).toList());
     }
 
     @Test
@@ -278,7 +278,7 @@ class TrayTest {
         assertFalse(peer.host.menu().get(0).checked());
         bold.setChecked(true).setEnabled(false);
         menu.addItem("New", () -> { });
-        List<TrayRow> rows = peer.host.menu();
+        List<MenuRow> rows = peer.host.menu();
         assertTrue(rows.get(0).checked());
         assertFalse(rows.get(0).enabled());
         assertEquals(2, rows.size());
@@ -293,7 +293,7 @@ class TrayTest {
                 .addCheck("Bold", false, on -> ran.add("bold " + on))
                 .addSubmenu("More", new Menu().addItem("Deep", () -> ran.add("deep")));
         tray.setMenu(menu);
-        List<TrayRow> rows = peer.host.menu();
+        List<MenuRow> rows = peer.host.menu();
         peer.host.choose(rows.get(0).id());
         peer.host.choose(rows.get(1).id());
         peer.host.choose(rows.get(2).id());
@@ -309,7 +309,7 @@ class TrayTest {
         int[] runs = {0};
         MenuItem shared = MenuItem.of("Shared", () -> runs[0]++);
         tray.setMenu(new Menu().add(shared).addSubmenu("More", new Menu().add(shared)));
-        List<TrayRow> rows = peer.host.menu();
+        List<MenuRow> rows = peer.host.menu();
         int first = rows.get(0).id();
         int second = rows.get(1).children().get(0).id();
         assertTrue(first != second);
@@ -327,8 +327,8 @@ class TrayTest {
         inner.addSubmenu("Back", outer);
         assertThrows(IllegalArgumentException.class, () -> tray.setMenu(outer));
 
-        List<TrayRow> rows = peer.host.menu();
-        TrayRow back = rows.get(0).children().get(1);
+        List<MenuRow> rows = peer.host.menu();
+        MenuRow back = rows.get(0).children().get(1);
         assertEquals("Back", back.label());
         assertTrue(back.children().isEmpty());
         assertFalse(back.enabled(), "a submenu that opens nothing cannot be chosen");

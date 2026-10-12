@@ -5,7 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import limn.backend.spi.TrayPicture;
-import limn.backend.spi.TrayRow;
+import limn.backend.spi.MenuRow;
 import limn.backend.spi.TrayState;
 import limn.graphics.Color;
 import limn.graphics.Image;
@@ -232,9 +232,9 @@ final class TrayWire {
      * The rows a panel is shown: the application's, or one disabled row of the title when it set
      * none, since a panel may show no item that has no menu.
      */
-    static List<TrayRow> shown(List<TrayRow> rows, String title) {
+    static List<MenuRow> shown(List<MenuRow> rows, String title) {
         return rows.isEmpty()
-                ? List.of(new TrayRow(PLACEHOLDER_ROW, TrayRow.Kind.COMMAND, title, false, false, (char) 0, List.of()))
+                ? List.of(new MenuRow(PLACEHOLDER_ROW, MenuRow.Kind.COMMAND, title, false, false, (char) 0, List.of()))
                 : rows;
     }
 
@@ -254,36 +254,36 @@ final class TrayWire {
      * @param rows   the top-level rows
      * @return the layout node, or {@code null} when no row has that number
      */
-    static Object @Nullable [] layout(int parent, int depth, List<TrayRow> rows) {
+    static Object @Nullable [] layout(int parent, int depth, List<MenuRow> rows) {
         if (parent == 0) {
             Map<String, DBus.Variant> root = new LinkedHashMap<>();
             root.put("children-display", DBus.v("s", "submenu"));
             return new Object[] {0, root, children(rows, depth)};
         }
-        TrayRow row = find(rows, parent);
+        MenuRow row = find(rows, parent);
         return row == null ? null : node(row, depth);
     }
 
-    private static Object[] node(TrayRow row, int depth) {
+    private static Object[] node(MenuRow row, int depth) {
         return new Object[] {row.id(), rowProperties(row), children(row.children(), depth)};
     }
 
-    private static List<Object> children(List<TrayRow> rows, int depth) {
+    private static List<Object> children(List<MenuRow> rows, int depth) {
         List<Object> out = new ArrayList<>();
         if (depth != 0) {
-            for (TrayRow row : rows) {
+            for (MenuRow row : rows) {
                 out.add(DBus.v(NODE, node(row, depth - 1)));
             }
         }
         return out;
     }
 
-    static @Nullable TrayRow find(List<TrayRow> rows, int id) {
-        for (TrayRow row : rows) {
+    static @Nullable MenuRow find(List<MenuRow> rows, int id) {
+        for (MenuRow row : rows) {
             if (row.id() == id) {
                 return row;
             }
-            TrayRow below = find(row.children(), id);
+            MenuRow below = find(row.children(), id);
             if (below != null) {
                 return below;
             }
@@ -292,9 +292,9 @@ final class TrayWire {
     }
 
     /** A row's properties; what is at its default is left out, as the protocol asks. */
-    static Map<String, DBus.Variant> rowProperties(TrayRow row) {
+    static Map<String, DBus.Variant> rowProperties(MenuRow row) {
         Map<String, DBus.Variant> p = new LinkedHashMap<>();
-        if (row.kind() == TrayRow.Kind.SEPARATOR) {
+        if (row.kind() == MenuRow.Kind.SEPARATOR) {
             p.put("type", DBus.v("s", "separator"));
             return p;
         }
@@ -302,11 +302,11 @@ final class TrayWire {
         if (!row.enabled()) {
             p.put("enabled", DBus.v("b", false));
         }
-        if (row.kind() == TrayRow.Kind.CHECK) {
+        if (row.kind() == MenuRow.Kind.CHECK) {
             p.put("toggle-type", DBus.v("s", "checkmark"));
             p.put("toggle-state", DBus.v("i", row.checked() ? 1 : 0));
         }
-        if (row.kind() == TrayRow.Kind.SUBMENU) {
+        if (row.kind() == MenuRow.Kind.SUBMENU) {
             p.put("children-display", DBus.v("s", "submenu"));
         }
         byte[] icon = iconPng(row);
@@ -327,7 +327,7 @@ final class TrayWire {
      * menu, since the protocol says the colour of neither; {@code null} with no picture or no
      * encoder.
      */
-    static byte @Nullable [] iconPng(TrayRow row) {
+    static byte @Nullable [] iconPng(MenuRow row) {
         if (row.icon() == null) {
             return null;
         }
@@ -340,7 +340,7 @@ final class TrayWire {
     }
 
     /** An accelerator as the protocol writes one: the modifiers by name, then the key. */
-    static List<String> shortcut(TrayRow row) {
+    static List<String> shortcut(MenuRow row) {
         List<String> keys = new ArrayList<>();
         int modifiers = row.shortcutModifiers();
         if ((modifiers & limn.input.Keys.MOD_CONTROL) != 0) {
@@ -363,7 +363,7 @@ final class TrayWire {
      * A label as the protocol reads one: an underscore marks the access key, so each of the
      * text's own is doubled, and one goes before the row's access letter where the text has it.
      */
-    static String label(TrayRow row) {
+    static String label(MenuRow row) {
         String text = row.label();
         int at = -1;
         if (row.mnemonic() != 0) {

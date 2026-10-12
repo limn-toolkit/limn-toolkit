@@ -178,4 +178,21 @@ public interface WindowInput {
      */
     default void windowClosed() {
     }
+
+    /**
+     * Whether an editing command can be done now by the widget that has the keyboard in this
+     * window. Asked for a row of a menu the system draws that is an editing command.
+     */
+    default boolean canEditFocused(limn.scene.EditCommand command) {
+        return false;
+    }
+
+    /**
+     * Does an editing command in the widget that has the keyboard in this window.
+     *
+     * @return whether a widget did it
+     */
+    default boolean editFocused(limn.scene.EditCommand command) {
+        return false;
+    }
 }

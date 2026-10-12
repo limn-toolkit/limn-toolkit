@@ -14,7 +14,7 @@ public interface TrayHost {
      *
      * @return the top-level rows; empty when the application set no menu
      */
-    List<TrayRow> menu();
+    List<MenuRow> menu();
 
     /**
      * The user chose a row.

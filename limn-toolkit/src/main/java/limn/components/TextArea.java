@@ -2056,6 +2056,24 @@ public final class TextArea extends Widget<TextArea> {
     }
 
     @Override
+    protected boolean onCanEdit(limn.scene.EditCommand command) {
+        TextContextMenu.Rows rows = TextContextMenu.rowsFor(contextMenuHost());
+        return switch (command) {
+            case UNDO -> isEnabled() && model.canUndo();
+            case REDO -> isEnabled() && model.canRedo();
+            case CUT -> rows.cut();
+            case COPY -> rows.copy();
+            case PASTE -> rows.paste();
+            case SELECT_ALL -> rows.selectAll();
+        };
+    }
+
+    @Override
+    protected boolean onEdit(limn.scene.EditCommand command) {
+        return limn.components.internal.EditKeys.send(command, this::onKeyEvent);
+    }
+
+    @Override
     protected void onKeyEvent(KeyEvent event) {
         if (event.isPressed() && !preedit.isEmpty()) {
             // A key pressed while the input method is composing belongs to the input method,

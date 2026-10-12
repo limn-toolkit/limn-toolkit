@@ -2249,6 +2249,20 @@ public final class DateField extends Widget<DateField> {
     }
 
     @Override
+    protected boolean onCanEdit(limn.scene.EditCommand command) {
+        return switch (command) {
+            case COPY -> true;
+            case PASTE -> isEnabled() && !clipboard().text().isEmpty();
+            default -> false;
+        };
+    }
+
+    @Override
+    protected boolean onEdit(limn.scene.EditCommand command) {
+        return limn.components.internal.EditKeys.send(command, this::onKeyEvent);
+    }
+
+    @Override
     protected void onKeyEvent(KeyEvent event) {
         if (event.isPressed() && composing) {
             // A key pressed while the input method is composing belongs to the input method,

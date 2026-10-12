@@ -4,7 +4,7 @@ import limn.backend.lwjgl.transfer.Ffi;
 import limn.backend.spi.TrayHost;
 import limn.backend.spi.TrayPeer;
 import limn.backend.spi.TrayPicture;
-import limn.backend.spi.TrayRow;
+import limn.backend.spi.MenuRow;
 import limn.backend.spi.TrayState;
 import limn.concurrent.internal.Threads;
 import limn.graphics.Color;
@@ -128,7 +128,7 @@ final class WindowsTray implements TrayPeer {
     private boolean added;
     private int taskbarCreated;
     private @Nullable TrayState applied;
-    private List<TrayRow> rows = List.of();
+    private List<MenuRow> rows = List.of();
     private long lastKey;
 
     WindowsTray(String id, TrayHost host, Executor ui) {
@@ -516,7 +516,7 @@ final class WindowsTray implements TrayPeer {
 
     /** Opens the system's popup at the place the shell gave and tells the UI thread what was chosen. */
     private void menu(TrayState now, int x, int y) {
-        CompletableFuture<List<TrayRow>> reading = new CompletableFuture<>();
+        CompletableFuture<List<MenuRow>> reading = new CompletableFuture<>();
         ui.execute(() -> {
             try {
                 reading.complete(host.menu());
@@ -558,11 +558,11 @@ final class WindowsTray implements TrayPeer {
         }
     }
 
-    private static long build(List<TrayRow> rows, List<Long> texts, List<Long> bitmaps) {
+    private static long build(List<MenuRow> rows, List<Long> texts, List<Long> bitmaps) {
         long menu = user("CreatePopupMenu", ">p");
         int position = 0;
-        for (TrayRow row : rows) {
-            if (row.kind() == TrayRow.Kind.SEPARATOR) {
+        for (MenuRow row : rows) {
+            if (row.kind() == MenuRow.Kind.SEPARATOR) {
                 user("AppendMenuW", "pipp>i", menu, MF_SEPARATOR, 0, NULL);
                 position++;
                 continue;
@@ -570,7 +570,7 @@ final class WindowsTray implements TrayPeer {
             long text = wide(label(row));
             texts.add(text);
             int flags = (row.enabled() ? 0 : MF_GRAYED) | (row.checked() ? MF_CHECKED : 0);
-            if (row.kind() == TrayRow.Kind.SUBMENU && !row.children().isEmpty()) {
+            if (row.kind() == MenuRow.Kind.SUBMENU && !row.children().isEmpty()) {
                 user("AppendMenuW", "pipp>i", menu, flags | MF_POPUP, build(row.children(), texts, bitmaps), text);
             } else {
                 user("AppendMenuW", "pipp>i", menu, flags, row.id(), text);
@@ -603,7 +603,7 @@ final class WindowsTray implements TrayPeer {
      * multiplied into the colours as a menu expects, a tintable icon in the menu's text colour,
      * white on a dark menu and black on a light one.
      */
-    private static long menuBitmap(TrayRow row) {
+    private static long menuBitmap(MenuRow row) {
         int size = smallIconSize();
         boolean dark = WindowsDarkMenus.isDeclared()
                 && WindowsSystemPreferences.applicationsAreDark();
@@ -641,7 +641,7 @@ final class WindowsTray implements TrayPeer {
      * text's own is doubled and one goes before the row's access letter, and a tab, which would
      * start a second column, is a space.
      */
-    static String label(TrayRow row) {
+    static String label(MenuRow row) {
         String text = row.label();
         int at = -1;
         if (row.mnemonic() != 0) {

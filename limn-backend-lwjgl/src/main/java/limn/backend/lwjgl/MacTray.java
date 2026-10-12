@@ -5,7 +5,7 @@ import limn.backend.lwjgl.transfer.Ffi;
 import limn.backend.spi.TrayHost;
 import limn.backend.spi.TrayPeer;
 import limn.backend.spi.TrayPicture;
-import limn.backend.spi.TrayRow;
+import limn.backend.spi.MenuRow;
 import limn.backend.spi.TrayState;
 import limn.graphics.Color;
 import limn.graphics.Image;
@@ -331,9 +331,9 @@ final class MacTray implements TrayPeer {
         append(menu, host.menu());
     }
 
-    private void append(long into, List<TrayRow> rows) {
-        for (TrayRow row : rows) {
-            if (row.kind() == TrayRow.Kind.SEPARATOR) {
+    private void append(long into, List<MenuRow> rows) {
+        for (MenuRow row : rows) {
+            if (row.kind() == MenuRow.Kind.SEPARATOR) {
                 ObjC.msgVoid(into, "addItem:", ObjC.msg(ObjC.cls("NSMenuItem"), "separatorItem"));
                 continue;
             }
@@ -357,7 +357,7 @@ final class MacTray implements TrayPeer {
                     ObjC.msgVoid(entry, "setImage:", image);
                 }
             }
-            if (row.kind() == TrayRow.Kind.SUBMENU && !row.children().isEmpty()) {
+            if (row.kind() == MenuRow.Kind.SUBMENU && !row.children().isEmpty()) {
                 long sub = ObjC.msg(ObjC.msg(ObjC.msg(ObjC.cls("NSMenu"), "alloc"), "init"), "autorelease");
                 ObjC.msgVoid(sub, "setAutoenablesItems:", 0);
                 append(sub, row.children());

@@ -51,6 +51,7 @@ application menu with About, Settings, Services, Hide and Quit; File, Edit, View
 | Help menu | Declared as the help menu, it gained the search field that looks through the bar's items. |
 | File menu | The system added an alternate "Close All" under the item that closes the window. |
 | Edit menu | The system added nothing. |
+| An agent | Packaged with the key that makes an application an agent, with no icon in the Dock and no bar of its own (`LSUIElement`), the Showcase was listed in the Dock all the same: **the windowing library makes every application an ordinary one as it starts.** |
 
 Asking the menu's delegate whether it holds a chord, in place of bringing the menu up to date,
 was tried and is not used: an answer of no still ran the item.
@@ -132,6 +133,12 @@ runs, the widget being laid out again when it does:
 - **in a fullscreen on the monitor**, which covers the system's bar, the bar is in the window
   for as long as it lasts. In the system's own fullscreen the system hides its bar and shows it
   at the top edge, and the bar stays there;
+- **an application the system runs as an agent** has no bar in the system's: its package says
+  so (`LSUIElement`), for an application that lives in the tray with no icon in the Dock. The
+  toolkit leaves it the agent its package says it is, where the windowing library made it an
+  ordinary application (§0); it builds no bar for it, the minimal one included; a `MenuBar` is
+  in the window, and the roles of §3 change nothing, as on Windows and on Linux. The editing
+  roles act as everywhere;
 - a bar that is not visible, or that §1.3 left out, is not in the system's bar.
 
 A bar inside the window is the most visible mark of an application that does not belong on
@@ -371,6 +378,9 @@ words.
 19. The bar read by the screen reader.
 20. The tray's menu opened after the bar's and before it.
 21. An action of the bar that closes its window, and one that ends the application.
+22. An application packaged as an agent: no icon in the Dock, no bar of its own in the
+    system's, its `MenuBar` in the window with every item where it was written, the editing
+    items acting, its tray icon and its menu.
 
 ## 11. What the review changed
 

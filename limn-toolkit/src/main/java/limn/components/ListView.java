@@ -1940,6 +1940,16 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
     }
 
     @Override
+    protected boolean onCanEdit(limn.scene.EditCommand command) {
+        return command == limn.scene.EditCommand.SELECT_ALL && selectionMode == SelectionMode.MULTI;
+    }
+
+    @Override
+    protected boolean onEdit(limn.scene.EditCommand command) {
+        return limn.components.internal.EditKeys.send(command, this::onKeyEvent);
+    }
+
+    @Override
     protected void onKeyEvent(KeyEvent event) {
         if (!event.isPressed()) {
             return;

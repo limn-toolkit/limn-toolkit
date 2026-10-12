@@ -1,6 +1,6 @@
 package limn.backend.lwjgl;
 
-import limn.backend.spi.TrayRow;
+import limn.backend.spi.MenuRow;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -13,8 +13,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /** What the Windows tray works out before it asks the system anything. */
 class WindowsTrayTest {
 
-    private static TrayRow row(String label, char mnemonic) {
-        return new TrayRow(1, TrayRow.Kind.COMMAND, label, true, false, mnemonic, List.of());
+    private static MenuRow row(String label, char mnemonic) {
+        return new MenuRow(1, MenuRow.Kind.COMMAND, label, true, false, mnemonic, List.of());
     }
 
     @Test
@@ -57,7 +57,7 @@ class WindowsTrayTest {
 
     @Test
     void anAcceleratorGoesInTheMenusSecondColumn() {
-        TrayRow row = new TrayRow(1, TrayRow.Kind.COMMAND, "Quit", true, false, 'Q', List.of(), null, "Q",
+        MenuRow row = new MenuRow(1, MenuRow.Kind.COMMAND, "Quit", true, false, 'Q', List.of(), null, "Q",
                 limn.input.Keys.MOD_CONTROL);
         assertEquals("&Quit\tCtrl+Q", WindowsTray.label(row));
         // MENUITEMINFOW, 64-bit: the item's bitmap is its last member.

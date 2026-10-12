@@ -103,6 +103,42 @@ public final class MenuBar extends Widget<MenuBar> {
      */
     private boolean altArmed;
 
+    /**
+     * Where a bar is shown.
+     */
+    public enum Placement {
+        /**
+         * In the system's own menu bar, where the system keeps one outside the windows for the
+         * application, which is macOS; in the window everywhere else. The default.
+         */
+        SYSTEM,
+        /** Drawn in the window, on every system. */
+        IN_WINDOW
+    }
+
+    private static final System.Logger LOG = System.getLogger(MenuBar.class.getName());
+
+    /** {@code -Dlimn.macos.systemMenuBar=false} keeps every bar in its window. */
+    private static final boolean SYSTEM_BAR_ALLOWED =
+            !"false".equalsIgnoreCase(System.getProperty("limn.macos.systemMenuBar"));
+
+    private Placement placement = Placement.SYSTEM;
+    private @Nullable Menu windowMenu;
+    private @Nullable Menu helpMenu;
+    /** The system's bar this one asked for and was taken by, with the window it asked through. */
+    private limn.backend.spi.@Nullable SystemMenuBar systemBar;
+    private limn.backend.@Nullable NativeWindow systemBarWindow;
+    /** Whether the system's bar holds this one now: it is then not in the scene's layout. */
+    private boolean held;
+    private final SystemHost systemHost = new SystemHost();
+    private SystemBarReader systemReading = SystemBarReader.read(List.of(), null, null, false);
+    private @Nullable Subscription unhookWindowBound;
+    private @Nullable Subscription unhookOwnChanges;
+    private @Nullable Subscription unhookLanguage;
+    private boolean saidSecondBar;
+    private boolean saidRoleTwice;
+    private boolean saidEditingChord;
+
     /** An empty bar; add top-level menus with {@link #addMenu}. */
     public MenuBar() {
         setFocusable(true);
@@ -156,6 +192,7 @@ public final class MenuBar extends Widget<MenuBar> {
                 letter > 32 && letter < 127
                         ? new Accelerator(letter, Keys.MOD_ALT).display() : null));
         markNeedsLayout();
+        systemBarChanged();
         return this;
     }
 
@@ -175,6 +212,151 @@ public final class MenuBar extends Widget<MenuBar> {
         Ui.checkUiThread();
         this.displayMode = Objects.requireNonNull(mode, "mode");
         return this;
+    }
+
+    /**
+     * Says where the bar is shown; see {@link Placement}. Default {@link Placement#SYSTEM}.
+     *
+     * <p><b>A preference</b>, as {@link #setDisplayMode} is: {@link #isInSystemBar()} answers
+     * what happened. Under {@code SYSTEM} the bar is still drawn in the window where the system
+     * keeps no bar for the application, while its window is fullscreen in the way that covers
+     * the system's bar, and when another bar of the same window got there first.
+     */
+    public MenuBar setPlacement(Placement value) {
+        Ui.checkUiThread();
+        this.placement = Objects.requireNonNull(value, "placement");
+        syncPlacement();
+        return this;
+    }
+
+    /** @return where the bar asked to be shown */
+    public Placement placement() {
+        return placement;
+    }
+
+    /**
+     * @return whether the system's bar is showing this bar's menus, in which case the bar takes
+     *         no room in its scene, paints nothing, holds no key and is read by a screen reader
+     *         as the system's bar is. The answer can change while the application runs
+     */
+    public boolean isInSystemBar() {
+        return held;
+    }
+
+    /**
+     * Names the menu of the application's windows among this bar's menus. In the system's bar
+     * the system adds its own items to it, the list of windows among them, and an application
+     * that names none is given one there. In the window it changes nothing.
+     *
+     * @param menu a menu added to this bar, now or later, or {@code null} for none
+     */
+    public MenuBar setWindowMenu(@Nullable Menu menu) {
+        Ui.checkUiThread();
+        this.windowMenu = menu;
+        systemBarChanged();
+        return this;
+    }
+
+    /**
+     * Names the help menu among this bar's menus. In the system's bar the system adds its
+     * search to it. In the window it changes nothing.
+     *
+     * @param menu a menu added to this bar, now or later, or {@code null} for none
+     */
+    public MenuBar setHelpMenu(@Nullable Menu menu) {
+        Ui.checkUiThread();
+        this.helpMenu = menu;
+        systemBarChanged();
+        return this;
+    }
+
+    /** Asks for the system's bar, or lets it go, as the placement, the window and the flag say. */
+    private void syncPlacement() {
+        Scene scene = scene();
+        limn.backend.NativeWindow window = scene == null ? null : scene.window();
+        boolean wanted = SYSTEM_BAR_ALLOWED && placement == Placement.SYSTEM && window != null
+                && !window.isClosed() && isVisibleByItsOwnFlag();
+        limn.backend.spi.SystemMenuBar bar = wanted
+                ? limn.backend.spi.BackendPeer.of(window.backend()).systemMenuBar() : null;
+        if (bar != systemBar || window != systemBarWindow) {
+            releaseSystemBar();
+            if (bar != null) {
+                if (bar.attach(window, systemHost)) {
+                    systemBar = bar;
+                    systemBarWindow = window;
+                } else if (!saidSecondBar) {
+                    saidSecondBar = true;
+                    LOG.log(System.Logger.Level.INFO, "a second menu bar in one window stays in the window: "
+                            + "the system's bar shows the first");
+                }
+            }
+        }
+        setHeld(systemBar != null && systemBar.holds(systemBarWindow, systemHost));
+    }
+
+    private void releaseSystemBar() {
+        if (systemBar != null) {
+            systemBar.detach(systemBarWindow, systemHost);
+            systemBar = null;
+            systemBarWindow = null;
+        }
+    }
+
+    private void setHeld(boolean value) {
+        if (held == value) {
+            return;
+        }
+        held = value;
+        if (value) {
+            closeMenu(Change.Origin.ADJUSTMENT); // the system shows the menus now
+            altArmed = false;
+        }
+        setPresentedElsewhere(value);
+    }
+
+    /** The bar's titles or its named menus changed: the system shows them without being asked. */
+    private void systemBarChanged() {
+        if (systemBar != null) {
+            systemBar.changed(systemHost);
+        }
+    }
+
+    /** What the system's bar asks and tells of this one. */
+    private final class SystemHost implements limn.backend.spi.MenuBarHost {
+
+        @Override
+        public limn.backend.spi.MenuBarReading read() {
+            Ui.checkUiThread();
+            List<SystemBarReader.Source> sources = new ArrayList<>(entries.size());
+            for (Entry entry : entries) {
+                sources.add(new SystemBarReader.Source(entry.title().get(), entry.menu()));
+            }
+            systemReading = SystemBarReader.read(sources, windowMenu, helpMenu, isRightToLeft());
+            if (systemReading.roleGivenTwice() && !saidRoleTwice) {
+                saidRoleTwice = true;
+                LOG.log(System.Logger.Level.INFO, "a role was given to two items of one menu bar: "
+                        + "the first has it, the second is an ordinary item");
+            }
+            if (systemReading.editingChordTaken() && !saidEditingChord) {
+                saidEditingChord = true;
+                LOG.log(System.Logger.Level.INFO, "a menu bar in the system's bar has an item on the chord of "
+                        + "an editing command that is not made with MenuItem.of(Role): the system runs it "
+                        + "before the focused widget sees the key");
+            }
+            return systemReading.reading();
+        }
+
+        @Override
+        public void choose(int id) {
+            Ui.checkUiThread();
+            systemReading.choose(id);
+        }
+
+        @Override
+        public void heldChanged() {
+            Ui.checkUiThread();
+            syncPlacement();
+        }
     }
 
     /** @return the presentation the next dropdown will be asked for. */
@@ -553,6 +735,17 @@ public final class MenuBar extends Widget<MenuBar> {
         if (scene() != null && unhookShortcuts == null) {
             unhookShortcuts = scene().addShortcutHandler(this::onShortcut);
         }
+        if (scene() != null && unhookWindowBound == null) {
+            // A scene is made before its window: the system's bar is asked for when there is one.
+            unhookWindowBound = limn.scene.internal.SceneAccess.observeWindowBound(scene(), this::syncPlacement);
+            unhookOwnChanges = observeChanges((source, change) -> {
+                if (change.aspect() == Change.Aspect.VISIBLE) {
+                    syncPlacement();
+                }
+            });
+            unhookLanguage = I18n.observeChanges(this::systemBarChanged);
+        }
+        syncPlacement();
     }
 
     /**
@@ -562,6 +755,20 @@ public final class MenuBar extends Widget<MenuBar> {
     @Override
     protected void onDetached() {
         closeMenu(Change.Origin.ADJUSTMENT); // the bar left the tree; nobody closed the menu
+        releaseSystemBar();
+        setHeld(false);
+        if (unhookWindowBound != null) {
+            unhookWindowBound.cancel();
+            unhookWindowBound = null;
+        }
+        if (unhookOwnChanges != null) {
+            unhookOwnChanges.cancel();
+            unhookOwnChanges = null;
+        }
+        if (unhookLanguage != null) {
+            unhookLanguage.cancel();
+            unhookLanguage = null;
+        }
         if (unhookShortcuts != null) {
             unhookShortcuts.cancel();
             unhookShortcuts = null;
@@ -577,6 +784,12 @@ public final class MenuBar extends Widget<MenuBar> {
      * gets the menu it can see rather than the command it cannot.
      */
     private boolean onShortcut(KeyEvent event) {
+        if (held) {
+            // The system's bar has its own keys, and runs the accelerators it can: what reaches
+            // here is a chord it would not run, which is run as in the window, once per press.
+            return event.isPressed() && !event.isRepeat() && !entries.isEmpty()
+                    && runAccelerator(event.shortcutKey(), event.modifiers());
+        }
         if (entries.isEmpty() || isOpen()) {
             // An open cascade owns the keyboard: it is showing the very commands these chords
             // would run, and running one behind it would leave the menu up over the effect.
@@ -623,6 +836,11 @@ public final class MenuBar extends Widget<MenuBar> {
         return key == Keys.LEFT_ALT || key == Keys.RIGHT_ALT;
     }
 
+    /** What had the keyboard before Alt or F10 brought it here, for an editing item to act on. */
+    @Nullable Widget<?> focusBeforeBar() {
+        return focusBeforeBar;
+    }
+
     /** Alt/F10: focus the bar, or give focus back when it already has it. Always consumes. */
     private boolean toggleBarFocus() {
         Scene scene = scene();
@@ -664,8 +882,13 @@ public final class MenuBar extends Widget<MenuBar> {
      * @return whether an item ran
      */
     private boolean runAccelerator(int key, int modifiers) {
+        EditTarget.opening(scene());
         for (int i = 0; i < entries.size(); i++) {
             MenuItem item = entries.get(i).menu().findAccelerator(key, modifiers);
+            if (item != null && held && systemBar != null
+                    && systemBar.runs(item.accelerator().keyLabel(), item.accelerator().modifiers())) {
+                return false; // the system's to run: reaching here, its item was disabled
+            }
             if (item != null) {
                 item.activate(Change.Origin.USER); // a chord
                 return true;

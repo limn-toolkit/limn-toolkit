@@ -2,6 +2,7 @@ package limn.components;
 
 import limn.concurrent.Ui;
 import limn.scene.Change;
+import limn.scene.EditCommand;
 
 import limn.i18n.I18nString;
 import org.jspecify.annotations.Nullable;
@@ -27,6 +28,55 @@ public final class MenuItem {
     /** What an item does when activated / how it renders. */
     enum Kind { COMMAND, CHECK, SUBMENU, SEPARATOR }
 
+    /**
+     * What an item is to the system, beyond its label: one of the three every application has and
+     * a system may keep in a menu of its own, or one of the six editing commands.
+     *
+     * <p><b>{@link #ABOUT}, {@link #SETTINGS} and {@link #QUIT}</b> are written where the item
+     * lives in a window's menu bar (Help, Edit, File) and change nothing there. Where the system
+     * keeps the menu bar outside the window, which is macOS, the item leaves that menu: About and
+     * Settings are shown in the application's own menu under the system's label and accelerator
+     * and run the item's action, and Quit is the system's, which asks
+     * {@link limn.backend.Backend#requestQuit()} and does not run the item.
+     *
+     * <p><b>The editing roles</b> make the item the command: it has no action of its own, it is
+     * enabled while the widget that has the keyboard can do the command, and choosing it does the
+     * command there, on every system. See {@link #of(Role)}.
+     */
+    public enum Role {
+        /** An ordinary item. */
+        NONE(null),
+        /** Shows what the application is. */
+        ABOUT(null),
+        /** Opens the application's settings. */
+        SETTINGS(null),
+        /** Ends the application. */
+        QUIT(null),
+        /** {@link EditCommand#UNDO}. */
+        UNDO(EditCommand.UNDO),
+        /** {@link EditCommand#REDO}. */
+        REDO(EditCommand.REDO),
+        /** {@link EditCommand#CUT}. */
+        CUT(EditCommand.CUT),
+        /** {@link EditCommand#COPY}. */
+        COPY(EditCommand.COPY),
+        /** {@link EditCommand#PASTE}. */
+        PASTE(EditCommand.PASTE),
+        /** {@link EditCommand#SELECT_ALL}. */
+        SELECT_ALL(EditCommand.SELECT_ALL);
+
+        private final @Nullable EditCommand command;
+
+        Role(@Nullable EditCommand command) {
+            this.command = command;
+        }
+
+        /** @return the editing command this role is, or {@code null} for the other four */
+        public @Nullable EditCommand editCommand() {
+            return command;
+        }
+    }
+
     private final Kind kind;
     private final I18nString label;
     private Runnable action = () -> { };
@@ -38,6 +88,7 @@ public final class MenuItem {
     private Accelerator accelerator;
     /** The access letter, uppercased; {@code 0} when none is declared. */
     private char mnemonic;
+    private Role role = Role.NONE;
 
     /**
      * A key of the width identity is, minted once per item and never reused.
@@ -77,6 +128,46 @@ public final class MenuItem {
         Ui.checkUiThread();
         MenuItem item = new MenuItem(Kind.COMMAND, Objects.requireNonNull(label, "label"));
         item.action = Objects.requireNonNull(action, "action");
+        return item;
+    }
+
+    /**
+     * The item of an editing role, whole: the command's name in the application's language, the
+     * chord the platform gives it, and no action, the role being the action. The label and the
+     * accelerator may be changed after.
+     *
+     * <p>Redo is on Shift and the command key with Z on macOS and on Control with Y elsewhere,
+     * where each platform's users look for it; a text field takes both everywhere.
+     *
+     * @param role one of the six editing roles
+     * @throws IllegalArgumentException for a role that is not an editing command, whose item
+     *         needs a label and an action: {@link #of(String, Runnable)} and {@link #setRole}
+     */
+    public static MenuItem of(Role role) {
+        Ui.checkUiThread();
+        EditCommand command = Objects.requireNonNull(role, "role").editCommand();
+        if (command == null) {
+            throw new IllegalArgumentException(role + " is not an editing command; make the item and give it the role");
+        }
+        MenuItem item = new MenuItem(Kind.COMMAND, switch (command) {
+            case UNDO -> ComponentStrings.EDIT_UNDO;
+            case REDO -> ComponentStrings.EDIT_REDO;
+            case CUT -> ComponentStrings.TEXT_MENU_CUT;
+            case COPY -> ComponentStrings.TEXT_MENU_COPY;
+            case PASTE -> ComponentStrings.TEXT_MENU_PASTE;
+            case SELECT_ALL -> ComponentStrings.TEXT_MENU_SELECT_ALL;
+        });
+        item.role = role;
+        item.accelerator = switch (command) {
+            case UNDO -> Accelerator.command(limn.input.Keys.Z);
+            case REDO -> Accelerator.commandModifier() == limn.input.Keys.MOD_SUPER
+                    ? Accelerator.command(limn.input.Keys.Z, limn.input.Keys.MOD_SHIFT)
+                    : Accelerator.command(limn.input.Keys.Y);
+            case CUT -> Accelerator.command(limn.input.Keys.X);
+            case COPY -> Accelerator.command(limn.input.Keys.C);
+            case PASTE -> Accelerator.command(limn.input.Keys.V);
+            case SELECT_ALL -> Accelerator.command(limn.input.Keys.A);
+        };
         return item;
     }
 
@@ -128,7 +219,42 @@ public final class MenuItem {
 
     /** Whether the item can be chosen; a disabled one still occupies a row. */
     public boolean isEnabled() {
+        EditCommand command = role.editCommand();
+        return command == null ? enabled : enabled && EditTarget.can(command);
+    }
+
+    /** What {@link #setEnabled} said, whatever the editing command of the item's role can do now. */
+    boolean isEnabledByItsOwnFlag() {
         return enabled;
+    }
+
+    /** @return what the item is to the system; {@link Role#NONE} unless {@link #setRole} said */
+    public Role role() {
+        return role;
+    }
+
+    /**
+     * Says what the item is to the system; see {@link Role}.
+     *
+     * @throws IllegalStateException on a separator, a submenu or an item that checks, none of
+     *         which the system has a place for; and for an editing role on an item made with an
+     *         action, the role being the action: make it with {@link #of(Role)}
+     */
+    public MenuItem setRole(Role value) {
+        Ui.checkUiThread();
+        Objects.requireNonNull(value, "role");
+        if (value == role) {
+            return this;
+        }
+        if (kind != Kind.COMMAND) {
+            throw new IllegalStateException("a " + kind + " item cannot carry a role");
+        }
+        if (value.editCommand() != null || role.editCommand() != null) {
+            throw new IllegalStateException(
+                    "an editing role is the item's action; make the item with MenuItem.of(Role)");
+        }
+        this.role = value;
+        return this;
     }
 
     /**
@@ -286,7 +412,14 @@ public final class MenuItem {
             return; // the handlers answer the user; no other origin reaches here today
         }
         switch (kind) {
-            case COMMAND -> action.run();
+            case COMMAND -> {
+                EditCommand command = role.editCommand();
+                if (command == null) {
+                    action.run();
+                } else {
+                    EditTarget.perform(command);
+                }
+            }
             case CHECK -> {
                 checked = !checked;
                 onToggle.accept(checked);

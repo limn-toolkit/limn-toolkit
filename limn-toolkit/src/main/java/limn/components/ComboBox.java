@@ -2283,6 +2283,16 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     }
 
     @Override
+    protected boolean onCanEdit(limn.scene.EditCommand command) {
+        return command == limn.scene.EditCommand.SELECT_ALL && selectionMode == SelectionMode.MULTI && open;
+    }
+
+    @Override
+    protected boolean onEdit(limn.scene.EditCommand command) {
+        return limn.components.internal.EditKeys.send(command, this::onKeyEvent);
+    }
+
+    @Override
     protected void onKeyEvent(KeyEvent event) {
         if (!event.isPressed() || editable) {
             return; // an editable combo's keys reach it through its editor

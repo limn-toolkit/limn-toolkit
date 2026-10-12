@@ -67,6 +67,8 @@ public abstract class Widget<W extends Widget<W>> {
     private float width;
     private float height;
     private boolean visible = true;
+    /** Whether something outside the scene is showing this widget's content; see setPresentedElsewhere. */
+    private boolean elsewhere;
     private boolean enabled = true;
     private boolean focusable;
     private Cursor cursor; // null = inherit from an ancestor (arrow at the root)
@@ -527,7 +529,7 @@ public abstract class Widget<W extends Widget<W>> {
 
     /** This widget's own visibility flag; see {@link #isShowing()} for whether it is on screen. */
     public final boolean isVisible() {
-        return visible;
+        return visible && !elsewhere;
     }
 
     /**
@@ -544,7 +546,7 @@ public abstract class Widget<W extends Widget<W>> {
      */
     public final boolean isShowing() {
         for (Widget<?> w = this; w != null; w = w.parent) {
-            if (!w.visible) {
+            if (!w.visible || w.elsewhere) {
                 return false;
             }
         }
@@ -647,27 +649,60 @@ public abstract class Widget<W extends Widget<W>> {
     public final W setVisible(boolean visible) {
         Ui.checkUiThread();
         if (this.visible != visible) {
+            boolean shown = isVisible();
             this.visible = visible;
-            if (!visible && scene != null) {
-                scene.onWidgetDetached(this); // revoke focus/hover/press in this subtree
-            }
-            // Every measure on the way up is stale, exactly as for markNeedsLayout(): whichever
-            // pass lays this out -- the scene's narrow one or a full one it escalates to -- has
-            // to re-measure from here. What differs is only what the scene is told.
-            for (Widget<?> w = this; w != null; w = w.parent) {
-                w.needsMeasure = true;
-            }
-            if (scene != null && parent != null) {
-                // Not a full layout: a visibility change can move nothing outside the nearest
-                // ancestor whose size survives it, and the scene lays out and damages only that.
-                // ADR 043 §9.4.4. A full layout here repainted the whole window to hide one button.
-                scene.markVisibilityChanged(this);
-            } else if (scene != null) {
-                scene.markLayoutDirty(this); // a root has no parent to absorb it
+            if (shown != isVisible()) {
+                presenceChanged();
             }
             notifyChange(Change.of(Change.Aspect.VISIBLE, Change.Origin.CODE));
         }
         return self();
+    }
+
+    /**
+     * Takes this widget out of the scene's layout, painting and reading, or puts it back, for a
+     * widget whose content something outside the scene is showing: a menu bar the system holds
+     * in its own bar. While it is so, the widget is laid out as an invisible one is, with no box
+     * and no gap beside it, and {@link #isVisible()} answers {@code false};
+     * {@link #isVisibleByItsOwnFlag()} still says what {@link #setVisible} was told.
+     *
+     * <p>Not a change of the widget's own visibility, and announced as none. UI thread only.
+     */
+    protected final void setPresentedElsewhere(boolean value) {
+        Ui.checkUiThread();
+        if (elsewhere != value) {
+            boolean shown = isVisible();
+            elsewhere = value;
+            if (shown != isVisible()) {
+                presenceChanged();
+            }
+        }
+    }
+
+    /** @return what {@link #setVisible} was last told, whatever {@link #setPresentedElsewhere} says */
+    protected final boolean isVisibleByItsOwnFlag() {
+        return visible;
+    }
+
+    /** {@link #isVisible()} changed: the subtree leaves or rejoins the layout around it. */
+    private void presenceChanged() {
+        if (!isVisible() && scene != null) {
+            scene.onWidgetDetached(this); // revoke focus/hover/press in this subtree
+        }
+        // Every measure on the way up is stale, exactly as for markNeedsLayout(): whichever
+        // pass lays this out -- the scene's narrow one or a full one it escalates to -- has
+        // to re-measure from here. What differs is only what the scene is told.
+        for (Widget<?> w = this; w != null; w = w.parent) {
+            w.needsMeasure = true;
+        }
+        if (scene != null && parent != null) {
+            // Not a full layout: a visibility change can move nothing outside the nearest
+            // ancestor whose size survives it, and the scene lays out and damages only that.
+            // ADR 043 §9.4.4. A full layout here repainted the whole window to hide one button.
+            scene.markVisibilityChanged(this);
+        } else if (scene != null) {
+            scene.markLayoutDirty(this); // a root has no parent to absorb it
+        }
     }
 
     /** Whether this widget accepts input; a disabled widget still occupies its box. */
@@ -1945,6 +1980,31 @@ public abstract class Widget<W extends Widget<W>> {
 
     /** Key events (focused widget first, then ancestors). */
     protected void onKeyEvent(KeyEvent event) {
+    }
+
+    /**
+     * Whether this widget can do an editing command now: copy with something selected, paste
+     * with something to paste, undo with something to take back. {@link Scene#canEdit} asks the
+     * widget that has the keyboard and then each of its ancestors, and a menu's item of an
+     * editing role is enabled by the answer.
+     *
+     * <p>A widget answers for the commands it takes from the keyboard, and does for the command
+     * what it does for the key.
+     *
+     * @return {@code false} here: a widget edits nothing until it says so
+     */
+    protected boolean onCanEdit(EditCommand command) {
+        return false;
+    }
+
+    /**
+     * Does an editing command, as the user's own act. Called on the first widget, from the one
+     * with the keyboard upward, whose {@link #onCanEdit} answered {@code true}.
+     *
+     * @return whether it was done
+     */
+    protected boolean onEdit(EditCommand command) {
+        return false;
     }
 
     /** Committed text input (focused widget first, then ancestors). */

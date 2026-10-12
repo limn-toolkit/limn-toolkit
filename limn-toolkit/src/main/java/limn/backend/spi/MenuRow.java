@@ -3,10 +3,11 @@ package limn.backend.spi;
 import java.util.List;
 import java.util.Objects;
 import limn.graphics.Icon;
+import limn.scene.EditCommand;
 import org.jspecify.annotations.Nullable;
 
 /**
- * One row of a tray's menu as a backend is handed it: what the three systems can draw of a menu's
+ * One row of a menu the system draws (a tray's, a menu bar's) as a backend is handed it: what the three systems can draw of a menu's
  * item, and a number to say back when the user chooses it.
  *
  * <p>The rows of one reading are numbered from 1 in the order they are read, a submenu's rows
@@ -26,14 +27,25 @@ import org.jspecify.annotations.Nullable;
  *                 {@code F5}; empty for no accelerator. A system shows it beside the label, and
  *                 where the system runs a menu's keys while the menu is open, it chooses the row
  * @param shortcutModifiers the accelerator's {@link limn.input.Keys} modifier bits
+ * @param edit     the editing command the row is, or {@code null}: such a row is enabled and
+ *                 chosen through the window that has the keyboard, by
+ *                 {@link WindowInput#canEditFocused} and {@link WindowInput#editFocused}, and {@code enabled}
+ *                 says only whether the application disabled the item
  */
-public record TrayRow(int id, Kind kind, String label, boolean enabled, boolean checked, char mnemonic,
-        List<TrayRow> children, @Nullable Icon icon, String shortcutKey, int shortcutModifiers) {
+public record MenuRow(int id, Kind kind, String label, boolean enabled, boolean checked, char mnemonic,
+        List<MenuRow> children, @Nullable Icon icon, String shortcutKey, int shortcutModifiers,
+        @Nullable EditCommand edit) {
+
+    /** A row that is no editing command. */
+    public MenuRow(int id, Kind kind, String label, boolean enabled, boolean checked, char mnemonic,
+            List<MenuRow> children, @Nullable Icon icon, String shortcutKey, int shortcutModifiers) {
+        this(id, kind, label, enabled, checked, mnemonic, children, icon, shortcutKey, shortcutModifiers, null);
+    }
 
     /** A row with no picture and no accelerator. */
-    public TrayRow(int id, Kind kind, String label, boolean enabled, boolean checked, char mnemonic,
-            List<TrayRow> children) {
-        this(id, kind, label, enabled, checked, mnemonic, children, null, "", 0);
+    public MenuRow(int id, Kind kind, String label, boolean enabled, boolean checked, char mnemonic,
+            List<MenuRow> children) {
+        this(id, kind, label, enabled, checked, mnemonic, children, null, "", 0, null);
     }
 
     /**
@@ -75,7 +87,7 @@ public record TrayRow(int id, Kind kind, String label, boolean enabled, boolean 
     /**
      * @throws IllegalArgumentException when {@code id} is not positive
      */
-    public TrayRow {
+    public MenuRow {
         if (id <= 0) {
             throw new IllegalArgumentException("a row's number is positive: " + id);
         }

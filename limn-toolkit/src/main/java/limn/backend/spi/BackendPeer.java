@@ -85,4 +85,15 @@ public non-sealed interface BackendPeer extends Backend {
     default TrayPeer createTray(String id, TrayHost host) {
         return TrayPeer.NONE;
     }
+
+    /**
+     * The menu bar the system keeps outside the windows, where it keeps one and the application
+     * may have it.
+     *
+     * <p>The default is the answer of every system but one: {@code null}, and a menu bar is
+     * drawn in its window.
+     */
+    default @Nullable SystemMenuBar systemMenuBar() {
+        return null;
+    }
 }

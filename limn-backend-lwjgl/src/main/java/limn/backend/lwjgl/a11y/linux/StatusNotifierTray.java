@@ -10,7 +10,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import limn.backend.spi.TrayHost;
 import limn.backend.spi.TrayPeer;
-import limn.backend.spi.TrayRow;
+import limn.backend.spi.MenuRow;
 import limn.backend.spi.TrayState;
 import limn.concurrent.internal.Threads;
 import org.jspecify.annotations.Nullable;
@@ -53,7 +53,7 @@ public final class StatusNotifierTray implements TrayPeer {
     private final Thread worker;
 
     private volatile @Nullable TrayState state;
-    private volatile List<TrayRow> rows = List.of();
+    private volatile List<MenuRow> rows = List.of();
     private volatile DBus.@Nullable Conn connection;
     private volatile boolean registered;
     private volatile boolean disposed;
@@ -482,7 +482,7 @@ public final class StatusNotifierTray implements TrayPeer {
                     collect(rows, out);
                 }
                 for (Object rowId : ids) {
-                    TrayRow row = TrayWire.find(rows, (Integer) rowId);
+                    MenuRow row = TrayWire.find(rows, (Integer) rowId);
                     if (row != null) {
                         out.add(new Object[] {row.id(), TrayWire.rowProperties(row)});
                     }
@@ -490,7 +490,7 @@ public final class StatusNotifierTray implements TrayPeer {
                 return DBus.Msg.ret(m, "a(ia{sv})", out);
             }
             case "GetProperty": {
-                TrayRow row = TrayWire.find(rows, (Integer) m.body[0]);
+                MenuRow row = TrayWire.find(rows, (Integer) m.body[0]);
                 DBus.Variant value = row == null ? null : TrayWire.rowProperties(row).get(String.valueOf(m.body[1]));
                 return value == null ? DBus.Msg.err(m, INVALID_ARGS, "no such property") : DBus.Msg.ret(m, "v", value);
             }
@@ -515,8 +515,8 @@ public final class StatusNotifierTray implements TrayPeer {
         }
     }
 
-    private static void collect(List<TrayRow> from, List<Object> out) {
-        for (TrayRow row : from) {
+    private static void collect(List<MenuRow> from, List<Object> out) {
+        for (MenuRow row : from) {
             out.add(new Object[] {row.id(), TrayWire.rowProperties(row)});
             collect(row.children(), out);
         }
@@ -542,7 +542,7 @@ public final class StatusNotifierTray implements TrayPeer {
      * @return whether the rows changed
      */
     private boolean refresh(DBus.Conn c, TrayState now) {
-        CompletableFuture<List<TrayRow>> reading = new CompletableFuture<>();
+        CompletableFuture<List<MenuRow>> reading = new CompletableFuture<>();
         ui.execute(() -> {
             try {
                 reading.complete(host.menu());
@@ -550,7 +550,7 @@ public final class StatusNotifierTray implements TrayPeer {
                 reading.completeExceptionally(failed);
             }
         });
-        List<TrayRow> read;
+        List<MenuRow> read;
         try {
             read = reading.get(MENU_WAIT_MILLIS, TimeUnit.MILLISECONDS);
         } catch (Exception e) {
@@ -558,7 +558,7 @@ public final class StatusNotifierTray implements TrayPeer {
             return false;
         }
         placeholder = read.isEmpty();
-        List<TrayRow> next = TrayWire.shown(read, now.title());
+        List<MenuRow> next = TrayWire.shown(read, now.title());
         if (next.equals(rows)) {
             return false;
         }

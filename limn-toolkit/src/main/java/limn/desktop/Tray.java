@@ -13,7 +13,7 @@ import limn.backend.spi.BackendPeer;
 import limn.backend.spi.TrayHost;
 import limn.backend.spi.TrayPeer;
 import limn.backend.spi.TrayPicture;
-import limn.backend.spi.TrayRow;
+import limn.backend.spi.MenuRow;
 import limn.backend.spi.TrayState;
 import limn.components.Menu;
 import limn.components.Theme;
@@ -389,7 +389,7 @@ public final class Tray {
     private final class Host implements TrayHost {
 
         @Override
-        public List<TrayRow> menu() {
+        public List<MenuRow> menu() {
             Ui.checkUiThread();
             if (disposed) {
                 return List.of();
