@@ -168,7 +168,11 @@ public final class MacClipboard implements NativeClipboard {
         if (nsData == NULL) {
             return null;
         }
-        int length = (int) ObjC.msg(nsData, "length");
+        long size = ObjC.msg(nsData, "length");
+        if (size < 0 || size > PlatformClipboard.MAX_BYTES) {
+            return null; // another program's block, past what a transfer is read whole
+        }
+        int length = (int) size;
         byte[] out = new byte[length];
         if (length > 0) {
             memByteBuffer(ObjC.msg(nsData, "bytes"), length).get(out);

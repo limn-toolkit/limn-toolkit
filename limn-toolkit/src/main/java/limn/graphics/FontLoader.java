@@ -32,7 +32,7 @@ public interface FontLoader {
      *         {@link Fonts#setDefaultFamily} or to {@link Font}, rather than assuming the name
      *         from the file name, which need not match what the file declares
      * @throws java.io.UncheckedIOException  if the file cannot be read
-     * @throws IllegalArgumentException      if it carries no usable face
+     * @throws limn.io.MalformedContentException if it carries no usable face
      * @throws UnsupportedOperationException if no backend is installed
      */
     String load(Path file);

@@ -200,7 +200,12 @@ public final class FfmpegMedia implements AutoCloseable {
 
         int width = (int) description[FfmpegNative.D_WIDTH];
         int height = (int) description[FfmpegNative.D_HEIGHT];
-        PixelFormat format = PixelFormat.values()[(int) description[FfmpegNative.D_PIXEL_FORMAT]];
+        long layout = description[FfmpegNative.D_PIXEL_FORMAT];
+        if (layout < 0 || layout >= PixelFormat.values().length) {
+            // A number the native side answers, held to the layouts there are before it is an index.
+            throw new FfmpegException("the decoder answered a picture layout this build does not know: " + layout);
+        }
+        PixelFormat format = PixelFormat.values()[(int) layout];
         VideoColor color = colorOf((int) description[FfmpegNative.D_MATRIX],
                 (int) description[FfmpegNative.D_RANGE],
                 (int) description[FfmpegNative.D_TRANSFER]);

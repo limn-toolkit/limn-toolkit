@@ -82,11 +82,11 @@ class ElevationTest {
     void aMalformedShadowNamesItsLine() {
         for (String bad : List.of("elevation.overlay = 1 2 3", "elevation.overlay = a b c d e",
                 "elevation.overlay = 1 2 9 2 0.1", "elevation.flat = 0 0 0 0 0")) {
-            IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+            limn.io.MalformedContentException refused = assertThrows(limn.io.MalformedContentException.class,
                     () -> ThemeFormat.parse("name = X\ndark = false\n" + bad + "\n"), bad);
             assertTrue(refused.getMessage().contains("line 3"), refused.getMessage());
         }
-        assertThrows(IllegalArgumentException.class, () -> ThemeFormat.parse(
+        assertThrows(limn.io.MalformedContentException.class, () -> ThemeFormat.parse(
                 "name = X\ndark = false\nelevation.modal = 1 2 0.1 2 0.1\nelevation.modal = 1 2 0.1 2 0.1\n"));
     }
 

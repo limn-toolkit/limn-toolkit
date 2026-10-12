@@ -22,6 +22,9 @@ public interface SvgRasterizer {
      * between calls unless it is synchronized. {@code svgBytes} is read, never
      * written: a parser that needs a NUL-terminated or otherwise altered buffer must
      * copy it, because the caller reuses the same array for every size.
+     *
+     * @throws limn.io.MalformedContentException if the bytes are no SVG, or one with no size
+     * @throws IllegalArgumentException if {@code pixelSize} is more than the implementation rasterizes
      */
     Image rasterize(byte[] svgBytes, int pixelSize);
 }

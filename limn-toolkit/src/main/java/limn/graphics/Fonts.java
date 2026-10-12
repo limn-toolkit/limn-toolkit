@@ -72,7 +72,7 @@ public final class Fonts {
      *
      * @throws UnsupportedOperationException if no backend is installed (nothing here can parse a
      *                                       font file; see {@link FontLoader})
-     * @throws IllegalArgumentException      if the file carries no usable face
+     * @throws limn.io.MalformedContentException if the file carries no usable face
      */
     public static String load(java.nio.file.Path file) {
         String family = LOADER.current().load(Objects.requireNonNull(file, "file"));

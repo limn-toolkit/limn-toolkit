@@ -148,17 +148,13 @@ final class ColorEmojiFont implements AutoCloseable {
             return cached;
         }
         Emoji built = null;
-        int glyph = glyphId(cp);
-        if (glyph > 0) {
-            ColorBitmaps.Glyph bitmap = ColorBitmaps.glyph(data, 0, glyph);
-            if (bitmap != null && bitmap.ppem() > 0) {
-                Image image = Images.decode(bitmap.png());
-                if (image != null) {
-                    float ppem = bitmap.ppem();
-                    built = new Emoji(image, bitmap.width() / ppem, bitmap.height() / ppem,
-                            bitmap.bearingY() / ppem);
-                }
-            }
+        try {
+            built = build(cp);
+        } catch (RuntimeException unreadable) {
+            // A table that points past the font, or a strike that is no picture: this is asked
+            // for in the middle of laying out a line of text, where the answer for a glyph the
+            // font cannot give is "none", once, and never an exception.
+            built = null;
         }
         if (built == null) {
             absent.add(cp);
@@ -166,6 +162,24 @@ final class ColorEmojiFont implements AutoCloseable {
             images.put(cp, built);
         }
         return built;
+    }
+
+    /** The glyph and its box read from the font's tables, or {@code null} for none; throws on tables it cannot read. */
+    private Emoji build(int cp) {
+        int glyph = glyphId(cp);
+        if (glyph <= 0) {
+            return null;
+        }
+        ColorBitmaps.Glyph bitmap = ColorBitmaps.glyph(data, 0, glyph);
+        if (bitmap == null || bitmap.ppem() <= 0) {
+            return null;
+        }
+        Image image = Images.decode(bitmap.png());
+        if (image == null) {
+            return null;
+        }
+        float ppem = bitmap.ppem();
+        return new Emoji(image, bitmap.width() / ppem, bitmap.height() / ppem, bitmap.bearingY() / ppem);
     }
 
     /**
@@ -202,7 +216,11 @@ final class ColorEmojiFont implements AutoCloseable {
             return 0;
         }
         ByteBuffer be = data.duplicate().order(ByteOrder.BIG_ENDIAN);
-        return cmapFormat == 12 ? glyphIdFormat12(be, cp) : glyphIdFormat4(be, cp);
+        try {
+            return cmapFormat == 12 ? glyphIdFormat12(be, cp) : glyphIdFormat4(be, cp);
+        } catch (RuntimeException pastTheTable) {
+            return 0; // a character map that points past the font has no glyph for anything it names
+        }
     }
 
     private int glyphIdFormat12(ByteBuffer be, int cp) {

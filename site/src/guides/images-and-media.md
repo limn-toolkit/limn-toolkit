@@ -167,3 +167,39 @@ when something changes, which is what you want for a static model on a laptop ba
 next rendered frame as an `Image`.
 
 {% shot viewport-3d "The 3D viewport, composited into an ordinary window." %}
+
+## A file that is not what it claims to be
+
+A file a user picks may be cut short, damaged, or made on purpose to break whatever reads it.
+Every loader refuses such a file with one exception, `MalformedContentException`, whose
+message says what is wrong:
+
+```java
+try {
+    picture.setImage(Images.load(chosen));
+} catch (MalformedContentException broken) {
+    status.setText("That file is not a picture we can read: " + broken.getMessage());
+} catch (UncheckedIOException unreadable) {
+    status.setText("That file could not be opened.");
+}
+```
+
+The other two things that can go wrong are kept apart from it. A file that cannot be read at
+all is an I/O failure. A file that is whole but of a kind nothing here plays, a sound with
+six channels, is an `UnsupportedOperationException`. `broken.format()` names the format, and
+`broken.position()` the line or the offset where the reader knows one.
+
+**What may come from anywhere:** a picture, a sound, a model and a theme. Their readers hold
+every size a file claims to what the file can back, so a small file cannot ask for a large
+heap, and a damaged one is refused. The one exception is video: what the video library
+cannot open arrives as its own `FfmpegException`, since it does not tell a broken file from
+one it does not play.
+
+**What should come only from you, or from a source you trust:** a font. The library that
+draws a font's outlines checks nothing a font says about itself, and a font made to break it
+can end the process. Load the fonts you ship; do not offer "choose a font file" to a user
+whose files you would not otherwise run. The same caution, more mildly, goes for an SVG: an
+icon is your resource, and one a user supplies is drawn by a native library.
+
+A sound decoded whole stops at about fifty minutes of stereo; `Sounds.stream` plays anything
+longer without holding it in memory.

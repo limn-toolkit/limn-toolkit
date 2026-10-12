@@ -2,6 +2,8 @@ package limn.io;
 
 import java.util.Objects;
 
+import org.jspecify.annotations.Nullable;
+
 /**
  * What a file, a resource or a block of bytes is refused with when what it holds is not what its
  * format says: a picture, a sound, a video, a font, a model, a theme, cut short or wrong in any
@@ -34,7 +36,7 @@ public final class MalformedContentException extends RuntimeException {
      * @param message what is wrong with the content
      * @param cause   what a decoder underneath said, or {@code null}
      */
-    public MalformedContentException(String format, String message, Throwable cause) {
+    public MalformedContentException(String format, String message, @Nullable Throwable cause) {
         this(format, message, -1, cause);
     }
 
@@ -45,7 +47,7 @@ public final class MalformedContentException extends RuntimeException {
      *                 counted from 0, as the format's reader documents; {@code -1} for unknown
      * @param cause    what a decoder underneath said, or {@code null}
      */
-    public MalformedContentException(String format, String message, long position, Throwable cause) {
+    public MalformedContentException(String format, String message, long position, @Nullable Throwable cause) {
         super(Objects.requireNonNull(message, "message"), cause);
         this.format = Objects.requireNonNull(format, "format");
         this.position = position < 0 ? -1 : position;

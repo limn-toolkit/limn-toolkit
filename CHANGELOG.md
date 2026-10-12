@@ -230,6 +230,23 @@ Maven Central say which number that was.
   took the page behind the window that asked, and on KDE under X11 and on GNOME under Wayland a
   window asked in front from its tray icon stayed behind. Call the launcher from the user's key
   or button, since that is what the desktop vouches for.
+- A malformed file is refused with one exception, `limn.io.MalformedContentException`, in every
+  loader: pictures, sounds, video in Y4M, models, fonts, vector icons and themes. **This changes
+  what is thrown**: the glTF loader, the theme format and an SVG threw `IllegalArgumentException`,
+  the Y4M reader `IllegalStateException` and a font one or the other, and code that caught those
+  for a broken file catches the new one. A file that cannot be read is still an I/O failure, a
+  format nothing decodes still an `UnsupportedOperationException`, and a wrong argument still an
+  `IllegalArgumentException`. The exception says the format's name and, where known, the line or
+  the offset. What the video library cannot open still arrives as `FfmpegException`.
+- Hardened against damaged and hostile input. Every reader the toolkit writes in Java is now run
+  under a mutation fuzz in `check`, which found and fixed: a bitmap and a list of files from the
+  Windows clipboard that threw an index error, a dragged block whose reading threw at the caller,
+  a message off the session bus that could ask for two gigabytes, nest without limit or never
+  end, an MP3 whose damaged frames threw what its decoder never declared, and a glTF mesh whose
+  arrays disagreed going out as the caller's own exception. A sound decoded whole stops at
+  2^28 samples, a vector icon at 8192 pixels a side, a glyph at 4096 by 4096, and a block read
+  whole from another program at 512 MiB on every system. A font is still for a source you
+  trust: the library that draws its outlines checks nothing, and the guide now says so.
 - On macOS a `MenuBar` is shown in the system's menu bar. The bar of the window the user is
   working in is the one shown, and the widget takes no room in its scene; a window with no bar, a
   dialog, or no window shows the application's menu and a Window menu. It is the default, and a

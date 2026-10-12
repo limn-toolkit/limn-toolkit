@@ -36,6 +36,9 @@ import java.util.concurrent.TimeUnit;
  */
 public final class PlatformClipboard implements Clipboard {
 
+    /** The most bytes of another program's block that are read whole: 512 MiB, as the pipes and the X11 transfers hold to. */
+    static final int MAX_BYTES = 512 << 20;
+
     private static final System.Logger LOG = System.getLogger(PlatformClipboard.class.getName());
 
     /** How long {@link #text()} waits for another program before answering that there is none. */
@@ -311,7 +314,17 @@ public final class PlatformClipboard implements Clipboard {
                     result.completeExceptionally(new TransferGoneException(format + " is not on offer"));
                     return result;
                 }
-                read.apply(typeOf(format)).whenComplete((bytes, failed) -> {
+                CompletionStage<byte[]> arriving;
+                try {
+                    arriving = read.apply(typeOf(format));
+                } catch (RuntimeException unreadable) {
+                    // Another program's block, read here where it is asked for: what is wrong with
+                    // it is told as a read that failed, and thrown at nobody.
+                    result.completeExceptionally(new TransferGoneException(format + " could not be read: "
+                            + unreadable.getMessage()));
+                    return result;
+                }
+                arriving.whenComplete((bytes, failed) -> {
                     // Decoded where the bytes arrived, which is never the UI thread for another
                     // program's data: a photograph is not decoded between two frames.
                     Object value = null;

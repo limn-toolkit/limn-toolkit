@@ -17,7 +17,8 @@ public interface ImageDecoder {
      * @param fileBytes the full encoded file
      * @return the decoded RGBA image; a fresh instance per call, because that instance's identity is
      *         the texture-cache key
-     * @throws RuntimeException if the bytes cannot be decoded
+     * @throws limn.io.MalformedContentException if the bytes are no picture this decoder reads, or
+     *         are damaged, or describe a picture too large to hold
      */
     Image decode(byte[] fileBytes);
 }

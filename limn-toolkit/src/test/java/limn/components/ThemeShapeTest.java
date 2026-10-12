@@ -257,11 +257,11 @@ class ThemeShapeTest extends ComponentTestBase {
 
     @Test
     void anImpossibleShapeInAFileIsAnError() {
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(limn.io.MalformedContentException.class,
                 () -> ThemeFormat.parse("name = Ocean\ndark = true\ncornerScale = round\n"));
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(limn.io.MalformedContentException.class,
                 () -> ThemeFormat.parse("name = Ocean\ndark = true\ncornerScale = -1\n"));
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(limn.io.MalformedContentException.class,
                 () -> ThemeFormat.parse("name = Ocean\ndark = true\ncornerScale = 99\n"));
     }
 }

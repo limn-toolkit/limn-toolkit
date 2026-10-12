@@ -26,14 +26,14 @@ class StbImageDecoderTest {
      */
     @Test
     void anImageWhoseHeaderClaimsTooManyPixelsIsRefusedBeforeItIsDecoded() {
-        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+        limn.io.MalformedContentException refused = assertThrows(limn.io.MalformedContentException.class,
                 () -> new StbImageDecoder().decode(jpegHeader(23000, 23000)));
         assertTrue(refused.getMessage().contains("23000x23000"), refused.getMessage());
-        refused = assertThrows(IllegalArgumentException.class,
+        refused = assertThrows(limn.io.MalformedContentException.class,
                 () -> new StbImageDecoder().decode(jpegHeader(23171, 23171)));
         assertTrue(refused.getMessage().contains("23171x23171"),
                 "and one whose RGBA size overflows an int: " + refused.getMessage());
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(limn.io.MalformedContentException.class,
                 () -> new StbImageDecoder().decode(png(23000, 23000, new byte[0])),
                 "a PNG as large is refused too");
     }

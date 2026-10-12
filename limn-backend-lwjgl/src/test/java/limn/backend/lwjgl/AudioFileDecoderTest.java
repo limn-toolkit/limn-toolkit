@@ -59,8 +59,8 @@ class AudioFileDecoderTest {
         // MP3 is now DECODED (JLayer); an ID3 header with no audio frames is
         // recognized as MP3 but fails with a clear malformed-file error.
         byte[] id3 = {'I', 'D', '3', 3, 0, 0, 0, 0, 0, 0, 0, 0};
-        IllegalArgumentException ex =
-                assertThrows(IllegalArgumentException.class, () -> decoder.decode(id3));
+        limn.io.MalformedContentException ex =
+                assertThrows(limn.io.MalformedContentException.class, () -> decoder.decode(id3));
         assertEquals(true, ex.getMessage().contains("MP3"));
     }
 
@@ -75,8 +75,8 @@ class AudioFileDecoderTest {
         com.sun.management.ThreadMXBean threads =
                 (com.sun.management.ThreadMXBean) java.lang.management.ManagementFactory.getThreadMXBean();
         long before = threads.getCurrentThreadAllocatedBytes();
-        IllegalArgumentException refused =
-                assertThrows(IllegalArgumentException.class, () -> decoder.decode(lying));
+        limn.io.MalformedContentException refused =
+                assertThrows(limn.io.MalformedContentException.class, () -> decoder.decode(lying));
         long allocated = threads.getCurrentThreadAllocatedBytes() - before;
         assertTrue(allocated < 8 << 20, "allocated " + allocated + " bytes for a 16-byte file");
         assertTrue(refused.getMessage().contains("ID3"), refused.getMessage());
@@ -85,7 +85,7 @@ class AudioFileDecoderTest {
         try {
             java.nio.file.Files.write(file, lying);
             long streamBefore = threads.getCurrentThreadAllocatedBytes();
-            assertThrows(IllegalArgumentException.class, () -> decoder.openStream(file));
+            assertThrows(limn.io.MalformedContentException.class, () -> decoder.openStream(file));
             long streamAllocated = threads.getCurrentThreadAllocatedBytes() - streamBefore;
             assertTrue(streamAllocated < 8 << 20, "the stream allocated " + streamAllocated);
         } finally {
@@ -103,7 +103,7 @@ class AudioFileDecoderTest {
         file[5] = 0x10;                                               // a footer follows
         assertEquals(10 + 133 + 10, AudioFileDecoder.audioStart(file));
         file[9] = (byte) 0x85;                                        // not synchsafe
-        assertThrows(IllegalArgumentException.class, () -> AudioFileDecoder.audioStart(file));
+        assertThrows(limn.io.MalformedContentException.class, () -> AudioFileDecoder.audioStart(file));
         assertEquals(0, AudioFileDecoder.audioStart(new byte[] {(byte) 0xFF, (byte) 0xFB, 0, 0,
                 0, 0, 0, 0, 0, 0, 0, 0}), "no tag, no offset");
     }
@@ -118,7 +118,7 @@ class AudioFileDecoderTest {
 
     @Test
     void rejectsTooShortInput() {
-        assertThrows(IllegalArgumentException.class, () -> decoder.decode(new byte[] {'R', 'I', 'F', 'F'}));
+        assertThrows(limn.io.MalformedContentException.class, () -> decoder.decode(new byte[] {'R', 'I', 'F', 'F'}));
     }
 
     // ------------------------------------------------------------- streaming
@@ -184,7 +184,7 @@ class AudioFileDecoderTest {
         java.nio.file.Path file = java.nio.file.Files.createTempFile("limn-stream", ".mp3");
         try {
             java.nio.file.Files.write(file, new byte[] {'I', 'D', '3', 0, 0, 0, 0, 0, 0, 0, 0, 0});
-            assertThrows(IllegalArgumentException.class, () -> decoder.openStream(file));
+            assertThrows(limn.io.MalformedContentException.class, () -> decoder.openStream(file));
         } finally {
             java.nio.file.Files.deleteIfExists(file);
         }
@@ -243,13 +243,13 @@ class AudioFileDecoderTest {
         noFmt.put("data".getBytes()).putInt(pcm.length).put(pcm);
         byte[] noChannels = riff(pcm, 0, 44_100, 16, 1);
         for (byte[] file : new byte[][] {noFmt.array(), noChannels}) {
-            IllegalArgumentException refused =
-                    assertThrows(IllegalArgumentException.class, () -> decoder.decode(file));
+            limn.io.MalformedContentException refused =
+                    assertThrows(limn.io.MalformedContentException.class, () -> decoder.decode(file));
             assertTrue(refused.getMessage().contains("malformed WAV"), refused.getMessage());
             java.nio.file.Path onDisk = java.nio.file.Files.createTempFile("limn-malformed", ".wav");
             try {
                 java.nio.file.Files.write(onDisk, file);
-                assertThrows(IllegalArgumentException.class, () -> decoder.openStream(onDisk));
+                assertThrows(limn.io.MalformedContentException.class, () -> decoder.openStream(onDisk));
             } finally {
                 java.nio.file.Files.deleteIfExists(onDisk);
             }
@@ -294,10 +294,10 @@ class AudioFileDecoderTest {
     @Test
     void aWavRateThatReadsNegativeIsMalformedAndSaysSo() throws Exception {
         byte[] file = wav(new short[] {1, -1}, 1, Integer.MIN_VALUE, 16);
-        IllegalArgumentException refused =
-                assertThrows(IllegalArgumentException.class, () -> decoder.decode(file));
+        limn.io.MalformedContentException refused =
+                assertThrows(limn.io.MalformedContentException.class, () -> decoder.decode(file));
         assertEquals("malformed WAV: sample rate 2147483648 Hz", refused.getMessage());
-        assertThrows(IllegalArgumentException.class, () -> openOnDisk(file, ".wav"));
+        assertThrows(limn.io.MalformedContentException.class, () -> openOnDisk(file, ".wav"));
     }
 
     /**
@@ -322,10 +322,10 @@ class AudioFileDecoderTest {
         assertThrows(UnsupportedOperationException.class, () -> openOnDisk(fast, ".ogg"));
 
         byte[] negative = oggAtRate(0x8000_0000L);
-        IllegalArgumentException malformed =
-                assertThrows(IllegalArgumentException.class, () -> decoder.decode(negative));
+        limn.io.MalformedContentException malformed =
+                assertThrows(limn.io.MalformedContentException.class, () -> decoder.decode(negative));
         assertEquals("malformed Ogg: sample rate 2147483648 Hz", malformed.getMessage());
-        assertThrows(IllegalArgumentException.class, () -> openOnDisk(negative, ".ogg"));
+        assertThrows(limn.io.MalformedContentException.class, () -> openOnDisk(negative, ".ogg"));
     }
 
     /** Opens {@code file} as a stream from a temporary file, which is deleted when this returns. */

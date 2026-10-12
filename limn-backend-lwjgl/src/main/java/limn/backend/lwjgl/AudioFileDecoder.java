@@ -1,5 +1,7 @@
 package limn.backend.lwjgl;
 
+import limn.io.MalformedContentException;
+
 import limn.sound.AudioClip;
 import limn.sound.AudioDecoder;
 import org.lwjgl.stb.STBVorbisInfo;
@@ -54,13 +56,13 @@ final class AudioFileDecoder implements AudioDecoder {
      * this is the backend's decoder SPI and has none of its own.
      *
      * @param fileBytes the encoded file; at least 12 bytes, enough to identify
-     * @throws IllegalArgumentException      if the bytes are too few or malformed
+     * @throws limn.io.MalformedContentException if the bytes are too few or malformed
      * @throws UnsupportedOperationException if no bundled decoder handles them
      */
     @Override
     public AudioClip decode(byte[] fileBytes) {
         if (fileBytes == null || fileBytes.length < 12) {
-            throw new IllegalArgumentException("not enough bytes to identify an audio format");
+            throw new MalformedContentException("audio", "not enough bytes to identify an audio format");
         }
         if (isRiffWave(fileBytes)) {
             return decodeWav(fileBytes);
@@ -116,7 +118,7 @@ final class AudioFileDecoder implements AudioDecoder {
         // Malformed before unsupported: a file with no format, no channels or no data is broken,
         // and UnsupportedOperationException is for a well-formed file this decoder cannot play.
         if (formatCode < 0 || channels == 0 || dataOffset < 0) {
-            throw new IllegalArgumentException("malformed WAV (missing fmt/data)");
+            throw new MalformedContentException("audio", "malformed WAV (missing fmt/data)");
         }
         playableRate(sampleRate, "WAV");
         if (channels != 1 && channels != 2) {
@@ -185,12 +187,12 @@ final class AudioFileDecoder implements AudioDecoder {
      *
      * @param rate   the rate as read, a signed view of the unsigned field
      * @param format the format's name, which starts the message
-     * @throws IllegalArgumentException      if {@code rate} is zero or reads negative
+     * @throws limn.io.MalformedContentException if {@code rate} is zero or reads negative
      * @throws UnsupportedOperationException if {@code rate} is above the highest this plays
      */
     private static void playableRate(int rate, String format) {
         if (rate <= 0) {
-            throw new IllegalArgumentException("malformed " + format + ": sample rate "
+            throw new MalformedContentException("audio", "malformed " + format + ": sample rate "
                     + Integer.toUnsignedString(rate) + " Hz");
         }
         if (rate > OpenAlAudio.MAX_SAMPLE_RATE) {
@@ -211,7 +213,7 @@ final class AudioFileDecoder implements AudioDecoder {
                 java.nio.IntBuffer error = stack.mallocInt(1);
                 long decoder = stb_vorbis_open_memory(encoded, error, null);
                 if (decoder == 0L) {
-                    throw new IllegalArgumentException("stb_vorbis could not open Ogg (error " + error.get(0) + ")");
+                    throw new MalformedContentException("audio", "stb_vorbis could not open Ogg (error " + error.get(0) + ")");
                 }
                 try {
                     STBVorbisInfo info = STBVorbisInfo.malloc(stack);
@@ -240,8 +242,7 @@ final class AudioFileDecoder implements AudioDecoder {
                             }
                             int length = frames * channels;
                             if (used + length > out.length) {
-                                out = java.util.Arrays.copyOf(out,
-                                        Math.max(out.length * 2, used + length));
+                                out = java.util.Arrays.copyOf(out, grown(out.length, used + length, "Ogg"));
                             }
                             chunk.get(0, out, used, length); // absolute: never moves the position
                             used += length;
@@ -291,7 +292,7 @@ final class AudioFileDecoder implements AudioDecoder {
      * @param file the audio file; must exist and be readable
      * @return a pull-mode source positioned at the start
      * @throws java.io.UncheckedIOException      if the file cannot be read
-     * @throws IllegalArgumentException          if the file is malformed
+     * @throws limn.io.MalformedContentException     if the file is malformed
      * @throws UnsupportedOperationException     if no bundled reader handles it, or its
      *                                           sample rate is above the highest this plays
      */
@@ -380,7 +381,7 @@ final class AudioFileDecoder implements AudioDecoder {
                 }
                 // Malformed before unsupported, as the whole-file reader does.
                 if (formatCode < 0 || foundChannels == 0 || foundDataStart < 0) {
-                    throw new IllegalArgumentException("malformed WAV: " + file);
+                    throw new MalformedContentException("audio", "malformed WAV: " + file);
                 }
                 playableRate(foundRate, "WAV");
                 if (formatCode != 1 || bits != 16) {
@@ -484,7 +485,7 @@ final class AudioFileDecoder implements AudioDecoder {
                 handle = stb_vorbis_open_memory(encoded, error, null);
                 if (handle == 0L) {
                     close();
-                    throw new IllegalArgumentException(
+                    throw new MalformedContentException("audio", 
                             "stb_vorbis could not open " + file + " (error " + error.get(0) + ")");
                 }
                 STBVorbisInfo info = STBVorbisInfo.malloc(stack);
@@ -575,7 +576,7 @@ final class AudioFileDecoder implements AudioDecoder {
      * size its header states, before reading any of it: sixteen bytes could ask for 256 MB, and
      * a looping stream asked again on every loop.
      *
-     * @throws IllegalArgumentException if the tag's size is malformed or runs past the file
+     * @throws limn.io.MalformedContentException if the tag's size is malformed or runs past the file
      */
     static int audioStart(byte[] b) {
         if (b.length < 10 || !tagAt(b, 0, "ID3")) {
@@ -585,14 +586,14 @@ final class AudioFileDecoder implements AudioDecoder {
         for (int i = 6; i < 10; i++) {
             int digit = b[i] & 0xFF;
             if (digit >= 0x80) {
-                throw new IllegalArgumentException("malformed MP3: the ID3v2 tag's size is not "
+                throw new MalformedContentException("audio", "malformed MP3: the ID3v2 tag's size is not "
                         + "synchsafe");
             }
             size = size << 7 | digit;
         }
         long end = 10L + size + ((b[5] & 0x10) != 0 ? 10 : 0);
         if (end > b.length) {
-            throw new IllegalArgumentException("malformed MP3: the ID3v2 tag claims " + size
+            throw new MalformedContentException("audio", "malformed MP3: the ID3v2 tag claims " + size
                     + " bytes and the file holds " + (b.length - 10) + " after its header");
         }
         return (int) end;
@@ -601,6 +602,23 @@ final class AudioFileDecoder implements AudioDecoder {
     private static java.io.InputStream audioAfterTag(byte[] bytes) {
         int start = audioStart(bytes);
         return new java.io.ByteArrayInputStream(bytes, start, bytes.length - start);
+    }
+
+    /**
+     * The most samples a file decoded whole may come to: 2<sup>28</sup>, half a gigabyte, some
+     * fifty minutes of stereo at 44.1 kHz. A compressed file says nothing true about its length
+     * before it is decoded, and one that never ends would otherwise be decoded until the heap
+     * did; a longer one is for {@link #openStream}.
+     */
+    static final int MAX_DECODED_SAMPLES = 1 << 28;
+
+    /** The next size of a growing sample array, refused past the ceiling. */
+    private static int grown(int current, int needed, String format) {
+        if (needed > MAX_DECODED_SAMPLES) {
+            throw new UnsupportedOperationException(format + " decodes to more than " + MAX_DECODED_SAMPLES
+                    + " samples, too long to decode whole: stream it");
+        }
+        return (int) Math.min(MAX_DECODED_SAMPLES, Math.max((long) current * 2, needed));
     }
 
     private static AudioClip decodeMp3(byte[] bytes) {
@@ -625,8 +643,7 @@ final class AudioFileDecoder implements AudioDecoder {
                 }
                 int length = frame.getBufferLength();
                 if (used + length > pcm.length) {
-                    pcm = java.util.Arrays.copyOf(pcm,
-                            Math.max(pcm.length * 2, used + length));
+                    pcm = java.util.Arrays.copyOf(pcm, grown(pcm.length, used + length, "MP3"));
                 }
                 // The decoder REUSES its output buffer; copy before the next frame.
                 System.arraycopy(frame.getBuffer(), 0, pcm, used, length);
@@ -634,11 +651,16 @@ final class AudioFileDecoder implements AudioDecoder {
                 bitstream.closeFrame();
             }
             bitstream.close();
-        } catch (javazoom.jl.decoder.JavaLayerException error) {
-            throw new IllegalArgumentException("malformed MP3", error);
+        } catch (javazoom.jl.decoder.JavaLayerException | RuntimeException error) {
+            // The decoder is a library's: on damaged frames it also throws what it never
+            // declared, an index past one of its own tables, and that is the file's fault too.
+            if (error instanceof UnsupportedOperationException tooLong) {
+                throw tooLong;
+            }
+            throw new MalformedContentException("audio", "malformed MP3", error);
         }
         if (channels == 0 || used == 0) {
-            throw new IllegalArgumentException("MP3 contains no decodable audio frames");
+            throw new MalformedContentException("audio", "MP3 contains no decodable audio frames");
         }
         return AudioClip.of(java.util.Arrays.copyOf(pcm, used - used % channels),
                 channels, sampleRate);
@@ -667,7 +689,7 @@ final class AudioFileDecoder implements AudioDecoder {
             // before playStream asks for channels()/sampleRate().
             if (!decodeIntoCarry()) {
                 close();
-                throw new IllegalArgumentException("MP3 contains no decodable audio frames: " + file);
+                throw new MalformedContentException("audio", "MP3 contains no decodable audio frames: " + file);
             }
             channels = primedChannels;
             sampleRate = primedRate;
@@ -706,8 +728,8 @@ final class AudioFileDecoder implements AudioDecoder {
                 carryPos = 0;
                 bitstream.closeFrame();
                 return length > 0;
-            } catch (javazoom.jl.decoder.JavaLayerException error) {
-                ended = true; // best-effort: a corrupt tail ends the stream
+            } catch (javazoom.jl.decoder.JavaLayerException | RuntimeException error) {
+                ended = true; // best-effort: a corrupt tail ends the stream, whatever the decoder threw
                 return false;
             }
         }

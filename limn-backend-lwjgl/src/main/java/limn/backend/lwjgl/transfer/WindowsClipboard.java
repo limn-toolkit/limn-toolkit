@@ -206,7 +206,10 @@ public final class WindowsClipboard implements NativeClipboard {
         }
         long size = kernel("GlobalSize", "p>p", handle);
         long data = kernel("GlobalLock", "p>p", handle);
-        if (data == NULL || size <= 0 || size > Integer.MAX_VALUE) {
+        if (data == NULL || size <= 0 || size > PlatformClipboard.MAX_BYTES) {
+            if (data != NULL) {
+                kernel("GlobalUnlock", "p>i", handle);
+            }
             return null;
         }
         byte[] out = new byte[(int) size];

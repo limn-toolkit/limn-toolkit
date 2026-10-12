@@ -22,7 +22,9 @@ public interface AudioDecoder {
      *
      * @param fileBytes the full encoded file
      * @return the decoded PCM clip
-     * @throws RuntimeException if the bytes are not a supported format
+     * @throws limn.io.MalformedContentException if the bytes are damaged or too few
+     * @throws UnsupportedOperationException if they are sound in a format this decoder does not read,
+     *         or too long to decode whole
      */
     AudioClip decode(byte[] fileBytes);
 

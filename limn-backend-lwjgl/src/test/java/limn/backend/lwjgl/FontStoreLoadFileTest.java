@@ -104,6 +104,6 @@ class FontStoreLoadFileTest {
         FontStore store = new FontStore();
         Path file = dir.resolve("garbage.ttf");
         Files.write(file, new byte[] {1, 2, 3, 4, 5, 6, 7, 8});
-        assertThrows(IllegalArgumentException.class, () -> store.loadFile(file));
+        assertThrows(limn.io.MalformedContentException.class, () -> store.loadFile(file));
     }
 }

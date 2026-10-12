@@ -39,6 +39,10 @@ final class ColorBitmaps {
      *
      * @param bearingY how far the top of the picture sits ABOVE the baseline
      */
+    /** The most strikes and the most index subtables in one that are walked for a glyph. */
+    private static final int MAX_SIZES = 64;
+    private static final int MAX_INDEX_SUBTABLES = 1 << 16;
+
     record Glyph(byte[] png, int width, int height, int bearingY, int ppem) {
     }
 
@@ -55,10 +59,16 @@ final class ColorBitmaps {
                 return null;
             }
             int numSizes = be.getInt(cblc + 4);
+            if (numSizes < 0 || numSizes > MAX_SIZES) {
+                return null; // a count the tables give: a real font has a strike or a handful
+            }
             for (int s = 0; s < numSizes; s++) {
                 int sizeTable = cblc + 8 + s * 48; // bitmapSizeTable is 48 bytes
                 int indexArrayOffset = be.getInt(sizeTable);
                 int numIndexSubTables = be.getInt(sizeTable + 8);
+                if (numIndexSubTables < 0 || numIndexSubTables > MAX_INDEX_SUBTABLES) {
+                    return null;
+                }
                 int ppem = be.get(sizeTable + 45) & 0xFF; // ppemY
                 int arrayBase = cblc + indexArrayOffset;
                 for (int i = 0; i < numIndexSubTables; i++) {

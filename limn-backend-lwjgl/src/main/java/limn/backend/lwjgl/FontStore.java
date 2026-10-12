@@ -640,7 +640,7 @@ final class FontStore implements AutoCloseable {
         }
         List<SystemFonts.Face> faces = SystemFonts.facesIn(file);
         if (faces.isEmpty()) {
-            throw new IllegalArgumentException("no usable font face in " + file.toAbsolutePath());
+            throw new limn.io.MalformedContentException("font", "no usable font face in " + file.toAbsolutePath());
         }
         for (SystemFonts.Face face : faces) {
             String key = face.family().toLowerCase(Locale.ROOT);

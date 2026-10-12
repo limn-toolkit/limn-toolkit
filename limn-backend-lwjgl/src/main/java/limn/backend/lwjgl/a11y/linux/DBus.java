@@ -252,12 +252,42 @@ final class DBus {
         int u16() { align(2); return b.getShort() & 0xffff; }
         int u32() { align(4); return b.getInt(); }
         long u64() { align(8); return b.getLong(); }
-        String str() { align(4); int n = b.getInt(); byte[] a = new byte[n]; b.get(a); b.get(); return new String(a, StandardCharsets.UTF_8); }
-        String sigStr() { int n = u8(); byte[] a = new byte[n]; b.get(a); b.get(); return new String(a, StandardCharsets.UTF_8); }
+        String str() { align(4); int n = held(b.getInt()); byte[] a = new byte[n]; b.get(a); b.get(); return new String(a, StandardCharsets.UTF_8); }
+        String sigStr() { int n = held(u8()); byte[] a = new byte[n]; b.get(a); b.get(); return new String(a, StandardCharsets.UTF_8); }
+        /**
+         * A length the message gives, held to what the message still has before anything is
+         * allocated for it: a length is the sender's number, and four bytes can ask for two
+         * gigabytes.
+         */
+        int held(int n) {
+            if (n < 0 || n >= b.remaining()) {
+                throw new IllegalArgumentException("a length of " + n + " in a message with "
+                        + b.remaining() + " bytes left");
+            }
+            return n;
+        }
         boolean hasRemaining() { return b.hasRemaining(); }
     }
 
+    /** The longest line of the authentication exchange that is read before giving up. */
+    static final int MAX_SASL_LINE = 16 * 1024;
+
+    /** The deepest a value nests: the protocol's own limit, thirty-two arrays and thirty-two structures. */
+    static final int MAX_DEPTH = 64;
+
     static Object read(Reader r, String sig) {
+        return read(r, sig, 0);
+    }
+
+    private static Object read(Reader r, String sig, int depth) {
+        if (depth > MAX_DEPTH) {
+            // A variant names its own type, so the nesting is the sender's to choose, and each
+            // level is a call here.
+            throw new IllegalArgumentException("a value nested deeper than " + MAX_DEPTH);
+        }
+        if (sig.isEmpty()) {
+            throw new IllegalArgumentException("a value of no type");
+        }
         char c = sig.charAt(0);
         switch (c) {
             case 'y': return (byte) r.u8();
@@ -269,32 +299,50 @@ final class DBus {
             case 'd': return Double.longBitsToDouble(r.u64());
             case 's': case 'o': return r.str();
             case 'g': return r.sigStr();
-            case 'v': { String s = r.sigStr(); return new Variant(s, read(r, s)); }
+            case 'v': { String s = r.sigStr(); return new Variant(s, read(r, s, depth + 1)); }
             case 'a': {
                 String elem = sig.substring(1);
+                if (elem.isEmpty()) {
+                    throw new IllegalArgumentException("an array of no type");
+                }
                 int len = r.u32();
                 r.align(alignOf(elem.charAt(0)));
+                if (len < 0 || len > r.b.remaining()) {
+                    throw new IllegalArgumentException("an array of " + len + " bytes in a message with "
+                            + r.b.remaining() + " left");
+                }
                 int end = r.b.position() + len;
                 if (elem.charAt(0) == '{') {
                     List<String> kv = split(elem.substring(1, elem.length() - 1));
                     Map<Object, Object> m = new LinkedHashMap<>();
+                    if (kv.size() != 2) {
+                        throw new IllegalArgumentException("a dictionary entry of " + kv.size() + " parts");
+                    }
                     while (r.b.position() < end) {
                         r.align(8);
-                        Object k = read(r, kv.get(0));
-                        Object val = read(r, kv.get(1));
+                        Object k = read(r, kv.get(0), depth + 1);
+                        Object val = read(r, kv.get(1), depth + 1);
                         m.put(k, val);
                     }
                     return m;
                 }
                 List<Object> out = new ArrayList<>();
-                while (r.b.position() < end) out.add(read(r, elem));
+                while (r.b.position() < end) {
+                    int before = r.b.position();
+                    out.add(read(r, elem, depth + 1));
+                    if (r.b.position() == before) {
+                        // An element that takes no bytes, a structure of nothing: the array would
+                        // never reach its end and the list would grow until the heap did.
+                        throw new IllegalArgumentException("an array whose elements have no size");
+                    }
+                }
                 return out;
             }
             case '(': {
                 List<String> parts = split(sig.substring(1, sig.length() - 1));
                 r.align(8);
                 Object[] items = new Object[parts.size()];
-                for (int i = 0; i < parts.size(); i++) items[i] = read(r, parts.get(i));
+                for (int i = 0; i < parts.size(); i++) items[i] = read(r, parts.get(i), depth + 1);
                 return items;
             }
             default: throw new IllegalArgumentException("cannot read type '" + sig + "'");
@@ -425,6 +473,12 @@ final class DBus {
                 }
             }
             r.align(8);
+            if (bodyLen < 0 || bodyLen > b.remaining()) {
+                // The connection frames a message by this same number, so a frame it read is as
+                // long as it says; one handed in whole from elsewhere is held to what it has.
+                throw new IllegalArgumentException("a body of " + bodyLen + " bytes in a message with "
+                        + b.remaining() + " left");
+            }
             byte[] body = new byte[bodyLen];
             b.get(body);
             m.rawBody = body;
@@ -667,6 +721,7 @@ final class DBus {
             while (true) {
                 one.clear();
                 if (ch.read(one) < 0) throw new IOException("EOF during SASL, got: " + sb);
+                if (sb.length() > MAX_SASL_LINE) throw new IOException("a SASL line longer than " + MAX_SASL_LINE);
                 char c = (char) (one.get(0) & 0xff);
                 if (c == '\n') {
                     int n = sb.length();

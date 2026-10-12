@@ -34,12 +34,12 @@ final class StbImageDecoder implements ImageDecoder {
                 IntBuffer height = stack.mallocInt(1);
                 IntBuffer channels = stack.mallocInt(1);
                 if (!STBImage.stbi_info_from_memory(encoded, width, height, channels)) {
-                    throw new IllegalArgumentException(
+                    throw new limn.io.MalformedContentException("image", 
                             "stbi_info_from_memory failed: " + STBImage.stbi_failure_reason());
                 }
                 long claimed = (long) width.get(0) * height.get(0);
                 if (claimed > MAX_PIXELS) {
-                    throw new IllegalArgumentException("an image of " + width.get(0) + "x"
+                    throw new limn.io.MalformedContentException("image", "an image of " + width.get(0) + "x"
                             + height.get(0) + " pixels is larger than " + MAX_PIXELS
                             + " pixels, the most one image decodes to");
                 }
@@ -47,7 +47,7 @@ final class StbImageDecoder implements ImageDecoder {
                 STBImage.stbi_set_flip_vertically_on_load(false);
                 ByteBuffer pixels = STBImage.stbi_load_from_memory(encoded, width, height, channels, 4);
                 if (pixels == null) {
-                    throw new IllegalArgumentException(
+                    throw new limn.io.MalformedContentException("image", 
                             "stbi_load_from_memory failed: " + STBImage.stbi_failure_reason());
                 }
                 try {

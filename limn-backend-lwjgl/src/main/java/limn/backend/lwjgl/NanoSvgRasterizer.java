@@ -20,8 +20,15 @@ import static org.lwjgl.system.MemoryUtil.memFree;
  */
 final class NanoSvgRasterizer implements SvgRasterizer {
 
+    /** The largest side a rasterization is given: 8192 pixels, a quarter of a gigabyte of picture. */
+    static final int MAX_PIXEL_SIZE = 8192;
+
     @Override
     public Image rasterize(byte[] svgBytes, int pixelSize) {
+        if (pixelSize > MAX_PIXEL_SIZE) {
+            throw new IllegalArgumentException("an icon of " + pixelSize + " pixels a side is above the "
+                    + MAX_PIXEL_SIZE + " a rasterization is given");
+        }
         int box = Math.max(1, pixelSize);
         // NanoSVG parses destructively and needs a NUL-terminated copy of the text.
         ByteBuffer input = OffHeap.copyOfNulTerminated(svgBytes);
@@ -32,18 +39,22 @@ final class NanoSvgRasterizer implements SvgRasterizer {
             memFree(input);
         }
         if (svg == null) {
-            throw new IllegalArgumentException("invalid SVG");
+            throw new limn.io.MalformedContentException("SVG", "invalid SVG");
         }
         try {
             float w = svg.width();
             float h = svg.height();
-            if (w <= 0 || h <= 0) {
-                throw new IllegalArgumentException("SVG has no intrinsic size");
+            // A size that is no number fails both comparisons, so it is asked for by name.
+            if (!(w > 0) || !(h > 0) || Float.isInfinite(w) || Float.isInfinite(h)) {
+                throw new limn.io.MalformedContentException("SVG", "SVG has no intrinsic size");
             }
             float scale = box / Math.max(w, h);
             int outW = Math.max(1, Math.round(w * scale));
             int outH = Math.max(1, Math.round(h * scale));
             long rasterizer = NanoSVG.nsvgCreateRasterizer();
+            if (rasterizer == 0) {
+                throw new IllegalStateException("the SVG rasterizer could not be made");
+            }
             ByteBuffer dst = memAlloc(outW * outH * 4);
             try {
                 NanoSVG.nsvgRasterize(rasterizer, svg, 0f, 0f, scale, dst, outW, outH, outW * 4);

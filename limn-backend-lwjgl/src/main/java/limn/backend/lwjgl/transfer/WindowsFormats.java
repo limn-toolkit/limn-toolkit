@@ -141,18 +141,32 @@ final class WindowsFormats {
 
     /** A {@code CF_DIB} block as a BMP file: the same bytes behind the 14-byte file header. */
     static byte[] bmpFile(byte[] dib) {
+        // The block is another program's: its header is read only where the block has one, and the
+        // numbers in it are held to the block before anything is computed from them.
+        if (dib.length < 40) {
+            throw new limn.io.MalformedContentException("bitmap", "a device-independent bitmap of "
+                    + dib.length + " bytes is shorter than its header");
+        }
         ByteBuffer in = ByteBuffer.wrap(dib).order(ByteOrder.LITTLE_ENDIAN);
         int headerSize = in.getInt(0);
         int bitCount = in.getShort(14) & 0xffff;
         int compression = in.getInt(16);
-        int colorsUsed = in.getInt(32);
-        int tables = bitCount <= 8 ? (colorsUsed != 0 ? colorsUsed : 1 << bitCount) * 4 : colorsUsed * 4;
+        long colorsUsed = in.getInt(32) & 0xffffffffL;
+        if (headerSize < 40 || headerSize > dib.length) {
+            throw new limn.io.MalformedContentException("bitmap", "a device-independent bitmap says its "
+                    + "header is " + headerSize + " bytes, in a block of " + dib.length);
+        }
+        long tables = bitCount <= 8 ? (colorsUsed != 0 ? colorsUsed : 1L << bitCount) * 4 : colorsUsed * 4;
         if (headerSize == 40 && compression == 3) {
             tables += 12; // the three masks of BI_BITFIELDS follow the short header
         }
+        if (headerSize + tables > dib.length) {
+            throw new limn.io.MalformedContentException("bitmap", "a device-independent bitmap says its "
+                    + "colour tables end past its " + dib.length + " bytes");
+        }
         ByteBuffer out = ByteBuffer.allocate(14 + dib.length).order(ByteOrder.LITTLE_ENDIAN);
         out.put((byte) 'B').put((byte) 'M').putInt(14 + dib.length).putInt(0)
-                .putInt(14 + headerSize + tables).put(dib);
+                .putInt((int) (14 + headerSize + tables)).put(dib);
         return out.array();
     }
 
@@ -181,7 +195,8 @@ final class WindowsFormats {
         int at = in.getInt(0);
         boolean wide = in.getInt(16) != 0;
         int unit = wide ? 2 : 1;
-        while (at >= 20 && at + unit <= block.length) {
+        // The start is a number the block gives: compared in 64 bits, where it cannot wrap past the end.
+        while (at >= 20 && (long) at + unit <= block.length) {
             int end = at;
             while (end + unit <= block.length && (block[end] != 0 || (wide && block[end + 1] != 0))) {
                 end += unit;

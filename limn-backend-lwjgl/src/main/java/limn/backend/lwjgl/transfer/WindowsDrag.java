@@ -361,7 +361,7 @@ public final class WindowsDrag {
             if (memGetInt(medium) == TYMED_HGLOBAL && handle != NULL) {
                 long size = call(KERNEL32, "GlobalSize", "p>p", handle);
                 long bytes = call(KERNEL32, "GlobalLock", "p>p", handle);
-                if (bytes != NULL && size > 0 && size <= Integer.MAX_VALUE) {
+                if (bytes != NULL && size > 0 && size <= PlatformClipboard.MAX_BYTES) {
                     out = new byte[(int) size];
                     memByteBuffer(bytes, out.length).get(out);
                     call(KERNEL32, "GlobalUnlock", "p>i", handle);

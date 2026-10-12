@@ -47,6 +47,9 @@ import static org.lwjgl.stb.STBTruetype.stbtt_ScaleForMappingEmToPixels;
  */
 final class StbFont implements AutoCloseable {
 
+    /** The largest glyph that is rasterized: 4096 by 4096 pixels. */
+    private static final long MAX_GLYPH_PIXELS = 1L << 24;
+
     /** Result of rasterizing one glyph: tight bitmap + placement metrics (device px). */
     record RasterizedGlyph(ByteBuffer bitmap, int width, int height,
                            int bearingX, int bearingY, float advance) {
@@ -157,7 +160,7 @@ final class StbFont implements AutoCloseable {
      * A face that is never registered owns native memory until {@link #close}.
      *
      * @throws java.io.UncheckedIOException if the file cannot be read
-     * @throws IllegalStateException        if it holds no face {@code index}
+     * @throws limn.io.MalformedContentException if it holds no face {@code index}, or none that can be read
      */
     static StbFont loadFile(Path path, int index, String name) {
         return fromBytes(Resources.bytes(path, "font"), index, name, path.toString());
@@ -172,13 +175,13 @@ final class StbFont implements AutoCloseable {
         int offset = stbtt_GetFontOffsetForIndex(data, face);
         if (offset < 0) {
             MemoryUtil.memFree(data);
-            throw new IllegalStateException("no face " + index + " in " + source);
+            throw new limn.io.MalformedContentException("font", "no face " + index + " in " + source);
         }
         STBTTFontinfo info = STBTTFontinfo.malloc();
         if (!stbtt_InitFont(info, data, offset)) {
             info.free();
             MemoryUtil.memFree(data);
-            throw new IllegalStateException("stbtt_InitFont failed for " + source);
+            throw new limn.io.MalformedContentException("font", "stbtt_InitFont failed for " + source);
         }
         try (MemoryStack stack = MemoryStack.stackPush()) {
             IntBuffer ascent = stack.mallocInt(1);
@@ -475,7 +478,9 @@ final class StbFont implements AutoCloseable {
             int width = x1.get(0) - x0.get(0);
             int height = y1.get(0) - y0.get(0);
             float advancePx = glyphAdvance(glyph, sizePx);
-            if (width <= 0 || height <= 0) {
+            // A box the font's own tables give: one too large to be a glyph is drawn as none,
+            // where its area would overflow the count of bytes or ask for gigabytes.
+            if (width <= 0 || height <= 0 || (long) width * height > MAX_GLYPH_PIXELS) {
                 return new RasterizedGlyph(null, 0, 0, 0, 0, advancePx);
             }
             ByteBuffer bitmap = MemoryUtil.memAlloc(width * height);
