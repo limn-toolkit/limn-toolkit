@@ -220,7 +220,7 @@ final class AppScene {
                         () -> scrolling(AudioScene.content())).icon("volume"),
                 new Place(ShowcaseStrings.NAV_SPRITES, "docs/images-and-media/#pictures",
                         () -> scrolling(SpritesScene.content())).icon("photo"),
-                new Place(ShowcaseStrings.NAV_GLASS, "components/#backdrop-panel",
+                new Place(ShowcaseStrings.NAV_GLASS, "docs/theming/#glass",
                         () -> scrolling(GlassScene.content())).icon("blur")).icon("movie");
         return List.of(orders, components, media);
     }

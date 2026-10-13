@@ -261,3 +261,37 @@ that lifts it, so keep the step between `surface` and `surfaceRaised`.
 
 The shadow is painted outside the surface's box. Whatever holds a `Surface` has to leave it
 room: a parent that clips to the surface's own box clips the shadow away.
+
+## Glass
+
+A `BackdropPanel` is a container whose background is what the frame has already drawn behind
+it, put through an effect: blurred, washed, refracted. It is for a surface that lies over
+content the user should still sense: a bar that stays while a page scrolls under it, a panel
+of controls over a picture or a video.
+
+Frosted glass is three effects, drawn in order, and each reads what the one before it wrote:
+
+{% snippet guide:glass-frosted %}
+
+The tint is what makes text on the glass readable, and an effect holds the colour it was
+given. When the user picks another palette, give the panel its effects again, from the same
+place that applies the theme.
+
+A bar over what scrolls is a `Stack` of two layers, the content and then the bar:
+
+{% snippet guide:glass-bar %}
+
+A panel that floats is the same stack with another alignment:
+
+{% snippet guide:glass-floating %}
+
+Three things to know before reaching for it. The panel goes after what it covers, because it
+samples what is already drawn; added first, it shows the window's background. It costs a copy
+of its own rectangle on every frame that repaints anything under it, which is a bar's worth of
+work and not a list row's: one panel over a list, never one per row. And where a renderer has
+no backdrop support the panel is filled with its tint, at the same size, so choose a tint that
+works as a plain colour too.
+
+Glass hides nothing from a screen reader. What is under a panel is still read from its own
+widget, so a blurred or pixelated field is hidden from the eye only; to withhold something,
+hide the widget that holds it.

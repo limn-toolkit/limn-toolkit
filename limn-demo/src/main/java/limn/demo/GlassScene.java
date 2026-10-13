@@ -44,6 +44,44 @@ final class GlassScene {
         Column column = new Column();
         column.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
 
+        // ---- how an application uses it: a bar over what scrolls, a panel over a picture
+        column.add(new Label("A bar that stays while the content scrolls under it").setStrong(true));
+        Row tools = new Row();
+        tools.gap(8).crossAlignment(Flex.CrossAlignment.CENTER);
+        tools.add(new Label("Library").setFont(Theme.current().title()));
+        tools.add(limn.scene.layout.Expanded.spacer(1));
+        tools.add(new limn.components.Button("Import").setSecondary(true));
+        tools.add(new limn.components.Button("New album"));
+        BackdropPanel bar = limn.demo.site.GlassExample.frosted(Insets.symmetric(8, 12), tools);
+        Widget<?> library = limn.demo.site.GlassExample.barOver(shelf(), bar);
+        column.add(new SizedBox(SizedBox.UNSET, 280, library));
+        // Opened a little way down, so that the first thing seen is content under the glass.
+        if (library.children().get(0) instanceof ScrollView shelfScroll) {
+            limn.concurrent.Ui.postDelayed(() -> shelfScroll.scrollTo(0, 64), 400);
+        }
+
+        column.add(new Label("A panel that floats over a picture").setStrong(true));
+        Row playing = new Row();
+        playing.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
+        Column titles = new Column();
+        titles.gap(2);
+        titles.add(new Label("Coastline at dusk").setStrong(true));
+        titles.add(new Label("Album 4 of 12").setMuted(true));
+        playing.add(titles);
+        playing.add(new SizedBox(180, SizedBox.UNSET, new limn.components.Slider(0, 100).setValue(35)));
+        playing.add(new limn.components.Button("Open"));
+        BackdropPanel floating = limn.demo.site.GlassExample.frosted(Insets.symmetric(10, 14), playing);
+        column.add(new SizedBox(SizedBox.UNSET, 240, limn.demo.site.GlassExample.floatingOver(
+                new ImageView(dusk()).setFit(ImageView.Fit.COVER), floating)));
+        // An effect holds the colour it was given: when the palette changes, the two panels are
+        // frosted again in the new one. The page lives as long as the window does.
+        Theme.observeChanges(() -> {
+            limn.demo.site.GlassExample.frost(bar, Theme.current());
+            limn.demo.site.GlassExample.frost(floating, Theme.current());
+        });
+
+        // ---- the effects themselves, one beside the other
+        column.add(new Label("The effects, one by one").setStrong(true));
         column.add(new Label("Each panel samples what is behind it and applies one effect.")
                 .setMuted(true).setWrap(true));
 
@@ -89,9 +127,6 @@ final class GlassScene {
                 new BackdropEffect.Blur(Color.TRANSPARENT, 7f, BackdropEffect.Blur.Axis.Y),
                 new BackdropEffect.Wash(Color.TRANSPARENT, 0.35f, 0.18f)));
         column.add(stacked);
-
-        column.add(new Label("A panel over moving content repaints with it.")
-                .setMuted(true).setWrap(true));
 
         return new ScrollView(column);
     }
@@ -152,6 +187,84 @@ final class GlassScene {
         column.add(new SizedBox(240, 180, layers));
         column.add(new Label(caption).setMuted(true));
         return column;
+    }
+
+    // ------------------------------------------------------------ what the glass is over
+
+    /** Rows of coloured tiles with a name under each: something busy enough to see through glass. */
+    private static Widget<?> shelf() {
+        String[] names = {"Harbour", "Orchard", "Foundry", "Salt flats", "Night market", "Ridge line",
+                "Greenhouse", "Ferry", "Quarry", "Lantern street", "Tide pools", "Rail yard"};
+        limn.scene.layout.Wrap tiles = new limn.scene.layout.Wrap();
+        tiles.gap(12).runGap(14);
+        for (int i = 0; i < 24; i++) {
+            Column tile = new Column();
+            tile.gap(4);
+            tile.add(new SizedBox(132, 88, new ImageView(tile(i)).setFit(ImageView.Fit.COVER)));
+            tile.add(new Label(names[i % names.length]));
+            tiles.add(tile);
+        }
+        return new Padding(Insets.all(12), tiles);
+    }
+
+    /** One tile: two tones of a hue across a diagonal, a different hue for each index. */
+    private static Image tile(int index) {
+        int size = 48;
+        byte[] pixels = new byte[size * size * 4];
+        float hue = (index * 47 % 360) / 360f;
+        for (int y = 0; y < size; y++) {
+            for (int x = 0; x < size; x++) {
+                float t = (x + y) / (float) (2 * size - 2);
+                float turn = (hue + 0.08f * t) * 6;
+                float saturation = 0.55f + 0.3f * t;
+                float value = 0.95f - 0.45f * t;
+                int at = (y * size + x) * 4;
+                for (int channel = 0; channel < 3; channel++) {
+                    // Hue to one channel: a triangle wave a third of a turn apart for each.
+                    float k = (5 - 2 * channel + turn) % 6;
+                    float amount = value - value * saturation * Math.max(0, Math.min(Math.min(k, 4 - k), 1));
+                    pixels[at + channel] = (byte) Color.toByte(amount);
+                }
+                pixels[at + 3] = (byte) 255;
+            }
+        }
+        return new Image(size, size, pixels);
+    }
+
+    /** A sky going down to a dark sea, with a low sun: a picture for a panel to float over. */
+    private static Image dusk() {
+        int w = 320;
+        int h = 160;
+        byte[] pixels = new byte[w * h * 4];
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                float v = y / (float) (h - 1);
+                float dx = (x - w * 0.68f) / w;
+                float dy = (y - h * 0.52f) / h;
+                float sun = (float) Math.exp(-(dx * dx * 60 + dy * dy * 220));
+                float r;
+                float g;
+                float b;
+                if (v < 0.55f) {            // the sky: violet above, orange at the horizon
+                    float t = v / 0.55f;
+                    r = 0.22f + 0.72f * t;
+                    g = 0.16f + 0.38f * t;
+                    b = 0.42f - 0.12f * t;
+                } else {                    // the sea: dark, with bands the sun lights
+                    float t = (v - 0.55f) / 0.45f;
+                    float band = 0.5f + 0.5f * (float) Math.sin(y * 1.7f + x * 0.05f);
+                    r = 0.10f + 0.25f * (1 - t) * band;
+                    g = 0.14f + 0.14f * (1 - t) * band;
+                    b = 0.26f + 0.10f * band;
+                }
+                int at = (y * w + x) * 4;
+                pixels[at] = (byte) Color.toByte(Math.min(1, r + sun));
+                pixels[at + 1] = (byte) Color.toByte(Math.min(1, g + sun * 0.8f));
+                pixels[at + 2] = (byte) Color.toByte(Math.min(1, b + sun * 0.5f));
+                pixels[at + 3] = (byte) 255;
+            }
+        }
+        return new Image(w, h, pixels);
     }
 
     // ------------------------------------------------------------ the backdrop
