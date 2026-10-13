@@ -134,11 +134,28 @@ final class MacTray implements TrayPeer {
     }
 
     @Override
+    public void hide() {
+        if (disposed || item == NULL) {
+            return;
+        }
+        // The item is given back rather than made invisible: the system keeps an item's
+        // visibility under its name between runs, and one hidden here would start hidden.
+        remove();
+        shown = null;
+        ui.execute(host::availabilityChanged);
+    }
+
+    @Override
     public void dispose() {
         if (disposed) {
             return;
         }
         disposed = true;
+        remove();
+    }
+
+    /** Gives the system its item back with all that was made for it; {@link #create} makes them again. */
+    private void remove() {
         if (observing && button != NULL) {
             ObjC.msgVoid(button, "removeObserver:forKeyPath:", target, nsString(APPEARANCE));
             observing = false;
@@ -147,6 +164,7 @@ final class MacTray implements TrayPeer {
             ObjC.msgVoid(ObjC.msg(ObjC.cls("NSStatusBar"), "systemStatusBar"), "removeStatusItem:", item);
             ObjC.msgVoid(item, "release");
             item = NULL;
+            button = NULL;
         }
         if (menu != NULL) {
             ObjC.msgVoid(menu, "release");
