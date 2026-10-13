@@ -2,8 +2,6 @@ package limn.demo.site;
 
 import limn.components.BackdropPanel;
 import limn.components.ScrollView;
-import limn.components.Theme;
-import limn.graphics.BackdropEffect;
 import limn.graphics.Color;
 import limn.scene.Insets;
 import limn.scene.Widget;
@@ -14,8 +12,9 @@ import limn.scene.layout.Padding;
 import limn.scene.layout.Stack;
 
 /**
- * The worked examples the theming guide shows for glass: a frosted bar that stays put while the
- * content scrolls under it, and a panel that floats over a picture. The demo's own page is built
+ * The worked examples the theming guide shows for glass: frosted glass that follows the theme, a
+ * bar of it that stays put while the content scrolls under it, and a panel that floats over a
+ * picture. The demo's own page is built
  * from these, so what the guide shows is what the page runs. Compiled by {@code ./gradlew check}.
  */
 public final class GlassExample {
@@ -24,27 +23,14 @@ public final class GlassExample {
     }
 
     // #region guide:glass-frosted
-    /** A panel of frosted glass in the current palette's tone. */
-    public static BackdropPanel frosted(Insets insets, Widget<?> content) {
-        BackdropPanel panel = new BackdropPanel(
-                new BackdropEffect.Blur(Color.TRANSPARENT, 10, BackdropEffect.Blur.Axis.X), insets, content);
-        frost(panel, Theme.current());
-        return panel;
+    /** Frosted glass in the theme's tone: light or dark as the palette is, by itself. */
+    static BackdropPanel plain(Widget<?> content) {
+        return BackdropPanel.frosted(Insets.symmetric(8, 12), content);
     }
 
-    /**
-     * Makes {@code panel} frosted glass in a palette's tone: what is behind it is blurred across
-     * and then down, and then calmed and tinted with the surface colour so that text laid on it
-     * reads. An effect holds the colour it was given, so call this again when the palette
-     * changes, from the same place that applies the theme.
-     */
-    public static void frost(BackdropPanel panel, Theme theme) {
-        panel.setEffects(
-                new BackdropEffect.Blur(Color.TRANSPARENT, 10, BackdropEffect.Blur.Axis.X),
-                new BackdropEffect.Blur(Color.TRANSPARENT, 10, BackdropEffect.Blur.Axis.Y),
-                // Less colour than the content has, and the surface over it at a little more
-                // than half: the content is still seen moving, and no longer competes.
-                new BackdropEffect.Wash(theme.surface().withAlpha(0.6f), 0.7f, 0f));
+    /** The same glass leaning toward a colour of the application's, here by a fifth. */
+    static BackdropPanel tinted(Widget<?> content, Color brand) {
+        return BackdropPanel.frosted(Insets.symmetric(10, 14), content).setTint(brand, 0.2f);
     }
     // #endregion
 

@@ -269,13 +269,18 @@ it, put through an effect: blurred, washed, refracted. It is for a surface that 
 content the user should still sense: a bar that stays while a page scrolls under it, a panel
 of controls over a picture or a video.
 
-Frosted glass is three effects, drawn in order, and each reads what the one before it wrote:
+`BackdropPanel.frosted(content)` is the one most applications want: frosted glass in the
+theme's own tone. What is behind it is blurred, calmed and laid over with the palette's surface
+colour, light over a light palette and dark over a dark one, and it changes with the palette
+by itself. `setTint(colour, amount)` leans it toward a colour of yours, from 0, the theme's tone
+alone, to 1, the colour alone:
 
 {% snippet guide:glass-frosted %}
 
-The tint is what makes text on the glass readable, and an effect holds the colour it was
-given. When the user picks another palette, give the panel its effects again, from the same
-place that applies the theme.
+For anything else, a refracting rim, a pixelated redaction, a wash with no blur, give the panel
+its effects by hand with `setEffects`. They are drawn in order and each reads what the one
+before it wrote; an effect given by hand holds the colour it was given, so it does not follow
+the theme.
 
 A bar over what scrolls is a `Stack` of two layers, the content and then the bar:
 

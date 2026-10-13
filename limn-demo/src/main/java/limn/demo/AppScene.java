@@ -321,9 +321,13 @@ final class AppScene {
         size.setSelectedIndex(ControlSize.processDefault().ordinal());
         size.onSelect(() -> ControlSize.setProcessDefault(ControlSize.values()[size.selectedIndex()]));
         size.setAccessibleName(ShowcaseStrings.BAND_SIZE);
-        ComboBox<I18nString> theme = ComboBox.localized(
-                Theme.builtins().stream().map(Theme::displayName).toList());
-        theme.setSelectedIndex(Math.max(0, Theme.builtins().indexOf(Theme.current())));
+        // The first choice is the system's own appearance, followed as it changes; every other
+        // is a palette picked by hand, kept whatever the system does.
+        List<I18nString> themeNames = new ArrayList<>();
+        themeNames.add(ShowcaseStrings.THEME_SYSTEM);
+        Theme.builtins().forEach(each -> themeNames.add(each.displayName()));
+        ComboBox<I18nString> theme = ComboBox.localized(themeNames);
+        theme.setSelectedIndex(1 + Math.max(0, Theme.builtins().indexOf(Theme.current())));
         theme.setAccessibleName(ShowcaseStrings.BAND_THEME);
 
         Row band = new Row();
@@ -366,50 +370,43 @@ final class AppScene {
         // the scene clears to its background and repaints. A palette is a repaint, never a
         // re-measure; the face, when it changes, has every scene laid out again by itself.
         //
-        // The window follows the system's light or dark appearance until the user picks a
-        // theme; the picker following a theme applied for the system is not a pick.
-        boolean[] userPicked = {false};
-        boolean[] applyingSystem = {false};
-        theme.onSelect(() -> {
-            if (!applyingSystem[0]) {
-                userPicked[0] = true;
+        // Two ways to a palette, and the picker says which is in force. "System" is the
+        // system's light or dark appearance, taken now and again whenever it changes; any other
+        // choice is that palette, and the system changing does not touch it.
+        boolean[] following = {false};
+        Runnable applySystemAppearance = () -> {
+            SystemPreferences.ColorScheme scheme = SystemPreferences.current().colorScheme();
+            if (!following[0] || scheme == SystemPreferences.ColorScheme.NO_PREFERENCE) {
+                return; // a desktop that states no preference keeps the palette it has
             }
-            Theme.builtins().get(theme.selectedIndex()).apply(scene);
+            Theme wanted = scheme == SystemPreferences.ColorScheme.DARK ? Theme.dark() : Theme.light();
+            if (wanted != Theme.current()) {
+                wanted.apply(scene);
+            }
+        };
+        theme.onSelect(() -> {
+            following[0] = theme.selectedIndex() == 0;
+            if (following[0]) {
+                applySystemAppearance.run();
+            } else {
+                Theme.builtins().get(theme.selectedIndex() - 1).apply(scene);
+            }
         });
         // And when something else changes the theme, a launch option or the system's
-        // appearance: the picker says which it is, and the window repaints in it.
+        // appearance: the window repaints in it, and a picker that names a palette names this one.
         Theme.observeChanges(() -> {
             int now = Theme.builtins().indexOf(Theme.current());
-            if (now >= 0 && now != theme.selectedIndex()) {
-                boolean was = applyingSystem[0];
-                applyingSystem[0] = true;
-                try {
-                    theme.setSelectedIndex(now);
-                } finally {
-                    applyingSystem[0] = was;
-                }
+            if (!following[0] && now >= 0 && now + 1 != theme.selectedIndex()) {
+                theme.setSelectedIndex(now + 1);
             }
             scene.setBackground(Theme.current().background());
             scene.root().invalidate();
         });
-        Runnable applySystemAppearance = () -> {
-            SystemPreferences.ColorScheme scheme = SystemPreferences.current().colorScheme();
-            if (userPicked[0] || scheme == SystemPreferences.ColorScheme.NO_PREFERENCE) {
-                return;
-            }
-            Theme wanted = scheme == SystemPreferences.ColorScheme.DARK ? Theme.dark() : Theme.light();
-            if (wanted != Theme.current()) {
-                applyingSystem[0] = true;
-                try {
-                    wanted.apply(scene);
-                } finally {
-                    applyingSystem[0] = false;
-                }
-            }
-        };
+        SystemPreferences.observeChanges(applySystemAppearance); // for the life of the demo
         Runnable followSystemAppearance = () -> {
+            following[0] = true;
+            theme.setSelectedIndex(0);
             applySystemAppearance.run();
-            SystemPreferences.observeChanges(applySystemAppearance); // for the life of the demo
         };
 
         Runnable newOrder = () -> {

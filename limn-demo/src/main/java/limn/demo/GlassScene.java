@@ -52,7 +52,7 @@ final class GlassScene {
         tools.add(limn.scene.layout.Expanded.spacer(1));
         tools.add(new limn.components.Button("Import").setSecondary(true));
         tools.add(new limn.components.Button("New album"));
-        BackdropPanel bar = limn.demo.site.GlassExample.frosted(Insets.symmetric(8, 12), tools);
+        BackdropPanel bar = BackdropPanel.frosted(Insets.symmetric(8, 12), tools);
         Widget<?> library = limn.demo.site.GlassExample.barOver(shelf(), bar);
         column.add(new SizedBox(SizedBox.UNSET, 280, library));
         // Opened a little way down, so that the first thing seen is content under the glass.
@@ -60,7 +60,7 @@ final class GlassScene {
             limn.concurrent.Ui.postDelayed(() -> shelfScroll.scrollTo(0, 64), 400);
         }
 
-        column.add(new Label("A panel that floats over a picture").setStrong(true));
+        column.add(new Label("A panel that floats over a picture, with a tint").setStrong(true));
         Row playing = new Row();
         playing.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
         Column titles = new Column();
@@ -70,15 +70,11 @@ final class GlassScene {
         playing.add(titles);
         playing.add(new SizedBox(180, SizedBox.UNSET, new limn.components.Slider(0, 100).setValue(35)));
         playing.add(new limn.components.Button("Open"));
-        BackdropPanel floating = limn.demo.site.GlassExample.frosted(Insets.symmetric(10, 14), playing);
+        // Leaning toward a colour of the application's by a fifth; the bar above is the theme's alone.
+        BackdropPanel floating = BackdropPanel.frosted(Insets.symmetric(10, 14), playing)
+                .setTint(new Color(0.10f, 0.55f, 0.60f, 1f), 0.2f);
         column.add(new SizedBox(SizedBox.UNSET, 240, limn.demo.site.GlassExample.floatingOver(
                 new ImageView(dusk()).setFit(ImageView.Fit.COVER), floating)));
-        // An effect holds the colour it was given: when the palette changes, the two panels are
-        // frosted again in the new one. The page lives as long as the window does.
-        Theme.observeChanges(() -> {
-            limn.demo.site.GlassExample.frost(bar, Theme.current());
-            limn.demo.site.GlassExample.frost(floating, Theme.current());
-        });
 
         // ---- the effects themselves, one beside the other
         column.add(new Label("The effects, one by one").setStrong(true));
