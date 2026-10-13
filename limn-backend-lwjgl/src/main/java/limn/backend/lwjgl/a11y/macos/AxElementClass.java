@@ -382,7 +382,7 @@ final class AxElementClass {
         // AccessibleNode#accepts refuses, a node without ENABLED included (semantics 5, amended
         // 2026-09-15); the value itself is the facet's, never a read-only flag the node lacks.
         addId("accessibilityValue", get(this::valueOf));
-        addId("accessibilityIdentifier", get(node -> objc.string(Long.toString(node.id()))));
+        addId("accessibilityIdentifier", get(node -> objc.string(node.identifier())));
 
         addId("accessibilityChildren", get(node -> {
             long[] children = source.childElementsOf(node);

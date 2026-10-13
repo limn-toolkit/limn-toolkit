@@ -107,11 +107,12 @@ final class UiaProperties {
             case UiaIds.HELP_TEXT:
                 return node.description().isEmpty() ? null : node.description();
 
-            // The node's own identifier, which is stable across republishes by §1.3 and is what a
-            // script driving this application would key on. Not the runtime id, which is the
-            // window's business and carries the host's prefix.
+            // What a script driving this application keys on: the id the application gave the
+            // widget, and where it gave none the node's own number, stable across republishes
+            // by §1.3. Not the runtime id, which is the window's business and carries the
+            // host's prefix.
             case UiaIds.AUTOMATION_ID:
-                return Long.toString(node.id());
+                return node.identifier();
 
             case UiaIds.IS_ENABLED:
                 return node.has(Accessible.State.ENABLED);

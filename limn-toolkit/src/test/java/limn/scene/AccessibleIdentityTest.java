@@ -39,6 +39,32 @@ class AccessibleIdentityTest extends AccessibleTestBase {
         return node(name).id();
     }
 
+    /** The id an application gives a widget is what a tool outside finds it by; no id, the number. */
+    @Test
+    void aWidgetsIdIsPublishedAsItsIdentifierAndAChangeOfItIsPublishedToo() {
+        Group root = new Group();
+        Probe named = new Probe(Accessible.Role.BUTTON, "one");
+        named.setId("save");
+        root.add(named);
+        root.add(new Probe(Accessible.Role.BUTTON, "two"));
+        bind(root);
+        frame();
+
+        assertEquals("save", node("one").identifier());
+        assertEquals(Long.toString(idOf("two")), node("two").identifier(),
+                "a widget given no id is found by a number that holds while it is in the scene");
+        long number = idOf("one");
+
+        named.setId("store");
+        frame();
+        assertEquals("store", node("one").identifier(), "an id changed is an id published");
+        assertEquals(number, idOf("one"), "and the node is the same node");
+
+        named.setId(null);
+        frame();
+        assertEquals(Long.toString(number), node("one").identifier());
+    }
+
     /**
      * A container becoming interesting re-shapes the tree and re-keys nothing. Under a key derived
      * from the published parent this one property change would invalidate every element beneath it

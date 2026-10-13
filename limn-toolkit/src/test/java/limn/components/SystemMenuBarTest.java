@@ -167,6 +167,13 @@ class SystemMenuBarTest extends ComponentTestBase {
         assertTrue(bar.isInSystemBar());
         assertFalse(bar.isVisible(), "laid out as a widget that is not there");
         assertEquals(0f, below.y(), 1e-3f, "what was under the bar is at the top");
+        limn.accessibility.AccessibleTree published = window.bridge().tree();
+        for (int i = 0; i < published.nodeCount(); i++) {
+            limn.accessibility.Accessible.Role role = published.node(i).role();
+            assertFalse(role == limn.accessibility.Accessible.Role.MENU_BAR
+                            || role == limn.accessibility.Accessible.Role.MENU_ITEM,
+                    "the system's bar is what a screen reader reads: the window publishes no second one");
+        }
         assertNull(scene.root().hitTest(5, 5) == bar ? bar : null, "nothing of the bar is left to press");
         assertEquals(1, system.hosts.size());
 

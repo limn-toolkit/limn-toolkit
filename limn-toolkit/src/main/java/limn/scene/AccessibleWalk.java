@@ -471,7 +471,10 @@ final class AccessibleWalk {
     private void walkWidget(Scene scene, Widget<?> widget, Widget<?> parent, int into, int parentSlot,
                             long parentId, long scope,
                             boolean enabled, boolean visible, boolean reachable) {
-        if (widget.isAccessibleIgnored()) {
+        if (widget.isAccessibleIgnored() || widget.isPresentedElsewhere()) {
+            // A widget something outside the scene is showing is read there: a menu bar in the
+            // system's bar is the system's to publish, and a second one in the window, with no
+            // box, was a bar a screen reader found and could not open.
             return;
         }
         // §1.13, amended 2026-09-23: outside the layer that owns input nothing is operable, and
@@ -902,6 +905,7 @@ final class AccessibleWalk {
         if (name != null) {
             builder.name(name, Accessible.NameFrom.EXPLICIT);
         }
+        builder.identifier(widget.id());
         limn.i18n.I18nString description = widget.accessibleDescription();
         if (description != null) {
             builder.description(description);

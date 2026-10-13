@@ -76,6 +76,11 @@ name it instead. The screen calls `button.setId("save")` and the test calls
 and `scene.find("save", Button.class)` returns it already typed. Nobody sees an id, and a screen
 reader does not read one; what it reads is the accessible name.
 
+The same id is what a tool that drives the running application from outside finds the widget
+by: it is published as the automation id on Windows, the accessibility identifier on macOS and
+the accessible id on Linux. A widget given no id is published under a number that holds while
+it stays in the scene.
+
 ## Dialogs, menus and popups
 
 A dialog, a menu or a date picker's calendar may open as a window of its own. With no backend,
