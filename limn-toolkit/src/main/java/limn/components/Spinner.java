@@ -69,6 +69,8 @@ import java.util.function.DoubleConsumer;
  * a commit that happened to land on the number already there. A screen reader is told the same
  * thing in words, politely and in the spinner's own language: what was typed, and the value
  * that stands ({@code “1.234” not accepted, still 7}).
+ * The input method is not turned on while it is typed in: what a spinner takes is digits, a
+ * sign and a separator, which a keyboard gives it directly.
  *
  * <p><b>Numbers are written and read in the language in effect</b>, the spinner's
  * {@linkplain limn.scene.Widget#locale() effective locale}: its decimal separator, its minus
