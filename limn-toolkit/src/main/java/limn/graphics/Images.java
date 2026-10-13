@@ -333,7 +333,14 @@ public final class Images {
 
     // -------------------------------------------------- background loading
 
-    private static final SharedLoads<Image> shared = new SharedLoads<>();
+    /**
+     * The share of the heap's most that the shared loads keep unless {@link #setSharedBudget} says
+     * otherwise: one part in 4.
+     */
+    private static final int DEFAULT_SHARED_SHARE = 4;
+
+    private static final SharedLoads<Image> shared = new SharedLoads<>(
+            image -> 4L * image.width() * image.height(), Runtime.getRuntime().maxMemory() / DEFAULT_SHARED_SHARE);
 
     /**
      * Reads and decodes {@code file} on the {@code Ui} worker pool; the returned future is
@@ -352,12 +359,41 @@ public final class Images {
      * replaying the failure forever, and {@link #clearSharedCache()} forces a re-read after the
      * file changed on disk.
      *
+     * <p>A picture that landed is kept, so that the next ask costs nothing, within a budget:
+     * {@link #setSharedBudget}. Past it the one asked for longest ago is let go, and read again
+     * only if it is asked for when nobody holds it any more. {@link #loadPinned} keeps one
+     * whatever the budget.
+     *
      * <p>The failure reaches observers through the future, on the UI thread
      * ({@code exceptionally}, {@code whenComplete}); nothing is thrown from this method beyond an
      * argument check.
      */
     public static java.util.concurrent.CompletableFuture<Image> loadShared(Path file) {
-        return shared.load("file:" + file.toAbsolutePath(), () -> load(file));
+        return shared.load("file:" + file.toAbsolutePath(), SharedLoads.Source.FILE, false, () -> load(file));
+    }
+
+    /**
+     * Loads {@code file} as {@link #loadShared} does and keeps the result whatever the
+     * {@linkplain #setSharedBudget budget}: it is never let go and counts nothing toward it, until
+     * {@link #unpin(Path)}. For a picture an application wants at hand for as long as it runs, at
+     * the price of the memory it takes for that long. A path already loaded and shared is pinned
+     * from this call on, and is the same object.
+     *
+     * @param file the file to read
+     * @return the shared future, already running or already complete, completing on the UI thread
+     */
+    public static java.util.concurrent.CompletableFuture<Image> loadPinned(Path file) {
+        return shared.load("file:" + file.toAbsolutePath(), SharedLoads.Source.FILE, true, () -> load(file));
+    }
+
+    /**
+     * Puts a file pinned by {@link #loadPinned} back among the shared loads the budget keeps or
+     * lets go. Nothing happens for a file that is not pinned. Any thread.
+     *
+     * @param file the file a load was pinned by
+     */
+    public static void unpin(Path file) {
+        shared.unpin("file:" + file.toAbsolutePath());
     }
 
     /**
@@ -367,7 +403,63 @@ public final class Images {
      * likewise requiring a running backend.
      */
     public static java.util.concurrent.CompletableFuture<Image> fromResourceShared(String resource) {
-        return shared.load("resource:" + resource, () -> fromResource(resource));
+        return shared.load("resource:" + resource, SharedLoads.Source.RESOURCE, false,
+                () -> fromResource(resource));
+    }
+
+    /**
+     * Loads a classpath resource as {@link #fromResourceShared} does and keeps the result whatever
+     * the {@linkplain #setSharedBudget budget}, until {@link #unpinResource}; see
+     * {@link #loadPinned}.
+     *
+     * @param resource the resource's name
+     * @return the shared future, already running or already complete, completing on the UI thread
+     */
+    public static java.util.concurrent.CompletableFuture<Image> fromResourcePinned(String resource) {
+        return shared.load("resource:" + resource, SharedLoads.Source.RESOURCE, true,
+                () -> fromResource(resource));
+    }
+
+    /**
+     * Puts a resource pinned by {@link #fromResourcePinned} back among the shared loads the budget
+     * keeps or lets go. Nothing happens for a resource that is not pinned. Any thread.
+     *
+     * @param resource the name a load was pinned by
+     */
+    public static void unpinResource(String resource) {
+        shared.unpin("resource:" + resource);
+    }
+
+    /**
+     * Moves the budget the shared loads are kept within. A load that landed is kept, so that the
+     * next ask for it costs nothing, for as long as what is kept fits; past the budget the one
+     * asked for longest ago is let go first, every file before any resource, since an
+     * application's own resources are few and it comes back to them. A pinned load is never let
+     * go and counts nothing.
+     *
+     * <p>What is let go is not lost to whoever holds it: a picture still shown or held is the same
+     * object, and an ask for its source hands that object back without reading anything. Only
+     * one that nobody holds is read again, when asked for.
+     *
+     * <p>The budget starts at one part in 4 of the most heap the process may use. Raise it for
+     * an application that keeps coming back to more than that, or pin what must never be read
+     * twice; lower it where memory is short. Any thread.
+     *
+     * @param bytes the most bytes of unpinned shared loads kept, as they sit on the heap; 0 keeps
+     *              none, and {@code Long.MAX_VALUE} lets none go
+     * @throws IllegalArgumentException if {@code bytes} is negative
+     */
+    public static void setSharedBudget(long bytes) {
+        shared.setBudget(bytes);
+    }
+
+    /**
+     * The budget the shared loads are kept within; see {@link #setSharedBudget}.
+     *
+     * @return the current budget, in bytes
+     */
+    public static long sharedBudget() {
+        return shared.budget();
     }
 
     /**
@@ -395,7 +487,7 @@ public final class Images {
      * Drops every shared load, so the next {@link #loadShared} or {@link #fromResourceShared} of a
      * source reads it again (e.g. after files changed on disk). {@link Image} instances already
      * handed out are unaffected and keep their textures; only the mapping from source to future is
-     * cleared. Any thread.
+     * cleared, a pinned one's too, which is pinned again by loading it so. Any thread.
      */
     public static void clearSharedCache() {
         shared.clear();

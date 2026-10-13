@@ -295,6 +295,7 @@ public final class Accessibility {
             inert = false;
             delegated = 0;
             keyBinding = null;
+            java.util.Arrays.fill(relationTargets, 0, relationCount, null); // widgets, not to be kept
             relationCount = 0;
         }
 

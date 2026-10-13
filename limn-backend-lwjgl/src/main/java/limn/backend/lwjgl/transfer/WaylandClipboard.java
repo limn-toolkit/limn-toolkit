@@ -359,6 +359,10 @@ public final class WaylandClipboard implements NativeClipboard {
         }
     }
 
+    /** The requests for a token that have not been answered, by their proxy. */
+    private final java.util.Map<Long, CompletableFuture<String>> tokens = new java.util.HashMap<>();
+    private long tokenListener;
+
     /**
      * Asks the compositor for a token that says the user is acting in a surface of ours now: the
      * last key or button it was given, and the surface. A program handed the token may come in
@@ -379,10 +383,25 @@ public final class WaylandClipboard implements NativeClipboard {
             answer.complete("");
             return answer;
         }
-        wl.listen(request, wl.table(wl.on("ppp", a -> {
-            answer.complete(a[2] == NULL ? "" : memUTF8(a[2]));
-            wl.request(request, 4, NULL, Wl.DESTROY);   // done is the token's one event
-        })));
+        synchronized (tokens) {
+            if (tokenListener == NULL) {
+                // One listener for every request, which answers the request the event names: a
+                // listener made per request was a callback and a table kept until the clipboard
+                // closed, one for each program or address the application ever opened.
+                tokenListener = wl.table(wl.on("ppp", a -> {
+                    CompletableFuture<String> waiting;
+                    synchronized (tokens) {
+                        waiting = tokens.remove(a[1]);
+                    }
+                    if (waiting != null) {
+                        waiting.complete(a[2] == NULL ? "" : memUTF8(a[2]));
+                    }
+                    wl.request(a[1], 4, NULL, Wl.DESTROY);   // done is the token's one event
+                }));
+            }
+            tokens.put(request, answer);
+        }
+        wl.listen(request, tokenListener);
         wl.request(request, 0, NULL, 0, Integer.toUnsignedLong(serial), seat);
         wl.request(request, 2, NULL, 0, surface);
         wl.request(request, 3, NULL, 0);

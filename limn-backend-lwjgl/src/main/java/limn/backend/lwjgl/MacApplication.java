@@ -20,12 +20,32 @@ final class MacApplication {
     private MacApplication() {
     }
 
+    /** {@code -Dlimn.macos.agent=true}: this run is an agent's, whatever its package says. */
+    static final String AGENT_PROPERTY = "limn.macos.agent";
+    /** The same, for a process that cannot be handed a property: the processes a build starts start others. */
+    static final String AGENT_VARIABLE = "LIMN_MACOS_AGENT";
+
+    /**
+     * Whether this run was asked to be an agent's: no icon in the Dock, no bar of menus, and
+     * never brought in front of what the user is doing by a window of its own being shown. It is
+     * how the processes of a build run, whose windows nobody is meant to look at: measured, one
+     * that showed a window as an ordinary application took the keyboard from whatever the user
+     * was typing in, each time a test opened one.
+     */
+    static boolean askedToBeAnAgent() {
+        return Boolean.getBoolean(AGENT_PROPERTY) || "1".equals(System.getenv(AGENT_VARIABLE))
+                || "true".equalsIgnoreCase(System.getenv(AGENT_VARIABLE));
+    }
+
     /**
      * Whether the application's package says it is an agent ({@code LSUIElement}). Such an
      * application is left one: the windowing library is told to build no menu bar, which is also
      * what stops it making the application an ordinary one.
      */
     static boolean isAgent() {
+        if (askedToBeAnAgent()) {
+            return true;
+        }
         try {
             long info = infoDictionary();
             long value = info == NULL ? NULL : ObjC.msg(info, "objectForKey:", MacTray.nsString("LSUIElement"));

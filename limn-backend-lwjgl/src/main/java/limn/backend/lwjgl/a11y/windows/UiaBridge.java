@@ -251,6 +251,10 @@ public final class UiaBridge extends PlatformBridge {
     }
 
     /** @return the drain thread while one is running, for tests. */
+    int objectCountForTests() {
+        return objects.size();
+    }
+
     Thread drainThreadForTests() {
         return drain;
     }
@@ -1846,10 +1850,14 @@ public final class UiaBridge extends PlatformBridge {
             // release theirs on their own threads afterwards, and an object freed under one of
             // those is a crash (UiaObject#retire).
             for (UiaObject object : distinct) {
+                boolean isRoot = root != 0 && object.pointers().contains(root);
                 if (object.retire()) {
                     freedNow++;
                 } else {
                     kept++;
+                    UiaWindow.say("kept " + (isRoot ? "the root" : "an element") + " with "
+                            + object.references() + " references left; the root was handed over "
+                            + rootsHandedOver + " times");
                 }
             }
             ANNOUNCED.updateAndGet(last -> last != null && last.owner() == this ? null : last);
@@ -1973,6 +1981,9 @@ public final class UiaBridge extends PlatformBridge {
         boolean held = UiaTrace.on() && tree.nodeCount() > 0 && holdsElementFor(tree.root().id());
         long root = rootElement();
         long answer = root == 0 ? 0 : Uia.returnRawElementProvider(hwnd, wparam, lparam, root);
+        if (root != 0) {
+            rootsHandedOver++;
+        }
         if (UiaTrace.on()) {
             UiaTrace.line("CALL", "UiaReturnRawElementProvider hwnd=0x" + Long.toHexString(hwnd)
                     + " wparam=0x" + Long.toHexString(wparam)
@@ -2022,6 +2033,16 @@ public final class UiaBridge extends PlatformBridge {
     boolean owesAnEvent() {
         return owedAnEvent;
     }
+
+    /**
+     * How many times this window's root was handed to the system in answer to its ask, for the
+     * line a close writes of a root it could not free. Each hand-over is counted for the system,
+     * and whether the system gives every one back was measured under a reader and not settled:
+     * with the count given back here as soon as the call returned, a close still found sixteen
+     * or seventeen references on the root, the reader's own, against twenty-two and thirty-four
+     * without, over some twenty hand-overs each (2026-10-13).
+     */
+    private int rootsHandedOver;
 
     /** @return the root node's element, minting it if this is the first ask, or {@code 0} */
     private long rootElement() {
@@ -2242,7 +2263,7 @@ public final class UiaBridge extends PlatformBridge {
             }
             UiaObject object = UiaObject.create(served, new PatternsOf(id), () -> { });
             object.pointers().forEach(pointer -> objects.put(pointer, object));
-            return new Element(id, object);
+            return new Element(id, object, objects);
         });
     }
 
@@ -2320,7 +2341,7 @@ public final class UiaBridge extends PlatformBridge {
     }
 
     /** One node's COM object, as the registry sees it. */
-    private record Element(long nodeId, UiaObject object) implements UiaElement {
+    private record Element(long nodeId, UiaObject object, Map<Long, UiaObject> objects) implements UiaElement {
 
         @Override
         public long pointer() {
@@ -2329,8 +2350,16 @@ public final class UiaBridge extends PlatformBridge {
 
         @Override
         public void release() {
-            // Removal is not release: the object survives until every client reference drops, and
-            // the whole-registry empty is what frees it. See UiaElements.
+            // Removal is not release of what a client holds: the object answers "not available"
+            // until every client reference drops. But the registry's own claim ends here, node by
+            // node. Left to the whole-registry empty, the object of every node a client had
+            // reached and that later left the tree stayed until its window closed, which for an
+            // application's main window is never.
+            if (objects.remove(object.pointer()) == null) {
+                return; // the whole registry is being emptied, and that retires every object itself
+            }
+            object.pointers().forEach(objects::remove);
+            object.retireLater();
         }
     }
 }

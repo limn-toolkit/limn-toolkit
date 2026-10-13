@@ -178,11 +178,11 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         }
         // One class per bridge, named per instance: objc_allocateClassPair refuses a name already
         // registered, and a process can open several windows.
+        String name = objc == null ? "" : AxElementClass.nextName();
         this.elementClass = objc == null ? null : new AxElementClass(objc, this,
-                "LimnAccessibleElement_" + Long.toHexString(contentView));
+                "LimnAccessibleElement_" + name);
         if (elementClass != null) {
-            elementClass.installFocusedElementOnView(contentView,
-                    "LimnAXContentView_" + Long.toHexString(contentView));
+            elementClass.installFocusedElementOnView(contentView, "LimnAXContentView_" + name);
         }
         this.elements = new AxElements(Thread.currentThread(), new AxElements.Factory() {
             @Override public long newElement(long nodeId) {

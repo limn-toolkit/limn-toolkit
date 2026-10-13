@@ -237,6 +237,14 @@ subprojects {
             // when the process has no console, and a test worker has none: a test that meets that
             // failure must fail, not wait on a window nobody will close (WindowsDriverDialog).
             systemProperty("limn.backend.errorDialog", "false")
+            // On macOS a test that shows a window made its process an ordinary application, with
+            // an icon in the Dock, and took the keyboard from whatever the developer was typing
+            // in, each time. The processes of a build run as an agent's instead, and so do the
+            // ones they start, which is why this is a variable and not a property.
+            // Override with -DlimnVisibleTests=true when watching a window IS the verification.
+            if (System.getProperty("limnVisibleTests") != "true") {
+                environment("LIMN_MACOS_AGENT", "1")
+            }
             // Opt-in properties reach the DAEMON when a developer passes -D on the command line,
             // and the tests run in a JVM of their own, so a documented escape hatch that nobody
             // forwarded is a test that can never run, which is what limn.video.test.clips was.

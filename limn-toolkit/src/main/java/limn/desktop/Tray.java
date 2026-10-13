@@ -96,6 +96,9 @@ public final class Tray {
         this.title = I18nString.literal(id);
         this.peer = Objects.requireNonNull(peers.apply(new Host()), "peer");
         this.language = I18n.observeChanges(this::push);
+        // A tray is the application's to the end as often as not, and what it listens to is the
+        // process's: without this, one never disposed stayed in that list past its backend.
+        limn.concurrent.internal.LeftOpen.openedToTheEnd(this, this::dispose);
     }
 
     /**
@@ -356,6 +359,7 @@ public final class Tray {
             return;
         }
         disposed = true;
+        limn.concurrent.internal.LeftOpen.closed(this);
         language.cancel();
         availabilityListeners.clear();
         peer.dispose();

@@ -198,6 +198,21 @@ final class AxElementClass {
     /** The one view whose isa was re-pointed, and the class it had before; zero until then. */
     private long swizzledView;
     private long viewClassBefore;
+    /** The subclass made for that view, the runtime's until {@link #free()} gives it back. */
+    private long viewSubclass;
+    private boolean freed;
+
+    /**
+     * Numbers the classes of a process, one number to a bridge. A name is the runtime's for as long
+     * as its class is registered, and a name made from the view's address was taken again by the
+     * next window whose view landed where a closed one's had been.
+     */
+    private static final java.util.concurrent.atomic.AtomicLong NAMES = new java.util.concurrent.atomic.AtomicLong();
+
+    /** @return a suffix no other class of this process has */
+    static String nextName() {
+        return Long.toString(NAMES.incrementAndGet());
+    }
 
     AxElementClass(AxObjC objc, Source source, String className) {
         this.objc = objc;
@@ -293,6 +308,17 @@ final class AxElementClass {
         if (busyAttribute != NULL) {
             ObjC.msgVoid(busyAttribute, "release");
             busyAttribute = NULL;
+        }
+        if (!freed) {
+            freed = true;
+            // The classes go back to the runtime with their closures: no object is of any of them
+            // by now, and a window that left its three registered left them for the process's life.
+            if (viewSubclass != NULL && swizzledView == NULL) {
+                ObjCRuntime.objc_disposeClassPair(viewSubclass);
+                viewSubclass = NULL;
+            }
+            ObjCRuntime.objc_disposeClassPair(columnClass);
+            ObjCRuntime.objc_disposeClassPair(elementClass);
         }
     }
 
@@ -931,6 +957,7 @@ final class AxElementClass {
         addMethod(subclass, "accessibilityFocusedUIElement", body);
         ObjCRuntime.objc_registerClassPair(subclass);
         this.swizzledView = contentView;
+        this.viewSubclass = subclass;
         this.viewClassBefore = viewClass;
         ObjCRuntime.object_setClass(contentView, subclass);
     }

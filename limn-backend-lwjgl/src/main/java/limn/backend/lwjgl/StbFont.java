@@ -335,6 +335,9 @@ final class StbFont implements AutoCloseable {
     // an index into another pair's cached kern rather than into a bad lookup.
     private static final int KERN_PREVIOUS_SHIFT = 17;
 
+    /** The most pairs kept per face: some three megabytes of table at its fullest. */
+    static final int KERN_CEILING = 1 << 17;
+
     private int kernUnits(int previousGlyph, int glyph) {
         // Both halves biased, which is also what keeps the packed key off
         // LongIntMap's empty slot: an unbiased pack is exactly 0 when both
@@ -345,12 +348,18 @@ final class StbFont implements AutoCloseable {
             return cached;
         }
         int units = stbtt_GetGlyphKernAdvance(info, previousGlyph, glyph);
+        if (kernCache.count() >= KERN_CEILING) {
+            // Pairs have no bound a face sets: glyphs squared, and a program showing varied text
+            // in a script of thousands of glyphs met new pairs for as long as it ran. Emptied at
+            // the ceiling rather than evicted one by one, since asking the face again is cheap.
+            kernCache.clear();
+        }
         kernCache.put(key, units);
         return units;
     }
 
     /**
-     * Minimal open-addressing long→int map: no boxing, no removal (metric caches).
+     * Minimal open-addressing long→int map: no boxing, no removal of one entry (metric caches).
      *
      * <p>Key 0 is the empty slot, so <b>every caller must bias its key away from
      * 0</b>, and the reason is sharper than "that entry would not be cached".
@@ -377,6 +386,13 @@ final class StbFont implements AutoCloseable {
         /** Entries believed stored; the bias is what keeps this honest. */
         int count() {
             return count;
+        }
+
+        /** Forgets every entry and gives the table back its first size. */
+        void clear() {
+            keys = new long[512];
+            values = new int[512];
+            count = 0;
         }
 
         int get(long key, int missing) {

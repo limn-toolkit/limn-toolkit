@@ -53,7 +53,13 @@ final class ShaderProgram implements AutoCloseable {
     /** Compiles + links from GLSL source strings (used by raw-GLSL materials). */
     static ShaderProgram fromSources(String vertexSource, String fragmentSource) {
         int vertex = compile(GL_VERTEX_SHADER, vertexSource, "vertex");
-        int fragment = compile(GL_FRAGMENT_SHADER, fragmentSource, "fragment");
+        int fragment;
+        try {
+            fragment = compile(GL_FRAGMENT_SHADER, fragmentSource, "fragment");
+        } catch (RuntimeException refused) {
+            glDeleteShader(vertex); // compiled, and nobody's once the other half is refused
+            throw refused;
+        }
         int program = glCreateProgram();
         glAttachShader(program, vertex);
         glAttachShader(program, fragment);

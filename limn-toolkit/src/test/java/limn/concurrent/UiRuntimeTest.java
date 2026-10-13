@@ -215,6 +215,20 @@ class UiRuntimeTest {
     }
 
     @Test
+    void aDelayedTaskWithdrawnNeverRunsAndIsNotKeptUntilItsDeadline() {
+        List<String> ran = new ArrayList<>();
+        limn.concurrent.Subscription waiting = runtime.postDelayed(() -> ran.add("withdrawn"), 10);
+        runtime.postDelayed(() -> ran.add("kept"), 10);
+        waiting.cancel();
+        waiting.cancel();
+
+        clock.set(TimeUnit.MILLISECONDS.toNanos(10));
+        assertEquals(1, runtime.drain(), "the withdrawn one is not in the queue to be counted");
+        assertEquals(List.of("kept"), ran);
+        waiting.cancel(); // after the deadline: nothing
+    }
+
+    @Test
     void delayedTasksRunInDeadlineOrderWithFifoTieBreak() {
         List<String> ran = new ArrayList<>();
         runtime.postDelayed(() -> ran.add("late"), 20);

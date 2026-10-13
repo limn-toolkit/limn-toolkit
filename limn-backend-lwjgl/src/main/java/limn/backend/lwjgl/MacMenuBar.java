@@ -92,6 +92,28 @@ final class MacMenuBar implements SystemMenuBar {
     private final Map<Long, List<Long>> itemsOf = new HashMap<>();
     /** Pictures of items' icons, kept between readings: a bar is read at every chord. */
     private final Map<Icon, Long> pictures = new WeakHashMap<>();
+    /** Each kept picture beside its icon, so that the picture is released when the icon is nobody's. */
+    private final java.util.Set<KeptPicture> keptPictures = new java.util.HashSet<>();
+    private final java.lang.ref.ReferenceQueue<Icon> iconsGone = new java.lang.ref.ReferenceQueue<>();
+
+    /** An icon held weakly with the image made of it, which the system holds until it is released. */
+    private static final class KeptPicture extends java.lang.ref.WeakReference<Icon> {
+        final long image;
+
+        KeptPicture(Icon icon, long image, java.lang.ref.ReferenceQueue<Icon> gone) {
+            super(icon, gone);
+            this.image = image;
+        }
+    }
+
+    /** Releases the pictures of icons that were collected: an image retained is the system's for ever. */
+    private void releasePicturesOfIconsGone() {
+        for (Object gone = iconsGone.poll(); gone != null; gone = iconsGone.poll()) {
+            if (keptPictures.remove(gone)) {
+                ObjC.msgVoid(((KeptPicture) gone).image, "release");
+            }
+        }
+    }
     private final List<Top> tops = new ArrayList<>();
 
     private long target;
@@ -168,6 +190,27 @@ final class MacMenuBar implements SystemMenuBar {
         dirty = true;
         sync();
         return true;
+    }
+
+    /**
+     * A window is gone, whether or not the bar it gave was taken back first: nothing here keeps
+     * it, nor the bar's widget and the scene behind it. Main thread.
+     */
+    void closed(LwjglWindow window) {
+        MenuBarHost host = bars.remove(window);
+        held.remove(window);
+        if (keyAtReading == window) {
+            keyAtReading = null;
+        }
+        if (host != null) {
+            if (roles == host) {
+                roles = null;
+            }
+            if (shown == host) {
+                shown = null;
+            }
+            dirty = true;
+        }
     }
 
     @Override
@@ -537,6 +580,7 @@ final class MacMenuBar implements SystemMenuBar {
     }
 
     private long picture(Icon icon) {
+        releasePicturesOfIconsGone();
         Long kept = pictures.get(icon);
         if (kept != null) {
             return kept;
@@ -546,6 +590,7 @@ final class MacMenuBar implements SystemMenuBar {
         if (image != NULL) {
             ObjC.msg(image, "retain"); // for as long as the icon is somebody's
             pictures.put(icon, image);
+            keptPictures.add(new KeptPicture(icon, image, iconsGone));
         }
         return image;
     }
@@ -688,6 +733,11 @@ final class MacMenuBar implements SystemMenuBar {
         actions.clear();
         tagsOf.clear();
         itemsOf.clear();
+        for (KeptPicture kept : keptPictures) {
+            ObjC.msgVoid(kept.image, "release");
+        }
+        keptPictures.clear();
+        pictures.clear();
         BY_TARGET.remove(target);
     }
 

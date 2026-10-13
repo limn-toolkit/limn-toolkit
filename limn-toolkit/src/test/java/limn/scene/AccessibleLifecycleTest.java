@@ -78,6 +78,46 @@ class AccessibleLifecycleTest extends AccessibleTestBase {
     }
 
     /**
+     * A window nobody reads is walked once, for the bridge that asked for a first tree, and not
+     * again. The walk keeps who answers for each node, and with no later walk to write over that
+     * list every widget of the first frame stayed in it for the life of the window, removed or
+     * not, and whatever it held with it.
+     */
+    @Test
+    void aWidgetRemovedFromAWindowNobodyReadsIsNotKeptByTheOneWalkThatListedIt() {
+        Group root = new Group();
+        for (boolean reading : new boolean[] {false, true}) {
+            Probe removed = new Probe(Accessible.Role.BUTTON, "Gone");
+            root.add(removed);
+            root.add(new Probe(Accessible.Role.BUTTON, "Stays"));
+            bridge = new RecordingAccessibilityBridge();
+            bridge.listening = reading;
+            bridge.needsPriming = true;
+            window = new RecordingWindow();
+            window.accessibility = bridge;
+            scene = new Scene(root, nanos::get);
+            scene.bind(window);
+            frame();
+            assertEquals(1, bridge.published.size());
+
+            java.lang.ref.WeakReference<Probe> gone = new java.lang.ref.WeakReference<>(removed);
+            root.remove(removed);
+            removed = null;
+            frame();
+            for (int i = 0; i < 50 && gone.get() != null; i++) {
+                System.gc();
+                try {
+                    Thread.sleep(20);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+            assertEquals(null, gone.get(), "a removed widget is collected, somebody reading: " + reading);
+            root = new Group();
+        }
+    }
+
+    /**
      * The one platform that is asked whether this window has accessibility at all, in a message,
      * before the first frame can run — and that does not ask twice when it is told no. What it is
      * handed at the bind is the window and nothing under it: the widgets have no boxes yet, and the

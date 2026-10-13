@@ -2,28 +2,44 @@ package limn.concurrent.internal;
 
 import limn.concurrent.Ui;
 
+import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
+import java.util.function.ToLongFunction;
 
 /**
- * Loads keyed by name, each made at most once at a time and shared by everyone who asks for it
- * while it is in flight or once it has landed.
+ * Loads shared by key, kept within a budget: a key asked for twice is loaded once, by whoever
+ * asked first, and every asker is handed the same future.
  *
- * <p>This is what {@code Images.loadShared} and {@code Sounds.loadShared} are: two callers
- * asking for the same file get the same future, a load that failed is forgotten so the next
- * ask retries it, and {@link #clear()} forgets the successful ones too, for the moment the files
- * changed on disk. The two had the same forty lines with the element type swapped; this is
- * those lines once, with the type as a parameter.
+ * <p>Not API. It is what {@code Images} and {@code Sounds} share, the two places that turn a path
+ * or a resource name into something decoded on the worker pool and handed back on the UI thread.
  *
- * <p>The load runs on the {@link Ui} worker pool and the future completes on the UI thread,
- * which is {@link Ui#async}'s contract and needs a running backend. Any thread may ask; the
- * map is concurrent, and {@code computeIfAbsent} is what makes "at most once at a time" hold
- * without a lock of this class's own.
+ * <p>A load that failed is forgotten, so the next ask tries again: a file that was not there may
+ * be there now. One that landed is kept for as long as what is kept fits the budget, and past it
+ * the one asked for longest ago is let go first, a path before a resource: an application's own
+ * resources are few and it comes back to them, where the files of a disk have no end. One that
+ * was pinned is kept whatever the budget, and counts nothing toward it.
+ *
+ * <p>Letting go is not forgetting. What was let go is still known for as long as anybody holds
+ * it, and an ask for its key hands the same object back, so a picture on screen is never decoded
+ * a second time beside itself.
  *
  * @param <T> what a load produces
  */
 public final class SharedLoads<T> {
+
+    /** Where a key comes from, which decides what is let go first. */
+    public enum Source {
+        /** A path on a disk: let go first. */
+        FILE,
+        /** A resource of the application's own: let go only when no path is left to let go. */
+        RESOURCE
+    }
 
     /**
      * Every instance, so a backend's shutdown can empty them all. Weak, because only the static
@@ -32,37 +48,187 @@ public final class SharedLoads<T> {
     private static final java.util.Set<SharedLoads<?>> ALL = java.util.Collections.synchronizedSet(
             java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>()));
 
-    private final ConcurrentHashMap<String, CompletableFuture<T>> pending = new ConcurrentHashMap<>();
+    /** One key: its load while it runs or is kept, and what it produced for as long as that lives. */
+    private final class Entry {
+        final Source source;
+        /** The load in flight or kept; null once let go. */
+        CompletableFuture<T> future;
+        /** What the load produced, known past being let go for as long as somebody holds it. */
+        WeakReference<T> landed;
+        long bytes;
+        long used;
+        boolean pinned;
 
-    /** An empty set of loads. */
-    public SharedLoads() {
+        Entry(Source source) {
+            this.source = source;
+        }
+
+        boolean kept() {
+            return future != null && landed != null;
+        }
+    }
+
+    private final Map<String, Entry> entries = new HashMap<>();
+    private final ToLongFunction<T> size;
+    private long budget;
+    private long held;
+    private long clock;
+
+    /**
+     * An empty set of loads.
+     *
+     * @param size   how many bytes one result keeps on the heap
+     * @param budget the most bytes of unpinned results kept; see {@link #setBudget}
+     */
+    public SharedLoads(ToLongFunction<T> size, long budget) {
+        this.size = size;
+        this.budget = budget;
         ALL.add(this);
     }
 
     /**
-     * The future for {@code key}: the one already in flight or landed, or a new one running
-     * {@code loader} on the worker pool.
+     * The future for {@code key}: the one already in flight or kept, one made of a result that was
+     * let go and is still held by somebody, or a new one running {@code loader} on the worker pool.
      *
      * @param key    what identifies the load; two asks with equal keys share one future
-     * @param loader the work, run at most once per key while nothing has failed
-     * @return the shared future, already running, completing on the UI thread
-     * @throws IllegalStateException if no backend is running
+     * @param source where the key comes from
+     * @param pinned whether the result is kept whatever the budget, from this ask on
+     * @param loader the work, run at most once per key while its result is known and nothing failed
+     * @return the shared future, already running or already complete, completing on the UI thread
+     * @throws IllegalStateException if a load has to start and no backend is running
      */
-    public CompletableFuture<T> load(String key, Supplier<T> loader) {
-        return pending.computeIfAbsent(key, k -> {
-            CompletableFuture<T> future = Ui.async(loader).toCompletableFuture();
-            future.whenComplete((value, error) -> {
-                if (error != null) {
-                    pending.remove(k, future); // failures are retryable
+    public CompletableFuture<T> load(String key, Source source, boolean pinned, Supplier<T> loader) {
+        CompletableFuture<T> future;
+        synchronized (this) {
+            Entry entry = entries.get(key);
+            if (entry == null) {
+                entry = new Entry(source);
+                entries.put(key, entry);
+            }
+            entry.used = ++clock;
+            if (pinned && !entry.pinned) {
+                entry.pinned = true;
+                if (entry.kept()) {
+                    held -= entry.bytes;
                 }
-            });
-            return future;
-        });
+            }
+            if (entry.future != null) {
+                return entry.future;
+            }
+            T alive = entry.landed == null ? null : entry.landed.get();
+            if (alive != null) {
+                // Let go and still held by somebody: kept again, the same object.
+                entry.future = CompletableFuture.completedFuture(alive);
+                if (!entry.pinned) {
+                    held += entry.bytes;
+                }
+                trim();
+                return entry.future;
+            }
+            entry.landed = null;
+            future = Ui.async(loader).toCompletableFuture();
+            entry.future = future;
+        }
+        // Outside the lock: a future already complete runs this on the spot.
+        future.whenComplete((value, error) -> landed(key, future, value, error));
+        return future;
     }
 
-    /** Forgets every load, so the next ask for any key runs its loader again. Any thread. */
-    public void clear() {
-        pending.clear();
+    private synchronized void landed(String key, CompletableFuture<T> future, T value, Throwable error) {
+        Entry entry = entries.get(key);
+        if (entry == null || entry.future != future) {
+            return; // forgotten meanwhile
+        }
+        if (error != null || value == null) {
+            entries.remove(key); // failures are retryable
+            return;
+        }
+        entry.landed = new WeakReference<>(value);
+        entry.bytes = Math.max(0, size.applyAsLong(value));
+        if (!entry.pinned) {
+            held += entry.bytes;
+        }
+        trim();
+    }
+
+    /**
+     * Stops keeping {@code key} whatever the budget: it counts toward it from now on, and is let
+     * go when its turn comes. Nothing happens for a key that is not pinned.
+     *
+     * @param key the key a load was pinned by
+     */
+    public synchronized void unpin(String key) {
+        Entry entry = entries.get(key);
+        if (entry == null || !entry.pinned) {
+            return;
+        }
+        entry.pinned = false;
+        if (entry.kept()) {
+            held += entry.bytes;
+            trim();
+        }
+    }
+
+    /**
+     * Moves the budget, letting go at once of what no longer fits.
+     *
+     * @param bytes the most bytes of unpinned results kept; 0 keeps none, and
+     *              {@code Long.MAX_VALUE} lets none go
+     * @throws IllegalArgumentException if {@code bytes} is negative
+     */
+    public synchronized void setBudget(long bytes) {
+        if (bytes < 0) {
+            throw new IllegalArgumentException("a budget is at least 0 bytes, got " + bytes);
+        }
+        budget = bytes;
+        trim();
+    }
+
+    /** @return the most bytes of unpinned results kept */
+    public synchronized long budget() {
+        return budget;
+    }
+
+    /** @return the bytes of unpinned results kept now */
+    public synchronized long heldBytes() {
+        return held;
+    }
+
+    /** Lets go of the longest unasked while over the budget, paths first, and forgets the dead. */
+    private void trim() {
+        List<Entry> candidates = null;
+        for (Iterator<Entry> all = entries.values().iterator(); all.hasNext(); ) {
+            Entry entry = all.next();
+            if (entry.future == null && (entry.landed == null || entry.landed.get() == null)) {
+                all.remove(); // let go, and nobody holds it any more
+            } else if (held > budget && entry.kept() && !entry.pinned) {
+                if (candidates == null) {
+                    candidates = new ArrayList<>();
+                }
+                candidates.add(entry);
+            }
+        }
+        if (candidates == null) {
+            return;
+        }
+        candidates.sort((a, b) -> a.source != b.source
+                ? Integer.compare(a.source.ordinal(), b.source.ordinal()) : Long.compare(a.used, b.used));
+        for (Entry entry : candidates) {
+            if (held <= budget) {
+                break;
+            }
+            entry.future = null;
+            held -= entry.bytes;
+        }
+    }
+
+    /**
+     * Forgets every load, pinned or not, so the next ask for any key runs its loader again. Any
+     * thread.
+     */
+    public synchronized void clear() {
+        entries.clear();
+        held = 0;
     }
 
     /**

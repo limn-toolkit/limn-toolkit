@@ -66,7 +66,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  * </ul>
  *
  * <p><b>One decode thread per player</b>, started at {@link #start()} and joined at
- * {@link #close()}. A shared pool was rejected: {@link VideoStreamSource#readFrame()} may block for
+ * {@link #close()}. Nothing else ends it: a player nobody refers to any more still has its thread,
+ * asleep once the stream has ended, and is closed, with a warning that names the omission, when
+ * the backend ends. A shared pool was rejected: {@link VideoStreamSource#readFrame()} may block for
  * a whole decode and promises no bound, so a pool of any size lets one stalled stream stop the
  * others, and a page of thumbnails that never appear is a failure nobody can see the cause of. The
  * honest cost is stated instead: twelve videos on a page are twelve threads, and the expensive part
@@ -377,6 +379,7 @@ public final class MediaPlayer implements AutoCloseable {
             if (ownsDecodeThread && decodeThread == null) {
                 decodeThread = Threads.daemon(
                         "limn-video-decode-" + THREAD_SERIAL.incrementAndGet(), this::decodeLoop);
+                limn.concurrent.internal.LeftOpen.opened(this, "A MediaPlayer", this::close);
             }
         }
     }
@@ -600,6 +603,7 @@ public final class MediaPlayer implements AutoCloseable {
             audio = null;
         }
         state = State.CLOSED;
+        limn.concurrent.internal.LeftOpen.closed(this);
     }
 
     // ----------------------------------------------------------------- presentation
@@ -812,7 +816,8 @@ public final class MediaPlayer implements AutoCloseable {
 
     /**
      * Runs from {@link #start()} until {@link #stopDecoding()}, and parks whenever there is nothing
-     * to do: a full ring, a stream with nothing ready, the end, or a decode that threw. It does
+     * to do: with a bound for a full ring or a stream with nothing ready, and with none at the end
+     * or after a decode that threw, where only a seek or a start gives it work again. It does
      * <b>not</b> exit at the end: a seek reopens all three of those, and a thread that had exited
      * would have to be restarted from another thread, which is a second chance to have two threads
      * reading one stream. One thread, one lifetime, and the parking is the same either way.
@@ -827,7 +832,15 @@ public final class MediaPlayer implements AutoCloseable {
                     return;
                 }
                 try {
-                    lock.wait(PARK_MILLIS);
+                    if (sourceEnded && !seekRequested) {
+                        // The end, or a failure: nothing to do until a seek or a start says so, and
+                        // each of those changes what was just read, under this lock, and signals.
+                        // Waiting with a bound here woke a thread fifty times a second for as long
+                        // as a player that had finished was left open.
+                        lock.wait();
+                    } else {
+                        lock.wait(PARK_MILLIS);
+                    }
                 } catch (InterruptedException interrupted) {
                     Thread.currentThread().interrupt();
                     return;
@@ -1086,6 +1099,7 @@ public final class MediaPlayer implements AutoCloseable {
             thread = decodeThread;
             decodeThread = null;
         }
+        limn.concurrent.internal.LeftOpen.closed(this); // no thread of this player's is left to stop
         if (thread != null && thread != Thread.currentThread()) {
             boolean interrupted = false;
             while (thread.isAlive()) {

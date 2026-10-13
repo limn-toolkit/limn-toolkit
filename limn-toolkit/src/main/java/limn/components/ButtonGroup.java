@@ -36,6 +36,8 @@ public final class ButtonGroup {
     private final List<RadioButton> members = new ArrayList<>();
     private IntConsumer onSelect;
     private RadioButton current;
+    /** The place the next radio added takes, kept by the radio so that one that comes back takes it again. */
+    private int nextPlace;
 
     /**
      * Adds a radio to the group. If it is already selected, it becomes the group's selection.
@@ -50,7 +52,7 @@ public final class ButtonGroup {
         Ui.checkUiThread();
         Objects.requireNonNull(radio, "radio");
         members.add(radio);
-        radio.attachToGroup(this);
+        radio.attachToGroup(this, nextPlace++);
         RadioButton displaced = null;
         if (radio.isSelected()) {
             // Keep a single selection invariant even if two pre-selected radios are added. The one
@@ -70,6 +72,69 @@ public final class ButtonGroup {
             member.invalidateAccessible();
         }
         return this;
+    }
+
+    /**
+     * Takes a radio out of the group for good: it is a radio on its own from then on. If it was
+     * the group's selection the group has none, and the radio stays selected. Nothing happens for
+     * a radio that is not a member. UI thread only.
+     *
+     * <p>A radio leaves by itself, too, for as long as it is out of a scene it was in: taken out
+     * of the tree, or its window closed. The group does not hold it then, the others no longer
+     * count it in the "2 of 4" a screen reader speaks, and it takes its place again, among the
+     * members that are there, when it is back in a scene. A radio added to a group before it was
+     * ever in a scene is a member from the start.
+     *
+     * @param radio the radio to take out
+     * @return this group
+     */
+    public ButtonGroup remove(RadioButton radio) {
+        Ui.checkUiThread();
+        Objects.requireNonNull(radio, "radio");
+        if (radio.group() == this) {
+            left(radio);
+            radio.leaveGroup();
+        }
+        return this;
+    }
+
+    /** A member is out of its scene: not held, not counted, until {@link #returned}. */
+    void left(RadioButton radio) {
+        if (!members.remove(radio)) {
+            return;
+        }
+        if (current == radio) {
+            current = null;
+        }
+        applyRovingFocus();
+        for (RadioButton member : members) {
+            member.invalidateAccessible();
+        }
+    }
+
+    /** A member that had left is in a scene again, and takes the place it was added at. */
+    void returned(RadioButton radio) {
+        if (members.contains(radio)) {
+            return;
+        }
+        int at = 0;
+        while (at < members.size() && members.get(at).placeInGroup() < radio.placeInGroup()) {
+            at++;
+        }
+        members.add(at, radio);
+        if (radio.isSelected()) {
+            if (current != null && current != radio) {
+                // The group chose another while this one was away: the one that is back gives way.
+                radio.setSelectedSilently(false);
+                radio.announceSelection(Change.Origin.ADJUSTMENT);
+            } else {
+                current = radio;
+            }
+        }
+        applyRovingFocus();
+        for (RadioButton member : members) {
+            member.invalidateAccessible();
+        }
     }
 
     /**
@@ -103,7 +168,10 @@ public final class ButtonGroup {
         return current;
     }
 
-    /** @return an immutable view of the members, in the order they were added */
+    /**
+     * @return an immutable view of the members, in the order they were added; one that is out of
+     *         the scene it was in is not among them until it is back
+     */
     public List<RadioButton> members() {
         return List.copyOf(members);
     }

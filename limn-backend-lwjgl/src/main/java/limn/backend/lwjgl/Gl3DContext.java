@@ -847,6 +847,7 @@ final class Gl3DContext {
                 declarations(samplerNames, valueNames), TargetProfile.GLSL_330),
                 samplerNames, valueNames);
         surfacePrograms.put(surface.key(), created);
+        warnOfManyPrograms();
         return created;
     }
 
@@ -1198,6 +1199,28 @@ final class Gl3DContext {
         uLitAmbient = litProgram.uniformLocation("u_ambient");
     }
 
+    /** How many programs a window holds before it says so, once: more than any scene written by hand has. */
+    private static final int MANY_PROGRAMS = 256;
+    private boolean warnedOfManyPrograms;
+
+    /**
+     * A program is kept until its window closes, since a draw of any later frame may name it. That
+     * is no growth for materials written once, and it is without bound for a source or a key made
+     * anew as the program runs, a value written into the text of a shader instead of passed as a
+     * uniform. Said once, where somebody will see it, when the count is past what the first case
+     * accounts for.
+     */
+    private void warnOfManyPrograms() {
+        int held = rawPrograms.size() + surfacePrograms.size();
+        if (held > MANY_PROGRAMS && !warnedOfManyPrograms) {
+            warnedOfManyPrograms = true;
+            System.getLogger(Gl3DContext.class.getName()).log(System.Logger.Level.WARNING,
+                    "this window holds " + held + " shader programs, each kept until it closes: a material"
+                            + " whose source or key is made anew for every value compiles one for each;"
+                            + " pass what varies as a uniform");
+        }
+    }
+
     /**
      * The program for one raw material, compiled on first use. Package-private for the test that
      * holds the cache to one program per pair of sources.
@@ -1213,6 +1236,7 @@ final class Gl3DContext {
                 program.optionalUniformLocation("u_model"),
                 program.optionalUniformLocation("u_normalMatrix"));
         rawPrograms.put(raw, rp);
+        warnOfManyPrograms();
         return rp;
     }
 

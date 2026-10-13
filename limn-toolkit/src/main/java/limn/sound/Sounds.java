@@ -138,7 +138,14 @@ public final class Sounds {
 
     // -------------------------------------------------- background loading
 
-    private static final SharedLoads<AudioClip> shared = new SharedLoads<>();
+    /**
+     * The share of the heap's most that the shared loads keep unless {@link #setSharedBudget} says
+     * otherwise: one part in 8.
+     */
+    private static final int DEFAULT_SHARED_SHARE = 8;
+
+    private static final SharedLoads<AudioClip> shared = new SharedLoads<>(
+            clip -> 2L * clip.samples().length, Runtime.getRuntime().maxMemory() / DEFAULT_SHARED_SHARE);
 
     /**
      * Reads and decodes {@code file} on the {@code Ui} worker pool, a bounded pool shared with
@@ -152,14 +159,39 @@ public final class Sounds {
      * <em>same</em> future and decode once, and every caller shares one immutable
      * {@link AudioClip}; a result two callers are waiting for is not one either of them may
      * cancel, so there is nothing to start and nothing to withdraw. A load that fails is dropped
-     * from that cache, so a later call retries it. {@link #clearSharedCache()} drops the
-     * successful ones too.
+     * from that cache, so a later call retries it. One that landed is kept within a budget,
+     * {@link #setSharedBudget}, and {@link #loadPinned} keeps one whatever the budget;
+     * {@link #clearSharedCache()} drops them all.
      *
      * <p>Failures do not throw here; they arrive at {@code exceptionally}/{@code whenComplete} on
      * the UI thread. Requires a running backend, like the synchronous form.
      */
     public static java.util.concurrent.CompletableFuture<AudioClip> loadShared(Path file) {
-        return shared.load("file:" + file.toAbsolutePath(), () -> load(file));
+        return shared.load("file:" + file.toAbsolutePath(), SharedLoads.Source.FILE, false, () -> load(file));
+    }
+
+    /**
+     * Loads {@code file} as {@link #loadShared} does and keeps the result whatever the
+     * {@linkplain #setSharedBudget budget}: it is never let go and counts nothing toward it, until
+     * {@link #unpin(Path)}. For a clip an application wants at hand for as long as it runs, at
+     * the price of the memory it takes for that long. A path already loaded and shared is pinned
+     * from this call on, and is the same object.
+     *
+     * @param file the file to read
+     * @return the shared future, already running or already complete, completing on the UI thread
+     */
+    public static java.util.concurrent.CompletableFuture<AudioClip> loadPinned(Path file) {
+        return shared.load("file:" + file.toAbsolutePath(), SharedLoads.Source.FILE, true, () -> load(file));
+    }
+
+    /**
+     * Puts a file pinned by {@link #loadPinned} back among the shared loads the budget keeps or
+     * lets go. Nothing happens for a file that is not pinned. Any thread.
+     *
+     * @param file the file a load was pinned by
+     */
+    public static void unpin(Path file) {
+        shared.unpin("file:" + file.toAbsolutePath());
     }
 
     /**
@@ -169,7 +201,63 @@ public final class Sounds {
      * does.
      */
     public static java.util.concurrent.CompletableFuture<AudioClip> fromResourceShared(String resource) {
-        return shared.load("resource:" + resource, () -> fromResource(resource));
+        return shared.load("resource:" + resource, SharedLoads.Source.RESOURCE, false,
+                () -> fromResource(resource));
+    }
+
+    /**
+     * Loads a classpath resource as {@link #fromResourceShared} does and keeps the result whatever
+     * the {@linkplain #setSharedBudget budget}, until {@link #unpinResource}; see
+     * {@link #loadPinned}.
+     *
+     * @param resource the resource's name
+     * @return the shared future, already running or already complete, completing on the UI thread
+     */
+    public static java.util.concurrent.CompletableFuture<AudioClip> fromResourcePinned(String resource) {
+        return shared.load("resource:" + resource, SharedLoads.Source.RESOURCE, true,
+                () -> fromResource(resource));
+    }
+
+    /**
+     * Puts a resource pinned by {@link #fromResourcePinned} back among the shared loads the budget
+     * keeps or lets go. Nothing happens for a resource that is not pinned. Any thread.
+     *
+     * @param resource the name a load was pinned by
+     */
+    public static void unpinResource(String resource) {
+        shared.unpin("resource:" + resource);
+    }
+
+    /**
+     * Moves the budget the shared loads are kept within. A load that landed is kept, so that the
+     * next ask for it costs nothing, for as long as what is kept fits; past the budget the one
+     * asked for longest ago is let go first, every file before any resource, since an
+     * application's own resources are few and it comes back to them. A pinned load is never let
+     * go and counts nothing.
+     *
+     * <p>What is let go is not lost to whoever holds it: a clip still playing or held is the same
+     * object, and an ask for its source hands that object back without reading anything. Only
+     * one that nobody holds is read again, when asked for.
+     *
+     * <p>The budget starts at one part in 8 of the most heap the process may use. Raise it for
+     * an application that keeps coming back to more than that, or pin what must never be read
+     * twice; lower it where memory is short. Any thread.
+     *
+     * @param bytes the most bytes of unpinned shared loads kept, as they sit on the heap; 0 keeps
+     *              none, and {@code Long.MAX_VALUE} lets none go
+     * @throws IllegalArgumentException if {@code bytes} is negative
+     */
+    public static void setSharedBudget(long bytes) {
+        shared.setBudget(bytes);
+    }
+
+    /**
+     * The budget the shared loads are kept within; see {@link #setSharedBudget}.
+     *
+     * @return the current budget, in bytes
+     */
+    public static long sharedBudget() {
+        return shared.budget();
     }
 
     /**
@@ -190,7 +278,7 @@ public final class Sounds {
     /**
      * Drops every shared load, so the next {@link #loadShared} or {@link #fromResourceShared} of a
      * source re-reads it (e.g. after files changed on disk). Already-delivered clips are
-     * unaffected.
+     * unaffected. A pinned load is dropped too, and pinned again by loading it so.
      */
     public static void clearSharedCache() {
         shared.clear();

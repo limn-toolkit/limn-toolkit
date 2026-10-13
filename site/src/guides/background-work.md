@@ -86,7 +86,9 @@ When you already have a thread and only need to hand a result over:
 Ui.post(() -> label.setText(text));
 ```
 
-`Ui.postDelayed(action, millis)` is the same with a delay. `Ui.async(supplier)` returns a
+`Ui.postDelayed(action, millis)` is the same with a delay, and returns a handle whose
+`cancel()` withdraws the task: cancel a timer armed for a widget or a window that can go away
+first, since a task waiting holds all it captures until it runs. `Ui.async(supplier)` returns a
 `CompletionStage` for the cases where you genuinely do not need cancellation or progress,
 but reach for `Ui.work` first; the moment a view can close while a request is in flight, you
 wanted the `Job`.

@@ -84,6 +84,10 @@ final class HeadlessGl {
         }
         attempted = true;
         try {
+            if (MacApplication.askedToBeAnAgent()) {
+                // A build's process: no icon in the Dock for a window nobody is meant to see.
+                GLFW.glfwInitHint(GLFW.GLFW_COCOA_MENUBAR, GLFW.GLFW_FALSE);
+            }
             if (!GLFW.glfwInit()) {
                 failure = "glfwInit() returned false (no display?)";
                 return false;

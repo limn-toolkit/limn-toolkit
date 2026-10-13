@@ -48,10 +48,13 @@ public final class Ui {
      * Uninstalls {@code candidate} if it is the installed runtime (backend shutdown). The shared
      * loads of images and sounds are forgotten with it: one still in flight would complete on this
      * runtime's queue, which nothing drains any more, and a later backend asking for the same file
-     * would be handed a future that never completes.
+     * would be handed a future that never completes. And what the application left open that
+     * keeps a thread for as long as it is open, a media player, is closed first, while there is
+     * still a UI thread to close it on.
      */
     public static synchronized void uninstall(UiRuntime candidate) {
         if (runtime == candidate) {
+            limn.concurrent.internal.LeftOpen.closeAll();
             runtime = null;
             limn.concurrent.internal.SharedLoads.forgetAll();
         }
@@ -89,9 +92,14 @@ public final class Ui {
      * unchanged costs a wake-up and nothing else, where a
      * {@link limn.scene.Scene#addTicker ticker} asks for a frame every frame it
      * stays registered.
+     *
+     * @return a handle that withdraws the task if it has not run; cancelling it afterwards, or
+     *         twice, does nothing. Any thread. Whoever arms a timer for something that can go
+     *         away first, a widget or a window, cancels it there: a task waiting holds all it
+     *         captures until it runs
      */
-    public static void postDelayed(Runnable action, long delayMillis) {
-        require().postDelayed(action, delayMillis);
+    public static Subscription postDelayed(Runnable action, long delayMillis) {
+        return require().postDelayed(action, delayMillis);
     }
 
     /**

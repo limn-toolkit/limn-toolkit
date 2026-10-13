@@ -515,10 +515,16 @@ class UiaBridgeTest {
             bridge.publish(aWindowWith(Accessible.Role.BUTTON, true), false);
             bridge.objectFor(1001);
             assertEquals(1, bridge.elementCount());
+            assertTrue(bridge.objectCountForTests() > 0);
+            UiaObject.freeRetired(); // whatever a test before this one left
             bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.NODE_DESTROYED, 1001));
             assertNotNull(awaitTrace(trace, l -> l.startsWith("released element for destroyed node 1001")),
                     "never released: " + trace);
             assertEquals(0, bridge.elementCount());
+            // The object goes with the element, and not with the window: a main window's never
+            // closes, and it kept the object of every node a client had reached and that left.
+            assertEquals(0, bridge.objectCountForTests());
+            assertEquals(1, UiaObject.freeRetired(), "held by nobody, it is freed on the next frame");
         } finally {
             UiaWindow.trace = before;
             bridge.detach();

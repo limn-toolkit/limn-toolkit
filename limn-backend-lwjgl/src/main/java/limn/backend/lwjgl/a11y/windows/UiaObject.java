@@ -299,6 +299,12 @@ final class UiaObject {
             new java.util.concurrent.ConcurrentLinkedQueue<>();
 
     private volatile boolean retired;
+    private boolean freed;
+
+    /** @return whether the closures and the block are gone, after which no pointer of this object is one */
+    synchronized boolean isFreed() {
+        return freed;
+    }
 
     /**
      * The registry lets this object go: its own reference is dropped, and the object is freed now
@@ -324,6 +330,18 @@ final class UiaObject {
             return true;
         }
         return false;
+    }
+
+    /**
+     * The registry lets this object go from a thread other than the user-interface's: as
+     * {@link #retire}, but never freed here. One nothing else holds is queued for
+     * {@link #freeRetired}, since a closure of its own may be executing on another thread now.
+     */
+    synchronized void retireLater() {
+        retired = true;
+        if (references.decrementAndGet() <= 0) {
+            RETIRED.add(this);
+        }
     }
 
     /**
@@ -391,6 +409,10 @@ final class UiaObject {
      * exists, which is what closing a native popup under NVDA used to do.
      */
     synchronized void free() {
+        if (freed) {
+            return;
+        }
+        freed = true;
         UiaCom.freeClosures(closures);
         for (long vtable : vtables) {
             MemoryUtil.nmemFree(vtable);
