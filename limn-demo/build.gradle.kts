@@ -172,6 +172,11 @@ tasks.register<JavaExec>("captureGallery") {
     // process's first thread, and a JVM that does not know the flag refuses to start.
     if (isMacOs) {
         jvmArgs("-XstartOnFirstThread")
+        // Filmed, not watched: as an agent's process its windows take neither the Dock nor the
+        // keyboard from whoever is working while it runs. -DlimnVisibleTests=true to watch.
+        if (System.getProperty("limnVisibleTests") != "true") {
+            environment("LIMN_MACOS_AGENT", "1")
+        }
     }
     if (JavaVersion.current().majorVersion.toInt() >= 24) {
         jvmArgs("--enable-native-access=ALL-UNNAMED")
