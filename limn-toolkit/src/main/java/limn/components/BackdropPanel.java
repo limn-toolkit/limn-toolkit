@@ -163,10 +163,40 @@ public final class BackdropPanel extends Padding {
         return tintAmount;
     }
 
+    /**
+     * Sets how much of its tone frosted glass lays over what is behind it: the less, the more of
+     * what is behind shows through, blurred, and the less the text on the glass is helped against
+     * it. 0.6 unless set, which reads over any content; a panel over a picture
+     * chosen for it can take less.
+     *
+     * @param cover from 0, where what is behind is blurred and nothing more is laid on it, to 1,
+     *              where the tone hides it
+     * @return this panel
+     * @throws IllegalStateException when this panel is not {@linkplain #frosted frosted}
+     */
+    public BackdropPanel setCover(float cover) {
+        Ui.checkUiThread();
+        if (!frosted) {
+            throw new IllegalStateException("a cover is frosted glass's: this panel was given its effects, "
+                    + "and each of those carries its own");
+        }
+        this.cover = Math.max(0, Math.min(1, cover));
+        frostedStack = null;
+        invalidate();
+        return this;
+    }
+
+    /** @return how much of its tone frosted glass lays over what is behind, 0 to 1 */
+    public final float cover() {
+        return cover;
+    }
+
+    private float cover = FROST_COVER;
+
     /** How wide frosted glass blurs, in points, along each axis. */
     private static final float FROST_BLUR = 10;
-    /** How much of the tone covers what is behind: a little more than half. */
-    private static final float FROST_COVER = 0.6f;
+    /** How much of the tone covers what is behind unless {@link #setCover} says: a little more than half. */
+    static final float FROST_COVER = 0.6f;
     /** How much colour what is behind keeps under the tone. */
     private static final float FROST_SATURATION = 0.7f;
     /** How far what is behind is moved toward the tone's own lightness before the tone goes on. */
@@ -186,7 +216,7 @@ public final class BackdropPanel extends Padding {
         frostedStack = java.util.List.of(
                 new BackdropEffect.Blur(limn.graphics.Color.TRANSPARENT, FROST_BLUR, BackdropEffect.Blur.Axis.X),
                 new BackdropEffect.Blur(limn.graphics.Color.TRANSPARENT, FROST_BLUR, BackdropEffect.Blur.Axis.Y),
-                new BackdropEffect.Wash(tone.withAlpha(FROST_COVER), FROST_SATURATION, lift));
+                new BackdropEffect.Wash(tone.withAlpha(cover), FROST_SATURATION, lift));
         return frostedStack;
     }
 

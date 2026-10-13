@@ -273,7 +273,8 @@ Maven Central say which number that was.
 - `BackdropPanel.frosted(content)`: frosted glass that follows the theme. What is behind the
   panel is blurred and laid over with the palette's surface tone, light over a light palette and
   dark over a dark one, and it changes with the palette by itself. `setTint(colour, amount)`
-  leans it toward a colour of the application's. A panel given its effects by hand is as before.
+  leans it toward a colour of the application's, and `setCover(share)` says how much of the tone
+  is laid over what is behind. A panel given its effects by hand is as before.
 - A widget's id is what a tool that drives the application from outside finds it by:
   `Widget.setId` is published as UI Automation's `AutomationId` on Windows, the accessibility
   identifier on macOS and the accessible id on Linux, where each carried a number of the

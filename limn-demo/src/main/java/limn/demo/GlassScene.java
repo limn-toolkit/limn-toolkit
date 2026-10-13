@@ -70,9 +70,9 @@ final class GlassScene {
         playing.add(titles);
         playing.add(new SizedBox(180, SizedBox.UNSET, new limn.components.Slider(0, 100).setValue(35)));
         playing.add(new limn.components.Button("Open"));
-        // Leaning toward a colour of the application's by a fifth; the bar above is the theme's alone.
-        BackdropPanel floating = BackdropPanel.frosted(Insets.symmetric(10, 14), playing)
-                .setTint(new Color(0.10f, 0.55f, 0.60f, 1f), 0.2f);
+        // Leaning toward a colour of the application's by a fifth, and covering less than glass
+        // does by itself, since it is over a picture chosen for it; the bar above is the theme's alone.
+        BackdropPanel floating = limn.demo.site.GlassExample.tinted(playing, new Color(0.10f, 0.55f, 0.60f, 1f));
         column.add(new SizedBox(SizedBox.UNSET, 240, limn.demo.site.GlassExample.floatingOver(
                 new ImageView(dusk()).setFit(ImageView.Fit.COVER), floating)));
 

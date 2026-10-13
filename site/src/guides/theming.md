@@ -273,7 +273,9 @@ of controls over a picture or a video.
 theme's own tone. What is behind it is blurred, calmed and laid over with the palette's surface
 colour, light over a light palette and dark over a dark one, and it changes with the palette
 by itself. `setTint(colour, amount)` leans it toward a colour of yours, from 0, the theme's tone
-alone, to 1, the colour alone:
+alone, to 1, the colour alone. `setCover(share)` is how much of that tone is laid over what is
+behind: 0.6 unless you say, which reads over anything, and less where the panel sits over a
+picture you chose for it and more of the picture should show:
 
 {% snippet guide:glass-frosted %}
 

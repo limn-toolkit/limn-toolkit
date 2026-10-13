@@ -358,7 +358,8 @@ final class VideoScene {
         Playing open = new Playing();
         open.stream = opened.video();
 
-        VideoView view = new VideoView().setLooping(true);
+        // Opened to be watched, so it plays as it opens.
+        VideoView view = new VideoView().setLooping(true).setAutoplay(true);
         if (withSound) {
             limn.sound.AudioStreamSource track = opened.audio() != null
                     ? opened.audio()
@@ -2231,6 +2232,10 @@ final class VideoScene {
         openFile.onAction(() -> pick(openFile, caption).thenAccept(picked -> picked.ifPresent(file -> {
             current[0] = ownFile(file);
             caption.setText(current[0].caption());
+            // A file somebody has just chosen is one they want to see play: from here on what
+            // this view is given starts by itself. The entry the page opens on does not, since a
+            // page nobody asked anything of should not start a soundtrack.
+            view.setAutoplay(true);
             play(pane, view, facts, open, current[0], sound[0]);
         })));
 
