@@ -5,6 +5,7 @@ import limn.accessibility.Accessible;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
+import limn.animation.ImageAnimation;
 import limn.graphics.Image;
 import limn.scene.Constraints;
 import limn.scene.Size;
@@ -40,6 +41,11 @@ public final class ImageView extends Widget<ImageView> {
     }
 
     private Image image;
+    /** The clockwork of an animated image; null for a still one. Before the constructor, which makes it. */
+    private @Nullable ImageAnimation animation;
+    private boolean playing = true;
+    private float speed = 1;
+    private ImageAnimation.Loop loop = ImageAnimation.Loop.FILE;
     private Fit fit = Fit.CONTAIN;
     private Color tint;
     private float preferredWidth = -1;
@@ -54,14 +60,140 @@ public final class ImageView extends Widget<ImageView> {
     /** Shows an image at its natural size until the layout says otherwise. */
     public ImageView(@Nullable Image image) {
         this.image = image;
+        this.animation = image != null && image.isAnimated() ? new ImageAnimation(image) : null;
     }
 
-    /** Replaces the image, re-measuring if its natural size differs. UI thread only. */
+    /**
+     * Replaces the image, re-measuring if its natural size differs. An animated image is played
+     * from its first frame, unless {@link #setPlaying setPlaying(false)} holds it. UI thread only.
+     */
     public ImageView setImage(@Nullable Image newImage) {
         Ui.checkUiThread();
         this.image = newImage;
+        this.animation = newImage != null && newImage.isAnimated()
+                ? new ImageAnimation(newImage).setSpeed(speed).setLoop(loop).setPlaying(playing) : null;
         markNeedsLayout();
+        invalidate();
         return this;
+    }
+
+    // ------------------------------------------------------------- animation
+
+    private boolean ticking;
+    private @Nullable Runnable onFinished;
+
+    /**
+     * Plays an animated image, or holds the frame shown. A view plays unless told not to: a
+     * picture that moves is expected to, and makes no sound. Playing one that has finished
+     * starts it again. Nothing happens to a still image, and the setting is kept for the next
+     * image the view is given. UI thread only.
+     */
+    public ImageView setPlaying(boolean play) {
+        Ui.checkUiThread();
+        this.playing = play;
+        if (animation != null) {
+            animation.setPlaying(play);
+            invalidate(); // the paint is what starts the clock again
+        }
+        return this;
+    }
+
+    /** @return whether an animated image is moving now: playing, and not at its end */
+    public boolean isPlaying() {
+        return animation != null && animation.isPlaying();
+    }
+
+    /**
+     * Sets how fast an animated image plays: 1 is the image's own times, 2 twice as fast.
+     *
+     * @throws IllegalArgumentException if {@code newSpeed} is not above 0
+     */
+    public ImageView setSpeed(float newSpeed) {
+        Ui.checkUiThread();
+        if (!(newSpeed > 0) || Float.isInfinite(newSpeed)) {
+            throw new IllegalArgumentException("a speed is above 0: " + newSpeed);
+        }
+        this.speed = newSpeed;
+        if (animation != null) {
+            animation.setSpeed(newSpeed);
+        }
+        return this;
+    }
+
+    /**
+     * Sets how many turns an animated image makes: as many as the image asks for
+     * ({@link ImageAnimation.Loop#FILE}, unless set), without end, once, a number of times, or
+     * forward and back.
+     */
+    public ImageView setLoop(ImageAnimation.Loop newLoop) {
+        Ui.checkUiThread();
+        this.loop = Objects.requireNonNull(newLoop, "newLoop");
+        if (animation != null) {
+            animation.setLoop(newLoop);
+            invalidate();
+        }
+        return this;
+    }
+
+    /**
+     * Shows one frame of an animated image, from the start of its time.
+     *
+     * @throws IndexOutOfBoundsException if the image has no such frame
+     */
+    public ImageView seekFrame(int frame) {
+        Ui.checkUiThread();
+        Objects.checkIndex(frame, image == null ? 0 : image.frameCount());
+        if (animation != null) {
+            animation.seekFrame(frame);
+            invalidate();
+        }
+        return this;
+    }
+
+    /** @return which frame of an animated image is shown, from 0; 0 for a still image */
+    public int frameIndex() {
+        return animation == null ? 0 : animation.frameIndex();
+    }
+
+    /**
+     * Sets what is told when an animated image's last turn ends. One that turns without end
+     * never tells.
+     *
+     * @param handler the handler, or {@code null} for none
+     */
+    public ImageView onFinished(@Nullable Runnable handler) {
+        Ui.checkUiThread();
+        this.onFinished = handler;
+        return this;
+    }
+
+    /** Starts the clock of the animation shown, from the paint that shows it. */
+    private void keepTime() {
+        limn.scene.Scene home = scene();
+        ImageAnimation shown = animation;
+        if (ticking || home == null || shown == null || !shown.isPlaying()) {
+            return;
+        }
+        ticking = true;
+        home.addTicker(seconds -> {
+            // The clock stops with what it was for: another image, a view out of its scene, or
+            // one nobody sees, which the next paint starts again.
+            if (animation != shown || scene() != home || !isShowing()) {
+                ticking = false;
+                return false;
+            }
+            if (shown.advance(seconds)) {
+                invalidate();
+            }
+            if (shown.isFinished() && onFinished != null) {
+                onFinished.run();
+            }
+            if (!shown.isPlaying()) {
+                ticking = false;
+                return false;
+            }
+            return true;
+        });
     }
 
     /** How the image fills its box when the two aspect ratios differ. */
@@ -188,6 +320,9 @@ public final class ImageView extends Widget<ImageView> {
         if (image == null) {
             return;
         }
+        // The frame of the moment, for an image that moves; its size is the image's.
+        Image image = animation != null ? animation.frame() : this.image;
+        keepTime();
         float boxW = width();
         float boxH = height();
         float imgW = image.width();

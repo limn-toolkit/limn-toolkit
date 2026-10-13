@@ -1,7 +1,10 @@
 # ADR 065: An animated image is an image, and its frames are images
 
-- **Status:** Accepted, 2026-10-13, and not implemented. The owner confirmed the WebP library on
-  the spike of section 6. The order is GIF, then WebP, then APNG if it comes cheap.
+- **Status:** Accepted, 2026-10-13, and implemented in part. Done: the image's frames, times and
+  turns, `Images.animation` and `fromSheet`, the clockwork and `ImageView` playing, and GIF read
+  and written. Not yet: frames decoded as they play and the animation budget, a frame as an
+  entry of the shared loads, a frame asked for only when it is due (a view playing asks for
+  every frame of the display and paints when its picture changes), WebP and APNG.
 - **Date:** 2026-10-13
 - **Scope:** pictures that move: animated GIF, APNG and animated WebP read from a file, and a
   sprite sheet declared by hand; how they are held, cached, played and controlled.

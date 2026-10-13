@@ -46,6 +46,24 @@ public final class Images {
     private static final Installed<ImageDecoder> DECODER = new Installed<>(
             "No ImageDecoder installed: start a Backend before loading images.");
 
+    /** The built-in GIF encoder: an animated image with every frame, a still one as one. */
+    private static final ImageEncoder GIF_ENCODER = new ImageEncoder() {
+        @Override
+        public String name() {
+            return "gif";
+        }
+
+        @Override
+        public boolean supports(ImageEncodeOptions options) {
+            return ImageFormat.GIF.equals(options.format());
+        }
+
+        @Override
+        public void encode(Image image, ImageEncodeOptions options, OutputStream out) throws java.io.IOException {
+            out.write(GifWriter.encode(image));
+        }
+    };
+
     private static final java.util.concurrent.CopyOnWriteArrayList<ImageEncoder> encoders =
             new java.util.concurrent.CopyOnWriteArrayList<>();
 
@@ -53,6 +71,7 @@ public final class Images {
         // The built-in PNG encoder is installed here rather than by a backend, so that encoding
         // works in a process that never starts one.
         encoders.add(PngEncoder.INSTANCE);
+        encoders.add(GIF_ENCODER);
     }
 
     private Images() {
@@ -79,7 +98,144 @@ public final class Images {
      * when the caller is the UI thread. Use {@link #decodeAsync} outside setup code.
      */
     public static Image decode(byte[] fileBytes) {
+        if (GifReader.isGif(fileBytes)) {
+            // Read here and not by the installed decoder, which reads a GIF's first frame only:
+            // an animated file is an animated image, and a GIF of one frame is a still one.
+            return animatedOrStill(fileBytes);
+        }
         return require().decode(fileBytes);
+    }
+
+    private static Image animatedOrStill(byte[] gif) {
+        GifReader reader = new GifReader(gif);
+        int count = reader.frameCount();
+        java.util.List<Image> frames = new java.util.ArrayList<>(count);
+        for (Image frame = reader.nextFrame(); frame != null; frame = reader.nextFrame()) {
+            frames.add(frame);
+        }
+        if (frames.isEmpty()) {
+            throw new limn.io.MalformedContentException("GIF", "no picture could be read");
+        }
+        if (frames.size() == 1) {
+            return frames.get(0);
+        }
+        // A file cut short has the frames that could be read, each with its time.
+        return animation(frames, java.util.Arrays.copyOf(reader.millis(), frames.size()), reader.loopCount());
+    }
+
+    // ------------------------------------------------------------- animation
+
+    /**
+     * Makes an animated image of frames from anywhere. Its own pixels are the first frame's, so
+     * whatever draws it without playing it draws that frame.
+     *
+     * @param frames    the frames in order, each of the first one's size; at least one
+     * @param millis    how long each is shown, in milliseconds, one for each frame, each above 0
+     * @param loopCount how many turns it asks for, 0 for one that does not end
+     * @return the image; with one frame, a still image, that frame
+     * @throws IllegalArgumentException if there is no frame, the sizes differ, a time is not
+     *                                  above 0, the times are not one a frame, or a frame is
+     *                                  itself animated
+     */
+    public static Image animation(java.util.List<Image> frames, int[] millis, int loopCount) {
+        Objects.requireNonNull(frames, "frames");
+        Objects.requireNonNull(millis, "millis");
+        if (frames.isEmpty()) {
+            throw new IllegalArgumentException("an animation has at least one frame");
+        }
+        if (millis.length != frames.size()) {
+            throw new IllegalArgumentException(frames.size() + " frames and " + millis.length + " times");
+        }
+        if (loopCount < 0) {
+            throw new IllegalArgumentException("a loop count is 0, for no end, or more: " + loopCount);
+        }
+        Image[] kept = frames.toArray(new Image[0]);
+        int[] times = millis.clone();
+        for (int i = 0; i < kept.length; i++) {
+            if (kept[i].isAnimated()) {
+                throw new IllegalArgumentException("frame " + i + " is itself animated");
+            }
+            if (kept[i].width() != kept[0].width() || kept[i].height() != kept[0].height()) {
+                throw new IllegalArgumentException("frame " + i + " is " + kept[i].width() + " by "
+                        + kept[i].height() + " and the first is " + kept[0].width() + " by " + kept[0].height());
+            }
+            if (times[i] <= 0) {
+                throw new IllegalArgumentException("frame " + i + " is shown for " + times[i] + " ms");
+            }
+        }
+        if (kept.length == 1) {
+            return kept[0];
+        }
+        return new Image(kept[0], new Image.Frames() {
+            @Override
+            public int count() {
+                return kept.length;
+            }
+
+            @Override
+            public Image frame(int index) {
+                return kept[index];
+            }
+
+            @Override
+            public int millis(int index) {
+                return times[index];
+            }
+
+            @Override
+            public int loopCount() {
+                return loopCount;
+            }
+        });
+    }
+
+    /**
+     * Makes an animated image of a sheet of frames laid out in a grid, read along each row from
+     * the top: the frames of a sprite, drawn side by side in one picture. Each frame becomes an
+     * image of its own, and the animation turns without end.
+     *
+     * @param sheet       the picture holding the frames
+     * @param columns     how many frames across
+     * @param rows        how many down
+     * @param frameMillis how long each frame is shown, in milliseconds
+     * @return the animation
+     * @throws IllegalArgumentException if the grid does not divide the sheet evenly, or a number
+     *                                  is not above 0
+     */
+    public static Image fromSheet(Image sheet, int columns, int rows, int frameMillis) {
+        return fromSheet(sheet, columns, rows, columns * rows, frameMillis);
+    }
+
+    /**
+     * As {@link #fromSheet(Image, int, int, int)}, for a sheet whose last row is not full.
+     *
+     * @param frames how many frames the sheet holds, from 1 to {@code columns * rows}
+     */
+    public static Image fromSheet(Image sheet, int columns, int rows, int frames, int frameMillis) {
+        Objects.requireNonNull(sheet, "sheet");
+        if (columns <= 0 || rows <= 0 || frames <= 0 || frames > columns * rows) {
+            throw new IllegalArgumentException(frames + " frames in a grid of " + columns + " by " + rows);
+        }
+        if (sheet.width() % columns != 0 || sheet.height() % rows != 0) {
+            throw new IllegalArgumentException("a sheet of " + sheet.width() + " by " + sheet.height()
+                    + " is not " + columns + " by " + rows + " frames of one size");
+        }
+        int w = sheet.width() / columns;
+        int h = sheet.height() / rows;
+        byte[] from = sheet.pixels();
+        java.util.List<Image> cut = new java.util.ArrayList<>(frames);
+        for (int f = 0; f < frames; f++) {
+            int left = (f % columns) * w;
+            int top = (f / columns) * h;
+            byte[] pixels = new byte[w * h * 4];
+            for (int row = 0; row < h; row++) {
+                System.arraycopy(from, ((top + row) * sheet.width() + left) * 4, pixels, row * w * 4, w * 4);
+            }
+            cut.add(new Image(w, h, pixels));
+        }
+        int[] millis = new int[frames];
+        java.util.Arrays.fill(millis, frameMillis);
+        return animation(cut, millis, 0);
     }
 
     /**
@@ -340,7 +496,7 @@ public final class Images {
     private static final int DEFAULT_SHARED_SHARE = 4;
 
     private static final SharedLoads<Image> shared = new SharedLoads<>(
-            image -> 4L * image.width() * image.height(), Runtime.getRuntime().maxMemory() / DEFAULT_SHARED_SHARE);
+            image -> 4L * image.width() * image.height() * image.frameCount(), Runtime.getRuntime().maxMemory() / DEFAULT_SHARED_SHARE);
 
     /**
      * Reads and decodes {@code file} on the {@code Ui} worker pool; the returned future is

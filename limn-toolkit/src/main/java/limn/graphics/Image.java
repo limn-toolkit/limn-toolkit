@@ -14,12 +14,36 @@ import limn.internal.lang.Checks;
  * than decoding the same asset repeatedly. A window's cache holds on to the
  * instance, and so to its pixels, for as long as it keeps the texture, which
  * {@link Images#setTextureBudget} bounds.
+ *
+ * <p><b>An image may be animated</b>: {@link #isAnimated()}, with frames that are each an image
+ * and a time each is shown for. Its own pixels are then those of its first frame, so whatever
+ * draws an image and knows nothing of animation draws a still picture. Nothing moves unless
+ * something plays it: an {@code ImageView} does, and {@code limn.animation.ImageAnimation} is
+ * what a widget of an application's own does it with.
  */
 public final class Image {
 
     private final int width;
     private final int height;
     private final byte[] rgba;
+    /** The frames of an animated image, or null for a still one. */
+    private final Frames frames;
+
+    /**
+     * Where an animated image's frames come from. Not API: {@link Images} makes these, from a
+     * list that is all there or from a file read as it plays.
+     */
+    interface Frames {
+        int count();
+
+        /** @return the frame, whole and of the animation's size; never null */
+        Image frame(int index);
+
+        int millis(int index);
+
+        /** @return how many turns, 0 for no end */
+        int loopCount();
+    }
 
     /**
      * @param width  pixels
@@ -36,6 +60,66 @@ public final class Image {
         this.width = width;
         this.height = height;
         this.rgba = rgba;
+        this.frames = null;
+    }
+
+    /** An animated image: its own pixels are its first frame's. */
+    Image(Image first, Frames frames) {
+        this.width = first.width;
+        this.height = first.height;
+        this.rgba = first.rgba;
+        this.frames = frames;
+    }
+
+    /** @return whether this image has more than one frame, which something may play */
+    public boolean isAnimated() {
+        return frames != null;
+    }
+
+    /** @return how many frames; 1 for a still image */
+    public int frameCount() {
+        return frames == null ? 1 : frames.count();
+    }
+
+    /**
+     * One frame, as a still image of this image's size: what is shown at that moment, whole,
+     * whatever the file built it from. The frame of a still image is the image.
+     *
+     * @param index from 0 to {@link #frameCount()} - 1
+     * @return the frame; the same object each time for as long as it is kept in memory
+     * @throws IndexOutOfBoundsException if there is no such frame
+     */
+    public Image frame(int index) {
+        Objects.checkIndex(index, frameCount());
+        return frames == null ? this : frames.frame(index);
+    }
+
+    /**
+     * @param index from 0 to {@link #frameCount()} - 1
+     * @return how long that frame is shown at the animation's own speed, in milliseconds; 0 for
+     *         a still image
+     * @throws IndexOutOfBoundsException if there is no such frame
+     */
+    public int frameMillis(int index) {
+        Objects.checkIndex(index, frameCount());
+        return frames == null ? 0 : frames.millis(index);
+    }
+
+    /** @return how long one turn of the animation takes, in milliseconds; 0 for a still image */
+    public long durationMillis() {
+        long whole = 0;
+        for (int i = 0, n = frames == null ? 0 : frames.count(); i < n; i++) {
+            whole += frames.millis(i);
+        }
+        return whole;
+    }
+
+    /**
+     * @return how many turns the animation asks for: 0 for one that does not end, which is also
+     *         what a still image answers
+     */
+    public int loopCount() {
+        return frames == null ? 0 : frames.loopCount();
     }
 
     /** @return width in pixels */

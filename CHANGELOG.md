@@ -262,6 +262,16 @@ Maven Central say which number that was.
 
 ### New
 
+- Animated images. An `Image` may be animated: `isAnimated()`, `frameCount()`, `frame(i)`,
+  each frame an image, `frameMillis(i)`, `durationMillis()` and `loopCount()`. Its own pixels
+  are its first frame's, so whatever draws an image without playing it draws a still picture.
+  An `ImageView` plays one by itself, with `setPlaying`, `setSpeed`, `setLoop` (as the image
+  says, without end, once, a number of times, or forward and back), `seekFrame` and
+  `onFinished`; `limn.animation.ImageAnimation` is the same clockwork for a widget of an
+  application's own. An animated GIF is read as one, where only its first frame was, with the
+  times of its frames and the turns it asks for. `Images.fromSheet` makes one of a sheet of
+  sprites and `Images.animation` of frames from anywhere. And `ImageFormat.GIF` is written:
+  every frame of an animated image, or a still picture, in the 256 colours the format holds.
 - `ButtonGroup.remove(radio)` takes a radio out of its group.
 - `Ui.postDelayed` returns a `Subscription` that withdraws the task: a timer armed for
   something that can go away first is cancelled there, where it held all it captured until it
