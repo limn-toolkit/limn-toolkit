@@ -167,6 +167,12 @@ final class WindowsTray implements TrayPeer {
     }
 
     @Override
+    public void hide() {
+        state = null;
+        post(WM_APP_UPDATE);
+    }
+
+    @Override
     public boolean isAvailable() {
         return available && !disposed;
     }
@@ -342,6 +348,17 @@ final class WindowsTray implements TrayPeer {
     /** Adds the icon, or changes it to what the state says now. */
     private void apply() {
         TrayState now = state;
+        if (now == null && !disposed && data != NULL && added) {
+            // Hidden: the structure still names the window and the number the icon was added by.
+            shell("Shell_NotifyIconW", "ip>i", NIM_DELETE, data);
+            added = false;
+            applied = null;
+            if (available) {
+                available = false;
+                ui.execute(host::availabilityChanged);
+            }
+            return;
+        }
         if (now == null || disposed || data == NULL || now.equals(applied) && added) {
             return;
         }

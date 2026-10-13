@@ -35,10 +35,16 @@ class TrayTest {
         TrayHost host;
         boolean available = true;
         int disposed;
+        int hidden;
 
         @Override
         public void update(TrayState state) {
             states.add(state);
+        }
+
+        @Override
+        public void hide() {
+            hidden++;
         }
 
         @Override
@@ -118,6 +124,27 @@ class TrayTest {
         assertEquals("3 waiting", state.tooltip());
         assertTrue(state.attention());
         assertFalse(state.activates());
+        assertTrue(tray.isAvailable());
+    }
+
+    @Test
+    void anIconShownIsTakenOutWhenTheTrayHasNoneAndPutBackWithTheNext() {
+        Icon picture = square(0x2E7DFF, false);
+        Icon shape = square(0, true);
+        tray.setIcon(picture).setMonochromeIcon(shape);
+        assertTrue(tray.isAvailable());
+
+        tray.setIcon(null);
+        assertEquals(0, peer.hidden, "the shape is still an icon");
+        tray.setMonochromeIcon(null);
+        assertEquals(1, peer.hidden);
+        assertFalse(tray.isAvailable(), "nothing is shown, so nothing is there to click");
+        tray.setIcon(null).setTooltip("still none");
+        assertEquals(1, peer.hidden, "told once");
+
+        int sent = peer.states.size();
+        tray.setIcon(picture);
+        assertEquals(sent + 1, peer.states.size(), "the same picture as before is shown again");
         assertTrue(tray.isAvailable());
     }
 

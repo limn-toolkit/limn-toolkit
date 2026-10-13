@@ -184,8 +184,8 @@ public final class Tray {
     }
 
     /**
-     * Sets the icon, shown as it is. Until a tray has this or {@link #setMonochromeIcon} it shows
-     * nothing.
+     * Sets the icon, shown as it is. A tray shows nothing until it has this or
+     * {@link #setMonochromeIcon}, and is taken out of the system's tray when it has neither again.
      *
      * @param icon the icon, or {@code null} for none
      * @return this tray
@@ -367,9 +367,16 @@ public final class Tray {
         }
     }
 
-    /** Hands the peer what the tray shows now, when it shows anything and that changed. */
+    /** Hands the peer what the tray shows now when that changed, or takes out an icon it has no more. */
     private void push() {
-        if (disposed || icon == null && monochrome == null) {
+        if (disposed) {
+            return;
+        }
+        if (icon == null && monochrome == null) {
+            if (shown != null) {
+                shown = null;
+                peer.hide();
+            }
             return;
         }
         boolean rtl = direction.isRightToLeft();

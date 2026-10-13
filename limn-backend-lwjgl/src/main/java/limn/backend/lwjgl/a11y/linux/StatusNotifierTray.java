@@ -144,6 +144,17 @@ public final class StatusNotifierTray implements TrayPeer {
     }
 
     @Override
+    public void hide() {
+        if (disposed || state == null) {
+            return;
+        }
+        // A panel shows an item for as long as its name is on the bus, whatever its status says,
+        // so the connection goes; the next state connects and registers as the first did.
+        state = null;
+        work.add(this::disconnect);
+    }
+
+    @Override
     public boolean isAvailable() {
         return registered && !disposed;
     }
@@ -297,13 +308,17 @@ public final class StatusNotifierTray implements TrayPeer {
     }
 
     private void reconnect() {
+        disconnect();
+        connect();
+    }
+
+    private void disconnect() {
         DBus.Conn c = connection;
         connection = null;
         if (c != null) {
             c.close();
         }
         setRegistered(false);
-        connect();
     }
 
     /** Connects and registers, trying again later for as long as there is no bus to connect to. */

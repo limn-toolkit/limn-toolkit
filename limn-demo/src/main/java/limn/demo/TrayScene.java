@@ -190,6 +190,17 @@ final class TrayScene {
         if (!started) {
             icons.run();
         }
+        if (!started && on.contains("toggle")) {
+            // The icon taken out and put back with nobody at the switch.
+            for (int step = 1; step <= 2; step++) {
+                boolean there = step == 2;
+                Ui.postDelayed(() -> {
+                    iconOn = there;
+                    shown.setChecked(there);
+                    icons.run();
+                }, 5000L * step);
+            }
+        }
         if (!started && on.contains("attention")) {
             attentionOn = true;
             attention.setChecked(true);

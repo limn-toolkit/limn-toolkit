@@ -1511,6 +1511,11 @@ public final class LwjglBackend implements BackendPeer {
             }
 
             @Override
+            public void hide() {
+                made.hide();
+            }
+
+            @Override
             public boolean isAvailable() {
                 return made.isAvailable();
             }

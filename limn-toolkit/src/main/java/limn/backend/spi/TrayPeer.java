@@ -19,6 +19,13 @@ public interface TrayPeer {
     void update(TrayState state);
 
     /**
+     * Takes the icon out of the tray until the next {@link #update}, which puts it back as the
+     * first one did. The peer is {@linkplain #isAvailable() not available} meanwhile. Nothing
+     * happens when no icon is shown.
+     */
+    void hide();
+
+    /**
      * @return whether the system took the icon. Not whether somebody sees it: no system says that
      */
     boolean isAvailable();
@@ -30,6 +37,10 @@ public interface TrayPeer {
     TrayPeer NONE = new TrayPeer() {
         @Override
         public void update(TrayState state) {
+        }
+
+        @Override
+        public void hide() {
         }
 
         @Override
