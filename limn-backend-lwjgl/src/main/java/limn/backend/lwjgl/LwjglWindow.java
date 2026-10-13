@@ -1054,6 +1054,12 @@ final class LwjglWindow implements WindowPeer {
         return (ObjC.msg(nsWindow, "occlusionState") & 2L) == 0;
     }
 
+    /** Whether the desktop says this window is the one keys go to, asked of it now. */
+    boolean hasTheKeyboard() {
+        return !destroyed && org.lwjgl.glfw.GLFW.glfwGetWindowAttrib(handle, org.lwjgl.glfw.GLFW.GLFW_FOCUSED)
+                == org.lwjgl.glfw.GLFW.GLFW_TRUE;
+    }
+
     boolean closeRequested() {
         return destroyed || glfwWindowShouldClose(handle);
     }
