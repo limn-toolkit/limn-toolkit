@@ -143,6 +143,15 @@ final class AppScene {
             this.under.addAll(List.of(under));
         }
 
+        /** The icon beside the name in the navigation: a name of the icon pack, or null. */
+        String icon;
+
+        /** Says which icon stands beside this place's name. */
+        Place icon(String name) {
+            this.icon = name;
+            return this;
+        }
+
         /** The name the lab's switches know this page by: its English one. */
         String id() {
             return name.english();
@@ -157,12 +166,12 @@ final class AppScene {
      * links without building a window.
      */
     static List<Place> places(Label status, Supplier<Widget<?>> ordersPage) {
-        Place orders = new Place(ShowcaseStrings.NAV_ORDERS, null, ordersPage);
+        Place orders = new Place(ShowcaseStrings.NAV_ORDERS, null, ordersPage).icon("receipt");
         Place components = new Place(ShowcaseStrings.NAV_COMPONENTS,
                 new Place(ShowcaseStrings.NAV_INPUTS, "components/#button",
-                        () -> scrolling(BasicsScene.content())),
+                        () -> scrolling(BasicsScene.content())).icon("forms"),
                 new Place(ShowcaseStrings.NAV_COMBOS, "components/#combo-box",
-                        () -> scrolling(CombosScene.content())),
+                        () -> scrolling(CombosScene.content())).icon("select"),
                 new Place(ShowcaseStrings.NAV_SLIDERS, "components/#slider", () -> {
                     limn.scene.layout.Column both = new limn.scene.layout.Column();
                     both.gap(16).crossAlignment(Flex.CrossAlignment.STRETCH);
@@ -170,49 +179,49 @@ final class AppScene {
                     both.add(Separator.horizontal());
                     both.add(NewControlsScene.content());
                     return scrolling(both);
-                }),
+                }).icon("adjustments-horizontal"),
                 new Place(ShowcaseStrings.TAB_DATES, "components/#date-picker",
-                        () -> scrolling(DatesScene.content())),
+                        () -> scrolling(DatesScene.content())).icon("calendar"),
                 new Place(ShowcaseStrings.NAV_LISTS, "docs/lists-and-scrolling/#long-lists",
-                        () -> beside(ListScene.buildList(status::setText))),
+                        () -> beside(ListScene.buildList(status::setText))).icon("list"),
                 new Place(ShowcaseStrings.NAV_TABLES, "docs/lists-and-scrolling/#tables",
-                        () -> beside(TableScene.content())),
+                        () -> beside(TableScene.content())).icon("table"),
                 new Place(ShowcaseStrings.NAV_TREES, "docs/lists-and-scrolling/#trees",
-                        () -> scrolling(TreeScene.content())),
+                        () -> scrolling(TreeScene.content())).icon("binary-tree"),
                 new Place(ShowcaseStrings.NAV_DIALOGS, "docs/menus-and-dialogs/#dialogs",
-                        () -> scrolling(DialogsScene.dialogs(status))),
+                        () -> scrolling(DialogsScene.dialogs(status))).icon("app-window"),
                 new Place(ShowcaseStrings.TAB_MENUS, "docs/menus-and-dialogs/#menus",
-                        () -> scrolling(DialogsScene.menus(status))),
+                        () -> scrolling(DialogsScene.menus(status))).icon("menu-2"),
                 new Place(ShowcaseStrings.NAV_DRAG_DROP, "docs/drag-and-drop/",
-                        () -> scrolling(PickerScene.content())),
+                        () -> scrolling(PickerScene.content())).icon("drag-drop"),
                 new Place(ShowcaseStrings.NAV_CLIPBOARD, "docs/drag-and-drop/#the-clipboard",
-                        () -> scrolling(TransferScene.content())),
+                        () -> scrolling(TransferScene.content())).icon("clipboard"),
                 new Place(ShowcaseStrings.NAV_TRAY, "docs/menus-and-dialogs/#an-icon-in-the-tray",
-                        () -> scrolling(TrayScene.page(status))),
-                new Place(ShowcaseStrings.NAV_CHARTS, "docs/charts/", () -> scrolling(ChartsScene.content())),
+                        () -> scrolling(TrayScene.page(status))).icon("bell"),
+                new Place(ShowcaseStrings.NAV_CHARTS, "docs/charts/", () -> scrolling(ChartsScene.content())).icon("chart-bar"),
                 new Place(ShowcaseStrings.NAV_TEXT, "docs/text-and-languages/",
-                        () -> scrolling(BidiScene.tabContent())),
+                        () -> scrolling(BidiScene.tabContent())).icon("language"),
                 new Place(ShowcaseStrings.NAV_ICONS, "docs/images-and-media/#icons",
-                        () -> beside(IconsScene.content())),
+                        () -> beside(IconsScene.content())).icon("icons"),
                 new Place(ShowcaseStrings.TAB_FILES, "docs/menus-and-dialogs/#native-file-dialogs",
-                        () -> beside(FilesScene.content())),
+                        () -> beside(FilesScene.content())).icon("folder"),
                 new Place(ShowcaseStrings.NAV_COLOURS, "components/#color-picker",
-                        () -> scrolling(ColorPickerScene.content())),
+                        () -> scrolling(ColorPickerScene.content())).icon("palette"),
                 new Place(ShowcaseStrings.NAV_SPLIT, "docs/lists-and-scrolling/#splitting-a-window",
-                        () -> beside(SplitPaneScene.content())),
+                        () -> beside(SplitPaneScene.content())).icon("layout-columns"),
                 new Place(ShowcaseStrings.NAV_MOTION, "docs/animations/",
-                        () -> scrolling(AnimationsScene.content())));
+                        () -> scrolling(AnimationsScene.content())).icon("player-play")).icon("components");
         Place media = new Place(ShowcaseStrings.NAV_MEDIA,
                 new Place(ShowcaseStrings.NAV_VIDEO, "docs/images-and-media/#video",
-                        () -> scrolling(VideoScene.pageContent())),
+                        () -> scrolling(VideoScene.pageContent())).icon("video"),
                 new Place(ShowcaseStrings.NAV_VIEWPORT, "docs/images-and-media/#3d",
-                        () -> scrolling(Viewport3DScene.tabContent())),
+                        () -> scrolling(Viewport3DScene.tabContent())).icon("cube"),
                 new Place(ShowcaseStrings.NAV_SOUND, "docs/images-and-media/#sound",
-                        () -> scrolling(AudioScene.content())),
+                        () -> scrolling(AudioScene.content())).icon("volume"),
                 new Place(ShowcaseStrings.NAV_SPRITES, "docs/images-and-media/#pictures",
-                        () -> scrolling(SpritesScene.content())),
+                        () -> scrolling(SpritesScene.content())).icon("photo"),
                 new Place(ShowcaseStrings.NAV_GLASS, "components/#backdrop-panel",
-                        () -> scrolling(GlassScene.content())));
+                        () -> scrolling(GlassScene.content())).icon("blur")).icon("movie");
         return List.of(orders, components, media);
     }
 
@@ -255,6 +264,9 @@ final class AppScene {
                 if (place.page == null) {
                     label.setStrong(true);
                 }
+                if (place.icon != null) {
+                    label.setIcon(limn.icons.tabler.Tabler.outline(place.icon));
+                }
                 return new Padding(Insets.symmetric(6, 6), label);
             }
 
@@ -268,7 +280,7 @@ final class AppScene {
                 // Two levels in a narrow strip: declared narrow, so the outline is never wider
                 // than its box and choosing a page never moves it sideways; a name too long for
                 // the strip ends in an ellipsis, as a navigation's does.
-                return 96;
+                return 156;
             }
         });
         navigation.setAccessibleName(ShowcaseStrings.NAV_PAGES);
@@ -324,8 +336,8 @@ final class AppScene {
         band.add(theme);
 
         SplitPane body = SplitPane.horizontal(navigation, holder);
-        body.setRatio(0.17f);
-        body.setMinimums(196, 420);
+        body.setRatio(0.2f);
+        body.setMinimums(232, 420);
         body.setAccessibleName(ShowcaseStrings.NAV_PAGES);
 
         Row statusRow = new Row();

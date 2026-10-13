@@ -59,14 +59,14 @@
  58         label "Motion" [disabled]
  59       tree item "Media and 3D" [disabled, selectable, expanded, expandable] item 3 of 3 unselected expanded level 1 row 22 of 27
  60         label "Media and 3D" [disabled]
- 61     splitter "Divider" [disabled, horizontal] value=196 [196..371 step 10]
+ 61     splitter "Divider" [disabled, horizontal] value=232 [232..371 step 10]
  62     heading "Orders" [disabled]
  63     label "48 of 48" [disabled]
  64     search field "Customer or number" (explicit) [disabled, editable] text="" caret=0
  65       button "Clear" [disabled]
  66     combo box "Status" (explicit) [disabled, expandable, has-popup, read-only] value=0 [0..5 step 1] "None selected" read-only collapsed
  67     button "New order" [disabled, offscreen]
- 68     table "Orders" (explicit) [disabled] selection=single scroll v=0% view 20% h=0% view 82% table 48x6
+ 68     table "Orders" (explicit) [disabled] selection=single scroll v=0% view 20% h=0% view 76% table 48x6
  69       group "" [disabled]
  70         column header "Order" [disabled] cell header,0
  71         column header "Customer" [disabled] cell header,1
@@ -148,7 +148,7 @@
 147         cell "48" [disabled] cell footer,0
 148         cell "$106,914.00" [disabled] cell footer,4
 149       scroll bar "" [disabled, vertical] value=0 [0..1610 step 406]
-150       scroll bar "" [disabled, horizontal] value=0 [0..129 step 571]
+150       scroll bar "" [disabled, horizontal] value=0 [0..165 step 535]
 151     scroll pane "" [disabled, hidden, offscreen] scroll none
 152       label "Order #1089" [disabled, hidden, offscreen]
 153       button "Close" (explicit) desc "Close" [disabled, hidden, offscreen]
