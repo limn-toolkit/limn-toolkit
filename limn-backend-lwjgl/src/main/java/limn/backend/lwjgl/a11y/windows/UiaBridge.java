@@ -1996,6 +1996,28 @@ public final class UiaBridge extends PlatformBridge {
         owedAnEvent = true;
     }
 
+    /**
+     * A client read or asked something of an element it already holds. Such a call arrives with
+     * no {@code WM_GETOBJECT}: a client that found a control once and keeps its element, as a
+     * tool that drives the application does while it waits for a button to enable, never asks for
+     * the root again. With only the root's asks counted, the gate shut two seconds after the
+     * element was found and every later read was answered from the tree of that moment: a table
+     * scrolled through its own pattern reported the percent it had before, and a property polled
+     * for a change never changed. Any call an element answers counts as an ask now, and the one
+     * that finds the gate shut asks for a fresh tree, which the call after it reads. Any thread.
+     */
+    void noteRead() {
+        long now = clock.getAsLong();
+        boolean lapsed = now - lastAskedNanos >= ASKED_WINDOW_NANOS;
+        lastAskedNanos = now;
+        if (lapsed && advised.get() == 0) {
+            Host current = host();
+            if (current != null) {
+                current.requestRepublish();
+            }
+        }
+    }
+
     /** @return whether a client asked and has not yet heard a change; for tests. */
     boolean owesAnEvent() {
         return owedAnEvent;
@@ -2022,6 +2044,7 @@ public final class UiaBridge extends PlatformBridge {
 
         @Override
         public AccessibleTree tree() {
+            noteRead();
             return UiaBridge.this.tree();
         }
 

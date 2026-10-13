@@ -733,6 +733,43 @@ class UiaBridgeTest {
     }
 
     @Test
+    void aReadThroughAnElementAlreadyHeldIsAnAskAndTheOneThatFindsTheGateShutBuysAFreshTree() {
+        long[] nanos = {5_000_000_000L};
+        int[] republishes = {0};
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234, () -> nanos[0]);
+        try {
+            bridge.attach(new limn.backend.AccessibilityBridge.Host() {
+                @Override public void requestRepublish() {
+                    republishes[0]++;
+                }
+                @Override public void requestRestamp() { }
+                @Override public AccessibleTree republishNow() { return AccessibleTree.EMPTY; }
+                @Override public boolean perform(long nodeId, Accessible.Action action,
+                                                 Accessible.Argument arg) {
+                    return false;
+                }
+            });
+            bridge.publish(aWindowWith(Accessible.Role.BUTTON, true), false);
+            bridge.noteAsked();
+            nanos[0] += UiaBridge.ASKED_WINDOW_NANOS + 1;
+            assertFalse(UiaBridge.listening(true, bridge.advisedEvents(),
+                    bridge.lastAskedForTests(), nanos[0]), "two seconds after the element was found");
+
+            bridge.contextForTests().tree();
+            assertEquals(nanos[0], bridge.lastAskedForTests(),
+                    "a client polling a property of an element it holds is reading this window");
+            assertEquals(1, republishes[0], "and the tree it was answered from was not being kept current");
+            assertTrue(UiaBridge.listening(true, bridge.advisedEvents(),
+                    bridge.lastAskedForTests(), nanos[0]));
+            nanos[0] += 1_000_000_000L;
+            bridge.contextForTests().tree();
+            assertEquals(1, republishes[0], "a read inside the window is answered from a current tree");
+        } finally {
+            bridge.detach();
+        }
+    }
+
+    @Test
     void answeringGetObjectStampsTheAskOnTheBridgesClock() {
         long[] nanos = {5_000_000_000L};
         UiaBridge bridge = UiaBridge.withoutTheGate(0x1234, () -> nanos[0]);
