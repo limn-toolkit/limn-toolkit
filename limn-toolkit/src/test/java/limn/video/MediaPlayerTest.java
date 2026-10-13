@@ -751,6 +751,53 @@ class MediaPlayerTest {
         assertEquals(MediaPlayer.State.CLOSED, player.state());
     }
 
+    /**
+     * At the end the decode thread waits with no bound for a seek or a start, where it used to
+     * wake fifty times a second. A wait with no bound is a thread that never plays again if the
+     * signal is missed, and that is what this holds: a seek after the end is read from. The
+     * waking itself is not something a stream can count, since the end is not read twice.
+     */
+    @Test
+    void atTheEndTheDecodeThreadReadsNothingUntilASeekGivesItWorkAgain() throws Exception {
+        PooledTestStream stream = new PooledTestStream(64, 32, 5);
+        stream.frameCount = 2;
+        MediaPlayer player = new MediaPlayer(stream).setRingCapacity(3);
+        try {
+            player.start();
+            await(() -> player.bufferedPictures() == 2 && stream.reads.get() >= 3, "the stream to end");
+            Thread.sleep(100); // long enough for the thread to be in its wait
+            int atTheEnd = stream.reads.get();
+
+            player.seek(0);
+            await(() -> stream.seeks.get() == 1 && stream.reads.get() > atTheEnd,
+                    "the seek to wake the thread and be read from");
+            assertNull(player.failure());
+        } finally {
+            player.close();
+        }
+    }
+
+    /** A player the application never closes keeps a thread, and the backend ending is what closes it. */
+    @Test
+    void aPlayerLeftOpenIsClosedWhenTheBackendEnds() {
+        int before = limn.concurrent.internal.LeftOpen.count();
+        PooledTestStream stream = new PooledTestStream(64, 32, 5);
+        MediaPlayer left = new MediaPlayer(stream).setRingCapacity(3);
+        left.start();
+        MediaPlayer stopped = new MediaPlayer(new PooledTestStream(64, 32, 5)).setRingCapacity(3);
+        stopped.start();
+        stopped.stop();
+        assertEquals(before + 1, limn.concurrent.internal.LeftOpen.count(),
+                "a stopped player has no thread, and is nothing to close");
+
+        ui.close();
+        assertEquals(MediaPlayer.State.CLOSED, left.state());
+        assertEquals(before, limn.concurrent.internal.LeftOpen.count());
+        assertEquals(stream.slots(), stream.freeSlots(), "and its pictures went back");
+        ui = new HeadlessUi(); // for the teardown, which closes one
+        stopped.close();
+    }
+
     @Test
     void closingWhileAReadIsInFlightWaitsForItAndReleasesWhatItProduced() throws Exception {
         PooledTestStream stream = new PooledTestStream(64, 32, 4);

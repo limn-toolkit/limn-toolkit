@@ -146,7 +146,9 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
          * cancelled if the row is collapsed, the tree refreshed, or the tree taken out of its scene
          * before it lands — a tree merely moved between containers loads its open rows again when
          * it arrives, which is the price of never leaving a row busy over a job that was dropped.
-         * The tree caches what arrives, so a second expansion of the same node costs nothing. A
+         * The tree keeps what arrives for as long as the row is open and lets it go when the row
+         * closes, so a second expansion of the same node loads again: a model that wants it to
+         * cost nothing keeps what it loaded and answers it from {@link #children}. A
          * load that finds no children leaves the row an open branch with an "Empty" line under it,
          * where the "Loading…" line stood; a load that fails closes the row.
          *
@@ -352,7 +354,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     /** The visible rows, in traversal order; rebuilt when what is open changes. */
     private final List<Row<T>> rows = new ArrayList<>();
     private final Set<T> expanded = new LinkedHashSet<>();
-    /** Children that arrived from {@link Model#load}, kept so a re-expansion costs nothing. */
+    /** Children that arrived from {@link Model#load}, kept while their row is open. */
     private final Map<T, List<T>> loaded = new HashMap<>();
     /** Jobs in flight, so collapsing a row that is still loading cancels it. */
     private final Map<T, Job> loading = new HashMap<>();
@@ -806,6 +808,9 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         }
         respliceSubtree(node);
         forgetRevealedPaths();
+        if (!open) {
+            forgetLoadedUnder(node);
+        }
         if (!open && cursor != null && (cursorShown ? !rowNodes.contains(cursor) : cursorUnder)) {
             // The collapse hid the row the cursor was on: the cursor climbs to the row that
             // closed, which is where Explorer, Finder and GTK put it, and the selection stays
@@ -827,6 +832,32 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         markNeedsContainedLayout();
         invalidate();
         notifyChange(Change.of(Change.Aspect.EXPANDED, origin));
+    }
+
+    /**
+     * Lets go of what was loaded for a row that closed, and for every row under it. The tree needs
+     * a load's children only while the row is open, to make its rows of; kept past that they were
+     * every child of every node ever opened, over a model with no end. Opening the row again
+     * loads again, and a row under it that was open opens with it and loads its own.
+     */
+    private void forgetLoadedUnder(T node) {
+        List<T> gone = loaded.remove(node);
+        if (gone == null) {
+            return;
+        }
+        java.util.ArrayDeque<T> under = new java.util.ArrayDeque<>(gone);
+        while (!under.isEmpty()) {
+            T next = under.poll();
+            Job job = loading.remove(next);
+            if (job != null) {
+                job.cancel();
+            }
+            List<T> below = loaded.remove(next);
+            if (below != null) {
+                under.addAll(below);
+            }
+        }
+        releaseIdentifiers();
     }
 
     /**

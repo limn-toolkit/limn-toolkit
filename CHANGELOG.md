@@ -15,6 +15,21 @@ Maven Central say which number that was.
   when the last picture it handed out comes back: a window closed with a video in it kept the
   whole decoder, whatever the application then closed. A closing window detaches its widgets
   now; see Changed.
+- A `MediaPlayer` whose stream has ended sleeps until a seek or a start: its decoding thread
+  woke fifty times a second for as long as the player was left open. And one the application
+  never closes is closed when the backend ends, with a warning that names it; nothing else
+  ever stopped its thread.
+- A sound the application has let go of is let go by the engine too. The engine kept the last
+  sixty-four clips it had played, samples and all, whoever still had them. And a sound that is
+  not streamed because four streams are already open says so in a warning, where it said
+  nothing: a stream paused or looping stays open until it is stopped.
+- A font made anew as a program runs is remembered as any other. Past 4,096 fonts the memo of
+  which face a font resolves to stopped taking new ones, kept the old for good, and resolved
+  every later font the long way at each measure and each draw. And the pairs of glyphs a face
+  has been asked the kerning of are held to a ceiling, where varied text in a script of
+  thousands of glyphs added to them without end.
+- A window whose renderer throws as it closes is still destroyed, and a shader whose second
+  half is refused gives back its first.
 - A widget removed from a window is collected in a window nobody reads. The accessibility walk
   keeps who answers for each node, and where no screen reader is running the tree is walked once
   and not again, so every widget of a window's first frame stayed for the life of the window,
@@ -247,6 +262,10 @@ Maven Central say which number that was.
 
 ### New
 
+- `ButtonGroup.remove(radio)` takes a radio out of its group.
+- `Ui.postDelayed` returns a `Subscription` that withdraws the task: a timer armed for
+  something that can go away first is cancelled there, where it held all it captured until it
+  fell due.
 - `Images.loadPinned` and `Images.fromResourcePinned`, with `unpin` and `unpinResource`, and
   the same four on `Sounds`: a shared load that is kept whatever the budget below, for what an
   application wants at hand for as long as it runs. `setSharedBudget` and `sharedBudget` move
@@ -551,6 +570,20 @@ Maven Central say which number that was.
 
 ### Changed
 
+- A `Tree` keeps the children a load produced for as long as their row is open, and lets them
+  go when it closes: opening the row again loads again. It kept the children of every node
+  ever opened until `refresh()`, which over a model with no end, a disk, is everything the user
+  has ever looked into. A model that wants a second opening to cost nothing keeps what it
+  loaded and answers it from `children`.
+- A radio that is out of the scene it was in is out of its `ButtonGroup` until it is back: the
+  group does not hold it, `members()` does not list it, and the others no longer count it in
+  the "2 of 4" a screen reader speaks. It takes the place it was added at when it returns, and
+  gives way if the group chose another meanwhile. A form rebuilt against the same group left
+  it every radio of every form before.
+- The file `Transfer.withImageAsFile` writes goes in one directory made for the run, under the
+  system's temporary directory. The file of the transfer before is deleted when the next is
+  written and the directory when the program ends, where each file stayed, in a directory of
+  its own, until the program ended in good order.
 - The shared loads of `Images` and `Sounds` are kept within a budget. `loadShared` and
   `fromResourceShared` kept every picture and every clip they had ever loaded until the
   application ended, so one that shows a picture per record grew without limit. What landed is

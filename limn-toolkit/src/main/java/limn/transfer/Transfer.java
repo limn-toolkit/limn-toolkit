@@ -119,7 +119,11 @@ public final class Transfer {
      *
      * <p>Not what a transfer of a picture does by itself: a file is written to disk for it, and
      * where a system asks for a drag's files as the drag begins (macOS does) that is at every
-     * drag. The file is deleted when the program ends.
+     * drag. The files go in one directory made for this run of the program, under the system's
+     * temporary directory. The file of the transfer before is deleted when the next one is
+     * written, so that a program left running does not fill the disk one picture a drag, and
+     * the directory with whatever is left in it when the program ends. A taker that wants the
+     * picture for longer copies it, as a file manager does.
      *
      * @param name the file's name, without a directory: {@code "logo.png"}
      * @return the new transfer
@@ -144,17 +148,48 @@ public final class Transfer {
             limn.graphics.Image picture = known != null ? known
                     : Objects.requireNonNull(get(DataFormat.IMAGE), "the picture");
             try {
-                java.nio.file.Path directory = java.nio.file.Files.createTempDirectory("limn-transfer");
-                directory.toFile().deleteOnExit(); // registered first, so deleted last, once it is empty
-                java.nio.file.Path file = directory.resolve(name);
+                java.nio.file.Path file = RunFiles.next(name);
                 java.nio.file.Files.write(file,
                         limn.graphics.Images.encode(picture, limn.graphics.ImageFormat.PNG));
-                file.toFile().deleteOnExit();
                 return java.util.List.of(file);
             } catch (java.io.IOException failed) {
                 throw new java.io.UncheckedIOException(failed);
             }
         }, atHand));
+    }
+
+    /**
+     * The files written for transfers, in a directory of this run's own: each in a directory of
+     * its own inside it, since two transfers may give their files the same name.
+     */
+    private static final class RunFiles {
+        private static java.nio.file.Path root;
+        private static java.nio.file.Path last;
+        private static long made;
+
+        /** @return where the next file goes, the one before it deleted */
+        static synchronized java.nio.file.Path next(String name) throws java.io.IOException {
+            if (root == null) {
+                root = java.nio.file.Files.createTempDirectory(
+                        "limn-transfer-" + ProcessHandle.current().pid() + "-");
+                java.nio.file.Path whole = root;
+                Runtime.getRuntime().addShutdownHook(new Thread(() -> delete(whole), "limn-transfer-files"));
+            }
+            if (last != null) {
+                delete(last);
+            }
+            last = java.nio.file.Files.createDirectory(root.resolve(Long.toString(++made)));
+            return last.resolve(name);
+        }
+
+        /** Deletes a directory and what is in it; what cannot be deleted is left, and said nowhere. */
+        private static void delete(java.nio.file.Path directory) {
+            try (java.util.stream.Stream<java.nio.file.Path> inside = java.nio.file.Files.walk(directory)) {
+                inside.sorted(java.util.Comparator.reverseOrder()).forEach(path -> path.toFile().delete());
+            } catch (java.io.IOException | java.io.UncheckedIOException gone) {
+                // Already deleted, or not ours to delete any more.
+            }
+        }
     }
 
     private Transfer plus(DataFormat<?> format, Slot slot) {

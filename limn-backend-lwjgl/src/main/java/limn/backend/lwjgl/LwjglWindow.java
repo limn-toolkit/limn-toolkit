@@ -1230,7 +1230,14 @@ final class LwjglWindow implements WindowPeer {
         // GL resources (VBO/shader) must die on their own context.
         makeContextCurrent();
         GL.setCapabilities(glCapabilities);
-        renderer.dispose();
+        try {
+            renderer.dispose();
+        } catch (RuntimeException | LinkageError error) {
+            // Contained for the reason the close callback is: this method runs once, and what
+            // follows gives back the callbacks and the window itself.
+            LOG.log(System.Logger.Level.ERROR, "the renderer threw as its window closed; the window is still"
+                    + " destroyed", error);
+        }
         if (nsglContext != NULL) {
             // Ours to release, and it must let go of the view before the window goes.
             MacSoftwareGl.dispose(nsglContext);

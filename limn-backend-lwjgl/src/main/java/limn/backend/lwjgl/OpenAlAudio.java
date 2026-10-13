@@ -114,8 +114,23 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
     private static final int STREAM_CHUNK_FRAMES = 8192;
     private static final int STREAM_BUFFERS = 3;
 
-    private final Map<AudioClip, Integer> bufferByClip = new IdentityHashMap<>();
-    private final java.util.ArrayDeque<AudioClip> clipOrder = new java.util.ArrayDeque<>();
+    /**
+     * A clip and the device buffer made of it, the clip held weakly: the buffer is for as long as
+     * the application has the clip, and a clip it let go of was otherwise kept here, samples and
+     * all, until sixty-four others had been played.
+     */
+    private static final class CachedClip extends java.lang.ref.WeakReference<AudioClip> {
+        final int buffer;
+
+        CachedClip(AudioClip clip, int buffer, java.lang.ref.ReferenceQueue<AudioClip> gone) {
+            super(clip, gone);
+            this.buffer = buffer;
+        }
+    }
+
+    /** The cached clips, oldest first. */
+    private final List<CachedClip> cachedClips = new ArrayList<>();
+    private final java.lang.ref.ReferenceQueue<AudioClip> clipsGone = new java.lang.ref.ReferenceQueue<>();
     private final List<Voice> voices = new ArrayList<>();
     private final List<Stream> streams = new ArrayList<>();
     // AudioBus has identity equality, so a HashMap keys by bus instance.
@@ -291,11 +306,20 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
 
     /** Returns the cached device buffer for {@code clip}, uploading it once. */
     private int bufferFor(AudioClip clip) {
-        Integer cached = bufferByClip.get(clip);
-        if (cached != null) {
-            return cached;
+        while (clipsGone.poll() != null) {
+            // Drained here and acted on below: a clip that is gone is the first to be evicted.
         }
-        while (bufferByClip.size() >= MAX_CACHED_CLIPS && evictOneUnusedBuffer()) {
+        for (int i = cachedClips.size() - 1; i >= 0; i--) {
+            CachedClip cached = cachedClips.get(i);
+            if (cached.get() == clip) {
+                return cached.buffer;
+            }
+            if (cached.get() == null && !bufferInUse(cached.buffer)) {
+                cachedClips.remove(i);
+                deleteBuffer(cached.buffer); // nobody has the clip, and nothing is sounding it
+            }
+        }
+        while (cachedClips.size() >= MAX_CACHED_CLIPS && evictOneUnusedBuffer()) {
             // keep evicting until under the cap or nothing evictable remains
         }
         short[] samples = clip.samples();
@@ -308,8 +332,7 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
         } finally {
             MemoryUtil.memFree(pcm);
         }
-        bufferByClip.put(clip, buffer);
-        clipOrder.addLast(clip);
+        cachedClips.add(new CachedClip(clip, buffer, clipsGone));
         return buffer;
     }
 
@@ -322,36 +345,40 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
      * @return whether a buffer was evicted
      */
     private boolean evictOneUnusedBuffer() {
-        for (AudioClip candidate : clipOrder) {
-            Integer buffer = bufferByClip.get(candidate);
-            if (buffer == null) {
+        for (int i = 0; i < cachedClips.size(); i++) {
+            int buffer = cachedClips.get(i).buffer;
+            if (bufferInUse(buffer)) {
                 continue;
             }
-            boolean inUse = false;
-            for (Voice voice : voices) {
-                if (alGetSourcei(voice.source, AL_BUFFER) == buffer && isActive(voice.source)) {
-                    inUse = true;
-                    break;
-                }
-            }
-            if (inUse) {
-                continue;
-            }
-            clipOrder.remove(candidate);
-            bufferByClip.remove(candidate);
-            // Detach from idle sources that still reference it: deleting an
-            // attached buffer is an AL error (and would leak it).
-            for (Voice voice : voices) {
-                if (alGetSourcei(voice.source, AL_BUFFER) == buffer) {
-                    alSourceStop(voice.source);
-                    alSourcei(voice.source, AL_BUFFER, 0);
-                    voice.generation++;
-                }
-            }
-            alDeleteBuffers(buffer);
+            cachedClips.remove(i);
+            deleteBuffer(buffer);
             return true;
         }
         return false;
+    }
+
+    /** Whether a voice that is playing or paused is sounding {@code buffer}. */
+    private boolean bufferInUse(int buffer) {
+        for (Voice voice : voices) {
+            if (alGetSourcei(voice.source, AL_BUFFER) == buffer && isActive(voice.source)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Deletes a buffer no active voice is sounding, taken first off the idle sources that still name it. */
+    private void deleteBuffer(int buffer) {
+        // Detach from idle sources that still reference it: deleting an
+        // attached buffer is an AL error (and would leak it).
+        for (Voice voice : voices) {
+            if (alGetSourcei(voice.source, AL_BUFFER) == buffer) {
+                alSourceStop(voice.source);
+                alSourcei(voice.source, AL_BUFFER, 0);
+                voice.generation++;
+            }
+        }
+        alDeleteBuffers(buffer);
     }
 
     /**
@@ -513,8 +540,12 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
         int channels = source.channels();
         int sampleRate = source.sampleRate();
         if ((channels != 1 && channels != 2) || streams.size() >= MAX_STREAMS) {
-            LOG.log(Level.DEBUG, "stream rejected (channels={0}, active={1})",
-                    channels, streams.size());
+            // A warning, and it names the cause: a stream refused plays nothing and throws nothing,
+            // and the usual reason is one started earlier, paused or looping, that nobody stopped.
+            LOG.log(Level.WARNING, streams.size() >= MAX_STREAMS
+                    ? "a sound was not streamed: " + MAX_STREAMS + " streams are already open, and one"
+                            + " that is paused or looping stays open until it is stopped"
+                    : "a sound was not streamed: it has " + channels + " channels, and one or two are played");
             Closeables.closeQuietly(source, "an audio stream source");
             return Playback.NONE;
         }
@@ -998,11 +1029,11 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
                 alDeleteSources(voice.source);
             }
             voices.clear();
-            for (int buffer : bufferByClip.values()) {
+            for (CachedClip cached : cachedClips) {
+                int buffer = cached.buffer;
                 alDeleteBuffers(buffer);
             }
-            bufferByClip.clear();
-            clipOrder.clear();
+            cachedClips.clear();
             if (streamUpload != null) {
                 MemoryUtil.memFree(streamUpload);
                 streamUpload = null;

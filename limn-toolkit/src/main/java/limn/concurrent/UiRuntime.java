@@ -215,9 +215,12 @@ public final class UiRuntime implements AutoCloseable {
      * unchanged costs a wake-up and nothing else, where a
      * {@link limn.scene.Scene#addTicker ticker} asks for a frame every frame it
      * stays registered.
+     *
+     * @return a handle that withdraws the task if it has not run, from any thread
      */
-    public void postDelayed(Runnable action, long delayMillis) {
+    public Subscription postDelayed(Runnable action, long delayMillis) {
         Objects.requireNonNull(action, "action");
+        Waiting waiting = new Waiting(action);
         synchronized (delayedLock) {
             long now = delayClock.getAsLong();
             long deadline = now + TimeUnit.MILLISECONDS.toNanos(Math.max(0, delayMillis));
@@ -229,9 +232,46 @@ public final class UiRuntime implements AutoCloseable {
                 // behind it.
                 deadline = Long.MAX_VALUE;
             }
-            delayed.add(new DelayedTask(deadline, delayedSequence.getAndIncrement(), action));
+            delayed.add(new DelayedTask(deadline, delayedSequence.getAndIncrement(), waiting));
         }
         waker.wake();
+        return waiting;
+    }
+
+    /**
+     * A delayed task and the handle that withdraws it. Withdrawn, it lets go of the task at once,
+     * whether or not it is still in the queue: what a task captures is what a timer nobody wants
+     * any more would otherwise keep until it fell due, a closed window's scene among it.
+     */
+    private final class Waiting implements Runnable, Subscription {
+        private volatile @Nullable Runnable action;
+        /** The task's own class, which is what a report of a slow task names, and not this wrapper. */
+        final String named;
+
+        Waiting(Runnable action) {
+            this.action = action;
+            this.named = action.getClass().getName();
+        }
+
+        @Override
+        public void run() {
+            Runnable task = action;
+            action = null;
+            if (task != null) {
+                task.run();
+            }
+        }
+
+        @Override
+        public void cancel() {
+            if (action == null) {
+                return;
+            }
+            action = null;
+            synchronized (delayedLock) {
+                delayed.removeIf(task -> task.action() == this);
+            }
+        }
     }
 
     /**
@@ -403,7 +443,7 @@ public final class UiRuntime implements AutoCloseable {
         if (elapsed > slowTaskBudgetNanos) {
             LOG.log(Level.WARNING,
                     "UI task {0} took {1} ms (budget: {2} ms); move heavy work to Ui.async(...)",
-                    task.getClass().getName(),
+                    task instanceof Waiting waiting ? waiting.named : task.getClass().getName(),
                     TimeUnit.NANOSECONDS.toMillis(elapsed),
                     TimeUnit.NANOSECONDS.toMillis(slowTaskBudgetNanos));
         }

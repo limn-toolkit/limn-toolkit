@@ -241,8 +241,8 @@ class TreeTest extends ComponentTestBase {
         tree.collapse(lazy);
         tree.expand(lazy);
         ui.pumpUntil(() -> tree.visibleRowCount() == 3);
-        assertEquals(1, model.loadCalls,
-                "what a load produced is kept: a second opening costs nothing");
+        assertEquals(2, model.loadCalls,
+                "what a load produced is the tree's while the row is open, and loaded again when it reopens");
     }
 
     @Test
@@ -1522,8 +1522,8 @@ class TreeTest extends ComponentTestBase {
      * A row whose load finds nothing stays an open branch, and the line under it says "Empty"
      * where its children would be, in the place and the voice of the "Loading…" line it replaces
      * (decision 45 of 2026-09-14). Before, the loading line simply vanished and left an open
-     * triangle over nothing, which reads as a row that never loaded (TREE-NEW-13). The cached
-     * empty answer opens onto the same line without a second load.
+     * triangle over nothing, which reads as a row that never loaded (TREE-NEW-13). Closed and
+     * opened again it is loaded again, and says the same.
      */
     @Test
     void aLoadThatFindsNothingLeavesAnOpenBranchWithAnEmptyLineUnderIt() {
@@ -1553,9 +1553,15 @@ class TreeTest extends ComponentTestBase {
         assertEquals(List.of("trash", "b"), drawn(tree), "closed, the line goes with the row");
         tree.expand(trash);
         scene.layoutPass(220, 200);
-        assertEquals(List.of("trash", "Empty", "b"), drawn(tree),
-                "and reopened it says so at once, from what the load already found");
-        assertEquals(1, model.loadCalls, "without asking the model to load it again");
+        assertEquals(List.of("trash", "Loading…", "b"), drawn(tree),
+                "reopened, it is loaded again: what the first load found went with the row");
+        changes.clear();
+        ui.pumpUntil(() -> changes.stream().anyMatch(
+                c -> c.aspect() == limn.scene.Change.Aspect.CHILDREN
+                        && c.origin() == limn.scene.Change.Origin.ADJUSTMENT));
+        scene.layoutPass(220, 200);
+        assertEquals(List.of("trash", "Empty", "b"), drawn(tree), "and says again that it holds nothing");
+        assertEquals(2, model.loadCalls);
         for (Widget<?> cell : model.recycled) {
             assertFalse(cell instanceof Label label
                             && (label.text().equals("Empty") || label.text().equals("Loading…")),

@@ -103,17 +103,46 @@ On the Windows guest, forty windows: every scene of a closed window still reacha
 292 callbacks kept; none reachable after, and 12 callbacks, the main window's. A tour of every
 page of the Showcase with a client reading the whole tree throughout, some 7,000 nodes read and
 1,000 elements of nodes that left: 1,195 objects in the bridge's registry at the end before, and
-200 after, 58 freed during the run and none before. The rest of those let go are freed when the
-system lets go of them, which it had not by the end of the run.
+200 after. What is let go is freed when the system lets go of it: 58 in one run, none in two
+others, and under a screen reader 44 of the 83 that left, in each of four tours.
 
 On the Ubuntu guest no scene of a closed window was reachable before or after.
 
-## 5. Declared limits
+## 5. What the owner decided of the rest
 
-- On Windows an object let go of is freed when the system and the reader release it. Telling
-  the system to disconnect it, node by node, would hasten that and is a call across processes
-  on the UI thread for each node that leaves; not done, and not measured.
-- A `MediaPlayer` the application never closes keeps its decoding thread, as its documentation
-  says. A window closing does not close a player, which is the application's.
-- A `Tree` keeps the children it loaded of a node that was collapsed, until `refresh()`, so
-  that opening the node again loads nothing.
+The review left questions that had no single right answer, and these are his:
+
+- **A `Tree` lets go of loaded children when their row closes.** The tree needs them only
+  while the row is open, to make its rows of; kept past that they were a cache nobody had
+  bounded. Opening again loads again, and a model that wants otherwise keeps its own.
+- **A radio leaves its `ButtonGroup` while it is out of its scene** and returns to its place,
+  and `ButtonGroup.remove` takes one out for good.
+- **A `MediaPlayer` sleeps at the end and is closed with the backend,** with a warning. A
+  window closing does not close a player, which is the application's.
+- **A clip is held weakly by the sound engine,** and a stream that is refused is a warning.
+- **A transfer's file goes in one directory per run,** the one before deleted as the next is
+  written and the directory at the end.
+- **`Ui.postDelayed` returns a handle** that withdraws the task.
+
+## 6. Declared limits
+
+- On Windows an object let go of is freed when the system and the reader release it, and no
+  sooner. Telling the system to disconnect each node's provider as the node left was measured
+  under a screen reader on the guest, a few a frame on the UI thread: the same 44 objects were
+  freed in a tour with it and without, of 83 that left, at about a millisecond a node. It is
+  not done.
+- A window's root provider is counted for the system each time the system asks the window for
+  it, and whether every such count comes back was not settled: a close found between 16 and 34
+  references on the root over some twenty hand-overs, most of them the reader's own. At worst
+  it is one object for each window a reader asked, kept after the window closed.
+
+- A menu or a dialog the application keeps after it closed still names the scene it was last
+  shown over, one scene for each object kept, until it is shown again.
+- A shader program is kept until its window closes, since a draw of a later frame may name it;
+  a window that holds more than 256 says so once.
+- A GPU object disposed outside its own window's frame is not refused. The toolkit's own
+  widgets hand theirs to `Scene.disposeLater`.
+- Two things were read as unbalanced on macOS and left: the pasteboard of a drag is retained
+  for each drag that enters a window, and a file panel whose owner is destroyed under it may
+  never answer. Neither could be shown to grow, and the second sits where a block freed early
+  was a crash.

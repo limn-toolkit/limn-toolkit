@@ -348,4 +348,68 @@ class ButtonGroupTest extends ComponentTestBase {
         drive(scene).keyEvent(key, false, false, 0);
         drive(scene).inputBatchEnded();
     }
+
+    /**
+     * A group does not hold a radio that is out of the scene it was in, and counts only the ones
+     * that are there: a form rebuilt against the group it had kept every radio of every form
+     * before, and each was still one of the "n" a reader speaks.
+     */
+    @Test
+    void aRadioOutOfItsSceneLeavesTheGroupAndTakesItsPlaceAgainWhenItIsBack() {
+        RadioButton a = new RadioButton("A");
+        RadioButton b = new RadioButton("B");
+        RadioButton c = new RadioButton("C");
+        ButtonGroup group = new ButtonGroup().add(a).add(b).add(c);
+        assertEquals(List.of(a, b, c), group.members(), "members before any scene has them");
+        limn.scene.layout.Column form = new limn.scene.layout.Column();
+        form.add(a);
+        form.add(b);
+        form.add(c);
+        limn.scene.Scene scene = new limn.scene.Scene(form);
+        scene.setTextRuler(RULER);
+        b.select();
+
+        form.remove(b);
+        assertEquals(List.of(a, c), group.members());
+        assertEquals(-1, group.selectedIndex(), "the selection left with it");
+        assertTrue(b.isSelected(), "and is still the radio's own");
+        assertTrue(a.isFocusable(), "the group keeps one tab stop among those that are there");
+
+        form.add(b);
+        assertEquals(List.of(a, b, c), group.members(), "back at the place it was added at");
+        assertEquals(1, group.selectedIndex());
+
+        form.remove(b);
+        c.select();
+        form.add(b);
+        assertFalse(b.isSelected(), "the group chose another meanwhile, and the one that is back gives way");
+        assertEquals(2, group.selectedIndex());
+    }
+
+    @Test
+    void aRadioTakenOutOfTheGroupIsOnItsOwnAndAGroupWithoutItHoldsNothingOfIt() {
+        RadioButton a = new RadioButton("A");
+        RadioButton b = new RadioButton("B");
+        ButtonGroup group = new ButtonGroup().add(a).add(b);
+        a.select();
+        group.remove(a);
+        assertEquals(List.of(b), group.members());
+        assertEquals(-1, group.selectedIndex());
+        b.select();
+        assertTrue(a.isSelected(), "a radio on its own answers to no group");
+        group.remove(a);
+        assertEquals(List.of(b), group.members(), "taken out once");
+
+        java.lang.ref.WeakReference<RadioButton> gone = new java.lang.ref.WeakReference<>(a);
+        a = null;
+        for (int i = 0; i < 50 && gone.get() != null; i++) {
+            System.gc();
+            try {
+                Thread.sleep(20);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        assertEquals(null, gone.get());
+    }
 }

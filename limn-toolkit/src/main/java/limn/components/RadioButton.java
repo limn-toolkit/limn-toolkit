@@ -201,13 +201,51 @@ public final class RadioButton extends Widget<RadioButton> {
      * came back. This used to be a {@code setEnabled} override; the change channel is what a
      * component uses to hear its own state move now that the inherited setters are final.
      */
-    void attachToGroup(ButtonGroup owner) {
+    void attachToGroup(ButtonGroup owner, int place) {
         this.group = owner;
+        this.placeInGroup = place;
         observeChanges((source, change) -> {
-            if (change.aspect() == Change.Aspect.ENABLED) {
+            if (change.aspect() == Change.Aspect.ENABLED && group == owner) {
                 owner.memberEnabledChanged(this);
             }
         });
+    }
+
+    /** The place this radio was added to its group at, which it takes again when it comes back. */
+    private int placeInGroup;
+
+    int placeInGroup() {
+        return placeInGroup;
+    }
+
+    @Nullable ButtonGroup group() {
+        return group;
+    }
+
+    /** Out of its group for good: a radio on its own. */
+    void leaveGroup() {
+        group = null;
+        setFocusable(true);
+    }
+
+    /**
+     * A group does not hold a member that is out of the scene: a form rebuilt against the same
+     * group would otherwise leave it every radio of every form before, each still counted.
+     */
+    @Override
+    protected void onDetached() {
+        super.onDetached();
+        if (group != null) {
+            group.left(this);
+        }
+    }
+
+    @Override
+    protected void onAttached() {
+        super.onAttached();
+        if (group != null) {
+            group.returned(this);
+        }
     }
 
     /** Updates the visual state without announcing (the group drives the announcement). */

@@ -149,6 +149,24 @@ class TransferTest {
     }
 
     @Test
+    void theFileOfTheTransferBeforeIsDeletedWhenTheNextIsWrittenInTheRunsOwnDirectory() throws Exception {
+        limn.graphics.Image image = new limn.graphics.Image(2, 2, new byte[16]);
+        java.nio.file.Path first = Transfer.of(DataFormat.IMAGE, image).withImageAsFile("same.png")
+                .get(DataFormat.FILES).get(0);
+        org.junit.jupiter.api.Assertions.assertTrue(java.nio.file.Files.exists(first));
+        java.nio.file.Path second = Transfer.of(DataFormat.IMAGE, image).withImageAsFile("same.png")
+                .get(DataFormat.FILES).get(0);
+        org.junit.jupiter.api.Assertions.assertTrue(java.nio.file.Files.exists(second));
+        org.junit.jupiter.api.Assertions.assertFalse(java.nio.file.Files.exists(first),
+                "one picture on the disk at a time, however many were dragged");
+        org.junit.jupiter.api.Assertions.assertFalse(java.nio.file.Files.exists(first.getParent()));
+        org.junit.jupiter.api.Assertions.assertEquals(first.getParent().getParent(), second.getParent().getParent(),
+                "one directory for the run, deleted whole when the program ends");
+        org.junit.jupiter.api.Assertions.assertTrue(second.getParent().getParent().getFileName().toString()
+                .startsWith("limn-transfer-" + ProcessHandle.current().pid() + "-"));
+    }
+
+    @Test
     void aPictureAtHandIsOfferedAsAFileThatAnyThreadMayWrite() throws Exception {
         Transfer picture = Transfer.of(DataFormat.IMAGE, new limn.graphics.Image(2, 2, new byte[16]));
         org.junit.jupiter.api.Assertions.assertFalse(picture.has(DataFormat.FILES), "not unless asked");

@@ -879,9 +879,13 @@ final class FontStore implements AutoCloseable {
             return memo;
         }
         StbFont face = resolveUncached(font);
-        if (resolved.size() < 4096) { // bound: hostile churn of Font instances
-            resolved.put(font, face);
+        if (resolved.size() >= 4096) {
+            // Emptied at the bound and filled again: a program that makes fonts as it goes filled
+            // the memo with fonts nobody had any more, each kept by it, and from then on every new
+            // one was resolved the long way at each measure and each draw.
+            resolved.clear();
         }
+        resolved.put(font, face);
         return face;
     }
 
