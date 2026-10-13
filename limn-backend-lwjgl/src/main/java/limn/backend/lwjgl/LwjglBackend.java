@@ -1165,6 +1165,9 @@ public final class LwjglBackend implements BackendPeer {
         }
         windows.removeAll(closing);
         frontToBack.removeAll(closing);
+        if (macMenuBar != null) {
+            closing.forEach(macMenuBar::closed);
+        }
         if (keyboardGoes && heir == null) {
             for (LwjglWindow candidate : frontToBack) {
                 if (!candidate.isPopupWindow() && candidate.isVisible() && !candidate.closeRequested()) {

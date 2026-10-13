@@ -394,6 +394,19 @@ public final class Scene {
     /** Wires this scene into a window: input, frame rendering, invalidation, clipboard. */
     public void bind(NativeWindow window) {
         this.window = window;
+        if (detachedByClose) {
+            // Bound again after its window closed: the tree that close took out comes back.
+            detachedByClose = false;
+            if (locale != null) {
+                limn.i18n.I18n.retainLocale(locale);
+            }
+            root.setSceneRecursively(this);
+            for (int i = 0; i < overlays.size(); i++) {
+                if (overlays.get(i).scene() == null) {
+                    overlays.get(i).setSceneRecursively(this);
+                }
+            }
+        }
         // A grafted popup is published by the scene it was grafted into, so its window is never
         // asked for a bridge (asking is what opens one) and is told why.
         if (graftedInto != null) {
@@ -1661,8 +1674,13 @@ public final class Scene {
             return;
         }
         if (!live && !primingPublishOwed) {
+            if (walkMayNameDetached && accessibleWalk != null) {
+                accessibleWalk.forgetDetached(); // nobody reads, so no walk will write over them
+            }
+            walkMayNameDetached = false;
             return;
         }
+        walkMayNameDetached = false; // a walk, or a tree that did not change
         if (!accessibleNodesDirty && !accessibleHeaderDirty && !primingPublishOwed) {
             return;
         }
@@ -2445,7 +2463,11 @@ public final class Scene {
         return backdropDependants.size();
     }
 
+    /** Whether a widget left the tree since the accessibility walk last listed who answers for a node. */
+    private boolean walkMayNameDetached;
+
     void onWidgetDetached(Widget<?> widget) {
+        walkMayNameDetached = true;
         // Never leave dangling references to removed/disabled/hidden subtrees,
         // and never leave the widget itself with stuck hover/pressed state:
         // synthesize the EXIT/RELEASE it will otherwise never receive.
@@ -5676,6 +5698,39 @@ public final class Scene {
             windowCloseObservers = Listeners.removedAll(windowCloseObservers, closing);
         }
         changeWatchers = null;
+        detachForTheClosedWindow();
+    }
+
+    /** Whether the tree was taken out of this scene by its window closing; {@link #bind} puts it back. */
+    private boolean detachedByClose;
+
+    /**
+     * The tree leaves the scene with its window, as it would leave it by being removed: every
+     * widget's {@code onDetached} runs. What a widget took in {@code onAttached} from something
+     * that outlives the window (a place in a process-wide list of listeners, the system's menu
+     * bar, a decoder's pictures) it gives back there and nowhere else, so a window that closed
+     * with its widgets still attached left each of those holding the widget, and through it the
+     * scene and all it shows, for the life of the process. Last, because every step before this
+     * one may still ask a widget for its scene.
+     */
+    private void detachForTheClosedWindow() {
+        detachedByClose = true;
+        if (locale != null) {
+            limn.i18n.I18n.releaseLocale(locale); // a closed window's language is nobody's to keep loaded
+        }
+        List<Widget<?>> layers = new ArrayList<>(overlays);
+        layers.add(root);
+        for (Widget<?> layer : layers) {
+            if (layer.scene() != this) {
+                continue; // an overlay closed by a widget that was detached before it
+            }
+            try {
+                layer.setSceneRecursively(null);
+            } catch (Throwable error) {
+                LOG.log(Level.ERROR, "a widget's detach threw during window close; teardown continues", error);
+                limn.backend.Crashes.report(limn.backend.CrashPhase.WINDOW_CLOSE, error);
+            }
+        }
     }
 
     private Runnable[] windowCloseObservers;

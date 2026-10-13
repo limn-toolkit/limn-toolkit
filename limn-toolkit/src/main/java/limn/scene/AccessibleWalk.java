@@ -184,6 +184,46 @@ final class AccessibleWalk {
      * @param contents whether to walk what is inside the window, or only the window itself
      */
     private void walk(Scene scene, float sceneWidth, float sceneHeight, boolean contents) {
+        int nodes = count;
+        int popups = popupCount;
+        int redirects = redirectCount;
+        try {
+            walkOnce(scene, sceneWidth, sceneHeight, contents);
+        } finally {
+            // A walk writes over the places it uses and leaves the rest as the one before had
+            // them: the widgets of a tree that has since shrunk, kept from being collected by a
+            // list of who answers for which node.
+            forget(owners, count, nodes);
+            forget(delegates, count, nodes);
+            forget(popupOpeners, popupCount, popups);
+            forget(redirectTargets, redirectCount, redirects);
+            forget(redirectLabels, redirectCount, redirects);
+        }
+    }
+
+    private static void forget(Widget<?>[] widgets, int from, int to) {
+        if (from < to) {
+            java.util.Arrays.fill(widgets, from, Math.min(to, widgets.length), null);
+        }
+    }
+
+    /**
+     * Lets go of every widget that has left the scene since the walk that listed it. For the scene
+     * nobody is reading, whose tree is walked once and not again until somebody asks: without
+     * this the widgets of that one walk stayed for the life of the window, removed or not.
+     */
+    void forgetDetached() {
+        for (int i = 0; i < count; i++) {
+            if (owners[i] != null && owners[i].scene() != scene) {
+                owners[i] = null;
+            }
+            if (delegates[i] != null && delegates[i].scene() != scene) {
+                delegates[i] = null;
+            }
+        }
+    }
+
+    private void walkOnce(Scene scene, float sceneWidth, float sceneHeight, boolean contents) {
         this.scene = scene;
         Locale sceneLocale = scene.locale() != null ? scene.locale() : limn.i18n.I18n.processLocale();
         builder.beginWalk(sceneWidth, sceneHeight, sceneLocale);
@@ -440,6 +480,13 @@ final class AccessibleWalk {
      * change.
      */
     void close() {
+        forget(owners, 0, count);
+        forget(delegates, 0, count);
+        forget(popupOpeners, 0, popupCount);
+        forget(redirectTargets, 0, redirectCount);
+        forget(redirectLabels, 0, redirectCount);
+        popupCount = 0;
+        redirectCount = 0;
         count = 0;
         if (mirrorHost != null) {
             Scene host = mirrorHost;

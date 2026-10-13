@@ -2482,6 +2482,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     @Override
     protected void onDetached() {
         close(Change.Origin.ADJUSTMENT);
+        searchSerial++; // a search waiting to start or to be answered is for a field that is gone
     }
 
     // -------------------------------------------------------- accessibility

@@ -120,6 +120,7 @@ public final class X11Drag {
     /** The theme's pointer shapes by what they say; absent where the theme, or its library, has none. */
     private final java.util.Map<String, Long> shapes = new java.util.HashMap<>();
     private org.lwjgl.system.@Nullable SharedLibrary xcursor;
+    private static org.lwjgl.system.@Nullable SharedLibrary xfixesLibrary;
     private boolean xcursorTried;
 
     /** One of this program's windows, as a destination. */
@@ -688,7 +689,10 @@ public final class X11Drag {
             if (picture == NULL) {
                 return;
             }
-            org.lwjgl.system.SharedLibrary xfixes = org.lwjgl.system.APIUtil.apiCreateLibrary("libXfixes.so.3");
+            if (xfixesLibrary == null) {
+                xfixesLibrary = org.lwjgl.system.APIUtil.apiCreateLibrary("libXfixes.so.3"); // once, not per drag
+            }
+            org.lwjgl.system.SharedLibrary xfixes = xfixesLibrary;
             long region = Ffi.call(org.lwjgl.system.APIUtil.apiGetFunctionAddress(xfixes, "XFixesCreateRegion"),
                     "ppi>p", display, NULL, 0);
             Ffi.call(org.lwjgl.system.APIUtil.apiGetFunctionAddress(xfixes, "XFixesSetWindowShapeRegion"),

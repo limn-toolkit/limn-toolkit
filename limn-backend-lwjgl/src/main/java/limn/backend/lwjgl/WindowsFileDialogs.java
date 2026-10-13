@@ -78,6 +78,12 @@ final class WindowsFileDialogs {
     private WindowsFileDialogs() {
     }
 
+    /** The two libraries a dialog calls, opened by the first dialog and not by each. */
+    private static final class Libraries {
+        static final SharedLibrary OLE32 = APIUtil.apiCreateLibrary("ole32");
+        static final SharedLibrary SHELL32 = APIUtil.apiCreateLibrary("shell32");
+    }
+
     /**
      * Opens the dialog on a thread of its own, owned by {@code hwnd}.
      *
@@ -100,8 +106,8 @@ final class WindowsFileDialogs {
 
     private static List<Path> run(long hwnd, WindowFileDialogs.Kind kind, String title, @Nullable Path initial,
                                   FileDialogs.@Nullable Filter filter) {
-        SharedLibrary ole32 = APIUtil.apiCreateLibrary("ole32");
-        SharedLibrary shell32 = APIUtil.apiCreateLibrary("shell32");
+        SharedLibrary ole32 = Libraries.OLE32;
+        SharedLibrary shell32 = Libraries.SHELL32;
         long coInitializeEx = ole32.getFunctionAddress("CoInitializeEx");
         long coUninitialize = ole32.getFunctionAddress("CoUninitialize");
         long coCreateInstance = ole32.getFunctionAddress("CoCreateInstance");

@@ -206,6 +206,33 @@ class SystemMenuBarTest extends ComponentTestBase {
     }
 
     @Test
+    void aWindowThatClosesGivesTheSystemsBarBackAndLeavesTheLanguagesListeners() throws Exception {
+        java.lang.reflect.Field held = limn.i18n.I18n.class.getDeclaredField("LISTENERS");
+        held.setAccessible(true);
+        limn.concurrent.internal.ChangeListeners languages =
+                (limn.concurrent.internal.ChangeListeners) held.get(null);
+        HeadlessBackend backend = new HeadlessBackend(runtime);
+        FakeSystemBar system = new FakeSystemBar();
+        backend.setSystemMenuBar(system);
+        int before = languages.count();
+
+        HeadlessWindow window = backend.open("Bars", 400, 300);
+        MenuBar bar = new MenuBar().addMenu("File", new Menu().add(item("New")));
+        Scene scene = new Scene(bar);
+        scene.setTextRuler(RULER);
+        scene.bind(window);
+        assertTrue(bar.isInSystemBar());
+        assertTrue(languages.count() > before, "the bar and its scene are told of a change of language");
+
+        window.close();
+        assertTrue(system.hosts.isEmpty(), "a closed window's bar is not the system's to show");
+        assertNull(bar.scene(), "the tree left the scene with its window");
+        // The count, and not a weak reference to the scene: what kept a closed window was a place
+        // in this list, and the headless backend keeps every window it opened for a test to read.
+        assertEquals(before, languages.count(), "nothing of a closed window is told of a language");
+    }
+
+    @Test
     void aSecondBarOfTheWindowStaysInIt() {
         HeadlessBackend backend = new HeadlessBackend(runtime);
         FakeSystemBar system = new FakeSystemBar();

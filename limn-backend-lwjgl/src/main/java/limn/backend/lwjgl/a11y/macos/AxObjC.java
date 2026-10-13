@@ -71,10 +71,20 @@ final class AxObjC {
      */
     static AxObjC openOrNull() {
         if (!ObjC.isAvailable()) return null;
-        SharedLibrary appKit = APIUtil.apiCreateLibrary(
-                "/System/Library/Frameworks/AppKit.framework/AppKit");
-        return new AxObjC(appKit);
+        AxObjC bound = shared;
+        if (bound == null) {
+            // One for the process: what it binds is the process's AppKit, and a window that made
+            // its own left a library reference and four call descriptions behind when it closed.
+            SharedLibrary appKit = APIUtil.apiCreateLibrary(
+                    "/System/Library/Frameworks/AppKit.framework/AppKit");
+            bound = new AxObjC(appKit);
+            shared = bound;
+        }
+        return bound;
     }
+
+    /** The binding every window's bridge shares; made by the first, on the UI thread. */
+    private static AxObjC shared;
 
     /** An FFI struct of n unsigned 64-bit integers: an {@code NSRange}, returned in x0 and x1. */
     static FFIType uint64s(int n) {

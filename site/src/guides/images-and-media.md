@@ -32,6 +32,17 @@ frames go by without drawing it, or sooner, least recently drawn first, while it
 still shows. An application short of memory lowers it, and one that keeps coming back to a set
 of pictures bigger than that raises it, with `Images.setTextureBudget`.
 
+The shared loads have a budget of their own, on the heap: what `loadShared` and
+`fromResourceShared` loaded is kept, so that asking again costs nothing, while it fits a quarter
+of the most heap the process may use. Past that the picture asked for longest ago is let go, and
+every file before any resource, since an application's own resources are few and it comes back
+to them. Letting go is not losing: a picture still on screen, or held anywhere, is the same
+object when it is asked for again, and only one that nobody holds is read a second time.
+`Images.setSharedBudget` moves the budget. For the pictures that must never be read twice,
+whatever else is loaded, `Images.loadPinned` and `Images.fromResourcePinned` load the same way
+and keep the result outside the budget until `Images.unpin`. `Sounds` has the same calls, with
+an eighth of the heap.
+
 Going the other way, `Images.encode(…)` and `Images.saveAsync(…)` write PNG.
 
 `view.setDragEnabled(true)` lets the user drag the picture out of its view, to another part of

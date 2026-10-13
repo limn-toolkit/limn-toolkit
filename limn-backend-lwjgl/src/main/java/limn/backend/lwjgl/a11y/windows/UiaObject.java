@@ -327,6 +327,18 @@ final class UiaObject {
     }
 
     /**
+     * The registry lets this object go from a thread other than the user-interface's: as
+     * {@link #retire}, but never freed here. One nothing else holds is queued for
+     * {@link #freeRetired}, since a closure of its own may be executing on another thread now.
+     */
+    synchronized void retireLater() {
+        retired = true;
+        if (references.decrementAndGet() <= 0) {
+            RETIRED.add(this);
+        }
+    }
+
+    /**
      * Frees every retired object whose last reference has been released, on the user-interface
      * thread, where no closure of theirs can be executing.
      *

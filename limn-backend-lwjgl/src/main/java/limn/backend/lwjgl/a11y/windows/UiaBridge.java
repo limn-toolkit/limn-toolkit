@@ -251,6 +251,10 @@ public final class UiaBridge extends PlatformBridge {
     }
 
     /** @return the drain thread while one is running, for tests. */
+    int objectCountForTests() {
+        return objects.size();
+    }
+
     Thread drainThreadForTests() {
         return drain;
     }
@@ -2242,7 +2246,7 @@ public final class UiaBridge extends PlatformBridge {
             }
             UiaObject object = UiaObject.create(served, new PatternsOf(id), () -> { });
             object.pointers().forEach(pointer -> objects.put(pointer, object));
-            return new Element(id, object);
+            return new Element(id, object, objects);
         });
     }
 
@@ -2320,7 +2324,7 @@ public final class UiaBridge extends PlatformBridge {
     }
 
     /** One node's COM object, as the registry sees it. */
-    private record Element(long nodeId, UiaObject object) implements UiaElement {
+    private record Element(long nodeId, UiaObject object, Map<Long, UiaObject> objects) implements UiaElement {
 
         @Override
         public long pointer() {
@@ -2329,8 +2333,16 @@ public final class UiaBridge extends PlatformBridge {
 
         @Override
         public void release() {
-            // Removal is not release: the object survives until every client reference drops, and
-            // the whole-registry empty is what frees it. See UiaElements.
+            // Removal is not release of what a client holds: the object answers "not available"
+            // until every client reference drops. But the registry's own claim ends here, node by
+            // node. Left to the whole-registry empty, the object of every node a client had
+            // reached and that later left the tree stayed until its window closed, which for an
+            // application's main window is never.
+            if (objects.remove(object.pointer()) == null) {
+                return; // the whole registry is being emptied, and that retires every object itself
+            }
+            object.pointers().forEach(objects::remove);
+            object.retireLater();
         }
     }
 }

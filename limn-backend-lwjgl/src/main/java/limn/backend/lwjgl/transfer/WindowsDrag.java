@@ -36,6 +36,7 @@ import static org.lwjgl.system.MemoryUtil.memPutAddress;
 import static org.lwjgl.system.MemoryUtil.memPutInt;
 import static org.lwjgl.system.MemoryUtil.memPutShort;
 import static org.lwjgl.system.MemoryUtil.nmemCalloc;
+import static org.lwjgl.system.MemoryUtil.nmemFree;
 
 /**
  * The system's drag and drop on Windows, which is OLE's: a window is a destination once an
@@ -105,6 +106,8 @@ public final class WindowsDrag {
     private final Runnable paint;
     private final BooleanSupplier animate;
     private long targetObject;
+    /** The callbacks of the destination object's table, freed with it. */
+    private List<Callback> targetCallbacks = List.of();
     /** The shell's helper that draws a drag's picture over this window, or NULL without one. */
     private long pictureHelper;
     private long heldData;
@@ -146,6 +149,7 @@ public final class WindowsDrag {
                 pngFormat = register("PNG");
             }
             WindowsDrag drag = new WindowsDrag(hwnd, ui, input, pointer, paint, animate);
+            int kept = KEPT.size();
             drag.targetObject = object(
                     queryInterface(0x122), // IDropTarget
                     keep(Ffi.callback("p>i", a -> 1)),
@@ -154,10 +158,12 @@ public final class WindowsDrag {
                     keep(Ffi.callback("pipp>i", a -> drag.over(NULL, (int) a[1], a[2], a[3], false))),
                     keep(Ffi.callback("p>i", a -> drag.left())),
                     keep(Ffi.callback("ppipp>i", a -> drag.drop(a[1], (int) a[2], a[3], a[4]))));
+            drag.targetCallbacks = new ArrayList<>(KEPT.subList(kept, KEPT.size()));
             int registered = (int) call(OLE32, "RegisterDragDrop", "pp>i", hwnd, drag.targetObject);
             if (registered < 0) {
                 LOG.log(System.Logger.Level.INFO, "no drag and drop with other programs: RegisterDragDrop answered 0x"
                         + Integer.toHexString(registered));
+                drag.freeTarget();
                 return null;
             }
             try (MemoryStack stack = MemoryStack.stackPush()) {
@@ -203,6 +209,23 @@ public final class WindowsDrag {
             pictureHelper = NULL;
         }
         releaseHeld();
+        freeTarget();
+    }
+
+    /**
+     * Frees the destination object and the callbacks its table names, once OLE no longer has it.
+     * Each callback holds this drag, and through it the window and all the window shows, so a
+     * window that left them was kept whole for the life of the process.
+     */
+    private void freeTarget() {
+        if (targetObject != NULL) {
+            nmemFree(memGetAddress(targetObject));
+            nmemFree(targetObject);
+            targetObject = NULL;
+        }
+        KEPT.removeAll(targetCallbacks);
+        targetCallbacks.forEach(Callback::free);
+        targetCallbacks = List.of();
     }
 
     // ---- plumbing -----------------------------------------------------------------------------------

@@ -374,7 +374,10 @@ public abstract class Widget<W extends Widget<W>> {
     }
 
     /**
-     * Called when this widget leaves the scene (detached from the tree).
+     * Called when this widget leaves the scene: detached from the tree, or still in it when the
+     * scene's window closes, which detaches every widget the scene has. What was taken in
+     * {@link #onAttached} from something that outlives the window (a listener's place in a list
+     * of the process's, a resource of the system's) is given back here.
      *
      * <p>{@link #scene()} still answers <b>the scene being left</b>, and becomes
      * {@code null} once this returns, so releasing something the scene owns needs

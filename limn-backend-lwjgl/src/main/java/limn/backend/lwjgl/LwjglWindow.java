@@ -1249,6 +1249,10 @@ final class LwjglWindow implements WindowPeer {
         if (cocoaWindow != NULL) {
             MacFullscreen.forget(cocoaWindow);
         }
+        if (macDrag != null) {
+            macDrag.close();
+            macDrag = null;
+        }
         if (windowsDrag != null) {
             windowsDrag.close();
             windowsDrag = null;
