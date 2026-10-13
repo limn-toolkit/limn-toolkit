@@ -184,6 +184,15 @@ class VerbPolicyRatchetTest {
      * node, or the windows beyond the first — and not by a role, which until the 2d review left
      * the date picker's calendar out of reach.
      */
+    /**
+     * The entries whose layer in the scene leaves the accessible tree in the frame it starts to
+     * close: a calendar and a menu give the keyboard back as their fade begins, and a layer that
+     * is going is nothing a reader can be on. For these the sample one frame into the fade must
+     * find the layer gone; for every other entry it must find it still published, so that neither
+     * a layer that lingers nor one that vanishes early passes unseen.
+     */
+    static final Set<String> LEAVES_THE_TREE_AS_IT_CLOSES = Set.of("Date picker, open");
+
     static final Set<String> FADE_OUT_ENTRIES = Set.of(
             "Combo box, open", "Dialog, in its own window", "Dialog, in the scene");
 
@@ -886,7 +895,11 @@ class VerbPolicyRatchetTest {
     private static boolean sampleAFadeOutFrame(Entry entry, boolean inScene, Run run,
                                                boolean whole) {
         int windowsAtRest = run.harness.windows().size();
-        boolean hadModal = modalOf(run.windows.get(0).bridge().tree()) >= 0;
+        AccessibleTree atRest = run.windows.get(0).bridge().tree();
+        boolean hadModal = modalOf(atRest) >= 0;
+        // The layer by its identifier and not by its MODAL bit: a layer that is closing has given
+        // the keyboard back and is published as a layer still drawn, no longer as a modal one.
+        long layerId = hadModal ? atRest.node(modalOf(atRest)).id() : 0;
         if (!run.closeTheOpenSurface()) {
             fail("gallery entry \"" + entry.name() + "\"" + (inScene ? " with its surfaces in "
                     + "the scene" : "") + ": no node publishes CANCEL or COLLAPSE to close "
@@ -898,7 +911,18 @@ class VerbPolicyRatchetTest {
         List<AccessibleTree> trees = new ArrayList<>();
         if (hadModal) {
             AccessibleTree tree = now.get(0).bridge().tree();
-            int modal = modalOf(tree);
+            int modal = tree.indexOf(layerId);
+            boolean leaves = LEAVES_THE_TREE_AS_IT_CLOSES.contains(entry.name());
+            if (leaves != (modal < 0)) {
+                fail("gallery entry \"" + entry.name() + "\": one "
+                        + "frame after closing, its layer in the scene is " + (modal < 0 ? "gone from" : "still in")
+                        + " the tree, and LEAVES_THE_TREE_AS_IT_CLOSES says the opposite:\n"
+                        + Transcript.of(tree));
+            }
+            if (leaves) {
+                checkNothingOutsideTheInputLayerIsOperable(entry, inScene, tree);
+                return true;
+            }
             for (int i = 0; modal >= 0 && i < tree.nodeCount(); i++) {
                 if (isWithin(tree, i, modal)) {
                     surface.add(tree.node(i));
@@ -920,7 +944,7 @@ class VerbPolicyRatchetTest {
                 }
             }
         }
-        // Still drawn when anything of it is still published: the layer's own MODAL node, or a
+        // Still drawn when anything of it is still published: the layer's own node, or a
         // node other than a window's own in a window that was there at rest.
         boolean drawn = false;
         for (AccessibleNode node : surface) {

@@ -311,16 +311,19 @@ class DatePickerAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /**
-     * Through the fade-out after a close, the calendar's layer is still drawn, still the layer
-     * that owns input and still published, and it offers no {@code CANCEL} (semantics 5; the 2d
-     * review, 2026-09-15): the hook's {@code setOpen(false)} returns at once for a picker already
-     * closed, so a {@code CANCEL} there was answered from the snapshot for nothing. The clock is
-     * held still after the close, so the fade stays at its first frame. What the calendar inside
-     * publishes is not held here: it still performs its verbs through the fade.
+     * From the first frame of its fade-out a calendar that closed is out of the tree and the
+     * keyboard is back in the field: what fades is pixels, and a reader has nothing to be on in
+     * a layer that is going. Until 2026-10-12 the layer stayed published through the fade with
+     * the focus on it, and was destroyed a sixth of a second later: a screen reader standing on
+     * it settled on a neighbour of the field before it followed the focus. A {@code CANCEL} sent
+     * to the layer it knew is answered from the snapshot for nothing (semantics 5; the 2d review,
+     * 2026-09-15). The clock is held still after the close, so the fade stays at its first frame.
      */
     @Test
-    void throughTheFadeOutTheCalendarsLayerOffersNoCancel() throws InterruptedException {
+    void asItStartsToFadeTheCalendarsLayerLeavesTheTreeAndTheKeyboardIsBackInTheField()
+            throws InterruptedException {
         bindCaptioned(datePicker(), "Data de entrega");
+        scene.requestFocus(picker.field()); // the keyboard is in the field, as it is for a user
         picker.open();
         frame();
         settleAnimations(null); // faded in, so the fade out has somewhere to start from
@@ -329,19 +332,30 @@ class DatePickerAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(1, layer.size(), describe(tree()));
         assertTrue(offers(layer.get(0), Accessible.Action.CANCEL), "open: the layer dismisses "
                 + describe(tree()));
+        long layerId = layer.get(0).id();
+        bridge.events.clear();
 
-        assertTrue(perform(layer.get(0).id(), Accessible.Action.CANCEL, Accessible.Argument.NONE));
+        assertTrue(perform(layerId, Accessible.Action.CANCEL, Accessible.Argument.NONE));
         frame();
         assertFalse(picker.isOpen());
-        layer = nodesWith(Accessible.State.MODAL);
-        assertEquals(1, layer.size(), "the fading layer is still drawn and still owns input"
+        assertTrue(tree().find(layerId) == null, "the fading layer is no longer published"
                 + describe(tree()));
-        assertFalse(offers(layer.get(0), Accessible.Action.CANCEL),
-                "and offers no CANCEL, which setOpen's guard would drop" + describe(tree()));
-        perform(layer.get(0).id(), Accessible.Action.CANCEL, Accessible.Argument.NONE);
+        assertTrue(nodesWith(Accessible.State.MODAL).isEmpty(), describe(tree()));
+        AccessibleNode focus = tree().find(tree().effectiveFocus());
+        assertTrue(focus != null && focus.role() == Accessible.Role.SPIN_BUTTON,
+                "the keyboard is in the field's segment from the fade's first frame"
+                        + describe(tree()));
+        int focusTold = bridge.eventsOf(limn.accessibility.AccessibleEvent.Type.FOCUS_CHANGED).size();
+        assertEquals(1, focusTold, "told once, in the frame the layer left: " + bridge.events);
+
+        bridge.events.clear();
+        perform(layerId, Accessible.Action.CANCEL, Accessible.Argument.NONE);
+        settleAnimations(null); // the fade ends and the layer is removed
         frame();
         assertFalse(picker.isOpen(), "a CANCEL sent anyway reopens nothing");
         assertEquals(LocalDate.of(2026, 9, 9), picker.date(), "and moves nothing");
+        assertTrue(bridge.events.isEmpty(), "and the fade's end tells a reader nothing: what "
+                + "changed for it changed when the close began: " + bridge.events);
     }
 
     /**

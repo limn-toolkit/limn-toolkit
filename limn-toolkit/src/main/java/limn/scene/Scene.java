@@ -900,6 +900,7 @@ public final class Scene {
         }
         popupOverlays.remove(overlay);
         boolean keptKeyboardBelow = keyboardBelow.remove(overlay);
+        closingOverlays.remove(overlay);
         boolean wasTop = index == overlays.size() - 1;
         overlays.remove(index);
         Widget<?> restore = overlayFocusReturn.remove(index);
@@ -1260,6 +1261,12 @@ public final class Scene {
      * focus, the caret and the input method while the list is up.
      */
     private final List<Widget<?>> keyboardBelow = new ArrayList<>(1);
+    /**
+     * Overlays that gave the keyboard back and are fading out. One is still the top layer for the
+     * pointer until it is removed, and is no longer in the accessible tree: what is beneath it is
+     * being typed into again, and a reader has nothing to be on in a layer that is going.
+     */
+    private final List<Widget<?>> closingOverlays = new ArrayList<>(1);
     /** A grafted popup whose cursor is this tree's while its opener keeps the keyboard; see SceneAccess#showCursorOf. */
     private @Nullable Scene cursorPopup;
     /** Where this window's keys go instead of the focus, while a menu it opened is up; see SceneAccess#routeKeyboard. */
@@ -1589,6 +1596,11 @@ public final class Scene {
     /** Whether {@code widget} is the layer that currently owns input. */
     boolean isTopOverlay(Widget<?> widget) {
         return topOverlay() == widget;
+    }
+
+    /** @return whether {@code overlay} gave the keyboard back and is fading out */
+    boolean isClosingOverlay(Widget<?> overlay) {
+        return closingOverlays.contains(overlay);
     }
 
     /**
@@ -3123,6 +3135,11 @@ public final class Scene {
             }
 
             @Override
+            public void releaseOverlayKeyboard(Scene scene, Widget<?> overlay) {
+                scene.releaseOverlayKeyboard(overlay);
+            }
+
+            @Override
             public Subscription observeWindowFocus(Scene scene, Runnable observer) {
                 return scene.observeWindowFocus(observer);
             }
@@ -3339,6 +3356,40 @@ public final class Scene {
         stackOverlay(popup);
         popupOverlays.add(popup);
         keyboardBelow.add(popup);
+        requestRender();
+    }
+
+    /**
+     * An overlay that has begun to close gives the keyboard back now, to what it took it from, and
+     * stays on screen for the rest of its fade as a layer that leaves the keyboard beneath it.
+     *
+     * <p>The focus used to come back when the fade ended and the overlay was removed. For that
+     * sixth of a second the tree said the keyboard was on a layer about to be destroyed, and a
+     * screen reader standing there lost its element and settled on a neighbour before it followed
+     * the focus: heard on macOS, where a calendar closed with Enter was read as the next group in
+     * the window and then as the field. A key typed during the fade goes to the field as well,
+     * where it went to a calendar that was no longer there to answer it.
+     *
+     * <p>Nothing happens for an overlay that is not the top one, that already leaves the keyboard
+     * beneath it, or that is not in this scene. {@link #removeOverlay} then gives nothing back a
+     * second time.
+     */
+    private void releaseOverlayKeyboard(Widget<?> overlay) {
+        Ui.checkUiThread();
+        int index = overlays.indexOf(overlay);
+        if (index < 0 || index != overlays.size() - 1 || keyboardBelow.contains(overlay)) {
+            return;
+        }
+        keyboardBelow.add(overlay);
+        closingOverlays.add(overlay);
+        Widget<?> restore = overlayFocusReturn.get(index);
+        if (restore != null && restore != overlay && isInSubtree(restore, keyboardRoot())
+                && restore.isFocusable() && restore.isVisible() && restore.isEnabled()) {
+            setFocus(restore, Change.Origin.ADJUSTMENT);
+        } else {
+            setFocus(null, Change.Origin.ADJUSTMENT);
+        }
+        invalidateAccessible();
         requestRender();
     }
 

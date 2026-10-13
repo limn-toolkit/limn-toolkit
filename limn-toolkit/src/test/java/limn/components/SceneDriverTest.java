@@ -62,6 +62,10 @@ class SceneDriverTest extends ComponentTestBase {
             }
 
             @Override
+            public void releaseOverlayKeyboard(Scene scene, Widget<?> overlay) {
+            }
+
+            @Override
             public limn.concurrent.Subscription observeWindowFocus(Scene scene, Runnable observer) {
                 return null;
             }

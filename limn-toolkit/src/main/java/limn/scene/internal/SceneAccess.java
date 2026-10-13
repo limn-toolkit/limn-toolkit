@@ -44,6 +44,15 @@ public final class SceneAccess {
         void pushMovedOverlay(Scene scene, Widget<?> overlay, Scene movedFrom);
 
         /**
+         * Gives the keyboard back from an overlay that has begun to close; see
+         * {@link SceneAccess#releaseOverlayKeyboard}.
+         *
+         * @param scene   the scene holding the overlay
+         * @param overlay the overlay that is closing
+         */
+        void releaseOverlayKeyboard(Scene scene, Widget<?> overlay);
+
+        /**
          * Observes {@code scene}'s window gaining OS focus; see
          * {@link SceneAccess#observeWindowFocus}.
          *
@@ -168,6 +177,19 @@ public final class SceneAccess {
     public static void pushMovedOverlay(Scene scene, Widget<?> overlay, Scene movedFrom) {
         java.util.Objects.requireNonNull(scene, "scene");
         hook().pushMovedOverlay(scene, overlay, movedFrom);
+    }
+
+    /**
+     * An overlay that has begun to fade out gives the keyboard back to what it took it from, now
+     * and not when the fade ends: the focus is never published on a layer about to be destroyed.
+     * The overlay stays on screen until it is removed, leaving the keyboard beneath it.
+     *
+     * @param scene   the scene holding the overlay
+     * @param overlay the overlay that is closing
+     */
+    public static void releaseOverlayKeyboard(Scene scene, Widget<?> overlay) {
+        java.util.Objects.requireNonNull(scene, "scene");
+        hook().releaseOverlayKeyboard(scene, overlay);
     }
 
     /**

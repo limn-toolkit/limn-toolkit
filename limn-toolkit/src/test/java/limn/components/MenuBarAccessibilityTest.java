@@ -458,9 +458,9 @@ class MenuBarAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(perform(surface.id(), Accessible.Action.CANCEL, Accessible.Argument.NONE));
         frame();
         assertFalse(bar.isOpen(), "and its published CANCEL is performed" + describe(tree()));
-        assertNull(titles().get(0).actions(),
-                "while the closed cascade fades out its layer still holds the input, the scene "
-                        + "still refuses the bar, and the titles still publish nothing"
+        assertNotNull(titles().get(0).actions(),
+                "as the closed cascade fades out the keyboard is back in the bar, and its titles "
+                        + "are a reader's again from the fade's first frame"
                         + describe(tree()));
 
         bindBar(new MenuBar()

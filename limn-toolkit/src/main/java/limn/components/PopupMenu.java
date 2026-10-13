@@ -529,7 +529,9 @@ public final class PopupMenu {
                 // Fade the overlay out, then remove it (restoring focus): the in-scene
                 // twin of the native window's fade-out.
                 // Wall time: this fade's last frame is what removes the overlay that is holding
-                // input capture and focus. Frozen, the menu would stay open over a paused app.
+                // input capture. Frozen, the menu would stay open over a paused app. The keyboard
+                // goes back as the fade starts.
+                limn.scene.internal.SceneAccess.releaseOverlayKeyboard(o, s);
                 o.addRealTimeTicker(dt -> {
                     sceneFade = (float) Math.max(0, sceneFade - limn.animation.Motion.progress(dt, Theme.current().animWindow));
                     s.invalidate();
