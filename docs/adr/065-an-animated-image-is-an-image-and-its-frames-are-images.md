@@ -164,6 +164,25 @@ All three formats in the first delivery, as the owner chose, and all three read 
   licence is read first. If the spike refuses it, the way back is the format's own library
   built as natives in a repository of its own, as the fonts and the video decoder are.
 
+**The spike, 2026-10-13,** of version 0.2.0 against the format's reference encoder and decoder,
+on files made for it: a photograph of 3.7 megapixels with and without loss, an icon with
+transparency both ways, and animations of six frames both ways.
+
+| Question | What was measured |
+|---|---|
+| Size | one jar of 127 kB, 70 classes; its one declared dependency is a set of annotations nothing loads. The Showcase's jar is 66.6 MB |
+| Loaded when | no class of it before the first decode; 40 after a lossy picture, 52 after a lossless animation too; none of its helpers for other toolkits |
+| Right | lossless, and transparency both ways: every pixel as the reference decoder's. Lossy, still and animated: every pixel as the reference decoder's with its simple chroma upsampling, which is not the one the reference uses unless told (16% of a photograph's pixels differ from that, by 25 levels at most, at edges of colour) |
+| Animation | frames whole and composited, each with its time, the loop count and the frame count, read one at a time |
+| Speed, warm | lossy 11 ms a megapixel against 2 for the native decoder; lossless 16 against 10. The first decode of a process took 223 ms for the photograph |
+| A damaged file | 40,000 damaged copies under a heap of 256 MB: none hung, the slowest took a quarter of a second, 71% were refused with the library's own exception, and 4% ended in an out-of-memory error, with 41 other errors of an array's size or index. It allocates what a file's sizes say |
+| The same, behind a check of ours | the container walked first, every chunk held inside the file and the canvas and frames under a ceiling: 4 of 40,000 out of memory, no other error |
+
+So it is adopted on two conditions the toolkit meets itself: the container is checked before
+the library sees a byte of it, and whatever the library throws leaves as the toolkit's one
+exception. Its lossy pictures are a little coarser at edges of colour than the reference's,
+and five times slower to decode, on a worker thread, which a user interface's pictures bear.
+
 Every reader is held to ADR 061: one exception for a damaged file, ceilings on a picture's
 size and on the frames of one file, and the mutation fuzz in `check`, the WebP library
 included since it is Java.
