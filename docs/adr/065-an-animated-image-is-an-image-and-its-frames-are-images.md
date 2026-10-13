@@ -1,7 +1,7 @@
 # ADR 065: An animated image is an image, and its frames are images
 
-- **Status:** Accepted, 2026-10-13, and not implemented. The WebP library is adopted on the
-  outcome of the spike of section 6.
+- **Status:** Accepted, 2026-10-13, and not implemented. The owner confirmed the WebP library on
+  the spike of section 6. The order is GIF, then WebP, then APNG if it comes cheap.
 - **Date:** 2026-10-13
 - **Scope:** pictures that move: animated GIF, APNG and animated WebP read from a file, and a
   sprite sheet declared by hand; how they are held, cached, played and controlled.
@@ -148,13 +148,16 @@ its frames itself, and over it a window of them.
 
 ## 6. Decision: the decoders
 
-All three formats in the first delivery, as the owner chose, and all three read in Java.
+GIF first, then WebP, as the owner chose, both read in Java; and APNG after them only if it
+comes cheap, which is his condition: no decoder and no encoder of PNG's own is written for it.
 
 - **GIF, written here.** The bundled decoder reads a whole file at once into native memory
   and says nothing of the loop count, which rules out both decoding as it plays and
   `Loop.FILE`. The format is a header, a palette and a dictionary coder, a few hundred lines.
-- **APNG, written here,** on the inflater the platform has: the chunks that say where each
-  frame goes and how it is laid on the one before, and PNG's five filters.
+- **APNG, if cheap.** It is cheap this way: each frame's data is put back between the header
+  and the end of an ordinary PNG and handed to the decoder already installed, and what is
+  written here is the walk of the chunks and the laying of each frame on the one before. If
+  that turns out not to hold, APNG is left out and said so.
 - **WebP, by `org.glavo:webp`, a dependency of the library itself,** as the owner decided: an
   application gets WebP with the toolkit and adds nothing. It reads frame by frame, which is
   what section 5 needs. It is adopted after a spike that answers four things: what it adds
@@ -183,6 +186,18 @@ the library sees a byte of it, and whatever the library throws leaves as the too
 exception. Its lossy pictures are a little coarser at edges of colour than the reference's,
 and five times slower to decode, on a worker thread, which a user interface's pictures bear.
 
+**Writing them.** The owner asked for encoders too, not one for each format but those that
+come cheap:
+
+| Format | Written | Why |
+|---|---|---|
+| APNG | yes, with its reader | the PNG encoder is here already; an animation is its chunks with three more kinds |
+| GIF | yes | a palette of 256 colours chosen for each animation and the dictionary coder run the other way |
+| WebP | no | the library reads and does not write, and a writer is two encoders |
+
+`Images.encode` and `save` take an animated image where the format can hold one, and write
+its first frame where it cannot.
+
 Every reader is held to ADR 061: one exception for a damaged file, ceilings on a picture's
 size and on the frames of one file, and the mutation fuzz in `check`, the WebP library
 included since it is Java.
@@ -200,7 +215,7 @@ still. The toolkit neither holds a picture still by itself nor draws a control o
 
 ## 8. Not done
 
-- **Writing** an animation to a file.
+- **Writing animated WebP**, for want of an encoder.
 - **Animated AVIF and JPEG XL**, for want of a decoder that is not megabytes.
 - **Vector animation** (the JSON-described kind), which is drawing and not a picture.
 - **Animated icons** in a button, a menu, the tray or a cursor: each shows the first frame.
@@ -211,5 +226,8 @@ still. The toolkit neither holds a picture still by itself nor draws a control o
 1. **A moving picture starts moving,** and the system's wish for less motion is not applied
    to it (section 4).
 2. **`fromSheet` cuts the sheet** into one image a frame (section 3).
-3. **WebP by the Java library, as a dependency of the toolkit,** after the spike of section 6.
+3. **WebP by the Java library, as a dependency of the toolkit,** confirmed on the spike of
+   section 6.
 4. **32 MiB** is the animation budget unless set (section 5).
+5. **GIF first; APNG only if it is cheap; and encoders** for the formats where one comes cheap
+   (section 6).
