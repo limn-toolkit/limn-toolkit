@@ -201,6 +201,8 @@ public final class BackdropPanel extends Padding {
     private static final float FROST_SATURATION = 0.7f;
     /** How far what is behind is moved toward the tone's own lightness before the tone goes on. */
     private static final float FROST_LIFT = 0.08f;
+    /** How much further, for each part of the cover given up: text has to read on what is left. */
+    private static final float FROST_LIFT_FOR_COVER = 0.8f;
 
     /** Frosted glass in {@code theme}'s tone, kept until the tone it was made from changes. */
     private java.util.List<BackdropEffect> frostedIn(Theme theme) {
@@ -211,7 +213,11 @@ public final class BackdropPanel extends Padding {
         limn.graphics.Color tone = tint == null || tintAmount == 0 ? surface : surface.lerp(tint, tintAmount);
         // Toward white under a light tone and toward black under a dark one: bright content
         // behind dark glass, or dark content behind light glass, is what text on it loses to.
-        float lift = theme.isDark() ? -FROST_LIFT : FROST_LIFT;
+        // The less of the tone is laid on, the further what is behind is moved instead: glass that
+        // covers little over content of the other lightness is glass nothing can be read on, and
+        // moving the lightness keeps the colours of what is behind where covering hides them.
+        float moved = FROST_LIFT + Math.max(0, FROST_COVER - cover) * FROST_LIFT_FOR_COVER;
+        float lift = theme.isDark() ? -moved : moved;
         frostedFrom = surface;
         frostedStack = java.util.List.of(
                 new BackdropEffect.Blur(limn.graphics.Color.TRANSPARENT, FROST_BLUR, BackdropEffect.Blur.Axis.X),
