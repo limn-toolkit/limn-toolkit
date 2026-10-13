@@ -183,6 +183,52 @@ class AxBridgeTest {
         assertTrue(bridge.isListening());
     }
 
+    @Test
+    void aClientThatAskedAndWentAwayStopsBeingPaidForAndTheNextQuestionBuysAFreshTree() {
+        AxBridge bridge = PlatformFreeBridges.make();
+        long[] now = {0};
+        boolean[] reader = {false};
+        bridge.setGateFacts(() -> now[0], () -> reader[0]);
+        int[] republishes = {0};
+        bridge.attach(new AccessibilityBridge.Host() {
+            @Override public void requestRepublish() {
+                republishes[0]++;
+            }
+            @Override public void requestRestamp() { }
+            @Override public AccessibleTree republishNow() { return AccessibleTree.EMPTY; }
+            @Override public boolean perform(long nodeId, Accessible.Action action,
+                                             Accessible.Argument arg) {
+                return false;
+            }
+        });
+        bridge.publish(aNestedWindow(2), false);
+
+        bridge.entered();
+        assertTrue(bridge.isListening());
+        assertEquals(1, republishes[0], "the first question finds a tree nobody was keeping current");
+        now[0] += AxBridge.ASKED_WINDOW_NANOS - 1;
+        assertTrue(bridge.isListening(), "still inside the window its question bought");
+        bridge.entered();
+        assertEquals(1, republishes[0], "a question inside the window is answered from a current tree");
+        now[0] += AxBridge.ASKED_WINDOW_NANOS;
+        assertFalse(bridge.isListening(),
+                "a program that read the screen once is not paid a walk on every frame for the rest of the run");
+
+        reader[0] = true;
+        assertTrue(bridge.isListening(), "a screen reader that is on is listening whether it asked lately or not");
+        now[0] += 100 * AxBridge.ASKED_WINDOW_NANOS;
+        assertTrue(bridge.isListening());
+        bridge.entered();
+        assertEquals(1, republishes[0], "and its tree was current all along");
+
+        reader[0] = false;
+        now[0] += AxBridge.ASKED_WINDOW_NANOS;
+        assertFalse(bridge.isListening());
+        bridge.entered();
+        assertEquals(2, republishes[0], "the question that reopens a shut gate asks for a fresh tree");
+        assertTrue(bridge.isListening());
+    }
+
     /** The nested window, with the group's first button labelled by and described by its siblings. */
     private static AccessibleTree aNestedWindowWithRelations() {
         Accessibility a = new Accessibility();

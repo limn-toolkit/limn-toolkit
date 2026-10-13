@@ -192,14 +192,23 @@ public final class CalendarView extends Widget<CalendarView> {
     private static final long KEY_WEEK_ROW_BASE = 1L << 41;
     /** A week-number cell's key: {@code this + the epoch day its week starts on}. */
     private static final long KEY_WEEK_NUMBER_BASE = 1L << 42;
-    /** One per row of the month chooser: three. */
-    private static final long KEY_MONTH_ROW_BASE = -300;
-    /** One per row of the year chooser: six. */
-    private static final long KEY_YEAR_ROW_BASE = -400;
-    /** One per month cell, twelve, decoded in {@link #onSyntheticAction}. */
-    private static final long KEY_MONTH_BASE = -1000;
-    /** One per year cell, twenty-four, decoded in {@link #onSyntheticAction}. */
-    private static final long KEY_YEAR_BASE = -2000;
+    /**
+     * A chooser's cells and rows are keyed by what they stand for, as a day is, and not by where
+     * they are drawn: a cell keyed by its place is the same node on the next page with another
+     * name, and a reader standing on it spoke the year it had been before the year it became.
+     * What a cell stands for is a number, its <i>ordinal</i>: the proleptic year for a year, and
+     * twelve times the proleptic year plus the month for a month. A row is keyed by its first
+     * cell's. The four ranges are negative, powers of two apart, and wider than any ordinal.
+     */
+    private static final long KEY_YEAR_BASE = -(1L << 40);
+    /** A month cell's key: {@code this + its ordinal}. */
+    private static final long KEY_MONTH_BASE = -(1L << 42);
+    /** A year row's key: {@code this + its first year}. */
+    private static final long KEY_YEAR_ROW_BASE = -(1L << 44);
+    /** A month row's key: {@code this + its first month's ordinal}. */
+    private static final long KEY_MONTH_ROW_BASE = -(1L << 46);
+    /** What {@link #chooserFirstOrdinal} answers where the calendar cannot name the page. */
+    private static final long NO_ORDINAL = Long.MIN_VALUE;
 
     /**
      * Which part of the calendar the keyboard is on.
@@ -2891,11 +2900,15 @@ public final class CalendarView extends Widget<CalendarView> {
         int columns = columns();
         boolean terminal = terminalChooser() && selectionMode != SelectionMode.NONE;
         int count = Math.min(chooserText.length, cellCount());
-        long rowBase = view == View.MONTHS ? KEY_MONTH_ROW_BASE : KEY_YEAR_ROW_BASE;
-        long cellBase = chooserKeyBase();
+        long first = chooserFirstOrdinal();
+        if (first == NO_ORDINAL) {
+            return;
+        }
+        long rowBase = (view == View.MONTHS ? KEY_MONTH_ROW_BASE : KEY_YEAR_ROW_BASE) + first;
+        long cellBase = chooserKeyBase() + first;
         for (int row = 0; row < rows(); row++) {
             float top = gridY + row * cellH;
-            a.child(rowBase - row);
+            a.child(rowBase + (long) row * columns);
             a.bounds(0, top, width(), cellH);
             a.role(Accessible.Role.ROW);
             // Named for what it shows, as a week row is: without it a reader crossing the chooser
@@ -2909,7 +2922,7 @@ public final class CalendarView extends Widget<CalendarView> {
                 if (index >= chooserText.length) {
                     break;
                 }
-                a.child(cellBase - index);
+                a.child(cellBase + index);
                 a.bounds(cellLeft(column, rtl), top, cellW, cellH);
                 GridAccessibility.describeCell(a, row, column, false, false);
                 a.name(chooserName[index], textEpoch, Accessible.NameFrom.CONTENT);
@@ -2993,6 +3006,21 @@ public final class CalendarView extends Widget<CalendarView> {
     /** Where the cells of the chooser on show are keyed: the months' range or the years'. */
     private long chooserKeyBase() {
         return view == View.MONTHS ? KEY_MONTH_BASE : KEY_YEAR_BASE;
+    }
+
+    /**
+     * The ordinal of the first cell of the chooser on show: the first year of the block, or the
+     * first month of the year, counted in the drawn calendar.
+     */
+    private long chooserFirstOrdinal() {
+        ChronoLocalDate reference = CalendarChronology.date(gridChronology,
+                LocalDate.ofEpochDay(monthFirstEpoch));
+        if (reference == null) {
+            return NO_ORDINAL;
+        }
+        return view == View.MONTHS
+                ? reference.get(ChronoField.YEAR) * (long) MONTHS_IN_YEAR
+                : yearBlockStart(reference);
     }
 
     /**
@@ -3163,9 +3191,9 @@ public final class CalendarView extends Widget<CalendarView> {
             }
         }
         if (view != View.DAYS) {
-            long base = chooserKeyBase();
-            long index = base - key;
-            if (key > base || index >= chooserText.length
+            long first = chooserFirstOrdinal();
+            long index = first == NO_ORDINAL ? -1 : key - chooserKeyBase() - first;
+            if (index < 0 || index >= chooserText.length
                     || action != Accessible.Action.SELECT && action != Accessible.Action.FOCUS) {
                 return false;
             }
