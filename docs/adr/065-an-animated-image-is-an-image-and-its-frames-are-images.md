@@ -1,7 +1,7 @@
 # ADR 065: An animated image is an image, and its frames are images
 
-- **Status:** Proposed, 2026-10-13. Nothing is implemented. Section 9 lists what the owner has
-  still to settle.
+- **Status:** Accepted, 2026-10-13, and not implemented. The WebP library is adopted on the
+  outcome of the spike of section 6.
 - **Date:** 2026-10-13
 - **Scope:** pictures that move: animated GIF, APNG and animated WebP read from a file, and a
   sprite sheet declared by hand; how they are held, cached, played and controlled.
@@ -91,9 +91,13 @@ it keeps `Canvas.drawImage` with a source rectangle, as now.
 
 ## 4. Decision: who plays it
 
-**`ImageView` plays an animated image it is given.** It starts by itself, as a picture that
-moves is expected to, unless the user asked the system for less motion: then it shows the
-first frame and plays only when told to. It controls:
+**`ImageView` plays an animated image it is given, and starts by itself,** as a picture that
+moves is expected to. A video in this toolkit starts still, because a video has sound and a
+page nobody opened must not start one; a moving picture has none.
+
+**The system's wish for less motion does not stop it,** as the owner decided: that wish is
+for the motion an interface adds to itself, a fade or a slide, which loses nothing by ending
+at once, where an animation held still is no longer the animation. It controls:
 
 | Call | What it does |
 |---|---|
@@ -151,14 +155,14 @@ All three formats in the first delivery, as the owner chose, and all three read 
   `Loop.FILE`. The format is a header, a palette and a dictionary coder, a few hundred lines.
 - **APNG, written here,** on the inflater the platform has: the chunks that say where each
   frame goes and how it is laid on the one before, and PNG's five filters.
-- **WebP, by `org.glavo:webp`, in an artifact of its own,** `limn-image-webp`, so that the
-  core gains no dependency and an application that shows no WebP carries none. It reads frame
-  by frame, which is what section 5 needs. Before it is adopted, a spike: the reference
-  library's test pictures decoded and compared, speed against the native library, and the
-  mutation fuzz of ADR 061 run over it. It is taken at the version published under
-  Apache-2.0 or a later one whose licence is read first. If the spike refuses it, the way
-  back is the format's own library built as natives in a repository of its own, as the fonts
-  and the video decoder are.
+- **WebP, by `org.glavo:webp`, a dependency of the library itself,** as the owner decided: an
+  application gets WebP with the toolkit and adds nothing. It reads frame by frame, which is
+  what section 5 needs. It is adopted after a spike that answers four things: what it adds
+  to the size of what an application ships; that none of it is loaded until a WebP is
+  decoded; how fast it decodes; and what it does with a damaged file, under the mutation fuzz
+  of ADR 061. It is taken at the version published under Apache-2.0 or a later one whose
+  licence is read first. If the spike refuses it, the way back is the format's own library
+  built as natives in a repository of its own, as the fonts and the video decoder are.
 
 Every reader is held to ADR 061: one exception for a damaged file, ceilings on a picture's
 size and on the frames of one file, and the mutation fuzz in `check`, the WebP library
@@ -170,9 +174,10 @@ answers the still picture as now.
 ## 7. Accessibility
 
 An image's node is as it is, with the name the application gave the view. A picture that
-moves for more than five seconds has to be something a user can stop: the toolkit holds it
-still for whoever asked the system for less motion, and `setPlaying` is what an application's
-own control calls. No control is drawn over a picture by the toolkit.
+moves for more than five seconds has to be something a user can stop, and stopping it is the
+application's to offer: `setPlaying` is what its control calls, and
+`SystemPreferences.reduceMotion()` is there for one that chooses to start such a picture
+still. The toolkit neither holds a picture still by itself nor draws a control over one.
 
 ## 8. Not done
 
@@ -182,13 +187,10 @@ own control calls. No control is drawn over a picture by the toolkit.
 - **Animated icons** in a button, a menu, the tray or a cursor: each shows the first frame.
 - **Sound.** A picture that moves with sound is a video.
 
-## 9. For the owner to settle
+## 9. What the owner settled
 
-1. **Playing by itself.** A video in this toolkit starts still and a moving picture, as
-   proposed, starts moving. The reason is that the two are expected so, and that a moving
-   picture makes no sound; the cost is two defaults to remember.
-2. **`fromSheet` cutting the sheet** into one image a frame, against keeping one texture and
-   a rectangle a frame, which would put a second shape of frame through everything in
-   section 5.
-3. **The WebP library**, on the terms of section 6, or the native library from the start.
-4. **The animation budget's default**, 32 MiB.
+1. **A moving picture starts moving,** and the system's wish for less motion is not applied
+   to it (section 4).
+2. **`fromSheet` cuts the sheet** into one image a frame (section 3).
+3. **WebP by the Java library, as a dependency of the toolkit,** after the spike of section 6.
+4. **32 MiB** is the animation budget unless set (section 5).
