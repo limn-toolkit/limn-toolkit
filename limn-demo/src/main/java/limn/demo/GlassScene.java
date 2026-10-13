@@ -70,9 +70,9 @@ final class GlassScene {
         playing.add(titles);
         playing.add(new SizedBox(180, SizedBox.UNSET, new limn.components.Slider(0, 100).setValue(35)));
         playing.add(new limn.components.Button("Open"));
-        // Leaning toward a colour of the application's by a fifth; the bar above is the theme's alone.
-        BackdropPanel floating = BackdropPanel.frosted(Insets.symmetric(10, 14), playing)
-                .setTint(new Color(0.10f, 0.55f, 0.60f, 1f), 0.2f);
+        // Leaning toward a colour of the application's by a fifth, and covering less than glass
+        // does by itself, since it is over a picture chosen for it; the bar above is the theme's alone.
+        BackdropPanel floating = limn.demo.site.GlassExample.tinted(playing, new Color(0.10f, 0.55f, 0.60f, 1f));
         column.add(new SizedBox(SizedBox.UNSET, 240, limn.demo.site.GlassExample.floatingOver(
                 new ImageView(dusk()).setFit(ImageView.Fit.COVER), floating)));
 
@@ -235,7 +235,7 @@ final class GlassScene {
         for (int y = 0; y < h; y++) {
             for (int x = 0; x < w; x++) {
                 float v = y / (float) (h - 1);
-                float dx = (x - w * 0.68f) / w;
+                float dx = (x - w * 0.5f) / w;
                 float dy = (y - h * 0.52f) / h;
                 float sun = (float) Math.exp(-(dx * dx * 60 + dy * dy * 220));
                 float r;
@@ -249,9 +249,12 @@ final class GlassScene {
                 } else {                    // the sea: dark, with bands the sun lights
                     float t = (v - 0.55f) / 0.45f;
                     float band = 0.5f + 0.5f * (float) Math.sin(y * 1.7f + x * 0.05f);
-                    r = 0.10f + 0.25f * (1 - t) * band;
-                    g = 0.14f + 0.14f * (1 - t) * band;
-                    b = 0.26f + 0.10f * band;
+                    // The sun's path on the water, under it and widening toward the shore: what
+                    // the panel floats over, so that the glass has light and colour to show.
+                    float path = (float) Math.exp(-dx * dx * (70 - 40 * t)) * (0.35f + 0.65f * band);
+                    r = 0.10f + 0.25f * (1 - t) * band + 0.80f * path;
+                    g = 0.14f + 0.14f * (1 - t) * band + 0.45f * path;
+                    b = 0.26f + 0.10f * band + 0.10f * path;
                 }
                 int at = (y * w + x) * 4;
                 pixels[at] = (byte) Color.toByte(Math.min(1, r + sun));

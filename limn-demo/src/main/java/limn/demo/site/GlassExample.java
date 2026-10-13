@@ -28,9 +28,12 @@ public final class GlassExample {
         return BackdropPanel.frosted(Insets.symmetric(8, 12), content);
     }
 
-    /** The same glass leaning toward a colour of the application's, here by a fifth. */
-    static BackdropPanel tinted(Widget<?> content, Color brand) {
-        return BackdropPanel.frosted(Insets.symmetric(10, 14), content).setTint(brand, 0.2f);
+    /**
+     * The same glass leaning toward a colour of the application's, here by a fifth, and letting
+     * more of what is behind through: over a picture chosen for it, a third of the tone is enough.
+     */
+    public static BackdropPanel tinted(Widget<?> content, Color brand) {
+        return BackdropPanel.frosted(Insets.symmetric(10, 14), content).setTint(brand, 0.2f).setCover(0.3f);
     }
     // #endregion
 

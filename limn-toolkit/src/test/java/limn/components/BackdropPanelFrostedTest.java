@@ -63,6 +63,24 @@ class BackdropPanelFrostedTest extends ComponentTestBase {
     }
 
     @Test
+    void theCoverIsHowMuchOfTheToneIsLaidOverWhatIsBehind() {
+        Theme.setCurrent(Theme.light());
+        BackdropPanel panel = BackdropPanel.frosted(new Label("On glass"));
+        assertEquals(0.6f, panel.cover());
+        assertEquals(0.6f, toneOf(panel).tint().a(), 1e-6f);
+
+        panel.setCover(0.3f);
+        assertEquals(0.3f, toneOf(panel).tint().a(), 1e-6f, "less of the tone, more of what is behind");
+        assertEquals(Theme.light().surface().r(), toneOf(panel).tint().r(), 1e-6f, "and the tone itself as it was");
+
+        panel.setCover(4f);
+        assertEquals(1f, panel.cover(), "a share, held to 0..1");
+        BackdropPanel byHand = new BackdropPanel(new BackdropEffect.Pixelate(Color.TRANSPARENT, 9f),
+                limn.scene.Insets.all(4), new Label("By hand"));
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> byHand.setCover(0.5f));
+    }
+
+    @Test
     void aPanelGivenItsEffectsByHandIsNoLongerWorkedOutAndTakesNoTint() {
         BackdropEffect.Pixelate redaction = new BackdropEffect.Pixelate(Color.TRANSPARENT, 9f);
         BackdropPanel panel = BackdropPanel.frosted(new Label("On glass"));
