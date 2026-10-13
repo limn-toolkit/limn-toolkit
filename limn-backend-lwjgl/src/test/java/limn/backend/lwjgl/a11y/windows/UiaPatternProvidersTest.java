@@ -916,10 +916,12 @@ class UiaPatternProvidersTest {
     }
 
     /**
-     * Decision 39: a small step is the axis's scroll bar's INCREMENT or DECREMENT, posted on the
-     * bar; a large step has no page verb to go to and is refused; NoAmount leaves the axis; an
-     * axis with no bar, or a bar publishing no such verb, is refused with 0x80131509 and nothing
-     * is posted for either axis; a pane that is not enabled answers UIA_E_ELEMENTNOTENABLED first.
+     * A large step is the axis's scroll bar's INCREMENT or DECREMENT, which pages; a small step is
+     * a line, a value a tenth of the bar's step away where the bar takes one (decision 39's
+     * routing, amended 2026-10-12: the bar's verb is a page, and posted for a small step it moved
+     * a table a third of its length); NoAmount leaves the axis; an axis with no bar, or a bar
+     * that takes no step, is refused with 0x80131509 and nothing is posted for either axis; a
+     * pane that is not enabled answers UIA_E_ELEMENTNOTENABLED first.
      */
     @Test
     void scrollPostsTheBarsSteppingVerbAndRefusesWhatNoBarPublishes() {
@@ -929,12 +931,18 @@ class UiaPatternProvidersTest {
                 UiaIds.SCROLL_AMOUNT_SMALL_DECREMENT));
         assertEquals(UiaIds.S_OK, scroll(1040, UiaIds.SCROLL_AMOUNT_NO_AMOUNT,
                 UiaIds.SCROLL_AMOUNT_NO_AMOUNT));
-        assertEquals(List.of("1042 INCREMENT None[]", "1042 DECREMENT None[]"), posted,
-                "on the vertical bar, and nothing at all for NoAmount");
+        assertEquals(List.of("1042 SET_VALUE OfValue[value=85.0]", "1042 SET_VALUE OfValue[value=65.0]"),
+                posted, "a line each way from 75 on the vertical bar, and nothing at all for NoAmount");
 
         posted.clear();
-        assertEquals(UiaIds.E_INVALID_OPERATION, scroll(1040, UiaIds.SCROLL_AMOUNT_NO_AMOUNT,
-                UiaIds.SCROLL_AMOUNT_LARGE_INCREMENT), "no page verb exists to route a large step to");
+        assertEquals(UiaIds.S_OK, scroll(1040, UiaIds.SCROLL_AMOUNT_NO_AMOUNT,
+                UiaIds.SCROLL_AMOUNT_LARGE_INCREMENT));
+        assertEquals(UiaIds.S_OK, scroll(1040, UiaIds.SCROLL_AMOUNT_NO_AMOUNT,
+                UiaIds.SCROLL_AMOUNT_LARGE_DECREMENT));
+        assertEquals(List.of("1042 INCREMENT None[]", "1042 DECREMENT None[]"), posted,
+                "a large step is the bar's own, a page");
+
+        posted.clear();
         assertEquals(UiaIds.E_INVALID_OPERATION, scroll(1040, UiaIds.SCROLL_AMOUNT_SMALL_INCREMENT,
                 UiaIds.SCROLL_AMOUNT_SMALL_INCREMENT), "the pane cannot scroll sideways");
         assertEquals(UiaIds.E_INVALID_OPERATION, scroll(1040, UiaIds.SCROLL_AMOUNT_NO_AMOUNT, 9),

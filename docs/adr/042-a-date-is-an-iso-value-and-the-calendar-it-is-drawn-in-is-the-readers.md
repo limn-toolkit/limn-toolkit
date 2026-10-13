@@ -65,8 +65,10 @@ amended; where this summary and a section disagree, the section is right and thi
 - In the picker's popup a reader's selection only marks a day (ADR 045 §8, decision 102).
 
 **Open.**
-- The year chooser is still keyed by position; its fix waits on NVDA and Orca runs over a block
-  being paged (§8, decision 85; status block).
+- ~~The year chooser is still keyed by position~~ Closed 2026-10-12: a year cell is keyed by its
+  proleptic year and a month cell by its year and month, their rows by the first of them, as a
+  day is by its date; a test holds that paging a chooser renames no node. Read through the
+  accessibility interface on the macOS guest; no reader's speech over a paged block was recorded.
 - Whether `FOCUS` leaving a two-digit year may resolve it is the owner's to confirm, and whether the
   calendar keeps its verbs during the picker's fade-out is not settled (§8; amended 2026-09-15).
 - Left out on purpose: a shortcut footer, era editing, a multi-month grid, zones, `Instant` (§11).

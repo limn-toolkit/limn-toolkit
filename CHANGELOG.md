@@ -10,6 +10,18 @@ Maven Central say which number that was.
 
 ### Fixed
 
+- On Windows, a tool that keeps an element it found is answered from a current tree for as long
+  as it reads. Two seconds after the element was found every property read through it was the
+  value of that moment, and a table scrolled through its scroll pattern stayed at the percent it
+  had and took neither a step nor a percent. A small scroll step moves a line and a large one a
+  page; a small one moved a page and a large one was refused.
+- A date picker's year chooser, and its month chooser, name each cell for good: paging a block of
+  years made the same cells carry the next block's years, and a screen reader standing on one
+  could speak the year it had been first.
+- On macOS a program that reads the screen once, a window arranger or a script, no longer makes
+  the application build its accessible tree on every changed frame for the rest of the run: the
+  tree is kept current while the system says a screen reader or the switch scanner is on, and
+  for ten seconds after anything asks.
 - Orca 50.2 reads what a combo box holds: "Mountain ranges Atlas, combo box". A combo box that is
   not editable is named on AT-SPI by the value it shows, its caption reached through
   `labelled-by`, as GTK 3's and Qt's are; Orca 50.2 speaks a focused combo's label and name and
@@ -912,7 +924,5 @@ lets the toolkit read its own resources.
   and Orca do. It says nothing either when Space takes a table's row out of the selection while the
   cursor is on one of the row's cells, as it says nothing in a WPF DataGrid.
 - VoiceOver is given a sorted header's direction and does not read it out.
-- A date picker's year chooser keys its cells by position, so paging a block of years may make a
-  reader speak a stale year first.
 - On Windows, a UI Automation client's `SetFocus` on a column header, or on a row of a list or a
   tree in `SINGLE` (where the cursor is the selection), is refused; the container's is accepted.

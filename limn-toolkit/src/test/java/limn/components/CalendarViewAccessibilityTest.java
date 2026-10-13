@@ -839,6 +839,44 @@ class CalendarViewAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /**
+     * A year is one node wherever it is drawn, and another year is another node: a cell keyed by
+     * its place was the same node on the next page under a new name, and a reader standing on it
+     * spoke the year it had been first.
+     */
+    @Test
+    void pagingAChooserRenamesNoNodeUnderAReader() {
+        CalendarView calendar = bindCalendar();
+        for (CalendarView.View view : new CalendarView.View[] {CalendarView.View.YEARS, CalendarView.View.MONTHS}) {
+            calendar.setView(view);
+            frame();
+            java.util.Map<Long, String> before = chooserNames();
+            key(limn.input.Keys.PAGE_DOWN, 0);
+            frame();
+            java.util.Map<Long, String> after = chooserNames();
+            assertFalse(before.equals(after), view + ": the page turned");
+            for (java.util.Map.Entry<Long, String> node : after.entrySet()) {
+                String was = before.get(node.getKey());
+                assertTrue(was == null || was.equals(node.getValue()),
+                        view + ": the node that was '" + was + "' is now '" + node.getValue() + "'");
+            }
+            key(limn.input.Keys.PAGE_UP, 0);
+            frame();
+            assertEquals(before, chooserNames(), view + ": and paging back finds the nodes it left");
+        }
+    }
+
+    private java.util.Map<Long, String> chooserNames() {
+        java.util.Map<Long, String> names = new java.util.HashMap<>();
+        for (AccessibleNode row : rowNodes()) {
+            names.put(row.id(), row.name());
+            for (AccessibleNode cell : childrenOf(row)) {
+                names.put(cell.id(), cell.name());
+            }
+        }
+        return names;
+    }
+
+    /**
      * The ids of the rows and cells on show, each cell checked for whether it carries a
      * selection item: the interface set a Windows element is built with on first read.
      */

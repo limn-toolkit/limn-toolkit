@@ -109,14 +109,20 @@ final class UiaSurfaceShape {
     }
 
     /**
-     * {@code IScrollProvider::Scroll}: each axis's {@code ScrollAmount} becomes the
-     * stepping verb that axis's scroll bar publishes, and the call is refused synchronously when an
-     * axis asked to move has no bar or its bar publishes no such verb.
+     * {@code IScrollProvider::Scroll}: each axis's {@code ScrollAmount} is posted on that axis's
+     * scroll bar, and the call is refused synchronously when an axis asked to move has no bar or
+     * its bar takes no such step.
      *
-     * <p>A small step is {@code INCREMENT} or {@code DECREMENT}. A large one is the bar's page verb
-     * "if published", and the model has none ({@link Accessible.Action} has no page verb), so it is
-     * refused; {@code NoAmount} leaves the axis alone. The order of the refusals is the platform's
-     * own provider's, read as IL (readings/windows-dump-uia-provider-conventions.txt §1,
+     * <p>A bar has one stepping verb pair, {@code INCREMENT} and {@code DECREMENT}, and its step
+     * is one viewport: a page. So a <b>large</b> amount is that verb, which is what the platform
+     * means by it. A <b>small</b> amount is a line, and the model has no line: it is a
+     * {@code SET_VALUE} a tenth of the bar's step away, where the bar takes a value, and the
+     * bar's verb where it does not. Until 2026-10-12 a small amount was the bar's verb and a
+     * large one was refused, so one small step over a table of forty-eight rows moved it a third
+     * of the way (read on the guest: 0 to 35.12 %). {@code NoAmount} leaves the axis alone.
+     *
+     * <p>The order of the refusals is the platform's own provider's, read as IL
+     * (readings/windows-dump-uia-provider-conventions.txt §1,
      * {@code ScrollViewerAutomationPeer.Scroll}): a node that is not enabled first
      * ({@code UIA_E_ELEMENTNOTENABLED}), then an axis asked to move that cannot scroll, then an
      * amount it cannot perform ({@code InvalidOperationException}); both axes are checked before
@@ -143,45 +149,67 @@ final class UiaSurfaceShape {
         }
         AccessibleNode barH = moveH ? scrollBarOf(tree, node, false) : null;
         AccessibleNode barV = moveV ? scrollBarOf(tree, node, true) : null;
-        Accessible.Action stepH = moveH ? stepFor(horizontal) : null;
-        Accessible.Action stepV = moveV ? stepFor(vertical) : null;
-        int refused = refusedStep(moveH, barH, stepH);
+        int refused = refusedStep(moveH, barH, horizontal);
         if (refused == UiaIds.S_OK) {
-            refused = refusedStep(moveV, barV, stepV);
+            refused = refusedStep(moveV, barV, vertical);
         }
         if (refused != UiaIds.S_OK) {
             return refused;
         }
         boolean accepted = true;
         if (moveH) {
-            accepted = context.perform(barH.id(), stepH, Accessible.Argument.NONE);
+            accepted = step(context, barH, horizontal);
         }
         if (moveV) {
-            accepted &= context.perform(barV.id(), stepV, Accessible.Argument.NONE);
+            accepted &= step(context, barV, vertical);
         }
         return accepted(accepted);
     }
 
-    /** @return the model verb a {@code ScrollAmount} steps by, or {@code null} for none */
+    /** @return the bar's verb in an amount's direction, or {@code null} for what is not an amount */
     private static Accessible.Action stepFor(int amount) {
         return switch (amount) {
-            case UiaIds.SCROLL_AMOUNT_SMALL_INCREMENT -> Accessible.Action.INCREMENT;
-            case UiaIds.SCROLL_AMOUNT_SMALL_DECREMENT -> Accessible.Action.DECREMENT;
-            // LargeIncrement and LargeDecrement: the page verbs decision 39 routes them to do not
-            // exist in the model, so nothing publishes them. Anything else is not an amount.
+            case UiaIds.SCROLL_AMOUNT_SMALL_INCREMENT, UiaIds.SCROLL_AMOUNT_LARGE_INCREMENT ->
+                    Accessible.Action.INCREMENT;
+            case UiaIds.SCROLL_AMOUNT_SMALL_DECREMENT, UiaIds.SCROLL_AMOUNT_LARGE_DECREMENT ->
+                    Accessible.Action.DECREMENT;
             default -> null;
         };
     }
 
-    /** @return {@code S_OK} when an axis asked to move has a bar that accepts its step now */
-    private static int refusedStep(boolean move, AccessibleNode bar, Accessible.Action step) {
+    /** Whether an amount is a line, which is posted as a value where the bar takes one. */
+    private static boolean aLine(AccessibleNode bar, int amount) {
+        return (amount == UiaIds.SCROLL_AMOUNT_SMALL_INCREMENT
+                || amount == UiaIds.SCROLL_AMOUNT_SMALL_DECREMENT)
+                && bar.value() != null && bar.value().step() > 0
+                && bar.accepts(Accessible.Action.SET_VALUE);
+    }
+
+    /** Posts one amount on a bar that {@link #refusedStep} let through. */
+    private static boolean step(UiaProvider.Context context, AccessibleNode bar, int amount) {
+        Accessible.Action verb = stepFor(amount);
+        if (!aLine(bar, amount)) {
+            return context.perform(bar.id(), verb, Accessible.Argument.NONE);
+        }
+        double line = bar.value().step() / LINES_IN_A_PAGE;
+        double to = bar.value().value() + (verb == Accessible.Action.INCREMENT ? line : -line);
+        to = Math.max(bar.value().min(), Math.min(bar.value().max(), to));
+        return context.perform(bar.id(), Accessible.Action.SET_VALUE, new Accessible.Argument.OfValue(to));
+    }
+
+    /** How many small steps make a large one: a line is this fraction of the bar's own step. */
+    private static final double LINES_IN_A_PAGE = 10;
+
+    /** @return {@code S_OK} when an axis asked to move has a bar that accepts its amount now */
+    private static int refusedStep(boolean move, AccessibleNode bar, int amount) {
         if (!move) {
             return UiaIds.S_OK;
         }
-        if (bar == null || step == null) {
+        Accessible.Action verb = stepFor(amount);
+        if (bar == null || verb == null) {
             return UiaIds.E_INVALID_OPERATION;
         }
-        return bar.accepts(step) ? UiaIds.S_OK : refusal(bar);
+        return aLine(bar, amount) || bar.accepts(verb) ? UiaIds.S_OK : refusal(bar);
     }
 
     /**

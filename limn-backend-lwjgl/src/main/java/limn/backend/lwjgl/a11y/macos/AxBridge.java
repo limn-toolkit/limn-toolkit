@@ -118,7 +118,28 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
     /** element pointer to node id: the recovery every implementation starts with. */
     private final Map<Long, Long> nodeIdByElement = new HashMap<>();
 
-    private boolean listening;
+    /**
+     * How long after a client's question this window counts as read by someone. A program that
+     * reads the screen once, a window arranger, a script, a test, asks and goes away; a walk paid
+     * on every changed frame for the rest of the run, for a program that left, was the cost of a
+     * gate that only ever opened. Ten seconds and not the two of Windows: nothing here says a
+     * client subscribed, so a client that waits on notifications between its questions is kept
+     * current only for as long as this is.
+     */
+    static final long ASKED_WINDOW_NANOS = 10_000_000_000L;
+
+    /** When a client last asked anything, or long ago. */
+    private long lastAskedNanos = Long.MIN_VALUE / 2;
+    /**
+     * Whether the system says an assistive technology is on that reads all the time: the screen
+     * reader, or the switch scanner. While one is, this window is read whether or not it was asked
+     * anything lately. Off AppKit, never.
+     */
+    private java.util.function.BooleanSupplier standing = () -> false;
+    /** NSWorkspace's shared instance, or 0. */
+    private long workspace;
+    /** What the gate last said through the trace. */
+    private Boolean lastGateSaid;
     private boolean obligationsDeferred;
     private long[] pushed = new long[0];
     /** How many times the root's children have been handed to the content view. For tests. */
@@ -152,6 +173,9 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
     private AxBridge(AxObjC objc, long contentView) {
         this.objc = objc;
         this.contentView = contentView;
+        if (objc != null) {
+            this.standing = this::readerOnPerTheSystem;
+        }
         // One class per bridge, named per instance: objc_allocateClassPair refuses a name already
         // registered, and a process can open several windows.
         this.elementClass = objc == null ? null : new AxElementClass(objc, this,
@@ -221,10 +245,51 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
 
     @Override
     public boolean isListening() {
-        // §6's honest gate here is "someone has asked", because there is no
-        // UiaClientsAreListening on this platform and no registry to consult. It cannot open before
-        // the platform has been handed elements to ask about, which is what needsPrimingPublish is.
-        return listening;
+        // There is no UiaClientsAreListening on this platform and no registry to consult, so the
+        // gate is two facts: the system says a reader that reads all the time is on, or someone
+        // asked this window something a moment ago. It cannot open for a question before the
+        // platform has been handed elements to ask about, which is what needsPrimingPublish is.
+        if (released) {
+            return false;
+        }
+        boolean reader = standing.getAsBoolean();
+        boolean answer = listening(reader, lastAskedNanos, clock.getAsLong());
+        Consumer<String> to = trace;
+        if (to != null && (lastGateSaid == null || lastGateSaid != answer)) {
+            lastGateSaid = answer;
+            to.accept("gate listening=" + answer + " readerOn=" + reader);
+        }
+        return answer;
+    }
+
+    /**
+     * The gate's decision, as a function of its facts so that a machine with no AppKit can pin it.
+     *
+     * @param readerOn   whether the system says a screen reader or a switch scanner is on
+     * @param askedNanos when a client last asked anything
+     * @param now        the clock
+     * @return whether a frame of this window is worth a walk
+     */
+    static boolean listening(boolean readerOn, long askedNanos, long now) {
+        return readerOn || now - askedNanos < ASKED_WINDOW_NANOS;
+    }
+
+    /** For tests: the clock the asked window is measured on, and what stands for the system's flags. */
+    void setGateFacts(java.util.function.LongSupplier newClock, java.util.function.BooleanSupplier readerOn) {
+        this.clock = newClock;
+        this.standing = readerOn;
+    }
+
+    /** Whether the system's own flags say a reader is on; a few nanoseconds, asked once a frame. */
+    private boolean readerOnPerTheSystem() {
+        if (workspace == 0) {
+            workspace = ObjC.msg(ObjC.cls("NSWorkspace"), "sharedWorkspace");
+            if (workspace == 0) {
+                return false;
+            }
+        }
+        return (ObjC.msg(workspace, "isVoiceOverEnabled") & 0xFF) != 0
+                || (ObjC.msg(workspace, "isSwitchControlEnabled") & 0xFF) != 0;
     }
 
     @Override
@@ -482,7 +547,7 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         // SIGSEGV inside liblwjgl, seen at the end of the first scroll run on the guest.
         if (objc != null) ObjC.msgVoid(contentView, "setAccessibilityChildren:", 0);
         teardown.add("children taken back");
-        listening = false;
+        lastAskedNanos = Long.MIN_VALUE / 2;
         if (elementClass != null) elementClass.restoreView();
         teardown.add("view restored");
         if (elementClass != null) elementClass.free();
@@ -494,7 +559,17 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
 
     @Override
     public void entered() {
-        listening = true;
+        long now = clock.getAsLong();
+        boolean lapsed = now - lastAskedNanos >= ASKED_WINDOW_NANOS;
+        lastAskedNanos = now;
+        if (lapsed && !released && !standing.getAsBoolean()) {
+            // The gate was shut and the tree this client is reading is the one from before it
+            // shut: a fresh one is owed, and nothing else would prompt it on an idle window.
+            Host host = host();
+            if (host != null) {
+                host.requestRepublish();
+            }
+        }
     }
 
     /**
