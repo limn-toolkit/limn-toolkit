@@ -191,11 +191,12 @@ class AxBridgeTest {
         bridge.setGateFacts(() -> now[0], () -> reader[0]);
         int[] republishes = {0};
         bridge.attach(new AccessibilityBridge.Host() {
-            @Override public void requestRepublish() {
-                republishes[0]++;
-            }
+            @Override public void requestRepublish() { }
             @Override public void requestRestamp() { }
-            @Override public AccessibleTree republishNow() { return AccessibleTree.EMPTY; }
+            @Override public AccessibleTree republishNow() {
+                republishes[0]++;
+                return AccessibleTree.EMPTY;
+            }
             @Override public boolean perform(long nodeId, Accessible.Action action,
                                              Accessible.Argument arg) {
                 return false;
@@ -225,7 +226,7 @@ class AxBridgeTest {
         now[0] += AxBridge.ASKED_WINDOW_NANOS;
         assertFalse(bridge.isListening());
         bridge.entered();
-        assertEquals(2, republishes[0], "the question that reopens a shut gate asks for a fresh tree");
+        assertEquals(2, republishes[0], "the question that reopens a shut gate is answered from a tree rebuilt inside it");
         assertTrue(bridge.isListening());
     }
 

@@ -563,11 +563,16 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         boolean lapsed = now - lastAskedNanos >= ASKED_WINDOW_NANOS;
         lastAskedNanos = now;
         if (lapsed && !released && !standing.getAsBoolean()) {
-            // The gate was shut and the tree this client is reading is the one from before it
-            // shut: a fresh one is owed, and nothing else would prompt it on an idle window.
+            // The gate was shut and the tree this client is about to be answered from is the one
+            // from before it shut. It is rebuilt now, inside the question, and not on the next
+            // frame: a client that asks one thing and goes, the element with the keyboard say,
+            // was answered with where the keyboard had been (read on the guest: a question asked
+            // after ten quiet seconds named the segment four steps back). This is the question
+            // that cannot wait for a frame, on the user-interface thread and inside AppKit's own
+            // pump, which is what the host's immediate republish is for.
             Host host = host();
             if (host != null) {
-                host.requestRepublish();
+                host.republishNow();
             }
         }
     }
