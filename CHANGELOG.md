@@ -10,6 +10,10 @@ Maven Central say which number that was.
 
 ### Fixed
 
+- A calendar or a menu drawn in the scene gives the keyboard back as it starts to close, and
+  leaves what a screen reader reads at the same moment. The focus came back when the fade ended:
+  until then a key typed went to a calendar that was closing, and VoiceOver, standing on a layer
+  about to be destroyed, read a neighbour of the field before the field.
 - On Windows, a tool that keeps an element it found is answered from a current tree for as long
   as it reads. Two seconds after the element was found every property read through it was the
   value of that moment, and a table scrolled through its scroll pattern stayed at the percent it

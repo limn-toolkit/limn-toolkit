@@ -269,6 +269,15 @@ final class AccessibleWalk {
             // popup that must go inert with its opener says so itself (a combo narrows its
             // options while it is disabled) or closes; the inheritance host stays what it is for
             // the other axes, and the relation.
+            if (scene.isClosingOverlay(overlay)) {
+                // It gave the keyboard back and is fading out: pixels on their way off the glass,
+                // and nothing a reader can be on. It leaves the tree in the frame the focus comes
+                // back in, structure and focus told together, and its removal at the fade's end
+                // changes nothing here. Left published until then, its destruction came a sixth of
+                // a second after the focus, and a screen reader already on the field took the
+                // late change of the window for a reason to start again from the title bar.
+                continue;
+            }
             beneathOnlyPopups = layer != null && overlay != layer && overlay != keyboardLayer
                     && scene.onlyPopupsAbove(i);
             if (scene.leavesKeyboardBelow(overlay)) {

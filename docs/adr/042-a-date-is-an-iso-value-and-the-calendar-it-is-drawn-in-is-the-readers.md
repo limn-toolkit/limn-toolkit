@@ -69,8 +69,16 @@ amended; where this summary and a section disagree, the section is right and thi
   proleptic year and a month cell by its year and month, their rows by the first of them, as a
   day is by its date; a test holds that paging a chooser renames no node. Read through the
   accessibility interface on the macOS guest; no reader's speech over a paged block was recorded.
-- Whether `FOCUS` leaving a two-digit year may resolve it is the owner's to confirm, and whether the
-  calendar keeps its verbs during the picker's fade-out is not settled (§8; amended 2026-09-15).
+- Whether `FOCUS` leaving a two-digit year may resolve it is the owner's to confirm (§8).
+- ~~Whether the calendar keeps its verbs during the picker's fade-out~~ Settled 2026-10-12, by the
+  owner's word on a defect heard on macOS: a calendar drawn in the scene leaves the accessible
+  tree, and gives the keyboard back to its field, in the frame its close begins; what fades is
+  pixels. A menu drawn in the scene does the same. With the layer published through the fade, a
+  screen reader was told the focus on a layer destroyed a sixth of a second later and read a
+  neighbour of the field first ("Estadia, grupo", then the field); with the focus told at the
+  start and the layer's removal at the end, it read the minimize button after the field. Heard
+  after the change, two runs: Enter and Escape both read "17, Dia, seletor numérico" and nothing
+  else.
 - Left out on purpose: a shortcut footer, era editing, a multi-month grid, zones, `Instant` (§11).
 
 **Where to read.** Status block; §1 and §2's amendment for the model; §3-§5 for input and bounds;

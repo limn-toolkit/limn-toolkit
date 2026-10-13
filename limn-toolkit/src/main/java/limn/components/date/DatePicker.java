@@ -1218,8 +1218,14 @@ public final class DatePicker extends Widget<DatePicker> {
                 releaseCalendar();
                 return;
             }
-            DateField pending = refocus; // the fade's end is where the focus can move: closeTo
+            DateField pending = refocus;
             refocus = null;
+            // The keyboard goes back as the fade starts, and on to another field where the close
+            // was a move to one: the fade is of a card nobody is typing into any more.
+            limn.scene.internal.SceneAccess.releaseOverlayKeyboard(owner, closing);
+            if (pending != null) {
+                pending.requestFocus();
+            }
             owner.addRealTimeTicker(dt -> {
                 sceneFade = (float) Math.max(0, sceneFade - limn.animation.Motion.progress(dt, Theme.of(this).animWindow));
                 closing.invalidate();
@@ -1230,9 +1236,6 @@ public final class DatePicker extends Widget<DatePicker> {
                 // Released here rather than at the start of the fade, so the card fades out with
                 // the grid still on it; the next open takes it back whether this ran or not.
                 releaseCalendar();
-                if (pending != null) {
-                    pending.requestFocus();
-                }
                 return false;
             });
         }
@@ -1788,12 +1791,12 @@ public final class DatePicker extends Widget<DatePicker> {
             // would be a focusable UNKNOWN.
             a.role(Accessible.Role.GROUP);
             a.name(DateStrings.CALENDAR, Accessible.NameFrom.CONTENT);
-            // Only while the calendar is open, ComboBox.ScenePopup's rule: through the fade-out
-            // after a close the layer is still the top overlay and is still published, and a
-            // CANCEL there reached setOpen(false), which returns at once for a picker already
+            // Only while the calendar is open, ComboBox.ScenePopup's rule: a CANCEL on a layer
+            // that is closing reached setOpen(false), which returns at once for a picker already
             // closed while the hook answered done (semantics 5; the 2d review, 2026-09-15). The
-            // hook below reads the same field. The calendar inside keeps its own verbs through
-            // the fade, because it still performs them, as the pointer does.
+            // hook below reads the same field. A layer that is fading out is no longer walked at
+            // all, since the scene takes it out of the tree as its close begins; the test stays
+            // for a walk that reaches it before the scene was told.
             if (open) {
                 a.action(Accessible.Action.CANCEL);
             }
