@@ -56,12 +56,23 @@ abstract class ComponentTestBase {
         // with the subscription in bind() this reset was a silent no-op on every headless
         // scene in the suite.
         limn.scene.ControlSize.setProcessDefault(limn.scene.ControlSize.MEDIUM);
+        limn.graphics.SvgIcon.installRasterizer(ICONS);
     }
 
     @AfterEach
     void uninstallRuntime() {
+        limn.graphics.SvgIcon.uninstallRasterizer(ICONS);
         ui.close();
     }
+
+    /**
+     * One transparent pixel for every icon. A backend installs a rasterizer and these tests have
+     * no backend: with none installed, the first widget that drew an icon threw in the middle of
+     * its frame, the frame was contained and logged, and whatever was painted after the icon was
+     * not painted at all, in every test that framed a search field or a menu.
+     */
+    private static final limn.graphics.SvgRasterizer ICONS =
+            (svg, px) -> new limn.graphics.Image(1, 1, new byte[4]);
 
     /**
      * Canvas that draws nothing; lets Scene.renderFrame run headless. Not final:
