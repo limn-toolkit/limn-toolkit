@@ -363,7 +363,33 @@ public final class Scene {
         }
     }
 
-    private final GlobalAxisListener metricsListener = new GlobalAxisListener(this, Scene::relayout);
+    private final GlobalAxisListener metricsListener = new GlobalAxisListener(this, Scene::relayoutForAnAxis);
+
+    /**
+     * What a process-wide axis moving asks of this scene: to measure again. With a runtime
+     * installed that is {@link #relayout()}. With none, the scene only keeps the fact: there is
+     * no user-interface thread to be on and no frame to ask for, and the axis is the process's,
+     * so it goes on moving after the runtime a scene was built under has gone and before the
+     * scene is collected. Asked for a frame there, every such scene threw at every change of
+     * language, direction or size; a suite of tests that builds thousands of scenes under
+     * runtimes of a test's length logged ten thousand stack traces doing it.
+     */
+    private void relayoutForAnAxis() {
+        if (!Ui.isInstalled()) {
+            markEveryLayerForMeasure();
+            return;
+        }
+        relayout();
+    }
+
+    /** The root and every overlay must measure again at the next layout pass. */
+    private void markEveryLayerForMeasure() {
+        root.markMeasureDirtyDeep();
+        for (int i = 0; i < overlays.size(); i++) {
+            overlays.get(i).markMeasureDirtyDeep(); // overlays are NOT in root's tree
+        }
+        layoutDirty = true;
+    }
 
     /** Wires this scene into a window: input, frame rendering, invalidation, clipboard. */
     public void bind(NativeWindow window) {
@@ -472,11 +498,7 @@ public final class Scene {
      * {@code Scene}, never through app code.
      */
     public void relayout() {
-        root.markMeasureDirtyDeep();
-        for (int i = 0; i < overlays.size(); i++) {
-            overlays.get(i).markMeasureDirtyDeep(); // overlays are NOT in root's tree
-        }
-        layoutDirty = true;
+        markEveryLayerForMeasure();
         requestRender();
     }
 
