@@ -141,15 +141,21 @@ final class TrayScene {
             say(status, "available " + tray.isAvailable());
         });
 
+        // The first switch is whether there is an icon at all, and the second which one: a tray
+        // shows an icon while it has either, so a shape left set with the first switch off kept
+        // the icon in the tray, and the switch that says "icon in the tray" took nothing out.
+        Runnable icons = () -> {
+            tray.setIcon(iconOn ? picture : null);
+            tray.setMonochromeIcon(iconOn && shapeOn ? shape : null);
+            tell.run();
+        };
         shown.onChange(value -> {
             iconOn = value;
-            tray.setIcon(value ? picture : null);
-            tell.run();
+            icons.run();
         });
         monochrome.onChange(value -> {
             shapeOn = value;
-            tray.setMonochromeIcon(value ? shape : null);
-            tell.run();
+            icons.run();
         });
         attention.onChange(value -> {
             attentionOn = value;
@@ -176,12 +182,13 @@ final class TrayScene {
         if (!started && on.contains("icon")) {
             iconOn = true;
             shown.setChecked(true);
-            tray.setIcon(picture);
         }
         if (!started && on.contains("mono")) {
             shapeOn = true;
             monochrome.setChecked(true);
-            tray.setMonochromeIcon(shape);
+        }
+        if (!started) {
+            icons.run();
         }
         if (!started && on.contains("attention")) {
             attentionOn = true;

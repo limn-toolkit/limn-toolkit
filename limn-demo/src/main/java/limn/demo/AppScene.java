@@ -200,7 +200,7 @@ final class AppScene {
                         () -> scrolling(ColorPickerScene.content())),
                 new Place(ShowcaseStrings.NAV_SPLIT, "docs/lists-and-scrolling/#splitting-a-window",
                         () -> beside(SplitPaneScene.content())),
-                new Place(ShowcaseStrings.NAV_MOTION, "docs/custom-widgets/",
+                new Place(ShowcaseStrings.NAV_MOTION, "docs/animations/",
                         () -> scrolling(AnimationsScene.content())));
         Place media = new Place(ShowcaseStrings.NAV_MEDIA,
                 new Place(ShowcaseStrings.NAV_VIDEO, "docs/images-and-media/#video",
@@ -224,8 +224,15 @@ final class AppScene {
         busy.setVisible(false);
         busy.setAccessibleName(ShowcaseStrings.STATUS_LOADING);
         PerfFooter performance = new PerfFooter();
-        performance.setVisible(false);
         performance.setAccessibleName(ShowcaseStrings.MENU_PERFORMANCE);
+        // Set in from the window's edges as the lines of text above it are, with a line over it.
+        // The strip is what is shown and hidden: hidden alone, the charts would leave their
+        // padding and their line behind.
+        limn.scene.layout.Column performanceStrip = new limn.scene.layout.Column();
+        performanceStrip.crossAlignment(Flex.CrossAlignment.STRETCH);
+        performanceStrip.add(Separator.horizontal());
+        performanceStrip.add(new Padding(Insets.symmetric(10, 12), performance));
+        performanceStrip.setVisible(false);
 
         Orders orders = new Orders(status, busy);
         List<Place> top = places(status, () -> orders.page);
@@ -332,9 +339,13 @@ final class AppScene {
         page.crossAlignment(Flex.CrossAlignment.STRETCH);
         page.add(menuBar);
         page.add(new Padding(Insets.symmetric(8, 12), band));
+        // A line under the band and one over the status line: where the window's own strips end
+        // and the page begins, which the two backgrounds being the same colour did not say.
+        page.add(Separator.horizontal());
         page.add(Expanded.of(body, 1));
+        page.add(Separator.horizontal());
         page.add(new Padding(Insets.symmetric(6, 12), new SizedBox(SizedBox.UNSET, 18, statusRow)));
-        page.add(performance);
+        page.add(performanceStrip);
 
         Scene scene = new Scene(page);
         scene.setBackground(Theme.current().background());
@@ -414,7 +425,7 @@ final class AppScene {
                 .add(MenuItem.of(MenuItem.Role.PASTE))
                 .add(MenuItem.of(MenuItem.Role.SELECT_ALL)));
         menuBar.addMenu(ShowcaseStrings.MENU_VIEW, new Menu()
-                .addCheck(ShowcaseStrings.MENU_PERFORMANCE, false, performance::setVisible)
+                .addCheck(ShowcaseStrings.MENU_PERFORMANCE, false, performanceStrip::setVisible)
                 .addSeparator()
                 .addCheck(ShowcaseStrings.RENDER_PARTIAL, true, scene::setPartialRendering)
                 .addCheck(ShowcaseStrings.RENDER_DAMAGE, false, scene::setDamageDebug)
@@ -436,7 +447,7 @@ final class AppScene {
         if (Boolean.getBoolean("limn.demo.tour")) {
             tour(scene, navigation, top);
         }
-        lab(scene, navigation, top, performance);
+        lab(scene, navigation, top, performanceStrip);
         if (Boolean.getBoolean("limn.demo.docs")) {
             // The lab's: the documentation asked for by itself, from this window, to see whether
             // what the system opens comes in front of the window that asked.
