@@ -10,6 +10,13 @@ Maven Central say which number that was.
 
 ### Fixed
 
+- On macOS a window that is closed is freed. Every window an application had closed stayed in
+  the system's overview of windows as an empty frame with its title: the toolkit's own calls to
+  the system were handed references that nothing released, since the event loop had no
+  autorelease pool of its own. Each turn of the loop has one now.
+- A window that had the keyboard hands it on when it closes, to the window that owns it or to
+  the one in front. On macOS the application was left with no window to type in, and its menu
+  bar fell back to the one an application with no window shows, until a window was clicked.
 - A calendar or a menu drawn in the scene gives the keyboard back as it starts to close, and
   leaves what a screen reader reads at the same moment. The focus came back when the fade ended:
   until then a key typed went to a calendar that was closing, and VoiceOver, standing on a layer
@@ -228,6 +235,10 @@ Maven Central say which number that was.
 
 ### New
 
+- `BackdropPanel.frosted(content)`: frosted glass that follows the theme. What is behind the
+  panel is blurred and laid over with the palette's surface tone, light over a light palette and
+  dark over a dark one, and it changes with the palette by itself. `setTint(colour, amount)`
+  leans it toward a colour of the application's. A panel given its effects by hand is as before.
 - A widget's id is what a tool that drives the application from outside finds it by:
   `Widget.setId` is published as UI Automation's `AutomationId` on Windows, the accessibility
   identifier on macOS and the accessible id on Linux, where each carried a number of the

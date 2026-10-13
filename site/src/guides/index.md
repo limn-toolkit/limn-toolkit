@@ -30,7 +30,9 @@ other programs, and the clipboard; and [Charts](/docs/charts/) covers bars, line
 is what to do when your users are not all reading English, and [Accessibility](/docs/accessibility/)
 is what a screen reader says about your window and the one call that makes it say the right
 thing. [Images and media](/docs/images-and-media/)
-covers pictures, video and the 3D viewport.
+covers pictures, video and the 3D viewport, [Animations](/docs/animations/) covers making
+something move, and [Your own widgets](/docs/custom-widgets/) covers a control the toolkit does
+not have.
 
 ## Shipping
 

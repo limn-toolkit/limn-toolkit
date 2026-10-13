@@ -143,6 +143,15 @@ final class AppScene {
             this.under.addAll(List.of(under));
         }
 
+        /** The icon beside the name in the navigation: a name of the icon pack, or null. */
+        String icon;
+
+        /** Says which icon stands beside this place's name. */
+        Place icon(String name) {
+            this.icon = name;
+            return this;
+        }
+
         /** The name the lab's switches know this page by: its English one. */
         String id() {
             return name.english();
@@ -157,12 +166,12 @@ final class AppScene {
      * links without building a window.
      */
     static List<Place> places(Label status, Supplier<Widget<?>> ordersPage) {
-        Place orders = new Place(ShowcaseStrings.NAV_ORDERS, null, ordersPage);
+        Place orders = new Place(ShowcaseStrings.NAV_ORDERS, null, ordersPage).icon("receipt");
         Place components = new Place(ShowcaseStrings.NAV_COMPONENTS,
                 new Place(ShowcaseStrings.NAV_INPUTS, "components/#button",
-                        () -> scrolling(BasicsScene.content())),
+                        () -> scrolling(BasicsScene.content())).icon("forms"),
                 new Place(ShowcaseStrings.NAV_COMBOS, "components/#combo-box",
-                        () -> scrolling(CombosScene.content())),
+                        () -> scrolling(CombosScene.content())).icon("select"),
                 new Place(ShowcaseStrings.NAV_SLIDERS, "components/#slider", () -> {
                     limn.scene.layout.Column both = new limn.scene.layout.Column();
                     both.gap(16).crossAlignment(Flex.CrossAlignment.STRETCH);
@@ -170,49 +179,49 @@ final class AppScene {
                     both.add(Separator.horizontal());
                     both.add(NewControlsScene.content());
                     return scrolling(both);
-                }),
+                }).icon("adjustments-horizontal"),
                 new Place(ShowcaseStrings.TAB_DATES, "components/#date-picker",
-                        () -> scrolling(DatesScene.content())),
+                        () -> scrolling(DatesScene.content())).icon("calendar"),
                 new Place(ShowcaseStrings.NAV_LISTS, "docs/lists-and-scrolling/#long-lists",
-                        () -> beside(ListScene.buildList(status::setText))),
+                        () -> beside(ListScene.buildList(status::setText))).icon("list"),
                 new Place(ShowcaseStrings.NAV_TABLES, "docs/lists-and-scrolling/#tables",
-                        () -> beside(TableScene.content())),
+                        () -> beside(TableScene.content())).icon("table"),
                 new Place(ShowcaseStrings.NAV_TREES, "docs/lists-and-scrolling/#trees",
-                        () -> scrolling(TreeScene.content())),
+                        () -> scrolling(TreeScene.content())).icon("binary-tree"),
                 new Place(ShowcaseStrings.NAV_DIALOGS, "docs/menus-and-dialogs/#dialogs",
-                        () -> scrolling(DialogsScene.dialogs(status))),
+                        () -> scrolling(DialogsScene.dialogs(status))).icon("app-window"),
                 new Place(ShowcaseStrings.TAB_MENUS, "docs/menus-and-dialogs/#menus",
-                        () -> scrolling(DialogsScene.menus(status))),
+                        () -> scrolling(DialogsScene.menus(status))).icon("menu-2"),
                 new Place(ShowcaseStrings.NAV_DRAG_DROP, "docs/drag-and-drop/",
-                        () -> scrolling(PickerScene.content())),
+                        () -> scrolling(PickerScene.content())).icon("drag-drop"),
                 new Place(ShowcaseStrings.NAV_CLIPBOARD, "docs/drag-and-drop/#the-clipboard",
-                        () -> scrolling(TransferScene.content())),
+                        () -> scrolling(TransferScene.content())).icon("clipboard"),
                 new Place(ShowcaseStrings.NAV_TRAY, "docs/menus-and-dialogs/#an-icon-in-the-tray",
-                        () -> scrolling(TrayScene.page(status))),
-                new Place(ShowcaseStrings.NAV_CHARTS, "docs/charts/", () -> scrolling(ChartsScene.content())),
+                        () -> scrolling(TrayScene.page(status))).icon("bell"),
+                new Place(ShowcaseStrings.NAV_CHARTS, "docs/charts/", () -> scrolling(ChartsScene.content())).icon("chart-bar"),
                 new Place(ShowcaseStrings.NAV_TEXT, "docs/text-and-languages/",
-                        () -> scrolling(BidiScene.tabContent())),
+                        () -> scrolling(BidiScene.tabContent())).icon("language"),
                 new Place(ShowcaseStrings.NAV_ICONS, "docs/images-and-media/#icons",
-                        () -> beside(IconsScene.content())),
+                        () -> beside(IconsScene.content())).icon("icons"),
                 new Place(ShowcaseStrings.TAB_FILES, "docs/menus-and-dialogs/#native-file-dialogs",
-                        () -> beside(FilesScene.content())),
+                        () -> beside(FilesScene.content())).icon("folder"),
                 new Place(ShowcaseStrings.NAV_COLOURS, "components/#color-picker",
-                        () -> scrolling(ColorPickerScene.content())),
+                        () -> scrolling(ColorPickerScene.content())).icon("palette"),
                 new Place(ShowcaseStrings.NAV_SPLIT, "docs/lists-and-scrolling/#splitting-a-window",
-                        () -> beside(SplitPaneScene.content())),
-                new Place(ShowcaseStrings.NAV_MOTION, "docs/custom-widgets/",
-                        () -> scrolling(AnimationsScene.content())));
+                        () -> beside(SplitPaneScene.content())).icon("layout-columns"),
+                new Place(ShowcaseStrings.NAV_MOTION, "docs/animations/",
+                        () -> scrolling(AnimationsScene.content())).icon("player-play")).icon("components");
         Place media = new Place(ShowcaseStrings.NAV_MEDIA,
                 new Place(ShowcaseStrings.NAV_VIDEO, "docs/images-and-media/#video",
-                        () -> scrolling(VideoScene.pageContent())),
+                        () -> scrolling(VideoScene.pageContent())).icon("video"),
                 new Place(ShowcaseStrings.NAV_VIEWPORT, "docs/images-and-media/#3d",
-                        () -> scrolling(Viewport3DScene.tabContent())),
+                        () -> scrolling(Viewport3DScene.tabContent())).icon("cube"),
                 new Place(ShowcaseStrings.NAV_SOUND, "docs/images-and-media/#sound",
-                        () -> scrolling(AudioScene.content())),
+                        () -> scrolling(AudioScene.content())).icon("volume"),
                 new Place(ShowcaseStrings.NAV_SPRITES, "docs/images-and-media/#pictures",
-                        () -> scrolling(SpritesScene.content())),
-                new Place(ShowcaseStrings.NAV_GLASS, "components/#backdrop-panel",
-                        () -> scrolling(GlassScene.content())));
+                        () -> scrolling(SpritesScene.content())).icon("photo"),
+                new Place(ShowcaseStrings.NAV_GLASS, "docs/theming/#glass",
+                        () -> scrolling(GlassScene.content())).icon("blur")).icon("movie");
         return List.of(orders, components, media);
     }
 
@@ -224,8 +233,15 @@ final class AppScene {
         busy.setVisible(false);
         busy.setAccessibleName(ShowcaseStrings.STATUS_LOADING);
         PerfFooter performance = new PerfFooter();
-        performance.setVisible(false);
         performance.setAccessibleName(ShowcaseStrings.MENU_PERFORMANCE);
+        // Set in from the window's edges as the lines of text above it are, with a line over it.
+        // The strip is what is shown and hidden: hidden alone, the charts would leave their
+        // padding and their line behind.
+        limn.scene.layout.Column performanceStrip = new limn.scene.layout.Column();
+        performanceStrip.crossAlignment(Flex.CrossAlignment.STRETCH);
+        performanceStrip.add(Separator.horizontal());
+        performanceStrip.add(new Padding(Insets.symmetric(10, 12), performance));
+        performanceStrip.setVisible(false);
 
         Orders orders = new Orders(status, busy);
         List<Place> top = places(status, () -> orders.page);
@@ -248,6 +264,9 @@ final class AppScene {
                 if (place.page == null) {
                     label.setStrong(true);
                 }
+                if (place.icon != null) {
+                    label.setIcon(limn.icons.tabler.Tabler.outline(place.icon));
+                }
                 return new Padding(Insets.symmetric(6, 6), label);
             }
 
@@ -261,7 +280,7 @@ final class AppScene {
                 // Two levels in a narrow strip: declared narrow, so the outline is never wider
                 // than its box and choosing a page never moves it sideways; a name too long for
                 // the strip ends in an ellipsis, as a navigation's does.
-                return 96;
+                return 156;
             }
         });
         navigation.setAccessibleName(ShowcaseStrings.NAV_PAGES);
@@ -302,9 +321,13 @@ final class AppScene {
         size.setSelectedIndex(ControlSize.processDefault().ordinal());
         size.onSelect(() -> ControlSize.setProcessDefault(ControlSize.values()[size.selectedIndex()]));
         size.setAccessibleName(ShowcaseStrings.BAND_SIZE);
-        ComboBox<I18nString> theme = ComboBox.localized(
-                Theme.builtins().stream().map(Theme::displayName).toList());
-        theme.setSelectedIndex(Math.max(0, Theme.builtins().indexOf(Theme.current())));
+        // The first choice is the system's own appearance, followed as it changes; every other
+        // is a palette picked by hand, kept whatever the system does.
+        List<I18nString> themeNames = new ArrayList<>();
+        themeNames.add(ShowcaseStrings.THEME_SYSTEM);
+        Theme.builtins().forEach(each -> themeNames.add(each.displayName()));
+        ComboBox<I18nString> theme = ComboBox.localized(themeNames);
+        theme.setSelectedIndex(1 + Math.max(0, Theme.builtins().indexOf(Theme.current())));
         theme.setAccessibleName(ShowcaseStrings.BAND_THEME);
 
         Row band = new Row();
@@ -317,8 +340,8 @@ final class AppScene {
         band.add(theme);
 
         SplitPane body = SplitPane.horizontal(navigation, holder);
-        body.setRatio(0.17f);
-        body.setMinimums(196, 420);
+        body.setRatio(0.2f);
+        body.setMinimums(232, 420);
         body.setAccessibleName(ShowcaseStrings.NAV_PAGES);
 
         Row statusRow = new Row();
@@ -332,9 +355,13 @@ final class AppScene {
         page.crossAlignment(Flex.CrossAlignment.STRETCH);
         page.add(menuBar);
         page.add(new Padding(Insets.symmetric(8, 12), band));
+        // A line under the band and one over the status line: where the window's own strips end
+        // and the page begins, which the two backgrounds being the same colour did not say.
+        page.add(Separator.horizontal());
         page.add(Expanded.of(body, 1));
+        page.add(Separator.horizontal());
         page.add(new Padding(Insets.symmetric(6, 12), new SizedBox(SizedBox.UNSET, 18, statusRow)));
-        page.add(performance);
+        page.add(performanceStrip);
 
         Scene scene = new Scene(page);
         scene.setBackground(Theme.current().background());
@@ -343,50 +370,43 @@ final class AppScene {
         // the scene clears to its background and repaints. A palette is a repaint, never a
         // re-measure; the face, when it changes, has every scene laid out again by itself.
         //
-        // The window follows the system's light or dark appearance until the user picks a
-        // theme; the picker following a theme applied for the system is not a pick.
-        boolean[] userPicked = {false};
-        boolean[] applyingSystem = {false};
-        theme.onSelect(() -> {
-            if (!applyingSystem[0]) {
-                userPicked[0] = true;
+        // Two ways to a palette, and the picker says which is in force. "System" is the
+        // system's light or dark appearance, taken now and again whenever it changes; any other
+        // choice is that palette, and the system changing does not touch it.
+        boolean[] following = {false};
+        Runnable applySystemAppearance = () -> {
+            SystemPreferences.ColorScheme scheme = SystemPreferences.current().colorScheme();
+            if (!following[0] || scheme == SystemPreferences.ColorScheme.NO_PREFERENCE) {
+                return; // a desktop that states no preference keeps the palette it has
             }
-            Theme.builtins().get(theme.selectedIndex()).apply(scene);
+            Theme wanted = scheme == SystemPreferences.ColorScheme.DARK ? Theme.dark() : Theme.light();
+            if (wanted != Theme.current()) {
+                wanted.apply(scene);
+            }
+        };
+        theme.onSelect(() -> {
+            following[0] = theme.selectedIndex() == 0;
+            if (following[0]) {
+                applySystemAppearance.run();
+            } else {
+                Theme.builtins().get(theme.selectedIndex() - 1).apply(scene);
+            }
         });
         // And when something else changes the theme, a launch option or the system's
-        // appearance: the picker says which it is, and the window repaints in it.
+        // appearance: the window repaints in it, and a picker that names a palette names this one.
         Theme.observeChanges(() -> {
             int now = Theme.builtins().indexOf(Theme.current());
-            if (now >= 0 && now != theme.selectedIndex()) {
-                boolean was = applyingSystem[0];
-                applyingSystem[0] = true;
-                try {
-                    theme.setSelectedIndex(now);
-                } finally {
-                    applyingSystem[0] = was;
-                }
+            if (!following[0] && now >= 0 && now + 1 != theme.selectedIndex()) {
+                theme.setSelectedIndex(now + 1);
             }
             scene.setBackground(Theme.current().background());
             scene.root().invalidate();
         });
-        Runnable applySystemAppearance = () -> {
-            SystemPreferences.ColorScheme scheme = SystemPreferences.current().colorScheme();
-            if (userPicked[0] || scheme == SystemPreferences.ColorScheme.NO_PREFERENCE) {
-                return;
-            }
-            Theme wanted = scheme == SystemPreferences.ColorScheme.DARK ? Theme.dark() : Theme.light();
-            if (wanted != Theme.current()) {
-                applyingSystem[0] = true;
-                try {
-                    wanted.apply(scene);
-                } finally {
-                    applyingSystem[0] = false;
-                }
-            }
-        };
+        SystemPreferences.observeChanges(applySystemAppearance); // for the life of the demo
         Runnable followSystemAppearance = () -> {
+            following[0] = true;
+            theme.setSelectedIndex(0);
             applySystemAppearance.run();
-            SystemPreferences.observeChanges(applySystemAppearance); // for the life of the demo
         };
 
         Runnable newOrder = () -> {
@@ -414,7 +434,7 @@ final class AppScene {
                 .add(MenuItem.of(MenuItem.Role.PASTE))
                 .add(MenuItem.of(MenuItem.Role.SELECT_ALL)));
         menuBar.addMenu(ShowcaseStrings.MENU_VIEW, new Menu()
-                .addCheck(ShowcaseStrings.MENU_PERFORMANCE, false, performance::setVisible)
+                .addCheck(ShowcaseStrings.MENU_PERFORMANCE, false, performanceStrip::setVisible)
                 .addSeparator()
                 .addCheck(ShowcaseStrings.RENDER_PARTIAL, true, scene::setPartialRendering)
                 .addCheck(ShowcaseStrings.RENDER_DAMAGE, false, scene::setDamageDebug)
@@ -436,7 +456,7 @@ final class AppScene {
         if (Boolean.getBoolean("limn.demo.tour")) {
             tour(scene, navigation, top);
         }
-        lab(scene, navigation, top, performance);
+        lab(scene, navigation, top, performanceStrip);
         if (Boolean.getBoolean("limn.demo.docs")) {
             // The lab's: the documentation asked for by itself, from this window, to see whether
             // what the system opens comes in front of the window that asked.

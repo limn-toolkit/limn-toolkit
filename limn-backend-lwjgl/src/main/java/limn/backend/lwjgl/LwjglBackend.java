@@ -9,6 +9,7 @@ import limn.backend.LoopLifetime;
 import limn.backend.spi.ModalStack;
 import limn.backend.NativeWindow;
 import limn.backend.Platform;
+import limn.backend.lwjgl.internal.ObjC;
 import limn.backend.QuitHandler;
 import limn.backend.WindowConfig;
 import limn.backend.internal.Ending;
@@ -813,152 +814,164 @@ public final class LwjglBackend implements BackendPeer {
         int crashStreak = 0;
         try {
             while (running) {
-                boolean crashed = false;
-                Throwable lastCrash = null;
-                destroyClosedWindows();
-                if (quitting && windows.isEmpty()) {
-                    quitting = false;
-                    return LoopEnd.QUIT;
-                }
-                if (windows.isEmpty() && lifetime == LoopLifetime.UNTIL_LAST_WINDOW) {
-                    return LoopEnd.LAST_WINDOW_CLOSED;
-                }
-
-                // A covered window's frame waits (decision 113): it is not drawn, and it does not
-                // keep the loop polling; the loop wakes at least every COVERED_RECHECK to see
-                // whether the window has been uncovered, and draws the frame then.
-                boolean framePending = false;
-                boolean coveredPending = false;
-                for (LwjglWindow window : windows) {
-                    if (window.frameRequested()) {
-                        if (window.isCovered()) {
-                            coveredPending = true;
-                        } else {
-                            framePending = true;
-                        }
-                    }
-                }
-                long sleepBudgetNanos = uiRuntime.nanosUntilNextDeadline();
-                // A close waiting for a fullscreen animation is woken by AppKit's notification of
-                // its end; the recheck is for the animation AppKit never announces the end of.
-                if ((coveredPending || closeWaiting)
-                        && (sleepBudgetNanos < 0 || sleepBudgetNanos > COVERED_RECHECK_NANOS)) {
-                    sleepBudgetNanos = COVERED_RECHECK_NANOS;
-                }
+                // One pool a turn of the loop, on macOS. The main thread of a Java process has a
+                // pool on its stack that nothing drains while the application runs, and the
+                // windowing library's poll drains only its own, so whatever AppKit hands back
+                // autoreleased to a call made from here lived for ever: asking the application
+                // which window has the keyboard, once a turn, kept every window it ever named, and
+                // a window closed was never freed. It stayed in the system's overview of windows as
+                // an empty frame with its title.
+                long pool = openTurnPool();
                 try {
-                    parkedInPump = true;
-                    try {
-                        if (framePending || sleepBudgetNanos == 0) {
-                            glfwPollEvents();
-                        } else if (sleepBudgetNanos < 0) {
-                            glfwWaitEvents();
-                        } else {
-                            glfwWaitEventsTimeout(
-                                    Math.min(sleepBudgetNanos / 1_000_000_000.0, MAX_WAIT_SECONDS));
-                        }
-                    } finally {
-                        parkedInPump = false;
+                    boolean crashed = false;
+                    Throwable lastCrash = null;
+                    destroyClosedWindows();
+                    if (quitting && windows.isEmpty()) {
+                        quitting = false;
+                        return LoopEnd.QUIT;
                     }
-                    if (macMenuBar != null) {
-                        macMenuBar.sync(); // the window with the keyboard may have changed
+                    if (windows.isEmpty() && lifetime == LoopLifetime.UNTIL_LAST_WINDOW) {
+                        return LoopEnd.LAST_WINDOW_CLOSED;
                     }
-                } catch (Crashes.ShutdownRequested shutdown) {
-                    throw shutdown;
-                } catch (Throwable error) {
-                    // Application code resident in GLFW callbacks (live-resize
-                    // repaint, close veto, content-scale listener) surfaces its
-                    // exception when the native poll returns, the only place
-                    // it can be caught.
-                    crashed = true;
-                    lastCrash = error;
-                    if (!Crashes.dispatch(CrashPhase.EVENT_POLL, error)) {
-                        throw Crashes.shutdownRequested(error);
-                    }
-                    requestFrameAll(); // callbacks may have half-applied state
-                }
 
-                // Deterministic frame order: user input first, then posted tasks
-                // (animation/layout/paint happen inside the frame render).
-                // Copy: an input handler may legally create/close windows.
-                for (LwjglWindow window : List.copyOf(windows)) {
-                    try {
-                        // The poll just delivered AppKit's word on any native fullscreen
-                        // transition; act on what was waiting for it (a no-op off macOS).
-                        window.settleNativeFullscreen();
-                        // And the window manager's word on a window that left a fullscreen on the
-                        // monitor, which may have given it back elsewhere than it was.
-                        window.settleWindowedGeometry();
-                        window.notifyInputBatchEnd();
-                    } catch (Crashes.ShutdownRequested shutdown) {
-                        throw shutdown;
-                    } catch (Throwable error) {
-                        crashed = true;
-                        lastCrash = error;
-                        if (!Crashes.dispatch(CrashPhase.INPUT, error)) {
-                            throw Crashes.shutdownRequested(error);
-                        }
-                    }
-                }
-
-                // Deliberately NOT followed by a blanket repaint: a drain buys
-                // no frame. Every posted task invalidates what it mutates (the
-                // contract on Ui.post), so a window nothing touched stays idle,
-                // which is what makes a timer that polls a few times a second
-                // free, and what stops a paint that arms a poll from sustaining
-                // its own frame rate forever. A task that THREW is the
-                // exception: it applied part of its mutation and invalidated
-                // none of it, extent unknown, so settle every window.
-                uiRuntime.drain(this::requestFrameAll);
-
-                // ONE window per iteration blocks on vblank (the pacer); the rest
-                // swap unthrottled into the same vblank; the compositor prevents
-                // tearing. All-windows vsync would serialize N animated windows
-                // down to refresh/N fps each (six bouncing gadgets = 10 fps).
-                boolean vsyncTaken = false;
-                LwjglWindow vsyncWindow = null;
-                for (LwjglWindow window : List.copyOf(windows)) {
-                    if (window.closeRequested() || window.isCovered()) {
-                        continue;
-                    }
-                    try {
-                        boolean hadVsync = vsyncTaken;
+                    // A covered window's frame waits (decision 113): it is not drawn, and it does not
+                    // keep the loop polling; the loop wakes at least every COVERED_RECHECK to see
+                    // whether the window has been uncovered, and draws the frame then.
+                    boolean framePending = false;
+                    boolean coveredPending = false;
+                    for (LwjglWindow window : windows) {
                         if (window.frameRequested()) {
-                            vsyncTaken |= window.renderNow(!vsyncTaken);
+                            if (window.isCovered()) {
+                                coveredPending = true;
+                            } else {
+                                framePending = true;
+                            }
                         }
-                        // Once a render burst settles, present the same frame again so
-                        // both double buffers match; a sparse present otherwise lets the
-                        // compositor surface a one-frame-old buffer (thumb ghost/flicker).
-                        vsyncTaken |= window.syncBuffers(!vsyncTaken);
-                        if (vsyncTaken && !hadVsync) {
-                            vsyncWindow = window;
+                    }
+                    long sleepBudgetNanos = uiRuntime.nanosUntilNextDeadline();
+                    // A close waiting for a fullscreen animation is woken by AppKit's notification of
+                    // its end; the recheck is for the animation AppKit never announces the end of.
+                    if ((coveredPending || closeWaiting)
+                            && (sleepBudgetNanos < 0 || sleepBudgetNanos > COVERED_RECHECK_NANOS)) {
+                        sleepBudgetNanos = COVERED_RECHECK_NANOS;
+                    }
+                    try {
+                        parkedInPump = true;
+                        try {
+                            if (framePending || sleepBudgetNanos == 0) {
+                                glfwPollEvents();
+                            } else if (sleepBudgetNanos < 0) {
+                                glfwWaitEvents();
+                            } else {
+                                glfwWaitEventsTimeout(
+                                        Math.min(sleepBudgetNanos / 1_000_000_000.0, MAX_WAIT_SECONDS));
+                            }
+                        } finally {
+                            parkedInPump = false;
+                        }
+                        if (macMenuBar != null) {
+                            macMenuBar.sync(); // the window with the keyboard may have changed
                         }
                     } catch (Crashes.ShutdownRequested shutdown) {
                         throw shutdown;
                     } catch (Throwable error) {
-                        // Scene contains its own frame crashes; this net catches raw
-                        // frame callbacks; keep the OTHER windows rendering.
+                        // Application code resident in GLFW callbacks (live-resize
+                        // repaint, close veto, content-scale listener) surfaces its
+                        // exception when the native poll returns, the only place
+                        // it can be caught.
                         crashed = true;
                         lastCrash = error;
-                        if (!Crashes.dispatch(CrashPhase.FRAME, error)) {
+                        if (!Crashes.dispatch(CrashPhase.EVENT_POLL, error)) {
                             throw Crashes.shutdownRequested(error);
                         }
-                        window.requestFrame();
+                        requestFrameAll(); // callbacks may have half-applied state
                     }
-                }
 
-                if (vsyncWindow != null) {
-                    // The swap blocked, or should have, to the refresh of the monitor that
-                    // window is on, which is not the primary's when it sits on another.
-                    pacer.setPeriodNanos(vsyncWindow.refreshPeriodNanos());
-                    pacer.afterVsyncedPresent();
-                }
+                    // Deterministic frame order: user input first, then posted tasks
+                    // (animation/layout/paint happen inside the frame render).
+                    // Copy: an input handler may legally create/close windows.
+                    for (LwjglWindow window : List.copyOf(windows)) {
+                        try {
+                            // The poll just delivered AppKit's word on any native fullscreen
+                            // transition; act on what was waiting for it (a no-op off macOS).
+                            window.settleNativeFullscreen();
+                            // And the window manager's word on a window that left a fullscreen on the
+                            // monitor, which may have given it back elsewhere than it was.
+                            window.settleWindowedGeometry();
+                            window.notifyInputBatchEnd();
+                        } catch (Crashes.ShutdownRequested shutdown) {
+                            throw shutdown;
+                        } catch (Throwable error) {
+                            crashed = true;
+                            lastCrash = error;
+                            if (!Crashes.dispatch(CrashPhase.INPUT, error)) {
+                                throw Crashes.shutdownRequested(error);
+                            }
+                        }
+                    }
 
-                if (!crashed) {
-                    crashStreak = 0;
-                } else if (++crashStreak >= CRASH_STREAK_LIMIT) {
-                    LOG.log(Level.ERROR, "event loop crashed {0} consecutive iterations; giving up", crashStreak);
-                    throw new IllegalStateException(
-                            "event loop crashed " + crashStreak + " consecutive iterations", lastCrash);
+                    // Deliberately NOT followed by a blanket repaint: a drain buys
+                    // no frame. Every posted task invalidates what it mutates (the
+                    // contract on Ui.post), so a window nothing touched stays idle,
+                    // which is what makes a timer that polls a few times a second
+                    // free, and what stops a paint that arms a poll from sustaining
+                    // its own frame rate forever. A task that THREW is the
+                    // exception: it applied part of its mutation and invalidated
+                    // none of it, extent unknown, so settle every window.
+                    uiRuntime.drain(this::requestFrameAll);
+
+                    // ONE window per iteration blocks on vblank (the pacer); the rest
+                    // swap unthrottled into the same vblank; the compositor prevents
+                    // tearing. All-windows vsync would serialize N animated windows
+                    // down to refresh/N fps each (six bouncing gadgets = 10 fps).
+                    boolean vsyncTaken = false;
+                    LwjglWindow vsyncWindow = null;
+                    for (LwjglWindow window : List.copyOf(windows)) {
+                        if (window.closeRequested() || window.isCovered()) {
+                            continue;
+                        }
+                        try {
+                            boolean hadVsync = vsyncTaken;
+                            if (window.frameRequested()) {
+                                vsyncTaken |= window.renderNow(!vsyncTaken);
+                            }
+                            // Once a render burst settles, present the same frame again so
+                            // both double buffers match; a sparse present otherwise lets the
+                            // compositor surface a one-frame-old buffer (thumb ghost/flicker).
+                            vsyncTaken |= window.syncBuffers(!vsyncTaken);
+                            if (vsyncTaken && !hadVsync) {
+                                vsyncWindow = window;
+                            }
+                        } catch (Crashes.ShutdownRequested shutdown) {
+                            throw shutdown;
+                        } catch (Throwable error) {
+                            // Scene contains its own frame crashes; this net catches raw
+                            // frame callbacks; keep the OTHER windows rendering.
+                            crashed = true;
+                            lastCrash = error;
+                            if (!Crashes.dispatch(CrashPhase.FRAME, error)) {
+                                throw Crashes.shutdownRequested(error);
+                            }
+                            window.requestFrame();
+                        }
+                    }
+
+                    if (vsyncWindow != null) {
+                        // The swap blocked, or should have, to the refresh of the monitor that
+                        // window is on, which is not the primary's when it sits on another.
+                        pacer.setPeriodNanos(vsyncWindow.refreshPeriodNanos());
+                        pacer.afterVsyncedPresent();
+                    }
+
+                    if (!crashed) {
+                        crashStreak = 0;
+                    } else if (++crashStreak >= CRASH_STREAK_LIMIT) {
+                        LOG.log(Level.ERROR, "event loop crashed {0} consecutive iterations; giving up", crashStreak);
+                        throw new IllegalStateException(
+                                "event loop crashed " + crashStreak + " consecutive iterations", lastCrash);
+                    }
+                } finally {
+                    closeTurnPool(pool);
                 }
             }
             return LoopEnd.STOPPED;
@@ -1138,8 +1151,28 @@ public final class LwjglBackend implements BackendPeer {
         if (closing == null) {
             return;
         }
+        // Whose keyboard goes with the windows that close: read before they are destroyed.
+        LwjglWindow heir = null;
+        boolean keyboardGoes = false;
+        for (LwjglWindow window : closing) {
+            if (window.hasTheKeyboard() && !window.isPopupWindow()) {
+                keyboardGoes = true;
+                LwjglWindow owner = ownerOf(window);
+                if (owner != null && !closing.contains(owner)) {
+                    heir = owner;
+                }
+            }
+        }
         windows.removeAll(closing);
         frontToBack.removeAll(closing);
+        if (keyboardGoes && heir == null) {
+            for (LwjglWindow candidate : frontToBack) {
+                if (!candidate.isPopupWindow() && candidate.isVisible() && !candidate.closeRequested()) {
+                    heir = candidate; // no owner: the window that was in front of the others
+                    break;
+                }
+            }
+        }
         boolean poppedModal = false;
         for (LwjglWindow window : closing) {
             // A modal destroyed without an explicit popModal (e.g. its
@@ -1157,6 +1190,13 @@ public final class LwjglBackend implements BackendPeer {
             for (LwjglWindow owner : windows) {
                 owner.unregisterChildPopup(window); // an owned window that closed leaves its owner's list
             }
+        }
+        if (heir != null && !heir.closeRequested() && !isInputBlocked(heir)) {
+            // A window that had the keyboard closed, and the desktop does not always hand the
+            // keyboard on by itself: on macOS the application was left with no window to type
+            // in, and its menu bar fell back to the one an application with no window shows. It
+            // goes to the window that owned the one that closed, or to the one in front.
+            heir.focus();
         }
         if (poppedModal) {
             focusTopModal();
@@ -1391,6 +1431,21 @@ public final class LwjglBackend implements BackendPeer {
     @Override
     public limn.backend.spi.@org.jspecify.annotations.Nullable SystemMenuBar systemMenuBar() {
         return macMenuBar;
+    }
+
+    /** Opens an autorelease pool for one turn of the loop; nothing where the system has none. */
+    private static long openTurnPool() {
+        if (!Platform.current().isMacOs() || !ObjC.isAvailable()) {
+            return 0;
+        }
+        return ObjC.msg(ObjC.msg(ObjC.cls("NSAutoreleasePool"), "alloc"), "init");
+    }
+
+    /** Drains the pool {@link #openTurnPool} opened, and with it what the turn's calls were handed. */
+    private static void closeTurnPool(long pool) {
+        if (pool != 0) {
+            ObjC.msgVoid(pool, "drain");
+        }
     }
 
     /** @return the windows that are open, for the menu bar's rule of which bar is shown */

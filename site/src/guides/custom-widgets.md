@@ -72,7 +72,8 @@ costs a full frame. A widget that paints outside its own box widens the damage w
 Never change anything from `onPaint`. A paint runs again whenever the scene needs the pixels,
 whether or not anything changed, so a change announced from one reports a change nobody made;
 the base class throws instead. Work that has to happen later runs from `Ui.postDelayed`, and a
-value that eases from one state to another from a `Transition`, never from a paint.
+value that eases from one state to another from a `Transition`, never from a paint;
+[Animations](/docs/animations/) is the page on those.
 
 ## Input
 

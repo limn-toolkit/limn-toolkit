@@ -65,7 +65,7 @@ final class ShowcaseStrings {
     static final I18nString NAV_SPRITES =
             new I18nString("showcase.nav.sprites", "Sprites");
     static final I18nString NAV_GLASS =
-            new I18nString("showcase.nav.glass", "Glass");
+            new I18nString("showcase.nav.glass", "Backdrop panel");
     static final I18nString NAV_PAGES =
             new I18nString("showcase.nav.pages", "Pages");
     static final I18nString BAND_LANGUAGE =
@@ -76,6 +76,8 @@ final class ShowcaseStrings {
             new I18nString("showcase.band.size", "Size");
     static final I18nString BAND_THEME =
             new I18nString("showcase.band.theme", "Theme");
+    static final I18nString THEME_SYSTEM =
+            new I18nString("showcase.theme.system", "System");
     static final I18nString MENU_GO =
             new I18nString("showcase.menu.go", "Go");
     static final I18nString MENU_HELP =

@@ -2242,6 +2242,17 @@ final class VideoScene {
         openWindow.onAction(() -> pick(openWindow, caption).thenAccept(picked -> picked.ifPresent(file ->
                 openInOwnWindow(openWindow.scene().window(), file, sound[0], caption))));
 
+        // For a run nobody clicks in: -Dlimn.demo.video.window=<file> opens that file in its own
+        // window a moment after the page is shown, as the button does once a file is picked.
+        String ownWindowFile = System.getProperty("limn.demo.video.window");
+        if (ownWindowFile != null && !ownWindowFile.isBlank()) {
+            limn.concurrent.Ui.postDelayed(() -> {
+                if (openWindow.scene() != null && openWindow.scene().window() != null) {
+                    openInOwnWindow(openWindow.scene().window(), Path.of(ownWindowFile), false, caption);
+                }
+            }, 2500);
+        }
+
         // In a row rather than in the stretched column, which would blow the picture up to the
         // panel's width and letterbox it against its own aspect ratio.
         Row picture = new Row();

@@ -14,6 +14,9 @@ import java.util.Objects;
  * glass control bar over video, a washed header over a picture, a redacted field. Wraps one child
  * with insets, like the {@link Padding} it extends, and paints the effect under it.
  *
+ * <p>{@link #frosted(Widget)} is the one most applications want: frosted glass in the theme's own
+ * tone, light or dark as the palette is, with an optional {@linkplain #setTint tint}.
+ *
  * <p><b>Put it where it will be painted after what it sits over.</b> The effect samples what the
  * frame has already drawn, so a panel is a sibling <em>after</em> the content: in a stack, the
  * layer above; in a column, nothing sits behind it and the effect shows the window's own
@@ -79,14 +82,122 @@ public final class BackdropPanel extends Padding {
         return true;
     }
 
+    // ------------------------------------------------------------ frosted glass
+
+    /** Whether the effects are worked out from the theme at each paint; see {@link #frosted}. */
+    private boolean frosted;
+    private limn.graphics.@org.jspecify.annotations.Nullable Color tint;
+    private float tintAmount;
+    /** The stack last worked out, and what it was worked out from. */
+    private java.util.@org.jspecify.annotations.Nullable List<BackdropEffect> frostedStack;
+    private limn.graphics.@org.jspecify.annotations.Nullable Color frostedFrom;
+
+    /**
+     * A panel of frosted glass with 12pt of padding around {@code child}; see
+     * {@link #frosted(Insets, Widget)}.
+     *
+     * @param child the content
+     * @return the panel
+     */
+    public static BackdropPanel frosted(Widget<?> child) {
+        return frosted(Insets.all(12), child);
+    }
+
+    /**
+     * A panel of <b>frosted glass that follows the theme</b>: what is behind it is blurred, then
+     * calmed and laid over with the palette's surface tone, so that text on it reads. The tone is
+     * read from the theme in effect at each paint: light over a light palette, dark over a dark
+     * one, and the other one the moment the palette changes, with nothing for the application to
+     * do. A bar that stays while a page scrolls under it, or a panel of controls over a picture.
+     *
+     * <p>{@link #setTint} mixes a colour of the application's into that tone. A panel that needs
+     * something else, another blur, a refracting rim, takes its effects by hand with
+     * {@link #setEffects}, and is then no longer worked out from the theme.
+     *
+     * @param insets the padding
+     * @param child  the content
+     * @return the panel
+     */
+    public static BackdropPanel frosted(Insets insets, Widget<?> child) {
+        BackdropPanel panel = new BackdropPanel(
+                new BackdropEffect.Wash(limn.graphics.Color.TRANSPARENT, 1f, 0f), insets, child);
+        panel.frosted = true;
+        return panel;
+    }
+
+    /** @return whether this panel's effects are worked out from the theme, as {@link #frosted} makes it */
+    public final boolean isFrosted() {
+        return frosted;
+    }
+
+    /**
+     * Mixes a colour into frosted glass: the glass keeps the theme's light or dark tone and
+     * leans toward {@code colour} by {@code amount}. A brand colour at a tenth is a hint of it; at
+     * a half the glass is plainly that colour.
+     *
+     * @param colour the colour to lean toward, or {@code null} for none; its alpha is not used
+     * @param amount how far, from 0 (the theme's tone alone) to 1 (the colour alone)
+     * @return this panel
+     * @throws IllegalStateException when this panel is not {@linkplain #frosted frosted}
+     */
+    public BackdropPanel setTint(limn.graphics.@org.jspecify.annotations.Nullable Color colour, float amount) {
+        Ui.checkUiThread();
+        if (!frosted) {
+            throw new IllegalStateException("a tint is frosted glass's: this panel was given its effects, "
+                    + "and each of those carries its own");
+        }
+        this.tint = colour;
+        this.tintAmount = colour == null ? 0 : Math.max(0, Math.min(1, amount));
+        frostedStack = null;
+        invalidate();
+        return this;
+    }
+
+    /** @return the colour mixed into frosted glass, or {@code null} */
+    public final limn.graphics.@org.jspecify.annotations.Nullable Color tint() {
+        return tint;
+    }
+
+    /** @return how far frosted glass leans toward {@link #tint()}, 0 to 1 */
+    public final float tintAmount() {
+        return tintAmount;
+    }
+
+    /** How wide frosted glass blurs, in points, along each axis. */
+    private static final float FROST_BLUR = 10;
+    /** How much of the tone covers what is behind: a little more than half. */
+    private static final float FROST_COVER = 0.6f;
+    /** How much colour what is behind keeps under the tone. */
+    private static final float FROST_SATURATION = 0.7f;
+    /** How far what is behind is moved toward the tone's own lightness before the tone goes on. */
+    private static final float FROST_LIFT = 0.08f;
+
+    /** Frosted glass in {@code theme}'s tone, kept until the tone it was made from changes. */
+    private java.util.List<BackdropEffect> frostedIn(Theme theme) {
+        limn.graphics.Color surface = theme.surface();
+        if (frostedStack != null && surface.equals(frostedFrom)) {
+            return frostedStack;
+        }
+        limn.graphics.Color tone = tint == null || tintAmount == 0 ? surface : surface.lerp(tint, tintAmount);
+        // Toward white under a light tone and toward black under a dark one: bright content
+        // behind dark glass, or dark content behind light glass, is what text on it loses to.
+        float lift = theme.isDark() ? -FROST_LIFT : FROST_LIFT;
+        frostedFrom = surface;
+        frostedStack = java.util.List.of(
+                new BackdropEffect.Blur(limn.graphics.Color.TRANSPARENT, FROST_BLUR, BackdropEffect.Blur.Axis.X),
+                new BackdropEffect.Blur(limn.graphics.Color.TRANSPARENT, FROST_BLUR, BackdropEffect.Blur.Axis.Y),
+                new BackdropEffect.Wash(tone.withAlpha(FROST_COVER), FROST_SATURATION, lift));
+        return frostedStack;
+    }
+
     /** The first effect painted behind the child; see {@link #effects()} for the whole stack. */
     public final BackdropEffect effect() {
-        return effects.get(0);
+        return effects().get(0);
     }
 
     /** Every effect painted behind the child, in the order they are drawn. */
     public final java.util.List<BackdropEffect> effects() {
-        return effects;
+        return frosted ? frostedIn(Theme.of(this)) : effects;
     }
 
     /**
@@ -109,6 +220,7 @@ public final class BackdropPanel extends Padding {
             throw new IllegalArgumentException("a backdrop panel needs at least one effect");
         }
         this.effects = java.util.List.of(stack);
+        this.frosted = false;
         invalidate();
         return this;
     }
@@ -117,6 +229,7 @@ public final class BackdropPanel extends Padding {
     public BackdropPanel setEffect(BackdropEffect newEffect) {
         Ui.checkUiThread();
         this.effects = java.util.List.of(Objects.requireNonNull(newEffect, "newEffect"));
+        this.frosted = false;
         invalidate();
         return this;
     }
@@ -156,7 +269,7 @@ public final class BackdropPanel extends Padding {
                 ? cornerRadius
                 : Theme.of(this).tokensFor(this).radiusLarge();
         // In order: each pass reads what the one before it wrote.
-        for (BackdropEffect each : effects) {
+        for (BackdropEffect each : effects()) {
             canvas.fillBackdropRoundRect(0, 0, width(), height(), radius, each);
         }
     }

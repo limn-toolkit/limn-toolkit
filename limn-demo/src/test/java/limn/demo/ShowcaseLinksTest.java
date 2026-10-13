@@ -60,6 +60,22 @@ class ShowcaseLinksTest {
         assertTrue(linked > 20, "the gallery's pages were read");
     }
 
+    @Test
+    void everyPlaceOfTheNavigationHasAnIconThePackHas() {
+        java.util.Set<String> pack = new java.util.HashSet<>(limn.icons.tabler.Tabler.names());
+        List<String> wrong = new ArrayList<>();
+        for (AppScene.Place group : AppScene.places(new Label(""), () -> new Label(""))) {
+            List<AppScene.Place> all = new ArrayList<>(group.under);
+            all.add(group);
+            for (AppScene.Place place : all) {
+                if (place.icon == null || !pack.contains(place.icon)) {
+                    wrong.add(place.id() + ": " + place.icon);
+                }
+            }
+        }
+        assertEquals(List.of(), wrong, "a name the pack does not have draws nothing beside the page's name");
+    }
+
     /** The anchors a guide's headings get: lower case, punctuation dropped, spaces to hyphens. */
     private static List<String> headings(Path guide) throws IOException {
         List<String> anchors = new ArrayList<>();
