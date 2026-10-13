@@ -259,8 +259,10 @@ and opening it sends the tree to `load`, whose `Work` reads the folder off the U
 delivers on it. While it runs, the row shows a spinner where its triangle goes and a "Loading…"
 line where its children will be; you draw none of that, and the arrows walk past the line. Close
 the row before the job lands and the job is cancelled,
-since a result nobody is looking at is one nobody should pay for; what does land is kept, so
-opening the row again costs nothing. A load that fails closes the row rather than leaving it open
+since a result nobody is looking at is one nobody should pay for; what does land is kept for
+as long as the row is open and let go when it closes, so a tree over a whole disk holds what is
+open and no more. Opening the row again loads again; a model that wants that to cost nothing
+keeps what it loaded and answers it from `children`. A load that fails closes the row rather than leaving it open
 and empty, which would say the folder has nothing in it. A load that returns *nothing* is a
 different answer again: the row stays open over a discreet "Empty" line, in the "Loading…" line's
 place, because a folder that has been read and is empty is not a folder nobody has read. An eager
