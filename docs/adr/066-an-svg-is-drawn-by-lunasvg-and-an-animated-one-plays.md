@@ -7,9 +7,8 @@
   ships, the API that hands an SVG to the screen, the animation it plays, and what a damaged or
   hostile file meets.
 - **New public API (proposed):** `SvgIcon` of any aspect and animated; an `ImageView` that shows
-  an icon as well as an image; `Images.decode` of an SVG; the system property
-  `limn.svg.frameRate` and the root attribute `data-limn-frame-rate`; the native payload
-  `limn-lunasvg-natives`.
+  an icon as well as an image; `Images.decode` of an SVG; an `SvgIcon`'s frame rate, and the system property
+  `limn.svg.frameRate`; the native payload `limn-lunasvg-natives`.
 - **Compatibility:** every `SvgIcon` that draws today draws the same or better. `lwjgl-nanovg`
   leaves the backend.
 
@@ -125,9 +124,11 @@ animated value is computed at the moment drawn and set on the document; the docu
   `additive` and `accumulate`, CSS transitions, and scripting, never.
 
 **Frames are moments at a fixed rate,** so that an animated SVG is an animated image like any
-other: **24 a second unless set,** as the owner chose, the rate of film. A file sets its own on
-its root element, `data-limn-frame-rate="60"`, and an application sets the default for every SVG
-with the system property `limn.svg.frameRate`; the file's attribute wins over the property. The
+other: **24 a second unless set,** as the owner chose, the rate of film. The rate is the
+application's to set and never the file's: neither SMIL nor CSS has a frame rate, both measure
+time, and an attribute of the toolkit's own in the file was refused as too much. An application
+sets it on an icon, `svgIcon.withFrameRate(60)`, and the default for every SVG with the system
+property `limn.svg.frameRate`; the icon's own wins over the property. The
 frames cover the animation's period, the least common multiple of its durations and delays,
 kept no longer than 30 seconds; one that never repeats plays its length once and rests.
 
@@ -177,5 +178,5 @@ As ADR 061 asks of everything the toolkit reads itself:
 3. **An `ImageView` shows an icon,** and no new type of vector picture (section 4).
 4. **SVG text has the system's fonts too,** beside the bundled ones (section 3).
 5. **A file from disk may refer to a picture beside it,** inside its own folder (section 6).
-6. **24 frames a second unless set,** in the file or by a system property for every SVG
-   (section 5).
+6. **24 frames a second unless set,** on an icon by the application or for every SVG by a
+   system property; nothing in the file, since no standard attribute says it (section 5).
