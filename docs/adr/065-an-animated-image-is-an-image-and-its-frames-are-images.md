@@ -391,5 +391,18 @@ better. Two limits were found:
   one with a still icon or one nobody sees asking for none; the tray's peer receiving every frame
   of twenty-four in turn, a held loop going on at the frame due, the dot on every frame; the
   cursor's cache keeping twenty-four frames whole and making each once in three turns. A planted
-  defect in each of the menu, the box and the tray's time was caught. The probe of 10.1 has yet to
-  be run again on the guests.
+  defect in each of the menu, the box and the tray's time was caught.
+- **Seen on the four guests**, the probe of 10.1 run again with the toolkit handed one animated
+  image and playing it itself, two captures taken 150 to 200 ms apart:
+
+  | | Tray | Cursor | A button's icon | A menu |
+  |---|---|---|---|---|
+  | macOS | moves | moves, 12 frames at 10 a second and 24 at 30 | moves, every changed pixel inside the icon's box | the first frame, still |
+  | Windows | moves | 12 native cursors seen for 12 frames; 17 of 24 at 30 a second, the sampler being emulated | moves, the change a 33 by 33 box | not opened |
+  | KDE, Wayland | moves | moves | moves, the change a 16 by 12 box | not opened |
+  | GNOME, X11 | no tray: the guest's extension is off | 12 cursor images for 12 frames, 23 of 24 at 30 a second, in their order | moves, the change a 9 by 17 box | not opened |
+
+  The run found one thing, in the probe and not the toolkit: a cursor set on the window directly
+  is taken back by the scene at the pointer's next move, as a still one always was; an
+  application sets it on a widget, and the probe of 10.1 had hidden it by setting it again at
+  every frame.
