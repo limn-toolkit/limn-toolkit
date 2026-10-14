@@ -45,21 +45,16 @@ an eighth of the heap.
 
 ### Pictures that move
 
-An animated GIF or WebP decodes to an `Image` that says `isAnimated()`. It is an image like any
-other, and its own pixels are its first frame's, so an icon, a cursor or anything else that
-draws it without playing it shows a still picture. Give it to an `ImageView` and it plays, by
-itself and for as many turns as the file asks for:
+An animated GIF, PNG or WebP decodes to an `Image` that says `isAnimated()`. It is an image
+like any other, and its own pixels are its first frame's, so an icon, a cursor or anything else
+that draws it without playing it shows a still picture. Give it to an `ImageView` and it plays,
+by itself and for as many turns as the file asks for. A sheet of sprites is the same thing made
+by hand, and `Images.animation(frames, millis, turns)` takes frames from anywhere:
 
-```java
-ImageView spinner = new ImageView(Images.fromResource("/app/working.gif"));
-spinner.setSpeed(1.5f);                       // half again as fast as the file says
-spinner.setLoop(ImageAnimation.Loop.FOREVER); // whatever the file says
-spinner.setPlaying(false);                    // holds the frame shown
-```
+{% snippet guide:animated-images %}
 
-A sheet of sprites is the same thing made by hand: `Images.fromSheet(sheet, 8, 1, 90)` cuts
-eight frames from one row and shows each for 90 ms, and `Images.animation(frames, millis,
-turns)` takes frames from anywhere. A widget of your own that draws frames itself uses
+A picture playing costs your window one frame for each of its own: an image view asks for none
+between two frames of its picture, and none at all while it is hidden. A widget of your own that draws frames itself uses
 `ImageAnimation`, the clockwork an image view is built on: hand it the time from a scene's
 ticker and draw `frame()`.
 
@@ -73,8 +68,8 @@ A moving picture is not stopped by the system's setting for less motion, which i
 motion an interface adds to itself. One that moves for more than a few seconds should be
 something your user can stop, and `setPlaying` is what that control calls.
 
-Going the other way, `Images.encode(…)` and `Images.saveAsync(…)` write PNG, and GIF: an
-animated image with every frame, in the 256 colours the format holds.
+Going the other way, `Images.encode(…)` and `Images.saveAsync(…)` write PNG and GIF, still or
+animated: an animated PNG keeps every frame without loss, and a GIF holds 256 colours.
 
 `view.setDragEnabled(true)` lets the user drag the picture out of its view, to another part of
 your window or to another program; [Drag and drop](/docs/drag-and-drop/#a-picture-that-leaves-its-view)
