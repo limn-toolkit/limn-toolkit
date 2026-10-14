@@ -207,6 +207,23 @@ SVG-Loaders
   with a browser's. Provenance in README.md beside them.
 
 --------------------------------------------------------------------------------
+Test fixtures: SVG fidelity (limn-backend-lwjgl/src/test/resources/limn/backend/lwjgl/svg-fidelity/)
+--------------------------------------------------------------------------------
+
+resvg's test suite, 180 of its tests
+  Copyright 2017 the Resvg Authors
+  MIT License: full text beside them in LICENSE-resvg-tests.txt
+GitLab SVGs, six illustrations and six icons
+  Copyright (c) 2011-present GitLab Inc.
+  MIT License: full text beside them in LICENSE-illustrations-and-icons.txt
+Noto Emoji, six of its SVG sources
+  Copyright 2013 Google, Inc.
+  Apache License 2.0: full text beside them in LICENSE-emoji.txt
+
+  Test-only, not distributed: what a test draws to hold how faithfully SVG is drawn. Provenance
+  in README.md beside them.
+
+--------------------------------------------------------------------------------
 Sample media (media/)
 --------------------------------------------------------------------------------
 
