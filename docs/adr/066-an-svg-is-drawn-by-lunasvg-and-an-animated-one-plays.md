@@ -78,6 +78,18 @@ natives, so an application adds nothing to get SVG.
 
 **Built for release:** without assertions, which on a damaged file stop the process.
 
+**With one patch to plutovg,** as the owner chose on 2026-10-14 when the payload's first run on
+Linux failed its fuzz. glibc's `rand()` reached a damaged copy the macOS sequence had not: a
+dashed circle at x = 9,999,912. plutovg flattens a curve by halving it until it reads flat; that
+far out a float's step is about 1.0, the halves of a curve one step wide are the curve itself,
+and it never read flat, so the process spun on macOS and grew until killed on Linux. lunasvg
+3.5.0 is the newest release and plutovg's main branch has the same code. The patch gives each
+curve a budget of 65,536 splits, after which what is left is drawn as straight lines; the case
+draws in 3 ms. It lives in the payload's `patches/`, is applied to the verified archive, says
+in its header what it changes and why, and goes when a lunasvg that no longer needs it is
+packaged; the case is a seed of the fuzz and a test that times out without the patch. Patched,
+three seeds of 6,000 cases each on Linux and the CI's seed on macOS found nothing.
+
 **SVG text has the fonts the toolkit bundles and the system's,** as the owner chose: the bundled
 families are registered with lunasvg, and lunasvg looks up the rest among the fonts installed on
 the machine. A file that names an installed font gets it; the same file can draw differently on
