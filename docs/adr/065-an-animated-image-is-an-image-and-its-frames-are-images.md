@@ -4,8 +4,8 @@
   turns, `Images.animation` and `fromSheet`, the clockwork and `ImageView` playing, GIF read
   and written, WebP read, still and animated, behind the walk of its container, frames decoded
   as they play over the animation budget, and each frame an entry of the shared loads, pinned
-  with its picture. Not yet: a frame asked for only when it is due (a view playing asks for
-  every frame of the display and paints when its picture changes), and APNG.
+  with its picture, and a view playing asks for a frame of the display only when a frame of
+  its picture is due. Not yet: APNG.
 - **Date:** 2026-10-13
 - **Scope:** pictures that move: animated GIF, APNG and animated WebP read from a file, and a
   sprite sheet declared by hand; how they are held, cached, played and controlled.
@@ -122,6 +122,12 @@ Three rules hold for both:
 - **A frame is asked for when it is due, not every frame.** A picture of ten frames a second
   costs ten frames a second of its own box, and nothing while it is hidden, out of the
   window, or in a window that is not shown. The budget of ADR 062 counts it.
+  As built: between two frames of the picture the view's clock sleeps on a delayed task set
+  for when the next is due, and woken it moves the picture on by the scene's time it slept and
+  asks for the one frame that draws it. It ticks every frame of the display only while the
+  frame due is still being decoded. A pause or a new time scale that falls while it sleeps
+  reaches it when it wakes: the time slept is counted at the scale of that moment, so a pause
+  costs the frame shown the time it had already been shown.
 - **A time too short to be meant is lengthened.** Files carry frame times of zero or of a
   hundredth of a second that every viewer has always shown at a tenth; so does this.
 

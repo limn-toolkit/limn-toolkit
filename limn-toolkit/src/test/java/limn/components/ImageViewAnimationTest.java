@@ -7,6 +7,7 @@ import limn.graphics.Images;
 import limn.scene.Scene;
 import limn.testing.HeadlessUi;
 import limn.testing.NoopCanvas;
+import limn.testing.StubWindow;
 import limn.testing.TestRulers;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,6 +33,8 @@ class ImageViewAnimationTest {
     private Scene scene;
     private ImageView view;
     private Image drawn;
+    /** How many times the frame drawn changed. */
+    private int seenFrames;
     private NoopCanvas canvas;
 
     /** Three frames of 100 ms each. */
@@ -49,6 +52,9 @@ class ImageViewAnimationTest {
         canvas = new NoopCanvas(100, 100) {
             @Override
             public void drawImage(Image image, float x, float y, float w, float h) {
+                if (drawn != null && drawn != image) {
+                    seenFrames++;
+                }
                 drawn = image;
             }
 
@@ -76,9 +82,10 @@ class ImageViewAnimationTest {
         after(0);
     }
 
-    /** Moves the clock on and renders a frame. */
+    /** Moves the clock on, runs what fell due, and renders a frame, as a backend's loop does. */
     private void after(int millis) {
         nanos.addAndGet(millis * 1_000_000L);
+        ui.runtime().drain();
         scene.renderFrame(canvas);
     }
 
@@ -153,6 +160,87 @@ class ImageViewAnimationTest {
         for (int i = 1; i < seen.size(); i++) {
             assertEquals((seen.get(i - 1) + 1) % 12, (int) seen.get(i), "every frame in its turn: " + seen);
         }
+    }
+
+    /**
+     * Between two frames of the picture the scene asks for no frame of the display: a picture of
+     * ten frames a second costs ten, whatever the display's rate, and a held one costs none.
+     */
+    @Test
+    void aFrameOfTheDisplayIsAskedForOnlyWhenAFrameOfThePictureIsDue() {
+        StubWindow window = new StubWindow();
+        scene.bind(window);
+        Image image = three(0);
+        view.setImage(image);
+        shown();
+        int before = window.framesRequested;
+        for (int t = 0; t < 60; t++) {
+            after(16); // a second of a display at 60 frames a second
+        }
+        int asked = window.framesRequested - before;
+        assertTrue(asked >= 9 && asked <= 11, "ten frames of the picture, " + asked + " asked for");
+        assertEquals(9, seenFrames, "and each drawn in its turn");
+
+        view.setPlaying(false);
+        after(16);
+        before = window.framesRequested;
+        for (int t = 0; t < 60; t++) {
+            after(16);
+        }
+        assertEquals(before, window.framesRequested, "held, it asks for none");
+    }
+
+    /** A sleeping clock is told of a new speed at once, and owes the old speed the time before it. */
+    @Test
+    void aNewSpeedReachesAClockAsleepAndTheTimeBeforeItKeepsTheOldOne() {
+        Image image = three(0);
+        view.setImage(image);
+        shown();
+        after(50);
+        view.setSpeed(2);
+        after(0);
+        after(0);
+        after(25);
+        assertSame(image.frame(1), drawn, "50 ms at 1, then 25 at 2: 100 ms of the picture");
+        assertEquals(1, view.frameIndex());
+    }
+
+    /** A paused scene holds the picture and asks for nothing; resumed, the picture goes on. */
+    @Test
+    void aPausedSceneHoldsThePictureAndAsksForNoFrame() {
+        StubWindow window = new StubWindow();
+        scene.bind(window);
+        Image image = three(0);
+        view.setImage(image);
+        shown();
+        scene.setPaused(true);
+        after(150);
+        after(0);
+        int before = window.framesRequested;
+        for (int t = 0; t < 30; t++) {
+            after(100);
+        }
+        assertEquals(before, window.framesRequested, "paused, it asks for none");
+        assertSame(image.frame(0), drawn, "and the picture is held");
+        scene.setPaused(false);
+        after(0);
+        after(60);
+        after(60);
+        assertSame(image.frame(1), drawn, "resumed, it goes on");
+    }
+
+    /** A new image is played from its paint, not from the wake set for the one before. */
+    @Test
+    void aNewImageIsNotKeptWaitingByTheWakeOfTheOneBefore() {
+        Image slow = Images.animation(List.of(new Image(2, 2, new byte[16]), new Image(2, 2, new byte[16])),
+                new int[] {10_000, 10_000}, 0);
+        view.setImage(slow);
+        shown();
+        Image image = three(0);
+        view.setImage(image);
+        shown();
+        after(120);
+        assertSame(image.frame(1), drawn);
     }
 
     @Test

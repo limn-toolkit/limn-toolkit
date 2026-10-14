@@ -69,6 +69,7 @@ public final class ImageView extends Widget<ImageView> {
      */
     public ImageView setImage(@Nullable Image newImage) {
         Ui.checkUiThread();
+        wake();
         this.image = newImage;
         this.animation = newImage != null && newImage.isAnimated()
                 ? new ImageAnimation(newImage).setSpeed(speed).setLoop(loop).setPlaying(playing) : null;
@@ -94,6 +95,7 @@ public final class ImageView extends Widget<ImageView> {
         Ui.checkUiThread();
         this.playing = play;
         if (animation != null) {
+            wake();
             animation.setPlaying(play);
             invalidate(); // the paint is what starts the clock again
         }
@@ -117,7 +119,9 @@ public final class ImageView extends Widget<ImageView> {
         }
         this.speed = newSpeed;
         if (animation != null) {
+            wake();
             animation.setSpeed(newSpeed);
+            invalidate(); // the paint sets the clock for the new speed
         }
         return this;
     }
@@ -131,6 +135,7 @@ public final class ImageView extends Widget<ImageView> {
         Ui.checkUiThread();
         this.loop = Objects.requireNonNull(newLoop, "newLoop");
         if (animation != null) {
+            wake();
             animation.setLoop(newLoop);
             invalidate();
         }
@@ -146,6 +151,7 @@ public final class ImageView extends Widget<ImageView> {
         Ui.checkUiThread();
         Objects.checkIndex(frame, image == null ? 0 : image.frameCount());
         if (animation != null) {
+            wake();
             animation.seekFrame(frame);
             invalidate();
         }
@@ -169,34 +175,117 @@ public final class ImageView extends Widget<ImageView> {
         return this;
     }
 
-    /** Starts the clock of the animation shown, from the paint that shows it. */
+    /**
+     * Starts the clock of the animation shown, from the paint that shows it.
+     *
+     * <p>The clock does not run every frame of the display. Between two frames of the picture
+     * it sleeps, on a delayed task set for the moment the next one is due; woken, it moves the
+     * animation on by the scene's time it slept and asks for the one frame that draws the
+     * change. A picture of ten frames a second costs ten frames a second, whatever the rate of
+     * the display. It runs as a ticker, every frame of the display, only while the frame that
+     * is due is still being decoded, or while the scene's time is stopped, when the scene asks
+     * for no frame at all.
+     */
     private void keepTime() {
         limn.scene.Scene home = scene();
         ImageAnimation shown = animation;
-        if (ticking || home == null || shown == null || !shown.isPlaying()) {
+        if (ticking || alarm != null || home == null || shown == null || !shown.isPlaying()) {
             return;
         }
+        step(home, shown, 0);
+    }
+
+    /** Moves the animation on and sets the clock for its next frame: asleep, or ticking. */
+    private void step(limn.scene.Scene home, ImageAnimation shown, double seconds) {
+        shown.advance(seconds);
+        if (shown.frame() != painted) {
+            invalidate(); // its time came, or a frame being decoded as it plays has arrived
+        }
+        if (shown.isFinished() && onFinished != null) {
+            onFinished.run();
+        }
+        if (!shown.isPlaying() || animation != shown) {
+            return;
+        }
+        double rate = home.isPaused() ? 0 : home.timeScale();
+        double due = shown.secondsUntilNextFrame();
+        if (due > 0 && rate > 0) {
+            sleep(home, shown, due / rate);
+        } else if (!ticking) {
+            tick(home, shown); // late, or the scene's time is stopped
+        }
+    }
+
+    private void tick(limn.scene.Scene home, ImageAnimation shown) {
         ticking = true;
         home.addTicker(seconds -> {
-            // The clock stops with what it was for: another image, a view out of its scene, or
-            // one nobody sees, which the next paint starts again.
-            if (animation != shown || scene() != home || !isShowing()) {
+            if (!stillFor(home, shown)) {
                 ticking = false;
                 return false;
             }
-            shown.advance(seconds);
-            if (shown.frame() != painted) {
-                invalidate(); // its time came, or a frame being decoded as it plays has arrived
-            }
-            if (shown.isFinished() && onFinished != null) {
-                onFinished.run();
-            }
-            if (!shown.isPlaying()) {
-                ticking = false;
+            step(home, shown, seconds);
+            if (alarm != null || !shown.isPlaying()) {
+                ticking = false; // asleep again, or at its end
                 return false;
             }
             return true;
         });
+    }
+
+    /**
+     * Whether the clock is still for what it was set for. It stops with another image, a view
+     * out of its scene, or one nobody sees, which the next paint starts again.
+     */
+    private boolean stillFor(limn.scene.Scene home, ImageAnimation shown) {
+        return animation == shown && scene() == home && isShowing();
+    }
+
+    /** When the clock went to sleep, on the scene's clock; -1 when it is not asleep. */
+    private long sleptAt = -1;
+    /** The wake of a clock asleep, or null. */
+    private limn.concurrent.@Nullable Subscription alarm;
+
+    private void sleep(limn.scene.Scene home, ImageAnimation shown, double wallSeconds) {
+        sleptAt = home.clock().getAsLong();
+        alarm = Ui.postDelayed(() -> {
+            alarm = null;
+            if (stillFor(home, shown)) {
+                double seconds = slept(home);
+                sleptAt = -1;
+                step(home, shown, seconds);
+            } else {
+                sleptAt = -1;
+            }
+        }, Math.max(1, (long) Math.ceil(wallSeconds * 1000)));
+    }
+
+    /** @return the scene's seconds since the clock went to sleep */
+    private double slept(limn.scene.Scene home) {
+        double wall = (home.clock().getAsLong() - sleptAt) / 1e9;
+        return Math.max(0, wall) * (home.isPaused() ? 0 : home.timeScale());
+    }
+
+    /**
+     * Counts the time a sleeping clock has slept and cancels its wake, before a change that the
+     * time already passed must not be measured by: a new speed, frame, turn count or image. The
+     * paint the change asks for sets the clock again.
+     */
+    private void wake() {
+        limn.scene.Scene home = scene();
+        if (alarm != null) {
+            alarm.cancel();
+            alarm = null;
+            if (home != null && animation != null && sleptAt >= 0) {
+                animation.advance(slept(home));
+            }
+        }
+        sleptAt = -1;
+    }
+
+    @Override
+    protected void onDetached() {
+        super.onDetached();
+        wake(); // a view out of its scene is not woken, nor held by a task on the calendar
     }
 
     /** How the image fills its box when the two aspect ratios differ. */
