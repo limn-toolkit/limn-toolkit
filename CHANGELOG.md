@@ -290,6 +290,17 @@ Maven Central say which number that was.
   the rectangle that changed.
 - An image view playing asks for a frame of its window only when a frame of its picture is
   due, where it asked for every frame of the display while it played.
+- Animated icons. A `BitmapIcon` of an animated image is an animated icon: `Icon.isAnimated()`,
+  `frameCount()`, `frameMillis(i)`, `loopCount()` and `image(pixelSize, dark, frame)`, whose
+  frame 0 is what `image(pixelSize, dark)` answered; the images of one icon play alike, or it
+  is refused. Every component that draws icons plays one by itself, at the image's times and on
+  the scene's clock: buttons, labels, tabs, a field's icons, a combo's, list, tree and table
+  cells. It starts at the paint that shows it, waits where nobody sees it, rests on its last
+  frame, and asks for a frame of its window only when one of its frames is due, repainting the
+  icon's box. A tray plays one in each of its pictures, and `TrayPicture` says which frame it
+  draws. An `ImageCursor` of an animated image plays, counted once in the backend's cache of
+  cursors however many frames it has. A menu, the system's or the toolkit's, shows the first
+  frame, and so does a window's own icon; the wish for less motion is not applied.
 - `ButtonGroup.remove(radio)` takes a radio out of its group.
 - `Ui.postDelayed` returns a `Subscription` that withdraws the task: a timer armed for
   something that can go away first is cancelled there, where it held all it captured until it

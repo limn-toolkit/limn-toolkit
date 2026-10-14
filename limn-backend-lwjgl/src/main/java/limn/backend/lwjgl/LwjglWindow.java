@@ -274,6 +274,8 @@ final class LwjglWindow implements WindowPeer {
     LwjglWindow(LwjglBackend backend, WindowConfig config) {
         this.popupWindow = config.isPopup();
         this.backend = backend;
+        // On the clock the runtime's own delays are measured on, which is the process's.
+        this.cursorPlayer = new CursorPlayer(backend.uiRuntime(), System::nanoTime, this::showCursorFrame);
         this.title = config.title();
         this.resizable = config.resizable();
         this.floatingByConfig = config.floating();
@@ -1208,6 +1210,7 @@ final class LwjglWindow implements WindowPeer {
             return;
         }
         destroyed = true;
+        cursorPlayer.stop();
         // Let the bound scene flush anything waiting on a frame that will never
         // come (e.g. a window-fade callback that completes a dialog's result).
         // Contained: a throwing close callback must not skip the native teardown
@@ -1637,6 +1640,8 @@ final class LwjglWindow implements WindowPeer {
     // Active custom cursor; while set it overrides the standard shape, which
     // stays recorded in 'cursor' and is restored when the image clears.
     private limn.backend.ImageCursor imageCursor;
+    /** Swaps the frames of an animated image cursor while this window shows it. */
+    private final CursorPlayer cursorPlayer;
 
     /** The pointer shape this window was last asked for, set again after something else changed it. */
     private void reapplyCursor() {
@@ -1666,6 +1671,14 @@ final class LwjglWindow implements WindowPeer {
         return imageCursor;
     }
 
+    /** Shows one frame of the animated image cursor this window shows. */
+    private void showCursorFrame(int frame) {
+        limn.backend.ImageCursor shown = imageCursor;
+        if (!destroyed && shown != null) {
+            glfwSetCursor(handle, backend.imageCursorHandle(shown, frame));
+        }
+    }
+
     @Override
     public void setImageCursor(limn.backend.ImageCursor newCursor) {
         backend.uiRuntime().checkUiThread();
@@ -1673,8 +1686,9 @@ final class LwjglWindow implements WindowPeer {
             return;
         }
         imageCursor = newCursor;
+        cursorPlayer.play(newCursor);
         if (newCursor != null) {
-            glfwSetCursor(handle, backend.imageCursorHandle(newCursor));
+            glfwSetCursor(handle, backend.imageCursorHandle(newCursor, 0));
         } else {
             // Image cleared: fall back to the recorded standard shape.
             glfwSetCursor(handle, cursor == Cursor.DEFAULT ? NULL : backend.cursorHandle(cursor));

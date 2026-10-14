@@ -1363,7 +1363,14 @@ public final class PopupMenu {
                     // picture shows both; mirrored with the label it belongs to.
                     float side = iconSide(ruler, t);
                     float iconX = rtl ? x + col.w - t.menuCheckGutter() - side : x + t.menuCheckGutter();
-                    picture.paint(canvas, iconX, iy + (rowH - side) / 2, side, ink, theme.isDark());
+                    // With no painter, so that an animated icon shows its first frame: no
+                    // system's menu moves one, and this one keeps to that.
+                    Object painter = limn.graphics.internal.IconPlayer.enter(null);
+                    try {
+                        picture.paint(canvas, iconX, iy + (rowH - side) / 2, side, ink, theme.isDark());
+                    } finally {
+                        limn.graphics.internal.IconPlayer.leave(painter);
+                    }
                 }
                 float labelX = rtl
                         ? x + col.w - t.menuCheckGutter() - col.iconSlot - label.metrics().width()

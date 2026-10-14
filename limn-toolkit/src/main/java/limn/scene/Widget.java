@@ -58,6 +58,11 @@ public abstract class Widget<W extends Widget<W>> {
         return (W) this;
     }
 
+    static {
+        // Every widget is a painter an animated icon asks for its frame of the moment.
+        limn.graphics.internal.IconPlayer.install(IconClocks::frameOf);
+    }
+
     private Widget<?> parent;
     private final List<Widget<?>> children = new ArrayList<>();
     private final List<Widget<?>> childrenView = Collections.unmodifiableList(children);
@@ -73,6 +78,8 @@ public abstract class Widget<W extends Widget<W>> {
     private boolean focusable;
     private Cursor cursor; // null = inherit from an ancestor (arrow at the root)
     private String id;
+    /** The clocks of the animated icons this widget paints; null until it paints one. */
+    private @Nullable IconClocks iconClocks;
 
     Scene scene; // set on the root by Scene, propagated on attach
 
@@ -349,6 +356,9 @@ public abstract class Widget<W extends Widget<W>> {
             // and remember to null it again; two widgets in this repo alone had
             // grown that field, which is a design saying it got the order wrong.
             onDetached();
+            if (iconClocks != null) {
+                iconClocks.stop();
+            }
             if (paintsFromBackdrop() && old != null) {
                 old.removeBackdropDependant(this);
             }
@@ -1771,12 +1781,18 @@ public abstract class Widget<W extends Widget<W>> {
         // The paint runs with this widget's locale in scope, so text resolved on the way
         // down answers in this subtree's language; a child's own paintWidget nests its own.
         Locale enclosing = I18n.pushScope(locale());
+        // And as the icons' painter: an animated icon this widget paints plays on its clocks.
+        if (iconClocks != null) {
+            iconClocks.newPass();
+        }
+        Object enclosingPainter = limn.graphics.internal.IconPlayer.enter(this);
         try {
             onPaint(canvas);
             paintChildren(canvas);
             onPaintOverlay(canvas);
             completed = true;
         } finally {
+            limn.graphics.internal.IconPlayer.leave(enclosingPainter);
             I18n.popScope(enclosing);
             int leaked = canvas.saveCount() - depth;
             if (leaked != 0) {
@@ -1786,6 +1802,16 @@ public abstract class Widget<W extends Widget<W>> {
                 canvas.restoreToCount(depth);
             }
         }
+    }
+
+    /** The clocks of the animated icons this widget paints, made at the first. */
+    final IconClocks iconClocks() {
+        IconClocks clocks = iconClocks;
+        if (clocks == null) {
+            clocks = new IconClocks(this);
+            iconClocks = clocks;
+        }
+        return clocks;
     }
 
     /**
