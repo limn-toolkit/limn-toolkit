@@ -57,10 +57,17 @@ public final class SvgSource {
 
     private final SvgXml.Element root;
     private final byte[] text;
+    private final @Nullable SvgAnimation animation;
 
-    private SvgSource(SvgXml.Element root) {
+    private SvgSource(SvgXml.Element root, @Nullable SvgAnimation animation) {
         this.root = root;
+        this.animation = animation;
         this.text = SvgXml.write(root);
+    }
+
+    /** @return the animation the toolkit plays, taken out of the text; null when nothing moves */
+    public @Nullable SvgAnimation animation() {
+        return animation;
     }
 
     /**
@@ -80,7 +87,8 @@ public final class SvgSource {
         new Sanitizer(folder).clean(root);
         CustomProperties.resolve(root);
         drawnElements(root);
-        return new SvgSource(root);
+        SvgAnimation animation = SvgAnimation.extract(root);
+        return new SvgSource(root, animation);
     }
 
     /**

@@ -284,6 +284,22 @@ class WorkBudgetTest {
     }
 
     @Test
+    void anAnimatedSvgAsksForItsOwnFramesAndNoMore() {
+        limn.graphics.SvgRenderer renderer = limn.testfixtures.FakeSvg.renderer(
+                (svg, side) -> new limn.graphics.Image(side, side, new byte[side * side * 4]));
+        limn.graphics.SvgIcon.installRenderer(renderer);
+        try {
+            limn.graphics.Icon spinner = limn.graphics.SvgIcon.of("<svg xmlns='http://www.w3.org/2000/svg' "
+                    + "viewBox='0 0 24 24'><circle cx='12' cy='12' r='4'><animate attributeName='r' values='4;8;4' "
+                    + "dur='1s' repeatCount='indefinite'/></circle></svg>").withFrameRate(10);
+            long[] moving = aSecondOf(new Button("Saving").setIcon(spinner), new Label("Beside"));
+            assertEquals(10, moving[0], "an SVG played at ten frames a second asks for ten of its window");
+        } finally {
+            limn.graphics.SvgIcon.uninstallRenderer(renderer);
+        }
+    }
+
+    @Test
     void aScreenNobodyTouchesAsksForNoFrame() {
         HeadlessWindow window = new HeadlessBackend(ui.runtime()).open("At rest", WIDTH, HEIGHT);
         limn.scene.layout.Column column = new limn.scene.layout.Column();

@@ -141,8 +141,14 @@ animated value is computed at the moment drawn and set on the document; the docu
   `cubic-bezier` and `steps`, delay, iteration count, direction, fill mode), over `transform`
   and the properties the corpus moves: opacity and the fill and stroke opacities, the geometry
   properties, the stroke's dash; `transform-origin` and `transform-box`.
-- **Out:** `animateMotion`, events as a beginning (`click`, another animation's end),
-  `additive` and `accumulate`, CSS transitions, and scripting, never.
+- **A beginning at another animation's beginning or end,** offset (`begin="0;spin.end-0.25s"`),
+  as the owner chose on 2026-10-14 once it was measured, building this: 24 of the 58 SMIL files
+  of the collections chain their parts so, and without it they played once and stopped. Every
+  instant each animation begins at is worked out to thirty seconds, a beginning while it plays
+  restarting it, and a chain that comes round again is a loop of its own period. Of several
+  animations of one attribute, the one that began last wins, as SMIL ranks them.
+- **Out:** `animateMotion`, a user's event as a beginning (`click`, `focus`), `accumulate`, CSS
+  transitions, and scripting, never. `additive="sum"` is read for transforms.
 
 **Frames are moments at a fixed rate,** so that an animated SVG is an animated image like any
 other: **24 a second unless set,** as the owner chose, the rate of film. The rate is the

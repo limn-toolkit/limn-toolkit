@@ -92,8 +92,141 @@ public final class SvgIcon implements Icon {
     }
 
     private SvgIcon(byte[] svg, java.nio.file.@org.jspecify.annotations.Nullable Path folder) {
+        this(svg, folder, 0);
+    }
+
+    private SvgIcon(byte[] svg, java.nio.file.@org.jspecify.annotations.Nullable Path folder, int frameRate) {
         this.svg = svg;
         this.folder = folder;
+        this.frameRate = frameRate;
+    }
+
+    /** The system property that sets the rate every animated SVG plays at, unless its icon says. */
+    public static final String FRAME_RATE_PROPERTY = "limn.svg.frameRate";
+
+    /** The rate this icon was given, or 0 for the property's or the default. */
+    private final int frameRate;
+    /** The rate it plays at, settled at the first question, so its frames never change count. */
+    private int rate;
+
+    /**
+     * The same SVG, playing at {@code framesPerSecond} if it is animated: its own rate, which wins
+     * over {@value #FRAME_RATE_PROPERTY}. An SVG says nothing of a rate, since neither SMIL nor CSS
+     * has one: both measure time, and the toolkit draws that time as frames, 24 a second unless
+     * set, the rate of film.
+     *
+     * @param framesPerSecond from 1 to 120
+     * @return a new icon of the same source
+     * @throws IllegalArgumentException when the rate is out of that range
+     */
+    public SvgIcon withFrameRate(int framesPerSecond) {
+        if (framesPerSecond < 1 || framesPerSecond > limn.graphics.internal.SvgAnimation.MAX_FRAME_RATE) {
+            throw new IllegalArgumentException("a frame rate is 1 to "
+                    + limn.graphics.internal.SvgAnimation.MAX_FRAME_RATE + " a second: " + framesPerSecond);
+        }
+        SvgIcon other = new SvgIcon(svg, folder, framesPerSecond);
+        other.source = source;
+        return other;
+    }
+
+    /** @return the rate it plays at: its own, else the system property's, else 24 */
+    public int frameRate() {
+        int settled = rate;
+        if (settled == 0) {
+            settled = frameRate;
+            if (settled == 0) {
+                Integer property = Integer.getInteger(FRAME_RATE_PROPERTY);
+                settled = property == null ? limn.graphics.internal.SvgAnimation.DEFAULT_FRAME_RATE
+                        : Math.max(1, Math.min(limn.graphics.internal.SvgAnimation.MAX_FRAME_RATE, property));
+            }
+            rate = settled;
+        }
+        return settled;
+    }
+
+    /** The animation it plays, or null for a still SVG and one whose source was refused. */
+    private limn.graphics.internal.@org.jspecify.annotations.Nullable SvgAnimation animation() {
+        if (refused != null) {
+            return null;
+        }
+        try {
+            return source().animation();
+        } catch (limn.io.MalformedContentException damaged) {
+            return null;
+        }
+    }
+
+    /**
+     * {@inheritDoc} An SVG is animated when it has SMIL or CSS animation, which the toolkit reads
+     * and plays itself, a moment a frame. Reading it parses the source on the first call.
+     */
+    @Override
+    public boolean isAnimated() {
+        return animation() != null;
+    }
+
+    @Override
+    public int frameCount() {
+        limn.graphics.internal.SvgAnimation animation = animation();
+        return animation == null ? 1 : animation.frameCount(frameRate());
+    }
+
+    @Override
+    public int frameMillis(int frame) {
+        java.util.Objects.checkIndex(frame, frameCount());
+        limn.graphics.internal.SvgAnimation animation = animation();
+        return animation == null ? 0 : animation.frameMillis(frameRate(), frame);
+    }
+
+    /** {@inheritDoc} One whose animations repeat without end plays without end; one whose all end plays once and rests. */
+    @Override
+    public int loopCount() {
+        limn.graphics.internal.SvgAnimation animation = animation();
+        return animation == null || animation.loops() ? 0 : 1;
+    }
+
+    /** The frames of an animated icon drawn at a size, kept while the frames of that size fit in their budget. */
+    private final Map<Integer, Image[]> framesBySize = new LinkedHashMap<>(4, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<Integer, Image[]> eldest) {
+            return size() > 4;
+        }
+    };
+
+    /** The most bytes of frames kept for one size: past it each frame is drawn as it is asked for. */
+    private static final long FRAMES_BUDGET = 16L << 20;
+
+    /**
+     * {@inheritDoc} A frame of an animated SVG is drawn at its moment, fitted into the box; drawn
+     * once and kept, for a size whose frames together fit in sixteen megabytes. UI thread.
+     */
+    @Override
+    public Image image(int pixelSize, boolean dark, int frame) {
+        java.util.Objects.checkIndex(frame, frameCount());
+        if (frame == 0) {
+            return image(pixelSize);
+        }
+        checkConfined();
+        int size = Math.max(1, pixelSize);
+        Image[] frames = framesBySize.get(size);
+        if (frames != null && frames[frame] != null) {
+            return frames[frame];
+        }
+        Image raster;
+        try {
+            raster = draw(requireRenderer(), size, frame);
+        } catch (RuntimeException e) {
+            refuse(e);
+            return NOTHING;
+        }
+        if ((long) raster.width() * raster.height() * 4 * frameCount() <= FRAMES_BUDGET) {
+            if (frames == null) {
+                frames = new Image[frameCount()];
+                framesBySize.put(size, frames);
+            }
+            frames[frame] = raster;
+        }
+        return raster;
     }
 
     /** An icon from raw SVG source. */
@@ -191,7 +324,7 @@ public final class SvgIcon implements Icon {
         SvgRenderer renderer = requireRenderer();
         Image raster;
         try {
-            raster = draw(renderer, size);
+            raster = draw(renderer, size, 0);
         } catch (RuntimeException e) {
             refuse(e);
             return NOTHING;
@@ -249,7 +382,7 @@ public final class SvgIcon implements Icon {
             SvgRenderer renderer = requireRenderer();
             Image raster;
             try {
-                raster = draw(renderer, size);
+                raster = draw(renderer, size, 0);
             } catch (RuntimeException e) {
                 Ui.post(() -> refuse(e));
                 throw e;
@@ -316,7 +449,27 @@ public final class SvgIcon implements Icon {
             float scale = Math.min(1f, OWN_SIZE_CEILING / Math.max(document.width(), document.height()));
             int w = Math.max(1, (int) Math.ceil(document.width() * scale - 0.001f));
             int h = Math.max(1, (int) Math.ceil(document.height() * scale - 0.001f));
-            return document.render(w, h);
+            limn.graphics.internal.SvgAnimation animation = source.animation();
+            if (animation == null) {
+                return document.render(w, h);
+            }
+            // An animated SVG is an animated image, every frame drawn now, while they fit in the
+            // animation budget; one larger is its first frame, and an SvgIcon is what plays it.
+            int rate = new SvgIcon(file).frameRate();
+            int count = animation.frameCount(rate);
+            limn.graphics.internal.SvgAnimation.Applied applied = new limn.graphics.internal.SvgAnimation.Applied();
+            if ((long) w * h * 4 * count > Images.animationBudget()) {
+                animation.apply(document, applied, animation.timeOf(rate, 0));
+                return document.render(w, h);
+            }
+            java.util.List<Image> frames = new java.util.ArrayList<>(count);
+            int[] millis = new int[count];
+            for (int f = 0; f < count; f++) {
+                animation.apply(document, applied, animation.timeOf(rate, f));
+                frames.add(document.render(w, h));
+                millis[f] = animation.frameMillis(rate, f);
+            }
+            return count == 1 ? frames.get(0) : Images.animation(frames, millis, animation.loops() ? 0 : 1);
         }
     }
 
@@ -388,9 +541,18 @@ public final class SvgIcon implements Icon {
         return read;
     }
 
-    /** Opens the source, draws it fitted into a square of {@code size}, and closes it. Any thread. */
-    private Image draw(SvgRenderer renderer, int size) {
-        try (SvgRenderer.Document document = renderer.open(source().text())) {
+    /**
+     * Opens the source, draws one of its frames fitted into a square of {@code size}, and closes it.
+     * Any thread: the document is this call's own.
+     */
+    private Image draw(SvgRenderer renderer, int size, int frame) {
+        limn.graphics.internal.SvgSource read = source();
+        try (SvgRenderer.Document document = renderer.open(read.text())) {
+            limn.graphics.internal.SvgAnimation animation = read.animation();
+            if (animation != null) {
+                animation.apply(document, new limn.graphics.internal.SvgAnimation.Applied(),
+                        animation.timeOf(frameRate(), frame));
+            }
             float scale = size / Math.max(document.width(), document.height());
             int w = Math.max(1, Math.round(document.width() * scale));
             int h = Math.max(1, Math.round(document.height() * scale));
