@@ -61,7 +61,6 @@ dependencies {
     // Nothing is replaced: HarfBuzz chooses the glyphs, stb still rasterizes them. Confined here
     // like every other native, so nothing above this backend learns the word HarfBuzz.
     implementation(libs.lwjgl.harfbuzz)
-    implementation(libs.lwjgl.nanovg) // NanoSVG (rasterizes SVG icons → RGBA, no AWT)
     implementation(libs.lwjgl.tinyfd) // native open/save/folder dialogs (no AWT)
     // EGL, for one question GLFW does not ask on Wayland: how old the back buffer is
     // (EGL_EXT_buffer_age). Classes only: it binds the system's libEGL, which the Wayland session
@@ -73,10 +72,23 @@ dependencies {
 
     val lwjglVersion = libs.versions.lwjgl.get()
     listOf("lwjgl", "lwjgl-glfw", "lwjgl-opengl", "lwjgl-openal", "lwjgl-stb", "lwjgl-harfbuzz",
-            "lwjgl-nanovg", "lwjgl-tinyfd").forEach { module ->
+            "lwjgl-tinyfd").forEach { module ->
         lwjglTargets.values.forEach { classifier ->
             runtimeOnly("org.lwjgl:$module:$lwjglVersion:$classifier")
         }
+    }
+
+    // SVG (ADR 066): lunasvg and plutovg with the JNI shim, one library per platform, from the
+    // limn-lunasvg-natives payload. api rather than runtimeOnly because module-info requires
+    // limn.lunasvg.natives, which is also what resolves the six classifier jars on the module path
+    // (resolving one automatic module resolves them all); its main jar holds only the licences.
+    // All six classifiers, always, for the reason LWJGL's are: this is a library, and it has to
+    // draw wherever the application is deployed. Each is a few hundred kilobytes.
+    api(libs.limn.lunasvg.natives)
+    val svgPayload = libs.limn.lunasvg.natives.get()
+    listOf("linux-aarch64", "linux-x86_64", "macos-aarch64", "macos-x86_64",
+            "windows-aarch64", "windows-x86_64").forEach { platform ->
+        runtimeOnly("${svgPayload.module}:${svgPayload.versionConstraint.requiredVersion}:natives-$platform")
     }
 
     testImplementation(platform(libs.junit.bom))

@@ -30,7 +30,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 class SvgIconAsyncTest {
 
     /** Records the rasterizing thread, hands back a fresh Image, and can be held mid-call. */
-    private static final class FakeRasterizer implements SvgRasterizer {
+    private static final class FakeRasterizer implements limn.testfixtures.FakeSvg.Picture {
         final AtomicInteger rasterizations = new AtomicInteger();
         volatile Thread lastThread;
         volatile Image lastProduced;
@@ -38,7 +38,7 @@ class SvgIconAsyncTest {
         volatile CountDownLatch release;
 
         @Override
-        public Image rasterize(byte[] svgBytes, int pixelSize) {
+        public Image draw(byte[] svgBytes, int pixelSize) {
             lastThread = Thread.currentThread();
             if (entered != null) {
                 entered.countDown();
@@ -61,17 +61,18 @@ class SvgIconAsyncTest {
     private HeadlessUi ui;
     private UiRuntime runtime;
     private final FakeRasterizer rasterizer = new FakeRasterizer();
+    private final SvgRenderer renderer = limn.testfixtures.FakeSvg.renderer(rasterizer);
 
     @BeforeEach
     void setUp() {
         ui = new HeadlessUi();
         runtime = ui.runtime();
-        SvgIcon.installRasterizer(rasterizer);
+        SvgIcon.installRenderer(renderer);
     }
 
     @AfterEach
     void tearDown() {
-        SvgIcon.uninstallRasterizer(rasterizer);
+        SvgIcon.uninstallRenderer(renderer);
         ui.close();
     }
 

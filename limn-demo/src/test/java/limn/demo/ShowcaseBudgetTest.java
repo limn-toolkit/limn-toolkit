@@ -32,7 +32,7 @@ class ShowcaseBudgetTest {
 
     private static final ImageDecoder DECODER = bytes -> new Image(16, 16, new byte[16 * 16 * 4]);
 
-    private static final limn.graphics.SvgRasterizer RASTERIZER = (svg, px) -> new Image(1, 1, new byte[4]);
+    private static final limn.graphics.SvgRenderer RASTERIZER = limn.testfixtures.FakeSvg.renderer((svg, px) -> new Image(1, 1, new byte[4]));
 
     private long now;
     private static final int WIDTH = 1100;
@@ -49,13 +49,13 @@ class ShowcaseBudgetTest {
         ControlSize.setProcessDefault(ControlSize.MEDIUM);
         TextRulers.install(HeadlessWindow.RULER);
         Images.installDecoder(DECODER);
-        limn.graphics.SvgIcon.installRasterizer(RASTERIZER);
+        limn.graphics.SvgIcon.installRenderer(RASTERIZER);
         backend = new HeadlessBackend(ui.runtime());
     }
 
     @AfterEach
     void uninstallRuntime() {
-        limn.graphics.SvgIcon.uninstallRasterizer(RASTERIZER);
+        limn.graphics.SvgIcon.uninstallRenderer(RASTERIZER);
         Images.uninstallDecoder(DECODER);
         TextRulers.uninstall(HeadlessWindow.RULER);
         ui.close();

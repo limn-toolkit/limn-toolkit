@@ -90,7 +90,7 @@ public final class LwjglBackend implements BackendPeer {
     private limn.graphics.FontLoader fontLoader;
     private final ShapingRuler textRuler;
     private final limn.graphics.ImageDecoder imageDecoder;
-    private final limn.graphics.SvgRasterizer svgRasterizer = new NanoSvgRasterizer();
+    private final limn.graphics.SvgRenderer svgRenderer = new LunaSvgRenderer();
     // Stateless router → the current window's per-context Gl3DContext (owned by its GlCanvas).
     private final LwjglGraphics3D graphics3d = new LwjglGraphics3D();
     // Same shape for video surfaces → the current window's GlVideoContext.
@@ -330,7 +330,7 @@ public final class LwjglBackend implements BackendPeer {
         imageDecoder = new StbImageDecoder();
         // Every service at once, through the one call the SPI names (ADR 046 §5).
         new limn.backend.spi.BackendServices(uiRuntime, textRuler, fontCatalog, fontLoader, imageDecoder,
-                svgRasterizer, graphics3d, videoSurfaces, audio, audioDecoder).install();
+                svgRenderer, graphics3d, videoSurfaces, audio, audioDecoder).install();
         // Same shape as the font store's background loads: pay the file-dialog
         // library's extract-and-link on a worker now, not on the click that
         // wants a chooser. It buys back milliseconds, not the panel's real
@@ -1572,7 +1572,7 @@ public final class LwjglBackend implements BackendPeer {
         limn.graphics.Fonts.uninstallCatalog(fontCatalog);
         limn.graphics.Fonts.uninstallLoader(fontLoader);
         limn.graphics.Images.uninstallDecoder(imageDecoder);
-        limn.graphics.SvgIcon.uninstallRasterizer(svgRasterizer);
+        limn.graphics.SvgIcon.uninstallRenderer(svgRenderer);
         // Each window's Gl3DContext was disposed by its GlCanvas in destroy() above
         // (with its context current); the router is stateless, so just drop it.
         limn.render3d.Graphics3D.uninstall(graphics3d);

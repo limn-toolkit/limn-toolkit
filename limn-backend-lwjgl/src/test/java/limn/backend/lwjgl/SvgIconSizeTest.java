@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * An {@link SvgIcon} rasterizes crisply at the exact device size requested (a
+ * An {@link SvgIcon} draws crisply at the exact device size requested (a
  * distinct bitmap per size, cached by identity); this is what keeps vector icons
  * sharp on HiDPI instead of up/down-sampling one fixed bitmap.
  */
@@ -22,17 +22,17 @@ class SvgIconSizeTest {
     private static final String SVG = "<svg xmlns=\"http://www.w3.org/2000/svg\" "
             + "viewBox=\"0 0 10 10\"><rect x=\"1\" y=\"1\" width=\"8\" height=\"8\" fill=\"#000\"/></svg>";
 
-    private NanoSvgRasterizer rasterizer;
+    private LunaSvgRenderer renderer;
 
     @BeforeEach
     void install() {
-        rasterizer = new NanoSvgRasterizer();
-        SvgIcon.installRasterizer(rasterizer);
+        renderer = new LunaSvgRenderer();
+        SvgIcon.installRenderer(renderer);
     }
 
     @AfterEach
     void uninstall() {
-        SvgIcon.uninstallRasterizer(rasterizer);
+        SvgIcon.uninstallRenderer(renderer);
     }
 
     @Test
@@ -54,16 +54,24 @@ class SvgIconSizeTest {
     }
 
     @Test
-    void aSourceNanoSvgRefusesDrawsNothingInsteadOfThrowingFromEveryPaint() {
-        // No width, no height, no viewBox and no shape to take a size from: NanoSVG parses it
-        // and finds no size, and this rasterizer refuses it, as it refuses text that is not
-        // SVG at all.
-        SvgIcon sizeless = SvgIcon.of("<svg xmlns=\"http://www.w3.org/2000/svg\"><g/></svg>");
+    void aSourceTheRendererRefusesDrawsNothingInsteadOfThrowingFromEveryPaint() {
+        // A size of nothing: the renderer parses it and finds no size, and refuses it, as it
+        // refuses text that is not SVG at all.
+        SvgIcon sizeless = SvgIcon.of("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"0\" height=\"0\"><g/></svg>");
         SvgIcon garbage = SvgIcon.of("this is not an svg");
         for (SvgIcon icon : new SvgIcon[] {sizeless, garbage}) {
             Image first = assertDoesNotThrow(() -> icon.image(24, false));
             assertEquals(1, first.width(), "an empty bitmap stands in for the icon");
             assertSame(first, icon.image(48, false), "at every size, and without a new parse");
         }
+    }
+
+    @Test
+    void anIconOfAnotherAspectIsFittedIntoItsBox() {
+        SvgIcon wide = SvgIcon.of("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"10\">"
+                + "<rect width=\"40\" height=\"10\"/></svg>");
+        Image image = wide.image(32, false);
+        assertEquals(32, image.width(), "its longer side is the box's");
+        assertEquals(8, image.height(), "and its shorter side keeps the aspect");
     }
 }

@@ -11,8 +11,8 @@ import limn.concurrent.Work;
 import limn.io.Resources;
 
 /**
- * A themeable vector {@link Icon}: keeps the SVG source and lazily rasterizes it
- * (via the installed {@link SvgRasterizer}) to a cached {@link Image} per
+ * A themeable vector {@link Icon}: keeps the SVG source and lazily draws it
+ * (via the installed {@link SvgRenderer}) to a cached {@link Image} per
  * requested pixel size (a small LRU of {@value #MAX_CACHED_SIZES} sizes). Because it rasterizes at the <em>exact</em> device size it
  * is drawn at (see {@link Icon#paint}), an SVG icon stays crisp on HiDPI and at
  * any zoom: no blur from up/down-sampling a fixed bitmap. Draw it tinted to
@@ -21,10 +21,13 @@ import limn.io.Resources;
  *
  * <p>Each rasterized {@link Image} is cached and its identity is the GPU texture
  * key, so reusing one {@code SvgIcon} reuses a single texture per size across the
- * whole UI. Rasterization needs the backend running (the RASTERIZER.current() is installed
- * at startup); call {@link #image()} during setup to warm the cache if desired.
+ * whole UI. Drawing needs the backend running (the renderer is installed at startup); call
+ * {@link #image()} during setup to warm the cache if desired.
  *
- * <p><b>A source the rasterizer refuses draws nothing.</b> A malformed SVG, or one with no
+ * <p><b>An SVG of any aspect</b> is drawn fitted into the box it is given and centred, its longer
+ * side the box's side, as {@link Icon#paint} draws any icon.
+ *
+ * <p><b>A source the renderer refuses draws nothing.</b> A malformed SVG, or one with no
  * size of its own, fails at every size, so the first refusal is remembered, logged once as a
  * warning, and answered from then on with an empty bitmap rather than a parse per paint: an
  * exception thrown from a paint is caught by the frame and counted against the window, and
@@ -53,8 +56,8 @@ public final class SvgIcon implements Icon {
     // that paints two steps at once, which is the coexistence case the feature exists for.
     private static final int MAX_CACHED_SIZES = 16;
 
-    private static final Installed<SvgRasterizer> RASTERIZER = new Installed<>(
-            "no SvgRasterizer installed. Is the backend started?");
+    private static final Installed<SvgRenderer> RENDERER = new Installed<>(
+            "no SvgRenderer installed. Is the backend started?");
 
     /**
      * What an icon whose source was refused answers every size with: one transparent pixel,
@@ -100,21 +103,21 @@ public final class SvgIcon implements Icon {
         return new SvgIcon(Resources.bytes(SvgIcon.class, path, "SVG"));
     }
 
-    // --------------------------------------------------------- RASTERIZER.current() SPI
+    // --------------------------------------------------------- renderer SPI
 
-    /** Installs the backend RASTERIZER.current() (called by the backend at startup). */
-    public static void installRasterizer(SvgRasterizer newRasterizer) {
-        RASTERIZER.install(newRasterizer);
+    /** Installs the backend's renderer (called by the backend at startup). */
+    public static void installRenderer(SvgRenderer newRenderer) {
+        RENDERER.install(newRenderer);
     }
 
-    /** Removes the RASTERIZER.current() if it is still {@code expected}, so a late teardown cannot clear a newer one. */
-    public static void uninstallRasterizer(SvgRasterizer expected) {
-        RASTERIZER.uninstall(expected);
+    /** Removes the renderer if it is still {@code expected}, so a late teardown cannot clear a newer one. */
+    public static void uninstallRenderer(SvgRenderer expected) {
+        RENDERER.uninstall(expected);
     }
 
-    /** Whether SVG icons can be rasterized at all; without one they draw nothing. */
-    public static boolean isRasterizerInstalled() {
-        return RASTERIZER.isInstalled();
+    /** Whether SVG icons can be drawn at all; without a renderer they draw nothing. */
+    public static boolean isRendererInstalled() {
+        return RENDERER.isInstalled();
     }
 
     // ---------------------------------------------------------------- render
@@ -131,12 +134,12 @@ public final class SvgIcon implements Icon {
      * clean. There is no asynchronous form of {@link Icon#image} itself, and there should not be:
      * a paint asking for a bitmap has to be answered during that paint.
      *
-     * <p>A source the rasterizer refuses is answered with an empty bitmap, at this size and at
-     * every size not already cached, and is not handed to the rasterizer again.
+     * <p>A source the renderer refuses is answered with an empty bitmap, at this size and at
+     * every size not already cached, and is not handed to the renderer again.
      *
      * @param pixelSize target extent in device pixels; values below 1 are treated as 1
      * @throws IllegalStateException if called off the UI thread while a backend is running, or if
-     *                               no {@link SvgRasterizer} is installed
+     *                               no {@link SvgRenderer} is installed
      */
     public Image image(int pixelSize) {
         checkConfined();
@@ -148,10 +151,10 @@ public final class SvgIcon implements Icon {
         if (refused != null) {
             return NOTHING;
         }
-        SvgRasterizer rasterizer = requireRasterizer();
+        SvgRenderer renderer = requireRenderer();
         Image raster;
         try {
-            raster = rasterizer.rasterize(svg, size);
+            raster = draw(renderer, size);
         } catch (RuntimeException e) {
             refuse(e);
             return NOTHING;
@@ -181,7 +184,7 @@ public final class SvgIcon implements Icon {
      *
      * <p>Cancelling stops the delivery, not the work: if the rasterize had already finished, the
      * bitmap is still folded into the cache; it is paid for either way, and the next paint at that
-     * size may as well have it. A failure (no installed RASTERIZER.current(), malformed SVG) reaches
+     * size may as well have it. A failure (no installed renderer, malformed SVG) reaches
      * {@code onFailure} on the UI thread; nothing is thrown from here. A refused source is
      * remembered as {@link #image(int)} remembers it, and asking again fails with the same cause
      * without rasterizing.
@@ -206,10 +209,10 @@ public final class SvgIcon implements Icon {
             // Worker thread: rasterize here, but never touch the cache from here; the fold is
             // posted, and lands before this value is delivered because the queue is in order.
             // A refusal is posted the same way, and still thrown for onFailure to hear.
-            SvgRasterizer rasterizer = requireRasterizer();
+            SvgRenderer renderer = requireRenderer();
             Image raster;
             try {
-                raster = rasterizer.rasterize(svg, size);
+                raster = draw(renderer, size);
             } catch (RuntimeException e) {
                 Ui.post(() -> refuse(e));
                 throw e;
@@ -256,14 +259,14 @@ public final class SvgIcon implements Icon {
         lastImage = raster;
     }
 
-    /** Remembers that the rasterizer refused this source, and says so once. */
+    /** Remembers that the renderer refused this source, and says so once. */
     private void refuse(RuntimeException cause) {
         if (refused != null) {
             return;
         }
         refused = cause;
         LOG.log(System.Logger.Level.WARNING,
-                "An SVG icon's source was refused by the rasterizer; the icon draws nothing", cause);
+                "An SVG icon's source was refused by the renderer; the icon draws nothing", cause);
     }
 
     /**
@@ -276,7 +279,17 @@ public final class SvgIcon implements Icon {
         }
     }
 
-    private static SvgRasterizer requireRasterizer() {
-        return RASTERIZER.require();
+    private static SvgRenderer requireRenderer() {
+        return RENDERER.require();
+    }
+
+    /** Opens the source, draws it fitted into a square of {@code size}, and closes it. Any thread. */
+    private Image draw(SvgRenderer renderer, int size) {
+        try (SvgRenderer.Document document = renderer.open(svg)) {
+            float scale = size / Math.max(document.width(), document.height());
+            int w = Math.max(1, Math.round(document.width() * scale));
+            int h = Math.max(1, Math.round(document.height() * scale));
+            return document.render(w, h);
+        }
     }
 }

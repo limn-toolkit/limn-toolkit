@@ -17,7 +17,7 @@ import limn.graphics.Color;
 import limn.graphics.Image;
 import limn.graphics.Rect;
 import limn.graphics.SvgIcon;
-import limn.graphics.SvgRasterizer;
+
 import limn.input.Keys;
 import limn.scene.Constraints;
 import limn.scene.Insets;
@@ -577,20 +577,20 @@ class DamageContractTest extends ComponentTestBase {
     // ------------------------------------------------------------------------------ harness
 
     /** Icons rasterize through the backend, and a test has none: a paint would throw. */
-    private static final SvgRasterizer RASTERIZER = (svg, px) -> new Image(1, 1, new byte[4]);
+    private static final limn.graphics.SvgRenderer RASTERIZER = limn.testfixtures.FakeSvg.renderer((svg, px) -> new Image(1, 1, new byte[4]));
 
     /** The test's UI queue, reachable from a static gesture that has to land a load. */
     private static limn.testing.HeadlessUi pump;
 
     @BeforeEach
-    void installRasterizer() {
-        SvgIcon.installRasterizer(RASTERIZER);
+    void installRenderer() {
+        SvgIcon.installRenderer(RASTERIZER);
         pump = ui;
     }
 
     @AfterEach
-    void uninstallRasterizer() {
-        SvgIcon.uninstallRasterizer(RASTERIZER);
+    void uninstallRenderer() {
+        SvgIcon.uninstallRenderer(RASTERIZER);
     }
 
     private Scene scene;
