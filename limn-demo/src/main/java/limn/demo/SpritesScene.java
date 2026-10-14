@@ -51,7 +51,7 @@ final class SpritesScene {
         column.add(new SheetPlayer());
 
         column.add(heading("Animated images"));
-        column.add(new Label("The same sheet as an animated image, a GIF and a WebP: played by an image view, "
+        column.add(new Label("The same sheet as an animated image, a GIF, a PNG and a WebP: played by an image view, "
                 + "with its speed and its turns.").setMuted(true).setWrap(true));
         column.add(animatedImages());
 
@@ -74,11 +74,12 @@ final class SpritesScene {
     }
 
     /**
-     * An animated image is an image: the sheet above cut into its frames, and a GIF read from
-     * bytes, each given to an image view, which plays it. The switches below drive both.
+     * An animated image is an image: the sheet above cut into its frames, and a GIF, a PNG and a
+     * WebP read from bytes, each given to an image view, which plays it. The switches below drive
+     * them all.
      */
     private static Widget<?> animatedImages() {
-        // A lab's switch: -Dlimn.demo.animationBudget=0 decodes the two files as they play.
+        // A lab's switch: -Dlimn.demo.animationBudget=0 decodes the files as they play.
         Long budget = Long.getLong("limn.demo.animationBudget");
         if (budget != null) {
             Images.setAnimationBudget(budget);
@@ -87,14 +88,17 @@ final class SpritesScene {
         Image coin = Images.fromSheet(coinSheet(), FRAMES, 1, 100);
         // A GIF as a file would hold it: written to bytes and read back, palette, holes and all.
         Image orbit = Images.decode(Images.encode(orbit(), limn.graphics.ImageFormat.GIF));
+        // The same as an animated PNG, without loss: alpha between, every frame its own colours.
+        Image png = Images.decode(Images.encode(orbit(), limn.graphics.ImageFormat.PNG));
 
         // And the same animation as a WebP, from a file the application carries.
         Image webp = Images.fromResource("/limn/demo/images/orbit.webp");
 
         limn.components.ImageView first = new limn.components.ImageView(coin).setPreferredSize(72, 72);
         limn.components.ImageView second = new limn.components.ImageView(orbit).setPreferredSize(96, 96);
-        limn.components.ImageView third = new limn.components.ImageView(webp).setPreferredSize(96, 96);
-        java.util.List<limn.components.ImageView> views = java.util.List.of(first, second, third);
+        limn.components.ImageView third = new limn.components.ImageView(png).setPreferredSize(96, 96);
+        limn.components.ImageView fourth = new limn.components.ImageView(webp).setPreferredSize(96, 96);
+        java.util.List<limn.components.ImageView> views = java.util.List.of(first, second, third, fourth);
 
         limn.components.Checkbox playing = new limn.components.Checkbox(
                 limn.components.Checkbox.Variant.SWITCH, "Playing");
@@ -120,7 +124,8 @@ final class SpritesScene {
         pictures.gap(24).crossAlignment(Flex.CrossAlignment.CENTER);
         pictures.add(captioned(first, "Sheet"));
         pictures.add(captioned(second, "GIF"));
-        pictures.add(captioned(third, "WebP"));
+        pictures.add(captioned(third, "PNG"));
+        pictures.add(captioned(fourth, "WebP"));
         Column controls = new Column();
         controls.gap(8).crossAlignment(Flex.CrossAlignment.START);
         controls.add(playing);

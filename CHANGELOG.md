@@ -283,6 +283,13 @@ Maven Central say which number that was.
   loads each frame is an entry of its own, kept and let go by the shared budget and decoded
   again from the file when it is wanted and gone, and `loadPinned` keeps every frame.
   `Image.frameIfReady` is what a player asks in place of `frame`.
+- Animated PNG is read and written. An animated PNG decodes to an animated image, each frame
+  laid on the ones before as the file says, where only its first picture was read; each
+  frame's pixels are read by the installed decoder, so nothing new is carried. `PngEncoder`
+  writes an animated image as one, every frame without loss, each after the first holding only
+  the rectangle that changed.
+- An image view playing asks for a frame of its window only when a frame of its picture is
+  due, where it asked for every frame of the display while it played.
 - `ButtonGroup.remove(radio)` takes a radio out of its group.
 - `Ui.postDelayed` returns a `Subscription` that withdraws the task: a timer armed for
   something that can go away first is cancelled there, where it held all it captured until it

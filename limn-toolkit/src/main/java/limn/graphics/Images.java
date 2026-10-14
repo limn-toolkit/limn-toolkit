@@ -76,7 +76,7 @@ public final class Images {
 
     /**
      * Decodes an encoded image (PNG/JPG/GIF/WebP/…) from memory, on the calling thread. An
-     * animated GIF or WebP is an {@linkplain Image#isAnimated() animated image}, every frame of it. Cheap for an icon
+     * animated GIF, PNG or WebP is an {@linkplain Image#isAnimated() animated image}, every frame of it. Cheap for an icon
      * and not for a photograph, whose decode scales with its pixel count and is a dropped frame
      * when the caller is the UI thread. Use {@link #decodeAsync} outside setup code.
      */
@@ -89,6 +89,11 @@ public final class Images {
         if (WebPReader.isWebP(fileBytes)) {
             // Read here too: by a decoder in Java the toolkit carries, still or animated.
             return webp(fileBytes);
+        }
+        if (ApngReader.isApng(fileBytes)) {
+            // Walked and composed here, each frame's picture read by the installed decoder, which
+            // reads an animated PNG's first picture only.
+            return decoded(fileBytes, null);
         }
         return require().decode(fileBytes);
     }
@@ -106,7 +111,7 @@ public final class Images {
      * each an entry of its own that the shared budget keeps or lets go, pinned while the load is.
      */
     private static Image decodeShared(byte[] file, String key) {
-        if (!GifReader.isGif(file) && !WebPReader.isWebP(file)) {
+        if (!GifReader.isGif(file) && !WebPReader.isWebP(file) && !ApngReader.isApng(file)) {
             return decode(file);
         }
         return decoded(file, new StreamedFrames.Store() {
@@ -122,8 +127,27 @@ public final class Images {
         });
     }
 
-    /** The frames of one GIF or WebP, read in order; what an animation decoded as it plays reads from. */
+    /** The frames of one GIF, animated PNG or WebP, read in order; what an animation decoded as it plays reads from. */
     private static StreamedFrames.Source framesOf(byte[] file) {
+        if (ApngReader.isApng(file)) {
+            ApngReader reader = new ApngReader(file, Images::decodePicture);
+            return new StreamedFrames.Source() {
+                @Override
+                public Image next() {
+                    return reader.nextFrame();
+                }
+
+                @Override
+                public void rewind() {
+                    reader.rewind();
+                }
+
+                @Override
+                public int position() {
+                    return reader.position();
+                }
+            };
+        }
         if (GifReader.isGif(file)) {
             GifReader reader = new GifReader(file);
             return new StreamedFrames.Source() {
@@ -163,7 +187,7 @@ public final class Images {
     }
 
     /**
-     * Decodes a GIF or a WebP. A still one is its picture. An animated one whose frames together
+     * Decodes a GIF, an animated PNG or a WebP. A still one is its picture. An animated one whose frames together
      * fit the {@linkplain #setAnimationBudget animation budget} has them all decoded now; a
      * larger one keeps the file's bytes and decodes its frames as they are asked for.
      *
@@ -171,13 +195,19 @@ public final class Images {
      * @param store where frames are kept beyond the image itself, or null
      */
     private static Image decoded(byte[] file, StreamedFrames.Store store) {
-        String format = GifReader.isGif(file) ? "GIF" : "WebP";
+        String format = GifReader.isGif(file) ? "GIF" : ApngReader.isApng(file) ? "APNG" : "WebP";
         int[] millis;
         int turns;
         int width;
         int height;
         if (GifReader.isGif(file)) {
             GifReader header = new GifReader(file);
+            millis = header.millis();
+            turns = header.loopCount();
+            width = header.width();
+            height = header.height();
+        } else if (ApngReader.isApng(file)) {
+            ApngReader header = new ApngReader(file, Images::decodePicture);
             millis = header.millis();
             turns = header.loopCount();
             width = header.width();
@@ -845,5 +875,10 @@ public final class Images {
 
     private static ImageDecoder require() {
         return DECODER.require();
+    }
+
+    /** One still picture, by the installed decoder: what a frame of an animated PNG is made into. */
+    private static Image decodePicture(byte[] file) {
+        return require().decode(file);
     }
 }
