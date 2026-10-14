@@ -76,6 +76,39 @@ public final class SvgSource {
         return new SvgSource(root);
     }
 
+    /**
+     * Whether a file is an SVG: text whose first element, after the declaration, comments and a
+     * DOCTYPE, is {@code svg}. Read from its first four kilobytes, without parsing.
+     *
+     * @param bytes the file
+     * @return whether to read it as an SVG
+     */
+    public static boolean looksLikeSvg(byte[] bytes) {
+        int start = bytes.length >= 3 && (bytes[0] & 0xFF) == 0xEF && (bytes[1] & 0xFF) == 0xBB
+                && (bytes[2] & 0xFF) == 0xBF ? 3 : 0;
+        String head = new String(bytes, start, Math.min(bytes.length - start, 4096), StandardCharsets.ISO_8859_1);
+        int at = 0;
+        while (true) {
+            while (at < head.length() && Character.isWhitespace(head.charAt(at))) {
+                at++;
+            }
+            if (head.startsWith("<?", at) || head.startsWith("<!--", at)) {
+                String end = head.startsWith("<?", at) ? "?>" : "-->";
+                int close = head.indexOf(end, at);
+                if (close < 0) {
+                    return false;
+                }
+                at = close + end.length();
+            } else if (head.startsWith("<!DOCTYPE", at)) {
+                return head.startsWith("svg", at + 10) || head.indexOf("<svg", at) >= 0;
+            } else {
+                return head.startsWith("<svg", at) && at + 4 < head.length()
+                        && (Character.isWhitespace(head.charAt(at + 4)) || head.charAt(at + 4) == '>'
+                        || head.charAt(at + 4) == '/');
+            }
+        }
+    }
+
     /** @return the document the renderer is given, as text */
     public byte[] text() {
         return text;

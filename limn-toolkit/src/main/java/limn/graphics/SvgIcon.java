@@ -269,6 +269,60 @@ public final class SvgIcon implements Icon {
         return image(pixelSize);
     }
 
+    /**
+     * @return its own width, in its own units, which the toolkit takes as logical points: what an
+     *         image view showing it measures at when nothing else sets its size. 0 for a source the
+     *         renderer refuses. Read on the first call, which opens the document on this thread
+     * @throws IllegalStateException if no {@link SvgRenderer} is installed
+     */
+    public float width() {
+        return size()[0];
+    }
+
+    /** @return its own height; see {@link #width()} */
+    public float height() {
+        return size()[1];
+    }
+
+    /** Width and height, read once. */
+    private volatile float @org.jspecify.annotations.Nullable [] size;
+
+    private float[] size() {
+        float[] known = size;
+        if (known == null) {
+            known = new float[2];
+            if (refused == null) {
+                try (SvgRenderer.Document document = requireRenderer().open(source().text())) {
+                    known[0] = document.width();
+                    known[1] = document.height();
+                } catch (limn.io.MalformedContentException damaged) {
+                    // Refused: it measures nothing and draws nothing, as image() says.
+                }
+            }
+            size = known;
+        }
+        return known;
+    }
+
+    /**
+     * An SVG file drawn at its own size, one pixel to one of its units, fitted within the
+     * renderer's largest drawing when it is larger. What {@link Images#decode} answers for an SVG.
+     * Any thread.
+     */
+    static Image decodeAtOwnSize(byte[] file) {
+        SvgRenderer renderer = requireRenderer();
+        limn.graphics.internal.SvgSource source = limn.graphics.internal.SvgSource.read(file, null);
+        try (SvgRenderer.Document document = renderer.open(source.text())) {
+            float scale = Math.min(1f, OWN_SIZE_CEILING / Math.max(document.width(), document.height()));
+            int w = Math.max(1, (int) Math.ceil(document.width() * scale - 0.001f));
+            int h = Math.max(1, (int) Math.ceil(document.height() * scale - 0.001f));
+            return document.render(w, h);
+        }
+    }
+
+    /** The longest side an SVG decoded at its own size is drawn at. */
+    private static final float OWN_SIZE_CEILING = 8192;
+
     /** Base-resolution bitmap, a convenience for warming the cache or ad-hoc draws. UI thread. */
     public Image image() {
         return image(BASE_PIXELS);

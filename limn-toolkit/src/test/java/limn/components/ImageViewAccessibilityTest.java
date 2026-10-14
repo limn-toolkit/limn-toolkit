@@ -355,7 +355,7 @@ class ImageViewAccessibilityTest extends AccessibleComponentTestBase {
      */
     @Test
     void anEmptyImageViewIsStillOnePictureNodeAndKeepsWhatTheApplicationSaid() {
-        view = new ImageView(null);
+        view = new ImageView((limn.graphics.Image) null);
         view.setPreferredSize(64, 64);
         view.setAccessibleName("Product photo");
         Column column = new Column();

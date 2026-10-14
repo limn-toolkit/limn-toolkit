@@ -87,7 +87,7 @@ final class TransferScene {
 
         column.add(new Label("Clipboard").setRole(Label.Role.TITLE));
         Label clip = new Label("Copy here and paste in another program, or the other way round.").setMuted(true).setWrap(true);
-        ImageView pasted = new ImageView(null).setPreferredSize(160, 100);
+        ImageView pasted = new ImageView((limn.graphics.Image) null).setPreferredSize(160, 100);
         Row buttons = new Row();
         buttons.gap(8).crossAlignment(Flex.CrossAlignment.CENTER);
         Button copy = new Button("Copy");

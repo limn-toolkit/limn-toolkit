@@ -6,7 +6,10 @@ import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.animation.ImageAnimation;
+import limn.graphics.Icon;
 import limn.graphics.Image;
+import limn.graphics.Images;
+import limn.graphics.SvgIcon;
 import limn.scene.Constraints;
 import limn.scene.Size;
 import limn.scene.Widget;
@@ -16,6 +19,8 @@ import limn.transfer.Drag;
 import limn.transfer.Transfer;
 import org.jspecify.annotations.Nullable;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -23,6 +28,12 @@ import java.util.Objects;
  * when a {@link #setTint tint} is set (the image's alpha becomes the shape,
  * recolored by the tint, so an icon follows the theme). {@link Fit} controls
  * how the image maps into the widget bounds.
+ *
+ * <p><b>Or an {@link Icon}</b>, drawn at the view's own size and density each time either changes:
+ * an SVG illustration stays sharp at any size and on any screen. An icon's natural size is an
+ * SVG's own, a bitmap icon's largest picture, and 24 points for any other. {@link Fit}, the tint
+ * and dragging behave as for an image, a tintable icon taking the tint as its colour; an animated
+ * icon plays here with the controls an animated image has.
  *
  * <p>A view can let its picture be <b>dragged</b> to another widget or another program
  * ({@link #setDragEnabled}); it does not unless asked, most pictures in a form being decoration.
@@ -41,6 +52,8 @@ public final class ImageView extends Widget<ImageView> {
     }
 
     private Image image;
+    /** The icon shown instead of an image, or null. */
+    private @Nullable Icon icon;
     /** The clockwork of an animated image; null for a still one. Before the constructor, which makes it. */
     private @Nullable ImageAnimation animation;
     private boolean playing = true;
@@ -64,6 +77,106 @@ public final class ImageView extends Widget<ImageView> {
     }
 
     /**
+     * Shows an icon at its natural size until the layout says otherwise, drawn at the view's own
+     * size and density.
+     *
+     * @param icon the icon, or {@code null} for nothing
+     */
+    public ImageView(@Nullable Icon icon) {
+        this.icon = icon;
+        this.animation = icon != null && icon.isAnimated() ? new ImageAnimation(timing(icon)) : null;
+    }
+
+    /**
+     * Replaces what is shown with an icon, re-measuring if its natural size differs. An animated
+     * icon is played from its first frame, unless {@link #setPlaying setPlaying(false)} holds it.
+     * UI thread only.
+     *
+     * @param newIcon the icon, or {@code null} for nothing
+     * @return this view
+     */
+    public ImageView setIcon(@Nullable Icon newIcon) {
+        Ui.checkUiThread();
+        wake();
+        this.image = null;
+        this.icon = newIcon;
+        this.animation = newIcon != null && newIcon.isAnimated()
+                ? new ImageAnimation(timing(newIcon)).setSpeed(speed).setLoop(loop).setPlaying(playing) : null;
+        markNeedsLayout();
+        invalidate();
+        return this;
+    }
+
+    /** @return the icon shown, or {@code null} when the view shows an image or nothing */
+    public @Nullable Icon icon() {
+        return icon;
+    }
+
+    /** @return the image shown, or {@code null} when the view shows an icon or nothing */
+    public @Nullable Image image() {
+        return image;
+    }
+
+    /**
+     * An icon's frames and times as an image of one-pixel frames: the clockwork plays it as it
+     * plays a picture, and the frame it reaches is the icon's frame drawn.
+     */
+    private static Image timing(Icon icon) {
+        List<Image> frames = new ArrayList<>(icon.frameCount());
+        int[] millis = new int[icon.frameCount()];
+        for (int f = 0; f < millis.length; f++) {
+            frames.add(new Image(1, 1, new byte[4]));
+            millis[f] = Math.max(1, icon.frameMillis(f));
+        }
+        return Images.animation(frames, millis, icon.loopCount());
+    }
+
+    /** The default side of an icon that says nothing of its own size. */
+    private static final float ICON_SIDE = 24;
+
+    /** @return the natural width of what is shown, in logical points */
+    private float naturalWidth() {
+        return natural()[0];
+    }
+
+    private float naturalHeight() {
+        return natural()[1];
+    }
+
+    /** The natural size of the icon shown, read once per icon. */
+    private float @Nullable [] iconNatural;
+    private @Nullable Icon iconNaturalOf;
+
+    private float[] natural() {
+        if (image != null) {
+            return new float[] {image.width(), image.height()};
+        }
+        if (icon == null) {
+            return new float[] {0, 0};
+        }
+        if (iconNaturalOf != icon || iconNatural == null) {
+            iconNatural = naturalOf(icon);
+            iconNaturalOf = icon;
+        }
+        return iconNatural;
+    }
+
+    private static float[] naturalOf(Icon icon) {
+        if (icon instanceof SvgIcon svg) {
+            try {
+                return new float[] {svg.width(), svg.height()};
+            } catch (IllegalStateException noRenderer) {
+                return new float[] {ICON_SIDE, ICON_SIDE};
+            }
+        }
+        if (icon instanceof limn.graphics.BitmapIcon) {
+            Image largest = icon.image(Integer.MAX_VALUE, false);
+            return new float[] {largest.width(), largest.height()};
+        }
+        return new float[] {ICON_SIDE, ICON_SIDE};
+    }
+
+    /**
      * Replaces the image, re-measuring if its natural size differs. An animated image is played
      * from its first frame, unless {@link #setPlaying setPlaying(false)} holds it. UI thread only.
      */
@@ -71,6 +184,7 @@ public final class ImageView extends Widget<ImageView> {
         Ui.checkUiThread();
         wake();
         this.image = newImage;
+        this.icon = null;
         this.animation = newImage != null && newImage.isAnimated()
                 ? new ImageAnimation(newImage).setSpeed(speed).setLoop(loop).setPlaying(playing) : null;
         markNeedsLayout();
@@ -149,7 +263,7 @@ public final class ImageView extends Widget<ImageView> {
      */
     public ImageView seekFrame(int frame) {
         Ui.checkUiThread();
-        Objects.checkIndex(frame, image == null ? 0 : image.frameCount());
+        Objects.checkIndex(frame, image != null ? image.frameCount() : icon != null ? icon.frameCount() : 0);
         if (animation != null) {
             wake();
             animation.seekFrame(frame);
@@ -371,6 +485,9 @@ public final class ImageView extends Widget<ImageView> {
     @Override
     protected @Nullable Drag onDragStart(DragStartEvent event) {
         Image picture = image;
+        if (picture == null && icon != null && width() > 0 && height() > 0) {
+            picture = iconBitmap(Math.max(width(), height()), 1);
+        }
         if (!dragEnabled || picture == null || width() <= 0 || height() <= 0) {
             return null;
         }
@@ -402,24 +519,35 @@ public final class ImageView extends Widget<ImageView> {
 
     @Override
     protected Size onMeasure(Constraints constraints) {
-        float w = preferredWidth >= 0 ? preferredWidth : (image != null ? image.width() : 0);
-        float h = preferredHeight >= 0 ? preferredHeight : (image != null ? image.height() : 0);
+        float w = preferredWidth >= 0 ? preferredWidth : naturalWidth();
+        float h = preferredHeight >= 0 ? preferredHeight : naturalHeight();
         return constraints.constrain(w, h);
+    }
+
+    /** The icon drawn so that {@code side} logical points are its longer side, at the frame of the moment. */
+    private Image iconBitmap(float side, float contentScale) {
+        Icon shown = icon;
+        int px = Math.max(1, Math.min(8192, Math.round(side * contentScale)));
+        int frame = animation != null ? animation.frameIndex() : 0;
+        return shown.image(px, Theme.of(this).isDark(), frame);
     }
 
     @Override
     protected void onPaint(Canvas canvas) {
-        if (image == null) {
+        if (image == null && icon == null) {
             return;
         }
         // The frame of the moment, for an image that moves; its size is the image's.
-        Image image = animation != null ? animation.frame() : this.image;
-        painted = image;
+        Image image = animation != null && icon == null ? animation.frame() : this.image;
+        painted = animation != null ? animation.frame() : image;
         keepTime();
         float boxW = width();
         float boxH = height();
-        float imgW = image.width();
-        float imgH = image.height();
+        float imgW = image != null ? image.width() : naturalWidth();
+        float imgH = image != null ? image.height() : naturalHeight();
+        if (!(imgW > 0) || !(imgH > 0)) {
+            return;
+        }
         float drawW;
         float drawH;
         switch (fit) {
@@ -449,9 +577,19 @@ public final class ImageView extends Widget<ImageView> {
             canvas.save();
             canvas.clipRect(0, 0, boxW, boxH);
         }
+        boolean mask = false;
+        if (image == null) {
+            // An icon, drawn for the box it fills at this screen's density.
+            image = iconBitmap(Math.max(drawW, drawH), canvas.contentScale());
+            mask = icon.tintable();
+        }
         if (tint != null) {
             Color effective = isEnabled() ? tint : Theme.of(this).disabledText();
-            canvas.drawImage(image, x, y, drawW, drawH, effective);
+            if (mask) {
+                canvas.drawImageMask(image, x, y, drawW, drawH, effective);
+            } else {
+                canvas.drawImage(image, x, y, drawW, drawH, effective);
+            }
         } else {
             canvas.drawImage(image, x, y, drawW, drawH);
         }

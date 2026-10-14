@@ -79,8 +79,16 @@ public final class Images {
      * animated GIF, PNG or WebP is an {@linkplain Image#isAnimated() animated image}, every frame of it. Cheap for an icon
      * and not for a photograph, whose decode scales with its pixel count and is a dropped frame
      * when the caller is the UI thread. Use {@link #decodeAsync} outside setup code.
+     *
+     * <p>An SVG is drawn at its own size, one pixel to one of its units, by the installed SVG
+     * renderer, and shows only the pictures it embeds: read from a file through
+     * {@link SvgIcon#fromFile}, it shows those beside it too, and an {@link SvgIcon} is what draws
+     * one sharp at any size.
      */
     public static Image decode(byte[] fileBytes) {
+        if (limn.graphics.internal.SvgSource.looksLikeSvg(fileBytes)) {
+            return SvgIcon.decodeAtOwnSize(fileBytes);
+        }
         if (GifReader.isGif(fileBytes)) {
             // Read here and not by the installed decoder, which reads a GIF's first frame only:
             // an animated file is an animated image, and a GIF of one frame is a still one.

@@ -140,4 +140,16 @@ class SvgSourceTest {
     void aRootThatIsNoSvgIsRefused() {
         assertThrows(MalformedContentException.class, () -> clean("<html/>", null));
     }
+
+    @Test
+    void anSvgIsKnownByItsFirstElementAndNothingElseIsTakenForOne() {
+        for (String svg : new String[] {"<svg/>", "<svg xmlns='x'>", "\ufeff <svg>", "<?xml version='1.0'?><!-- c --><svg>",
+                "<!DOCTYPE svg PUBLIC 'x' 'y'><svg>"}) {
+            assertTrue(SvgSource.looksLikeSvg(svg.getBytes(StandardCharsets.UTF_8)), svg);
+        }
+        for (String other : new String[] {"", "<svgx/>", "<html><svg/></html>", "GIF89a", "<?xml version='1.0'?><root/>",
+                "<!-- never closed"}) {
+            assertFalse(SvgSource.looksLikeSvg(other.getBytes(StandardCharsets.UTF_8)), other);
+        }
+    }
 }
