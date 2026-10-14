@@ -43,6 +43,22 @@ class GifReaderTest {
     void everyFrameOfEveryFixtureIsWhatAnIndependentReaderMadeOfIt() throws IOException {
         for (String name : FIXTURES) {
             Image image = Images.decode(resource(name + ".gif"));
+            assertAsExpected(name, image);
+        }
+        // And decoded as it plays, a frame at a time, which a budget of nothing makes of every animation.
+        long budget = Images.animationBudget();
+        Images.setAnimationBudget(0);
+        try {
+            for (String name : FIXTURES) {
+                assertAsExpected(name, Images.decode(resource(name + ".gif")));
+            }
+        } finally {
+            Images.setAnimationBudget(budget);
+        }
+    }
+
+    private static void assertAsExpected(String name, Image image) throws IOException {
+        {
             DataInputStream expected = new DataInputStream(new ByteArrayInputStream(resource(name + ".expected")));
             int frames = expected.readInt();
             int turns = expected.readInt();

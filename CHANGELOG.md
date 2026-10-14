@@ -274,7 +274,15 @@ Maven Central say which number that was.
   `org.glavo:webp`: an application adds nothing, and none of it is loaded until a WebP is
   decoded. `Images.fromSheet` makes one of a sheet of
   sprites and `Images.animation` of frames from anywhere. And `ImageFormat.GIF` is written:
-  every frame of an animated image, or a still picture, in the 256 colours the format holds.
+  every frame of an animated image, or a still picture, in the 256 colours the format holds;
+  `GifEncoder.INSTANCE` is its encoder, beside `PngEncoder.INSTANCE`.
+- A long animation is decoded as it plays. One whose frames together are within
+  `Images.setAnimationBudget`, 32 MiB unless set, is decoded whole when it is loaded; a larger
+  one keeps its file's bytes and decodes a few frames ahead of the one shown, on the worker
+  pool, and a frame that is late is waited for on the frame before it. Among the shared
+  loads each frame is an entry of its own, kept and let go by the shared budget and decoded
+  again from the file when it is wanted and gone, and `loadPinned` keeps every frame.
+  `Image.frameIfReady` is what a player asks in place of `frame`.
 - `ButtonGroup.remove(radio)` takes a radio out of its group.
 - `Ui.postDelayed` returns a `Subscription` that withdraws the task: a timer armed for
   something that can go away first is cancelled there, where it held all it captured until it

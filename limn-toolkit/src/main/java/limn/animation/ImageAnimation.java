@@ -69,12 +69,15 @@ public final class ImageAnimation {
     /** How long the frame shown has been shown, in milliseconds of the animation's own time. */
     private double shown;
     private int turnsDone;
+    /** Whether the frame shown is being held past its time for one that is not ready. */
+    private boolean waiting;
     private boolean backward;
 
     /** @param image the image to play; a still one is played as one frame */
     public ImageAnimation(Image image) {
         this.image = Objects.requireNonNull(image, "image");
         this.finished = !image.isAnimated();
+        this.drawn = image.frame(0);
     }
 
     /** @return the image being played */
@@ -82,10 +85,21 @@ public final class ImageAnimation {
         return image;
     }
 
-    /** @return the frame to draw now */
+    /**
+     * @return the frame to draw now. For a long animation that is decoded as it plays this is the
+     *         last frame that was ready, which is the frame of the moment unless the decoder is
+     *         behind
+     */
     public Image frame() {
-        return image.frame(index);
+        Image ready = image.frameIfReady(index);
+        if (ready != null) {
+            drawn = ready;
+        }
+        return drawn;
     }
+
+    /** The last frame that was ready to draw; the first, to begin with, which always is. */
+    private Image drawn;
 
     /** @return which frame is shown, from 0 */
     public int frameIndex() {
@@ -187,6 +201,18 @@ public final class ImageAnimation {
             shown %= turn * perTurn;
         }
         while (!finished && shown >= image.frameMillis(index)) {
+            if (image.frameIfReady(following()) == null) {
+                // The frame after this one is still being decoded: this one stays.
+                shown = image.frameMillis(index);
+                waiting = true;
+                break;
+            }
+            if (waiting) {
+                // It has arrived. The time this frame overran is not owed to the frames after
+                // it: paid back, it would skip one for every one that was late.
+                shown = image.frameMillis(index);
+                waiting = false;
+            }
             shown -= image.frameMillis(index);
             step();
         }
@@ -208,6 +234,16 @@ public final class ImageAnimation {
     private boolean turnsLeft() {
         int turns = loop == Loop.FILE ? image.loopCount() : loop.turns;
         return turns == 0 || turnsDone < turns;
+    }
+
+    /** @return the frame {@link #step} goes to next, or the one shown if it would end there */
+    private int following() {
+        int last = image.frameCount() - 1;
+        if (loop.bounce) {
+            boolean back = backward ? index != 0 : index == last;
+            return Math.max(0, Math.min(last, index + (back ? -1 : 1)));
+        }
+        return index < last ? index + 1 : 0;
     }
 
     private void step() {

@@ -80,6 +80,8 @@ public final class ImageView extends Widget<ImageView> {
     // ------------------------------------------------------------- animation
 
     private boolean ticking;
+    /** The frame the last paint drew, which the clock compares the frame of the moment with. */
+    private @Nullable Image painted;
     private @Nullable Runnable onFinished;
 
     /**
@@ -182,8 +184,9 @@ public final class ImageView extends Widget<ImageView> {
                 ticking = false;
                 return false;
             }
-            if (shown.advance(seconds)) {
-                invalidate();
+            shown.advance(seconds);
+            if (shown.frame() != painted) {
+                invalidate(); // its time came, or a frame being decoded as it plays has arrived
             }
             if (shown.isFinished() && onFinished != null) {
                 onFinished.run();
@@ -322,6 +325,7 @@ public final class ImageView extends Widget<ImageView> {
         }
         // The frame of the moment, for an image that moves; its size is the image's.
         Image image = animation != null ? animation.frame() : this.image;
+        painted = image;
         keepTime();
         float boxW = width();
         float boxH = height();

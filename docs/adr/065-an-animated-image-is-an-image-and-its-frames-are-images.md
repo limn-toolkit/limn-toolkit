@@ -2,10 +2,10 @@
 
 - **Status:** Accepted, 2026-10-13, and implemented in part. Done: the image's frames, times and
   turns, `Images.animation` and `fromSheet`, the clockwork and `ImageView` playing, GIF read
-  and written, and WebP read, still and animated, behind the walk of its container. Not yet:
-  frames decoded as they play and the animation budget, a frame as an entry of the shared
-  loads, a frame asked for only when it is due (a view playing asks for every frame of the
-  display and paints when its picture changes), and APNG.
+  and written, WebP read, still and animated, behind the walk of its container, frames decoded
+  as they play over the animation budget, and each frame an entry of the shared loads, pinned
+  with its picture. Not yet: a frame asked for only when it is due (a view playing asks for
+  every frame of the display and paints when its picture changes), and APNG.
 - **Date:** 2026-10-13
 - **Scope:** pictures that move: animated GIF, APNG and animated WebP read from a file, and a
   sprite sheet declared by hand; how they are held, cached, played and controlled.
@@ -148,7 +148,14 @@ frames live in the cache the shared loads already have.
   is. The user interface thread never decodes.
 
 An image decoded from bytes, `Images.decode`, is nobody's to share: under the budget it holds
-its frames itself, and over it a window of them.
+its frames itself, and over it a window of them, so that each turn decodes the file again.
+
+As built: the window is the frame asked for and up to eight after it, fewer when the budget
+is smaller than that many frames and never fewer than two. `Image.frameIfReady` is what a
+player asks, and the clockwork holds the frame before for one that is late, owing none of the
+wait to the frames after: paid back, a late frame cost the one after it, which a test caught.
+A frame behind the reader's place costs a start from the first, so playing backward through a
+long animation decodes it over and over; nothing is done about that.
 
 ## 6. Decision: the decoders
 

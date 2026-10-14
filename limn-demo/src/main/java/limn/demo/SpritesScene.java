@@ -78,6 +78,11 @@ final class SpritesScene {
      * bytes, each given to an image view, which plays it. The switches below drive both.
      */
     private static Widget<?> animatedImages() {
+        // A lab's switch: -Dlimn.demo.animationBudget=0 decodes the two files as they play.
+        Long budget = Long.getLong("limn.demo.animationBudget");
+        if (budget != null) {
+            Images.setAnimationBudget(budget);
+        }
         // The sheet, cut along its one row: eight frames, a tenth of a second each.
         Image coin = Images.fromSheet(coinSheet(), FRAMES, 1, 100);
         // A GIF as a file would hold it: written to bytes and read back, palette, holes and all.

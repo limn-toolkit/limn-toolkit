@@ -107,10 +107,8 @@ public final class SharedLoads<T> {
             }
             entry.used = ++clock;
             if (pinned && !entry.pinned) {
-                entry.pinned = true;
-                if (entry.kept()) {
-                    held -= entry.bytes;
-                }
+                pin(entry);
+                pinParts(key, true);
             }
             if (entry.future != null) {
                 return entry.future;
@@ -162,11 +160,104 @@ public final class SharedLoads<T> {
         if (entry == null || !entry.pinned) {
             return;
         }
-        entry.pinned = false;
-        if (entry.kept()) {
-            held += entry.bytes;
-            trim();
+        unpin(entry);
+        pinParts(key, false);
+        trim();
+    }
+
+    private void pin(Entry entry) {
+        if (!entry.pinned) {
+            entry.pinned = true;
+            if (entry.kept()) {
+                held -= entry.bytes;
+            }
         }
+    }
+
+    private void unpin(Entry entry) {
+        if (entry.pinned) {
+            entry.pinned = false;
+            if (entry.kept()) {
+                held += entry.bytes;
+            }
+        }
+    }
+
+    // ---- parts: what a load is made of, each kept and let go by itself
+
+    private static String partKey(String key, int index) {
+        return key + '#' + index;
+    }
+
+    private void pinParts(String key, boolean pinned) {
+        String prefix = key + '#';
+        for (Map.Entry<String, Entry> each : entries.entrySet()) {
+            if (each.getKey().startsWith(prefix)) {
+                if (pinned) {
+                    pin(each.getValue());
+                } else {
+                    unpin(each.getValue());
+                }
+            }
+        }
+    }
+
+    /**
+     * Keeps one part of what {@code key} loaded: a frame of an animated picture. A part is an
+     * entry of its own, counted, let go and kept as any other is, from the same source as the
+     * load it is part of and pinned while that load is.
+     *
+     * @param key   the load the part belongs to
+     * @param index which part
+     * @param value the part
+     */
+    public synchronized void putPart(String key, int index, T value) {
+        Entry whole = entries.get(key);
+        String part = partKey(key, index);
+        Entry entry = entries.get(part);
+        if (entry == null) {
+            entry = new Entry(whole == null ? Source.FILE : whole.source);
+            entries.put(part, entry);
+        } else if (entry.kept() && !entry.pinned) {
+            held -= entry.bytes;
+        }
+        entry.pinned = whole != null && whole.pinned;
+        entry.used = ++clock;
+        entry.future = CompletableFuture.completedFuture(value);
+        entry.landed = new WeakReference<>(value);
+        entry.bytes = Math.max(0, size.applyAsLong(value));
+        if (!entry.pinned) {
+            held += entry.bytes;
+        }
+        trim();
+    }
+
+    /**
+     * @param key   the load the part belongs to
+     * @param index which part
+     * @return the part, if it is kept or was let go and is still held by somebody, and it counts
+     *         as asked for now; null if it has to be made again
+     */
+    public synchronized @org.jspecify.annotations.Nullable T peekPart(String key, int index) {
+        Entry entry = entries.get(partKey(key, index));
+        if (entry == null) {
+            return null;
+        }
+        if (entry.future != null) {
+            entry.used = ++clock;
+            return entry.future.getNow(null);
+        }
+        T alive = entry.landed == null ? null : entry.landed.get();
+        if (alive == null) {
+            return null;
+        }
+        entry.used = ++clock;
+        entry.future = CompletableFuture.completedFuture(alive);
+        if (!entry.pinned) {
+            held += entry.bytes;
+        }
+        trim();
+        return alive;
     }
 
     /**

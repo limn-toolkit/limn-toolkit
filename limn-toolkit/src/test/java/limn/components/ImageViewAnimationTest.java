@@ -111,6 +111,50 @@ class ImageViewAnimationTest {
         assertSame(image.frame(1), drawn);
     }
 
+    /**
+     * A long animation is decoded as it plays, on a worker: the view shows each frame as it
+     * arrives and never one for another, and waits on the frame before for one that is late.
+     */
+    @Test
+    void anAnimationDecodedAsItPlaysShowsEveryFrameInItsTurn() throws Exception {
+        List<Image> made = new ArrayList<>();
+        int[] millis = new int[12];
+        for (int f = 0; f < 12; f++) {
+            byte[] rgba = new byte[16 * 16 * 4];
+            for (int o = 0; o < rgba.length; o += 4) {
+                rgba[o] = (byte) (f * 20);
+                rgba[o + 3] = (byte) 0xFF;
+            }
+            made.add(new Image(16, 16, rgba));
+            millis[f] = 100;
+        }
+        byte[] file = Images.encode(Images.animation(made, millis, 0), limn.graphics.ImageFormat.GIF);
+        long budget = Images.animationBudget();
+        Images.setAnimationBudget(0);
+        Image image;
+        try {
+            image = Images.decode(file);
+        } finally {
+            Images.setAnimationBudget(budget);
+        }
+        view.setImage(image);
+        shown();
+        List<Integer> seen = new ArrayList<>();
+        long deadline = System.nanoTime() + 20_000_000_000L;
+        while (seen.size() < 30 && System.nanoTime() < deadline) {
+            after(100);
+            Thread.sleep(5); // the worker's turn
+            int which = (drawn.pixels()[0] & 0xFF) / 20;
+            if (seen.isEmpty() || seen.get(seen.size() - 1) != which) {
+                seen.add(which);
+            }
+        }
+        assertEquals(30, seen.size(), "it never stopped: " + seen);
+        for (int i = 1; i < seen.size(); i++) {
+            assertEquals((seen.get(i - 1) + 1) % 12, (int) seen.get(i), "every frame in its turn: " + seen);
+        }
+    }
+
     @Test
     void itIsHeldSpedAndSoughtAsAsked() {
         Image image = three(0);

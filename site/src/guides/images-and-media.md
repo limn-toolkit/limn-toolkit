@@ -63,6 +63,12 @@ turns)` takes frames from anywhere. A widget of your own that draws frames itsel
 `ImageAnimation`, the clockwork an image view is built on: hand it the time from a scene's
 ticker and draw `frame()`.
 
+A small animation is decoded whole when it is loaded; one whose frames together pass
+`Images.setAnimationBudget`, 32 MiB unless you say, keeps its file's bytes instead and decodes
+a few frames ahead of the one shown as it plays, so that a long clip costs its file and a
+handful of frames. Loaded with `loadShared`, each frame is kept or let go by the shared budget
+like any picture, and `loadPinned` keeps them all.
+
 A moving picture is not stopped by the system's setting for less motion, which is for the
 motion an interface adds to itself. One that moves for more than a few seconds should be
 something your user can stop, and `setPlaying` is what that control calls.

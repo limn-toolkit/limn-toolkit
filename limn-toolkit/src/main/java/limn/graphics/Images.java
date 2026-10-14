@@ -46,24 +46,6 @@ public final class Images {
     private static final Installed<ImageDecoder> DECODER = new Installed<>(
             "No ImageDecoder installed: start a Backend before loading images.");
 
-    /** The built-in GIF encoder: an animated image with every frame, a still one as one. */
-    private static final ImageEncoder GIF_ENCODER = new ImageEncoder() {
-        @Override
-        public String name() {
-            return "gif";
-        }
-
-        @Override
-        public boolean supports(ImageEncodeOptions options) {
-            return ImageFormat.GIF.equals(options.format());
-        }
-
-        @Override
-        public void encode(Image image, ImageEncodeOptions options, OutputStream out) throws java.io.IOException {
-            out.write(GifWriter.encode(image));
-        }
-    };
-
     private static final java.util.concurrent.CopyOnWriteArrayList<ImageEncoder> encoders =
             new java.util.concurrent.CopyOnWriteArrayList<>();
 
@@ -71,7 +53,7 @@ public final class Images {
         // The built-in PNG encoder is installed here rather than by a backend, so that encoding
         // works in a process that never starts one.
         encoders.add(PngEncoder.INSTANCE);
-        encoders.add(GIF_ENCODER);
+        encoders.add(GifEncoder.INSTANCE);
     }
 
     private Images() {
@@ -112,39 +94,173 @@ public final class Images {
     }
 
     private static Image webp(byte[] file) {
-        try (WebPReader reader = new WebPReader(file)) {
-            java.util.List<Image> frames = new java.util.ArrayList<>(reader.frameCount());
-            int[] millis = new int[reader.frameCount()];
-            for (Image frame = reader.nextFrame(); frame != null && frames.size() < millis.length;
-                    frame = reader.nextFrame()) {
-                millis[frames.size()] = reader.lastMillis();
-                frames.add(frame);
-            }
-            if (frames.isEmpty()) {
-                throw new limn.io.MalformedContentException("WebP", "no picture could be read");
-            }
-            if (frames.size() == 1) {
-                return frames.get(0);
-            }
-            return animation(frames, java.util.Arrays.copyOf(millis, frames.size()), reader.loopCount());
-        }
+        return decoded(file, null);
     }
 
     private static Image animatedOrStill(byte[] gif) {
-        GifReader reader = new GifReader(gif);
-        int count = reader.frameCount();
-        java.util.List<Image> frames = new java.util.ArrayList<>(count);
-        for (Image frame = reader.nextFrame(); frame != null; frame = reader.nextFrame()) {
-            frames.add(frame);
+        return decoded(gif, null);
+    }
+
+    /**
+     * Decodes a file for the shared loads: an animated picture's frames are parts of the load,
+     * each an entry of its own that the shared budget keeps or lets go, pinned while the load is.
+     */
+    private static Image decodeShared(byte[] file, String key) {
+        if (!GifReader.isGif(file) && !WebPReader.isWebP(file)) {
+            return decode(file);
         }
-        if (frames.isEmpty()) {
-            throw new limn.io.MalformedContentException("GIF", "no picture could be read");
+        return decoded(file, new StreamedFrames.Store() {
+            @Override
+            public Image peek(int index) {
+                return shared.peekPart(key, index);
+            }
+
+            @Override
+            public void put(int index, Image frame) {
+                shared.putPart(key, index, frame);
+            }
+        });
+    }
+
+    /** The frames of one GIF or WebP, read in order; what an animation decoded as it plays reads from. */
+    private static StreamedFrames.Source framesOf(byte[] file) {
+        if (GifReader.isGif(file)) {
+            GifReader reader = new GifReader(file);
+            return new StreamedFrames.Source() {
+                @Override
+                public Image next() {
+                    return reader.nextFrame();
+                }
+
+                @Override
+                public void rewind() {
+                    reader.rewind();
+                }
+
+                @Override
+                public int position() {
+                    return reader.position();
+                }
+            };
         }
-        if (frames.size() == 1) {
-            return frames.get(0);
+        WebPReader reader = new WebPReader(file);
+        return new StreamedFrames.Source() {
+            @Override
+            public Image next() {
+                return reader.nextFrame();
+            }
+
+            @Override
+            public void rewind() {
+                reader.rewind();
+            }
+
+            @Override
+            public int position() {
+                return reader.position();
+            }
+        };
+    }
+
+    /**
+     * Decodes a GIF or a WebP. A still one is its picture. An animated one whose frames together
+     * fit the {@linkplain #setAnimationBudget animation budget} has them all decoded now; a
+     * larger one keeps the file's bytes and decodes its frames as they are asked for.
+     *
+     * @param file  the whole file
+     * @param store where frames are kept beyond the image itself, or null
+     */
+    private static Image decoded(byte[] file, StreamedFrames.Store store) {
+        String format = GifReader.isGif(file) ? "GIF" : "WebP";
+        int[] millis;
+        int turns;
+        int width;
+        int height;
+        if (GifReader.isGif(file)) {
+            GifReader header = new GifReader(file);
+            millis = header.millis();
+            turns = header.loopCount();
+            width = header.width();
+            height = header.height();
+        } else {
+            try (WebPReader header = new WebPReader(file)) {
+                millis = header.millis();
+                turns = header.loopCount();
+                width = header.width();
+                height = header.height();
+            }
         }
-        // A file cut short has the frames that could be read, each with its time.
-        return animation(frames, java.util.Arrays.copyOf(reader.millis(), frames.size()), reader.loopCount());
+        StreamedFrames.Source source = framesOf(file);
+        Image first = source.next();
+        if (first == null) {
+            throw new limn.io.MalformedContentException(format, "no picture could be read");
+        }
+        if (millis.length == 1) {
+            return first;
+        }
+        long bytes = 4L * width * height * millis.length;
+        long budget = animationBudget;
+        if (bytes <= budget) {
+            // All of it, now: a small animation costs nothing to play.
+            java.util.List<Image> frames = new java.util.ArrayList<>(millis.length);
+            frames.add(first);
+            for (Image frame = source.next(); frame != null && frames.size() < millis.length; frame = source.next()) {
+                frames.add(frame);
+            }
+            if (frames.size() == 1) {
+                return first; // cut short after its first picture
+            }
+            int[] times = java.util.Arrays.copyOf(millis, frames.size());
+            if (store == null) {
+                return animation(frames, times, turns);
+            }
+            // Shared: each frame is kept where the budget of the shared loads says, and one that
+            // was let go is decoded again from the file.
+            for (int i = 1; i < frames.size(); i++) {
+                store.put(i, frames.get(i));
+            }
+            source.rewind();
+            return new Image(first, new StreamedFrames(source, store, first, times, turns, AHEAD));
+        }
+        source.rewind();
+        long frame = 4L * width * height;
+        int ahead = (int) Math.max(2, Math.min(AHEAD, budget / Math.max(1, frame) - 1));
+        return new Image(first, new StreamedFrames(source, store, first, millis, turns, ahead));
+    }
+
+    /** The most frames kept ready after the one shown, for an animation decoded as it plays. */
+    private static final int AHEAD = 8;
+
+    /**
+     * The bytes of frames an animation may have for all of them to be decoded when it is loaded,
+     * unless {@link #setAnimationBudget} says otherwise: 32 MiB, some hundred frames of 320 by 240.
+     */
+    public static final long DEFAULT_ANIMATION_BUDGET = 32L << 20;
+
+    private static volatile long animationBudget = DEFAULT_ANIMATION_BUDGET;
+
+    /**
+     * Moves the size up to which an animated picture is decoded whole. Under it every frame is in
+     * memory from the start, and playing costs nothing; over it the picture keeps its file's
+     * bytes and decodes a few frames ahead of the one shown, on the worker pool, as it plays, so
+     * that a long animation costs its file and a handful of frames and not every frame at once.
+     * A frame that is not ready when its time comes is not waited for: the one before it stays.
+     * It applies to pictures decoded from now on. Any thread.
+     *
+     * @param bytes the most bytes of frames, four a pixel, decoded at once; 0 decodes every
+     *              animation as it plays
+     * @throws IllegalArgumentException if {@code bytes} is negative
+     */
+    public static void setAnimationBudget(long bytes) {
+        if (bytes < 0) {
+            throw new IllegalArgumentException("an animation budget is at least 0 bytes, got " + bytes);
+        }
+        animationBudget = bytes;
+    }
+
+    /** @return the size up to which an animated picture is decoded whole; see {@link #setAnimationBudget} */
+    public static long animationBudget() {
+        return animationBudget;
     }
 
     // ------------------------------------------------------------- animation
@@ -308,7 +424,8 @@ public final class Images {
     /**
      * Removes every encoder, the built-in PNG one included. After this, encoding anything fails
      * until something is installed. For a test that wants to observe the empty case; restore the
-     * default with {@code installEncoder(PngEncoder.INSTANCE)}.
+     * default with {@code installEncoder(PngEncoder.INSTANCE)} and
+     * {@code installEncoder(GifEncoder.INSTANCE)}.
      */
     public static void uninstallAllEncoders() {
         encoders.clear();
@@ -520,7 +637,7 @@ public final class Images {
     private static final int DEFAULT_SHARED_SHARE = 4;
 
     private static final SharedLoads<Image> shared = new SharedLoads<>(
-            image -> 4L * image.width() * image.height() * image.frameCount(), Runtime.getRuntime().maxMemory() / DEFAULT_SHARED_SHARE);
+            image -> 4L * image.width() * image.height(), Runtime.getRuntime().maxMemory() / DEFAULT_SHARED_SHARE);
 
     /**
      * Reads and decodes {@code file} on the {@code Ui} worker pool; the returned future is
@@ -549,7 +666,7 @@ public final class Images {
      * argument check.
      */
     public static java.util.concurrent.CompletableFuture<Image> loadShared(Path file) {
-        return shared.load("file:" + file.toAbsolutePath(), SharedLoads.Source.FILE, false, () -> load(file));
+        return shared.load("file:" + file.toAbsolutePath(), SharedLoads.Source.FILE, false, () -> decodeShared(Resources.bytes(file, "image"), "file:" + file.toAbsolutePath()));
     }
 
     /**
@@ -563,7 +680,7 @@ public final class Images {
      * @return the shared future, already running or already complete, completing on the UI thread
      */
     public static java.util.concurrent.CompletableFuture<Image> loadPinned(Path file) {
-        return shared.load("file:" + file.toAbsolutePath(), SharedLoads.Source.FILE, true, () -> load(file));
+        return shared.load("file:" + file.toAbsolutePath(), SharedLoads.Source.FILE, true, () -> decodeShared(Resources.bytes(file, "image"), "file:" + file.toAbsolutePath()));
     }
 
     /**
@@ -584,7 +701,7 @@ public final class Images {
      */
     public static java.util.concurrent.CompletableFuture<Image> fromResourceShared(String resource) {
         return shared.load("resource:" + resource, SharedLoads.Source.RESOURCE, false,
-                () -> fromResource(resource));
+                () -> decodeShared(Resources.bytes(Images.class, resource, "image"), "resource:" + resource));
     }
 
     /**
@@ -597,7 +714,7 @@ public final class Images {
      */
     public static java.util.concurrent.CompletableFuture<Image> fromResourcePinned(String resource) {
         return shared.load("resource:" + resource, SharedLoads.Source.RESOURCE, true,
-                () -> fromResource(resource));
+                () -> decodeShared(Resources.bytes(Images.class, resource, "image"), "resource:" + resource));
     }
 
     /**

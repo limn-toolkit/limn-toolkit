@@ -31,7 +31,12 @@ final class WebPReader implements AutoCloseable {
     private static final int SHORTEST_MEANT_MILLIS = 10;
     private static final int TIME_SHOWN_INSTEAD_MILLIS = 100;
 
-    private final WebPImageReader reader;
+    private final byte[] data;
+    private WebPImageReader reader;
+    /** How long each frame is shown, read off the container; one of 0 for a still picture. */
+    private final int[] millis;
+    /** The index of the frame {@link #nextFrame} hands out next. */
+    private int position;
     private final int width;
     private final int height;
     private final int frames;
@@ -53,7 +58,9 @@ final class WebPReader implements AutoCloseable {
      *                                   is larger than this reads
      */
     WebPReader(byte[] data) {
-        int counted = walk(data);
+        this.data = data;
+        this.millis = walk(data);
+        int counted = millis.length;
         try {
             this.reader = WebPImageReader.open(new ByteArrayInputStream(data));
             this.width = reader.getWidth();
@@ -114,8 +121,9 @@ final class WebPReader implements AutoCloseable {
             throw new MalformedContentException(FORMAT, "a frame of " + frame.getWidth() + " by "
                     + frame.getHeight() + " on a canvas of " + width + " by " + height);
         }
-        int millis = frame.getDurationMillis();
-        lastMillis = millis <= SHORTEST_MEANT_MILLIS ? TIME_SHOWN_INSTEAD_MILLIS : millis;
+        int shownFor = frame.getDurationMillis();
+        lastMillis = shownFor <= SHORTEST_MEANT_MILLIS ? TIME_SHOWN_INSTEAD_MILLIS : shownFor;
+        position++;
         int[] argb = frame.getArgbArray();
         int stride = frame.getScanlineStride();
         byte[] rgba = new byte[width * height * 4];
@@ -131,6 +139,27 @@ final class WebPReader implements AutoCloseable {
         return new Image(width, height, rgba);
     }
 
+    /** @return how long each frame is shown, a time too short to be meant already lengthened */
+    int[] millis() {
+        return millis;
+    }
+
+    /** @return the index of the frame {@link #nextFrame} hands out next */
+    int position() {
+        return position;
+    }
+
+    /** Goes back to before the first frame: the decoder reads forward only, so it is opened again. */
+    void rewind() {
+        close();
+        try {
+            reader = WebPImageReader.open(new ByteArrayInputStream(data));
+        } catch (IOException | RuntimeException refused) {
+            throw new MalformedContentException(FORMAT, String.valueOf(refused.getMessage()), refused);
+        }
+        position = 0;
+    }
+
     @Override
     public void close() {
         try {
@@ -143,16 +172,17 @@ final class WebPReader implements AutoCloseable {
     /**
      * Walks the container before the decoder sees it.
      *
-     * @return how many frames the container holds, 1 for a still picture
+     * @return how long each frame the container holds is shown, one time of 0 for a still picture
      * @throws MalformedContentException if a chunk runs past what holds it, there is no picture,
      *                                   or a size is over the ceiling
      */
-    private static int walk(byte[] b) {
+    private static int[] walk(byte[] b) {
         if (!isWebP(b) || b.length < 20) {
             throw new MalformedContentException(FORMAT, "not a WebP, or cut short in its header");
         }
         long canvas = -1;
         int frames = 0;
+        int[] times = new int[8];
         int at = 12;
         while (at + 8 <= b.length) {
             String id = new String(b, at, 4, StandardCharsets.ISO_8859_1);
@@ -175,6 +205,11 @@ final class WebPReader implements AutoCloseable {
                     if (++frames > MAX_FRAMES) {
                         throw new MalformedContentException(FORMAT, "more than " + MAX_FRAMES + " frames");
                     }
+                    if (frames > times.length) {
+                        times = java.util.Arrays.copyOf(times, times.length * 2);
+                    }
+                    int shownFor = le24(b, body + 12);
+                    times[frames - 1] = shownFor <= SHORTEST_MEANT_MILLIS ? TIME_SHOWN_INSTEAD_MILLIS : shownFor;
                     long frame = (long) (le24(b, body + 6) + 1) * (le24(b, body + 9) + 1);
                     if (frame > MAX_PIXELS) {
                         throw new MalformedContentException(FORMAT, "a frame larger than is read, at byte " + at);
@@ -215,7 +250,7 @@ final class WebPReader implements AutoCloseable {
         if (canvas > MAX_PIXELS) {
             throw new MalformedContentException(FORMAT, "a canvas larger than is read");
         }
-        return Math.max(1, frames);
+        return java.util.Arrays.copyOf(times, Math.max(1, frames));
     }
 
     private static String printable(String id) {

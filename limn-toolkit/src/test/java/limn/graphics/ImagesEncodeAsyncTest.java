@@ -66,6 +66,7 @@ class ImagesEncodeAsyncTest {
     void tearDown() {
         Images.uninstallAllEncoders();
         Images.installEncoder(PngEncoder.INSTANCE);
+        Images.installEncoder(GifEncoder.INSTANCE);
         ui.close();
     }
 
