@@ -262,6 +262,34 @@ Maven Central say which number that was.
 
 ### New
 
+- Animated images. An `Image` may be animated: `isAnimated()`, `frameCount()`, `frame(i)`,
+  each frame an image, `frameMillis(i)`, `durationMillis()` and `loopCount()`. Its own pixels
+  are its first frame's, so whatever draws an image without playing it draws a still picture.
+  An `ImageView` plays one by itself, with `setPlaying`, `setSpeed`, `setLoop` (as the image
+  says, without end, once, a number of times, or forward and back), `seekFrame` and
+  `onFinished`; `limn.animation.ImageAnimation` is the same clockwork for a widget of an
+  application's own. An animated GIF is read as one, where only its first frame was, with the
+  times of its frames and the turns it asks for. WebP is read, still and animated, which
+  nothing here read before, by a decoder written in Java that the toolkit now depends on,
+  `org.glavo:webp`: an application adds nothing, and none of it is loaded until a WebP is
+  decoded. `Images.fromSheet` makes one of a sheet of
+  sprites and `Images.animation` of frames from anywhere. And `ImageFormat.GIF` is written:
+  every frame of an animated image, or a still picture, in the 256 colours the format holds;
+  `GifEncoder.INSTANCE` is its encoder, beside `PngEncoder.INSTANCE`.
+- A long animation is decoded as it plays. One whose frames together are within
+  `Images.setAnimationBudget`, 32 MiB unless set, is decoded whole when it is loaded; a larger
+  one keeps its file's bytes and decodes a few frames ahead of the one shown, on the worker
+  pool, and a frame that is late is waited for on the frame before it. Among the shared
+  loads each frame is an entry of its own, kept and let go by the shared budget and decoded
+  again from the file when it is wanted and gone, and `loadPinned` keeps every frame.
+  `Image.frameIfReady` is what a player asks in place of `frame`.
+- Animated PNG is read and written. An animated PNG decodes to an animated image, each frame
+  laid on the ones before as the file says, where only its first picture was read; each
+  frame's pixels are read by the installed decoder, so nothing new is carried. `PngEncoder`
+  writes an animated image as one, every frame without loss, each after the first holding only
+  the rectangle that changed.
+- An image view playing asks for a frame of its window only when a frame of its picture is
+  due, where it asked for every frame of the display while it played.
 - `ButtonGroup.remove(radio)` takes a radio out of its group.
 - `Ui.postDelayed` returns a `Subscription` that withdraws the task: a timer armed for
   something that can go away first is cancelled there, where it held all it captured until it

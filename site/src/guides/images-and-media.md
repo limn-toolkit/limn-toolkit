@@ -43,7 +43,33 @@ whatever else is loaded, `Images.loadPinned` and `Images.fromResourcePinned` loa
 and keep the result outside the budget until `Images.unpin`. `Sounds` has the same calls, with
 an eighth of the heap.
 
-Going the other way, `Images.encode(…)` and `Images.saveAsync(…)` write PNG.
+### Pictures that move
+
+An animated GIF, PNG or WebP decodes to an `Image` that says `isAnimated()`. It is an image
+like any other, and its own pixels are its first frame's, so an icon, a cursor or anything else
+that draws it without playing it shows a still picture. Give it to an `ImageView` and it plays,
+by itself and for as many turns as the file asks for. A sheet of sprites is the same thing made
+by hand, and `Images.animation(frames, millis, turns)` takes frames from anywhere:
+
+{% snippet guide:animated-images %}
+
+A picture playing costs your window one frame for each of its own: an image view asks for none
+between two frames of its picture, and none at all while it is hidden. A widget of your own that draws frames itself uses
+`ImageAnimation`, the clockwork an image view is built on: hand it the time from a scene's
+ticker and draw `frame()`.
+
+A small animation is decoded whole when it is loaded; one whose frames together pass
+`Images.setAnimationBudget`, 32 MiB unless you say, keeps its file's bytes instead and decodes
+a few frames ahead of the one shown as it plays, so that a long clip costs its file and a
+handful of frames. Loaded with `loadShared`, each frame is kept or let go by the shared budget
+like any picture, and `loadPinned` keeps them all.
+
+A moving picture is not stopped by the system's setting for less motion, which is for the
+motion an interface adds to itself. One that moves for more than a few seconds should be
+something your user can stop, and `setPlaying` is what that control calls.
+
+Going the other way, `Images.encode(…)` and `Images.saveAsync(…)` write PNG and GIF, still or
+animated: an animated PNG keeps every frame without loss, and a GIF holds 256 colours.
 
 `view.setDragEnabled(true)` lets the user drag the picture out of its view, to another part of
 your window or to another program; [Drag and drop](/docs/drag-and-drop/#a-picture-that-leaves-its-view)

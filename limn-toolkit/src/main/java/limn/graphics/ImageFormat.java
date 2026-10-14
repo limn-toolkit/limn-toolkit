@@ -34,6 +34,14 @@ public record ImageFormat(String mediaType) {
      */
     public static final ImageFormat PNG = new ImageFormat("image/png");
 
+    /**
+     * Graphics Interchange Format: at most 256 colours and a pixel either there or not, and the
+     * one format every program that shows pictures shows moving. Always encodable: an animated
+     * image is written with every frame, its times and its turns; a picture of more colours
+     * than the format holds is written in the 255 that stand for it best.
+     */
+    public static final ImageFormat GIF = new ImageFormat("image/gif");
+
     public ImageFormat {
         Objects.requireNonNull(mediaType, "mediaType");
         mediaType = mediaType.trim().toLowerCase(Locale.ROOT);

@@ -6,6 +6,10 @@ central-publish = "0.37.0"
 # The nullness annotations the public API is written in: four annotations and no code, read by
 # the compiler, an IDE, Kotlin and a checker such as NullAway, and by nothing at run time.
 jspecify = "1.0.1"
+# The WebP decoder, in Java: lossy, lossless and animated, on java.base alone (ADR 065, which has
+# the spike it was taken on). 0.2.0 is the version published under Apache-2.0; the repository has
+# moved to another licence since, so a bump is a licence read before it is a version.
+glavo-webp = "0.2.0"
 # The faces, from the limn-fonts repository, where each versions with its font rather than with
 # this toolkit (ADR 036). Bumping one of these swaps megabytes of binary nobody reviews in a
 # one-line diff; VendoredFontsTest is what makes that diff fail until the new build's digests
@@ -45,6 +49,7 @@ limn-fonts-noto-scripts = { module = "io.github.limn-toolkit:limn-fonts-noto-scr
 limn-ffmpeg-natives = { module = "io.github.limn-toolkit:limn-ffmpeg-natives", version.ref = "limn-ffmpeg-natives" }
 limn-icons-tabler = { module = "io.github.limn-toolkit:limn-icons-tabler", version.ref = "limn-icons-tabler" }
 jspecify = { module = "org.jspecify:jspecify", version.ref = "jspecify" }
+glavo-webp = { module = "org.glavo:webp", version.ref = "glavo-webp" }
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }

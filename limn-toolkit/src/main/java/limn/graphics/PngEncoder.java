@@ -23,6 +23,11 @@ import java.util.zip.Deflater;
  *
  * <p>No metadata is written: no text chunks, no colour profile, no timestamp. A PNG this writes
  * carries pixels and nothing else.
+ *
+ * <p>An {@linkplain Image#isAnimated() animated image} is written as an animated PNG: every frame,
+ * its time and the turns the image asks for, without loss. The first frame is the picture a reader
+ * that does not animate shows; each frame after it carries the rectangle that changed since the
+ * one before, laid in place of what was there.
  */
 public final class PngEncoder implements ImageEncoder {
 
@@ -61,12 +66,60 @@ public final class PngEncoder implements ImageEncoder {
     public void encode(Image image, ImageEncodeOptions options, OutputStream out) throws IOException {
         int width = image.width();
         int height = image.height();
-        int stride = width * BYTES_PER_PIXEL;
-        byte[] pixels = image.pixels();
-
         out.write(SIGNATURE);
         writeHeader(out, width, height);
+        if (!image.isAnimated()) {
+            writePicture(image.pixels(), width, height, (data, length) -> writeChunk(out, "IDAT", data, 0, length));
+            writeChunk(out, "IEND", NO_DATA, 0, 0);
+            return;
+        }
 
+        // An animated PNG: the first frame is the picture every reader shows, and the frames after
+        // it carry the rectangle that changed, laid in place of what was there.
+        int frames = image.frameCount();
+        byte[] control = new byte[8];
+        putInt(control, 0, frames);
+        putInt(control, 4, image.loopCount());
+        writeChunk(out, "acTL", control, 0, control.length);
+        int[] sequence = {0};
+        byte[] before = null;
+        for (int i = 0; i < frames; i++) {
+            byte[] pixels = image.frame(i).pixels();
+            int[] box = before == null ? new int[] {0, 0, width, height} : changed(before, pixels, width, height);
+            byte[] frame = new byte[26];
+            putInt(frame, 0, sequence[0]++);
+            putInt(frame, 4, box[2]);
+            putInt(frame, 8, box[3]);
+            putInt(frame, 12, box[0]);
+            putInt(frame, 16, box[1]);
+            putDelay(frame, 20, image.frameMillis(i));
+            frame[24] = 0; // disposal: none, the next frame is laid on this one
+            frame[25] = 0; // blend: source, the rectangle replaces what was there
+            writeChunk(out, "fcTL", frame, 0, frame.length);
+            byte[] part = crop(pixels, width, box);
+            if (i == 0) {
+                writePicture(part, box[2], box[3], (data, length) -> writeChunk(out, "IDAT", data, 0, length));
+            } else {
+                writePicture(part, box[2], box[3], (data, length) -> {
+                    byte[] numbered = new byte[4 + length];
+                    putInt(numbered, 0, sequence[0]++);
+                    System.arraycopy(data, 0, numbered, 4, length);
+                    writeChunk(out, "fdAT", numbered, 0, numbered.length);
+                });
+            }
+            before = pixels;
+        }
+        writeChunk(out, "IEND", NO_DATA, 0, 0);
+    }
+
+    /** Where deflated picture data goes: an IDAT chunk, or a frame's numbered fdAT. */
+    private interface Chunks {
+        void write(byte[] data, int length) throws IOException;
+    }
+
+    /** Filters and deflates a picture, its data handed out in chunks of at most {@link #IDAT_CHUNK}. */
+    private static void writePicture(byte[] pixels, int width, int height, Chunks chunks) throws IOException {
+        int stride = width * BYTES_PER_PIXEL;
         Deflater deflater = new Deflater(DEFLATE_LEVEL);
         try {
             byte[] compressed = new byte[IDAT_CHUNK];
@@ -79,7 +132,7 @@ public final class PngEncoder implements ImageEncoder {
                 int filter = filterRow(current, previous, candidates);
                 line[0] = (byte) filter;
                 System.arraycopy(candidates[filter], 0, line, 1, stride);
-                deflate(deflater, line, compressed, out);
+                deflate(deflater, line, compressed, chunks);
                 byte[] swap = previous;
                 previous = current;
                 current = swap;
@@ -88,14 +141,65 @@ public final class PngEncoder implements ImageEncoder {
             while (!deflater.finished()) {
                 int produced = deflater.deflate(compressed, 0, compressed.length);
                 if (produced > 0) {
-                    writeChunk(out, "IDAT", compressed, 0, produced);
+                    chunks.write(compressed, produced);
                 }
             }
         } finally {
             deflater.end();
         }
+    }
 
-        writeChunk(out, "IEND", NO_DATA, 0, 0);
+    /**
+     * @return the smallest rectangle, as x, y, width, height, holding every pixel that differs
+     *         between two frames; a pixel's worth at the corner when none does, since a frame
+     *         has at least one
+     */
+    private static int[] changed(byte[] before, byte[] after, int width, int height) {
+        int left = width;
+        int top = height;
+        int right = -1;
+        int bottom = -1;
+        for (int y = 0; y < height; y++) {
+            int row = y * width * BYTES_PER_PIXEL;
+            for (int x = 0; x < width; x++) {
+                int at = row + x * BYTES_PER_PIXEL;
+                if (before[at] != after[at] || before[at + 1] != after[at + 1] || before[at + 2] != after[at + 2]
+                        || before[at + 3] != after[at + 3]) {
+                    left = Math.min(left, x);
+                    right = Math.max(right, x);
+                    top = Math.min(top, y);
+                    bottom = Math.max(bottom, y);
+                }
+            }
+        }
+        if (right < 0) {
+            return new int[] {0, 0, 1, 1};
+        }
+        return new int[] {left, top, right - left + 1, bottom - top + 1};
+    }
+
+    private static byte[] crop(byte[] pixels, int width, int[] box) {
+        int stride = box[2] * BYTES_PER_PIXEL;
+        byte[] out = new byte[stride * box[3]];
+        for (int row = 0; row < box[3]; row++) {
+            System.arraycopy(pixels, ((box[1] + row) * width + box[0]) * BYTES_PER_PIXEL, out, row * stride, stride);
+        }
+        return out;
+    }
+
+    /** A frame's time as the format holds it: a fraction of two 16-bit numbers, a thousandth of a second where it fits. */
+    private static void putDelay(byte[] target, int offset, int millis) {
+        int numerator = millis;
+        int denominator = 1000;
+        while (numerator > 0xFFFF && denominator > 1) {
+            numerator = (int) Math.round(numerator / 10.0);
+            denominator /= 10;
+        }
+        numerator = Math.min(numerator, 0xFFFF);
+        target[offset] = (byte) (numerator >>> 8);
+        target[offset + 1] = (byte) numerator;
+        target[offset + 2] = (byte) (denominator >>> 8);
+        target[offset + 3] = (byte) denominator;
     }
 
     private static void writeHeader(OutputStream out, int width, int height) throws IOException {
@@ -110,7 +214,7 @@ public final class PngEncoder implements ImageEncoder {
         writeChunk(out, "IHDR", ihdr, 0, ihdr.length);
     }
 
-    private static void deflate(Deflater deflater, byte[] input, byte[] compressed, OutputStream out)
+    private static void deflate(Deflater deflater, byte[] input, byte[] compressed, Chunks chunks)
             throws IOException {
         deflater.setInput(input);
         while (!deflater.needsInput()) {
@@ -118,7 +222,7 @@ public final class PngEncoder implements ImageEncoder {
             if (produced == 0) {
                 break; // deflate() only returns 0 when it wants more input or has finished
             }
-            writeChunk(out, "IDAT", compressed, 0, produced);
+            chunks.write(compressed, produced);
         }
     }
 

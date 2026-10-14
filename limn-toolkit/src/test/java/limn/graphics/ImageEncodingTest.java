@@ -26,13 +26,15 @@ class ImageEncodingTest {
     void restoreDefaultEncoders() {
         Images.uninstallAllEncoders();
         Images.installEncoder(PngEncoder.INSTANCE);
+        Images.installEncoder(GifEncoder.INSTANCE);
     }
 
     @Test
     void pngIsEncodableWithoutABackend() {
         assertFalse(Images.isDecoderInstalled(), "this suite runs with no backend");
         assertTrue(Images.canEncode(ImageFormat.PNG));
-        assertEquals(1, Images.installedEncoders().size());
+        assertTrue(Images.canEncode(ImageFormat.GIF));
+        assertEquals(2, Images.installedEncoders().size(), "the two the toolkit writes itself");
     }
 
     @Test

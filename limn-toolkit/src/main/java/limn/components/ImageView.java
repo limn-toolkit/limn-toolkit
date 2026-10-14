@@ -5,6 +5,7 @@ import limn.accessibility.Accessible;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
+import limn.animation.ImageAnimation;
 import limn.graphics.Image;
 import limn.scene.Constraints;
 import limn.scene.Size;
@@ -40,6 +41,11 @@ public final class ImageView extends Widget<ImageView> {
     }
 
     private Image image;
+    /** The clockwork of an animated image; null for a still one. Before the constructor, which makes it. */
+    private @Nullable ImageAnimation animation;
+    private boolean playing = true;
+    private float speed = 1;
+    private ImageAnimation.Loop loop = ImageAnimation.Loop.FILE;
     private Fit fit = Fit.CONTAIN;
     private Color tint;
     private float preferredWidth = -1;
@@ -54,14 +60,232 @@ public final class ImageView extends Widget<ImageView> {
     /** Shows an image at its natural size until the layout says otherwise. */
     public ImageView(@Nullable Image image) {
         this.image = image;
+        this.animation = image != null && image.isAnimated() ? new ImageAnimation(image) : null;
     }
 
-    /** Replaces the image, re-measuring if its natural size differs. UI thread only. */
+    /**
+     * Replaces the image, re-measuring if its natural size differs. An animated image is played
+     * from its first frame, unless {@link #setPlaying setPlaying(false)} holds it. UI thread only.
+     */
     public ImageView setImage(@Nullable Image newImage) {
         Ui.checkUiThread();
+        wake();
         this.image = newImage;
+        this.animation = newImage != null && newImage.isAnimated()
+                ? new ImageAnimation(newImage).setSpeed(speed).setLoop(loop).setPlaying(playing) : null;
         markNeedsLayout();
+        invalidate();
         return this;
+    }
+
+    // ------------------------------------------------------------- animation
+
+    private boolean ticking;
+    /** The frame the last paint drew, which the clock compares the frame of the moment with. */
+    private @Nullable Image painted;
+    private @Nullable Runnable onFinished;
+
+    /**
+     * Plays an animated image, or holds the frame shown. A view plays unless told not to: a
+     * picture that moves is expected to, and makes no sound. Playing one that has finished
+     * starts it again. Nothing happens to a still image, and the setting is kept for the next
+     * image the view is given. UI thread only.
+     */
+    public ImageView setPlaying(boolean play) {
+        Ui.checkUiThread();
+        this.playing = play;
+        if (animation != null) {
+            wake();
+            animation.setPlaying(play);
+            invalidate(); // the paint is what starts the clock again
+        }
+        return this;
+    }
+
+    /** @return whether an animated image is moving now: playing, and not at its end */
+    public boolean isPlaying() {
+        return animation != null && animation.isPlaying();
+    }
+
+    /**
+     * Sets how fast an animated image plays: 1 is the image's own times, 2 twice as fast.
+     *
+     * @throws IllegalArgumentException if {@code newSpeed} is not above 0
+     */
+    public ImageView setSpeed(float newSpeed) {
+        Ui.checkUiThread();
+        if (!(newSpeed > 0) || Float.isInfinite(newSpeed)) {
+            throw new IllegalArgumentException("a speed is above 0: " + newSpeed);
+        }
+        this.speed = newSpeed;
+        if (animation != null) {
+            wake();
+            animation.setSpeed(newSpeed);
+            invalidate(); // the paint sets the clock for the new speed
+        }
+        return this;
+    }
+
+    /**
+     * Sets how many turns an animated image makes: as many as the image asks for
+     * ({@link ImageAnimation.Loop#FILE}, unless set), without end, once, a number of times, or
+     * forward and back.
+     */
+    public ImageView setLoop(ImageAnimation.Loop newLoop) {
+        Ui.checkUiThread();
+        this.loop = Objects.requireNonNull(newLoop, "newLoop");
+        if (animation != null) {
+            wake();
+            animation.setLoop(newLoop);
+            invalidate();
+        }
+        return this;
+    }
+
+    /**
+     * Shows one frame of an animated image, from the start of its time.
+     *
+     * @throws IndexOutOfBoundsException if the image has no such frame
+     */
+    public ImageView seekFrame(int frame) {
+        Ui.checkUiThread();
+        Objects.checkIndex(frame, image == null ? 0 : image.frameCount());
+        if (animation != null) {
+            wake();
+            animation.seekFrame(frame);
+            invalidate();
+        }
+        return this;
+    }
+
+    /** @return which frame of an animated image is shown, from 0; 0 for a still image */
+    public int frameIndex() {
+        return animation == null ? 0 : animation.frameIndex();
+    }
+
+    /**
+     * Sets what is told when an animated image's last turn ends. One that turns without end
+     * never tells.
+     *
+     * @param handler the handler, or {@code null} for none
+     */
+    public ImageView onFinished(@Nullable Runnable handler) {
+        Ui.checkUiThread();
+        this.onFinished = handler;
+        return this;
+    }
+
+    /**
+     * Starts the clock of the animation shown, from the paint that shows it.
+     *
+     * <p>The clock does not run every frame of the display. Between two frames of the picture
+     * it sleeps, on a delayed task set for the moment the next one is due; woken, it moves the
+     * animation on by the scene's time it slept and asks for the one frame that draws the
+     * change. A picture of ten frames a second costs ten frames a second, whatever the rate of
+     * the display. It runs as a ticker, every frame of the display, only while the frame that
+     * is due is still being decoded, or while the scene's time is stopped, when the scene asks
+     * for no frame at all.
+     */
+    private void keepTime() {
+        limn.scene.Scene home = scene();
+        ImageAnimation shown = animation;
+        if (ticking || alarm != null || home == null || shown == null || !shown.isPlaying()) {
+            return;
+        }
+        step(home, shown, 0);
+    }
+
+    /** Moves the animation on and sets the clock for its next frame: asleep, or ticking. */
+    private void step(limn.scene.Scene home, ImageAnimation shown, double seconds) {
+        shown.advance(seconds);
+        if (shown.frame() != painted) {
+            invalidate(); // its time came, or a frame being decoded as it plays has arrived
+        }
+        if (shown.isFinished() && onFinished != null) {
+            onFinished.run();
+        }
+        if (!shown.isPlaying() || animation != shown) {
+            return;
+        }
+        double rate = home.isPaused() ? 0 : home.timeScale();
+        double due = shown.secondsUntilNextFrame();
+        if (due > 0 && rate > 0) {
+            sleep(home, shown, due / rate);
+        } else if (!ticking) {
+            tick(home, shown); // late, or the scene's time is stopped
+        }
+    }
+
+    private void tick(limn.scene.Scene home, ImageAnimation shown) {
+        ticking = true;
+        home.addTicker(seconds -> {
+            if (!stillFor(home, shown)) {
+                ticking = false;
+                return false;
+            }
+            step(home, shown, seconds);
+            if (alarm != null || !shown.isPlaying()) {
+                ticking = false; // asleep again, or at its end
+                return false;
+            }
+            return true;
+        });
+    }
+
+    /**
+     * Whether the clock is still for what it was set for. It stops with another image, a view
+     * out of its scene, or one nobody sees, which the next paint starts again.
+     */
+    private boolean stillFor(limn.scene.Scene home, ImageAnimation shown) {
+        return animation == shown && scene() == home && isShowing();
+    }
+
+    /** When the clock went to sleep, on the scene's clock; -1 when it is not asleep. */
+    private long sleptAt = -1;
+    /** The wake of a clock asleep, or null. */
+    private limn.concurrent.@Nullable Subscription alarm;
+
+    private void sleep(limn.scene.Scene home, ImageAnimation shown, double wallSeconds) {
+        sleptAt = home.clock().getAsLong();
+        alarm = Ui.postDelayed(() -> {
+            alarm = null;
+            if (stillFor(home, shown)) {
+                double seconds = slept(home);
+                sleptAt = -1;
+                step(home, shown, seconds);
+            } else {
+                sleptAt = -1;
+            }
+        }, Math.max(1, (long) Math.ceil(wallSeconds * 1000)));
+    }
+
+    /** @return the scene's seconds since the clock went to sleep */
+    private double slept(limn.scene.Scene home) {
+        double wall = (home.clock().getAsLong() - sleptAt) / 1e9;
+        return Math.max(0, wall) * (home.isPaused() ? 0 : home.timeScale());
+    }
+
+    /**
+     * Counts the time a sleeping clock has slept and cancels its wake, before a change that the
+     * time already passed must not be measured by: a new speed, frame, turn count or image. The
+     * paint the change asks for sets the clock again.
+     */
+    private void wake() {
+        limn.scene.Scene home = scene();
+        if (alarm != null) {
+            alarm.cancel();
+            alarm = null;
+            if (home != null && animation != null && sleptAt >= 0) {
+                animation.advance(slept(home));
+            }
+        }
+        sleptAt = -1;
+    }
+
+    @Override
+    protected void onDetached() {
+        super.onDetached();
+        wake(); // a view out of its scene is not woken, nor held by a task on the calendar
     }
 
     /** How the image fills its box when the two aspect ratios differ. */
@@ -188,6 +412,10 @@ public final class ImageView extends Widget<ImageView> {
         if (image == null) {
             return;
         }
+        // The frame of the moment, for an image that moves; its size is the image's.
+        Image image = animation != null ? animation.frame() : this.image;
+        painted = image;
+        keepTime();
         float boxW = width();
         float boxH = height();
         float imgW = image.width();

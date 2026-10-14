@@ -7,6 +7,7 @@ import limn.graphics.BlendMode;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Image;
+import limn.graphics.Images;
 import limn.graphics.Sampling;
 import limn.scene.Constraints;
 import limn.scene.Insets;
@@ -49,6 +50,11 @@ final class SpritesScene {
                 .setMuted(true).setWrap(true));
         column.add(new SheetPlayer());
 
+        column.add(heading("Animated images"));
+        column.add(new Label("The same sheet as an animated image, a GIF, a PNG and a WebP: played by an image view, "
+                + "with its speed and its turns.").setMuted(true).setWrap(true));
+        column.add(animatedImages());
+
         column.add(heading("Pixel art: SMOOTH vs PIXELATED"));
         column.add(new Label("The same image scaled six times: pixelated, and smooth.")
                 .setMuted(true).setWrap(true));
@@ -65,6 +71,111 @@ final class SpritesScene {
         column.add(new ScrollCompare());
 
         return new ScrollView(column);
+    }
+
+    /**
+     * An animated image is an image: the sheet above cut into its frames, and a GIF, a PNG and a
+     * WebP read from bytes, each given to an image view, which plays it. The switches below drive
+     * them all.
+     */
+    private static Widget<?> animatedImages() {
+        // A lab's switch: -Dlimn.demo.animationBudget=0 decodes the files as they play.
+        Long budget = Long.getLong("limn.demo.animationBudget");
+        if (budget != null) {
+            Images.setAnimationBudget(budget);
+        }
+        // The sheet, cut along its one row: eight frames, a tenth of a second each.
+        Image coin = Images.fromSheet(coinSheet(), FRAMES, 1, 100);
+        // A GIF as a file would hold it: written to bytes and read back, palette, holes and all.
+        Image orbit = Images.decode(Images.encode(orbit(), limn.graphics.ImageFormat.GIF));
+        // The same as an animated PNG, without loss: alpha between, every frame its own colours.
+        Image png = Images.decode(Images.encode(orbit(), limn.graphics.ImageFormat.PNG));
+
+        // And the same animation as a WebP, from a file the application carries.
+        Image webp = Images.fromResource("/limn/demo/images/orbit.webp");
+
+        limn.components.ImageView first = new limn.components.ImageView(coin).setPreferredSize(72, 72);
+        limn.components.ImageView second = new limn.components.ImageView(orbit).setPreferredSize(96, 96);
+        limn.components.ImageView third = new limn.components.ImageView(png).setPreferredSize(96, 96);
+        limn.components.ImageView fourth = new limn.components.ImageView(webp).setPreferredSize(96, 96);
+        java.util.List<limn.components.ImageView> views = java.util.List.of(first, second, third, fourth);
+
+        limn.components.Checkbox playing = new limn.components.Checkbox(
+                limn.components.Checkbox.Variant.SWITCH, "Playing");
+        playing.setChecked(true);
+        playing.onChange(on -> views.forEach(view -> view.setPlaying(on)));
+
+        limn.components.SegmentedControl speed = new limn.components.SegmentedControl(
+                java.util.List.of("0.5×", "1×", "2×"));
+        speed.setSelectedIndex(1);
+        float[] speeds = {0.5f, 1f, 2f};
+        speed.onSelect(index -> views.forEach(view -> view.setSpeed(speeds[index])));
+
+        limn.components.SegmentedControl turns = new limn.components.SegmentedControl(
+                java.util.List.of("As the image says", "Once", "Forward and back"));
+        limn.animation.ImageAnimation.Loop[] loops = {limn.animation.ImageAnimation.Loop.FILE,
+                limn.animation.ImageAnimation.Loop.ONCE, limn.animation.ImageAnimation.Loop.BOUNCE};
+        turns.onSelect(index -> views.forEach(view -> {
+            view.setLoop(loops[index]);
+            view.setPlaying(playing.isChecked()); // one that had finished starts again
+        }));
+
+        limn.scene.layout.Row pictures = new limn.scene.layout.Row();
+        pictures.gap(24).crossAlignment(Flex.CrossAlignment.CENTER);
+        pictures.add(captioned(first, "Sheet"));
+        pictures.add(captioned(second, "GIF"));
+        pictures.add(captioned(third, "PNG"));
+        pictures.add(captioned(fourth, "WebP"));
+        Column controls = new Column();
+        controls.gap(8).crossAlignment(Flex.CrossAlignment.START);
+        controls.add(playing);
+        controls.add(speed);
+        controls.add(turns);
+        pictures.add(controls);
+        return pictures;
+    }
+
+    private static Widget<?> captioned(Widget<?> picture, String caption) {
+        Column column = new Column();
+        column.gap(4).crossAlignment(Flex.CrossAlignment.CENTER);
+        column.add(picture);
+        column.add(new Label(caption).setMuted(true));
+        return column;
+    }
+
+    /** Twenty-four frames of a dot going round a ring, with nothing behind it: an animation drawn here. */
+    private static Image orbit() {
+        int size = 48;
+        int frames = 24;
+        java.util.List<Image> list = new java.util.ArrayList<>(frames);
+        int[] millis = new int[frames];
+        for (int f = 0; f < frames; f++) {
+            byte[] rgba = new byte[size * size * 4];
+            double angle = f * 2 * Math.PI / frames;
+            double dotX = size / 2.0 + Math.cos(angle) * 16;
+            double dotY = size / 2.0 + Math.sin(angle) * 16;
+            for (int y = 0; y < size; y++) {
+                for (int x = 0; x < size; x++) {
+                    double fromCentre = Math.hypot(x + 0.5 - size / 2.0, y + 0.5 - size / 2.0);
+                    double fromDot = Math.hypot(x + 0.5 - dotX, y + 0.5 - dotY);
+                    int o = (y * size + x) * 4;
+                    if (fromDot < 6) {
+                        rgba[o] = (byte) 0xFF;
+                        rgba[o + 1] = (byte) (0x90 + f * 4);
+                        rgba[o + 2] = (byte) 0x20;
+                        rgba[o + 3] = (byte) 0xFF;
+                    } else if (Math.abs(fromCentre - 16) < 1.5) {
+                        rgba[o] = (byte) 0x40;
+                        rgba[o + 1] = (byte) 0x80;
+                        rgba[o + 2] = (byte) 0xE0;
+                        rgba[o + 3] = (byte) 0xFF;
+                    }
+                }
+            }
+            list.add(new Image(size, size, rgba));
+            millis[f] = 50;
+        }
+        return Images.animation(list, millis, 0);
     }
 
     private static Label heading(String text) {

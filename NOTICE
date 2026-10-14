@@ -13,6 +13,16 @@ dependencies. Each remains under its own license; the terms below govern those
 components, not Limn itself.
 
 --------------------------------------------------------------------------------
+Resolved as a dependency of limn-toolkit
+--------------------------------------------------------------------------------
+
+WebP decoder (org.glavo:webp 0.2.0)
+  Copyright Glavo and contributors (https://github.com/Glavo/jwebp)
+  Apache License 2.0, as that version is published.
+  A decoder of WebP pictures written in Java, ported from the image-rs project's
+  decoder. Limn reads still and animated WebP through it.
+
+--------------------------------------------------------------------------------
 Bundled in this repository
 --------------------------------------------------------------------------------
 

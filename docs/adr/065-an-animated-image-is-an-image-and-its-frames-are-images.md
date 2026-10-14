@@ -1,14 +1,19 @@
 # ADR 065: An animated image is an image, and its frames are images
 
-- **Status:** Accepted, 2026-10-13, and not implemented. The owner confirmed the WebP library on
-  the spike of section 6. The order is GIF, then WebP, then APNG if it comes cheap.
+- **Status:** Accepted and implemented, 2026-10-13. Done: the image's frames, times and turns,
+  `Images.animation` and `fromSheet`, the clockwork and `ImageView` playing, GIF read and
+  written, WebP read, still and animated, behind the walk of its container, APNG read and
+  written, frames decoded as they play over the animation budget, each frame an entry of the
+  shared loads, pinned with its picture, and a view playing asks for a frame of the display
+  only when a frame of its picture is due. What is left out is section 8.
 - **Date:** 2026-10-13
 - **Scope:** pictures that move: animated GIF, APNG and animated WebP read from a file, and a
   sprite sheet declared by hand; how they are held, cached, played and controlled.
-- **New public API (proposed):** `Image.isAnimated`, `frameCount`, `frame`, `frameMillis`,
-  `durationMillis`, `loopCount`; `Images.animation`, `Images.fromSheet`,
-  `Images.setAnimationBudget`; `ImageAnimation`; on `ImageView`, `setPlaying`, `setSpeed`,
-  `setLoop`, `seekFrame`, `onFinished`.
+- **New public API:** `Image.isAnimated`, `frameCount`, `frame`, `frameIfReady`,
+  `frameMillis`, `durationMillis`, `loopCount`; `Images.animation`, `Images.fromSheet`,
+  `Images.setAnimationBudget`, `animationBudget`, `DEFAULT_ANIMATION_BUDGET`;
+  `ImageFormat.GIF` and `GifEncoder.INSTANCE`; `ImageAnimation`; on `ImageView`,
+  `setPlaying`, `isPlaying`, `setSpeed`, `setLoop`, `seekFrame`, `frameIndex`, `onFinished`.
 - **Compatibility:** an animated file decodes to an image whose own pixels are its first frame,
   which is what it decodes to today. Nothing that draws an `Image` changes.
 
@@ -118,6 +123,12 @@ Three rules hold for both:
 - **A frame is asked for when it is due, not every frame.** A picture of ten frames a second
   costs ten frames a second of its own box, and nothing while it is hidden, out of the
   window, or in a window that is not shown. The budget of ADR 062 counts it.
+  As built: between two frames of the picture the view's clock sleeps on a delayed task set
+  for when the next is due, and woken it moves the picture on by the scene's time it slept and
+  asks for the one frame that draws it. It ticks every frame of the display only while the
+  frame due is still being decoded. A pause or a new time scale that falls while it sleeps
+  reaches it when it wakes: the time slept is counted at the scale of that moment, so a pause
+  costs the frame shown the time it had already been shown.
 - **A time too short to be meant is lengthened.** Files carry frame times of zero or of a
   hundredth of a second that every viewer has always shown at a tenth; so does this.
 
@@ -144,7 +155,14 @@ frames live in the cache the shared loads already have.
   is. The user interface thread never decodes.
 
 An image decoded from bytes, `Images.decode`, is nobody's to share: under the budget it holds
-its frames itself, and over it a window of them.
+its frames itself, and over it a window of them, so that each turn decodes the file again.
+
+As built: the window is the frame asked for and up to eight after it, fewer when the budget
+is smaller than that many frames and never fewer than two. `Image.frameIfReady` is what a
+player asks, and the clockwork holds the frame before for one that is late, owing none of the
+wait to the frames after: paid back, a late frame cost the one after it, which a test caught.
+A frame behind the reader's place costs a start from the first, so playing backward through a
+long animation decodes it over and over; nothing is done about that.
 
 ## 6. Decision: the decoders
 
@@ -158,6 +176,25 @@ comes cheap, which is his condition: no decoder and no encoder of PNG's own is w
   and the end of an ordinary PNG and handed to the decoder already installed, and what is
   written here is the walk of the chunks and the laying of each frame on the one before. If
   that turns out not to hold, APNG is left out and said so.
+
+  As built, it held: a reader of 413 lines, of which the pixels are none, and 112 more in the
+  PNG encoder, which writes an animated image as an animated PNG, the first frame whole and
+  each after it the rectangle that changed, laid in place of what was there. A frame laid over
+  another is mixed as the format's own sample decoder mixes it, truncating, which is also what
+  the system decoder the files were checked against does; rounding was a step of one away.
+  The reader is held to six files: five whose frames the JDK's PNG encoder wrote, moved into
+  animations by a program of the test's, covering every disposal and blend, alpha between, a
+  palette with transparency, gray interlaced and a picture that is not a frame, and one the
+  system encoder of the machine they were made on wrote. What each frame is expected to be is
+  that system decoder's, exact. It composes the frame after into each frame of a file whose
+  first picture is not a frame, so that file's expectation is the decoder's of the same frames
+  without that picture, which the format says is the same animation; a browser's decoder,
+  which reads that file right, agreed with it. The browser's decoder agreed on every file's
+  frames, times and turns, and on every pixel to within one where frames are mixed, the step
+  of its premultiplied arithmetic. Neither reads a first frame smaller than the canvas after a
+  picture that is not a frame as the format says, so that case is checked by construction.
+  The writer comes back pixel for pixel through the reader, and the system decoder read a file
+  it wrote exactly. The Showcase plays one, seen on the macOS guest, whole and as it plays.
 - **WebP, by `org.glavo:webp`, a dependency of the library itself,** as the owner decided: an
   application gets WebP with the toolkit and adds nothing. It reads frame by frame, which is
   what section 5 needs. It is adopted after a spike that answers four things: what it adds
@@ -202,8 +239,9 @@ Every reader is held to ADR 061: one exception for a damaged file, ceilings on a
 size and on the frames of one file, and the mutation fuzz in `check`, the WebP library
 included since it is Java.
 
-`ImageDecoder` gains the animated form beside the one it has, and a decoder that has none
-answers the still picture as now.
+`ImageDecoder` is as it was. The three animated formats are recognised by their first bytes
+and read here before the installed decoder is asked, which is asked for every other picture,
+and for each frame of an animated PNG as a still one.
 
 ## 7. Accessibility
 
