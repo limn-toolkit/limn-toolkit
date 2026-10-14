@@ -316,7 +316,8 @@ menu, by its keys.
 - **A balloon or a message from the icon.** That is this theme's notifications.
 - **Raw clicks, the wheel, the middle button.**
 - **An animated icon.** An application calls `setIcon` from a timer, and each call sends the
-  pictures again.
+  pictures again. Superseded on 2026-10-14 by ADR 065 section 10: an icon made of an
+  animated image plays in the tray, swapped by the toolkit at the image's times.
 - **The X11 embedding protocol**, for a desktop with no status-item host.
 - **A second instance of one application** is a second icon; an application that wants one icon
   keeps one instance.
