@@ -19,6 +19,12 @@ import limn.graphics.Image;
  * compare by identity). Reuse one Image per cursor design, since the backend
  * caches the native cursor object it creates per distinct ImageCursor.
  *
+ * <p>An {@linkplain Image#isAnimated() animated} image makes a cursor that plays: the window
+ * shows each frame at the image's own times, as many turns as it asks for, with the one hotspot
+ * for every frame, and keeps a native cursor of every frame while it is shown. It counts as one
+ * cursor in the backend's cache however many frames it has. The system's wish for less motion is
+ * not applied to it, as it is not to any animated image.
+ *
  * <p>Platform note: the image is used at its pixel size 1:1 in screen
  * coordinates; there is no HiDPI variant selection at the native layer, so on
  * scaled displays a 32 px cursor appears visually smaller than UI content at

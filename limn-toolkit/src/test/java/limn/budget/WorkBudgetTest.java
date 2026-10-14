@@ -230,6 +230,59 @@ class WorkBudgetTest {
         }
     }
 
+    /** Ten frames of 100 ms. */
+    private static limn.graphics.Image tenASecond() {
+        List<limn.graphics.Image> frames = new ArrayList<>();
+        int[] millis = new int[10];
+        for (int f = 0; f < 10; f++) {
+            frames.add(new limn.graphics.Image(16, 16, new byte[16 * 16 * 4]));
+            millis[f] = 100;
+        }
+        return limn.graphics.Images.animation(frames, millis, 0);
+    }
+
+    /**
+     * A second of a column holding {@code shown}, after its first frames: how many frames its
+     * window asked for, and how many widgets the last of them painted.
+     */
+    private long[] aSecondOf(Widget<?> shown, Widget<?> beside) {
+        ui.close();
+        java.util.concurrent.atomic.AtomicLong nanos = new java.util.concurrent.atomic.AtomicLong();
+        ui = new HeadlessUi(nanos::get);
+        HeadlessWindow window = new HeadlessBackend(ui.runtime()).open("Icons", WIDTH, HEIGHT);
+        limn.scene.layout.Column column = new limn.scene.layout.Column();
+        column.add(shown);
+        column.add(beside);
+        column.add(new Label("Beside them"));
+        Scene scene = new Scene(column, nanos::get);
+        scene.setTextRuler(TestRulers.FIXED);
+        scene.bind(window);
+        window.frame();
+        window.frame();
+        window.takeFrameRequests();
+        for (int step = 0; step < 100; step++) {
+            nanos.addAndGet(10_000_000L);
+            ui.runtime().drain();
+            window.frame();
+        }
+        return new long[] {window.takeFrameRequests(), (long) scene.metrics().paintedWidgets().last()};
+    }
+
+    @Test
+    void anAnimatedIconAsksForItsOwnFramesAndNoMore() {
+        limn.graphics.Icon spinning = limn.graphics.BitmapIcon.picture(tenASecond());
+        limn.graphics.Icon still = limn.graphics.BitmapIcon.picture(tenASecond().frame(3));
+        long[] moving = aSecondOf(new Button("Saving").setIcon(spinning), new Button("Still").setIcon(still));
+        assertEquals(10, moving[0], "ten frames of the icon a second are ten of its window");
+        // 4 counted, which is what invalidating the button by hand paints too: the frame of an
+        // icon costs a repaint of its widget and not of what is beside it.
+        Work.within("widgets a frame of an animated icon paints", moving[1], 4);
+        long[] resting = aSecondOf(new Button("Still").setIcon(still), new Label("Nothing moves"));
+        assertEquals(0, resting[0], "a still icon asks for no frame");
+        long[] unseen = aSecondOf(new Button("Saving").setIcon(spinning).setVisible(false), new Label("Shown"));
+        assertEquals(0, unseen[0], "an icon nobody sees asks for no frame");
+    }
+
     @Test
     void aScreenNobodyTouchesAsksForNoFrame() {
         HeadlessWindow window = new HeadlessBackend(ui.runtime()).open("At rest", WIDTH, HEIGHT);

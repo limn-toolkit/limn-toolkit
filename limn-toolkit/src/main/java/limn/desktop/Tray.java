@@ -8,6 +8,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import limn.backend.Backend;
 import limn.backend.spi.BackendPeer;
 import limn.backend.spi.TrayHost;
@@ -20,6 +21,7 @@ import limn.components.Theme;
 import limn.concurrent.Subscription;
 import limn.concurrent.Ui;
 import limn.graphics.Icon;
+import limn.graphics.internal.IconTimeline;
 import limn.i18n.I18n;
 import limn.i18n.I18nString;
 import limn.scene.LayoutDirection;
@@ -59,6 +61,13 @@ import org.jspecify.annotations.Nullable;
  * the icon, which no system tells an application. An application that hides its window "to the
  * tray" should minimize it instead where this is {@code false}.
  *
+ * <p><b>An animated icon plays</b> ({@link Icon#isAnimated()}), in each of the tray's pictures: the
+ * icon, the monochrome one and the one that asks for attention, the dot laid on every frame. The
+ * tray swaps the frames on the UI thread at the icon's own times, as many turns as it asks for,
+ * and plays only the picture shown. While macOS holds the application's loop with a menu open,
+ * the icon waits with it and goes on at the frame that is due when the menu closes. A menu's
+ * icons show their first frame, as every system's menu does.
+ *
  * <p><b>A tray does not keep an application running.</b> An application whose windows may all be
  * hidden or closed while its icon stays sets {@link limn.backend.LoopLifetime#UNTIL_QUIT}.
  * Closing the backend takes every icon away.
@@ -90,9 +99,20 @@ public final class Tray {
     private @Nullable TrayState shown;
     private boolean disposed;
 
-    private Tray(String id, @Nullable Backend backend, Function<TrayHost, TrayPeer> peers) {
+    /** What the time of an animated picture is read on: the one delayed tasks are measured on. */
+    private final LongSupplier clock;
+    /** The timelines of the three pictures, each null while that picture is still or absent. */
+    private @Nullable IconTimeline iconTime;
+    private @Nullable IconTimeline shapeTime;
+    private @Nullable IconTimeline attentionTime;
+    /** The wake of the clock asleep until a frame of a picture shown is due, or null. */
+    private @Nullable Subscription alarm;
+    private long sleptAt;
+
+    private Tray(String id, @Nullable Backend backend, Function<TrayHost, TrayPeer> peers, LongSupplier clock) {
         this.id = id;
         this.backend = backend;
+        this.clock = clock;
         this.title = I18nString.literal(id);
         this.peer = Objects.requireNonNull(peers.apply(new Host()), "peer");
         this.language = I18n.observeChanges(this::push);
@@ -123,7 +143,7 @@ public final class Tray {
             throw new IllegalStateException("this backend already has a tray \"" + id + "\"");
         }
         try {
-            return new Tray(id, backend, host -> BackendPeer.of(backend).createTray(id, host));
+            return new Tray(id, backend, host -> BackendPeer.of(backend).createTray(id, host), System::nanoTime);
         } catch (RuntimeException | Error failed) {
             used.remove(id);
             throw failed;
@@ -132,9 +152,14 @@ public final class Tray {
 
     /** A tray over a peer a test hands in, with no backend. */
     static Tray over(String id, Function<TrayHost, TrayPeer> peers) {
+        return over(id, peers, System::nanoTime);
+    }
+
+    /** A tray over a peer a test hands in, its pictures played on the test's clock. */
+    static Tray over(String id, Function<TrayHost, TrayPeer> peers, LongSupplier clock) {
         Ui.checkUiThread();
         checkId(id);
-        return new Tray(id, null, peers);
+        return new Tray(id, null, peers, clock);
     }
 
     private static void checkId(String id) {
@@ -195,6 +220,8 @@ public final class Tray {
      */
     public Tray setIcon(@Nullable Icon icon) {
         Ui.checkUiThread();
+        wake();
+        iconTime = timeline(this.icon, iconTime, icon);
         this.icon = icon;
         push();
         return this;
@@ -216,6 +243,8 @@ public final class Tray {
         if (shape != null && !shape.tintable()) {
             throw new IllegalArgumentException("a monochrome icon is a tintable one");
         }
+        wake();
+        shapeTime = timeline(monochrome, shapeTime, shape);
         this.monochrome = shape;
         push();
         return this;
@@ -292,6 +321,7 @@ public final class Tray {
      */
     public Tray setAttention(boolean attention) {
         Ui.checkUiThread();
+        wake();
         this.attention = attention;
         push();
         return this;
@@ -310,6 +340,8 @@ public final class Tray {
      */
     public Tray setAttentionIcon(@Nullable Icon icon) {
         Ui.checkUiThread();
+        wake();
+        attentionTime = timeline(attentionIcon, attentionTime, icon);
         this.attentionIcon = icon;
         push();
         return this;
@@ -359,6 +391,7 @@ public final class Tray {
             return;
         }
         disposed = true;
+        wake();
         limn.concurrent.internal.LeftOpen.closed(this);
         language.cancel();
         availabilityListeners.clear();
@@ -386,13 +419,89 @@ public final class Tray {
         boolean rtl = direction.isRightToLeft();
         boolean ownAttention = attention && attentionIcon != null;
         limn.graphics.Color dot = attention && !ownAttention ? Theme.current().danger() : null;
-        TrayPicture picture = ownAttention ? new TrayPicture(attentionIcon, null, rtl)
-                : icon == null ? null : new TrayPicture(icon, dot, rtl);
-        TrayPicture shape = ownAttention || monochrome == null ? null : new TrayPicture(monochrome, dot, rtl);
+        TrayPicture picture = ownAttention ? new TrayPicture(attentionIcon, null, rtl, frame(attentionTime))
+                : icon == null ? null : new TrayPicture(icon, dot, rtl, frame(iconTime));
+        TrayPicture shape = ownAttention || monochrome == null ? null
+                : new TrayPicture(monochrome, dot, rtl, frame(shapeTime));
         TrayState state = new TrayState(title(), tooltip.get(), picture, shape, attention, activate != null, rtl);
         if (!state.equals(shown)) {
             shown = state;
             peer.update(state);
+        }
+        keepTime();
+    }
+
+    // ------------------------------------------------------------- animated pictures
+
+    /** The timeline a picture plays by after a change from {@code before} to {@code after}. */
+    private static @Nullable IconTimeline timeline(@Nullable Icon before, @Nullable IconTimeline playing,
+                                                   @Nullable Icon after) {
+        if (after == before) {
+            return playing; // the same icon goes on from where it was
+        }
+        return after != null && after.isAnimated() ? new IconTimeline(after) : null;
+    }
+
+    private static int frame(@Nullable IconTimeline time) {
+        return time == null ? 0 : time.frame();
+    }
+
+    /** The timelines of the pictures shown now: the attention icon alone, or the icon and the shape. */
+    private List<IconTimeline> playing() {
+        List<IconTimeline> shownNow = new ArrayList<>(2);
+        if (shown == null) {
+            return shownNow;
+        }
+        if (attention && attentionIcon != null) {
+            if (attentionTime != null) {
+                shownNow.add(attentionTime);
+            }
+            return shownNow;
+        }
+        if (icon != null && iconTime != null) {
+            shownNow.add(iconTime);
+        }
+        if (monochrome != null && shapeTime != null) {
+            shownNow.add(shapeTime);
+        }
+        return shownNow;
+    }
+
+    /** Sleeps until the next frame of a picture shown is due, unless asleep already or nothing moves. */
+    private void keepTime() {
+        if (disposed || alarm != null) {
+            return;
+        }
+        double due = Double.POSITIVE_INFINITY;
+        for (IconTimeline time : playing()) {
+            due = Math.min(due, time.secondsUntilNextFrame());
+        }
+        if (Double.isInfinite(due)) {
+            return;
+        }
+        sleptAt = clock.getAsLong();
+        alarm = Ui.postDelayed(() -> {
+            alarm = null;
+            // The time that passed and not the time asked for: a loop held by a menu wakes late,
+            // and the picture goes on at the frame that is due by then.
+            advance((clock.getAsLong() - sleptAt) / 1e9);
+            push();
+        }, Math.max(1, (long) Math.ceil(due * 1000)));
+    }
+
+    /** Counts the time asleep and cancels the wake, before a change the time already passed must not be measured by. */
+    private void wake() {
+        Subscription waiting = alarm;
+        if (waiting != null) {
+            waiting.cancel();
+            alarm = null;
+            advance((clock.getAsLong() - sleptAt) / 1e9);
+        }
+    }
+
+    private void advance(double seconds) {
+        for (IconTimeline time : playing()) {
+            time.advance(Math.max(0, seconds));
         }
     }
 

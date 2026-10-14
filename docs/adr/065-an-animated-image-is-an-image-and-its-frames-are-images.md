@@ -6,9 +6,9 @@
   written, frames decoded as they play over the animation budget, each frame an entry of the
   shared loads, pinned with its picture, and a view playing asks for a frame of the display
   only when a frame of its picture is due. What is left out is section 8.
-  **Addendum, 2026-10-14 (section 10): animated icons, accepted, not built:** an icon made of
-  an animated image plays in every component that draws icons, in the tray and as a cursor;
-  a menu shows its first frame.
+  **Addendum, 2026-10-14 (section 10): animated icons, accepted and implemented:** an icon
+  made of an animated image plays in every component that draws icons, in the tray and as a
+  cursor; a menu shows its first frame. How it was built is section 10.4.
 - **Date:** 2026-10-13
 - **Scope:** pictures that move: animated GIF, APNG and animated WebP read from a file, and a
   sprite sheet declared by hand; how they are held, cached, played and controlled. Since the
@@ -360,3 +360,36 @@ better. Two limits were found:
 - The probe of 10.1 run again on the four guests once it is built, the tray and the cursor
   seen moving and a menu seen still.
 
+### 10.4 How it was built
+
+- **One clock per widget, under `Icon.paint`.** A widget's paint names it as the painter of the
+  icons drawn inside it, as it names the language its text resolves in; an animated icon asks
+  the painter for the frame of the moment, and the widget keeps one clock per icon it painted,
+  made at the first. Each clock is the view's: asleep on a delayed task until a frame is due,
+  then woken on the scene's time, it repaints the boxes its icon was painted in by the
+  widget's last paint and sets itself again. A clock whose icon the last paint did not paint, or
+  whose widget is not showing or out of its scene, stops where it is, and the paint that shows
+  the icon again goes on from there. Several boxes of one icon in one widget, the rows of a list
+  showing one spinner, share a clock. The box is taken in the widget's coordinates, which is
+  where every component of the toolkit paints its icons.
+- **A menu the toolkit draws** paints its icons with no painter, which is what a paint from
+  outside any widget has too: the first frame.
+- **The timeline** every place plays an icon by, frames in order at their times and the turns
+  the icon asks for, resting on the last, is one class, not exported, shared by the widget's
+  clock and the tray's. The cursor plays its image with `ImageAnimation`.
+- **The tray** sleeps until the next frame of a picture shown is due and, woken, moves on by the
+  time that passed and not the time it asked for, then hands the peer the state of that frame;
+  a picture not shown does not move. `TrayPicture` carries the frame, so a backend sees a new
+  picture as it sees any other.
+- **The cursor**: the backend's cache keeps one entry for an animated cursor, holding a native
+  cursor of each frame as it is first shown, and destroys them together when it evicts the
+  entry. The window plays the cursor it shows, swapping frames on the UI thread by the time that
+  passed.
+- **Measured in tests:** every family that draws icons, on a clock the test moves; a due frame
+  repainting the icon's box and not the widget; a button whose icon has ten frames a second asking
+  for ten frames of its window a second, each painting what a repaint of the button paints, and
+  one with a still icon or one nobody sees asking for none; the tray's peer receiving every frame
+  of twenty-four in turn, a held loop going on at the frame due, the dot on every frame; the
+  cursor's cache keeping twenty-four frames whole and making each once in three turns. A planted
+  defect in each of the menu, the box and the tray's time was caught. The probe of 10.1 has yet to
+  be run again on the guests.
