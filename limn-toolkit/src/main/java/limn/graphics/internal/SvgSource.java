@@ -32,6 +32,12 @@ import org.jspecify.annotations.Nullable;
  *       if it leads out. Each is decoded as any picture the toolkit reads, within the same
  *       ceilings, and handed to the renderer as a PNG the toolkit wrote, so the renderer's own
  *       image decoder reads nothing but that. A network address is never read.</li>
+ *   <li><b>CSS custom properties</b> are resolved here, as a browser resolves them: a
+ *       {@code var(--name, fallback)} in an attribute, a {@code style} or a style sheet becomes
+ *       the value declared for that name, by an ancestor's {@code style} or by a sheet's rule for
+ *       {@code :root}, {@code svg} or {@code *}, or else its fallback. Illustrations exported from
+ *       design systems paint this way, and a renderer that does not read {@code var()} drew them
+ *       black.</li>
  *   <li><b>{@code use}</b> is followed to count what drawing the file costs: the elements it
  *       draws, through every reference, are held under {@link #MAX_DRAWN_ELEMENTS}, and a
  *       reference that leads back to itself is refused.</li>
@@ -72,6 +78,7 @@ public final class SvgSource {
             throw SvgXml.refused("the root element is <" + root.name() + ">, not <svg>");
         }
         new Sanitizer(folder).clean(root);
+        CustomProperties.resolve(root);
         drawnElements(root);
         return new SvgSource(root);
     }
@@ -290,6 +297,211 @@ public final class SvgSource {
                 return Files.readAllBytes(real);
             } catch (IOException | SecurityException | java.nio.file.InvalidPathException unreadable) {
                 return null;
+            }
+        }
+    }
+
+    // ----------------------------------------------------------------------------- var()
+
+    /** Resolves CSS custom properties, which the renderer does not read. */
+    static final class CustomProperties {
+
+        /** The deepest a property may refer to another before it reads as unset. */
+        private static final int MAX_DEPTH = 16;
+
+        private CustomProperties() {
+        }
+
+        static void resolve(SvgXml.Element root) {
+            Map<String, String> global = new HashMap<>();
+            collectGlobal(root, global);
+            String rootStyle = root.attribute("style");
+            if (rootStyle != null) {
+                declarations(rootStyle, global); // the root's own, which every element inherits
+            }
+            walk(root, global, global);
+        }
+
+        /** The declarations of a sheet's rules for the whole document: {@code :root}, {@code svg}, {@code *}, {@code html}. */
+        private static void collectGlobal(SvgXml.Element element, Map<String, String> global) {
+            if (element.localName().equals("style")) {
+                String sheet = element.text();
+                int at = 0;
+                while (true) {
+                    int open = sheet.indexOf('{', at);
+                    int close = open < 0 ? -1 : sheet.indexOf('}', open);
+                    if (close < 0) {
+                        break;
+                    }
+                    String selectors = sheet.substring(at, open);
+                    for (String selector : selectors.split(",")) {
+                        String one = selector.replaceAll("/\\*.*?\\*/", "").trim();
+                        if (one.equals(":root") || one.equals("svg") || one.equals("*") || one.equals("html")) {
+                            declarations(sheet.substring(open + 1, close), global);
+                            break;
+                        }
+                    }
+                    at = close + 1;
+                }
+            }
+            for (SvgXml.Element child : element.elements()) {
+                collectGlobal(child, global);
+            }
+        }
+
+        /** Adds the {@code --name: value} declarations of a declaration block to {@code into}. */
+        private static void declarations(String block, Map<String, String> into) {
+            for (String declaration : splitDeclarations(block)) {
+                int colon = declaration.indexOf(':');
+                if (colon > 0) {
+                    String name = declaration.substring(0, colon).trim();
+                    if (name.startsWith("--")) {
+                        into.put(name, declaration.substring(colon + 1).trim());
+                    }
+                }
+            }
+        }
+
+        private static List<String> splitDeclarations(String block) {
+            List<String> out = new java.util.ArrayList<>();
+            int depth = 0;
+            int start = 0;
+            for (int i = 0; i < block.length(); i++) {
+                char c = block.charAt(i);
+                if (c == '(') {
+                    depth++;
+                } else if (c == ')') {
+                    depth = Math.max(0, depth - 1);
+                } else if (c == ';' && depth == 0) {
+                    out.add(block.substring(start, i));
+                    start = i + 1;
+                }
+            }
+            out.add(block.substring(start));
+            return out;
+        }
+
+        private static void walk(SvgXml.Element element, Map<String, String> global, Map<String, String> inherited) {
+            Map<String, String> own = inherited;
+            String style = element.attribute("style");
+            if (style != null && style.contains("--")) {
+                own = new HashMap<>(inherited);
+                declarations(style, own);
+            }
+            for (int i = element.attributeCount() - 1; i >= 0; i--) {
+                String value = element.attributeValue(i);
+                if (!value.contains("var(")) {
+                    continue;
+                }
+                String name = element.attributeName(i);
+                String resolved = name.equals("style") ? resolveDeclarations(value, own) : substitute(value, own, 0);
+                element.removeAttribute(i);
+                if (resolved != null && !resolved.isBlank()) {
+                    element.setAttribute(name, resolved.trim());
+                }
+                // Unresolved, the attribute goes: the property is unset, and inherits or takes its default.
+            }
+            if (element.localName().equals("style")) {
+                String sheet = element.text();
+                if (sheet.contains("var(")) {
+                    element.children().clear();
+                    element.children().add(resolveSheet(sheet, global));
+                }
+            }
+            for (SvgXml.Element child : element.elements()) {
+                walk(child, global, own);
+            }
+        }
+
+        /** A sheet with every declaration's {@code var()} resolved against the document's properties. */
+        private static String resolveSheet(String sheet, Map<String, String> global) {
+            StringBuilder out = new StringBuilder(sheet.length());
+            int at = 0;
+            while (true) {
+                int open = sheet.indexOf('{', at);
+                int close = open < 0 ? -1 : sheet.indexOf('}', open);
+                if (close < 0) {
+                    out.append(sheet, at, sheet.length());
+                    return out.toString();
+                }
+                out.append(sheet, at, open + 1);
+                String block = resolveDeclarations(sheet.substring(open + 1, close), global);
+                out.append(block == null ? "" : block).append('}');
+                at = close + 1;
+            }
+        }
+
+        /** A declaration block with each {@code var()} resolved, and a declaration that resolves to nothing dropped. */
+        private static @Nullable String resolveDeclarations(String block, Map<String, String> properties) {
+            StringBuilder out = new StringBuilder();
+            for (String declaration : splitDeclarations(block)) {
+                String trimmed = declaration.trim();
+                if (trimmed.isEmpty() || trimmed.startsWith("--")) {
+                    continue; // a property's own declaration means nothing to the renderer
+                }
+                int colon = trimmed.indexOf(':');
+                if (colon < 0) {
+                    continue;
+                }
+                String value = trimmed.substring(colon + 1);
+                if (value.contains("var(")) {
+                    value = substitute(value, properties, 0);
+                    if (value == null || value.isBlank()) {
+                        continue;
+                    }
+                }
+                if (out.length() > 0) {
+                    out.append(';');
+                }
+                out.append(trimmed, 0, colon).append(':').append(value.trim());
+            }
+            return out.toString();
+        }
+
+        /** The value with each {@code var(--name, fallback)} replaced; null when one has neither a value nor a fallback. */
+        static @Nullable String substitute(String value, Map<String, String> properties, int depth) {
+            if (depth > MAX_DEPTH) {
+                return null;
+            }
+            StringBuilder out = new StringBuilder();
+            int at = 0;
+            while (true) {
+                int start = value.indexOf("var(", at);
+                if (start < 0) {
+                    out.append(value, at, value.length());
+                    return out.toString();
+                }
+                out.append(value, at, start);
+                int level = 0;
+                int end = -1;
+                int comma = -1;
+                for (int i = start + 3; i < value.length(); i++) {
+                    char c = value.charAt(i);
+                    if (c == '(') {
+                        level++;
+                    } else if (c == ')') {
+                        if (--level == 0) {
+                            end = i;
+                            break;
+                        }
+                    } else if (c == ',' && level == 1 && comma < 0) {
+                        comma = i;
+                    }
+                }
+                if (end < 0) {
+                    return null;
+                }
+                String name = value.substring(start + 4, comma < 0 ? end : comma).trim();
+                String declared = properties.get(name);
+                String replacement = declared != null ? substitute(declared, properties, depth + 1) : null;
+                if (replacement == null && comma >= 0) {
+                    replacement = substitute(value.substring(comma + 1, end).trim(), properties, depth + 1);
+                }
+                if (replacement == null) {
+                    return null;
+                }
+                out.append(replacement);
+                at = end + 1;
             }
         }
     }

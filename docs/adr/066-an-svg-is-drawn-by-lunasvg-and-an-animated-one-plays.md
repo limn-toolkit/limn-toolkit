@@ -51,6 +51,15 @@ Three renderers, against two kinds of file, on the development Mac (arm64).
 | Size, arm64, stripped | none new | 345 KB | 398 KB, with text |
 | 6,000 damaged copies | not measured | 0 crashes, 43 runs over 5 s | **0 crashes, 0 runs over 5 s** |
 
+**Corrected 2026-10-14, as it was built: the illustrations' row measures nothing.** Their
+expected pictures were resvg's, and resvg does not read CSS custom properties either: it drew
+them in black, lunasvg and ThorVG drew them in black too, and the three blacks matched, while
+NanoSVG, which drew them otherwise, was counted wrong. A browser draws them in their fallback
+colours. The toolkit now resolves `var()` itself, in Java, before the renderer sees a file
+(section 6), and lunasvg then draws them as a browser does. The suite's rows, the emoji, the
+icons and the fuzz are untouched by this, and so is the choice of lunasvg; the real files of
+section 7 are compared with a browser's pictures, not resvg's.
+
 Text scores near nothing for all three because the suite's pictures use fonts of its own, which
 were not loaded; the illustrations failed NanoSVG because they paint through CSS variables
 (`fill="var(--name, #e7e4f2)"`), and with every variable replaced by its fallback NanoSVG drew
@@ -153,8 +162,10 @@ As ADR 061 asks of everything the toolkit reads itself:
   the `use` references followed, the animations. Whatever it refuses leaves as
   `MalformedContentException`.
 - **It hands lunasvg sanitized text:** animation elements and declarations removed, since the
-  toolkit plays them; every element that is animated given an id the toolkit chose; and no
-  reference outside the file, since lunasvg reads a path it is given.
+  toolkit plays them; every element that is animated given an id the toolkit chose; no
+  reference outside the file, since lunasvg reads a path it is given; and every CSS custom
+  property resolved, the value an ancestor's `style` or a sheet's rule for the whole document
+  declares, or else the fallback, since lunasvg reads no `var()`.
 - **A picture beside a file read from disk is read by the toolkit,** as the owner chose: an
   image's `href` relative to the SVG's own folder, resolved there, refused if it leads out of
   that folder, read within the same ceilings as any picture and handed to lunasvg inside the

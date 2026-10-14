@@ -152,4 +152,21 @@ class SvgSourceTest {
             assertFalse(SvgSource.looksLikeSvg(other.getBytes(StandardCharsets.UTF_8)), other);
         }
     }
+
+    @Test
+    void customPropertiesAreResolvedAsABrowserResolvesThem() {
+        String out = clean("<svg xmlns='http://www.w3.org/2000/svg' width='4' height='4' style='--accent: #00f'>"
+                + "<style>:root { --edge: 3 } .a { fill: var(--accent); stroke: var(--none) }</style>"
+                + "<rect fill='var(--unset, #e7e4f2ff)' width='1' height='1'/>"
+                + "<rect fill='var(--accent)' stroke-width='var(--edge)' width='1' height='1'/>"
+                + "<g style='--accent: red'><rect fill='var(--accent, blue)' width='1' height='1'/></g>"
+                + "<rect fill='var(--nothing)' width='1' height='1'/></svg>", null);
+        assertTrue(out.contains("fill=\"#e7e4f2ff\""), "the fallback, when nothing declares it: " + out);
+        assertTrue(out.contains("fill=\"#00f\""), "an ancestor's declaration: " + out);
+        assertTrue(out.contains("stroke-width=\"3\""), "a sheet's :root: " + out);
+        assertTrue(out.contains("fill=\"red\""), "the nearest ancestor's: " + out);
+        assertTrue(out.contains("<rect width=\"1\" height=\"1\"/>"), "neither: the property is unset: " + out);
+        assertTrue(out.contains(".a { fill:#00f}") || out.contains(".a {fill:#00f}"), "in the sheet too: " + out);
+        assertFalse(out.contains("var("), out);
+    }
 }
