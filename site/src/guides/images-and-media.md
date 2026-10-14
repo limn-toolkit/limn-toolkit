@@ -46,9 +46,9 @@ an eighth of the heap.
 ### Pictures that move
 
 An animated GIF, PNG or WebP decodes to an `Image` that says `isAnimated()`. It is an image
-like any other, and its own pixels are its first frame's, so an icon, a cursor or anything else
-that draws it without playing it shows a still picture. Give it to an `ImageView` and it plays,
-by itself and for as many turns as the file asks for. A sheet of sprites is the same thing made
+like any other, and its own pixels are its first frame's, so anything that draws it without
+playing it shows a still picture. Give it to an `ImageView` and it plays, by itself and for as
+many turns as the file asks for. A sheet of sprites is the same thing made
 by hand, and `Images.animation(frames, millis, turns)` takes frames from anywhere:
 
 {% snippet guide:animated-images %}
@@ -81,6 +81,14 @@ The toolkit takes an `Icon` wherever a small vector mark belongs: a button, a te
 leading slot, a menu item. Icons are drawn as paths rather than loaded as bitmaps, so they
 stay sharp at every control size and pick up the theme's colour. An `SvgIcon` whose source the
 rasterizer refuses draws nothing and says why in the log, once.
+
+An icon may move. `BitmapIcon.picture(spinner)`, or `mask` and `themed`, of an animated image
+is an animated icon, and every component that shows it plays it by itself at the image's own
+times: a button saying it is busy, a tab whose content is loading, a row of a list that is
+syncing. It costs its window one frame for each of its own, repaints only its own box, and
+waits while nobody sees it. A tray plays one, and an `ImageCursor` of an animated image is a
+cursor that plays. A menu shows the first frame, as every system's menu does. A component
+offers no control over its icon; to hold, speed or loop one, show it in an `ImageView`.
 
 The `limn-icons-tabler` artifact packages the Tabler icon set if you would rather not draw your
 own — one enum constant per icon, drawn through the same `SvgIcon`. It is versioned with Tabler

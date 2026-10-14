@@ -22,6 +22,15 @@ import org.jspecify.annotations.Nullable;
  *       light/dark variants}, or {@linkplain BitmapIcon#mask per-resolution}
  *       variants.</li>
  * </ul>
+ *
+ * <p><b>An icon may be animated</b> ({@link #isAnimated()}): a {@link BitmapIcon} of an animated
+ * {@link Image} is. A component plays it by itself, as the image asks, through {@link #paint}: its
+ * time is the scene's, it starts at the paint that first shows it, waits where nobody sees it,
+ * rests on its last frame once its turns are done, and asks for a frame of its window only when
+ * one of its frames is due, repainting the icon's box and nothing more. A component offers no
+ * control over it; an icon that must be held, sped or turned otherwise is an image view's to show. A menu shows the first frame, and so does a
+ * window's own icon. The system's wish for less motion is not applied: an application that needs
+ * an icon to move less ships one that moves less.
  */
 public interface Icon {
 
@@ -43,6 +52,50 @@ public interface Icon {
      */
     Image image(int pixelSize, boolean dark);
 
+    /** @return whether this icon has more than one frame, which a component plays; false unless overridden */
+    default boolean isAnimated() {
+        return false;
+    }
+
+    /** @return how many frames; 1 for a still icon */
+    default int frameCount() {
+        return 1;
+    }
+
+    /**
+     * @param frame from 0 to {@link #frameCount()} - 1
+     * @return how long that frame is shown, in milliseconds; 0 for a still icon
+     * @throws IndexOutOfBoundsException if there is no such frame
+     */
+    default int frameMillis(int frame) {
+        java.util.Objects.checkIndex(frame, frameCount());
+        return 0;
+    }
+
+    /**
+     * @return how many turns the animation makes: 0 for one that does not end, which is also what
+     *         a still icon answers
+     */
+    default int loopCount() {
+        return 0;
+    }
+
+    /**
+     * One frame of the bitmap {@link #image(int, boolean)} answers, which is that method's answer
+     * for frame 0. A frame of an animation decoded as it plays is decoded here, on the calling
+     * thread, if it is not in memory.
+     *
+     * @param pixelSize target extent in physical pixels (≥ 1)
+     * @param dark      whether the active theme is dark
+     * @param frame     from 0 to {@link #frameCount()} - 1
+     * @return the frame, of the size frame 0 is
+     * @throws IndexOutOfBoundsException if there is no such frame
+     */
+    default Image image(int pixelSize, boolean dark, int frame) {
+        java.util.Objects.checkIndex(frame, frameCount());
+        return image(pixelSize, dark);
+    }
+
     /**
      * Whether {@link #image} returns a single-color mask to be recolored with the
      * theme (true: SVG, grayscale/mono PNG), or a finished picture to draw as-is
@@ -60,10 +113,17 @@ public interface Icon {
      * applies {@code tint} when {@linkplain #tintable() tintable} (otherwise draws
      * the picture untouched). This is the one idiom every component uses to draw an
      * icon.
+     *
+     * <p>An {@linkplain #isAnimated() animated} icon is drawn at the frame of the moment for the
+     * widget painting it, whose clock this call starts; the box is then taken in that widget's
+     * own coordinates, as every component paints its icons, since it is the box a due frame
+     * repaints. Painted from outside a widget's paint, it shows its first frame.
      */
     default void paint(Canvas canvas, float x, float y, float size, @Nullable Color tint, boolean dark) {
         int px = Math.max(1, Math.round(size * canvas.contentScale()));
-        Image bitmap = image(px, dark);
+        Image bitmap = isAnimated()
+                ? image(px, dark, limn.graphics.internal.IconPlayer.frameOf(this, x, y, size))
+                : image(px, dark);
         // Aspect-fit, centered: the rasterizer preserves the source's aspect
         // (a 2:1 SVG comes back wider than tall), and stretching that into the
         // square box would distort it. Square bitmaps fill the box exactly.

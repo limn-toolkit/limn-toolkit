@@ -11,25 +11,46 @@ import org.jspecify.annotations.Nullable;
  * that says attention when it has one.
  *
  * <p>Two pictures are equal when they would draw the same thing, so a backend can tell a state
- * that changed its picture from one that did not.
+ * that changed its picture from one that did not. An animated icon is played by the tray, which
+ * hands the peer a state for each frame as it falls due: a picture of the frame that changed is
+ * not equal to the one before, and is shown as any new picture is.
  *
  * @param icon        the application's icon
  * @param badge       the dot's colour, or {@code null} for no dot
  * @param badgeAtLeft whether the dot is at the top left corner and not the top right
+ * @param frame       the frame of an animated icon to draw, from 0; 0 for a still one
  */
-public record TrayPicture(Icon icon, @Nullable Color badge, boolean badgeAtLeft) {
+public record TrayPicture(Icon icon, @Nullable Color badge, boolean badgeAtLeft, int frame) {
 
     /** The part of the box's side the dot's radius is. */
     private static final float BADGE_RADIUS = 0.22f;
 
-    /** Checks the icon. */
+    /**
+     * Checks the icon and the frame.
+     *
+     * @throws IndexOutOfBoundsException when the icon has no such frame
+     */
     public TrayPicture {
         Objects.requireNonNull(icon, "icon");
+        Objects.checkIndex(frame, icon.frameCount());
     }
 
     /**
-     * Draws the picture into a square of {@code pixelSize}: the icon fitted and centred, in
-     * {@code tint} when it is one that takes a colour and a tint is given, and the dot over it.
+     * The first frame of an icon: the whole of a still one, and what a menu shows of an
+     * animated one.
+     *
+     * @param icon        the application's icon
+     * @param badge       the dot's colour, or {@code null} for no dot
+     * @param badgeAtLeft whether the dot is at the top left corner and not the top right
+     */
+    public TrayPicture(Icon icon, @Nullable Color badge, boolean badgeAtLeft) {
+        this(icon, badge, badgeAtLeft, 0);
+    }
+
+    /**
+     * Draws the picture into a square of {@code pixelSize}: the icon's {@link #frame} fitted and
+     * centred, in {@code tint} when it is one that takes a colour and a tint is given, and the dot
+     * over it, which every frame carries.
      *
      * @param pixelSize the square's side in device pixels, at least 1
      * @param tint      the colour of a tintable icon, or {@code null} to leave it as it is
@@ -40,7 +61,7 @@ public record TrayPicture(Icon icon, @Nullable Color badge, boolean badgeAtLeft)
         if (pixelSize < 1) {
             throw new IllegalArgumentException("a picture's size is at least 1: " + pixelSize);
         }
-        Image source = icon.image(pixelSize, dark);
+        Image source = icon.image(pixelSize, dark, frame);
         byte[] out = fit(source, pixelSize);
         if (tint != null && icon.tintable()) {
             int r = Color.toByte(tint.r());

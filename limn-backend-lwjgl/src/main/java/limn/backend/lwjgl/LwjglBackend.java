@@ -619,54 +619,34 @@ public final class LwjglBackend implements BackendPeer {
         return cursors.computeIfAbsent(cursor, c -> glfwCreateStandardCursor(glfwShape(c)));
     }
 
-    // Custom image cursors, shared across windows like the standard shapes but
-    // bounded: distinct ImageCursors an app can reasonably cycle through is
-    // small; past the cap the least-recently-used native cursor is destroyed
-    // (GLFW reverts any window still showing it to the default arrow; churning
-    // more than MAX_IMAGE_CURSORS distinct cursors is a caller bug).
-    private static final int MAX_IMAGE_CURSORS = 16;
-    private final java.util.LinkedHashMap<limn.backend.ImageCursor, Long> imageCursors =
-            new java.util.LinkedHashMap<>(MAX_IMAGE_CURSORS, 0.75f, true /* access order */);
-
-    /**
-     * The native cursor for {@code cursor}, created from its RGBA pixels on
-     * first use and cached. UI thread only.
-     */
-    long imageCursorHandle(limn.backend.ImageCursor cursor) {
-        Long cached = imageCursors.get(cursor);
-        if (cached != null) {
-            return cached;
-        }
-        limn.graphics.Image image = cursor.image();
-        long handle;
-        // Pixel data goes on the heap, not the MemoryStack: cursor images are
-        // usually tiny, but nothing bounds them. GLFW copies before returning.
-        java.nio.ByteBuffer pixels = OffHeap.copyOf(image.pixels());
-        try (org.lwjgl.system.MemoryStack stack = org.lwjgl.system.MemoryStack.stackPush()) {
-            org.lwjgl.glfw.GLFWImage glfwImage = org.lwjgl.glfw.GLFWImage.malloc(stack);
-            glfwImage.set(image.width(), image.height(), pixels);
-            handle = org.lwjgl.glfw.GLFW.glfwCreateCursor(
-                    glfwImage, cursor.hotspotX(), cursor.hotspotY());
-        } finally {
-            org.lwjgl.system.MemoryUtil.memFree(pixels);
-        }
-        if (imageCursors.size() >= MAX_IMAGE_CURSORS) {
-            // Evict the least-recently-used cursor NOT actively shown by any
-            // window: destroying an in-use cursor reverts that window to the
-            // arrow and strands its recorded state. With every entry in use
-            // (pathological), skip eviction and let the cache grow.
-            var it = imageCursors.entrySet().iterator();
-            while (it.hasNext()) {
-                var entry = it.next();
-                if (!imageCursorInUse(entry.getKey())) {
-                    glfwDestroyCursor(entry.getValue());
-                    it.remove();
-                    break;
-                }
+    /** The native cursors of image cursors; see {@link ImageCursors}. */
+    private final ImageCursors imageCursors = new ImageCursors(new ImageCursors.Natives() {
+        @Override
+        public long create(limn.graphics.Image image, int hotspotX, int hotspotY) {
+            // Pixel data goes on the heap, not the MemoryStack: cursor images are
+            // usually tiny, but nothing bounds them. GLFW copies before returning.
+            java.nio.ByteBuffer pixels = OffHeap.copyOf(image.pixels());
+            try (org.lwjgl.system.MemoryStack stack = org.lwjgl.system.MemoryStack.stackPush()) {
+                org.lwjgl.glfw.GLFWImage glfwImage = org.lwjgl.glfw.GLFWImage.malloc(stack);
+                glfwImage.set(image.width(), image.height(), pixels);
+                return org.lwjgl.glfw.GLFW.glfwCreateCursor(glfwImage, hotspotX, hotspotY);
+            } finally {
+                org.lwjgl.system.MemoryUtil.memFree(pixels);
             }
         }
-        imageCursors.put(cursor, handle);
-        return handle;
+
+        @Override
+        public void destroy(long handle) {
+            glfwDestroyCursor(handle);
+        }
+    }, this::imageCursorInUse);
+
+    /**
+     * The native cursor of one frame of {@code cursor}, 0 for a still one, made from its RGBA
+     * pixels on first use and cached. UI thread only.
+     */
+    long imageCursorHandle(limn.backend.ImageCursor cursor, int frame) {
+        return imageCursors.handle(cursor, frame);
     }
 
     private boolean imageCursorInUse(limn.backend.ImageCursor cursor) {
@@ -1609,10 +1589,7 @@ public final class LwjglBackend implements BackendPeer {
             glfwDestroyCursor(handle); // glfwDestroyCursor(NULL) is a documented no-op
         }
         cursors.clear();
-        for (Long handle : imageCursors.values()) {
-            glfwDestroyCursor(handle);
-        }
-        imageCursors.clear();
+        imageCursors.destroyAll();
         org.lwjgl.glfw.GLFWMonitorCallback monitors = org.lwjgl.glfw.GLFW.glfwSetMonitorCallback(null);
         if (monitors != null) {
             monitors.free();

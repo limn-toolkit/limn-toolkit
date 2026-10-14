@@ -6,14 +6,21 @@
   written, frames decoded as they play over the animation budget, each frame an entry of the
   shared loads, pinned with its picture, and a view playing asks for a frame of the display
   only when a frame of its picture is due. What is left out is section 8.
+  **Addendum, 2026-10-14 (section 10): animated icons, accepted and implemented:** an icon
+  made of an animated image plays in every component that draws icons, in the tray and as a
+  cursor; a menu shows its first frame. How it was built is section 10.4.
 - **Date:** 2026-10-13
 - **Scope:** pictures that move: animated GIF, APNG and animated WebP read from a file, and a
-  sprite sheet declared by hand; how they are held, cached, played and controlled.
+  sprite sheet declared by hand; how they are held, cached, played and controlled. Since the
+  addendum, also the icons made of them: in components, in the tray and as a cursor.
 - **New public API:** `Image.isAnimated`, `frameCount`, `frame`, `frameIfReady`,
   `frameMillis`, `durationMillis`, `loopCount`; `Images.animation`, `Images.fromSheet`,
   `Images.setAnimationBudget`, `animationBudget`, `DEFAULT_ANIMATION_BUDGET`;
   `ImageFormat.GIF` and `GifEncoder.INSTANCE`; `ImageAnimation`; on `ImageView`,
   `setPlaying`, `isPlaying`, `setSpeed`, `setLoop`, `seekFrame`, `frameIndex`, `onFinished`.
+- **New public API of the addendum (proposed):** `Icon.isAnimated`, `frameCount`,
+  `frameMillis`, `loopCount` and `image(pixelSize, dark, frame)`; `BitmapIcon.picture`, `mask`
+  and `themed` taking animated images; an `ImageCursor` of an animated image.
 - **Compatibility:** an animated file decodes to an image whose own pixels are its first frame,
   which is what it decodes to today. Nothing that draws an `Image` changes.
 
@@ -256,7 +263,8 @@ still. The toolkit neither holds a picture still by itself nor draws a control o
 - **Writing animated WebP**, for want of an encoder.
 - **Animated AVIF and JPEG XL**, for want of a decoder that is not megabytes.
 - **Vector animation** (the JSON-described kind), which is drawing and not a picture.
-- **Animated icons** in a button, a menu, the tray or a cursor: each shows the first frame.
+- **Animated icons in menus**, the system's and the toolkit's alike: a menu item shows its
+  icon's first frame (section 10). Before the addendum this line held for every icon.
 - **Sound.** A picture that moves with sound is a video.
 
 ## 9. What the owner settled
@@ -269,3 +277,132 @@ still. The toolkit neither holds a picture still by itself nor draws a control o
 4. **32 MiB** is the animation budget unless set (section 5).
 5. **GIF first; APNG only if it is cheap; and encoders** for the formats where one comes cheap
    (section 6).
+6. **An animated icon plays everywhere an icon is drawn, except in a menu** (section 10, the
+   addendum of 2026-10-14). "I do not remember ever seeing an animation in a menu."
+7. **The wish for less motion is not applied to an icon either** (section 10): an animation
+   has its duration, and dropping frames to move less would break it. An application that
+   needs less motion ships a variant of the animation that moves less, which keeps what it
+   means.
+
+## 10. Addendum, 2026-10-14: animated icons
+
+The owner asked how much it would take to let the icons of the toolkit move, and how the
+systems bear it, for the five places an icon goes: a menu, a button, a label, a cursor and the
+tray. It was measured before it was decided.
+
+### 10.1 What was measured
+
+A probe animated each place the systems draw, swapping twelve or twenty-four frames of 32 by
+32 at ten and at thirty frames a second, and timed each swap on the UI thread; the system's
+own process was timed against a run with nothing moving; captures and the system's own record
+of the cursor said whether what was asked was shown. Four guests of the lab: macOS without a
+GPU, KDE Plasma on Wayland, GNOME on X11, Windows 11 on ARM with the JVM emulated.
+
+| | Tray: one swap, UI thread | Tray: system process, at 10 / 30 a second | Cursor: one swap | Shown |
+|---|---|---|---|---|
+| macOS | 1.3 to 1.5 ms | window server, 3% / 7% of a core | 1.0 ms (12 frames), 1.8 ms (24) | tray and cursor |
+| KDE, Wayland | 0.16 to 0.23 ms | the panel, 2% / 3% | 0.13 to 0.29 ms | tray and cursor |
+| GNOME, X11 | no tray: the guest's extension is off | – | 0.2 to 0.3 ms | the cursor, every frame |
+| Windows | 0.7 to 2 ms, 95% under 3 to 9 | the shell, 2% / 4% | 0.7 to 1.8 ms | tray and cursor |
+
+Both slow columns are a machine with no GPU and one whose JVM is emulated; a desktop does
+better. Two limits were found:
+
+- **The cursor cache holds sixteen.** An animation of more frames than that destroyed and made
+  a native cursor at every swap: on Windows, twenty-four frames asked at thirty a second were
+  shown at sixteen and a half.
+- **A menu does not move once open, on any system, each for its own reason.** macOS stops the
+  toolkit's loop while one of its menus is open (36 swaps where 65 were due, the picture still
+  in every capture); on Windows the menu is built once as it opens and tracked as it was built;
+  on Linux the menu's layout is read as it opens, and with it open the toolkit sent one notice
+  for twenty-five changes, the item still in every capture, though its loop ran on.
+
+### 10.2 Decisions
+
+- **An icon may be animated.** `BitmapIcon.picture`, `mask` and `themed` take an animated image
+  as they take a still one, and the icon is then animated: `Icon.isAnimated`, `frameCount`,
+  `frameMillis(i)`, `loopCount()` and `image(pixelSize, dark, frame)`, the existing
+  `image(pixelSize, dark)` being its first frame. A themed icon's two images have the same
+  frames and times, or it is refused. A vector icon stays still: vector animation is drawing
+  (section 8).
+- **A component plays an animated icon by itself, as the image asks,** with no control of its
+  own: buttons, labels, tabs, a field's adornments, list, tree and table cells, chips, every
+  place that draws through `Icon.paint`. An icon that must be held, sped or turned otherwise is
+  an `ImageView`'s to show. Its time is the scene's, as in section 4: it starts at the paint
+  that first shows it, stops where nobody sees it and goes on from there at the next paint,
+  rests on its last frame when its turns are done, and asks for a frame of the window only when
+  a frame of the icon is due, repainting the icon's box and no more. Built as the view's clock
+  is, once, under `Icon.paint`, so that no component carries its own.
+- **The tray plays it** in each of its pictures, the icon, the monochrome shape and the
+  attention icon, swapping frames on the UI thread at the image's times, what the probe did
+  from outside. The badge is laid on every frame. While macOS holds the loop with a menu
+  open, the icon waits with it, and goes on at the frame that is due when the menu closes.
+- **A cursor plays it:** an `ImageCursor` of an animated image, one hotspot for every frame.
+  The window keeps a native cursor of every frame while the cursor is shown and swaps them at
+  the image's times; the cache's sixteen count the frames of a cursor shown as one.
+- **A menu shows the first frame,** a menu item's icon in the macOS menu bar, in the tray's
+  menu, and in a menu the toolkit draws itself: one rule on every system, for what no system
+  does, the owner not remembering ever seeing a menu move.
+- **The wish for less motion is not applied,** as for a picture (section 4): the owner's
+  reasoning is in section 9. The same goes for the speed: an icon plays at the image's own
+  times.
+- **The window's own icon**, in the title bar, the task bar or the dock, was not asked for and
+  shows the first frame.
+
+### 10.3 Tests and the budget
+
+- The counted work of ADR 062: a button whose icon has ten frames a second asks for ten frames
+  of its window a second, and each repaints the icon's box only; one with a still icon asks for
+  none; one nobody sees asks for none.
+- A component test per family that draws icons, on a clock the test moves.
+- The tray's recording peer receives every frame at its time; the cursor's every frame, with
+  the cache holding an animation of more than sixteen frames whole.
+- The probe of 10.1 run again on the four guests once it is built, the tray and the cursor
+  seen moving and a menu seen still.
+
+### 10.4 How it was built
+
+- **One clock per widget, under `Icon.paint`.** A widget's paint names it as the painter of the
+  icons drawn inside it, as it names the language its text resolves in; an animated icon asks
+  the painter for the frame of the moment, and the widget keeps one clock per icon it painted,
+  made at the first. Each clock is the view's: asleep on a delayed task until a frame is due,
+  then woken on the scene's time, it repaints the boxes its icon was painted in by the
+  widget's last paint and sets itself again. A clock whose icon the last paint did not paint, or
+  whose widget is not showing or out of its scene, stops where it is, and the paint that shows
+  the icon again goes on from there. Several boxes of one icon in one widget, the rows of a list
+  showing one spinner, share a clock. The box is taken in the widget's coordinates, which is
+  where every component of the toolkit paints its icons.
+- **A menu the toolkit draws** paints its icons with no painter, which is what a paint from
+  outside any widget has too: the first frame.
+- **The timeline** every place plays an icon by, frames in order at their times and the turns
+  the icon asks for, resting on the last, is one class, not exported, shared by the widget's
+  clock and the tray's. The cursor plays its image with `ImageAnimation`.
+- **The tray** sleeps until the next frame of a picture shown is due and, woken, moves on by the
+  time that passed and not the time it asked for, then hands the peer the state of that frame;
+  a picture not shown does not move. `TrayPicture` carries the frame, so a backend sees a new
+  picture as it sees any other.
+- **The cursor**: the backend's cache keeps one entry for an animated cursor, holding a native
+  cursor of each frame as it is first shown, and destroys them together when it evicts the
+  entry. The window plays the cursor it shows, swapping frames on the UI thread by the time that
+  passed.
+- **Measured in tests:** every family that draws icons, on a clock the test moves; a due frame
+  repainting the icon's box and not the widget; a button whose icon has ten frames a second asking
+  for ten frames of its window a second, each painting what a repaint of the button paints, and
+  one with a still icon or one nobody sees asking for none; the tray's peer receiving every frame
+  of twenty-four in turn, a held loop going on at the frame due, the dot on every frame; the
+  cursor's cache keeping twenty-four frames whole and making each once in three turns. A planted
+  defect in each of the menu, the box and the tray's time was caught.
+- **Seen on the four guests**, the probe of 10.1 run again with the toolkit handed one animated
+  image and playing it itself, two captures taken 150 to 200 ms apart:
+
+  | | Tray | Cursor | A button's icon | A menu |
+  |---|---|---|---|---|
+  | macOS | moves | moves, 12 frames at 10 a second and 24 at 30 | moves, every changed pixel inside the icon's box | the first frame, still |
+  | Windows | moves | 12 native cursors seen for 12 frames; 17 of 24 at 30 a second, the sampler being emulated | moves, the change a 33 by 33 box | not opened |
+  | KDE, Wayland | moves | moves | moves, the change a 16 by 12 box | not opened |
+  | GNOME, X11 | no tray: the guest's extension is off | 12 cursor images for 12 frames, 23 of 24 at 30 a second, in their order | moves, the change a 9 by 17 box | not opened |
+
+  The run found one thing, in the probe and not the toolkit: a cursor set on the window directly
+  is taken back by the scene at the pointer's next move, as a still one always was; an
+  application sets it on a widget, and the probe of 10.1 had hidden it by setting it again at
+  every frame.
