@@ -17,7 +17,7 @@
 ## 0. What was measured, before anything was decided
 
 The question arrived from use rather than from a profile. Driving the date widgets on 2026-09-09,
-Dyorgio reported that the whole screen flickered on every focus change, and — this is the part
+the owner reported that the whole screen flickered on every focus change, and — this is the part
 that made it a real report rather than an impression — that moving the calendar's own roving cursor
 did **not** flicker. Two gestures, one flickering, one not, in the same window.
 
