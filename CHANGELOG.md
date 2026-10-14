@@ -269,7 +269,10 @@ Maven Central say which number that was.
   says, without end, once, a number of times, or forward and back), `seekFrame` and
   `onFinished`; `limn.animation.ImageAnimation` is the same clockwork for a widget of an
   application's own. An animated GIF is read as one, where only its first frame was, with the
-  times of its frames and the turns it asks for. `Images.fromSheet` makes one of a sheet of
+  times of its frames and the turns it asks for. WebP is read, still and animated, which
+  nothing here read before, by a decoder written in Java that the toolkit now depends on,
+  `org.glavo:webp`: an application adds nothing, and none of it is loaded until a WebP is
+  decoded. `Images.fromSheet` makes one of a sheet of
   sprites and `Images.animation` of frames from anywhere. And `ImageFormat.GIF` is written:
   every frame of an animated image, or a still picture, in the 256 colours the format holds.
 - `ButtonGroup.remove(radio)` takes a radio out of its group.

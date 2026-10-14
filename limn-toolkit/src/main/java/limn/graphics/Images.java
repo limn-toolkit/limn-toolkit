@@ -93,7 +93,8 @@ public final class Images {
     }
 
     /**
-     * Decodes an encoded image (PNG/JPG/…) from memory, on the calling thread. Cheap for an icon
+     * Decodes an encoded image (PNG/JPG/GIF/WebP/…) from memory, on the calling thread. An
+     * animated GIF or WebP is an {@linkplain Image#isAnimated() animated image}, every frame of it. Cheap for an icon
      * and not for a photograph, whose decode scales with its pixel count and is a dropped frame
      * when the caller is the UI thread. Use {@link #decodeAsync} outside setup code.
      */
@@ -103,7 +104,30 @@ public final class Images {
             // an animated file is an animated image, and a GIF of one frame is a still one.
             return animatedOrStill(fileBytes);
         }
+        if (WebPReader.isWebP(fileBytes)) {
+            // Read here too: by a decoder in Java the toolkit carries, still or animated.
+            return webp(fileBytes);
+        }
         return require().decode(fileBytes);
+    }
+
+    private static Image webp(byte[] file) {
+        try (WebPReader reader = new WebPReader(file)) {
+            java.util.List<Image> frames = new java.util.ArrayList<>(reader.frameCount());
+            int[] millis = new int[reader.frameCount()];
+            for (Image frame = reader.nextFrame(); frame != null && frames.size() < millis.length;
+                    frame = reader.nextFrame()) {
+                millis[frames.size()] = reader.lastMillis();
+                frames.add(frame);
+            }
+            if (frames.isEmpty()) {
+                throw new limn.io.MalformedContentException("WebP", "no picture could be read");
+            }
+            if (frames.size() == 1) {
+                return frames.get(0);
+            }
+            return animation(frames, java.util.Arrays.copyOf(millis, frames.size()), reader.loopCount());
+        }
     }
 
     private static Image animatedOrStill(byte[] gif) {

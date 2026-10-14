@@ -1,10 +1,11 @@
 # ADR 065: An animated image is an image, and its frames are images
 
 - **Status:** Accepted, 2026-10-13, and implemented in part. Done: the image's frames, times and
-  turns, `Images.animation` and `fromSheet`, the clockwork and `ImageView` playing, and GIF read
-  and written. Not yet: frames decoded as they play and the animation budget, a frame as an
-  entry of the shared loads, a frame asked for only when it is due (a view playing asks for
-  every frame of the display and paints when its picture changes), WebP and APNG.
+  turns, `Images.animation` and `fromSheet`, the clockwork and `ImageView` playing, GIF read
+  and written, and WebP read, still and animated, behind the walk of its container. Not yet:
+  frames decoded as they play and the animation budget, a frame as an entry of the shared
+  loads, a frame asked for only when it is due (a view playing asks for every frame of the
+  display and paints when its picture changes), and APNG.
 - **Date:** 2026-10-13
 - **Scope:** pictures that move: animated GIF, APNG and animated WebP read from a file, and a
   sprite sheet declared by hand; how they are held, cached, played and controlled.

@@ -45,7 +45,7 @@ an eighth of the heap.
 
 ### Pictures that move
 
-An animated GIF decodes to an `Image` that says `isAnimated()`. It is an image like any
+An animated GIF or WebP decodes to an `Image` that says `isAnimated()`. It is an image like any
 other, and its own pixels are its first frame's, so an icon, a cursor or anything else that
 draws it without playing it shows a still picture. Give it to an `ImageView` and it plays, by
 itself and for as many turns as the file asks for:

@@ -51,7 +51,7 @@ final class SpritesScene {
         column.add(new SheetPlayer());
 
         column.add(heading("Animated images"));
-        column.add(new Label("The same sheet as an animated image, and a GIF: played by an image view, "
+        column.add(new Label("The same sheet as an animated image, a GIF and a WebP: played by an image view, "
                 + "with its speed and its turns.").setMuted(true).setWrap(true));
         column.add(animatedImages());
 
@@ -83,9 +83,13 @@ final class SpritesScene {
         // A GIF as a file would hold it: written to bytes and read back, palette, holes and all.
         Image orbit = Images.decode(Images.encode(orbit(), limn.graphics.ImageFormat.GIF));
 
+        // And the same animation as a WebP, from a file the application carries.
+        Image webp = Images.fromResource("/limn/demo/images/orbit.webp");
+
         limn.components.ImageView first = new limn.components.ImageView(coin).setPreferredSize(72, 72);
         limn.components.ImageView second = new limn.components.ImageView(orbit).setPreferredSize(96, 96);
-        java.util.List<limn.components.ImageView> views = java.util.List.of(first, second);
+        limn.components.ImageView third = new limn.components.ImageView(webp).setPreferredSize(96, 96);
+        java.util.List<limn.components.ImageView> views = java.util.List.of(first, second, third);
 
         limn.components.Checkbox playing = new limn.components.Checkbox(
                 limn.components.Checkbox.Variant.SWITCH, "Playing");
@@ -109,8 +113,9 @@ final class SpritesScene {
 
         limn.scene.layout.Row pictures = new limn.scene.layout.Row();
         pictures.gap(24).crossAlignment(Flex.CrossAlignment.CENTER);
-        pictures.add(first);
-        pictures.add(second);
+        pictures.add(captioned(first, "Sheet"));
+        pictures.add(captioned(second, "GIF"));
+        pictures.add(captioned(third, "WebP"));
         Column controls = new Column();
         controls.gap(8).crossAlignment(Flex.CrossAlignment.START);
         controls.add(playing);
@@ -118,6 +123,14 @@ final class SpritesScene {
         controls.add(turns);
         pictures.add(controls);
         return pictures;
+    }
+
+    private static Widget<?> captioned(Widget<?> picture, String caption) {
+        Column column = new Column();
+        column.gap(4).crossAlignment(Flex.CrossAlignment.CENTER);
+        column.add(picture);
+        column.add(new Label(caption).setMuted(true));
+        return column;
     }
 
     /** Twenty-four frames of a dot going round a ring, with nothing behind it: an animation drawn here. */

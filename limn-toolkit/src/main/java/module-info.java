@@ -19,6 +19,7 @@ module limn.toolkit {
     // Transitive: a module that requires this one reads them too, which is what lets its compiler
     // and its checker see the @Nullable on these signatures.
     requires static transitive org.jspecify;
+    requires org.glavo.webp;
 
     exports limn.accessibility;
     exports limn.animation;

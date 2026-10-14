@@ -26,6 +26,12 @@ dependencies {
     // compile path. module-info's `requires static transitive` is the module path's half of the
     // same promise.
     api(libs.jspecify)
+    // The WebP decoder. Not api: no type of it is in a signature of this module's. Its one
+    // declared dependency is a set of annotations its own module requires only statically, and
+    // nothing here reads them, so they are left out of what an application resolves.
+    implementation(libs.glavo.webp) {
+        exclude(group = "org.jetbrains", module = "annotations")
+    }
 
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
