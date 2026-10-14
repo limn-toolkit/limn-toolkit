@@ -301,6 +301,23 @@ Maven Central say which number that was.
   draws. An `ImageCursor` of an animated image plays, counted once in the backend's cache of
   cursors however many frames it has. A menu, the system's or the toolkit's, shows the first
   frame, and so does a window's own icon; the wish for less motion is not applied.
+- SVG is drawn by lunasvg, in place of NanoSVG: gradients and patterns, clipping and masks,
+  markers, style sheets, CSS custom properties with their fallbacks, and text in the bundled
+  faces and the system's, where NanoSVG drew shapes and little else. It ships as the
+  `limn-lunasvg-natives` payload, versioned with lunasvg, which the backend depends on with all
+  six platforms' jars, so an application adds nothing; `lwjgl-nanovg` is gone. Every SVG is read
+  by the toolkit first, in Java: within ceilings, with no script, event or reference outside the
+  file reaching the renderer, and a damaged one refused with `MalformedContentException`.
+- `SvgIcon` takes any aspect, fitted into its box, says its own `width()` and `height()`, and
+  reads a file with `fromFile(path)`, whose pictures beside it in its folder are shown.
+  `ImageView` shows an `Icon` as well as an `Image` (`new ImageView(icon)`, `setIcon`), drawn at
+  the view's own size and density, so an illustration stays sharp. `Images.decode` reads an SVG,
+  drawn at its own size.
+- Animated SVG plays: SMIL's `animate`, `animateTransform` and `set`, chains of animations that
+  begin at another's beginning or end among them, and CSS's `@keyframes` with the `animation`
+  properties. An animated `SvgIcon` is an animated icon, at 24 frames a second unless
+  `withFrameRate(n)` or `-Dlimn.svg.frameRate=n` says otherwise; `Images.decode` of one is an
+  animated image. A transform CSS gives an element is drawn too.
 - `ButtonGroup.remove(radio)` takes a radio out of its group.
 - `Ui.postDelayed` returns a `Subscription` that withdraws the task: a timer armed for
   something that can go away first is cancelled there, where it held all it captured until it
@@ -741,6 +758,12 @@ Maven Central say which number that was.
 
 ### Breaking, and how to move
 
+- `SvgRasterizer` is `SvgRenderer`, a document opened, measured, changed and drawn, and
+  `SvgIcon.installRasterizer`, `uninstallRasterizer` and `isRasterizerInstalled` are
+  `installRenderer`, `uninstallRenderer` and `isRendererInstalled`; `BackendServices` takes the
+  renderer. Only a backend, or a test that installs its own, calls them.
+- `new ImageView(null)` names which: `new ImageView((Image) null)`, now that a view takes an
+  icon too.
 - `Widget.onFileDrop` and `FileDropEvent` are gone: files dragged in from the system are a drop
   like any other. A widget accepts them in `onDragOver`
   (`if (event.offer().has(DataFormat.FILES)) event.accept();`) and reads them in `onDrop`

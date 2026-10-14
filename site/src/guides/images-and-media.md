@@ -80,7 +80,32 @@ has the details, the clipboard among them.
 The toolkit takes an `Icon` wherever a small vector mark belongs: a button, a text field's
 leading slot, a menu item. Icons are drawn as paths rather than loaded as bitmaps, so they
 stay sharp at every control size and pick up the theme's colour. An `SvgIcon` whose source the
-rasterizer refuses draws nothing and says why in the log, once.
+renderer refuses draws nothing and says why in the log, once.
+
+### SVG
+
+An `SvgIcon` draws any SVG: `SvgIcon.of(text)`, `fromResource(path)`, or `fromFile(path)`, whose
+pictures beside it in its own folder are shown too. Gradients, patterns, clipping, masks,
+markers, style sheets and text are drawn; text in the faces the toolkit bundles and in those the
+system has. Of any aspect, it is fitted into the box it is given. An illustration that should fill
+a space at any size goes in an `ImageView`, which draws an icon at the view's own size and density
+each time either changes:
+
+```java
+ImageView empty = new ImageView(SvgIcon.fromResource("/app/illustrations/empty-inbox.svg"));
+```
+
+`Images.decode` reads an SVG too, drawn at its own size, when you want its pixels.
+
+The toolkit reads every SVG itself before drawing it, and nothing in one runs or reaches out: no
+script, no event, no address on the network, no file outside the SVG's own folder. A file that is
+damaged, or larger than any picture should be, is refused with a `MalformedContentException`.
+
+An SVG may move, by SMIL (`<animate>`, `<animateTransform>`, `<set>`) or by CSS (`@keyframes`).
+It is then an animated icon like any other, played by itself in every component and in an
+`ImageView`, at 24 frames a second unless you say otherwise: `svgIcon.withFrameRate(60)` for one,
+or `-Dlimn.svg.frameRate=60` for every SVG. A file never says, since neither SMIL nor CSS has a
+frame rate; both measure time, and the toolkit draws that time as frames.
 
 An icon may move. `BitmapIcon.picture(spinner)`, or `mask` and `themed`, of an animated image
 is an animated icon, and every component that shows it plays it by itself at the image's own

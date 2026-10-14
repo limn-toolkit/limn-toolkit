@@ -1,7 +1,8 @@
 # ADR 066: An SVG is drawn by lunasvg, and an animated one plays
 
-- **Status:** Accepted, 2026-10-14, not built. The owner chose the renderer, that animation
-  comes now, and the four questions of section 9.
+- **Status:** Accepted and implemented, 2026-10-14. The owner chose the renderer, that animation
+  comes now, the four questions of section 9, the plutovg patch and the chains of SMIL
+  animations; how it was built and what it found is section 10.
 - **Date:** 2026-10-14
 - **Scope:** how the toolkit reads and draws an SVG, still or animated: the renderer and how it
   ships, the API that hands an SVG to the screen, the animation it plays, and what a damaged or
@@ -209,3 +210,46 @@ As ADR 061 asks of everything the toolkit reads itself:
 5. **A file from disk may refer to a picture beside it,** inside its own folder (section 6).
 6. **24 frames a second unless set,** on an icon by the application or for every SVG by a
    system property; nothing in the file, since no standard attribute says it (section 5).
+7. **One patch to plutovg** for the curve far from the origin (section 3), and **chains of SMIL
+   animations** that begin at another's beginning or end (section 5), both when building found
+   them.
+
+## 10. How it was built, and what building found
+
+- **The payload** is published (`limn-lunasvg-natives` 3.5.0.0). The backend extracts
+  `liblimnsvg` as every native payload of the toolkit is extracted, a way the FFmpeg loader now
+  shares, and refuses one whose ABI is not its own with a sentence naming both. The SPI is
+  `SvgRenderer`, a document; `SvgRasterizer` and NanoSVG are gone.
+- **The reading in Java** is a parser of the toolkit's own, written for SVG, so that nothing of the
+  JDK's XML stack is between a file and the screen and the toolkit still needs no module beyond
+  `java.base`. Real files decided one point: illustration programs write a DTD whose internal
+  subset declares entities for their namespaces (8 of the 99 emoji), so internal general entities
+  are read, expanded once, no entity within another, every expansion together under a ceiling;
+  everything else a DTD may say is refused. Pictures, embedded or beside a file, are decoded by the
+  toolkit and handed on as PNGs it wrote, since lunasvg opens any other address as a path. Both
+  readers are fuzzed in `check`, and a defect planted in the parser was caught by both.
+- **CSS custom properties** are resolved in Java (section 2's correction): lunasvg reads no
+  `var()`.
+- **lunasvg's limits, measured before the engine was written:** an attribute set on a document
+  wins over its style sheets, so every moving value is set as an attribute; a `style` changed
+  after loading changes nothing; and CSS `transform` is not read at all, in a sheet or an
+  attribute. So a CSS transform, moving or not, is written as the `transform` attribute, its
+  origin applied, which also draws the static transforms lunasvg would have dropped.
+- **The animation engine** was checked against a browser. 104 files of two indicator
+  collections, the same indicators in SMIL and in CSS, were set to six moments in Chrome and in
+  the toolkit, and the values compared, a transform as the element's own matrix: the first run
+  matched 95% of 3,014; the rest were two defects, a zero without a unit beside a length with one
+  (`r: 0` to `r: 11px`) not interpolated, and of several SMIL animations of one attribute the last
+  in the document winning where the last to begin does. Fixed, all 3,014 match, and the browser's
+  values are a fixture of `check`.
+- **Fidelity** is a ratchet in `check`: 30 tests of each of six kinds of the resvg suite (of 30,
+  shapes 29, painting 20, paint servers 27, masking 22, structure 16, filters 6, in line with
+  section 2), and 18 files of the kind an application ships against a browser's pictures, every
+  one right; without the `var()` resolution, the six illustrations fail it.
+- **The budget of ADR 062:** an SVG playing at ten frames a second asks for ten frames of its
+  window a second.
+- **On the machines:** the published payload, extracted from the application's jar, loaded and
+  drew a still SVG, a frame of an animated one, text in a bundled face and a decode on macOS
+  (arm64, and x86_64 under translation on Java 17), on two Linux desktops (arm64, glibc 2.39 and
+  2.43) and on Windows (arm64, and x86_64 under emulation): five of its six libraries. The sixth,
+  Linux on x86_64, is tested by the payload's own pipeline, which loads it in its JNI tests.
