@@ -82,8 +82,18 @@ public final class SvgIcon implements Icon {
     // the source it judged cannot change.
     private RuntimeException refused;
 
+    /** The folder of the file it was read from, whose pictures it may show; null for any other source. */
+    private final java.nio.file.@org.jspecify.annotations.Nullable Path folder;
+    /** The source as read and cleaned, made by the first drawing on whichever thread. */
+    private volatile limn.graphics.internal.@org.jspecify.annotations.Nullable SvgSource source;
+
     private SvgIcon(byte[] svg) {
+        this(svg, null);
+    }
+
+    private SvgIcon(byte[] svg, java.nio.file.@org.jspecify.annotations.Nullable Path folder) {
         this.svg = svg;
+        this.folder = folder;
     }
 
     /** An icon from raw SVG source. */
@@ -101,6 +111,33 @@ public final class SvgIcon implements Icon {
      */
     public static SvgIcon fromResource(String path) {
         return new SvgIcon(Resources.bytes(SvgIcon.class, path, "SVG"));
+    }
+
+    /**
+     * An icon from a file. A picture the file shows by an address relative to it is read from
+     * the file's own folder, or from one inside it, and from nowhere else; no address is ever
+     * read from the network.
+     *
+     * <p>Reads the file on the calling thread, as {@link #fromResource} reads a resource: an SVG is
+     * text, and the pictures it shows are read when it is first drawn.
+     *
+     * @param file the SVG file
+     * @return the icon
+     * @throws java.io.UncheckedIOException when the file cannot be read
+     * @throws limn.io.MalformedContentException when it is larger than an SVG is read
+     */
+    public static SvgIcon fromFile(java.nio.file.Path file) {
+        java.util.Objects.requireNonNull(file, "file");
+        try {
+            if (java.nio.file.Files.size(file) > limn.graphics.internal.SvgXml.MAX_BYTES) {
+                throw new limn.io.MalformedContentException("SVG", file + " is larger than the "
+                        + limn.graphics.internal.SvgXml.MAX_BYTES + " bytes an SVG is read");
+            }
+            java.nio.file.Path absolute = file.toAbsolutePath();
+            return new SvgIcon(java.nio.file.Files.readAllBytes(absolute), absolute.getParent());
+        } catch (java.io.IOException failed) {
+            throw new java.io.UncheckedIOException("cannot read " + file, failed);
+        }
     }
 
     // --------------------------------------------------------- renderer SPI
@@ -283,9 +320,23 @@ public final class SvgIcon implements Icon {
         return RENDERER.require();
     }
 
+    /**
+     * The source as the renderer is given it: read in Java, within ceilings, its references to
+     * anything outside it taken out and its pictures read by the toolkit. Made once; two threads
+     * racing to make it make the same thing.
+     */
+    private limn.graphics.internal.SvgSource source() {
+        limn.graphics.internal.SvgSource read = source;
+        if (read == null) {
+            read = limn.graphics.internal.SvgSource.read(svg, folder);
+            source = read;
+        }
+        return read;
+    }
+
     /** Opens the source, draws it fitted into a square of {@code size}, and closes it. Any thread. */
     private Image draw(SvgRenderer renderer, int size) {
-        try (SvgRenderer.Document document = renderer.open(svg)) {
+        try (SvgRenderer.Document document = renderer.open(source().text())) {
             float scale = size / Math.max(document.width(), document.height());
             int w = Math.max(1, Math.round(document.width() * scale));
             int h = Math.max(1, Math.round(document.height() * scale));

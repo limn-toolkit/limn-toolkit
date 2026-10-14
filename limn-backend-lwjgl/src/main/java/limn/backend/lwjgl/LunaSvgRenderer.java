@@ -2,6 +2,7 @@ package limn.backend.lwjgl;
 
 import java.lang.ref.Cleaner;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Objects;
 import limn.graphics.Image;
 import limn.graphics.SvgRenderer;
@@ -25,11 +26,38 @@ final class LunaSvgRenderer implements SvgRenderer {
         return thread;
     });
 
+    /**
+     * The faces this toolkit bundles, as SVG text may name them: family, bold, italic, and the
+     * files to try in order. Roboto is also every SVG's {@code sans-serif}, as it is the
+     * toolkit's own. Colour emoji is not here: the renderer draws no colour glyphs.
+     */
+    private static final List<Object[]> BUNDLED_FACES = List.of(
+            new Object[] {"Roboto", false, false, "Roboto-Regular.ttf"},
+            new Object[] {"Roboto", true, false, "Roboto-Bold.ttf"},
+            new Object[] {"Roboto", false, true, "Roboto-Italic.ttf"},
+            new Object[] {"Roboto", true, true, "Roboto-BoldItalic.ttf"},
+            new Object[] {"sans-serif", false, false, "Roboto-Regular.ttf"},
+            new Object[] {"sans-serif", true, false, "Roboto-Bold.ttf"},
+            new Object[] {"sans-serif", false, true, "Roboto-Italic.ttf"},
+            new Object[] {"sans-serif", true, true, "Roboto-BoldItalic.ttf"},
+            new Object[] {"Noto Sans Arabic", false, false, "NotoSansArabic-Regular.ttf"},
+            new Object[] {"Noto Sans Hebrew", false, false, "NotoSansHebrew-Regular.ttf"},
+            new Object[] {"Noto Sans Devanagari", false, false, "NotoSansDevanagari-Regular.ttf"},
+            new Object[] {"Noto Sans Thai", false, false, "NotoSansThai-Regular.ttf"},
+            new Object[] {"Noto Sans CJK", false, false, "NotoSansCJK-Regular.otf", "NotoSansCJK-Regular.ttf",
+                    "NotoSansJP-Regular.ttf", "NotoSansSC-Regular.otf"});
+
+    /** Whether the bundled faces were given to the renderer; once, at the first SVG with text. */
+    private static boolean fontsRegistered;
+
     @Override
     public Document open(byte[] svg) {
         Objects.requireNonNull(svg, "svg");
         if (!LunaSvgLibrary.isAvailable()) {
             throw new IllegalStateException("the SVG renderer is not loaded: " + LunaSvgLibrary.failure());
+        }
+        if (hasText(svg)) {
+            registerBundledFonts();
         }
         long handle = LunaSvgNative.open(svg);
         if (handle == 0) {
@@ -48,6 +76,47 @@ final class LunaSvgRenderer implements SvgRenderer {
     public boolean addFont(String family, boolean bold, boolean italic, byte[] data) {
         return LunaSvgLibrary.isAvailable() && LunaSvgNative.addFont(
                 family.getBytes(StandardCharsets.UTF_8), bold, italic, data.clone());
+    }
+
+    /** Whether the text has an element of text, which is what wants a face. */
+    private static boolean hasText(byte[] svg) {
+        for (int i = 0; i + 5 < svg.length; i++) {
+            if ((svg[i] == '<' || svg[i] == ':') && svg[i + 1] == 't' && svg[i + 2] == 'e'
+                    && svg[i + 3] == 'x' && svg[i + 4] == 't') {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Gives the renderer the faces the toolkit bundles, beside the system's it finds itself. Once,
+     * and only when some SVG has text: each face is copied into the renderer, and an application
+     * whose SVGs have none should not pay for it. A face whose jar is not there is skipped.
+     */
+    private static synchronized void registerBundledFonts() {
+        if (fontsRegistered) {
+            return;
+        }
+        fontsRegistered = true;
+        for (Object[] face : BUNDLED_FACES) {
+            for (int file = 3; file < face.length; file++) {
+                byte[] data = bundled((String) face[file]);
+                if (data != null) {
+                    LunaSvgNative.addFont(((String) face[0]).getBytes(StandardCharsets.UTF_8),
+                            (Boolean) face[1], (Boolean) face[2], data);
+                    break;
+                }
+            }
+        }
+    }
+
+    private static byte @org.jspecify.annotations.Nullable [] bundled(String file) {
+        try (java.io.InputStream in = FontStore.openBundled(FontStore.bundledPath(file))) {
+            return in == null ? null : in.readAllBytes();
+        } catch (java.io.IOException unreadable) {
+            return null;
+        }
     }
 
     /** The handle, apart from the document, so the cleaner holds this and not what it cleans. */

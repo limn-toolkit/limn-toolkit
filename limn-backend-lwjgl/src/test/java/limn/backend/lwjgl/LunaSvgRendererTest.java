@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -94,5 +95,42 @@ class LunaSvgRendererTest {
         try (SvgRenderer.Document document = RENDERER.open(utf8("<svg xmlns='http://www.w3.org/2000/svg' width='4' height='4'/>"))) {
             assertThrows(IllegalArgumentException.class, () -> document.render(LunaSvgRenderer.MAX_PIXEL_SIZE + 1, 4));
         }
+    }
+
+    private static int ink(Image image) {
+        int painted = 0;
+        for (int i = 3; i < image.pixels().length; i += 4) {
+            if ((image.pixels()[i] & 0xFF) > 128) {
+                painted++;
+            }
+        }
+        return painted;
+    }
+
+    private static Image text(String family) {
+        try (SvgRenderer.Document document = RENDERER.open(utf8("<svg xmlns='http://www.w3.org/2000/svg' "
+                + "width='160' height='40'><text x='4' y='30' font-family='" + family + "' font-size='28'>"
+                + "Limn Qg</text></svg>"))) {
+            return document.render(160, 40);
+        }
+    }
+
+    /**
+     * SVG text has the toolkit's bundled faces, whatever the machine has installed: Roboto, by
+     * name and as {@code sans-serif}, draws exactly as Roboto's own bytes registered under a name
+     * no system has. Without the bundled faces the renderer falls back to some installed face for
+     * a family it does not know, which draws other glyphs.
+     */
+    @Test
+    void textIsDrawnInTheBundledFaces() throws Exception {
+        byte[] roboto;
+        try (java.io.InputStream in = FontStore.openBundled(FontStore.bundledPath("Roboto-Regular.ttf"))) {
+            roboto = in.readAllBytes();
+        }
+        assertTrue(RENDERER.addFont("Limn Test Face", false, false, roboto));
+        Image reference = text("Limn Test Face");
+        assertTrue(ink(reference) > 100, "the reference drew no text");
+        assertArrayEquals(reference.pixels(), text("Roboto").pixels(), "Roboto is the bundled face");
+        assertArrayEquals(reference.pixels(), text("sans-serif").pixels(), "and every SVG's sans-serif");
     }
 }
