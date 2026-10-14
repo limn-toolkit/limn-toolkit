@@ -10,6 +10,11 @@ node_modules/
 dist/
 .astro/
 
+# A copy to or from a verification guest whose remote path the shell ate, leaving a file named
+# user@host followed by what was left of the path. Five of them, three demo jars of 66 MB,
+# were committed that way. Nothing of the toolkit's has an @ in its name at the root.
+/*@*
+
 .idea/
 *.iml
 *.ipr
