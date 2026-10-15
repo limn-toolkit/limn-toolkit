@@ -147,6 +147,28 @@ class ScrollViewTest extends ComponentTestBase {
     }
 
     @Test
+    void scrollBarInsetsSetTheTracksInAndLeaveTheScrollingAlone() {
+        Box content = new Box(400, 400);
+        ScrollView scroll = new ScrollView(content, true, true)
+                .setBarInsets(new limn.scene.Insets(52, 0, 0, 30));
+        Scene scene = new Scene(scroll);
+        scene.layoutPass(200, 200);
+        ScrollBar v = scroll.verticalBar();
+        float t = ScrollBar.thickness();
+        assertEquals(52, v.y(), EPS, "the vertical track starts below the inset");
+        assertEquals(200 - t - 52, v.height(), EPS, "and is that much shorter, the corner kept");
+        ScrollBar h = scroll.horizontalBar();
+        assertEquals(30, h.x(), EPS, "the horizontal track starts in from the left");
+        assertEquals(200 - t - 30, h.width(), EPS);
+        assertEquals(200, scroll.maxOffsetY(), EPS, "the scrolling itself is unchanged");
+
+        scroll.setLayoutDirection(limn.scene.LayoutDirection.RTL);
+        scene.layoutPass(200, 200);
+        assertEquals(200 - (200 - t - 30) - 30, h.x(), EPS,
+                "right to left, the start inset is on the right, as a Padding's is");
+    }
+
+    @Test
     void wheelThroughTheSceneScrollsAndIsConsumed() {
         Box content = new Box(100, 400);
         ScrollView scroll = new ScrollView(content);

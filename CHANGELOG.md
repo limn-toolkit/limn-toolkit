@@ -10,6 +10,18 @@ Maven Central say which number that was.
 
 ### Fixed
 
+- A scroller at an end of an axis passes the wheel on. A `ScrollView`, a `TextArea` and the
+  scrolling strips of a `TabbedPane` and a `SegmentedControl` took every detent while they
+  could scroll at all, so one inside a scrolling page stopped the wheel at its top or its end
+  and the page never moved; each takes a detent only when it moved now, as a list, a table and
+  a tree already did, at the start and the end of both axes.
+- A `ScrollView` scrolled before its first layout opens where it was scrolled to: the offset
+  was clamped against content not yet measured, to the top, and lost.
+- A checkbox's focus ring sits concentric with its box at every density: its edges fell
+  between two pixels and the renderer moved it half a pixel to one side. The ring and the
+  radio button's lie beyond a clear gap now, and both reach 3pt past the indicator.
+- A tab is closed by its close button and dragged under the pointer: the header read a
+  pointer event's coordinates as its own where they are the scene's.
 - A video in a window that closed frees its decoder. A `VideoView` gave its pictures back only
   when it was removed from its scene, a window closing removed nothing, and a decoder is freed
   when the last picture it handed out comes back: a window closed with a video in it kept the
@@ -262,6 +274,9 @@ Maven Central say which number that was.
 
 ### New
 
+- `ScrollView.setBarInsets(Insets)` sets the bars' tracks in from the ends of their
+  sides, for content that scrolls under something laid over it, a bar of glass across the top:
+  the thumb starts below it and keeps its proportion of the shorter track.
 - Tabs that close and move. `TabbedPane.setTabsClosable(true)` makes the tabs added after it
   closable, and `setTabClosable(index, value)` one tab: it draws a close button while selected
   or under the pointer and closes by it, by a middle click, and by Ctrl+W (Cmd+W on macOS) while

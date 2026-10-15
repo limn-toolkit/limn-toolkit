@@ -45,6 +45,8 @@ public final class GlassExample {
     public static Widget<?> barOver(Widget<?> content, BackdropPanel bar) {
         // The content begins below the bar and scrolls up under it.
         ScrollView scrolling = new ScrollView(new Padding(new Insets(BAR_HEIGHT, 0, 0, 0), content));
+        // And its scroll bar starts below the bar, its thumb proportioned to the track left.
+        scrolling.setBarInsets(new Insets(BAR_HEIGHT, 0, 0, 0));
         bar.setCornerRadius(0);                  // a bar goes from edge to edge
         Stack layers = new Stack();
         layers.add(scrolling);

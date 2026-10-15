@@ -7,6 +7,7 @@ import limn.graphics.Canvas;
 import limn.input.Keys;
 import limn.internal.lang.Checks;
 import limn.scene.Constraints;
+import limn.scene.Insets;
 import limn.scene.Scrollable;
 import limn.scene.Size;
 import limn.scene.Change;
@@ -62,6 +63,8 @@ public final class ScrollView extends Widget<ScrollView> implements Scrollable {
     /** Whether a layout has measured the content, against which an offset can be clamped. */
     private boolean laidOut;
     private final ScrollGutters gutters = new ScrollGutters();
+    /** How far each bar's track is set in from the ends of its side; see {@link #setBarInsets}. */
+    private Insets barInsets = Insets.NONE;
     /** The band {@link #paintOverflow(float)} declared, or {@link #FROM_THEME}. */
     private float paintOverflow = FROM_THEME;
     /**
@@ -164,6 +167,30 @@ public final class ScrollView extends Widget<ScrollView> implements Scrollable {
     /** Whether the scrollbars overlay the content or reserve a gutter. */
     public ScrollGutters.Layout barLayout() {
         return gutters.layout();
+    }
+
+    /**
+     * Sets the bars' tracks in from the ends of their sides, for content that scrolls under
+     * something laid over it: a bar of glass across the top that the content passes beneath
+     * keeps its own thumb out from under the bar with the bar's height as the top inset. The
+     * vertical bar's track starts {@code top} down and ends {@code bottom} up; the horizontal
+     * bar's starts {@code left} in and ends {@code right} in, the two swapping sides when the
+     * view reads right to left, as a {@link limn.scene.layout.Padding}'s do. The thumb keeps its
+     * proportion of the shorter track. The content, its viewport and the scrolling are unchanged.
+     *
+     * @param insets how far each track is set in; {@link Insets#NONE} (the default) for none
+     * @return this view
+     */
+    public ScrollView setBarInsets(Insets insets) {
+        Ui.checkUiThread();
+        this.barInsets = java.util.Objects.requireNonNull(insets, "insets");
+        markNeedsLayout();
+        return this;
+    }
+
+    /** @return how far each bar's track is set in from the ends of its side */
+    public Insets barInsets() {
+        return barInsets;
     }
 
     /**
@@ -458,17 +485,22 @@ public final class ScrollView extends Widget<ScrollView> implements Scrollable {
         // after whatever strip that leaves, so the clear corner square is on the bar's own side
         // in both directions rather than always on the right.
         boolean rtl = isRightToLeft();
+        // The tracks set in by the insets: shorter, and the thumb proportioned to what is left.
+        float vTrack = Math.max(0, vLen - barInsets.top() - barInsets.bottom());
+        float hStart = rtl ? barInsets.right() : barInsets.left();
+        float hEnd = rtl ? barInsets.left() : barInsets.right();
+        float hTrack = Math.max(0, hLen - hStart - hEnd);
         if (vBar != null) {
-            vBar.measure(Constraints.tight(t, vLen));
-            vBar.layoutBox(rtl ? 0 : width() - t, 0, t, vLen);
+            vBar.measure(Constraints.tight(t, vTrack));
+            vBar.layoutBox(rtl ? 0 : width() - t, Math.min(barInsets.top(), vLen), t, vTrack);
             // Told after the geometry it reads from is settled, not before: this is where a bar
             // learns its content has just become scrollable, which is the only moment an AUTO bar
             // has to say so before the pointer arrives.
             vBar.refresh();
         }
         if (hBar != null) {
-            hBar.measure(Constraints.tight(hLen, t));
-            hBar.layoutBox(rtl ? width() - hLen : 0, height() - t, hLen, t);
+            hBar.measure(Constraints.tight(hTrack, t));
+            hBar.layoutBox((rtl ? width() - hLen : 0) + Math.min(hStart, hLen), height() - t, hTrack, t);
             hBar.refresh();
         }
     }
@@ -508,6 +540,11 @@ public final class ScrollView extends Widget<ScrollView> implements Scrollable {
     /** The vertical bar, or null when this view does not scroll vertically (tests). */
     ScrollBar verticalBar() {
         return vBar;
+    }
+
+    /** The horizontal bar, or null when this view does not scroll horizontally (tests). */
+    ScrollBar horizontalBar() {
+        return hBar;
     }
 
     /**
