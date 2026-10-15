@@ -1192,8 +1192,16 @@ public final class TabbedPane extends Widget<TabbedPane> {
             widest = Math.max(widest, textRuler().measure(header.title.get(), t.body()).width());
         }
         float w = 2 * t.popupRowInsetX() + t.popupMarkerCol() + widest + t.tabIconGap()
-                + t.tabIconSize() + t.popupRowInsetX();
+                + t.tabIconSize() + listClosePad(t) + t.popupRowInsetX();
         return Math.min(w, 480);
+    }
+
+    /**
+     * How far the close button of a row of the list stands in from the row's highlight: as far as
+     * it does from the highlight's top and bottom, so it sits in the band and not against its edge.
+     */
+    private static float listClosePad(SizeTokens t) {
+        return Math.max(0, (t.popupItemHeight() - t.tabIconSize()) / 2 - Strokes.ROW_GUTTER);
     }
 
     /**
@@ -1258,7 +1266,8 @@ public final class TabbedPane extends Widget<TabbedPane> {
         /** The close button's square in a row, at the end reading goes to. */
         private float closeLeft(SizeTokens t) {
             float side = t.tabIconSize();
-            return isRightToLeft() ? t.popupRowInsetX() : width() - t.popupRowInsetX() - side;
+            float edge = t.popupRowInsetX() + listClosePad(t);
+            return isRightToLeft() ? edge : width() - edge - side;
         }
 
         private boolean overClose(float x, float y, int row, SizeTokens t) {
@@ -1297,7 +1306,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
             float side = t.tabIconSize();
             float markX = rtl ? width() - inset - t.popupMarkerCol() / 2 : inset + t.popupMarkerCol() / 2;
             float textStart = rtl ? width() - inset - t.popupMarkerCol() : inset + t.popupMarkerCol();
-            float closeRoom = t.tabIconGap() + side + inset;
+            float closeRoom = t.tabIconGap() + side + listClosePad(t) + inset;
             canvas.save();
             canvas.clipRect(Strokes.ROW_CLIP, Strokes.ROW_CLIP,
                     width() - 2 * Strokes.ROW_CLIP, height() - 2 * Strokes.ROW_CLIP);
