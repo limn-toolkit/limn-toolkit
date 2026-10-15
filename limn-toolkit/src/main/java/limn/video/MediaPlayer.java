@@ -215,6 +215,10 @@ public final class MediaPlayer implements AutoCloseable {
     private long underruns;
     /** A seek has landed and its first picture has not been handed over yet; see {@link #takePicture()}. */
     private boolean seekPresentPending;
+    /** {@link #cue} began decoding before a start; where it began, and whether its picture is owed. */
+    private boolean cued;
+    private long cuedAt;
+    private boolean cuePresentPending;
     /** The clock's jump tally when the master was installed; a change means it moved off timeline. */
     private long lastJumpCount;
 
@@ -366,7 +370,17 @@ public final class MediaPlayer implements AutoCloseable {
             case IDLE -> {
             }
         }
+        if (cued) {
+            cued = false;
+            cuePresentPending = false;
+            if (cuedAt > 0) {
+                // The cue was a cover elsewhere in the stream; playing begins at the beginning.
+                requestSeek(0, VideoStreamSource.SeekMode.EXACT);
+                drainRing();
+            }
+        }
         if (ring.length != ringCapacity) {
+            drainRing(); // what a cue decoded into a ring of the old size goes back first
             ring = new VideoFrame[ringCapacity];
             ringPass = new int[ringCapacity];
         }
@@ -381,6 +395,78 @@ public final class MediaPlayer implements AutoCloseable {
                         "limn-video-decode-" + THREAD_SERIAL.incrementAndGet(), this::decodeLoop);
                 limn.concurrent.internal.LeftOpen.opened(this, "A MediaPlayer", this::close);
             }
+        }
+    }
+
+    /**
+     * Shows a picture before playing: on a player that has not started, decoding begins at
+     * {@code micros} with no sound and no clock, and the first picture from there is handed over
+     * once through {@link #takePicture()} while the player stays {@link State#IDLE}. That picture is
+     * a poster. {@link #start()} then plays from the beginning, seeking back first when the cue was
+     * elsewhere.
+     *
+     * <p>A stream that cannot seek is cued where it is, which for one never played is its first
+     * picture. A time past the end hands nothing over. Does nothing unless this player is idle, and
+     * nothing on one already cued.
+     *
+     * @param micros where the picture is, in microseconds on the pictures' own timeline; not
+     *               negative
+     * @throws IllegalArgumentException if {@code micros} is negative
+     * @throws IllegalStateException    if this player is closed
+     */
+    public void cue(long micros) {
+        Ui.checkUiThread();
+        Checks.notClosed(state == State.CLOSED, "this MediaPlayer");
+        Checks.notNegative(micros, "cue position");
+        if (state != State.IDLE || cued) {
+            return;
+        }
+        cued = true;
+        cuedAt = video.canSeek() ? micros : 0;
+        cuePresentPending = true;
+        if (ring.length != ringCapacity) {
+            ring = new VideoFrame[ringCapacity];
+            ringPass = new int[ringCapacity];
+        }
+        if (video.canSeek() && (cuedAt > 0 || decodedFrames > 0)) {
+            // To the start too once this player has read the stream: it is wherever it reached.
+            requestSeek(cuedAt, VideoStreamSource.SeekMode.EXACT);
+        }
+        synchronized (lock) {
+            decoding = true;
+            sourceEnded = false;
+            lock.notifyAll();
+            if (ownsDecodeThread && decodeThread == null) {
+                decodeThread = Threads.daemon(
+                        "limn-video-decode-" + THREAD_SERIAL.incrementAndGet(), this::decodeLoop);
+                limn.concurrent.internal.LeftOpen.opened(this, "A MediaPlayer", this::close);
+            }
+        }
+    }
+
+    /**
+     * @return whether a {@link #cue} is under way toward a picture not yet handed over: false once
+     *         it has been, and false when the stream ended with none to give
+     */
+    public boolean isCued() {
+        if (!cuePresentPending) {
+            return false;
+        }
+        synchronized (lock) {
+            return !(sourceEnded && count == 0);
+        }
+    }
+
+    /** Asks the decode thread to move before its next read, leaving the clock and the sound alone. */
+    private void requestSeek(long micros, VideoStreamSource.SeekMode mode) {
+        synchronized (lock) {
+            seekRequested = true;
+            seekMicros = micros;
+            seekMode = mode;
+            seekEpoch++;
+            sourceEnded = false;
+            decodePass = 0;
+            lock.notifyAll();
         }
     }
 
@@ -612,10 +698,10 @@ public final class MediaPlayer implements AutoCloseable {
      * The picture whose moment has come, or null to keep showing the current one. The caller owns
      * what it is given and must {@link VideoFrame#release() release} it exactly once.
      *
-     * <p>Returns null while paused, before the first start, after the end, after a failure, and
-     * whenever nothing in the ring is due yet. Pictures whose moment has already passed are dropped
-     * and released here rather than handed over late, which a caller holding a single picture could
-     * not do for itself.
+     * <p>Returns null while paused, before the first start (but for the one picture a
+     * {@linkplain #cue cue} hands over), after the end, after a failure, and whenever nothing in the
+     * ring is due yet. Pictures whose moment has already passed are dropped and released here rather
+     * than handed over late, which a caller holding a single picture could not do for itself.
      *
      * <p>The one exception to the pause is a seek: a player seeked while paused hands over the first
      * picture from the new position and then holds again, so that a paused scrub shows where it
@@ -632,6 +718,15 @@ public final class MediaPlayer implements AutoCloseable {
         }
         if (state == State.PAUSED) {
             return seekPresentPending ? takeAfterSeekWhilePaused() : null;
+        }
+        if (state == State.IDLE && cuePresentPending) {
+            synchronized (lock) {
+                if (count == 0) {
+                    return null; // still decoding it, or there is none: past the end
+                }
+            }
+            cuePresentPending = false;
+            return dequeue();
         }
         if (state != State.PLAYING) {
             return null;
@@ -1123,6 +1218,8 @@ public final class MediaPlayer implements AutoCloseable {
             seekRequested = false;
         }
         seekPresentPending = false;
+        cued = false; // a stop or a close ends a cue as it ends playing
+        cuePresentPending = false;
     }
 
     private void drainRing() {

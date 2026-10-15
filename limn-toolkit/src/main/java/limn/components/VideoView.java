@@ -13,7 +13,9 @@ import limn.scene.Constraints;
 import limn.scene.Scene;
 import limn.scene.Size;
 import limn.scene.Widget;
+import limn.graphics.Image;
 import limn.video.MediaPlayer;
+import limn.video.Poster;
 import limn.video.VideoClock;
 import limn.video.VideoFrame;
 import limn.video.VideoStreamSource;
@@ -203,6 +205,13 @@ public final class VideoView extends Widget<VideoView> {
      */
     private boolean autoplay;
 
+    /** What is shown before playback has shown a picture of its own; the stream's first by default. */
+    private Poster poster = Poster.firstPicture();
+    /** Whether playback was asked for since the source or player was installed: a poster's lifetime. */
+    private boolean played;
+    /** The stream shown directly was moved to the poster's time, and goes back to the start on play. */
+    private boolean posterSeeked;
+
     /** A view with no stream: it asks for no space and draws nothing until {@link #setSource}. */
     public VideoView() {
     }
@@ -245,10 +254,9 @@ public final class VideoView extends Widget<VideoView> {
      * <p>Applied when a source or player is installed, so set it before {@link #setSource} rather
      * than after; on a view that already holds one, {@code setPaused(false)} is what starts it.
      *
-     * <p>A stream shows its first picture either way: a paused video is a still frame, not an
-     * empty box. A {@link MediaPlayer} that has not been {@linkplain MediaPlayer#start() started}
-     * has decoded nothing and therefore shows nothing, which is that class's contract and not this
-     * one's.
+     * <p>Either way a paused video is a still frame, not an empty box: what it shows before it has
+     * played is its {@linkplain #setPoster poster}, the first picture unless set otherwise, with a
+     * stream and with a {@link MediaPlayer} that has not been started alike.
      */
     public VideoView setAutoplay(boolean newAutoplay) {
         Ui.checkUiThread();
@@ -279,7 +287,8 @@ public final class VideoView extends Widget<VideoView> {
      *
      * <p>The view does not {@linkplain MediaPlayer#start() start} the player either; a view that
      * started one would decide when a soundtrack begins, which belongs to whatever opened it. A
-     * player that has not been started shows the bar colour and nothing else.
+     * player that has not been started shows the {@linkplain #setPoster poster}, which for a picture
+     * this view {@linkplain MediaPlayer#cue cues} on the player: decoded, with nothing heard.
      *
      * <p>Re-measures, because the natural size is the player's stream's.
      */
@@ -309,7 +318,72 @@ public final class VideoView extends Widget<VideoView> {
         paused = !autoplay;
         clock.setPaused(paused);
         clock.reset();
+        played = false;
+        posterSeeked = false;
+        cuePlayer();
         markNeedsLayout();
+    }
+
+    /**
+     * Sets what this view shows before playback has shown a picture of its own: the stream's first
+     * picture by default, the picture at a time, an image of the application's, or nothing but the
+     * bar colour. Playback begins at the start of the stream whichever it is.
+     *
+     * <p>Shown from when a source or a player is installed until the first
+     * {@link #setPaused setPaused(false)}; once the video has played, a pause holds the picture it
+     * reached. A {@link MediaPlayer} that has not started is {@linkplain MediaPlayer#cue cued} for a
+     * picture poster, which decodes it with no sound. An image poster and none read nothing from the
+     * stream before playback.
+     *
+     * @param newPoster the poster
+     * @return this view
+     */
+    public VideoView setPoster(Poster newPoster) {
+        Ui.checkUiThread();
+        Objects.requireNonNull(newPoster, "poster");
+        if (newPoster.equals(poster)) {
+            return this;
+        }
+        poster = newPoster;
+        if (played) {
+            return this; // the poster's moment has passed; the next source or player shows it
+        }
+        releasePictures();
+        boolean wasRead = uploaded || posterSeeked;
+        uploaded = false;
+        primed = false;
+        if (player != null && player.state() == MediaPlayer.State.IDLE) {
+            player.stop(); // ends the old cue; nothing had sounded, since nothing had started
+            cuePlayer();
+        } else if (player == null && source != null && wasRead && source.canSeek()) {
+            source.seek(0, VideoStreamSource.SeekMode.EXACT); // the old poster read the stream
+        }
+        posterSeeked = false;
+        invalidate();
+        startTicking();
+        return this;
+    }
+
+    /** @return what this view shows before playback; {@link Poster#firstPicture()} unless set */
+    public Poster poster() {
+        return poster;
+    }
+
+    /** Asks a player nobody has started for the poster's picture. */
+    private void cuePlayer() {
+        if (player == null || autoplay || played || player.state() != MediaPlayer.State.IDLE) {
+            return;
+        }
+        if (poster instanceof Poster.At at) {
+            player.cue(at.micros());
+        } else if (poster instanceof Poster.FirstPicture) {
+            player.cue(0);
+        }
+    }
+
+    /** Whether the stream is left unread until playback: an image poster, or none. */
+    private boolean posterReadsNothing() {
+        return poster instanceof Poster.Still || poster instanceof Poster.None;
     }
 
     /** @return the stream whose declared size this view measures to, or null when there is none */
@@ -525,6 +599,14 @@ public final class VideoView extends Widget<VideoView> {
      */
     public VideoView setPaused(boolean newPaused) {
         Ui.checkUiThread();
+        if (!newPaused && !played) {
+            played = true;
+            if (player == null && source != null && posterSeeked) {
+                // The poster was a picture further in; playing begins at the start.
+                posterSeeked = false;
+                seek(0, VideoStreamSource.SeekMode.EXACT);
+            }
+        }
         paused = newPaused;
         if (player != null) {
             if (newPaused) {
@@ -906,6 +988,8 @@ public final class VideoView extends Widget<VideoView> {
         }
         if (uploaded && surface != null && surface.hasPicture()) {
             drawPicture(canvas);
+        } else if (poster instanceof Poster.Still still) {
+            drawStill(canvas, still.image());
         }
         startTicking();
     }
@@ -966,32 +1050,11 @@ public final class VideoView extends Widget<VideoView> {
         boolean quarter = isQuarterTurn(rotation);
         float pictureW = quarter ? storedH : storedW;
         float pictureH = quarter ? storedW : storedH;
-        float drawW;
-        float drawH;
-        if (fit == Fit.FILL) {
-            drawW = boxW;
-            drawH = boxH;
-        } else {
-            boolean widthBinds = fit == Fit.COVER
-                    ? boxW * pictureH >= boxH * pictureW
-                    : boxW * pictureH <= boxH * pictureW;
-            if (widthBinds) {
-                drawW = boxW;
-                drawH = boxW * pictureH / pictureW;
-            } else {
-                drawH = boxH;
-                drawW = boxH * pictureW / pictureH;
-            }
-        }
-        float epsilon = 0.5f / Math.max(1f, canvas.contentScale());
-        if (Math.abs(drawW - boxW) < epsilon) {
-            drawW = boxW;
-        }
-        if (Math.abs(drawH - boxH) < epsilon) {
-            drawH = boxH;
-        }
-        float x = (boxW - drawW) / 2;
-        float y = (boxH - drawH) / 2;
+        float[] fitted = fitted(pictureW, pictureH, canvas);
+        float x = fitted[0];
+        float y = fitted[1];
+        float drawW = fitted[2];
+        float drawH = fitted[3];
         boolean clipped = fit == Fit.COVER;
         if (clipped) {
             canvas.save();
@@ -1017,6 +1080,60 @@ public final class VideoView extends Widget<VideoView> {
             } finally {
                 canvas.restore();
             }
+        } finally {
+            if (clipped) {
+                canvas.restore();
+            }
+        }
+    }
+
+    /**
+     * Where a picture of {@code pictureW} by {@code pictureH} goes in the box under the fit, as
+     * {x, y, width, height} in logical points; see {@link #drawPicture}.
+     */
+    private float[] fitted(float pictureW, float pictureH, Canvas canvas) {
+        float boxW = width();
+        float boxH = height();
+        float drawW;
+        float drawH;
+        if (fit == Fit.FILL) {
+            drawW = boxW;
+            drawH = boxH;
+        } else {
+            boolean widthBinds = fit == Fit.COVER
+                    ? boxW * pictureH >= boxH * pictureW
+                    : boxW * pictureH <= boxH * pictureW;
+            if (widthBinds) {
+                drawW = boxW;
+                drawH = boxW * pictureH / pictureW;
+            } else {
+                drawH = boxH;
+                drawW = boxH * pictureW / pictureH;
+            }
+        }
+        float epsilon = 0.5f / Math.max(1f, canvas.contentScale());
+        if (Math.abs(drawW - boxW) < epsilon) {
+            drawW = boxW;
+        }
+        if (Math.abs(drawH - boxH) < epsilon) {
+            drawH = boxH;
+        }
+        return new float[] {(boxW - drawW) / 2, (boxH - drawH) / 2, drawW, drawH};
+    }
+
+    /** An image poster, fitted to the box as the video's own pictures are. */
+    private void drawStill(Canvas canvas, Image image) {
+        if (width() <= 0 || height() <= 0 || image.width() <= 0 || image.height() <= 0) {
+            return;
+        }
+        float[] at = fitted(image.width(), image.height(), canvas);
+        boolean clipped = fit == Fit.COVER;
+        if (clipped) {
+            canvas.save();
+            canvas.clipRect(0, 0, width(), height());
+        }
+        try {
+            canvas.drawImage(image, at[0], at[1], at[2], at[3]);
         } finally {
             if (clipped) {
                 canvas.restore();
@@ -1096,6 +1213,17 @@ public final class VideoView extends Widget<VideoView> {
         }
         if (source == null || ended || failure != null || due) {
             return;
+        }
+        if (paused && !played) {
+            if (posterReadsNothing()) {
+                return; // the stream is not read before playback
+            }
+            if (poster instanceof Poster.At at && !posterSeeked && !uploaded && picture == null
+                    && source.canSeek()) {
+                releasePictures();
+                source.seek(at.micros(), VideoStreamSource.SeekMode.EXACT);
+                posterSeeked = true;
+            }
         }
         try {
             if (picture == null) {
@@ -1314,7 +1442,12 @@ public final class VideoView extends Widget<VideoView> {
      * hands over nothing at all until something starts it, so there is nothing to wait for.
      */
     private boolean isFrozen() {
-        return isPaused() && (player != null || uploaded);
+        if (!isPaused()) {
+            return false;
+        }
+        // A player is watched by the poll whether or not a cue is under way: the poll takes the
+        // cued picture when it has come, and a ticker would ask for every frame until then.
+        return player != null || uploaded || (!played && posterReadsNothing());
     }
 
     /**
@@ -1351,6 +1484,9 @@ public final class VideoView extends Widget<VideoView> {
                 return; // the next paint re-arms; nothing to poll for meanwhile
             }
             if (isPaused()) {
+                if (player.isCued()) {
+                    advance(); // the poster, once the cue has decoded it
+                }
                 pollWhilePaused();
                 return;
             }

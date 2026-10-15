@@ -288,6 +288,13 @@ Maven Central say which number that was.
 
 ### New
 
+- A video shows a poster before it plays (ADR 069). `VideoView.setPoster(Poster)` takes
+  `Poster.firstPicture()` (the default), `Poster.at(Duration)` for the picture at a time,
+  `Poster.image(Image)` for a picture of the application's, or `Poster.none()`; playback starts
+  at the beginning whichever it is. A view showing a `MediaPlayer` nobody has started showed the
+  bar colour and now shows the first picture: the view cues it on the player with
+  `MediaPlayer.cue(long)`, which decodes one picture with no sound and no clock and leaves the
+  player idle.
 - `ScrollView.setBarInsets(Insets)` sets the bars' tracks in from the ends of their
   sides, for content that scrolls under something laid over it, a bar of glass across the top:
   the thumb starts below it and keeps its proportion of the shorter track.

@@ -55,6 +55,8 @@ final class RecordingTestCanvas implements Canvas {
     final java.util.List<Integer> clipDepths = new java.util.ArrayList<>();
     int paints;
     final java.util.List<SurfaceDraw> surfaces = new java.util.ArrayList<>();
+    /** Where each whole image was drawn, in the order drawn. */
+    final java.util.List<Rect> images = new java.util.ArrayList<>();
 
     RecordingTestCanvas(float width, float height) {
         this.width = width;
@@ -173,7 +175,10 @@ final class RecordingTestCanvas implements Canvas {
     @Override public TextMetrics measureText(String text, Font font) {
         return TestRulers.FIXED.measure(text, font);
     }
-    @Override public void drawImage(Image image, float x, float y, float w, float h) { paints++; }
+    @Override public void drawImage(Image image, float x, float y, float w, float h) {
+        paints++;
+        images.add(new Rect(x, y, w, h));
+    }
     @Override public void drawImage(Image image, float x, float y, float w, float h, Color tint) { paints++; }
     @Override public void drawImage(Image image, float srcX, float srcY, float srcW, float srcH,
                                     float dstX, float dstY, float dstW, float dstH) { paints++; }

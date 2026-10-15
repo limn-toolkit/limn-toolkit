@@ -493,6 +493,45 @@ class MediaPlayerTest {
 
     // ------------------------------------------------------------------ audio
 
+    /**
+     * A cue is a poster: one picture handed over with the player still idle and nothing sounding,
+     * and the track reaches the engine only when play is pressed, from the beginning.
+     */
+    @Test
+    void aCueHandsOnePictureOverSilentlyAndPlayStartsTheTrackAtTheBeginning() {
+        PooledTestStream stream = new PooledTestStream(64, 32, 4);
+        SteadyEngine engine = new SteadyEngine();
+        Sounds.installEngine(engine);
+        SilentSource track = new SilentSource();
+        Hand hand = new Hand();
+        MediaPlayer player = manual(stream, hand, 3);
+        try {
+            player.setAudio(track, PlayOptions.DEFAULTS);
+            player.cue(2 * FRAME_MICROS);
+            pump(player, 3);
+            VideoFrame poster = player.takePicture();
+            assertNotNull(poster, "the cued picture");
+            assertEquals(2 * FRAME_MICROS, poster.ptsMicros());
+            poster.release();
+            assertNull(player.takePicture(), "once, and then the player holds as an idle one does");
+            assertEquals(MediaPlayer.State.IDLE, player.state());
+            assertNull(engine.received, "a poster sounds nothing");
+            assertSame(Playback.NONE, player.audio());
+
+            player.start();
+            assertSame(track, engine.received, "play is what hands the track over");
+            pump(player, 3);
+            VideoFrame first = player.takePicture();
+            assertNotNull(first);
+            assertEquals(0, first.ptsMicros(), "playback starts at the beginning, not at the cue");
+            first.release();
+        } finally {
+            player.close();
+            Sounds.uninstallEngine(engine);
+        }
+        assertEquals(stream.slots(), stream.freeSlots());
+    }
+
     @Test
     void aTrackThatSoundsBecomesTheMasterAndTheEngineOwnsItFromThere() {
         PooledTestStream stream = new PooledTestStream(64, 32, 4);

@@ -1,0 +1,114 @@
+package limn.video;
+
+import limn.graphics.Image;
+
+import java.time.Duration;
+import java.util.Objects;
+
+/**
+ * What a video shows before it has played: its first picture, the picture at a time, a picture of
+ * the application's, or nothing but the bar colour. A poster is a cover, not a starting point:
+ * playback begins at the start of the stream whichever one is shown.
+ *
+ * <pre>{@code
+ * view.setPoster(Poster.at(Duration.ofSeconds(3)));   // a frame that says what the clip is
+ * view.setPoster(Poster.image(Images.fromResource("/clips/onboarding.png")));
+ * }</pre>
+ *
+ * <p>By time rather than by a picture's number: a stream is moved to an instant, and keeps no
+ * index of its pictures, so a number would cost decoding every picture before it, and on a stream
+ * whose rate varies the same number would land at different instants. At a constant rate, picture
+ * <i>n</i> is at <i>n</i> divided by the rate.
+ */
+public sealed interface Poster permits Poster.FirstPicture, Poster.At, Poster.Still, Poster.None {
+
+    /** The stream's first picture: the default. */
+    static Poster firstPicture() {
+        return FirstPicture.INSTANCE;
+    }
+
+    /**
+     * The picture at {@code time}, reached by an exact seek: the first at or after it. A stream that
+     * cannot seek shows its first picture instead, and a time past the end shows nothing.
+     *
+     * @param time where the picture is on the stream's own timeline; not negative
+     * @return the poster
+     * @throws IllegalArgumentException if {@code time} is negative
+     */
+    static Poster at(Duration time) {
+        Objects.requireNonNull(time, "time");
+        if (time.isNegative()) {
+            throw new IllegalArgumentException("a poster's time cannot be negative: " + time);
+        }
+        long micros = time.toNanos() / 1_000;
+        return micros == 0 ? FirstPicture.INSTANCE : new At(micros);
+    }
+
+    /**
+     * A picture of the application's, fitted to the box as the video's own pictures are. The stream
+     * is not read until playback starts.
+     *
+     * @param image the picture, which stays the caller's
+     * @return the poster
+     */
+    static Poster image(Image image) {
+        return new Still(Objects.requireNonNull(image, "image"));
+    }
+
+    /** Nothing: the bar colour until playback shows a picture. The stream is not read before. */
+    static Poster none() {
+        return None.INSTANCE;
+    }
+
+    /** The stream's first picture. */
+    final class FirstPicture implements Poster {
+        static final FirstPicture INSTANCE = new FirstPicture();
+
+        private FirstPicture() {
+        }
+
+        @Override
+        public String toString() {
+            return "Poster.firstPicture()";
+        }
+    }
+
+    /**
+     * The picture at a time.
+     *
+     * @param micros where, in microseconds on the stream's own timeline; above zero
+     */
+    record At(long micros) implements Poster {
+        /** @throws IllegalArgumentException if {@code micros} is not above zero */
+        public At {
+            if (micros <= 0) {
+                throw new IllegalArgumentException("a poster's time must be above zero: " + micros);
+            }
+        }
+    }
+
+    /**
+     * A picture of the application's.
+     *
+     * @param image the picture
+     */
+    record Still(Image image) implements Poster {
+        /** @throws NullPointerException if {@code image} is null */
+        public Still {
+            Objects.requireNonNull(image, "image");
+        }
+    }
+
+    /** Nothing but the bar colour. */
+    final class None implements Poster {
+        static final None INSTANCE = new None();
+
+        private None() {
+        }
+
+        @Override
+        public String toString() {
+            return "Poster.none()";
+        }
+    }
+}
