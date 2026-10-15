@@ -1986,7 +1986,7 @@ public final class TextArea extends Widget<TextArea> {
                     // Focus first: the menu's Cut and Paste act on this area, and one that was
                     // not focused when they run would edit while the caret lives elsewhere.
                     requestFocus();
-                    showContextMenu(event.x(), event.y());
+                    showContextMenu(sceneToLocalX(event.x()), sceneToLocalY(event.y()));
                     event.consume();
                     return;
                 }

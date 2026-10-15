@@ -16,6 +16,10 @@ Maven Central say which number that was.
   middle read as one at its end; it is now the text's ink, faint, on any theme. A disabled
   slider's fill takes the disabled text's grey, darker than the rail it fills, where it was
   lighter.
+- A menu asked for with the pointer opens at the pointer. `ContextMenus.attach`, a `TextField`
+  and a `TextArea` passed the mouse event's point, which is the scene's, as their own, so the
+  menu landed as far from the pointer as the widget was from the window's corner; the keyboard
+  route was right.
 - A disabled multiple-choice `ComboBox` shows its chips. Each was filled with the disabled
   fill, the tone of the field under it, so the captions floated apart with no chip around
   them; disabled, a chip takes the same faint ink as an empty rail.

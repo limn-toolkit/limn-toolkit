@@ -211,7 +211,8 @@ public final class ContextMenus {
         protected void onMouseEvent(MouseEvent event) {
             if (isRequest(event)) {
                 event.consume();
-                showAt(this, source.get(), event.x(), event.y());
+                // A mouse event's point is the scene's; showAt takes this widget's own.
+                showAt(this, source.get(), sceneToLocalX(event.x()), sceneToLocalY(event.y()));
             }
         }
 

@@ -1281,7 +1281,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
                     // Focus first: the menu's Cut and Paste act on this field, and a field that
                     // was not focused when they run would edit while the caret lives elsewhere.
                     requestFocus();
-                    showContextMenu(event.x(), event.y());
+                    showContextMenu(sceneToLocalX(event.x()), sceneToLocalY(event.y()));
                     event.consume();
                 } else if (event.button() == Keys.MOUSE_LEFT) {
                     if (overTrailing) {
