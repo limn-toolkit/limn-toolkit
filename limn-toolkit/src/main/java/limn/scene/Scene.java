@@ -3813,15 +3813,19 @@ public final class Scene {
      * passes on at once, as nothing took it.
      */
     private void dispatchWheel(Widget<?> hit, MouseEvent event) {
-        Widget<?> latch = wheelLatch != null && isInSubtree(hit, wheelLatch) ? wheelLatch : null;
+        Widget<?> latch = wheelLatch;
+        if (latch != null && latch.scene() == this && latch.isShowing()) {
+            // The gesture goes to the scroller that took it, and to nothing else, whatever is under
+            // the pointer now: a page scrolled back up carries a list under a pointer that does
+            // not move, and the rest of the gesture went to the list, which still had room.
+            timedDispatch(latch, event);
+            event.consume(); // held where it was taken, at its end or not
+            return;
+        }
         for (Widget<?> w = hit; w != null; w = w.parent()) {
             timedDispatch(w, event);
             if (event.isConsumed()) {
                 wheelLatch = w;
-                return;
-            }
-            if (w == latch) {
-                event.consume(); // the gesture stays where it was taken, at its end or not
                 return;
             }
         }

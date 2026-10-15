@@ -182,6 +182,40 @@ class ScrollViewTest extends ComponentTestBase {
         assertEquals(102, outer.offsetY(), EPS, "the new gesture found the inner view at its top");
     }
 
+    /**
+     * The page scrolled back up carries the inner view under a pointer that does not move: the
+     * rest of the gesture is the page's still, though the inner view could scroll.
+     */
+    @Test
+    void aGestureStaysWithThePageWhenTheInnerViewPassesUnderThePointer() {
+        long[] now = {0};
+        ScrollView inner = new ScrollView(new Box(100, 400));
+        Column page = new Column();
+        page.add(new Box(100, 200));
+        page.add(new limn.scene.layout.SizedBox(100, 100, inner));
+        page.add(new Box(100, 600));
+        ScrollView outer = new ScrollView(page);
+        Scene scene = new Scene(outer, () -> now[0]);
+        scene.layoutPass(100, 300);
+        outer.scrollTo(0, 150);
+        inner.scrollTo(0, 300); // scrolled to its end on the way down
+        scene.layoutPass(100, 300);
+        float y = 150; // over the page, below the inner view (page y 300)
+
+        drive(scene).scrolled(0, 1, 50, y, true);
+        drive(scene).inputBatchEnded();
+        scene.layoutPass(100, 300);
+        assertEquals(102, outer.offsetY(), EPS, "the page took the gesture");
+        assertTrue(inner.localToSceneY() <= y && y < inner.localToSceneY() + inner.height(),
+                "and the inner view is now under the pointer");
+
+        now[0] += 16_000_000L;
+        drive(scene).scrolled(0, 1, 50, y);
+        drive(scene).inputBatchEnded();
+        assertEquals(54, outer.offsetY(), EPS, "the rest of the gesture is the page's");
+        assertEquals(300, inner.offsetY(), EPS, "the inner view under the pointer took none of it");
+    }
+
     @Test
     void aSidewaysDetentAtAnEndOfANestedViewGoesToTheViewHoldingIt() {
         ScrollView inner = new ScrollView(new Box(400, 50), true, false);
