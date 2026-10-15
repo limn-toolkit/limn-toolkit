@@ -1527,10 +1527,14 @@ public final class TabbedPane extends Widget<TabbedPane> {
             if (delta == 0) {
                 return;
             }
-            event.consume();
             // A wheel detent is a device unit: the same flick travels the same distance in a
-            // dense strip and a roomy one, so this is locked rather than tabled.
+            // dense strip and a roomy one, so this is locked rather than tabled. Consumed only
+            // when the strip moved: at its first tab or its last the detent goes on outward.
+            float was = scrollOffset;
             scrollStripBy(-delta * Strokes.WHEEL_STEP);
+            if (scrollOffset != was) {
+                event.consume();
+            }
         }
 
         // --------------------------------------------------------- accessibility

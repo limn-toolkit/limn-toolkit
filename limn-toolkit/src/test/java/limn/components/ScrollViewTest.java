@@ -71,6 +71,81 @@ class ScrollViewTest extends ComponentTestBase {
         assertEquals(50, past.offsetY(), EPS, "and clamped by the content the layout measured");
     }
 
+    /**
+     * A view inside a scrolling page, as the glass page's shelf is: a detent that finds the inner
+     * view at an end of its axis, start or finish, scrolls the page; one that can still move the
+     * inner view moves it alone.
+     */
+    @Test
+    void aDetentAtAnEndOfANestedViewScrollsTheViewHoldingIt() {
+        ScrollView inner = new ScrollView(new Box(100, 400));
+        Column page = new Column();
+        page.add(new Box(100, 200));
+        page.add(new limn.scene.layout.SizedBox(100, 100, inner));
+        page.add(new Box(100, 600));
+        ScrollView outer = new ScrollView(page);
+        Scene scene = new Scene(outer);
+        scene.layoutPass(100, 300);
+        outer.scrollTo(0, 150); // the page scrolled down; the inner view sits at y 50..150
+        scene.layoutPass(100, 300);
+        assertEquals(0, inner.offsetY(), EPS);
+
+        drive(scene).scrolled(0, 1, 50, 100); // up, over the inner view at its top
+        drive(scene).inputBatchEnded();
+        assertEquals(0, inner.offsetY(), EPS, "nothing to give upward");
+        assertEquals(102, outer.offsetY(), EPS, "so the page took the detent");
+
+        scene.layoutPass(100, 300);
+        float y = inner.localToSceneY() + 50;
+        drive(scene).scrolled(0, -1, 50, y); // down: the inner view can move, and moves alone
+        drive(scene).inputBatchEnded();
+        assertEquals(48, inner.offsetY(), EPS);
+        assertEquals(102, outer.offsetY(), EPS);
+
+        inner.scrollTo(0, 300); // its end
+        drive(scene).scrolled(0, -1, 50, y);
+        drive(scene).inputBatchEnded();
+        assertEquals(300, inner.offsetY(), EPS);
+        assertEquals(150, outer.offsetY(), EPS, "at the inner view's end, down scrolls the page");
+    }
+
+    @Test
+    void aSidewaysDetentAtAnEndOfANestedViewGoesToTheViewHoldingIt() {
+        ScrollView inner = new ScrollView(new Box(400, 50), true, false);
+        limn.scene.layout.Row row = new limn.scene.layout.Row();
+        row.add(new Box(200, 50));
+        row.add(new limn.scene.layout.SizedBox(100, 50, inner));
+        row.add(new Box(600, 50));
+        ScrollView outer = new ScrollView(row, true, false);
+        Scene scene = new Scene(outer);
+        scene.layoutPass(300, 50);
+        outer.scrollTo(150, 0);
+        scene.layoutPass(300, 50);
+        drive(scene).scrolled(1, 0, inner.localToSceneX() + 50, 25); // toward the start
+        drive(scene).inputBatchEnded();
+        assertEquals(0, inner.offsetX(), EPS);
+        assertEquals(102, outer.offsetX(), EPS, "the inner view at its start passed it on");
+    }
+
+    @Test
+    void aTextAreaAtTheTopOfItsTextPassesAnUpwardDetentToThePage() {
+        TextArea area = new TextArea();
+        area.setText("one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine\nten\neleven\ntwelve");
+        Column page = new Column();
+        page.add(new Box(100, 200));
+        page.add(new limn.scene.layout.SizedBox(100, 80, area));
+        page.add(new Box(100, 600));
+        ScrollView outer = new ScrollView(page);
+        Scene scene = new Scene(outer);
+        scene.setTextRuler(RULER);
+        scene.layoutPass(100, 300);
+        outer.scrollTo(0, 150);
+        scene.layoutPass(100, 300);
+        drive(scene).scrolled(0, 1, 50, area.localToSceneY() + 40); // up, the text at its top
+        drive(scene).inputBatchEnded();
+        assertEquals(102, outer.offsetY(), EPS, "the page took the detent the area could not use");
+    }
+
     @Test
     void wheelThroughTheSceneScrollsAndIsConsumed() {
         Box content = new Box(100, 400);

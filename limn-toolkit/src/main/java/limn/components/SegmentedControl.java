@@ -934,13 +934,16 @@ public final class SegmentedControl extends Widget<SegmentedControl> {
                 }
                 float delta = event.scrollX() != 0 ? event.scrollX() : event.scrollY();
                 if (delta != 0) {
-                    event.consume();
+                    float was = scrollOffset;
                     // A detent is a device unit, so the same flick travels the same distance
                     // in a dense control and a roomy one: locked, not tabled. And it is a
                     // PHYSICAL gesture, so this sign is the same in both directions: the strip's
                     // origin already turns an advancing offset into the opposite physical
                     // movement, and flipping here too would undo it and scroll the wrong way.
                     scrollBy(-delta * Strokes.WHEEL_STEP);
+                    if (scrollOffset != was) {
+                        event.consume(); // at either end the detent goes on outward
+                    }
                 }
             }
             case PRESS -> event.consume();

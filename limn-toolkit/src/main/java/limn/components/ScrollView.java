@@ -683,9 +683,17 @@ public final class ScrollView extends Widget<ScrollView> implements Scrollable {
         // normal mapping so a tilt wheel and Shift cannot both drive the same axis in one event.
         boolean shiftToHorizontal = (event.modifiers() & Keys.MOD_SHIFT) != 0
                 && horizontal && maxOffsetX() > 0 && event.scrollY() != 0;
+        // Consumed only when the view moved: a detent that finds it at an end of the axis it would
+        // move, start or finish, is left to the scroller that holds it, as the keys already are
+        // and as a list, a table and a tree leave theirs. Kept, it made a view inside a scrolling
+        // page a wall the wheel could not get past.
+        float wasX = offsetX;
+        float wasY = offsetY;
         if (shiftToHorizontal) {
             scrollTo(offsetX - event.scrollY() * WHEEL_STEP, offsetY, Change.Origin.USER);
-            event.consume();
+            if (offsetX != wasX) {
+                event.consume();
+            }
             return;
         }
         boolean useY = vertical && maxOffsetY() > 0 && event.scrollY() != 0;
@@ -695,7 +703,9 @@ public final class ScrollView extends Widget<ScrollView> implements Scrollable {
         }
         scrollTo(offsetX + (useX ? -event.scrollX() * WHEEL_STEP : 0),
                 offsetY + (useY ? -event.scrollY() * WHEEL_STEP : 0), Change.Origin.USER);
-        event.consume();
+        if (offsetX != wasX || offsetY != wasY) {
+            event.consume();
+        }
     }
 
     @Override

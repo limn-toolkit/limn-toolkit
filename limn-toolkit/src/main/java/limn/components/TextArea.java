@@ -2037,17 +2037,27 @@ public final class TextArea extends Widget<TextArea> {
                 if (useY || useX) {
                     // A wheel detent is a DEVICE unit: the same physical flick must move the
                     // same physical distance in a dense editor and a roomy one.
+                    float wasX = scrollX;
+                    float wasY = scrollY;
                     if (useY) {
                         scrollY -= event.scrollY() * Strokes.WHEEL_STEP;
-                        vBar.onScrolled();
                     }
                     if (useX) {
                         scrollX -= event.scrollX() * Strokes.WHEEL_STEP;
-                        hBar.onScrolled();
                     }
                     clampScroll(t);
-                    invalidate();
-                    event.consume();
+                    // Consumed only when the text moved: at an end of the axis the detent goes
+                    // on to the scroller that holds the area, as a list's and a table's do.
+                    if (scrollY != wasY) {
+                        vBar.onScrolled();
+                    }
+                    if (scrollX != wasX) {
+                        hBar.onScrolled();
+                    }
+                    if (scrollX != wasX || scrollY != wasY) {
+                        invalidate();
+                        event.consume();
+                    }
                 }
             }
             default -> {
