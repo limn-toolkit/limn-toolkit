@@ -33,7 +33,7 @@ public final class Main {
             "showcase", "showcase-light", "dialog-open", "forms", "forms-light", "forms-popup",
             "components", "components-light", "widgets", "list", "table", "tree", "tree-scroll", "tree-deep", "tree-reserved", "tree-loading", "dates", "dates-light", "dates-popup", "dates-months", "dates-years", "dates-months-cursor", "dates-years-cursor", "dates-month-picker", "dates-month-picker-light", "dates-time-row", "dates-time-row-light", "dates-month-range", "dates-month-range-light", "form", "animations", "cursors",
             "sprites", "audio", "controls", "control-sizes", "control-sizes-audit",
-            "newcontrols", "newcontrols-light", "colorpicker", "colorpicker-light", "split",
+            "colorpicker", "colorpicker-light", "split",
             "split-light", "split-states", "split-states-light", "perf", "menu", "menu-dark",
             "viewport3d", "viewport3d-light", "gltf", "shadows", "ibl", "debugdraw", "blend3d",
             "dates-era", "dates-era-light",
@@ -355,8 +355,6 @@ public final class Main {
                 widgetScene = ColorPickerScene.create(scene.endsWith("-light"));
             } else if (scene.startsWith("split")) {
                 widgetScene = SplitPaneScene.create(scene.endsWith("-light"));
-            } else if (scene.startsWith("newcontrols")) {
-                widgetScene = NewControlsScene.create(scene.endsWith("-light"));
             } else if (scene.startsWith("viewport3d")) {
                 widgetScene = Viewport3DScene.create(scene.endsWith("-light"));
             } else if (scene.startsWith("icons")) {

@@ -23,8 +23,8 @@
  22         label "Buttons and inputs" [disabled]
  23       tree item "Combo boxes" [disabled, selectable] item 2 of 20 unselected level 2 row 4 of 28
  24         label "Combo boxes" [disabled]
- 25       tree item "Sliders and more" [disabled, selectable] item 3 of 20 unselected level 2 row 5 of 28
- 26         label "Sliders and more" [disabled]
+ 25       tree item "Sliders and spinners" [disabled, selectable] item 3 of 20 unselected level 2 row 5 of 28
+ 26         label "Sliders and spinners" [disabled]
  27       tree item "Dates" [disabled, selectable] item 4 of 20 unselected level 2 row 6 of 28
  28         label "Dates" [disabled]
  29       tree item "Lists" [disabled, selectable] item 5 of 20 unselected level 2 row 7 of 28

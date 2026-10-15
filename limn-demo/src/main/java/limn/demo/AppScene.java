@@ -172,14 +172,8 @@ final class AppScene {
                         () -> scrolling(BasicsScene.content())).icon("forms"),
                 new Place(ShowcaseStrings.NAV_COMBOS, "components/#combo-box",
                         () -> scrolling(CombosScene.content())).icon("select"),
-                new Place(ShowcaseStrings.NAV_SLIDERS, "components/#slider", () -> {
-                    limn.scene.layout.Column both = new limn.scene.layout.Column();
-                    both.gap(16).crossAlignment(Flex.CrossAlignment.STRETCH);
-                    both.add(ControlsScene.content());
-                    both.add(Separator.horizontal());
-                    both.add(NewControlsScene.content());
-                    return scrolling(both);
-                }).icon("adjustments-horizontal"),
+                new Place(ShowcaseStrings.NAV_SLIDERS, "components/#slider",
+                        () -> scrolling(ControlsScene.content())).icon("adjustments-horizontal"),
                 new Place(ShowcaseStrings.TAB_DATES, "components/#date-picker",
                         () -> scrolling(DatesScene.content())).icon("calendar"),
                 new Place(ShowcaseStrings.NAV_LISTS, "docs/lists-and-scrolling/#long-lists",
