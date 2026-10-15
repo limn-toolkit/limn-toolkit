@@ -4,55 +4,60 @@ import limn.backend.Clipboard;
 import limn.components.Button;
 import limn.components.ImageView;
 import limn.components.Label;
+import limn.components.TextField;
 import limn.components.Theme;
-import limn.graphics.Canvas;
-import limn.graphics.Font;
 import limn.graphics.Image;
-import limn.graphics.TextMetrics;
-import limn.input.Keys;
-import limn.scene.Constraints;
+import limn.i18n.I18nString;
+import limn.i18n.PluralString;
+import limn.icons.tabler.Tabler;
 import limn.scene.Insets;
 import limn.scene.Scene;
-import limn.scene.Size;
 import limn.scene.Widget;
-import limn.scene.event.DragEvent;
-import limn.scene.event.DragStartEvent;
-import limn.scene.event.DropEvent;
-import limn.scene.event.KeyEvent;
-import limn.scene.event.MouseEvent;
 import limn.scene.layout.Column;
 import limn.scene.layout.Expanded;
 import limn.scene.layout.Flex;
 import limn.scene.layout.Padding;
 import limn.scene.layout.Row;
+import limn.scene.layout.SizedBox;
 import limn.transfer.DataFormat;
-import limn.transfer.Drag;
-import limn.transfer.DropAction;
 import limn.transfer.Offer;
 import limn.transfer.Transfer;
 
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.StringJoiner;
-
 /**
- * Drag and drop and the clipboard on one screen: two boards whose cards are dragged within and
- * between them, by pointer or by keyboard; an area that takes files dragged from the file
- * manager; and a copy and a paste of text, HTML, a picture and files. {@code --scene transfer}.
+ * The clipboard: a line of an invoice copied, cut and pasted, here or in another program, and
+ * what the clipboard held when it was pasted, in its formats and its picture.
+ * {@code --scene transfer}.
  */
 final class TransferScene {
 
-    /** A card, by identity: two cards may read the same. */
-    static final class Card {
-        final String text;
+    /** Every string the page shows. */
+    static final class Text {
+        static final I18nString INVOICE_LINE = new I18nString("showcase.clipboard.invoiceLine", "Invoice line");
+        static final I18nString INVOICE = new I18nString("showcase.clipboard.invoice", "Invoice");
+        static final I18nString CUSTOMER = new I18nString("showcase.clipboard.customer", "Customer");
+        static final I18nString AMOUNT = new I18nString("showcase.clipboard.amount", "Amount");
+        static final I18nString DUE = new I18nString("showcase.clipboard.due", "Due");
+        static final I18nString COPY = new I18nString("showcase.clipboard.copy", "Copy");
+        static final I18nString CUT = new I18nString("showcase.clipboard.cut", "Cut");
+        static final I18nString PASTE = new I18nString("showcase.clipboard.paste", "Paste");
+        static final I18nString RECEIVED = new I18nString("showcase.clipboard.received", "Last paste");
+        static final I18nString NOTHING_YET = new I18nString("showcase.clipboard.nothingYet", "Nothing pasted yet.");
+        static final I18nString EMPTY = new I18nString("showcase.clipboard.empty", "The clipboard is empty.");
+        static final I18nString FORMAT_TEXT = new I18nString("showcase.clipboard.formatText", "Plain text");
+        static final I18nString FORMAT_HTML = new I18nString("showcase.clipboard.formatHtml", "Formatted text");
+        static final I18nString FORMAT_IMAGE = new I18nString("showcase.clipboard.formatImage", "Picture");
+        static final I18nString FORMAT_FILES = new I18nString("showcase.clipboard.formatFiles", "Files");
+        static final I18nString FORMAT_OTHER = new I18nString("showcase.clipboard.formatOther", "Other: {0}");
+        static final I18nString COPIED = new I18nString("showcase.clipboard.copied",
+                "Invoice {0} copied as text, a table and a picture.");
+        static final I18nString CUT_DONE = new I18nString("showcase.clipboard.cutDone", "Invoice {0} cut.");
+        static final I18nString PASTED = new I18nString("showcase.clipboard.pasted", "Invoice {0} pasted.");
+        static final PluralString FORMATS = PluralString.of("showcase.clipboard.formats",
+                "Pasted: {0} format.", "Pasted: {0} formats.");
 
-        Card(String text) {
-            this.text = text;
+        private Text() {
         }
     }
-
-    static final DataFormat<Card> CARD = DataFormat.inProcess("application/x-limn-demo-card", Card.class);
 
     private TransferScene() {
     }
@@ -65,65 +70,152 @@ final class TransferScene {
     }
 
     static Widget<?> content() {
-        Column column = new Column();
-        column.gap(14).crossAlignment(Flex.CrossAlignment.STRETCH);
-        column.add(new Label("Drag and drop").setRole(Label.Role.TITLE));
-        column.add(new Label("Drag a card to another place or to the other board.")
-                .setMuted(true).setWrap(true));
+        TextField invoice = new TextField().setText("1042");
+        TextField customer = new TextField().setText("Harbor Supply");
+        TextField amount = new TextField().setText("1,250.00");
+        TextField due = new TextField().setText("2026-11-14");
+        TextField[] fields = {invoice, customer, amount, due};
 
-        Label status = new Label("Nothing dragged yet.").setMuted(true);
-        Board todo = new Board("To do", status);
-        todo.cards.addAll(List.of(new Card("Invoice 1042"), new Card("Call Ana"), new Card("Renew contract"),
-                new Card("Ship order 77"), new Card("Review budget")));
-        Board done = new Board("Done", status);
-        done.cards.addAll(List.of(new Card("Pay supplier"), new Card("Send report")));
-        Row boards = new Row();
-        boards.gap(16).crossAlignment(Flex.CrossAlignment.START);
-        boards.add(Expanded.of(todo, 1));
-        boards.add(Expanded.of(done, 1));
-        boards.add(Expanded.of(new FileArea(), 1));
-        column.add(boards);
-        column.add(status);
+        Row line = new Row();
+        line.gap(12).crossAlignment(Flex.CrossAlignment.END);
+        line.add(new SizedBox(90, SizedBox.UNSET, Page.field(Text.INVOICE, invoice)));
+        line.add(Expanded.of(Page.field(Text.CUSTOMER, customer), 1));
+        line.add(new SizedBox(120, SizedBox.UNSET, Page.field(Text.AMOUNT, amount)));
+        line.add(new SizedBox(120, SizedBox.UNSET, Page.field(Text.DUE, due)));
 
-        column.add(new Label("Clipboard").setRole(Label.Role.TITLE));
-        Label clip = new Label("Copy here and paste in another program, or the other way round.").setMuted(true).setWrap(true);
-        ImageView pasted = new ImageView((limn.graphics.Image) null).setPreferredSize(160, 100);
-        Row buttons = new Row();
-        buttons.gap(8).crossAlignment(Flex.CrossAlignment.CENTER);
-        Button copy = new Button("Copy");
+        Column formats = new Column();
+        formats.gap(6).crossAlignment(Flex.CrossAlignment.START);
+        formats.add(new Label(Text.NOTHING_YET).setMuted(true));
+        ImageView pasted = new ImageView((Image) null).setPreferredSize(160, 80);
+        pasted.setVisible(false);
+
+        Button copy = new Button(Text.COPY).setSecondary(true);
+        copy.setIcon(Tabler.outline("copy"));
+        Button cut = new Button(Text.CUT).setSecondary(true);
+        cut.setIcon(Tabler.outline("scissors"));
+        Button paste = new Button(Text.PASTE).setSecondary(true);
+        paste.setIcon(Tabler.outline("clipboard"));
+
         copy.onAction(() -> {
-            Clipboard clipboard = copy.scene().clipboard();
-            clipboard.set(Transfer.of(DataFormat.TEXT, "Invoice 1042\tR$ 1.250,00")
-                    .with(DataFormat.HTML, "<table><tr><td><b>Invoice 1042</b></td><td>R$ 1.250,00</td></tr></table>")
-                    .withLazy(DataFormat.IMAGE, TransferScene::picture)
-                    .with(DataFormat.FILES, List.of(Path.of(System.getProperty("user.home")),
-                            Path.of(System.getProperty("java.home")))));
-            clip.setText("Copied: text, an HTML table, a picture (made when somebody pastes it) and two folders.");
+            if (copy.scene() != null) {
+                copy.scene().clipboard().set(line(fields));
+                Page.report(Text.COPIED.format(invoice.text()));
+            }
         });
-        Button paste = new Button("Paste");
+        cut.onAction(() -> {
+            if (cut.scene() != null) {
+                cut.scene().clipboard().set(line(fields));
+                Page.report(Text.CUT_DONE.format(invoice.text()));
+                for (TextField field : fields) {
+                    field.setText("");
+                }
+            }
+        });
         paste.onAction(() -> {
-            Offer offer = paste.scene().clipboard().content();
-            StringJoiner formats = new StringJoiner(", ");
-            offer.formats().forEach(format -> formats.add(format.name()));
-            clip.setText(offer.formats().isEmpty() ? "The clipboard is empty." : "On the clipboard: " + formats);
-            pasted.setImage(null);
-            if (offer.has(DataFormat.IMAGE)) {
-                offer.read(DataFormat.IMAGE).thenAccept(pasted::setImage);
+            if (paste.scene() == null) {
+                return;
             }
-            if (offer.has(DataFormat.FILES)) {
-                offer.read(DataFormat.FILES).thenAccept(files ->
-                        clip.setText(clip.text() + ". Files: " + files));
-            } else if (offer.has(DataFormat.TEXT)) {
-                offer.read(DataFormat.TEXT).thenAccept(text ->
-                        clip.setText(clip.text() + ". Text: " + (text.length() > 80 ? text.substring(0, 80) + "…" : text)));
+            Clipboard clipboard = paste.scene().clipboard();
+            Offer offer = clipboard.content();
+            for (Widget<?> old : new java.util.ArrayList<>(formats.children())) {
+                formats.remove(old);
+            }
+            pasted.setImage(null);
+            pasted.setVisible(false);
+            if (offer.formats().isEmpty()) {
+                formats.add(new Label(Text.EMPTY).setMuted(true));
+                Page.report(Text.EMPTY.get());
+                return;
+            }
+            for (DataFormat<?> format : offer.formats()) {
+                formats.add(formatRow(format));
+            }
+            Page.report(Text.FORMATS.format(offer.formats().size()));
+            if (offer.has(DataFormat.IMAGE)) {
+                offer.read(DataFormat.IMAGE).thenAccept(image -> {
+                    pasted.setImage(image);
+                    pasted.setVisible(image != null);
+                });
+            }
+            if (offer.has(DataFormat.TEXT)) {
+                offer.read(DataFormat.TEXT).thenAccept(text -> {
+                    // A line of this form, tab-separated, fills it; any other text goes to the
+                    // customer, the field text is most often pasted into.
+                    String[] cells = text.strip().split("\t");
+                    if (cells.length == fields.length) {
+                        for (int i = 0; i < cells.length; i++) {
+                            fields[i].setText(cells[i]);
+                        }
+                        Page.report(Text.PASTED.format(cells[0]));
+                    } else if (!text.isBlank()) {
+                        customer.setText(text.strip().lines().findFirst().orElse(""));
+                    }
+                });
             }
         });
-        buttons.add(copy);
-        buttons.add(paste);
-        column.add(buttons);
-        column.add(clip);
-        column.add(pasted);
-        return column;
+
+        Column received = new Column();
+        received.gap(10).crossAlignment(Flex.CrossAlignment.START);
+        received.add(formats);
+        received.add(pasted);
+
+        Column page = Page.column();
+        page.add(Page.firstSection(Text.INVOICE_LINE));
+        Column form = new Column();
+        form.gap(Page.GAP).crossAlignment(Flex.CrossAlignment.STRETCH);
+        form.add(line);
+        Row buttons = Page.row(8, copy, cut, paste);
+        buttons.add(Expanded.spacer(1));
+        form.add(buttons);
+        page.add(Page.narrow(640, form));
+        page.add(Page.section(Text.RECEIVED));
+        page.add(Page.narrow(640, Page.card(received)));
+        return page;
+    }
+
+    /** One format the clipboard held, in words and with its icon. */
+    private static Widget<?> formatRow(DataFormat<?> format) {
+        I18nString name;
+        String icon;
+        if (format.equals(DataFormat.TEXT)) {
+            name = Text.FORMAT_TEXT;
+            icon = "file-text";
+        } else if (format.equals(DataFormat.HTML)) {
+            name = Text.FORMAT_HTML;
+            icon = "table";
+        } else if (format.equals(DataFormat.IMAGE)) {
+            name = Text.FORMAT_IMAGE;
+            icon = "photo";
+        } else if (format.equals(DataFormat.FILES)) {
+            name = Text.FORMAT_FILES;
+            icon = "files";
+        } else {
+            name = I18nString.literal(Text.FORMAT_OTHER.format(format.name()));
+            icon = "file";
+        }
+        return new Label(name).setIcon(Tabler.outline(icon));
+    }
+
+    /** The invoice line in three formats: tab-separated text, an HTML table, and a picture. */
+    private static Transfer line(TextField[] fields) {
+        StringBuilder text = new StringBuilder();
+        StringBuilder html = new StringBuilder("<table><tr>");
+        for (int i = 0; i < fields.length; i++) {
+            if (i > 0) {
+                text.append('\t');
+            }
+            text.append(fields[i].text());
+            html.append("<td>").append(escape(fields[i].text())).append("</td>");
+        }
+        html.append("</tr></table>");
+        return Transfer.of(DataFormat.TEXT, text.toString())
+                .with(DataFormat.HTML, html.toString())
+                // Made only when somebody pastes it.
+                .withLazy(DataFormat.IMAGE, TransferScene::picture);
+    }
+
+    private static String escape(String text) {
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 
     /** A picture made in code: bands of colour, so that a paste elsewhere is recognisable. */
@@ -142,214 +234,5 @@ final class TransferScene {
             }
         }
         return new Image(w, h, rgba);
-    }
-
-    /** A column of cards that are dragged out of it and dropped into it. */
-    private static final class Board extends Widget<Board> {
-
-        private static final float HEADER = 34;
-        private static final float ROW = 32;
-        private static final float PAD = 8;
-
-        final List<Card> cards = new ArrayList<>();
-        private final String title;
-        private final Label status;
-        private int focusedCard;
-        /** Where a drop would land, as an index among the cards, or -1 while nothing is over. */
-        private int dropAt = -1;
-        private boolean movedWithin;
-
-        Board(String title, Label status) {
-            this.title = title;
-            this.status = status;
-            setFocusable(true);
-            setAccessibleName(title);
-            setAccessibleRole(limn.accessibility.Accessible.Role.LIST);
-        }
-
-        @Override
-        protected Size onMeasure(Constraints c) {
-            return c.constrain(c.maxWidth(), HEADER + 8 * ROW + PAD);
-        }
-
-        private int indexAt(float sceneY) {
-            float y = sceneY - localToSceneY() - HEADER;
-            return Math.max(0, Math.min(cards.size(), Math.round(y / ROW)));
-        }
-
-        @Override
-        protected void onMouseEvent(MouseEvent event) {
-            if (event.type() == MouseEvent.Type.PRESS) {
-                int card = (int) Math.floor((event.y() - localToSceneY() - HEADER) / ROW);
-                if (card >= 0 && card < cards.size()) {
-                    focusedCard = card;
-                    invalidate();
-                }
-            }
-        }
-
-        @Override
-        protected void onKeyEvent(KeyEvent event) {
-            if (event.isPressed() && (event.key() == Keys.UP || event.key() == Keys.DOWN) && !cards.isEmpty()) {
-                focusedCard = Math.max(0, Math.min(cards.size() - 1, focusedCard + (event.key() == Keys.UP ? -1 : 1)));
-                invalidate();
-                event.consume();
-            }
-        }
-
-        @Override
-        protected Drag onDragStart(DragStartEvent event) {
-            int index = event.isKeyboard() ? focusedCard
-                    : (int) Math.floor((event.y() - localToSceneY() - HEADER) / ROW);
-            if (index < 0 || index >= cards.size()) {
-                return null;
-            }
-            Card card = cards.get(index);
-            movedWithin = false;
-            return Drag.of(Transfer.of(CARD, card).with(DataFormat.TEXT, card.text))
-                    .allow(DropAction.MOVE, DropAction.COPY)
-                    .describedAs(card.text)
-                    // The card alone, on nothing: its rounded corners stay see-through wherever it goes.
-                    .preview(width() - 2 * PAD, ROW - 4,
-                            event.isKeyboard() ? 0 : event.x() - localToSceneX() - PAD,
-                            event.isKeyboard() ? 0 : event.y() - localToSceneY() - HEADER - index * ROW - 2,
-                            canvas -> paintCard(canvas, card, 0, 0, width() - 2 * PAD, false))
-                    .onEnd(action -> {
-                        if (action == DropAction.MOVE && !movedWithin) {
-                            cards.remove(card);
-                            focusedCard = Math.max(0, Math.min(focusedCard, cards.size() - 1));
-                        }
-                        status.setText(action == null ? "\"" + card.text + "\": nothing took it."
-                                : "\"" + card.text + "\": " + action.name().toLowerCase(java.util.Locale.ROOT) + ".");
-                        invalidate();
-                    });
-        }
-
-        @Override
-        protected void onDragOver(DragEvent event) {
-            if (!event.offer().has(CARD)) {
-                return;
-            }
-            if (event.isKeyboard()) {
-                // The first time, the end of the board (or the card's own place in its own board);
-                // then each arrow moves the place one card.
-                if (dropAt < 0) {
-                    dropAt = event.source() == this ? focusedCard : cards.size();
-                }
-                dropAt = Math.max(0, Math.min(cards.size(), dropAt + event.stepY()));
-                event.describePlace(title + ", place " + (dropAt + 1) + " of " + (cards.size() + 1)
-                        + (dropAt < cards.size() ? ", before " + cards.get(dropAt).text : ", at the end"));
-            } else {
-                dropAt = indexAt(event.y());
-            }
-            event.accept();
-            invalidate();
-        }
-
-        @Override
-        protected void onDragExit(DragEvent event) {
-            dropAt = -1;
-            invalidate();
-        }
-
-        @Override
-        protected void onDrop(DropEvent event) {
-            int at = dropAt;
-            dropAt = -1;
-            event.offer().read(CARD).thenAccept(card -> {
-                int index = Math.max(0, Math.min(cards.size(), at));
-                if (event.action() == DropAction.MOVE && event.source() == this) {
-                    int from = cards.indexOf(card);
-                    cards.remove(from);
-                    index = from < index ? index - 1 : index;
-                    cards.add(index, card);
-                    ((Board) event.source()).movedWithin = true;
-                } else {
-                    cards.add(index, event.action() == DropAction.COPY ? new Card(card.text) : card);
-                }
-                focusedCard = index;
-                invalidate();
-            });
-        }
-
-        /** One card, as it stands in the board and as it is dragged. */
-        private void paintCard(Canvas canvas, Card card, float x, float y, float w, boolean focused) {
-            Theme theme = Theme.current();
-            Font font = theme.body();
-            TextMetrics m = textRuler().measure("Hg", font);
-            float h = ROW - 4;
-            canvas.fillRoundRectWithBorder(x, y, w, h, theme.tokensFor(this).radiusMedium(), theme.surface(), 1,
-                    focused ? theme.focusRing() : theme.outline());
-            canvas.drawText(card.text, x + 10, y + (h - m.height()) / 2 + m.ascent(), font, theme.text());
-        }
-
-        @Override
-        protected void onPaint(Canvas canvas) {
-            Theme theme = Theme.current();
-            float radius = theme.tokensFor(this).radiusMedium();
-            canvas.fillRoundRectWithBorder(0, 0, width(), height(), radius, theme.surfaceRaised(), 1,
-                    isFocused() ? theme.focusRing() : theme.outline());
-            Font font = theme.body();
-            TextMetrics m = textRuler().measure("Hg", font);
-            canvas.drawText(title + " (" + cards.size() + ")", PAD + 4, (HEADER - m.height()) / 2 + m.ascent(),
-                    font, theme.textMuted());
-            for (int i = 0; i < cards.size(); i++) {
-                paintCard(canvas, cards.get(i), PAD, HEADER + i * ROW + 2, width() - 2 * PAD,
-                        isFocused() && i == focusedCard);
-            }
-            if (dropAt >= 0) {
-                float y = HEADER + Math.min(dropAt, cards.size()) * ROW;
-                canvas.fillRect(PAD, y - 1, width() - 2 * PAD, 3, theme.focusRing());
-            }
-        }
-    }
-
-    /** Takes files dragged in from the file manager, and says their names. */
-    private static final class FileArea extends Widget<FileArea> {
-
-        private final List<String> names = new ArrayList<>();
-
-        FileArea() {
-            setAccessibleName("Files dropped here");
-            setAccessibleRole(limn.accessibility.Accessible.Role.GROUP);
-        }
-
-        @Override
-        protected Size onMeasure(Constraints c) {
-            return c.constrain(c.maxWidth(), 34 + 8 * 32 + 8);
-        }
-
-        @Override
-        protected void onDragOver(DragEvent event) {
-            if (event.offer().has(DataFormat.FILES)) {
-                event.accept();
-            }
-        }
-
-        @Override
-        protected void onDrop(DropEvent event) {
-            event.offer().read(DataFormat.FILES).thenAccept(files -> {
-                names.clear();
-                for (Path file : files) {
-                    names.add(file.getFileName() != null ? file.getFileName().toString() : file.toString());
-                }
-                invalidate();
-            });
-        }
-
-        @Override
-        protected void onPaint(Canvas canvas) {
-            Theme theme = Theme.current();
-            canvas.fillRoundRectWithBorder(0, 0, width(), height(), theme.tokensFor(this).radiusMedium(),
-                    theme.surfaceRaised(), 1, theme.outline());
-            Font font = theme.body();
-            TextMetrics m = textRuler().measure("Hg", font);
-            canvas.drawText(names.isEmpty() ? "Drop files here" : "Dropped (" + names.size() + ")",
-                    12, (34 - m.height()) / 2 + m.ascent(), font, theme.textMuted());
-            for (int i = 0; i < Math.min(names.size(), 8); i++) {
-                canvas.drawText(names.get(i), 12, 34 + i * 32 + (32 - m.height()) / 2 + m.ascent(), font,
-                        theme.text());
-            }
-        }
     }
 }
