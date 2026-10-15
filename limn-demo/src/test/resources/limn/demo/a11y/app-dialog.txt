@@ -13,186 +13,183 @@
  12   combo box "Theme" (explicit) [disabled, expandable, has-popup] value=2 [0..15 step 1] "Dark" collapsed
  13   separator "" [disabled, horizontal]
  14   split pane "Pages" (explicit) [disabled]
- 15     tree "Pages" (explicit) [disabled] selection=single scroll v=0% view 76%
- 16       scroll bar "" [disabled, vertical] value=0 [0..160 step 512]
- 17       tree item "Orders" [disabled, selectable, selected] item 1 of 3 selected level 1 row 1 of 28
- 18         label "Orders" [disabled]
- 19       tree item "Components" [disabled, selectable, expanded, expandable] item 2 of 3 unselected expanded level 1 row 2 of 28
- 20         label "Components" [disabled]
- 21       tree item "Buttons and inputs" [disabled, selectable] item 1 of 20 unselected level 2 row 3 of 28
- 22         label "Buttons and inputs" [disabled]
- 23       tree item "Combo boxes" [disabled, selectable] item 2 of 20 unselected level 2 row 4 of 28
- 24         label "Combo boxes" [disabled]
- 25       tree item "Sliders and spinners" [disabled, selectable] item 3 of 20 unselected level 2 row 5 of 28
- 26         label "Sliders and spinners" [disabled]
- 27       tree item "Dates" [disabled, selectable] item 4 of 20 unselected level 2 row 6 of 28
- 28         label "Dates" [disabled]
- 29       tree item "Lists" [disabled, selectable] item 5 of 20 unselected level 2 row 7 of 28
- 30         label "Lists" [disabled]
- 31       tree item "Tables" [disabled, selectable] item 6 of 20 unselected level 2 row 8 of 28
- 32         label "Tables" [disabled]
- 33       tree item "Trees" [disabled, selectable] item 7 of 20 unselected level 2 row 9 of 28
- 34         label "Trees" [disabled]
- 35       tree item "Dialogs" [disabled, selectable] item 8 of 20 unselected level 2 row 10 of 28
- 36         label "Dialogs" [disabled]
- 37       tree item "Menus" [disabled, selectable] item 9 of 20 unselected level 2 row 11 of 28
- 38         label "Menus" [disabled]
- 39       tree item "Drag and drop" [disabled, selectable] item 10 of 20 unselected level 2 row 12 of 28
- 40         label "Drag and drop" [disabled]
- 41       tree item "Clipboard" [disabled, selectable] item 11 of 20 unselected level 2 row 13 of 28
- 42         label "Clipboard" [disabled]
- 43       tree item "Tray icon" [disabled, selectable] item 12 of 20 unselected level 2 row 14 of 28
- 44         label "Tray icon" [disabled]
- 45       tree item "Charts" [disabled, selectable] item 13 of 20 unselected level 2 row 15 of 28
- 46         label "Charts" [disabled]
- 47       tree item "Text and scripts" [disabled, selectable] item 14 of 20 unselected level 2 row 16 of 28
- 48         label "Text and scripts" [disabled]
- 49       tree item "Icons" [disabled, selectable] item 15 of 20 unselected level 2 row 17 of 28
- 50         label "Icons" [disabled]
- 51       tree item "Files" [disabled, selectable] item 16 of 20 unselected level 2 row 18 of 28
- 52         label "Files" [disabled]
- 53       tree item "Colours" [disabled, selectable] item 17 of 20 unselected level 2 row 19 of 28
- 54         label "Colours" [disabled]
- 55       tree item "Split panes" [disabled, selectable] item 18 of 20 unselected level 2 row 20 of 28
- 56         label "Split panes" [disabled]
- 57       tree item "Tabs and sections" [disabled, selectable] item 19 of 20 unselected level 2 row 21 of 28
- 58         label "Tabs and sections" [disabled]
- 59       tree item "Motion" [disabled, selectable] item 20 of 20 unselected level 2 row 22 of 28
- 60         label "Motion" [disabled]
- 61     splitter "Divider" [disabled, horizontal] value=232 [232..371 step 10]
- 62     heading "Orders" [disabled]
- 63     label "48 of 48" [disabled]
- 64     search field "Customer or number" (explicit) [disabled, editable] text="" caret=0
- 65       button "Clear" [disabled]
- 66     combo box "Status" (explicit) [disabled, expandable, has-popup, read-only] value=0 [0..5 step 1] "None selected" read-only collapsed
- 67     button "Mark as paid" [disabled, offscreen]
- 68     button "New order" [disabled, offscreen]
- 69     table "Orders" (explicit) [disabled] selection=multiple scroll v=0% view 20% h=0% view 68% table 48x7
- 70       group "" [disabled]
- 71         column header "Order" [disabled] cell header,0
- 72         column header "Customer" [disabled] cell header,1
- 73         column header "Placed" desc "Sorted descending" [disabled] cell header,2 sort descending
- 74         column header "Due" [disabled] cell header,3
- 75         column header "Status" [disabled] cell header,4
- 76         column header "Total" [disabled, offscreen] cell header,5
- 77         column header "" [disabled, offscreen] cell header,6
- 78       row "#1089 Kestrel Outdoor 10/10/26 10/24/26 Open $4,099.75" [disabled, selectable, selected] item 1 of 48 selected
- 79         cell "#1089" [disabled] cell 0,0
- 80         cell "Kestrel Outdoor" [disabled] cell 0,1
- 81         cell "10/10/26" [disabled] cell 0,2
- 82         cell "10/24/26" [disabled] cell 0,3
- 83         label "Open" (explicit) [disabled] cell 0,4
- 84         cell "$4,099.75" [disabled, offscreen] cell 0,5
- 85         button "Order #1089" (explicit) [disabled, offscreen] cell 0,6
- 86       row "#1088 Corvid Print 10/9/26 10/16/26 Shipped $3,122.50" [disabled, selectable] item 2 of 48 unselected
- 87         cell "#1088" [disabled] cell 1,0
- 88         cell "Corvid Print" [disabled] cell 1,1
- 89         cell "10/9/26" [disabled] cell 1,2
- 90         cell "10/16/26" [disabled] cell 1,3
- 91         label "Shipped" (explicit) [disabled] cell 1,4
- 92         cell "$3,122.50" [disabled, offscreen] cell 1,5
- 93         button "Order #1088" (explicit) [disabled, offscreen] cell 1,6
- 94       row "#1087 Aurum Jewellers 10/8/26 11/7/26 Cancelled $2,145.25" [disabled, selectable] item 3 of 48 unselected
- 95         cell "#1087" [disabled] cell 2,0
- 96         cell "Aurum Jewellers" [disabled] cell 2,1
- 97         cell "10/8/26" [disabled] cell 2,2
- 98         cell "11/7/26" [disabled] cell 2,3
- 99         label "Cancelled" (explicit) [disabled] cell 2,4
-100         cell "$2,145.25" [disabled, offscreen] cell 2,5
-101         button "Order #1087" (explicit) [disabled, offscreen] cell 2,6
-102       row "#1086 Tessera Tiles 10/7/26 10/21/26 Shipped $1,168.00" [disabled, selectable] item 4 of 48 unselected
-103         cell "#1086" [disabled] cell 3,0
-104         cell "Tessera Tiles" [disabled] cell 3,1
-105         cell "10/7/26" [disabled] cell 3,2
-106         cell "10/21/26" [disabled] cell 3,3
-107         label "Shipped" (explicit) [disabled] cell 3,4
-108         cell "$1,168.00" [disabled, offscreen] cell 3,5
-109         button "Order #1086" (explicit) [disabled, offscreen] cell 3,6
-110       row "#1084 Vantage Cycles 10/6/26 11/5/26 Paid $3,414.50" [disabled, selectable] item 5 of 48 unselected
-111         cell "#1084" [disabled] cell 4,0
-112         cell "Vantage Cycles" [disabled] cell 4,1
-113         cell "10/6/26" [disabled] cell 4,2
-114         cell "11/5/26" [disabled] cell 4,3
-115         label "Paid" (explicit) [disabled] cell 4,4
-116         cell "$3,414.50" [disabled, offscreen] cell 4,5
-117         button "Order #1084" (explicit) [disabled, offscreen] cell 4,6
-118       row "#1085 Zephyr Air 10/6/26 10/13/26 Cancelled $191.75" [disabled, selectable] item 6 of 48 unselected
-119         cell "#1085" [disabled] cell 5,0
-120         cell "Zephyr Air" [disabled] cell 5,1
-121         cell "10/6/26" [disabled] cell 5,2
-122         cell "10/13/26" [disabled] cell 5,3
-123         label "Cancelled" (explicit) [disabled] cell 5,4
-124         cell "$191.75" [disabled, offscreen] cell 5,5
-125         button "Order #1085" (explicit) [disabled, offscreen] cell 5,6
-126       row "#1083 Halcyon Foods 10/5/26 10/19/26 Open $2,437.25" [disabled, selectable] item 7 of 48 unselected
-127         cell "#1083" [disabled] cell 6,0
-128         cell "Halcyon Foods" [disabled] cell 6,1
-129         cell "10/5/26" [disabled] cell 6,2
-130         cell "10/19/26" [disabled] cell 6,3
-131         label "Open" (explicit) [disabled] cell 6,4
-132         cell "$2,437.25" [disabled, offscreen] cell 6,5
-133         button "Order #1083" (explicit) [disabled, offscreen] cell 6,6
-134       row "#1082 Sable Paper 10/4/26 10/11/26 Overdue $1,460.00" [disabled, selectable] item 8 of 48 unselected
-135         cell "#1082" [disabled] cell 7,0
-136         cell "Sable Paper" [disabled] cell 7,1
-137         cell "10/4/26" [disabled] cell 7,2
-138         cell "10/11/26" [disabled] cell 7,3
-139         label "Overdue" (explicit) [disabled] cell 7,4
-140         cell "$1,460.00" [disabled, offscreen] cell 7,5
-141         button "Order #1082" (explicit) [disabled, offscreen] cell 7,6
-142       row "#1081 Lumen Optics 10/3/26 11/2/26 Open $483.75" [disabled, selectable] item 9 of 48 unselected
-143         cell "#1081" [disabled] cell 8,0
-144         cell "Lumen Optics" [disabled] cell 8,1
-145         cell "10/3/26" [disabled] cell 8,2
-146         cell "11/2/26" [disabled] cell 8,3
-147         label "Open" (explicit) [disabled] cell 8,4
-148         cell "$483.75" [disabled, offscreen] cell 8,5
-149         button "Order #1081" (explicit) [disabled, offscreen] cell 8,6
-150       row "#1080 Quill Stationery 10/2/26 10/16/26 Open $3,706.50" [disabled, selectable] item 10 of 48 unselected
-151         cell "#1080" [disabled] cell 9,0
-152         cell "Quill Stationery" [disabled] cell 9,1
-153         cell "10/2/26" [disabled] cell 9,2
-154         cell "10/16/26" [disabled] cell 9,3
-155         label "Open" (explicit) [disabled] cell 9,4
-156         cell "$3,706.50" [disabled, offscreen] cell 9,5
-157         button "Order #1080" (explicit) [disabled, offscreen] cell 9,6
-158       group "" [disabled]
-159         cell "48 orders" [disabled] cell footer,1
-160         cell "$106,914.00" [disabled, offscreen] cell footer,5
-161       scroll bar "" [disabled, vertical] value=0 [0..1610 step 406]
-162       scroll bar "" [disabled, horizontal] value=0 [0..257 step 535]
-163     label "No orders match the filter" [disabled, hidden, offscreen]
-164     button "Clear filter" [disabled, hidden, offscreen]
-165     scroll pane "" [disabled, hidden, offscreen] scroll none
-166       label "Order #1089" [disabled, hidden, offscreen]
-167       button "Close" (explicit) desc "Close" [disabled, hidden, offscreen]
-168       separator "" [disabled, hidden, offscreen, horizontal]
-169       label "Customer" [disabled, hidden, offscreen] | label for #170 "Customer"
-170       text field "Customer" (label) [disabled, hidden, offscreen, editable] text="Kestrel Outdoor" caret=15 | labelled by #169 "Customer"
-171       label "Status" [disabled, hidden, offscreen] | label for #172 "Status"
-172       combo box "Status" (label) [disabled, hidden, offscreen, expandable, has-popup] value=0 [0..4 step 1] "Open" collapsed | labelled by #171 "Status"
-173       label "Placed" [disabled, hidden, offscreen] | label for #174 "Placed"
-174       group "Placed" (label) [disabled, hidden, offscreen, expandable, has-popup] collapsed | labelled by #173 "Placed"
-175         spin button "Month" [disabled, hidden, offscreen] value=10 [1..12 step 1] "10"
-176         spin button "Day" [disabled, hidden, offscreen] value=10 [1..31 step 1] "10"
-177         spin button "Year" [disabled, hidden, offscreen] value=2026 [1..9999 step 1] "2026"
-178       button "Open calendar" [disabled, hidden, offscreen]
-179       label "Due" [disabled, hidden, offscreen] | label for #180 "Due"
-180       group "Due" (label) [disabled, hidden, offscreen, expandable, has-popup] collapsed | labelled by #179 "Due"
-181         spin button "Month" [disabled, hidden, offscreen] value=10 [1..12 step 1] "10"
-182         spin button "Day" [disabled, hidden, offscreen] value=24 [1..31 step 1] "24"
-183         spin button "Year" [disabled, hidden, offscreen] value=2026 [1..9999 step 1] "2026"
-184       button "Open calendar" [disabled, hidden, offscreen]
-185       label "Notes" [disabled, hidden, offscreen] | label for #186 "Notes"
-186       text area "Notes" (label) [disabled, hidden, offscreen, editable, multi-line] text="" caret=0 scroll v=0% view 0% | labelled by #185 "Notes"
-187         scroll bar "" [disabled, hidden, offscreen, vertical] value=0 [0..12]
-188       button "Revert" [disabled, hidden, offscreen]
-189       button "Save" [disabled, hidden, offscreen]
-190   separator "" [disabled, horizontal]
-191   label "Ready." [disabled]
-192   progress bar "Loading…" (explicit) [disabled, hidden, offscreen, read-only, horizontal] value=0 [0..100] read-only
-193   separator "" [disabled, hidden, offscreen, horizontal]
-194   group "Performance" (explicit) [disabled, hidden, offscreen]
+ 15     search field "Page or component" (explicit) [disabled, editable] text="" caret=0
+ 16       button "Clear" [disabled]
+ 17     label "No page has that." [disabled, hidden, offscreen]
+ 18     tree "Pages" (explicit) [disabled] selection=single scroll v=0% view 67%
+ 19       scroll bar "" [disabled, vertical] value=0 [0..224 step 448]
+ 20       tree item "Orders" [disabled, selectable, selected] item 1 of 3 selected level 1 row 1 of 28
+ 21         label "Orders" [disabled]
+ 22       tree item "Components" [disabled, selectable, expanded, expandable] item 2 of 3 unselected expanded level 1 row 2 of 28
+ 23         label "Components" [disabled]
+ 24       tree item "Buttons and inputs" [disabled, selectable] item 1 of 20 unselected level 2 row 3 of 28
+ 25         label "Buttons and inputs" [disabled]
+ 26       tree item "Combo boxes" [disabled, selectable] item 2 of 20 unselected level 2 row 4 of 28
+ 27         label "Combo boxes" [disabled]
+ 28       tree item "Sliders and spinners" [disabled, selectable] item 3 of 20 unselected level 2 row 5 of 28
+ 29         label "Sliders and spinners" [disabled]
+ 30       tree item "Dates" [disabled, selectable] item 4 of 20 unselected level 2 row 6 of 28
+ 31         label "Dates" [disabled]
+ 32       tree item "Lists" [disabled, selectable] item 5 of 20 unselected level 2 row 7 of 28
+ 33         label "Lists" [disabled]
+ 34       tree item "Tables" [disabled, selectable] item 6 of 20 unselected level 2 row 8 of 28
+ 35         label "Tables" [disabled]
+ 36       tree item "Trees" [disabled, selectable] item 7 of 20 unselected level 2 row 9 of 28
+ 37         label "Trees" [disabled]
+ 38       tree item "Dialogs" [disabled, selectable] item 8 of 20 unselected level 2 row 10 of 28
+ 39         label "Dialogs" [disabled]
+ 40       tree item "Menus" [disabled, selectable] item 9 of 20 unselected level 2 row 11 of 28
+ 41         label "Menus" [disabled]
+ 42       tree item "Drag and drop" [disabled, selectable] item 10 of 20 unselected level 2 row 12 of 28
+ 43         label "Drag and drop" [disabled]
+ 44       tree item "Clipboard" [disabled, selectable] item 11 of 20 unselected level 2 row 13 of 28
+ 45         label "Clipboard" [disabled]
+ 46       tree item "Tray icon" [disabled, selectable] item 12 of 20 unselected level 2 row 14 of 28
+ 47         label "Tray icon" [disabled]
+ 48       tree item "Charts" [disabled, selectable] item 13 of 20 unselected level 2 row 15 of 28
+ 49         label "Charts" [disabled]
+ 50       tree item "Text and scripts" [disabled, selectable] item 14 of 20 unselected level 2 row 16 of 28
+ 51         label "Text and scripts" [disabled]
+ 52       tree item "Icons" [disabled, selectable] item 15 of 20 unselected level 2 row 17 of 28
+ 53         label "Icons" [disabled]
+ 54       tree item "Files" [disabled, selectable] item 16 of 20 unselected level 2 row 18 of 28
+ 55         label "Files" [disabled]
+ 56       tree item "Colours" [disabled, selectable] item 17 of 20 unselected level 2 row 19 of 28
+ 57         label "Colours" [disabled]
+ 58     splitter "Divider" [disabled, horizontal] value=232 [232..371 step 10]
+ 59     heading "Orders" [disabled]
+ 60     label "48 of 48" [disabled]
+ 61     search field "Customer or number" (explicit) [disabled, editable] text="" caret=0
+ 62       button "Clear" [disabled]
+ 63     combo box "Status" (explicit) [disabled, expandable, has-popup, read-only] value=0 [0..5 step 1] "None selected" read-only collapsed
+ 64     button "Mark as paid" [disabled, offscreen]
+ 65     button "New order" [disabled, offscreen]
+ 66     table "Orders" (explicit) [disabled] selection=multiple scroll v=0% view 20% h=0% view 68% table 48x7
+ 67       group "" [disabled]
+ 68         column header "Order" [disabled] cell header,0
+ 69         column header "Customer" [disabled] cell header,1
+ 70         column header "Placed" desc "Sorted descending" [disabled] cell header,2 sort descending
+ 71         column header "Due" [disabled] cell header,3
+ 72         column header "Status" [disabled] cell header,4
+ 73         column header "Total" [disabled, offscreen] cell header,5
+ 74         column header "" [disabled, offscreen] cell header,6
+ 75       row "#1089 Kestrel Outdoor 10/10/26 10/24/26 Open $4,099.75" [disabled, selectable, selected] item 1 of 48 selected
+ 76         cell "#1089" [disabled] cell 0,0
+ 77         cell "Kestrel Outdoor" [disabled] cell 0,1
+ 78         cell "10/10/26" [disabled] cell 0,2
+ 79         cell "10/24/26" [disabled] cell 0,3
+ 80         label "Open" (explicit) [disabled] cell 0,4
+ 81         cell "$4,099.75" [disabled, offscreen] cell 0,5
+ 82         button "Order #1089" (explicit) [disabled, offscreen] cell 0,6
+ 83       row "#1088 Corvid Print 10/9/26 10/16/26 Shipped $3,122.50" [disabled, selectable] item 2 of 48 unselected
+ 84         cell "#1088" [disabled] cell 1,0
+ 85         cell "Corvid Print" [disabled] cell 1,1
+ 86         cell "10/9/26" [disabled] cell 1,2
+ 87         cell "10/16/26" [disabled] cell 1,3
+ 88         label "Shipped" (explicit) [disabled] cell 1,4
+ 89         cell "$3,122.50" [disabled, offscreen] cell 1,5
+ 90         button "Order #1088" (explicit) [disabled, offscreen] cell 1,6
+ 91       row "#1087 Aurum Jewellers 10/8/26 11/7/26 Cancelled $2,145.25" [disabled, selectable] item 3 of 48 unselected
+ 92         cell "#1087" [disabled] cell 2,0
+ 93         cell "Aurum Jewellers" [disabled] cell 2,1
+ 94         cell "10/8/26" [disabled] cell 2,2
+ 95         cell "11/7/26" [disabled] cell 2,3
+ 96         label "Cancelled" (explicit) [disabled] cell 2,4
+ 97         cell "$2,145.25" [disabled, offscreen] cell 2,5
+ 98         button "Order #1087" (explicit) [disabled, offscreen] cell 2,6
+ 99       row "#1086 Tessera Tiles 10/7/26 10/21/26 Shipped $1,168.00" [disabled, selectable] item 4 of 48 unselected
+100         cell "#1086" [disabled] cell 3,0
+101         cell "Tessera Tiles" [disabled] cell 3,1
+102         cell "10/7/26" [disabled] cell 3,2
+103         cell "10/21/26" [disabled] cell 3,3
+104         label "Shipped" (explicit) [disabled] cell 3,4
+105         cell "$1,168.00" [disabled, offscreen] cell 3,5
+106         button "Order #1086" (explicit) [disabled, offscreen] cell 3,6
+107       row "#1084 Vantage Cycles 10/6/26 11/5/26 Paid $3,414.50" [disabled, selectable] item 5 of 48 unselected
+108         cell "#1084" [disabled] cell 4,0
+109         cell "Vantage Cycles" [disabled] cell 4,1
+110         cell "10/6/26" [disabled] cell 4,2
+111         cell "11/5/26" [disabled] cell 4,3
+112         label "Paid" (explicit) [disabled] cell 4,4
+113         cell "$3,414.50" [disabled, offscreen] cell 4,5
+114         button "Order #1084" (explicit) [disabled, offscreen] cell 4,6
+115       row "#1085 Zephyr Air 10/6/26 10/13/26 Cancelled $191.75" [disabled, selectable] item 6 of 48 unselected
+116         cell "#1085" [disabled] cell 5,0
+117         cell "Zephyr Air" [disabled] cell 5,1
+118         cell "10/6/26" [disabled] cell 5,2
+119         cell "10/13/26" [disabled] cell 5,3
+120         label "Cancelled" (explicit) [disabled] cell 5,4
+121         cell "$191.75" [disabled, offscreen] cell 5,5
+122         button "Order #1085" (explicit) [disabled, offscreen] cell 5,6
+123       row "#1083 Halcyon Foods 10/5/26 10/19/26 Open $2,437.25" [disabled, selectable] item 7 of 48 unselected
+124         cell "#1083" [disabled] cell 6,0
+125         cell "Halcyon Foods" [disabled] cell 6,1
+126         cell "10/5/26" [disabled] cell 6,2
+127         cell "10/19/26" [disabled] cell 6,3
+128         label "Open" (explicit) [disabled] cell 6,4
+129         cell "$2,437.25" [disabled, offscreen] cell 6,5
+130         button "Order #1083" (explicit) [disabled, offscreen] cell 6,6
+131       row "#1082 Sable Paper 10/4/26 10/11/26 Overdue $1,460.00" [disabled, selectable] item 8 of 48 unselected
+132         cell "#1082" [disabled] cell 7,0
+133         cell "Sable Paper" [disabled] cell 7,1
+134         cell "10/4/26" [disabled] cell 7,2
+135         cell "10/11/26" [disabled] cell 7,3
+136         label "Overdue" (explicit) [disabled] cell 7,4
+137         cell "$1,460.00" [disabled, offscreen] cell 7,5
+138         button "Order #1082" (explicit) [disabled, offscreen] cell 7,6
+139       row "#1081 Lumen Optics 10/3/26 11/2/26 Open $483.75" [disabled, selectable] item 9 of 48 unselected
+140         cell "#1081" [disabled] cell 8,0
+141         cell "Lumen Optics" [disabled] cell 8,1
+142         cell "10/3/26" [disabled] cell 8,2
+143         cell "11/2/26" [disabled] cell 8,3
+144         label "Open" (explicit) [disabled] cell 8,4
+145         cell "$483.75" [disabled, offscreen] cell 8,5
+146         button "Order #1081" (explicit) [disabled, offscreen] cell 8,6
+147       row "#1080 Quill Stationery 10/2/26 10/16/26 Open $3,706.50" [disabled, selectable] item 10 of 48 unselected
+148         cell "#1080" [disabled] cell 9,0
+149         cell "Quill Stationery" [disabled] cell 9,1
+150         cell "10/2/26" [disabled] cell 9,2
+151         cell "10/16/26" [disabled] cell 9,3
+152         label "Open" (explicit) [disabled] cell 9,4
+153         cell "$3,706.50" [disabled, offscreen] cell 9,5
+154         button "Order #1080" (explicit) [disabled, offscreen] cell 9,6
+155       group "" [disabled]
+156         cell "48 orders" [disabled] cell footer,1
+157         cell "$106,914.00" [disabled, offscreen] cell footer,5
+158       scroll bar "" [disabled, vertical] value=0 [0..1610 step 406]
+159       scroll bar "" [disabled, horizontal] value=0 [0..257 step 535]
+160     label "No orders match the filter" [disabled, hidden, offscreen]
+161     button "Clear filter" [disabled, hidden, offscreen]
+162     scroll pane "" [disabled, hidden, offscreen] scroll none
+163       label "Order #1089" [disabled, hidden, offscreen]
+164       button "Close" (explicit) desc "Close" [disabled, hidden, offscreen]
+165       separator "" [disabled, hidden, offscreen, horizontal]
+166       label "Customer" [disabled, hidden, offscreen] | label for #167 "Customer"
+167       text field "Customer" (label) [disabled, hidden, offscreen, editable] text="Kestrel Outdoor" caret=15 | labelled by #166 "Customer"
+168       label "Status" [disabled, hidden, offscreen] | label for #169 "Status"
+169       combo box "Status" (label) [disabled, hidden, offscreen, expandable, has-popup] value=0 [0..4 step 1] "Open" collapsed | labelled by #168 "Status"
+170       label "Placed" [disabled, hidden, offscreen] | label for #171 "Placed"
+171       group "Placed" (label) [disabled, hidden, offscreen, expandable, has-popup] collapsed | labelled by #170 "Placed"
+172         spin button "Month" [disabled, hidden, offscreen] value=10 [1..12 step 1] "10"
+173         spin button "Day" [disabled, hidden, offscreen] value=10 [1..31 step 1] "10"
+174         spin button "Year" [disabled, hidden, offscreen] value=2026 [1..9999 step 1] "2026"
+175       button "Open calendar" [disabled, hidden, offscreen]
+176       label "Due" [disabled, hidden, offscreen] | label for #177 "Due"
+177       group "Due" (label) [disabled, hidden, offscreen, expandable, has-popup] collapsed | labelled by #176 "Due"
+178         spin button "Month" [disabled, hidden, offscreen] value=10 [1..12 step 1] "10"
+179         spin button "Day" [disabled, hidden, offscreen] value=24 [1..31 step 1] "24"
+180         spin button "Year" [disabled, hidden, offscreen] value=2026 [1..9999 step 1] "2026"
+181       button "Open calendar" [disabled, hidden, offscreen]
+182       label "Notes" [disabled, hidden, offscreen] | label for #183 "Notes"
+183       text area "Notes" (label) [disabled, hidden, offscreen, editable, multi-line] text="" caret=0 scroll v=0% view 0% | labelled by #182 "Notes"
+184         scroll bar "" [disabled, hidden, offscreen, vertical] value=0 [0..12]
+185       button "Revert" [disabled, hidden, offscreen]
+186       button "Save" [disabled, hidden, offscreen]
+187   separator "" [disabled, horizontal]
+188   label "Ready." [disabled]
+189   progress bar "Loading…" (explicit) [disabled, hidden, offscreen, read-only, horizontal] value=0 [0..100] read-only
+190   separator "" [disabled, hidden, offscreen, horizontal]
+191   group "Performance" (explicit) [disabled, hidden, offscreen]
 == window "New order" (modal) ==
 1 window "New order" (explicit) [active] window modal normal
 2   dialog "New order" actions: cancel | popup for #? (not in this tree)

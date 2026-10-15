@@ -71,7 +71,10 @@ class ShowcaseOrdersTest {
         HeadlessWindow window = backend.open(AppScene.TITLE, 1100, 760);
         scene.bind(window);
         window.frame();
-        SearchField search = all(scene.root(), SearchField.class, new ArrayList<>()).get(0);
+        // The orders' own search, not the navigation's above the pages.
+        SearchField search = all(scene.root(), SearchField.class, new ArrayList<>()).stream()
+                .filter(field -> !AppScene.NavText.SEARCH.get().equals(field.placeholder()))
+                .findFirst().orElseThrow();
         Button save = all(scene.root(), Button.class, new ArrayList<>()).stream()
                 .filter(button -> ShowcaseStrings.ACTION_SAVE.get().equals(button.text())).findFirst().orElse(null);
         assertNotNull(save, "the order's form has its Save");

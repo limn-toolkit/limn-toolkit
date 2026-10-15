@@ -146,6 +146,34 @@ final class AppScene {
         /** The icon beside the name in the navigation: a name of the icon pack, or null. */
         String icon;
 
+        /**
+         * What a search also finds this page by, comma separated: the components on it, by their
+         * class names, and the other words people use for them. English, as the API is.
+         */
+        String keywords = "";
+
+        /** Says what else a search finds this place by. */
+        Place keywords(String words) {
+            this.keywords = words;
+            return this;
+        }
+
+        /**
+         * Whether {@code query}, already {@linkplain #fold folded}, is in this place's name, in the
+         * language shown or in English, or in one of its keywords.
+         */
+        boolean matches(String query) {
+            if (fold(name.get()).contains(query) || fold(name.english()).contains(query)) {
+                return true;
+            }
+            for (String word : keywords.split(",")) {
+                if (fold(word).contains(query)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         /** Says which icon stands beside this place's name. */
         Place icon(String name) {
             this.icon = name;
@@ -166,58 +194,84 @@ final class AppScene {
      * links without building a window.
      */
     static List<Place> places(Label status, Supplier<Widget<?>> ordersPage) {
-        Place orders = new Place(ShowcaseStrings.NAV_ORDERS, null, ordersPage).icon("receipt");
+        Place orders = new Place(ShowcaseStrings.NAV_ORDERS, null, ordersPage).icon("receipt")
+                        .keywords("Table, order, invoice, Dialog, drawer, SearchField, ComboBox, badge, status");
         Place components = new Place(ShowcaseStrings.NAV_COMPONENTS,
                 new Place(ShowcaseStrings.NAV_INPUTS, "components/#button",
-                        () -> scrolling(BasicsScene.content())).icon("forms"),
+                        () -> scrolling(BasicsScene.content())).icon("forms")
+                        .keywords("Button, Checkbox, check box, Switch, toggle, RadioButton, radio, ButtonGroup, TextField, text field, input, PasswordField, password, SearchField, search, TextArea, text area, mask, validation, error, ProgressBar, progress, ToolBar, toolbar, SegmentedControl, segmented, Tooltip, Label, Separator, form"),
                 new Place(ShowcaseStrings.NAV_COMBOS, "components/#combo-box",
-                        () -> scrolling(CombosScene.content())).icon("select"),
+                        () -> scrolling(CombosScene.content())).icon("select")
+                        .keywords("ComboBox, combo box, select, dropdown, drop-down, autocomplete, chips, multi-select, multiple choice"),
                 new Place(ShowcaseStrings.NAV_SLIDERS, "components/#slider",
-                        () -> scrolling(ControlsScene.content())).icon("adjustments-horizontal"),
+                        () -> scrolling(ControlsScene.content())).icon("adjustments-horizontal")
+                        .keywords("Slider, RangeSlider, range, Spinner, number, stepper, numeric"),
                 new Place(ShowcaseStrings.TAB_DATES, "components/#date-picker",
-                        () -> scrolling(DatesScene.content())).icon("calendar"),
+                        () -> scrolling(DatesScene.content())).icon("calendar")
+                        .keywords("DateField, DatePicker, date picker, CalendarView, calendar, date, time, period, month, year, era"),
                 new Place(ShowcaseStrings.NAV_LISTS, "docs/lists-and-scrolling/#long-lists",
-                        () -> scrolling(ListScene.content())).icon("list"),
+                        () -> scrolling(ListScene.content())).icon("list")
+                        .keywords("ListView, list, contacts, virtual list, selection"),
                 new Place(ShowcaseStrings.NAV_TABLES, "docs/lists-and-scrolling/#tables",
-                        () -> beside(TableScene.content())).icon("table"),
+                        () -> beside(TableScene.content())).icon("table")
+                        .keywords("Table, grid, data grid, column, sort, footer, inventory, spreadsheet"),
                 new Place(ShowcaseStrings.NAV_TREES, "docs/lists-and-scrolling/#trees",
-                        () -> beside(TreeScene.content())).icon("binary-tree"),
+                        () -> beside(TreeScene.content())).icon("binary-tree")
+                        .keywords("Tree, tree view, outline, explorer, folder, hierarchy"),
                 new Place(ShowcaseStrings.NAV_DIALOGS, "docs/menus-and-dialogs/#dialogs",
-                        () -> scrolling(DialogsScene.dialogs(status))).icon("app-window"),
+                        () -> scrolling(DialogsScene.dialogs(status))).icon("app-window")
+                        .keywords("Dialog, alert, modal, confirm, message box, window, popup"),
                 new Place(ShowcaseStrings.TAB_MENUS, "docs/menus-and-dialogs/#menus",
-                        () -> scrolling(DialogsScene.menus(status))).icon("menu-2"),
+                        () -> scrolling(DialogsScene.menus(status))).icon("menu-2")
+                        .keywords("Menu, MenuItem, PopupMenu, popup menu, ContextMenus, context menu, right click, MenuBar, menu bar, accelerator, shortcut, mnemonic"),
                 new Place(ShowcaseStrings.NAV_DRAG_DROP, "docs/drag-and-drop/",
-                        () -> scrolling(PickerScene.content())).icon("drag-drop"),
+                        () -> scrolling(PickerScene.content())).icon("drag-drop")
+                        .keywords("drag, drop, drag and drop, Drag, reorder, kanban, drop zone"),
                 new Place(ShowcaseStrings.NAV_CLIPBOARD, "docs/drag-and-drop/#the-clipboard",
-                        () -> scrolling(TransferScene.content())).icon("clipboard"),
+                        () -> scrolling(TransferScene.content())).icon("clipboard")
+                        .keywords("Clipboard, copy, cut, paste"),
                 new Place(ShowcaseStrings.NAV_TRAY, "docs/menus-and-dialogs/#an-icon-in-the-tray",
-                        () -> scrolling(TrayScene.page(status))).icon("bell"),
-                new Place(ShowcaseStrings.NAV_CHARTS, "docs/charts/", () -> scrolling(ChartsScene.content())).icon("chart-bar"),
+                        () -> scrolling(TrayScene.page(status))).icon("bell")
+                        .keywords("Tray, tray icon, system tray, notification area, status bar icon"),
+                new Place(ShowcaseStrings.NAV_CHARTS, "docs/charts/", () -> scrolling(ChartsScene.content())).icon("chart-bar")
+                        .keywords("Chart, BarChart, bar chart, LineChart, line chart, PieChart, pie, donut, graph, dashboard, legend"),
                 new Place(ShowcaseStrings.NAV_TEXT, "docs/text-and-languages/",
-                        () -> scrolling(BidiScene.tabContent())).icon("language"),
+                        () -> scrolling(BidiScene.tabContent())).icon("language")
+                        .keywords("Label, text, bidi, right to left, RTL, Arabic, Hebrew, CJK, Japanese, Chinese, Korean, font, typography, bold, italic, script"),
                 new Place(ShowcaseStrings.NAV_ICONS, "docs/images-and-media/#icons",
-                        () -> beside(IconsScene.content())).icon("icons"),
+                        () -> beside(IconsScene.content())).icon("icons")
+                        .keywords("Icon, Tabler, SvgIcon, SVG, BitmapIcon, glyph"),
                 new Place(ShowcaseStrings.TAB_FILES, "docs/menus-and-dialogs/#native-file-dialogs",
-                        () -> beside(FilesScene.content())).icon("folder"),
+                        () -> beside(FilesScene.content())).icon("folder")
+                        .keywords("FileDialogs, file, file chooser, open file, save file, folder, directory"),
                 new Place(ShowcaseStrings.NAV_COLOURS, "components/#color-picker",
-                        () -> scrolling(ColorPickerScene.content())).icon("palette"),
+                        () -> scrolling(ColorPickerScene.content())).icon("palette")
+                        .keywords("ColorPicker, color picker, ColorPickerButton, color, colour, swatch, Theme, Elevation, Surface, appearance"),
                 new Place(ShowcaseStrings.NAV_SPLIT, "docs/lists-and-scrolling/#splitting-a-window",
-                        () -> beside(SplitPaneScene.content())).icon("layout-columns"),
+                        () -> beside(SplitPaneScene.content())).icon("layout-columns")
+                        .keywords("SplitPane, split pane, divider, splitter, panes, resize"),
                 new Place(ShowcaseStrings.NAV_SECTIONS, "docs/lists-and-scrolling/#tabs",
-                        () -> scrolling(SectionsScene.content())).icon("layout-navbar-expand"),
+                        () -> scrolling(SectionsScene.content())).icon("layout-navbar-expand")
+                        .keywords("TabbedPane, tabs, tab, Expander, ExpanderGroup, accordion, collapsible, section"),
                 new Place(ShowcaseStrings.NAV_MOTION, "docs/animations/",
-                        () -> scrolling(AnimationsScene.content())).icon("player-play")).icon("components");
+                        () -> scrolling(AnimationsScene.content())).icon("player-play")
+                        .keywords("Animation, animate, Tween, easing, transition, ColorTransition, motion, fade")).icon("components");
         Place media = new Place(ShowcaseStrings.NAV_MEDIA,
                 new Place(ShowcaseStrings.NAV_VIDEO, "docs/images-and-media/#video",
-                        () -> scrolling(VideoScene.pageContent())).icon("video"),
+                        () -> scrolling(VideoScene.pageContent())).icon("video")
+                        .keywords("VideoView, video, MediaPlayer, MediaControls, Poster, player, movie"),
                 new Place(ShowcaseStrings.NAV_VIEWPORT, "docs/images-and-media/#3d",
-                        () -> scrolling(Viewport3DScene.tabContent())).icon("cube"),
+                        () -> scrolling(Viewport3DScene.tabContent())).icon("cube")
+                        .keywords("Viewport3D, 3D, glTF, model, render, scene"),
                 new Place(ShowcaseStrings.NAV_SOUND, "docs/images-and-media/#sound",
-                        () -> scrolling(AudioScene.content())).icon("volume"),
+                        () -> scrolling(AudioScene.content())).icon("volume")
+                        .keywords("Sounds, sound, audio, AudioClip, music, mixer, volume, pan"),
                 new Place(ShowcaseStrings.NAV_SPRITES, "docs/images-and-media/#pictures",
-                        () -> scrolling(SpritesScene.content())).icon("photo"),
+                        () -> scrolling(SpritesScene.content())).icon("photo")
+                        .keywords("ImageView, image, picture, sprite, GIF, PNG, WebP, animated image, blend, pixel art"),
                 new Place(ShowcaseStrings.NAV_GLASS, "docs/theming/#glass",
-                        () -> scrolling(GlassScene.content())).icon("blur")).icon("movie");
+                        () -> scrolling(GlassScene.content())).icon("blur")
+                        .keywords("BackdropPanel, backdrop, glass, blur, frosted, translucent, tint")).icon("movie");
         return List.of(orders, components, media);
     }
 
@@ -244,15 +298,19 @@ final class AppScene {
         List<Place> top = places(status, () -> orders.page);
         Place ordersPlace = top.get(0);
 
+        // What a search leaves of the navigation: the places shown, and for a heading the pages
+        // under it that matched. Empty query, everything.
+        List<Place> shownRoots = new ArrayList<>(top);
+        Map<Place, List<Place>> shownUnder = new HashMap<>();
         Tree<Place> navigation = new Tree<>(new Tree.Model<Place>() {
             @Override
             public List<Place> roots() {
-                return top;
+                return shownRoots;
             }
 
             @Override
             public List<Place> children(Place place) {
-                return place.under;
+                return shownUnder.getOrDefault(place, place.under);
             }
 
             @Override
@@ -285,6 +343,55 @@ final class AppScene {
             navigation.expand(place);
         }
 
+        // ---- the search over the navigation: a page by its name, or by a component on it
+        SearchField search = new SearchField();
+        search.setPlaceholder(NavText.SEARCH);
+        search.setAccessibleName(NavText.SEARCH);
+        Label noMatch = new Label(NavText.NO_MATCH).setMuted(true).setWrap(true);
+        noMatch.setVisible(false);
+        java.util.function.Consumer<String> filter = text -> {
+            String query = fold(text);
+            shownRoots.clear();
+            shownUnder.clear();
+            for (Place place : top) {
+                if (query.isEmpty() || place.matches(query)) {
+                    shownRoots.add(place); // a heading that matches keeps every page under it
+                    continue;
+                }
+                List<Place> kept = place.under.stream().filter(each -> each.matches(query)).toList();
+                if (!kept.isEmpty()) {
+                    shownRoots.add(place);
+                    shownUnder.put(place, kept);
+                }
+            }
+            navigation.refresh();
+            for (Place place : shownRoots) {
+                navigation.expand(place);
+            }
+            noMatch.setVisible(shownRoots.isEmpty());
+            if (!query.isEmpty()) {
+                // The first page left is shown as the word is typed, and the keyboard stays in
+                // the field: typing "checkbox" is enough to see the check boxes.
+                Place first = firstPage(shownRoots, shownUnder);
+                if (first != null) {
+                    navigation.setSelected(first);
+                }
+            }
+        };
+        search.onChange(filter);
+        // What the Go menu opens may be filtered away: the search is cleared first.
+        Runnable showAll = () -> {
+            if (!search.text().isEmpty()) {
+                search.setText("");
+                filter.accept("");
+            }
+        };
+        limn.scene.layout.Column side = new limn.scene.layout.Column();
+        side.crossAlignment(Flex.CrossAlignment.STRETCH);
+        side.add(new Padding(new Insets(8, 8, 4, 8), search));
+        side.add(new Padding(Insets.symmetric(4, 12), noMatch));
+        side.add(Expanded.of(navigation, 1));
+
         // ---- the page in view: built the first time it is chosen, and kept
         Map<Place, Widget<?>> built = new HashMap<>();
         PageHolder holder = new PageHolder();
@@ -302,6 +409,11 @@ final class AppScene {
         });
         navigation.setSelected(ordersPlace);
         status.setText(ShowcaseStrings.STATUS_READY);
+        String typed = System.getProperty("limn.demo.search"); // lab: film the navigation searched
+        if (typed != null) {
+            search.setText(typed);
+            filter.accept(typed);
+        }
 
         // ---- the band: the title and the four switches that reach the whole process
         ComboBox<String> language = new ComboBox<>(Languages.NAMES);
@@ -345,7 +457,7 @@ final class AppScene {
         band.add(size);
         band.add(theme);
 
-        SplitPane body = SplitPane.horizontal(navigation, holder);
+        SplitPane body = SplitPane.horizontal(side, holder);
         body.setRatio(0.2f);
         body.setMinimums(232, 420);
         body.setAccessibleName(ShowcaseStrings.NAV_PAGES);
@@ -459,7 +571,7 @@ final class AppScene {
                         .add(MenuItem.of(ShowcaseStrings.MENU_CURRENT_RESOLUTION, () -> fullscreen(scene, status, 0, 0))
                                 .setMnemonic('C'))
                         .addItem("1280×720", () -> fullscreen(scene, status, 1280, 720))).setMnemonic('F')));
-        menuBar.addMenu(ShowcaseStrings.MENU_GO, 'G', goMenu(navigation, top));
+        menuBar.addMenu(ShowcaseStrings.MENU_GO, 'G', goMenu(navigation, top, showAll));
         Menu help = new Menu()
                 .add(MenuItem.of(ShowcaseStrings.MENU_DOCUMENTATION, () -> openDocumentation(status, "docs/", status))
                         .setAccelerator(limn.components.Accelerator.of(limn.input.Keys.F1)).setMnemonic('D'))
@@ -687,16 +799,20 @@ final class AppScene {
         return best;
     }
 
-    private static Menu goMenu(Tree<Place> navigation, List<Place> top) {
+    private static Menu goMenu(Tree<Place> navigation, List<Place> top, Runnable showAll) {
         Menu go = new Menu();
         for (Place place : top) {
             if (place.page != null) {
-                go.addItem(place.name, () -> navigation.setSelected(place));
+                go.addItem(place.name, () -> {
+                    showAll.run();
+                    navigation.setSelected(place);
+                });
                 continue;
             }
             Menu under = new Menu();
             for (Place each : place.under) {
                 under.addItem(each.name, () -> {
+                    showAll.run();
                     navigation.expand(place);
                     navigation.setSelected(each);
                 });
@@ -704,6 +820,44 @@ final class AppScene {
             go.addSubmenu(place.name, under);
         }
         return go;
+    }
+
+    /**
+     * A word as a search compares it: lower case, accents off, and nothing but letters and digits,
+     * so "check box", "Checkbox" and "check-box" are one word, and "seção" finds "secao".
+     */
+    static String fold(String text) {
+        String bare = java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "");
+        StringBuilder out = new StringBuilder(bare.length());
+        bare.codePoints().filter(Character::isLetterOrDigit)
+                .forEach(c -> out.appendCodePoint(Character.toLowerCase(c)));
+        return out.toString();
+    }
+
+    /** The first page a search left, in the navigation's order, or null. */
+    private static Place firstPage(List<Place> roots, Map<Place, List<Place>> under) {
+        for (Place place : roots) {
+            if (place.page != null) {
+                return place;
+            }
+            List<Place> pages = under.getOrDefault(place, place.under);
+            if (!pages.isEmpty()) {
+                return pages.get(0);
+            }
+        }
+        return null;
+    }
+
+    /** The navigation's own strings. */
+    static final class NavText {
+        static final I18nString SEARCH =
+                new I18nString("showcase.nav.search", "Page or component");
+        static final I18nString NO_MATCH =
+                new I18nString("showcase.nav.noMatch", "No page has that.");
+
+        private NavText() {
+        }
     }
 
     /** A page that fills its place and scrolls itself, set in from the divider as the others are. */
