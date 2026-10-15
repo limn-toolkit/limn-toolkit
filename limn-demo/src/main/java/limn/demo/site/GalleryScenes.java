@@ -275,6 +275,9 @@ final class GalleryScenes {
         column.gap(12);
         column.add(new TextField().setText("Typed text"));
         column.add(new TextField().setPlaceholder("Placeholder"));
+        // A mask writes its own literals: what is typed is KLM4217, what shows is KLM-4217.
+        column.add(new TextField().setPlaceholder("Serial number").setMask("AAA-0000")
+                .setText("KLM4217"));
         return scene(column);
     }
     // #endregion

@@ -517,6 +517,55 @@ public final class TextEditModel {
         return false;
     }
 
+    /**
+     * Replaces the whole content with {@code text} as part of the edit just made, not as an edit
+     * of its own: the last undo step is rewritten to go from the text before that edit straight to
+     * this one, so one undo takes both back. What a field that fits its text to a pattern does
+     * after every edit; without a step to fold into, as after {@link #setText}, nothing is recorded.
+     *
+     * @param text  the content
+     * @param caret where the caret goes, in {@code [0, text.length()]}
+     */
+    public void amendLastEdit(String text, int caret) {
+        String value = sanitize(text);
+        Step top = undoStack.peek();
+        String previous = null;
+        if (top != null) {
+            String now = buffer.toString();
+            previous = now.substring(0, top.offset) + top.removed
+                    + now.substring(top.offset + top.inserted.length());
+        }
+        noteWholeEdit();
+        splice(0, buffer.length(), value);
+        cursor = Math.max(0, Math.min(caret, buffer.length()));
+        cursorAffinity = Affinity.UPSTREAM;
+        anchor = -1;
+        goalColumn = -1;
+        if (top != null) {
+            int prefix = 0;
+            int limit = Math.min(previous.length(), value.length());
+            while (prefix < limit && previous.charAt(prefix) == value.charAt(prefix)) {
+                prefix++;
+            }
+            int suffix = 0;
+            while (suffix < limit - prefix && previous.charAt(previous.length() - 1 - suffix)
+                    == value.charAt(value.length() - 1 - suffix)) {
+                suffix++;
+            }
+            undoBytes -= top.bytes();
+            top.offset = prefix;
+            top.removed.setLength(0);
+            top.removed.append(previous, prefix, previous.length() - suffix);
+            top.inserted.setLength(0);
+            top.inserted.append(value, prefix, value.length() - suffix);
+            undoBytes += top.bytes();
+            if (top.removed.length() == 0 && top.inserted.length() == 0) {
+                // The edit came to nothing once fitted: there is nothing to take back.
+                undoBytes -= undoStack.pop().bytes();
+            }
+        }
+    }
+
     /** @return whether there was anything to undo */
     public boolean undo() {
         if (undoStack.isEmpty()) {

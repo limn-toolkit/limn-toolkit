@@ -74,6 +74,17 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
 
     final TextEditModel model = new TextEditModel(true);
     private I18nString placeholder = I18nString.EMPTY;
+    /** The pattern the text is fitted to, or null; and what the last fitting left. */
+    private limn.components.internal.text.@Nullable InputMask mask;
+    private String maskedText = "";
+    private String maskedRaw = "";
+    /** Whether the edit being fitted is a Backspace, which steps over a literal before the caret. */
+    private boolean deletingBackward;
+    /** The pattern, as the description a reader hears; null without a mask. */
+    private @Nullable I18nString maskDescription;
+    /** The guide's unfilled tail as last shaped, kept while it reads the same. */
+    private @Nullable String guideTailText;
+    private @Nullable ShapedText guideTailLine;
     private Consumer<String> onChange;
     private Consumer<String> onSubmit;
     /**
@@ -204,6 +215,85 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
     /** The placeholder as it currently reads. */
     public String placeholder() {
         return placeholder.get();
+    }
+
+    /**
+     * Fits what is typed to a pattern: {@code 0} takes a digit, {@code A} a letter, {@code *} any
+     * character, and every other character is a literal the field writes by itself as the next
+     * position is filled, so {@code "000.000.000-00"} turns {@code 12345678900} into
+     * {@code 123.456.789-00}. Characters a position does not take are passed over, and pasting a
+     * value with its literals or without them comes out the same. While the field has the
+     * keyboard, the positions still to fill show as a guide ({@code ___.___.___-__}); without it,
+     * an empty field shows its placeholder. A reader hears the pattern as the field's description.
+     *
+     * <p>The text already in the field is fitted at once. {@code null} takes the mask away and
+     * leaves the text as it is.
+     *
+     * @param pattern the pattern, or {@code null}
+     * @return this field
+     * @throws IllegalArgumentException if the pattern has no position to fill
+     */
+    public TextField setMask(@Nullable String pattern) {
+        Ui.checkUiThread();
+        mask = pattern == null ? null : limn.components.internal.text.InputMask.of(pattern);
+        maskDescription = pattern == null ? null : I18nString.literal(pattern);
+        if (mask != null) {
+            limn.components.internal.text.InputMask.Conformed fit =
+                    mask.conform(model.text(), model.cursor());
+            maskedText = fit.text();
+            maskedRaw = fit.raw();
+            if (!fit.text().equals(model.text())) {
+                setText(fit.text(), Change.Origin.CODE);
+            }
+        }
+        invalidate();
+        notifyChange(Change.of(Change.Aspect.DESCRIPTION, Change.Origin.CODE));
+        return this;
+    }
+
+    /** @return the pattern the text is fitted to, or {@code null} */
+    public @Nullable String mask() {
+        return mask == null ? null : mask.pattern();
+    }
+
+    /**
+     * @return the characters typed into the positions of the mask, without its literals: the
+     *         {@code 12345678900} of {@code 123.456.789-00}. Without a mask, the text
+     */
+    public String unmaskedText() {
+        return mask == null ? model.text() : maskedRaw;
+    }
+
+    /** @return whether every position of the mask is filled; without a mask, {@code true} */
+    public boolean isMaskComplete() {
+        return mask == null || maskedRaw.codePointCount(0, maskedRaw.length()) == mask.slots();
+    }
+
+    /**
+     * Fits the text the last edit left to the mask, folding the fitting into that edit so one undo
+     * takes both back. A Backspace or Delete that took only a literal away takes the character
+     * beyond it instead, as the user meant.
+     */
+    private void fitToMask() {
+        String text = model.text();
+        int caret = model.cursor();
+        limn.components.internal.text.InputMask.Conformed fit = mask.conform(text, caret);
+        if (fit.raw().equals(maskedRaw) && text.length() < maskedText.length()) {
+            // Only literals went: what fills the positions is unchanged.
+            String before = mask.conform(text.substring(0, Math.min(caret, text.length())), caret).raw();
+            int k = before.codePointCount(0, before.length());
+            int count = maskedRaw.codePointCount(0, maskedRaw.length());
+            int gone = deletingBackward ? k - 1 : k;
+            if (gone >= 0 && gone < count) {
+                String raw = limn.components.internal.text.InputMask.removeRaw(maskedRaw, gone);
+                fit = mask.conform(raw, raw.offsetByCodePoints(0, gone));
+            }
+        }
+        maskedText = fit.text();
+        maskedRaw = fit.raw();
+        if (!fit.text().equals(text) || fit.caret() != caret) {
+            model.amendLastEdit(fit.text(), fit.caret());
+        }
     }
 
     /**
@@ -823,9 +913,36 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * of {@link #originX}, and the only place a pointer coordinate becomes a line coordinate.
      */
     private float displayX(float lx, SizeTokens t) {
-        float lineWidth = (preedit.isEmpty() ? displayLine(t) : composedLine(t))
-                .metrics().width();
+        float lineWidth = liveWidth(t);
         return lx - originX(t, lineWidth);
+    }
+
+    /**
+     * The width the field lays its text out by: the line, and after it the guide's unfilled
+     * positions while a masked field has the keyboard, so the guide scrolls and aligns with the
+     * text it continues rather than running out of the box.
+     */
+    private float liveWidth(SizeTokens t) {
+        float width = (preedit.isEmpty() ? displayLine(t) : composedLine(t)).metrics().width();
+        ShapedText tail = guideTail(t);
+        return tail == null ? width : width + tail.metrics().width();
+    }
+
+    /** The guide's positions still to fill, shaped, while a masked field with text has the keyboard. */
+    private @Nullable ShapedText guideTail(SizeTokens t) {
+        if (mask == null || !isFocused() || !preedit.isEmpty() || model.length() == 0) {
+            return null;
+        }
+        String guide = mask.guide();
+        if (maskedText.length() >= guide.length()) {
+            return null;
+        }
+        String tail = guide.substring(maskedText.length());
+        if (!tail.equals(guideTailText)) {
+            guideTailText = tail;
+            guideTailLine = textRuler().shape(tail, t.body(), ShapedText.Direction.LTR);
+        }
+        return guideTailLine;
     }
 
     /** Entry-point form: resolves the step once for callers that have no tokens in hand. */
@@ -839,8 +956,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         }
         float cursorX = caretDisplayX(t); // includes any in-progress composition
         float inner = innerWidth(t);
-        float lineWidth = (preedit.isEmpty() ? displayLine(t) : composedLine(t))
-                .metrics().width();
+        float lineWidth = liveWidth(t);
         // Where the window onto the line currently starts, and where it would have to start for
         // the caret to be inside it. Both are line coordinates, so the arithmetic is the one this
         // always had; only turning the answer back into a scroll offset knows a direction.
@@ -868,7 +984,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         // The composed line's width already includes the preedit, and includes it correctly: a
         // separately measured preedit added to a separately measured committed line counts the
         // splice's own joining twice, once wrongly at each seam.
-        float content = (preedit.isEmpty() ? displayLine(t) : composedLine(t)).metrics().width();
+        float content = liveWidth(t);
         float overflow = Math.max(0, content - innerWidth(t));
         scrollX = Math.max(0, Math.min(scrollX, overflow));
     }
@@ -964,12 +1080,13 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
                 inner + 2 * Strokes.AA_BLEED, height());
         float inkTop = textTop(metrics);
         float baseline = inkTop + metrics.ascent();
-        float liveWidth = (preedit.isEmpty() ? displayLine(t) : composedLine(t))
-                .metrics().width();
+        float liveWidth = liveWidth(t);
         float originX = originX(t, liveWidth);
 
         boolean composing = !preedit.isEmpty();
-        String hint = placeholder.get();
+        // A masked field holding the keyboard shows its guide where the placeholder would be.
+        boolean guided = mask != null && isFocused() && !composing;
+        String hint = guided ? mask.guide() : placeholder.get();
         // The model's own emptiness, not the display line's: a substituted display form has the
         // model's index space, so the two agree, and asking the model never touches the content.
         if (model.length() == 0 && !composing && !paintsEmptyContent()) {
@@ -1010,6 +1127,10 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
             }
             Color ink = isEnabled() ? theme.text() : theme.disabledText();
             paintDisplayText(canvas, line, originX, baseline, metrics, t, ink);
+            ShapedText tail = guideTail(t);
+            if (tail != null) {
+                canvas.drawText(tail, originX + line.metrics().width(), baseline, theme.textMuted());
+            }
             if (isFocused() && cursorVisible && !model.hasSelection()) {
                 // ONE caret, not the two caretAt() offers: the model stores the side, so there is
                 // no ambiguity left to show -- and caretRect() describes one column, which is what
@@ -1330,7 +1451,14 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
             }
             case Keys.HOME -> model.moveHome(shift);
             case Keys.END -> model.moveEnd(shift);
-            case Keys.BACKSPACE -> editFromUser(word ? model::deleteWordBackward : model::backspace);
+            case Keys.BACKSPACE -> {
+                deletingBackward = true;
+                try {
+                    editFromUser(word ? model::deleteWordBackward : model::backspace);
+                } finally {
+                    deletingBackward = false;
+                }
+            }
             case Keys.DELETE -> editFromUser(word ? model::deleteWordForward : model::deleteForward);
             case Keys.A -> {
                 if (shortcut) {
@@ -1465,8 +1593,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         SizeTokens t = Theme.of(this).tokensFor(this);
         TextMetrics metrics = textRuler().measure("Hg", t.body());
         float left = contentLeft(t);
-        float liveWidth = (preedit.isEmpty() ? displayLine(t) : composedLine(t))
-                .metrics().width();
+        float liveWidth = liveWidth(t);
         float localX = originX(t, liveWidth) + caretDisplayX(t);
         out[0] = Math.max(left, Math.min(localX, left + innerWidth(t)));
         out[1] = textTop(metrics) - Strokes.INK_BLEED;
@@ -1604,6 +1731,9 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         if (!model.hasCharDamage()) {
             return;
         }
+        if (mask != null) {
+            fitToMask();
+        }
         int offset = model.damageOffset();
         int removed = model.damageRemoved();
         int inserted = model.damageInserted();
@@ -1710,7 +1840,8 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * the tooltip, which becomes the description instead when the placeholder already named the
      * node.
      *
-     * <p>No description of its own. The validation message beside a field is a {@code Label} the
+     * <p>No description of its own but a mask's pattern, which is what a reader needs to know to
+     * type into a field that writes its own literals. The validation message beside a field is a {@code Label} the
      * application owns and binds with {@link Label#setDescriptionFor}, which is what makes it the
      * field's description and gives the field a {@code DESCRIBED_BY} relation to it; this widget
      * holds no string for it, and what {@link #setValidation} holds is a colour.
@@ -1719,6 +1850,9 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
     protected void onAccessibility(Accessibility a) {
         a.role(Accessible.Role.TEXT_FIELD);
         a.name(placeholder, Accessible.NameFrom.PLACEHOLDER);
+        if (maskDescription != null) {
+            a.description(maskDescription);
+        }
         // Always editable, and never read-only: this class has no read-only mode, and a disabled
         // field is still an editable control that happens to be disabled. Conflating the two tells
         // a reader the text can never be typed into, which is a different and false fact.

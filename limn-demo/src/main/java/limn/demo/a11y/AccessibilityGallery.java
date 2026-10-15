@@ -564,6 +564,9 @@ public final class AccessibilityGallery {
                 new Entry("Text field with a value", List.of(TextField.class),
                         List.of(Role.TEXT_FIELD, Role.BUTTON),
                         AccessibilityGallery::textFieldWithValue),
+                new Entry("Text field with a mask", List.of(TextField.class),
+                        List.of(Role.TEXT_FIELD),
+                        AccessibilityGallery::textFieldWithMask),
                 new Entry("Password field", List.of(PasswordField.class),
                         List.of(Role.PASSWORD_FIELD, Role.SWITCH),
                         AccessibilityGallery::passwordField),
@@ -911,6 +914,15 @@ public final class AccessibilityGallery {
         Column page = page();
         TextField name = new TextField().setPlaceholder("First and last name");
         page.add(Labelled.above("Name", name));
+        return new Built(page);
+    }
+
+    private static Built textFieldWithMask() {
+        Column page = page();
+        // The pattern is the description a reader hears; the literals write themselves.
+        page.add(Labelled.above("Serial number", new TextField().setMask("AAA-0000-**")
+                .setText("KLM42")));
+        page.add(Labelled.above("Reference", new TextField().setMask("00.000.000/0000")));
         return new Built(page);
     }
 
