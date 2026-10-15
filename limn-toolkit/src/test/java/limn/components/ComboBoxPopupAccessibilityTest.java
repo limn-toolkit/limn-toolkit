@@ -575,16 +575,15 @@ class ComboBoxPopupAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /**
-     * Publication and performance read one condition for all three option verbs (2026-09-15,
-     * semantics 5; the fix-round critic's gap): while the list fades out after closing, the
-     * options are still drawn and still published, and the hook refuses {@code SELECT},
-     * {@code PRESS} and {@code FOCUS} there. Until that day all three were published through the
-     * fade, {@code FOCUS} refused and the other two answered done for a commit {@code commit}'s
-     * own guard dropped. Time is held still in this harness once the list has faded in, so the
-     * fade out stays at its first frame for as long as the case runs.
+     * From the first frame of its fade-out a list that closed is out of the tree and the keyboard
+     * is back in the combo, as a calendar's is (ADR 068 §3): what fades is pixels, and a reader has
+     * nothing to be on in a layer that is going. Until 2026-10-15 the combo's layer stayed published
+     * through the fade, its options offering nothing (2026-09-15, semantics 5). A verb sent to an
+     * option a reader still knew is answered for nothing: no selection, no highlight, no handler.
+     * Time is held still once the list has faded in, so the fade out stays at its first frame.
      */
     @Test
-    void throughTheFadeOutNoOptionOffersAVerbAndNoneIsPerformed() throws Exception {
+    void asItStartsToFadeTheListLeavesTheTreeAndAVerbToAnOldOptionDoesNothing() throws Exception {
         AtomicInteger calls = new AtomicInteger();
         bindCombo(4);
         combo.setSelectedIndex(1);
@@ -595,28 +594,21 @@ class ComboBoxPopupAccessibilityTest extends AccessibleComponentTestBase {
             assertEquals(java.util.Set.of(Accessible.Action.SELECT, Accessible.Action.PRESS),
                     option.actions().actions(), describe(tree()));
         }
+        List<AccessibleNode> known = options();
         int highlight = combo.highlightedIndex();
 
         combo.close();
         frame();
         assertFalse(combo.isOpen());
-        List<AccessibleNode> fading = options();
-        assertEquals(4, fading.size(), "the fading list is still drawn and still published"
-                + describe(tree()));
-        for (AccessibleNode option : fading) {
-            assertNull(option.actions(),
-                    "a fading option offers no verb, because the hook performs none of them"
-                            + describe(tree()));
+        for (int i = 0; i < tree().nodeCount(); i++) {
+            assertFalse(tree().node(i).role() == Accessible.Role.LIST,
+                    "the fading list is no longer published" + describe(tree()));
         }
-        List<AccessibleNode> layer = nodesWith(Accessible.State.MODAL);
-        assertEquals(1, layer.size(), "the fading layer still owns input" + describe(tree()));
-        assertFalse(layer.get(0).actions() != null
-                        && layer.get(0).actions().has(Accessible.Action.CANCEL),
-                "and offers no CANCEL, which close()'s guard would drop (2026-09-15)"
-                        + describe(tree()));
+        assertTrue(nodesWith(Accessible.State.MODAL).isEmpty(),
+                "nor the layer that held input" + describe(tree()));
         for (Accessible.Action verb : List.of(Accessible.Action.SELECT, Accessible.Action.PRESS,
                 Accessible.Action.FOCUS)) {
-            perform(fading.get(3).id(), verb, Accessible.Argument.NONE);
+            perform(known.get(3).id(), verb, Accessible.Argument.NONE);
             frame();
             assertEquals(1, combo.selectedIndex(), verb + " chose nothing");
             assertEquals(highlight, combo.highlightedIndex(), verb + " moved no highlight");

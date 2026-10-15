@@ -2,15 +2,13 @@ package limn.components;
 
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
-import limn.components.internal.FloatingSurfaces;
+import limn.components.internal.AnchoredPopup;
 import limn.components.internal.a11y.PopupOwnerAccessibility;
 import limn.animation.Transition;
 import limn.backend.Cursor;
 import limn.components.internal.a11y.RowsAccessibility;
 import limn.backend.NativeWindow;
-import limn.backend.WindowConfig;
 import limn.concurrent.Ui;
-import limn.concurrent.Subscription;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Font;
@@ -31,7 +29,6 @@ import limn.scene.Size;
 import limn.scene.Change;
 import limn.scene.Widget;
 import limn.graphics.SvgIcon;
-import limn.scene.internal.SceneAccess;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
 import org.jspecify.annotations.Nullable;
@@ -40,7 +37,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
-import limn.backend.spi.WindowPeer;
 
 /**
  * Dropdown selector. The popup is a real native window: undecorated,
@@ -88,9 +84,6 @@ import limn.backend.spi.WindowPeer;
  * over: it points up and down.
  */
 public final class ComboBox<T> extends Widget<ComboBox<T>> {
-
-    /** Breathing room kept from the work-area edge when clamping the popup. */
-    private static final float EDGE_MARGIN = 8;
 
     /** The items themselves, what {@link #selectedItem()} and {@link #onSelect} hand back. */
     private List<T> values;
@@ -183,26 +176,16 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     private static final int REFUSAL_QUOTE_LIMIT = 32;
     /** Whether an item matches the typed text, or {@code null} for the default rule. */
     private @Nullable BiPredicate<? super T, String> filter;
-    /** Makes the grafted list's highlight the tree's cursor while the editor keeps the keyboard. */
-    private @Nullable Subscription cursorHandle;
 
     /** Reused each paint; the caret's 3 points are recomputed from the size. */
     private final Path2D caret = new Path2D();
 
-    private NativeWindow popupWindow;
-    private Scene popupScene;
-    /** The transparent margin around the list in its own window, for its shadow; zero for none. */
-    private int popupMargin;
-    private PopupPanel popupPanel;
-    /**
-     * The in-scene presentation, non-null instead of {@link #popupWindow} on a platform that
-     * cannot place a window. Exactly one of the two is ever set while the popup is open.
-     */
-    private ScenePopup scenePopup;
+    /** The list, in a window of its own or in the scene. */
+    private final AnchoredPopup popup = new AnchoredPopup(new ListHost());
+    /** The panel of the presentation open now, or null. */
+    private @Nullable PopupPanel popupPanel;
     /** What the application asked for. The platform may override it towards IN_SCENE, never away. */
     private DisplayMode requested = DisplayMode.NATIVE_WINDOW;
-    /** Overlay fade, 0..1: the in-scene twin of the popup window's compositor fade. */
-    private float sceneFade;
     /**
      * The step the open popup's window was <em>sized</em> at. The window is sized once, at
      * creation, from {@code popupItemHeight}/{@code popupPadV}; a step change while it is open
@@ -228,12 +211,6 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
      * so is laid out and repainted by the pass that already noticed the change.
      */
     private boolean popupRtl;
-    /** Unregisters the outside-press dismiss observer while the popup is open. */
-    private Subscription dismissHandle;
-    private Subscription blurHandle;
-    private Subscription popupBlurHandle;
-    /** Closes a list that opened towards a window of its own when the owner changes fullscreen. */
-    private Subscription fullscreenHandle;
 
     /**
      * A combo over items that read as themselves: a {@link String} as it is, an
@@ -762,8 +739,8 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         if (popupPanel != null) {
             popupPanel.invalidate(); // the check marks
         }
-        if (popupWindow != null) {
-            popupWindow.requestFrame();
+        if (popup.window() != null) {
+            popup.window().requestFrame();
         }
         notifyChange(Change.of(Change.Aspect.SELECTION, origin));
     }
@@ -1136,7 +1113,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
      *         window to return
      */
     public @Nullable NativeWindow popupWindow() {
-        return popupWindow;
+        return popup.window();
     }
 
     // ------------------------------------------------------------ open/close
@@ -1171,44 +1148,9 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             notifyChange(Change.of(Change.Aspect.EXPANDED, origin));
             return;
         }
-        // A press in another window/app never reaches observePresses: dismiss on OS focus loss
-        // instead, or the always-on-top popup floats over foreign applications indefinitely.
-        // In-scene the same rule reads as "the application went away", which closes it too.
-        blurHandle = scene.observeWindowBlur(() -> Ui.post(this::closeUnlessRefocused));
-        // A fullscreen owner gets no list window (at a named mode it would be minimized at the
-        // first click in the list, and at the mode the display is in it already covers the screen,
-        // so the list loses nothing inside it), and one that cannot be positioned would put the
-        // list away from the field: both draw it in scene, whatever was asked.
-        if (requested == DisplayMode.IN_SCENE || (scene.window() != null
-                && !FloatingSurfaces.anchoredWindowAvailable(scene.window()))) {
-            presentInScene();
-            return;
-        }
-        // Any press elsewhere in the parent window dismisses the popup, even on non-focusable
-        // widgets, which never move focus. Native only: an overlay captures every press in the
-        // scene, including its own list's, so this observer would close the popup on the press
-        // that was choosing an item.
-        dismissHandle = scene.observePresses(target -> {
-            // A press inside the combo is not "elsewhere": an editable combo's list button is in
-            // its text field, and this observer, registered while that very press opened the
-            // list, hears the press after it is dispatched and closed the list it had opened.
-            if (!isInside(target)) {
-                close(Change.Origin.USER);
-            }
-        });
-        // The owner going fullscreen, or leaving it, takes the list down as a platform's own
-        // drop-down goes on a change of its window's state: the change resizes and moves the owner
-        // under a list placed against the field's old position, and one left open over a
-        // fullscreen at a named mode would minimize it at the first click. Dismissed, so the
-        // highlight is not chosen. An in-scene list is left alone: it is laid out again with the
-        // window, against the field where it now is.
-        fullscreenHandle = scene.observeWindowFullscreen(
-                fullscreen -> close(Change.Origin.ADJUSTMENT));
-        if (scene.window() != null && popupWindow == null) {
-            // Defer: creating a window switches the GL context, which must
-            // not happen in the middle of another window's frame callback.
-            Ui.post(this::createPopupWindow);
-        }
+        popupStep = controlSize();
+        popupRtl = isRightToLeft();
+        popup.open(requested);
     }
 
     /** @return whether {@code target} is this combo or inside it (its text field, its chips) */
@@ -1226,7 +1168,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
      *         {@code null} both here and headless, so it cannot tell the two apart
      */
     boolean isInSceneForTest() {
-        return scenePopup != null;
+        return popup.inScene();
     }
 
     /**
@@ -1256,7 +1198,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
      *         afresh over the window as it is then.
      */
     public DisplayMode displayMode() {
-        return scenePopup != null ? DisplayMode.IN_SCENE : requested;
+        return popup.inScene() ? DisplayMode.IN_SCENE : requested;
     }
 
     /**
@@ -1275,10 +1217,6 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             return;
         }
         open = false;
-        if (cursorHandle != null) {
-            cursorHandle.cancel();
-            cursorHandle = null;
-        }
         if (selectionMode == SelectionMode.MULTI && editor != null && !editor.text().isEmpty()) {
             // The chips come back when the list goes (ADR 052 §3): the filter goes with it.
             editor.setText("");
@@ -1287,93 +1225,13 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         }
         invalidate();
         notifyChange(Change.of(Change.Aspect.EXPANDED, origin));
-        if (dismissHandle != null) {
-            dismissHandle.cancel();
-            dismissHandle = null;
-        }
-        if (blurHandle != null) {
-            blurHandle.cancel();
-            blurHandle = null;
-        }
-        if (popupBlurHandle != null) {
-            popupBlurHandle.cancel();
-            popupBlurHandle = null;
-        }
-        if (fullscreenHandle != null) {
-            fullscreenHandle.cancel();
-            fullscreenHandle = null;
-        }
-        if (popupWindow != null) {
-            // The options stop offering their verbs now (optionsOperable() reads `open`), and a
-            // window's fade moves only its opacity and damages nothing in the panel, so the walk
-            // that withdraws them is asked for: without it the popup's tree kept publishing
-            // SELECT, PRESS and FOCUS through the whole fade (2026-09-15, semantics 5).
-            if (popupPanel != null) {
-                popupPanel.invalidateAccessible();
-            }
-            // Relinquish the fields now (a fresh open() can build a new popup
-            // while this one fades out), then fade the old window to transparent
-            // and destroy it once it has fully vanished.
-            NativeWindow closing = popupWindow;
-            Scene closingScene = popupScene;
-            popupWindow = null;
-            popupScene = null;
-            popupPanel = null;
-            popupStep = null;
-            NativeWindow parent = scene() != null ? scene().window() : null;
-            if (closingScene != null && closingScene.isWindowFocused()
-                    && parent != null && !parent.isClosed()) {
-                // A click in the list made its window the key one, and a destroyed key window
-                // hands the keyboard to nobody on macOS: the owner's came back only when it was
-                // clicked, so a Tab after choosing a row by pointer went nowhere.
-                parent.focus();
-            }
-            Runnable destroy = () -> {
-                if (parent != null && !parent.isClosed()) {
-                    WindowPeer.of(parent).unregisterChildPopup(closing);
-                }
-                closing.requestClose();
-            };
-            if (closingScene != null) {
-                closingScene.fadeWindowOut(limn.animation.Motion.duration(Theme.of(this).animWindow), destroy);
-            } else {
-                destroy.run();
-            }
-        }
-        if (scenePopup != null) {
-            ScenePopup closing = scenePopup;
-            Scene owner = scene();
-            scenePopup = null;
-            popupPanel = null;
-            popupStep = null;
-            if (owner == null) {
-                return; // detached mid-open: nothing holds the overlay any more
-            }
-            if (owner.window() == null) {
-                owner.removeOverlay(closing); // headless: no frame pump to advance a fade
-                return;
-            }
-            // Wall time, not frame time: this fade's last frame is what removes the overlay
-            // holding input capture and focus. Frozen, the list would stay open over a paused
-            // application with the field underneath unreachable.
-            owner.addRealTimeTicker(dt -> {
-                sceneFade = (float) Math.max(0, sceneFade - limn.animation.Motion.progress(dt, Theme.of(this).animWindow));
-                closing.invalidate();
-                if (sceneFade > 0) {
-                    return true;
-                }
-                owner.removeOverlay(closing); // restores focus to the field
-                return false;
-            });
-        }
+        // The options stop offering their verbs now (optionsOperable() reads `open`); the popup
+        // asks the walk that withdraws them, as a window's fade damages nothing in the panel.
+        popupPanel = null;
+        popupStep = null;
+        popup.close();
     }
 
-    /**
-     * Deferred one event-loop turn so an intra-app focus switch (owner blurs,
-     * popup gains focus in the same input batch, or vice versa) settles first:
-     * the popup survives while OS focus is on the owner window or on the popup
-     * itself, and dismisses when it moved anywhere else.
-     */
     // ------------------------------------------------------------- editable field
 
     /** Asks the search for {@code text} once the typing pauses; an empty text asks nothing. */
@@ -1705,36 +1563,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
 
     /** The list's rows changed while it is up: its window takes the new height, or the overlay lays out again. */
     private void refitPopup() {
-        if (popupPanel != null) {
-            popupPanel.markNeedsLayout();
-            popupPanel.invalidate();
-        }
-        if (scenePopup != null) {
-            scenePopup.markNeedsLayout();
-            scenePopup.invalidate();
-        }
-        Scene scene = scene();
-        if (popupWindow == null || scene == null || scene.window() == null) {
-            return;
-        }
-        NativeWindow parent = scene.window();
-        SizeTokens t = Theme.of(this).tokensFor(this);
-        float gap = t.popupGap();
-        float factor = parent.logicalToScreenFactor();
-        int anchorTop = parent.screenY() + Math.round(localToSceneY() * factor);
-        int anchorBottom = parent.screenY() + Math.round((localToSceneY() + height() + gap) * factor);
-        limn.backend.ScreenRect area = parent.display() != null ? parent.display().workArea() : null;
-        float contentH = contentHeight(t);
-        float spaceBelow = area != null ? (area.bottom() - anchorBottom) / factor - EDGE_MARGIN : contentH;
-        float spaceAbove = area != null ? (anchorTop - area.y()) / factor - gap - EDGE_MARGIN : contentH;
-        Drop drop = dropFor(t, spaceAbove, spaceBelow);
-        float ownerY = drop.above() ? localToSceneY() - gap - drop.height() : localToSceneY() + height() + gap;
-        int m = popupMargin; // the shadow's, around the list: see createPopupWindow
-        popupWindow.setSize(Math.max(1, Math.round(width())) + 2 * m,
-                Math.max(1, Math.round(drop.height())) + 2 * m);
-        popupWindow.setScreenPosition(parent.screenX() + Math.round((localToSceneX() - m) * factor),
-                parent.screenY() + Math.round((ownerY - m) * factor));
-        popupWindow.requestFrame();
+        popup.refit();
     }
 
     /**
@@ -1819,17 +1648,6 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         }
     }
 
-    private void closeUnlessRefocused() {
-        if (!open) {
-            return;
-        }
-        boolean ownerFocused = scene() != null && scene().isWindowFocused();
-        boolean popupFocused = popupScene != null && popupScene.isWindowFocused();
-        if (!ownerFocused && !popupFocused) {
-            close(Change.Origin.ADJUSTMENT);
-        }
-    }
-
     /**
      * Which way the list drops and how tall it ends up, the one decision both presentations
      * make, from spaces each measures for itself against a different bound (the display's work
@@ -1861,144 +1679,76 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
                 Math.max(minH, Math.min(contentH, above ? spaceAbove : spaceBelow)));
     }
 
-    /**
-     * Draws the list inside the owner scene, for a window that cannot place one of its own.
-     *
-     * <p>Not deferred, unlike {@link #createPopupWindow()}: there is no window to create and so
-     * no GL context to switch, and posting would leave one frame with the field showing itself
-     * open and nothing dropped down.
-     */
-    private void presentInScene() {
-        Scene owner = scene();
-        popupStep = controlSize();
-        popupPanel = new PopupPanel();
-        // Before the overlay is pushed, for the reason the native path resolves it before
-        // binding: a panel that resolved the process defaults would lay its rows out at one step,
-        // or in one direction, inside a box measured at another.
-        popupPanel.setInheritanceHost(this);
-        scenePopup = new ScenePopup(popupPanel);
-        // The link goes on the OVERLAY as well, and it is the overlay's that does the work: the
-        // panel's own is ignored here, because a host link on a widget that has a parent loses to
-        // the tree, and in this presentation the panel's parent is the overlay. Without this the
-        // whole in-scene subtree resolves the owner scene's default and then the process default,
-        // so a field at a declared step opens a list whose box is measured at the field's step
-        // (this class reads the field's tokens for that) and whose rows are painted and hit at
-        // another, and a list opened by a field in its own language resolves its rows in a
-        // different one. Before the push, for the reason the panel's own goes on before it:
-        // pushOverlay measures, and a link installed afterwards sizes at the wrong step first.
-        //
-        // It reaches as far as the link is defined to reach and no further: a host is consulted
-        // after the widget's own scene default, so an owner scene that declares a step or a
-        // language still wins over the field here, where a popup in a window of its own falls
-        // through to the field because its scene declares nothing. That is the axis rule rather
-        // than this component's, and the case this fixes is the one the class promises.
-        scenePopup.setInheritanceHost(this);
-        // Assigned before pushOverlay, which moves focus off the field: onFocusLost reads this
-        // field to tell "the user clicked elsewhere" from "our own overlay took the keyboard",
-        // and the second one must not close the popup it is opening.
-        boolean animate = owner.window() != null && !limn.animation.Motion.reduced();
-        sceneFade = animate ? 0f : 1f;
-        if (editable) {
-            // The editor keeps the keyboard, the caret and the input method: the list is drawn
-            // over the page and driven from the field, as its window of its own is.
-            SceneAccess.pushPopupLeavingKeyboard(owner, scenePopup);
-        } else {
-            owner.pushPopup(scenePopup);
+    /** What the combo answers for its list. */
+    private final class ListHost implements AnchoredPopup.Host {
+        @Override
+        public Widget<?> anchor() {
+            return ComboBox.this;
         }
-        if (animate) {
-            ScenePopup fading = scenePopup;
-            owner.addRealTimeTicker(dt -> {
-                if (!open) {
-                    return false; // closed mid-fade: the fade-out ticker takes over
-                }
-                sceneFade = (float) Math.min(1, sceneFade + limn.animation.Motion.progress(dt, Theme.of(this).animWindow));
-                fading.invalidate();
-                return sceneFade < 1;
-            });
-        }
-    }
 
-    private void createPopupWindow() {
-        // Re-check: the combo may have closed (or detached) before this post
-        // ran, or the parent window may already be gone.
-        Scene scene = scene();
-        if (!open || popupWindow != null || scene == null
-                || scene.window() == null || scene.window().isClosed()) {
-            return;
+        @Override
+        public Widget<?> opener() {
+            return ComboBox.this;
         }
-        NativeWindow parent = scene.window();
-        if (!FloatingSurfaces.anchoredWindowAvailable(parent)) {
-            // The owner went fullscreen between the open and this turn, and the change has not
-            // been dispatched yet: the window it would have closed is never made.
-            close(Change.Origin.ADJUSTMENT);
-            return;
+
+        /** The field's width, and the height {@link #dropFor} gives the rows in the room there is. */
+        @Override
+        public AnchoredPopup.Placement place(SizeTokens t, float spaceAbove, float spaceBelow) {
+            Drop drop = dropFor(t, spaceAbove, spaceBelow);
+            return new AnchoredPopup.Placement(width(), drop.height(), drop.above());
         }
-        SizeTokens t = Theme.of(this).tokensFor(this);
-        float gap = t.popupGap();
-        float factor = parent.logicalToScreenFactor();
-        int anchorTop = parent.screenY() + Math.round(localToSceneY() * factor);
-        int anchorBottom = parent.screenY() + Math.round((localToSceneY() + height() + gap) * factor);
 
-        // Clamp the list to the display work area: prefer dropping below the field;
-        // flip above when the list doesn't fit below and there is more room above.
-        // A clamped list scrolls (wheel + keyboard highlight auto-reveals).
-        limn.backend.ScreenRect area = parent.display() != null ? parent.display().workArea() : null;
-        float contentH = contentHeight(t);
-        float spaceBelow = area != null
-                ? (area.bottom() - anchorBottom) / factor - EDGE_MARGIN : contentH;
-        float spaceAbove = area != null
-                ? (anchorTop - area.y()) / factor - gap - EDGE_MARGIN : contentH;
-        Drop drop = dropFor(t, spaceAbove, spaceBelow);
-
-        int popupWidth = Math.max(1, Math.round(width()));
-        int popupHeight = Math.max(1, Math.round(drop.height()));
-        // Placed against the field in the owner's own points, and owned from creation: the parent
-        // closing closes the list, and a platform that places a child against its parent can.
-        float ownerY = drop.above()
-                ? localToSceneY() - gap - drop.height()
-                : localToSceneY() + height() + gap;
-        // Where the compositor casts no shadow for such a window, the window is larger than the
-        // list by the shadow's reach on every side and the list is laid out inset in it.
-        popupMargin = limn.components.internal.PopupFrame.marginFor(parent, Theme.of(this), Elevation.OVERLAY);
-        int m = popupMargin;
-        popupWindow = parent.backend().createWindow(
-                WindowConfig.popup(parent, popupWidth + 2 * m, popupHeight + 2 * m)
-                        .atInOwner(localToSceneX() - m, ownerY - m));
-        popupStep = controlSize();
-        popupRtl = isRightToLeft();
-
-        popupPanel = new PopupPanel();
-        // Before the scene binds: binding measures the panel, and a panel that resolved the
-        // process defaults there would lay rows out at one step, or in one direction, inside a
-        // window sized at another.
-        Widget<?> popupRoot = m == 0 ? popupPanel
-                : new limn.components.internal.PopupFrame(popupPanel, m, () -> close(Change.Origin.USER));
-        popupRoot.setInheritanceHost(this);
-        // On the owner's clock, so the fade-out that destroys this window advances with it
-        // (Scene#clock).
-        popupScene = new Scene(popupRoot, scene().clock());
-        popupScene.inheritRenderingFlags(scene()); // partial/debug follow the owner window
-        // Published by this window's tree, under the combo, as a native drop-down list is a child
-        // of its field: a reader never leaves this window while the list is open.
-        scene().graftPopup(popupScene);
-        if (editable) {
-            // The editor holds the caret and the keyboard; the list's highlight is still what a
-            // reader follows, as ARIA's combobox points at it with aria-activedescendant.
-            cursorHandle = SceneAccess.showCursorOf(scene(), popupScene);
+        @Override
+        public Widget<?> createPanel(boolean inWindow) {
+            popupPanel = new PopupPanel(inWindow);
+            return popupPanel;
         }
-        popupScene.bind(popupWindow);
-        // Clicking the list may hand OS focus to the popup window itself; when
-        // THAT later blurs, the same dismiss rule applies.
-        popupBlurHandle = popupScene.observeWindowBlur(() -> Ui.post(this::closeUnlessRefocused));
-        popupScene.setBackground(Color.TRANSPARENT); // the translucent-window core
 
-        // Screenshot mode keeps everything hidden; interactive mode shows the
-        // popup without stealing focus (WindowConfig.popup → focusOnShow=false).
-        if (parent.isVisible()) {
-            popupScene.fadeWindowIn(limn.animation.Motion.duration(Theme.of(this).animWindow)); // transparent → visible
-            popupWindow.show();
+        @Override
+        public void dismiss(Change.Origin origin) {
+            close(origin);
         }
-        popupWindow.requestFrame();
+
+        /**
+         * A press inside the combo is not elsewhere: an editable combo's list button is in its
+         * text field, and the press that opened the list would otherwise close it.
+         */
+        @Override
+        public boolean contains(@Nullable Widget<?> target) {
+            return isInside(target);
+        }
+
+        /** The layer's keys drive the list as the field's do; see {@link ComboBox#onKeyEvent}. */
+        @Override
+        public void key(KeyEvent event) {
+            ComboBox.this.onKeyEvent(event);
+        }
+
+        @Override
+        public void character(limn.scene.event.CharEvent event) {
+            ComboBox.this.onCharTyped(event);
+        }
+
+        /**
+         * GROUP and not LIST, the panel below being the list; named by a constant, since an open
+         * list damages this layer on every frame of its fade and nothing may be built here; and
+         * the container of the active descendant a reader follows the arrows by, since the
+         * keyboard never moves into the list. Required for the combo's reason: it refuses an
+         * empty item list, so there is always one selection, unless an empty one is allowed.
+         */
+        @Override
+        public void describeLayer(Accessibility a) {
+            a.role(Accessible.Role.GROUP);
+            a.name(ComponentStrings.COMBO_POPUP, Accessible.NameFrom.CONTENT);
+            boolean many = selectionMode == SelectionMode.MULTI;
+            a.selection(many, !many && !emptyAllowed);
+        }
+
+        /** The editor keeps the keyboard, the caret and the input method while the list is up. */
+        @Override
+        public boolean keepsKeyboard() {
+            return editable;
+        }
     }
 
     /**
@@ -2086,21 +1836,21 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     @Override
     protected Size onMeasure(Constraints constraints) {
         SizeTokens t = Theme.of(this).tokensFor(this);
-        if (open && popupWindow != null && popupStep != controlSize()) {
+        if (open && popup.window() != null && popupStep != controlSize()) {
             // The window was sized at popupStep and cannot be resized in place without
             // reflowing rows the user is aiming at; deferred so a measure pass never mutates
             // the tree it is running over.
             Ui.post(this::close);
         }
         boolean rtl = isRightToLeft();
-        if (open && popupWindow != null && popupRtl != rtl) {
+        if (open && popup.window() != null && popupRtl != rtl) {
             // Not deferred, and not a close: this touches the popup window's own tree and not
             // the one being measured, and the window keeps its size (the field measures the
             // same in both directions). Without it the list stays as it was drawn, because
             // nothing in this scene damages a panel that lives in another one.
             popupRtl = rtl;
             popupPanel.markNeedsLayout();
-            popupWindow.requestFrame();
+            popup.window().requestFrame();
         }
         TextMetrics metrics = textRuler().measure(widestItem(t.body()), t.body());
         return constraints.constrain(
@@ -2428,8 +2178,8 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             popupPanel.damageRow(highlightedRow, t);
             popupPanel.revealRow(highlightedRow, t); // keyboard highlight stays in view
         }
-        if (popupWindow != null) {
-            popupWindow.requestFrame();
+        if (popup.window() != null) {
+            popup.window().requestFrame();
         }
     }
 
@@ -2465,7 +2215,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     @Override
     protected void onFocusLost() {
         focusFade.to(0);
-        if (scenePopup == null) {
+        if (!popup.inScene()) {
             close(Change.Origin.USER); // clicking anywhere else (a popup window never takes focus) dismisses
         }
         // An in-scene popup takes the focus itself (pushOverlay confines it to the overlay), so
@@ -2925,179 +2675,6 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
 
     // ---------------------------------------------------------- scene popup
 
-    /**
-     * The dropdown as a scene overlay: a transparent layer the size of the owner scene, holding
-     * the same {@link PopupPanel} the native popup puts in a window of its own.
-     *
-     * <p>Two things it must do that the native popup gets from the OS for free.
-     *
-     * <p>It <b>holds the keyboard</b>, because {@code pushOverlay} confines focus to the overlay
-     * and the field underneath can no longer receive a key. So this layer is focusable and hands
-     * what it receives back to the combo, which is where the list's whole key and type-ahead
-     * behaviour lives. Nothing is duplicated: both presentations run the same handlers.
-     *
-     * <p>It <b>dismisses on a press outside the list</b>, which for the native popup is the
-     * owner scene's press observer. That observer cannot serve here: an overlay captures every
-     * press in the scene, the list's own included, so it would fire on the press that is
-     * choosing an item and close the popup before the click landed.
-     *
-     * <p>The list is clamped to the scene rather than to the display, so a combo near the bottom
-     * of a window has less room than the same combo would on a platform that can put its list in
-     * a window. That is the visible cost of the fallback, and it is why it is a fallback.
-     *
-     * <p><b>It is a node in the accessible tree, and holding the keyboard is why.</b> A layer
-     * that paints nothing would ordinarily be deleted as scaffolding, but this one is the
-     * scene's focused widget and its only tab stop for as long as the list is open, so deleting
-     * it would put the tree and the keyboard into disagreement. It says what it is, names itself
-     * because nothing else can, and carries the active descendant a reader follows the arrows
-     * by; the options themselves are the panel's, which is where they are drawn.
-     */
-    private final class ScenePopup extends Widget<ScenePopup> {
-
-        private final PopupPanel panel;
-
-        ScenePopup(PopupPanel panel) {
-            this.panel = panel;
-            setFocusable(true);
-            add(panel);
-        }
-
-        /** The overlay is laid out tight to the scene; that size is the bound the list clamps to. */
-        @Override
-        protected Size onMeasure(Constraints constraints) {
-            return constraints.constrain(constraints.maxWidth(), constraints.maxHeight());
-        }
-
-        @Override
-        protected void onLayout() {
-            SizeTokens t = Theme.of(this).tokensFor(ComboBox.this);
-            // The field's direction and not the overlay's, for the reason the tokens are the
-            // field's: this list belongs to the combo, and the overlay is only the layer it is
-            // drawn on. Resolved once for the pass.
-            boolean rtl = ComboBox.this.isRightToLeft();
-            float gap = t.popupGap();
-            // Read after the root has been laid out: the scene lays overlays out last, which is
-            // what makes the field's scene position current here rather than one frame stale.
-            float anchorX = ComboBox.this.localToSceneX();
-            float anchorTop = ComboBox.this.localToSceneY();
-            float anchorBottom = anchorTop + ComboBox.this.height() + gap;
-            Drop drop = dropFor(t,
-                    anchorTop - gap - EDGE_MARGIN,
-                    height() - anchorBottom - EDGE_MARGIN);
-
-            float listWidth = Math.min(ComboBox.this.width(), width());
-            // Hung from the field's LEADING edge, which is its right one reading right to left;
-            // anchorX stays the field's physical left either way.
-            //
-            // The two branches compute the same number today, and saying so is the point: the
-            // list is the field's own width unless the scene is narrower still, and a box the
-            // width of the field aligned to either of the field's edges lands on the field. The
-            // alignment is written down anyway because that is the invariant it rests on, and
-            // the day a list is narrower than the field that it opened under, this line is
-            // already the one that has to be right.
-            float wanted = rtl ? anchorX + ComboBox.this.width() - listWidth : anchorX;
-            // The clamp keeps its form, and it needs no direction of its own: listWidth is a
-            // min with this overlay's width, so the interval is never empty and clamping the
-            // leading edge first agrees with clamping the trailing one first.
-            float x = Math.max(0, Math.min(wanted, width() - listWidth));
-            float y = drop.above() ? anchorTop - gap - drop.height() : anchorBottom;
-            panel.measure(Constraints.tight(listWidth, drop.height()));
-            panel.layoutBox(x, y, listWidth, drop.height());
-        }
-
-        /** Keys reach the list through here; see the class note on why they are not handled here. */
-        @Override
-        protected void onKeyEvent(KeyEvent event) {
-            ComboBox.this.onKeyEvent(event);
-        }
-
-        @Override
-        protected void onCharTyped(limn.scene.event.CharEvent event) {
-            ComboBox.this.onCharTyped(event);
-        }
-
-        @Override
-        protected void onMouseEvent(MouseEvent event) {
-            // Only presses that missed the list arrive here; one inside it is the panel's.
-            if (event.type() == MouseEvent.Type.PRESS) {
-                close(Change.Origin.USER);
-                event.consume();
-            }
-        }
-
-        @Override
-        protected void onAccessibility(Accessibility a) {
-            // This layer is not scaffolding, whatever a survey of it from the outside says. The
-            // constructor makes it focusable and pushOverlay's focus traverse finds nothing
-            // focusable beneath it, so for the whole life of an in-scene list it is the scene's
-            // focused widget and its only tab stop. Deleting it would leave the published
-            // focusable set empty while the keyboard reaches one widget, which is the equality
-            // the modal rule states, and would leave the focused identifier naming a node the
-            // tree does not contain. Every parentless top overlay is also declared modal by the
-            // walk before the transparency predicate runs, so none of them can be deleted.
-            //
-            // The role is declared rather than left to the reset default, because a declared
-            // role is what stops a focusable node being published as UNKNOWN with a warning
-            // logged once and read by nobody. GROUP and not LIST: the panel below is the list,
-            // it has the list's own rectangle, and two nested lists is a shape every bridge has
-            // to invent its way out of. Not WINDOW, which the tree's own root already is; not
-            // DIALOG, which this is not and which a Windows client acts on.
-            a.role(Accessible.Role.GROUP);
-            // A constant this class holds, never a string built here: an open list runs a fade
-            // and damages this layer on every frame of it, and anything allocated in this hook
-            // is allocated per frame to conclude that nothing moved. Nothing else can name it --
-            // it paints nothing, has no tooltip, and is private to this file -- and the field's
-            // own name is not reachable from this package. The relation below is what carries
-            // the link to the field instead. The provenance is the control's own name and not a
-            // description of it, which is the slot a tooltip would take.
-            a.name(ComponentStrings.COMBO_POPUP, Accessible.NameFrom.CONTENT);
-            // The whole reason for describing this node well. Focus never moves while the list
-            // is open, so the only way a reader can follow Up, Down, Home, End, the page keys or
-            // type-ahead is an active descendant on the node that holds the focus -- which is
-            // this one, and not the list. The facet declares the container; which of its
-            // descendants the cursor is on is the first one published ACTIVE, filled in by the
-            // publish step, so this is inert until the panel marks its highlighted row. In this
-            // list the cursor and the selection are two things: the highlight moves under the
-            // arrows and the selection moves only on commit -- which is about the ACTIVE
-            // descendant and not about whether a selection exists. Required is true for the
-            // combo's own documented reason, the same one the panel's facet gives over these
-            // very members: it refuses an empty item list, so there is always exactly one
-            // selection and nothing to clear to.
-            boolean many = selectionMode == SelectionMode.MULTI;
-            a.selection(many, !many && !emptyAllowed);
-            // The single-argument form, never the variable-argument one, which allocates an
-            // array per call. CANCEL and nothing else: Esc dismisses the list, a press on this
-            // layer is the click-outside dismissal that CANCEL already names, and offering both
-            // would be two verbs for one behaviour. FOCUS and SCROLL_INTO_VIEW arrive free
-            // because the widget is focusable, and MODAL arrives free from the walk, so neither
-            // is written here. Only while the list is open: through the fade-out after close()
-            // the layer is still the top overlay and was still published with CANCEL, which
-            // close()'s own guard then dropped while the hook answered done (2026-09-15,
-            // semantics 5); the hook below reads the same field.
-            if (open) {
-                a.action(Accessible.Action.CANCEL);
-            }
-            // No bounds call. The node's box is this overlay's own, which is the whole scene --
-            // the layer that genuinely captures every press, the same shape as a dialog's scrim
-            // -- so a platform hit test outside the list resolves to this node, and that is
-            // true: a press there closes the popup. The list's rectangle is the panel's node.
-        }
-
-        @Override
-        protected boolean onAccessibilityAction(Accessible.Action action,
-                                                Accessible.Argument arg) {
-            if (action != Accessible.Action.CANCEL || !open) {
-                return false; // not while the list fades out, where nothing publishes CANCEL
-            }
-            // The path Esc takes, with its own guards: close() checks the thread and returns on
-            // a popup that is already closing, and the posted action has already re-checked
-            // attachment, the enabled chain, showing and reachability. Nothing here gains an
-            // entry point the keyboard does not already use.
-            ComboBox.this.close(Change.Origin.USER);
-            return true;
-        }
-    }
-
     // ---------------------------------------------------------- popup panel
 
     /**
@@ -3116,11 +2693,17 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
      */
     private final class PopupPanel extends Widget<PopupPanel> implements Scrollable {
 
-        /** The shadow the list casts while it is drawn in the scene. */
+        /** Whether the list is in a window of its own, rather than in the scene. */
+        private final boolean inWindow;
+
+        /** The shadow the list casts in the scene, or in a window that frames one. */
         @Override
         protected float paintOutset() {
-            return scenePopup != null || popupMargin > 0
-                    ? Theme.of(this).elevation(Elevation.OVERLAY).reach() : 0;
+            return castsShadow() ? Theme.of(this).elevation(Elevation.OVERLAY).reach() : 0;
+        }
+
+        private boolean castsShadow() {
+            return !inWindow || popup.margin() > 0;
         }
 
         private final ScrollBar vBar;
@@ -3128,7 +2711,8 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         private float scroll;
         private boolean initialRevealDone;
 
-        PopupPanel() {
+        PopupPanel(boolean inWindow) {
+            this.inWindow = inWindow;
             setCursor(Cursor.POINTER); // the whole list reads as clickable
             vBar = new ScrollBar(ScrollBar.Orientation.VERTICAL, new ScrollBar.Model() {
                 @Override
@@ -3307,17 +2891,18 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             float inset = t.popupRowInsetX();
             // In-scene the canvas opacity does the fade; a popup window fades through its own
             // compositor opacity, so that presentation paints solid here.
-            boolean fading = scenePopup != null && sceneFade < 1f;
+            float fade = AnchoredPopup.fadeOf(this);
+            boolean fading = fade < 1f;
             if (fading) {
                 canvas.save();
-                canvas.setOpacity(sceneFade);
+                canvas.setOpacity(fade);
             }
             // Slightly translucent panel: the desktop shows through, and the rounded corners are
             // genuinely transparent (framebuffer alpha 0). In-scene the same 0.94 composites
             // over the owner's own content instead of over the desktop, and a list you can read
             // the page through is not frosted glass: it is unreadable. So that presentation
             // paints the theme's surface as the theme wrote it.
-            if (scenePopup != null || popupMargin > 0) {
+            if (castsShadow()) {
                 // In the scene the list lies over the page, and says so as every surface that
                 // covers does; in a window of its own the shadow is the compositor's, or drawn
                 // here into the window's margin where the compositor casts none.
@@ -3325,7 +2910,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
                         t.radiusLarge()), Elevation.OVERLAY);
             }
             canvas.fillRoundRectWithBorder(0, 0, width(), height(), t.radiusLarge(),
-                    scenePopup != null ? theme.surfaceRaised()
+                    !inWindow ? theme.surfaceRaised()
                             : theme.surfaceRaised().withAlpha(0.94f),
                     Strokes.BORDER, theme.outline());
 
@@ -3475,7 +3060,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
          */
         @Override
         protected void onKeyEvent(KeyEvent event) {
-            if (scenePopup != null) {
+            if (!inWindow) {
                 return;
             }
             ComboBox.this.onKeyEvent(event);
@@ -3487,7 +3072,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
 
         @Override
         protected void onCharTyped(limn.scene.event.CharEvent event) {
-            if (scenePopup == null) {
+            if (inWindow) {
                 ComboBox.this.onCharTyped(event);
             }
         }

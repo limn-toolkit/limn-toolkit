@@ -982,13 +982,11 @@ public final class DatePicker extends Widget<DatePicker> {
             return DatePicker.this;
         }
 
-        /**
-         * The FIELD being filled, not this composite (decisions 18 and 55, 2026-09-14): it is the
-         * opener the walk names in the popup's POPUP_FOR and mirrors as CONTROLLER_FOR, and the
-         * node a reader is at; every inherited axis resolves through the field to this picker.
-         */
         @Override
         public Widget<?> opener() {
+            // The FIELD being filled, not this composite (decisions 18 and 55, 2026-09-14): it is
+            // the opener the walk names in the popup's POPUP_FOR and mirrors as CONTROLLER_FOR, and
+            // the node a reader is at; every inherited axis resolves through the field to this picker.
             return filling();
         }
 

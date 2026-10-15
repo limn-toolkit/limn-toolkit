@@ -186,12 +186,13 @@ class VerbPolicyRatchetTest {
      */
     /**
      * The entries whose layer in the scene leaves the accessible tree in the frame it starts to
-     * close: a calendar and a menu give the keyboard back as their fade begins, and a layer that
+     * close: a calendar, a combo box's list (since ADR 068 §3) and a menu give the keyboard back as
+     * their fade begins, and a layer that
      * is going is nothing a reader can be on. For these the sample one frame into the fade must
      * find the layer gone; for every other entry it must find it still published, so that neither
      * a layer that lingers nor one that vanishes early passes unseen.
      */
-    static final Set<String> LEAVES_THE_TREE_AS_IT_CLOSES = Set.of("Date picker, open");
+    static final Set<String> LEAVES_THE_TREE_AS_IT_CLOSES = Set.of("Date picker, open", "Combo box, open");
 
     static final Set<String> FADE_OUT_ENTRIES = Set.of(
             "Combo box, open", "Dialog, in its own window", "Dialog, in the scene");
