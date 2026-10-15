@@ -1340,6 +1340,13 @@ public final class AccessibilityGallery {
         tabs.addTab("Privacy", privacy);
         tabs.addTab("About", new Label("Version 1.0").setWrap(true));
         page.add(new SizedBox(SizedBox.UNSET, 200, tabs));
+        // Closable, and moved with command+Shift+Page Up and Page Down: each tab carries its close
+        // button, and a move is said aloud.
+        TabbedPane documents = new TabbedPane().setTabsClosable(true);
+        for (String name : List.of("Report.txt", "Notes.txt", "Budget.txt")) {
+            documents.addTab(name, new Label("The text of " + name).setWrap(true));
+        }
+        page.add(new SizedBox(SizedBox.UNSET, 160, documents));
         return new Built(page);
     }
 

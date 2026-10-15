@@ -270,6 +270,56 @@ public abstract class Widget<W extends Widget<W>> {
         insert(index, child);
     }
 
+    /**
+     * Moves a child to another position in {@link #children()} without taking it out of the tree
+     * (UI thread only): what {@link #remove} and {@link #add(int, Widget)} would do in two steps,
+     * without the detaching between them, so the focus, the hover and the press inside it stay
+     * where they are. A tab dragged along its bar keeps the press that drags it.
+     *
+     * @param child a child of this widget
+     * @param index where it goes, in {@code [0, children().size())}
+     * @throws IllegalArgumentException  if {@code child} is not a child of this widget
+     * @throws IndexOutOfBoundsException if {@code index} is outside that range
+     */
+    protected void moveChild(Widget<?> child, int index) {
+        moveChild(child, index, Change.Origin.CODE);
+    }
+
+    /**
+     * {@link #moveChild(Widget, int)}, announcing the move with who asked for it: a container
+     * whose user moved a child says so in the one {@code CHILDREN} change the move makes, which
+     * then reaches its handler as a user's change does.
+     *
+     * @param child  a child of this widget
+     * @param index  where it goes, in {@code [0, children().size())}
+     * @param origin who asked for the move
+     * @throws IllegalArgumentException  if {@code child} is not a child of this widget
+     * @throws IndexOutOfBoundsException if {@code index} is outside that range
+     */
+    protected void moveChild(Widget<?> child, int index, Change.Origin origin) {
+        Ui.checkUiThread();
+        Objects.requireNonNull(origin, "origin");
+        Objects.requireNonNull(child, "child");
+        if (child.parent != this) {
+            throw new IllegalArgumentException("not a child of this widget");
+        }
+        Objects.checkIndex(index, children.size());
+        int from = children.indexOf(child);
+        if (from == index) {
+            return;
+        }
+        children.remove(from);
+        children.add(index, child);
+        // The children trade places inside a box that keeps its size: a widget that clips them
+        // lays out alone, and the scene falls back to a full pass by itself if the size moved.
+        if (clipsChildren()) {
+            markNeedsContainedLayout();
+        } else {
+            markNeedsLayout();
+        }
+        notifyChange(Change.of(Change.Aspect.CHILDREN, origin));
+    }
+
     /** The one place a child joins the tree; both {@code add} overloads end here. */
     private void insert(int index, Widget<?> child) {
         Objects.requireNonNull(child, "child");
@@ -292,7 +342,19 @@ public abstract class Widget<W extends Widget<W>> {
 
     /** Removes a child (UI thread only); protected for the reason {@link #add(Widget)} is. */
     protected void remove(Widget<?> child) {
+        remove(child, Change.Origin.CODE);
+    }
+
+    /**
+     * {@link #remove(Widget)}, announcing the removal with who asked for it: a container whose
+     * user closed a child says so in the one {@code CHILDREN} change the removal makes.
+     *
+     * @param child  the child to take out; nothing happens for one that is not a child
+     * @param origin who asked for it
+     */
+    protected void remove(Widget<?> child, Change.Origin origin) {
         Ui.checkUiThread();
+        Objects.requireNonNull(origin, "origin");
         if (children.remove(child)) {
             child.parent = null;
             child.setSceneRecursively(null);
@@ -300,7 +362,7 @@ public abstract class Widget<W extends Widget<W>> {
                 scene.onWidgetDetached(child);
             }
             markNeedsLayout();
-            notifyChange(Change.of(Change.Aspect.CHILDREN, Change.Origin.CODE));
+            notifyChange(Change.of(Change.Aspect.CHILDREN, origin));
         }
     }
 

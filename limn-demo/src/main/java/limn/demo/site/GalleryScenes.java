@@ -444,7 +444,9 @@ final class GalleryScenes {
 
     // #region gallery:tabbed-pane
     static Built tabbedPane() {
-        TabbedPane tabs = new TabbedPane();
+        // Closable: the selected tab and the one under the pointer show their close button, and
+        // every tab is dragged along the bar to a new place.
+        TabbedPane tabs = new TabbedPane().setTabsClosable(true);
         tabs.addTab("Overview", new Label("Content of the selected tab."));
         tabs.addTab("Details", new Label("Second tab."));
         tabs.addTab("History", new Label("Third tab."));

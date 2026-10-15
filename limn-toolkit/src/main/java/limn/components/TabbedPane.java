@@ -2,6 +2,7 @@ package limn.components;
 
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
+import limn.animation.Motion;
 import limn.animation.Transition;
 import limn.backend.Cursor;
 import limn.components.internal.a11y.RowsAccessibility;
@@ -25,8 +26,12 @@ import limn.scene.event.MouseEvent;
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 
 /**
@@ -71,6 +76,18 @@ import java.util.function.IntConsumer;
  * and the two scroll chevrons turn around. Left and Right select the tab that is visually to the
  * left and to the right, so the keyboard and the pointer agree; Home and End name the ends of the
  * tab <em>order</em> and stay first and last in both directions.
+ *
+ * <p><b>Closing.</b> A tab the application made closable ({@link #setTabClosable}, or every tab
+ * added after {@link #setTabsClosable}) draws a close button at its end while it is selected or
+ * under the pointer, so a row of tabs does not read as a row of buttons. The button, a middle
+ * click, and Ctrl+W (Cmd+W on macOS) while the keyboard is in the pane close it, after asking
+ * {@link #onTabClose}, which may refuse, now or later: a document with unsaved changes asks first.
+ * Closing the selected tab selects the one after it, or the one before when it was the last.
+ *
+ * <p><b>Moving.</b> A tab is dragged along the bar, the others making room as it passes, and
+ * moved from the keyboard with Ctrl+Shift+Page Up and Page Down (Cmd on macOS), which a screen
+ * reader hears as the tab's new place. {@link #onTabMove} hears what the user moved. A tab does not
+ * leave its bar.
  */
 public final class TabbedPane extends Widget<TabbedPane> {
 
@@ -85,6 +102,60 @@ public final class TabbedPane extends Widget<TabbedPane> {
      * its first tab is. {@link #CENTER} is a centre in both.
      */
     public enum TabAlignment { LEFT, CENTER, RIGHT }
+
+    /**
+     * One question to {@link #onTabClose}: may this tab close? Answered once, with
+     * {@link #allow()} or {@link #refuse()}, now or later: a handler that shows a dialog keeps the
+     * request and answers from its result. While it is unanswered the tab is not asked again.
+     */
+    public interface TabCloseRequest {
+
+        /** @return the tab's index now, or -1 when it is no longer in the pane */
+        int index();
+
+        /** @return the content of the tab asked about, which is how it is known after a move */
+        Widget<?> content();
+
+        /**
+         * Closes the tab, if it is still in the pane. UI thread only.
+         *
+         * @throws IllegalStateException if the request was already answered
+         */
+        void allow();
+
+        /**
+         * Keeps the tab. UI thread only.
+         *
+         * @throws IllegalStateException if the request was already answered
+         */
+        void refuse();
+
+        /** @return whether {@link #allow()} or {@link #refuse()} has been called */
+        boolean isAnswered();
+    }
+
+    /** What the user moved: a tab from one place in the order to another. */
+    @FunctionalInterface
+    public interface TabMoveListener {
+
+        /**
+         * @param from where the tab was
+         * @param to   where it is now
+         */
+        void moved(int from, int to);
+    }
+
+    /** The pane's children before its first page: the strip and its three controls. */
+    private static final int FIRST_PAGE = 4;
+
+    /** How far a press travels along the bar before it drags the tab. */
+    private static final float DRAG_SLOP = 4;
+
+    /** The time a sliding tab takes to cover most of the way to its place, in seconds. */
+    private static final double SLIDE_SECONDS = 0.05;
+
+    /** The close button's synthetic child, under a tab's node. */
+    private static final long KEY_CLOSE = 1;
 
     /** Fraction of the strip viewport scrolled per chevron click. */
     private static final float SCROLL_STEP_FRACTION = 0.75f;
@@ -101,6 +172,19 @@ public final class TabbedPane extends Widget<TabbedPane> {
     private int selected = -1;
     private TabAlignment alignment = TabAlignment.LEFT;
     private IntConsumer onSelect;
+    private boolean tabsClosable;
+    private @Nullable Consumer<TabCloseRequest> onTabClose;
+    private @Nullable TabMoveListener onTabMove;
+    /** The contents a close was asked about and not answered yet. */
+    private final Set<Widget<?>> closeAsked = Collections.newSetFromMap(new IdentityHashMap<>());
+    /** The user's move the next {@code CHILDREN} announcement is, or -1 when it is none. */
+    private int movedFrom = -1;
+    private int movedTo = -1;
+    /** The header the pointer drags along the bar, and where its leading edge is held. */
+    private @Nullable TabHeader dragged;
+    private float dragLeft;
+    /** Bumped by every start of the slide ticker, so an earlier one stops. */
+    private int slideRun;
 
     // Overflow state, recomputed each layout. Header widths are measured by the
     // pane and consumed by the strip (which lays the headers out inside itself).
@@ -123,7 +207,8 @@ public final class TabbedPane extends Widget<TabbedPane> {
     private final Transition indicatorRight =
             new Transition(strip).duration(Theme.of(this).animTab).easing(Theme.of(this).animEasing);
     private boolean indicatorPlaced;
-    private int indicatorTab = -1;
+    /** The header the indicator was last placed under: a header, not an index, as a tab moves. */
+    private @Nullable TabHeader indicatorTab;
     /**
      * The direction the two held edges above were computed in, and the second half of the
      * snap-vs-animate key. Without it a direction change that coincides with a tab change reads as
@@ -196,6 +281,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
         Objects.requireNonNull(content, "content");
         int index = contents.size();
         TabHeader header = new TabHeader(title, icon, mirroring, index);
+        header.closable = tabsClosable;
         headers.add(header);
         contents.add(content);
         strip.addHeader(header);
@@ -313,7 +399,395 @@ public final class TabbedPane extends Widget<TabbedPane> {
             }
             return;
         }
+        if (aspect == Change.Aspect.CHILDREN) {
+            int from = movedFrom;
+            int to = movedTo;
+            movedFrom = -1;
+            movedTo = -1;
+            if (from >= 0 && onTabMove != null) {
+                onTabMove.moved(from, to);
+            }
+            return;
+        }
         super.handleUserChange(aspect);
+    }
+
+    // ------------------------------------------------------------- closing and moving
+
+    /**
+     * Whether tabs added from now on can be closed by the user. Tabs already in the pane keep
+     * what they have; {@link #setTabClosable} changes one.
+     *
+     * @param value whether they can
+     * @return this pane
+     */
+    public TabbedPane setTabsClosable(boolean value) {
+        Ui.checkUiThread();
+        tabsClosable = value;
+        return this;
+    }
+
+    /** @return whether tabs added from now on can be closed by the user */
+    public boolean tabsClosable() {
+        return tabsClosable;
+    }
+
+    /**
+     * Whether the user can close this tab: by its close button, a middle click, or Ctrl+W (Cmd+W
+     * on macOS). Code closes any tab with {@link #removeTab}.
+     *
+     * @param index a tab in {@code [0, tabCount)}
+     * @param value whether it can
+     * @return this pane
+     * @throws IndexOutOfBoundsException if {@code index} is not a tab
+     */
+    public TabbedPane setTabClosable(int index, boolean value) {
+        Ui.checkUiThread();
+        TabHeader header = headers.get(index);
+        if (header.closable != value) {
+            header.closable = value;
+            markNeedsLayout();
+            header.invalidate();
+        }
+        return this;
+    }
+
+    /**
+     * @param index a tab in {@code [0, tabCount)}
+     * @return whether the user can close it
+     * @throws IndexOutOfBoundsException if {@code index} is not a tab
+     */
+    public boolean isTabClosable(int index) {
+        return headers.get(index).closable;
+    }
+
+    /**
+     * @param index a tab in {@code [0, tabCount)}
+     * @return the content the tab shows, as it was handed to {@link #addTab}
+     * @throws IndexOutOfBoundsException if {@code index} is not a tab
+     */
+    public Widget<?> tabContent(int index) {
+        return contents.get(index);
+    }
+
+    /**
+     * @param content a widget
+     * @return the index of the tab that shows it, by identity, or -1 when none does
+     */
+    public int indexOfTab(Widget<?> content) {
+        for (int i = 0; i < contents.size(); i++) {
+            if (contents.get(i) == content) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Takes a tab out of the pane, asking no handler: a caller's write, announced as
+     * {@code CHILDREN}/{@code CODE}. Taking out the selected tab selects the one after it, or the
+     * one before when it was the last, and that is announced as {@code SELECTION}/{@code
+     * ADJUSTMENT}. The keyboard, if it was in the pane, goes to the newly selected tab.
+     *
+     * @param index a tab in {@code [0, tabCount)}
+     * @return this pane
+     * @throws IndexOutOfBoundsException if {@code index} is not a tab
+     */
+    public TabbedPane removeTab(int index) {
+        Ui.checkUiThread();
+        Objects.checkIndex(index, contents.size());
+        closeTab(index, Change.Origin.CODE);
+        return this;
+    }
+
+    /**
+     * Moves a tab to another place in the order: a caller's write, announced as
+     * {@code CHILDREN}/{@code CODE}. The selected tab stays selected wherever it goes.
+     *
+     * @param from a tab in {@code [0, tabCount)}
+     * @param to   where it goes, in {@code [0, tabCount)}
+     * @return this pane
+     * @throws IndexOutOfBoundsException if either is not a tab
+     */
+    public TabbedPane moveTab(int from, int to) {
+        Ui.checkUiThread();
+        Objects.checkIndex(from, contents.size());
+        Objects.checkIndex(to, contents.size());
+        if (from != to) {
+            reorder(from, to);
+            moveChild(contents.get(to), FIRST_PAGE + to, Change.Origin.CODE);
+        }
+        return this;
+    }
+
+    /**
+     * Asks the application whether a tab the user is closing may close. The handler is given a
+     * request it answers now or later; without a handler the tab closes. Never asked for
+     * {@link #removeTab}, which is a caller's own decision.
+     *
+     * @param handler the handler, or {@code null} to clear the slot
+     * @return this pane
+     * @throws IllegalStateException if a handler is already registered
+     */
+    public TabbedPane onTabClose(@Nullable Consumer<TabCloseRequest> handler) {
+        Ui.checkUiThread();
+        this.onTabClose = Checks.handlerSlot(onTabClose, handler, "TabbedPane.onTabClose");
+        return this;
+    }
+
+    /**
+     * The application's response to the user moving a tab, by dragging it along the bar or from
+     * the keyboard, called once the move is over with where it was and where it is. Never for
+     * {@link #moveTab}; to hear every change, {@linkplain #observeChanges watch} the pane for
+     * {@code CHILDREN}.
+     *
+     * @param listener the handler, or {@code null} to clear the slot
+     * @return this pane
+     * @throws IllegalStateException if a handler is already registered
+     */
+    public TabbedPane onTabMove(@Nullable TabMoveListener listener) {
+        Ui.checkUiThread();
+        this.onTabMove = Checks.handlerSlot(onTabMove, listener, "TabbedPane.onTabMove");
+        return this;
+    }
+
+    /** The user asked to close a tab: the handler decides, or the tab closes. */
+    private void requestClose(int index, Change.Origin origin) {
+        if (index < 0 || index >= contents.size()) {
+            return;
+        }
+        Widget<?> content = contents.get(index);
+        if (onTabClose == null) {
+            closeTab(index, origin);
+            return;
+        }
+        if (!closeAsked.add(content)) {
+            return; // asked already, and not answered: a second click asks nothing new
+        }
+        onTabClose.accept(new CloseAsk(content, origin));
+    }
+
+    /** The request the close handler is given. */
+    private final class CloseAsk implements TabCloseRequest {
+        private final Widget<?> content;
+        private final Change.Origin origin;
+        private boolean answered;
+
+        CloseAsk(Widget<?> content, Change.Origin origin) {
+            this.content = content;
+            this.origin = origin;
+        }
+
+        @Override
+        public int index() {
+            return indexOfTab(content);
+        }
+
+        @Override
+        public Widget<?> content() {
+            return content;
+        }
+
+        @Override
+        public void allow() {
+            answer();
+            int index = indexOfTab(content);
+            if (index >= 0) {
+                closeTab(index, origin);
+            }
+        }
+
+        @Override
+        public void refuse() {
+            answer();
+        }
+
+        private void answer() {
+            Ui.checkUiThread();
+            if (answered) {
+                throw new IllegalStateException("the request was already answered");
+            }
+            answered = true;
+            closeAsked.remove(content);
+        }
+
+        @Override
+        public boolean isAnswered() {
+            return answered;
+        }
+    }
+
+    /**
+     * Takes a tab out, settling everything before the one announcement the removal makes: the
+     * selection, the tab stop and the keyboard move first, so a watcher that hears
+     * {@code CHILDREN} reads a pane that is whole again.
+     */
+    private void closeTab(int index, Change.Origin origin) {
+        TabHeader header = headers.get(index);
+        Widget<?> content = contents.get(index);
+        // Only the keyboard that was in the tab going away moves: a middle click on another tab
+        // leaves it in the page it is typing in.
+        boolean focusInside = holdsFocus(header) || holdsFocus(content);
+        Widget<?> before = selected >= 0 ? contents.get(selected) : null;
+        closeAsked.remove(content);
+        if (dragged == header) {
+            dragged = null;
+        }
+        for (TabHeader each : headers) {
+            each.slideFrom = each.x();
+            each.slidePending = each != header;
+        }
+        headers.remove(index);
+        contents.remove(index);
+        if (contents.isEmpty()) {
+            selected = -1;
+        } else if (index < selected) {
+            selected--;
+        } else if (index == selected) {
+            selected = Math.min(index, contents.size() - 1);
+            contents.get(selected).setVisible(true);
+        }
+        reindex();
+        for (int i = 0; i < headers.size(); i++) {
+            headers.get(i).setFocusable(i == selected);
+            headers.get(i).invalidate();
+        }
+        if (focusInside && selected >= 0) {
+            headers.get(selected).focusFrom(origin);
+        }
+        revealPending = selected;
+        strip.removeHeader(header);
+        markNeedsContainedLayout();
+        startSlides();
+        remove(content, origin);
+        if (selected >= 0 && contents.get(selected) != before) {
+            // The pane chose the tab that is now selected: a consequence of the close.
+            notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.ADJUSTMENT));
+        }
+    }
+
+    /**
+     * Moves a tab in the order and keeps everything that hangs on the order with it: the
+     * selection follows its tab, the headers slide from where they were drawn, the strip's
+     * children keep the order a reader walks. Announces nothing; the caller does, once.
+     */
+    private void reorder(int from, int to) {
+        for (TabHeader each : headers) {
+            each.slideFrom = each.x();
+            each.slidePending = each != dragged;
+        }
+        Widget<?> before = selected >= 0 ? contents.get(selected) : null;
+        TabHeader header = headers.remove(from);
+        headers.add(to, header);
+        contents.add(to, contents.remove(from));
+        if (before != null) {
+            selected = indexOfTab(before);
+        }
+        reindex();
+        strip.moveHeader(header, to);
+        for (TabHeader each : headers) {
+            each.invalidate();
+        }
+        revealPending = to;
+        markNeedsContainedLayout();
+        startSlides();
+    }
+
+    /** The user moved a tab from the keyboard: moved, heard by the handler, then said. */
+    private void moveByKeyboard(int from, int to) {
+        if (to < 0 || to >= contents.size() || from == to) {
+            return;
+        }
+        reorder(from, to);
+        movedFrom = from;
+        movedTo = to;
+        moveChild(contents.get(to), FIRST_PAGE + to, Change.Origin.USER);
+        if (scene() != null) {
+            scene().announce(ComponentStrings.TAB_MOVED.format(headers.get(to).title.get(), to + 1,
+                    headers.size()), Accessible.Politeness.POLITE);
+        }
+    }
+
+    private void reindex() {
+        for (int i = 0; i < headers.size(); i++) {
+            headers.get(i).index = i;
+        }
+    }
+
+    private boolean holdsFocus(Widget<?> subtree) {
+        if (scene() == null) {
+            return false;
+        }
+        for (Widget<?> w = scene().focusedWidget(); w != null; w = w.parent()) {
+            if (w == subtree) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Wears the headers' slides down to nothing, on wall time, repositioning the strip alone each
+     * frame; at once while the user asked for less motion. A header waiting for its first slide
+     * keeps the ticker alive until the layout that measures it has run.
+     */
+    private void startSlides() {
+        if (scene() == null || !isShowing() || Motion.reduced()) {
+            for (TabHeader each : headers) {
+                each.slide = 0;
+                each.slidePending = false;
+            }
+            return;
+        }
+        int run = ++slideRun;
+        scene().addRealTimeTicker(dt -> {
+            if (run != slideRun || scene() == null) {
+                return false;
+            }
+            float keep = (float) Math.exp(-dt / SLIDE_SECONDS);
+            boolean moving = false;
+            for (TabHeader each : headers) {
+                if (each.slidePending) {
+                    moving = true;
+                } else if (each.slide != 0) {
+                    each.slide *= keep;
+                    if (Math.abs(each.slide) < 0.5f) {
+                        each.slide = 0;
+                    } else {
+                        moving = true;
+                    }
+                }
+            }
+            strip.placeHeaders();
+            strip.invalidate();
+            return moving;
+        });
+    }
+
+    /**
+     * Ctrl+W and Ctrl+Shift+Page Up and Page Down (Cmd on macOS), wherever the keyboard is in the
+     * pane: on a tab or inside a page, as every tabbed interface takes them.
+     */
+    @Override
+    protected void onKeyEvent(KeyEvent event) {
+        if (!event.isPressed() || selected < 0) {
+            return;
+        }
+        int command = Accelerator.commandModifier();
+        int mods = event.modifiers()
+                & (Keys.MOD_SHIFT | Keys.MOD_CONTROL | Keys.MOD_ALT | Keys.MOD_SUPER);
+        if (event.key() == Keys.W && mods == command && !event.isRepeat()) {
+            if (headers.get(selected).closable) {
+                event.consume();
+                requestClose(selected, Change.Origin.USER);
+            }
+            return;
+        }
+        if (mods == (command | Keys.MOD_SHIFT)
+                && (event.key() == Keys.PAGE_UP || event.key() == Keys.PAGE_DOWN)) {
+            event.consume();
+            moveByKeyboard(selected, selected + (event.key() == Keys.PAGE_UP ? -1 : 1));
+        }
     }
 
     /**
@@ -583,6 +1057,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
         headersTotal = 0;
         for (int i = 0; i < n; i++) {
             headerWidths[i] = headers.get(i).measure(Constraints.loose(10_000, stripH)).width();
+            headers.get(i).measured = headerWidths[i];
             headersTotal += headerWidths[i];
         }
         overflowing = headersTotal > width() + 0.5f;
@@ -649,6 +1124,10 @@ public final class TabbedPane extends Widget<TabbedPane> {
         prevButton.setEnabled(scrollOffset > 0.5f);
         nextButton.setEnabled(scrollOffset < maxOffset - 0.5f);
 
+        // Measured before it is placed, so the strip has a size the scene can compare: a tab
+        // moving reorders its children in a contained layout, which a widget never measured
+        // cannot have, and the scene would lay the whole window out for it instead.
+        strip.measure(Constraints.tight(viewWidth, stripH));
         strip.layoutBox(viewLeft, 0, viewWidth, stripH); // places the headers inside
 
         if (selected >= 0) {
@@ -659,8 +1138,10 @@ public final class TabbedPane extends Widget<TabbedPane> {
             TabHeader header = headers.get(selected);
             // A symmetric inset inside the header's own box, so it is invariant about that box's
             // centre and follows the header wherever the strip put it: nothing here chooses a side.
-            float left = header.x() + t.tabPadH() / 2;
-            float right = header.x() + header.width() - t.tabPadH() / 2;
+            // From the header's place in the run and not from where it is drawn, which a slide or
+            // a drag may have it away from for a moment.
+            float left = header.slotX + t.tabPadH() / 2;
+            float right = header.slotX + header.width() - t.tabPadH() / 2;
             // The STRIP's direction, because these are the strip's coordinates: it is the widget
             // that placed the header this pair is measured from.
             boolean stripRtl = strip.isRightToLeft();
@@ -668,7 +1149,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
             // whole of their key. A direction change relocates every header at once, so it snaps
             // like a scroll does; animating it would slide the indicator across the entire
             // reflected strip on its way to a tab that never moved relative to its neighbours.
-            if (indicatorPlaced && indicatorTab == selected && stripRtl == indicatorRtl) {
+            if (indicatorPlaced && indicatorTab == header && stripRtl == indicatorRtl) {
                 // The same tab. Snap only if its header actually MOVED: a layout that finds it
                 // where it was -- any other widget in the window asking for a pass while the
                 // indicator is still sliding -- must leave the slide alone, or it cuts it short.
@@ -686,7 +1167,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
                 indicatorRight.snap(right);
                 indicatorPlaced = true;
             }
-            indicatorTab = selected;
+            indicatorTab = header;
             indicatorRtl = stripRtl;
             indicatorTargetLeft = left;
             indicatorTargetRight = right;
@@ -853,6 +1334,15 @@ public final class TabbedPane extends Widget<TabbedPane> {
             add(header);
         }
 
+        void removeHeader(Widget<?> header) {
+            remove(header);
+        }
+
+        /** Keeps the strip's children in the tab order, which is the order a reader walks. */
+        void moveHeader(Widget<?> header, int index) {
+            moveChild(header, index);
+        }
+
 
         /** Scrolls the minimum so the rect (in strip coordinates) becomes visible. */
         @Override
@@ -886,6 +1376,15 @@ public final class TabbedPane extends Widget<TabbedPane> {
 
         @Override
         protected void onLayout() {
+            placeHeaders();
+        }
+
+        /**
+         * Places the headers at their places in the run, each drawn where its slide or the
+         * pointer's drag holds it: from the layout, and from the slide ticker and a drag outside
+         * any layout, repainting the strip alone.
+         */
+        void placeHeaders() {
             // The pane measured the headers; place them with the scroll offset
             // (overflow) or the configured alignment (everything fits).
             //
@@ -902,6 +1401,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
                     case RIGHT -> Math.max(0, width() - headersTotal);
                 };
             }
+            boolean reduced = Motion.reduced();
             for (int i = 0; i < headers.size(); i++) {
                 // The cursor walk is untouched and only the final coordinate is reflected, the
                 // same treatment a horizontal Flex gives its children: the first tab lands on the
@@ -909,10 +1409,36 @@ public final class TabbedPane extends Widget<TabbedPane> {
                 // the reveal arithmetic, the indicator and the pointer hit test correct for free
                 // rather than each needing a direction of its own. CENTER falls out unchanged,
                 // because reflecting a centred run about the same centre returns it.
-                headers.get(i).layoutBox(rtl ? width() - cursor - headerWidths[i] : cursor,
-                        0, headerWidths[i], height());
-                cursor += headerWidths[i];
+                TabHeader header = headers.get(i);
+                float w = header.measured;
+                float slot = rtl ? width() - cursor - w : cursor;
+                header.slotX = slot;
+                if (header.slidePending) {
+                    // Moved since it was drawn: it slides from there to its new place.
+                    header.slide = reduced ? 0 : header.slideFrom - slot;
+                    header.slidePending = false;
+                }
+                float x = header == dragged ? dragLeft : slot + header.slide;
+                header.layoutBox(x, 0, w, height());
+                cursor += w;
             }
+        }
+
+        /** The run's two physical ends, for a drag held inside it. */
+        float runStart() {
+            float least = Float.MAX_VALUE;
+            for (TabHeader header : headers) {
+                least = Math.min(least, header.slotX);
+            }
+            return headers.isEmpty() ? 0 : least;
+        }
+
+        float runEnd() {
+            float most = -Float.MAX_VALUE;
+            for (TabHeader header : headers) {
+                most = Math.max(most, header.slotX + header.measured);
+            }
+            return headers.isEmpty() ? 0 : most;
         }
 
         @Override
@@ -927,7 +1453,26 @@ public final class TabbedPane extends Widget<TabbedPane> {
             canvas.save();
             try {
                 canvas.clipRect(0, 0, width(), height());
-                super.paintChildren(canvas);
+                // The dragged tab last, so it passes over the others rather than under them.
+                TabHeader lifted = dragged;
+                for (Widget<?> child : children()) {
+                    if (child != lifted) {
+                        paintChild(canvas, child);
+                    }
+                }
+                if (lifted != null && lifted.parent() == this) {
+                    paintChild(canvas, lifted);
+                }
+            } finally {
+                canvas.restore();
+            }
+        }
+
+        private void paintChild(Canvas canvas, Widget<?> child) {
+            canvas.save();
+            try {
+                canvas.translate(child.x(), child.y());
+                child.paintWidget(canvas);
             } finally {
                 canvas.restore();
             }
@@ -947,6 +1492,14 @@ public final class TabbedPane extends Widget<TabbedPane> {
             float y = height() - Strokes.TAB_INDICATOR;
             float left = indicatorLeft.value();
             float indicatorWidth = Math.max(0, indicatorRight.value() - left);
+            TabHeader chosen = headers.get(selected);
+            if (chosen == dragged || chosen.slide != 0) {
+                // The selected tab is away from its place, under the pointer or sliding home, and
+                // its rule goes with it.
+                float pad = Theme.of(this).tokensFor(TabbedPane.this).tabPadH() / 2;
+                left = chosen.x() + pad;
+                indicatorWidth = Math.max(0, chosen.width() - 2 * pad);
+            }
             canvas.fillRect(left, y, indicatorWidth, Strokes.TAB_INDICATOR, Theme.of(this).primary());
             canvas.restore();
         }
@@ -1258,7 +1811,26 @@ public final class TabbedPane extends Widget<TabbedPane> {
         private final I18nString title;
         private final Icon icon;
         private final Icon.Mirroring iconMirroring;
-        private final int index;
+        /** Its place in the tab order, kept by the pane as tabs close and move. */
+        int index;
+        /** Whether the user can close it. */
+        boolean closable;
+        /** Its width as the pane measured it, and its place in the run, in strip coordinates. */
+        float measured;
+        float slotX;
+        /** How far from its place it is drawn while it slides home, and where a move found it. */
+        float slide;
+        float slideFrom;
+        boolean slidePending;
+        /** The pointer: over the tab, over its close button, and a press that may become a drag. */
+        private boolean pointerIn;
+        private boolean closeHot;
+        private boolean pressArmed;
+        private boolean dragging;
+        private boolean movedByDrag;
+        private float pressX;
+        private float grab;
+        private int dragFrom;
         private final Transition hover =
                 new Transition(this).duration(Theme.of(this).animHover).easing(Theme.of(this).animEasing);
         private final Transition focusFade =
@@ -1293,14 +1865,43 @@ public final class TabbedPane extends Widget<TabbedPane> {
             return icon == null ? 0 : t.tabIconSize() + t.tabIconGap();
         }
 
+        /**
+         * The room a closable tab keeps at its end for the close button, whether or not it shows:
+         * a tab that grew as the pointer came would move every tab after it.
+         */
+        private float closeAdvance(SizeTokens t) {
+            return closable ? t.tabIconGap() + t.tabIconSize() : 0;
+        }
+
+        /** The close button's square, in this header's coordinates: at the end reading goes to. */
+        private float closeLeft(SizeTokens t) {
+            return isRightToLeft() ? t.tabPadH() : width() - t.tabPadH() - t.tabIconSize();
+        }
+
+        private boolean overClose(float x, float y) {
+            if (!closable) {
+                return false;
+            }
+            SizeTokens t = Theme.of(this).tokensFor(this);
+            float side = t.tabIconSize();
+            float left = closeLeft(t);
+            float top = (height() - side) / 2;
+            float slop = Strokes.FOCUS_GAP_TAB;
+            return x >= left - slop && x < left + side + slop && y >= top - slop && y < top + side + slop;
+        }
+
+        private boolean closeShown() {
+            return closable && (index == selected || pointerIn);
+        }
+
         @Override
         protected Size onMeasure(Constraints constraints) {
             SizeTokens t = Theme.of(this).tokensFor(this);
             TextMetrics metrics = textRuler().measure(title.get(), t.body());
             // The height must be numerically identical to TabbedPane.stripHeight(): same two
             // tokens, same expression. Anything else and the strip clips its own headers.
-            return constraints.constrain(metrics.width() + iconAdvance(t) + 2 * t.tabPadH(),
-                    metrics.lineHeight() + 2 * t.tabPadV());
+            return constraints.constrain(metrics.width() + iconAdvance(t) + closeAdvance(t)
+                    + 2 * t.tabPadH(), metrics.lineHeight() + 2 * t.tabPadV());
         }
 
         /** The baseline BASELINE rows align on, the very expression {@link #onPaint} draws with. */
@@ -1338,7 +1939,9 @@ public final class TabbedPane extends Widget<TabbedPane> {
             // not move. What mirrors is the order of the two things inside it: the icon takes the
             // slot reading starts from, which is the block's right end in a right-to-left tab.
             boolean rtl = isRightToLeft();
-            float blockLeft = (width() - contentW) / 2;
+            // Centred in what the close button leaves, which is at the end reading goes to.
+            float closeRoom = closeAdvance(t);
+            float blockLeft = (rtl ? closeRoom : 0) + (width() - closeRoom - contentW) / 2;
             float textLeft = rtl ? blockLeft : blockLeft + advance;
             if (icon != null) {
                 float is = t.tabIconSize();
@@ -1355,6 +1958,24 @@ public final class TabbedPane extends Widget<TabbedPane> {
                     ShapedText.Direction.of(title.get(), neutralBase()));
             canvas.drawText(line, textLeft,
                     (height() - metrics.height()) / 2 + metrics.ascent(), ink);
+
+            if (closeShown()) {
+                float side = t.tabIconSize();
+                float left = closeLeft(t);
+                float top = (height() - side) / 2;
+                if (closeHot && isEnabled()) {
+                    canvas.fillRoundRect(left, top, side, side, t.radiusSmall(),
+                            theme.surfaceRaised().withAlpha(0.9f));
+                }
+                // A cross of the chevrons' pen, a third of the square across.
+                float cx = left + side / 2;
+                float cy = top + side / 2;
+                float arm = side * 0.2f;
+                Color cross = !isEnabled() ? theme.disabledText()
+                        : closeHot ? theme.text() : theme.textMuted();
+                canvas.drawLine(cx - arm, cy - arm, cx + arm, cy + arm, Strokes.ARROW_PEN, cross);
+                canvas.drawLine(cx - arm, cy + arm, cx + arm, cy - arm, Strokes.ARROW_PEN, cross);
+            }
 
             // The selected indicator is drawn by the strip (it slides across tabs).
             float focus = focusFade.value();
@@ -1421,6 +2042,28 @@ public final class TabbedPane extends Widget<TabbedPane> {
                     RowsAccessibility.Selection.SINGLE, index == selected, index + 1,
                     headers.size(), false, false, false, true, false, false);
             a.relation(Accessible.Relation.CONTROLLER_FOR, contents.get(index));
+            if (closable) {
+                // The close button, published whether or not it is drawn: what a reader finds
+                // must not change as a pointer passes over the tabs.
+                SizeTokens t = Theme.of(this).tokensFor(this);
+                float side = t.tabIconSize();
+                a.child(KEY_CLOSE);
+                a.bounds(closeLeft(t), (height() - side) / 2, side, side);
+                a.role(Accessible.Role.BUTTON);
+                a.name(ComponentStrings.TAB_CLOSE, Accessible.NameFrom.CONTENT);
+                a.action(Accessible.Action.PRESS);
+                a.endChild();
+            }
+        }
+
+        @Override
+        protected boolean onSyntheticAction(long key, Accessible.Action action,
+                Accessible.Argument arg) {
+            if (key == KEY_CLOSE && action == Accessible.Action.PRESS && closable) {
+                requestClose(index, Change.Origin.USER);
+                return true;
+            }
+            return false;
         }
 
         /**
@@ -1461,17 +2104,136 @@ public final class TabbedPane extends Widget<TabbedPane> {
         @Override
         protected void onMouseEvent(MouseEvent event) {
             switch (event.type()) {
-                case ENTER -> hover.to(1);
-                case EXIT -> hover.to(0);
-                case CLICK -> {
-                    if (event.button() == Keys.MOUSE_LEFT) {
-                        event.consume();
-                        selectTab(index, Focus.CONTENT, Change.Origin.USER);
+                case ENTER -> {
+                    hover.to(1);
+                    pointerIn = true;
+                    hotClose(overClose(event.x(), event.y()));
+                }
+                case MOVE -> hotClose(overClose(event.x(), event.y()));
+                case EXIT -> {
+                    hover.to(0);
+                    pointerIn = false;
+                    hotClose(false);
+                }
+                case PRESS -> {
+                    event.consume();
+                    movedByDrag = false;
+                    if (event.button() == Keys.MOUSE_LEFT && !overClose(event.x(), event.y())) {
+                        pressArmed = true;
+                        pressX = x() + event.x();
                     }
                 }
-                case PRESS -> event.consume();
+                case DRAG -> {
+                    if (pressArmed) {
+                        event.consume();
+                        dragTo(x() + event.x());
+                    }
+                }
+                case RELEASE -> {
+                    event.consume();
+                    pressArmed = false;
+                    if (dragging) {
+                        endDrag();
+                    }
+                }
+                case CLICK -> {
+                    if (movedByDrag) {
+                        return; // the press became a drag: it moved the tab, it chose nothing
+                    }
+                    if (event.button() == Keys.MOUSE_LEFT) {
+                        event.consume();
+                        if (overClose(event.x(), event.y())) {
+                            requestClose(index, Change.Origin.USER);
+                        } else {
+                            selectTab(index, Focus.CONTENT, Change.Origin.USER);
+                        }
+                    } else if (event.button() == Keys.MOUSE_MIDDLE && closable) {
+                        event.consume();
+                        requestClose(index, Change.Origin.USER);
+                    }
+                }
                 default -> {
                 }
+            }
+        }
+
+        private void hotClose(boolean hot) {
+            if (hot != closeHot) {
+                closeHot = hot;
+                invalidate();
+            }
+            setCursor(Cursor.POINTER);
+        }
+
+        /**
+         * The press travelled: past a few points it drags the tab, which becomes the selected
+         * one, along the bar and never off it, trading places with each neighbour whose middle it
+         * passes. Past either end of an overflowing strip, the strip scrolls under it.
+         */
+        private void dragTo(float stripX) {
+            if (!dragging) {
+                if (Math.abs(stripX - pressX) < DRAG_SLOP) {
+                    return;
+                }
+                dragging = true;
+                movedByDrag = true;
+                dragFrom = index;
+                grab = pressX - x();
+                TabbedPane.this.dragged = this;
+                if (index != selected) {
+                    selectTab(index, Focus.NONE, Change.Origin.USER);
+                }
+            }
+            boolean rtl = strip.isRightToLeft();
+            if (overflowing) {
+                float beyond = stripX < 0 ? stripX : stripX > strip.width() ? stripX - strip.width() : 0;
+                if (beyond != 0) {
+                    scrollStripBy(rtl ? -beyond : beyond);
+                }
+            }
+            float left = stripX - grab;
+            left = Math.max(strip.runStart(), Math.min(left, strip.runEnd() - width()));
+            dragLeft = left;
+            float middle = left + width() / 2;
+            // Trade places while the middle has passed a neighbour's: the next one in the order
+            // lies to the right left to right and to the left right to left.
+            while (true) {
+                int next = index + 1;
+                int previous = index - 1;
+                if (next < headers.size() && passed(middle, headers.get(next), rtl, true)) {
+                    reorder(index, next);
+                } else if (previous >= 0 && passed(middle, headers.get(previous), rtl, false)) {
+                    reorder(index, previous);
+                } else {
+                    break;
+                }
+            }
+            strip.placeHeaders();
+            strip.invalidate();
+        }
+
+        private boolean passed(float middle, TabHeader neighbour, boolean rtl, boolean onward) {
+            float theirs = neighbour.slotX + neighbour.measured / 2;
+            boolean rightward = onward != rtl;
+            return rightward ? middle > theirs : middle < theirs;
+        }
+
+        /** The tab is let go: it slides into its place, and a move is told once, as the user's. */
+        private void endDrag() {
+            dragging = false;
+            TabbedPane.this.dragged = null;
+            slideFrom = x();
+            slidePending = true;
+            startSlides();
+            TabbedPane.this.markNeedsContainedLayout();
+            if (index != dragFrom) {
+                movedFrom = dragFrom;
+                movedTo = index;
+                TabbedPane.this.moveChild(contents.get(index), FIRST_PAGE + index,
+                        Change.Origin.USER);
+            } else {
+                strip.placeHeaders();
+                strip.invalidate();
             }
         }
 
