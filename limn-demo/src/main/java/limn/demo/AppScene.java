@@ -425,9 +425,14 @@ final class AppScene {
             navigation.setSelected(ordersPlace);
             orders.openNewOrder();
         };
-        menuBar.addMenu(ShowcaseStrings.MENU_FILE, new Menu()
-                .addItem(ShowcaseStrings.MENU_NEW_ORDER, newOrder)
-                .addItem(ShowcaseStrings.ORDERS_REFRESH, orders::refresh)
+        // Each menu with its access letter, and the commands with their chords: Alt and the letter
+        // opens a menu where the system's menu bar is not the window's, and a chord runs its
+        // command with every menu closed.
+        menuBar.addMenu(ShowcaseStrings.MENU_FILE, 'F', new Menu()
+                .add(MenuItem.of(ShowcaseStrings.MENU_NEW_ORDER, newOrder)
+                        .setAccelerator(limn.components.Accelerator.command(limn.input.Keys.N)).setMnemonic('N'))
+                .add(MenuItem.of(ShowcaseStrings.ORDERS_REFRESH, orders::refresh)
+                        .setAccelerator(limn.components.Accelerator.of(limn.input.Keys.F5)).setMnemonic('R'))
                 .addSeparator()
                 // Where the system keeps Quit in a menu of its own, this item is not shown and the
                 // system's asks the same question.
@@ -435,35 +440,42 @@ final class AppScene {
                     if (scene.window() != null) {
                         scene.window().backend().requestQuit();
                     }
-                }).setRole(MenuItem.Role.QUIT)));
-        // The six editing commands, each acting on whatever has the keyboard.
-        menuBar.addMenu(ShowcaseStrings.MENU_EDIT, new Menu()
-                .add(MenuItem.of(MenuItem.Role.UNDO))
-                .add(MenuItem.of(MenuItem.Role.REDO))
+                }).setRole(MenuItem.Role.QUIT)
+                        .setAccelerator(limn.components.Accelerator.command(limn.input.Keys.Q)).setMnemonic('Q')));
+        // The six editing commands, each acting on whatever has the keyboard; each role brings
+        // its platform's chord.
+        menuBar.addMenu(ShowcaseStrings.MENU_EDIT, 'E', new Menu()
+                .add(MenuItem.of(MenuItem.Role.UNDO).setMnemonic('U'))
+                .add(MenuItem.of(MenuItem.Role.REDO).setMnemonic('R'))
                 .addSeparator()
-                .add(MenuItem.of(MenuItem.Role.CUT))
-                .add(MenuItem.of(MenuItem.Role.COPY))
-                .add(MenuItem.of(MenuItem.Role.PASTE))
-                .add(MenuItem.of(MenuItem.Role.SELECT_ALL)));
-        menuBar.addMenu(ShowcaseStrings.MENU_VIEW, new Menu()
-                .addCheck(ShowcaseStrings.MENU_PERFORMANCE, false, performanceStrip::setVisible)
+                .add(MenuItem.of(MenuItem.Role.CUT).setMnemonic('T'))
+                .add(MenuItem.of(MenuItem.Role.COPY).setMnemonic('C'))
+                .add(MenuItem.of(MenuItem.Role.PASTE).setMnemonic('P'))
+                .add(MenuItem.of(MenuItem.Role.SELECT_ALL).setMnemonic('A')));
+        menuBar.addMenu(ShowcaseStrings.MENU_VIEW, 'V', new Menu()
+                .add(MenuItem.check(ShowcaseStrings.MENU_PERFORMANCE, false, performanceStrip::setVisible)
+                        .setMnemonic('P'))
                 .addSeparator()
-                .addCheck(ShowcaseStrings.RENDER_PARTIAL, true, scene::setPartialRendering)
-                .addCheck(ShowcaseStrings.RENDER_DAMAGE, false, scene::setDamageDebug)
+                .add(MenuItem.check(ShowcaseStrings.RENDER_PARTIAL, true, scene::setPartialRendering)
+                        .setMnemonic('R'))
+                .add(MenuItem.check(ShowcaseStrings.RENDER_DAMAGE, false, scene::setDamageDebug)
+                        .setMnemonic('D'))
                 .addSeparator()
-                .addSubmenu(ShowcaseStrings.MENU_FULLSCREEN, new Menu()
-                        .addItem(ShowcaseStrings.MENU_CURRENT_RESOLUTION, () -> fullscreen(scene, status, 0, 0))
-                        .addItem("1280×720", () -> fullscreen(scene, status, 1280, 720))));
-        menuBar.addMenu(ShowcaseStrings.MENU_GO, goMenu(navigation, top));
+                .add(MenuItem.submenu(ShowcaseStrings.MENU_FULLSCREEN, new Menu()
+                        .add(MenuItem.of(ShowcaseStrings.MENU_CURRENT_RESOLUTION, () -> fullscreen(scene, status, 0, 0))
+                                .setMnemonic('C'))
+                        .addItem("1280×720", () -> fullscreen(scene, status, 1280, 720))).setMnemonic('F')));
+        menuBar.addMenu(ShowcaseStrings.MENU_GO, 'G', goMenu(navigation, top));
         Menu help = new Menu()
-                .addItem(ShowcaseStrings.MENU_DOCUMENTATION, () -> openDocumentation(status, "docs/", status))
+                .add(MenuItem.of(ShowcaseStrings.MENU_DOCUMENTATION, () -> openDocumentation(status, "docs/", status))
+                        .setAccelerator(limn.components.Accelerator.of(limn.input.Keys.F1)).setMnemonic('D'))
                 .addSeparator()
                 .add(MenuItem.of(ShowcaseStrings.TAB_ABOUT, () -> new Dialog(I18nString.literal(TITLE),
                         ShowcaseStrings.ABOUT_BLURB)
                         .addPrimaryButton(ShowcaseStrings.ACTION_CLOSE, "close")
                         .setCancelResult("close")
-                        .show(scene)).setRole(MenuItem.Role.ABOUT));
-        menuBar.addMenu(ShowcaseStrings.MENU_HELP, help);
+                        .show(scene)).setRole(MenuItem.Role.ABOUT).setMnemonic('A'));
+        menuBar.addMenu(ShowcaseStrings.MENU_HELP, 'H', help);
         menuBar.setHelpMenu(help);
         if (Boolean.getBoolean("limn.demo.tour")) {
             tour(scene, navigation, top);
