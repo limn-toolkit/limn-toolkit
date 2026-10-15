@@ -13,27 +13,53 @@ import limn.desktop.Tray;
 import limn.graphics.BitmapIcon;
 import limn.graphics.Icon;
 import limn.graphics.Images;
+import limn.i18n.I18nString;
+import limn.icons.tabler.Tabler;
 import limn.scene.Insets;
 import limn.scene.Scene;
 import limn.scene.Widget;
 import limn.scene.layout.Column;
 import limn.scene.layout.Flex;
 import limn.scene.layout.Padding;
-import limn.scene.layout.Row;
-import limn.scene.layout.SizedBox;
 
 import java.util.Set;
 
 /**
  * The tray icon, to try by hand: an icon with a menu the system draws, and switches for each
- * thing it can show. Every click the system reports is written in the status line and, for a
- * run nobody watches, on standard output.
+ * thing it can show. A choice from the icon's menu is said in the status line; every click the
+ * system reports is written on standard output, for a run nobody watches.
  *
  * <p>{@code -Dlimn.demo.tray=icon,mono,attention,activate} turns switches on from the start, and
  * {@code -Dlimn.demo.tray.script=true} then changes the tooltip, the menu and the attention on a
  * timer, which is how a change made while the icon is shown is looked at.
  */
 final class TrayScene {
+
+    /** Every string the page and the icon's menu show. */
+    static final class Text {
+        static final I18nString ICON = new I18nString("showcase.tray.icon", "Icon");
+        static final I18nString SHOWN = new I18nString("showcase.tray.shown", "Show in the tray");
+        static final I18nString MONOCHROME = new I18nString("showcase.tray.monochrome", "Monochrome");
+        static final I18nString ATTENTION = new I18nString("showcase.tray.attention", "Ask for attention");
+        static final I18nString ACTIVATES = new I18nString("showcase.tray.activates", "Click brings the window");
+        static final I18nString TOOLTIP = new I18nString("showcase.tray.tooltip", "Tooltip");
+        static final I18nString TAKEN = new I18nString("showcase.tray.taken", "The system took the icon.");
+        static final I18nString NOT_TAKEN = new I18nString("showcase.tray.notTaken", "No tray took the icon.");
+        static final I18nString NO_DESKTOP = new I18nString("showcase.tray.noDesktop",
+                "The tray icon needs a desktop to be shown on.");
+        static final I18nString OPEN_WINDOW = new I18nString("showcase.tray.openWindow", "Open the window");
+        static final I18nString NEW_ORDER = new I18nString("showcase.tray.newOrder", "New order");
+        static final I18nString PREFERENCES = new I18nString("showcase.tray.preferences", "Preferences…");
+        static final I18nString PAUSE_SYNC = new I18nString("showcase.tray.pauseSync", "Pause syncing");
+        static final I18nString RECENT = new I18nString("showcase.tray.recent", "Recent orders");
+        static final I18nString QUIT = new I18nString("showcase.tray.quit", "Quit");
+        static final I18nString CHOSE = new I18nString("showcase.tray.chose", "Tray menu: {0}");
+        static final I18nString SYNC_PAUSED = new I18nString("showcase.tray.syncPaused", "Syncing paused.");
+        static final I18nString SYNC_RESUMED = new I18nString("showcase.tray.syncResumed", "Syncing resumed.");
+
+        private Text() {
+        }
+    }
 
     private TrayScene() {
     }
@@ -60,7 +86,7 @@ final class TrayScene {
     /** The page of the Showcase's gallery. */
     static Widget<?> page(Label status) {
         if (backend == null) {
-            return new Label("The tray icon needs a desktop to be shown on.").setMuted(true);
+            return Page.hint(Text.NO_DESKTOP);
         }
         return content(backend, status);
     }
@@ -69,6 +95,7 @@ final class TrayScene {
     static Scene create(Backend backend) {
         use(backend);
         Label status = new Label("").setMuted(true);
+        Page.reportTo(status::setText); // the only window: its line is the status line
         Column page = new Column();
         page.gap(16).crossAlignment(Flex.CrossAlignment.STRETCH);
         page.add(content(backend, status));
@@ -78,8 +105,8 @@ final class TrayScene {
         return scene;
     }
 
+    /** For a run nobody watches: what the system reported, on standard output only. */
     private static void say(Label status, String text) {
-        status.setText(text);
         System.out.println("TRAY " + text + " @" + (System.currentTimeMillis() - STARTED));
         System.out.flush();
     }
@@ -95,44 +122,46 @@ final class TrayScene {
         }
         Tray tray = shared;
 
-        Checkbox shown = new Checkbox(Checkbox.Variant.SWITCH, "Icon in the tray");
-        Checkbox monochrome = new Checkbox(Checkbox.Variant.SWITCH, "Monochrome icon");
-        Checkbox attention = new Checkbox(Checkbox.Variant.SWITCH, "Asks for attention");
-        Checkbox activates = new Checkbox(Checkbox.Variant.SWITCH, "A click brings this window");
+        Checkbox shown = new Checkbox(Checkbox.Variant.SWITCH, Text.SHOWN);
+        Checkbox monochrome = new Checkbox(Checkbox.Variant.SWITCH, Text.MONOCHROME);
+        Checkbox attention = new Checkbox(Checkbox.Variant.SWITCH, Text.ATTENTION);
+        Checkbox activates = new Checkbox(Checkbox.Variant.SWITCH, Text.ACTIVATES);
         TextField tooltip = new TextField().setText(tooltipNow);
         shown.setChecked(iconOn);
         monochrome.setChecked(shapeOn);
         attention.setChecked(attentionOn);
         activates.setChecked(activatesOn);
-        Label available = new Label("").setMuted(true);
+        Label available = new Label(Text.NOT_TAKEN).setMuted(true);
 
-        int[] opened = {0};
-        MenuItem bold = MenuItem.check("Bold", true, value -> say(status, "check Bold " + value));
-        Menu export = new Menu()
-                .addItem("PDF", () -> say(status, "chose Export > PDF"))
-                .addItem("report_final.png", () -> say(status, "chose Export > report_final.png"));
+        MenuItem pauseSync = MenuItem.check(Text.PAUSE_SYNC, false, value -> {
+            say(status, "check Pause syncing " + value);
+            Page.report(value ? Text.SYNC_PAUSED.get() : Text.SYNC_RESUMED.get());
+        });
+        Menu recent = new Menu()
+                .addItem("#1042 Harbor Supply", () -> chose(status, I18nString.literal("#1042 Harbor Supply")))
+                .addItem("#1041 Bayside Freight", () -> chose(status, I18nString.literal("#1041 Bayside Freight")));
         Menu menu = new Menu()
-                .add(MenuItem.of("Open the window", () -> {
-                    say(status, "chose Open the window");
+                .add(MenuItem.of(Text.OPEN_WINDOW, () -> {
+                    chose(status, Text.OPEN_WINDOW);
                     bring(shown);
                 }).setMnemonic('O').setIcon(picture))
-                .add(MenuItem.of("Preferences", () -> say(status, "chose Preferences"))
-                        .setIcon(BitmapIcon.mask(Images.fromResource("/limn/demo/images/icon-gear.png")))
-                        .setAccelerator(limn.components.Accelerator.command(limn.input.Keys.COMMA)))
-                .add(MenuItem.of("Copy", () -> say(status, "chose Copy")).setEnabled(false))
+                .add(MenuItem.of(Text.NEW_ORDER, () -> chose(status, Text.NEW_ORDER))
+                        .setIcon(Tabler.outline("file-plus"))
+                        .setAccelerator(limn.components.Accelerator.command(limn.input.Keys.N)).setMnemonic('N'))
+                .add(MenuItem.of(Text.PREFERENCES, () -> chose(status, Text.PREFERENCES))
+                        .setIcon(Tabler.outline("settings"))
+                        .setAccelerator(limn.components.Accelerator.command(limn.input.Keys.COMMA)).setMnemonic('P'))
                 .addSeparator()
-                .add(bold)
-                .addSubmenu("Export", export)
+                .add(pauseSync)
+                .add(MenuItem.submenu(Text.RECENT, recent).setMnemonic('R'))
                 .addSeparator()
-                .addItem("Count this opening", () -> say(status, "chose Count, " + ++opened[0]))
-                .add(MenuItem.of("Quit", () -> {
-                    say(status, "chose Quit");
+                .add(MenuItem.of(Text.QUIT, () -> {
+                    chose(status, Text.QUIT);
                     backend.requestQuit();
-                }).setAccelerator(limn.components.Accelerator.command(limn.input.Keys.Q)));
+                }).setAccelerator(limn.components.Accelerator.command(limn.input.Keys.Q)).setMnemonic('Q'));
         tray.setMenu(menu);
 
-        Runnable tell = () -> available.setText(tray.isAvailable()
-                ? "The system took the icon." : "No tray took the icon.");
+        Runnable tell = () -> available.setText(tray.isAvailable() ? Text.TAKEN : Text.NOT_TAKEN);
         if (availability != null) {
             availability.cancel();   // the page was built before; its label is gone
         }
@@ -217,7 +246,7 @@ final class TrayScene {
             // What a panel shows of a change made while the icon is there, with nobody at the keys.
             Ui.postDelayed(() -> {
                 tray.setTooltip("Changed while shown");
-                bold.setChecked(false);
+                pauseSync.setChecked(true);
                 menu.addItem("Added while shown", () -> say(status, "chose Added while shown"));
                 say(status, "script: tooltip and menu changed");
             }, 8000);
@@ -249,32 +278,24 @@ final class TrayScene {
             }
         }, 1500);
 
-        Row tip = new Row();
-        tip.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
-        tip.add(new Label("Tooltip"));
-        tip.add(new SizedBox(280, SizedBox.UNSET, tooltip));
-
-        // The launcher from a window, for the same run: whether what it opens comes in front.
-        limn.components.Button documentation = new limn.components.Button("Open the documentation")
-                .setSecondary(true);
-        documentation.onAction(() -> {
-            if (documentation.scene() != null && documentation.scene().window() != null) {
-                documentation.scene().window().launcher()
-                        .openAddress(java.net.URI.create("https://limn-toolkit.github.io/limn-toolkit/docs/"))
-                        .thenAccept(taken -> say(status, "launched " + taken));
-            }
-        });
-
-        Column page = new Column();
-        page.gap(12).crossAlignment(Flex.CrossAlignment.START);
-        page.add(documentation);
-        page.add(shown);
-        page.add(monochrome);
-        page.add(attention);
-        page.add(activates);
-        page.add(tip);
+        Column page = Page.column();
+        page.add(Page.firstSection(Text.ICON));
+        Column switches = new Column();
+        switches.gap(Page.GAP).crossAlignment(Flex.CrossAlignment.START);
+        switches.add(shown);
+        switches.add(monochrome);
+        switches.add(attention);
+        switches.add(activates);
+        page.add(switches);
+        page.add(Page.narrow(320, Page.field(Text.TOOLTIP, tooltip)));
         page.add(available);
         return page;
+    }
+
+    /** A choice from the icon's menu: said in the status line, and on standard output. */
+    private static void chose(Label status, I18nString item) {
+        say(status, "chose " + item.english());
+        Page.report(Text.CHOSE.format(item.get()));
     }
 
     /** Shows and focuses the window the switch is in. */
