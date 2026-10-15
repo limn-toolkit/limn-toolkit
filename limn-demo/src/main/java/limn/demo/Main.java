@@ -174,7 +174,9 @@ public final class Main {
             int logicalWidth = scene.equals("app") ? APP_WIDTH : LAB_WIDTH;
             int logicalHeight = scene.equals("app") ? APP_HEIGHT : LAB_HEIGHT;
             NativeWindow window = backend.createWindow(WindowConfig.of(
-                    AppScene.TITLE, logicalWidth, logicalHeight).visible(!screenshotMode));
+                    AppScene.TITLE, logicalWidth, logicalHeight)
+                    // A film is a lab run nobody watches, as a screenshot is: no window on screen.
+                    .visible(!screenshotMode && System.getProperty("limn.demo.film") == null));
 
             float monitorScale = window.contentScale();
             if (options.scale() > 0) {
