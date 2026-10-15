@@ -2280,7 +2280,7 @@ class TreeTest extends ComponentTestBase {
                 return c.constrain(c.maxWidth(), 400);
             }
         });
-        scene = new Scene(new ScrollView(column));
+        scene = new Scene(new ScrollView(column), eachDetentItsOwnGesture());
         scene.setTextRuler(RULER);
         scene.layoutPass(220, 200);
         canvas = new RecordingTestCanvas(220, 200);
@@ -2502,7 +2502,7 @@ class TreeTest extends ComponentTestBase {
             }
         });
         ScrollView pane = new ScrollView(column);
-        scene = new Scene(pane);
+        scene = new Scene(pane, eachDetentItsOwnGesture());
         scene.setTextRuler(RULER);
         scene.layoutPass(220, 200);
         scene.requestFocus(tree);
@@ -2830,5 +2830,14 @@ class TreeTest extends ComponentTestBase {
         assertTrue(model.cellsBuilt.size() < 60,
                 "only the rows now in view are built, not the 5,000 passed: " + model.cellsBuilt.size());
         assertTrue(drawn(tree).contains("leaf4999"), "and the last row is on screen: " + drawn(tree));
+    }
+
+    /**
+     * A clock 200 ms later at every reading: each detent its own gesture, turned one at a time,
+     * so none is held by the scroller the gesture before it took.
+     */
+    private static java.util.function.LongSupplier eachDetentItsOwnGesture() {
+        long[] now = {0};
+        return () -> now[0] += 200_000_000L;
     }
 }

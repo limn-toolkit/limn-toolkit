@@ -1377,7 +1377,7 @@ class TableTest extends ComponentTestBase {
         });
         ScrollView pane = new ScrollView(column);
         FakeCanvas canvas = new FakeCanvas(300, 200);
-        Scene scene = new Scene(pane);
+        Scene scene = new Scene(pane, eachDetentItsOwnGesture());
         scene.setTextRuler(RULER);
         scene.renderFrame(canvas);
         float viewport = 8 * SizeTokens.of(ControlSize.MEDIUM).listRowSeed();
@@ -1578,5 +1578,14 @@ class TableTest extends ComponentTestBase {
         canvas.reset();
         scene.renderFrame(canvas);
         assertEquals(padH, canvas.text("C0").x(), EPS, "and Left back brings the first column home");
+    }
+
+    /**
+     * A clock 200 ms later at every reading: each detent its own gesture, turned one at a time,
+     * so none is held by the scroller the gesture before it took.
+     */
+    private static java.util.function.LongSupplier eachDetentItsOwnGesture() {
+        long[] now = {0};
+        return () -> now[0] += 200_000_000L;
     }
 }

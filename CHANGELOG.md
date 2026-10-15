@@ -15,6 +15,9 @@ Maven Central say which number that was.
   could scroll at all, so one inside a scrolling page stopped the wheel at its top or its end
   and the page never moved; each takes a detent only when it moved now, as a list, a table and
   a tree already did, at the start and the end of both axes.
+  A gesture stays with the scroller it moved, as in browsers and on macOS: a flick that brings
+  a list to its top, a trackpad's inertia included, does not carry on into the page, and the
+  next gesture, after a pause, does.
 - A `ScrollView` scrolled before its first layout opens where it was scrolled to: the offset
   was clamped against content not yet measured, to the top, and lost.
 - A checkbox's focus ring sits concentric with its box at every density: its edges fell

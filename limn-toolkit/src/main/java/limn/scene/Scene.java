@@ -2468,6 +2468,9 @@ public final class Scene {
 
     void onWidgetDetached(Widget<?> widget) {
         walkMayNameDetached = true;
+        if (wheelLatch != null && isInSubtree(wheelLatch, widget)) {
+            wheelLatch = null;
+        }
         // Never leave dangling references to removed/disabled/hidden subtrees,
         // and never leave the widget itself with stuck hover/pressed state:
         // synthesize the EXIT/RELEASE it will otherwise never receive.
@@ -3495,7 +3498,7 @@ public final class Scene {
                     invalidate = true;
                 } else if (raw instanceof RawScroll scroll) {
                     if (!wheelStreamEnded()) {
-                        dispatchBubbling(hitAt(scroll.x, scroll.y), new MouseEvent(
+                        dispatchWheel(hitAt(scroll.x, scroll.y), new MouseEvent(
                                 MouseEvent.Type.WHEEL, scroll.x, scroll.y, -1, scroll.dx, scroll.dy,
                                 modifiers));
                         // Scrolling moves content under a stationary cursor: re-hover.
@@ -3742,6 +3745,11 @@ public final class Scene {
 
     private boolean wheelSeen;
     private long lastWheelNanos;
+    /**
+     * The widget that took the wheel stream in flight, which the rest of the stream stays with:
+     * see {@link #dispatchWheel}. Null at the start of a stream and when the widget leaves.
+     */
+    private @Nullable Widget<?> wheelLatch;
     /** Whether a key ended the wheel stream still arriving; see {@link #endWheelStreams}. */
     private boolean wheelStreamCut;
     /**
@@ -3779,8 +3787,34 @@ public final class Scene {
         lastWheelNanos = now;
         if (!continuing) {
             wheelStreamCut = false;
+            wheelLatch = null; // a new gesture chooses its scroller afresh
         }
         return wheelStreamCut;
+    }
+
+    /**
+     * Offers a wheel event from the widget under the pointer outward, as any event bubbles, with
+     * one rule for a gesture: the widget that took a stream keeps it. A scroller that reaches an
+     * end in the middle of a flick, the inertia of a trackpad included, holds the rest of that
+     * flick instead of passing it to the scroller around it, and a new gesture after a pause, at
+     * the same end, passes on: what browsers and macOS call latching. Without it a list scrolled
+     * to its top with a flick carried the page under it a moment later, the user having asked
+     * for nothing of the kind. A stream that starts with the inner scroller already at its end
+     * passes on at once, as nothing took it.
+     */
+    private void dispatchWheel(Widget<?> hit, MouseEvent event) {
+        Widget<?> latch = wheelLatch != null && isInSubtree(hit, wheelLatch) ? wheelLatch : null;
+        for (Widget<?> w = hit; w != null; w = w.parent()) {
+            timedDispatch(w, event);
+            if (event.isConsumed()) {
+                wheelLatch = w;
+                return;
+            }
+            if (w == latch) {
+                event.consume(); // the gesture stays where it was taken, at its end or not
+                return;
+            }
+        }
     }
 
     @SuppressWarnings("unchecked")

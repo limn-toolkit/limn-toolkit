@@ -84,7 +84,7 @@ class ScrollViewTest extends ComponentTestBase {
         page.add(new limn.scene.layout.SizedBox(100, 100, inner));
         page.add(new Box(100, 600));
         ScrollView outer = new ScrollView(page);
-        Scene scene = new Scene(outer);
+        Scene scene = new Scene(outer, eachDetentItsOwnGesture());
         scene.layoutPass(100, 300);
         outer.scrollTo(0, 150); // the page scrolled down; the inner view sits at y 50..150
         scene.layoutPass(100, 300);
@@ -107,6 +107,41 @@ class ScrollViewTest extends ComponentTestBase {
         drive(scene).inputBatchEnded();
         assertEquals(300, inner.offsetY(), EPS);
         assertEquals(150, outer.offsetY(), EPS, "at the inner view's end, down scrolls the page");
+    }
+
+    /**
+     * A flick that brings the inner view to its top stays with it, its inertia included: the page
+     * does not move under a gesture that was the inner view's. The next gesture, after a pause,
+     * finds the inner view at its top and scrolls the page.
+     */
+    @Test
+    void aGestureThatTookTheInnerViewStaysWithItAtItsEndAndTheNextOnePassesOn() {
+        long[] now = {0};
+        ScrollView inner = new ScrollView(new Box(100, 400));
+        Column page = new Column();
+        page.add(new Box(100, 200));
+        page.add(new limn.scene.layout.SizedBox(100, 100, inner));
+        page.add(new Box(100, 600));
+        ScrollView outer = new ScrollView(page);
+        Scene scene = new Scene(outer, () -> now[0]);
+        scene.layoutPass(100, 300);
+        outer.scrollTo(0, 150);
+        inner.scrollTo(0, 60);
+        scene.layoutPass(100, 300);
+        float y = inner.localToSceneY() + 50;
+
+        for (int i = 0; i < 6; i++) { // one flick upward, an event every 16 ms
+            now[0] += 16_000_000L;
+            drive(scene).scrolled(0, 1, 50, y);
+            drive(scene).inputBatchEnded();
+        }
+        assertEquals(0, inner.offsetY(), EPS, "the flick brought the inner view to its top");
+        assertEquals(150, outer.offsetY(), EPS, "and the rest of it stayed there");
+
+        now[0] += 200_000_000L; // a pause: the next event is a new gesture
+        drive(scene).scrolled(0, 1, 50, y);
+        drive(scene).inputBatchEnded();
+        assertEquals(102, outer.offsetY(), EPS, "a new gesture at the inner view's top scrolls the page");
     }
 
     @Test
@@ -434,5 +469,14 @@ class ScrollViewTest extends ComponentTestBase {
             assertEquals(0, scroll.maxOffsetX(), EPS, "and the offsets still answer");
             assertEquals(0, scroll.maxOffsetY(), EPS);
         }
+    }
+
+    /**
+     * A clock 200 ms later at every reading: each detent its own gesture, turned one at a time,
+     * so none is held by the scroller the gesture before it took.
+     */
+    private static java.util.function.LongSupplier eachDetentItsOwnGesture() {
+        long[] now = {0};
+        return () -> now[0] += 200_000_000L;
     }
 }
