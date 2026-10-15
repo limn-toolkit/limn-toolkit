@@ -16,6 +16,9 @@ Maven Central say which number that was.
   middle read as one at its end; it is now the text's ink, faint, on any theme. A disabled
   slider's fill takes the disabled text's grey, darker than the rail it fills, where it was
   lighter.
+- A disabled multiple-choice `ComboBox` shows its chips. Each was filled with the disabled
+  fill, the tone of the field under it, so the captions floated apart with no chip around
+  them; disabled, a chip takes the same faint ink as an empty rail.
 - A scroller at an end of an axis passes the wheel on. A `ScrollView`, a `TextArea` and the
   scrolling strips of a `TabbedPane` and a `SegmentedControl` took every detent while they
   could scroll at all, so one inside a scrolling page stopped the wheel at its top or its end

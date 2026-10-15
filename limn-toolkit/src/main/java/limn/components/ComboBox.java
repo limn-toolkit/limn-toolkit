@@ -2605,8 +2605,10 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             SizeTokens t = theme.tokensFor(ComboBox.this);
             boolean rtl = ComboBox.this.isRightToLeft();
             boolean enabled = ComboBox.this.isEnabled();
+            // Disabled, the chip is the faint ink: the field under it is the disabled fill
+            // already, and a chip of that tone was no chip at all.
             canvas.fillRoundRect(0, 0, width(), height(), t.segPillRadius(),
-                    enabled ? theme.primary().withAlpha(0.16f) : theme.disabledFill());
+                    enabled ? theme.primary().withAlpha(0.16f) : theme.track());
             Color ink = enabled ? theme.text() : theme.disabledText();
             float pad = chipPadH(t);
             float x = pad;
