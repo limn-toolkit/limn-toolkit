@@ -183,7 +183,7 @@ final class AppScene {
                 new Place(ShowcaseStrings.TAB_DATES, "components/#date-picker",
                         () -> scrolling(DatesScene.content())).icon("calendar"),
                 new Place(ShowcaseStrings.NAV_LISTS, "docs/lists-and-scrolling/#long-lists",
-                        () -> beside(ListScene.buildList(status::setText))).icon("list"),
+                        () -> scrolling(ListScene.content())).icon("list"),
                 new Place(ShowcaseStrings.NAV_TABLES, "docs/lists-and-scrolling/#tables",
                         () -> beside(TableScene.content())).icon("table"),
                 new Place(ShowcaseStrings.NAV_TREES, "docs/lists-and-scrolling/#trees",
