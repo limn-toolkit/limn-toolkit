@@ -128,6 +128,12 @@ final class AnimationsScene {
         column.add(new ColorSwatch());
 
         // --- Whole-window fade (native window appears/disappears) --------
+        column.add(heading("Animated icons and SVG"));
+        column.add(new Label("An animated icon plays by itself wherever an icon goes: an SVG spinner "
+                + "animated in SMIL, a WebP as a button's icon, and an SVG animated in CSS in an image view.")
+                .setMuted(true).setWrap(true));
+        column.add(animatedIcons());
+
         column.add(heading("Window (fade-in/out)"));
         column.add(new Label("A window that fades in and out.")
                 .setMuted(true).setWrap(true));
@@ -179,6 +185,30 @@ final class AnimationsScene {
     // Role, not setFont(theme.title): setFont pins MEDIUM's 20 pt whatever step the
     // subtree resolves to, so the headings would stay put while the controls under
     // them ramp. The role picks the title token OF the resolved step instead.
+    private static final String SPINNER = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'>"
+            + "<g><circle cx='12' cy='12' r='9' fill='none' stroke='currentColor' stroke-width='2.5' "
+            + "stroke-dasharray='42 15' stroke-linecap='round'/>"
+            + "<animateTransform attributeName='transform' type='rotate' from='0 12 12' to='360 12 12' "
+            + "dur='1s' repeatCount='indefinite'/></g></svg>";
+
+    private static final String HEART = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'>"
+            + "<style>@keyframes beat{0%,100%{transform:scale(1)}50%{transform:scale(1.2)}}"
+            + ".heart{transform-origin:32px 34px;animation:beat 0.9s ease-in-out infinite}</style>"
+            + "<path class='heart' fill='#E5484D' d='M32 54 C10 38 6 26 12 18 C18 10 28 12 32 20 "
+            + "C36 12 46 10 52 18 C58 26 54 38 32 54Z'/></svg>";
+
+    private static Widget<?> animatedIcons() {
+        Row row = new Row();
+        row.gap(16).crossAlignment(Flex.CrossAlignment.CENTER);
+        row.add(new limn.components.Button("Syncing").setSecondary(true)
+                .setIcon(limn.graphics.SvgIcon.of(SPINNER)));
+        row.add(new limn.components.Button("Orbit").setSecondary(true)
+                .setIcon(limn.graphics.BitmapIcon.picture(
+                        limn.graphics.Images.fromResource("/limn/demo/images/orbit.webp"))));
+        row.add(new limn.components.ImageView(limn.graphics.SvgIcon.of(HEART)).setPreferredSize(72, 72));
+        return row;
+    }
+
     private static Label heading(String text) {
         return new Label(text).setRole(Label.Role.TITLE);
     }

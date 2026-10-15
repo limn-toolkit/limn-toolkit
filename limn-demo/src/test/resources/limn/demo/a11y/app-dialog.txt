@@ -13,52 +13,52 @@
  12   combo box "Theme" (explicit) [disabled, expandable, has-popup] value=2 [0..15 step 1] "Dark" collapsed
  13   separator "" [disabled, horizontal]
  14   split pane "Pages" (explicit) [disabled]
- 15     tree "Pages" (explicit) [disabled] selection=single scroll v=0% view 79%
- 16       scroll bar "" [disabled, vertical] value=0 [0..136 step 512]
- 17       tree item "Orders" [disabled, selectable, selected] item 1 of 3 selected level 1 row 1 of 27
+ 15     tree "Pages" (explicit) [disabled] selection=single scroll v=0% view 76%
+ 16       scroll bar "" [disabled, vertical] value=0 [0..160 step 512]
+ 17       tree item "Orders" [disabled, selectable, selected] item 1 of 3 selected level 1 row 1 of 28
  18         label "Orders" [disabled]
- 19       tree item "Components" [disabled, selectable, expanded, expandable] item 2 of 3 unselected expanded level 1 row 2 of 27
+ 19       tree item "Components" [disabled, selectable, expanded, expandable] item 2 of 3 unselected expanded level 1 row 2 of 28
  20         label "Components" [disabled]
- 21       tree item "Buttons and inputs" [disabled, selectable] item 1 of 19 unselected level 2 row 3 of 27
+ 21       tree item "Buttons and inputs" [disabled, selectable] item 1 of 20 unselected level 2 row 3 of 28
  22         label "Buttons and inputs" [disabled]
- 23       tree item "Combo boxes" [disabled, selectable] item 2 of 19 unselected level 2 row 4 of 27
+ 23       tree item "Combo boxes" [disabled, selectable] item 2 of 20 unselected level 2 row 4 of 28
  24         label "Combo boxes" [disabled]
- 25       tree item "Sliders and more" [disabled, selectable] item 3 of 19 unselected level 2 row 5 of 27
+ 25       tree item "Sliders and more" [disabled, selectable] item 3 of 20 unselected level 2 row 5 of 28
  26         label "Sliders and more" [disabled]
- 27       tree item "Dates" [disabled, selectable] item 4 of 19 unselected level 2 row 6 of 27
+ 27       tree item "Dates" [disabled, selectable] item 4 of 20 unselected level 2 row 6 of 28
  28         label "Dates" [disabled]
- 29       tree item "Lists" [disabled, selectable] item 5 of 19 unselected level 2 row 7 of 27
+ 29       tree item "Lists" [disabled, selectable] item 5 of 20 unselected level 2 row 7 of 28
  30         label "Lists" [disabled]
- 31       tree item "Tables" [disabled, selectable] item 6 of 19 unselected level 2 row 8 of 27
+ 31       tree item "Tables" [disabled, selectable] item 6 of 20 unselected level 2 row 8 of 28
  32         label "Tables" [disabled]
- 33       tree item "Trees" [disabled, selectable] item 7 of 19 unselected level 2 row 9 of 27
+ 33       tree item "Trees" [disabled, selectable] item 7 of 20 unselected level 2 row 9 of 28
  34         label "Trees" [disabled]
- 35       tree item "Dialogs" [disabled, selectable] item 8 of 19 unselected level 2 row 10 of 27
+ 35       tree item "Dialogs" [disabled, selectable] item 8 of 20 unselected level 2 row 10 of 28
  36         label "Dialogs" [disabled]
- 37       tree item "Menus" [disabled, selectable] item 9 of 19 unselected level 2 row 11 of 27
+ 37       tree item "Menus" [disabled, selectable] item 9 of 20 unselected level 2 row 11 of 28
  38         label "Menus" [disabled]
- 39       tree item "Drag and drop" [disabled, selectable] item 10 of 19 unselected level 2 row 12 of 27
+ 39       tree item "Drag and drop" [disabled, selectable] item 10 of 20 unselected level 2 row 12 of 28
  40         label "Drag and drop" [disabled]
- 41       tree item "Clipboard" [disabled, selectable] item 11 of 19 unselected level 2 row 13 of 27
+ 41       tree item "Clipboard" [disabled, selectable] item 11 of 20 unselected level 2 row 13 of 28
  42         label "Clipboard" [disabled]
- 43       tree item "Tray icon" [disabled, selectable] item 12 of 19 unselected level 2 row 14 of 27
+ 43       tree item "Tray icon" [disabled, selectable] item 12 of 20 unselected level 2 row 14 of 28
  44         label "Tray icon" [disabled]
- 45       tree item "Charts" [disabled, selectable] item 13 of 19 unselected level 2 row 15 of 27
+ 45       tree item "Charts" [disabled, selectable] item 13 of 20 unselected level 2 row 15 of 28
  46         label "Charts" [disabled]
- 47       tree item "Text and scripts" [disabled, selectable] item 14 of 19 unselected level 2 row 16 of 27
+ 47       tree item "Text and scripts" [disabled, selectable] item 14 of 20 unselected level 2 row 16 of 28
  48         label "Text and scripts" [disabled]
- 49       tree item "Icons" [disabled, selectable] item 15 of 19 unselected level 2 row 17 of 27
+ 49       tree item "Icons" [disabled, selectable] item 15 of 20 unselected level 2 row 17 of 28
  50         label "Icons" [disabled]
- 51       tree item "Files" [disabled, selectable] item 16 of 19 unselected level 2 row 18 of 27
+ 51       tree item "Files" [disabled, selectable] item 16 of 20 unselected level 2 row 18 of 28
  52         label "Files" [disabled]
- 53       tree item "Colours" [disabled, selectable] item 17 of 19 unselected level 2 row 19 of 27
+ 53       tree item "Colours" [disabled, selectable] item 17 of 20 unselected level 2 row 19 of 28
  54         label "Colours" [disabled]
- 55       tree item "Split panes" [disabled, selectable] item 18 of 19 unselected level 2 row 20 of 27
+ 55       tree item "Split panes" [disabled, selectable] item 18 of 20 unselected level 2 row 20 of 28
  56         label "Split panes" [disabled]
- 57       tree item "Motion" [disabled, selectable] item 19 of 19 unselected level 2 row 21 of 27
- 58         label "Motion" [disabled]
- 59       tree item "Media and 3D" [disabled, selectable, expanded, expandable] item 3 of 3 unselected expanded level 1 row 22 of 27
- 60         label "Media and 3D" [disabled]
+ 57       tree item "Tabs and sections" [disabled, selectable] item 19 of 20 unselected level 2 row 21 of 28
+ 58         label "Tabs and sections" [disabled]
+ 59       tree item "Motion" [disabled, selectable] item 20 of 20 unselected level 2 row 22 of 28
+ 60         label "Motion" [disabled]
  61     splitter "Divider" [disabled, horizontal] value=232 [232..371 step 10]
  62     heading "Orders" [disabled]
  63     label "48 of 48" [disabled]

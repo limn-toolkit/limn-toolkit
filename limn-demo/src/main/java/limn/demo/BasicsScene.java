@@ -87,6 +87,20 @@ final class BasicsScene {
         page.add(checks);
         page.add(heading("Text field"));
         page.add(leading(new SizedBox(280, SizedBox.UNSET, new TextField().setPlaceholder("Type your name"))));
+        page.add(heading("Text field with a mask"));
+        page.add(new Label("0 takes a digit, A a letter, * anything; the rest is written for you. Focus the "
+                + "field to see what is left to fill, and paste with or without the dashes.")
+                .setMuted(true).setWrap(true));
+        TextField serial = new TextField().setPlaceholder("Serial number").setMask("AAA-0000-**");
+        Label typed = new Label("").setMuted(true);
+        Runnable read = () -> typed.setText(serial.unmaskedText().isEmpty() ? "Nothing typed yet"
+                : "Typed " + serial.unmaskedText() + (serial.isMaskComplete() ? ", complete" : ", not complete"));
+        read.run();
+        serial.observeChanges((source, change) -> read.run());
+        Row maskRow = row(12);
+        maskRow.add(new SizedBox(280, SizedBox.UNSET, serial));
+        maskRow.add(typed);
+        page.add(maskRow);
         page.add(heading("Password"));
         page.add(passwordRow);
         page.add(areaHead);

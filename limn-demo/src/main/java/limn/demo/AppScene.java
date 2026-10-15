@@ -209,6 +209,8 @@ final class AppScene {
                         () -> scrolling(ColorPickerScene.content())).icon("palette"),
                 new Place(ShowcaseStrings.NAV_SPLIT, "docs/lists-and-scrolling/#splitting-a-window",
                         () -> beside(SplitPaneScene.content())).icon("layout-columns"),
+                new Place(ShowcaseStrings.NAV_SECTIONS, "docs/lists-and-scrolling/#tabs",
+                        () -> scrolling(SectionsScene.content())).icon("layout-navbar-expand"),
                 new Place(ShowcaseStrings.NAV_MOTION, "docs/animations/",
                         () -> scrolling(AnimationsScene.content())).icon("player-play")).icon("components");
         Place media = new Place(ShowcaseStrings.NAV_MEDIA,

@@ -2,6 +2,7 @@ package limn.demo;
 
 import limn.components.Label;
 import limn.components.ScrollView;
+import limn.components.RangeSlider;
 import limn.components.Slider;
 import limn.components.Spinner;
 import limn.components.Theme;
@@ -52,6 +53,14 @@ final class ControlsScene {
         disabledSlider.setEnabled(false);
         column.add(sliderRow("Disabled", disabledSlider, new Label("40").setMuted(true)));
 
+        column.add(heading("Range slider"));
+        column.add(new Label("Two thumbs that never cross: each is a Tab stop, and a press on the track "
+                + "takes the nearer one.").setMuted(true).setWrap(true));
+        RangeSlider price = new RangeSlider(0, 1000).setStep(10).setRange(200, 600);
+        column.add(rangeRow("Price (step of 10)", price));
+        RangeSlider nights = new RangeSlider(1, 30).setStep(1).setMinimumGap(2).setRange(3, 7);
+        column.add(rangeRow("Nights, at least two apart", nights));
+
         column.add(heading("Spinner"));
         column.add(new Label("Click the arrows, use the keyboard, or type a value.").setMuted(true).setWrap(true));
 
@@ -83,6 +92,27 @@ final class ControlsScene {
             }
         });
         return value;
+    }
+
+    /** A range slider with a readout that follows both of its values, from any origin. */
+    private static Widget<?> rangeRow(String caption, RangeSlider slider) {
+        Label value = new Label("").setMuted(true);
+        Runnable show = () -> value.setText(Math.round(slider.lower()) + "–" + Math.round(slider.upper()));
+        show.run();
+        slider.observeChanges((source, change) -> {
+            if (change.aspect() == Change.Aspect.VALUE) {
+                show.run();
+            }
+        });
+        Column column = new Column();
+        column.gap(6).crossAlignment(Flex.CrossAlignment.STRETCH);
+        column.add(new Label(caption).setMuted(true));
+        Row row = new Row();
+        row.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
+        row.add(Expanded.of(slider, 1));
+        row.add(new SizedBox(80, SizedBox.UNSET, value));
+        column.add(row);
+        return column;
     }
 
     private static Widget<?> sliderRow(String caption, Slider slider, Label value) {

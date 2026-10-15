@@ -52,6 +52,8 @@ final class ShowcaseStrings {
             new I18nString("showcase.nav.colours", "Colours");
     static final I18nString NAV_SPLIT =
             new I18nString("showcase.nav.split", "Split panes");
+    static final I18nString NAV_SECTIONS =
+            new I18nString("showcase.nav.sections", "Tabs and sections");
     static final I18nString NAV_MOTION =
             new I18nString("showcase.nav.motion", "Motion");
     static final I18nString NAV_DIALOGS =
