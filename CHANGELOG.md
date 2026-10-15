@@ -262,6 +262,38 @@ Maven Central say which number that was.
 
 ### New
 
+- Tabs that close and move. `TabbedPane.setTabsClosable(true)` makes the tabs added after it
+  closable, and `setTabClosable(index, value)` one tab: it draws a close button while selected
+  or under the pointer and closes by it, by a middle click, and by Ctrl+W (Cmd+W on macOS) while
+  the keyboard is in the pane. `onTabClose` is handed a `TabCloseRequest` to `allow()` or
+  `refuse()`, now or later, and a tab is not asked again while its request is unanswered;
+  closing the selected tab selects the next, or the one before when it was the last. A tab is
+  dragged along the bar, the others sliding out of its way, and moved by Ctrl+Shift+Page Up
+  and Page Down (Cmd on macOS), which a screen reader hears as its new position; `onTabMove`
+  hears the user's moves. `removeTab`, `moveTab`, `tabContent` and `indexOfTab` do the same
+  from code, announced as `CHILDREN` with the origin of whoever asked.
+- `Expander`, a section that opens and closes: a header with an arrow that turns, a title, an
+  optional icon and an optional summary, over content that slides out below it, at once when
+  the user asked for less motion (`Theme.animExpand`). Click, Space and Enter open and close it,
+  `setExpanded` from code, `onChange` hears the user. `ExpanderGroup` keeps at most one of its
+  sections open. A screen reader hears a button, expanded or collapsed, that controls the
+  content.
+- `RangeSlider`, a lower and an upper value on one track: two thumbs that stop at each other or
+  at `setMinimumGap`, each a Tab stop moved by the keyboard, a press on the track taking the
+  nearer one. `setRange`, `lower()`, `upper()`, `setStep`, `onChange` for every step and
+  `onCommit` for the range let go at. A screen reader hears two sliders, Minimum and Maximum.
+- A mask on `TextField`: `setMask("000.000-00")`, where `0` takes a digit, `A` a letter, `*`
+  any character, and the rest are literals the field writes as the next position fills. Pasting
+  with or without the literals gives the same text, Backspace after a literal takes the
+  character before it, and one undo takes an edit and its literals back. While focused, the
+  positions still to fill show as a guide after the text. `unmaskedText()` and
+  `isMaskComplete()` read the value; a screen reader hears the pattern as the description.
+- `Widget.moveChild` reorders a child without taking it out of the tree, so its focus, hover
+  and press stay, and lays a parent that clips its children out alone. `remove` and `moveChild`
+  take who asked, which the one `CHILDREN` change they make carries.
+- `SECURITY.md` says where a vulnerability goes: the repository's private reporting, never a
+  public issue. The issue templates ask a defect for its version, system and steps, and a
+  feature for the need behind it; a question goes to Discussions.
 - Animated images. An `Image` may be animated: `isAnimated()`, `frameCount()`, `frame(i)`,
   each frame an image, `frameMillis(i)`, `durationMillis()` and `loopCount()`. Its own pixels
   are its first frame's, so whatever draws an image without playing it draws a still picture.

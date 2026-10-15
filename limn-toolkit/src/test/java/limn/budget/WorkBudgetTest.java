@@ -299,6 +299,61 @@ class WorkBudgetTest {
         }
     }
 
+    /**
+     * What {@code act} costs in frames of a window holding {@code root}: the frames asked for over
+     * the second after it, in ten-millisecond steps, and over the second after that.
+     */
+    private long[] framesAfter(Widget<?> root, Runnable act) {
+        ui.close();
+        java.util.concurrent.atomic.AtomicLong nanos = new java.util.concurrent.atomic.AtomicLong();
+        ui = new HeadlessUi(nanos::get);
+        HeadlessWindow window = new HeadlessBackend(ui.runtime()).open("Motion", WIDTH, HEIGHT);
+        Scene scene = new Scene(root, nanos::get);
+        scene.setTextRuler(TestRulers.FIXED);
+        scene.bind(window);
+        window.frame();
+        window.frame();
+        window.takeFrameRequests();
+        act.run();
+        long[] asked = new long[2];
+        for (int second = 0; second < 2; second++) {
+            for (int step = 0; step < 100; step++) {
+                nanos.addAndGet(10_000_000L);
+                ui.runtime().drain();
+                window.frame();
+            }
+            asked[second] = window.takeFrameRequests();
+        }
+        return asked;
+    }
+
+    @Test
+    void aSectionOpeningAsksForTheFramesOfItsSlideAndThenNone() {
+        limn.scene.layout.Column column = new limn.scene.layout.Column();
+        limn.components.Expander section = new limn.components.Expander("Details", new Label("Inside"));
+        column.add(section);
+        column.add(new Label("Below"));
+        long[] asked = framesAfter(column, () -> section.setExpanded(true));
+        // 46 counted: the slide's 0.2 s is twenty frames of ten milliseconds, and each asks
+        // twice, its ticker and its layout, the rate a button's focus fading in asks at too (31
+        // for its fourteen frames).
+        Work.within("frames a section opening asks for", asked[0], 53);
+        assertEquals(0, asked[1], "an open section at rest asks for no frame");
+    }
+
+    @Test
+    void aTabMovingAsksForTheFramesOfItsSlideAndThenNone() {
+        limn.components.TabbedPane tabs = new limn.components.TabbedPane();
+        for (String title : List.of("Alpha", "Beta", "Gamma")) {
+            tabs.addTab(title, new Label(title));
+        }
+        long[] asked = framesAfter(tabs, () -> tabs.moveTab(0, 2));
+        // 70 counted: the tabs slide home in about a quarter of a second while the indicator
+        // slides beside them, each frame asking for the two and for the strip's own placing.
+        Work.within("frames a tab moving asks for", asked[0], 80);
+        assertEquals(0, asked[1], "tabs at rest ask for no frame");
+    }
+
     @Test
     void aScreenNobodyTouchesAsksForNoFrame() {
         HeadlessWindow window = new HeadlessBackend(ui.runtime()).open("At rest", WIDTH, HEIGHT);

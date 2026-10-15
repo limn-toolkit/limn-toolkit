@@ -1,6 +1,6 @@
 # ADR 067: Four components before the contract, and how a project is told about a flaw
 
-- **Status:** Accepted, 2026-10-14, not built. The owner chose what enters and how each behaves.
+- **Status:** Accepted, 2026-10-14; built the same day (section 8). The owner chose what enters and how each behaves.
 - **Date:** 2026-10-14
 - **Scope:** tabs that close and move, a section that opens and closes, a slider of two thumbs,
   a text field that types to a pattern; and the files a person reporting a defect or a
@@ -85,3 +85,44 @@ Each component is tested as the others are: the model, the keyboard, the pointer
 the accessible tree on the three bridges' shapes, and the count of work of ADR 062 where a
 component animates. A new widget is heard by the screen readers of the lab (ADR 045's rule), for
 what its shapes do not already cover.
+
+## 8. How it was built, and what building found
+
+All four components and the two files are built, each with its model, keyboard, pointer, right to
+left and accessible tree tested, a row in the damage and notification contracts, an entry in the
+accessibility gallery and the site's, and, for the two that move, a count of the frames they ask
+for in the work budget (a section opening, a tab moving). What building found:
+
+- **A slider whose value moves must not ask for a layout.** The `RangeSlider` placed its thumbs by
+  asking for a layout on every step, and a layout pass repaints the window: the damage contract
+  caught it on the first run. The thumbs are placed where they belong and the slider repaints
+  alone.
+- **A widget could not reorder its children.** Taking a child out and putting it back detaches
+  it, which revokes the focus, the hover and the press inside it, and a tab dragged along its bar
+  is a press that must survive the move. `Widget.moveChild` reorders without detaching, and lays a
+  parent that clips its children out alone.
+- **A contained layout needs a size to compare.** The tab strip was placed and never measured,
+  so the scene had nothing to compare and laid the window out for every move. Measured before it
+  is placed, a move repaints the pane. Proven both ways: the move repaints the whole window
+  again when the measure is taken out.
+- **One change, one announcement.** Removing or moving a child announces `CHILDREN` from the one
+  funnel every child passes, always as code; a close the user asked for would then have been
+  announced twice, once as code and once as the user's. `remove` and `moveChild` take who asked,
+  and the funnel's announcement is the only one.
+- **The close button is drawn, not a widget.** Hover goes to the deepest widget under the
+  pointer, so a button inside a tab took the hover from the tab as the pointer reached it. The tab
+  draws its own and publishes it to a reader as a button under the tab, the same whether or not
+  it is drawn.
+- **A group of sections speaks as a group of radios does.** Opening one section closes another,
+  both settle before either announces, and the handlers run after both: the order `ButtonGroup`
+  keeps, for which the contract on who may call the two halves of an announcement now names
+  `Expander` beside `RadioButton`.
+- **A mask fits the text after every edit, inside that edit.** Fitting as a separate edit would
+  make undo take back only the fitting, which the next fitting puts back. The fitting is folded
+  into the edit it follows, so one undo takes both. And Backspace and Delete after a literal leave
+  the same text, so the key says which character the user meant.
+
+What remains: a closable tab's button is a button inside a tab, a structure the shapes of ADR 045
+do not cover, and it has not yet been heard by the three screen readers of the lab. The two
+settings `SECURITY.md` relies on, private reporting and Discussions, are the owner's to turn on.
+
