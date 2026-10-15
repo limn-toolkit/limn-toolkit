@@ -1,11 +1,14 @@
 package limn.demo;
 
 import limn.components.Button;
+import limn.components.Checkbox;
 import limn.components.Label;
 import limn.components.Slider;
 import limn.components.Theme;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
+import limn.i18n.I18nString;
+import limn.i18n.NumberFormats;
 import limn.math.Vec3;
 import limn.scene.Constraints;
 import limn.scene.Insets;
@@ -14,28 +17,65 @@ import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.layout.Column;
 import limn.scene.layout.Expanded;
-import limn.scene.layout.Flex;
 import limn.scene.layout.Padding;
 import limn.scene.layout.Row;
+import limn.scene.layout.SizedBox;
 import limn.sound.AudioBus;
 import limn.sound.AudioClip;
+import limn.sound.AudioStreamSource;
 import limn.sound.PlayOptions;
 import limn.sound.Playback;
 import limn.sound.Sounds;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.util.function.Consumer;
 
 /**
- * Expressive-audio showcase, everything procedural (no asset files): pitch
- * variation and pan on {@link PlayOptions}, live {@link AudioBus} mixer
- * gains, HIGH-priority music streamed from a generated WAV (so an effects
- * burst cannot steal its voice), and a click-to-place 3D positional emitter
- * around the {@link Sounds#setListener listener}.
+ * The Sound page, everything procedural (no asset files): two effects played at a random pitch
+ * and a chosen pan, a mixer with a level and a mute for each bus, music streamed from a file this
+ * page writes, with its place in the track, and a positional sound placed around the listener.
  */
 final class AudioScene {
+
+    /** What the page says, ready for translation. */
+    static final class Text {
+        static final I18nString EFFECTS = new I18nString("showcase.sound.effects", "Effects");
+        static final I18nString CHIME = new I18nString("showcase.sound.chime", "Chime");
+        static final I18nString THUD = new I18nString("showcase.sound.thud", "Thud");
+        static final I18nString PAN = new I18nString("showcase.sound.pan", "Pan");
+        static final I18nString MIXER = new I18nString("showcase.sound.mixer", "Mixer");
+        static final I18nString MASTER = new I18nString("showcase.sound.master", "Master");
+        static final I18nString MUSIC = new I18nString("showcase.sound.music", "Music");
+        static final I18nString EFFECTS_BUS = new I18nString("showcase.sound.effectsBus", "Effects");
+        static final I18nString MUTE = new I18nString("showcase.sound.mute", "Mute");
+        static final I18nString PLAY = new I18nString("showcase.sound.play", "Play");
+        static final I18nString PAUSE = new I18nString("showcase.sound.pause", "Pause");
+        static final I18nString RESUME = new I18nString("showcase.sound.resume", "Resume");
+        static final I18nString STOP = new I18nString("showcase.sound.stop", "Stop");
+        static final I18nString BURST = new I18nString("showcase.sound.burst", "Burst");
+        static final I18nString BURST_TIP = new I18nString("showcase.sound.burstTip",
+                "Thirty effects at once; the music keeps its voice");
+        static final I18nString POSITION = new I18nString("showcase.sound.position", "Position");
+        static final I18nString POSITIONAL = new I18nString("showcase.sound.positional", "Positional");
+        static final I18nString POSITIONAL_HINT = new I18nString("showcase.sound.positionalHint",
+                "Click or drag to place the sound; click the centre to stop it.");
+        static final I18nString PAD = new I18nString("showcase.sound.pad", "Sound around the listener");
+
+        private Text() {
+        }
+    }
+
+    /** How wide a mixer's slider is: long enough to set a level, short enough to read as one. */
+    private static final float SLIDER_WIDTH = 400;
+    /** How wide the captions before the sliders are, so the sliders start on one line. */
+    private static final float CAPTION_WIDTH = 72;
 
     private AudioScene() {
     }
@@ -49,113 +89,135 @@ final class AudioScene {
 
     /** The subtree, reusable as a page of the showcase. */
     static Widget<?> content() {
-        Column column = new Column();
-        column.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
+        Column column = Page.column();
 
         // Shared clips, synthesized once.
-        AudioClip blip = AudioClip.tone(880f, 0.09f, 0.5f);
-        AudioClip boom = AudioClip.tone(160f, 0.25f, 0.6f);
+        AudioClip chime = AudioClip.tone(880f, 0.09f, 0.5f);
+        AudioClip thud = AudioClip.tone(160f, 0.25f, 0.6f);
 
-        column.add(heading("Effects: pitch + pan (PlayOptions)"));
-        column.add(new Label("Each press plays the same clip at another pitch; the slider pans it.")
-                .setMuted(true).setWrap(true));
+        // --- Effects: one clip at another pitch each time, panned by the slider ------------
+        column.add(Page.firstSection(Text.EFFECTS));
         Slider pan = new Slider(-100, 100).setValue(0);
         // Pan is physical space, not reading order: -100 is the LEFT speaker in any language,
         // so the slider's axis does not mirror (docs/design/direction-axis.md).
         pan.setLayoutDirection(limn.scene.LayoutDirection.LTR);
-        pan.setTooltip("Pan for the next effect: -100 left … 100 right");
-        Button playBlip = new Button("Blip (random pitch)");
-        playBlip.onAction(() -> Sounds.play(blip, PlayOptions.DEFAULTS
+        Button playChime = new Button(Text.CHIME).setSecondary(true);
+        playChime.onAction(() -> Sounds.play(chime, PlayOptions.DEFAULTS
                 .withPitch(0.8f + (float) Math.random() * 0.5f)
                 .withPan(pan.value() / 100f)));
-        Button playBoom = new Button("Boom").setSecondary(true);
-        playBoom.onAction(() -> Sounds.play(boom, PlayOptions.DEFAULTS
+        Button playThud = new Button(Text.THUD).setSecondary(true);
+        playThud.onAction(() -> Sounds.play(thud, PlayOptions.DEFAULTS
                 .withPitch(0.9f + (float) Math.random() * 0.2f)
                 .withPan(pan.value() / 100f)));
-        Row sfxRow = new Row();
-        sfxRow.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
-        sfxRow.add(playBlip);
-        sfxRow.add(playBoom);
-        sfxRow.add(new Label("Pan:").setMuted(true));
-        sfxRow.add(Expanded.of(pan, 1));
-        column.add(sfxRow);
+        column.add(Page.row(12, playChime, playThud));
+        column.add(levelRow(Text.PAN, pan, null, null));
 
-        column.add(heading("Mixer buses (live)"));
-        column.add(new Label("Master, music and effects volumes, applied live.")
-                .setMuted(true).setWrap(true));
-        column.add(mixerRow("Master", value -> Sounds.setMasterGain(value)));
-        column.add(mixerRow("Music", value -> Sounds.setBusGain(AudioBus.MUSIC, value)));
-        column.add(mixerRow("Effects", value -> Sounds.setBusGain(AudioBus.SFX, value)));
+        // --- Mixer: a level and a mute for each bus ---------------------------------------
+        column.add(Page.section(Text.MIXER));
+        column.add(mixerRow(Text.MASTER, Sounds::setMasterGain));
+        column.add(mixerRow(Text.MUSIC, value -> Sounds.setBusGain(AudioBus.MUSIC, value)));
+        column.add(mixerRow(Text.EFFECTS_BUS, value -> Sounds.setBusGain(AudioBus.SFX, value)));
 
-        column.add(heading("Streamed music + priority"));
-        column.add(new Label("Music streamed from disk; the burst floods every voice and the music survives.")
-                .setMuted(true).setWrap(true));
-        MusicPanel music = new MusicPanel();
-        column.add(music);
-        Button burst = new Button("Burst 30 blips").setSecondary(true);
-        burst.setTooltip("30 NORMAL-priority effects at once; HIGH music is never stolen");
+        // --- Music streamed from a file, with its place in the track ----------------------
+        column.add(Page.section(Text.MUSIC));
+        Button burst = new Button(Text.BURST).setSecondary(true);
+        burst.setTooltip(Text.BURST_TIP);
         burst.onAction(() -> {
             for (int i = 0; i < 30; i++) {
-                Sounds.play(blip, PlayOptions.DEFAULTS
+                Sounds.play(chime, PlayOptions.DEFAULTS
                         .withGain(0.4f).withPitch(0.8f + (float) Math.random() * 0.6f));
             }
         });
-        column.add(burst);
+        MusicPanel music = new MusicPanel(burst);
+        column.add(music);
 
-        column.add(heading("Positional 3D"));
-        column.add(new Label("Click or drag to place a looping sound around the listener; click the centre to stop.").setMuted(true).setWrap(true));
-        column.add(new PositionalPad());
+        // --- A sound placed around the listener ---------------------------------------------
+        column.add(Page.section(Text.POSITIONAL));
+        column.add(Page.hint(Text.POSITIONAL_HINT));
+        column.add(Page.narrow(SLIDER_WIDTH + CAPTION_WIDTH + 12, new PositionalPad()));
 
         return column; // the page scrolls it
     }
 
-    // Role, not setFont(theme.title): setFont pins MEDIUM's 20 pt whatever step the
-    // subtree resolves to. The role picks the title token OF the resolved step.
-    private static Label heading(String text) {
-        return new Label(text).setRole(Label.Role.TITLE);
+    /** A caption, a slider of {@link #SLIDER_WIDTH}, and what else the row carries after it. */
+    private static Row levelRow(I18nString caption, Slider slider, Widget<?> value, Widget<?> more) {
+        Label label = new Label(caption).setMuted(true).setLabelFor(slider);
+        Row row = Page.row(12, new SizedBox(CAPTION_WIDTH, SizedBox.UNSET, label),
+                new SizedBox(SLIDER_WIDTH, SizedBox.UNSET, slider));
+        if (value != null) {
+            row.add(value);
+        }
+        if (more != null) {
+            row.add(more);
+        }
+        row.add(Expanded.spacer(1));
+        return row;
     }
 
-    private static Row mixerRow(String caption, java.util.function.Consumer<Float> apply) {
+    /** One bus: its level, the level as a number, and a mute that keeps the level for later. */
+    private static Row mixerRow(I18nString caption, Consumer<Float> apply) {
         Slider slider = new Slider(0, 100).setValue(100);
-        slider.onChange(value -> apply.accept(value / 100f));
-        Row row = new Row();
-        row.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
-        Label label = new Label(caption).setMuted(true);
-        row.add(new limn.scene.layout.SizedBox(70, limn.scene.layout.SizedBox.UNSET, label));
-        row.add(Expanded.of(slider, 1));
-        return row;
+        Label value = new Label(percent(100)).setMuted(true);
+        Checkbox mute = new Checkbox(Text.MUTE);
+        slider.onChange(level -> {
+            value.setText(percent(level));
+            if (!mute.isChecked()) {
+                apply.accept(level / 100f);
+            }
+        });
+        mute.onChange(on -> apply.accept(on ? 0f : slider.value() / 100f));
+        mute.setAccessibleDescription(caption);
+        return levelRow(caption, slider, new SizedBox(48, SizedBox.UNSET, value), mute);
+    }
+
+    private static String percent(float level) {
+        return NumberFormats.percent(0).apply(level / 100.0);
     }
 
     // ------------------------------------------------------- streamed music
 
-    /** Play/pause/stop for the generated, streamed, looping track. */
+    /** Play, pause, stop and a burst on one row; the place in the track on the next. */
     private static final class MusicPanel extends Widget<MusicPanel> {
-        private final Button play = new Button("Play music");
-        private final Button pause = new Button("Pause").setSecondary(true);
-        private final Button stop = new Button("Stop").setSecondary(true);
-        private final Label status = new Label("").setMuted(true);
-        private final Row row = new Row();
+        private final Button play = new Button(Text.PLAY);
+        private final Button pause = new Button(Text.PAUSE).setSecondary(true);
+        private final Button stop = new Button(Text.STOP).setSecondary(true);
+        private final Slider position = new Slider(0, TRACK_SECONDS);
+        private final Label clock = new Label(clock(0)).setMuted(true);
+        private final Column rows = new Column();
         private Playback playback = Playback.NONE;
         private boolean paused;
         private boolean ticking;
-        private double sinceStatus;
+        private boolean dragging;
+        private double sinceClock;
 
-        MusicPanel() {
-            row.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
-            row.add(play);
-            row.add(pause);
-            row.add(stop);
-            row.add(status);
-            add(row);
+        MusicPanel(Button burst) {
+            rows.gap(12).crossAlignment(limn.scene.layout.Flex.CrossAlignment.STRETCH);
+            Row buttons = Page.row(12, play, pause, stop, burst);
+            buttons.add(Expanded.spacer(1));
+            rows.add(buttons);
+            position.setEnabled(false);
+            // A track's time runs left to right in every language, as a player's bar does
+            // (MediaControls declares the same), and so does the clock that reads it.
+            position.setLayoutDirection(limn.scene.LayoutDirection.LTR);
+            clock.setLayoutDirection(limn.scene.LayoutDirection.LTR);
+            rows.add(levelRow(Text.POSITION, position, clock, null));
+            add(rows);
+            pause.setEnabled(false);
+            stop.setEnabled(false);
             play.onAction(() -> {
                 playback.stop();
                 paused = false;
-                pause.setText("Pause");
-                playback = Sounds.stream(musicFile(), PlayOptions.DEFAULTS
+                pause.setText(Text.PAUSE);
+                // The page's own stream over the file it wrote, because the file decoders the
+                // toolkit installs stream a WAV forward only, and this one can be moved.
+                playback = Sounds.stream(new WavFileTrack(musicFile()), PlayOptions.DEFAULTS
                         .withBus(AudioBus.MUSIC)
                         .withPriority(PlayOptions.Priority.HIGH)
                         .withLoop(true)
                         .withGain(0.8f));
+                pause.setEnabled(true);
+                stop.setEnabled(true);
+                position.setEnabled(playback.canSeek());
                 armTicker();
             });
             pause.onAction(() -> {
@@ -165,17 +227,29 @@ final class AudioScene {
                     playback.pause();
                 }
                 paused = !paused;
-                pause.setText(paused ? "Resume" : "Pause");
+                pause.setText(paused ? Text.RESUME : Text.PAUSE);
             });
             stop.onAction(this::stopMusic);
+            position.onChange(seconds -> {
+                dragging = true;
+                clock.setText(clock(seconds));
+            });
+            position.onCommit(seconds -> {
+                dragging = false;
+                playback.seek((long) (seconds * 1_000_000));
+            });
         }
 
         private void stopMusic() {
             playback.stop();
             playback = Playback.NONE;
             paused = false;
-            pause.setText("Pause");
-            status.setText("");
+            pause.setText(Text.PAUSE);
+            pause.setEnabled(false);
+            stop.setEnabled(false);
+            position.setEnabled(false);
+            position.setValue(0);
+            clock.setText(clock(0));
         }
 
         private void armTicker() {
@@ -183,44 +257,51 @@ final class AudioScene {
                 return;
             }
             ticking = true;
-            scene().addTicker(dt -> {
+            scene().addRealTimeTicker(dt -> {
                 if (!isShowing()) {
-                    // Tab switches HIDE (setVisible), they don't detach; this
-                    // is where "music must not keep looping behind another
-                    // tab" actually happens (onDetached covers real removal).
+                    // Pages are hidden, not detached, when another is chosen: this is where the
+                    // music stops behind another page (onDetached covers real removal).
                     stopMusic();
                     ticking = false;
-                    return false; // re-armed by the next Play press
+                    return false; // re-armed by the next Play
                 }
                 if (playback == Playback.NONE) {
-                    status.setText("");
                     ticking = false;
-                    return false; // stopped: no work left, stop waking frames
+                    return false; // stopped: no work left, no more frames asked for
                 }
-                sinceStatus += dt;
-                if (sinceStatus < 0.25) {
-                    return true; // 4 Hz is plenty for a seconds counter
+                sinceClock += dt;
+                if (sinceClock < 0.25 || dragging) {
+                    return true; // four times a second is plenty for a clock in seconds
                 }
-                sinceStatus = 0;
-                String text = playback.isPlaying() || paused
-                        ? String.format(java.util.Locale.US,
-                                "%.1f s (looping stream)", playback.positionSeconds())
-                        : "";
-                status.setText(text); // Label ignores unchanged/same-width text
+                sinceClock = 0;
+                float at = (float) (playback.positionSeconds() % TRACK_SECONDS);
+                if (at != position.value()) {
+                    position.setValue(at);
+                }
+                clock.setText(clock(at));
                 return true;
             });
         }
 
+        private static String clock(double seconds) {
+            return mmss(seconds) + " / " + mmss(TRACK_SECONDS);
+        }
+
+        private static String mmss(double seconds) {
+            int whole = (int) Math.floor(seconds);
+            return (whole / 60) + ":" + String.format(java.util.Locale.ROOT, "%02d", whole % 60);
+        }
+
         @Override
         protected Size onMeasure(Constraints c) {
-            Size inner = row.measure(c);
+            Size inner = rows.measure(c);
             return c.constrain(inner.width(), inner.height());
         }
 
         @Override
         protected void onLayout() {
-            row.measure(Constraints.loose(width(), height()));
-            row.layoutBox(0, 0, width(), height());
+            rows.measure(Constraints.tight(width(), height()));
+            rows.layoutBox(0, 0, width(), height());
         }
 
         @Override
@@ -229,8 +310,14 @@ final class AudioScene {
         }
     }
 
-    // The generated track, written once per process into the temp directory:
-    // ~12 s of a soft stereo arpeggio, 16-bit PCM, honest streaming material.
+    // The generated track, written once per process into the temporary directory: twelve seconds
+    // of a soft stereo arpeggio, 16-bit PCM, honest streaming material.
+    private static final int RATE = 44_100;
+    private static final float[] NOTES = {220f, 277.18f, 329.63f, 440f, 329.63f, 277.18f}; // A, C#, E
+    private static final float NOTE_SECONDS = 0.5f;
+    private static final int LOOPS = 4;
+    private static final int TRACK_SECONDS = (int) (NOTES.length * LOOPS * NOTE_SECONDS);
+    private static final int HEADER = 44;
     private static Path musicPath;
 
     private static synchronized Path musicFile() {
@@ -238,19 +325,14 @@ final class AudioScene {
             return musicPath;
         }
         try {
-            int rate = 44_100;
-            float[] notes = {220f, 277.18f, 329.63f, 440f, 329.63f, 277.18f}; // A–C#–E arpeggio
-            float noteSeconds = 0.5f;
-            int loops = 4;
-            int framesPerNote = (int) (rate * noteSeconds);
-            int totalFrames = framesPerNote * notes.length * loops;
-            ByteBuffer pcm = ByteBuffer.allocate(44 + totalFrames * 4)
-                    .order(ByteOrder.LITTLE_ENDIAN);
-            writeWavHeader(pcm, totalFrames, rate);
-            for (int n = 0; n < notes.length * loops; n++) {
-                float f = notes[n % notes.length];
+            int framesPerNote = (int) (RATE * NOTE_SECONDS);
+            int totalFrames = framesPerNote * NOTES.length * LOOPS;
+            ByteBuffer pcm = ByteBuffer.allocate(HEADER + totalFrames * 4).order(ByteOrder.LITTLE_ENDIAN);
+            writeWavHeader(pcm, totalFrames, RATE);
+            for (int n = 0; n < NOTES.length * LOOPS; n++) {
+                float f = NOTES[n % NOTES.length];
                 for (int i = 0; i < framesPerNote; i++) {
-                    double t = i / (double) rate;
+                    double t = i / (double) RATE;
                     // Raised-cosine envelope kills note-boundary clicks.
                     double env = 0.5 * (1 - Math.cos(2 * Math.PI * i / (framesPerNote - 1.0)));
                     double left = Math.sin(2 * Math.PI * f * t);
@@ -265,8 +347,8 @@ final class AudioScene {
             file.toFile().deleteOnExit();
             musicPath = file;
             return file;
-        } catch (java.io.IOException error) {
-            throw new java.io.UncheckedIOException("writing demo music", error);
+        } catch (IOException error) {
+            throw new UncheckedIOException("writing demo music", error);
         }
     }
 
@@ -279,9 +361,97 @@ final class AudioScene {
         out.put("data".getBytes()).putInt(dataBytes);
     }
 
+    /**
+     * The track read from its file as it plays, a buffer at a time, and movable: the place a read
+     * starts from is arithmetic over the file's fixed layout (stereo, 16 bits, after a 44-byte
+     * header), so a seek is a new file position and nothing else.
+     */
+    private static final class WavFileTrack implements AudioStreamSource {
+        private final FileChannel file;
+        private final long frames;
+        private long frame;
+        private ByteBuffer bytes = ByteBuffer.allocate(0);
+
+        WavFileTrack(Path path) {
+            try {
+                file = FileChannel.open(path, StandardOpenOption.READ);
+                frames = (file.size() - HEADER) / 4;
+            } catch (IOException error) {
+                throw new UncheckedIOException("opening demo music", error);
+            }
+        }
+
+        @Override
+        public int channels() {
+            return 2;
+        }
+
+        @Override
+        public int sampleRate() {
+            return RATE;
+        }
+
+        @Override
+        public int readFrames(short[] out, int maxFrames) {
+            int count = (int) Math.min(maxFrames, frames - frame);
+            if (count <= 0) {
+                return 0;
+            }
+            if (bytes.capacity() < count * 4) {
+                bytes = ByteBuffer.allocate(count * 4).order(ByteOrder.LITTLE_ENDIAN);
+            }
+            bytes.clear().limit(count * 4);
+            try {
+                long at = HEADER + frame * 4;
+                while (bytes.hasRemaining()) {
+                    int read = file.read(bytes, at + bytes.position());
+                    if (read < 0) {
+                        break;
+                    }
+                }
+            } catch (IOException error) {
+                return 0; // a file gone from under the stream ends it
+            }
+            bytes.flip();
+            int got = bytes.remaining() / 4;
+            for (int i = 0; i < got * 2; i++) {
+                out[i] = bytes.getShort();
+            }
+            frame += got;
+            return got;
+        }
+
+        @Override
+        public void reset() {
+            frame = 0;
+        }
+
+        @Override
+        public boolean canSeek() {
+            return true;
+        }
+
+        @Override
+        public void seek(long micros) {
+            if (micros < 0) {
+                throw new IllegalArgumentException("micros " + micros);
+            }
+            frame = Math.min(frames, micros * RATE / 1_000_000L);
+        }
+
+        @Override
+        public void close() {
+            try {
+                file.close();
+            } catch (IOException ignored) {
+                // closing a read-only file: nothing was written to lose
+            }
+        }
+    }
+
     // -------------------------------------------------------- positional pad
 
-    /** Click-to-place looping emitter around a fixed centered listener. */
+    /** Click-to-place looping emitter around a fixed listener near the bottom, facing up. */
     private static final class PositionalPad extends Widget<PositionalPad> {
         private static final float WORLD = 6f; // half-extent in audio units
         private final AudioClip ping = AudioClip.tone(660f, 0.35f, 0.5f);
@@ -295,16 +465,17 @@ final class AudioScene {
             // Listener at the origin facing "into the screen" (up the pad),
             // matching the pad's top = farther away.
             Sounds.setListener(Vec3.ZERO, new Vec3(0, 0, -1), new Vec3(0, 1, 0));
+            setAccessibleName(Text.PAD);
         }
 
         @Override
         protected Size onMeasure(Constraints c) {
-            return c.constrain(c.maxWidth(), 180);
+            return c.constrain(c.hasBoundedWidth() ? c.maxWidth() : 480, 180);
         }
 
         @Override
         protected void onPaint(Canvas canvas) {
-            Theme theme = Theme.current();
+            Theme theme = Theme.of(this);
             float radius = theme.tokensFor(this).radiusMedium();
             canvas.fillRoundRectWithBorder(0, 0, width(), height(), radius, theme.surface(),
                     1, theme.outline());
@@ -365,7 +536,7 @@ final class AudioScene {
             }
         }
 
-        /** Tab switches hide (not detach): a ticker kills the loop on hide. */
+        /** Pages are hidden, not detached, when another is chosen: a ticker ends the loop then. */
         private void armStopOnHide() {
             if (ticking || scene() == null) {
                 return;
