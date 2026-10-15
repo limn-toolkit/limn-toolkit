@@ -257,6 +257,12 @@ class DamageContractTest extends ComponentTestBase {
             natural("ColorPicker", ColorPicker::new, keyboard()),
             natural("ColorPickerButton", () -> new ColorPickerButton(Color.rgb(0xF59E0B)), both()),
             natural("ComboBox", () -> new ComboBox<>(List.of("one", "two", "three")), both()),
+            // Opening grows the section, and what is below it moves: a layout pass, whose frames
+            // are whole by construction (ADR 043). Every other gesture stays in the header.
+            natural("Expander", () -> new Expander("Details", new Label("Inside")), List.of(
+                    hover(), unhover(),
+                    click().fullFrameBecause("the section grows and moves what is below it"),
+                    focus(), key("RIGHT", Keys.RIGHT), key("DOWN", Keys.DOWN))),
             inert("ImageView", () -> new ImageView(new Image(8, 8, new byte[8 * 8 * 4])),
                     "a picture: nothing about it answers to a pointer or a key"),
             inert("internal.PopupFrame", () -> new limn.components.internal.PopupFrame(new Plain(), 8, () -> { }),
@@ -301,17 +307,31 @@ class DamageContractTest extends ComponentTestBase {
             natural("SegmentedControl", () -> new SegmentedControl(List.of("A", "B", "C")), both()),
             inert("Separator", Separator::horizontal, "a rule: nothing to press, focus or hover"),
             natural("Slider", () -> new Slider(0, 100), both()),
+            natural("RangeSlider", () -> new RangeSlider(0, 100), both()),
             natural("Spinner", () -> new Spinner(0, 99, 1), both()),
             boxed("SplitPane", () -> SplitPane.horizontal(new Plain(), new Plain()), List.of(
                     hover().ceiling(0.15f), unhover().ceiling(0.15f))),
             inert("Surface", () -> new Surface(new Plain()), "a fill and a shadow: nothing to press, focus or hover"),
-            boxed("TabbedPane", () -> new TabbedPane().addTab("Alpha", new Plain())
-                    .addTab("Beta", new Plain()).addTab("Gamma", new Plain()), List.of(
+            boxed("TabbedPane", () -> new TabbedPane().setTabsClosable(true)
+                    .addTab("Alpha", new Plain()).addTab("Beta", new Plain())
+                    .addTab("Gamma", new Plain()), List.of(
                     hoverAt("pointer onto a tab", 90, 14).ceiling(0.1f),
                     // The switch shows the new content with Widget.setVisible, which repainted
                     // the window until visibility changes were laid out narrowly (ADR 043
                     // §9.4.4); now it is the content area once, then the strip for the slide.
-                    clickAt("switch to a tab", 90, 14))),
+                    clickAt("switch to a tab", 90, 14),
+                    // A move reorders the strip's children inside a box that keeps its size, a
+                    // contained layout: the pane, never the window (ADR 067 §2).
+                    tableKey("command+Shift+Page Down moves the tab", Keys.PAGE_DOWN,
+                            Accelerator.commandModifier() | Keys.MOD_SHIFT).ceiling(1.05f),
+                    new Gesture("middle click closes a tab", (s, w) -> {
+                        float x = w.localToSceneX() + 20;
+                        float y = w.localToSceneY() + 14;
+                        drive(s).mouseButton(Keys.MOUSE_MIDDLE, true, 0, x, y);
+                        drive(s).mouseButton(Keys.MOUSE_MIDDLE, false, 0, x, y);
+                        drive(s).inputBatchEnded();
+                    }, 0, ANY, null).fullFrameBecause(
+                            "a tab and its page leave the tree, and a removal is a layout pass"))),
             boxed("TextArea", () -> {
                 TextArea area = new TextArea();
                 area.setText("one\ntwo\nthree\nfour");

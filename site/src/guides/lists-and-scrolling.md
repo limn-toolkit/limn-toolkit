@@ -369,6 +369,55 @@ tabs.addTab("Details", details);
 When there are more tabs than fit, the strip scrolls, chevrons appear at the ends, and an
 overflow button lists the rest, so you do not have to decide what happens at what width.
 
+Tabs the user opens, documents in an editor, are tabs the user closes and moves:
+
+```java
+TabbedPane documents = new TabbedPane().setTabsClosable(true);
+documents.onTabClose(request -> {
+    if (isSaved(request.content())) {
+        request.allow();
+    } else {
+        askToSave(request.content(), saved -> {
+            if (saved) {
+                request.allow();
+            } else {
+                request.refuse();
+            }
+        });
+    }
+});
+documents.onTabMove((from, to) -> reorderDocuments(from, to));
+```
+
+`setTabsClosable(true)` makes every tab added after it closable, and `setTabClosable(index, …)`
+one tab. A closable tab draws its close button while it is selected or under the pointer, and
+closes by it, by a middle click, and by Ctrl+W (Cmd+W on macOS) while the keyboard is anywhere
+in the pane. The handler is asked first and answers once, now or from a dialog later; while it
+has not answered, the same tab is not asked again. Without a handler the tab closes. Closing the
+selected tab selects the next one, or the one before when it was the last.
+
+A tab is dragged along the bar to a new place, the others sliding out of its way, and moved from
+the keyboard with Ctrl+Shift+Page Up and Page Down (Cmd on macOS), which a screen reader hears as
+the tab's new position. `onTabMove` hears what the user moved; `removeTab`, `moveTab`,
+`tabContent` and `indexOfTab` are the same operations for code, and reach no handler.
+
+## Sections that open and close
+
+An `Expander` is a header over content that slides out below it: a title, an arrow that turns,
+an optional icon, and an optional summary at the end that says what is inside while it is
+closed.
+
+```java
+Expander shipping = new Expander("Shipping", shippingForm).setSummary("Free");
+Expander returns = new Expander("Returns", returnsText).setSummary("30 days");
+new ExpanderGroup().add(shipping).add(returns).setExpandedIndex(0);
+```
+
+It opens and closes by a click, by Space or Enter on the header, and with `setExpanded`;
+`onChange` hears the user. An `ExpanderGroup` keeps at most one of its sections open, an
+accordion; a section needs no group. A screen reader hears the header as a button that is
+expanded or collapsed and controls the content, and the summary as its description.
+
 ## The scrollbar
 
 There is one, and every scroller uses it: `ListView`, `Table`, `Tree`, `TextArea` and `ScrollView`

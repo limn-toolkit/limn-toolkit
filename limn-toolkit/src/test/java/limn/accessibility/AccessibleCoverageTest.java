@@ -116,6 +116,14 @@ class AccessibleCoverageTest {
      * pinned what the deletion does <em>not</em> delete.
      */
     private static final Set<String> TRANSPARENT_BY_THE_PREDICATE = new TreeSet<>(Set.of(
+            // Declares nothing of its own, is never focusable and paints nothing, so the predicate
+            // deletes it and hoists its header and its content into its place. The header is the
+            // node: a button, expanded or collapsed, that controls the content. Like TabbedPane it
+            // is deleted and still carries an onAccessibilityChild: the content takes GROUP and
+            // the title only where it declared neither itself, and the link to its header is
+            // unconditional. A closed section's content is hidden, so it publishes without VISIBLE
+            // and SHOWING. Pinned by limn.components.ExpanderAccessibilityTest.
+            "limn.components.Expander",
             // The chips of a combo holding many, their "+N" badge and the strip that holds them
             // (ADR 052 §4): the strip is setAccessibleIgnored, so the walk never enters it and none
             // of the three is ever a node, and they repeat what the field's value already says,

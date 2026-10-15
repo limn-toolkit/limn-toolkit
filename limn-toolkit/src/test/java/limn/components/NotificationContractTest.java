@@ -147,6 +147,20 @@ class NotificationContractTest extends ComponentTestBase {
                                 key(scene, Keys.DOWN);
                                 key(scene, Keys.ENTER);
                             })),
+            new Row("limn.components.Expander",
+                    () -> new Expander("Details", new Label("Inside")),
+                    w -> ((Expander) w).setExpanded(true), Change.Aspect.EXPANDED,
+                    new Gesture(Change.Aspect.EXPANDED,
+                            (w, ran) -> ((Expander) w).onChange(open -> ran.run()),
+                            // On the header, at the top: the section is stretched to the scene
+                            // and its middle is where the content opens.
+                            (scene, w) -> {
+                                float x = w.localToSceneX() + 20;
+                                float y = w.localToSceneY() + 8;
+                                drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+                                drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+                                drive(scene).inputBatchEnded();
+                            })),
             new Row("limn.components.ImageView",
                     () -> new ImageView(new Image(8, 8, new byte[8 * 8 * 4])),
                     w -> w.setVisible(false), Change.Aspect.VISIBLE, null),
@@ -249,6 +263,15 @@ class NotificationContractTest extends ComponentTestBase {
                             (w, ran) -> ((Slider) w).onChange(v -> ran.run()),
                             (scene, w) -> {
                                 scene.requestFocus(w);
+                                key(scene, Keys.RIGHT);
+                            })),
+            new Row("limn.components.RangeSlider",
+                    () -> new RangeSlider(0, 100),
+                    w -> ((RangeSlider) w).setRange(20, 50), Change.Aspect.VALUE,
+                    new Gesture(Change.Aspect.VALUE,
+                            (w, ran) -> ((RangeSlider) w).onChange((lo, hi) -> ran.run()),
+                            (scene, w) -> {
+                                key(scene, Keys.TAB);
                                 key(scene, Keys.RIGHT);
                             })),
             new Row("limn.components.Spinner",
@@ -801,10 +824,12 @@ class NotificationContractTest extends ComponentTestBase {
     }
 
     /**
-     * announceChange and runHandler have exactly one caller between them, the ButtonGroup seam
-     * through RadioButton's two wrappers: asserted the way checkArchitecture asserts a forbidden
-     * import, over the source tree. A second caller is a component that has taken the ordering
-     * out of the base class, which is the failure the record is about.
+     * announceChange and runHandler have exactly two callers besides the base class, the two
+     * group seams: ButtonGroup through RadioButton's two wrappers, and ExpanderGroup through
+     * Expander's, each settling two members before either speaks. Asserted the way
+     * checkArchitecture asserts a forbidden import, over the source tree. Another caller is a
+     * component that has taken the ordering out of the base class, which is the failure the
+     * record is about.
      */
     @Test
     void theTwoHalvesHaveOneCallerBetweenThem() {
@@ -833,10 +858,11 @@ class NotificationContractTest extends ComponentTestBase {
         } catch (IOException failure) {
             throw new UncheckedIOException(failure);
         }
-        assertEquals(new TreeSet<>(List.of("limn/components/RadioButton.java", "limn/scene/Widget.java")),
+        assertEquals(new TreeSet<>(List.of("limn/components/Expander.java",
+                        "limn/components/RadioButton.java", "limn/scene/Widget.java")),
                 callers.keySet(),
-                "only Widget.notifyChange and RadioButton's two package-private wrappers may call a"
-                        + " half alone: " + callers);
+                "only Widget.notifyChange and the two package-private wrappers of RadioButton and"
+                        + " of Expander may call a half alone: " + callers);
     }
 
     /**

@@ -1,0 +1,21 @@
+name: A feature
+description: Something Limn does not do yet that an application needs.
+labels: [feature]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: What the application needs
+      description: The problem, in the words of the application, before any solution.
+    validations:
+      required: true
+  - type: textarea
+    id: today
+    attributes:
+      label: How it is done today
+      description: The workaround, if there is one, and what it costs.
+  - type: textarea
+    id: idea
+    attributes:
+      label: A possible shape
+      description: Optional. An API, a behaviour, another toolkit that does it well.

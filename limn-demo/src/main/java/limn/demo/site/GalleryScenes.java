@@ -10,6 +10,9 @@ import limn.components.ProgressBar;
 import limn.components.RadioButton;
 import limn.components.SearchField;
 import limn.components.SegmentedControl;
+import limn.components.RangeSlider;
+import limn.components.Expander;
+import limn.components.ExpanderGroup;
 import limn.components.Slider;
 import limn.components.Spinner;
 import limn.components.TabbedPane;
@@ -188,6 +191,10 @@ final class GalleryScenes {
 
                 // A particular job, on a particular screen.
                 new GalleryEntry("slider", "Slider", "gallery:slider", GalleryScenes::slider),
+                new GalleryEntry("range-slider", "RangeSlider", "gallery:range-slider",
+                        GalleryScenes::rangeSlider),
+                new GalleryEntry("expander", "Expander", "gallery:expander",
+                        GalleryScenes::expander),
                 new GalleryEntry("spinner", "Spinner", "gallery:spinner", GalleryScenes::spinner),
                 new GalleryEntry("date-field", "DateField", "gallery:date-field",
                         GalleryScenes::dateField),
@@ -268,6 +275,9 @@ final class GalleryScenes {
         column.gap(12);
         column.add(new TextField().setText("Typed text"));
         column.add(new TextField().setPlaceholder("Placeholder"));
+        // A mask writes its own literals: what is typed is KLM4217, what shows is KLM-4217.
+        column.add(new TextField().setPlaceholder("Serial number").setMask("AAA-0000")
+                .setText("KLM4217"));
         return scene(column);
     }
     // #endregion
@@ -336,6 +346,34 @@ final class GalleryScenes {
         Slider slider = new Slider(0, 100);
         slider.setValue(65);
         return scene(new SizedBox(280, SizedBox.UNSET, slider));
+    }
+    // #endregion
+
+    // #region gallery:range-slider
+    static Built rangeSlider() {
+        // Two thumbs that never cross: the lower stops at the upper, and the other way round.
+        RangeSlider price = new RangeSlider(0, 500);
+        price.setStep(10);
+        price.setRange(120, 340);
+        return scene(new SizedBox(280, SizedBox.UNSET, price));
+    }
+    // #endregion
+
+    // #region gallery:expander
+    static Built expander() {
+        // A group keeps one section open; the summary says what a closed one holds.
+        ExpanderGroup group = new ExpanderGroup();
+        Column sections = new Column();
+        Label shipping = new Label("Delivered in three to five working days.");
+        for (Expander section : List.of(
+                new Expander("Shipping", shipping).setSummary("Free"),
+                new Expander("Returns", new Label("Within thirty days, unused.")).setSummary("30 days"),
+                new Expander("Warranty", new Label("Two years against defects.")).setSummary("2 years"))) {
+            group.add(section);
+            sections.add(section);
+        }
+        group.setExpandedIndex(0);
+        return scene(new SizedBox(320, SizedBox.UNSET, sections));
     }
     // #endregion
 
@@ -409,7 +447,9 @@ final class GalleryScenes {
 
     // #region gallery:tabbed-pane
     static Built tabbedPane() {
-        TabbedPane tabs = new TabbedPane();
+        // Closable: the selected tab and the one under the pointer show their close button, and
+        // every tab is dragged along the bar to a new place.
+        TabbedPane tabs = new TabbedPane().setTabsClosable(true);
         tabs.addTab("Overview", new Label("Content of the selected tab."));
         tabs.addTab("Details", new Label("Second tab."));
         tabs.addTab("History", new Label("Third tab."));

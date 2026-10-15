@@ -28,7 +28,7 @@ rather than "text field". A caption that merely sits above a field names nothing
 
 | Control | For |
 | --- | --- |
-| `TextField` | one line of text, with a placeholder and an optional leading icon |
+| `TextField` | one line of text, with a placeholder, an optional leading icon, and an optional mask |
 | `PasswordField` | the same, masked |
 | `TextArea` | several lines, with its own scrollbars |
 | `SearchField` | a text field with search affordances |
@@ -38,6 +38,7 @@ rather than "text field". A caption that merely sits above a field names nothing
 | `DatePicker` | the same field with a calendar behind a button; `ofRange()` for a period |
 | `CalendarView` | a month grid on its own, for a screen that shows one |
 | `Slider` | a number on a range |
+| `RangeSlider` | a lower and an upper bound on a range, two thumbs that never cross |
 | `Checkbox` | a boolean, as a box or as a switch |
 | `RadioButton` | one of several, grouped by a `ButtonGroup` |
 
@@ -61,6 +62,43 @@ otherwise live as long as the widget does.
 
 A handler slot holds one handler: registering a second one throws, and `null` clears it. Two
 parties that both want to hear the same widget are both watching, and watching has no such limit.
+
+## A field that types to a pattern
+
+A code with a fixed shape, a serial number, a document number, a postal code, is a `TextField`
+with a mask:
+
+```java
+TextField serial = new TextField().setPlaceholder("Serial number").setMask("AAA-0000-**");
+```
+
+`0` takes a digit, `A` a letter and `*` any character; every other character of the pattern is a
+literal the field writes by itself when the next position is filled. Characters a position does
+not take are passed over, so pasting `KLM-4217-X9` and pasting `KLM4217X9` give the same text,
+and Backspace after a literal takes the character before it. While the field has the keyboard
+the positions still to fill show after the text as a guide, `KLM-42__-__`; without it, an empty
+field shows its placeholder. `text()` is what shows, `unmaskedText()` the characters typed into
+the positions, and `isMaskComplete()` whether every one is filled, which is the check a form makes
+before it accepts the value. A screen reader hears the pattern as the field's description.
+
+No pattern of any country ships with the toolkit: write the one your form needs. Numbers and
+amounts are a `Spinner`, which follows the user's language.
+
+## A range
+
+A `RangeSlider` holds two values, a lower and an upper, on one track:
+
+```java
+RangeSlider price = new RangeSlider(0, 1000).setStep(10).setMinimumGap(50);
+price.setRange(200, 600);
+price.onCommit((lower, upper) -> filter(lower, upper));
+```
+
+Each thumb stops at the other, or at the minimum gap from it. Each is a Tab stop of its own and
+moves by the arrows, Page Up and Page Down, Home and End, within what the other leaves it; a press
+on the track takes the nearer thumb. `onChange` hears every step of a drag and `onCommit` the
+range the user let go at. A screen reader hears two sliders, Minimum and Maximum, each with the
+bounds the other leaves it.
 
 ## Choosing from many
 

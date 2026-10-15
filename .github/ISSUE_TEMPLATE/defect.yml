@@ -1,0 +1,38 @@
+name: A defect
+description: Something does not work as the documentation says it should.
+labels: [defect]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Limn version
+      description: The version of the artifacts you depend on.
+      placeholder: x.y.z
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: System
+      description: Operating system and version, desktop session on Linux (X11 or Wayland), and the Java version.
+      placeholder: Windows 11 24H2, Java 21
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps
+      description: The smallest program or sequence of actions that shows it.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected, and what happened
+    validations:
+      required: true
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: A log, a screenshot, what a screen reader said.

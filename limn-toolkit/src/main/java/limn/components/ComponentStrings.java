@@ -32,6 +32,13 @@ final class ComponentStrings {
     static final I18nString SEARCH_CLEAR =
             new I18nString("limn.searchField.clear", "Clear");
 
+    // What a screen reader calls each thumb of a RangeSlider: two sliders in one control, which
+    // a reader can only tell apart by name.
+    static final I18nString RANGE_LOWER =
+            new I18nString("limn.rangeSlider.lower", "Minimum");
+    static final I18nString RANGE_UPPER =
+            new I18nString("limn.rangeSlider.upper", "Maximum");
+
     static final I18nString VIEWPORT3D_NO_BACKEND =
             new I18nString("limn.viewport3d.noBackend", "3D unavailable (no GPU backend)");
 
@@ -162,6 +169,14 @@ final class ComponentStrings {
 
     static final I18nString TAB_LIST_ALL =
             new I18nString("limn.tabbedPane.allTabs", "All tabs");
+
+    // The close button a closable tab draws: a synthetic child with no text of its own.
+    static final I18nString TAB_CLOSE =
+            new I18nString("limn.tabbedPane.closeTab", "Close tab");
+
+    // Said when the keyboard moves a tab: its title and where it now is in the tab order.
+    static final I18nString TAB_MOVED =
+            new I18nString("limn.tabbedPane.tabMoved", "{0}, position {1} of {2}");
 
     // The segmented control's two overflow chevrons, for the spinner arrows' reason: they are
     // painted glyphs with no text and no tooltip, and they are SYNTHETIC children, so none of the

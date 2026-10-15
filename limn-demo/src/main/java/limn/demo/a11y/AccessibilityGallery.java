@@ -32,6 +32,9 @@ import limn.components.ScrollView;
 import limn.components.SearchField;
 import limn.components.SegmentedControl;
 import limn.components.Separator;
+import limn.components.RangeSlider;
+import limn.components.Expander;
+import limn.components.ExpanderGroup;
 import limn.components.Slider;
 import limn.components.Spinner;
 import limn.components.SplitPane;
@@ -543,6 +546,12 @@ public final class AccessibilityGallery {
                 new Entry("Sliders", List.of(Slider.class),
                         List.of(Role.SLIDER),
                         AccessibilityGallery::sliders),
+                new Entry("Expanders", List.of(Expander.class),
+                        List.of(Role.BUTTON, Role.GROUP),
+                        AccessibilityGallery::expanders),
+                new Entry("Range sliders", List.of(RangeSlider.class),
+                        List.of(Role.SLIDER),
+                        AccessibilityGallery::rangeSliders),
                 new Entry("Spinners", List.of(Spinner.class),
                         List.of(Role.SPIN_BUTTON),
                         AccessibilityGallery::spinners),
@@ -555,6 +564,9 @@ public final class AccessibilityGallery {
                 new Entry("Text field with a value", List.of(TextField.class),
                         List.of(Role.TEXT_FIELD, Role.BUTTON),
                         AccessibilityGallery::textFieldWithValue),
+                new Entry("Text field with a mask", List.of(TextField.class),
+                        List.of(Role.TEXT_FIELD),
+                        AccessibilityGallery::textFieldWithMask),
                 new Entry("Password field", List.of(PasswordField.class),
                         List.of(Role.PASSWORD_FIELD, Role.SWITCH),
                         AccessibilityGallery::passwordField),
@@ -834,6 +846,40 @@ public final class AccessibilityGallery {
         return new Built(page);
     }
 
+    private static Built expanders() {
+        Column page = page();
+        // One on its own with a summary, open; three in a group that keeps one open.
+        Column filters = new Column();
+        filters.add(new Checkbox(Checkbox.Variant.BOX, "In stock"));
+        filters.add(new Checkbox(Checkbox.Variant.BOX, "On sale"));
+        page.add(new Expander("Filters", filters).setSummary("2 available").setExpanded(true));
+        ExpanderGroup group = new ExpanderGroup();
+        for (String[] section : new String[][] {
+                {"Shipping", "Delivered in three to five working days."},
+                {"Returns", "Returned within thirty days, unused."},
+                {"Warranty", "Two years against defects."}}) {
+            Expander expander = new Expander(section[0], new Label(section[1]));
+            group.add(expander);
+            page.add(expander);
+        }
+        group.setExpandedIndex(0);
+        Expander locked = new Expander("Locked", new Label("Not reachable"));
+        locked.setEnabled(false);
+        page.add(locked);
+        return new Built(page);
+    }
+
+    private static Built rangeSliders() {
+        Column page = page();
+        page.add(Labelled.above("Price", new RangeSlider(0, 1000).setStep(10).setRange(200, 600)));
+        page.add(Labelled.above("Nights, at least two", new RangeSlider(1, 30).setStep(1).setMinimumGap(2)
+                .setRange(3, 7)));
+        RangeSlider locked = new RangeSlider(0, 100).setRange(20, 80);
+        locked.setEnabled(false);
+        page.add(Labelled.above("Age, locked", locked));
+        return new Built(page);
+    }
+
     private static Built spinners() {
         Column page = page();
         page.add(Labelled.above("Quantity", new Spinner(0, 99, 1).setValue(1)));
@@ -868,6 +914,15 @@ public final class AccessibilityGallery {
         Column page = page();
         TextField name = new TextField().setPlaceholder("First and last name");
         page.add(Labelled.above("Name", name));
+        return new Built(page);
+    }
+
+    private static Built textFieldWithMask() {
+        Column page = page();
+        // The pattern is the description a reader hears; the literals write themselves.
+        page.add(Labelled.above("Serial number", new TextField().setMask("AAA-0000-**")
+                .setText("KLM42")));
+        page.add(Labelled.above("Reference", new TextField().setMask("00.000.000/0000")));
         return new Built(page);
     }
 
@@ -1297,6 +1352,13 @@ public final class AccessibilityGallery {
         tabs.addTab("Privacy", privacy);
         tabs.addTab("About", new Label("Version 1.0").setWrap(true));
         page.add(new SizedBox(SizedBox.UNSET, 200, tabs));
+        // Closable, and moved with command+Shift+Page Up and Page Down: each tab carries its close
+        // button, and a move is said aloud.
+        TabbedPane documents = new TabbedPane().setTabsClosable(true);
+        for (String name : List.of("Report.txt", "Notes.txt", "Budget.txt")) {
+            documents.addTab(name, new Label("The text of " + name).setWrap(true));
+        }
+        page.add(new SizedBox(SizedBox.UNSET, 160, documents));
         return new Built(page);
     }
 
