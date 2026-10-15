@@ -1,13 +1,18 @@
 package limn.demo;
 
+import limn.components.Checkbox;
+import limn.components.ImageView;
 import limn.components.Label;
+import limn.components.SegmentedControl;
 import limn.components.Theme;
 import limn.graphics.BlendMode;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
+import limn.graphics.Font;
 import limn.graphics.Image;
 import limn.graphics.Images;
 import limn.graphics.Sampling;
+import limn.i18n.I18nString;
 import limn.scene.Constraints;
 import limn.scene.Insets;
 import limn.scene.Scene;
@@ -18,16 +23,57 @@ import limn.scene.layout.Expanded;
 import limn.scene.layout.Flex;
 import limn.scene.layout.Padding;
 import limn.scene.layout.Row;
+import limn.scene.layout.SizedBox;
+
+import java.util.List;
 
 /**
- * Sprite showcase of the 2D game-rendering primitives, all procedural (no asset
- * files): a sprite-sheet animation driven by source-rect
- * {@link Canvas#drawImage(Image, float, float, float, float, float, float, float, float)},
- * {@link Sampling#PIXELATED} vs {@link Sampling#SMOOTH} scaling for pixel art,
- * {@link BlendMode} additive/multiply compositing, and sub-pixel motion with
- * {@link Canvas#setPixelSnap} disabled.
+ * The Sprites page: the 2D primitives behind pictures and games, all procedural (no asset files).
+ * A sprite sheet played by source-rectangle
+ * {@link Canvas#drawImage(Image, float, float, float, float, float, float, float, float)}; the
+ * same animation as images an image view plays; one picture in each of an image view's fits and
+ * with a tint; pixel art scaled smooth and pixelated; three {@link BlendMode}s; and slow motion
+ * snapped to whole pixels and not.
  */
 final class SpritesScene {
+
+    /** What the page says, ready for translation. */
+    static final class Text {
+        static final I18nString SHEET = new I18nString("showcase.sprites.sheet", "Sprite sheet");
+        static final I18nString ANIMATED = new I18nString("showcase.sprites.animated", "Animated images");
+        static final I18nString SHEET_CAPTION = new I18nString("showcase.sprites.sheetCaption", "Sheet");
+        static final I18nString PLAYING = new I18nString("showcase.sprites.playing", "Playing");
+        static final I18nString SPEED = new I18nString("showcase.sprites.speed", "Speed");
+        static final I18nString REPEAT = new I18nString("showcase.sprites.repeat", "Repeat");
+        static final I18nString AS_THE_FILE_SAYS =
+                new I18nString("showcase.sprites.asTheFileSays", "As the file says");
+        static final I18nString ONCE = new I18nString("showcase.sprites.once", "Once");
+        static final I18nString BACK_AND_FORTH =
+                new I18nString("showcase.sprites.backAndForth", "Back and forth");
+        static final I18nString PICTURES = new I18nString("showcase.sprites.pictures", "Pictures");
+        static final I18nString CONTAIN = new I18nString("showcase.sprites.contain", "Contain");
+        static final I18nString COVER = new I18nString("showcase.sprites.cover", "Cover");
+        static final I18nString FILL = new I18nString("showcase.sprites.fill", "Fill");
+        static final I18nString ACTUAL_SIZE = new I18nString("showcase.sprites.actualSize", "Actual size");
+        static final I18nString TINTED = new I18nString("showcase.sprites.tinted", "Tinted");
+        static final I18nString PICTURE = new I18nString("showcase.sprites.picture", "Coastline at dusk");
+        static final I18nString PIXEL_ART = new I18nString("showcase.sprites.pixelArt", "Pixel art");
+        static final I18nString SMOOTH = new I18nString("showcase.sprites.smooth", "Smooth");
+        static final I18nString PIXELATED = new I18nString("showcase.sprites.pixelated", "Pixelated");
+        static final I18nString BLENDING = new I18nString("showcase.sprites.blending", "Blending");
+        static final I18nString NORMAL = new I18nString("showcase.sprites.normal", "Normal");
+        static final I18nString ADDITIVE = new I18nString("showcase.sprites.additive", "Additive");
+        static final I18nString MULTIPLY = new I18nString("showcase.sprites.multiply", "Multiply");
+        static final I18nString MOTION = new I18nString("showcase.sprites.motion", "Slow motion");
+        static final I18nString SNAPPED = new I18nString("showcase.sprites.snapped", "Snapped to pixels");
+        static final I18nString SUB_PIXEL = new I18nString("showcase.sprites.subPixel", "Sub-pixel");
+
+        private Text() {
+        }
+    }
+
+    /** Every panel on the page is this tall, so the page reads as one set of them. */
+    private static final float TILE = 150;
 
     private SpritesScene() {
     }
@@ -41,32 +87,24 @@ final class SpritesScene {
 
     /** The subtree, reusable as a page of the showcase. */
     static Widget<?> content() {
-        Column column = new Column();
-        column.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
+        Column column = Page.column();
 
-        column.add(heading("Sprite sheet (source-rect drawImage)"));
-        column.add(new Label("Eight frames in one image, drawn from one texture.")
-                .setMuted(true).setWrap(true));
+        column.add(Page.firstSection(Text.SHEET));
         column.add(new SheetPlayer());
 
-        column.add(heading("Animated images"));
-        column.add(new Label("The same sheet as an animated image, a GIF, a PNG and a WebP: played by an image view, "
-                + "with its speed and its turns.").setMuted(true).setWrap(true));
-        column.add(animatedImages());
+        column.add(Page.section(Text.ANIMATED));
+        animatedImages(column);
 
-        column.add(heading("Pixel art: SMOOTH vs PIXELATED"));
-        column.add(new Label("The same image scaled six times: pixelated, and smooth.")
-                .setMuted(true).setWrap(true));
+        column.add(Page.section(Text.PICTURES));
+        column.add(pictures());
+
+        column.add(Page.section(Text.PIXEL_ART));
         column.add(new FilterCompare());
 
-        column.add(heading("Blend modes"));
-        column.add(new Label("Three blend modes: normal, additive, multiply.")
-                .setMuted(true).setWrap(true));
+        column.add(Page.section(Text.BLENDING));
         column.add(new BlendPanels());
 
-        column.add(heading("Sub-pixel motion (setPixelSnap)"));
-        column.add(new Label("Top: snapped to whole pixels. Bottom: sub-pixel, with no stutter.")
-                .setMuted(true).setWrap(true));
+        column.add(Page.section(Text.MOTION));
         column.add(new ScrollCompare());
 
         return column; // the page scrolls it
@@ -74,10 +112,10 @@ final class SpritesScene {
 
     /**
      * An animated image is an image: the sheet above cut into its frames, and a GIF, a PNG and a
-     * WebP read from bytes, each given to an image view, which plays it. The switches below drive
-     * them all.
+     * WebP read from bytes, each given to an image view, which plays it. The toolbar above them
+     * drives them all.
      */
-    private static Widget<?> animatedImages() {
+    private static void animatedImages(Column column) {
         // A lab's switch: -Dlimn.demo.animationBudget=0 decodes the files as they play.
         Long budget = Long.getLong("limn.demo.animationBudget");
         if (budget != null) {
@@ -89,29 +127,27 @@ final class SpritesScene {
         Image orbit = Images.decode(Images.encode(orbit(), limn.graphics.ImageFormat.GIF));
         // The same as an animated PNG, without loss: alpha between, every frame its own colours.
         Image png = Images.decode(Images.encode(orbit(), limn.graphics.ImageFormat.PNG));
-
         // And the same animation as a WebP, from a file the application carries.
         Image webp = Images.fromResource("/limn/demo/images/orbit.webp");
 
-        limn.components.ImageView first = new limn.components.ImageView(coin).setPreferredSize(72, 72);
-        limn.components.ImageView second = new limn.components.ImageView(orbit).setPreferredSize(96, 96);
-        limn.components.ImageView third = new limn.components.ImageView(png).setPreferredSize(96, 96);
-        limn.components.ImageView fourth = new limn.components.ImageView(webp).setPreferredSize(96, 96);
-        java.util.List<limn.components.ImageView> views = java.util.List.of(first, second, third, fourth);
+        ImageView first = new ImageView(coin).setPreferredSize(96, 96);
+        ImageView second = new ImageView(orbit).setPreferredSize(96, 96);
+        ImageView third = new ImageView(png).setPreferredSize(96, 96);
+        ImageView fourth = new ImageView(webp).setPreferredSize(96, 96);
+        List<ImageView> views = List.of(first, second, third, fourth);
 
-        limn.components.Checkbox playing = new limn.components.Checkbox(
-                limn.components.Checkbox.Variant.SWITCH, "Playing");
+        Checkbox playing = new Checkbox(Checkbox.Variant.SWITCH, Text.PLAYING);
         playing.setChecked(true);
         playing.onChange(on -> views.forEach(view -> view.setPlaying(on)));
 
-        limn.components.SegmentedControl speed = new limn.components.SegmentedControl(
-                java.util.List.of("0.5×", "1×", "2×"));
+        SegmentedControl speed = new SegmentedControl(times(0.5), times(1), times(2));
+        speed.setAccessibleName(Text.SPEED);
         speed.setSelectedIndex(1);
         float[] speeds = {0.5f, 1f, 2f};
         speed.onSelect(index -> views.forEach(view -> view.setSpeed(speeds[index])));
 
-        limn.components.SegmentedControl turns = new limn.components.SegmentedControl(
-                java.util.List.of("As the image says", "Once", "Forward and back"));
+        SegmentedControl turns = new SegmentedControl(Text.AS_THE_FILE_SAYS, Text.ONCE, Text.BACK_AND_FORTH);
+        turns.setAccessibleName(Text.REPEAT);
         limn.animation.ImageAnimation.Loop[] loops = {limn.animation.ImageAnimation.Loop.FILE,
                 limn.animation.ImageAnimation.Loop.ONCE, limn.animation.ImageAnimation.Loop.BOUNCE};
         turns.onSelect(index -> views.forEach(view -> {
@@ -119,27 +155,50 @@ final class SpritesScene {
             view.setPlaying(playing.isChecked()); // one that had finished starts again
         }));
 
-        limn.scene.layout.Row pictures = new limn.scene.layout.Row();
-        pictures.gap(24).crossAlignment(Flex.CrossAlignment.CENTER);
-        pictures.add(captioned(first, "Sheet"));
-        pictures.add(captioned(second, "GIF"));
-        pictures.add(captioned(third, "PNG"));
-        pictures.add(captioned(fourth, "WebP"));
-        Column controls = new Column();
-        controls.gap(8).crossAlignment(Flex.CrossAlignment.START);
-        controls.add(playing);
-        controls.add(speed);
-        controls.add(turns);
-        pictures.add(controls);
-        return pictures;
+        Row toolbar = Page.row(16, playing, speed, turns);
+        toolbar.add(Expanded.spacer(1));
+        column.add(toolbar);
+
+        Row tiles = Page.row(12,
+                tile(first, Text.SHEET_CAPTION),
+                tile(second, I18nString.literal("GIF")),
+                tile(third, I18nString.literal("PNG")),
+                tile(fourth, I18nString.literal("WebP")));
+        tiles.add(Expanded.spacer(1));
+        column.add(tiles);
     }
 
-    private static Widget<?> captioned(Widget<?> picture, String caption) {
+    /** One picture in each of an image view's fits, and one with a tint, in boxes of one size. */
+    private static Widget<?> pictures() {
+        Image picture = GlassScene.dusk();
+        Row row = Page.row(12,
+                tile(fitted(picture, ImageView.Fit.CONTAIN), Text.CONTAIN),
+                tile(fitted(picture, ImageView.Fit.COVER), Text.COVER),
+                tile(fitted(picture, ImageView.Fit.FILL), Text.FILL),
+                tile(fitted(picture, ImageView.Fit.NONE), Text.ACTUAL_SIZE),
+                tile(fitted(picture, ImageView.Fit.COVER).setTint(Color.rgb(0x8CC4F0)), Text.TINTED));
+        row.add(Expanded.spacer(1));
+        return row;
+    }
+
+    /** The picture is 2:1 and the box 4:3, so the fits are four different pictures. */
+    private static ImageView fitted(Image picture, ImageView.Fit fit) {
+        return new ImageView(picture).setFit(fit).setPreferredSize(128, 96)
+                .setAccessibleName(Text.PICTURE);
+    }
+
+    /** A picture on a panel of the page's tile height, its caption under it. */
+    private static Widget<?> tile(Widget<?> picture, I18nString caption) {
         Column column = new Column();
-        column.gap(4).crossAlignment(Flex.CrossAlignment.CENTER);
+        column.gap(8).crossAlignment(Flex.CrossAlignment.CENTER).mainAlignment(Flex.MainAlignment.CENTER);
         column.add(picture);
         column.add(new Label(caption).setMuted(true));
-        return column;
+        return new SizedBox(160, TILE, Page.card(column));
+    }
+
+    /** A speed as the segment reads it: the multiplier in the language's digits, then "×". */
+    private static I18nString times(double value) {
+        return I18nString.literal(limn.i18n.NumberFormats.number(2).apply(value) + "×");
     }
 
     /** Twenty-four frames of a dot going round a ring, with nothing behind it: an animation drawn here. */
@@ -175,10 +234,6 @@ final class SpritesScene {
             millis[f] = 50;
         }
         return Images.animation(list, millis, 0);
-    }
-
-    private static Label heading(String text) {
-        return new Label(text).setFont(Theme.current().title());
     }
 
     // ------------------------------------------------- procedural sprite art
@@ -251,6 +306,11 @@ final class SpritesScene {
         double time;
         private boolean started;
 
+        Animated(I18nString name) {
+            setAccessibleName(name);
+            setAccessibleRole(limn.accessibility.Accessible.Role.IMAGE);
+        }
+
         void armTicker() {
             if (!started && scene() != null) {
                 started = true;
@@ -265,160 +325,157 @@ final class SpritesScene {
                 });
             }
         }
+
+        @Override
+        protected Size onMeasure(Constraints c) {
+            return c.constrain(c.hasBoundedWidth() ? c.maxWidth() : 600, TILE);
+        }
+
+        void panel(Canvas canvas, Theme theme) {
+            canvas.fillRoundRect(0, 0, width(), height(), theme.tokensFor(this).radiusMedium(), theme.surface());
+        }
+
+        /** A caption centred under {@code x .. x + width}, at {@code y}, in the muted label ink. */
+        void caption(Canvas canvas, I18nString text, float x, float width, float y, Theme theme) {
+            Font font = theme.tokensFor(this).label();
+            String shown = text.get();
+            var m = textRuler().measure(shown, font);
+            canvas.drawText(shown, x + (width - m.width()) / 2, y + m.ascent(), font, theme.textMuted());
+        }
     }
 
     // ------------------------------------------------------ section widgets
 
-    /** The sheet with the playing frame highlighted, plus the sprite at 4×. */
+    /** The sheet at twice its size, the frame being played outlined. */
     private static final class SheetPlayer extends Animated {
         private final Image sheet = coinSheet();
 
-        @Override
-        protected Size onMeasure(Constraints c) {
-            return c.constrain(c.maxWidth(), 96);
+        SheetPlayer() {
+            super(Text.SHEET);
         }
 
         @Override
         protected void onPaint(Canvas canvas) {
             armTicker();
-            Theme theme = Theme.current();
-            canvas.fillRoundRect(0, 0, width(), height(), theme.tokensFor(this).radiusMedium(), theme.surface());
+            Theme theme = Theme.of(this);
+            panel(canvas, theme);
             int frame = (int) (time * 10) % FRAMES;
-
-            // The whole sheet at 2×, pixelated so cells read clearly.
+            // The whole sheet at 2×, pixelated so its cells read clearly, centred on the panel so
+            // it sits the same in either reading direction.
             canvas.save();
             canvas.setSampling(Sampling.PIXELATED);
-            float sheetY = (height() - COIN * 2) / 2;
-            canvas.drawImage(sheet, 16, sheetY, FRAMES * COIN * 2, COIN * 2);
-            canvas.drawRect(16 + frame * COIN * 2, sheetY, COIN * 2, COIN * 2,
-                    2, theme.primary());
-            // The played sprite at 3× (fits the 96px widget; drawing outside
-            // the bounds would leave stale pixels under partial rendering):
-            // ONE cell of the sheet via source rect.
-            canvas.drawImage(sheet, frame * COIN, 0, COIN, COIN,
-                    width() - COIN * 3 - 24, (height() - COIN * 3) / 2, COIN * 3, COIN * 3);
-            // The same cell, tinted: the sprite primitive and the tint in one call, so a
-            // sheet does not have to be split into one Image per cell to be modulated;
-            // splitting it is what breaks the batching a sheet exists for.
-            canvas.drawImage(sheet, frame * COIN, 0, COIN, COIN,
-                    width() - COIN * 5 - 40, (height() - COIN * 2) / 2, COIN * 2, COIN * 2,
-                    new Color(0.45f, 0.75f, 1f, 0.9f));
+            float cell = COIN * 2;
+            float sheetX = (width() - FRAMES * cell) / 2;
+            float sheetY = (height() - cell) / 2;
+            canvas.drawImage(sheet, sheetX, sheetY, FRAMES * cell, cell);
+            canvas.drawRect(sheetX + frame * cell, sheetY, cell, cell, 2, theme.primary());
             canvas.restore();
         }
     }
 
-    /** The invader at 6×, smooth on the left, pixelated on the right. */
-    private static final class FilterCompare extends Widget<FilterCompare> {
+    /** The invader at 6×, smooth on one side, pixelated on the other. */
+    private static final class FilterCompare extends Animated {
         private final Image sprite = invader();
 
-        @Override
-        protected Size onMeasure(Constraints c) {
-            return c.constrain(c.maxWidth(), 128);
+        FilterCompare() {
+            super(Text.PIXEL_ART);
         }
 
         @Override
         protected void onPaint(Canvas canvas) {
-            Theme theme = Theme.current();
-            canvas.fillRoundRect(0, 0, width(), height(), theme.tokensFor(this).radiusMedium(), theme.surface());
+            Theme theme = Theme.of(this);
+            panel(canvas, theme);
             float size = 96;
-            float y = (height() - size) / 2;
-            float leftX = width() / 2 - size - 40;
-            float rightX = width() / 2 + 40;
-            canvas.drawImage(sprite, leftX, y, size, size); // SMOOTH default
+            float y = (height() - size - 24) / 2;
+            float firstX = width() / 2 - size - 40;
+            float secondX = width() / 2 + 40;
+            canvas.drawImage(sprite, firstX, y, size, size); // SMOOTH is the default
             canvas.save();
             canvas.setSampling(Sampling.PIXELATED);
-            canvas.drawImage(sprite, rightX, y, size, size);
+            canvas.drawImage(sprite, secondX, y, size, size);
             canvas.restore();
-            var font = theme.body();
-            var m1 = textRuler().measure("SMOOTH", font);
-            canvas.drawText("SMOOTH", leftX + (size - m1.width()) / 2,
-                    y + size + m1.ascent() - 4, font, theme.textMuted());
-            var m2 = textRuler().measure("PIXELATED", font);
-            canvas.drawText("PIXELATED", rightX + (size - m2.width()) / 2,
-                    y + size + m2.ascent() - 4, font, theme.textMuted());
+            caption(canvas, Text.SMOOTH, firstX, size, y + size + 4, theme);
+            caption(canvas, Text.PIXELATED, secondX, size, y + size + 4, theme);
         }
     }
 
-    /** Three panels, same three orbiting glows: only the blend mode differs. */
+    /** Three panels, the same three orbiting glows: only the blend mode differs. */
     private static final class BlendPanels extends Animated {
         private static final Color[] GLOWS = {
                 new Color(1f, 0.30f, 0.25f, 0.55f),
                 new Color(0.25f, 0.95f, 0.45f, 0.55f),
                 new Color(0.30f, 0.45f, 1f, 0.55f),
         };
+        private static final I18nString[] NAMES = {Text.NORMAL, Text.ADDITIVE, Text.MULTIPLY};
+        private static final BlendMode[] MODES = {BlendMode.NORMAL, BlendMode.ADDITIVE, BlendMode.MULTIPLY};
 
-        @Override
-        protected Size onMeasure(Constraints c) {
-            return c.constrain(c.maxWidth(), 150);
+        BlendPanels() {
+            super(Text.BLENDING);
         }
 
         @Override
         protected void onPaint(Canvas canvas) {
             armTicker();
-            Theme theme = Theme.current();
+            Theme theme = Theme.of(this);
             float panelW = (width() - 2 * 12) / 3;
-            String[] names = {"NORMAL", "ADDITIVE", "MULTIPLY"};
-            BlendMode[] modes = {BlendMode.NORMAL, BlendMode.ADDITIVE, BlendMode.MULTIPLY};
+            float panelH = height() - 26;
             for (int p = 0; p < 3; p++) {
                 float x = p * (panelW + 12);
                 // MULTIPLY needs a light backdrop to show darkening.
-                Color backdrop = modes[p] == BlendMode.MULTIPLY
+                Color backdrop = MODES[p] == BlendMode.MULTIPLY
                         ? new Color(0.92f, 0.92f, 0.95f, 1)
                         : new Color(0.07f, 0.07f, 0.10f, 1);
-                canvas.fillRoundRect(x, 0, panelW, 120, theme.tokensFor(this).radiusMedium(), backdrop);
+                canvas.fillRoundRect(x, 0, panelW, panelH, theme.tokensFor(this).radiusMedium(), backdrop);
                 canvas.save();
-                canvas.clipRect(x, 0, panelW, 120);
-                canvas.setBlendMode(modes[p]);
+                canvas.clipRect(x, 0, panelW, panelH);
+                canvas.setBlendMode(MODES[p]);
                 for (int i = 0; i < GLOWS.length; i++) {
                     double a = time * 0.9 + i * Math.PI * 2 / 3;
                     float gx = x + panelW / 2 + (float) Math.cos(a) * 18;
-                    float gy = 60 + (float) Math.sin(a) * 14;
+                    float gy = panelH / 2 + (float) Math.sin(a) * 14;
                     canvas.fillCircle(gx, gy, 34, GLOWS[i]);
                 }
                 canvas.restore();
-                var font = theme.body();
-                var m = textRuler().measure(names[p], font);
-                canvas.drawText(names[p], x + (panelW - m.width()) / 2,
-                        120 + m.ascent() + 6, font, theme.textMuted());
+                caption(canvas, NAMES[p], x, panelW, panelH + 6, theme);
             }
         }
     }
 
-    /** Same slow scroll twice: snapped steps on top, sub-pixel glide below. */
+    /** The same slow scroll twice: whole-pixel steps above, a sub-pixel glide below. */
     private static final class ScrollCompare extends Animated {
         private static final float SPEED = 14f; // logical px/s, slow on purpose
         private final Image sheet = coinSheet();
 
-        @Override
-        protected Size onMeasure(Constraints c) {
-            return c.constrain(c.maxWidth(), 132);
+        ScrollCompare() {
+            super(Text.MOTION);
         }
 
         @Override
         protected void onPaint(Canvas canvas) {
             armTicker();
-            Theme theme = Theme.current();
-            canvas.fillRoundRect(0, 0, width(), height(), theme.tokensFor(this).radiusMedium(), theme.surface());
+            Theme theme = Theme.of(this);
+            panel(canvas, theme);
             float offset = (float) ((time * SPEED) % (COIN + 24));
-            paintStrip(canvas, 14, offset, true, theme);
+            paintStrip(canvas, 12, offset, Text.SNAPPED, theme);
             canvas.save();
             canvas.setPixelSnap(false);
-            paintStrip(canvas, 72, offset, false, theme);
+            paintStrip(canvas, 80, offset, Text.SUB_PIXEL, theme);
             canvas.restore();
         }
 
-        private void paintStrip(Canvas canvas, float y, float offset, boolean snapped, Theme theme) {
+        private void paintStrip(Canvas canvas, float y, float offset, I18nString label, Theme theme) {
             canvas.save();
-            canvas.clipRect(12, y, width() - 24, 44);
+            canvas.clipRect(12, y, width() - 24, 40);
             for (float x = 12 - offset; x < width() - 12; x += COIN + 24) {
                 // Frame 0 of the sheet (a full coin), source-rect again.
                 canvas.drawImage(sheet, 0, 0, COIN, COIN, x, y + 4, COIN, COIN);
             }
             canvas.restore();
-            var font = theme.label();
-            String label = snapped ? "pixel snap ON (default)" : "pixel snap OFF (sub-pixel)";
-            var m = textRuler().measure(label, font);
-            canvas.drawText(label, 16, y + 44 + m.ascent() + 2, font, theme.textMuted());
+            Font font = theme.tokensFor(this).label();
+            String shown = label.get();
+            var m = textRuler().measure(shown, font);
+            float textX = layoutDirection().isRightToLeft() ? width() - 16 - m.width() : 16;
+            canvas.drawText(shown, textX, y + 40 + m.ascent() + 2, font, theme.textMuted());
         }
     }
 }

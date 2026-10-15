@@ -1,17 +1,26 @@
 package limn.demo;
 
 import limn.components.BackdropPanel;
+import limn.components.Button;
 import limn.components.ImageView;
 import limn.components.Label;
 import limn.components.ScrollView;
+import limn.components.SegmentedControl;
+import limn.components.Slider;
 import limn.components.Theme;
 import limn.graphics.BackdropEffect;
+import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Image;
+import limn.graphics.RoundRect;
+import limn.i18n.I18nString;
+import limn.scene.Constraints;
 import limn.scene.Insets;
 import limn.scene.Scene;
+import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.layout.Column;
+import limn.scene.layout.Expanded;
 import limn.scene.layout.Flex;
 import limn.scene.layout.Padding;
 import limn.scene.layout.Row;
@@ -19,14 +28,51 @@ import limn.scene.layout.SizedBox;
 import limn.scene.layout.Stack;
 
 /**
- * Backdrop effects: three panels over the same busy picture, so the difference between them is the
- * only thing that varies. Each is a {@link BackdropPanel}, an ordinary container whose background
- * is a re-sampled copy of what the frame already drew underneath it.
+ * The Backdrop panel page: a toolbar of glass over a library that scrolls under it, a tinted panel
+ * floating over a picture, and the effects one beside the other over the same busy plate, so the
+ * difference between them is the only thing that varies. Each is a {@link BackdropPanel}, an
+ * ordinary container whose background is a re-sampled copy of what the frame already drew
+ * underneath it.
  *
- * <p>The picture is generated in code rather than loaded, so the scene renders identically on a
+ * <p>The pictures are generated in code rather than loaded, so the page renders identically on a
  * machine with no assets and a screenshot of it is worth comparing against another.
  */
 final class GlassScene {
+
+    /** What the page says, ready for translation. */
+    static final class Text {
+        static final I18nString TOOLBAR =
+                new I18nString("showcase.glass.toolbar", "Toolbar over scrolling content");
+        static final I18nString LIBRARY = new I18nString("showcase.glass.library", "Library");
+        static final I18nString IMPORT = new I18nString("showcase.glass.import", "Import");
+        static final I18nString NEW_ALBUM = new I18nString("showcase.glass.newAlbum", "New album");
+        static final I18nString FLOATING = new I18nString("showcase.glass.floating", "Floating panel");
+        static final I18nString TINT = new I18nString("showcase.glass.tint", "Tint");
+        static final I18nString NONE = new I18nString("showcase.glass.none", "None");
+        static final I18nString TEAL = new I18nString("showcase.glass.teal", "Teal");
+        static final I18nString AMBER = new I18nString("showcase.glass.amber", "Amber");
+        static final I18nString ROSE = new I18nString("showcase.glass.rose", "Rose");
+        static final I18nString ALBUM_OF = new I18nString("showcase.glass.albumOf", "Album {0} of {1}");
+        static final I18nString POSITION = new I18nString("showcase.glass.position", "Position");
+        static final I18nString OPEN = new I18nString("showcase.glass.open", "Open");
+        static final I18nString EFFECTS = new I18nString("showcase.glass.effects", "Effects");
+        static final I18nString CLEAR = new I18nString("showcase.glass.clear", "Clear");
+        static final I18nString WASH = new I18nString("showcase.glass.wash", "Wash");
+        static final I18nString PIXELATE = new I18nString("showcase.glass.pixelate", "Pixelate");
+        static final I18nString CRT = new I18nString("showcase.glass.crt", "CRT");
+        static final I18nString STACKED = new I18nString("showcase.glass.stacked", "Stacked effects");
+        static final I18nString GLASS = new I18nString("showcase.glass.glass", "Glass");
+        static final I18nString GLASS_BLUR = new I18nString("showcase.glass.glassBlur", "Glass and blur");
+        static final I18nString GLASS_BLUR_WASH =
+                new I18nString("showcase.glass.glassBlurWash", "Glass, blur and wash");
+
+        private Text() {
+        }
+    }
+
+    /** The tints the floating panel offers, a fifth of the way toward each. */
+    private static final Color[] TINTS = {null, new Color(0.10f, 0.55f, 0.60f, 1f),
+            new Color(0.85f, 0.55f, 0.12f, 1f), new Color(0.80f, 0.25f, 0.45f, 1f)};
 
     private GlassScene() {
     }
@@ -41,17 +87,14 @@ final class GlassScene {
 
     /** The subtree, reusable as a page of the showcase. */
     static Widget<?> content() {
-        Column column = new Column();
-        column.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
+        Column column = Page.column();
 
         // ---- how an application uses it: a bar over what scrolls, a panel over a picture
-        column.add(new Label("A bar that stays while the content scrolls under it").setStrong(true));
-        Row tools = new Row();
-        tools.gap(8).crossAlignment(Flex.CrossAlignment.CENTER);
-        tools.add(new Label("Library").setFont(Theme.current().title()));
-        tools.add(limn.scene.layout.Expanded.spacer(1));
-        tools.add(new limn.components.Button("Import").setSecondary(true));
-        tools.add(new limn.components.Button("New album"));
+        column.add(Page.firstSection(Text.TOOLBAR));
+        Row tools = Page.row(8, new Label(Text.LIBRARY).setRole(Label.Role.TITLE));
+        tools.add(Expanded.spacer(1));
+        tools.add(new Button(Text.IMPORT).setSecondary(true));
+        tools.add(new Button(Text.NEW_ALBUM));
         BackdropPanel bar = BackdropPanel.frosted(Insets.symmetric(8, 12), tools);
         Widget<?> library = limn.demo.site.GlassExample.barOver(shelf(), bar);
         column.add(new SizedBox(SizedBox.UNSET, 280, library));
@@ -61,27 +104,33 @@ final class GlassScene {
             shelfScroll.scrollTo(0, 64);
         }
 
-        column.add(new Label("A panel that floats over a picture, with a tint").setStrong(true));
-        Row playing = new Row();
-        playing.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
+        column.add(Page.section(Text.FLOATING));
         Column titles = new Column();
         titles.gap(2);
         titles.add(new Label("Coastline at dusk").setStrong(true));
-        titles.add(new Label("Album 4 of 12").setMuted(true));
-        playing.add(titles);
-        playing.add(new SizedBox(180, SizedBox.UNSET, new limn.components.Slider(0, 100).setValue(35)));
-        playing.add(new limn.components.Button("Open"));
+        titles.add(new Label(Text.ALBUM_OF.format(4, 12)).setMuted(true));
+        Slider position = new Slider(0, 100).setValue(35);
+        position.setAccessibleName(Text.POSITION);
+        Row playing = Page.row(12, titles, new SizedBox(180, SizedBox.UNSET, position),
+                new Button(Text.OPEN).setSecondary(true));
         // Leaning toward a colour of the application's by a fifth, and covering less than glass
-        // does by itself, since it is over a picture chosen for it; the bar above is the theme's alone.
-        BackdropPanel floating = limn.demo.site.GlassExample.tinted(playing, new Color(0.10f, 0.55f, 0.60f, 1f));
+        // does by itself, since it is over a picture chosen for it; the bar above is the theme's
+        // alone. The bottom inset evens out the room a line's descent already leaves under the
+        // second title, so the text sits as far from the glass's lower edge as from its upper.
+        BackdropPanel floating = limn.demo.site.GlassExample.tinted(
+                new Padding(new Insets(0, 0, 3, 0), playing), TINTS[1]);
+        SegmentedControl tint = new SegmentedControl(Text.NONE, Text.TEAL, Text.AMBER, Text.ROSE);
+        tint.setAccessibleName(Text.TINT);
+        tint.setSelectedIndex(1);
+        tint.onSelect(index -> floating.setTint(TINTS[index], 0.2f));
+        Row tintRow = Page.row(12, new Label(Text.TINT).setMuted(true).setLabelFor(tint), tint);
+        tintRow.add(Expanded.spacer(1));
+        column.add(tintRow);
         column.add(new SizedBox(SizedBox.UNSET, 240, limn.demo.site.GlassExample.floatingOver(
                 new ImageView(dusk()).setFit(ImageView.Fit.COVER), floating)));
 
         // ---- the effects themselves, one beside the other
-        column.add(new Label("The effects, one by one").setStrong(true));
-        column.add(new Label("Each panel samples what is behind it and applies one effect.")
-                .setMuted(true).setWrap(true));
-
+        column.add(Page.section(Text.EFFECTS));
         Image picture = plate();
 
         // Two rows of two rather than one row of four: four 240pt plates and their gaps are
@@ -89,36 +138,30 @@ final class GlassScene {
         // scrollbar under a set whose whole point is comparing them side by side.
         Row top = new Row();
         top.gap(12).crossAlignment(Flex.CrossAlignment.START);
-        top.add(over(picture, new BackdropEffect.Clear(Color.WHITE.withAlpha(0.08f), 22f, 0.4f),
-                "Clear", "a body, refracting"));
-        top.add(over(picture, new BackdropEffect.Wash(Color.BLACK.withAlpha(0.25f), 0f),
-                "Wash", "grey, tinted dark"));
+        top.add(over(picture, new BackdropEffect.Clear(Color.WHITE.withAlpha(0.08f), 22f, 0.4f), Text.CLEAR));
+        top.add(over(picture, new BackdropEffect.Wash(Color.BLACK.withAlpha(0.25f), 0f), Text.WASH));
         column.add(top);
 
         Row bottom = new Row();
         bottom.gap(12).crossAlignment(Flex.CrossAlignment.START);
-        bottom.add(over(picture, new BackdropEffect.Pixelate(Color.TRANSPARENT, 9f),
-                "Pixelate", "redaction, 9pt cells"));
-        // Full-bleed, unlike the three above, and that is not decoration: Crt's curvature and
+        bottom.add(over(picture, new BackdropEffect.Pixelate(Color.TRANSPARENT, 9f), Text.PIXELATE));
+        // Full-bleed, unlike the three above, and that is not decoration: the tube's curvature and
         // vignette are fractions of the distance from the shape's OWN centre, so in a panel the
         // size of a caption they move a point or two and the effect reads as a stripe pattern
         // laid on the picture. A tube needs to be the screen to look like one.
-        bottom.add(screen(picture, new BackdropEffect.Crt(Color.TRANSPARENT, 0.35f, 0.12f),
-                "Crt", "a tube: grille + scan + bulge"));
+        bottom.add(screen(picture, new BackdropEffect.Crt(Color.TRANSPARENT, 0.35f, 0.12f), Text.CRT));
         column.add(bottom);
 
-        column.add(new Label("Effects stacked: each reads what the one before it wrote.")
-                .setMuted(true).setWrap(true));
-
+        column.add(Page.section(Text.STACKED));
         Row stacked = new Row();
         stacked.gap(12).crossAlignment(Flex.CrossAlignment.START);
         BackdropEffect glass = new BackdropEffect.Clear(Color.WHITE.withAlpha(0.06f), 20f, 0.4f);
-        stacked.add(stack(picture, "Glass", "refracting only", glass));
-        stacked.add(stack(picture, "Glass + blur", "frosted: two crossed passes",
+        stacked.add(stack(picture, Text.GLASS, glass));
+        stacked.add(stack(picture, Text.GLASS_BLUR,
                 glass,
                 new BackdropEffect.Blur(Color.TRANSPARENT, 7f, BackdropEffect.Blur.Axis.X),
                 new BackdropEffect.Blur(Color.TRANSPARENT, 7f, BackdropEffect.Blur.Axis.Y)));
-        stacked.add(stack(picture, "Glass + blur + wash", "and drained, and lifted",
+        stacked.add(stack(picture, Text.GLASS_BLUR_WASH,
                 glass,
                 new BackdropEffect.Blur(Color.TRANSPARENT, 7f, BackdropEffect.Blur.Axis.X),
                 new BackdropEffect.Blur(Color.TRANSPARENT, 7f, BackdropEffect.Blur.Axis.Y),
@@ -128,62 +171,80 @@ final class GlassScene {
         return column; // the page scrolls it
     }
 
-    /** One labelled sample: the plate, with a panel of {@code effect} floating over its middle. */
-    private static Widget<?> over(Image picture, BackdropEffect effect, String title, String caption) {
+    /** The name of an effect, on the glass that shows it. */
+    private static Label title(I18nString name) {
+        return new Label(name).setRole(Label.Role.TITLE);
+    }
+
+    /** One sample: the plate, with a panel of {@code effect} floating over its middle. */
+    private static Widget<?> over(Image picture, BackdropEffect effect, I18nString name) {
         Stack stack = new Stack().alignment(Stack.Alignment.CENTER);
         stack.add(new ImageView(picture).setFit(ImageView.Fit.COVER));
         // The panel is added AFTER the picture: the effect samples what the frame has already
         // drawn, so a panel painted first would show the window background and nothing else.
-        stack.add(new BackdropPanel(effect, Insets.all(14),
-                new Label(title).setFont(Theme.current().title())));
-
-        Column column = new Column();
-        column.gap(6);
-        column.add(new SizedBox(240, 180, stack));
-        column.add(new Label(caption).setMuted(true));
-        return column;
+        stack.add(new BackdropPanel(effect, Insets.all(14), title(name)));
+        return new SizedBox(240, 180, stack);
     }
 
     /**
-     * The same sample, with the panel filling the plate instead of hugging its caption. A margin
-     * of untouched picture is left around it on purpose: it is what shows that the difference is
-     * the effect and not the plate.
+     * The same sample, with the panel filling the plate instead of hugging its title. Full bleed
+     * and square-cornered: a tube is the screen, so an inset panel with round corners would be
+     * showing the effect on a widget floating over the picture rather than on the picture. It is
+     * also the case that exercises the shape clamp, since every displaced sample is then at the
+     * shape's own edge.
      */
-    private static Widget<?> screen(Image picture, BackdropEffect effect, String title,
-            String caption) {
+    private static Widget<?> screen(Image picture, BackdropEffect effect, I18nString name) {
         Stack stack = new Stack().alignment(Stack.Alignment.CENTER);
         stack.add(new ImageView(picture).setFit(ImageView.Fit.COVER));
-        // Full bleed and square-cornered: a tube is the screen, so an inset panel with round
-        // corners would be showing the effect on a widget floating over the picture rather
-        // than on the picture. It is also the case that exercises the shape clamp, since
-        // every displaced sample is then at the shape's own edge.
-        BackdropPanel panel = new BackdropPanel(effect, Insets.all(14),
-                new Label(title).setFont(Theme.current().title()));
+        BackdropPanel panel = new BackdropPanel(effect, Insets.all(14), title(name));
         panel.setCornerRadius(0);
         stack.add(new SizedBox(240, 180, panel));
-
-        Column column = new Column();
-        column.gap(6);
-        column.add(new SizedBox(240, 180, stack));
-        column.add(new Label(caption).setMuted(true));
-        return column;
+        return new SizedBox(240, 180, stack);
     }
 
-    /** A full-bleed panel wearing a whole stack of effects, drawn in order. */
-    private static Widget<?> stack(Image picture, String title, String caption,
-            BackdropEffect... effects) {
+    /**
+     * A panel wearing a whole stack of effects, drawn in order. A margin of untouched picture is
+     * left around it on purpose: it is what shows that the difference is the effect and not the
+     * plate.
+     */
+    private static Widget<?> stack(Image picture, I18nString name, BackdropEffect... effects) {
         Stack layers = new Stack().alignment(Stack.Alignment.CENTER);
         layers.add(new ImageView(picture).setFit(ImageView.Fit.COVER));
-        BackdropPanel panel = new BackdropPanel(effects[0], Insets.all(14),
-                new Label(title).setFont(Theme.current().title()));
+        BackdropPanel panel = new BackdropPanel(effects[0], Insets.all(14), title(name));
         panel.setEffects(effects);
         layers.add(new SizedBox(216, 156, panel));
+        return new SizedBox(240, 180, layers);
+    }
 
-        Column column = new Column();
-        column.gap(6);
-        column.add(new SizedBox(240, 180, layers));
-        column.add(new Label(caption).setMuted(true));
-        return column;
+    /** A picture cropped to fill its box, with the box's corners rounded off it. */
+    private static final class Thumbnail extends Widget<Thumbnail> {
+        private final Image image;
+
+        Thumbnail(Image image, String name) {
+            this.image = image;
+            setAccessibleName(name);
+            setAccessibleRole(limn.accessibility.Accessible.Role.IMAGE);
+        }
+
+        @Override
+        protected Size onMeasure(Constraints c) {
+            return c.constrain(132, 88);
+        }
+
+        @Override
+        protected void onPaint(Canvas canvas) {
+            float scale = Math.max(width() / image.width(), height() / image.height());
+            float w = image.width() * scale;
+            float h = image.height() * scale;
+            canvas.save();
+            try {
+                canvas.clipRoundRect(RoundRect.of(0, 0, width(), height(),
+                        Theme.of(this).tokensFor(this).radiusMedium()));
+                canvas.drawImage(image, (width() - w) / 2, (height() - h) / 2, w, h);
+            } finally {
+                canvas.restore();
+            }
+        }
     }
 
     // ------------------------------------------------------------ what the glass is over
@@ -193,12 +254,14 @@ final class GlassScene {
         String[] names = {"Harbour", "Orchard", "Foundry", "Salt flats", "Night market", "Ridge line",
                 "Greenhouse", "Ferry", "Quarry", "Lantern street", "Tide pools", "Rail yard"};
         limn.scene.layout.Wrap tiles = new limn.scene.layout.Wrap();
-        tiles.gap(12).runGap(14);
+        // Centred: whatever width is left over after the last whole tile goes to both sides.
+        tiles.gap(12).runGap(14).mainAlignment(Flex.MainAlignment.CENTER);
         for (int i = 0; i < 24; i++) {
             Column tile = new Column();
             tile.gap(4);
-            tile.add(new SizedBox(132, 88, new ImageView(tile(i)).setFit(ImageView.Fit.COVER)));
-            tile.add(new Label(names[i % names.length]));
+            String name = names[i % names.length];
+            tile.add(new Thumbnail(tile(i), name));
+            tile.add(new Label(name));
             tiles.add(tile);
         }
         return new Padding(Insets.all(12), tiles);
@@ -229,7 +292,7 @@ final class GlassScene {
     }
 
     /** A sky going down to a dark sea, with a low sun: a picture for a panel to float over. */
-    private static Image dusk() {
+    static Image dusk() {
         int w = 320;
         int h = 160;
         byte[] pixels = new byte[w * h * 4];
