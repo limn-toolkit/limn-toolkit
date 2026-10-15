@@ -18,11 +18,13 @@ module limn.backend.lwjgl {
     requires org.lwjgl.openal;
     requires org.lwjgl.stb;
     requires org.lwjgl.harfbuzz;
-    requires org.lwjgl.nanovg;
     requires org.lwjgl.tinyfd;
     // Roboto, the face everything falls back to. Required so that on the module path its jar is
     // loaded at all, and loading it loads every other font jar on the path with it.
     requires limn.fonts.roboto;
+    // The SVG renderer's payload (ADR 066): its six natives-<os>-<arch> jars are automatic
+    // modules too, resolved with this one, and the loader reads them through the class loader.
+    requires limn.lunasvg.natives;
 
     exports limn.backend.lwjgl;
 }

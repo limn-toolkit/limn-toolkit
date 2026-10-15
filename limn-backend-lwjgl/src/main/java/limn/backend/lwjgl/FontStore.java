@@ -99,7 +99,7 @@ final class FontStore implements AutoCloseable {
                 ? null : loader.getResourceAsStream(absolutePath.substring(1));
     }
 
-    private static String bundledPath(String file) {
+    static String bundledPath(String file) {
         String modern = "/limn/fonts/" + file;
         return exists(modern)
                 ? modern

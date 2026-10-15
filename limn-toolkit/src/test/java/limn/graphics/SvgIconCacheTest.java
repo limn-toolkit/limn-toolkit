@@ -17,19 +17,19 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 class SvgIconCacheTest {
 
     private final List<Integer> rasterized = new ArrayList<>();
-    private final SvgRasterizer fake = (svg, px) -> {
+    private final limn.graphics.SvgRenderer fake = limn.testfixtures.FakeSvg.renderer((svg, px) -> {
         rasterized.add(px);
         return new Image(1, 1, new byte[4]);
-    };
+    });
 
     @AfterEach
     void uninstall() {
-        SvgIcon.uninstallRasterizer(fake);
+        SvgIcon.uninstallRenderer(fake);
     }
 
     @Test
     void repeatedSizeRasterizesOnceAndKeepsIdentity() {
-        SvgIcon.installRasterizer(fake);
+        SvgIcon.installRenderer(fake);
         SvgIcon icon = SvgIcon.of("<svg/>");
         Image first = icon.image(32);
         assertSame(first, icon.image(32), "stable identity: it is the GPU texture key");
@@ -38,7 +38,7 @@ class SvgIconCacheTest {
 
     @Test
     void sizesBeyondTheCapEvictTheLeastRecentlyUsed() {
-        SvgIcon.installRasterizer(fake);
+        SvgIcon.installRenderer(fake);
         SvgIcon icon = SvgIcon.of("<svg/>");
         // Touch many distinct sizes (an animated zoom), then come back to the
         // first and the last.

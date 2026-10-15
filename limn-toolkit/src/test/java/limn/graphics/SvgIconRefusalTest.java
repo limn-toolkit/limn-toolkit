@@ -19,19 +19,19 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 class SvgIconRefusalTest {
 
     private final List<Integer> asked = new ArrayList<>();
-    private final SvgRasterizer refusing = (svg, px) -> {
+    private final limn.graphics.SvgRenderer refusing = limn.testfixtures.FakeSvg.renderer((svg, px) -> {
         asked.add(px);
         throw new IllegalArgumentException("SVG has no intrinsic size");
-    };
-    private final SvgRasterizer working = (svg, px) -> {
+    });
+    private final limn.graphics.SvgRenderer working = limn.testfixtures.FakeSvg.renderer((svg, px) -> {
         asked.add(px);
         return new Image(px, px, new byte[px * px * 4]);
-    };
+    });
 
     @AfterEach
     void uninstall() {
-        SvgIcon.uninstallRasterizer(refusing);
-        SvgIcon.uninstallRasterizer(working);
+        SvgIcon.uninstallRenderer(refusing);
+        SvgIcon.uninstallRenderer(working);
     }
 
     /** Records the masks an icon paints. */
@@ -50,7 +50,7 @@ class SvgIconRefusalTest {
 
     @Test
     void aRefusedSourcePaintsNothingAndIsNotParsedAgain() {
-        SvgIcon.installRasterizer(refusing);
+        SvgIcon.installRenderer(refusing);
         SvgIcon icon = SvgIcon.of("<svg xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M0 0L1 1\"/></svg>");
         Masks canvas = new Masks();
 
@@ -73,7 +73,7 @@ class SvgIconRefusalTest {
 
     @Test
     void aSourceThatRasterizesIsUntouched() {
-        SvgIcon.installRasterizer(working);
+        SvgIcon.installRenderer(working);
         SvgIcon icon = SvgIcon.of("<svg/>");
         Image first = icon.image(24);
         assertEquals(24, first.width());

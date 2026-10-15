@@ -129,7 +129,7 @@ public final class Videos {
      * A lock-free peek at the registry and nothing more: no probe, no library, no device.
      *
      * <p>Named for what it answers, the way {@code Images.isDecoderInstalled} and
-     * {@code SvgIcon.isRasterizerInstalled} are, and deliberately not {@code isAvailable}:
+     * {@code SvgIcon.isRendererInstalled} are, and deliberately not {@code isAvailable}:
      * {@code Sounds.isAvailable} asks a different and far more expensive question (engine
      * installed <em>and</em> device answering, whose first call may open the audio hardware), and
      * one name spanning a field read and a device open is a cost a caller cannot infer.

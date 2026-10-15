@@ -29,6 +29,12 @@ limn-ffmpeg-natives = "9.0.2.0"
 # Compiled against the published toolkit as compileOnly, so it names no toolkit version and
 # nothing here depends on it but the demo — an application, which is the shape a pack is for.
 limn-icons-tabler = "3.48.0.0"
+# The SVG renderer, from the limn-lunasvg-natives repository, versioned with lunasvg (ADR 066):
+# the first three components are the lunasvg inside, the fourth that repository's packaging. The
+# backend depends on its main jar and on all six natives-<os>-<arch> classifiers, as it does on
+# LWJGL's, so an application adds nothing to draw SVG. The shim's ABI number is checked at load
+# time (LunaSvgLibrary.EXPECTED_ABI).
+limn-lunasvg-natives = "3.5.0.0"
 
 [libraries]
 lwjgl-bom = { module = "org.lwjgl:lwjgl-bom", version.ref = "lwjgl" }
@@ -40,13 +46,13 @@ lwjgl-opengl = { module = "org.lwjgl:lwjgl-opengl" }
 lwjgl-openal = { module = "org.lwjgl:lwjgl-openal" }
 lwjgl-stb = { module = "org.lwjgl:lwjgl-stb" }
 lwjgl-harfbuzz = { module = "org.lwjgl:lwjgl-harfbuzz" }
-lwjgl-nanovg = { module = "org.lwjgl:lwjgl-nanovg" }
 lwjgl-tinyfd = { module = "org.lwjgl:lwjgl-tinyfd" }
 limn-fonts-roboto = { module = "io.github.limn-toolkit:limn-fonts-roboto", version.ref = "limn-fonts-roboto" }
 limn-fonts-noto-cjk = { module = "io.github.limn-toolkit:limn-fonts-noto-cjk", version.ref = "limn-fonts-noto-cjk" }
 limn-fonts-noto-emoji = { module = "io.github.limn-toolkit:limn-fonts-noto-emoji", version.ref = "limn-fonts-noto-emoji" }
 limn-fonts-noto-scripts = { module = "io.github.limn-toolkit:limn-fonts-noto-scripts", version.ref = "limn-fonts-noto-scripts" }
 limn-ffmpeg-natives = { module = "io.github.limn-toolkit:limn-ffmpeg-natives", version.ref = "limn-ffmpeg-natives" }
+limn-lunasvg-natives = { module = "io.github.limn-toolkit:limn-lunasvg-natives", version.ref = "limn-lunasvg-natives" }
 limn-icons-tabler = { module = "io.github.limn-toolkit:limn-icons-tabler", version.ref = "limn-icons-tabler" }
 jspecify = { module = "org.jspecify:jspecify", version.ref = "jspecify" }
 glavo-webp = { module = "org.glavo:webp", version.ref = "glavo-webp" }

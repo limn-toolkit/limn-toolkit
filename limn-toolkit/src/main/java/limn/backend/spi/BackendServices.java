@@ -10,7 +10,7 @@ import limn.graphics.Fonts;
 import limn.graphics.ImageDecoder;
 import limn.graphics.Images;
 import limn.graphics.SvgIcon;
-import limn.graphics.SvgRasterizer;
+import limn.graphics.SvgRenderer;
 import limn.graphics.TextRuler;
 import limn.graphics.TextRulers;
 import limn.render3d.Graphics3D;
@@ -40,7 +40,7 @@ import limn.backend.spi.BackendServices;
  * @param fontCatalog   the font families the platform offers
  * @param fontLoader    reads a font file the application names
  * @param imageDecoder  decodes image files
- * @param svgRasterizer rasterizes SVG icons
+ * @param svgRenderer   draws SVG
  * @param graphics3d    the 3D viewport's renderer, or {@code null} for none
  * @param videoSurfaces GPU surfaces a video view composites, or {@code null} for none
  * @param audioEngine   plays sound, or {@code null} for no audio device
@@ -48,7 +48,7 @@ import limn.backend.spi.BackendServices;
  */
 public record BackendServices(UiRuntime ui, TextRuler textRuler, FontCatalog fontCatalog,
                               FontLoader fontLoader, ImageDecoder imageDecoder,
-                              SvgRasterizer svgRasterizer, Graphics3D.@Nullable Provider graphics3d,
+                              SvgRenderer svgRenderer, Graphics3D.@Nullable Provider graphics3d,
                               VideoSurfaces.@Nullable Provider videoSurfaces, @Nullable AudioEngine audioEngine,
                               @Nullable AudioDecoder audioDecoder) {
 
@@ -58,7 +58,7 @@ public record BackendServices(UiRuntime ui, TextRuler textRuler, FontCatalog fon
         Objects.requireNonNull(fontCatalog, "fontCatalog (FontCatalog.EMPTY when the platform lists none)");
         Objects.requireNonNull(fontLoader, "fontLoader (FontLoader.UNAVAILABLE when files cannot be read)");
         Objects.requireNonNull(imageDecoder, "imageDecoder: images and icons decode through it");
-        Objects.requireNonNull(svgRasterizer, "svgRasterizer: every icon is an SVG");
+        Objects.requireNonNull(svgRenderer, "svgRenderer: every icon is an SVG");
     }
 
     /**
@@ -71,7 +71,7 @@ public record BackendServices(UiRuntime ui, TextRuler textRuler, FontCatalog fon
         Fonts.installCatalog(fontCatalog);
         Fonts.installLoader(fontLoader);
         Images.installDecoder(imageDecoder);
-        SvgIcon.installRasterizer(svgRasterizer);
+        SvgIcon.installRenderer(svgRenderer);
         if (graphics3d != null) {
             Graphics3D.install(graphics3d);
         }

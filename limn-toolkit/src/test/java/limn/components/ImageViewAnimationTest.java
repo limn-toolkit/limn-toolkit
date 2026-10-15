@@ -63,7 +63,7 @@ class ImageViewAnimationTest {
                 drawn = image;
             }
         };
-        view = new ImageView(null);
+        view = new ImageView((limn.graphics.Image) null);
         scene = new Scene(view, nanos::get);
         scene.setTextRuler(TestRulers.FIXED);
     }

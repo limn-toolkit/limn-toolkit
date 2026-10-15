@@ -56,12 +56,12 @@ abstract class ComponentTestBase {
         // with the subscription in bind() this reset was a silent no-op on every headless
         // scene in the suite.
         limn.scene.ControlSize.setProcessDefault(limn.scene.ControlSize.MEDIUM);
-        limn.graphics.SvgIcon.installRasterizer(ICONS);
+        limn.graphics.SvgIcon.installRenderer(ICONS);
     }
 
     @AfterEach
     void uninstallRuntime() {
-        limn.graphics.SvgIcon.uninstallRasterizer(ICONS);
+        limn.graphics.SvgIcon.uninstallRenderer(ICONS);
         ui.close();
     }
 
@@ -71,8 +71,7 @@ abstract class ComponentTestBase {
      * its frame, the frame was contained and logged, and whatever was painted after the icon was
      * not painted at all, in every test that framed a search field or a menu.
      */
-    private static final limn.graphics.SvgRasterizer ICONS =
-            (svg, px) -> new limn.graphics.Image(1, 1, new byte[4]);
+    private static final limn.graphics.SvgRenderer ICONS = limn.testfixtures.FakeSvg.renderer((svg, px) -> new limn.graphics.Image(1, 1, new byte[4]));
 
     /**
      * Canvas that draws nothing; lets Scene.renderFrame run headless. Not final:

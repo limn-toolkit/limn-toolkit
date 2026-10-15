@@ -112,13 +112,13 @@ JSpecify 1.0.1 (org.jspecify:jspecify), the nullness annotations of every API mo
   run time. The runnable demo jar attached to a GitHub release carries their
   classes, under the same licence as Limn's own (LICENSE).
 
-LWJGL 3 (org.lwjgl:lwjgl, -glfw, -opengl, -openal, -stb, -harfbuzz, -nanovg, -tinyfd)
+LWJGL 3 (org.lwjgl:lwjgl, -glfw, -opengl, -openal, -stb, -harfbuzz, -tinyfd)
   Copyright Lightweight Java Game Library contributors
   BSD 3-Clause: https://github.com/LWJGL/lwjgl3/blob/master/LICENSE.md
   LWJGL in turn bundles native libraries under their own permissive licenses,
   notably: GLFW (zlib), OpenAL Soft (LGPL 2.1, dynamically linked native
-  library), stb (public domain / MIT), HarfBuzz (Old MIT), NanoSVG (zlib),
-  tinyfiledialogs (zlib).
+  library), stb (public domain / MIT), HarfBuzz (Old MIT), tinyfiledialogs
+  (zlib).
 
 JLayer 1.0.1 (javazoom:jlayer), for MP3 decoding
   Copyright JavaZOOM
@@ -136,6 +136,23 @@ JLayer 1.0.1 (javazoom:jlayer), for MP3 decoding
 
 JUnit 5 / JUnit Platform (test-only, not distributed)
   Eclipse Public License 2.0: https://www.eclipse.org/legal/epl-2.0/
+
+--------------------------------------------------------------------------------
+Native libraries (the limn-lunasvg-natives artifact; limn-backend-lwjgl; ADR 066)
+--------------------------------------------------------------------------------
+
+lunasvg and plutovg, the SVG renderer
+  Copyright Samuel Ugochukwu
+  MIT License: https://github.com/sammycage/lunasvg/blob/master/LICENSE
+  No binary is in this repository and none is built by it. lunasvg, the plutovg
+  it draws with and Limn's JNI shim are compiled into one library a platform,
+  liblimnsvg, the limn-lunasvg-natives artifact, built and released from
+  https://github.com/limn-toolkit/limn-lunasvg-natives and versioned after
+  lunasvg. That repository holds the pinned source archive and its checksum, and
+  its one patch to plutovg with the reason for it; each jar it publishes carries
+  both licences and a notice beside the library
+  (limn/svg/native/LICENSE-lunasvg.txt, LICENSE-plutovg.txt, NOTICE-lunasvg.txt).
+  limn-backend-lwjgl depends on the payload and on all six of its classifiers.
 
 --------------------------------------------------------------------------------
 Native libraries (the limn-ffmpeg-natives artifact; limn-video-ffmpeg only; ADR 037)
@@ -174,6 +191,37 @@ FFmpeg: libavcodec, libavformat, libavutil, libswresample
   and nothing else changes. Applications that do not play video can exclude
   limn-video-ffmpeg entirely; it is a separate module and nothing else depends
   on it.
+
+--------------------------------------------------------------------------------
+Test fixtures: animated SVG (limn-toolkit/src/test/resources/limn/graphics/svg-animation/)
+--------------------------------------------------------------------------------
+
+svg-spinners, the indicators in SMIL and in CSS
+  Copyright (c) Utkarsh Verma
+  MIT License: full text beside them in LICENSE-svg-spinners.txt
+SVG-Loaders
+  Copyright (c) 2014 Sam Herbert
+  MIT License: full text beside them in LICENSE-svg-loaders.txt
+
+  Test-only, not distributed: the files a test plays to compare the toolkit's animation of SVG
+  with a browser's. Provenance in README.md beside them.
+
+--------------------------------------------------------------------------------
+Test fixtures: SVG fidelity (limn-backend-lwjgl/src/test/resources/limn/backend/lwjgl/svg-fidelity/)
+--------------------------------------------------------------------------------
+
+resvg's test suite, 180 of its tests
+  Copyright 2017 the Resvg Authors
+  MIT License: full text beside them in LICENSE-resvg-tests.txt
+GitLab SVGs, six illustrations and six icons
+  Copyright (c) 2011-present GitLab Inc.
+  MIT License: full text beside them in LICENSE-illustrations-and-icons.txt
+Noto Emoji, six of its SVG sources
+  Copyright 2013 Google, Inc.
+  Apache License 2.0: full text beside them in LICENSE-emoji.txt
+
+  Test-only, not distributed: what a test draws to hold how faithfully SVG is drawn. Provenance
+  in README.md beside them.
 
 --------------------------------------------------------------------------------
 Sample media (media/)
