@@ -153,7 +153,8 @@ class RadioButtonMirroringTest extends ComponentTestBase {
         frame(40);
         frame(40); // part way through the focus fade: the circle is painted, alpha aside
 
-        float[] focus = canvas.circleOfRadius(t.indicator() / 2 + Strokes.FOCUS_GAP_INDICATOR);
+        float[] focus = canvas.circleOfRadius(t.indicator() / 2 + Strokes.FOCUS_GAP_INDICATOR
+                + Strokes.FOCUS_RING_THIN / 2);
         assertNotNull(focus, "the focus circle was never painted: " + canvas.strokedCircles.size());
         assertEquals(WIDTH - t.indicator() / 2, focus[0], EPS,
                 "a circle still centred on x == indicator/2 would ring empty ground");
@@ -167,7 +168,8 @@ class RadioButtonMirroringTest extends ComponentTestBase {
         frame(40);
         frame(40);
 
-        float[] focus = canvas.circleOfRadius(t.indicator() / 2 + Strokes.FOCUS_GAP_INDICATOR);
+        float[] focus = canvas.circleOfRadius(t.indicator() / 2 + Strokes.FOCUS_GAP_INDICATOR
+                + Strokes.FOCUS_RING_THIN / 2);
         assertNotNull(focus, "the focus circle was never painted: " + canvas.strokedCircles.size());
         assertEquals(t.indicator() / 2, focus[0], EPS);
     }

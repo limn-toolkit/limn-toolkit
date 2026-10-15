@@ -299,20 +299,25 @@ public final class Checkbox extends Widget<Checkbox> {
         }
         float focus = focusFade.value();
         if (focus > 0.001f) {
-            // The gap is 1.5, as wide as the two pens it separates. The box border lies inside
-            // the box, its outer ink edge on the box's outline, and the ring's inner ink edge
-            // is 0.75pt out from that; a narrower gap reads the two strokes as one thick seam.
-            float gap = Strokes.FOCUS_GAP_INDICATOR;
-            canvas.drawRoundRect(left - gap, cy - gap, indicatorWidth(t) + 2 * gap,
-                    indicatorHeight(t) + 2 * gap, t.indicatorFocusRadius(),
-                    Strokes.FOCUS_RING_THIN, theme.focusRing().withAlpha(focus));
+            // A border of the box grown by the gap and the ring, lying wholly outside a clear gap
+            // of FOCUS_GAP_INDICATOR: concentric with the box, its corner too, and drawn by the
+            // helper the box's own border is drawn by. A centred stroke 1.5pt out put both of the
+            // ring's edges on half points, which the renderer moves onto its pixel grid by
+            // rounding, the same way at both ends: the ring sat half a pixel off the box, wider on
+            // one side than the other, at one density and at two.
+            float reach = Strokes.FOCUS_GAP_INDICATOR + Strokes.FOCUS_RING_THIN;
+            float corner = variant == Variant.BOX ? t.indicatorFocusRadius()
+                    : indicatorHeight(t) / 2 + reach;
+            canvas.drawRoundRectBorder(left - reach, cy - reach, indicatorWidth(t) + 2 * reach,
+                    indicatorHeight(t) + 2 * reach, corner, Strokes.FOCUS_RING_THIN,
+                    theme.focusRing().withAlpha(focus));
         }
     }
 
     /**
      * The focus ring is the only thing that paints outside the box, and it paints well outside:
-     * centred {@link Strokes#FOCUS_GAP_INDICATOR} out with a {@link Strokes#FOCUS_RING_THIN} pen,
-     * its outer ink reaches 2.25pt past the indicator. The indicator is flush with the widget's
+     * a {@link Strokes#FOCUS_RING_THIN} pen beyond a clear gap of
+     * {@link Strokes#FOCUS_GAP_INDICATOR}, its outer ink 3pt past the indicator. The indicator is flush with the widget's
      * leading edge, with its top and bottom at every step (the row <em>is</em> the indicator), and
      * with the trailing edge when there is no label, so that reach is outside {@code bounds} on all
      * four sides whichever way the row reads. {@link limn.scene.Scene} assumes only 1pt of AA
@@ -322,7 +327,7 @@ public final class Checkbox extends Widget<Checkbox> {
      */
     @Override
     protected float paintOutset() {
-        return Strokes.FOCUS_GAP_INDICATOR + Strokes.FOCUS_RING_THIN / 2;
+        return Strokes.FOCUS_GAP_INDICATOR + Strokes.FOCUS_RING_THIN;
     }
 
     @Override

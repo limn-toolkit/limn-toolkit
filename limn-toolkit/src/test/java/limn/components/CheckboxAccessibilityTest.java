@@ -178,7 +178,7 @@ class CheckboxAccessibilityTest extends AccessibleComponentTestBase {
                 "the box is the widget's own, which is exactly what a pointer hits"
                         + describe(tree()));
         assertNotEquals(checkbox.height() + 2 * (Strokes.FOCUS_GAP_INDICATOR
-                        + Strokes.FOCUS_RING_THIN / 2), node.height(),
+                        + Strokes.FOCUS_RING_THIN), node.height(),
                 "paintOutset declares how far the focus ring's ink reaches for damage; it is not "
                         + "the operable rectangle and must never be folded into the bounds"
                         + describe(tree()));

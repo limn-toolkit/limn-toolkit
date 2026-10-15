@@ -282,9 +282,12 @@ public record SizeTokens(
         return Math.max(0, radiusMedium - segInset);
     }
 
-    /** Checkbox / RadioButton focus radius. The +2 is locked. */
+    /**
+     * The corner of a checkbox's focus ring at its outer edge: the box's own corner grown by the
+     * clear gap and the ring's pen, which is what keeps the ring concentric with the box.
+     */
     public float indicatorFocusRadius() {
-        return indicatorRadius + 2;
+        return indicatorRadius + Strokes.FOCUS_GAP_INDICATOR + Strokes.FOCUS_RING_THIN;
     }
 
     /** Slider's half-height: knobHover + the ring's gap + the ring's own stroke, at every step. */

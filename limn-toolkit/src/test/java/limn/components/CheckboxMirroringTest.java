@@ -112,7 +112,8 @@ class CheckboxMirroringTest extends ComponentTestBase {
         frame(40);
         frame(40); // part way through a 140ms fade: the ring is painted, alpha aside
 
-        float gap = Strokes.FOCUS_GAP_INDICATOR;
+        // The ring's centre line: a clear gap and half the pen out from the box.
+        float gap = Strokes.FOCUS_GAP_INDICATOR + Strokes.FOCUS_RING_THIN / 2;
         RoundRect ring = canvas.strokeOfWidth(t.indicator() + 2 * gap);
         assertNotNull(ring, "the focus ring was never painted: " + canvas.strokes);
         assertEquals(WIDTH - t.indicator() - gap, ring.x(), EPS,
@@ -127,7 +128,7 @@ class CheckboxMirroringTest extends ComponentTestBase {
         frame(40);
         frame(40);
 
-        float gap = Strokes.FOCUS_GAP_INDICATOR;
+        float gap = Strokes.FOCUS_GAP_INDICATOR + Strokes.FOCUS_RING_THIN / 2;
         RoundRect ring = canvas.strokeOfWidth(t.indicator() + 2 * gap);
         assertNotNull(ring, "the focus ring was never painted: " + canvas.strokes);
         assertEquals(-gap, ring.x(), EPS);

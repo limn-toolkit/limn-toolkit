@@ -364,15 +364,18 @@ public final class RadioButton extends Widget<RadioButton> {
             // 1.5 here is unchanged by D3: this side was already the wider of the two gaps, and
             // Checkbox came up to meet it. RING_ALIGN_INSET pulls the ring's outer ink 0.25pt
             // inside the box, so the focus ink starts a full 1pt clear of it.
-            canvas.drawCircle(cx, cy, ring / 2 + Strokes.FOCUS_GAP_INDICATOR,
-                    Strokes.FOCUS_RING_THIN, theme.focusRing().withAlpha(focus));
+            // Beyond a clear gap of FOCUS_GAP_INDICATOR, as the checkbox's ring is: the two sit
+            // in one column of a form and read as one design.
+            canvas.drawCircle(cx, cy, ring / 2 + Strokes.FOCUS_GAP_INDICATOR
+                    + Strokes.FOCUS_RING_THIN / 2, Strokes.FOCUS_RING_THIN,
+                    theme.focusRing().withAlpha(focus));
         }
     }
 
     /**
      * The focus circle is the only thing that paints outside the box: radius
-     * {@code ring/2 + }{@link Strokes#FOCUS_GAP_INDICATOR} with a centred
-     * {@link Strokes#FOCUS_RING_THIN} pen puts its outer ink 2.25pt past the indicator, which is
+     * {@code ring/2 + }{@link Strokes#FOCUS_GAP_INDICATOR}{@code  + pen/2} with a centred
+     * {@link Strokes#FOCUS_RING_THIN} pen puts its outer ink 3pt past the indicator, which is
      * flush with the widget's <em>leading</em> edge &mdash; the left one reading left to right and
      * the right one reading right to left &mdash; and (since the row <em>is</em> the indicator at
      * every step) with its top and bottom. One outset covers every side, so the edge the indicator
@@ -384,7 +387,7 @@ public final class RadioButton extends Widget<RadioButton> {
      */
     @Override
     protected float paintOutset() {
-        return Strokes.FOCUS_GAP_INDICATOR + Strokes.FOCUS_RING_THIN / 2;
+        return Strokes.FOCUS_GAP_INDICATOR + Strokes.FOCUS_RING_THIN;
     }
 
     // ---------------------------------------------------------- accessibility

@@ -291,35 +291,55 @@ class CheckboxTest extends ComponentTestBase {
     // -------------------------------------------------------------- focus ring
 
     /**
-     * The checkbox focus gap is 1.5, matching RadioButton, and the figure is measurable rather
-     * than a matter of taste: the box border is a 1.5pt pen centred on the 0.5 inset, so its
-     * outer ink edge sits 0.25pt <em>outside</em> the nominal box. A ring drawn 1pt out puts its
-     * own inner ink edge on exactly that line: two strokes touching, which reads as one thick
-     * seam instead of a ring. 1.5 buys 0.5pt of clear ground.
+     * The ring lies wholly outside a clear gap of {@link Strokes#FOCUS_GAP_INDICATOR}: its inner
+     * ink 1.5pt out from the box's outline, where the box's border has its outer ink, so the two
+     * strokes never read as one seam.
      */
     @Test
     void theFocusRingClearsTheBoxBorderInk() {
-        float borderOuterInk = Strokes.HALF_PIXEL_INSET - Strokes.INDICATOR_BORDER / 2; // -0.25
-        float ringInnerInk = -Strokes.FOCUS_GAP_INDICATOR + Strokes.FOCUS_RING_THIN / 2; // -0.75
-        assertTrue(ringInnerInk < borderOuterInk, "the ring must not start inside the border ink");
-        assertEquals(0.5f, borderOuterInk - ringInnerInk, 1e-4,
-                "0.5pt of clear ground between border ink and ring ink");
-        // The old gap of 1 is exactly the degenerate case the rule in Strokes forbids.
-        assertEquals(borderOuterInk, -1 + Strokes.FOCUS_RING_THIN / 2, 1e-4,
-                "at a 1pt gap the two strokes were flush");
+        float borderOuterInk = 0; // a border drawn inside the box ends on its outline
+        float ringCentre = -(Strokes.FOCUS_GAP_INDICATOR + Strokes.FOCUS_RING_THIN / 2);
+        float ringInnerInk = ringCentre + Strokes.FOCUS_RING_THIN / 2;
+        assertEquals(Strokes.FOCUS_GAP_INDICATOR, borderOuterInk - ringInnerInk, 1e-4,
+                "a clear gap of 1.5pt between the border's ink and the ring's");
+    }
+
+    /**
+     * The renderer moves a stroke's centre line onto its pixel grid, each edge to the nearest
+     * place its pen can sit, and a centre exactly between two such places is moved the same way
+     * at both ends of the shape: half a pixel off, wider on one side than the other. The ring's
+     * centre line must never sit on such a tie, at one density or at two, nor must the box's.
+     */
+    @Test
+    void theFocusRingAndTheBoxBorderNeverSitBetweenTwoPixels() {
+        float ringCentre = Strokes.FOCUS_GAP_INDICATOR + Strokes.FOCUS_RING_THIN / 2;
+        float borderCentre = Strokes.INDICATOR_BORDER / 2;
+        for (float scale : new float[] {1, 2}) {
+            assertFalse(onATie(ringCentre * scale, Strokes.FOCUS_RING_THIN * scale),
+                    "the ring at " + scale + "x");
+            assertFalse(onATie(borderCentre * scale, Strokes.INDICATOR_BORDER * scale),
+                    "the box border at " + scale + "x");
+        }
+    }
+
+    /** Whether a centre line of a pen this wide, in device pixels, is equidistant from two grid places. */
+    private static boolean onATie(float centre, float pen) {
+        int width = Math.max(1, Math.round(pen));
+        float shift = width % 2 == 1 ? 0.5f : 0; // an odd pen centres on half pixels
+        float fraction = (float) ((centre - shift) - Math.floor(centre - shift));
+        return Math.abs(fraction - 0.5f) < 1e-4;
     }
 
     /**
      * The ring is the only ink outside the box, and it is outside on all four sides (the row IS
      * the indicator, and an unlabelled checkbox is exactly as wide as it). Scene grows invalidate
-     * damage by 1pt of AA feather plus paintOutset, so an undeclared 2.25pt reach leaves a
-     * quarter of the fading ring stale under partial rendering.
+     * damage by 1pt of AA feather plus paintOutset, so an undeclared reach leaves part of the
+     * fading ring stale under partial rendering.
      */
     @Test
     void paintOutsetCoversTheFocusRingReach() {
-        float reach = Strokes.FOCUS_GAP_INDICATOR + Strokes.FOCUS_RING_THIN / 2;
-        assertEquals(2.25f, reach, 1e-4, "gap 1.5 + half of a 1.5pt centred pen");
-        assertTrue(reach > 1, "Scene's built-in 1pt feather does not cover it on its own");
+        float reach = Strokes.FOCUS_GAP_INDICATOR + Strokes.FOCUS_RING_THIN;
+        assertEquals(3f, reach, 1e-4, "a clear gap of 1.5 and a 1.5pt pen beyond it");
         for (Checkbox.Variant variant : Checkbox.Variant.values()) {
             assertTrue(outsetOf(variant) >= reach, variant + " declares the ring's reach");
         }
