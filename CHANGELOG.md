@@ -10,6 +10,12 @@ Maven Central say which number that was.
 
 ### Fixed
 
+- The empty part of a `Slider`'s and a `RangeSlider`'s rail and of a `ProgressBar`'s groove
+  shows on every surface. It was painted in the raised surface's tone, which in the Light theme
+  is the page's own (#EDF0F6 on #EEF0F4), so on a page the rail vanished and a slider at its
+  middle read as one at its end; it is now the text's ink, faint, on any theme. A disabled
+  slider's fill takes the disabled text's grey, darker than the rail it fills, where it was
+  lighter.
 - A scroller at an end of an axis passes the wheel on. A `ScrollView`, a `TextArea` and the
   scrolling strips of a `TabbedPane` and a `SegmentedControl` took every detent while they
   could scroll at all, so one inside a scrolling page stopped the wheel at its top or its end

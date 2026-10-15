@@ -335,13 +335,13 @@ public final class RangeSlider extends Widget<RangeSlider> {
         float cy = height() / 2;
         float rail = t.sliderRail();
         float top = cy - rail / 2;
-        canvas.fillRoundRect(trackLeft(t), top, trackWidth(t), rail, rail / 2, theme.surfaceRaised());
+        canvas.fillRoundRect(trackLeft(t), top, trackWidth(t), rail, rail / 2, theme.track());
         float a = xOf(lower, t, rtl);
         float b = xOf(upper, t, rtl);
         float from = Math.min(a, b);
         float span = Math.abs(b - a);
         if (span > 0) {
-            canvas.fillRoundRect(from, top, span, rail, rail / 2, isEnabled() ? theme.primary() : theme.disabledFill());
+            canvas.fillRoundRect(from, top, span, rail, rail / 2, isEnabled() ? theme.primary() : theme.disabledText());
         }
     }
 

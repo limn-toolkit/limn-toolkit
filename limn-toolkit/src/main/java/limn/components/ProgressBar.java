@@ -252,8 +252,8 @@ public final class ProgressBar extends Widget<ProgressBar> {
         }
         Theme theme = Theme.of(this);
         float radius = height() / 2;
-        canvas.fillRoundRect(0, 0, width(), height(), radius, theme.surfaceRaised());
-        var fillColor = isEnabled() ? theme.primary() : theme.disabledFill();
+        canvas.fillRoundRect(0, 0, width(), height(), radius, theme.track());
+        var fillColor = isEnabled() ? theme.primary() : theme.disabledText();
 
         if (indeterminate) {
             float pillWidth = width() * SWEEP_FRACTION;

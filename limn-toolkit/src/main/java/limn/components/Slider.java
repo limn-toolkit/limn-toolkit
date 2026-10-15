@@ -331,8 +331,8 @@ public final class Slider extends Widget<Slider> {
         float rail = t.sliderRail();
         float trackTop = cy - rail / 2;
 
-        canvas.fillRoundRect(left, trackTop, tw, rail, rail / 2, theme.surfaceRaised());
-        Color fillColor = enabled ? theme.primary() : theme.disabledFill();
+        canvas.fillRoundRect(left, trackTop, tw, rail, rail / 2, theme.track());
+        Color fillColor = enabled ? theme.primary() : theme.disabledText();
         // The fill is anchored at the end min sits at and stops under the thumb, so reading right
         // to left it starts at the thumb and runs to the track's right edge. The rail underneath
         // is the whole symmetric track and does not move.

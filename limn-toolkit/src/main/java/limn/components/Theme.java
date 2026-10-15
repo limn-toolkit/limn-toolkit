@@ -601,6 +601,15 @@ public final class Theme {
         return surfaceRaised;
     }
 
+    /**
+     * The empty part of a track (a slider's rail, a progress bar's groove): the text's ink, faint.
+     * Not a surface tone: a track sits on whatever surface holds it, and in a light palette the
+     * raised surface is the canvas's own tone, so a rail painted with it vanished on a page.
+     */
+    Color track() {
+        return text.withAlpha(0.14f);
+    }
+
     /** @return this palette's {@code primary} */
     public Color primary() {
         return primary;
