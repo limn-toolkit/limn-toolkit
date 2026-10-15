@@ -187,7 +187,7 @@ final class AppScene {
                 new Place(ShowcaseStrings.NAV_TABLES, "docs/lists-and-scrolling/#tables",
                         () -> beside(TableScene.content())).icon("table"),
                 new Place(ShowcaseStrings.NAV_TREES, "docs/lists-and-scrolling/#trees",
-                        () -> scrolling(TreeScene.content())).icon("binary-tree"),
+                        () -> beside(TreeScene.content())).icon("binary-tree"),
                 new Place(ShowcaseStrings.NAV_DIALOGS, "docs/menus-and-dialogs/#dialogs",
                         () -> scrolling(DialogsScene.dialogs(status))).icon("app-window"),
                 new Place(ShowcaseStrings.TAB_MENUS, "docs/menus-and-dialogs/#menus",
