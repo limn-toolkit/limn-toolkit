@@ -643,13 +643,41 @@ final class AppScene {
             take[0] = () -> {
                 if (scene.window() != null) {
                     int n = frame[0]++;
-                    scene.window().captureNextFrame(image -> limn.graphics.Images.save(image,
-                            limn.graphics.ImageFormat.PNG, java.nio.file.Path.of(film, String.format("f%03d.png", n))));
+                    scene.window().captureNextFrame(image -> {
+                        limn.graphics.Images.save(image,
+                                limn.graphics.ImageFormat.PNG, java.nio.file.Path.of(film, String.format("f%03d.png", n)));
+                        if (Boolean.getBoolean("limn.demo.film.scroll")) {
+                            // The page down by most of a screen after each picture, so a long page
+                            // is filmed whole: the largest scroll view outside the navigation
+                            // that has somewhere to go, the inner one where a page nests two.
+                            ScrollView shown = largestScrollView(scene.root(), navigation, null);
+                            if (shown != null) {
+                                System.err.printf("film f%03d: offset %.0f of %.0f, viewport %.0f%n",
+                                        n, shown.offsetY(), shown.maxOffsetY(), shown.viewportHeight());
+                                shown.scrollBy(0, shown.height() * 0.85f);
+                            }
+                        }
+                    });
                 }
                 Ui.postDelayed(take[0], Long.getLong("limn.demo.film.ms", 500));
             };
             Ui.postDelayed(take[0], 1500);
         }
+    }
+
+    /** The largest scroll view under {@code at} with room to scroll down, not inside {@code skip}. */
+    private static ScrollView largestScrollView(Widget<?> at, Widget<?> skip, ScrollView best) {
+        if (at == skip) {
+            return best;
+        }
+        if (at instanceof ScrollView view && view.isShowing() && view.maxOffsetY() > 0
+                && (best == null || view.width() * view.height() > best.width() * best.height())) {
+            best = view;
+        }
+        for (Widget<?> child : at.children()) {
+            best = largestScrollView(child, skip, best);
+        }
+        return best;
     }
 
     private static Menu goMenu(Tree<Place> navigation, List<Place> top) {
