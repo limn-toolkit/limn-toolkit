@@ -185,4 +185,39 @@ final class Page {
         row.add(Expanded.spacer(1));
         return row;
     }
+
+    /**
+     * {@code content} as wide as the line and {@code widthOverHeight} times less tall: a picture,
+     * a video or a 3D view that fills the page's width at its own proportions, rather than a fixed
+     * box at the start of a line with the rest of the width empty beside it.
+     */
+    static Widget<?> aspect(float widthOverHeight, Widget<?> content) {
+        return new Aspect(widthOverHeight, content);
+    }
+
+    /** See {@link #aspect}. */
+    private static final class Aspect extends Widget<Aspect> {
+        private final float ratio;
+        private final Widget<?> child;
+
+        Aspect(float ratio, Widget<?> child) {
+            this.ratio = ratio;
+            this.child = child;
+            add(child);
+        }
+
+        @Override
+        protected limn.scene.Size onMeasure(limn.scene.Constraints c) {
+            float width = c.hasBoundedWidth() ? c.maxWidth() : child.measure(c).width();
+            float height = c.constrainHeight(width / ratio);
+            child.measure(limn.scene.Constraints.tight(width, height));
+            return c.constrain(width, height);
+        }
+
+        @Override
+        protected void onLayout() {
+            child.measure(limn.scene.Constraints.tight(width(), height()));
+            child.layoutBox(0, 0, width(), height());
+        }
+    }
 }

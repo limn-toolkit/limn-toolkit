@@ -10,6 +10,7 @@ import limn.components.Theme;
 import limn.components.Viewport3D;
 import limn.graphics.BlendMode;
 import limn.graphics.Color;
+import limn.i18n.I18nString;
 import limn.math.Mat4;
 import limn.math.Quat;
 import limn.math.Scalars;
@@ -67,13 +68,46 @@ import java.util.List;
  */
 final class Viewport3DScene {
 
+    /** What the showcase's page says, ready for translation. */
+    static final class Text {
+        static final I18nString MATERIALS = new I18nString("showcase.viewport.materials", "Materials");
+        static final I18nString SHADOWS = new I18nString("showcase.viewport.shadows", "Shadows");
+        static final I18nString SCENE = new I18nString("showcase.viewport.scene", "Scene");
+        static final I18nString RENDER_SCALE = new I18nString("showcase.viewport.renderScale", "Render scale");
+        static final I18nString HINT_SELECT =
+                new I18nString("showcase.viewport.hintSelect", "Drag to orbit · click to select");
+        static final I18nString HINT_ORBIT = new I18nString("showcase.viewport.hintOrbit", "Drag to orbit");
+        static final I18nString SELECTED = new I18nString("showcase.viewport.selected", "Selected: {0}");
+        static final I18nString NOTHING = new I18nString("showcase.viewport.nothing", "Nothing selected");
+        static final I18nString RED = new I18nString("showcase.viewport.red", "Red sphere");
+        static final I18nString GOLD = new I18nString("showcase.viewport.gold", "Gold sphere");
+        static final I18nString CHECKED = new I18nString("showcase.viewport.checked", "Checked sphere");
+        static final I18nString SILVER = new I18nString("showcase.viewport.silver", "Silver sphere");
+        static final I18nString FLOOR = new I18nString("showcase.viewport.floor", "Floor");
+
+        private Text() {
+        }
+    }
+
     private static final String HINT = "Drag to orbit · scroll to zoom · click to select";
     private static final Vec3 HIGHLIGHT = new Vec3(0.42f, 0.30f, 0.06f);
 
     // The row of spheres: x position, base material (texture applied on upload), tag.
     private static final float[] BALL_X = {-3f, -1f, 1f, 3f};
     private static final String[] BALL_TAG = {"red", "gold", "texture", "silver"};
+    /** What a reader of the status line is told was picked, by the same index as the tags. */
+    private static final I18nString[] BALL_NAME = {Text.RED, Text.GOLD, Text.CHECKED, Text.SILVER};
     private static final int TEXTURED_BALL = 2;
+
+    /**
+     * The sky the showcase's two scenes stand under: a soft blue overhead going pale at the
+     * horizon, over a dim floor, at a strength that lights the metals' reflections without
+     * washing out the three lights that model them.
+     */
+    private static final Environment SKY = Environment.gradient(
+            new Vec3(0.24f, 0.40f, 0.68f),
+            new Vec3(0.56f, 0.66f, 0.80f),
+            new Vec3(0.16f, 0.16f, 0.18f)).intensity(0.45f);
 
     private Viewport3DScene() {
     }
@@ -89,7 +123,7 @@ final class Viewport3DScene {
     static Widget<?> content() {
         Theme theme = Theme.current();
         Label status = new Label(HINT).setMuted(true);
-        Viewport3D viewport = buildViewport(600, 460, status);
+        Viewport3D viewport = buildViewport(600, 460, status::setText, false);
         viewport.setTooltip("3D viewport: retained Scene3D (PBR) in an FBO, composited as a layer");
 
         Column col = new Column();
@@ -120,70 +154,54 @@ final class Viewport3DScene {
      * <p>These two earn the place because between them they run the whole pipeline: PBR is
      * the lit forward pass with three light types, and shadows add the depth pass from the
      * light. Everything the others add is a variation on top of what these two already do.
-     */
-    private static final String[] SHOWCASE = {
-            "Metal and roughness under three lights; click an object to select it, drag to orbit.",
-            "Objects casting shadows on the ground; drag to orbit.",
-    };
-
-    /**
-     * The showcase's 3D page: the lit pass and the shadow pass, a
-     * {@link SegmentedControl} between them; only the visible viewport renders (the
-     * other pauses). See {@link #SHOWCASE} for why it is these two.
+     *
+     * <p>A toolbar over the view: the scene, the render scale, and the one hint the view
+     * needs, the gesture. The view below fills the page's width at 16:9; only the visible one
+     * renders (the other pauses). What a click selects goes to the window's status line.
      */
     static Widget<?> tabContent() {
-        Theme theme = Theme.current();
-        Label caption = new Label(SHOWCASE[0]).setMuted(true).setWrap(true);
-        Viewport3D pbr = buildViewport(560, 320, caption);
-        Widget<?> shadows = shadowViewport(560, 320);
-        Widget<?>[] demos = {pbr, shadows};
-        for (int i = 1; i < demos.length; i++) {
-            demos[i].setVisible(false);
-        }
-
+        Viewport3D pbr = buildViewport(560, 320, Page::report, true);
+        Viewport3D shadows = shadowViewport(560, 320, true);
+        shadows.setAccessibleName(Text.SHADOWS);
+        pbr.setAccessibleName(Text.MATERIALS);
+        Widget<?>[] demos = {Page.aspect(16f / 9f, pbr), Page.aspect(16f / 9f, shadows)};
+        demos[1].setVisible(false);
         Stack viewers = new Stack();
         for (Widget<?> demo : demos) {
             viewers.add(demo);
         }
 
-        SegmentedControl picker = new SegmentedControl(List.of("PBR", "Shadows"));
+        Label hint = Page.hint(Text.HINT_SELECT).setWrap(false);
+        SegmentedControl picker = new SegmentedControl(Text.MATERIALS, Text.SHADOWS);
+        picker.setAccessibleName(Text.SCENE);
         picker.onSelect(index -> {
             for (int i = 0; i < demos.length; i++) {
                 demos[i].setVisible(i == index);
             }
-            caption.setText(SHOWCASE[index]);
+            hint.setText(index == 0 ? Text.HINT_SELECT : Text.HINT_ORBIT);
         });
 
-        // Render scale on the PBR demo, beside the picker: the target is allocated at this
-        // fraction of the viewport's device resolution and upsampled into the same box, so
-        // the Textures figure in the perf footer falls with the square of the setting while
-        // the widget's geometry does not move at all.
+        // The render scale of the materials scene: its target is allocated at this fraction of
+        // the view's device resolution and upsampled into the same box, so the Textures figure
+        // in the performance footer falls with the square of the setting while the widget's
+        // geometry does not move at all.
         float[] scales = {1f, 0.75f, 0.5f, 0.25f};
-        ComboBox<String> renderScale = new ComboBox<>(List.of("Render 100%", "Render 75%", "Render 50%",
-                "Render 25%"));
+        List<I18nString> percents = new ArrayList<>();
+        for (float scale : scales) {
+            percents.add(I18nString.literal(limn.i18n.NumberFormats.percent(0).apply(scale)));
+        }
+        ComboBox<I18nString> renderScale = ComboBox.localized(percents);
+        renderScale.setAccessibleName(Text.RENDER_SCALE);
         renderScale.onSelect(() -> pbr.setRenderScale(scales[renderScale.selectedIndex()]));
-        renderScale.setTooltip("Renders the 3D target below device resolution and upsamples it; "
-                + "memory and fill cost fall with the square of the setting");
+        Label scaleLabel = new Label(Text.RENDER_SCALE).setMuted(true).setLabelFor(renderScale);
 
-        // Beside the caption rather than the picker, which now has room to spare: the
-        // caption is the wrapping widget on this panel, so the fixed-width control beside
-        // it is the one that keeps its size when the window narrows.
-        Row captionRow = new Row();
-        captionRow.gap(10).crossAlignment(Flex.CrossAlignment.CENTER);
-        captionRow.add(Expanded.of(caption, 1));
-        captionRow.add(renderScale);
+        Row toolbar = Page.row(12, picker, scaleLabel, new SizedBox(100, SizedBox.UNSET, renderScale));
+        toolbar.add(Expanded.spacer(1));
+        toolbar.add(hint);
 
-        Column col = new Column();
-        col.gap(10).crossAlignment(Flex.CrossAlignment.STRETCH);
-        col.add(picker);
-        col.add(captionRow);
-        // Flexed, not fixed: the demos declare 560×320 but the page's body
-        // is much shorter: measured unbounded they would keep their full height
-        // and the tab clip would leave only the top sliver of the 3D render
-        // visible (the scene's empty sky, which reads as a solid dark rectangle).
-        // The leftover tab height bounds the Stack instead; Viewport3D.onMeasure
-        // clamps to it and the whole (letterboxed) scene stays visible.
-        col.add(Expanded.of(viewers));
+        Column col = Page.column();
+        col.add(toolbar);
+        col.add(viewers);
         return col;
     }
 
@@ -868,6 +886,11 @@ final class Viewport3DScene {
 
     /** A viewport with a ground and two spinning objects casting shadows (Phase 5a). */
     static Viewport3D shadowViewport(float width, float height) {
+        return shadowViewport(width, height, false);
+    }
+
+    /** The same, under the showcase's {@link #SKY} when {@code sky} is set. */
+    private static Viewport3D shadowViewport(float width, float height, boolean sky) {
         MeshData sphereData = Primitives.sphere(0.85f, 40, 60);
         MeshData cubeData = Primitives.cube(1.4f);
         MeshData groundData = Primitives.plane(8, 8);
@@ -889,6 +912,9 @@ final class Viewport3DScene {
                         .ambient(new Vec3(0.06f, 0.065f, 0.08f))
                         .exposure(1.1f)
                         .castShadows(true);
+                if (sky) {
+                    built.environment(SKY); // the skybox paints over the cleared background
+                }
                 built.root().add(new MeshNode(ground, Material.Pbr.of(0.60f, 0.62f, 0.66f).roughness(0.8f))
                         .transform(Transform3D.at(new Vec3(0, -1f, 0))));
                 spin[0] = built.root().add(new MeshNode(sphere,
@@ -918,7 +944,8 @@ final class Viewport3DScene {
     }
 
     /** A viewport hosting a retained {@link Scene3D} of the PBR row, orbit controls and click-to-pick. */
-    private static Viewport3D buildViewport(float width, float height, Label status) {
+    private static Viewport3D buildViewport(float width, float height,
+                                            java.util.function.Consumer<String> status, boolean sky) {
         MeshData sphereData = Primitives.sphere(0.9f, 48, 72);
         MeshData groundData = Primitives.plane(10, 10);
         Transform3D groundTransform = Transform3D.at(new Vec3(0, -1f, 0));
@@ -972,6 +999,9 @@ final class Viewport3DScene {
                         .background(new Vec4(0.05f, 0.055f, 0.07f, 1f))
                         .ambient(new Vec3(0.05f, 0.055f, 0.07f))
                         .exposure(1.1f);
+                if (sky) {
+                    built.environment(SKY); // the skybox paints over the cleared background
+                }
                 ground[0] = built.root().add(
                         new MeshNode(groundMesh, restingGround[0]).transform(groundTransform));
                 for (int i = 0; i < balls.length; i++) {
@@ -1006,9 +1036,7 @@ final class Viewport3DScene {
             }
             PickResult hit = Picker.pick(ray, pickables);
             selected[0] = hit != null ? (String) hit.tag() : null;
-            status.setText(hit != null
-                    ? "Selected: " + hit.tag()
-                    : "Nothing selected. Click an object.");
+            status.accept(hit == null ? Text.NOTHING.get() : Text.SELECTED.format(nameOf(hit.tag())));
             applySelection.run();
             viewport.invalidate();
         });
@@ -1019,6 +1047,16 @@ final class Viewport3DScene {
             }
         });
         return viewport;
+    }
+
+    /** What a picked object is called on screen: its name, never the tag it was picked by. */
+    private static String nameOf(Object tag) {
+        for (int i = 0; i < BALL_TAG.length; i++) {
+            if (BALL_TAG[i].equals(tag)) {
+                return BALL_NAME[i].get();
+            }
+        }
+        return Text.FLOOR.get();
     }
 
     /**

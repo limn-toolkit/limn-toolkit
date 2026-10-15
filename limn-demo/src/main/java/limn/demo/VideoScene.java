@@ -8,6 +8,7 @@ import limn.components.SegmentedControl;
 import limn.components.Theme;
 import limn.components.SizeTokens;
 import limn.components.VideoView;
+import limn.i18n.I18nString;
 import limn.icons.tabler.TablerMedia;
 import limn.backend.NativeWindow;
 import limn.backend.WindowConfig;
@@ -49,6 +50,60 @@ import java.util.List;
  * box says what is happening for as long as it takes.
  */
 final class VideoScene {
+
+    /** What the Video page says, ready for translation. */
+    static final class Text {
+        static final I18nString BARS = new I18nString("showcase.video.bars", "Colour bars");
+        static final I18nString CLIP = new I18nString("showcase.video.clip", "Sample clip");
+        static final I18nString SOURCE = new I18nString("showcase.video.source", "Source");
+        static final I18nString OPEN_FILE = new I18nString("showcase.video.openFile", "Open file…");
+        static final I18nString OPEN_WINDOW = new I18nString("showcase.video.openWindow", "Open in window…");
+        static final I18nString OPEN_FILE_TIP = new I18nString("showcase.video.openFileTip",
+                "Play a video file from this computer");
+        static final I18nString OPEN_WINDOW_TIP = new I18nString("showcase.video.openWindowTip",
+                "Play a video file in a window of its own");
+        static final I18nString CHOOSER_TITLE = new I18nString("showcase.video.chooserTitle", "Open a video");
+        static final I18nString VIDEO_FILES = new I18nString("showcase.video.videoFiles", "Video");
+        static final I18nString FIT = new I18nString("showcase.video.fit", "Fit");
+        static final I18nString CONTAIN = new I18nString("showcase.video.contain", "Contain");
+        static final I18nString COVER = new I18nString("showcase.video.cover", "Cover");
+        static final I18nString FILL = new I18nString("showcase.video.fill", "Fill");
+        static final I18nString RESTART = new I18nString("showcase.video.restart", "Play from the start");
+        static final I18nString OPENING = new I18nString("showcase.video.opening", "Opening…");
+        static final I18nString OPENING_PERCENT = new I18nString("showcase.video.openingPercent", "Opening… {0}");
+        static final I18nString OPENING_FILE = new I18nString("showcase.video.openingFile", "Opening {0}…");
+        static final I18nString CANNOT_PLAY = new I18nString("showcase.video.cannotPlay", "Cannot play this video");
+        static final I18nString CANNOT_PLAY_FILE =
+                new I18nString("showcase.video.cannotPlayFile", "Cannot play {0}");
+        static final I18nString PLAYING_IN_WINDOW =
+                new I18nString("showcase.video.playingInWindow", "Playing {0} in its own window");
+        static final I18nString NO_WINDOW = new I18nString("showcase.video.noWindow",
+                "No window to open a file chooser over");
+        static final I18nString CREDIT = new I18nString("showcase.video.credit",
+                "Big Buck Bunny, an excerpt (CC BY 3.0, Blender Foundation)");
+        static final I18nString SUBTITLES = new I18nString("showcase.video.subtitles", "Subtitles");
+        static final I18nString SUBTITLES_OFF = new I18nString("showcase.video.subtitlesOff", "Subtitles off");
+        static final I18nString SUBTITLES_IN = new I18nString("showcase.video.subtitlesIn", "Subtitles: {0}");
+        static final I18nString SUBTITLES_TIP = new I18nString("showcase.video.subtitlesTip",
+                "Show the next subtitle track, or none");
+        static final I18nString MUTE_TIP = new I18nString("showcase.video.muteTip", "Mute");
+        static final I18nString UNMUTE_TIP = new I18nString("showcase.video.unmuteTip", "Unmute");
+        static final I18nString VOLUME_TIP = new I18nString("showcase.video.volumeTip", "Volume");
+        static final I18nString AUDIO_TRACK = new I18nString("showcase.video.audioTrack", "Audio {0} of {1}: {2}");
+        static final I18nString AUDIO_TIP = new I18nString("showcase.video.audioTip",
+                "Play the next audio track, keeping the position");
+        static final I18nString NO_LANGUAGE = new I18nString("showcase.video.noLanguage", "no language");
+        static final I18nString GENERATED_SOUNDTRACK =
+                new I18nString("showcase.video.generatedSoundtrack", "Generated soundtrack");
+        static final I18nString NO_SOUNDTRACK =
+                new I18nString("showcase.video.noSoundtrack", "No soundtrack in this file");
+
+        private Text() {
+        }
+    }
+
+    /** Where what is for whoever builds this goes: the reason a decoder is missing, a raw failure. */
+    private static final System.Logger LOG = System.getLogger("limn.demo.video");
 
     /**
      * The picture every view shows when the demo was told to stand still, or -1 to play. Process-wide
@@ -290,7 +345,7 @@ final class VideoScene {
      * and a chooser that offered only what the native handles would be wrong there.
      */
     private static final limn.backend.FileDialogs.Filter PLAYABLE =
-            limn.backend.FileDialogs.Filter.of("Video", "*.mp4", "*.m4v", "*.mov", "*.3gp",
+            limn.backend.FileDialogs.Filter.of(Text.VIDEO_FILES.get(), "*.mp4", "*.m4v", "*.mov", "*.3gp",
                     "*.mkv", "*.webm", "*.y4m");
 
     /**
@@ -299,13 +354,13 @@ final class VideoScene {
      * nobody can make would leave the capture waiting too.
      */
     private static java.util.concurrent.CompletionStage<java.util.Optional<Path>> pick(Widget<?> host,
-                                                                                        Label caption) {
+            java.util.function.Consumer<String> say) {
         Scene scene = host.scene();
         if (scene == null || scene.window() == null) {
-            caption.setText("No native window: the platform's file chooser is unavailable here.");
+            say.accept(Text.NO_WINDOW.get());
             return java.util.concurrent.CompletableFuture.completedFuture(java.util.Optional.empty());
         }
-        return scene.window().fileDialogs().openFile("Open a video", null, PLAYABLE);
+        return scene.window().fileDialogs().openFile(Text.CHOOSER_TITLE.get(), null, PLAYABLE);
     }
 
     /**
@@ -329,27 +384,29 @@ final class VideoScene {
      * that will not open, and the one saying where it went when it does.
      */
     private static void openInOwnWindow(NativeWindow parent, Path file, boolean withSound,
-                                        Label caption) {
-        caption.setText("Opening " + file.getFileName() + "…");
+                                        java.util.function.Consumer<String> say, Widget<?> host) {
+        String name = file.getFileName().toString();
+        say.accept(Text.OPENING_FILE.format(name));
         ownFile(file).opener().start(new Pick(
                 opened -> {
                     if (opened == null) {
-                        caption.setText("Cannot play " + file.getFileName() + ": "
-                                + encodedUnavailableNotice());
+                        say.accept(Text.CANNOT_PLAY_FILE.format(name));
+                        LOG.log(System.Logger.Level.INFO, "Cannot play {0}: {1}", file, encodedUnavailableDetail());
                         return;
                     }
+                    // The page keeps what it was showing: the two are separate players over
+                    // separate streams.
                     openWindowFor(parent, file, opened, withSound);
-                    caption.setText("Playing " + file.getFileName() + " in a window of its own. "
-                            + "The tab keeps what it was showing: the two are separate players "
-                            + "over separate streams.");
+                    say.accept(Text.PLAYING_IN_WINDOW.format(name));
                 },
-                failure -> caption.setText("Cannot play " + file.getFileName() + ": "
-                        + describeFailure(failure)),
+                failure -> {
+                    say.accept(Text.CANNOT_PLAY_FILE.format(name));
+                    LOG.log(System.Logger.Level.INFO, "Cannot play " + file, failure);
+                },
                 fraction -> {
-                    // Nothing to show it on: this window does not exist yet, and the caption is
-                    // the tab's rather than this open's.
+                    // Nothing to show it on: this window does not exist yet.
                 },
-                () -> caption.scene() != null));
+                () -> host.scene() != null));
     }
 
     /** Builds and shows the window for what {@link #openInOwnWindow} opened. UI thread. */
@@ -378,7 +435,7 @@ final class VideoScene {
         // fills the window, and the player is started by the first paint rather than here: a
         // window that is never shown must not start a soundtrack.
         VideoPane pane = new VideoPane(view, open, new BackdropPanel(GLASS,
-                Insets.symmetric(6, 10), new Transport(open, view, null)));
+                Insets.symmetric(6, 10), new Transport(open, view, null, null)));
 
         Scene scene = new Scene(pane);
         scene.setBackground(limn.graphics.Color.BLACK);
@@ -654,21 +711,10 @@ final class VideoScene {
     }
 
     /**
-     * What goes ON the picture: a few words, no paths, no flags, no library names.
-     *
-     * <p>Whoever is looking at the panel wants to know that this one will not play and that the
-     * others will. What to type to fix it is a different question asked by a different person, and
-     * it goes in the caption below (see {@link #encodedUnavailableDetail()}).
+     * Why an entry will not play, for whoever is building this, with the fix in it. The picture
+     * itself says only {@link Text#CANNOT_PLAY}: a few words, no paths, no flags, no library
+     * names. This goes to the log, and below the picture in the standalone scene.
      */
-    private static String encodedUnavailableNotice() {
-        String own = System.getProperty(OWN_FILE_PROPERTY);
-        if (own != null && !own.isBlank()) {
-            return "This file cannot be opened";
-        }
-        return "MP4 playback is not available";
-    }
-
-    /** And what goes below it: the sentence for whoever is building this, with the fix in it. */
     private static String encodedUnavailableDetail() {
         String own = System.getProperty(OWN_FILE_PROPERTY);
         if (own != null && !own.isBlank()) {
@@ -924,10 +970,8 @@ final class VideoScene {
                 return;
             }
             String text = Double.isNaN(openingFraction)
-                    ? String.format(java.util.Locale.US, "Opening %s… %.1f s", opening,
-                            (System.nanoTime() - openingSinceNanos) / 1e9)
-                    : String.format(java.util.Locale.US, "Opening %s… %d%%", opening,
-                            Math.round(openingFraction * 100));
+                    ? Text.OPENING.get()
+                    : Text.OPENING_PERCENT.format(limn.i18n.NumberFormats.percent(0).apply(openingFraction));
             if (!text.equals(notice)) {
                 notice = text;
                 invalidate();
@@ -1510,6 +1554,7 @@ final class VideoScene {
         private boolean keyArmed; // Space/Enter held, tracked apart from the mouse
 
         GlassButton() {
+            setAccessibleRole(limn.accessibility.Accessible.Role.BUTTON);
             setFocusable(true);
             setCursor(limn.backend.Cursor.POINTER);
         }
@@ -1684,7 +1729,7 @@ final class VideoScene {
         /** What the two icon buttons are currently drawing; null until the first refresh drew one. */
         private Boolean soundMuted;
 
-        Transport(Playing open, VideoView view, SoundLevel sound) {
+        Transport(Playing open, VideoView view, SoundLevel sound, Runnable restart) {
             this.open = open;
             this.sound = sound;
             // Two steps down for everything inside the bar. A transport is chrome over someone
@@ -1706,6 +1751,16 @@ final class VideoScene {
                 refreshSubtitles();
                 refreshSound();
             });
+            if (restart != null) {
+                // Beside play, where a player keeps its other transport verbs: the application's
+                // own, because only the application can re-open what it opened.
+                GlassButton again = new GlassButton();
+                again.setIcon(TablerMedia.PLAYER_SKIP_BACK.icon());
+                again.setTooltip(Text.RESTART);
+                again.setAccessibleName(Text.RESTART);
+                again.onAction(restart);
+                controls.addLeading(again);
+            }
             if (sound != null) {
                 // The built-in pair can only turn a gain the player already holds, and this
                 // tab's soundtrack is lazily re-opened (SoundLevel) — a policy the toolkit
@@ -1713,12 +1768,12 @@ final class VideoScene {
                 // slots; the standalone window keeps the default AUTO, where its player owns
                 // the track from the file and the built-in volume simply works.
                 controls.setSound(limn.components.MediaControls.Sound.OFF);
-                mute.setTooltip("Silence the soundtrack, keeping it where it is");
+                mute.setTooltip(Text.MUTE_TIP);
                 mute.onAction(() -> {
                     sound.toggleMuted();
                     refreshSound();
                 });
-                volume.setTooltip("How loud, from silent to full");
+                volume.setTooltip(Text.VOLUME_TIP);
                 volume.setValue(0); // muted until somebody asks: the level and the label agree
                 volume.onChange(value -> {
                     sound.setVolume(value / 100f);
@@ -1736,8 +1791,8 @@ final class VideoScene {
             // tall, the two rows under the picture are already at this window's width, and a
             // control that lands past the fold is a control no capture can show. Over the picture
             // costs no vertical space at all.
-            subtitles.setText("Subtitles");
-            subtitles.setTooltip("Show the next subtitle track of this container, or none");
+            subtitles.setText(Text.SUBTITLES.get());
+            subtitles.setTooltip(Text.SUBTITLES_TIP);
             subtitles.onAction(this::takeTheNextSubtitleTrack);
             controls.addTrailing(subtitles);
             add(controls);
@@ -1781,7 +1836,7 @@ final class VideoScene {
             limn.video.ffmpeg.FfmpegMedia media = open.media;
             String text;
             if (media == null || media.subtitleTracks().isEmpty()) {
-                text = "No subtitles";
+                text = "";
                 subtitles.setEnabled(false);
                 // Out of the row entirely, not merely greyed: this bar is the width of the picture,
                 // and a dead control in it is width taken from the scrub bar, which is the one
@@ -1792,10 +1847,10 @@ final class VideoScene {
                 subtitles.setVisible(true);
                 int selected = media.selectedSubtitleTrack();
                 if (selected < 0) {
-                    text = "Subtitles off";
+                    text = Text.SUBTITLES_OFF.get();
                 } else {
                     String language = media.subtitleTracks().get(selected).language();
-                    text = "Subtitles: " + (language != null ? language : "on");
+                    text = language != null ? Text.SUBTITLES_IN.format(language) : Text.SUBTITLES.get();
                 }
             }
             if (!text.equals(subtitleLabel)) {
@@ -1819,9 +1874,7 @@ final class VideoScene {
             if (soundMuted == null || soundMuted != silent) {
                 soundMuted = silent;
                 mute.setIcon((silent ? TablerMedia.VOLUME_OFF : TablerMedia.VOLUME).icon());
-                mute.setTooltip(silent
-                        ? "Let the soundtrack be heard again, where it is"
-                        : "Silence the soundtrack, keeping it where it is");
+                mute.setTooltip(silent ? Text.UNMUTE_TIP : Text.MUTE_TIP);
             }
             float wanted = sound.isMuted() ? 0 : Math.round(sound.volume() * 100);
             if (wanted != volume.value()) {
@@ -1861,7 +1914,7 @@ final class VideoScene {
 
         private final Playing open;
         private final VideoView view;
-        private final Button button = new Button("Audio").setSecondary(true);
+        private final Button button = new Button(Text.GENERATED_SOUNDTRACK).setSecondary(true);
         private final Row row = new Row();
         private boolean ticking;
         private boolean refreshPosted;
@@ -1870,7 +1923,8 @@ final class VideoScene {
         AudioTracks(Playing open, VideoView view) {
             this.open = open;
             this.view = view;
-            button.setTooltip("Play the next audio track of this container, keeping the position");
+            button.setTooltip(Text.AUDIO_TIP);
+            button.setVisible(false); // shown once there are two tracks to choose between
             button.onAction(this::takeTheNextTrack);
             row.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
             row.add(button);
@@ -1925,18 +1979,21 @@ final class VideoScene {
             List<limn.video.ffmpeg.FfmpegMedia.AudioTrack> tracks =
                     media == null ? List.of() : media.audioTracks();
             button.setEnabled(tracks.size() > 1 && open.player != null);
+            // A button that can only ever say what is playing is not a control: with one track or
+            // none it is out of the row, and the row with it.
+            button.setVisible(tracks.size() > 1);
             String text;
             if (media == null) {
                 // A synthetic source has no container and therefore no track list; what it is
                 // playing is the generated click track, which is not one of anything.
-                text = "Generated soundtrack";
+                text = Text.GENERATED_SOUNDTRACK.get();
             } else if (tracks.isEmpty()) {
-                text = "No soundtrack in this file";
+                text = Text.NO_SOUNDTRACK.get();
             } else {
                 int selected = Math.max(0, media.selectedAudioTrack());
                 String language = tracks.get(selected).language();
-                text = "Audio " + (selected + 1) + "/" + tracks.size() + ": "
-                        + (language != null ? language : "no language");
+                text = Text.AUDIO_TRACK.format(selected + 1, tracks.size(),
+                        language != null ? language : Text.NO_LANGUAGE.get());
             }
             if (!text.equals(shown)) {
                 shown = text;
@@ -2144,22 +2201,44 @@ final class VideoScene {
                 .toList();
     }
 
-    /** The tab's content: a source picker, the picture, and what the stream says about itself. */
+    /** How an entry of the picker reads: the page's two in words, the standalone's lab names as they are. */
+    private static I18nString displayName(Source source) {
+        return switch (source.label()) {
+            case "Bars" -> Text.BARS;
+            case "MP4" -> Text.CLIP;
+            default -> I18nString.literal(source.label());
+        };
+    }
+
+    /**
+     * The tab's content: a source picker, the picture, and what the stream says about itself.
+     *
+     * @param details the standalone scene's lab readings and every caption; the showcase's page
+     *                ({@code false}) keeps the clip's credit alone and reports to the status line
+     */
     private static Widget<?> tabContent(float pictureWidth, float pictureHeight, List<Source> sources,
             boolean details) {
-        Theme theme = Theme.current();
         int initial = Math.max(0, Math.min(initialSource, sources.size() - 1));
-        Label caption = new Label(sources.get(initial).caption()).setMuted(true).setWrap(true);
+        Label caption = new Label("").setMuted(true).setWrap(true);
         Label facts = new Label("").setMuted(true).setWrap(true);
+        // What a control did: the window's status line on the page, the caption in the lab's scene.
+        java.util.function.Consumer<String> say = details ? caption::setText : Page::report;
+        // The page keeps one caption, the clip's credit, which its licence asks for; the lab's
+        // scene says what every entry is.
+        java.util.function.Consumer<Source> describe = source -> {
+            if (details) {
+                caption.setText(source.caption());
+            } else if ("MP4".equals(source.label())) {
+                caption.setText(Text.CREDIT);
+            } else {
+                caption.setText("");
+            }
+            caption.setVisible(!caption.text().isEmpty());
+        };
 
         VideoView view = new VideoView();
-        // The stream's own 640×360 would set the column width; the demo wants a stable box, and a
-        // deliberately non-16:9 one, because a picture whose ratio matches its box shows nothing
-        // about letterboxing and the three fits would all look the same.
-        // 2:1 on purpose: a picture whose ratio matches its box shows nothing about letterboxing
-        // and the three fits would all look the same. Kept small enough that the whole of it is on
-        // screen inside a tab body, because a picture you have to scroll to is a picture nobody
-        // checks.
+        // In the lab's scene, a fixed box of another shape than the pictures, so the three fits
+        // are three different pictures; on the page, the page's width at 16:9 (Page.aspect).
         view.setPreferredSize(pictureWidth, pictureHeight).setLooping(true);
         if (details) {
             view.setTooltip("Decoded planes uploaded to a video surface and composited as one quad");
@@ -2175,6 +2254,7 @@ final class VideoScene {
         // Set once the pane exists, because re-opening needs the pane it plays into and the pane
         // needs the transport that asks for the re-open.
         java.util.function.LongConsumer[] reopen = {null};
+        Runnable[] restart = {() -> { }};
         limn.components.Checkbox[] soundBox = {null};
         SoundLevel level = !soundAllowed || staticFrame >= 0 ? null : new SoundLevel(open, () -> {
             // Where the picture had reached, because opening the soundtrack builds a new player
@@ -2193,26 +2273,14 @@ final class VideoScene {
         });
         VideoPane pane = new VideoPane(view, open, staticFrame >= 0 ? null
                 : new BackdropPanel(GLASS, Insets.symmetric(6, 10),
-                        new Transport(open, view, level)));
+                        new Transport(open, view, level, () -> restart[0].run())));
         // What is playing, as a value rather than as an index into the picker: a file the viewer
         // chose is not in the picker at all, and everything that re-opens (Restart, the soundtrack
         // switch) has to re-open THAT rather than whichever entry was last highlighted.
         Source[] current = {sources.get(initial)};
-        Label status = new Label("").setMuted(true);
+        describe.accept(current[0]);
         reopen[0] = at -> play(pane, view, facts, open, current[0], sound[0], at);
-        play(pane, view, facts, open, current[0], sound[0]);
-
-        SegmentedControl picker = new SegmentedControl(sources.stream().map(Source::label).toList());
-        picker.setSelectedIndex(initial);
-        picker.onSelect(index -> {
-            current[0] = sources.get(index);
-            caption.setText(current[0].caption());
-            play(pane, view, facts, open, current[0], sound[0]);
-        });
-
-        Button restart = new Button("Restart").setSecondary(true);
-        restart.setTooltip("Play this source again from its first picture");
-        restart.onAction(() -> {
+        restart[0] = () -> {
             if (open.player != null) {
                 // A soundtrack cannot be rewound by something that did not open it: handing it to
                 // the engine transferred it. So the application re-opens what the application owns,
@@ -2221,17 +2289,28 @@ final class VideoScene {
             } else if (view.source() != null && view.source().canReset()) {
                 view.restart();
             }
+        };
+        play(pane, view, facts, open, current[0], sound[0]);
+
+        SegmentedControl picker = new SegmentedControl(
+                sources.stream().map(VideoScene::displayName).toArray(I18nString[]::new));
+        picker.setAccessibleName(Text.SOURCE);
+        picker.setSelectedIndex(initial);
+        picker.onSelect(index -> {
+            current[0] = sources.get(index);
+            describe.accept(current[0]);
+            play(pane, view, facts, open, current[0], sound[0]);
         });
 
         // The point of the FFmpeg decoder, reachable without a system property: the viewer's own
         // file. The dialog is the platform's, the open is the same worker every entry above uses,
         // and what comes back is a Source like any other, so Restart, the fits and the soundtrack
         // switch work on it with no special case anywhere.
-        Button openFile = new Button("Open…").setSecondary(true);
-        openFile.setTooltip("Play a file from this machine through the installed decoders");
-        openFile.onAction(() -> pick(openFile, caption).thenAccept(picked -> picked.ifPresent(file -> {
+        Button openFile = new Button(Text.OPEN_FILE).setSecondary(true);
+        openFile.setTooltip(Text.OPEN_FILE_TIP);
+        openFile.onAction(() -> pick(openFile, say).thenAccept(picked -> picked.ifPresent(file -> {
             current[0] = ownFile(file);
-            caption.setText(current[0].caption());
+            describe.accept(current[0]);
             // A file somebody has just chosen is one they want to see play: from here on what
             // this view is given starts by itself. The entry the page opens on does not, since a
             // page nobody asked anything of should not start a soundtrack.
@@ -2240,12 +2319,12 @@ final class VideoScene {
         })));
 
         // The same file, in a window of its own with nothing else in it, which is the shape a
-        // player actually is, and the one thing a tab cannot show: a resizable window whose whole
-        // content is the picture.
-        Button openWindow = new Button("Open in window…").setSecondary(true);
-        openWindow.setTooltip("Play a file in a resizable window of its own");
-        openWindow.onAction(() -> pick(openWindow, caption).thenAccept(picked -> picked.ifPresent(file ->
-                openInOwnWindow(openWindow.scene().window(), file, sound[0], caption))));
+        // player actually is, and the one thing a page cannot show: a resizable window whose
+        // whole content is the picture.
+        Button openWindow = new Button(Text.OPEN_WINDOW).setSecondary(true);
+        openWindow.setTooltip(Text.OPEN_WINDOW_TIP);
+        openWindow.onAction(() -> pick(openWindow, say).thenAccept(picked -> picked.ifPresent(file ->
+                openInOwnWindow(openWindow.scene().window(), file, sound[0], say, openWindow))));
 
         // For a run nobody clicks in: -Dlimn.demo.video.window=<file> opens that file in its own
         // window a moment after the page is shown, as the button does once a file is picked.
@@ -2253,21 +2332,16 @@ final class VideoScene {
         if (ownWindowFile != null && !ownWindowFile.isBlank()) {
             limn.concurrent.Ui.postDelayed(() -> {
                 if (openWindow.scene() != null && openWindow.scene().window() != null) {
-                    openInOwnWindow(openWindow.scene().window(), Path.of(ownWindowFile), false, caption);
+                    openInOwnWindow(openWindow.scene().window(), Path.of(ownWindowFile), false, say,
+                            openWindow);
                 }
             }, 2500);
         }
 
-        // In a row rather than in the stretched column, which would blow the picture up to the
-        // panel's width and letterbox it against its own aspect ratio.
-        Row picture = new Row();
-        picture.add(pane);
-
-        // The box is 2:1 and the pictures are 16:9, so the three fits are three different pictures.
         List<VideoView.Fit> fits = List.of(VideoView.Fit.CONTAIN, VideoView.Fit.COVER,
                 VideoView.Fit.FILL);
-        SegmentedControl fitPicker = new SegmentedControl(List.of("Contain", "Cover", "Fill"));
-        fitPicker.setTooltip("Letterbox inside the box, crop to cover it, or stretch to it");
+        SegmentedControl fitPicker = new SegmentedControl(Text.CONTAIN, Text.COVER, Text.FILL);
+        fitPicker.setAccessibleName(Text.FIT);
         fitPicker.onSelect(index -> view.setFit(fits.get(index)));
 
         limn.components.Checkbox soundToggle =
@@ -2279,12 +2353,37 @@ final class VideoScene {
             sound[0] = on;
             play(pane, view, facts, open, current[0], on);
         });
+        // A screenshot run starts no audio device, and so no player to change the track of.
+        boolean sounding = soundAllowed && staticFrame < 0;
 
-        // The picker gets a row to itself: at the standalone scene's source count it fills the
-        // width on its own, and a button sharing that row is a button off the edge.
-        Row controls = new Row();
-        controls.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
-        controls.add(restart);
+        Column column = Page.column();
+        if (!details) {
+            // The page: the source and the file actions over the picture, the picture across the
+            // page's width, and how it fills its box under it with the track when there is a choice.
+            Row toolbar = Page.row(12, picker);
+            toolbar.add(limn.scene.layout.Expanded.spacer(1));
+            if (staticFrame < 0) {
+                toolbar.add(openFile);
+                toolbar.add(openWindow);
+            }
+            column.add(toolbar);
+            column.add(Page.aspect(16f / 9f, pane));
+            Row under = Page.row(12, new Label(Text.FIT).setMuted(true).setLabelFor(fitPicker), fitPicker);
+            if (sounding) {
+                under.add(new AudioTracks(open, view));
+            }
+            under.add(limn.scene.layout.Expanded.spacer(1));
+            column.add(under);
+            column.add(caption);
+            return column;
+        }
+
+        // The lab's scene. ORDER MATTERS, and it is the picture that decides it: the picker and
+        // the picture come first, and everything that describes them comes after, so the picture
+        // is on screen however little room is left for the rest.
+        Row picture = new Row(); // in a row: the stretched column would blow it up to the width
+        picture.add(pane);
+        Row controls = Page.row(12);
         if (staticFrame < 0) {
             // Not while frozen: --video-frame hands the view a stream holding exactly one picture,
             // and a control that could replace it is a control that could make the capture depend
@@ -2293,45 +2392,17 @@ final class VideoScene {
             controls.add(openWindow);
         }
         controls.add(fitPicker);
-
-        // The sound controls get a row of their own, and the reason is arithmetic rather than
-        // taste: the row above is already about eight hundred points wide at its widest, which is
-        // this scene's whole window, and a Row does not wrap: a sixth control on it is a control
-        // pushed off the edge. They belong together anyway, because the second answers the
-        // question the first raises: whether there is sound, and then WHICH sound.
-        //
-        // Both are absent from every capture, for the reason the soundtrack switch always was: a
-        // screenshot run starts no audio device and therefore no player to change the track of.
-        Row soundControls = new Row();
-        soundControls.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
-        if (soundAllowed && staticFrame < 0) {
-            soundControls.add(soundToggle);
-            soundControls.add(new AudioTracks(open, view));
-        }
-
-        // ORDER MATTERS, and it is the picture that decides it. This tab lives in a pane whose body
-        // is a couple of hundred points tall at the window this repository captures at, and the
-        // prose that used to sit above the picture pushed it below the fold: what a reader saw on
-        // opening the tab was a twenty-point sliver of video, which reads as a decoder that does
-        // not work rather than as a panel that does not fit. So the picker and the picture come
-        // first, and everything that describes them comes after: a caption below a picture is
-        // still a caption, and a picture below three paragraphs is not a picture.
-        Column column = new Column();
-        column.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
         column.add(picker);
         column.add(picture);
         column.add(controls);
-        if (soundAllowed && staticFrame < 0) {
-            column.add(soundControls);
+        if (sounding) {
+            column.add(Page.row(12, soundToggle, new AudioTracks(open, view)));
         }
         column.add(caption);
-        if (details) {
-            // What the stream says of itself and how the player is keeping time: a lab's
-            // reading, which the application's page leaves to the documentation.
-            column.add(facts);
-            if (soundAllowed && staticFrame < 0) {
-                column.add(new PlayerStatus(open));
-            }
+        // What the stream says of itself and how the player is keeping time: a lab's reading.
+        column.add(facts);
+        if (sounding) {
+            column.add(new PlayerStatus(open));
         }
         if (staticFrame >= 0) {
             column.add(new Label("Frozen on picture " + staticFrame + " (--video-frame)")
@@ -2393,7 +2464,7 @@ final class VideoScene {
             return;
         }
         pane.showOpening(entry.label());
-        facts.setText("Opening " + entry.label() + "…");
+        facts.setText(Text.OPENING.get());
         long startedNanos = System.nanoTime();
         open.opening = entry.opener().start(new Pick(
                 opened -> {
@@ -2419,8 +2490,9 @@ final class VideoScene {
      * unplayable source puts one), and never a stack trace out of a worker.
      */
     private static void showFailure(VideoPane pane, Label facts, Throwable failure) {
-        pane.showNotice("This source did not open");
+        pane.showNotice(Text.CANNOT_PLAY.get());
         facts.setText(describeFailure(failure));
+        LOG.log(System.Logger.Level.INFO, "A video source did not open", failure);
     }
 
     /**
@@ -2441,8 +2513,9 @@ final class VideoScene {
             // short enough that the caption is below the fold (which the showcase's is), a
             // message down there is a message nobody reads, and an empty rectangle is all that is
             // left of it.
-            pane.showNotice(encodedUnavailableNotice());
+            pane.showNotice(Text.CANNOT_PLAY.get());
             facts.setText(encodedUnavailableDetail());
+            LOG.log(System.Logger.Level.INFO, encodedUnavailableDetail());
             return;
         }
         pane.showPicture();
