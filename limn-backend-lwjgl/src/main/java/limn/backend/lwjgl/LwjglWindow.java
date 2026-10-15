@@ -466,7 +466,7 @@ final class LwjglWindow implements WindowPeer {
         glfwSetScrollCallback(handle, (win, dx, dy) -> {
             if (input != null && !inputBlocked()) {
                 input.scrolled((float) dx, (float) dy,
-                        toLogical(eventCursorX()), toLogical(eventCursorY()));
+                        toLogical(eventCursorX()), toLogical(eventCursorY()), scrollGestureBegins());
             }
         });
         glfwSetKeyCallback(handle, (win, key, scancode, action, mods) -> {
@@ -2466,6 +2466,31 @@ final class LwjglWindow implements WindowPeer {
     }
 
     private static final boolean MACOS = Platform.current().isMacOs();
+
+    /** {@code NSEventTypeScrollWheel}. */
+    private static final long NS_SCROLL_WHEEL = 22;
+    /** {@code NSEventPhaseBegan} and {@code NSEventPhaseMayBegin}: fingers down on the surface. */
+    private static final long NS_PHASE_BEGAN = 1;
+    private static final long NS_PHASE_MAY_BEGIN = 32;
+
+    /**
+     * Whether the scroll being delivered begins a gesture, read from the event AppKit is
+     * dispatching: GLFW calls back from inside it and passes on no phase. A trackpad or a Magic
+     * Mouse marks the first event after the fingers come down, while the inertia of the swipe
+     * before may still be arriving with no pause a clock could see; a wheel that clicks marks
+     * nothing and is told apart by its pauses. Elsewhere there is nothing to read.
+     */
+    private static boolean scrollGestureBegins() {
+        if (!MACOS) {
+            return false;
+        }
+        long event = ObjC.msg(ObjC.msg(ObjC.cls("NSApplication"), "sharedApplication"), "currentEvent");
+        if (event == 0 || ObjC.msg(event, "type") != NS_SCROLL_WHEEL) {
+            return false;
+        }
+        long phase = ObjC.msg(event, "phase");
+        return (phase & (NS_PHASE_BEGAN | NS_PHASE_MAY_BEGIN)) != 0;
+    }
     // NSFloatingWindowLevel (GLFW's always-on-top) sits at 3, below the Dock
     // (kCGDockWindowLevel 20) and the menu bar (kCGMainMenuWindowLevel 24). To
     // cover them we jump to NSPopUpMenuWindowLevel (101): clear above both, still

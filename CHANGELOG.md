@@ -17,7 +17,9 @@ Maven Central say which number that was.
   a tree already did, at the start and the end of both axes.
   A gesture stays with the scroller it moved, as in browsers and on macOS: a flick that brings
   a list to its top, a trackpad's inertia included, does not carry on into the page, and the
-  next gesture, after a pause, does.
+  next gesture, after a pause, does. On macOS a new swipe is known by the phase AppKit gives
+  it, so it passes on even inside the inertia of the swipe before; `WindowInput` gains the
+  `scrolled` that carries it, for a backend that can tell.
 - A `ScrollView` scrolled before its first layout opens where it was scrolled to: the offset
   was clamped against content not yet measured, to the top, and lost.
 - A checkbox's focus ring sits concentric with its box at every density: its edges fell

@@ -44,6 +44,20 @@ public interface WindowInput {
     void scrolled(float deltaX, float deltaY, float x, float y);
 
     /**
+     * A scroll the platform says begins a new gesture: the fingers came down on a trackpad or on
+     * a mouse whose surface scrolls, inertia from the gesture before still running or not. A
+     * receiver keeps a gesture with the scroller it moved, and only the platform can say where one
+     * gesture ends and the next begins while inertia keeps the events coming; a backend that
+     * cannot say calls {@link #scrolled(float, float, float, float)}, and the receiver tells
+     * gestures apart by the pauses between them.
+     *
+     * @param gestureBegins whether this event is the first of a new gesture
+     */
+    default void scrolled(float deltaX, float deltaY, float x, float y, boolean gestureBegins) {
+        scrolled(deltaX, deltaY, x, y);
+    }
+
+    /**
      * A key went down, repeated or came up.
      *
      * @param key             the physical key, a {@code Keys} constant

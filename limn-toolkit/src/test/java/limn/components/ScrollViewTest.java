@@ -144,6 +144,44 @@ class ScrollViewTest extends ComponentTestBase {
         assertEquals(102, outer.offsetY(), EPS, "a new gesture at the inner view's top scrolls the page");
     }
 
+    /**
+     * On a trackpad the inertia of one swipe keeps the events coming with no pause, and a second
+     * swipe begins inside them: the platform marks its first event, and that one chooses its
+     * scroller afresh. Without the mark the page could never be reached while swipes followed
+     * each other faster than the inertia died.
+     */
+    @Test
+    void aGestureThePlatformSaysBeginsPassesOnInsideTheInertiaOfTheOneBefore() {
+        long[] now = {0};
+        ScrollView inner = new ScrollView(new Box(100, 400));
+        Column page = new Column();
+        page.add(new Box(100, 200));
+        page.add(new limn.scene.layout.SizedBox(100, 100, inner));
+        page.add(new Box(100, 600));
+        ScrollView outer = new ScrollView(page);
+        Scene scene = new Scene(outer, () -> now[0]);
+        scene.layoutPass(100, 300);
+        outer.scrollTo(0, 150);
+        inner.scrollTo(0, 60);
+        scene.layoutPass(100, 300);
+        float y = inner.localToSceneY() + 50;
+
+        drive(scene).scrolled(0, 1, 50, y, true); // a swipe up
+        drive(scene).inputBatchEnded();
+        for (int i = 0; i < 5; i++) { // and its inertia, every 16 ms
+            now[0] += 16_000_000L;
+            drive(scene).scrolled(0, 1, 50, y);
+            drive(scene).inputBatchEnded();
+        }
+        assertEquals(0, inner.offsetY(), EPS);
+        assertEquals(150, outer.offsetY(), EPS, "the inertia stayed with the inner view");
+
+        now[0] += 16_000_000L; // a second swipe, inside the inertia: no pause at all
+        drive(scene).scrolled(0, 1, 50, y, true);
+        drive(scene).inputBatchEnded();
+        assertEquals(102, outer.offsetY(), EPS, "the new gesture found the inner view at its top");
+    }
+
     @Test
     void aSidewaysDetentAtAnEndOfANestedViewGoesToTheViewHoldingIt() {
         ScrollView inner = new ScrollView(new Box(400, 50), true, false);

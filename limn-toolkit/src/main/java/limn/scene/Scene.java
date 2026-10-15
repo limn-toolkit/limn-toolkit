@@ -99,7 +99,7 @@ public final class Scene {
     private record RawButton(int button, boolean pressed, int mods, float x, float y, int clicks) implements Raw {
     }
 
-    private record RawScroll(float dx, float dy, float x, float y) implements Raw {
+    private record RawScroll(float dx, float dy, float x, float y, boolean began) implements Raw {
     }
 
     private record RawKey(int key, int layoutCodePoint, boolean pressed, boolean repeat, int mods) implements Raw {
@@ -3110,7 +3110,11 @@ public final class Scene {
             Scene.this.mouseButton(button, pressed, modifiers, x, y, clickCount);
         }
         @Override public void scrolled(float deltaX, float deltaY, float x, float y) {
-            Scene.this.scrolled(deltaX, deltaY, x, y);
+            Scene.this.scrolled(deltaX, deltaY, x, y, false);
+        }
+        @Override public void scrolled(float deltaX, float deltaY, float x, float y,
+                                       boolean gestureBegins) {
+            Scene.this.scrolled(deltaX, deltaY, x, y, gestureBegins);
         }
         @Override public void keyEvent(int key, int layoutCodePoint, boolean pressed, boolean repeat,
                                        int modifiers) {
@@ -3271,12 +3275,14 @@ public final class Scene {
         return lastClickCount;
     }
 
-    private void scrolled(float deltaX, float deltaY, float x, float y) {
+    private void scrolled(float deltaX, float deltaY, float x, float y, boolean began) {
         Raw last = queue.isEmpty() ? null : queue.get(queue.size() - 1);
-        if (last instanceof RawScroll s) {
-            queue.set(queue.size() - 1, new RawScroll(s.dx + deltaX, s.dy + deltaY, x, y));
+        // Never merged into the gesture before it: the first event of a gesture is where the
+        // scroller it latches to is chosen afresh.
+        if (last instanceof RawScroll s && !began) {
+            queue.set(queue.size() - 1, new RawScroll(s.dx + deltaX, s.dy + deltaY, x, y, s.began));
         } else {
-            queue.add(new RawScroll(deltaX, deltaY, x, y));
+            queue.add(new RawScroll(deltaX, deltaY, x, y, began));
         }
     }
 
@@ -3497,7 +3503,7 @@ public final class Scene {
                     handleButton(button);
                     invalidate = true;
                 } else if (raw instanceof RawScroll scroll) {
-                    if (!wheelStreamEnded()) {
+                    if (!wheelStreamEnded(scroll.began)) {
                         dispatchWheel(hitAt(scroll.x, scroll.y), new MouseEvent(
                                 MouseEvent.Type.WHEEL, scroll.x, scroll.y, -1, scroll.dx, scroll.dy,
                                 modifiers));
@@ -3779,10 +3785,14 @@ public final class Scene {
         }
     }
 
-    /** Whether this wheel event belongs to a stream a key has ended; a pause starts a new one. */
-    private boolean wheelStreamEnded() {
+    /**
+     * Whether this wheel event belongs to a stream a key has ended; a pause starts a new one, and
+     * so does an event the platform says begins a gesture, which a pause cannot tell while the
+     * inertia of the gesture before keeps the events coming.
+     */
+    private boolean wheelStreamEnded(boolean began) {
         long now = clock.getAsLong();
-        boolean continuing = wheelSeen && now - lastWheelNanos < WHEEL_STREAM_GAP_NANOS;
+        boolean continuing = !began && wheelSeen && now - lastWheelNanos < WHEEL_STREAM_GAP_NANOS;
         wheelSeen = true;
         lastWheelNanos = now;
         if (!continuing) {

@@ -195,6 +195,11 @@ public final class SceneDriver implements WindowInput {
     }
 
     @Override
+    public void scrolled(float deltaX, float deltaY, float x, float y, boolean gestureBegins) {
+        input.scrolled(deltaX, deltaY, x, y, gestureBegins);
+    }
+
+    @Override
     public void keyEvent(int key, int layoutCodePoint, boolean pressed, boolean repeat, int modifiers) {
         input.keyEvent(key, layoutCodePoint, pressed, repeat, modifiers);
     }
