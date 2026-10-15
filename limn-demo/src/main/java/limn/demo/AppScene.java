@@ -177,11 +177,11 @@ final class AppScene {
                 new Place(ShowcaseStrings.TAB_DATES, "components/#date-picker",
                         () -> scrolling(DatesScene.content())).icon("calendar"),
                 new Place(ShowcaseStrings.NAV_LISTS, "docs/lists-and-scrolling/#long-lists",
-                        () -> beside(ListScene.buildList(status::setText))).icon("list"),
+                        () -> scrolling(ListScene.content())).icon("list"),
                 new Place(ShowcaseStrings.NAV_TABLES, "docs/lists-and-scrolling/#tables",
                         () -> beside(TableScene.content())).icon("table"),
                 new Place(ShowcaseStrings.NAV_TREES, "docs/lists-and-scrolling/#trees",
-                        () -> scrolling(TreeScene.content())).icon("binary-tree"),
+                        () -> beside(TreeScene.content())).icon("binary-tree"),
                 new Place(ShowcaseStrings.NAV_DIALOGS, "docs/menus-and-dialogs/#dialogs",
                         () -> scrolling(DialogsScene.dialogs(status))).icon("app-window"),
                 new Place(ShowcaseStrings.TAB_MENUS, "docs/menus-and-dialogs/#menus",
@@ -765,6 +765,8 @@ final class AppScene {
         private final long traceStart = System.nanoTime();
 
         private final Widget<?> main;
+        /** What takes the keyboard back when Escape closes the panel: the main widget, or one inside it. */
+        private Widget<?> focusHome;
         private final limn.components.Surface panel;
         private boolean open;
         /** How far in the panel is, from 0 to 1, in time; eased when it is laid out. */
@@ -773,6 +775,7 @@ final class AppScene {
 
         Drawer(Widget<?> main, Widget<?> content) {
             this.main = main;
+            this.focusHome = main;
             // Square: it meets the box's edge on three sides, and a corner there would show the
             // table through it.
             this.panel = new limn.components.Surface(content)
@@ -784,6 +787,11 @@ final class AppScene {
 
         boolean isOpen() {
             return open;
+        }
+
+        /** Names the widget Escape hands the keyboard back to, when the main one wraps it. */
+        void focusHome(Widget<?> widget) {
+            this.focusHome = widget;
         }
 
         void setOpen(boolean value) {
@@ -865,7 +873,7 @@ final class AppScene {
         protected void onKeyEvent(limn.scene.event.KeyEvent event) {
             if (open && event.isPressed() && event.key() == limn.input.Keys.ESCAPE) {
                 setOpen(false);
-                main.requestFocus();
+                focusHome.requestFocus();
                 event.consume();
             }
         }
@@ -880,10 +888,19 @@ final class AppScene {
         Status[] statuses = Status.values();
         LocalDate first = LocalDate.of(2026, 9, 1);
         List<Order> orders = new ArrayList<>();
+        // The day the sample is read on, five days after the last order was placed: an unpaid
+        // order is overdue once its due date is behind it, and not before.
+        LocalDate today = first.plusDays(44);
         for (int i = 0; i < 48; i++) {
             LocalDate placed = first.plusDays(i * 40L / 48);
+            LocalDate due = placed.plusDays(new int[]{30, 7, 14}[i % 3]); // the order's payment terms
             Status status = statuses[(i * 7 + i / 5) % statuses.length];
-            orders.add(new Order(1042 + i, customers[i * 5 % customers.length], placed, placed.plusDays(30),
+            if (status == Status.OVERDUE && !due.isBefore(today)) {
+                status = Status.OPEN;
+            } else if (status == Status.OPEN && due.isBefore(today)) {
+                status = Status.OVERDUE;
+            }
+            orders.add(new Order(1042 + i, customers[i * 5 % customers.length], placed, due,
                     status, 180 + (i * 977 % 4200) + (i % 4) * 0.25, ""));
         }
         orders.get(0).notes = "Deliver to the side entrance; ask for the warehouse lead.";
@@ -911,14 +928,21 @@ final class AppScene {
             this.status = status;
             this.busy = busy;
             Column<Order> number = Column.<Order>text(ShowcaseStrings.ORDERS_ORDER, order -> "#" + order.number)
-                    .width(98).footerCount();
+                    .width(84);
+            // The footer's words for what the sum under Total adds up: "48 orders".
             Column<Order> customer = Column.<Order>text(ShowcaseStrings.ORDERS_CUSTOMER, order -> order.customer)
-                    .width(156).weight(1);
+                    .width(130).weight(1).footer(rows -> Text.COUNT.format(rows.size()));
             Column<Order> placed = Column.<Order, LocalDate>of(ShowcaseStrings.ORDERS_PLACED, order -> order.placed,
                     (date, locale) -> DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT).withLocale(locale)
-                            .format(date)).width(116);
-            Column<Order> state = Column.<Order>text(ShowcaseStrings.ORDERS_STATUS,
-                    order -> order.status.label.get()).width(108);
+                            .format(date)).width(118);
+            Column<Order> due = Column.<Order, LocalDate>of(ShowcaseStrings.ORDERS_DUE, order -> order.due,
+                    (date, locale) -> DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT).withLocale(locale)
+                            .format(date)).width(118);
+            // A pill per row, coloured by where the order stands; it sorts in the order an order
+            // moves through, not by the word, which changes with the language.
+            Column<Order> state = Column.<Order>widget(ShowcaseStrings.ORDERS_STATUS,
+                    order -> new StatusBadge(order.status))
+                    .comparator(java.util.Comparator.comparingInt(order -> order.status.ordinal())).width(128);
             Column<Order> total = Column.<Order>currency(ShowcaseStrings.ORDERS_TOTAL, order -> order.total,
                     Currency.getInstance("USD")).width(150).footerSum();
             // What a pointer opens an order with, where the keyboard has Enter: a button at the
@@ -937,13 +961,15 @@ final class AppScene {
                     }
                 });
                 return edit;
-            }).width(72).sortable(false);
-            table = new Table<>(List.of(number, customer, placed, state, total, open));
+            }).width(64).sortable(false);
+            table = new Table<>(List.of(number, customer, placed, due, state, total, open));
             // What a tool driving the application from outside finds these three by.
             table.setId("orders");
             table.setAccessibleName(ShowcaseStrings.NAV_ORDERS);
             table.setRows(shown);
             table.setSort(placed, SortOrder.DESCENDING);
+            // Several at once, with Shift and Ctrl or Command, for what is done to many orders.
+            table.setSelectionMode(SelectionMode.MULTI);
 
             // ---- the filter: what is typed, and the statuses chosen
             SearchField search = new SearchField();
@@ -957,6 +983,15 @@ final class AppScene {
             Label count = new Label("").setMuted(true);
             Runnable counted = () -> count.setText(ShowcaseStrings.ORDERS_COUNT.format(
                     String.valueOf(shown.size()), String.valueOf(all.size())));
+
+            // What the rows area says when the filter leaves nothing, and the way back.
+            Button clearFilter = new Button(Text.CLEAR_FILTER).setSecondary(true);
+            limn.scene.layout.Column nothing = new limn.scene.layout.Column();
+            nothing.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
+            nothing.add(new Label(Text.NO_MATCH).setStrong(true)
+                    .setIcon(limn.icons.tabler.TablerSystem.SEARCH.icon()));
+            nothing.add(clearFilter);
+            EmptyState rows = new EmptyState(table, nothing);
             filter = () -> {
                 String text = search.text().strip().toLowerCase(Locale.ROOT);
                 List<Status> wanted = new ArrayList<>();
@@ -973,17 +1008,50 @@ final class AppScene {
                 }
                 table.refresh();
                 counted.run();
+                rows.setEmpty(shown.isEmpty());
             };
             search.onChange(text -> filter.run());
             statuses.onSelect(filter);
+            clearFilter.onAction(() -> {
+                search.clear();
+                statuses.clearSelection();
+                filter.run();
+                search.requestFocus();
+            });
+
+            // What is done to every selected order at once. Enabled while one of them is not
+            // paid yet; the rows stay where they are, so the user sees each badge turn green.
+            Button markPaid = new Button(Text.MARK_PAID).setSecondary(true)
+                    .setIcon(limn.icons.tabler.TablerSystem.CHECKS.icon());
+            markPaid.setId("orders-mark-paid");
+            Runnable markable = () -> {
+                boolean any = false;
+                for (int row : table.selectedRows()) {
+                    any |= row < shown.size() && shown.get(row).status != Status.PAID;
+                }
+                markPaid.setEnabled(any);
+            };
+            markPaid.onAction(() -> {
+                int marked = 0;
+                for (int row : table.selectedRows()) {
+                    if (row < shown.size() && shown.get(row).status != Status.PAID) {
+                        shown.get(row).status = Status.PAID;
+                        marked++;
+                    }
+                }
+                table.refresh();
+                markable.run();
+                status.setText(Text.MARKED_PAID.format(marked));
+            });
 
             Row tools = new Row();
             tools.gap(10).crossAlignment(Flex.CrossAlignment.CENTER);
             tools.add(new Label(ShowcaseStrings.NAV_ORDERS).setRole(Label.Role.TITLE));
             tools.add(Expanded.spacer(1));
             tools.add(count);
-            tools.add(new SizedBox(200, SizedBox.UNSET, search));
-            tools.add(new SizedBox(200, SizedBox.UNSET, statuses));
+            tools.add(new SizedBox(196, SizedBox.UNSET, search));
+            tools.add(new SizedBox(170, SizedBox.UNSET, statuses));
+            tools.add(markPaid);
             tools.add(new Button(ShowcaseStrings.MENU_NEW_ORDER).onAction(this::openNewOrder));
 
             // ---- the order the cursor is on, in a form that never moves
@@ -1023,6 +1091,7 @@ final class AppScene {
             table.observeChanges((widget, change) -> {
                 if (change.aspect() == Change.Aspect.SELECTION) {
                     load.run();
+                    markable.run();
                 }
             });
             save.onAction(() -> {
@@ -1037,6 +1106,7 @@ final class AppScene {
                 order.due = dueField.date() == null ? order.due : dueField.date();
                 order.notes = notes.text();
                 table.refresh(); // the selection is by record, and stays on the order just saved
+                markable.run();
                 status.setText(ShowcaseStrings.ORDERS_SAVED.format(String.valueOf(order.number)));
             });
             revert.onAction(load);
@@ -1074,7 +1144,8 @@ final class AppScene {
             // The order is opened on demand: Enter, a double click or a row's button brings its
             // form in over the table's trailing edge, and the arrows go on walking the rows
             // with it open.
-            Drawer drawer = new Drawer(table, new ScrollView(new Padding(Insets.all(12), form)));
+            Drawer drawer = new Drawer(rows, new ScrollView(new Padding(Insets.all(12), form)));
+            drawer.focusHome(table);
             table.onActivate(row -> drawer.setOpen(true));
             close.onAction(() -> {
                 drawer.setOpen(false);
@@ -1157,6 +1228,82 @@ final class AppScene {
                 busy.setVisible(false);
                 status.setText(ShowcaseStrings.STATUS_LOADED.format(String.valueOf(count)));
             });
+        }
+
+        /** What the orders screen says beyond the strings the frame shares. */
+        static final class Text {
+            static final limn.i18n.PluralString COUNT = limn.i18n.PluralString.of(
+                    "showcase.orders.footerCount", "{0} order", "{0} orders");
+            static final I18nString NO_MATCH =
+                    new I18nString("showcase.orders.noMatch", "No orders match the filter");
+            static final I18nString CLEAR_FILTER =
+                    new I18nString("showcase.orders.clearFilter", "Clear filter");
+            static final I18nString MARK_PAID =
+                    new I18nString("showcase.orders.markPaid", "Mark as paid");
+            static final limn.i18n.PluralString MARKED_PAID = limn.i18n.PluralString.of(
+                    "showcase.orders.markedPaid", "{0} order marked as paid.", "{0} orders marked as paid.");
+
+            private Text() {
+            }
+        }
+    }
+
+    /**
+     * Where an order stands, as a pill tinted by it: the colour says it at a glance, the word
+     * says it to everyone, a reader and a person who does not tell green from red included.
+     */
+    static final class StatusBadge extends Widget<StatusBadge> {
+        private static final float PAD = 8;
+        private static final float DOT = 6;
+        private final Status status;
+        private final Label label;
+
+        StatusBadge(Status status) {
+            this.status = status;
+            this.label = new Label(status.label);
+            label.setRole(Label.Role.LABEL);
+            // Read as the word it shows: the pill is the label, and the word inside it is not
+            // said a second time.
+            label.setAccessibleIgnored(true);
+            setAccessibleRole(limn.accessibility.Accessible.Role.LABEL);
+            setAccessibleName(status.label);
+            add(label);
+        }
+
+        private limn.graphics.Color tone(Theme theme) {
+            return switch (status) {
+                case OPEN -> theme.info();
+                case SHIPPED -> theme.primary();
+                case PAID -> theme.success();
+                case OVERDUE -> theme.danger();
+                case CANCELLED -> theme.textMuted();
+            };
+        }
+
+        @Override
+        protected limn.scene.Size onMeasure(limn.scene.Constraints constraints) {
+            float room = Math.max(0, constraints.maxWidth() - 2 * PAD - DOT - PAD / 2);
+            limn.scene.Size text = label.measure(limn.scene.Constraints.loose(room, constraints.maxHeight()));
+            return constraints.constrain(text.width() + 2 * PAD + DOT + PAD / 2, text.height() + 4);
+        }
+
+        @Override
+        protected void onLayout() {
+            limn.scene.Size text = label.measure(limn.scene.Constraints.loose(
+                    Math.max(0, width() - 2 * PAD - DOT - PAD / 2), height()));
+            float start = PAD + DOT + PAD / 2;
+            float x = isRightToLeft() ? width() - start - text.width() : start;
+            label.layoutBox(x, (height() - text.height()) / 2, text.width(), text.height());
+        }
+
+        @Override
+        protected void onPaint(limn.graphics.Canvas canvas) {
+            Theme theme = Theme.of(this);
+            limn.graphics.Color tone = tone(theme);
+            canvas.fillRoundRect(0, 0, width(), height(), height() / 2,
+                    tone.withAlpha(theme.isDark() ? 0.26f : 0.16f));
+            float dotX = isRightToLeft() ? width() - PAD - DOT : PAD;
+            canvas.fillRoundRect(dotX, (height() - DOT) / 2, DOT, DOT, DOT / 2, tone);
         }
     }
 }

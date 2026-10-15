@@ -75,17 +75,20 @@ class ShowcaseBudgetTest {
         Scene scene = AppScene.create().scene();
         scene.layoutPass(WIDTH, HEIGHT);
         scene.renderFrame(canvas.canvas);
-        Work.within("widgets of the Showcase's first screen", count(scene.root()), 170); // 146 counted
-        Work.within("drawing commands of the Showcase's first frame", canvas.take(), 230); // 230
-        // 225 to 230 on 2026-10-15: the five menus of the menu bar carry access letters, and each
-        // underline under one is a line drawn.
+        // Raised on 2026-10-15 for growth that was meant: the orders gained a Due column, a status
+        // pill per row (a widget and its label, a tint, a dot and the word, where a word stood),
+        // a bulk "Mark as paid" button, a labelled footer and an empty state; and the five menus
+        // of the menu bar carry access letters, each underline a line drawn. 146 widgets, 195
+        // commands and 1 032 240 bytes before it.
+        Work.within("widgets of the Showcase's first screen", count(scene.root()), 210); // 182 counted
+        Work.within("drawing commands of the Showcase's first frame", canvas.take(), 310); // 274
         if (AllocationProbe.isSupported()) {
             long bytes = AllocationProbe.leastAllocatedBy(() -> {
                 Scene again = AppScene.create().scene();
                 again.layoutPass(WIDTH, HEIGHT);
                 again.renderFrame(canvas.canvas);
             }, 4);
-            Work.within("bytes allocated to build the Showcase and draw its first frame", bytes, 1_550_000); // 1 032 240
+            Work.within("bytes allocated to build the Showcase and draw its first frame", bytes, 1_850_000); // 1 464 824
         }
     }
 

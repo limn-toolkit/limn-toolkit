@@ -2,11 +2,14 @@ package limn.demo;
 
 import limn.components.SelectionMode;
 
+import limn.components.Button;
 import limn.components.Label;
 import limn.components.Theme;
 import limn.components.tree.Tree;
 import limn.concurrent.Ui;
 import limn.concurrent.Work;
+import limn.i18n.I18nString;
+import limn.icons.tabler.TablerDocument;
 import limn.scene.Insets;
 import limn.scene.Scene;
 import limn.scene.Widget;
@@ -15,13 +18,19 @@ import limn.scene.layout.Flex;
 import limn.scene.layout.Padding;
 import limn.scene.layout.SizedBox;
 
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import static limn.testing.SceneDriver.drive;
 
 /**
  * The tree, with the three things a still cannot show: a row that opens, a row that opens onto
  * children it has to fetch first, and a cursor that walks the outline with the arrow keys.
+ *
+ * <p>The Showcase shows it as a file explorer ({@link Explorer}); the scenes here are the
+ * captures', with a fixture of their own built to photograph widths, depth and loading.
  *
  * <p>Run with {@code --scene tree}. The right-hand branch is the deliberate one: "Remote" answers
  * {@code null} to {@code children} and hands back a {@link Work} that takes a beat, so pressing
@@ -81,9 +90,12 @@ final class TreeScene {
         return parts().scene();
     }
 
-    /** The page without a scene of its own, for the showcase's Tree page. */
+    /**
+     * The Showcase's Trees page: a file explorer, the tree on one side and what is selected in it
+     * on the other. The scenes below are the captures', and keep their own fixture.
+     */
     static Widget<?> content() {
-        return parts(false).page();
+        return Explorer.page();
     }
 
     /**
@@ -327,5 +339,388 @@ final class TreeScene {
         }
         return new Parts(page, scene, tree, deep, remote, trash, emptyFolder, docs,
                 docs.kids().get(0), docs.kids().get(0).kids().get(1));
+    }
+
+    // ------------------------------------------------------------------ the Showcase's explorer
+
+    /**
+     * A company's shared drive: folders and files in a tree on the start side, and on the end
+     * side what the selection is — one file's details, or how many and how large when several
+     * are chosen. One folder lives on a server, and opens onto a beat of loading.
+     */
+    static final class Explorer {
+
+        private Explorer() {
+        }
+
+        /** What the page says. */
+        static final class Text {
+            static final I18nString HINT = new I18nString("showcase.trees.hint",
+                    "Right arrow opens a folder, Left arrow closes it; Ctrl-click or Command-click adds a file.");
+            static final I18nString DRIVE = new I18nString("showcase.trees.drive", "Shared drive");
+            static final I18nString FOLDER = new I18nString("showcase.trees.folder", "Folder");
+            static final I18nString PDF = new I18nString("showcase.trees.pdf", "PDF document");
+            static final I18nString SHEET = new I18nString("showcase.trees.spreadsheet", "Spreadsheet");
+            static final I18nString DOCUMENT = new I18nString("showcase.trees.document", "Document");
+            static final I18nString IMAGE = new I18nString("showcase.trees.image", "Image");
+            static final I18nString ARCHIVE = new I18nString("showcase.trees.archive", "Compressed archive");
+            static final I18nString TEXT = new I18nString("showcase.trees.text", "Plain text");
+            static final I18nString SIZE = new I18nString("showcase.trees.size", "Size");
+            static final I18nString MODIFIED = new I18nString("showcase.trees.modified", "Modified");
+            static final I18nString LOCATION = new I18nString("showcase.trees.location", "Location");
+            static final I18nString KIND = new I18nString("showcase.trees.kind", "Kind");
+            static final I18nString OPEN = new I18nString("showcase.trees.open", "Open");
+            static final I18nString SHARE = new I18nString("showcase.trees.share", "Share");
+            static final I18nString NOTHING = new I18nString("showcase.trees.nothing", "Nothing selected");
+            static final limn.i18n.PluralString ITEMS = limn.i18n.PluralString.of(
+                    "showcase.trees.items", "{0} item selected", "{0} items selected");
+            static final limn.i18n.PluralString CHILDREN = limn.i18n.PluralString.of(
+                    "showcase.trees.children", "{0} item", "{0} items");
+            static final I18nString OPENED = new I18nString("showcase.trees.opened", "{0} opened.");
+            static final limn.i18n.PluralString OPENED_MANY = limn.i18n.PluralString.of(
+                    "showcase.trees.openedMany", "{0} file opened.", "{0} files opened.");
+            static final I18nString SHARED = new I18nString("showcase.trees.shared", "Link to {0} copied.");
+
+            private Text() {
+            }
+        }
+
+        /** A file or a folder. A class and not a record: two files may share a name and a size. */
+        static final class Entry {
+            final String name;
+            final long bytes;
+            final LocalDate modified;
+            final List<Entry> kids;
+            final boolean folder;
+            /** A folder on a server: its children are fetched when it first opens. */
+            final boolean remote;
+            Entry parent;
+
+            private Entry(String name, long bytes, LocalDate modified, List<Entry> kids, boolean folder,
+                          boolean remote) {
+                this.name = name;
+                this.bytes = bytes;
+                this.modified = modified;
+                this.kids = kids;
+                this.folder = folder;
+                this.remote = remote;
+                for (Entry kid : kids) {
+                    kid.parent = this;
+                }
+            }
+
+            static Entry file(String name, long kilobytes, LocalDate modified) {
+                return new Entry(name, kilobytes * 1024, modified, List.of(), false, false);
+            }
+
+            static Entry folder(String name, Entry... kids) {
+                LocalDate latest = LocalDate.of(2026, 1, 1);
+                for (Entry kid : kids) {
+                    latest = kid.modified.isAfter(latest) ? kid.modified : latest;
+                }
+                return new Entry(name, 0, latest, List.of(kids), true, false);
+            }
+
+            static Entry server(String name, LocalDate modified) {
+                return new Entry(name, 0, modified, List.of(), true, true);
+            }
+
+            /** The size of a file, or of everything a folder holds that is known. */
+            long size() {
+                long total = bytes;
+                for (Entry kid : kids) {
+                    total += kid.size();
+                }
+                return total;
+            }
+
+            String extension() {
+                int dot = name.lastIndexOf('.');
+                return folder || dot < 0 ? "" : name.substring(dot + 1).toLowerCase(Locale.ROOT);
+            }
+
+            I18nString kind() {
+                return switch (extension()) {
+                    case "" -> Text.FOLDER;
+                    case "pdf" -> Text.PDF;
+                    case "xlsx", "csv" -> Text.SHEET;
+                    case "docx" -> Text.DOCUMENT;
+                    case "jpg", "png", "svg" -> Text.IMAGE;
+                    case "zip" -> Text.ARCHIVE;
+                    default -> Text.TEXT;
+                };
+            }
+
+            limn.graphics.Icon icon() {
+                return switch (extension()) {
+                    case "" -> TablerDocument.FOLDER.icon();
+                    case "pdf" -> TablerDocument.FILE_TYPE_PDF.icon();
+                    case "xlsx", "csv" -> TablerDocument.FILE_SPREADSHEET.icon();
+                    case "docx" -> TablerDocument.FILE_TYPE_DOCX.icon();
+                    case "jpg" -> TablerDocument.FILE_TYPE_JPG.icon();
+                    case "png" -> TablerDocument.FILE_TYPE_PNG.icon();
+                    case "svg" -> TablerDocument.FILE_TYPE_SVG.icon();
+                    case "zip" -> TablerDocument.FILE_ZIP.icon();
+                    default -> TablerDocument.FILE_TEXT.icon();
+                };
+            }
+
+            java.util.function.Function<Theme, limn.graphics.Color> tone() {
+                return switch (extension()) {
+                    case "" -> Theme::primary;
+                    case "pdf" -> Theme::danger;
+                    case "xlsx", "csv" -> Theme::success;
+                    case "docx" -> Theme::info;
+                    case "jpg", "png", "svg" -> Theme::warning;
+                    default -> Theme::textMuted;
+                };
+            }
+
+            /** Where it is, from the top of the drive: "Finance › Invoices". */
+            String location() {
+                StringBuilder path = new StringBuilder();
+                for (Entry at = parent; at != null; at = at.parent) {
+                    path.insert(0, path.length() == 0 ? at.name : at.name + " › ");
+                }
+                return path.toString();
+            }
+        }
+
+        private static LocalDate day(int month, int day) {
+            return LocalDate.of(2026, month, day);
+        }
+
+        /** The drive's contents: what an office keeps, by client and by department. */
+        private static List<Entry> drive() {
+            List<Entry> invoicesOctober = new ArrayList<>();
+            for (int n = 1080; n <= 1089; n++) {
+                invoicesOctober.add(Entry.file("INV-" + n + ".pdf", 180 + n % 7 * 23, day(10, n - 1079)));
+            }
+            List<Entry> invoicesSeptember = new ArrayList<>();
+            for (int n = 1042; n <= 1047; n++) {
+                invoicesSeptember.add(Entry.file("INV-" + n + ".pdf", 170 + n % 5 * 31, day(9, (n - 1041) * 4)));
+            }
+            return List.of(
+                    Entry.folder("Clients",
+                            Entry.folder("Halcyon Foods",
+                                    Entry.file("Supply contract 2026.pdf", 412, day(3, 2)),
+                                    Entry.file("Price list Q4.xlsx", 88, day(9, 30)),
+                                    Entry.file("Kick-off notes.docx", 36, day(2, 14))),
+                            Entry.folder("Meridian Logistics",
+                                    Entry.file("Service agreement.pdf", 655, day(1, 20)),
+                                    Entry.file("Delivery schedule.xlsx", 120, day(10, 6))),
+                            Entry.folder("Vantage Cycles",
+                                    Entry.file("Quote 2026-118.pdf", 210, day(8, 19)))),
+                    Entry.folder("Finance",
+                            Entry.folder("Invoices",
+                                    Entry.folder("2026-09", invoicesSeptember.toArray(Entry[]::new)),
+                                    Entry.folder("2026-10", invoicesOctober.toArray(Entry[]::new))),
+                            Entry.file("Budget 2027.xlsx", 264, day(10, 9)),
+                            Entry.file("Expense policy.pdf", 318, day(4, 1)),
+                            Entry.file("Bank statements Q3.zip", 2_840, day(10, 3))),
+                    Entry.folder("Human resources",
+                            Entry.file("Employee handbook.pdf", 1_920, day(5, 12)),
+                            Entry.file("Holiday calendar 2027.xlsx", 44, day(9, 22)),
+                            Entry.file("Onboarding checklist.docx", 28, day(7, 8))),
+                    Entry.folder("Marketing",
+                            Entry.folder("Product photos",
+                                    Entry.file("chair-black.jpg", 2_310, day(6, 3)),
+                                    Entry.file("desk-oak.jpg", 2_780, day(6, 3)),
+                                    Entry.file("dock-pro.png", 940, day(6, 4))),
+                            Entry.file("Autumn brochure.pdf", 5_120, day(9, 1)),
+                            Entry.file("Logo.svg", 12, day(1, 9)),
+                            Entry.file("Press release.docx", 52, day(9, 15))),
+                    Entry.server("Archive", day(1, 31)),
+                    Entry.file("Read me.txt", 2, day(1, 5)));
+        }
+
+        /** What the server answers when its folder opens. */
+        private static List<Entry> archive(Entry parent) {
+            List<Entry> years = List.of(Entry.file("2024.zip", 48_200, day(1, 31)),
+                    Entry.file("2025.zip", 61_700, day(1, 31)),
+                    Entry.folder("Old contracts",
+                            Entry.file("Lease 2019.pdf", 730, day(1, 31)),
+                            Entry.file("Insurance 2021.pdf", 410, day(1, 31))));
+            for (Entry year : years) {
+                year.parent = parent;
+            }
+            return years;
+        }
+
+        private static String size(long bytes) {
+            double kb = bytes / 1024.0;
+            return kb < 1024 ? limn.i18n.NumberFormats.number(0).apply(Math.max(1, kb)) + " KB"
+                    : limn.i18n.NumberFormats.number(1).apply(kb / 1024) + " MB";
+        }
+
+        private static String date(LocalDate date) {
+            return java.time.format.DateTimeFormatter.ofLocalizedDate(java.time.format.FormatStyle.MEDIUM)
+                    .withLocale(limn.i18n.I18n.locale()).format(date);
+        }
+
+        static Widget<?> page() {
+            List<Entry> roots = drive();
+            Map<Entry, List<Entry>> fetched = new java.util.HashMap<>();
+            Tree<Entry> tree = new Tree<>(new Tree.Model<Entry>() {
+                @Override
+                public List<Entry> roots() {
+                    return roots;
+                }
+
+                @Override
+                public List<Entry> children(Entry node) {
+                    // A folder on the server says it has not been read yet by answering null.
+                    return node.remote ? fetched.get(node) : node.kids;
+                }
+
+                @Override
+                public boolean isLeaf(Entry node) {
+                    return !node.folder;
+                }
+
+                @Override
+                public Work<List<Entry>> load(Entry node) {
+                    return Ui.work(progress -> {
+                        try {
+                            Thread.sleep(Long.getLong("limn.demo.treeLoadMillis", 600));
+                        } catch (InterruptedException interrupted) {
+                            Thread.currentThread().interrupt();
+                        }
+                        List<Entry> read = archive(node);
+                        Ui.post(() -> fetched.put(node, read));
+                        return read;
+                    });
+                }
+
+                @Override
+                public float maxCellWidth() {
+                    return 260;
+                }
+
+                @Override
+                public Widget<?> cellFor(Entry node) {
+                    Label name = new Label(node.name).setOverflow(Label.Overflow.ELLIPSIS);
+                    limn.scene.layout.Row row = new limn.scene.layout.Row();
+                    row.gap(8).crossAlignment(Flex.CrossAlignment.CENTER);
+                    row.add(new Glyph(18).bind(node.icon(), node.tone()));
+                    row.add(limn.scene.layout.Expanded.of(name));
+                    if (!node.folder) {
+                        Label bytes = new Label(size(node.bytes)).setMuted(true);
+                        bytes.setRole(Label.Role.LABEL);
+                        row.add(bytes);
+                    }
+                    // Room at the end, the right inset being the trailing one in either direction.
+                    return new Padding(new Insets(0, 12, 0, 0), row);
+                }
+            });
+            tree.setSelectionMode(SelectionMode.MULTI);
+            tree.setAccessibleName(Text.DRIVE);
+            Entry finance = roots.get(1);
+            Entry invoices = finance.kids.get(0);
+            Entry october = invoices.kids.get(1);
+            tree.expand(finance);
+            tree.expand(invoices);
+            tree.expand(october);
+            // Two invoices chosen together, so the page opens on a selection of several.
+            tree.setSelectedNodes(List.of(october.kids.get(7), october.kids.get(8)));
+
+            // ---- what is selected, on the end side
+            Glyph bigIcon = new Glyph(40);
+            Label title = new Label("").setRole(Label.Role.TITLE).setWrap(true);
+            Label kind = new Label("").setMuted(true);
+            Label sizeValue = new Label("");
+            Label modifiedValue = new Label("");
+            Label locationValue = new Label("").setWrap(true);
+            limn.scene.layout.Grid facts = new limn.scene.layout.Grid(2);
+            facts.gap(16).rowGap(10);
+            facts.expandedColumn(1);
+            facts.add(new Label(Text.SIZE).setMuted(true));
+            facts.add(sizeValue);
+            facts.add(new Label(Text.MODIFIED).setMuted(true));
+            facts.add(modifiedValue);
+            facts.add(new Label(Text.LOCATION).setMuted(true));
+            facts.add(locationValue);
+            Label names = new Label("").setMuted(true).setWrap(true);
+
+            Button open = new Button(Text.OPEN);
+            Button share = new Button(Text.SHARE).setSecondary(true);
+
+            Runnable describe = () -> {
+                List<Entry> chosen = tree.selectedNodes();
+                boolean one = chosen.size() == 1;
+                Entry first = chosen.isEmpty() ? null : chosen.get(0);
+                long total = 0;
+                LocalDate latest = null;
+                StringBuilder list = new StringBuilder();
+                for (Entry entry : chosen) {
+                    total += entry.size();
+                    latest = latest == null || entry.modified.isAfter(latest) ? entry.modified : latest;
+                    list.append(list.length() == 0 ? "" : ", ").append(entry.name);
+                }
+                bigIcon.bind(first == null ? TablerDocument.FOLDERS.icon() : one ? first.icon()
+                        : TablerDocument.FILES.icon(), first == null || !one ? Theme::textMuted : first.tone());
+                title.setText(first == null ? Text.NOTHING.get() : one ? first.name
+                        : Text.ITEMS.format(chosen.size()));
+                kind.setText(one ? (first.folder && !first.remote
+                        ? first.kind().get() + " · " + Text.CHILDREN.format(first.kids.size())
+                        : first.kind().get()) : "");
+                kind.setVisible(one);
+                sizeValue.setText(size(total));
+                modifiedValue.setText(latest == null ? "" : date(latest));
+                locationValue.setText(first == null ? "" : first.location());
+                facts.setVisible(first != null);
+                names.setText(one ? "" : list.toString());
+                names.setVisible(chosen.size() > 1);
+                open.setEnabled(first != null);
+                share.setEnabled(first != null);
+            };
+            tree.observeChanges((source, change) -> {
+                if (change.aspect() == limn.scene.Change.Aspect.SELECTION) {
+                    describe.run();
+                }
+            });
+            limn.i18n.I18n.observeChanges(describe);
+            open.onAction(() -> {
+                List<Entry> chosen = tree.selectedNodes();
+                Page.report(chosen.size() == 1 ? Text.OPENED.format(chosen.get(0).name)
+                        : Text.OPENED_MANY.format(chosen.size()));
+            });
+            share.onAction(() -> {
+                List<Entry> chosen = tree.selectedNodes();
+                if (!chosen.isEmpty()) {
+                    Page.report(Text.SHARED.format(chosen.get(0).name));
+                }
+            });
+            tree.onActivate(entry -> {
+                if (!entry.folder) {
+                    Page.report(Text.OPENED.format(entry.name));
+                }
+            });
+            describe.run();
+
+            Column details = new Column();
+            details.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
+            details.add(Page.row(14, bigIcon, limn.scene.layout.Expanded.of(title)));
+            details.add(kind);
+            details.add(limn.components.Separator.horizontal());
+            details.add(facts);
+            details.add(names);
+            limn.scene.layout.Row actions = Page.row(8, open, share);
+            details.add(actions);
+
+            limn.scene.layout.Row panes = new limn.scene.layout.Row();
+            panes.gap(16).crossAlignment(Flex.CrossAlignment.STRETCH);
+            panes.add(new SizedBox(380, SizedBox.UNSET, new HairlineFrame(tree)));
+            // The card as tall as what it says, at the top of its side.
+            Column side = new Column();
+            side.crossAlignment(Flex.CrossAlignment.STRETCH);
+            side.add(Page.card(details));
+            panes.add(limn.scene.layout.Expanded.of(side, 1));
+
+            Column page = Page.column();
+            page.add(Page.hint(Text.HINT));
+            page.add(limn.scene.layout.Expanded.of(panes, 1));
+            return page;
+        }
     }
 }
