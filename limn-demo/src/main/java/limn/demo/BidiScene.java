@@ -2,59 +2,80 @@ package limn.demo;
 
 import limn.components.Label;
 import limn.components.ScrollView;
-import limn.components.Spinner;
+import limn.components.Surface;
 import limn.components.TextField;
 import limn.components.Theme;
 import limn.graphics.Font;
+import limn.i18n.I18nString;
 import limn.scene.Insets;
+import limn.scene.LayoutDirection;
 import limn.scene.Scene;
 import limn.scene.Widget;
 import limn.scene.layout.Column;
+import limn.scene.layout.Expanded;
 import limn.scene.layout.Flex;
 import limn.scene.layout.Padding;
 import limn.scene.layout.Row;
 import limn.scene.layout.SizedBox;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 /**
- * The four scripts a per-code-point pipeline cannot draw, and the algorithm that puts them in
- * order ({@code --scene bidi}).
+ * Text in the scripts a per-code-point pipeline cannot draw, the algorithm that puts mixed
+ * directions in order, and customer cards that each declare their customer's language
+ * ({@code --scene bidi}).
  *
- * <p>Every specimen here is a case where one code point in does not mean one glyph out, in
- * that order, at that place: a letter whose glyph comes from its neighbours, a mark placed by
- * the font rather than by an advance, three characters that become one glyph, a vowel drawn
- * before the consonant it is written after, and a line laid out in two directions at once.
- * Each carries a caption saying which of those it is, because a specimen nobody can read is a
- * specimen nobody can check.
+ * <p>Every specimen is a case where one code point in does not mean one glyph out, in that order,
+ * at that place: a letter whose glyph comes from its neighbours, a mark placed by the font rather
+ * than by an advance, three characters that become one glyph, a vowel drawn before the consonant
+ * it is written after, marks stacked two high, and a line laid out in two directions at once.
  *
- * <p><b>What this screen deliberately does not show is mirroring.</b> The Arabic and Hebrew is
- * correct right-to-left text sitting in a left-to-right layout: the specimens start at the left
- * edge, and the fields keep their unmirrored frames. Direction as a layout axis is a design of
- * its own rather than a loose end here, because it reaches every component; correct text inside
- * an unmirrored screen is the intermediate state chosen over shipping neither half.
+ * <p>A picture is the wrong instrument for bidi (it looks right while being wrong), which is why
+ * the caret, the selection boxes and the glyph counts are pinned headlessly instead. What a human
+ * gets here is the part a test cannot have: whether the shapes are the ones a reader of the script
+ * expects, and whether a caret dragged through the editable fields lands where a hand meant it to.
  *
- * <p>A picture is the wrong instrument for bidi — it looks right while being wrong — which is
- * why the caret, the selection boxes and the glyph counts are pinned headlessly instead. What a
- * human gets from this screen is the part a test cannot have: whether the shapes are the ones a
- * reader of the script expects, and whether a caret dragged through them lands where a hand
- * meant it to. Hence the editable fields. The specimens can be read; those two can be argued
- * with.
- *
- * <p>One block is a specimen of <em>resolution</em> rather than of shaping: the same bundle
- * string and the same spinner value twice, once inheriting the window's locale and once under
- * a column that declares Arabic. Every visible difference between the halves is the
- * declaration at work, and in the showcase's Scripts page the language picker makes the
- * other half of the claim — it moves the inheriting pair and cannot reach the pinned one.
+ * <p>Each customer card declares its customer's locale, and the right-to-left ones their direction
+ * too: the card's "Notes" caption is a string of the showcase's bundle, so it reads in the
+ * customer's language wherever the showcase ships that language, whatever the window's own.
  */
 final class BidiScene {
+
+    /** The strings of this page, ready for translation; the specimens are data and stay literal. */
+    static final class Text {
+        static final I18nString TYPOGRAPHY = new I18nString("showcase.text.typography", "Typography");
+        static final I18nString REGULAR = new I18nString("showcase.text.regular", "Regular");
+        static final I18nString BOLD = new I18nString("showcase.text.bold", "Bold");
+        static final I18nString ITALIC = new I18nString("showcase.text.italic", "Italic");
+        static final I18nString BOLD_ITALIC = new I18nString("showcase.text.boldItalic", "Bold italic");
+
+        static final I18nString SCRIPTS = new I18nString("showcase.text.scripts", "Scripts");
+        static final I18nString MIXED = new I18nString("showcase.text.mixed", "Mixed directions");
+        static final I18nString CUSTOMERS = new I18nString("showcase.text.customers", "Customers");
+
+        static final I18nString ARABIC = new I18nString("showcase.text.arabic", "Arabic");
+        static final I18nString HEBREW = new I18nString("showcase.text.hebrew", "Hebrew");
+        static final I18nString DEVANAGARI = new I18nString("showcase.text.devanagari", "Devanagari");
+        static final I18nString THAI = new I18nString("showcase.text.thai", "Thai");
+        static final I18nString JAPANESE = new I18nString("showcase.text.japanese", "Japanese");
+        static final I18nString KOREAN = new I18nString("showcase.text.korean", "Korean");
+        static final I18nString CHINESE = new I18nString("showcase.text.chinese", "Chinese");
+        static final I18nString RUSSIAN = new I18nString("showcase.text.russian", "Russian");
+        static final I18nString UKRAINIAN = new I18nString("showcase.text.ukrainian", "Ukrainian");
+        static final I18nString VIETNAMESE = new I18nString("showcase.text.vietnamese", "Vietnamese");
+
+        private Text() {
+        }
+    }
 
     // The Arabic and Hebrew pairs are spelled in escapes because there the mark IS the fixture.
     // A combining mark inside a literal is invisible in any editor that renders it correctly —
     // it lands on the letter before it — so "vocalized" and "bare" would read as the same
-    // string in the source, and the wrong one would never be noticed. The Devanagari and Thai
-    // words stay literal and name their code points above instead: there the marks are part of
-    // the word rather than the difference being shown.
+    // string in the source, and the wrong one would never be noticed. The other words stay
+    // literal and name their code points above instead: there the marks are part of the word
+    // rather than the difference being shown.
 
     /** {@code al-arabiyya}: seven code points, ten glyphs, chosen from the company they keep. */
     private static final String AL_ARABIYYA = "العربية";
@@ -66,17 +87,17 @@ final class BidiScene {
     private static final String RIYAL = "ريال";
 
     /** {@code kataba} ("he wrote"): kaf, fatha, teh, fatha, beh, fatha — three letters, three marks. */
-    private static final String KATABA = "\u0643\u064E\u062A\u064E\u0628\u064E";
+    private static final String KATABA = "كَتَبَ";
 
     /** The same word unvocalized: kaf, teh, beh. The marks are the only difference. */
-    private static final String KATABA_BARE = "\u0643\u062A\u0628";
+    private static final String KATABA_BARE = "كتب";
 
     /** {@code shalom} with niqqud: shin, qamats, shin-dot, lamed, vav, holam, final mem. */
     private static final String SHALOM_POINTED =
-            "\u05E9\u05B8\u05C1\u05DC\u05D5\u05B9\u05DD";
+            "שָׁלוֹם";
 
     /** The same word unpointed: shin, lamed, vav, final mem. Four letters, four glyphs. */
-    private static final String SHALOM = "\u05E9\u05DC\u05D5\u05DD";
+    private static final String SHALOM = "שלום";
 
     /** ka, virama, ssa: the ksha conjunct, three code points that shape into one glyph. */
     private static final String KSHA = "क्ष";
@@ -93,40 +114,69 @@ final class BidiScene {
     /** {@code phasa thai}: seven code points carrying no mark, so the plain Thai case. */
     private static final String PHASA_THAI = "ภาษาไทย";
 
+    /** Kanji, hiragana and katakana: three writing systems in one Japanese line. */
+    private static final String NIHONGO = "日本語 ひらがな カタカナ";
+
+    /** Hangul: each block a syllable composed of two or three jamo. */
+    private static final String HANGUL = "한국어 한글";
+
+    /** The same two words in simplified and in traditional characters. */
+    private static final String ZHONGWEN = "简体中文 繁體中文";
+
+    /** Cyrillic, Russian. */
+    private static final String RUSSKIY = "Русский язык";
+
+    /** Cyrillic, Ukrainian: ї and є are letters Russian does not have. */
+    private static final String UKRAINSKA = "Українська мова, Київ, Євген";
+
+    /** Vietnamese: a vowel can carry two marks, one over the other (ễ, ượ, ặ, ổ). */
+    private static final String TIENG_VIET = "Tiếng Việt: Nguyễn, Phượng, Đặng, Phổ";
+
     /** The Latin run the mixed lines and the editable fields put inside right-to-left text. */
     private static final String ISLAND = "Limn UI 2026";
 
     /**
-     * The locale the pinned pair declares: the one whose digits make the pin visible.
-     *
-     * <p>Egypt and not a bare {@code ar}, since 2026-09-21: CLDR makes <b>Latin</b> the Arabic
-     * default and names twenty-three regions that write Arabic-Indic digits, so a region is what
-     * makes this pair show anything at all. The toolkit's table said the opposite until that
-     * date, and this scene was one of the places that made the error look intentional.
+     * The Arabic customer's locale: Egypt and not a bare {@code ar}, since CLDR makes Latin the
+     * Arabic default and names twenty-three regions that write Arabic-Indic digits.
      */
-    private static final Locale ARABIC = Locale.forLanguageTag("ar-EG");
+    private static final Locale ARABIC_EGYPT = Locale.forLanguageTag("ar-EG");
 
-    /** What both spinners hold, so the digits are the only thing the declaration moves. */
-    private static final double PINNED_VALUE = 42;
-
-    /** Wide enough for a 24 pt specimen, narrow enough to leave the paragraphs their column. */
-    private static final float SPECIMEN_COLUMN = 400;
-
-    /** The paragraph column, and therefore the width every wrap decision here is made against. */
-    private static final float PARAGRAPH_COLUMN = 320;
-
-    /** Between the two columns, and under the subtitle that spans both. */
-    private static final float COLUMN_GAP = 24;
-
-    // Fixed sizes rather than Label roles, and one shared instance each: these are specimens of
-    // glyph shape, not of the control ramp, and a mark has to be big enough to see. Sharing the
-    // instance also keeps every label on one entry of the font memo.
+    /** Fixed sizes rather than Label roles: specimens of glyph shape, big enough to see a mark. */
     private static final Font SPECIMEN = Font.of(24);
     private static final Font PARAGRAPH = Font.of(14);
+
+    /** What the standalone fields are sized to. */
+    private static final float FIELD_WIDTH = 320;
 
     /** The scene, and the selection to install once there is a layout to put it in. */
     record Built(Scene scene, Runnable afterLayout) {
     }
+
+    /** One customer of the sample company, in their own script and language. */
+    private record Customer(String locale, String name, String city, String note) {
+    }
+
+    private static final List<Customer> CUSTOMERS = List.of(
+            new Customer("ar-EG", "شركة النيل للتوريدات", "القاهرة",
+                    "يفضّل التسليم صباحًا، وتُرسل الفواتير إلى المكتب الرئيسي في نهاية كل شهر."),
+            new Customer("he", "אורן ציוד משרדי בע״מ", "חיפה",
+                    "מעדיפים משלוח בבוקר; את החשבוניות שולחים למשרד הראשי בסוף כל חודש."),
+            new Customer("hi", "गंगा ट्रेडर्स", "पुणे",
+                    "सुबह डिलीवरी पसंद करते हैं; बिल हर महीने के अंत में मुख्य कार्यालय भेजे जाते हैं।"),
+            new Customer("th", "บริษัท ทองคำ ซัพพลาย จำกัด", "เชียงใหม่",
+                    "ต้องการให้จัดส่งในช่วงเช้า และส่งใบแจ้งหนี้ไปที่สำนักงานใหญ่ทุกสิ้นเดือน"),
+            new Customer("ja", "株式会社みどり商会", "大阪市北区",
+                    "午前中の配達を希望。請求書は毎月末に本社へ送付してください。"),
+            new Customer("ko", "푸른물산 주식회사", "부산광역시",
+                    "오전 배송을 선호합니다. 청구서는 매월 말 본사로 보내 주세요."),
+            new Customer("zh-Hans", "华东办公用品有限公司", "杭州市",
+                    "希望上午送货。发票请于每月月底寄至总部。"),
+            new Customer("ru", "ООО «Северный склад»", "Новосибирск",
+                    "Предпочитает доставку утром; счета отправлять в головной офис в конце каждого месяца."),
+            new Customer("uk", "ТОВ «Галицький постачальник»", "Київ",
+                    "Надає перевагу доставці зранку; рахунки надсилати до головного офісу наприкінці місяця."),
+            new Customer("vi", "Công ty TNHH Thiết bị Phương Đông", "Thành phố Hồ Chí Minh",
+                    "Ưu tiên giao hàng buổi sáng; hóa đơn gửi về trụ sở chính vào cuối mỗi tháng."));
 
     private BidiScene() {
     }
@@ -143,11 +193,9 @@ final class BidiScene {
      */
     static Built create(boolean lightTheme) {
         Theme.setCurrent(lightTheme ? Theme.light() : Theme.dark());
-        TextField arabic = new TextField().setPreferredWidth(PARAGRAPH_COLUMN)
-                .setText(MARHABA + " " + ISLAND + " " + AL_ARABIYYA);
-        TextField hebrew = new TextField().setPreferredWidth(PARAGRAPH_COLUMN)
-                .setText(SHALOM + " " + ISLAND);
-        Scene scene = new Scene(new Padding(Insets.all(20), content(arabic, hebrew)));
+        TextField arabic = arabicField();
+        TextField hebrew = hebrewField();
+        Scene scene = new Scene(new Padding(Insets.all(20), new ScrollView(page(arabic, hebrew))));
         scene.setBackground(Theme.current().background());
         scene.requestFocus(arabic);
         // Derived from the fixtures rather than written down: editing either constant would
@@ -158,148 +206,120 @@ final class BidiScene {
     }
 
     /**
-     * The same specimens as {@code --scene bidi}, as a body the showcase can host in a tab.
+     * The same page as {@code --scene bidi}, as a page of the showcase.
      *
      * <p>It builds its own fields rather than sharing the scene's: the standalone scene focuses one
-     * of them and installs a selection across its direction boundary, and a tab that inherited that
+     * of them and installs a selection across its direction boundary, and a page that inherited that
      * would open with a selection nobody made.
      */
     static Widget<?> tabContent() {
-        TextField arabic = new TextField().setPreferredWidth(PARAGRAPH_COLUMN)
-                .setText(MARHABA + " " + ISLAND + " " + AL_ARABIYYA);
-        TextField hebrew = new TextField().setPreferredWidth(PARAGRAPH_COLUMN)
-                .setText(SHALOM + " " + ISLAND);
-        return page(arabic, hebrew);
+        return page(arabicField(), hebrewField());
     }
 
-    private static Widget<?> content(TextField arabic, TextField hebrew) {
-        // The two columns are sized to fit the demo window without scrolling, but a larger
-        // control-size step or a face with taller metrics grows them; scrolling is what keeps the
-        // last specimen reachable rather than clipped off the bottom.
-        return new ScrollView(page(arabic, hebrew));
+    private static TextField arabicField() {
+        return new TextField().setPreferredWidth(FIELD_WIDTH).setText(MARHABA + " " + ISLAND + " " + AL_ARABIYYA);
+    }
+
+    private static TextField hebrewField() {
+        return new TextField().setPreferredWidth(FIELD_WIDTH).setText(SHALOM + " " + ISLAND);
     }
 
     private static Widget<?> page(TextField arabic, TextField hebrew) {
-        Column page = new Column();
-        page.gap(12).crossAlignment(Flex.CrossAlignment.START);
-        page.add(new SizedBox(SPECIMEN_COLUMN + COLUMN_GAP + PARAGRAPH_COLUMN, SizedBox.UNSET,
-                new Label("Right-to-left text, shaped and ordered, in a left-to-right screen.")
-                        .setMuted(true).setWrap(true)));
+        Column page = Page.column();
 
-        Row columns = new Row();
-        columns.gap(COLUMN_GAP).crossAlignment(Flex.CrossAlignment.START);
-        columns.add(new SizedBox(SPECIMEN_COLUMN, SizedBox.UNSET, specimens()));
-        columns.add(new SizedBox(PARAGRAPH_COLUMN, SizedBox.UNSET, paragraphs(arabic, hebrew)));
-        page.add(columns);
+        page.add(Page.firstSection(Text.TYPOGRAPHY));
+        page.add(Page.row(28,
+                new Label(Text.REGULAR),
+                new Label(Text.BOLD).setStrong(true),
+                new Label(Text.ITALIC).setItalic(true),
+                new Label(Text.BOLD_ITALIC).setStrong(true).setItalic(true)));
+
+        page.add(Page.section(Text.SCRIPTS));
+        // The pair is the assertion in two of these: marks add ink and no width, so the vocalized
+        // word and the bare one are the same length on screen.
+        page.add(pairs(List.of(
+                specimen(Text.ARABIC, "ar", AL_ARABIYYA + "   " + KATABA + "   " + KATABA_BARE),
+                specimen(Text.HEBREW, "he", SHALOM_POINTED + "   " + SHALOM),
+                specimen(Text.DEVANAGARI, "hi", KSHA + "   " + HINDI),
+                specimen(Text.THAI, "th", NAM + "   " + PIN + "   " + PHASA_THAI),
+                specimen(Text.JAPANESE, "ja", NIHONGO),
+                specimen(Text.KOREAN, "ko", HANGUL),
+                specimen(Text.CHINESE, "zh", ZHONGWEN),
+                specimen(Text.RUSSIAN, "ru", RUSSKIY),
+                specimen(Text.UKRAINIAN, "uk", UKRAINSKA),
+                specimen(Text.VIETNAMESE, "vi", TIENG_VIET)), 18));
+
+        page.add(Page.section(Text.MIXED));
+        Column lines = new Column();
+        lines.gap(6).crossAlignment(Flex.CrossAlignment.START);
+        // Three runs at levels 0 / 1 / 0, and the same thing the other way up: here the first
+        // strong character is Arabic, so the paragraph runs right to left and the Latin keeps its
+        // own direction inside it.
+        lines.add(new Label("Total: 42 " + RIYAL + " (SAR)").setFont(SPECIMEN));
+        lines.add(new Label(MARHABA + " " + ISLAND + " " + AL_ARABIYYA).setFont(SPECIMEN));
+        Column fields = new Column();
+        fields.gap(8).crossAlignment(Flex.CrossAlignment.STRETCH);
+        fields.add(arabic);
+        fields.add(hebrew);
+        page.add(pairs(List.of(lines, fields), 18));
+
+        page.add(Page.section(Text.CUSTOMERS));
+        List<Widget<?>> cards = new ArrayList<>();
+        for (Customer customer : CUSTOMERS) {
+            cards.add(card(customer));
+        }
+        page.add(pairs(cards, Page.GAP));
         return page;
     }
 
-    /** One word per property, each under the property it demonstrates. */
-    private static Widget<?> specimens() {
-        Column column = new Column();
-        column.gap(10).crossAlignment(Flex.CrossAlignment.START);
-        column.add(specimen("Arabic — 7 code points, 10 glyphs, chosen by the neighbours",
-                AL_ARABIYYA));
-        // The pair is the assertion: the marks add ink and no width, so the vocalized word and
-        // the bare one are the same length on screen.
-        column.add(specimen("Arabic marks — one word vocalized and bare; the font places them",
-                KATABA + "   " + KATABA_BARE));
-        column.add(specimen("Hebrew — right to left, niqqud at zero advance",
-                SHALOM_POINTED + "   " + SHALOM));
-        column.add(specimen("Bidi — one line, three runs at levels 0 / 1 / 0",
-                "Total: 42 " + RIYAL + " (SAR)"));
-        // The same thing the other way up. Here the first strong character is Arabic, so the
-        // paragraph itself runs right-to-left and the Latin keeps its own direction inside it.
-        column.add(specimen("Bidi — an Arabic line with a Latin island inside it",
-                MARHABA + " " + ISLAND + " " + AL_ARABIYYA));
-        column.add(specimen("Devanagari — ksha: 3 code points, 1 glyph", KSHA));
-        column.add(specimen("Devanagari — the i-matra is drawn before its consonant", HINDI));
-        column.add(specimen("Thai — sara am is one code point and two glyphs",
-                NAM + "   " + PIN + "   " + PHASA_THAI));
-        return column;
-    }
-
-    /** The editable pair, then one wrapped paragraph per script. */
-    private static Widget<?> paragraphs(TextField arabic, TextField hebrew) {
-        Column column = new Column();
-        column.gap(10).crossAlignment(Flex.CrossAlignment.START);
-        column.add(caption("Editable — click into it, drag a selection, walk it with the arrows"));
-        column.add(arabic);
-        column.add(hebrew);
-
-        // Wrapped, unlike its sibling captions: the second half is the instruction — switch
-        // the window's language and watch which pair follows — and an ellipsis eats it.
-        column.add(new SizedBox(PARAGRAPH_COLUMN, SizedBox.UNSET,
-                caption("Pinned locale — the right pair declares Arabic; the window's"
-                        + " language moves only the left").setWrap(true)));
-        column.add(pinnedLocalePair());
-
-        column.add(paragraph("Wrapped Arabic",
-                "هذه فقرة عربية تلتف على عدة أسطر داخل عمود ثابت، ومكان القطع"
-                        + " تحدده حدود يونيكود لا عدُّ الحروف."));
-        column.add(paragraph("Wrapped Hebrew",
-                "זו פסקה בעברית הנשברת לכמה שורות בתוך עמודה קבועה, ומקום השבירה"
-                        + " נקבע לפי גבולות יוניקוד ולא לפי ספירת תווים."));
-        column.add(paragraph("Wrapped Devanagari — conjuncts in running text",
-                "यह हिन्दी का अनुच्छेद कई पंक्तियों में लिपटता है; क्षमता और शिक्षा"
-                        + " जैसे संयुक्ताक्षर यहाँ भी बनते हैं।"));
-        // Thai writes no space between words, so the hard break this replaced — one code point
-        // wide, because that was all a per-code-point pipeline could see — could cut between a
-        // consonant and the vowel drawn above it. The line breaker looks for words instead.
-        column.add(paragraph("Wrapped Thai — not one space in it",
-                "ภาษาไทยไม่เว้นวรรคระหว่างคำการขึ้นบรรทัดใหม่จึงต้องอาศัยตัวแบ่งบรรทัดแทนช่องว่าง"));
-        return column;
+    /**
+     * Two flexible columns, row by row: each column takes half the width there is, and each row is
+     * as tall as its taller cell, so two cards side by side are one height.
+     */
+    private static Widget<?> pairs(List<Widget<?>> cells, float rowGap) {
+        Column rows = new Column();
+        rows.gap(rowGap).crossAlignment(Flex.CrossAlignment.STRETCH);
+        for (int i = 0; i < cells.size(); i += 2) {
+            Row row = new Row();
+            row.gap(24).crossAlignment(Flex.CrossAlignment.STRETCH);
+            row.add(Expanded.of(cells.get(i), 1));
+            row.add(i + 1 < cells.size() ? Expanded.of(cells.get(i + 1), 1) : Expanded.spacer(1));
+            rows.add(row);
+        }
+        return rows;
     }
 
     /**
-     * A locale declared on a subtree, as a widget pair: the right half sits under a column that
-     * declares {@link #ARABIC}, and nothing else about it differs from the left one. The label
-     * is a string of the showcase's bundle, which already ships — this scene adds no translation of its
-     * own — so الإشعارات over Notifications is the subtree's string lookup, and ٤٢ over 42
-     * is the format-time digit substitution reading the effective locale instead of the process
-     * one. Both spinners are live: type into the pinned one and the Arabic-Indic digits it
-     * shows are the digits it takes.
+     * A script's name and a few words in it, at a size the marks are legible at. The words declare
+     * their language, which is what picks a face's regional forms where one code point is drawn
+     * differently in Japanese and in Chinese.
      */
-    private static Widget<?> pinnedLocalePair() {
-        Row row = new Row();
-        row.gap(COLUMN_GAP).crossAlignment(Flex.CrossAlignment.START);
-        row.add(pinnedHalf(null));
-        row.add(pinnedHalf(ARABIC));
-        return row;
-    }
-
-    /** One half of the pair: a bundle label over a spinner, pinned when a locale is given. */
-    private static Widget<?> pinnedHalf(Locale pin) {
-        Column half = new Column();
-        half.gap(4).crossAlignment(Flex.CrossAlignment.START);
-        half.add(new Label(ShowcaseStrings.ORDERS_NOTES));
-        half.add(new Spinner(0, 100, 1).setValue(PINNED_VALUE));
-        if (pin != null) {
-            half.setLocale(pin);
-        }
-        return half;
-    }
-
-    /** A caption and the word it describes, at a size the marks are legible at. */
-    private static Widget<?> specimen(String what, String text) {
+    private static Widget<?> specimen(I18nString script, String language, String text) {
         Column block = new Column();
         block.gap(2).crossAlignment(Flex.CrossAlignment.START);
-        block.add(caption(what));
-        block.add(new Label(text).setFont(SPECIMEN));
+        block.add(new Label(script).setMuted(true));
+        Label words = new Label(text).setFont(SPECIMEN).setOverflow(Label.Overflow.ELLIPSIS);
+        words.setLocale(Locale.forLanguageTag(language));
+        block.add(words);
         return block;
     }
 
-    /** A caption and a paragraph that has to break inside the column to fit it. */
-    private static Widget<?> paragraph(String what, String text) {
-        Column block = new Column();
-        block.gap(2).crossAlignment(Flex.CrossAlignment.START);
-        block.add(caption(what));
-        block.add(new SizedBox(PARAGRAPH_COLUMN, SizedBox.UNSET,
-                new Label(text).setFont(PARAGRAPH).setWrap(true)));
-        return block;
-    }
-
-    private static Label caption(String text) {
-        return new Label(text).setMuted(true);
+    /**
+     * A customer's card, in the customer's locale and, for a script that reads right to left, in
+     * its direction: the caption above the note is the showcase's own string for "Notes".
+     */
+    private static Widget<?> card(Customer customer) {
+        Column card = new Column();
+        card.gap(4).crossAlignment(Flex.CrossAlignment.STRETCH);
+        card.add(new Label(customer.name()).setStrong(true).setOverflow(Label.Overflow.ELLIPSIS));
+        card.add(new Label(customer.city()).setMuted(true).setOverflow(Label.Overflow.ELLIPSIS));
+        card.add(new SizedBox(SizedBox.UNSET, 6, new Column()));
+        card.add(new Label(ShowcaseStrings.ORDERS_NOTES).setMuted(true));
+        card.add(new Label(customer.note()).setFont(PARAGRAPH).setWrap(true));
+        Surface surface = Page.card(card);
+        Locale locale = customer.locale().equals("ar-EG") ? ARABIC_EGYPT : Locale.forLanguageTag(customer.locale());
+        surface.setLocale(locale);
+        surface.setLayoutDirection(LayoutDirection.forLocale(locale));
+        return surface;
     }
 }
