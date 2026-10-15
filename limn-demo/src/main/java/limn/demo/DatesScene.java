@@ -8,24 +8,30 @@ import limn.components.date.DateField;
 import limn.components.date.DatePicker;
 import limn.components.date.DateRange;
 import limn.components.date.DayMark;
+import limn.graphics.Color;
 import limn.i18n.I18nString;
+import limn.icons.tabler.Tabler;
+import limn.scene.Change;
 import limn.scene.Insets;
 import limn.scene.Scene;
 import limn.scene.Widget;
 import limn.scene.layout.Column;
 import limn.scene.layout.Flex;
 import limn.scene.layout.Padding;
-import limn.scene.layout.Row;
+import limn.scene.layout.SizedBox;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.chrono.JapaneseChronology;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
- * Demo of the date widgets: the four shapes a form asks for, a period, and the grid on
- * its own with week numbers, bounds, a filter and marks.
+ * The date widgets as an invoicing and scheduling form uses them: a date typed or picked, a month,
+ * a year, a time to the minute or the second, periods of days and of months, a date out of its
+ * range with the line that says so, and two calendars, one with marks and their legend.
  *
  * <p>Every date here is fixed rather than taken from the clock, so two runs and two captures show
  * the same month. Today is the one fact the widgets read from a clock, and the calendar rings it
@@ -166,93 +172,138 @@ final class DatesScene {
     /** The same, with the picker handed back for the popup capture. */
     static Built build(boolean light) {
         Theme.setCurrent(light ? Theme.light() : Theme.dark());
-        DatePicker picker = calendarPicker();
+        // In-scene on purpose: a native popup is a window of its own and is absent from a capture
+        // of this one, so the capture would show a picker that never opens.
+        DatePicker picker = dueDate(DisplayMode.IN_SCENE);
         CalendarView grid = grid();
         Scene scene = new Scene(new Padding(Insets.all(20), content(picker, grid)));
         scene.setBackground(Theme.current().background());
         return new Built(scene, picker, grid);
     }
 
-    /** Reusable subtree, so the showcase and the site gallery show the same thing. */
+    /**
+     * Reusable subtree, the showcase's page. Its due date opens its calendar the default way, in a
+     * window of its own that may reach past this one's edge, beside the delivery slot that opens
+     * its own inside the window; the native presentation is also exercised headless by
+     * limn-demo's DatePickerNativePopupTest.
+     */
     static Widget<?> content() {
-        return content(calendarPicker(), grid());
+        return content(dueDate(DisplayMode.NATIVE_WINDOW), grid());
     }
 
-    private static Widget<?> content(DatePicker picker, CalendarView grid) {
-        Row row = new Row();
-        row.gap(24).crossAlignment(Flex.CrossAlignment.START);
-        row.add(fields(picker));
-        row.add(gridColumn(grid));
-        return row;
+    private static Widget<?> content(DatePicker due, CalendarView team) {
+        Column page = Page.column();
+
+        page.add(Page.firstSection(Text.INVOICE));
+        DateField issued = new DateField();
+        issued.setDate(LocalDate.of(2026, 8, 10));
+        page.add(Page.columns(Page.field(Text.INVOICE_DATE, issued), Page.field(Text.DUE_DATE, due)));
+
+        DatePicker month = new DatePicker().setGranularity(DateField.Granularity.MONTH);
+        month.setDate(ANCHOR);
+        report(month, Text.BILLING_MONTH);
+        DateField year = new DateField().setGranularity(DateField.Granularity.YEAR);
+        year.setDate(ANCHOR);
+        page.add(Page.columns(Page.field(Text.BILLING_MONTH, month), Page.field(Text.FISCAL_YEAR, year)));
+
+        DateField created = new DateField();
+        created.setDate(LocalDate.of(2026, 8, 3));
+        created.setEnabled(false); // stamped by the system
+        DateField contract = new DateField();
+        contract.setChronology(JapaneseChronology.INSTANCE);
+        contract.setDate(ANCHOR);
+        page.add(Page.columns(Page.field(Text.CREATED, created), Page.field(Text.CONTRACT, contract)));
+
+        page.add(Page.section(Text.SCHEDULE));
+        DatePicker slot = new DatePicker().setGranularity(DateField.Granularity.MINUTE);
+        slot.setDateTime(LocalDateTime.of(ANCHOR, LocalTime.of(18, 0)));
+        slot.setDisplayMode(DisplayMode.IN_SCENE);
+        report(slot, Text.SLOT);
+        DateField meeting = new DateField().setGranularity(DateField.Granularity.MINUTE);
+        meeting.setDateTime(LocalDateTime.of(ANCHOR, LocalTime.of(9, 5)));
+        page.add(Page.columns(Page.field(Text.SLOT, slot), Page.field(Text.MEETING, meeting)));
+
+        DateField delivery = new DateField();
+        delivery.setMinDate(LocalDate.of(2026, 9, 1));
+        delivery.setMaxDate(LocalDate.of(2026, 9, 30));
+        // Held rather than snapped: the field keeps the date somebody typed and marks itself
+        // invalid, instead of quietly moving it to the 30th; the line under it says why.
+        delivery.setDate(LocalDate.of(2026, 10, 6));
+        Label deliveryLine = Page.message(I18nString.EMPTY, Theme::danger, null, delivery);
+        Runnable explain = () -> {
+            I18nString why = delivery.validationMessage();
+            deliveryLine.setText(why == null ? I18nString.EMPTY : why);
+            deliveryLine.setIcon(why == null ? null : Tabler.outline("alert-circle"));
+        };
+        explain.run();
+        delivery.observeChanges((source, change) -> {
+            if (change.aspect() == Change.Aspect.VALIDITY) {
+                explain.run();
+            }
+        });
+        DateField received = new DateField().setGranularity(DateField.Granularity.SECOND);
+        received.setDateTime(LocalDateTime.of(ANCHOR, LocalTime.of(14, 30, 12)));
+        page.add(Page.columns(
+                Page.field(Text.DELIVERY_DATE, delivery, Page.withMessage(delivery, deliveryLine)),
+                Page.field(Text.RECEIVED, received)));
+
+        DateField checkIn = DateField.ofTime();
+        checkIn.setTime(LocalTime.of(14, 30));
+        page.add(Page.columns(Page.field(Text.CHECK_IN, checkIn), new SizedBox(0, 0)));
+
+        page.add(Page.section(Text.PERIODS));
+        DatePicker holiday = DatePicker.ofRange();
+        holiday.setRange(new DateRange(LocalDate.of(2026, 9, 14), LocalDate.of(2026, 9, 25)));
+        report(holiday, Text.HOLIDAY_PERIOD);
+        DatePicker quarter = DatePicker.ofRange().setGranularity(DateField.Granularity.MONTH);
+        quarter.setRange(new DateRange(LocalDate.of(2026, 7, 1), LocalDate.of(2026, 9, 30)));
+        report(quarter, Text.REPORTING);
+        page.add(Page.columns(Page.field(Text.HOLIDAY_PERIOD, holiday), Page.field(Text.REPORTING, quarter)));
+
+        page.add(Page.section(Text.CALENDARS));
+        page.add(Page.columns(calendar(Text.TEAM, team, legend()), calendar(Text.ON_CALL, onCall(), null)));
+        page.add(Page.hint(Text.CLIMB_HINT));
+        return Page.narrow(720, page);
     }
 
-    /** The picker whose calendar the popup capture opens. */
-    private static DatePicker calendarPicker() {
+    /** The due date, the picker whose calendar the popup capture opens. */
+    private static DatePicker dueDate(DisplayMode mode) {
         DatePicker picker = new DatePicker();
         picker.setDate(ANCHOR);
-        // In-scene on purpose: a native popup is a window of its own and is absent from a capture
-        // of this one, so the capture would show a picker that never opens. The native
-        // presentation, which is the default, is exercised headless by limn-demo's
-        // DatePickerNativePopupTest; live reader runs over it are owed (settled
-        // native-popup-reader, reopened by decision 5).
-        picker.setDisplayMode(DisplayMode.IN_SCENE);
+        picker.setDisplayMode(mode);
         picker.calendar().setShowWeekNumbers(true);
+        report(picker, Text.DUE_DATE);
         return picker;
     }
 
-    /** The four shapes, plus the period: what a form actually puts on a screen. */
-    private static Widget<?> fields(DatePicker picker) {
-        Column column = new Column();
-        column.gap(14).crossAlignment(Flex.CrossAlignment.STRETCH);
-        column.add(new Label("Fields and pickers").setRole(Label.Role.TITLE).setStrong(true));
-
-        DateField plain = new DateField();
-        plain.setDate(ANCHOR);
-        column.add(Labelled.above("Date, typed (no calendar)", plain));
-
-        DateField clock = DateField.ofTime();
-        clock.setTime(LocalTime.of(14, 30));
-        column.add(Labelled.above("Time of day", clock));
-
-        DateField moment = new DateField().setGranularity(DateField.Granularity.MINUTE);
-        moment.setDateTime(LocalDateTime.of(ANCHOR, LocalTime.of(9, 5)));
-        column.add(Labelled.above("Date and time, typed", moment));
-
-        column.add(Labelled.above("Date, with a calendar", picker));
-
-        DatePicker withTime = new DatePicker().setGranularity(DateField.Granularity.MINUTE);
-        withTime.setDateTime(LocalDateTime.of(ANCHOR, LocalTime.of(18, 0)));
-        withTime.setDisplayMode(DisplayMode.IN_SCENE);
-        column.add(Labelled.above("Date and time, with a calendar", withTime));
-
-        DatePicker period = DatePicker.ofRange();
-        period.setRange(new DateRange(LocalDate.of(2026, 9, 14), LocalDate.of(2026, 9, 25)));
-        period.setDisplayMode(DisplayMode.IN_SCENE);
-        column.add(Labelled.above("Period", period));
-
-        DateField bounded = new DateField();
-        bounded.setMinDate(LocalDate.of(2026, 9, 1));
-        bounded.setMaxDate(LocalDate.of(2026, 9, 30));
-        // Held rather than snapped, and saying so is the point of showing it: the field keeps the
-        // date somebody typed and marks itself invalid, instead of quietly moving it to the 30th.
-        bounded.setDate(LocalDate.of(2026, 10, 6));
-        column.add(Labelled.above("Out of range: held, not snapped", bounded));
-
-        return column;
+    /** Says in the status line what a picker now holds, by the field's name. */
+    private static void report(DatePicker picker, I18nString name) {
+        picker.onSelect(() -> Page.report(Text.CHOSEN.format(name.get(), picker.field().text()
+                + (picker.endField() == null ? "" : " – " + picker.endField().text()))));
     }
 
-    private static Widget<?> gridColumn(CalendarView calendar) {
+    /** A calendar under its caption, with what its marks mean under it. */
+    private static Widget<?> calendar(I18nString caption, CalendarView calendar, Widget<?> legend) {
         Column column = new Column();
-        column.gap(14).crossAlignment(Flex.CrossAlignment.START);
-        column.add(new Label("The grid on its own").setRole(Label.Role.TITLE).setStrong(true));
+        column.gap(8).crossAlignment(Flex.CrossAlignment.START);
         column.add(calendar);
-        Label note = new Label("Click the title to climb: days, months, years.");
-        note.setRole(Label.Role.LABEL).setMuted(true);
-        column.add(note);
-        return column;
+        if (legend != null) {
+            column.add(legend);
+        }
+        return Page.field(caption, calendar, column);
     }
 
-    /** The grid on its own, wearing everything a corporate form asks of it. */
+    /** What the dots under the days mean. */
+    private static Widget<?> legend() {
+        return Page.row(16, mark(Theme::danger, Text.HOLIDAY), mark(Theme::warning, Text.DEADLINE));
+    }
+
+    private static Widget<?> mark(Function<Theme, Color> ink, I18nString meaning) {
+        return Page.row(6, Page.tint(new Label("●").setRole(Label.Role.LABEL), ink),
+                new Label(meaning).setRole(Label.Role.LABEL).setMuted(true));
+    }
+
+    /** The team's calendar: a period chosen over working days, with the month's marks. */
     private static CalendarView grid() {
         CalendarView calendar = new CalendarView();
         calendar.setVisibleMonth(ANCHOR);
@@ -265,13 +316,57 @@ final class DatesScene {
                 && day.getDayOfWeek() != DayOfWeek.SUNDAY);
         calendar.setDayMarks(day -> {
             if (HOLIDAYS.contains(day)) {
-                return DayMark.of(Theme.current().danger(), I18nString.literal("holiday"));
+                return DayMark.of(Theme.current().danger(), Text.HOLIDAY);
             }
             if (DEADLINES.contains(day)) {
-                return DayMark.of(Theme.current().warning(), I18nString.literal("deadline"));
+                return DayMark.of(Theme.current().warning(), Text.DEADLINE);
             }
             return null;
         });
+        calendar.onSelect(() -> Page.report(Text.CHOSEN.format(Text.TEAM.get(),
+                calendar.selectedRange().start() + " – " + calendar.selectedRange().end())));
         return calendar;
+    }
+
+    /** One day picked on a grid whose weeks start on Monday, whatever the language's do. */
+    private static CalendarView onCall() {
+        CalendarView calendar = new CalendarView();
+        calendar.setVisibleMonth(ANCHOR);
+        calendar.setSelectionMode(CalendarView.SelectionMode.SINGLE);
+        calendar.setFirstDayOfWeek(DayOfWeek.MONDAY);
+        calendar.setSelectedDate(LocalDate.of(2026, 9, 18));
+        return calendar;
+    }
+
+    /** What this page says, ready for translation. */
+    static final class Text {
+        private Text() {
+        }
+
+        static final I18nString INVOICE = new I18nString("showcase.dates.invoice", "Invoice");
+        static final I18nString INVOICE_DATE = new I18nString("showcase.dates.invoiceDate", "Invoice date");
+        static final I18nString DUE_DATE = new I18nString("showcase.dates.dueDate", "Due date");
+        static final I18nString BILLING_MONTH = new I18nString("showcase.dates.billingMonth", "Billing month");
+        static final I18nString FISCAL_YEAR = new I18nString("showcase.dates.fiscalYear", "Fiscal year");
+        static final I18nString CREATED = new I18nString("showcase.dates.created", "Created on");
+        static final I18nString CONTRACT = new I18nString("showcase.dates.contract",
+                "Contract date, Japanese calendar");
+        static final I18nString SCHEDULE = new I18nString("showcase.dates.schedule", "Schedule");
+        static final I18nString SLOT = new I18nString("showcase.dates.slot", "Delivery slot");
+        static final I18nString MEETING = new I18nString("showcase.dates.meeting", "Meeting");
+        static final I18nString DELIVERY_DATE = new I18nString("showcase.dates.deliveryDate", "Delivery date");
+        static final I18nString RECEIVED = new I18nString("showcase.dates.received", "Payment received");
+        static final I18nString CHECK_IN = new I18nString("showcase.dates.checkIn", "Check-in time");
+        static final I18nString PERIODS = new I18nString("showcase.dates.periods", "Periods");
+        static final I18nString HOLIDAY_PERIOD = new I18nString("showcase.dates.holidayPeriod", "Holiday period");
+        static final I18nString REPORTING = new I18nString("showcase.dates.reporting", "Reporting period");
+        static final I18nString CALENDARS = new I18nString("showcase.dates.calendars", "Calendars");
+        static final I18nString TEAM = new I18nString("showcase.dates.team", "Team leave");
+        static final I18nString ON_CALL = new I18nString("showcase.dates.onCall", "On-call day");
+        static final I18nString HOLIDAY = new I18nString("showcase.dates.holiday", "Holiday");
+        static final I18nString DEADLINE = new I18nString("showcase.dates.deadline", "Deadline");
+        static final I18nString CLIMB_HINT = new I18nString("showcase.dates.climbHint",
+                "Click a calendar's month to choose among months and years.");
+        static final I18nString CHOSEN = new I18nString("showcase.dates.chosen", "{0}: {1}");
     }
 }

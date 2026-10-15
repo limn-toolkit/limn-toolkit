@@ -5,23 +5,31 @@ import limn.components.RangeSlider;
 import limn.components.Slider;
 import limn.components.Spinner;
 import limn.components.Theme;
+import limn.i18n.I18nString;
+import limn.i18n.NumberFormats;
+import limn.i18n.PluralString;
 import limn.scene.Change;
 import limn.scene.Insets;
 import limn.scene.Scene;
 import limn.scene.Widget;
 import limn.scene.layout.Column;
 import limn.scene.layout.Expanded;
-import limn.scene.layout.Flex;
 import limn.scene.layout.Padding;
-import limn.scene.layout.Row;
 import limn.scene.layout.SizedBox;
 
+import java.util.Currency;
+import java.util.function.DoubleFunction;
+import java.util.function.Supplier;
+
 /**
- * Showcase for the {@link Slider} and {@link Spinner} components: continuous and
- * stepped sliders (with live value read-outs), plus numeric, fractional and
- * {@code HH:MM} time spinners, and a disabled one of each.
+ * Sliders and spinners, as a travel booking and an order line use them: a volume, the filters of
+ * a hotel search, and the numbers of one line of an order, with a disabled one of each kind.
  */
 final class ControlsScene {
+
+    private static final Currency USD = Currency.getInstance("USD");
+    /** Room for the widest value read out beside a slider: two amounts of money. */
+    private static final float READOUT = 200;
 
     private ControlsScene() {
     }
@@ -35,95 +43,106 @@ final class ControlsScene {
 
     /** Reusable subtree (a page of the showcase). */
     static Widget<?> content() {
-        Column column = new Column();
-        column.gap(16).crossAlignment(Flex.CrossAlignment.STRETCH);
+        Column page = Page.column();
 
-        column.add(heading("Slider"));
-        // The readouts mirror the sliders, so they watch rather than handle: one call reads the
-        // slider and then follows it, whoever moves it, and the starting literal written twice
-        // is gone.
+        page.add(Page.firstSection(Text.CALLS));
         Slider volume = new Slider(0, 100).setValue(30);
-        column.add(sliderRow("Continuous (0–100)", volume, readoutOf(volume)));
+        page.add(slider(Text.VOLUME, volume, () -> percent(volume.value())));
+        Slider microphone = new Slider(0, 100).setValue(40);
+        microphone.setEnabled(false); // no microphone connected
+        page.add(slider(Text.MICROPHONE, microphone, () -> percent(microphone.value())));
 
-        Slider level = new Slider(0, 10).setStep(1).setValue(5);
-        column.add(sliderRow("Step of 1 (0–10)", level, readoutOf(level)));
-
-        Slider disabledSlider = new Slider(0, 100).setValue(40);
-        disabledSlider.setEnabled(false);
-        column.add(sliderRow("Disabled", disabledSlider, new Label("40").setMuted(true)));
-
-        column.add(heading("Range slider"));
-        column.add(new Label("Two thumbs that never cross: each is a Tab stop, and a press on the track "
-                + "takes the nearer one.").setMuted(true).setWrap(true));
+        page.add(Page.section(Text.HOTEL));
         RangeSlider price = new RangeSlider(0, 1000).setStep(10).setRange(200, 600);
-        column.add(rangeRow("Price (step of 10)", price));
+        DoubleFunction<String> money = NumberFormats.currency(USD);
+        page.add(range(Text.PRICE, price,
+                () -> Text.BETWEEN.format(money.apply(price.lower()), money.apply(price.upper()))));
         RangeSlider nights = new RangeSlider(1, 30).setStep(1).setMinimumGap(2).setRange(3, 7);
-        column.add(rangeRow("Nights, at least two apart", nights));
+        page.add(range(Text.NIGHTS, nights,
+                () -> Text.NIGHTS_SPAN.format(Math.round(nights.upper()), Math.round(nights.lower()))));
+        Slider rating = new Slider(1, 5).setStep(1).setValue(4);
+        page.add(slider(Text.RATING, rating, () -> Text.STARS.format(Math.round(rating.value()))));
+        RangeSlider distance = new RangeSlider(0, 50).setStep(1).setRange(0, 10);
+        distance.setEnabled(false); // needs the office's address
+        page.add(range(Text.DISTANCE, distance,
+                () -> Text.KILOMETRES.format(Math.round(distance.lower()), Math.round(distance.upper()))));
 
-        column.add(heading("Spinner"));
-        column.add(new Label("Click the arrows, use the keyboard, or type a value.").setMuted(true).setWrap(true));
+        page.add(Page.section(Text.ORDER_LINE));
+        Spinner pallets = new Spinner(0, 40, 1).setValue(3);
+        pallets.setEnabled(false); // set by the warehouse
+        page.add(Page.columns(
+                spinner(Text.QUANTITY, new Spinner(1, 999, 1).setValue(12)),
+                spinner(Text.DISCOUNT, new Spinner(0, 50, 0.5).setValue(7.5)),
+                spinner(Text.START, Spinner.time(0, 24 * 60 - 1, 15).setValue(8 * 60 + 30))));
+        page.add(Page.columns(
+                spinner(Text.COPIES, new Spinner(1, 20, 1).setValue(2).setEditable(false)),
+                // A price read from the supplier's list: it stays 4.99 rather than snapping to 5.00.
+                spinner(Text.UNIT_PRICE, new Spinner(0, 999, 0.25).setSnapToStep(false).setValue(4.99)),
+                spinner(Text.PALLETS, pallets)));
 
-        Spinner disabledSpinner = new Spinner(0, 10, 1).setValue(3);
-        disabledSpinner.setEnabled(false);
-        Row spinners = new Row();
-        spinners.gap(24).crossAlignment(Flex.CrossAlignment.START);
-        spinners.add(Labelled.below("Quantity (0–99)", new Spinner(0, 99, 1).setValue(1)));
-        spinners.add(Labelled.below("Fraction (step 0.25)", new Spinner(0, 1, 0.25).setValue(0.5)));
-        spinners.add(Labelled.below("Time (HH:MM)", Spinner.time().setValue(7 * 60 + 30)));
-        spinners.add(Labelled.below("Disabled", disabledSpinner));
-        column.add(spinners);
-
-        return column; // the page scrolls it
+        return Page.narrow(680, page); // the page scrolls it
     }
 
-    // Role, not setFont(theme.title): setFont pins MEDIUM's 20 pt whatever step the
-    // subtree resolves to. The role picks the title token OF the resolved step.
-    private static Label heading(String text) {
-        return new Label(text).setRole(Label.Role.TITLE);
+    private static String percent(float value) {
+        return NumberFormats.unit("%").apply(Math.round(value));
     }
 
-    /** A label that reads the slider now and follows every move of it, from any origin. */
-    private static Label readoutOf(Slider slider) {
-        Label value = new Label(Integer.toString(Math.round(slider.value()))).setMuted(true);
+    /** A slider under its caption, its value read out at its end and following every move. */
+    private static Widget<?> slider(I18nString caption, Slider slider, Supplier<String> value) {
+        Label readout = new Label(value.get());
         slider.observeChanges((source, change) -> {
             if (change.aspect() == Change.Aspect.VALUE) {
-                value.setText(Integer.toString(Math.round(slider.value())));
+                readout.setText(value.get());
             }
         });
-        return value;
+        return Page.field(caption, slider,
+                Page.row(16, Expanded.of(slider, 1), new SizedBox(READOUT, SizedBox.UNSET, readout)));
     }
 
-    /** A range slider with a readout that follows both of its values, from any origin. */
-    private static Widget<?> rangeRow(String caption, RangeSlider slider) {
-        Label value = new Label("").setMuted(true);
-        Runnable show = () -> value.setText(Math.round(slider.lower()) + "–" + Math.round(slider.upper()));
-        show.run();
+    /** The same for a range slider, whose readout follows both of its values. */
+    private static Widget<?> range(I18nString caption, RangeSlider slider, Supplier<String> value) {
+        Label readout = new Label(value.get());
         slider.observeChanges((source, change) -> {
             if (change.aspect() == Change.Aspect.VALUE) {
-                show.run();
+                readout.setText(value.get());
             }
         });
-        Column column = new Column();
-        column.gap(6).crossAlignment(Flex.CrossAlignment.STRETCH);
-        column.add(new Label(caption).setMuted(true));
-        Row row = new Row();
-        row.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
-        row.add(Expanded.of(slider, 1));
-        row.add(new SizedBox(80, SizedBox.UNSET, value));
-        column.add(row);
-        return column;
+        return Page.field(caption, slider,
+                Page.row(16, Expanded.of(slider, 1), new SizedBox(READOUT, SizedBox.UNSET, readout)));
     }
 
-    private static Widget<?> sliderRow(String caption, Slider slider, Label value) {
-        Column column = new Column();
-        column.gap(6).crossAlignment(Flex.CrossAlignment.STRETCH);
-        column.add(new Label(caption).setMuted(true));
-        Row row = new Row();
-        row.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
-        row.add(Expanded.of(slider, 1));
-        row.add(new SizedBox(44, SizedBox.UNSET, value));
-        column.add(row);
-        return column;
+    /** A spinner at its own width under its caption. */
+    private static Widget<?> spinner(I18nString caption, Spinner spinner) {
+        return Page.field(caption, spinner, Page.row(0, spinner));
     }
 
+    /** What this page says, ready for translation. */
+    static final class Text {
+        private Text() {
+        }
+
+        static final I18nString CALLS = new I18nString("showcase.sliders.calls", "Calls");
+        static final I18nString VOLUME = new I18nString("showcase.sliders.volume", "Volume");
+        static final I18nString MICROPHONE = new I18nString("showcase.sliders.microphone", "Microphone");
+
+        static final I18nString HOTEL = new I18nString("showcase.sliders.hotel", "Hotel search");
+        static final I18nString PRICE = new I18nString("showcase.sliders.price", "Price per night");
+        static final I18nString BETWEEN = new I18nString("showcase.sliders.between", "{0} – {1}");
+        static final I18nString NIGHTS = new I18nString("showcase.sliders.nights", "Nights");
+        static final PluralString NIGHTS_SPAN = PluralString.of("showcase.sliders.nightsSpan",
+                "{0}–{1} night", "{0}–{1} nights");
+        static final I18nString RATING = new I18nString("showcase.sliders.rating", "Rating");
+        static final PluralString STARS = PluralString.of("showcase.sliders.stars",
+                "{0} star or more", "{0} stars or more");
+        static final I18nString DISTANCE = new I18nString("showcase.sliders.distance", "Distance from the office");
+        static final I18nString KILOMETRES = new I18nString("showcase.sliders.kilometres", "{0}–{1} km");
+
+        static final I18nString ORDER_LINE = new I18nString("showcase.sliders.orderLine", "Order line");
+        static final I18nString QUANTITY = new I18nString("showcase.sliders.quantity", "Quantity");
+        static final I18nString DISCOUNT = new I18nString("showcase.sliders.discount", "Discount (%)");
+        static final I18nString START = new I18nString("showcase.sliders.start", "Start time");
+        static final I18nString COPIES = new I18nString("showcase.sliders.copies", "Printed copies");
+        static final I18nString UNIT_PRICE = new I18nString("showcase.sliders.unitPrice", "Unit price");
+        static final I18nString PALLETS = new I18nString("showcase.sliders.pallets", "Pallets");
+    }
 }

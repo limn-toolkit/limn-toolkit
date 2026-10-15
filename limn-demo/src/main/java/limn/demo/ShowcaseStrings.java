@@ -29,7 +29,7 @@ final class ShowcaseStrings {
     static final I18nString NAV_COMBOS =
             new I18nString("showcase.nav.combos", "Combo boxes");
     static final I18nString NAV_SLIDERS =
-            new I18nString("showcase.nav.sliders", "Sliders and more");
+            new I18nString("showcase.nav.sliders", "Sliders and spinners");
     static final I18nString NAV_LISTS =
             new I18nString("showcase.nav.lists", "Lists");
     static final I18nString NAV_TABLES =
