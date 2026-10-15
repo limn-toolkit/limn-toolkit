@@ -311,11 +311,20 @@ final class AppScene {
         // ---- the band: the title and the four switches that reach the whole process
         ComboBox<String> language = new ComboBox<>(Languages.NAMES);
         language.setSelectedIndex(Languages.indexOf(I18n.locale()));
-        language.onSelect(() -> I18n.setLocale(Languages.LOCALES.get(language.selectedIndex())));
         language.setAccessibleName(ShowcaseStrings.BAND_LANGUAGE);
         ComboBox<String> direction = new ComboBox<>(
                 Arrays.stream(LayoutDirection.values()).map(Enum::name).toList());
         direction.setSelectedIndex(LayoutDirection.processDefault().ordinal());
+        // A language brings its direction with it, as an application following its user's
+        // language would: Arabic and Hebrew read right to left. The direction's own selector stays,
+        // to try either direction in any language.
+        language.onSelect(() -> {
+            java.util.Locale chosen = Languages.LOCALES.get(language.selectedIndex());
+            I18n.setLocale(chosen);
+            LayoutDirection reads = LayoutDirection.forLocale(chosen);
+            LayoutDirection.setProcessDefault(reads);
+            direction.setSelectedIndex(reads.ordinal());
+        });
         direction.onSelect(() -> LayoutDirection.setProcessDefault(
                 LayoutDirection.values()[direction.selectedIndex()]));
         direction.setAccessibleName(ShowcaseStrings.BAND_DIRECTION);
