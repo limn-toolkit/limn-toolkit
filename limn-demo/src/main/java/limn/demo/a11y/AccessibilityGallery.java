@@ -33,6 +33,8 @@ import limn.components.SearchField;
 import limn.components.SegmentedControl;
 import limn.components.Separator;
 import limn.components.RangeSlider;
+import limn.components.Expander;
+import limn.components.ExpanderGroup;
 import limn.components.Slider;
 import limn.components.Spinner;
 import limn.components.SplitPane;
@@ -544,6 +546,9 @@ public final class AccessibilityGallery {
                 new Entry("Sliders", List.of(Slider.class),
                         List.of(Role.SLIDER),
                         AccessibilityGallery::sliders),
+                new Entry("Expanders", List.of(Expander.class),
+                        List.of(Role.BUTTON, Role.GROUP),
+                        AccessibilityGallery::expanders),
                 new Entry("Range sliders", List.of(RangeSlider.class),
                         List.of(Role.SLIDER),
                         AccessibilityGallery::rangeSliders),
@@ -835,6 +840,29 @@ public final class AccessibilityGallery {
         Slider locked = new Slider(0, 100).setValue(40);
         locked.setEnabled(false);
         page.add(Labelled.above("Contrast, locked", locked));
+        return new Built(page);
+    }
+
+    private static Built expanders() {
+        Column page = page();
+        // One on its own with a summary, open; three in a group that keeps one open.
+        Column filters = new Column();
+        filters.add(new Checkbox(Checkbox.Variant.BOX, "In stock"));
+        filters.add(new Checkbox(Checkbox.Variant.BOX, "On sale"));
+        page.add(new Expander("Filters", filters).setSummary("2 available").setExpanded(true));
+        ExpanderGroup group = new ExpanderGroup();
+        for (String[] section : new String[][] {
+                {"Shipping", "Delivered in three to five working days."},
+                {"Returns", "Returned within thirty days, unused."},
+                {"Warranty", "Two years against defects."}}) {
+            Expander expander = new Expander(section[0], new Label(section[1]));
+            group.add(expander);
+            page.add(expander);
+        }
+        group.setExpandedIndex(0);
+        Expander locked = new Expander("Locked", new Label("Not reachable"));
+        locked.setEnabled(false);
+        page.add(locked);
         return new Built(page);
     }
 

@@ -181,6 +181,8 @@ public final class Theme {
     public final double animFade = 0.18;
     /** Selected-tab indicator slide (TabbedPane). */
     public final double animTab = 0.22;
+    /** An {@link Expander} opening and closing: its arrow turning and its content sliding out. */
+    public final double animExpand = 0.2;
     /** Whole-window show/hide fade (native dialogs, popups, floating windows). */
     public final double animWindow = 0.16;
 

@@ -257,6 +257,12 @@ class DamageContractTest extends ComponentTestBase {
             natural("ColorPicker", ColorPicker::new, keyboard()),
             natural("ColorPickerButton", () -> new ColorPickerButton(Color.rgb(0xF59E0B)), both()),
             natural("ComboBox", () -> new ComboBox<>(List.of("one", "two", "three")), both()),
+            // Opening grows the section, and what is below it moves: a layout pass, whose frames
+            // are whole by construction (ADR 043). Every other gesture stays in the header.
+            natural("Expander", () -> new Expander("Details", new Label("Inside")), List.of(
+                    hover(), unhover(),
+                    click().fullFrameBecause("the section grows and moves what is below it"),
+                    focus(), key("RIGHT", Keys.RIGHT), key("DOWN", Keys.DOWN))),
             inert("ImageView", () -> new ImageView(new Image(8, 8, new byte[8 * 8 * 4])),
                     "a picture: nothing about it answers to a pointer or a key"),
             inert("internal.PopupFrame", () -> new limn.components.internal.PopupFrame(new Plain(), 8, () -> { }),

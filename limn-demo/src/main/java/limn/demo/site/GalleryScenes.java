@@ -11,6 +11,8 @@ import limn.components.RadioButton;
 import limn.components.SearchField;
 import limn.components.SegmentedControl;
 import limn.components.RangeSlider;
+import limn.components.Expander;
+import limn.components.ExpanderGroup;
 import limn.components.Slider;
 import limn.components.Spinner;
 import limn.components.TabbedPane;
@@ -191,6 +193,8 @@ final class GalleryScenes {
                 new GalleryEntry("slider", "Slider", "gallery:slider", GalleryScenes::slider),
                 new GalleryEntry("range-slider", "RangeSlider", "gallery:range-slider",
                         GalleryScenes::rangeSlider),
+                new GalleryEntry("expander", "Expander", "gallery:expander",
+                        GalleryScenes::expander),
                 new GalleryEntry("spinner", "Spinner", "gallery:spinner", GalleryScenes::spinner),
                 new GalleryEntry("date-field", "DateField", "gallery:date-field",
                         GalleryScenes::dateField),
@@ -349,6 +353,24 @@ final class GalleryScenes {
         price.setStep(10);
         price.setRange(120, 340);
         return scene(new SizedBox(280, SizedBox.UNSET, price));
+    }
+    // #endregion
+
+    // #region gallery:expander
+    static Built expander() {
+        // A group keeps one section open; the summary says what a closed one holds.
+        ExpanderGroup group = new ExpanderGroup();
+        Column sections = new Column();
+        Label shipping = new Label("Delivered in three to five working days.");
+        for (Expander section : List.of(
+                new Expander("Shipping", shipping).setSummary("Free"),
+                new Expander("Returns", new Label("Within thirty days, unused.")).setSummary("30 days"),
+                new Expander("Warranty", new Label("Two years against defects.")).setSummary("2 years"))) {
+            group.add(section);
+            sections.add(section);
+        }
+        group.setExpandedIndex(0);
+        return scene(new SizedBox(320, SizedBox.UNSET, sections));
     }
     // #endregion
 
