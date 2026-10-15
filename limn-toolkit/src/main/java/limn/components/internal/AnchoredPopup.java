@@ -115,6 +115,24 @@ public final class AnchoredPopup {
             return false;
         }
 
+        /**
+         * @return whether, in a window of its own, the owner's keyboard is routed to the popup:
+         *         for a popup opened from a widget that does not hold the keyboard, whose keys
+         *         would otherwise go to whatever the owner has focused
+         */
+        default boolean routesKeyboard() {
+            return false;
+        }
+
+        /**
+         * @return whether the popup lines up with the anchor's trailing edge rather than its
+         *         leading one: for an anchor at the end of a row, under which a wider popup would
+         *         run out past it
+         */
+        default boolean alignsTrailing() {
+            return false;
+        }
+
         /** The surface is gone for good, its fade over: what it borrowed can be taken back. */
         default void released() {
         }
@@ -139,6 +157,7 @@ public final class AnchoredPopup {
     private @Nullable Subscription presses;
     private @Nullable Subscription fullscreen;
     private @Nullable Subscription cursor;
+    private @Nullable Subscription route;
 
     public AnchoredPopup(Host host) {
         this.host = Objects.requireNonNull(host, "host");
@@ -214,6 +233,27 @@ public final class AnchoredPopup {
         // the anchor was, and at a named mode a popup's window would minimize it at its first
         // click: it goes, as a platform's own does. One in the scene is laid out again instead.
         fullscreen = scene.observeWindowFullscreen(state -> host.dismiss(Change.Origin.ADJUSTMENT));
+        if (host.routesKeyboard()) {
+            // From the open on, before the window exists: a key pressed meanwhile is the popup's
+            // and not the focused widget's.
+            route = SceneAccess.routeKeyboard(scene, new SceneAccess.KeyRoute() {
+                @Override
+                public void key(int key, int layoutCodePoint, boolean pressed, boolean repeat,
+                                int modifiers) {
+                    host.key(new KeyEvent(key, layoutCodePoint, pressed, repeat, modifiers));
+                }
+
+                @Override
+                public void character(int codepoint) {
+                    host.character(new CharEvent(codepoint));
+                }
+
+                @Override
+                public @Nullable Scene popup() {
+                    return popupScene;
+                }
+            });
+        }
         if (owner != null) {
             // Deferred: making a window switches the GL context, which must not happen inside
             // another window's frame.
@@ -289,14 +329,15 @@ public final class AnchoredPopup {
                 ? (anchorTop - area.y()) / factor - gap - EDGE_MARGIN : Float.MAX_VALUE;
         Placement p = host.place(t, spaceAbove, spaceBelow);
         float y = p.above() ? top - gap - p.height() : top + anchor.height() + gap;
-        float x = leadingX(anchor, p.width());
+        float x = alignedX(anchor, p.width());
         return new float[] {x, y, p.width(), p.height()};
     }
 
-    /** The left edge that lines a box of {@code width} up with the anchor's leading edge. */
-    private static float leadingX(Widget<?> anchor, float width) {
+    /** The left edge that lines a box of {@code width} up with the anchor's leading edge, or its trailing one. */
+    private float alignedX(Widget<?> anchor, float width) {
         float left = anchor.localToSceneX();
-        return anchor.isRightToLeft() ? left + anchor.width() - width : left;
+        boolean fromRight = anchor.isRightToLeft() != host.alignsTrailing();
+        return fromRight ? left + anchor.width() - width : left;
     }
 
     /**
@@ -383,12 +424,13 @@ public final class AnchoredPopup {
             return;
         }
         open = false;
-        for (Subscription each : new Subscription[] {cursor, presses, blur, popupBlur, fullscreen}) {
+        for (Subscription each : new Subscription[] {cursor, route, presses, blur, popupBlur, fullscreen}) {
             if (each != null) {
                 each.cancel();
             }
         }
         cursor = null;
+        route = null;
         presses = null;
         blur = null;
         popupBlur = null;
@@ -528,7 +570,7 @@ public final class AnchoredPopup {
             Placement p = host.place(t, top - gap - EDGE_MARGIN, height() - bottom - EDGE_MARGIN);
             float w = Math.min(p.width(), width());
             float h = Math.min(p.height(), height());
-            float x = Math.max(0, Math.min(leadingX(anchor, w), width() - w));
+            float x = Math.max(0, Math.min(alignedX(anchor, w), width() - w));
             float y = p.above() ? top - gap - h : bottom;
             y = Math.max(0, Math.min(y, height() - h));
             content.measure(Constraints.tight(w, h));

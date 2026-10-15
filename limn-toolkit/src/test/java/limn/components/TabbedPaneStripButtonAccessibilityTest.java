@@ -9,6 +9,7 @@ import limn.scene.Widget;
 import limn.scene.layout.Column;
 import limn.scene.layout.SizedBox;
 import limn.testing.AllocationProbe;
+import limn.testing.StubWindow;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
@@ -72,23 +73,6 @@ class TabbedPaneStripButtonAccessibilityTest extends AccessibleComponentTestBase
     private Column root;
 
     /** What the process asked for before this class changed it; see {@link #inSceneMenus}. */
-    private DisplayMode menusWere;
-
-    /**
-     * A menu in a window of its own cannot be opened headlessly, and the presentation is a
-     * process-wide default rather than a property of the menu this pane builds, so it is set here
-     * and put back afterwards.
-     */
-    @BeforeEach
-    void inSceneMenus() {
-        menusWere = PopupMenu.defaultDisplayMode();
-        PopupMenu.setDefaultDisplayMode(DisplayMode.IN_SCENE);
-    }
-
-    @AfterEach
-    void restoreMenus() {
-        PopupMenu.setDefaultDisplayMode(menusWere);
-    }
 
     // ------------------------------------------------------------------------------ the fixture
 
@@ -103,7 +87,9 @@ class TabbedPaneStripButtonAccessibilityTest extends AccessibleComponentTestBase
         }
         root = new Column();
         root.add(new SizedBox(width, 120, pane));
-        bind(root);
+        // A window that cannot place one of its own, as on Wayland: the list of every tab opens
+        // in the scene, where the tree can be asked about it, and a headless test cannot make one.
+        bind(root, new StubWindow(false));
         // The deterministic ruler, so the overflow cases can be sized rather than hoped for. Bind
         // renders its first frame under whatever ruler the process has, so lay out again and start
         // from there.
@@ -234,10 +220,13 @@ class TabbedPaneStripButtonAccessibilityTest extends AccessibleComponentTestBase
             assertNull(node.toggle(), describe(tree()));
             assertNull(node.value(), describe(tree()));
             assertNull(node.text(), describe(tree()));
-            assertNull(node.expand(),
-                    "no expanded bit: the menu is built, opened and forgotten in one call, so this "
-                            + "widget could not answer whether the one it opened is still up"
-                            + describe(tree()));
+            if (node.id() == allNode().id()) {
+                assertFalse(node.expand().expanded(),
+                        "the list button opens a list it can say is open: collapsed at rest"
+                                + describe(tree()));
+            } else {
+                assertNull(node.expand(), "a chevron opens nothing" + describe(tree()));
+            }
             assertNull(node.selectionItem(), describe(tree()));
             assertNull(node.scroll(),
                     "the strip's own node carries the scroll facet" + describe(tree()));
@@ -252,11 +241,10 @@ class TabbedPaneStripButtonAccessibilityTest extends AccessibleComponentTestBase
                         + describe(tree()));
         assertNull(nextNode().actions(), "while the trailing one, at its end, offers none"
                 + describe(tree()));
-        assertEquals(Set.of(Accessible.Action.PRESS, Accessible.Action.SHOW_MENU),
+        assertEquals(Set.of(Accessible.Action.PRESS, Accessible.Action.EXPAND),
                 allNode().actions().actions(),
-                "both, and not the menu verb alone: one platform vends its invoke pattern from the "
-                        + "press and would leave a menu-only button unactuable, and the other two "
-                        + "route the more precise word" + describe(tree()));
+                "the press its click does, and the one of expanding and collapsing its state "
+                        + "allows, as every opener of a popup offers" + describe(tree()));
         assertFalse(previousNode().has(Accessible.State.HAS_POPUP), describe(tree()));
         assertFalse(nextNode().has(Accessible.State.HAS_POPUP), describe(tree()));
         assertTrue(allNode().has(Accessible.State.HAS_POPUP),
@@ -423,7 +411,8 @@ class TabbedPaneStripButtonAccessibilityTest extends AccessibleComponentTestBase
     // ------------------------------------------------------------------------------ the popup
 
     /**
-     * Pressing the all-tabs button opens the menu, and the menu names this button as its opener.
+     * Pressing the all-tabs button opens the list of every tab, and the list names this button as
+     * its opener.
      *
      * <p>Both halves of that link are the walk's, written from the inheritance host the popup
      * installs — and both land here only because this widget is a published node. Deleted, the
@@ -435,10 +424,10 @@ class TabbedPaneStripButtonAccessibilityTest extends AccessibleComponentTestBase
      * resolves to.
      */
     @Test
-    void aPressOnTheListChevronOpensTheMenuThatNamesThisButtonAsItsOpener() throws Exception {
+    void aPressOnTheListChevronOpensTheListThatNamesThisButtonAsItsOpener() throws Exception {
         bindTabs(SCENE_WIDTH, SIX);
         assertEquals(List.of(), allNode().relations(),
-                "no menu, no relation" + describe(tree()));
+                "no list, no relation" + describe(tree()));
         int before = tree().nodeCount();
 
         assertTrue(perform(allNode().id(), Accessible.Action.PRESS, Accessible.Argument.NONE));
@@ -451,38 +440,40 @@ class TabbedPaneStripButtonAccessibilityTest extends AccessibleComponentTestBase
                 "one relation and not two: the mirror is the walk's" + describe(tree()));
         long surface = targetOf(button, Accessible.Relation.CONTROLLER_FOR);
         assertEquals(tree().focused(), surface,
-                "the button controls the layer that took the keyboard when the menu opened"
+                "the button controls the layer that took the keyboard when the list opened"
                         + describe(tree()));
         assertEquals(0, node(surface).parent(),
                 "which is an overlay, hanging under the window node" + describe(tree()));
         assertEquals(button.id(), targetOf(node(surface), Accessible.Relation.POPUP_FOR),
-                "and the menu points back at the button rather than at a container that did not "
+                "and the list points back at the button rather than at a container that did not "
                         + "open it" + describe(tree()));
     }
 
-    /** The menu verb reaches the same menu, and the two chevrons refuse it. */
+    /** Expanding reaches the same list, collapsing closes it, and the two chevrons refuse both. */
     @Test
-    void theMenuVerbOpensTheSameMenuAndIsRefusedOnAChevron() throws Exception {
+    void theExpandVerbOpensTheSameListAndIsRefusedOnAChevron() throws Exception {
         bindTabs(SCENE_WIDTH, SIX);
 
-        assertTrue(perform(previousNode().id(), Accessible.Action.SHOW_MENU,
-                Accessible.Argument.NONE));
+        perform(previousNode().id(), Accessible.Action.EXPAND, Accessible.Argument.NONE);
         frame();
         assertEquals(List.of(), previousNode().relations(),
-                "a chevron has no menu, and the hook says so rather than scrolling instead"
+                "a chevron has no list, and the hook says so rather than scrolling instead"
                         + describe(tree()));
         assertEquals(0, stripNode().scroll().horizontalPercent(), EPS, describe(tree()));
 
-        assertTrue(perform(allNode().id(), Accessible.Action.SHOW_MENU, Accessible.Argument.NONE));
+        assertTrue(perform(allNode().id(), Accessible.Action.EXPAND, Accessible.Argument.NONE));
         frame();
-
         AccessibleNode button = allNode();
         long surface = targetOf(button, Accessible.Relation.CONTROLLER_FOR);
         assertEquals(tree().focused(), surface,
-                "the second verb reaches the same private path the first one does"
-                        + describe(tree()));
-        assertEquals(button.id(), targetOf(node(surface), Accessible.Relation.POPUP_FOR),
-                describe(tree()));
+                "the verb reaches the same private path the press does" + describe(tree()));
+        assertTrue(button.expand().expanded(), "and the button says the list is open" + describe(tree()));
+        assertNull(button.actions(), "behind the list's layer, which holds the input, the button "
+                + "offers nothing; the layer is what a reader closes" + describe(tree()));
+
+        assertTrue(perform(surface, Accessible.Action.CANCEL, Accessible.Argument.NONE));
+        frame();
+        assertFalse(allNode().expand().expanded(), "cancelled: the list is gone" + describe(tree()));
     }
 
     // ------------------------------------------------------------------------------ no overflow

@@ -5,6 +5,8 @@ import limn.accessibility.Accessible;
 import limn.animation.Motion;
 import limn.animation.Transition;
 import limn.backend.Cursor;
+import limn.components.internal.AnchoredPopup;
+import limn.components.internal.a11y.PopupOwnerAccessibility;
 import limn.components.internal.a11y.RowsAccessibility;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
@@ -668,6 +670,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
         markNeedsContainedLayout();
         startSlides();
         remove(content, origin);
+        tabsChangedUnderTheList();
         if (selected >= 0 && contents.get(selected) != before) {
             // The pane chose the tab that is now selected: a consequence of the close.
             notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.ADJUSTMENT));
@@ -982,26 +985,508 @@ public final class TabbedPane extends Widget<TabbedPane> {
         markNeedsContainedLayout(); // chevron state + indicator follow; contained, as a switch is
     }
 
-    /** Opens the all-tabs popup anchored under the list button (check on the current tab). */
+    // ---------------------------------------------------------- the tab list
+
+    /** The list of every tab, opened from the strip's list button while the tabs overflow. */
+    private final AnchoredPopup tabList = new AnchoredPopup(new TabListHost());
+    private @Nullable TabListPanel tabListPanel;
+    /** The row of the list the keyboard is on. */
+    private int listCursor = -1;
+    /** The keys the headers are known by to a reader, unique for the life of the pane. */
+    private long headerKeys;
+
+    /** Opens the list of every tab under the list button, or closes it when it is open. */
     private void openTabList() {
         if (scene() == null || headers.isEmpty()) {
             return;
         }
-        Menu menu = new Menu();
-        for (int i = 0; i < headers.size(); i++) {
-            int index = i;
-            // The caption's source and not a string resolved here: the menu outlives this call,
-            // and a row holding a literal cannot re-resolve when the language moves under it.
-            menu.addCheck(headers.get(i).title, i == selected,
-                    on -> selectTab(index, Focus.NONE, Change.Origin.USER));
+        if (tabList.isOpen()) {
+            closeTabList();
+            return;
         }
-        // Anchored on listButton, NOT on scene(): the Widget overload hosts the cascade on a
-        // widget inside this pane, so the menu resolves the pane's step. Anchoring on the scene
-        // routes through scene.root() and opens a MEDIUM menu out of an XSMALL pane.
-        new PopupMenu(menu).showAnchored(listButton,
-                listButton.localToSceneX(), listButton.localToSceneY(),
-                listButton.width(), listButton.height());
+        listCursor = Math.max(0, selected);
+        tabList.open(limn.components.DisplayMode.NATIVE_WINDOW);
+        listButton.invalidateAccessible();
+        notifyChange(Change.of(Change.Aspect.EXPANDED, Change.Origin.USER));
     }
+
+    private void closeTabList() {
+        if (!tabList.isOpen()) {
+            return;
+        }
+        tabListPanel = null;
+        tabList.close();
+        listButton.invalidateAccessible();
+        notifyChange(Change.of(Change.Aspect.EXPANDED, Change.Origin.USER));
+    }
+
+    /** The tabs changed under the open list: it takes their new number, or goes with the last. */
+    private void tabsChangedUnderTheList() {
+        if (!tabList.isOpen()) {
+            return;
+        }
+        if (headers.isEmpty()) {
+            closeTabList();
+            return;
+        }
+        listCursor = Math.max(0, Math.min(listCursor, headers.size() - 1));
+        tabList.refit();
+        repaintTabList();
+    }
+
+    private void repaintTabList() {
+        if (tabListPanel != null) {
+            tabListPanel.invalidate();
+        }
+        if (tabList.window() != null) {
+            tabList.window().requestFrame();
+        }
+    }
+
+    private void moveListCursor(int row) {
+        if (headers.isEmpty()) {
+            return;
+        }
+        listCursor = Math.max(0, Math.min(row, headers.size() - 1));
+        if (tabListPanel != null) {
+            tabListPanel.reveal(listCursor);
+        }
+        repaintTabList();
+    }
+
+    /** Chooses a tab from the list: it is selected, and the list goes. */
+    private void chooseFromList(int row) {
+        closeTabList();
+        if (row >= 0 && row < headers.size()) {
+            selectTab(row, Focus.NONE, Change.Origin.USER);
+        }
+    }
+
+    /**
+     * The list's keys, from its layer in the scene or routed from the owner while it is in a
+     * window of its own: the arrows, Home and End move the cursor, Enter and Space choose, Delete
+     * and the command key's W close the tab under the cursor, Escape and Tab close the list.
+     */
+    private void tabListKey(KeyEvent event) {
+        if (!event.isPressed()) {
+            return;
+        }
+        int mods = event.modifiers() & (Keys.MOD_SHIFT | Keys.MOD_CONTROL | Keys.MOD_ALT | Keys.MOD_SUPER);
+        switch (event.key()) {
+            case Keys.UP -> moveListCursor(listCursor - 1);
+            case Keys.DOWN -> moveListCursor(listCursor + 1);
+            case Keys.HOME, Keys.PAGE_UP -> moveListCursor(0);
+            case Keys.END, Keys.PAGE_DOWN -> moveListCursor(headers.size() - 1);
+            case Keys.ENTER, Keys.SPACE -> chooseFromList(listCursor);
+            case Keys.ESCAPE, Keys.TAB -> closeTabList();
+            case Keys.DELETE -> closeFromList(listCursor);
+            case Keys.W -> {
+                if (mods == Accelerator.commandModifier()) {
+                    closeFromList(listCursor);
+                }
+            }
+            default -> {
+                return;
+            }
+        }
+        event.consume();
+    }
+
+    /** A letter moves the cursor to the next tab whose caption starts with it. */
+    private void tabListCharacter(limn.scene.event.CharEvent event) {
+        String typed = new String(Character.toChars(event.codepoint())).toLowerCase(java.util.Locale.ROOT);
+        int n = headers.size();
+        for (int step = 1; step <= n; step++) {
+            int row = (listCursor + step) % n;
+            if (headers.get(row).title.get().toLowerCase(java.util.Locale.ROOT).startsWith(typed)) {
+                moveListCursor(row);
+                event.consume();
+                return;
+            }
+        }
+    }
+
+    /** Closes a tab from the list, as its own button would: the handler is asked, the list stays. */
+    private void closeFromList(int row) {
+        if (row >= 0 && row < headers.size() && headers.get(row).closable) {
+            requestClose(row, Change.Origin.USER);
+        }
+    }
+
+    /** What the pane answers for its list of tabs. */
+    private final class TabListHost implements AnchoredPopup.Host {
+        @Override
+        public Widget<?> anchor() {
+            return listButton;
+        }
+
+        @Override
+        public Widget<?> opener() {
+            return listButton;
+        }
+
+        /** As wide as the longest caption needs, as tall as the rows, never under two of them. */
+        @Override
+        public AnchoredPopup.Placement place(SizeTokens t, float spaceAbove, float spaceBelow) {
+            float contentH = listContentHeight(t);
+            float minH = Math.min(contentH, 2 * t.popupItemHeight() + 2 * t.popupPadV());
+            boolean above = contentH > spaceBelow && spaceAbove > spaceBelow;
+            float h = Math.max(minH, Math.min(contentH, above ? spaceAbove : spaceBelow));
+            return new AnchoredPopup.Placement(listContentWidth(t), h, above);
+        }
+
+        @Override
+        public Widget<?> createPanel(boolean inWindow) {
+            tabListPanel = new TabListPanel(inWindow);
+            return tabListPanel;
+        }
+
+        @Override
+        public void dismiss(Change.Origin origin) {
+            closeTabList();
+        }
+
+        /** The list button's own press toggles the list, so it is no press elsewhere. */
+        @Override
+        public boolean contains(@Nullable Widget<?> target) {
+            return target == listButton;
+        }
+
+        @Override
+        public void key(KeyEvent event) {
+            tabListKey(event);
+        }
+
+        @Override
+        public void character(limn.scene.event.CharEvent event) {
+            tabListCharacter(event);
+        }
+
+        @Override
+        public void describeLayer(Accessibility a) {
+            a.role(Accessible.Role.GROUP);
+            a.name(ComponentStrings.TAB_LIST_ALL, Accessible.NameFrom.CONTENT);
+        }
+
+        /** Opened from a button that never holds the keyboard, so the keys are routed to it. */
+        @Override
+        public boolean routesKeyboard() {
+            return true;
+        }
+
+        /** The button is at the strip's end, so the list lines up with the end and opens inward. */
+        @Override
+        public boolean alignsTrailing() {
+            return true;
+        }
+    }
+
+    private float listContentHeight(SizeTokens t) {
+        return headers.size() * t.popupItemHeight() + 2 * t.popupPadV();
+    }
+
+    /** The mark column, the longest caption, and the close button's room, inside the row insets. */
+    private float listContentWidth(SizeTokens t) {
+        float widest = 0;
+        for (TabHeader header : headers) {
+            widest = Math.max(widest, textRuler().measure(header.title.get(), t.body()).width());
+        }
+        float w = 2 * t.popupRowInsetX() + t.popupMarkerCol() + widest + t.tabIconGap()
+                + t.tabIconSize() + t.popupRowInsetX();
+        return Math.min(w, 480);
+    }
+
+    /**
+     * The list of every tab: a row each, the selected one marked, a close button at the end of a
+     * closable tab's row under the pointer or the keyboard's cursor. It stays open as tabs close.
+     */
+    private final class TabListPanel extends Widget<TabListPanel> {
+
+        private final boolean inWindow;
+        private float scroll;
+        private int hoverRow = -1;
+        private boolean closeHot;
+
+        TabListPanel(boolean inWindow) {
+            this.inWindow = inWindow;
+            setCursor(Cursor.POINTER);
+        }
+
+        private SizeTokens tokens() {
+            return Theme.of(this).tokensFor(TabbedPane.this);
+        }
+
+        private boolean castsShadow() {
+            return !inWindow || tabList.margin() > 0;
+        }
+
+        @Override
+        protected float paintOutset() {
+            return castsShadow() ? Theme.of(this).elevation(Elevation.OVERLAY).reach() : 0;
+        }
+
+        @Override
+        protected Size onMeasure(Constraints constraints) {
+            SizeTokens t = tokens();
+            return constraints.constrain(listContentWidth(t), listContentHeight(t));
+        }
+
+        private float rowTop(int row, SizeTokens t) {
+            return t.popupPadV() + row * t.popupItemHeight() - scroll;
+        }
+
+        private int rowAt(float y, SizeTokens t) {
+            int row = (int) Math.floor((y + scroll - t.popupPadV()) / t.popupItemHeight());
+            return row >= 0 && row < headers.size() ? row : -1;
+        }
+
+        private float maxScroll(SizeTokens t) {
+            return Math.max(0, listContentHeight(t) - height());
+        }
+
+        void reveal(int row) {
+            SizeTokens t = tokens();
+            float top = t.popupPadV() + row * t.popupItemHeight();
+            float bottom = top + t.popupItemHeight();
+            if (top - t.popupPadV() < scroll) {
+                scroll = Math.max(0, top - t.popupPadV());
+            } else if (bottom + t.popupPadV() > scroll + height()) {
+                scroll = Math.min(maxScroll(t), bottom + t.popupPadV() - height());
+            }
+        }
+
+        /** The close button's square in a row, at the end reading goes to. */
+        private float closeLeft(SizeTokens t) {
+            float side = t.tabIconSize();
+            return isRightToLeft() ? t.popupRowInsetX() : width() - t.popupRowInsetX() - side;
+        }
+
+        private boolean overClose(float x, float y, int row, SizeTokens t) {
+            if (row < 0 || !headers.get(row).closable) {
+                return false;
+            }
+            float side = t.tabIconSize();
+            float left = closeLeft(t);
+            float top = rowTop(row, t) + (t.popupItemHeight() - side) / 2;
+            float slop = Strokes.FOCUS_GAP_TAB;
+            return x >= left - slop && x < left + side + slop && y >= top - slop && y < top + side + slop;
+        }
+
+        @Override
+        protected void onPaint(Canvas canvas) {
+            Theme theme = Theme.of(this);
+            SizeTokens t = tokens();
+            float fade = AnchoredPopup.fadeOf(this);
+            boolean fading = fade < 1f;
+            if (fading) {
+                canvas.save();
+                canvas.setOpacity(fade);
+            }
+            if (castsShadow()) {
+                theme.drawElevation(canvas, limn.graphics.RoundRect.of(0, 0, width(), height(),
+                        t.radiusLarge()), Elevation.OVERLAY);
+            }
+            canvas.fillRoundRectWithBorder(0, 0, width(), height(), t.radiusLarge(),
+                    !inWindow ? theme.surfaceRaised() : theme.surfaceRaised().withAlpha(0.94f),
+                    Strokes.BORDER, theme.outline());
+            boolean rtl = isRightToLeft();
+            float inset = t.popupRowInsetX();
+            float itemH = t.popupItemHeight();
+            Font font = t.body();
+            TextMetrics metrics = textRuler().measure("Hg", font);
+            float side = t.tabIconSize();
+            float markX = rtl ? width() - inset - t.popupMarkerCol() / 2 : inset + t.popupMarkerCol() / 2;
+            float textStart = rtl ? width() - inset - t.popupMarkerCol() : inset + t.popupMarkerCol();
+            float closeRoom = t.tabIconGap() + side + inset;
+            canvas.save();
+            canvas.clipRect(Strokes.ROW_CLIP, Strokes.ROW_CLIP,
+                    width() - 2 * Strokes.ROW_CLIP, height() - 2 * Strokes.ROW_CLIP);
+            for (int i = 0; i < headers.size(); i++) {
+                float top = rowTop(i, t);
+                if (top + itemH < 0 || top > height()) {
+                    continue;
+                }
+                TabHeader header = headers.get(i);
+                boolean active = i == listCursor || i == hoverRow;
+                if (active) {
+                    canvas.fillRoundRect(inset, top + Strokes.ROW_GUTTER, width() - 2 * inset,
+                            itemH - 2 * Strokes.ROW_GUTTER, t.radiusSmall(),
+                            theme.primary().withAlpha(0.28f));
+                }
+                if (i == selected) {
+                    canvas.fillCircle(markX, top + itemH / 2, t.popupDotRadius(), theme.primary());
+                }
+                String title = header.title.get();
+                ShapedText line = textRuler().shape(title, font,
+                        ShapedText.Direction.of(title, neutralBase()));
+                float room = Math.max(0, width() - inset - t.popupMarkerCol() - closeRoom);
+                if (line.metrics().width() > room) {
+                    line = textRuler().ellipsize(line, room);
+                }
+                canvas.drawText(line, rtl ? textStart - line.metrics().width() : textStart,
+                        top + (itemH - metrics.height()) / 2 + metrics.ascent(),
+                        isEnabled() ? theme.text() : theme.disabledText());
+                if (header.closable && active) {
+                    float left = closeLeft(t);
+                    float y = top + (itemH - side) / 2;
+                    boolean hot = closeHot && i == hoverRow;
+                    canvas.fillRoundRect(left, y, side, side, side / 2,
+                            theme.textMuted().withAlpha(hot ? 0.28f : 0.12f));
+                    float cx = left + side / 2;
+                    float cy = y + side / 2;
+                    float arm = side * 0.18f;
+                    Color cross = hot ? theme.text() : theme.textMuted();
+                    canvas.drawLine(cx - arm, cy - arm, cx + arm, cy + arm, Strokes.ARROW_PEN, cross);
+                    canvas.drawLine(cx - arm, cy + arm, cx + arm, cy - arm, Strokes.ARROW_PEN, cross);
+                }
+            }
+            canvas.restore();
+            if (fading) {
+                canvas.restore();
+            }
+        }
+
+        @Override
+        protected void onMouseEvent(MouseEvent event) {
+            SizeTokens t = tokens();
+            float x = sceneToLocalX(event.x());
+            float y = sceneToLocalY(event.y());
+            int row = rowAt(y, t);
+            switch (event.type()) {
+                case ENTER, MOVE -> {
+                    boolean hot = overClose(x, y, row, t);
+                    if (row != hoverRow || hot != closeHot) {
+                        hoverRow = row;
+                        closeHot = hot;
+                        repaintTabList();
+                    }
+                }
+                case EXIT -> {
+                    hoverRow = -1;
+                    closeHot = false;
+                    repaintTabList();
+                }
+                case PRESS -> event.consume();
+                case CLICK -> {
+                    event.consume();
+                    if (row < 0) {
+                        return;
+                    }
+                    if (event.button() == Keys.MOUSE_MIDDLE) {
+                        closeFromList(row);
+                    } else if (event.button() == Keys.MOUSE_LEFT) {
+                        if (overClose(x, y, row, t)) {
+                            listCursor = row;
+                            closeFromList(row);
+                        } else {
+                            chooseFromList(row);
+                        }
+                    }
+                }
+                case WHEEL -> {
+                    float was = scroll;
+                    scroll = Math.max(0, Math.min(maxScroll(t), scroll - event.scrollY() * Strokes.WHEEL_STEP));
+                    if (scroll != was) {
+                        event.consume();
+                        repaintTabList();
+                    }
+                }
+                default -> {
+                }
+            }
+        }
+
+        /** Keys reaching the list's own window, which a click in it can make the key window. */
+        @Override
+        protected void onKeyEvent(KeyEvent event) {
+            if (inWindow) {
+                tabListKey(event);
+            }
+        }
+
+        @Override
+        protected void onCharTyped(limn.scene.event.CharEvent event) {
+            if (inWindow) {
+                tabListCharacter(event);
+            }
+        }
+
+        /**
+         * A list of the tabs, each an option a reader selects and presses, the selected one
+         * marked and the cursor's active; a closable tab's option holds a button that closes it,
+         * named as the strip's own is.
+         */
+        @Override
+        protected void onAccessibility(Accessibility a) {
+            SizeTokens t = tokens();
+            float itemH = t.popupItemHeight();
+            float inset = t.popupRowInsetX();
+            a.role(Accessible.Role.LIST);
+            RowsAccessibility.describeContainer(a, RowsAccessibility.Selection.SINGLE, true, false);
+            float contentH = listContentHeight(t);
+            a.scrollFrom(0, 0, 1, 0, scroll, Math.max(0, contentH - height()), height(), contentH);
+            boolean operable = tabList.isOpen() && TabbedPane.this.isEnabled();
+            float side = t.tabIconSize();
+            for (int i = 0; i < headers.size(); i++) {
+                TabHeader header = headers.get(i);
+                float top = rowTop(i, t);
+                a.child(header.key);
+                a.bounds(inset, top, width() - 2 * inset, itemH);
+                a.role(Accessible.Role.LIST_ITEM);
+                a.name(header.title, Accessible.NameFrom.CONTENT);
+                RowsAccessibility.describeRow(a, RowsAccessibility.Offer.OWNED,
+                        RowsAccessibility.Selection.SINGLE, i == selected, i + 1, headers.size(),
+                        false, false, i == listCursor, operable, false, false);
+                if (header.closable) {
+                    a.child(header.key | CLOSE_KEY_BIT);
+                    a.bounds(closeLeft(t), top + (itemH - side) / 2, side, side);
+                    a.role(Accessible.Role.BUTTON);
+                    a.name(ComponentStrings.TAB_CLOSE, Accessible.NameFrom.CONTENT);
+                    if (operable) {
+                        a.action(Accessible.Action.PRESS);
+                    }
+                    a.endChild();
+                }
+                a.endChild();
+            }
+        }
+
+        @Override
+        protected boolean onSyntheticAction(long key, Accessible.Action action, Accessible.Argument arg) {
+            if (!tabList.isOpen()) {
+                return false;
+            }
+            for (int i = 0; i < headers.size(); i++) {
+                TabHeader header = headers.get(i);
+                if (key == (header.key | CLOSE_KEY_BIT)) {
+                    if (action != Accessible.Action.PRESS || !header.closable) {
+                        return false;
+                    }
+                    listCursor = i;
+                    closeFromList(i);
+                    return true;
+                }
+                if (key == header.key) {
+                    int row = i;
+                    return switch (action) {
+                        case SELECT -> {
+                            moveListCursor(row);
+                            yield true;
+                        }
+                        case PRESS -> {
+                            chooseFromList(row);
+                            yield true;
+                        }
+                        default -> false;
+                    };
+                }
+            }
+            return false;
+        }
+    }
+
+    /** The bit that tells a close button's key from its row's, both made of the header's key. */
+    private static final long CLOSE_KEY_BIT = 1L << 40;
 
     // ------------------------------------------------------------- layout
 
@@ -1749,11 +2234,11 @@ public final class TabbedPane extends Widget<TabbedPane> {
         protected void onAccessibility(Accessibility a) {
             a.role(Accessible.Role.BUTTON);
             if (kind == Kind.LIST) {
-                a.state(Accessible.State.HAS_POPUP);
-                a.action(Accessible.Action.PRESS, Accessible.Action.SHOW_MENU);
-            } else {
-                a.action(Accessible.Action.PRESS);
+                // The opener of the list of every tab: a popup, open or not, and the one of
+                // expanding and collapsing it the state allows, beside the press its click does.
+                PopupOwnerAccessibility.describe(a, tabList.isOpen());
             }
+            a.action(Accessible.Action.PRESS);
         }
 
         /**
@@ -1785,12 +2270,26 @@ public final class TabbedPane extends Widget<TabbedPane> {
                     activate();
                     return true;
                 }
-                case SHOW_MENU -> {
+                case EXPAND, COLLAPSE -> {
                     if (kind != Kind.LIST) {
                         return false;
                     }
-                    activate();
-                    return true;
+                    return PopupOwnerAccessibility.perform(new PopupOwnerAccessibility.Host() {
+                        @Override
+                        public boolean isOpen() {
+                            return tabList.isOpen();
+                        }
+
+                        @Override
+                        public void open() {
+                            openTabList();
+                        }
+
+                        @Override
+                        public void close() {
+                            closeTabList();
+                        }
+                    }, action);
                 }
                 default -> {
                     return false;
@@ -1831,6 +2330,8 @@ public final class TabbedPane extends Widget<TabbedPane> {
         private final Icon.Mirroring iconMirroring;
         /** Its place in the tab order, kept by the pane as tabs close and move. */
         int index;
+        /** What a reader knows its row in the list of every tab by, whatever its place. */
+        final long key = ++headerKeys;
         /** Whether the user can close it. */
         boolean closable;
         /** Its width as the pane measured it, and its place in the run, in strip coordinates. */

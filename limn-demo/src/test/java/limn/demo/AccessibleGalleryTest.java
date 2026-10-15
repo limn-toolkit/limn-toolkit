@@ -306,7 +306,8 @@ class AccessibleGalleryTest {
      */
     private static final Map<String, List<String>> SHARED_INTERNALS = Map.of(
             "limn.components.internal.AnchoredPopup",
-            List.of("limn.components.ComboBox", "limn.components.date.DatePicker"));
+            List.of("limn.components.ComboBox", "limn.components.date.DatePicker",
+                    "limn.components.TabbedPane"));
 
     /**
      * Every top-level class in {@code limn-toolkit}'s main sources whose file overrides one of
