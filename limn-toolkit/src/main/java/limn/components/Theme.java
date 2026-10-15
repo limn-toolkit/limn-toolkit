@@ -607,8 +607,18 @@ public final class Theme {
      * raised surface is the canvas's own tone, so a rail painted with it vanished on a page.
      */
     Color track() {
-        return text.withAlpha(0.14f);
+        Color made = track;
+        if (made == null) {
+            // Made once: a slider paints this every frame, and a frame of a form allocates
+            // almost nothing (FullFrameAllocationTest). A race makes the same value twice.
+            made = text.withAlpha(0.14f);
+            track = made;
+        }
+        return made;
     }
+
+    /** {@link #track()}, made on first use. */
+    private Color track;
 
     /** @return this palette's {@code primary} */
     public Color primary() {
