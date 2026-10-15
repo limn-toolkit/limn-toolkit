@@ -259,6 +259,47 @@ class TabbedPaneCloseMoveTest extends AccessibleComponentTestBase {
     }
 
     @Test
+    void aTabWiderThanTheLastReachesTheEndAndIsDrawnOnABackgroundOfItsOwn() {
+        pane = new TabbedPane();
+        for (String title : List.of("A rather longer title", "Beta", "Gamma")) {
+            pane.addTab(title, new Button(title + " page"));
+        }
+        pane.onTabMove((from, to) -> moves.add(from + ">" + to));
+        bind(new limn.scene.layout.Padding(limn.scene.Insets.all(40), pane));
+        scene.setTextRuler(RULER);
+        frame();
+        Widget<?> wide = header(0);
+        float y = middleY();
+        float start = wide.localToSceneX() + 10;
+        float end = header(2).localToSceneX() + header(2).width() + 60;
+        drive(scene).mouseMoved(start, y);
+        drive(scene).inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, start, y, 1);
+        drive(scene).inputBatchEnded();
+        int[] backgrounds = {0};
+        for (float x = start + 3; x <= end; x += 3) {
+            // Every move ends: one that traded a tab back and forth for ever hung the window here.
+            drive(scene).mouseMoved(x, y);
+            drive(scene).inputBatchEnded();
+            canvas = new FakeCanvas(400, 300) {
+                @Override
+                public void fillRoundRect(float x0, float y0, float w, float h, float r, limn.graphics.Paint paint) {
+                    if (Math.abs(w - wide.width()) < 0.01f && Math.abs(h - wide.height()) < 0.01f) {
+                        backgrounds[0]++;
+                    }
+                }
+            };
+            advanceTime(16, wide);
+        }
+        assertTrue(backgrounds[0] > 0, "the lifted tab fills its own box, so no text shows through it");
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, end, y, 1);
+        drive(scene).inputBatchEnded();
+        settleAnimations(null);
+        assertEquals(List.of("Beta", "Gamma", "A rather longer title"), titles());
+        assertEquals(List.of("0>2"), moves);
+    }
+
+    @Test
     void rightToLeftATabDraggedLeftwardMovesOnwardInTheOrder() {
         bindPane(false, LayoutDirection.RTL);
         float y = middleY();

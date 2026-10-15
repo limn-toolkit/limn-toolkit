@@ -182,6 +182,11 @@ public final class TabbedPane extends Widget<TabbedPane> {
     private int movedTo = -1;
     /** The header the pointer drags along the bar, and where its leading edge is held. */
     private @Nullable TabHeader dragged;
+    /**
+     * The header that was dragged, from the drag until it is home again: drawn over the others and
+     * on a background of its own, so it never shows their text through it.
+     */
+    private @Nullable TabHeader lifted;
     private float dragLeft;
     /** Bumped by every start of the slide ticker, so an earlier one stops. */
     private int slideRun;
@@ -633,6 +638,9 @@ public final class TabbedPane extends Widget<TabbedPane> {
         if (dragged == header) {
             dragged = null;
         }
+        if (lifted == header) {
+            lifted = null;
+        }
         for (TabHeader each : headers) {
             each.slideFrom = each.x();
             each.slidePending = each != header;
@@ -737,6 +745,9 @@ public final class TabbedPane extends Widget<TabbedPane> {
                 each.slide = 0;
                 each.slidePending = false;
             }
+            if (lifted != dragged) {
+                lifted = null;
+            }
             return;
         }
         int run = ++slideRun;
@@ -757,6 +768,10 @@ public final class TabbedPane extends Widget<TabbedPane> {
                         moving = true;
                     }
                 }
+            }
+            if (lifted != null && lifted != dragged && lifted.slide == 0 && !lifted.slidePending) {
+                lifted.invalidate();
+                lifted = null; // home: one of the row again
             }
             strip.placeHeaders();
             strip.invalidate();
@@ -1454,7 +1469,6 @@ public final class TabbedPane extends Widget<TabbedPane> {
             try {
                 canvas.clipRect(0, 0, width(), height());
                 // The dragged tab last, so it passes over the others rather than under them.
-                TabHeader lifted = dragged;
                 for (Widget<?> child : children()) {
                     if (child != lifted) {
                         paintChild(canvas, child);
@@ -1939,7 +1953,11 @@ public final class TabbedPane extends Widget<TabbedPane> {
                     : isSelected ? theme.text()
                     : theme.textMuted().lerp(theme.text(), h);
 
-            if (!isSelected && h > 0.01f) {
+            if (lifted == this) {
+                // Lifted out of the row: a background of its own, so the tabs it passes over do
+                // not show through it.
+                canvas.fillRoundRect(0, 0, width(), height(), t.radiusSmall(), theme.surfaceRaised());
+            } else if (!isSelected && h > 0.01f) {
                 // tabHoverInset > FOCUS_GAP_TAB must hold at every step, or the hover pill
                 // swallows the focus ring drawn inside it.
                 float inset = t.tabHoverInset();
@@ -2194,6 +2212,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
                 dragFrom = index;
                 grab = pressX - x();
                 TabbedPane.this.dragged = this;
+                lifted = this;
                 if (index != selected) {
                     selectTab(index, Focus.NONE, Change.Origin.USER);
                 }
@@ -2211,16 +2230,26 @@ public final class TabbedPane extends Widget<TabbedPane> {
             float middle = left + width() / 2;
             // Trade places while the middle has passed a neighbour's: the next one in the order
             // lies to the right left to right and to the left right to left.
-            while (true) {
+            //
+            // Each trade places the strip again, so the next comparison reads where the neighbours
+            // are now and not where they were; and one event trades in one direction only, at most
+            // once per tab, so no tab can be traded back and forth inside it.
+            int direction = 0;
+            for (int trades = 0; trades < headers.size(); trades++) {
                 int next = index + 1;
                 int previous = index - 1;
-                if (next < headers.size() && passed(middle, headers.get(next), rtl, true)) {
+                if (direction >= 0 && next < headers.size()
+                        && passed(middle, headers.get(next), rtl, true)) {
                     reorder(index, next);
-                } else if (previous >= 0 && passed(middle, headers.get(previous), rtl, false)) {
+                    direction = 1;
+                } else if (direction <= 0 && previous >= 0
+                        && passed(middle, headers.get(previous), rtl, false)) {
                     reorder(index, previous);
+                    direction = -1;
                 } else {
                     break;
                 }
+                strip.placeHeaders();
             }
             strip.placeHeaders();
             strip.invalidate();
