@@ -182,7 +182,8 @@ public final class Gallery {
         Path outDir = Path.of(args[0]);
         Files.createDirectories(outDir);
 
-        List<GalleryEntry> entries = GalleryScenes.entries();
+        List<GalleryEntry> entries = new ArrayList<>(GalleryScenes.entries());
+        entries.removeIf(entry -> !wanted(entry.id()));
         // Every (entry, palette) pair, flattened, so the event loop walks one cursor. The
         // locale is pinned per entry rather than left to the JVM default: several
         // components carry translated text of their own (the search field's placeholder is
@@ -372,12 +373,26 @@ public final class Gallery {
     }
 
     /**
+     * Whether this run captures the entry with that id: every one, unless
+     * {@code -Dlimn.gallery.only=slider,showcase-application} names the few to look at. A run so
+     * narrowed writes a manifest of those few, so it is for looking at a component, never for
+     * the site's own directory.
+     */
+    private static boolean wanted(String id) {
+        String only = System.getProperty("limn.gallery.only");
+        return only == null || only.isBlank() || List.of(only.split(",")).contains(id);
+    }
+
+    /**
      * The showcase set, expressed as ordinary gallery entries so one driver renders both.
      * Its scene builder closes over the locale and sets it before constructing.
      */
     private static List<Shot> showcaseShots(Path outDir, NativeWindow window) {
         List<Shot> shots = new ArrayList<>();
         for (SiteShowcase.Entry entry : SiteShowcase.entries()) {
+            if (!wanted("showcase-" + entry.id())) {
+                continue;
+            }
             for (Palette palette : PALETTES) {
                 // A palette-invariant entry renders the same pixels in both palettes AND both
                 // passes write the same file, so the second pass buys nothing but a second

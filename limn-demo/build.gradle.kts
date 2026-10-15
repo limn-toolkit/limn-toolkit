@@ -168,6 +168,8 @@ tasks.register<JavaExec>("captureGallery") {
     // site/public/ would make the derivation's output its own input on the next run, and
     // every crop would run twice.
     args("site/captures")
+    // -Plimn.gallery.only=range-slider,slider captures those entries alone; see Gallery.wanted.
+    findProperty("limn.gallery.only")?.let { systemProperty("limn.gallery.only", it) }
     // macOS-only, exactly as the `run` task does it: GLFW/Cocoa need the event loop on the
     // process's first thread, and a JVM that does not know the flag refuses to start.
     if (isMacOs) {

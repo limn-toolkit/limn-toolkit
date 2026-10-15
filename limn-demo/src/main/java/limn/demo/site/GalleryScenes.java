@@ -10,6 +10,7 @@ import limn.components.ProgressBar;
 import limn.components.RadioButton;
 import limn.components.SearchField;
 import limn.components.SegmentedControl;
+import limn.components.RangeSlider;
 import limn.components.Slider;
 import limn.components.Spinner;
 import limn.components.TabbedPane;
@@ -188,6 +189,8 @@ final class GalleryScenes {
 
                 // A particular job, on a particular screen.
                 new GalleryEntry("slider", "Slider", "gallery:slider", GalleryScenes::slider),
+                new GalleryEntry("range-slider", "RangeSlider", "gallery:range-slider",
+                        GalleryScenes::rangeSlider),
                 new GalleryEntry("spinner", "Spinner", "gallery:spinner", GalleryScenes::spinner),
                 new GalleryEntry("date-field", "DateField", "gallery:date-field",
                         GalleryScenes::dateField),
@@ -336,6 +339,16 @@ final class GalleryScenes {
         Slider slider = new Slider(0, 100);
         slider.setValue(65);
         return scene(new SizedBox(280, SizedBox.UNSET, slider));
+    }
+    // #endregion
+
+    // #region gallery:range-slider
+    static Built rangeSlider() {
+        // Two thumbs that never cross: the lower stops at the upper, and the other way round.
+        RangeSlider price = new RangeSlider(0, 500);
+        price.setStep(10);
+        price.setRange(120, 340);
+        return scene(new SizedBox(280, SizedBox.UNSET, price));
     }
     // #endregion
 
