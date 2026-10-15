@@ -125,7 +125,7 @@ final class GlassScene {
                 new BackdropEffect.Wash(Color.TRANSPARENT, 0.35f, 0.18f)));
         column.add(stacked);
 
-        return new ScrollView(column);
+        return column; // the page scrolls it
     }
 
     /** One labelled sample: the plate, with a panel of {@code effect} floating over its middle. */

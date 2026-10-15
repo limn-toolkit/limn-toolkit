@@ -1,7 +1,6 @@
 package limn.demo;
 
 import limn.components.Label;
-import limn.components.ScrollView;
 import limn.components.RangeSlider;
 import limn.components.Slider;
 import limn.components.Spinner;
@@ -74,7 +73,7 @@ final class ControlsScene {
         spinners.add(Labelled.below("Disabled", disabledSpinner));
         column.add(spinners);
 
-        return new ScrollView(column);
+        return column; // the page scrolls it
     }
 
     // Role, not setFont(theme.title): setFont pins MEDIUM's 20 pt whatever step the

@@ -26,7 +26,7 @@ final class PerfScene {
         column.add(new Label("The footer measures, live, the FPS, the frame time (CPU: tick + layout + "
                 + "paint) and the event-processing time, with averages and sparklines.")
                 .setMuted(true).setWrap(true));
-        column.add(Expanded.of(AnimationsScene.content(), 1)); // animation = render load to measure
+        column.add(Expanded.of(new limn.components.ScrollView(AnimationsScene.content()), 1)); // animation = render load to measure
 
         limn.components.Checkbox partialRendering =
                 new limn.components.Checkbox(limn.components.Checkbox.Variant.SWITCH, "Partial rendering");

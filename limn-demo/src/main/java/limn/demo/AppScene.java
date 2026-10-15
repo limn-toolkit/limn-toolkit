@@ -231,6 +231,7 @@ final class AppScene {
     static Built create() {
         MenuBar menuBar = new MenuBar();
         Label status = new Label(ShowcaseStrings.STATUS_READY).setMuted(true);
+        Page.reportTo(status::setText);
         ProgressBar busy = new ProgressBar().setThickness(6).setPreferredWidth(120);
         busy.setVisible(false);
         busy.setAccessibleName(ShowcaseStrings.STATUS_LOADING);

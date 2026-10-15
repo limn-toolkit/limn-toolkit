@@ -4,7 +4,6 @@ import limn.components.Button;
 import limn.components.ButtonGroup;
 import limn.components.Label;
 import limn.components.RadioButton;
-import limn.components.ScrollView;
 import limn.components.SearchField;
 import limn.components.SegmentedControl;
 import limn.components.Separator;
@@ -150,7 +149,7 @@ final class NewControlsScene {
                 "info", theme.info(), "Optional: include the area code."), 1));
         col.add(states);
 
-        return new ScrollView(col);
+        return col; // the page scrolls it
     }
 
     private static Label heading(String text) {

@@ -1,7 +1,6 @@
 package limn.demo;
 
 import limn.components.Label;
-import limn.components.ScrollView;
 import limn.components.Theme;
 import limn.graphics.BlendMode;
 import limn.graphics.Canvas;
@@ -70,7 +69,7 @@ final class SpritesScene {
                 .setMuted(true).setWrap(true));
         column.add(new ScrollCompare());
 
-        return new ScrollView(column);
+        return column; // the page scrolls it
     }
 
     /**

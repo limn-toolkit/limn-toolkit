@@ -2,7 +2,6 @@ package limn.demo;
 
 import limn.components.Button;
 import limn.components.Label;
-import limn.components.ScrollView;
 import limn.components.Slider;
 import limn.components.Theme;
 import limn.graphics.Canvas;
@@ -107,7 +106,7 @@ final class AudioScene {
         column.add(new Label("Click or drag to place a looping sound around the listener; click the centre to stop.").setMuted(true).setWrap(true));
         column.add(new PositionalPad());
 
-        return new ScrollView(column);
+        return column; // the page scrolls it
     }
 
     // Role, not setFont(theme.title): setFont pins MEDIUM's 20 pt whatever step the

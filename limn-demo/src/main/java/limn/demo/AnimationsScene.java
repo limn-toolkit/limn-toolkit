@@ -10,7 +10,6 @@ import limn.components.Button;
 import limn.components.Checkbox;
 import limn.components.ComboBox;
 import limn.components.Label;
-import limn.components.ScrollView;
 import limn.components.SegmentedControl;
 import limn.components.Theme;
 import limn.graphics.Canvas;
@@ -143,7 +142,7 @@ final class AnimationsScene {
         windowRow.add(openWindow);
         column.add(windowRow);
 
-        return new ScrollView(column);
+        return column; // the page scrolls it
     }
 
     /** Opens a plain native window centered over the host that fades in, and fades out on close. */
