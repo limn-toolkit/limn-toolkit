@@ -2,6 +2,7 @@ package limn.demo;
 
 import limn.components.Button;
 import limn.components.Checkbox;
+import limn.components.Dialog;
 import limn.components.Expander;
 import limn.components.ExpanderGroup;
 import limn.components.Label;
@@ -29,7 +30,7 @@ final class SectionsScene {
         page.add(heading("Tabs that close and move"));
         page.add(new Label("Close a tab with its ×, a middle click or Ctrl+W (Cmd+W on macOS). Drag a tab "
                 + "along the bar, or move the selected one with Ctrl+Shift+Page Up and Page Down. The draft "
-                + "asks before it closes.").setMuted(true).setWrap(true));
+                + "has unsaved changes and asks before it closes.").setMuted(true).setWrap(true));
         Label status = new Label("").setMuted(true);
         TabbedPane documents = new TabbedPane().setTabsClosable(true);
         for (String name : new String[] {"Report.txt", "Notes.txt", "Budget.txt"}) {
@@ -39,18 +40,29 @@ final class SectionsScene {
         draft.setText("An unsaved draft: closing it asks first.");
         documents.addTab("Draft*", draft);
         int[] made = {0};
-        // The draft refuses the first close and allows the second, as a document with unsaved
-        // changes would after asking; the others close at once.
-        boolean[] warned = {false};
+        // The draft has unsaved changes and asks first, in a modal dialog, as an editor does; the
+        // request is answered when the dialog is, and the others close at once.
         documents.onTabClose(request -> {
-            if (request.content() == draft && !warned[0]) {
-                warned[0] = true;
-                status.setText("The draft has unsaved changes: close it again to discard them.");
-                request.refuse();
+            String title = documents.tabTitle(request.index());
+            if (request.content() != draft) {
+                status.setText("Closed " + title + ".");
+                request.allow();
                 return;
             }
-            status.setText("Closed " + documents.tabTitle(request.index()) + ".");
-            request.allow();
+            new Dialog("Close " + title + "?", "It has changes that were not saved. Closing it discards them.")
+                    .addButton("Keep it open", "keep")
+                    .addPrimaryButton("Discard and close", "discard")
+                    .setCancelResult("keep")
+                    .show(documents)
+                    .thenAccept(answer -> {
+                        if ("discard".equals(answer)) {
+                            status.setText("Closed " + title + ", its changes discarded.");
+                            request.allow();
+                        } else {
+                            status.setText(title + " kept open.");
+                            request.refuse();
+                        }
+                    });
         });
         documents.onTabMove((from, to) -> status.setText("Moved from place " + (from + 1) + " to " + (to + 1) + "."));
         Button add = new Button("New tab").setSecondary(true);
