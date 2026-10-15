@@ -27,7 +27,11 @@ public final class MouseEvent extends InputEvent {
     private final int modifiers;
     private final int clickCount;
 
-    /** A pointer event; {@code x} and {@code y} are in the receiving widget's coordinates. */
+    /**
+     * A pointer event. {@code x} and {@code y} are in <b>scene</b> coordinates, whichever widget
+     * receives it: a widget turns them into its own with {@code sceneToLocalX} and
+     * {@code sceneToLocalY}.
+     */
     public MouseEvent(Type type, float x, float y, int button,
                       float scrollX, float scrollY, int modifiers) {
         this(type, x, y, button, scrollX, scrollY, modifiers, 1);

@@ -41,7 +41,9 @@ class TabbedPaneCloseMoveTest extends AccessibleComponentTestBase {
         }
         pane.setLayoutDirection(direction);
         pane.onTabMove((from, to) -> moves.add(from + ">" + to));
-        bind(pane);
+        // Away from the window's corner, as a pane in an application is: a pointer event carries
+        // scene coordinates, and at the origin a widget that reads them as its own still works.
+        bind(new limn.scene.layout.Padding(limn.scene.Insets.all(40), pane));
         scene.setTextRuler(RULER);
         frame();
         // The pane is the scene's root here, which also hears every layout pass: not its own.
@@ -65,6 +67,10 @@ class TabbedPaneCloseMoveTest extends AccessibleComponentTestBase {
     }
 
     private void click(int button, float x, float y) {
+        // The pointer arrives first, as a real one does, and the frame between draws the button.
+        drive(scene).mouseMoved(x, y);
+        drive(scene).inputBatchEnded();
+        frame();
         drive(scene).mouseButton(button, true, 0, x, y, 1);
         drive(scene).inputBatchEnded();
         drive(scene).mouseButton(button, false, 0, x, y, 1);
@@ -220,6 +226,36 @@ class TabbedPaneCloseMoveTest extends AccessibleComponentTestBase {
         assertEquals(1, changes.stream().filter(c -> c.aspect() == Change.Aspect.CHILDREN).count());
         assertEquals(header(0).width(), header(1).localToSceneX() - header(0).localToSceneX(), 0.01f,
                 "home in its place");
+    }
+
+    @Test
+    void aDraggedTabStaysUnderThePointerStepByStep() {
+        bindPane(false, LayoutDirection.LTR);
+        float y = middleY();
+        float start = header(0).localToSceneX() + 10;
+        float grab = start - header(0).localToSceneX();
+        Widget<?> dragged = header(0);
+        drive(scene).mouseMoved(start, y);
+        drive(scene).inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, start, y, 1);
+        drive(scene).inputBatchEnded();
+        float end = header(2).localToSceneX() + header(2).width() - 20;
+        float runEnd = header(2).localToSceneX() + header(2).width();
+        for (float x = start + 3; x <= end; x += 3) {
+            drive(scene).mouseMoved(x, y);
+            drive(scene).inputBatchEnded();
+            advanceTime(16, null);
+            if (x - start >= 4) { // a press becomes a drag past four points
+                // Under the pointer, and held inside the bar: it stops at the last tab's end.
+                assertEquals(Math.min(x - grab, runEnd - dragged.width()), dragged.localToSceneX(), 0.5f,
+                        "under the pointer at " + x);
+            }
+        }
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, end, y, 1);
+        drive(scene).inputBatchEnded();
+        settleAnimations(null);
+        assertEquals(List.of("Beta", "Gamma", "Alpha"), titles());
+        assertEquals(List.of("0>2"), moves, "told once, from where it was to where it is");
     }
 
     @Test

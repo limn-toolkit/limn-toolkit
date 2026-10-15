@@ -88,10 +88,10 @@ final class BasicsScene {
         page.add(heading("Text field"));
         page.add(leading(new SizedBox(280, SizedBox.UNSET, new TextField().setPlaceholder("Type your name"))));
         page.add(heading("Text field with a mask"));
-        page.add(new Label("0 takes a digit, A a letter, * anything; the rest is written for you. Focus the "
-                + "field to see what is left to fill, and paste with or without the dashes.")
-                .setMuted(true).setWrap(true));
-        TextField serial = new TextField().setPlaceholder("Serial number").setMask("AAA-0000-**");
+        page.add(new Label("Format AAA-0000-**: A is a letter, 0 a digit, * any character, and the dashes are "
+                + "written for you. Focus the field to see what is left to fill, and paste with or without "
+                + "the dashes.").setMuted(true).setWrap(true));
+        TextField serial = new TextField().setPlaceholder("Serial number, AAA-0000-**").setMask("AAA-0000-**");
         Label typed = new Label("").setMuted(true);
         Runnable read = () -> typed.setText(serial.unmaskedText().isEmpty() ? "Nothing typed yet"
                 : "Typed " + serial.unmaskedText() + (serial.isMaskComplete() ? ", complete" : ", not complete"));

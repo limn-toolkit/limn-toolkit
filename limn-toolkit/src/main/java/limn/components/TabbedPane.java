@@ -1890,6 +1890,20 @@ public final class TabbedPane extends Widget<TabbedPane> {
             return x >= left - slop && x < left + side + slop && y >= top - slop && y < top + side + slop;
         }
 
+        /** Whether a pointer event, which carries scene coordinates, is over the close button. */
+        private boolean overCloseAt(MouseEvent event) {
+            return overClose(sceneToLocalX(event.x()), sceneToLocalY(event.y()));
+        }
+
+        /**
+         * Where a pointer event is along the strip, in the strip's coordinates: from the strip's
+         * own place in the scene, which a drag does not move, and never from this header's, which
+         * it does.
+         */
+        private float stripX(MouseEvent event) {
+            return event.x() - strip.localToSceneX();
+        }
+
         private boolean closeShown() {
             return closable && (index == selected || pointerIn);
         }
@@ -2107,9 +2121,9 @@ public final class TabbedPane extends Widget<TabbedPane> {
                 case ENTER -> {
                     hover.to(1);
                     pointerIn = true;
-                    hotClose(overClose(event.x(), event.y()));
+                    hotClose(overCloseAt(event));
                 }
-                case MOVE -> hotClose(overClose(event.x(), event.y()));
+                case MOVE -> hotClose(overCloseAt(event));
                 case EXIT -> {
                     hover.to(0);
                     pointerIn = false;
@@ -2118,15 +2132,15 @@ public final class TabbedPane extends Widget<TabbedPane> {
                 case PRESS -> {
                     event.consume();
                     movedByDrag = false;
-                    if (event.button() == Keys.MOUSE_LEFT && !overClose(event.x(), event.y())) {
+                    if (event.button() == Keys.MOUSE_LEFT && !overCloseAt(event)) {
                         pressArmed = true;
-                        pressX = x() + event.x();
+                        pressX = stripX(event);
                     }
                 }
                 case DRAG -> {
                     if (pressArmed) {
                         event.consume();
-                        dragTo(x() + event.x());
+                        dragTo(stripX(event));
                     }
                 }
                 case RELEASE -> {
@@ -2142,7 +2156,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
                     }
                     if (event.button() == Keys.MOUSE_LEFT) {
                         event.consume();
-                        if (overClose(event.x(), event.y())) {
+                        if (overCloseAt(event)) {
                             requestClose(index, Change.Origin.USER);
                         } else {
                             selectTab(index, Focus.CONTENT, Change.Origin.USER);
@@ -2215,7 +2229,11 @@ public final class TabbedPane extends Widget<TabbedPane> {
         private boolean passed(float middle, TabHeader neighbour, boolean rtl, boolean onward) {
             float theirs = neighbour.slotX + neighbour.measured / 2;
             boolean rightward = onward != rtl;
-            return rightward ? middle > theirs : middle < theirs;
+            // A middle held inside the bar cannot pass the middle of a narrower tab at its end:
+            // the end of the bar counts as passing it, or the last place could not be reached.
+            float reach = width() / 2 + 0.5f;
+            return rightward ? middle > Math.min(theirs, strip.runEnd() - reach)
+                    : middle < Math.max(theirs, strip.runStart() + reach);
         }
 
         /** The tab is let go: it slides into its place, and a move is told once, as the user's. */
