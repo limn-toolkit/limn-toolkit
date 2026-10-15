@@ -1884,12 +1884,19 @@ public final class TabbedPane extends Widget<TabbedPane> {
          * a tab that grew as the pointer came would move every tab after it.
          */
         private float closeAdvance(SizeTokens t) {
-            return closable ? t.tabIconGap() + t.tabIconSize() : 0;
+            // The button sits half a padding from the tab's end and not a whole one, so the room it
+            // takes is its gap and its square less the half padding it gives back.
+            return closable ? t.tabIconGap() + t.tabIconSize() - closeEdge(t) : 0;
+        }
+
+        /** How far the close button stands from the tab's end: half its side padding. */
+        private float closeEdge(SizeTokens t) {
+            return t.tabPadH() / 2;
         }
 
         /** The close button's square, in this header's coordinates: at the end reading goes to. */
         private float closeLeft(SizeTokens t) {
-            return isRightToLeft() ? t.tabPadH() : width() - t.tabPadH() - t.tabIconSize();
+            return isRightToLeft() ? closeEdge(t) : width() - closeEdge(t) - t.tabIconSize();
         }
 
         private boolean overClose(float x, float y) {
@@ -1995,14 +2002,15 @@ public final class TabbedPane extends Widget<TabbedPane> {
                 float side = t.tabIconSize();
                 float left = closeLeft(t);
                 float top = (height() - side) / 2;
-                if (closeHot && isEnabled()) {
-                    canvas.fillRoundRect(left, top, side, side, t.radiusSmall(),
-                            theme.surfaceRaised().withAlpha(0.9f));
-                }
-                // A cross of the chevrons' pen, a third of the square across.
+                // A round button whenever it shows, deeper under the pointer: a cross alone read
+                // as a mark beside the caption rather than as something to press.
+                Color disc = isEnabled() && closeHot ? theme.textMuted().withAlpha(0.28f)
+                        : theme.textMuted().withAlpha(0.12f);
+                canvas.fillRoundRect(left, top, side, side, side / 2, disc);
+                // A cross of the chevrons' pen, well inside the disc.
                 float cx = left + side / 2;
                 float cy = top + side / 2;
-                float arm = side * 0.2f;
+                float arm = side * 0.18f;
                 Color cross = !isEnabled() ? theme.disabledText()
                         : closeHot ? theme.text() : theme.textMuted();
                 canvas.drawLine(cx - arm, cy - arm, cx + arm, cy + arm, Strokes.ARROW_PEN, cross);

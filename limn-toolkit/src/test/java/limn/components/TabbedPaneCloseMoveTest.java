@@ -82,7 +82,8 @@ class TabbedPaneCloseMoveTest extends AccessibleComponentTestBase {
     private float closeX(int index) {
         Widget<?> h = header(index);
         SizeTokens t = SizeTokens.MEDIUM;
-        float left = h.isRightToLeft() ? t.tabPadH() : h.width() - t.tabPadH() - t.tabIconSize();
+        float edge = t.tabPadH() / 2;
+        float left = h.isRightToLeft() ? edge : h.width() - edge - t.tabIconSize();
         return h.localToSceneX() + left + t.tabIconSize() / 2;
     }
 
@@ -98,6 +99,15 @@ class TabbedPaneCloseMoveTest extends AccessibleComponentTestBase {
         assertEquals(0, pane.selectedIndex(), "the one after it");
         assertEquals(List.of(Change.of(Change.Aspect.CHILDREN, Change.Origin.USER),
                 Change.of(Change.Aspect.SELECTION, Change.Origin.ADJUSTMENT)), changes);
+    }
+
+    @Test
+    void rightToLeftTheCloseButtonIsAtTheTabsLeftEndAndCloses() {
+        bindPane(true, LayoutDirection.RTL);
+        Widget<?> first = header(0);
+        assertTrue(closeX(0) < first.localToSceneX() + first.width() / 2, "at the end reading goes to");
+        click(Keys.MOUSE_LEFT, closeX(0), middleY());
+        assertEquals(List.of("Beta", "Gamma"), titles());
     }
 
     @Test
