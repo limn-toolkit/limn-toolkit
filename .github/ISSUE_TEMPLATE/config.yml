@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: A question
+    url: https://github.com/limn-toolkit/limn-toolkit/discussions
+    about: Ask how to do something with Limn, or share what you built with it.
+  - name: A vulnerability
+    url: https://github.com/limn-toolkit/limn-toolkit/security/advisories/new
+    about: Report it privately, never in a public issue.
