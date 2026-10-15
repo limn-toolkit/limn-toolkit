@@ -55,9 +55,10 @@ final class GlassScene {
         BackdropPanel bar = BackdropPanel.frosted(Insets.symmetric(8, 12), tools);
         Widget<?> library = limn.demo.site.GlassExample.barOver(shelf(), bar);
         column.add(new SizedBox(SizedBox.UNSET, 280, library));
-        // Opened a little way down, so that the first thing seen is content under the glass.
+        // Opened a little way down, so that the first thing seen is content under the glass: set
+        // before the first layout, it is where the first frame shows it.
         if (library.children().get(0) instanceof ScrollView shelfScroll) {
-            limn.concurrent.Ui.postDelayed(() -> shelfScroll.scrollTo(0, 64), 400);
+            shelfScroll.scrollTo(0, 64);
         }
 
         column.add(new Label("A panel that floats over a picture, with a tint").setStrong(true));

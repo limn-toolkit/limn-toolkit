@@ -59,6 +59,8 @@ public final class ScrollView extends Widget<ScrollView> implements Scrollable {
     private final ScrollBar hBar;
     private float offsetX;
     private float offsetY;
+    /** Whether a layout has measured the content, against which an offset can be clamped. */
+    private boolean laidOut;
     private final ScrollGutters gutters = new ScrollGutters();
     /** The band {@link #paintOverflow(float)} declared, or {@link #FROM_THEME}. */
     private float paintOverflow = FROM_THEME;
@@ -347,6 +349,10 @@ public final class ScrollView extends Widget<ScrollView> implements Scrollable {
      * Scrolls to an absolute offset (clamped to the content). A caller's write, announced as
      * {@code VALUE}/{@code CODE}; the wheel, the keys and the bars announce {@code USER} through
      * the same seam, and a layout that clamped the offset an {@code ADJUSTMENT}. UI thread only.
+     *
+     * <p>Called before the first layout, as a view built already scrolled is, the offset is kept
+     * and the first layout clamps it to the content it measures: the first frame shows the view
+     * where it was asked to be, never at the top first.
      */
     public void scrollTo(float newOffsetX, float newOffsetY) {
         Ui.checkUiThread();
@@ -354,6 +360,18 @@ public final class ScrollView extends Widget<ScrollView> implements Scrollable {
     }
 
     private void scrollTo(float newOffsetX, float newOffsetY, Change.Origin origin) {
+        if (!laidOut) {
+            // Nothing measured to clamp against: kept as asked, and clamped by the first layout.
+            float keptX = horizontal ? Math.max(0, newOffsetX) : 0;
+            float keptY = vertical ? Math.max(0, newOffsetY) : 0;
+            if (keptX != offsetX || keptY != offsetY) {
+                offsetX = keptX;
+                offsetY = keptY;
+                markNeedsLayout();
+                notifyChange(Change.of(Change.Aspect.VALUE, origin));
+            }
+            return;
+        }
         float clampedX = horizontal ? Math.min(Math.max(0, newOffsetX), maxOffsetX()) : 0;
         float clampedY = vertical ? Math.min(Math.max(0, newOffsetY), maxOffsetY()) : 0;
         if (clampedX == offsetX && clampedY == offsetY) {
@@ -404,6 +422,7 @@ public final class ScrollView extends Widget<ScrollView> implements Scrollable {
         offsetX = horizontal ? Math.min(offsetX, Math.max(0, childWidth - viewW)) : 0;
         offsetY = vertical ? Math.min(offsetY, Math.max(0, childHeight - viewH)) : 0;
         child.layoutBox(contentOriginX(childWidth), -offsetY, childWidth, childHeight);
+        laidOut = true;
         if (offsetX != wasX || offsetY != wasY) {
             // Content that shrank under the offset pulled it back: the view moved by itself.
             notifyChange(Change.of(Change.Aspect.VALUE, Change.Origin.ADJUSTMENT));

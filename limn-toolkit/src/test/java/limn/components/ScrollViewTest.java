@@ -56,6 +56,22 @@ class ScrollViewTest extends ComponentTestBase {
     }
 
     @Test
+    void anOffsetSetBeforeTheFirstLayoutIsWhereTheFirstLayoutPutsTheContent() {
+        Box content = new Box(100, 300);
+        ScrollView scroll = new ScrollView(content);
+        scroll.scrollTo(0, 64); // built already scrolled, before anything is measured
+        Scene scene = new Scene(scroll);
+        scene.layoutPass(100, 100);
+        assertEquals(64, scroll.offsetY(), EPS, "kept, where it was clamped to nothing before");
+        assertEquals(-64, content.y(), EPS);
+
+        ScrollView past = new ScrollView(new Box(100, 150));
+        past.scrollTo(0, 500);
+        new Scene(past).layoutPass(100, 100);
+        assertEquals(50, past.offsetY(), EPS, "and clamped by the content the layout measured");
+    }
+
+    @Test
     void wheelThroughTheSceneScrollsAndIsConsumed() {
         Box content = new Box(100, 400);
         ScrollView scroll = new ScrollView(content);
