@@ -289,8 +289,24 @@ class AccessibleGalleryTest {
                 covered.add(type.getName());
             }
         }
+        // A shared internal class is no component an application uses, and this module cannot
+        // name it: it is covered once every component that publishes through it is.
+        for (Map.Entry<String, List<String>> shared : SHARED_INTERNALS.entrySet()) {
+            if (covered.containsAll(shared.getValue())) {
+                covered.add(shared.getKey());
+            }
+        }
         return covered;
     }
+
+    /**
+     * The toolkit's internal classes that override a hook, by the components whose nodes they
+     * publish: the layer an anchored popup is drawn on in the scene is the combo box's, the date
+     * picker's and the tab strip's.
+     */
+    private static final Map<String, List<String>> SHARED_INTERNALS = Map.of(
+            "limn.components.internal.AnchoredPopup",
+            List.of("limn.components.ComboBox", "limn.components.date.DatePicker"));
 
     /**
      * Every top-level class in {@code limn-toolkit}'s main sources whose file overrides one of

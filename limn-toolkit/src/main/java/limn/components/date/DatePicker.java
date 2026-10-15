@@ -4,14 +4,11 @@ import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.animation.Transition;
 import limn.backend.Cursor;
-import limn.backend.NativeWindow;
-import limn.backend.WindowConfig;
 import limn.components.DisplayMode;
 import limn.components.SizeTokens;
 import limn.components.Strokes;
 import limn.components.Theme;
-import limn.components.internal.FloatingSurfaces;
-import limn.concurrent.Subscription;
+import limn.components.internal.AnchoredPopup;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
@@ -23,7 +20,6 @@ import limn.input.Keys;
 import limn.internal.lang.Checks;
 import limn.scene.Change;
 import limn.scene.Constraints;
-import limn.scene.Scene;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.CharEvent;
@@ -39,7 +35,6 @@ import java.time.chrono.Chronology;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import limn.backend.spi.WindowPeer;
 
 /**
  * A date field with a calendar to pick from: the field is a real child, the calendar is a
@@ -114,18 +109,8 @@ public final class DatePicker extends Widget<DatePicker> {
     private boolean fillingEnd;
     private DisplayMode requested = DisplayMode.NATIVE_WINDOW;
 
-    private NativeWindow popupWindow;
-    private Scene popupScene;
-    /** The transparent margin around the card in its own window, for its shadow; zero for none. */
-    private int popupMargin;
-    private PopupPanel popupPanel;
-    private ScenePopup scenePopup;
-    private float sceneFade;
-    private Subscription blurHandle;
-    private Subscription dismissHandle;
-    private Subscription popupBlurHandle;
-    /** Closes a calendar opened towards a window of its own when the owner changes fullscreen. */
-    private Subscription fullscreenHandle;
+    /** The card the calendar is shown on, in a window of its own or in the scene. */
+    private final AnchoredPopup popup = new AnchoredPopup(new PopupHost());
 
     /**
      * The trailing affordance, a real widget rather than a painted region.
@@ -588,7 +573,7 @@ public final class DatePicker extends Widget<DatePicker> {
      *         the window as it is then.
      */
     public DisplayMode displayMode() {
-        return scenePopup != null ? DisplayMode.IN_SCENE : requested;
+        return popup.inScene() ? DisplayMode.IN_SCENE : requested;
     }
 
     /** Opens the calendar. Does nothing if it is already open or the picker is disabled. */
@@ -872,7 +857,7 @@ public final class DatePicker extends Widget<DatePicker> {
     private void leaveTimeRow() {
         timeRowActive = false;
         timeRow.setKeyboardActive(false);
-        if (scenePopup != null) {
+        if (popup.inScene()) {
             filling().setKeyboardActive(true);
         }
     }
@@ -936,47 +921,15 @@ public final class DatePicker extends Widget<DatePicker> {
         // the in-scene overlay is the size of the WHOLE SCENE, so invalidating it turned every
         // forwarded arrow key into a full-window repaint -- measured at two full frames per key
         // against the half per cent the grid had just asked for.
-        if (popupWindow != null) {
-            popupWindow.requestFrame();
+        if (popup.window() != null) {
+            popup.window().requestFrame();
         }
     }
 
     // ------------------------------------------------------------------ presentation
 
     private void present() {
-        Scene scene = scene();
-        if (scene == null) {
-            return; // headless: the state machine is the whole of what a test drives
-        }
-        blurHandle = scene.observeWindowBlur(() -> Ui.post(this::closeUnlessRefocused));
-        // A fullscreen owner gets no calendar window (at a named mode it would be minimized at the
-        // first click in the calendar, and at the mode the display is in it already covers the
-        // screen, so the calendar loses nothing inside it), and one that cannot be positioned would
-        // put it away from the field: both draw it in scene, whatever was asked.
-        NativeWindow window = scene.window();
-        if (requested == DisplayMode.IN_SCENE
-                || (window != null && !FloatingSurfaces.anchoredWindowAvailable(window))) {
-            presentInScene(scene);
-            return;
-        }
-        dismissHandle = scene.observePresses(target -> {
-            if (target != this && target != field && target != endField) {
-                setOpen(false, Change.Origin.USER);
-            }
-        });
-        // The owner going fullscreen, or leaving it, takes the calendar down as a platform's own
-        // popup goes on a change of its window's state: the change resizes and moves the owner
-        // under a calendar placed against the field's old position, and one left open over a
-        // fullscreen at a named mode would minimize it at the first click. Dismissed, so the grid's
-        // cursor is not a pick. An in-scene calendar is left alone: it is laid out again with the
-        // window, against the field where it now is.
-        fullscreenHandle = scene.observeWindowFullscreen(
-                fullscreen -> setOpen(false, Change.Origin.ADJUSTMENT));
-        if (window != null && popupWindow == null) {
-            // Deferred: creating a window switches the GL context, which must not happen in the
-            // middle of another window's frame callback.
-            Ui.post(this::createPopupWindow);
-        }
+        popup.open(requested);
     }
 
     /**
@@ -1000,110 +953,6 @@ public final class DatePicker extends Widget<DatePicker> {
         }
     }
 
-    private void presentInScene(Scene owner) {
-        releaseCalendar();
-        popupPanel = new PopupPanel();
-        // Hosted by the FIELD being filled, not by this composite (decisions 18 and 55,
-        // 2026-09-14): the host is also the opener the walk names in the popup's POPUP_FOR and
-        // mirrors as CONTROLLER_FOR, and the node a reader is at is the field -- a single
-        // picker's own group is no node at all. Every inherited axis resolves through the field
-        // to this picker exactly as it did, and in a window of its own the calendar is grafted
-        // into this tree under the field, the focused node, whose first ACTIVE descendant is then
-        // the calendar's cursor.
-        popupPanel.setInheritanceHost(filling());
-        scenePopup = new ScenePopup(popupPanel);
-        // The link goes on the OVERLAY as well, and it is the overlay's that does the work: a host
-        // link on a widget that has a parent loses to the tree, and here the panel's parent is the
-        // overlay. Without it the grid resolves the scene's defaults instead of the picker's, and
-        // opens at a different density, direction or language from the field that opened it.
-        scenePopup.setInheritanceHost(filling());
-        boolean animate = owner.window() != null && !limn.animation.Motion.reduced();
-        sceneFade = animate ? 0f : 1f;
-        // Before the overlay takes the focus: the field keeps its caret drawn and published,
-        // because that is still where the digits land, and a field that knows a picker is aiming at
-        // it does not treat the loss of focus as somebody moving on (a half-typed year is not
-        // resolved by the popup opening).
-        filling().setKeyboardActive(true);
-        owner.pushPopup(scenePopup);
-        if (animate) {
-            ScenePopup fading = scenePopup;
-            owner.addRealTimeTicker(dt -> {
-                if (!open) {
-                    return false;
-                }
-                sceneFade = (float) Math.min(1, sceneFade + limn.animation.Motion.progress(dt, Theme.of(this).animWindow));
-                fading.invalidate();
-                return sceneFade < 1;
-            });
-        }
-    }
-
-    private void createPopupWindow() {
-        Scene scene = scene();
-        if (!open || popupWindow != null || scene == null || scene.window() == null
-                || scene.window().isClosed()) {
-            return;
-        }
-        NativeWindow parent = scene.window();
-        if (!FloatingSurfaces.anchoredWindowAvailable(parent)) {
-            // The owner went fullscreen between the open and this turn, and the change has not
-            // been dispatched yet: the window it would have closed is never made.
-            setOpen(false, Change.Origin.ADJUSTMENT);
-            return;
-        }
-        SizeTokens t = Theme.of(this).tokensFor(this);
-        float gap = t.popupGap();
-        float factor = parent.logicalToScreenFactor();
-        Size content = popupContentSize();
-
-        int anchorTop = parent.screenY() + Math.round(localToSceneY() * factor);
-        int anchorBottom = parent.screenY()
-                + Math.round((localToSceneY() + height() + gap) * factor);
-        limn.backend.ScreenRect area = parent.display() != null ? parent.display().workArea() : null;
-        float spaceBelow = area != null
-                ? (area.bottom() - anchorBottom) / factor - EDGE_MARGIN : content.height();
-        float spaceAbove = area != null
-                ? (anchorTop - area.y()) / factor - gap - EDGE_MARGIN : content.height();
-        // A calendar does not scroll and cannot be clamped shorter: it flips above when it does not
-        // fit below and there is more room there, and otherwise opens downward and is allowed to
-        // run past the work area, which is what every platform picker does with a short screen.
-        boolean above = content.height() > spaceBelow && spaceAbove > spaceBelow;
-
-        float ownerY = above
-                ? localToSceneY() - gap - content.height()
-                : localToSceneY() + height() + gap;
-        // Where the compositor casts no shadow for such a window, the window is larger than the
-        // card by the shadow's reach on every side and the card is laid out inset in it.
-        popupMargin = limn.components.internal.PopupFrame.marginFor(parent, Theme.of(this),
-                limn.components.Elevation.OVERLAY);
-        int m = popupMargin;
-        popupWindow = parent.backend().createWindow(WindowConfig.popup(parent,
-                Math.max(1, Math.round(content.width())) + 2 * m,
-                Math.max(1, Math.round(content.height())) + 2 * m)
-                .atInOwner(localToSceneX() - m, ownerY - m));
-        releaseCalendar();
-        popupPanel = new PopupPanel();
-        Widget<?> popupRoot = m == 0 ? popupPanel
-                : new limn.components.internal.PopupFrame(popupPanel, m,
-                        () -> closeTo(filling(), Change.Origin.USER));
-        popupRoot.setInheritanceHost(filling()); // the opener a reader sees: see presentInScene
-        // On the owner's clock, so the fade-out that destroys this window advances with it
-        // (Scene#clock).
-        popupScene = new Scene(popupRoot, scene.clock());
-        popupScene.inheritRenderingFlags(scene);
-        // Published by this window's tree, under the field, as a native picker's calendar is: a
-        // reader never leaves this window while the calendar is open.
-        scene.graftPopup(popupScene);
-        popupScene.bind(popupWindow);
-        popupBlurHandle = popupScene.observeWindowBlur(() -> Ui.post(this::closeUnlessRefocused));
-        popupScene.setBackground(Color.TRANSPARENT);
-        if (parent.isVisible()) {
-            popupScene.fadeWindowIn(limn.animation.Motion.duration(Theme.of(this).animWindow));
-            popupWindow.show();
-        }
-        popupWindow.requestFrame();
-    }
-
     /** The popup's box: the grid's own measurement, the time row's under it, and the panel's padding. */
     private Size popupContentSize() {
         SizeTokens t = Theme.of(this).tokensFor(this);
@@ -1121,123 +970,99 @@ public final class DatePicker extends Widget<DatePicker> {
         return new Size(width + 2 * pad, height + 2 * pad);
     }
 
-    /**
-     * Dismisses on OS focus loss, <b>unless the focus went to this picker's own popup</b>.
-     *
-     * <p>Deferred one turn so that an intra-application focus switch settles first: the owner
-     * blurs and the popup gains focus in the same input batch, or the other way round, and a check
-     * made between the two sees a moment when neither holds it.
-     *
-     * <p>The guard is not a nicety. Without it the popup closes itself the instant it takes focus,
-     * because the owner blurring <em>is</em> the popup opening; and even where the popup is created
-     * non-focus-stealing, clicking inside it hands it the OS focus on macOS, so the popup would
-     * close on the very click that was choosing a day. The unconditional close this replaces was
-     * a latent defect that only turned visible under the focus experiment of 2026-09-09 &mdash;
-     * which is how a race announces itself: two of three pickers worked.
-     */
-    private void closeUnlessRefocused() {
-        if (!open) {
-            return;
-        }
-        boolean ownerFocused = scene() != null && scene().isWindowFocused();
-        boolean popupFocused = popupScene != null && popupScene.isWindowFocused();
-        if (!ownerFocused && !popupFocused) {
-            setOpen(false, Change.Origin.ADJUSTMENT);
-        }
+    /** Takes the card down; see {@link AnchoredPopup#close}. */
+    private void dismiss() {
+        popup.close();
     }
 
-    /**
-     * Takes the popup down, fading it out where there is a frame pump to run the fade.
-     *
-     * <p>The fields are relinquished <em>before</em> the fade starts, so that a picker reopened
-     * while the old surface is still vanishing builds a new one rather than writing into the one
-     * on its way out. The two presentations fade differently and both matter: a window fades its
-     * own compositing, an overlay fades a number this class paints with, and the overlay's last
-     * frame is what removes the layer holding input capture and focus &mdash; on wall time, not
-     * frame time, or a paused application would be left with an open calendar over an unreachable
-     * field.
-     */
-    private void dismiss() {
-        if (blurHandle != null) {
-            blurHandle.cancel();
-            blurHandle = null;
+    /** What the picker answers for its card. */
+    private final class PopupHost implements AnchoredPopup.Host {
+        @Override
+        public Widget<?> anchor() {
+            return DatePicker.this;
         }
-        if (dismissHandle != null) {
-            dismissHandle.cancel();
-            dismissHandle = null;
+
+        /**
+         * The FIELD being filled, not this composite (decisions 18 and 55, 2026-09-14): it is the
+         * opener the walk names in the popup's POPUP_FOR and mirrors as CONTROLLER_FOR, and the
+         * node a reader is at; every inherited axis resolves through the field to this picker.
+         */
+        @Override
+        public Widget<?> opener() {
+            return filling();
         }
-        if (popupBlurHandle != null) {
-            popupBlurHandle.cancel();
-            popupBlurHandle = null;
+
+        /**
+         * A calendar does not scroll and cannot be clamped shorter: it goes above when it does
+         * not fit below and there is more room there, and otherwise opens downward and may run
+         * past the work area, as every platform's picker does on a short screen.
+         */
+        @Override
+        public AnchoredPopup.Placement place(SizeTokens t, float spaceAbove, float spaceBelow) {
+            Size content = popupContentSize();
+            boolean above = content.height() > spaceBelow && spaceAbove > spaceBelow;
+            return new AnchoredPopup.Placement(content.width(), content.height(), above);
         }
-        if (fullscreenHandle != null) {
-            fullscreenHandle.cancel();
-            fullscreenHandle = null;
-        }
-        if (popupWindow != null) {
-            NativeWindow closing = popupWindow;
-            Scene closingScene = popupScene;
-            popupWindow = null;
-            popupScene = null;
-            popupPanel = null;
-            NativeWindow parent = scene() != null ? scene().window() : null;
-            if (closingScene != null && closingScene.isWindowFocused()
-                    && parent != null && !parent.isClosed()) {
-                // A click made the popup's window the key one, and the keyboard would otherwise go
-                // wherever the desktop sends it when that window is destroyed. Here, and not on
-                // the click: handed back while the popup was open, the blur that followed closed
-                // it, because the owner's own focus event had not arrived yet.
-                parent.focus();
+
+        @Override
+        public Widget<?> createPanel(boolean inWindow) {
+            releaseCalendar();
+            if (!inWindow) {
+                // Before the layer takes the keyboard: the field keeps its caret drawn and
+                // published, because that is still where the digits land, and a field that knows
+                // a picker is aiming at it does not treat the loss of focus as somebody moving on.
+                filling().setKeyboardActive(true);
             }
-            Runnable destroy = () -> {
-                if (parent != null && !parent.isClosed()) {
-                    WindowPeer.of(parent).unregisterChildPopup(closing);
-                }
-                closing.requestClose();
-            };
-            if (closingScene != null) {
-                closingScene.fadeWindowOut(limn.animation.Motion.duration(Theme.of(this).animWindow), () -> {
-                    destroy.run();
-                    releaseCalendar();
-                });
-            } else {
-                destroy.run();
-                releaseCalendar();
+            return new PopupPanel(inWindow);
+        }
+
+        @Override
+        public void dismiss(Change.Origin origin) {
+            setOpen(false, origin);
+        }
+
+        @Override
+        public boolean contains(Widget<?> target) {
+            return target == DatePicker.this || target == field || target == endField;
+        }
+
+        /**
+         * The layer holds the keyboard in the scene: the picker takes the keys the calendar
+         * answers, and the rest go to the field whose caret is showing, as from a window.
+         */
+        @Override
+        public void key(KeyEvent event) {
+            interceptKey(event);
+            if (!event.isConsumed() && open) {
+                forwardToField(event);
             }
         }
-        if (scenePopup != null) {
-            ScenePopup closing = scenePopup;
-            Scene owner = scene();
-            scenePopup = null;
-            popupPanel = null;
-            if (owner == null) {
-                return; // detached mid-open: nothing holds the overlay any more
+
+        @Override
+        public void character(CharEvent event) {
+            interceptChar(event);
+            if (!event.isConsumed() && open) {
+                forwardToField(event);
             }
-            if (owner.window() == null) {
-                owner.removeOverlay(closing); // headless: no frame pump to advance a fade
-                releaseCalendar();
-                return;
-            }
+        }
+
+        @Override
+        public void describeLayer(Accessibility a) {
+            a.role(Accessible.Role.GROUP);
+            a.name(DateStrings.CALENDAR, Accessible.NameFrom.CONTENT);
+        }
+
+        /** The grid goes back to the picker once the card is gone; the next open takes it either way. */
+        @Override
+        public void released() {
+            releaseCalendar();
+        }
+
+        @Override
+        public Widget<?> refocus() {
             DateField pending = refocus;
             refocus = null;
-            // The keyboard goes back as the fade starts, and on to another field where the close
-            // was a move to one: the fade is of a card nobody is typing into any more.
-            limn.scene.internal.SceneAccess.releaseOverlayKeyboard(owner, closing);
-            if (pending != null) {
-                pending.requestFocus();
-            }
-            owner.addRealTimeTicker(dt -> {
-                sceneFade = (float) Math.max(0, sceneFade - limn.animation.Motion.progress(dt, Theme.of(this).animWindow));
-                closing.invalidate();
-                if (sceneFade > 0) {
-                    return true;
-                }
-                owner.removeOverlay(closing);
-                // Released here rather than at the start of the fade, so the card fades out with
-                // the grid still on it; the next open takes it back whether this ran or not.
-                releaseCalendar();
-                return false;
-            });
+            return pending;
         }
     }
 
@@ -1573,11 +1398,18 @@ public final class DatePicker extends Widget<DatePicker> {
      */
     private final class PopupPanel extends Widget<PopupPanel> {
 
-        /** The shadow the card casts while it is drawn in the scene. */
+        /** Whether the card is in a window of its own, rather than in the scene. */
+        private final boolean inWindow;
+
+        /** The shadow the card casts while it is drawn in the scene, or in a window that frames one. */
         @Override
         protected float paintOutset() {
-            return scenePopup != null || popupMargin > 0
+            return castsShadow()
                     ? Theme.of(this).elevation(limn.components.Elevation.OVERLAY).reach() : 0;
+        }
+
+        private boolean castsShadow() {
+            return !inWindow || popup.margin() > 0;
         }
 
         /** Lets go of a child a newer card is taking; the picker owns the panel's children. */
@@ -1585,7 +1417,8 @@ public final class DatePicker extends Widget<DatePicker> {
             remove(child);
         }
 
-        PopupPanel() {
+        PopupPanel(boolean inWindow) {
+            this.inWindow = inWindow;
             add(calendar);
             if (timeRow != null) {
                 if (timeRow.parent() instanceof PopupPanel holder) {
@@ -1641,21 +1474,22 @@ public final class DatePicker extends Widget<DatePicker> {
             Theme theme = Theme.of(this);
             SizeTokens t = theme.tokensFor(DatePicker.this);
             float radius = t.radiusLarge();
-            boolean fading = fading();
+            float fade = AnchoredPopup.fadeOf(this);
+            boolean fading = fade < 1f;
             if (fading) {
                 canvas.save();
-                canvas.setOpacity(sceneFade);
+                canvas.setOpacity(fade);
             }
             // Solid in the scene, slightly translucent in a window of its own: in a window the
             // desktop shows through and the rounded corners are genuinely transparent, while in
             // the scene the same translucency would composite over the form underneath, and a
             // calendar you can read the form through is not frosted glass, it is unreadable.
-            if (scenePopup != null || popupMargin > 0) {
+            if (castsShadow()) {
                 theme.drawElevation(canvas, limn.graphics.RoundRect.of(0, 0, width(), height(), radius),
                         limn.components.Elevation.OVERLAY);
             }
             canvas.fillRoundRectWithBorder(0, 0, width(), height(), radius,
-                    scenePopup != null ? theme.surfaceRaised() : theme.surfaceRaised().withAlpha(0.94f),
+                    !inWindow ? theme.surfaceRaised() : theme.surfaceRaised().withAlpha(0.94f),
                     Strokes.BORDER, theme.outline());
             if (fading) {
                 canvas.restore();
@@ -1664,18 +1498,15 @@ public final class DatePicker extends Widget<DatePicker> {
 
         @Override
         protected void paintChildren(Canvas canvas) {
-            if (!fading()) {
+            float fade = AnchoredPopup.fadeOf(this);
+            if (fade >= 1f) {
                 super.paintChildren(canvas);
                 return;
             }
             canvas.save();
-            canvas.setOpacity(sceneFade);
+            canvas.setOpacity(fade);
             super.paintChildren(canvas);
             canvas.restore();
-        }
-
-        private boolean fading() {
-            return scenePopup != null && sceneFade < 1f;
         }
 
         /**
@@ -1686,7 +1517,7 @@ public final class DatePicker extends Widget<DatePicker> {
          */
         @Override
         protected void onKeyEvent(KeyEvent event) {
-            if (scenePopup != null) {
+            if (!inWindow) {
                 return;
             }
             DatePicker.this.interceptKey(event);
@@ -1697,7 +1528,7 @@ public final class DatePicker extends Widget<DatePicker> {
 
         @Override
         protected void onCharTyped(CharEvent event) {
-            if (scenePopup != null) {
+            if (!inWindow) {
                 return;
             }
             DatePicker.this.interceptChar(event);
@@ -1710,106 +1541,6 @@ public final class DatePicker extends Widget<DatePicker> {
         protected void onAccessibility(Accessibility a) {
             a.role(Accessible.Role.GROUP);
             a.name(DateStrings.CALENDAR, Accessible.NameFrom.CONTENT);
-        }
-    }
-
-    /**
-     * The layer an in-scene popup is drawn on: it covers the scene, so a press that missed the card
-     * is a press on it, and closing on that press is the click-outside dismissal.
-     */
-    private final class ScenePopup extends Widget<ScenePopup> {
-
-        private final PopupPanel panel;
-
-        ScenePopup(PopupPanel panel) {
-            this.panel = panel;
-            setFocusable(true);
-            add(panel);
-        }
-
-        @Override
-        protected Size onMeasure(Constraints constraints) {
-            return constraints.constrain(constraints.maxWidth(), constraints.maxHeight());
-        }
-
-        @Override
-        protected void onLayout() {
-            SizeTokens t = Theme.of(this).tokensFor(DatePicker.this);
-            boolean rtl = DatePicker.this.isRightToLeft();
-            float gap = t.popupGap();
-            float anchorX = DatePicker.this.localToSceneX();
-            float anchorTop = DatePicker.this.localToSceneY();
-            float anchorBottom = anchorTop + DatePicker.this.height() + gap;
-            Size content = popupContentSize();
-            boolean above = anchorBottom + content.height() > height()
-                    && anchorTop - gap - content.height() >= 0;
-            // Hung from the picker's LEADING edge, which is its right one reading right to left,
-            // then clamped into the scene: the clamp needs no direction of its own, because the
-            // interval it clamps into is never empty.
-            float wanted = rtl
-                    ? anchorX + DatePicker.this.width() - content.width() : anchorX;
-            float x = Math.max(0, Math.min(wanted, Math.max(0, width() - content.width())));
-            float y = above ? anchorTop - gap - content.height() : anchorBottom;
-            y = Math.max(0, Math.min(y, Math.max(0, height() - content.height())));
-            panel.measure(Constraints.tight(content.width(), content.height()));
-            panel.layoutBox(x, y, content.width(), content.height());
-        }
-
-        /**
-         * The overlay holds the focus in this presentation, so it is where the keys arrive: the
-         * picker takes the ones the popup answers, and what is left goes to the field whose
-         * caret is showing, exactly as it would in a window of its own.
-         */
-        @Override
-        protected void onKeyEvent(KeyEvent event) {
-            DatePicker.this.interceptKey(event);
-            if (!event.isConsumed() && open) {
-                forwardToField(event);
-            }
-        }
-
-        @Override
-        protected void onCharTyped(CharEvent event) {
-            DatePicker.this.interceptChar(event);
-            if (!event.isConsumed() && open) {
-                forwardToField(event);
-            }
-        }
-
-        @Override
-        protected void onMouseEvent(MouseEvent event) {
-            if (event.type() == MouseEvent.Type.PRESS) {
-                DatePicker.this.setOpen(false, Change.Origin.USER);
-                event.consume();
-            }
-        }
-
-        @Override
-        protected void onAccessibility(Accessibility a) {
-            // Declared rather than left to the default, for ComboBox's reason: this layer is the
-            // scene's only tab stop while the popup is open, so a node it publishes with no role
-            // would be a focusable UNKNOWN.
-            a.role(Accessible.Role.GROUP);
-            a.name(DateStrings.CALENDAR, Accessible.NameFrom.CONTENT);
-            // Only while the calendar is open, ComboBox.ScenePopup's rule: a CANCEL on a layer
-            // that is closing reached setOpen(false), which returns at once for a picker already
-            // closed while the hook answered done (semantics 5; the 2d review, 2026-09-15). The
-            // hook below reads the same field. A layer that is fading out is no longer walked at
-            // all, since the scene takes it out of the tree as its close begins; the test stays
-            // for a walk that reaches it before the scene was told.
-            if (open) {
-                a.action(Accessible.Action.CANCEL);
-            }
-        }
-
-        @Override
-        protected boolean onAccessibilityAction(Accessible.Action action,
-                                                Accessible.Argument arg) {
-            if (action != Accessible.Action.CANCEL || !open) {
-                return false; // not while the calendar fades out, where nothing publishes CANCEL
-            }
-            DatePicker.this.setOpen(false, Change.Origin.USER);
-            return true;
         }
     }
 }
