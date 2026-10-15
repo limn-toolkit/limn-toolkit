@@ -2020,11 +2020,12 @@ public final class TabbedPane extends Widget<TabbedPane> {
             // The selected indicator is drawn by the strip (it slides across tabs).
             float focus = focusFade.value();
             if (focus > 0.001f) {
-                // Both the gap and the weight are absolute: a focus affordance must read the
-                // same in a dense strip and a roomy one.
-                float gap = Strokes.FOCUS_GAP_TAB;
-                canvas.drawRoundRect(gap, gap, width() - 2 * gap, height() - 2 * gap,
-                        t.radiusSmall(), Strokes.FOCUS_RING_THIN,
+                // A rule along the top, the selection's own rule mirrored, in the focus colour: a
+                // ring around the whole tab crossed the selection rule and read as a text field.
+                // The same inset as the selection's, and the same locked weight, so the two frame
+                // the caption alike in a dense strip and a roomy one.
+                float inset = t.tabPadH() / 2;
+                canvas.fillRect(inset, 0, Math.max(0, width() - 2 * inset), Strokes.TAB_INDICATOR,
                         theme.focusRing().withAlpha(focus));
             }
         }
