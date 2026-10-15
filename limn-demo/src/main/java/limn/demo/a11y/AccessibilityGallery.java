@@ -32,6 +32,7 @@ import limn.components.ScrollView;
 import limn.components.SearchField;
 import limn.components.SegmentedControl;
 import limn.components.Separator;
+import limn.components.RangeSlider;
 import limn.components.Slider;
 import limn.components.Spinner;
 import limn.components.SplitPane;
@@ -543,6 +544,9 @@ public final class AccessibilityGallery {
                 new Entry("Sliders", List.of(Slider.class),
                         List.of(Role.SLIDER),
                         AccessibilityGallery::sliders),
+                new Entry("Range sliders", List.of(RangeSlider.class),
+                        List.of(Role.SLIDER),
+                        AccessibilityGallery::rangeSliders),
                 new Entry("Spinners", List.of(Spinner.class),
                         List.of(Role.SPIN_BUTTON),
                         AccessibilityGallery::spinners),
@@ -831,6 +835,17 @@ public final class AccessibilityGallery {
         Slider locked = new Slider(0, 100).setValue(40);
         locked.setEnabled(false);
         page.add(Labelled.above("Contrast, locked", locked));
+        return new Built(page);
+    }
+
+    private static Built rangeSliders() {
+        Column page = page();
+        page.add(Labelled.above("Price", new RangeSlider(0, 1000).setStep(10).setRange(200, 600)));
+        page.add(Labelled.above("Nights, at least two", new RangeSlider(1, 30).setStep(1).setMinimumGap(2)
+                .setRange(3, 7)));
+        RangeSlider locked = new RangeSlider(0, 100).setRange(20, 80);
+        locked.setEnabled(false);
+        page.add(Labelled.above("Age, locked", locked));
         return new Built(page);
     }
 

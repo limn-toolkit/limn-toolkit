@@ -32,6 +32,13 @@ final class ComponentStrings {
     static final I18nString SEARCH_CLEAR =
             new I18nString("limn.searchField.clear", "Clear");
 
+    // What a screen reader calls each thumb of a RangeSlider: two sliders in one control, which
+    // a reader can only tell apart by name.
+    static final I18nString RANGE_LOWER =
+            new I18nString("limn.rangeSlider.lower", "Minimum");
+    static final I18nString RANGE_UPPER =
+            new I18nString("limn.rangeSlider.upper", "Maximum");
+
     static final I18nString VIEWPORT3D_NO_BACKEND =
             new I18nString("limn.viewport3d.noBackend", "3D unavailable (no GPU backend)");
 

@@ -301,6 +301,7 @@ class DamageContractTest extends ComponentTestBase {
             natural("SegmentedControl", () -> new SegmentedControl(List.of("A", "B", "C")), both()),
             inert("Separator", Separator::horizontal, "a rule: nothing to press, focus or hover"),
             natural("Slider", () -> new Slider(0, 100), both()),
+            natural("RangeSlider", () -> new RangeSlider(0, 100), both()),
             natural("Spinner", () -> new Spinner(0, 99, 1), both()),
             boxed("SplitPane", () -> SplitPane.horizontal(new Plain(), new Plain()), List.of(
                     hover().ceiling(0.15f), unhover().ceiling(0.15f))),

@@ -251,6 +251,15 @@ class NotificationContractTest extends ComponentTestBase {
                                 scene.requestFocus(w);
                                 key(scene, Keys.RIGHT);
                             })),
+            new Row("limn.components.RangeSlider",
+                    () -> new RangeSlider(0, 100),
+                    w -> ((RangeSlider) w).setRange(20, 50), Change.Aspect.VALUE,
+                    new Gesture(Change.Aspect.VALUE,
+                            (w, ran) -> ((RangeSlider) w).onChange((lo, hi) -> ran.run()),
+                            (scene, w) -> {
+                                key(scene, Keys.TAB);
+                                key(scene, Keys.RIGHT);
+                            })),
             new Row("limn.components.Spinner",
                     () -> new Spinner(0, 99, 1),
                     w -> ((Spinner) w).setValue(5), Change.Aspect.VALUE,
