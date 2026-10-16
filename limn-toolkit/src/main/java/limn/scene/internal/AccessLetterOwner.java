@@ -23,6 +23,34 @@ public interface AccessLetterOwner {
     void accessLetterPressed();
 
     /**
+     * An owner made of a widget's own private methods, which keeps the interface out of the
+     * widget's public face.
+     *
+     * @param letter  {@link #accessLetter()}
+     * @param focus   {@link #accessLetterFocus()}
+     * @param pressed {@link #accessLetterPressed()}
+     */
+    static AccessLetterOwner of(java.util.function.IntSupplier letter,
+            java.util.function.Supplier<? extends Widget<?>> focus, Runnable pressed) {
+        return new AccessLetterOwner() {
+            @Override
+            public char accessLetter() {
+                return (char) letter.getAsInt();
+            }
+
+            @Override
+            public Widget<?> accessLetterFocus() {
+                return focus.get();
+            }
+
+            @Override
+            public void accessLetterPressed() {
+                pressed.run();
+            }
+        };
+    }
+
+    /**
      * Whether a key press is {@code letter}: the key printed with it, or the character the layout
      * types with it, so a Cyrillic letter is reached on a Cyrillic layout.
      *

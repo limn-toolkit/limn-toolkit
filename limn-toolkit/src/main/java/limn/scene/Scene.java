@@ -3176,6 +3176,11 @@ public final class Scene {
             }
 
             @Override
+            public void ownAccessLetter(Widget<?> widget, limn.scene.internal.AccessLetterOwner owner) {
+                widget.accessLetterOwner = owner;
+            }
+
+            @Override
             public boolean accessLettersShown(Scene scene) {
                 // While Alt is held, or always where the user asked the system for underlines.
                 return scene.accessLettersShown || SystemPreferences.current().underlineAccessKeys();
@@ -3365,6 +3370,12 @@ public final class Scene {
                 queue.add(raw);
                 ownQueued = true;
             } else if (raw instanceof RawKey k) {
+                if ((k.key() == Keys.LEFT_ALT || k.key() == Keys.RIGHT_ALT)
+                        && limn.scene.internal.AccessLetterSystem.present()) {
+                    // Alt is still this window's to show: a menu opened by a title's letter takes
+                    // the release, and the window's letters stayed drawn until the next Alt.
+                    showAccessLetters(k.pressed());
+                }
                 route.key(k.key(), k.layoutCodePoint(), k.pressed(), k.repeat(), k.mods());
             } else if (raw instanceof RawChar c) {
                 route.character(c.codepoint());
@@ -3836,7 +3847,8 @@ public final class Scene {
         if (!at.isVisible() || !at.isEnabled()) {
             return; // hidden or disabled: neither it nor anything inside it answers
         }
-        if (at instanceof limn.scene.internal.AccessLetterOwner owner
+        limn.scene.internal.AccessLetterOwner owner = at.accessLetterOwner;
+        if (owner != null
                 && limn.scene.internal.AccessLetterOwner.matches(owner.accessLetter(), key, codePoint)) {
             into.add(owner);
         }

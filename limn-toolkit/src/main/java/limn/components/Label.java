@@ -66,7 +66,13 @@ import java.util.Objects;
  * the right edge in the other, and the glyph inside it turns around only when the call that
  * placed it said it should &mdash; see {@link limn.graphics.Icon.Mirroring}.
  */
-public final class Label extends Widget<Label> implements limn.scene.internal.AccessLetterOwner {
+public final class Label extends Widget<Label> {
+
+    {
+        // Alt and the letter, found by the scene; not API: the letter is written in the text.
+        limn.scene.internal.SceneAccess.ownAccessLetter(this, limn.scene.internal.AccessLetterOwner.of(
+                this::accessLetter, this::accessLetterFocus, this::accessLetterPressed));
+    }
 
     public enum Overflow { CLIP, ELLIPSIS }
 
@@ -194,18 +200,15 @@ public final class Label extends Widget<Label> implements limn.scene.internal.Ac
     }
 
     /** Alt and the letter bring the keyboard to the control this label names. */
-    @Override
-    public char accessLetter() {
+    private char accessLetter() {
         return labelFor == null || !labelFor.isEnabled() ? 0 : shown().letter();
     }
 
-    @Override
-    public @Nullable Widget<?> accessLetterFocus() {
+    private @Nullable Widget<?> accessLetterFocus() {
         return labelFor;
     }
 
-    @Override
-    public void accessLetterPressed() {
+    private void accessLetterPressed() {
         if (labelFor != null) {
             labelFor.requestFocus();
         }

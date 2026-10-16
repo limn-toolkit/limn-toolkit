@@ -55,7 +55,13 @@ import java.util.function.Consumer;
  * reaches 24, which is what {@link Tokens#toggleColumnGap(limn.scene.Widget)} gives. Stack
  * a {@link ButtonGroup}'s radios on that gap, not a tighter one.
  */
-public final class RadioButton extends Widget<RadioButton> implements limn.scene.internal.AccessLetterOwner {
+public final class RadioButton extends Widget<RadioButton> {
+
+    {
+        // Alt and the letter, found by the scene; not API: the letter is written in the text.
+        limn.scene.internal.SceneAccess.ownAccessLetter(this, limn.scene.internal.AccessLetterOwner.of(
+                this::accessLetter, this::accessLetterFocus, this::accessLetterPressed));
+    }
 
     /**
      * The ring stroke is centred one point inside the indicator box, leaving its outer
@@ -127,19 +133,16 @@ public final class RadioButton extends Widget<RadioButton> implements limn.scene
         return marked.of(text.get());
     }
 
-    @Override
-    public char accessLetter() {
+    private char accessLetter() {
         return shown().letter();
     }
 
-    @Override
-    public limn.scene.Widget<?> accessLetterFocus() {
+    private limn.scene.Widget<?> accessLetterFocus() {
         return this;
     }
 
     /** Alt and the letter select this radio and bring the keyboard to it. */
-    @Override
-    public void accessLetterPressed() {
+    private void accessLetterPressed() {
         select(Change.Origin.USER); // first: a group's unselected radio takes no keyboard
         requestFocus();
     }

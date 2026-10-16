@@ -94,6 +94,8 @@ public final class SceneAccess {
          */
         boolean accessLettersShown(Scene scene);
 
+        void ownAccessLetter(Widget<?> widget, AccessLetterOwner owner);
+
         /**
          * @param scene a scene
          * @return how many keys other than a modifier were pressed in it, counted whoever took
@@ -160,6 +162,17 @@ public final class SceneAccess {
      */
     public static boolean accessLettersShown(@org.jspecify.annotations.Nullable Scene scene) {
         return scene != null && hook().accessLettersShown(scene);
+    }
+
+    /**
+     * Makes {@code owner} what the scene asks for {@code widget}'s access letter on Alt and a
+     * letter: the widget keeps the owner private, so the interface stays off its public face.
+     *
+     * @param widget a button, a check box, a radio button, a label
+     * @param owner  its letter and what the letter does
+     */
+    public static void ownAccessLetter(Widget<?> widget, AccessLetterOwner owner) {
+        hook().ownAccessLetter(widget, owner);
     }
 
     /**

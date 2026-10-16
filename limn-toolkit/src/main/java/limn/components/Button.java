@@ -46,7 +46,13 @@ import java.util.Objects;
  * drawn inside that square turns around as well is the caller's to say &mdash; see
  * {@link Icon.Mirroring}.
  */
-public final class Button extends Widget<Button> implements limn.scene.internal.AccessLetterOwner {
+public final class Button extends Widget<Button> {
+
+    {
+        // Alt and the letter, found by the scene; not API: the letter is written in the text.
+        limn.scene.internal.SceneAccess.ownAccessLetter(this, limn.scene.internal.AccessLetterOwner.of(
+                this::accessLetter, this::accessLetterFocus, this::accessLetterPressed));
+    }
 
     private I18nString text;
     /** The caption read for its access letter: "&amp;Save" shows "Save", with S as the letter. */
@@ -204,19 +210,16 @@ public final class Button extends Widget<Button> implements limn.scene.internal.
         return marked.of(text.get());
     }
 
-    @Override
-    public char accessLetter() {
+    private char accessLetter() {
         return shown().letter();
     }
 
-    @Override
-    public Widget<?> accessLetterFocus() {
+    private Widget<?> accessLetterFocus() {
         return this;
     }
 
     /** Alt and the letter press the button, as a click does, and leave the keyboard where it is. */
-    @Override
-    public void accessLetterPressed() {
+    private void accessLetterPressed() {
         LeafActionAccessibility.perform(leafHost, Accessible.Action.PRESS);
     }
 

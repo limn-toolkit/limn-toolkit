@@ -76,6 +76,8 @@ public abstract class Widget<W extends Widget<W>> {
     private boolean elsewhere;
     private boolean enabled = true;
     private boolean focusable;
+    /** What Alt and a letter reach in this widget, set by the few that mark one; see SceneAccess. */
+    limn.scene.internal.@Nullable AccessLetterOwner accessLetterOwner;
     private Cursor cursor; // null = inherit from an ancestor (arrow at the root)
     private String id;
     /** The clocks of the animated icons this widget paints; null until it paints one. */

@@ -58,7 +58,13 @@ import java.util.function.Consumer;
  * thing inside the indicator that does know a direction, because its two ends are a value axis:
  * OFF is the leading end and ON the trailing one.
  */
-public final class Checkbox extends Widget<Checkbox> implements limn.scene.internal.AccessLetterOwner {
+public final class Checkbox extends Widget<Checkbox> {
+
+    {
+        // Alt and the letter, found by the scene; not API: the letter is written in the text.
+        limn.scene.internal.SceneAccess.ownAccessLetter(this, limn.scene.internal.AccessLetterOwner.of(
+                this::accessLetter, this::accessLetterFocus, this::accessLetterPressed));
+    }
 
     public enum Variant { BOX, SWITCH }
 
@@ -152,19 +158,16 @@ public final class Checkbox extends Widget<Checkbox> implements limn.scene.inter
         return marked.of(text.get());
     }
 
-    @Override
-    public char accessLetter() {
+    private char accessLetter() {
         return shown().letter();
     }
 
-    @Override
-    public limn.scene.Widget<?> accessLetterFocus() {
+    private limn.scene.Widget<?> accessLetterFocus() {
         return this;
     }
 
     /** Alt and the letter flip the box and bring the keyboard to it, as on Windows and Linux. */
-    @Override
-    public void accessLetterPressed() {
+    private void accessLetterPressed() {
         requestFocus();
         toggleFromUser();
     }

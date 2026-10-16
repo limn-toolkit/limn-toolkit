@@ -183,6 +183,44 @@ class AccessLetterDispatchTest extends AccessibleComponentTestBase {
         assertSame(bar, scene.focusedWidget(), "and Alt alone still reaches the bar");
     }
 
+    /**
+     * Alt let go while a menu in its own window takes the window's keys: the window's letters go.
+     * The release went to the menu with the other keys, and the window kept drawing its letters
+     * until Alt was pressed again (seen on Ubuntu, after Alt and a menu title's letter).
+     */
+    @Test
+    void lettingGoOfAltWhileAMenuTakesTheKeysHidesTheWindowsLetters() {
+        show(new Button("&Keep"));
+        drive(scene).keyEvent(Keys.LEFT_ALT, -1, true, false, Keys.MOD_ALT);
+        drive(scene).inputBatchEnded();
+        assertTrue(SceneAccess.accessLettersShown(scene));
+
+        java.util.List<Integer> routed = new java.util.ArrayList<>();
+        limn.concurrent.Subscription route = SceneAccess.routeKeyboard(scene, new SceneAccess.KeyRoute() {
+            @Override
+            public void key(int key, int layoutCodePoint, boolean pressed, boolean repeat, int modifiers) {
+                routed.add(key);
+            }
+
+            @Override
+            public void character(int codepoint) {
+            }
+
+            @Override
+            public limn.scene.@org.jspecify.annotations.Nullable Scene popup() {
+                return null;
+            }
+        });
+        try {
+            drive(scene).keyEvent(Keys.LEFT_ALT, -1, false, false, 0);
+            drive(scene).inputBatchEnded();
+            assertEquals(java.util.List.of(Keys.LEFT_ALT), routed, "the menu still has the release");
+            assertFalse(SceneAccess.accessLettersShown(scene), "and the window's letters go");
+        } finally {
+            route.cancel();
+        }
+    }
+
     @Test
     void theTopmostModalTakesItsLettersAndNothingBeneathAnswers() {
         AtomicInteger killed = new AtomicInteger();

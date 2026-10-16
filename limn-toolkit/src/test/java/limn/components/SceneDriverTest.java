@@ -95,6 +95,10 @@ class SceneDriverTest extends ComponentTestBase {
             }
 
             @Override
+            public void ownAccessLetter(Widget<?> widget, limn.scene.internal.AccessLetterOwner owner) {
+            }
+
+            @Override
             public boolean accessLettersShown(Scene scene) {
                 return false;
             }
