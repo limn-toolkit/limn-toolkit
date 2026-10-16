@@ -66,6 +66,10 @@ back to the picker when the card is gone.
   pointer and on the cursor's. When any tab has an icon the list keeps a column for it, so the
   captions line up (amended 2026-10-16 at the owner's request: a row without the icon the strip
   shows was harder to find).
+- **Opened from the keyboard** with Alt+Down on the focused tab, the chord that opens a combo
+  box's list and a calendar, while the strip overflows; the list button stays out of the tab
+  order, so the strip remains one stop (added 2026-10-16, the owner's choice, when the readers'
+  script found the list unreachable without a pointer).
 - **Keys:** Up and Down move the cursor, Home and End go to the ends, Enter selects the tab under
   the cursor and closes the list, Delete or Ctrl+W (Cmd+W on macOS) closes that tab, Escape closes
   the list. A typed letter moves to the next tab whose caption starts with it.

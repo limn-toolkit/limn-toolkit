@@ -72,7 +72,10 @@ class ReaderEntryLanguageTest {
             "Documents", "Documents 2", "Reports", "Reports 2", "Media", "Media 2",
             "Remote", "Trash", "Empty folder",
             "Q3 regional revenue and headcount, consolidated (final).pdf", "2026.pdf",
-            "meeting notes from the Tuesday planning session.md");
+            "meeting notes from the Tuesday planning session.md",
+            // the tab list's documents, named by month and matched by name in both runs
+            "2026-01.csv", "2026-02.csv", "2026-03.csv", "2026-04.csv", "2026-05.csv",
+            "2026-06.csv", "2026-07.csv", "2026-08.csv");
 
     /**
      * Every entry a reader run drives is named by the catalogue, so the picker a reader is pointed

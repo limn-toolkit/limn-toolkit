@@ -16,6 +16,7 @@ import static limn.accessibility.Accessible.Role.LIST_ITEM;
 import static limn.accessibility.Accessible.Role.MENU_ITEM;
 import static limn.accessibility.Accessible.Role.SPIN_BUTTON;
 import static limn.accessibility.Accessible.Role.SWITCH;
+import static limn.accessibility.Accessible.Role.TAB;
 import static limn.accessibility.Accessible.Role.TEXT_FIELD;
 import static limn.accessibility.Accessible.Role.TREE_ITEM;
 import static limn.accessibility.Accessible.State.CHECKED;
@@ -432,4 +433,31 @@ public final class ReaderScripts {
                     .expecting(cursor(BUTTON, "Open calendar")),
             Step.press(Keys.TAB, "moves to the period's start date")
                     .expecting(cursor(SPIN_BUTTON, "Month").valued("9"))));
+
+    /**
+     * "Tab list": the list of every tab, opened from the focused tab with Alt+Down,
+     * walked, a tab closed from it with the list staying, the last chosen, and the list opened
+     * again to be dismissed. The keyboard stays on the tab while the list's row under its cursor
+     * is where the reader stands, as with a combo's list.
+     */
+    public static final ReaderScript TAB_LIST = new ReaderScript("tab-list", List.of(
+            Step.chord(Keys.DOWN, Keys.MOD_ALT, "opens the list on 2026-01.csv")
+                    .expecting(shown(BUTTON, "All tabs").with(EXPANDED),
+                            cursor(LIST_ITEM, "2026-01.csv").with(SELECTED)),
+            Step.press(Keys.DOWN, "moves to 2026-02.csv")
+                    .expecting(cursor(LIST_ITEM, "2026-02.csv")),
+            Step.press(Keys.DELETE, "closes 2026-02.csv and the list stays, on 2026-03.csv")
+                    .expecting(shown(BUTTON, "All tabs").with(EXPANDED),
+                            cursor(LIST_ITEM, "2026-03.csv")),
+            Step.press(Keys.END, "moves to the last tab, 2026-08.csv")
+                    .expecting(cursor(LIST_ITEM, "2026-08.csv")),
+            Step.press(Keys.ENTER, "chooses 2026-08.csv and closes the list")
+                    .expecting(shown(BUTTON, "All tabs").without(EXPANDED),
+                            cursor(TAB, "2026-08.csv").with(SELECTED)),
+            Step.chord(Keys.DOWN, Keys.MOD_ALT, "opens the list again, on 2026-08.csv")
+                    .expecting(shown(BUTTON, "All tabs").with(EXPANDED),
+                            cursor(LIST_ITEM, "2026-08.csv").with(SELECTED)),
+            Step.press(Keys.ESCAPE, "closes the list and keeps 2026-08.csv")
+                    .expecting(shown(BUTTON, "All tabs").without(EXPANDED),
+                            cursor(TAB, "2026-08.csv").with(SELECTED))));
 }

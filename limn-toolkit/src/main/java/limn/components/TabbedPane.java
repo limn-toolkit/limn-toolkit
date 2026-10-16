@@ -2843,6 +2843,18 @@ public final class TabbedPane extends Widget<TabbedPane> {
             boolean rtl = isRightToLeft();
             int visualLeft = rtl ? index + 1 : index - 1;
             int visualRight = rtl ? index - 1 : index + 1;
+            int mods = event.modifiers()
+                    & (Keys.MOD_SHIFT | Keys.MOD_CONTROL | Keys.MOD_ALT | Keys.MOD_SUPER);
+            if (event.key() == Keys.DOWN && mods == Keys.MOD_ALT) {
+                // The list of every tab, from the keyboard, with the chord that opens a combo's
+                // list and a calendar (ADR 068 §4): its button is no tab stop, so the strip stays
+                // one. Only while the strip overflows, when the button is there to hang from.
+                if (overflowing && !tabList.isOpen()) {
+                    event.consume();
+                    openTabList();
+                }
+                return;
+            }
             switch (event.key()) {
                 case Keys.LEFT -> {
                     event.consume();

@@ -646,6 +646,10 @@ public final class AccessibilityGallery {
                 new Entry("Tabbed pane", List.of(TabbedPane.class),
                         List.of(Role.TAB_LIST, Role.TAB, Role.TAB_PANEL),
                         AccessibilityGallery::tabbedPane),
+                // The list of every tab (ADR 068 §4), opened with Alt+Down from a strip that
+                // overflows, walked, closed from and chosen from (2026-10-16).
+                new Entry("Tab list", List.of(TabbedPane.class), List.of(Role.TAB_LIST, Role.TAB),
+                        AccessibilityGallery::tabList, ReaderScripts.TAB_LIST),
                 new Entry("Menu bar", List.of(MenuBar.class),
                         List.of(Role.MENU_BAR, Role.MENU_ITEM),
                         AccessibilityGallery::menuBar),
@@ -1360,6 +1364,34 @@ public final class AccessibilityGallery {
         }
         page.add(new SizedBox(SizedBox.UNSET, 160, documents));
         return new Built(page);
+    }
+
+    private static Built tabList() {
+        Column page = page();
+        // Narrow, so the strip overflows and the list button is there; closable, so the list
+        // offers each row's close and Delete.
+        TabbedPane documents = new TabbedPane().setTabsClosable(true);
+        // Named by month, in no language, so a run in any language says only its own words.
+        for (int month = 1; month <= 8; month++) {
+            String name = String.format(java.util.Locale.ROOT, "2026-%02d.csv", month);
+            documents.addTab(name, new Label(name));
+        }
+        page.add(new SizedBox(200, 160, documents)); // overflows with a tab closed as before
+        return Built.focusing(page, firstFocusable(documents));
+    }
+
+    /** The first widget that takes the keyboard under {@code at}: a strip's selected tab. */
+    private static Widget<?> firstFocusable(Widget<?> at) {
+        if (at.isFocusable()) {
+            return at;
+        }
+        for (Widget<?> child : at.children()) {
+            Widget<?> found = firstFocusable(child);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
     }
 
     private static Built menuBar() {

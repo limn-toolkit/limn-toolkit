@@ -81,7 +81,9 @@ class ReaderStepsTest {
             // Added 2026-09-30: the editable combo (ADR 051).
             "combo-editable",
             // Added 2026-09-30: the combo holding many, and its editable form (ADR 052).
-            "combo-many", "combo-many-editable");
+            "combo-many", "combo-many-editable",
+            // Added 2026-10-16: the list of every tab (ADR 068 §4), opened with Alt+Down.
+            "tab-list");
 
     /** The widgets H2 (with DT8, B9 and T7) found no reader run could be pointed at. */
     private static final List<Class<?>> WIDGETS_A_READER_MUST_HEAR = List.of(

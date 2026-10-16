@@ -178,6 +178,32 @@ class TabbedPaneTabListTest extends AccessibleComponentTestBase {
         assertTrue(rows().get(4).has(Accessible.State.ACTIVE), "Echo" + describe(tree()));
     }
 
+    /** Alt+Down on the focused tab opens the list; the arrows then walk it and Enter chooses. */
+    @Test
+    void altAndDownOnTheFocusedTabOpensTheList() throws InterruptedException {
+        bindPane(false, false);
+        scene.requestFocus(tabStop(pane));
+        press(Keys.DOWN, Keys.MOD_ALT);
+        assertEquals(TITLES, rowNames(), "the list is open, a row per tab");
+        press(Keys.DOWN, 0);
+        press(Keys.ENTER, 0);
+        assertTrue(rows().isEmpty(), "Enter chose and closed it");
+        assertEquals(1, pane.selectedIndex(), "the row under the cursor was chosen");
+    }
+
+    private static limn.scene.Widget<?> tabStop(limn.scene.Widget<?> at) {
+        if (at.isFocusable() && at.getClass().getSimpleName().equals("TabHeader")) {
+            return at;
+        }
+        for (limn.scene.Widget<?> child : at.children()) {
+            limn.scene.Widget<?> found = tabStop(child);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
+    }
+
     /** A tab's icon leads its row, as in the strip; a tab without one keeps the captions' column. */
     @Test
     void aTabsIconLeadsItsRowAndTheCaptionsLineUp() throws InterruptedException {

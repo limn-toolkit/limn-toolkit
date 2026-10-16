@@ -85,6 +85,8 @@ public final class GalleryStrings {
     /** "List view, several selected". */
     public static final I18nString ENTRY_LIST_MULTI =
             new I18nString("gallery.entry.listMulti", "List view, several selected");
+    /** "Tab list". */
+    public static final I18nString ENTRY_TAB_LIST = new I18nString("gallery.entry.tabList", "Tab list");
 
     // ------------------------------------------------------------------ what the entries say
 
@@ -164,7 +166,7 @@ public final class GalleryStrings {
     /** Every constant above, for a test that holds the catalogue to both languages. */
     public static final List<I18nString> ALL = List.of(
             ENTRY_TABLE, ENTRY_TREE_LOADING, ENTRY_ANNOUNCEMENTS, ENTRY_CALENDAR, ENTRY_DATE_FIELD,
-            ENTRY_DATE_PICKER_CLOSED, ENTRY_LIST_MULTI, ENTRY_COMBO, ENTRY_COMBO_EDITABLE, ENTRY_COMBO_MANY, ENTRY_COMBO_MANY_EDITABLE, ENTRY_MENU_BAR, ENTRY_CONTEXT_MENU,
+            ENTRY_DATE_PICKER_CLOSED, ENTRY_LIST_MULTI, ENTRY_COMBO, ENTRY_COMBO_EDITABLE, ENTRY_COMBO_MANY, ENTRY_COMBO_MANY_EDITABLE, ENTRY_MENU_BAR, ENTRY_CONTEXT_MENU, ENTRY_TAB_LIST,
             MOUNTAIN_RANGES, RANGE, CONTINENT, SUMMIT,
             VISITED, FILES, OPEN, SAVE, SAVED, STOP, STOPPED, DELIVERY_DATE, HOLIDAY, INVOICE_DATE, APPOINTMENT,
             DUE_DATE, STAY, NOTES, FILE, NEW, OPEN_FILE, QUIT, VIEW, STATUS_BAR, DRAFT, CUT, COPY,
@@ -185,6 +187,7 @@ public final class GalleryStrings {
             Map.entry(ENTRY_DATE_FIELD.english(), ENTRY_DATE_FIELD),
             Map.entry(ENTRY_DATE_PICKER_CLOSED.english(), ENTRY_DATE_PICKER_CLOSED),
             Map.entry(ENTRY_LIST_MULTI.english(), ENTRY_LIST_MULTI),
+            Map.entry(ENTRY_TAB_LIST.english(), ENTRY_TAB_LIST),
             Map.entry(ENTRY_COMBO.english(), ENTRY_COMBO),
             Map.entry(ENTRY_MENU_BAR.english(), ENTRY_MENU_BAR),
             Map.entry(ENTRY_CONTEXT_MENU.english(), ENTRY_CONTEXT_MENU),
