@@ -114,6 +114,44 @@ class AccessLetterDispatchTest extends AccessibleComponentTestBase {
     }
 
     /**
+     * A label naming a composite that takes no keyboard itself brings it to the composite's first
+     * part that does: Alt and the letter of a date picker's, a range slider's or an expander's
+     * caption were consumed and moved nothing.
+     */
+    @Test
+    void aLabelNamingACompositeBringsTheKeyboardToItsFirstPart() {
+        limn.components.date.DatePicker date = new limn.components.date.DatePicker();
+        RangeSlider nights = new RangeSlider(1, 14);
+        Expander more = new Expander("More", new Button("Inside"));
+        Button start = new Button("Start");
+        show(start, new Label("&Delivery date").setLabelFor(date), date,
+                new Label("&Nights").setLabelFor(nights), nights,
+                new Label("&Options").setLabelFor(more), more);
+        scene.requestFocus(start);
+
+        java.util.Map<Integer, limn.scene.Widget<?>> named = new java.util.LinkedHashMap<>();
+        named.put(Keys.D, date);
+        named.put(Keys.N, nights);
+        named.put(Keys.O, more);
+        for (java.util.Map.Entry<Integer, limn.scene.Widget<?>> each : named.entrySet()) {
+            altAnd(each.getKey());
+            limn.scene.Widget<?> focused = scene.focusedWidget();
+            assertNotNull(focused, each.getValue().getClass().getSimpleName());
+            assertTrue(isWithin(focused, each.getValue()),
+                    each.getValue().getClass().getSimpleName() + " has the keyboard, not " + focused);
+        }
+    }
+
+    private static boolean isWithin(limn.scene.Widget<?> widget, limn.scene.Widget<?> ancestor) {
+        for (limn.scene.Widget<?> at = widget; at != null; at = at.parent()) {
+            if (at == ancestor) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * A letter is a key the user pressed, so the focus it moves is the user's: every path called
      * the public requestFocus, and a watcher of origins (ADR 040) read Alt+letter as code.
      */

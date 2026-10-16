@@ -199,19 +199,45 @@ public final class Label extends Widget<Label> {
         return labelFor != null ? marked.of(raw) : unmarked.of(raw);
     }
 
-    /** Alt and the letter bring the keyboard to the control this label names. */
+    /**
+     * Alt and the letter bring the keyboard to the control this label names; a label whose control
+     * can take none has no letter, so the key goes on to the menu bar.
+     */
     private char accessLetter() {
-        return labelFor == null || !labelFor.isEnabled() ? 0 : shown().letter();
+        return accessLetterFocus() == null ? 0 : shown().letter();
     }
 
+    /**
+     * Where the letter brings the keyboard: the control this label names, or, for a composite
+     * that takes none itself (a date picker, a range slider, an expander), its first part that
+     * does, as a Windows dialog's label reaches the next control in tab order.
+     */
     private @Nullable Widget<?> accessLetterFocus() {
-        return labelFor;
+        return labelFor == null ? null : firstFocusable(labelFor);
     }
 
     private void accessLetterPressed() {
-        if (labelFor != null) {
-            limn.scene.internal.SceneAccess.focusByUser(labelFor); // the user's key, said as USER
+        Widget<?> target = accessLetterFocus();
+        if (target != null) {
+            limn.scene.internal.SceneAccess.focusByUser(target); // the user's key, said as USER
         }
+    }
+
+    /** Depth first, the first focusable, visible, enabled widget of a subtree, or {@code null}. */
+    private static @Nullable Widget<?> firstFocusable(Widget<?> widget) {
+        if (!widget.isVisible() || !widget.isEnabled()) {
+            return null;
+        }
+        if (widget.isFocusable()) {
+            return widget;
+        }
+        for (Widget<?> child : widget.children()) {
+            Widget<?> found = firstFocusable(child);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
     }
 
     /** The localizable value this label holds, which a language change re-resolves. */
