@@ -446,7 +446,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
     }
 
     /** @return whether tabs added from now on can be closed by the user */
-    public boolean tabsClosable() {
+    public boolean isTabsClosable() {
         return tabsClosable;
     }
 

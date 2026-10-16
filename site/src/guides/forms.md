@@ -90,7 +90,7 @@ A `RangeSlider` holds two values, a lower and an upper, on one track:
 
 ```java
 RangeSlider price = new RangeSlider(0, 1000).setStep(10).setMinimumGap(50);
-price.setRange(200, 600);
+price.setValues(200, 600);
 price.onCommit((lower, upper) -> filter(lower, upper));
 ```
 

@@ -25,7 +25,7 @@ import org.jspecify.annotations.Nullable;
  * left.
  *
  * <pre>{@code
- * RangeSlider price = new RangeSlider(0, 1000).setStep(10).setMinimumGap(50).setRange(200, 600);
+ * RangeSlider price = new RangeSlider(0, 1000).setStep(10).setMinimumGap(50).setValues(200, 600);
  * price.onChange((low, high) -> filter.setPrice(low, high));
  * }</pre>
  *
@@ -40,7 +40,7 @@ import org.jspecify.annotations.Nullable;
  * interface's language, whose bounds are the range it may reach now.
  *
  * <p>{@link #onChange} and {@link #onCommit} are the application's response to the user;
- * {@link #setRange} reaches neither. Every change, whatever moved it, reaches a
+ * {@link #setValues} reaches neither. Every change, whatever moved it, reaches a
  * {@linkplain #observeChanges watcher} as {@code VALUE}, and the end of a drag or a key press as
  * {@code COMMITTED}.
  */
@@ -101,7 +101,7 @@ public final class RangeSlider extends Widget<RangeSlider> {
      *
      * @throws IllegalArgumentException if {@code newLower} is above {@code newUpper}
      */
-    public RangeSlider setRange(float newLower, float newUpper) {
+    public RangeSlider setValues(float newLower, float newUpper) {
         Ui.checkUiThread();
         if (newLower > newUpper) {
             throw new IllegalArgumentException("lower (" + newLower + ") is above upper (" + newUpper + ")");
@@ -186,7 +186,7 @@ public final class RangeSlider extends Widget<RangeSlider> {
 
     /**
      * The application's response to the user moving either thumb, with both values: on a drag, a
-     * key or an assistive technology's step, and never for {@link #setRange}.
+     * key or an assistive technology's step, and never for {@link #setValues}.
      *
      * @param listener the handler, or {@code null} to clear the slot
      * @return this slider

@@ -130,7 +130,7 @@ class ExpanderTest extends AccessibleComponentTestBase {
         Expander first = expander("First", new Label("1")).onChange(on -> order.add("first " + on));
         Expander second = expander("Second", new Label("2")).onChange(on -> order.add("second " + on));
         ExpanderGroup group = new ExpanderGroup().add(first).add(second)
-                .onChange(index -> order.add("group " + index));
+                .onSelect(index -> order.add("group " + index));
         bindAll(first, second);
         first.observeChanges((w, change) -> said(order, "first", change));
         second.observeChanges((w, change) -> said(order, "second", change));

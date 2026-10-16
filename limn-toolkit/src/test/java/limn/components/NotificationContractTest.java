@@ -267,7 +267,7 @@ class NotificationContractTest extends ComponentTestBase {
                             })),
             new Row("limn.components.RangeSlider",
                     () -> new RangeSlider(0, 100),
-                    w -> ((RangeSlider) w).setRange(20, 50), Change.Aspect.VALUE,
+                    w -> ((RangeSlider) w).setValues(20, 50), Change.Aspect.VALUE,
                     new Gesture(Change.Aspect.VALUE,
                             (w, ran) -> ((RangeSlider) w).onChange((lo, hi) -> ran.run()),
                             (scene, w) -> {

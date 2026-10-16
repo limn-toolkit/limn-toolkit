@@ -354,7 +354,7 @@ final class GalleryScenes {
         // Two thumbs that never cross: the lower stops at the upper, and the other way round.
         RangeSlider price = new RangeSlider(0, 500);
         price.setStep(10);
-        price.setRange(120, 340);
+        price.setValues(120, 340);
         return scene(new SizedBox(280, SizedBox.UNSET, price));
     }
     // #endregion

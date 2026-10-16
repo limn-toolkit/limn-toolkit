@@ -16,7 +16,8 @@ import java.util.function.IntConsumer;
  *
  * <p>When the <em>user</em> opened one, the closing member and then the opening one announce
  * {@code EXPANDED}, then each runs its own {@code onChange}, and then the group's
- * {@link #onChange} runs with the open member's index. When code did it, both announce and no
+ * {@link #onSelect} runs with the open member's index, as a {@link ButtonGroup}'s does with the
+ * chosen radio's. When code did it, both announce and no
  * handler runs. A group is not a widget: it has no box, no place in the tree and nothing to say
  * to a reader, which hears each section by itself.
  *
@@ -34,7 +35,7 @@ public final class ExpanderGroup {
 
     private final List<Expander> members = new ArrayList<>();
     private @Nullable Expander open;
-    private @Nullable IntConsumer onChange;
+    private @Nullable IntConsumer onSelect;
     /** The place the next section added takes, kept by the section so one that comes back takes it again. */
     private int nextPlace;
 
@@ -167,17 +168,20 @@ public final class ExpanderGroup {
 
     /**
      * The application's response to the user opening or closing a member, with the index of the
-     * one open afterwards, or -1 when the user closed the open one. Called after both members'
-     * own handlers. Never for {@link #setExpandedIndex}, {@link #collapseAll()} or a member's
-     * {@link Expander#setExpanded}.
+     * one open afterwards, or -1 when the user closed the open one: a click, Space or Enter on a
+     * header, or an assistive technology's expand or collapse, once both members' own handlers
+     * have run, as {@link ButtonGroup#onSelect} is called. Never for {@link #setExpandedIndex},
+     * {@link #collapseAll()} or a member's {@link Expander#setExpanded}, which are a caller's
+     * writes; to hear every change whatever caused it, {@linkplain Expander#observeChanges watch}
+     * the members.
      *
      * @param listener the handler, or {@code null} to clear the slot
      * @return this group
      * @throws IllegalStateException if a handler is already registered
      */
-    public ExpanderGroup onChange(@Nullable IntConsumer listener) {
+    public ExpanderGroup onSelect(@Nullable IntConsumer listener) {
         Ui.checkUiThread();
-        this.onChange = Checks.handlerSlot(onChange, listener, "ExpanderGroup.onChange");
+        this.onSelect = Checks.handlerSlot(onSelect, listener, "ExpanderGroup.onSelect");
         return this;
     }
 
@@ -205,8 +209,8 @@ public final class ExpanderGroup {
             closing.runExpandedHandler(origin);
         }
         member.runExpandedHandler(origin);
-        if (origin == Change.Origin.USER && onChange != null) {
-            onChange.accept(expandedIndex());
+        if (origin == Change.Origin.USER && onSelect != null) {
+            onSelect.accept(expandedIndex());
         }
     }
 }

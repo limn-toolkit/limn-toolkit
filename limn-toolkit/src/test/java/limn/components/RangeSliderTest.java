@@ -75,19 +75,19 @@ class RangeSliderTest extends ComponentTestBase {
     @Test
     void setRangeClampsSnapsKeepsTheGapAndTellsNoHandler() {
         build(new RangeSlider(0, 100).setStep(10));
-        slider.setRange(-20, 47);
+        slider.setValues(-20, 47);
         assertEquals(0, slider.lower());
         assertEquals(50, slider.upper(), "snapped");
-        slider.setMinimumGap(30).setRange(40, 50);
+        slider.setMinimumGap(30).setValues(40, 50);
         assertEquals(30, slider.upper() - slider.lower(), "held the gap apart");
-        assertThrows(IllegalArgumentException.class, () -> slider.setRange(60, 50));
+        assertThrows(IllegalArgumentException.class, () -> slider.setValues(60, 50));
         assertTrue(changed.isEmpty(), "the application's own writes reach no handler");
     }
 
     @Test
     void aPressOnTheTrackTakesTheNearerThumb() {
         build(new RangeSlider(0, 100));
-        slider.setRange(20, 80);
+        slider.setValues(20, 80);
         press(0.3f);
         release(0.3f);
         assertEquals(30, slider.lower(), 0.5f);
@@ -103,7 +103,7 @@ class RangeSliderTest extends ComponentTestBase {
     @Test
     void aThumbStopsAtTheOtherOrAtTheGap() {
         build(new RangeSlider(0, 100).setMinimumGap(10));
-        slider.setRange(20, 60);
+        slider.setValues(20, 60);
         press(0.2f);
         dragTo(0.9f);
         release(0.9f);
@@ -114,13 +114,13 @@ class RangeSliderTest extends ComponentTestBase {
     @Test
     void twoThumbsOnOneSpotAreToldApartByWhereThePointerGoes() {
         build(new RangeSlider(0, 100));
-        slider.setRange(50, 50);
+        slider.setValues(50, 50);
         press(0.5f);
         dragTo(0.3f);
         release(0.3f);
         assertEquals(30, slider.lower(), 0.5f, "dragged towards the minimum: the lower");
         assertEquals(50, slider.upper());
-        slider.setRange(50, 50);
+        slider.setValues(50, 50);
         press(0.5f);
         dragTo(0.8f);
         release(0.8f);
@@ -130,7 +130,7 @@ class RangeSliderTest extends ComponentTestBase {
     @Test
     void eachThumbIsATabStopMovedByTheKeyboardWithinWhatTheOtherLeavesIt() {
         build(new RangeSlider(0, 100).setStep(5).setMinimumGap(10));
-        slider.setRange(20, 60);
+        slider.setValues(20, 60);
         key(Keys.TAB);
         key(Keys.RIGHT);
         assertEquals(25, slider.lower(), "the lower takes the first Tab");
@@ -148,7 +148,7 @@ class RangeSliderTest extends ComponentTestBase {
         RangeSlider s = new RangeSlider(0, 100);
         s.setLayoutDirection(LayoutDirection.RTL);
         build(s);
-        slider.setRange(20, 80);
+        slider.setValues(20, 80);
         press(0.25f); // a quarter from the left is three quarters of the range
         release(0.25f);
         assertEquals(75, slider.upper(), 0.5f);
