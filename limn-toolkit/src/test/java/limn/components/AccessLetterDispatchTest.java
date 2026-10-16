@@ -129,6 +129,36 @@ class AccessLetterDispatchTest extends AccessibleComponentTestBase {
         assertEquals(0, acted.get());
     }
 
+    /**
+     * A key that prints nothing is no letter, though its code is one: Home is 268, the code of Č,
+     * and Insert is 260, Ą's. Alt+Home pressed a Czech "&amp;Člen", and Insert chose a Polish menu
+     * row; the layout's Č and Ą still reach them.
+     */
+    @Test
+    void aKeyThatPrintsNothingIsNoLetterThoughItsCodeIsOne() {
+        AtomicInteger member = new AtomicInteger();
+        AtomicInteger action = new AtomicInteger();
+        MenuBar bar = new MenuBar().setDisplayMode(DisplayMode.IN_SCENE)
+                .addMenu("&Sales", new Menu().addItem("&Ąkcja", action::incrementAndGet));
+        Button join = new Button("&Člen").onAction(member::incrementAndGet);
+        show(bar, join);
+
+        altAnd(Keys.HOME);
+        assertEquals(0, member.get(), "Alt+Home is not Alt+Č");
+        drive(scene).keyEvent(Keys.C, 'č', true, false, Keys.MOD_ALT);
+        drive(scene).keyEvent(Keys.C, 'č', false, false, Keys.MOD_ALT);
+        drive(scene).inputBatchEnded();
+        frame();
+        assertEquals(1, member.get(), "the key the layout types Č with is");
+
+        altAnd(Keys.S);
+        assertTrue(bar.isOpen());
+        drive(scene).press(Keys.INSERT, 0);
+        frame();
+        assertEquals(0, action.get(), "Insert is not Ą");
+        assertTrue(bar.isOpen());
+    }
+
     @Test
     void hiddenAndDisabledControlsHaveNoLetter() {
         AtomicInteger acted = new AtomicInteger();

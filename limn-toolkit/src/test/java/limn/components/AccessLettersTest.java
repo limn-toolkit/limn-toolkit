@@ -3,6 +3,7 @@ package limn.components;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -71,5 +72,15 @@ class AccessLettersTest {
         assertTrue(AccessLetters.matches('A', 'A', -1));
         assertTrue(AccessLetters.matches('Ф', 'A', 'ф'), "a Cyrillic layout types ф on the A key");
         assertEquals(false, AccessLetters.matches((char) 0, 'A', 'a'));
+    }
+
+    /** The codes of keys that print nothing are Latin Extended-A letters' codes, and match none. */
+    @Test
+    void aKeyCodeAboveTheLatinRangeIsNoLetter() {
+        assertFalse(AccessLetters.matches('Č', limn.input.Keys.HOME, -1), "Home is 268, Č's code");
+        assertFalse(AccessLetters.matches('Ć', limn.input.Keys.RIGHT, -1), "Right is 262, Ć's");
+        assertFalse(AccessLetters.matches('Ģ', limn.input.Keys.F1, -1), "F1 is 290, Ģ's");
+        assertTrue(AccessLetters.matches('Č', limn.input.Keys.C, 'č'), "the layout's Č still is");
+        assertTrue(AccessLetters.matches('7', limn.input.Keys.NUM_7, -1), "a digit's key code is the digit");
     }
 }

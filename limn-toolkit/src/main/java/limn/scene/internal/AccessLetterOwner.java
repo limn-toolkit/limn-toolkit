@@ -54,6 +54,11 @@ public interface AccessLetterOwner {
      * Whether a key press is {@code letter}: the key printed with it, or the character the layout
      * types with it, so a Cyrillic letter is reached on a Cyrillic layout.
      *
+     * <p>The key code is compared only for a Latin letter or a digit, the one range where a key's
+     * code is the character on its cap. Above it the codes name keys that print nothing, and
+     * they are the characters of Latin Extended-A: Home is 268, which is Č, so Alt+Home pressed
+     * a Czech "&amp;Člen", and Insert chose a Polish menu row marked Ą.
+     *
      * @param letter    the access letter, upper-cased; 0 matches nothing
      * @param key       the press's key code, read off the keycap
      * @param codePoint what the layout types with the key, or a negative number when unknown
@@ -62,6 +67,7 @@ public interface AccessLetterOwner {
         if (letter == 0) {
             return false;
         }
-        return key == letter || codePoint > 0 && Character.toUpperCase(codePoint) == letter;
+        boolean onTheCap = letter >= 'A' && letter <= 'Z' || letter >= '0' && letter <= '9';
+        return onTheCap && key == letter || codePoint > 0 && Character.toUpperCase(codePoint) == letter;
     }
 }
