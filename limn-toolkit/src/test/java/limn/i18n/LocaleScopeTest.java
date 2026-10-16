@@ -279,4 +279,49 @@ class LocaleScopeTest {
         assertTrue(files.resident(pt) && files.resident(Locale.JAPANESE),
                 "a second language's lazy load does not evict the first");
     }
+
+    // ------------------------------------------------- a window's locale after it closed
+
+    private static limn.scene.Scene openScene(Locale locale) {
+        limn.scene.Scene scene = new limn.scene.Scene(new limn.scene.layout.Column());
+        scene.bind(new limn.testing.StubWindow());
+        scene.setLocale(locale);
+        return scene;
+    }
+
+    @Test
+    void clearingAClosedWindowsLocaleDoesNotDropWhatAnOpenOneShows() {
+        PropertyBundle files = PropertyBundle.family("/limn/i18n/test-domain");
+        register(files);
+        Locale pt = Locale.forLanguageTag("pt");
+        try (limn.testing.HeadlessUi ui = new limn.testing.HeadlessUi()) {
+            limn.scene.Scene open = openScene(pt);
+            limn.scene.Scene closing = openScene(pt);
+
+            limn.testing.SceneDriver.drive(closing).windowClosed();
+            closing.setLocale(null);
+
+            assertTrue(files.resident(pt), "the open window still shows Portuguese");
+            open.setLocale(null);
+            assertFalse(files.resident(pt), "and the last window to show it lets it go");
+        }
+    }
+
+    @Test
+    void aLocaleSetWhileClosedIsRetainedOnceByTheNextBindAndReleasedByTheNextClose() {
+        PropertyBundle files = PropertyBundle.family("/limn/i18n/test-domain");
+        register(files);
+        Locale ja = Locale.JAPANESE;
+        try (limn.testing.HeadlessUi ui = new limn.testing.HeadlessUi()) {
+            limn.scene.Scene scene = openScene(null);
+            limn.testing.SceneDriver.drive(scene).windowClosed();
+
+            scene.setLocale(ja);
+            scene.bind(new limn.testing.StubWindow());
+            assertTrue(files.resident(ja), "bound again in Japanese");
+            limn.testing.SceneDriver.drive(scene).windowClosed();
+
+            assertFalse(files.resident(ja), "its window closed, and nothing else reads Japanese");
+        }
+    }
 }
