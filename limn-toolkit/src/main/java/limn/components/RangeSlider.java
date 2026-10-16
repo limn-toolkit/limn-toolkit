@@ -101,10 +101,14 @@ public final class RangeSlider extends Widget<RangeSlider> {
      * meets the maximum, each to the next step past the gap, so a value is always one the steps
      * reach. Announces {@code VALUE}/{@code CODE} when either moved and reaches no handler.
      *
-     * @throws IllegalArgumentException if {@code newLower} is above {@code newUpper}
+     * @throws IllegalArgumentException if {@code newLower} is above {@code newUpper}, or either
+     *         is not a number
      */
     public RangeSlider setValues(float newLower, float newUpper) {
         Ui.checkUiThread();
+        if (Float.isNaN(newLower) || Float.isNaN(newUpper)) {
+            throw new IllegalArgumentException("a value is a number: " + newLower + ", " + newUpper);
+        }
         if (newLower > newUpper) {
             throw new IllegalArgumentException("lower (" + newLower + ") is above upper (" + newUpper + ")");
         }

@@ -182,6 +182,16 @@ class RangeSliderTest extends ComponentTestBase {
         assertEquals(1, committed.size(), "a key that moved it commits");
     }
 
+    /** Not a number is no value: refused, as a step and a gap that are not numbers are. */
+    @Test
+    void valuesThatAreNotNumbersAreRefused() {
+        build(new RangeSlider(0, 100));
+        assertThrows(IllegalArgumentException.class, () -> slider.setValues(Float.NaN, 50));
+        assertThrows(IllegalArgumentException.class, () -> slider.setValues(10, Float.NaN));
+        assertEquals(0, slider.lower());
+        assertEquals(100, slider.upper());
+    }
+
     @Test
     void readingRightToLeftTheMinimumIsAtTheRight() {
         RangeSlider s = new RangeSlider(0, 100);
