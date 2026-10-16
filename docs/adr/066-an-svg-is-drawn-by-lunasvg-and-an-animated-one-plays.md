@@ -184,6 +184,14 @@ As ADR 061 asks of everything the toolkit reads itself:
   doubles what `var()` writes at each step, and a 738-byte file inside every ceiling ran the heap
   out; what substitution writes over a file is held to four characters for each of its bytes (a
   mebicharacter at least), each call counted, and a file past that is refused.
+  **Amended 2026-10-16, the same audit:** the animation reading's own work was not bounded
+  either. A selector of descendant combinators was tried again from every ancestor (24 seconds
+  for a 525-byte file), `:nth-child` counted the siblings for each of them, and working out SMIL
+  beginnings took a round per link over every animation (36 seconds for 28 KB). Now a selector
+  chains at most 32 compounds, each compound is tried once per element in a match, an element's
+  rules are matched once, siblings are counted once per parent, and the tries over a file (20
+  million) and the beginnings read to work out its timing (4 million) are counted, a file past
+  either refused.
 - **A picture beside a file read from disk is read by the toolkit,** as the owner chose: an
   image's `href` relative to the SVG's own folder, resolved there, refused if it leads out of
   that folder, read within the same ceilings as any picture and handed to lunasvg inside the

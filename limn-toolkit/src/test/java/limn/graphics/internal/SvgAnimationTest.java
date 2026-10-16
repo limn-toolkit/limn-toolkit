@@ -334,6 +334,25 @@ class SvgAnimationTest {
         assertEquals(49, animation.frameCount(24), "two seconds and the last moment");
     }
 
+    /**
+     * Each round of working out a chain moves it on by one link, over every animation: forty
+     * pairs restarting each other every millisecond took nine seconds, and a hundred and sixty
+     * thirty-six. Past a count of the work, the file is refused.
+     */
+    @Test
+    void aChainOfMillisecondLinksIsRefusedQuickly() {
+        StringBuilder svg = new StringBuilder(SVG);
+        for (int i = 0; i < 40; i++) {
+            svg.append("<rect><animate id='a").append(i).append("' attributeName='x' from='0' to='1' dur='1ms' begin='0;b")
+                    .append(i).append(".end'/><animate id='b").append(i).append("' attributeName='y' from='0' to='1' "
+                    + "dur='1ms' begin='a").append(i).append(".end'/></rect>");
+        }
+        svg.append("</svg>");
+        long start = System.nanoTime();
+        org.junit.jupiter.api.Assertions.assertThrows(limn.io.MalformedContentException.class, () -> source(svg.toString()));
+        assertTrue(System.nanoTime() - start < 2_000_000_000L, (System.nanoTime() - start) / 1_000_000 + " ms");
+    }
+
     @Test
     void aBeginningOnAnEventIsNotPlayed() {
         assertNull(source(SVG + "<rect width='1' height='1'><animate begin='click' attributeName='x' to='5' dur='1s'/>"

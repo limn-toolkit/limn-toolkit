@@ -47,6 +47,12 @@ public final class SvgAnimation {
     public static final int MAX_LENGTH_MILLIS = 30_000;
     /** The most animations one file may have. */
     public static final int MAX_ANIMATIONS = 10_000;
+    /**
+     * The most beginnings and ends read, over every round, to work out when a file's SMIL
+     * animations begin: a chain that restarts its links every millisecond took 36 seconds before
+     * this was counted.
+     */
+    public static final long MAX_TIMING_STEPS = 4_000_000L;
 
     private static final Set<String> SMIL = Set.of("animate", "animateTransform", "set", "animateColor", "animateMotion");
 
@@ -429,11 +435,17 @@ public final class SvgAnimation {
          * Works out when every SMIL animation begins and ends, to {@link #WINDOW} milliseconds:
          * its own times, and the beginnings and ends of the animations it refers to, offset, until
          * nothing changes. A beginning while one plays restarts it.
+         *
+         * <p>Each round moves a chain on by one link, so a chain of short links takes as many
+         * rounds as it has beginnings in the window, each round over every animation: what the
+         * rounds together take is held under {@link #MAX_TIMING_STEPS}, past which the file is
+         * refused (ADR 061). An indicator's chain takes some thousands.
          */
         private void resolve() {
             for (SmilTrack track : smilTracks) {
                 track.instances(track.timing.offsets());
             }
+            long steps = 0;
             for (int round = 0; round < 4096; round++) {
                 for (SmilTrack track : smilTracks) {
                     track.intervals();
@@ -447,17 +459,27 @@ public final class SvgAnimation {
                             continue;
                         }
                         double[] times = sync.end() ? base.ends : base.begins;
+                        timingSteps(steps + instances.size() + times.length);
                         for (double t : times) {
                             if (!Double.isInfinite(t)) {
                                 instances.add(t + sync.offset());
                             }
                         }
                     }
+                    steps += 1 + instances.size();
+                    timingSteps(steps);
                     changed |= track.instances(instances);
                 }
                 if (!changed) {
                     return;
                 }
+            }
+        }
+
+        private static void timingSteps(long steps) {
+            if (steps > MAX_TIMING_STEPS) {
+                throw SvgXml.refused("working out when the animations begin takes more than "
+                        + MAX_TIMING_STEPS + " steps");
             }
         }
 

@@ -82,9 +82,21 @@ class SvgHostileCorpusTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"sv2-var-multiplies.svg"})
+    @ValueSource(strings = {"sv2-var-multiplies.svg", "sv3-smil-chain.svg", "sv3-deep-selector-budget.svg",
+            "sv3-long-selector.svg"})
     void aFileThatSpentTheReaderWithoutBoundIsRefusedQuickly(String name) throws IOException {
         refusedQuickly(file(name), name);
+    }
+
+    /** Files that took seconds for work that is now done once: they are read, and quickly. */
+    @ParameterizedTest
+    @ValueSource(strings = {"sv3-descendant-selector.svg", "sv3-nth-child.svg"})
+    void aFileThatTookSecondsIsReadQuickly(String name) throws IOException {
+        byte[] svg = file(name);
+        long start = System.nanoTime();
+        SvgSource.read(svg, null);
+        long took = System.nanoTime() - start;
+        assertTrue(took < QUICKLY_NANOS, name + " took " + took / 1_000_000 + " ms");
     }
 
     static void refusedQuickly(byte[] svg, String name) {
