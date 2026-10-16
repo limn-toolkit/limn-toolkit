@@ -93,9 +93,14 @@ public final class Slider extends Widget<Slider> {
     /**
      * Sets the value (clamped + snapped to the step). Announces {@code VALUE}/{@code CODE} when
      * it moved, and reaches no handler: a caller's write is not the user operating the slider.
+     *
+     * @throws IllegalArgumentException if {@code newValue} is not a number
      */
     public Slider setValue(float newValue) {
         Ui.checkUiThread();
+        if (Float.isNaN(newValue)) {
+            throw new IllegalArgumentException("a value is a number: " + newValue);
+        }
         apply(newValue, Change.Origin.CODE);
         return this;
     }

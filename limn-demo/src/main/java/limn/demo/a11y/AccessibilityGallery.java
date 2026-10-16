@@ -875,10 +875,10 @@ public final class AccessibilityGallery {
 
     private static Built rangeSliders() {
         Column page = page();
-        page.add(Labelled.above("Price", new RangeSlider(0, 1000).setStep(10).setRange(200, 600)));
+        page.add(Labelled.above("Price", new RangeSlider(0, 1000).setStep(10).setValues(200, 600)));
         page.add(Labelled.above("Nights, at least two", new RangeSlider(1, 30).setStep(1).setMinimumGap(2)
-                .setRange(3, 7)));
-        RangeSlider locked = new RangeSlider(0, 100).setRange(20, 80);
+                .setValues(3, 7)));
+        RangeSlider locked = new RangeSlider(0, 100).setValues(20, 80);
         locked.setEnabled(false);
         page.add(Labelled.above("Age, locked", locked));
         return new Built(page);

@@ -41,7 +41,7 @@ class RangeSliderAccessibilityTest extends AccessibleComponentTestBase {
     @Test
     void theTwoThumbsAreTwoNamedSlidersWithTheBoundsTheOtherLeaves() {
         bindSlider(new RangeSlider(0, 100).setMinimumGap(10));
-        slider.setRange(20, 70);
+        slider.setValues(20, 70);
         frame();
         List<AccessibleNode> nodes = sliders();
         assertEquals(2, nodes.size(), describe(tree()));
@@ -62,7 +62,7 @@ class RangeSliderAccessibilityTest extends AccessibleComponentTestBase {
     @Test
     void aReaderSetsAndStepsEachThumb() throws InterruptedException {
         bindSlider(new RangeSlider(0, 100).setStep(5));
-        slider.setRange(20, 70);
+        slider.setValues(20, 70);
         frame();
         assertTrue(perform(node(ComponentStrings.RANGE_LOWER.get()).id(), Accessible.Action.SET_VALUE, new Accessible.Argument.OfValue(40)));
         assertEquals(40, slider.lower());

@@ -53,16 +53,16 @@ final class ControlsScene {
         page.add(slider(Text.MICROPHONE, microphone, () -> percent(microphone.value())));
 
         page.add(Page.section(Text.HOTEL));
-        RangeSlider price = new RangeSlider(0, 1000).setStep(10).setRange(200, 600);
+        RangeSlider price = new RangeSlider(0, 1000).setStep(10).setValues(200, 600);
         DoubleFunction<String> money = NumberFormats.currency(USD);
         page.add(range(Text.PRICE, price,
                 () -> Text.BETWEEN.format(money.apply(price.lower()), money.apply(price.upper()))));
-        RangeSlider nights = new RangeSlider(1, 30).setStep(1).setMinimumGap(2).setRange(3, 7);
+        RangeSlider nights = new RangeSlider(1, 30).setStep(1).setMinimumGap(2).setValues(3, 7);
         page.add(range(Text.NIGHTS, nights,
                 () -> Text.NIGHTS_SPAN.format(Math.round(nights.upper()), Math.round(nights.lower()))));
         Slider rating = new Slider(1, 5).setStep(1).setValue(4);
         page.add(slider(Text.RATING, rating, () -> Text.STARS.format(Math.round(rating.value()))));
-        RangeSlider distance = new RangeSlider(0, 50).setStep(1).setRange(0, 10);
+        RangeSlider distance = new RangeSlider(0, 50).setStep(1).setValues(0, 10);
         distance.setEnabled(false); // needs the office's address
         page.add(range(Text.DISTANCE, distance,
                 () -> Text.KILOMETRES.format(Math.round(distance.lower()), Math.round(distance.upper()))));

@@ -1019,9 +1019,18 @@ public final class DatePicker extends Widget<DatePicker> {
             setOpen(false, origin);
         }
 
+        /**
+         * A press anywhere inside the picker is not elsewhere: the calendar button is a child of
+         * it, and its press would otherwise close the calendar for the click to open it again.
+         */
         @Override
-        public boolean contains(Widget<?> target) {
-            return target == DatePicker.this || target == field || target == endField;
+        public boolean contains(@Nullable Widget<?> target) {
+            for (Widget<?> at = target; at != null; at = at.parent()) {
+                if (at == DatePicker.this) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         /**

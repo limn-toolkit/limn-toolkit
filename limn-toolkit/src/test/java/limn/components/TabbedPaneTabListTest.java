@@ -280,6 +280,236 @@ class TabbedPaneTabListTest extends AccessibleComponentTestBase {
         }
     }
 
+    /**
+     * A pane taken out of the window while its list is open takes the list with it: the layer the
+     * list is drawn on in the scene would otherwise stay on top for good, holding the keyboard and
+     * every press of a window whose pane is gone.
+     */
+    @Test
+    void aPaneTakenOutWhileItsListIsOpenTakesTheListWithIt() throws InterruptedException {
+        int[] clicks = {0};
+        Button other = new Button("Other").onAction(() -> clicks[0]++);
+        pane = new TabbedPane();
+        for (String title : TITLES) {
+            pane.addTab(title, new SizedBox(60, 60));
+        }
+        Column root = new Column();
+        SizedBox box = new SizedBox(200, 120, pane);
+        root.add(other);
+        root.add(box);
+        bind(root, new StubWindow(false));
+        scene.setTextRuler(RULER);
+        frame();
+        openList();
+
+        root.remove(box);
+        frame();
+        settleAnimations(root);
+        drive(scene).click(other);
+        frame();
+        assertEquals(1, clicks[0], "the window's own button takes the press again");
+        assertTrue(rows().isEmpty(), describe(tree()));
+    }
+
+    /**
+     * The last tab closed from the list while the application, hearing the pane empty, puts a start
+     * page in its place: the pane is gone by the time the close settles the list, which must go
+     * with it all the same.
+     */
+    @Test
+    void theLastTabClosedFromTheListWhileThePaneIsReplacedLeavesTheWindowUsable() throws InterruptedException {
+        int[] clicks = {0};
+        Button start = new Button("Start page").onAction(() -> clicks[0]++);
+        pane = new TabbedPane().setTabsClosable(true);
+        for (String title : TITLES) {
+            pane.addTab(title, new SizedBox(60, 60));
+        }
+        Column root = new Column();
+        SizedBox box = new SizedBox(200, 120, pane);
+        root.add(box);
+        pane.observeChanges((widget, change) -> {
+            if (change.aspect() == limn.scene.Change.Aspect.CHILDREN && pane.tabCount() == 0
+                    && box.parent() != null) {
+                root.remove(box);
+                root.add(start);
+            }
+        });
+        bind(root, new StubWindow(false));
+        scene.setTextRuler(RULER);
+        frame();
+        openList();
+        for (int i = 0; i < TITLES.size(); i++) {
+            press(Keys.DELETE, 0);
+        }
+        settleAnimations(root);
+
+        drive(scene).click(start);
+        frame();
+        assertEquals(1, clicks[0], "the start page's button takes the press");
+        assertFalse(scene.focusedWidget() != null
+                && scene.focusedWidget().getClass().getName().contains("AnchoredPopup"),
+                "the list's layer holds the keyboard: " + scene.focusedWidget());
+    }
+
+    /** Binds six tabs whose pages are fields, the first one holding the keyboard. */
+    private TextField bindTypingPane(boolean inScene) {
+        TextField typing = new TextField();
+        pane = new TabbedPane().setTabsClosable(true);
+        pane.addTab(TITLES.get(0), typing);
+        for (String title : TITLES.subList(1, TITLES.size())) {
+            pane.addTab(title, new TextField());
+        }
+        Column root = new Column();
+        root.add(new SizedBox(200, 120, pane));
+        bind(root, new StubWindow(!inScene));
+        scene.setTextRuler(RULER);
+        frame();
+        scene.requestFocus(typing);
+        frame();
+        return typing;
+    }
+
+    private boolean keyboardInThePane() {
+        for (limn.scene.Widget<?> w = scene.focusedWidget(); w != null; w = w.parent()) {
+            if (w == pane) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * A tab chosen from the list while the keyboard was typing in the page it hides: the keyboard
+     * goes to the chosen tab, where a click on its header would send it, and not to nothing.
+     */
+    @Test
+    void aTabChosenFromTheListWhileTypingInThePageTakesTheKeyboard() throws InterruptedException {
+        for (boolean inScene : new boolean[] {true, false}) {
+            bindTypingPane(inScene);
+            openList();
+            press(Keys.DOWN, 0);
+            press(Keys.ENTER, 0);
+            settleAnimations(null);
+            assertEquals(1, pane.selectedIndex());
+            assertTrue(keyboardInThePane(), (inScene ? "in the scene" : "in a window")
+                    + ", the keyboard went to " + scene.focusedWidget());
+        }
+    }
+
+    /** Escape gives the keyboard back to the field it was typing in, which is still there. */
+    @Test
+    void escapeGivesTheKeyboardBackToThePageItWasIn() throws InterruptedException {
+        TextField typing = bindTypingPane(true);
+        openList();
+        press(Keys.ESCAPE, 0);
+        settleAnimations(null);
+        assertEquals(typing, scene.focusedWidget());
+    }
+
+    /**
+     * Alt+Down on the focused tab, Delete on that same tab, Escape: the keyboard cannot go back to
+     * a tab that is gone, so it goes to the one now shown, and not to nothing.
+     */
+    @Test
+    void theFocusedTabClosedFromTheListLeavesTheKeyboardOnTheNextTab() throws InterruptedException {
+        bindPane(true, false);
+        scene.requestFocus(tabStop(pane));
+        press(Keys.DOWN, Keys.MOD_ALT);
+        press(Keys.DELETE, 0);
+        press(Keys.ESCAPE, 0);
+        settleAnimations(null);
+        assertEquals(TITLES.size() - 1, pane.tabCount());
+        assertTrue(keyboardInThePane(), "the keyboard went to " + scene.focusedWidget());
+        assertEquals(tabStop(pane), scene.focusedWidget(), "the tab now shown");
+    }
+
+    /**
+     * A pane disabled while its list is open (a save in progress) is chosen in and closed from by
+     * nobody: the list is not a child of the pane, so the scene's own gate never reaches it, and a
+     * reader, which loses the list's verbs, would disagree with the keys and the pointer.
+     */
+    @Test
+    void aDisabledPanesOpenListNeitherChoosesNorCloses() throws InterruptedException {
+        bindPane(true, false);
+        scene.requestFocus(tabStop(pane));
+        press(Keys.DOWN, Keys.MOD_ALT);
+        pane.setEnabled(false);
+        frame();
+        press(Keys.DELETE, 0);
+        assertEquals(TITLES, titles(), "Delete closed nothing");
+        press(Keys.DOWN, 0);
+        press(Keys.ENTER, 0);
+        assertEquals(0, pane.selectedIndex(), "Enter chose nothing");
+    }
+
+    /** The origins of the list's opening and closing a watcher of the pane heard. */
+    private List<limn.scene.Change.Origin> expansions() {
+        List<limn.scene.Change.Origin> heard = new ArrayList<>();
+        pane.observeChanges((widget, change) -> {
+            if (change.aspect() == limn.scene.Change.Aspect.EXPANDED) {
+                heard.add(change.origin());
+            }
+        });
+        return heard;
+    }
+
+    /**
+     * The list closes as the user's when the user closes it, and as an adjustment when it goes
+     * because its last tab was taken out by code: a watcher that answers the user collapsing it
+     * must not hear the program's doing as theirs.
+     */
+    @Test
+    void theListClosingSaysWhoClosedIt() throws InterruptedException {
+        bindPane(false, false);
+        List<limn.scene.Change.Origin> heard = expansions();
+        openList();
+        press(Keys.ESCAPE, 0);
+        assertEquals(List.of(limn.scene.Change.Origin.USER, limn.scene.Change.Origin.USER), heard,
+                "opened and closed by the user");
+        heard.clear();
+        openList();
+        while (pane.tabCount() > 0) {
+            pane.removeTab(0);
+        }
+        frame();
+        assertEquals(List.of(limn.scene.Change.Origin.USER, limn.scene.Change.Origin.ADJUSTMENT), heard,
+                "gone with the last tab code took out");
+    }
+
+    /**
+     * Tabs closed until the rest fit: the list's button goes, and the list with it, rather than
+     * staying open hung from a button that is no longer there.
+     */
+    @Test
+    void theListGoesWhenTheTabsFitAgain() throws InterruptedException {
+        bindPane(false, false);
+        openList();
+        while (pane.tabCount() > 1) {
+            pane.removeTab(pane.tabCount() - 1);
+        }
+        frame();
+        ui.pumpUntil(() -> {
+            frame();
+            return rows().isEmpty();
+        }, 1_000_000_000L);
+        assertEquals(List.of("Alpha"), titles());
+    }
+
+    /** A tab added or moved by code while the list is open takes its row in the list at once. */
+    @Test
+    void aTabAddedOrMovedWhileTheListIsOpenIsInIt() throws InterruptedException {
+        bindPane(false, false);
+        openList();
+        pane.addTab("Golf", new SizedBox(60, 60));
+        frame();
+        List<String> withGolf = new ArrayList<>(TITLES);
+        withGolf.add("Golf");
+        assertEquals(withGolf, rowNames(), describe(tree()));
+        pane.moveTab(6, 0);
+        frame();
+        assertEquals("Golf", rowNames().get(0), describe(tree()));
+    }
+
     @Test
     void aClickOnARowChoosesItsTab() throws InterruptedException {
         bindPane(false, false);

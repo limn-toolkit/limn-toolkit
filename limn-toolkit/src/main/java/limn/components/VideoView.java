@@ -375,7 +375,7 @@ public final class VideoView extends Widget<VideoView> {
             return;
         }
         if (poster instanceof Poster.At at) {
-            player.cue(at.micros());
+            player.cue(at.time().toNanos() / 1_000);
         } else if (poster instanceof Poster.FirstPicture) {
             player.cue(0);
         }
@@ -1221,7 +1221,7 @@ public final class VideoView extends Widget<VideoView> {
             if (poster instanceof Poster.At at && !posterSeeked && !uploaded && picture == null
                     && source.canSeek()) {
                 releasePictures();
-                source.seek(at.micros(), VideoStreamSource.SeekMode.EXACT);
+                source.seek(at.time().toNanos() / 1_000, VideoStreamSource.SeekMode.EXACT);
                 posterSeeked = true;
             }
         }

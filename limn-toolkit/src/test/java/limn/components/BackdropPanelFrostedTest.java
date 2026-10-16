@@ -15,6 +15,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /** Frosted glass is worked out from the theme in effect, and leans toward a tint when given one. */
 class BackdropPanelFrostedTest extends ComponentTestBase {
 
+    /** An amount or a cover that is not a number is refused, where one past an end is clamped. */
+    @Test
+    void aTintOrACoverThatIsNotANumberIsRefused() {
+        BackdropPanel panel = BackdropPanel.frosted(new Label("On glass"));
+        assertThrows(IllegalArgumentException.class, () -> panel.setTint(Color.WHITE, Float.NaN));
+        assertThrows(IllegalArgumentException.class, () -> panel.setCover(Float.NaN));
+        assertEquals(BackdropPanel.FROST_COVER, panel.cover());
+        assertEquals(0, panel.tintAmount());
+        panel.setCover(2);
+        assertEquals(1, panel.cover(), "past the end, clamped");
+    }
+
     private static BackdropEffect.Wash toneOf(BackdropPanel panel) {
         List<BackdropEffect> stack = panel.effects();
         assertEquals(3, stack.size(), "blurred across, blurred down, and the tone over it");

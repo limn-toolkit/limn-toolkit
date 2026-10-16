@@ -10,6 +10,7 @@ import limn.graphics.Icon;
 import limn.graphics.Image;
 import limn.graphics.Images;
 import limn.graphics.SvgIcon;
+import limn.internal.lang.Checks;
 import limn.scene.Constraints;
 import limn.scene.Size;
 import limn.scene.Widget;
@@ -281,11 +282,13 @@ public final class ImageView extends Widget<ImageView> {
      * Sets what is told when an animated image's last turn ends. One that turns without end
      * never tells.
      *
-     * @param handler the handler, or {@code null} for none
+     * @param handler the handler, or {@code null} to clear the slot
+     * @return this view
+     * @throws IllegalStateException if a handler is already registered
      */
     public ImageView onFinished(@Nullable Runnable handler) {
         Ui.checkUiThread();
-        this.onFinished = handler;
+        this.onFinished = Checks.handlerSlot(onFinished, handler, "ImageView.onFinished");
         return this;
     }
 

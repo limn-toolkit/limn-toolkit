@@ -68,6 +68,16 @@ class SliderTest extends ComponentTestBase {
         assertNull(changed.get(), "programmatic setValue does not fire onChange");
     }
 
+    /** Not a number is no value, and the slider's value stays within its bounds, as promised. */
+    @Test
+    void aValueThatIsNotANumberIsRefused() {
+        build(new Slider(0, 100));
+        slider.setValue(40);
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> slider.setValue(Float.NaN));
+        assertEquals(40f, slider.value());
+    }
+
     @Test
     void clickingTheTrackJumpsToThePointerAndFires() {
         build(new Slider(0, 100));

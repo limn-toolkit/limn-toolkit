@@ -126,6 +126,33 @@ class DatePickerTest extends ComponentTestBase {
         assertTrue(heard.contains(Change.Aspect.EXPANDED));
     }
 
+    /**
+     * With the calendar in a window of its own, a second click on the calendar button closes what
+     * the first opened. The press lands on the button, a child of the picker, and a press-elsewhere
+     * test that knew only the picker and its fields closed the calendar on the press, for the
+     * click to open it again.
+     */
+    @Test
+    void aSecondClickOnTheCalendarButtonClosesTheCalendarItsWindowShows() {
+        I18n.setLocale(Locale.forLanguageTag("pt-BR"));
+        picker = datePicker();
+        limn.scene.layout.Column root = new limn.scene.layout.Column();
+        root.add(picker);
+        scene = new Scene(root, () -> nanos[0]);
+        scene.setTextRuler(RULER);
+        scene.bind(new StubWindow()); // a window that can place one of its own
+        FakeCanvas canvas = new FakeCanvas(400, 300);
+        scene.renderFrame(canvas);
+        limn.scene.Widget<?> button = picker.children().stream()
+                .filter(c -> c != picker.field() && c.isFocusable()).findFirst().orElseThrow();
+        drive(scene).click(button);
+        scene.renderFrame(canvas);
+        assertTrue(picker.isOpen(), "the first click opens it");
+        drive(scene).click(button);
+        scene.renderFrame(canvas);
+        assertFalse(picker.isOpen(), "the second closes it");
+    }
+
     @Test
     void altDownOpensTheGridAndEscapeClosesIt() {
         build(datePicker());

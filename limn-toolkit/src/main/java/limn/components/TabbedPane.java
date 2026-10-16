@@ -52,15 +52,25 @@ import java.util.function.IntConsumer;
  * <p><b>Keyboard:</b> the strip is a single tab stop (roving focus): only the
  * selected header is focusable, so Tab/Shift+Tab land on it; Left/Right arrows
  * move between tabs (Home/End jump to the ends) and Enter/Space dive into the
- * panel. Focus follows a programmatic selection while the strip holds it.
+ * panel. Alt+Down opens the list of every tab while the strip overflows. Focus
+ * follows a programmatic selection while the strip holds it.
  *
  * <p><b>Overflow:</b> when the headers don't fit, the strip becomes a clipped,
  * scrollable viewport (alignment is moot then): chevron buttons appear at the
  * edges (the dead side disabled, not hidden; hiding would resize the viewport
  * and oscillate at the ends), the mouse wheel scrolls the strip, and a list
- * button opens a {@link PopupMenu} of all tabs (check on the current one) to
- * jump directly. Selecting a tab (by click, keyboard or
- * {@link #setSelectedIndex}) always scrolls it into view. The three square controls
+ * button opens the list of every tab to jump directly. The list is anchored to
+ * that button, in a window of its own where the platform can place one and in
+ * the window's own scene where it cannot: a row per tab in the strip's order,
+ * the shown tab marked, each tab's icon, and on a closable tab a close button
+ * at the row's end. Up, Down, Home and End move its cursor, Enter or Space shows
+ * the tab under it, a typed letter goes to the next tab whose caption starts with
+ * it, Delete or Ctrl+W (Cmd+W on macOS) closes that tab through
+ * {@link #onTabClose} and the list stays open without it, and Escape or Tab
+ * closes the list. Alt+Down on the focused tab opens it from the keyboard; the
+ * list button stays out of the tab order, so the strip is still one stop. The
+ * list goes with the last tab, and when the tabs fit again. Selecting a tab (by
+ * click, keyboard or {@link #setSelectedIndex}) always scrolls it into view. The three square controls
  * shrink with the pane rather than being dropped, each capped at a sixth of its width, so
  * the viewport never falls below half the pane, never reaches zero, and never changes
  * non-monotonically as the pane is resized.
@@ -302,6 +312,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
         header.setFocusable(index == selected);
         content.setVisible(index == selected);
         markNeedsLayout();
+        tabsChangedUnderTheList();
         if (first) {
             // The pane took its first tab by itself: a consequence of adding, not a caller naming
             // a selection, so a watcher hears it as an adjustment.
@@ -384,7 +395,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
 
     /**
      * The application's response to the user choosing a tab: a click on a header, an arrow key
-     * across the strip, a pick from the overflow menu, an assistive technology's select. Never
+     * across the strip, a pick from the list of every tab, an assistive technology's select. Never
      * for {@link #setSelectedIndex}, which is a caller's write; to hear every change whatever
      * caused it, {@linkplain #observeChanges watch} the pane instead.
      *
@@ -435,7 +446,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
     }
 
     /** @return whether tabs added from now on can be closed by the user */
-    public boolean tabsClosable() {
+    public boolean isTabsClosable() {
         return tabsClosable;
     }
 
@@ -639,7 +650,13 @@ public final class TabbedPane extends Widget<TabbedPane> {
         closeAsked.remove(content);
         if (dragged == header) {
             dragged = null;
+        } else if (dragged != null) {
+            dragged.tabLeftDuringDrag(index);
         }
+        // The scene sends a header it takes out the release of a press it held: a tab closed
+        // while it is dragged must find nothing left to finish, or its stale index ends the drag
+        // in a list one shorter and stops this close half way.
+        header.dropDrag();
         if (lifted == header) {
             lifted = null;
         }
@@ -669,8 +686,10 @@ public final class TabbedPane extends Widget<TabbedPane> {
         strip.removeHeader(header);
         markNeedsContainedLayout();
         startSlides();
-        remove(content, origin);
+        // The list is settled before the page goes: the removal announces CHILDREN, and an
+        // application that hears the pane empty may take it out of the window there and then.
         tabsChangedUnderTheList();
+        remove(content, origin);
         if (selected >= 0 && contents.get(selected) != before) {
             // The pane chose the tab that is now selected: a consequence of the close.
             notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.ADJUSTMENT));
@@ -702,6 +721,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
         revealPending = to;
         markNeedsContainedLayout();
         startSlides();
+        tabsChangedUnderTheList();
     }
 
     /** The user moved a tab from the keyboard: moved, heard by the handler, then said. */
@@ -816,8 +836,8 @@ public final class TabbedPane extends Widget<TabbedPane> {
      * only where an application named the index.
      *
      * <p>This is also the one seam every selection announces from, with {@code origin} saying who
-     * asked: the public setter passes {@code CODE}, and the header's click and keys, the overflow
-     * menu and an assistive technology's select pass {@code USER}. The announcement is the
+     * asked: the public setter passes {@code CODE}, and the header's click and keys, the list of
+     * every tab and an assistive technology's select pass {@code USER}. The announcement is the
      * <b>last</b> thing here, after the panel swap, the roving focus and the focus move have all
      * settled, so a watcher hears {@code VISIBLE}, {@code VISIBLE}, {@code FOCUSABLE},
      * {@code FOCUSABLE}, {@code FOCUS}, {@code FOCUS} and then the {@code SELECTION} they belong
@@ -992,6 +1012,10 @@ public final class TabbedPane extends Widget<TabbedPane> {
     private @Nullable TabListPanel tabListPanel;
     /** The row of the list the keyboard is on. */
     private int listCursor = -1;
+    /** Whether the keyboard was in the pane, on its strip or in a page, when the list opened. */
+    private boolean listHadKeyboard;
+    /** Where it was then, while the list is open: what the scene gives it back to as the list goes. */
+    private @Nullable Widget<?> listFocusWas;
     /** The keys the headers are known by to a reader, unique for the life of the pane. */
     private long headerKeys;
 
@@ -1001,23 +1025,37 @@ public final class TabbedPane extends Widget<TabbedPane> {
             return;
         }
         if (tabList.isOpen()) {
-            closeTabList();
+            closeTabList(Change.Origin.USER);
             return;
         }
         listCursor = Math.max(0, selected);
+        listHadKeyboard = holdsFocus(this);
+        listFocusWas = scene().focusedWidget();
         tabList.open(limn.components.DisplayMode.NATIVE_WINDOW);
         listButton.invalidateAccessible();
         notifyChange(Change.of(Change.Aspect.EXPANDED, Change.Origin.USER));
     }
 
-    private void closeTabList() {
+    /**
+     * @param origin who closed it: the user, or the pane adjusting to its tabs, its window or the
+     *               application losing the keyboard, which a watcher must not hear as the user's
+     */
+    private void closeTabList(Change.Origin origin) {
         if (!tabList.isOpen()) {
             return;
         }
         tabListPanel = null;
         tabList.close();
+        listFocusWas = null; // read by the close, and held no longer than the list is open
         listButton.invalidateAccessible();
-        notifyChange(Change.of(Change.Aspect.EXPANDED, Change.Origin.USER));
+        notifyChange(Change.of(Change.Aspect.EXPANDED, origin));
+    }
+
+    /** A pane taken out of its window takes its open list with it, as a combo box does. */
+    @Override
+    protected void onDetached() {
+        closeTabList(Change.Origin.ADJUSTMENT);
+        super.onDetached();
     }
 
     /** The tabs changed under the open list: it takes their new number, or goes with the last. */
@@ -1026,7 +1064,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
             return;
         }
         if (headers.isEmpty()) {
-            closeTabList();
+            closeTabList(Change.Origin.ADJUSTMENT);
             return;
         }
         listCursor = Math.max(0, Math.min(listCursor, headers.size() - 1));
@@ -1054,11 +1092,22 @@ public final class TabbedPane extends Widget<TabbedPane> {
         repaintTabList();
     }
 
-    /** Chooses a tab from the list: it is selected, and the list goes. */
+    /**
+     * Chooses a tab from the list: it is selected, and the list goes. A keyboard that was in the
+     * pane goes to the chosen tab, as from a header the arrows reached: the page it may have been
+     * typing in is hidden now, and a focus revoked with it would go to nothing. One that was
+     * elsewhere stays there, since the list's button never takes it.
+     */
     private void chooseFromList(int row) {
-        closeTabList();
+        if (!isEnabled()) {
+            // The one choke point every choice goes through: a key, a click on a row and a
+            // reader's press. The list is not the pane's child, so the scene's gate on a disabled
+            // pane never reaches it, and a reader, which loses the rows' verbs, would disagree.
+            return;
+        }
+        closeTabList(Change.Origin.USER);
         if (row >= 0 && row < headers.size()) {
-            selectTab(row, Focus.NONE, Change.Origin.USER);
+            selectTab(row, listHadKeyboard ? Focus.HEADER : Focus.NONE, Change.Origin.USER);
         }
     }
 
@@ -1078,7 +1127,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
             case Keys.HOME, Keys.PAGE_UP -> moveListCursor(0);
             case Keys.END, Keys.PAGE_DOWN -> moveListCursor(headers.size() - 1);
             case Keys.ENTER, Keys.SPACE -> chooseFromList(listCursor);
-            case Keys.ESCAPE, Keys.TAB -> closeTabList();
+            case Keys.ESCAPE, Keys.TAB -> closeTabList(Change.Origin.USER);
             case Keys.DELETE -> closeFromList(listCursor);
             case Keys.W -> {
                 if (mods == Accelerator.commandModifier()) {
@@ -1106,9 +1155,12 @@ public final class TabbedPane extends Widget<TabbedPane> {
         }
     }
 
-    /** Closes a tab from the list, as its own button would: the handler is asked, the list stays. */
+    /**
+     * Closes a tab from the list, as its own button would: the handler is asked, the list stays.
+     * Nothing while the pane is disabled, for the reason a choice is refused then.
+     */
     private void closeFromList(int row) {
-        if (row >= 0 && row < headers.size() && headers.get(row).closable) {
+        if (isEnabled() && row >= 0 && row < headers.size() && headers.get(row).closable) {
             requestClose(row, Change.Origin.USER);
         }
     }
@@ -1143,7 +1195,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
 
         @Override
         public void dismiss(Change.Origin origin) {
-            closeTabList();
+            closeTabList(origin);
         }
 
         /** The list button's own press toggles the list, so it is no press elsewhere. */
@@ -1178,6 +1230,20 @@ public final class TabbedPane extends Widget<TabbedPane> {
         @Override
         public boolean alignsTrailing() {
             return true;
+        }
+
+        /**
+         * Where the keyboard was is where it goes back to, unless that went with a tab closed from
+         * the list (the focused tab itself, or a field in its page): then it goes to the tab now
+         * shown, where it would have gone had the tab closed from the strip, and not to nothing.
+         */
+        @Override
+        public @Nullable Widget<?> refocus() {
+            Widget<?> was = listFocusWas;
+            if (!listHadKeyboard || selected < 0 || (was != null && was.isShowing())) {
+                return null;
+            }
+            return headers.get(selected);
         }
     }
 
@@ -1601,6 +1667,16 @@ public final class TabbedPane extends Widget<TabbedPane> {
             headersTotal += headerWidths[i];
         }
         overflowing = headersTotal > width() + 0.5f;
+        if (!overflowing && tabList.isOpen()) {
+            // The tabs fit again (tabs closed, or the pane widened): the list's button is about to
+            // be hidden, and the list goes with it rather than hang from a button that is not
+            // there. Deferred, so a layout pass never closes a popup over the tree it is placing.
+            Ui.post(() -> {
+                if (!overflowing) {
+                    closeTabList(Change.Origin.ADJUSTMENT);
+                }
+            });
+        }
 
         // With overflow the strip shrinks to a viewport between the controls: ‹ on the edge
         // reading starts from, › and the tab-list chevron on the edge it ends on.
@@ -2230,9 +2306,9 @@ public final class TabbedPane extends Widget<TabbedPane> {
          * pane itself answers with {@code paintsDecoration} and this one cannot, because a chevron
          * is not a rule. It is operable: a left click reaches {@code activate()}, and an operation
          * is never deleted with the box that carried it. And the all-tabs button is where the
-         * menu it opens points back to: the popup names its opener through the inheritance host,
+         * list it opens points back to: the popup names its opener through the inheritance host,
          * and the walk writes that relation onto the first node it published at or above the host,
-         * so with this widget deleted the menu would announce as the popup of whatever container
+         * so with this widget deleted the list would announce as the popup of whatever container
          * the deleted pane hoisted into.
          *
          * <p>No name is declared. The walk takes the tooltip when nothing else named the node,
@@ -2240,15 +2316,11 @@ public final class TabbedPane extends Widget<TabbedPane> {
          * the walk to add the same string a second time as the description. No description
          * either, for the same reason: the tooltip is spent on the name.
          *
-         * <p>Only the all-tabs button says it has a popup, and it says so with a verb as well as
-         * a state. Both verbs reach the same {@code activate()}: one platform vends its invoke
-         * pattern from the press alone, and a node offering nothing but the menu verb would be
-         * unactuable there, while the other two carry a show-menu action of their own and the
-         * more precise word is worth publishing where it can be routed. This is not the pair a
-         * combo box refused — those were expand and collapse against a facet that already carried
-         * the activation, and there is no expanded bit here to carry: the menu is built, opened
-         * and forgotten in one call, so this widget could not answer whether it is still up. The
-         * fact a reader needs arrives anyway, as the surface's own node pointing back at this one.
+         * <p>Only the all-tabs button says it has a popup, and it says whether the list is open,
+         * with the expanding or collapsing the state allows beside its press: the list is the
+         * pane's own surface, so the pane can answer whether it is still up, as a
+         * combo box answers for its list. A reader also meets the list's own node pointing back
+         * at this one.
          *
          * <p>Nothing is conditional on overflow, though all three controls are laid out and made
          * visible only while the strip overflows. A pane that fits publishes three buttons that
@@ -2284,12 +2356,12 @@ public final class TabbedPane extends Widget<TabbedPane> {
         /**
          * Runs the click this control already has, through the same private path the left button
          * reaches, so that a reader's press scrolls the strip by the same three quarters of a
-         * viewport, or opens the same menu anchored on this button rather than on the scene.
+         * viewport, or opens the same list anchored on this button.
          *
-         * <p>The menu verb is the all-tabs button's alone and is refused on the two chevrons,
-         * which is what the two are doing in one hook: only one of the three has a menu, and a
-         * platform that routes its show-menu action to a chevron has asked for something that
-         * control does not have.
+         * <p>Expanding and collapsing are the all-tabs button's alone and are refused on the two
+         * chevrons, which is what the two are doing in one hook: only one of the three has a
+         * list, and a platform that routes such an action to a chevron has asked for something
+         * that control does not have.
          *
          * <p>There is no enabled guard, and none is needed. The scene walks this widget and every
          * ancestor for the enabled flag and refuses an owner that is not showing before the hook
@@ -2327,7 +2399,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
 
                         @Override
                         public void close() {
-                            closeTabList();
+                            closeTabList(Change.Origin.USER);
                         }
                     }, action);
                 }
@@ -2679,7 +2751,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
          * every parent for the enabled flag before it calls the hook, and refuses anything whose
          * owner is not on screen — which, in an overflowing strip, is every header scrolled out of
          * the viewport. Selecting a visible neighbour scrolls the run, and the strip's list
-         * chevron opens a menu of every tab; those are the two routes to a tab a reader cannot
+         * chevron opens the list of every tab; those are the two routes to a tab a reader cannot
          * operate where it stands.
          *
          * @param action what was asked
@@ -2821,6 +2893,27 @@ public final class TabbedPane extends Widget<TabbedPane> {
             float reach = width() / 2 + 0.5f;
             return rightward ? middle > Math.min(theirs, strip.runEnd() - reach)
                     : middle < Math.max(theirs, strip.runStart() + reach);
+        }
+
+        /** Forgets a press and a drag in progress: the tab is leaving the pane. */
+        private void dropDrag() {
+            pressArmed = false;
+            dragging = false;
+        }
+
+        /**
+         * Another tab closed while this one is dragged: where this one started is counted again
+         * among the tabs left, so the move told on release names places in the order that is.
+         * The tabs other than this one keep their order through a drag, so the closed one was
+         * before the start exactly when it is before it among them.
+         *
+         * @param closed the closed tab's index, in the order before it went
+         */
+        private void tabLeftDuringDrag(int closed) {
+            int amongOthers = closed < index ? closed : closed - 1;
+            if (amongOthers < dragFrom) {
+                dragFrom--;
+            }
         }
 
         /** The tab is let go: it slides into its place, and a move is told once, as the user's. */

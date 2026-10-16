@@ -139,9 +139,14 @@ public final class BackdropPanel extends Padding {
      * @param amount how far, from 0 (the theme's tone alone) to 1 (the colour alone)
      * @return this panel
      * @throws IllegalStateException when this panel is not {@linkplain #frosted frosted}
+     * @throws IllegalArgumentException if {@code amount} is not a number; one past either end is
+     *         clamped to it
      */
     public BackdropPanel setTint(limn.graphics.@org.jspecify.annotations.Nullable Color colour, float amount) {
         Ui.checkUiThread();
+        if (Float.isNaN(amount)) {
+            throw new IllegalArgumentException("an amount is a number from 0 to 1: " + amount);
+        }
         if (!frosted) {
             throw new IllegalStateException("a tint is frosted glass's: this panel was given its effects, "
                     + "and each of those carries its own");
@@ -173,9 +178,14 @@ public final class BackdropPanel extends Padding {
      *              where the tone hides it
      * @return this panel
      * @throws IllegalStateException when this panel is not {@linkplain #frosted frosted}
+     * @throws IllegalArgumentException if {@code cover} is not a number; one past either end is
+     *         clamped to it
      */
     public BackdropPanel setCover(float cover) {
         Ui.checkUiThread();
+        if (Float.isNaN(cover)) {
+            throw new IllegalArgumentException("a cover is a number from 0 to 1: " + cover);
+        }
         if (!frosted) {
             throw new IllegalStateException("a cover is frosted glass's: this panel was given its effects, "
                     + "and each of those carries its own");

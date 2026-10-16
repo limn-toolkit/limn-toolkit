@@ -73,21 +73,21 @@ class RangeSliderTest extends ComponentTestBase {
     }
 
     @Test
-    void setRangeClampsSnapsKeepsTheGapAndTellsNoHandler() {
+    void setValuesClampsSnapsKeepsTheGapAndTellsNoHandler() {
         build(new RangeSlider(0, 100).setStep(10));
-        slider.setRange(-20, 47);
+        slider.setValues(-20, 47);
         assertEquals(0, slider.lower());
         assertEquals(50, slider.upper(), "snapped");
-        slider.setMinimumGap(30).setRange(40, 50);
+        slider.setMinimumGap(30).setValues(40, 50);
         assertEquals(30, slider.upper() - slider.lower(), "held the gap apart");
-        assertThrows(IllegalArgumentException.class, () -> slider.setRange(60, 50));
+        assertThrows(IllegalArgumentException.class, () -> slider.setValues(60, 50));
         assertTrue(changed.isEmpty(), "the application's own writes reach no handler");
     }
 
     @Test
     void aPressOnTheTrackTakesTheNearerThumb() {
         build(new RangeSlider(0, 100));
-        slider.setRange(20, 80);
+        slider.setValues(20, 80);
         press(0.3f);
         release(0.3f);
         assertEquals(30, slider.lower(), 0.5f);
@@ -103,7 +103,7 @@ class RangeSliderTest extends ComponentTestBase {
     @Test
     void aThumbStopsAtTheOtherOrAtTheGap() {
         build(new RangeSlider(0, 100).setMinimumGap(10));
-        slider.setRange(20, 60);
+        slider.setValues(20, 60);
         press(0.2f);
         dragTo(0.9f);
         release(0.9f);
@@ -114,13 +114,13 @@ class RangeSliderTest extends ComponentTestBase {
     @Test
     void twoThumbsOnOneSpotAreToldApartByWhereThePointerGoes() {
         build(new RangeSlider(0, 100));
-        slider.setRange(50, 50);
+        slider.setValues(50, 50);
         press(0.5f);
         dragTo(0.3f);
         release(0.3f);
         assertEquals(30, slider.lower(), 0.5f, "dragged towards the minimum: the lower");
         assertEquals(50, slider.upper());
-        slider.setRange(50, 50);
+        slider.setValues(50, 50);
         press(0.5f);
         dragTo(0.8f);
         release(0.8f);
@@ -130,7 +130,7 @@ class RangeSliderTest extends ComponentTestBase {
     @Test
     void eachThumbIsATabStopMovedByTheKeyboardWithinWhatTheOtherLeavesIt() {
         build(new RangeSlider(0, 100).setStep(5).setMinimumGap(10));
-        slider.setRange(20, 60);
+        slider.setValues(20, 60);
         key(Keys.TAB);
         key(Keys.RIGHT);
         assertEquals(25, slider.lower(), "the lower takes the first Tab");
@@ -143,12 +143,61 @@ class RangeSliderTest extends ComponentTestBase {
         assertEquals(100, slider.upper());
     }
 
+    /**
+     * A minimum gap that is not a whole number of steps: the thumb the gap pushes lands on the
+     * step's grid, past the gap rather than short of it, so a value is never one the steps cannot
+     * reach. From the API, the keyboard and the bounds a reader is told alike.
+     */
+    @Test
+    void aGapThatIsNotAWholeNumberOfStepsKeepsTheValuesOnTheGrid() {
+        build(new RangeSlider(0, 100).setStep(10).setMinimumGap(15));
+        slider.setValues(50, 60);
+        assertEquals(50, slider.lower());
+        assertEquals(70, slider.upper(), "pushed up to the next step past the gap");
+        slider.setValues(90, 100);
+        assertEquals(80, slider.lower(), "at the top, the lower gives way, down to a step");
+        assertEquals(100, slider.upper());
+        slider.setValues(20, 80);
+        key(Keys.TAB);
+        key(Keys.END);
+        assertEquals(60, slider.lower(), "the keyboard's End stops on a step below the gap");
+        key(Keys.TAB);
+        key(Keys.HOME);
+        assertEquals(80, slider.upper(), "and the upper's Home on a step above it");
+        slider.setMinimumGap(0).setValues(56, 71);
+        slider.setMinimumGap(15);
+        assertTrue(slider.upper() - slider.lower() >= 15, "a gap set later holds as well");
+        assertEquals(0, slider.upper() % 10, 0.001f, "on a step: " + slider.upper());
+    }
+
+    /** A key that cannot move its thumb, at the end of its travel, settles nothing new. */
+    @Test
+    void aKeyAtABlockedEndCommitsNothing() {
+        build(new RangeSlider(0, 100));
+        key(Keys.TAB);
+        key(Keys.HOME);
+        key(Keys.LEFT);
+        assertTrue(committed.isEmpty(), "the lower was at the minimum already: " + committed.size());
+        key(Keys.RIGHT);
+        assertEquals(1, committed.size(), "a key that moved it commits");
+    }
+
+    /** Not a number is no value: refused, as a step and a gap that are not numbers are. */
+    @Test
+    void valuesThatAreNotNumbersAreRefused() {
+        build(new RangeSlider(0, 100));
+        assertThrows(IllegalArgumentException.class, () -> slider.setValues(Float.NaN, 50));
+        assertThrows(IllegalArgumentException.class, () -> slider.setValues(10, Float.NaN));
+        assertEquals(0, slider.lower());
+        assertEquals(100, slider.upper());
+    }
+
     @Test
     void readingRightToLeftTheMinimumIsAtTheRight() {
         RangeSlider s = new RangeSlider(0, 100);
         s.setLayoutDirection(LayoutDirection.RTL);
         build(s);
-        slider.setRange(20, 80);
+        slider.setValues(20, 80);
         press(0.25f); // a quarter from the left is three quarters of the range
         release(0.25f);
         assertEquals(75, slider.upper(), 0.5f);

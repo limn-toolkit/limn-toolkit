@@ -1,6 +1,7 @@
 package limn.video;
 
 import limn.graphics.Image;
+import org.jspecify.annotations.Nullable;
 
 import java.time.Duration;
 import java.util.Objects;
@@ -14,6 +15,9 @@ import java.util.Objects;
  * view.setPoster(Poster.at(Duration.ofSeconds(3)));   // a frame that says what the clip is
  * view.setPoster(Poster.image(Images.fromResource("/clips/onboarding.png")));
  * }</pre>
+ *
+ * <p>Made by the four factories and no other way, so each value has one spelling; the kinds are
+ * there to be told apart ({@code poster instanceof Poster.At at}) and read, not built.
  *
  * <p>By time rather than by a picture's number: a stream is moved to an instant, and keeps no
  * index of its pictures, so a number would cost decoding every picture before it, and on a stream
@@ -40,8 +44,9 @@ public sealed interface Poster permits Poster.FirstPicture, Poster.At, Poster.St
         if (time.isNegative()) {
             throw new IllegalArgumentException("a poster's time cannot be negative: " + time);
         }
-        long micros = time.toNanos() / 1_000;
-        return micros == 0 ? FirstPicture.INSTANCE : new At(micros);
+        // To the microsecond, the unit a stream is moved by, so the time read back is the one used.
+        Duration micros = Duration.ofNanos(time.toNanos() / 1_000 * 1_000);
+        return micros.isZero() ? FirstPicture.INSTANCE : new At(micros);
     }
 
     /**
@@ -73,29 +78,61 @@ public sealed interface Poster permits Poster.FirstPicture, Poster.At, Poster.St
         }
     }
 
-    /**
-     * The picture at a time.
-     *
-     * @param micros where, in microseconds on the stream's own timeline; above zero
-     */
-    record At(long micros) implements Poster {
-        /** @throws IllegalArgumentException if {@code micros} is not above zero */
-        public At {
-            if (micros <= 0) {
-                throw new IllegalArgumentException("a poster's time must be above zero: " + micros);
-            }
+    /** The picture at a time, made by {@link Poster#at}. */
+    final class At implements Poster {
+        private final Duration time;
+
+        private At(Duration time) {
+            this.time = time;
+        }
+
+        /** @return where the picture is on the stream's own timeline, above zero, to the microsecond */
+        public Duration time() {
+            return time;
+        }
+
+        @Override
+        public boolean equals(@Nullable Object other) {
+            return other instanceof At at && at.time.equals(time);
+        }
+
+        @Override
+        public int hashCode() {
+            return time.hashCode();
+        }
+
+        @Override
+        public String toString() {
+            return "Poster.at(" + time + ")";
         }
     }
 
-    /**
-     * A picture of the application's.
-     *
-     * @param image the picture
-     */
-    record Still(Image image) implements Poster {
-        /** @throws NullPointerException if {@code image} is null */
-        public Still {
-            Objects.requireNonNull(image, "image");
+    /** A picture of the application's, made by {@link Poster#image}. */
+    final class Still implements Poster {
+        private final Image image;
+
+        private Still(Image image) {
+            this.image = image;
+        }
+
+        /** @return the picture, which stays the application's */
+        public Image image() {
+            return image;
+        }
+
+        @Override
+        public boolean equals(@Nullable Object other) {
+            return other instanceof Still still && still.image.equals(image);
+        }
+
+        @Override
+        public int hashCode() {
+            return image.hashCode();
+        }
+
+        @Override
+        public String toString() {
+            return "Poster.image(" + image + ")";
         }
     }
 

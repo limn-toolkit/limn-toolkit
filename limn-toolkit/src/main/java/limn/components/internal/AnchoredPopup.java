@@ -145,6 +145,12 @@ public final class AnchoredPopup {
 
     private final Host host;
     private boolean open;
+    /**
+     * The scene it was opened in, kept for its close: the anchor may have left that scene by then
+     * (a pane taken out of the window with its list open), and a layer the close could no longer
+     * find would stay on top of the window for good, holding its keyboard and every press.
+     */
+    private @Nullable Scene ownerScene;
     private @Nullable NativeWindow window;
     private @Nullable Scene popupScene;
     private @Nullable Widget<?> panel;
@@ -213,6 +219,7 @@ public final class AnchoredPopup {
             return;
         }
         open = true;
+        ownerScene = scene;
         // A press in another application never reaches the owner: the application losing the
         // keyboard closes the popup instead, or it would float over whatever took it.
         blur = scene.observeWindowBlur(() -> Ui.post(this::closeUnlessRefocused));
@@ -406,7 +413,7 @@ public final class AnchoredPopup {
         if (!open) {
             return;
         }
-        Scene scene = host.anchor().scene();
+        Scene scene = ownerScene;
         boolean ownerFocused = scene != null && scene.isWindowFocused();
         boolean popupFocused = popupScene != null && popupScene.isWindowFocused();
         if (!ownerFocused && !popupFocused) {
@@ -435,7 +442,8 @@ public final class AnchoredPopup {
         blur = null;
         popupBlur = null;
         fullscreen = null;
-        Scene scene = host.anchor().scene();
+        Scene scene = ownerScene;
+        ownerScene = null;
         if (window != null) {
             closeWindow(scene);
         } else if (layer != null) {
@@ -482,7 +490,7 @@ public final class AnchoredPopup {
         layer = null;
         panel = null;
         if (owner == null) {
-            host.released(); // detached while open: nothing holds the layer any more
+            host.released(); // never opened in a scene: nothing holds the layer
             return;
         }
         if (owner.window() == null) {

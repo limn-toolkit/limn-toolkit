@@ -25,7 +25,7 @@ import org.jspecify.annotations.Nullable;
  * left.
  *
  * <pre>{@code
- * RangeSlider price = new RangeSlider(0, 1000).setStep(10).setMinimumGap(50).setRange(200, 600);
+ * RangeSlider price = new RangeSlider(0, 1000).setStep(10).setMinimumGap(50).setValues(200, 600);
  * price.onChange((low, high) -> filter.setPrice(low, high));
  * }</pre>
  *
@@ -40,7 +40,7 @@ import org.jspecify.annotations.Nullable;
  * interface's language, whose bounds are the range it may reach now.
  *
  * <p>{@link #onChange} and {@link #onCommit} are the application's response to the user;
- * {@link #setRange} reaches neither. Every change, whatever moved it, reaches a
+ * {@link #setValues} reaches neither. Every change, whatever moved it, reaches a
  * {@linkplain #observeChanges watcher} as {@code VALUE}, and the end of a drag or a key press as
  * {@code COMMITTED}.
  */
@@ -97,22 +97,22 @@ public final class RangeSlider extends Widget<RangeSlider> {
 
     /**
      * Sets both values, clamped to the bounds, snapped to the step and held the minimum gap apart.
-     * Announces {@code VALUE}/{@code CODE} when either moved and reaches no handler.
+     * Values closer than the gap move apart, the upper up first and the lower down when the upper
+     * meets the maximum, each to the next step past the gap, so a value is always one the steps
+     * reach. Announces {@code VALUE}/{@code CODE} when either moved and reaches no handler.
      *
-     * @throws IllegalArgumentException if {@code newLower} is above {@code newUpper}
+     * @throws IllegalArgumentException if {@code newLower} is above {@code newUpper}, or either
+     *         is not a number
      */
-    public RangeSlider setRange(float newLower, float newUpper) {
+    public RangeSlider setValues(float newLower, float newUpper) {
         Ui.checkUiThread();
+        if (Float.isNaN(newLower) || Float.isNaN(newUpper)) {
+            throw new IllegalArgumentException("a value is a number: " + newLower + ", " + newUpper);
+        }
         if (newLower > newUpper) {
             throw new IllegalArgumentException("lower (" + newLower + ") is above upper (" + newUpper + ")");
         }
-        float l = snap(newLower);
-        float u = snap(newUpper);
-        if (u - l < gap) {
-            u = Math.min(max, l + gap);
-            l = Math.max(min, u - gap);
-        }
-        move(l, u, Change.Origin.CODE);
+        moveApart(snap(newLower), snap(newUpper), Change.Origin.CODE);
         return this;
     }
 
@@ -148,7 +148,7 @@ public final class RangeSlider extends Widget<RangeSlider> {
         }
         step = newStep;
         invalidateAccessible();
-        move(snap(lower), snap(upper), Change.Origin.ADJUSTMENT);
+        moveApart(snap(lower), snap(upper), Change.Origin.ADJUSTMENT);
         notifyChange(Change.of(Change.Aspect.RANGE, Change.Origin.CODE));
         return this;
     }
@@ -171,10 +171,7 @@ public final class RangeSlider extends Widget<RangeSlider> {
         }
         gap = newGap;
         invalidateAccessible();
-        if (upper - lower < gap) {
-            float u = Math.min(max, lower + gap);
-            move(Math.max(min, u - gap), u, Change.Origin.ADJUSTMENT);
-        }
+        moveApart(lower, upper, Change.Origin.ADJUSTMENT);
         notifyChange(Change.of(Change.Aspect.RANGE, Change.Origin.CODE));
         return this;
     }
@@ -186,7 +183,7 @@ public final class RangeSlider extends Widget<RangeSlider> {
 
     /**
      * The application's response to the user moving either thumb, with both values: on a drag, a
-     * key or an assistive technology's step, and never for {@link #setRange}.
+     * key or an assistive technology's step, and never for {@link #setValues}.
      *
      * @param listener the handler, or {@code null} to clear the slot
      * @return this slider
@@ -238,10 +235,51 @@ public final class RangeSlider extends Widget<RangeSlider> {
         return Math.max(min, Math.min(max, min + Math.round((clamped - min) / step) * step));
     }
 
-    /** The one seam every change goes through; announces {@code VALUE} with {@code origin} when either moved. */
-    private void move(float newLower, float newUpper, Change.Origin origin) {
+    /**
+     * The largest value on the step's grid at or below {@code raw}, within the bounds: where a
+     * thumb the gap holds below the other stops, so it never lands between two steps. Within a
+     * hair of a step counts as on it, so a float sum that came out a little past one stays there.
+     */
+    private float snapDown(float raw) {
+        float clamped = Math.max(min, Math.min(max, raw));
+        if (step <= 0 || clamped >= max || clamped <= min) {
+            return clamped;
+        }
+        return Math.max(min, min + (float) Math.floor((clamped - min) / step + 1e-4f) * step);
+    }
+
+    /** The smallest value on the grid at or above {@code raw}, within the bounds: see {@link #snapDown}. */
+    private float snapUp(float raw) {
+        float clamped = Math.max(min, Math.min(max, raw));
+        if (step <= 0 || clamped >= max || clamped <= min) {
+            return clamped;
+        }
+        return Math.min(max, min + (float) Math.ceil((clamped - min) / step - 1e-4f) * step);
+    }
+
+    /**
+     * Moves to two snapped values held the minimum gap apart: the upper goes up to the next step
+     * past the gap, and the lower down from it when the upper met the maximum.
+     */
+    private void moveApart(float l, float u, Change.Origin origin) {
+        if (u - l < gap) {
+            u = snapUp(l + gap);
+            if (u - l < gap) {
+                l = snapDown(u - gap);
+            }
+        }
+        move(l, u, origin);
+    }
+
+    /**
+     * The one seam every change goes through; announces {@code VALUE} with {@code origin} when either
+     * moved.
+     *
+     * @return whether either moved
+     */
+    private boolean move(float newLower, float newUpper, Change.Origin origin) {
         if (newLower == lower && newUpper == upper) {
-            return;
+            return false;
         }
         lower = newLower;
         upper = newUpper;
@@ -252,16 +290,20 @@ public final class RangeSlider extends Widget<RangeSlider> {
         }
         invalidate();
         notifyChange(Change.of(Change.Aspect.VALUE, origin));
+        return true;
     }
 
-    /** Moves one thumb towards {@code raw}, stopping at the other less the gap. */
-    private void moveThumb(boolean isLower, float raw, Change.Origin origin) {
+    /**
+     * Moves one thumb towards {@code raw}, stopping at the other less the gap, on a step.
+     *
+     * @return whether it moved
+     */
+    private boolean moveThumb(boolean isLower, float raw, Change.Origin origin) {
         float value = snap(raw);
         if (isLower) {
-            move(Math.min(value, upper - gap), upper, origin);
-        } else {
-            move(lower, Math.max(value, lower + gap), origin);
+            return move(Math.min(value, snapDown(upper - gap)), upper, origin);
         }
+        return move(lower, Math.max(value, snapUp(lower + gap)), origin);
     }
 
     private void commit() {
@@ -458,11 +500,11 @@ public final class RangeSlider extends Widget<RangeSlider> {
 
         /** What the other thumb leaves it: its least and its greatest value now. */
         float least() {
-            return isLower ? min : lower + gap;
+            return isLower ? min : snapUp(lower + gap);
         }
 
         float greatest() {
-            return isLower ? upper - gap : max;
+            return isLower ? snapDown(upper - gap) : max;
         }
 
         void pressed(boolean down) {
@@ -520,8 +562,11 @@ public final class RangeSlider extends Widget<RangeSlider> {
                 default -> null;
             };
             if (target != null) {
-                moveThumb(isLower, target, Change.Origin.USER);
-                commit();
+                // A key at the end of the thumb's travel is still the slider's, and settles
+                // nothing new: only a key that moved it commits.
+                if (moveThumb(isLower, target, Change.Origin.USER)) {
+                    commit();
+                }
                 event.consume();
             }
         }
@@ -536,10 +581,13 @@ public final class RangeSlider extends Widget<RangeSlider> {
 
         @Override
         protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
+            float was = value();
             if (!ValueAccessibility.perform(host, action, arg)) {
                 return false;
             }
-            commit();
+            if (value() != was) {
+                commit();
+            }
             return true;
         }
 

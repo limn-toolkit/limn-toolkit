@@ -16,18 +16,28 @@ import java.util.function.IntConsumer;
  *
  * <p>When the <em>user</em> opened one, the closing member and then the opening one announce
  * {@code EXPANDED}, then each runs its own {@code onChange}, and then the group's
- * {@link #onChange} runs with the open member's index. When code did it, both announce and no
+ * {@link #onSelect} runs with the open member's index, as a {@link ButtonGroup}'s does with the
+ * chosen radio's. When code did it, both announce and no
  * handler runs. A group is not a widget: it has no box, no place in the tree and nothing to say
  * to a reader, which hears each section by itself.
  *
  * <p>Each header stays a tab stop of its own: a section is a button, and a form of five sections
  * is five things to reach, as on every platform.
+ *
+ * <p>A section is out of its group for as long as it is out of a scene it was in, as a radio is
+ * out of its {@link ButtonGroup}: taken out of the tree, or its window closed. The group does not
+ * count it, hold it or open it then, and it takes its place again, among the members that are
+ * there, when it is back in a scene; if it comes back open while the group opened another
+ * meanwhile, it closes, as an adjustment. A section added before it was ever in a scene is a
+ * member from the start.
  */
 public final class ExpanderGroup {
 
     private final List<Expander> members = new ArrayList<>();
     private @Nullable Expander open;
-    private @Nullable IntConsumer onChange;
+    private @Nullable IntConsumer onSelect;
+    /** The place the next section added takes, kept by the section so one that comes back takes it again. */
+    private int nextPlace;
 
     /**
      * Adds a section. If it is open it becomes the group's open member, and the one that was
@@ -47,6 +57,7 @@ public final class ExpanderGroup {
         }
         members.add(expander);
         expander.group = this;
+        expander.placeInGroup = nextPlace++;
         if (expander.isExpanded()) {
             Expander displaced = open;
             open = expander;
@@ -79,7 +90,40 @@ public final class ExpanderGroup {
         return this;
     }
 
-    /** @return the members, in the order they were added */
+    /** A member left the scene it was in: it is not counted until it is back. */
+    void left(Expander member) {
+        if (members.remove(member) && open == member) {
+            open = null;
+        }
+    }
+
+    /**
+     * A member that had left is in a scene again, and takes the place it was added at. Open while
+     * the group opened another meanwhile, it gives way.
+     */
+    void returned(Expander member) {
+        if (members.contains(member)) {
+            return;
+        }
+        int at = 0;
+        while (at < members.size() && members.get(at).placeInGroup < member.placeInGroup) {
+            at++;
+        }
+        members.add(at, member);
+        if (member.isExpanded()) {
+            if (open != null && open != member) {
+                member.applyExpanded(false, Change.Origin.ADJUSTMENT);
+                member.announceExpanded(Change.Origin.ADJUSTMENT);
+            } else {
+                open = member;
+            }
+        }
+    }
+
+    /**
+     * @return the members, in the order they were added; one that is out of the scene it was in
+     *         is not among them until it is back
+     */
     public List<Expander> members() {
         return List.copyOf(members);
     }
@@ -124,17 +168,20 @@ public final class ExpanderGroup {
 
     /**
      * The application's response to the user opening or closing a member, with the index of the
-     * one open afterwards, or -1 when the user closed the open one. Called after both members'
-     * own handlers. Never for {@link #setExpandedIndex}, {@link #collapseAll()} or a member's
-     * {@link Expander#setExpanded}.
+     * one open afterwards, or -1 when the user closed the open one: a click, Space or Enter on a
+     * header, or an assistive technology's expand or collapse, once both members' own handlers
+     * have run, as {@link ButtonGroup#onSelect} is called. Never for {@link #setExpandedIndex},
+     * {@link #collapseAll()} or a member's {@link Expander#setExpanded}, which are a caller's
+     * writes; to hear every change whatever caused it, {@linkplain Expander#observeChanges watch}
+     * the members.
      *
      * @param listener the handler, or {@code null} to clear the slot
      * @return this group
      * @throws IllegalStateException if a handler is already registered
      */
-    public ExpanderGroup onChange(@Nullable IntConsumer listener) {
+    public ExpanderGroup onSelect(@Nullable IntConsumer listener) {
         Ui.checkUiThread();
-        this.onChange = Checks.handlerSlot(onChange, listener, "ExpanderGroup.onChange");
+        this.onSelect = Checks.handlerSlot(onSelect, listener, "ExpanderGroup.onSelect");
         return this;
     }
 
@@ -162,8 +209,8 @@ public final class ExpanderGroup {
             closing.runExpandedHandler(origin);
         }
         member.runExpandedHandler(origin);
-        if (origin == Change.Origin.USER && onChange != null) {
-            onChange.accept(expandedIndex());
+        if (origin == Change.Origin.USER && onSelect != null) {
+            onSelect.accept(expandedIndex());
         }
     }
 }

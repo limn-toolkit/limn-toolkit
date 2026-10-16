@@ -33,10 +33,11 @@ import java.util.function.Consumer;
  *
  * <p>It opens and closes by a click on the header, by Space or Enter while the header holds the
  * keyboard, and from {@link #setExpanded}. The content slides out over {@link Theme#animExpand},
- * and appears at once when the user asked the system for less motion. While it is closed the
+ * and appears at once when the user asked the system for less motion. Once it is closed the
  * content is hidden: it takes no room, no focus and no pointer, and a reader does not find it.
- * Closing it while the keyboard is inside moves the keyboard to the header, which is where the
- * user just was.
+ * While it slides shut it is still there, drawn and reachable, until the slide ends. Closing it
+ * while the keyboard is inside moves the keyboard to the header as the close starts, which is
+ * where the user just was.
  *
  * <p>A reader hears the header as a button, expanded or collapsed, that controls the content;
  * the summary is its description. An {@link ExpanderGroup} keeps at most one of several open.
@@ -56,6 +57,8 @@ public final class Expander extends Widget<Expander> {
     private @Nullable Consumer<Boolean> onChange;
     /** The group keeping this one of several open, or null. */
     @Nullable ExpanderGroup group;
+    /** The place this section was added to its group at, which it takes again when it comes back. */
+    int placeInGroup;
 
     /** How far open it is drawn, 0 closed and 1 open: what the layout and the arrow read. */
     private float reveal;
@@ -349,6 +352,27 @@ public final class Expander extends Widget<Expander> {
     private float headerHeight(SizeTokens t) {
         float line = textRuler().measure("Hg", t.body()).lineHeight();
         return Math.max(t.controlHeight(), line + 2 * t.padV());
+    }
+
+    /**
+     * A group does not hold a section that is out of the scene: a form rebuilt against the same
+     * group would otherwise leave it every section of every form before, each still counted and
+     * each holding its content.
+     */
+    @Override
+    protected void onDetached() {
+        super.onDetached();
+        if (group != null) {
+            group.left(this);
+        }
+    }
+
+    @Override
+    protected void onAttached() {
+        super.onAttached();
+        if (group != null) {
+            group.returned(this);
+        }
     }
 
     @Override
