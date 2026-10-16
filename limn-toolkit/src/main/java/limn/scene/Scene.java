@@ -3873,7 +3873,7 @@ public final class Scene {
     private java.util.Set<String> sharedLettersReported;
 
     /**
-     * Logs, once for each set of controls, that several share one access letter (ADR 070 §3.4): a
+     * Logs, once for each set of controls, that several share one access letter: a
      * translator's collision, which a press only turns into a turn of the keyboard, is found in
      * development rather than by a user.
      */
