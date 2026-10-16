@@ -2318,7 +2318,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
          *
          * <p>Only the all-tabs button says it has a popup, and it says whether the list is open,
          * with the expanding or collapsing the state allows beside its press: the list is the
-         * pane's own surface (ADR 068), so the pane can answer whether it is still up, as a
+         * pane's own surface, so the pane can answer whether it is still up, as a
          * combo box answers for its list. A reader also meets the list's own node pointing back
          * at this one.
          *
