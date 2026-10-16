@@ -337,6 +337,32 @@ class ShippedTranslationsTest extends ComponentTestBase {
                 "German keeps the acronym, so it ships no file and falls back to English");
     }
 
+    /**
+     * A tab strip says "tab" with one word, the word its role says: a Vietnamese reader heard
+     * "tab" for the current tab and "thẻ" for its close button and for the role, and a
+     * Traditional Chinese one "分頁" for the close button beside "標籤頁" everywhere else. Held in
+     * the languages whose word for a tab stays whole in a phrase; the others inflect it ("Закрыть
+     * вкладку") or call the role by another word, Portuguese because pt-PT's "separador" also
+     * names a separator.
+     */
+    @Test
+    void aTabStripSaysTabWithTheWordItsRoleSays() {
+        List<String> differing = new ArrayList<>();
+        for (String language : List.of("de", "es", "fr", "hi", "id", "ja", "ko", "nl", "pt-BR", "tr",
+                "vi", "zh-Hans", "zh-Hant")) {
+            String tab = read(COMPONENT_RESOURCES.resolve("roles_" + language + ".properties"))
+                    .getProperty("limn.role.tab");
+            Properties strip = read(COMPONENT_RESOURCES.resolve("components_" + language + ".properties"));
+            for (String key : List.of("previousTabs", "nextTabs", "allTabs", "currentTab", "closeTab")) {
+                String text = strip.getProperty("limn.tabbedPane." + key);
+                if (!text.toLowerCase(Locale.ROOT).contains(tab.toLowerCase(Locale.ROOT))) {
+                    differing.add(language + " " + key + " \"" + text + "\" without \"" + tab + "\"");
+                }
+            }
+        }
+        assertEquals(List.of(), differing);
+    }
+
     private static List<Path> shippedFiles() {
         try (Stream<Path> files = Files.list(COMPONENT_RESOURCES)) {
             return files.filter(p -> p.toString().endsWith(".properties")).sorted().toList();
