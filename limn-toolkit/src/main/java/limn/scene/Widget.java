@@ -78,6 +78,8 @@ public abstract class Widget<W extends Widget<W>> {
     private boolean focusable;
     /** What Alt and a letter reach in this widget, set by the few that mark one; see SceneAccess. */
     limn.scene.internal.@Nullable AccessLetterOwner accessLetterOwner;
+    /** Whether this widget draws access letters it does not own (a menu bar's, a menu's); see SceneAccess. */
+    boolean drawsAccessLetters;
     /** Where a press does not take the keyboard, for the few widgets with such a spot; see SceneAccess. */
     limn.scene.internal.@Nullable PressFocus pressFocus;
     private Cursor cursor; // null = inherit from an ancestor (arrow at the root)

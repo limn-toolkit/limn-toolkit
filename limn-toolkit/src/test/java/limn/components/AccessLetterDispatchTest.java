@@ -488,6 +488,7 @@ class AccessLetterDispatchTest extends AccessibleComponentTestBase {
         Button opener = new Button("&Menu");
         show(opener);
         limn.scene.Widget<?> menuRoot = new DragSource().setInheritanceHost(opener);
+        SceneAccess.drawsAccessLetters(menuRoot); // as a menu's surface says of itself
         limn.scene.Scene menu = new limn.scene.Scene(menuRoot);
         scene.graftPopup(menu);
         StubWindow menuWindow = new StubWindow(false);
@@ -506,8 +507,67 @@ class AccessLetterDispatchTest extends AccessibleComponentTestBase {
         assertFalse(SceneAccess.accessLettersShown(menu));
     }
 
+    /**
+     * Alt repaints the widgets that draw a letter and nothing else, and nothing at all where the
+     * system keeps the letters drawn: every Alt press and release invalidated the whole window, so
+     * an Alt+Tab away from a large table repainted it twice for a few underlines.
+     */
+    @Test
+    void altRepaintsOnlyWhatDrawsALetter() {
+        int[] paints = new int[2];
+        DragSource save = new DragSource() { // a control that marks a letter, as a button does
+            @Override
+            protected void onPaint(limn.graphics.Canvas canvas) {
+                paints[0]++;
+            }
+        };
+        SceneAccess.ownAccessLetter(save, limn.scene.internal.AccessLetterOwner.of(() -> 'S', () -> save, () -> { }));
+        DragSource table = new DragSource() {
+            @Override
+            protected void onPaint(limn.graphics.Canvas canvas) {
+                paints[1]++;
+            }
+        };
+        Column root = new Column();
+        root.add(save);
+        root.add(new DragSource()); // apart, so the underline's damage does not reach the table
+        root.add(table);
+        limn.scene.Scene unbound = new limn.scene.Scene(root, () -> 0L); // partial rendering on
+        unbound.layoutPass(400, 300);
+        limn.testing.NoopCanvas surface = new limn.testing.NoopCanvas(400, 300);
+        unbound.renderFrame(surface);
+        unbound.renderFrame(surface);
+        unbound.renderFrame(surface);
+        int[] settled = paints.clone();
+
+        drive(unbound).keyEvent(Keys.LEFT_ALT, -1, true, false, Keys.MOD_ALT);
+        drive(unbound).inputBatchEnded();
+        unbound.renderFrame(surface);
+        assertTrue(paints[0] > settled[0], "the button draws its underline");
+        assertEquals(settled[1], paints[1], "the table beside it is not drawn again");
+        drive(unbound).keyEvent(Keys.LEFT_ALT, -1, false, false, 0);
+        drive(unbound).inputBatchEnded();
+        unbound.renderFrame(surface);
+        unbound.renderFrame(surface);
+
+        limn.scene.SystemPreferences was = limn.scene.SystemPreferences.current();
+        try {
+            limn.scene.SystemPreferences.report(new limn.scene.SystemPreferences(
+                    limn.scene.SystemPreferences.ColorScheme.NO_PREFERENCE, false, false, true));
+            unbound.renderFrame(surface);
+            unbound.renderFrame(surface);
+            settled = paints.clone();
+            drive(unbound).keyEvent(Keys.LEFT_ALT, -1, true, false, Keys.MOD_ALT);
+            drive(unbound).inputBatchEnded();
+            unbound.renderFrame(surface);
+            assertEquals(settled[0], paints[0], "drawn at all times already: Alt changes nothing");
+        } finally {
+            limn.scene.SystemPreferences.report(was);
+        }
+    }
+
     /** A box that starts a drag kept in its window wherever it is pressed. */
-    private static final class DragSource extends limn.scene.Widget<DragSource> {
+    private static class DragSource extends limn.scene.Widget<DragSource> {
         @Override
         protected limn.scene.Size onMeasure(limn.scene.Constraints constraints) {
             return constraints.constrain(200, 120);

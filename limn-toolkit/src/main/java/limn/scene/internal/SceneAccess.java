@@ -96,6 +96,8 @@ public final class SceneAccess {
 
         void ownAccessLetter(Widget<?> widget, AccessLetterOwner owner);
 
+        void drawsAccessLetters(Widget<?> widget);
+
         void pressFocus(Widget<?> widget, PressFocus filter);
 
         /**
@@ -183,6 +185,17 @@ public final class SceneAccess {
      */
     public static void ownAccessLetter(Widget<?> widget, AccessLetterOwner owner) {
         hook().ownAccessLetter(widget, owner);
+    }
+
+    /**
+     * Says {@code widget} draws access letters it does not own, a menu bar's titles or a menu's
+     * rows, so the scene repaints it when they are shown or hidden. A widget that owns its letter
+     * ({@link #ownAccessLetter}) is repainted without this.
+     *
+     * @param widget a menu bar, a menu's surface
+     */
+    public static void drawsAccessLetters(Widget<?> widget) {
+        hook().drawsAccessLetters(widget);
     }
 
     /**

@@ -224,6 +224,7 @@ public final class MenuBar extends Widget<MenuBar> {
     public MenuBar() {
         setFocusable(true);
         setCursor(Cursor.POINTER);
+        limn.scene.internal.SceneAccess.drawsAccessLetters(this); // the titles' letters
     }
 
     /** Appends a top-level menu with the given title, and no access letter. UI thread only. */

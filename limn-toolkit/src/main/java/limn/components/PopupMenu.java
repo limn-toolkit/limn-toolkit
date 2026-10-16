@@ -1137,6 +1137,7 @@ public final class PopupMenu {
         MenuSurface(TextRuler ruler) {
             this.ruler = ruler;
             setFocusable(true); // receive keyboard while open
+            limn.scene.internal.SceneAccess.drawsAccessLetters(this); // the rows' letters
         }
 
         void pushRoot() {

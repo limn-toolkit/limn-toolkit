@@ -3181,6 +3181,11 @@ public final class Scene {
             }
 
             @Override
+            public void drawsAccessLetters(Widget<?> widget) {
+                widget.drawsAccessLetters = true;
+            }
+
+            @Override
             public void pressFocus(Widget<?> widget, limn.scene.internal.PressFocus filter) {
                 widget.pressFocus = filter;
             }
@@ -3824,15 +3829,38 @@ public final class Scene {
             return;
         }
         accessLettersShown = shown;
-        // Every widget that draws a letter draws it, or stops: rare, and cheaper than a list of
-        // them kept in step with the tree.
-        root.invalidate();
+        if (SystemPreferences.current().underlineAccessKeys()) {
+            return; // the system has them drawn at all times: nothing on screen changes
+        }
+        repaintAccessLetters();
+    }
+
+    /**
+     * Repaints every widget that draws an access letter, and nothing else: under partial rendering
+     * a frame costs what changed, and Alt pressed over a large table or chart (an Alt+Tab away,
+     * whose focus loss hides them again) repainted the whole window twice for a few underlines.
+     * Found by a walk rather than kept in a list in step with the tree, since Alt is rare.
+     */
+    private void repaintAccessLetters() {
+        invalidateAccessLetters(root);
         for (Widget<?> overlay : overlays) {
-            overlay.invalidate();
+            invalidateAccessLetters(overlay);
         }
         // And the menus this window has open in windows of their own, which draw by its Alt.
         for (int i = 0; i < graftedPopups.size(); i++) {
-            graftedPopups.get(i).root.invalidate();
+            invalidateAccessLetters(graftedPopups.get(i).root);
+        }
+    }
+
+    private static void invalidateAccessLetters(Widget<?> at) {
+        if (!at.isVisible()) {
+            return; // draws nothing, nor does anything inside it
+        }
+        if (at.accessLetterOwner != null || at.drawsAccessLetters) {
+            at.invalidate();
+        }
+        for (Widget<?> child : at.children()) {
+            invalidateAccessLetters(child);
         }
     }
 
