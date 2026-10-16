@@ -57,8 +57,10 @@ final class Page {
     }
 
     /**
-     * {@code text} as words, its access letter's mark taken out ("&amp;Open" is "Open"): for a
-     * string a menu or a button shows with its letter, written into a sentence of the status line.
+     * {@code text} as words, its access letter's mark taken out ("&amp;Open" is "Open", and the
+     * Japanese, Korean and Chinese "名前(&amp;N)" is "名前", its parentheses gone with the letter): for
+     * a string a menu or a button shows with its letter, written into a sentence of the status
+     * line.
      */
     static String plain(I18nString text) {
         return plain(text.get());
@@ -66,7 +68,9 @@ final class Page {
 
     /** {@link #plain(I18nString)} of a string already resolved, the English of a log line among them. */
     static String plain(String text) {
-        return text.replace("&&", "\u0000").replaceAll("&(?=[\\p{L}\\p{N}])", "")
+        return text.replace("&&", "\u0000")
+                .replaceAll("\\s*[(\uFF08]&[\\p{L}\\p{N}][)\uFF09]", "") // "(&N)" carries only the letter
+                .replaceAll("&(?=[\\p{L}\\p{N}])", "")
                 .replace("\u0000", "&");
     }
 
