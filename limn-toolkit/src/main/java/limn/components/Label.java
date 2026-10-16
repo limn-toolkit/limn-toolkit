@@ -776,6 +776,26 @@ public final class Label extends Widget<Label> {
     static float wrapText(ShapedText paragraph, float maxWidth, TextRuler ruler,
             List<ShapedText> out) {
         String text = paragraph.text();
+        if (text.indexOf('\n') < 0 && text.indexOf('\r') < 0 && text.indexOf('\u2028') < 0
+                && text.indexOf('\u2029') < 0) {
+            return wrapParagraph(paragraph, maxWidth, ruler, out);
+        }
+        // A line break in the text is a line on screen: each piece between two is wrapped on its
+        // own, at the whole text's base direction, and an empty one is a blank line. Wrapped as
+        // one paragraph, a break that fitted the width was shaped as nothing and the two lines
+        // ran together.
+        float widest = 0;
+        for (String piece : text.split("\r\n|[\n\r\u2028\u2029]", -1)) {
+            ShapedText shaped = ruler.shape(piece, paragraph.font(), paragraph.baseDirection());
+            widest = Math.max(widest, wrapParagraph(shaped, maxWidth, ruler, out));
+        }
+        return widest;
+    }
+
+    /** {@link #wrapText} for a paragraph with no line break in it. */
+    private static float wrapParagraph(ShapedText paragraph, float maxWidth, TextRuler ruler,
+            List<ShapedText> out) {
+        String text = paragraph.text();
         ShapedText.Direction base = paragraph.baseDirection();
         int length = text.length();
         if (maxWidth == Constraints.UNBOUNDED_LIMIT || maxWidth <= 0) {

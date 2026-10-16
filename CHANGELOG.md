@@ -16,6 +16,10 @@ Maven Central say which number that was.
   middle read as one at its end; it is now the text's ink, faint, on any theme. A disabled
   slider's fill takes the disabled text's grey, darker than the rail it fills, where it was
   lighter.
+- A line break in a wrapped `Label`'s text is a line on screen. The text was wrapped as one
+  paragraph, so a break that fitted the width was shaped as nothing and the two lines ran
+  together ("Hello,A reminder"); each piece between two breaks is wrapped on its own now, and an
+  empty one is a blank line.
 - A menu asked for with the pointer opens at the pointer. `ContextMenus.attach`, a `TextField`
   and a `TextArea` passed the mouse event's point, which is the scene's, as their own, so the
   menu landed as far from the pointer as the widget was from the window's corner; the keyboard

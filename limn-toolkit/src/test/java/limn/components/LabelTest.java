@@ -140,6 +140,17 @@ class LabelTest extends ComponentTestBase {
                 "the label is still painting the text it was told to replace");
     }
 
+    /**
+     * A line break in the text is a line on screen, in a wrapped label: a letter's paragraphs,
+     * a blank line between them, whether or not the text would fit on one line.
+     */
+    @Test
+    void aWrappedLabelBreaksWhereTheTextDoes() {
+        Label label = new Label("Hello,\n\nA reminder.").setWrap(true);
+        sceneWith(label, 400, 60);
+        assertEquals(List.of("Hello,", "", "A reminder."), label.displayedLines());
+    }
+
     /** The two paths have to agree, or a text set one way would break differently. */
     @Test
     void theRepaintOnlyPathEllipsizesLikeALayoutWould() {
