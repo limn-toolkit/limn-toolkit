@@ -227,17 +227,25 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * character, and every other character is a literal the field writes by itself as the next
      * position is filled, so {@code "000.000.000-00"} turns {@code 12345678900} into
      * {@code 123.456.789-00}; the literals that end a pattern arrive with its last position, so
-     * {@code "00 kg"} turns {@code 12} into {@code 12 kg}. Characters a position does not take are passed over, and pasting a
-     * value with its literals or without them comes out the same. While the field has the
-     * keyboard, the positions still to fill show as a guide ({@code ___.___.___-__}); without it,
-     * an empty field shows its placeholder. A reader hears the pattern as the field's description.
+     * {@code "00 kg"} turns {@code 12} into {@code 12 kg}. Characters a position does not take
+     * are passed over, and pasting a value with its literals or without them comes out the same.
+     * While the field has the keyboard, the positions still to fill show as a guide
+     * ({@code ___.___.___-__}); without it, an empty field shows its placeholder. A reader hears
+     * the pattern as the field's description.
+     *
+     * <p>Text between single quotes is literal, so a {@code 0}, an {@code A} or a {@code *} can be
+     * one: {@code "+'0' 000"} writes {@code +0 } before three digits. Two single quotes are one
+     * apostrophe, inside quotes and out ({@code "'o''clock' 00"}). This is the quoting of
+     * {@link java.text.SimpleDateFormat}.
      *
      * <p>The text already in the field is fitted at once. {@code null} takes the mask away and
      * leaves the text as it is.
      *
      * @param pattern the pattern, or {@code null}
      * @return this field
-     * @throws IllegalArgumentException if the pattern has no position to fill
+     * @throws IllegalArgumentException if the pattern has no position to fill outside quotes, or
+     *                                  opens a quote it never closes; the message names the
+     *                                  pattern, and the field keeps the mask it had
      */
     public TextField setMask(@Nullable String pattern) {
         Ui.checkUiThread();

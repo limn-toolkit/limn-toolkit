@@ -71,6 +71,11 @@ Markdown.
   without them gives the same result.
 - **The application reads** the value without the literals, the text as shown, and whether every
   position is filled. The reader hears the pattern as the field's description.
+- *Amended 2026-10-16:* **text between single quotes is literal**, so `0`, `A` and `*` can be
+  literals (`+'0' 000`), and two single quotes are one apostrophe inside quotes and out: the
+  quoting of `java.text.SimpleDateFormat`, the owner's choice. The language had no escape, and
+  one added after 1.0 would change what patterns already written mean. A pattern that opens a
+  quote and never closes it is refused, naming the pattern.
 
 ## 6. Reporting a defect or a vulnerability
 

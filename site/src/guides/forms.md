@@ -82,6 +82,11 @@ field shows its placeholder. `text()` is what shows, `unmaskedText()` the charac
 the positions, and `isMaskComplete()` whether every one is filled, which is the check a form makes
 before it accepts the value. A screen reader hears the pattern as the field's description.
 
+Text between single quotes is literal, so a pattern can hold a `0`, an `A` or a `*` the field
+writes rather than fills: `+'0' 000` shows `+0 123`. Two single quotes are one apostrophe, inside
+quotes and out. It is the quoting `SimpleDateFormat` uses, and a pattern that opens a quote
+without closing it is refused.
+
 No pattern of any country ships with the toolkit: write the one your form needs. Numbers and
 amounts are a `Spinner`, which follows the user's language.
 

@@ -89,6 +89,20 @@ class TextFieldMaskTest extends AccessibleComponentTestBase {
         assertNull(plain.mask());
         assertEquals("12-345", plain.unmaskedText(), "without a mask, the text");
         assertThrows(IllegalArgumentException.class, () -> plain.setMask("--"));
+        assertThrows(IllegalArgumentException.class, () -> plain.setMask("'A-000"),
+                "an unterminated quote");
+        assertEquals("12-345", plain.text(), "a refused pattern leaves the field as it was");
+    }
+
+    @Test
+    void aQuotedSlotCharacterIsALiteralTheFieldWrites() {
+        bindField("'A'-000");
+        field.requestFocus();
+        type("123");
+        assertEquals("A-123", field.text());
+        assertEquals("123", field.unmaskedText());
+        assertTrue(field.isMaskComplete());
+        assertEquals("'A'-000", field.mask(), "the pattern as it was given");
     }
 
     @Test

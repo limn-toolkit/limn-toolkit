@@ -1,5 +1,6 @@
 package limn.components.internal.text;
 
+import java.util.Arrays;
 import java.util.Objects;
 
 /**
@@ -15,6 +16,11 @@ import java.util.Objects;
  * have no position after them, so they arrive with the last one: {@code (00)} holding {@code 12}
  * shows {@code (12)}, the text a complete value has.
  *
+ * <p>Text between single quotes is literal, so a {@code 0}, an {@code A} or a {@code *} can be one
+ * ({@code +'0' 000}), and two single quotes are one apostrophe, inside quotes and out: the rule of
+ * {@code java.text.SimpleDateFormat}, which a Java developer already knows, chosen before 1.0
+ * because an escape added after it would change what patterns already written mean.
+ *
  * <p><b>Not API</b>: see the package.
  */
 public final class InputMask {
@@ -24,15 +30,19 @@ public final class InputMask {
     }
 
     private final String pattern;
+    /** The pattern with its quoting resolved: one entry per position or literal. */
     private final int[] codePoints;
+    /** Whether the entry at the same index is a position to fill rather than a literal. */
+    private final boolean[] slotAt;
     private final int slots;
 
-    private InputMask(String pattern) {
+    private InputMask(String pattern, int[] codePoints, boolean[] slotAt) {
         this.pattern = pattern;
-        this.codePoints = pattern.codePoints().toArray();
+        this.codePoints = codePoints;
+        this.slotAt = slotAt;
         int count = 0;
-        for (int cp : codePoints) {
-            if (isSlot(cp)) {
+        for (boolean slot : slotAt) {
+            if (slot) {
                 count++;
             }
         }
@@ -43,12 +53,37 @@ public final class InputMask {
      * @param pattern the pattern; it must hold at least one position to fill
      * @return the mask
      * @throws IllegalArgumentException if the pattern holds no {@code 0}, {@code A} or {@code *}
+     *                                  outside quotes, or opens a quote it never closes
      */
     public static InputMask of(String pattern) {
         Objects.requireNonNull(pattern, "pattern");
-        InputMask mask = new InputMask(pattern);
+        int[] given = pattern.codePoints().toArray();
+        int[] codePoints = new int[given.length];
+        boolean[] slotAt = new boolean[given.length];
+        int n = 0;
+        boolean quoted = false;
+        for (int i = 0; i < given.length; i++) {
+            int cp = given[i];
+            if (cp == '\'') {
+                if (i + 1 < given.length && given[i + 1] == '\'') {
+                    // Two quotes are one apostrophe, whether or not a quote is open.
+                    codePoints[n++] = '\'';
+                    i++;
+                } else {
+                    quoted = !quoted;
+                }
+                continue;
+            }
+            slotAt[n] = !quoted && isSlot(cp);
+            codePoints[n++] = cp;
+        }
+        if (quoted) {
+            throw new IllegalArgumentException("the mask " + pattern + " opens a quote it never closes");
+        }
+        InputMask mask = new InputMask(pattern, Arrays.copyOf(codePoints, n), Arrays.copyOf(slotAt, n));
         if (mask.slots == 0) {
-            throw new IllegalArgumentException("a mask needs a position to fill: 0, A or *");
+            throw new IllegalArgumentException("the mask " + pattern
+                    + " has no position to fill: 0, A or * outside quotes");
         }
         return mask;
     }
@@ -85,8 +120,8 @@ public final class InputMask {
      */
     public String guide() {
         StringBuilder out = new StringBuilder(pattern.length());
-        for (int cp : codePoints) {
-            out.appendCodePoint(isSlot(cp) ? '_' : cp);
+        for (int i = 0; i < codePoints.length; i++) {
+            out.appendCodePoint(slotAt[i] ? '_' : codePoints[i]);
         }
         return out.toString();
     }
@@ -113,7 +148,7 @@ public final class InputMask {
         int p = 0;
         while (p < codePoints.length && at < text.length()) {
             int slot = codePoints[p];
-            if (!isSlot(slot)) {
+            if (!slotAt[p]) {
                 // Written when the next position is filled; and taken from the text when it is
                 // there, so a pasted value with its literals reads the same as one without.
                 pending.appendCodePoint(slot);
