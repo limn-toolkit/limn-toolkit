@@ -30,6 +30,22 @@ class InputMaskTest {
     }
 
     @Test
+    void theLiteralsThatEndThePatternArriveWithTheLastPosition() {
+        InputMask area = InputMask.of("(00)");
+        assertEquals("(1", area.conform("1", 1).text(), "not before the last position is filled");
+        assertEquals("(12)", area.conform("12", 2).text());
+        assertEquals(4, area.conform("12", 2).caret(), "typed at the end: the caret ends the text");
+        assertEquals("(12)", area.conform("(12)", 4).text(), "and taken from the text when there");
+        assertEquals("12", area.conform("(12)", 4).raw());
+        assertTrue(area.isComplete("(12)"));
+        InputMask weight = InputMask.of("00 kg");
+        assertEquals("12 kg", weight.conform("12", 0).text());
+        assertEquals(0, weight.conform("12", 0).caret());
+        assertEquals("12 kg", weight.conform("12 kg", 5).text());
+        assertEquals("1", weight.conform("1", 1).text());
+    }
+
+    @Test
     void whatAPositionDoesNotTakeIsPassedOverAndWhatDoesNotFitIsDropped() {
         assertEquals("123.4", CODE.conform("1a2 3-4", 7).text());
         assertEquals("123.456.789-01", CODE.conform("1234567890123", 13).text());
@@ -56,6 +72,41 @@ class InputMaskTest {
     @Test
     void aPatternWithNothingToFillIsRefused() {
         assertThrows(IllegalArgumentException.class, () -> InputMask.of("(--)"));
+        assertThrows(IllegalArgumentException.class, () -> InputMask.of("'000'"), "quoted: literal");
+        assertThrows(IllegalArgumentException.class, () -> InputMask.of("''"));
+    }
+
+    @Test
+    void textBetweenQuotesIsLiteralSoASlotCharacterCanBeOne() {
+        InputMask model = InputMask.of("'A'-000");
+        assertEquals(3, model.slots());
+        assertEquals("A-___", model.guide());
+        assertEquals("A-123", model.conform("123", 3).text());
+        assertEquals("'A'-000", model.pattern(), "the pattern as it was given");
+        InputMask phone = InputMask.of("+'0' 000");
+        assertEquals("+0 ___", phone.guide());
+        assertEquals("+0 123", phone.conform("+0 123", 6).text());
+        assertEquals("123", phone.conform("+0 123", 6).raw());
+        String typed = phone.conform("1", 1).text();
+        assertEquals("+0 1", typed, "the quoted 0 is written, not filled");
+        assertEquals("+0 1", phone.conform(typed, 4).text(), "and its own text conforms to itself");
+        assertEquals("*-__", InputMask.of("'*'-AA").guide());
+    }
+
+    @Test
+    void twoQuotesAreOneApostropheInsideQuotesAndOut() {
+        assertEquals("'__", InputMask.of("''00").guide());
+        assertEquals("'12", InputMask.of("''00").conform("12", 2).text());
+        assertEquals("o'clock __", InputMask.of("'o''clock' 00").guide());
+        assertEquals("__'__", InputMask.of("00''00").guide());
+    }
+
+    @Test
+    void anUnterminatedQuoteIsRefusedNamingThePattern() {
+        IllegalArgumentException refused =
+                assertThrows(IllegalArgumentException.class, () -> InputMask.of("00-'AB"));
+        assertTrue(refused.getMessage().contains("00-'AB"), refused.getMessage());
+        assertThrows(IllegalArgumentException.class, () -> InputMask.of("'o''clock 00"));
     }
 
     @Test

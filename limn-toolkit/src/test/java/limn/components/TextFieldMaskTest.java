@@ -21,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * A {@link TextField} with a mask (ADR 067 section 5): typing writes the literals, pasting with or
  * without them gives the same text, Backspace steps over a literal to the digit before it, one undo
  * takes an edit and its literals back together, the guide shows only while the field has the
- * keyboard, and a reader hears the pattern.
+ * keyboard, and a reader hears the text and the application's description but never the pattern.
  */
 class TextFieldMaskTest extends AccessibleComponentTestBase {
 
@@ -89,6 +89,20 @@ class TextFieldMaskTest extends AccessibleComponentTestBase {
         assertNull(plain.mask());
         assertEquals("12-345", plain.unmaskedText(), "without a mask, the text");
         assertThrows(IllegalArgumentException.class, () -> plain.setMask("--"));
+        assertThrows(IllegalArgumentException.class, () -> plain.setMask("'A-000"),
+                "an unterminated quote");
+        assertEquals("12-345", plain.text(), "a refused pattern leaves the field as it was");
+    }
+
+    @Test
+    void aQuotedSlotCharacterIsALiteralTheFieldWrites() {
+        bindField("'A'-000");
+        field.requestFocus();
+        type("123");
+        assertEquals("A-123", field.text());
+        assertEquals("123", field.unmaskedText());
+        assertTrue(field.isMaskComplete());
+        assertEquals("'A'-000", field.mask(), "the pattern as it was given");
     }
 
     @Test
@@ -112,6 +126,81 @@ class TextFieldMaskTest extends AccessibleComponentTestBase {
     }
 
     @Test
+    void aPatternThatEndsInALiteralShowsItOnceTheLastPositionIsFilled() {
+        bindField("(00)");
+        field.requestFocus();
+        type("12");
+        assertEquals("(12)", field.text(), "the text as shown is the pattern's");
+        assertTrue(field.isMaskComplete());
+        assertEquals("12", field.unmaskedText());
+        assertEquals(4, field.caretPosition());
+        scene.requestFocus(null);
+        assertEquals("(12)", field.text(), "the same without the keyboard");
+        field.requestFocus();
+        drive(scene).press(Keys.BACKSPACE);
+        assertEquals("(1", field.text(), "Backspace at the end steps over the closing literal");
+        drive(scene).press(Keys.Z, COMMAND);
+        assertEquals("(12)", field.text(), "one undo puts the digit and its literal back");
+
+        TextField weight = new TextField().setMask("00 kg");
+        weight.setText("12");
+        assertEquals("12 kg", weight.text(), "from code too");
+    }
+
+    @Test
+    void deleteBeforeALiteralTakesTheDigitAfterIt() {
+        bindField("000.000");
+        field.requestFocus();
+        type("123456");
+        field.setCaretPosition(3); // before the dot
+        drive(scene).press(Keys.DELETE);
+        assertEquals("123.56", field.text(), "the 4 went, not the dot");
+        assertEquals(3, field.caretPosition());
+    }
+
+    @Test
+    void pastingOverASelectionThatHoldsALiteralKeepsEveryDigit() {
+        bindField("000.000");
+        scene.setClipboard(TextFieldTest.MockClipboard.holding("34"));
+        field.requestFocus();
+        type("123456");
+        field.select(2, 5); // "3.4"
+        drive(scene).press(Keys.V, COMMAND);
+        assertEquals("123.456", field.text(), "the 3 and the 4 came back, and the 5 stayed");
+    }
+
+    @Test
+    void typingOverASelectionThatHoldsALiteralKeepsEveryDigit() {
+        // The path an input method's commit takes too: characters that replace a selection.
+        bindField("000.000");
+        field.requestFocus();
+        type("123456");
+        field.select(3, 5); // ".4"
+        type("4");
+        assertEquals("123.456", field.text());
+        assertEquals(5, field.caretPosition(), "after the 4 typed");
+    }
+
+    @Test
+    void removingASelectedLiteralAloneTakesNoDigit() {
+        bindField("000.000");
+        scene.setClipboard(new TextFieldTest.MockClipboard());
+        field.requestFocus();
+        type("123456");
+        field.select(3, 4); // "."
+        drive(scene).press(Keys.BACKSPACE);
+        assertEquals("123.456", field.text(), "Backspace on the selected dot: no digit goes");
+        field.select(3, 4);
+        drive(scene).press(Keys.DELETE);
+        assertEquals("123.456", field.text(), "Delete on the selected dot: the same");
+        field.select(3, 4);
+        drive(scene).press(Keys.X, COMMAND);
+        assertEquals("123.456", field.text(), "Cut of the selected dot: the same");
+        drive(scene).press(Keys.Z, COMMAND);
+        assertEquals("", field.text(), "none of the three left an edit to undo: the typing goes");
+    }
+
+    @Test
     void oneUndoTakesAnEditAndItsLiteralsBackTogether() {
         bindField("000.000");
         field.requestFocus();
@@ -120,6 +209,35 @@ class TextFieldMaskTest extends AccessibleComponentTestBase {
         assertEquals("", field.text());
         drive(scene).press(Keys.Z, COMMAND | Keys.MOD_SHIFT);
         assertEquals("123.4", field.text());
+    }
+
+    @Test
+    void undoAndRedoTakeAStepOverBackAndForthWhole() {
+        bindField("000.000");
+        field.requestFocus();
+        type("1234");
+        field.setCaretPosition(4); // after the dot
+        drive(scene).press(Keys.BACKSPACE);
+        assertEquals("124", field.text());
+        drive(scene).press(Keys.Z, COMMAND);
+        assertEquals("123.4", field.text(), "the 3 back, and the dot with it");
+        drive(scene).press(Keys.Z, COMMAND | Keys.MOD_SHIFT);
+        assertEquals("124", field.text(), "redo steps over again, and is not fitted as a new edit");
+        assertEquals("124", field.unmaskedText());
+    }
+
+    @Test
+    void aCompositionHidesTheGuideAndItsCommitIsFitted() {
+        bindField("000-000");
+        field.requestFocus();
+        type("12");
+        drive(scene).preeditChanged("３", 1, 0, 1); // a full-width 3, as an input method shows it
+        drive(scene).inputBatchEnded();
+        assertFalse(String.join("|", drawn()).contains("_"), "no guide under a composition");
+        drive(scene).preeditChanged("", 0, 0, 0);
+        type("３4");
+        assertEquals("12３-4", field.text(), "the commit is typing: fitted, literal and all");
+        assertEquals("12３4", field.unmaskedText(), "a digit as the user's script writes it");
     }
 
     @Test
@@ -137,10 +255,25 @@ class TextFieldMaskTest extends AccessibleComponentTestBase {
     }
 
     @Test
-    void aReaderHearsThePattern() {
-        bindField("000.000.000-00");
+    void aReaderHearsNoPatternSyntax() {
+        bindField("AA-0000");
         frame();
-        assertEquals("000.000.000-00", node(Accessible.Role.TEXT_FIELD).description());
+        String description = node(Accessible.Role.TEXT_FIELD).description();
+        assertFalse(description != null && description.contains("AA-0000"),
+                "the pattern is syntax, not words: " + description);
+    }
+
+    @Test
+    void aMaskLeavesTheTooltipAndTheApplicationToDescribeTheField() {
+        bindField("AA-0000");
+        field.setTooltip("Two letters and four digits");
+        frame();
+        assertEquals("Two letters and four digits", node(Accessible.Role.TEXT_FIELD).description(),
+                "the tooltip describes the field, as on a field without a mask");
+
+        field.setAccessibleDescription("Plate, as printed on the vehicle");
+        frame();
+        assertEquals("Plate, as printed on the vehicle", node(Accessible.Role.TEXT_FIELD).description());
     }
 
     /** Every string the next frame draws. */

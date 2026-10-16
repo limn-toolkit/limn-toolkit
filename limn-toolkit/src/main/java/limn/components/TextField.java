@@ -78,10 +78,13 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
     private limn.components.internal.text.@Nullable InputMask mask;
     private String maskedText = "";
     private String maskedRaw = "";
-    /** Whether the edit being fitted is a Backspace, which steps over a literal before the caret. */
-    private boolean deletingBackward;
-    /** The pattern, as the description a reader hears; null without a mask. */
-    private @Nullable I18nString maskDescription;
+    /**
+     * Whether the edit being fitted is a Backspace ({@code -1}) or a Delete ({@code +1}) with
+     * nothing selected, {@code 0} for any other edit. Only such a key, having taken a literal
+     * alone, meant the character beyond it: an edit that replaced or removed a selection said
+     * exactly what it took, and stepping over there took a character the user never chose.
+     */
+    private int collapsedDelete;
     /** The guide's unfilled tail as last shaped, kept while it reads the same. */
     private @Nullable String guideTailText;
     private @Nullable ShapedText guideTailLine;
@@ -221,22 +224,32 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * Fits what is typed to a pattern: {@code 0} takes a digit, {@code A} a letter, {@code *} any
      * character, and every other character is a literal the field writes by itself as the next
      * position is filled, so {@code "000.000.000-00"} turns {@code 12345678900} into
-     * {@code 123.456.789-00}. Characters a position does not take are passed over, and pasting a
-     * value with its literals or without them comes out the same. While the field has the
-     * keyboard, the positions still to fill show as a guide ({@code ___.___.___-__}); without it,
-     * an empty field shows its placeholder. A reader hears the pattern as the field's description.
+     * {@code 123.456.789-00}; the literals that end a pattern arrive with its last position, so
+     * {@code "00 kg"} turns {@code 12} into {@code 12 kg}. Characters a position does not take
+     * are passed over, and pasting a value with its literals or without them comes out the same.
+     * While the field has the keyboard, the positions still to fill show as a guide
+     * ({@code ___.___.___-__}); without it, an empty field shows its placeholder. A reader hears
+     * the text with its literals but not the pattern, which is syntax and not words: say what the
+     * field expects in the user's language with a tooltip or
+     * {@link #setAccessibleDescription(I18nString)}.
+     *
+     * <p>Text between single quotes is literal, so a {@code 0}, an {@code A} or a {@code *} can be
+     * one: {@code "+'0' 000"} writes {@code +0 } before three digits. Two single quotes are one
+     * apostrophe, inside quotes and out ({@code "'o''clock' 00"}). This is the quoting of
+     * {@link java.text.SimpleDateFormat}.
      *
      * <p>The text already in the field is fitted at once. {@code null} takes the mask away and
      * leaves the text as it is.
      *
      * @param pattern the pattern, or {@code null}
      * @return this field
-     * @throws IllegalArgumentException if the pattern has no position to fill
+     * @throws IllegalArgumentException if the pattern has no position to fill outside quotes, or
+     *                                  opens a quote it never closes; the message names the
+     *                                  pattern, and the field keeps the mask it had
      */
     public TextField setMask(@Nullable String pattern) {
         Ui.checkUiThread();
         mask = pattern == null ? null : limn.components.internal.text.InputMask.of(pattern);
-        maskDescription = pattern == null ? null : I18nString.literal(pattern);
         if (mask != null) {
             limn.components.internal.text.InputMask.Conformed fit =
                     mask.conform(model.text(), model.cursor());
@@ -246,8 +259,9 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
                 setText(fit.text(), Change.Origin.CODE);
             }
         }
+        // The guide is drawn and nothing else moves: the text, if the fitting changed it, was
+        // announced by setText, and the pattern is no part of what a reader hears.
         invalidate();
-        notifyChange(Change.of(Change.Aspect.DESCRIPTION, Change.Origin.CODE));
         return this;
     }
 
@@ -271,19 +285,21 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
 
     /**
      * Fits the text the last edit left to the mask, folding the fitting into that edit so one undo
-     * takes both back. A Backspace or Delete that took only a literal away takes the character
-     * beyond it instead, as the user meant.
+     * takes both back. A Backspace or Delete with nothing selected that took only a literal away
+     * takes the character beyond it instead, as the user meant; any other edit that took only a
+     * literal (a selected one cut, or a selection holding one typed or pasted over with the same
+     * characters) is fitted as it stands, and the literal comes back.
      */
     private void fitToMask() {
         String text = model.text();
         int caret = model.cursor();
         limn.components.internal.text.InputMask.Conformed fit = mask.conform(text, caret);
-        if (fit.raw().equals(maskedRaw) && text.length() < maskedText.length()) {
+        if (collapsedDelete != 0 && fit.raw().equals(maskedRaw) && text.length() < maskedText.length()) {
             // Only literals went: what fills the positions is unchanged.
             String before = mask.conform(text.substring(0, Math.min(caret, text.length())), caret).raw();
             int k = before.codePointCount(0, before.length());
             int count = maskedRaw.codePointCount(0, maskedRaw.length());
-            int gone = deletingBackward ? k - 1 : k;
+            int gone = collapsedDelete < 0 ? k - 1 : k;
             if (gone >= 0 && gone < count) {
                 String raw = limn.components.internal.text.InputMask.removeRaw(maskedRaw, gone);
                 fit = mask.conform(raw, raw.offsetByCodePoints(0, gone));
@@ -1452,14 +1468,21 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
             case Keys.HOME -> model.moveHome(shift);
             case Keys.END -> model.moveEnd(shift);
             case Keys.BACKSPACE -> {
-                deletingBackward = true;
+                collapsedDelete = model.hasSelection() ? 0 : -1;
                 try {
                     editFromUser(word ? model::deleteWordBackward : model::backspace);
                 } finally {
-                    deletingBackward = false;
+                    collapsedDelete = 0;
                 }
             }
-            case Keys.DELETE -> editFromUser(word ? model::deleteWordForward : model::deleteForward);
+            case Keys.DELETE -> {
+                collapsedDelete = model.hasSelection() ? 0 : 1;
+                try {
+                    editFromUser(word ? model::deleteWordForward : model::deleteForward);
+                } finally {
+                    collapsedDelete = 0;
+                }
+            }
             case Keys.A -> {
                 if (shortcut) {
                     model.selectAll();
@@ -1840,19 +1863,23 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * the tooltip, which becomes the description instead when the placeholder already named the
      * node.
      *
-     * <p>No description of its own but a mask's pattern, which is what a reader needs to know to
-     * type into a field that writes its own literals. The validation message beside a field is a {@code Label} the
-     * application owns and binds with {@link Label#setDescriptionFor}, which is what makes it the
-     * field's description and gives the field a {@code DESCRIBED_BY} relation to it; this widget
-     * holds no string for it, and what {@link #setValidation} holds is a colour.
+     * <p>No description of its own, a mask's pattern included. The pattern is syntax and not
+     * words: {@code AA-0000} read aloud is "A A dash zero zero zero zero" where it means two
+     * letters and four digits, in every language; the toolkit cannot word a pattern of the
+     * application's in the user's language either, since its literals and counts are the
+     * application's; and a description set here would take the tooltip's place, which the walk
+     * gives only to a node with none. So the field describes nothing, and what it expects is said
+     * by the application in its own words, a tooltip or {@link #setAccessibleDescription}, while
+     * the literals the field writes are read as part of its text. The validation message beside
+     * a field is a {@code Label} the application owns and binds with
+     * {@link Label#setDescriptionFor}, which is what makes it the field's description and gives
+     * the field a {@code DESCRIBED_BY} relation to it; this widget holds no string for it, and
+     * what {@link #setValidation} holds is a colour.
      */
     @Override
     protected void onAccessibility(Accessibility a) {
         a.role(Accessible.Role.TEXT_FIELD);
         a.name(placeholder, Accessible.NameFrom.PLACEHOLDER);
-        if (maskDescription != null) {
-            a.description(maskDescription);
-        }
         // Always editable, and never read-only: this class has no read-only mode, and a disabled
         // field is still an editable control that happens to be disabled. Conflating the two tells
         // a reader the text can never be typed into, which is a different and false fact.
