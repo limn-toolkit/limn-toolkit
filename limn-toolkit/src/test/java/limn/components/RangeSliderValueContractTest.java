@@ -38,7 +38,7 @@ class RangeSliderValueContractTest extends ComponentTestBase {
 
         @Override
         public Widget<?> build() {
-            range = new RangeSlider(0, 100).setStep(5).setMinimumGap(10).setRange(30, 70);
+            range = new RangeSlider(0, 100).setStep(5).setMinimumGap(10).setValues(30, 70);
             range.setAccessibleName("Price");
             changes = 0;
             range.onChange((low, high) -> changes++);
@@ -80,9 +80,9 @@ class RangeSliderValueContractTest extends ComponentTestBase {
         @Override
         public void set(double value) {
             if (lower) {
-                range.setRange((float) value, range.upper());
+                range.setValues((float) value, range.upper());
             } else {
-                range.setRange(range.lower(), (float) value);
+                range.setValues(range.lower(), (float) value);
             }
         }
 
