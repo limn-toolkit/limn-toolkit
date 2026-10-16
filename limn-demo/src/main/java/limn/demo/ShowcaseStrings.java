@@ -4,6 +4,8 @@ import limn.i18n.I18n;
 import limn.i18n.I18nString;
 import limn.i18n.PropertyBundle;
 
+import java.util.List;
+
 /**
  * The strings of the demo's own window that are translated: the frame, the orders, the
  * dialogs and the menus. Each page's own strings are in a {@code Text} class beside it, and
@@ -92,6 +94,17 @@ final class ShowcaseStrings {
             new I18nString("showcase.band.size", "Size");
     static final I18nString BAND_THEME =
             new I18nString("showcase.band.theme", "Theme");
+    /** The band's directions, in {@code LayoutDirection}'s order. */
+    static final List<I18nString> DIRECTIONS = List.of(
+            new I18nString("showcase.band.direction.ltr", "Left to right"),
+            new I18nString("showcase.band.direction.rtl", "Right to left"));
+    /** The band's control sizes, in {@code ControlSize}'s order. */
+    static final List<I18nString> SIZES = List.of(
+            new I18nString("showcase.band.size.xsmall", "Extra small"),
+            new I18nString("showcase.band.size.small", "Small"),
+            new I18nString("showcase.band.size.medium", "Medium"),
+            new I18nString("showcase.band.size.large", "Large"),
+            new I18nString("showcase.band.size.xlarge", "Extra large"));
     static final I18nString THEME_SYSTEM =
             new I18nString("showcase.theme.system", "System");
     static final I18nString MENU_GO =

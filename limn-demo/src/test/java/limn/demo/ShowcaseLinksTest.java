@@ -103,6 +103,13 @@ class ShowcaseLinksTest {
                     keys.add(string.key());
                 } else if (value instanceof limn.i18n.PluralString plural) {
                     plurals.add(plural.key());
+                } else if (value instanceof List<?> strings) {
+                    // A list of choices, the band's sizes say, in an enum's order.
+                    for (Object each : strings) {
+                        if (each instanceof limn.i18n.I18nString string && string.key() != null) {
+                            keys.add(string.key());
+                        }
+                    }
                 }
             }
         }

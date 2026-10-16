@@ -419,8 +419,7 @@ final class AppScene {
         ComboBox<String> language = new ComboBox<>(Languages.NAMES);
         language.setSelectedIndex(Languages.indexOf(I18n.locale()));
         language.setAccessibleName(ShowcaseStrings.BAND_LANGUAGE);
-        ComboBox<String> direction = new ComboBox<>(
-                Arrays.stream(LayoutDirection.values()).map(Enum::name).toList());
+        ComboBox<I18nString> direction = ComboBox.localized(ShowcaseStrings.DIRECTIONS);
         direction.setSelectedIndex(LayoutDirection.processDefault().ordinal());
         // A language brings its direction with it, as an application following its user's
         // language would: Arabic and Hebrew read right to left. The direction's own selector stays,
@@ -435,7 +434,7 @@ final class AppScene {
         direction.onSelect(() -> LayoutDirection.setProcessDefault(
                 LayoutDirection.values()[direction.selectedIndex()]));
         direction.setAccessibleName(ShowcaseStrings.BAND_DIRECTION);
-        ComboBox<String> size = new ComboBox<>(Arrays.stream(ControlSize.values()).map(Enum::name).toList());
+        ComboBox<I18nString> size = ComboBox.localized(ShowcaseStrings.SIZES);
         size.setSelectedIndex(ControlSize.processDefault().ordinal());
         size.onSelect(() -> ControlSize.setProcessDefault(ControlSize.values()[size.selectedIndex()]));
         size.setAccessibleName(ShowcaseStrings.BAND_SIZE);
