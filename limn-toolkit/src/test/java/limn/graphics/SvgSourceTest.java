@@ -170,6 +170,28 @@ class SvgSourceTest {
         }
     }
 
+    /**
+     * A property that names the one before it four times writes four times as much at each step:
+     * eleven steps from a few hundred bytes took seconds, and twelve ran out of the heap, a file
+     * inside every ceiling. What substitution writes is held to what the bytes can back.
+     */
+    @Test
+    void customPropertiesThatMultiplyAreRefusedQuickly() {
+        StringBuilder svg = new StringBuilder("<svg xmlns='http://www.w3.org/2000/svg' width='4' height='4' style='--p0: ");
+        svg.append("x".repeat(10)).append(';');
+        for (int level = 1; level <= 10; level++) {
+            String previous = "var(--p" + (level - 1) + ")";
+            svg.append("--p").append(level).append(": ").append(previous.repeat(4)).append(';');
+        }
+        svg.append("'><rect fill='var(--p10)' width='1' height='1'/></svg>");
+        long start = System.nanoTime();
+        assertThrows(MalformedContentException.class, () -> clean(svg.toString(), null));
+        assertTrue(System.nanoTime() - start < 500_000_000L, (System.nanoTime() - start) / 1_000_000 + " ms");
+        // A property of empty references writes nothing and still calls itself four times a step.
+        String empty = svg.toString().replace("x".repeat(10), "");
+        assertThrows(MalformedContentException.class, () -> clean(empty, null));
+    }
+
     @Test
     void customPropertiesAreResolvedAsABrowserResolvesThem() {
         String out = clean("<svg xmlns='http://www.w3.org/2000/svg' width='4' height='4' style='--accent: #00f'>"

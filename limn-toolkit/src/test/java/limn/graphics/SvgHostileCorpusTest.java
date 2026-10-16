@@ -81,6 +81,12 @@ class SvgHostileCorpusTest {
         }
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"sv2-var-multiplies.svg"})
+    void aFileThatSpentTheReaderWithoutBoundIsRefusedQuickly(String name) throws IOException {
+        refusedQuickly(file(name), name);
+    }
+
     static void refusedQuickly(byte[] svg, String name) {
         long start = System.nanoTime();
         try {

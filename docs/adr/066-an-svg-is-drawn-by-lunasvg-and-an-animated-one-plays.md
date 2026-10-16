@@ -180,6 +180,10 @@ As ADR 061 asks of everything the toolkit reads itself:
   opens as a path) is dropped, and every reference is looked at once more after `var()` and the
   animation reading have rewritten the document: lunasvg is given a PNG the toolkit wrote or a
   reference to an element of the file, and nothing else.
+  **Amended 2026-10-16, the same audit:** a property that names the one before it several times
+  doubles what `var()` writes at each step, and a 738-byte file inside every ceiling ran the heap
+  out; what substitution writes over a file is held to four characters for each of its bytes (a
+  mebicharacter at least), each call counted, and a file past that is refused.
 - **A picture beside a file read from disk is read by the toolkit,** as the owner chose: an
   image's `href` relative to the SVG's own folder, resolved there, refused if it leads out of
   that folder, read within the same ceilings as any picture and handed to lunasvg inside the

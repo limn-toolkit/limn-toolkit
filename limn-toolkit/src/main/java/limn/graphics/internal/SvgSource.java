@@ -39,7 +39,8 @@ import org.jspecify.annotations.Nullable;
  *       the value declared for that name, by an ancestor's {@code style} or by a sheet's rule for
  *       {@code :root}, {@code svg} or {@code *}, or else its fallback. Illustrations exported from
  *       design systems paint this way, and a renderer that does not read {@code var()} drew them
- *       black.</li>
+ *       black. What substitution writes is held to what the file's bytes can back, four
+ *       characters a byte, and a file that would write more is refused.</li>
  *   <li><b>{@code use}</b> is followed to count what drawing the file costs: the elements it
  *       draws, through every reference, are held under {@link #MAX_DRAWN_ELEMENTS}, and a
  *       reference that leads back to itself is refused.</li>
@@ -88,7 +89,7 @@ public final class SvgSource {
         }
         Sanitizer sanitizer = new Sanitizer(folder);
         sanitizer.clean(root);
-        CustomProperties.resolve(root);
+        new CustomProperties(bytes.length).resolve(root);
         drawnElements(root);
         SvgAnimation animation = SvgAnimation.extract(root);
         // var() and the animation's reading both rewrite attributes after the cleaning, so every
@@ -367,10 +368,32 @@ public final class SvgSource {
         /** The deepest a property may refer to another before it reads as unset. */
         private static final int MAX_DEPTH = 16;
 
-        private CustomProperties() {
+        /**
+         * What every substitution of a file together may write, in characters, for each byte of
+         * the file: a property that refers to another several times doubles what it writes at
+         * each step, and sixteen steps of that from a few hundred bytes are more than the heap.
+         */
+        static final int MAX_WRITTEN_PER_BYTE = 4;
+        /** And at least this much, however small the file: a mebicharacter. */
+        static final int MIN_WRITTEN = 1 << 20;
+
+        /** What substitution may still write, each call counted as one character more. */
+        private long left;
+
+        /** @param fileBytes the length of the file, which what substitution may write is held to */
+        CustomProperties(int fileBytes) {
+            this.left = Math.max(MIN_WRITTEN, (long) MAX_WRITTEN_PER_BYTE * fileBytes);
         }
 
-        static void resolve(SvgXml.Element root) {
+        /** Counts what substitution writes, and refuses the file past what its bytes can back (ADR 061). */
+        private void spend(int characters) {
+            left -= characters;
+            if (left < 0) {
+                throw SvgXml.refused("var() substitution writes more than its file can back");
+            }
+        }
+
+        void resolve(SvgXml.Element root) {
             Map<String, String> global = new HashMap<>();
             collectGlobal(root, global);
             String rootStyle = root.attribute("style");
@@ -439,7 +462,7 @@ public final class SvgSource {
             return out;
         }
 
-        private static void walk(SvgXml.Element element, Map<String, String> global, Map<String, String> inherited) {
+        private void walk(SvgXml.Element element, Map<String, String> global, Map<String, String> inherited) {
             Map<String, String> own = inherited;
             String style = element.attribute("style");
             if (style != null && style.contains("--")) {
@@ -472,7 +495,7 @@ public final class SvgSource {
         }
 
         /** A sheet with every declaration's {@code var()} resolved against the document's properties. */
-        private static String resolveSheet(String sheet, Map<String, String> global) {
+        private String resolveSheet(String sheet, Map<String, String> global) {
             StringBuilder out = new StringBuilder(sheet.length());
             int at = 0;
             while (true) {
@@ -490,7 +513,7 @@ public final class SvgSource {
         }
 
         /** A declaration block with each {@code var()} resolved, and a declaration that resolves to nothing dropped. */
-        private static @Nullable String resolveDeclarations(String block, Map<String, String> properties) {
+        private @Nullable String resolveDeclarations(String block, Map<String, String> properties) {
             StringBuilder out = new StringBuilder();
             for (String declaration : splitDeclarations(block)) {
                 String trimmed = declaration.trim();
@@ -517,18 +540,21 @@ public final class SvgSource {
         }
 
         /** The value with each {@code var(--name, fallback)} replaced; null when one has neither a value nor a fallback. */
-        static @Nullable String substitute(String value, Map<String, String> properties, int depth) {
+        @Nullable String substitute(String value, Map<String, String> properties, int depth) {
             if (depth > MAX_DEPTH) {
                 return null;
             }
+            spend(1); // a call that writes nothing is work too: a property of empty references
             StringBuilder out = new StringBuilder();
             int at = 0;
             while (true) {
                 int start = value.indexOf("var(", at);
                 if (start < 0) {
+                    spend(value.length() - at);
                     out.append(value, at, value.length());
                     return out.toString();
                 }
+                spend(start - at);
                 out.append(value, at, start);
                 int level = 0;
                 int end = -1;
@@ -558,6 +584,7 @@ public final class SvgSource {
                 if (replacement == null) {
                     return null;
                 }
+                spend(replacement.length());
                 out.append(replacement);
                 at = end + 1;
             }
