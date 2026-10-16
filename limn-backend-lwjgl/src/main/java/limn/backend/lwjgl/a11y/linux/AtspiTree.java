@@ -1155,7 +1155,11 @@ final class AtspiTree {
             case "GetDescription":
                 return DBus.Msg.ret(m, "s", "");
             case "GetKeyBinding": {
-                String binding = node.actions() == null ? null : node.actions().keyBinding();
+                // The access key where there is one (Alt+N, what Orca reads as the mnemonic), else
+                // the accelerator.
+                String binding = node.actions() == null ? null
+                        : node.actions().accessKey() != null ? node.actions().accessKey()
+                        : node.actions().keyBinding();
                 return DBus.Msg.ret(m, "s", binding == null ? "" : binding);
             }
             case "GetActions": {

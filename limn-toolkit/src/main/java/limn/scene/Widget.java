@@ -2694,6 +2694,21 @@ public abstract class Widget<W extends Widget<W>> {
         return null;
     }
 
+    /**
+     * The chord of the access letter this widget, a caption, gives the widget it labels, or
+     * {@code null}: what a reader is told reaches the field. Default none.
+     *
+     * @return the access key's display form, or {@code null}
+     */
+    protected @Nullable String accessibleLabelAccessKey() {
+        return null;
+    }
+
+    /** Read by the publish step: the access key a bound caption hands its control. */
+    final @Nullable String labelAccessKey() {
+        return accessibleLabelAccessKey();
+    }
+
     /** The widget whose text names this one, or {@code null}. Read by the publish step. */
     final Widget<?> accessibleLabelledBy() {
         return accessibleOverrides == null ? null : accessibleOverrides.labelledBy;

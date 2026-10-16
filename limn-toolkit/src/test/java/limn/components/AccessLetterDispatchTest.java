@@ -244,7 +244,7 @@ class AccessLetterDispatchTest extends AccessibleComponentTestBase {
         assertFalse(SceneAccess.accessLettersShown(scene), "nothing is ever underlined");
         altAnd(Keys.S);
         assertEquals(0, saved.get(), "Option and a letter type a character, and press nothing");
-        assertNull(node("Save").actions().keyBinding());
+        assertNull(node("Save").actions().accessKey());
     }
 
     @Test
@@ -266,9 +266,27 @@ class AccessLetterDispatchTest extends AccessibleComponentTestBase {
     }
 
     @Test
+    void aFieldNamedByAMarkedCaptionIsNamedByItsWordsAndCarriesItsKey() {
+        TextField field = new TextField();
+        show(new Label("&Name").setLabelFor(field), field);
+        limn.accessibility.AccessibleNode named = null;
+        for (int i = 0; i < tree().nodeCount(); i++) {
+            if (tree().node(i).role() == limn.accessibility.Accessible.Role.TEXT_FIELD) {
+                named = tree().node(i);
+            }
+        }
+        assertNotNull(named, describe(tree()));
+        assertEquals("Name", named.name(), "the field is named by the words, not by &Name" + describe(tree()));
+        assertNotNull(named.actions(), describe(tree()));
+        String key = named.actions().accessKey();
+        assertNotNull(key, "Alt and the caption's letter reach the field" + describe(tree()));
+        assertTrue(key.endsWith("N"), key);
+    }
+
+    @Test
     void aReaderHearsTheWordAndTheChord() {
         show(new Button("&Save"));
-        String binding = node("Save").actions().keyBinding();
+        String binding = node("Save").actions().accessKey();
         assertNotNull(binding, describe(tree()));
         assertTrue(binding.endsWith("S"), binding);
     }

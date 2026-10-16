@@ -197,6 +197,7 @@ public final class Accessibility {
         // reader can see, and the walk records it on every walk whether or not the tree moved.
         int delegated;
         String keyBinding;
+        String accessKey;
         // The id the application gave the widget, or empty: what a tool that drives the
         // application finds a control by.
         String identifier = "";
@@ -295,6 +296,7 @@ public final class Accessibility {
             inert = false;
             delegated = 0;
             keyBinding = null;
+            accessKey = null;
             java.util.Arrays.fill(relationTargets, 0, relationCount, null); // widgets, not to be kept
             relationCount = 0;
         }
@@ -1206,6 +1208,22 @@ public final class Accessibility {
     }
 
     /**
+     * Gives this node its access letter's chord, as a user would read it ("Alt+N"): the letter a
+     * menu title, a button or a field's label marks. Not the accelerator; see
+     * {@link #keyBinding}.
+     *
+     * @param display the chord's display form, or {@code null} for none
+     */
+    public void accessKey(@Nullable String display) {
+        slot().accessKey = display;
+    }
+
+    /** @return whether this node was given an access key in this description */
+    public boolean hasAccessKey() {
+        return slot().accessKey != null;
+    }
+
+    /**
      * Links this node to another one.
      *
      * <p>The target is resolved by the publish step to the nearest node it actually published, and
@@ -1779,6 +1797,7 @@ public final class Accessibility {
         s.inert = true;
         s.delegated = 0;
         s.keyBinding = null; // the action facet's, and there is none
+        s.accessKey = null;
     }
 
     private static long set(long states, Accessible.State state, boolean on) {
@@ -1952,6 +1971,7 @@ public final class Accessibility {
                         || a.hierarchyRowCount != b.hierarchyRowCount))
                 || a.verbs != b.verbs
                 || !Objects.equals(a.keyBinding, b.keyBinding)
+                || !Objects.equals(a.accessKey, b.accessKey)
                 || relationsDiffer(a, b);
     }
 
@@ -2172,7 +2192,7 @@ public final class Accessibility {
                 s.hasCell ? new CellFacet(s.cellRow, s.cellColumn, s.cellSort) : null,
                 s.hasHierarchy ? new HierarchyFacet(s.level, s.hierarchyRow, s.hierarchyRowCount)
                         : null,
-                s.verbs == 0 ? null : new ActionFacet(verbsOf(s.verbs), s.keyBinding),
+                s.verbs == 0 ? null : new ActionFacet(verbsOf(s.verbs), s.keyBinding, s.accessKey),
                 s.parent, firstChild, lastChild, nextSibling, previousSibling,
                 s.selectionContainer, s.inert);
     }

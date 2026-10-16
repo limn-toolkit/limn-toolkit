@@ -315,7 +315,11 @@ Maven Central say which number that was.
   no binding is published. `MenuItem.setMnemonic` and `MenuBar.addMenu(title, char, menu)` stay,
   and the text's mark wins over them. A reader is told the letter's chord. Where Windows is set
   to underline access keys, `SystemPreferences.underlineAccessKeys()` says so and the letters
-  stay drawn; a tray menu's native rows take the letter where the text marked it.
+  stay drawn; a tray menu's native rows take the letter where the text marked it. The model
+  carries the access key apart from the accelerator (`ActionFacet.accessKey`, set with
+  `Accessibility.accessKey`); Windows serves both, as UI Automation's AccessKey and
+  AcceleratorKey, which it never served before, and a field named by a marked caption is named by
+  its words and carries the caption's key.
 - A video shows a poster before it plays (ADR 069). `VideoView.setPoster(Poster)` takes
   `Poster.firstPicture()` (the default), `Poster.at(Duration)` for the picture at a time,
   `Poster.image(Image)` for a picture of the application's, or `Poster.none()`; playback starts

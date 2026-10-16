@@ -18,9 +18,20 @@ import java.util.Set;
  * else in the model does. It is the accelerator as a user would read it, already localized.
  *
  * @param actions    the verbs, in no particular order; never empty and never modifiable
+ * <p>The access key is apart from it: the letter a user presses with Alt to reach the node
+ * ("Alt+N"), which a menu, a button or a field's label marks, where the key binding runs a command
+ * ("Ctrl+N"). Windows has a property for each; Linux reads the access key where a binding goes.
+ *
  * @param keyBinding the accelerator that performs this node's primary action, or {@code null}
+ * @param accessKey  the access letter's chord as a user would read it, or {@code null}
  */
-public record ActionFacet(Set<Accessible.Action> actions, @Nullable String keyBinding) {
+public record ActionFacet(Set<Accessible.Action> actions, @Nullable String keyBinding,
+        @Nullable String accessKey) {
+
+    /** A facet with no access key. */
+    public ActionFacet(Set<Accessible.Action> actions, @Nullable String keyBinding) {
+        this(actions, keyBinding, null);
+    }
 
     /**
      * @throws NullPointerException     if {@code actions} is {@code null}

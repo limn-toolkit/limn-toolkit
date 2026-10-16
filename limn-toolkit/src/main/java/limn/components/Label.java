@@ -300,7 +300,18 @@ public final class Label extends Widget<Label> implements limn.scene.internal.Ac
 
     @Override
     protected I18nString accessibleLabelText() {
-        return text;
+        // The words a control takes as its name, its access letter's mark taken out.
+        return labelFor == null ? text : marked.shownAsText(shown(), text);
+    }
+
+    /** The chord of the access letter this label gives the control it names. */
+    @Override
+    protected @Nullable String accessibleLabelAccessKey() {
+        if (labelFor == null) {
+            return null;
+        }
+        shown();
+        return marked.binding();
     }
 
     /**
@@ -324,7 +335,7 @@ public final class Label extends Widget<Label> implements limn.scene.internal.Ac
         if (labelFor != null) {
             // The text as shown, its access letter's mark taken out, and the letter's chord.
             a.name(shown().text(), marked.witness(), Accessible.NameFrom.CONTENT);
-            a.keyBinding(marked.binding());
+            a.accessKey(marked.binding());
         } else {
             a.name(text, Accessible.NameFrom.CONTENT);
         }

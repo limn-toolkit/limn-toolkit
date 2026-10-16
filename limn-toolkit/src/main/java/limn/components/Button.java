@@ -418,7 +418,7 @@ public final class Button extends Widget<Button> implements limn.scene.internal.
         // moves when the shown text does; and the letter's chord, where it can be said.
         AccessLetters.Parsed caption = shown();
         a.name(caption.text(), marked.witness(), Accessible.NameFrom.CONTENT);
-        a.keyBinding(marked.binding());
+        a.accessKey(marked.binding());
         // The LEAF_ACTION shape, written once (ADR 045 §3): PRESS exactly while accepted.
         LeafActionAccessibility.describe(a, pressAccepted());
     }

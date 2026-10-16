@@ -646,9 +646,9 @@ class MenuBarAccessibilityTest extends AccessibleComponentTestBase {
 
         // macOS has no access letters (ADR 070), so a Mac publishes none to name.
         assertEquals(MAC ? null : new Accelerator('F', Keys.MOD_ALT).display(),
-                titles().get(0).actions().keyBinding(),
+                titles().get(0).actions().accessKey(),
                 "the only route by which a mnemonic reaches a user who cannot see the underline");
-        assertNull(titles().get(1).actions().keyBinding(), describe(tree()));
+        assertNull(titles().get(1).actions().accessKey(), describe(tree()));
         assertEquals(Accelerator.of(Keys.F10).display(), barNode().actions().keyBinding(),
                 "and the one chord that reaches the strip from anywhere, since a bare Alt is not "
                         + "an accelerator any platform can be told about");
@@ -771,7 +771,7 @@ class MenuBarAccessibilityTest extends AccessibleComponentTestBase {
 
         List<AccessibleNode> titles = titles();
         assertEquals(2, titles.size(), describe(tree()));
-        String ascii = titles.get(0).actions().keyBinding();
+        String ascii = titles.get(0).actions().accessKey();
         if (MAC) {
             assertNull(ascii, "macOS has no access letters (ADR 070)" + describe(tree()));
         } else {
@@ -779,7 +779,7 @@ class MenuBarAccessibilityTest extends AccessibleComponentTestBase {
                     + describe(tree()));
             assertTrue(ascii.endsWith("F"), ascii + describe(tree()));
         }
-        assertNull(titles.get(1).actions().keyBinding(),
+        assertNull(titles.get(1).actions().accessKey(),
                 "and the one that would have read Alt+Key1060 says nothing instead"
                         + describe(tree()));
     }

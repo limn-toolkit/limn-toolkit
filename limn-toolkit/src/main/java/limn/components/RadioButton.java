@@ -456,7 +456,7 @@ public final class RadioButton extends Widget<RadioButton> implements limn.scene
     protected void onAccessibility(Accessibility a) {
         a.role(Accessible.Role.RADIO_BUTTON);
         a.name(shown().text(), marked.witness(), Accessible.NameFrom.CONTENT);
-        a.keyBinding(marked.binding());
+        a.accessKey(marked.binding());
         // A containerless member of the ROWS shape (decision 107, 2026-09-22): the group is a
         // ButtonGroup and not a widget, so there is no container node, and the membership and
         // the one verb are the helper's, by the rules every row obeys.

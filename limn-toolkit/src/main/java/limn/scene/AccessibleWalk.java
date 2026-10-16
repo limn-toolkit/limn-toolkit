@@ -945,6 +945,10 @@ final class AccessibleWalk {
                 builder.name(caption, Accessible.NameFrom.LABEL);
             }
             builder.relation(Accessible.Relation.LABELLED_BY, label);
+            String access = label.labelAccessKey();
+            if (access != null && !builder.hasAccessKey()) {
+                builder.accessKey(access); // Alt and the caption's letter reach the control
+            }
         }
         // The same shape for the description: a bound message's text, read at publish, then the
         // explicit description below if the application wrote one, and the tooltip default after

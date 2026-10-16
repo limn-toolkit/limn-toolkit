@@ -160,6 +160,24 @@ final class AccessLetters {
             return parsed;
         }
 
+        private limn.i18n.I18nString shownText;
+        private String shownFor;
+
+        /**
+         * {@code parsed}'s text as a localizable value: {@code source} itself when the text has no
+         * mark, else a literal of the words, kept until they change.
+         */
+        limn.i18n.I18nString shownAsText(Parsed parsed, limn.i18n.I18nString source) {
+            if (parsed.text().equals(from)) {
+                return source; // no mark: the text is the words
+            }
+            if (!parsed.text().equals(shownFor)) {
+                shownFor = parsed.text();
+                shownText = limn.i18n.I18nString.literal(parsed.text());
+            }
+            return shownText;
+        }
+
         /** Changes whenever the shown text does. */
         long witness() {
             return witness;

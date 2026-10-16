@@ -1221,7 +1221,7 @@ public final class MenuBar extends Widget<MenuBar> {
             MenuAccessibility.describeRow(a, MenuAccessibility.Kind.TITLE, true, i == current,
                     i + 1, entries.size(), hasMenu, down, i == current, openIndex < 0, false);
             if (hasMenu && entry.binding() != null) {
-                a.keyBinding(entry.binding());
+                a.accessKey(entry.binding());
             }
             a.endChild();
             cursor += w;

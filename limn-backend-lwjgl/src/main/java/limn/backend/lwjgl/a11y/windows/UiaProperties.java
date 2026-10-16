@@ -104,6 +104,15 @@ final class UiaProperties {
                 // empty string, and a VT_EMPTY here reads to some clients as "ask somewhere else".
                 return node.name();
 
+            // Two properties where the model has two strings: the access key a menu title, a
+            // button or a field's caption marks (Alt+N), and the accelerator that runs a command
+            // (Ctrl+N). Neither was served, so no Windows reader heard either.
+            case UiaIds.ACCESS_KEY:
+                return node.actions() == null ? null : node.actions().accessKey();
+
+            case UiaIds.ACCELERATOR_KEY:
+                return node.actions() == null ? null : node.actions().keyBinding();
+
             case UiaIds.HELP_TEXT:
                 return node.description().isEmpty() ? null : node.description();
 

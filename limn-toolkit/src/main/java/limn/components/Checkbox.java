@@ -462,7 +462,7 @@ public final class Checkbox extends Widget<Checkbox> implements limn.scene.inter
     protected void onAccessibility(Accessibility a) {
         a.role(variant == Variant.BOX ? Accessible.Role.CHECK_BOX : Accessible.Role.SWITCH);
         a.name(shown().text(), marked.witness(), Accessible.NameFrom.CONTENT);
-        a.keyBinding(marked.binding());
+        a.accessKey(marked.binding());
         // The TOGGLE shape, written once (ADR 045 §3): the state as the facet, and the verb.
         ToggleAccessibility.describe(a, checked, true);
     }
