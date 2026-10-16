@@ -179,6 +179,8 @@ public final class MenuBar extends Widget<MenuBar> {
      * and a bare Alt are the same event.
      */
     private boolean altArmed;
+    /** The scene's key presses when Alt was pressed, to tell Alt alone from Alt and a letter. */
+    private long pressesAtAlt;
 
     /**
      * Where a bar is shown.
@@ -889,6 +891,11 @@ public final class MenuBar extends Widget<MenuBar> {
             // from the start of Alt+F, and claiming it there would break every Alt chord.
             if (isAltKey(key) && altArmed) {
                 altArmed = false;
+                // A key pressed while Alt was held that a control took (Alt and its access letter)
+                // never reached this handler: the count says it was pressed all the same.
+                if (limn.scene.internal.SceneAccess.keyPresses(scene()) != pressesAtAlt) {
+                    return false;
+                }
                 return toggleBarFocus();
             }
             return false;
@@ -897,6 +904,9 @@ public final class MenuBar extends Widget<MenuBar> {
             // Re-arm only for an Alt pressed alone and not auto-repeating; Ctrl+Alt is a chord
             // in progress, and a repeat means it is being held rather than tapped.
             altArmed = !event.isRepeat() && (mods & ~Keys.MOD_ALT) == 0;
+            if (altArmed) {
+                pressesAtAlt = limn.scene.internal.SceneAccess.keyPresses(scene());
+            }
             return false; // a modifier press is never consumed
         }
         altArmed = false; // any other key makes the held Alt part of a chord

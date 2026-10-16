@@ -3171,6 +3171,11 @@ public final class Scene {
     static {
         limn.scene.internal.SceneAccess.install(new limn.scene.internal.SceneAccess.Hook() {
             @Override
+            public long keyPresses(Scene scene) {
+                return scene.keyPresses;
+            }
+
+            @Override
             public boolean accessLettersShown(Scene scene) {
                 // While Alt is held, or always where the user asked the system for underlines.
                 return scene.accessLettersShown || SystemPreferences.current().underlineAccessKeys();
@@ -3731,6 +3736,9 @@ public final class Scene {
                 && limn.scene.internal.AccessLetterSystem.present()) {
             showAccessLetters(key.pressed);
         }
+        if (key.pressed && !key.repeat && !isModifierKey(key.key)) {
+            keyPresses++;
+        }
         // Keys go to the focused widget, else the topmost modal layer (so a
         // dialog can handle ESC even with nothing focused).
         Widget<?> keyTarget = focused != null ? focused : keyboardRoot();
@@ -3771,6 +3779,14 @@ public final class Scene {
 
     /** Whether Alt is held, which is when the access letters are drawn. */
     private boolean accessLettersShown;
+    /** Keys other than a modifier pressed in this scene, whoever took them; see SceneAccess. */
+    private long keyPresses;
+
+    private static boolean isModifierKey(int key) {
+        return key == Keys.LEFT_ALT || key == Keys.RIGHT_ALT || key == Keys.LEFT_SHIFT
+                || key == Keys.RIGHT_SHIFT || key == Keys.LEFT_CONTROL || key == Keys.RIGHT_CONTROL
+                || key == Keys.LEFT_SUPER || key == Keys.RIGHT_SUPER;
+    }
 
     private void showAccessLetters(boolean shown) {
         if (accessLettersShown == shown) {

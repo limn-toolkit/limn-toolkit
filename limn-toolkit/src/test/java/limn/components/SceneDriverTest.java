@@ -98,6 +98,11 @@ class SceneDriverTest extends ComponentTestBase {
             public boolean accessLettersShown(Scene scene) {
                 return false;
             }
+
+            @Override
+            public long keyPresses(Scene scene) {
+                return 0;
+            }
         }));
     }
 

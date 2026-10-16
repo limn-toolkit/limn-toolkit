@@ -156,6 +156,33 @@ class AccessLetterDispatchTest extends AccessibleComponentTestBase {
         assertFalse(bar.isOpen());
     }
 
+    /**
+     * Alt and a control's letter, then Alt let go: the menu bar does not take the keyboard. The
+     * letter never reached the bar, which read the release as Alt pressed alone (seen on Windows).
+     */
+    @Test
+    void lettingGoOfAltAfterAControlsLetterLeavesTheMenuBarAlone() {
+        MenuBar bar = new MenuBar().setDisplayMode(DisplayMode.IN_SCENE)
+                .addMenu("&Sales", new Menu().addItem("Report", () -> { }));
+        TextField field = new TextField();
+        Label name = new Label("&Name").setLabelFor(field);
+        show(bar, name, field);
+
+        drive(scene).keyEvent(Keys.LEFT_ALT, -1, true, false, Keys.MOD_ALT);
+        drive(scene).keyEvent(Keys.N, 'n', true, false, Keys.MOD_ALT);
+        drive(scene).keyEvent(Keys.N, 'n', false, false, Keys.MOD_ALT);
+        drive(scene).keyEvent(Keys.LEFT_ALT, -1, false, false, 0);
+        drive(scene).inputBatchEnded();
+        frame();
+        assertSame(field, scene.focusedWidget(), "the keyboard stays where the letter took it");
+
+        drive(scene).keyEvent(Keys.LEFT_ALT, -1, true, false, Keys.MOD_ALT);
+        drive(scene).keyEvent(Keys.LEFT_ALT, -1, false, false, 0);
+        drive(scene).inputBatchEnded();
+        frame();
+        assertSame(bar, scene.focusedWidget(), "and Alt alone still reaches the bar");
+    }
+
     @Test
     void theTopmostModalTakesItsLettersAndNothingBeneathAnswers() {
         AtomicInteger killed = new AtomicInteger();

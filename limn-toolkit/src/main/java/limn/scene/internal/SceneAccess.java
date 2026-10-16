@@ -93,6 +93,13 @@ public final class SceneAccess {
          * @return whether its access letters are drawn now: Alt held, on a system that has them
          */
         boolean accessLettersShown(Scene scene);
+
+        /**
+         * @param scene a scene
+         * @return how many keys other than a modifier were pressed in it, counted whoever took
+         *         them: what tells a bare Alt from one that was part of a chord
+         */
+        long keyPresses(Scene scene);
     }
 
     /**
@@ -153,6 +160,17 @@ public final class SceneAccess {
      */
     public static boolean accessLettersShown(@org.jspecify.annotations.Nullable Scene scene) {
         return scene != null && hook().accessLettersShown(scene);
+    }
+
+    /**
+     * How many keys other than a modifier were pressed in {@code scene}, whoever took them. A menu
+     * bar compares it across an Alt held and let go: a press of Alt+letter that a control took
+     * never reaches the bar, and without this the Alt let go after it read as Alt alone.
+     *
+     * @param scene a scene, or {@code null}, which counts none
+     */
+    public static long keyPresses(@org.jspecify.annotations.Nullable Scene scene) {
+        return scene == null ? 0 : hook().keyPresses(scene);
     }
 
     public static WindowInput input(Scene scene) {
