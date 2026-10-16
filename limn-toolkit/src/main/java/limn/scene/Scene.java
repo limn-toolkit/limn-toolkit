@@ -3849,9 +3849,19 @@ public final class Scene {
                 at = i;
             }
         }
-        Widget<?> next = owners.get((at + 1) % owners.size()).accessLetterFocus();
-        if (next != null) {
+        // The next that takes the keyboard: one that cannot (a label whose control has gone, a
+        // radio its group will not let have it) is stepped past, or the turn would stop there.
+        for (int step = 1; step <= owners.size(); step++) {
+            limn.scene.internal.AccessLetterOwner owner = owners.get((at + step) % owners.size());
+            Widget<?> next = owner.accessLetterFocus();
+            if (next == null) {
+                continue;
+            }
+            owner.accessLetterTurn();
             requestFocus(next, Change.Origin.USER); // a key the user pressed, not code
+            if (focused == next) {
+                break;
+            }
         }
         return true;
     }

@@ -36,6 +36,11 @@ public final class ButtonGroup {
     private final List<RadioButton> members = new ArrayList<>();
     private IntConsumer onSelect;
     private RadioButton current;
+    /**
+     * The member an access letter's turn brought the keyboard to while it is not the selection,
+     * which holds the tab stop until the keyboard leaves it; {@code null} otherwise.
+     */
+    private RadioButton lent;
     /** The place the next radio added takes, kept by the radio so that one that comes back takes it again. */
     private int nextPlace;
 
@@ -105,6 +110,9 @@ public final class ButtonGroup {
         }
         if (current == radio) {
             current = null;
+        }
+        if (lent == radio) {
+            lent = null;
         }
         applyRovingFocus();
         for (RadioButton member : members) {
@@ -232,6 +240,27 @@ public final class ButtonGroup {
         return members.size();
     }
 
+    /**
+     * Lends {@code radio} the tab stop, so the keyboard can be brought to it by an access letter it
+     * shares with another control: two radios of one group with one letter take turns as any two
+     * controls do, and the one that is not the stop was skipped for ever. Nothing is selected; the
+     * stop goes back when the keyboard leaves ({@link #focusLeft}).
+     */
+    void lendStop(RadioButton radio) {
+        if (members.contains(radio) && radio.isEnabled()) {
+            lent = radio;
+            applyRovingFocus();
+        }
+    }
+
+    /** A member lost the keyboard: a stop lent to it goes back to the selection. */
+    void focusLeft(RadioButton radio) {
+        if (lent == radio) {
+            lent = null;
+            applyRovingFocus();
+        }
+    }
+
     // Called by a member watching its own ENABLED: the holder is chosen among the enabled
     // members, so a flag moving on any member can move it, and the group hears about that from
     // nowhere else.
@@ -315,7 +344,8 @@ public final class ButtonGroup {
      * next Tab reaches the group through its new holder.
      */
     private void applyRovingFocus() {
-        RadioButton holder = current != null && current.isEnabled() ? current : null;
+        RadioButton holder = lent != null && lent.isEnabled() ? lent
+                : current != null && current.isEnabled() ? current : null;
         if (holder == null) {
             for (RadioButton member : members) {
                 if (member.isEnabled()) {

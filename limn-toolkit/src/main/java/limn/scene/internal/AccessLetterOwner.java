@@ -23,6 +23,14 @@ public interface AccessLetterOwner {
     void accessLetterPressed();
 
     /**
+     * Readies {@link #accessLetterFocus()} to take the keyboard, its turn come among several of one
+     * letter: a radio of a group that is not the group's tab stop becomes it. Called just before
+     * the scene moves the keyboard there; by default nothing.
+     */
+    default void accessLetterTurn() {
+    }
+
+    /**
      * An owner made of a widget's own private methods, which keeps the interface out of the
      * widget's public face.
      *
@@ -32,6 +40,19 @@ public interface AccessLetterOwner {
      */
     static AccessLetterOwner of(java.util.function.IntSupplier letter,
             java.util.function.Supplier<? extends Widget<?>> focus, Runnable pressed) {
+        return of(letter, focus, () -> { }, pressed);
+    }
+
+    /**
+     * The same, with {@link #accessLetterTurn()}.
+     *
+     * @param letter  {@link #accessLetter()}
+     * @param focus   {@link #accessLetterFocus()}
+     * @param turn    {@link #accessLetterTurn()}
+     * @param pressed {@link #accessLetterPressed()}
+     */
+    static AccessLetterOwner of(java.util.function.IntSupplier letter,
+            java.util.function.Supplier<? extends Widget<?>> focus, Runnable turn, Runnable pressed) {
         return new AccessLetterOwner() {
             @Override
             public char accessLetter() {
@@ -41,6 +62,11 @@ public interface AccessLetterOwner {
             @Override
             public Widget<?> accessLetterFocus() {
                 return focus.get();
+            }
+
+            @Override
+            public void accessLetterTurn() {
+                turn.run();
             }
 
             @Override

@@ -226,6 +226,35 @@ class AccessLetterDispatchTest extends AccessibleComponentTestBase {
         assertTrue(bar.isOpen());
     }
 
+    /**
+     * Two radios of one group with one letter take turns too, though only one of them is the
+     * group's tab stop: the other is lent the stop for its turn, and gives it back when the keyboard
+     * leaves. The turn stopped on the stop for ever, and the other could never be reached.
+     */
+    @Test
+    void twoRadiosOfAGroupWithOneLetterTakeTurns() {
+        RadioButton alpha = new RadioButton("&Alpha");
+        RadioButton another = new RadioButton("&Another");
+        ButtonGroup group = new ButtonGroup();
+        group.add(alpha);
+        group.add(another);
+        Button done = new Button("Done");
+        show(alpha, another, done);
+
+        altAnd(Keys.A);
+        assertSame(alpha, scene.focusedWidget());
+        altAnd(Keys.A);
+        assertSame(another, scene.focusedWidget(), "the radio that is not the stop has its turn");
+        altAnd(Keys.A);
+        assertSame(alpha, scene.focusedWidget(), "and round again");
+        assertEquals(-1, group.selectedIndex(), "a turn selects nothing");
+
+        altAnd(Keys.A);
+        scene.requestFocus(done);
+        assertFalse(another.isFocusable(), "the stop went back when the keyboard left");
+        assertTrue(alpha.isFocusable());
+    }
+
     @Test
     void hiddenAndDisabledControlsHaveNoLetter() {
         AtomicInteger acted = new AtomicInteger();
