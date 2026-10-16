@@ -506,8 +506,15 @@ final class AnimationsScene {
             play();
         }
 
+        /**
+         * Runs the whole rail, from the far end: a run started from wherever the dot happened to be
+         * (a curve changed mid-run) showed the curve over part of the rail, and repeating then
+         * swung between that point and the end for good.
+         */
         void play() {
-            pos.to(pos.target() >= 0.5f ? 0 : 1);
+            float target = pos.target() >= 0.5f ? 0 : 1;
+            pos.snap(1 - target);
+            pos.to(target);
         }
 
         @Override
