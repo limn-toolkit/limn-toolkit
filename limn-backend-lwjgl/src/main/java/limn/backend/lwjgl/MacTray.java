@@ -389,7 +389,7 @@ final class MacTray implements TrayPeer {
                 ObjC.msgVoid(entry, "setKeyEquivalentModifierMask:", modifierMask(row.shortcutModifiers()));
             }
             if (row.icon() != null) {
-                long image = nsImage(new TrayPicture(row.icon(), null, false)
+                long image = nsImage(new TrayPicture(row.icon(), null, false, 0)
                         .render(MENU_PIXELS, Color.rgb(0x000000), false), MENU_POINTS, row.icon().tintable());
                 if (image != NULL) {
                     ObjC.msgVoid(entry, "setImage:", image);

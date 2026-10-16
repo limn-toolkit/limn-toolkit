@@ -186,7 +186,7 @@ final class SystemBarReader {
                 // whether the command can be done is asked of the window that has the keyboard.
                 boolean enabled = edit == null ? item.isEnabled() : item.isEnabledByItsOwnFlag();
                 return new MenuRow(id, MenuRow.Kind.COMMAND, labelOf(item), enabled, false, item.mnemonic(),
-                        List.of(), item.icon(), key, modifiers, edit);
+                        List.of(), item.icon(), key, modifiers, edit, -1);
             }
         }
     }

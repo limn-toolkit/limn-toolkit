@@ -624,7 +624,7 @@ final class WindowsTray implements TrayPeer {
         int size = smallIconSize();
         boolean dark = WindowsDarkMenus.isDeclared()
                 && WindowsSystemPreferences.applicationsAreDark();
-        Image image = new TrayPicture(row.icon(), null, false)
+        Image image = new TrayPicture(row.icon(), null, false, 0)
                 .render(size, dark ? Color.rgb(0xFFFFFF) : Color.rgb(0x000000), dark);
         try (MemoryStack stack = MemoryStack.stackPush()) {
             long header = stack.ncalloc(8, 40, 1);                  // BITMAPINFOHEADER

@@ -38,14 +38,6 @@ public record MenuRow(int id, Kind kind, String label, boolean enabled, boolean 
         List<MenuRow> children, @Nullable Icon icon, String shortcutKey, int shortcutModifiers,
         @Nullable EditCommand edit, int mnemonicIndex) {
 
-    /** A row whose access letter is the first occurrence of {@code mnemonic} in its label. */
-    public MenuRow(int id, Kind kind, String label, boolean enabled, boolean checked, char mnemonic,
-            List<MenuRow> children, @Nullable Icon icon, String shortcutKey, int shortcutModifiers,
-            @Nullable EditCommand edit) {
-        this(id, kind, label, enabled, checked, mnemonic, children, icon, shortcutKey, shortcutModifiers,
-                edit, -1);
-    }
-
     /** This row with its access letter where the text marked it: {@code index} into the label. */
     public MenuRow withMnemonicIndex(int index) {
         return new MenuRow(id, kind, label, enabled, checked, mnemonic, children, icon, shortcutKey,
@@ -67,13 +59,13 @@ public record MenuRow(int id, Kind kind, String label, boolean enabled, boolean 
     /** A row that is no editing command. */
     public MenuRow(int id, Kind kind, String label, boolean enabled, boolean checked, char mnemonic,
             List<MenuRow> children, @Nullable Icon icon, String shortcutKey, int shortcutModifiers) {
-        this(id, kind, label, enabled, checked, mnemonic, children, icon, shortcutKey, shortcutModifiers, null);
+        this(id, kind, label, enabled, checked, mnemonic, children, icon, shortcutKey, shortcutModifiers, null, -1);
     }
 
     /** A row with no picture and no accelerator. */
     public MenuRow(int id, Kind kind, String label, boolean enabled, boolean checked, char mnemonic,
             List<MenuRow> children) {
-        this(id, kind, label, enabled, checked, mnemonic, children, null, "", 0, null);
+        this(id, kind, label, enabled, checked, mnemonic, children, null, "", 0, null, -1);
     }
 
     /**

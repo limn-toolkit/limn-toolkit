@@ -99,7 +99,7 @@ class ProgressBarAndImageTest extends ComponentTestBase {
     @Test
     void anIndeterminateSweepStepsWhileMotionIsReduced() {
         limn.scene.SystemPreferences.report(new limn.scene.SystemPreferences(
-                limn.scene.SystemPreferences.ColorScheme.LIGHT, true, false));
+                limn.scene.SystemPreferences.ColorScheme.LIGHT, true, false, false));
         try {
             ProgressBar bar = new ProgressBar();
             Scene scene = new Scene(bar, clock::get);

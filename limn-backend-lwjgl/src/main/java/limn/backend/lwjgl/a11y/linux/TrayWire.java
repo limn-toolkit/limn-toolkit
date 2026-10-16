@@ -332,7 +332,7 @@ final class TrayWire {
             return null;
         }
         try {
-            Image image = new TrayPicture(row.icon(), null, false).render(ROW_ICON, PANEL_GREY, false);
+            Image image = new TrayPicture(row.icon(), null, false, 0).render(ROW_ICON, PANEL_GREY, false);
             return limn.graphics.Images.encode(image, limn.graphics.ImageFormat.PNG);
         } catch (RuntimeException noEncoder) {
             return null;

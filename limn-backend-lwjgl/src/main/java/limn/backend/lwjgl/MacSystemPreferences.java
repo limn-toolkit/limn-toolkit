@@ -61,7 +61,7 @@ final class MacSystemPreferences {
         boolean reduceMotion = (ObjC.msg(workspace, "accessibilityDisplayShouldReduceMotion") & 0xff) != 0;
         boolean increaseContrast =
                 (ObjC.msg(workspace, "accessibilityDisplayShouldIncreaseContrast") & 0xff) != 0;
-        return new SystemPreferences(scheme, reduceMotion, increaseContrast);
+        return new SystemPreferences(scheme, reduceMotion, increaseContrast, false);
     }
 
     /**

@@ -65,7 +65,7 @@ class StatusNotifierTrayTest {
     }
 
     private static TrayState state(boolean activates, boolean attention) {
-        return new TrayState("Orders", "3 waiting", new TrayPicture(square(0x2E7DFF, false), null, false), null,
+        return new TrayState("Orders", "3 waiting", new TrayPicture(square(0x2E7DFF, false), null, false, 0), null,
                 attention, activates, false);
     }
 
@@ -106,7 +106,7 @@ class StatusNotifierTrayTest {
 
     @Test
     void aMonochromeIconAloneIsDrawnInTheGrey() {
-        TrayState only = new TrayState("Orders", "", null, new TrayPicture(square(0, true), null, false), false,
+        TrayState only = new TrayState("Orders", "", null, new TrayPicture(square(0, true), null, false, 0), false,
                 false, false);
         byte[] argb = (byte[]) ((Object[]) ((List<?>) TrayWire.itemProperties(only, "orders", TrayWire.panelTint("KDE")).get("IconPixmap").value)
                 .get(0))[2];
@@ -128,7 +128,7 @@ class StatusNotifierTrayTest {
         assertTrue(TrayWire.panelColoursNamedShapes("KDE"));
         assertFalse(TrayWire.panelColoursNamedShapes("ubuntu:GNOME"));
         assertFalse(TrayWire.panelColoursNamedShapes(null));
-        TrayState only = new TrayState("Orders", "", null, new TrayPicture(square(0, true), null, false), true,
+        TrayState only = new TrayState("Orders", "", null, new TrayPicture(square(0, true), null, false, 0), true,
                 false, false);
         Map<String, DBus.Variant> p = TrayWire.itemProperties(only, "orders", TrayWire.PANEL_GREY,
                 new TrayWire.Named("limn-orders-1-symbolic", "/run/user/1000/limn-tray/1-orders/icons"));
@@ -454,7 +454,7 @@ class StatusNotifierTrayTest {
     void aChangeWhileShownIsSignalled() throws Exception {
         assertTimeoutPreemptively(SOON, () -> show(state(false, false), true));
         await(() -> assertTrue(tray.isAvailable()));
-        tray.update(new TrayState("Orders", "5 waiting", new TrayPicture(square(0xFF0000, false), null, false), null,
+        tray.update(new TrayState("Orders", "5 waiting", new TrayPicture(square(0xFF0000, false), null, false, 0), null,
                 true, false, false));
         assertTimeoutPreemptively(SOON, () -> {
             ask(TrayWire.ITEM_PATH, DBus.I_PROPS_NAME, "Get", "ss", TrayWire.ITEM, "Status");
