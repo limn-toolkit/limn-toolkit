@@ -112,6 +112,59 @@ class TextFieldMaskTest extends AccessibleComponentTestBase {
     }
 
     @Test
+    void deleteBeforeALiteralTakesTheDigitAfterIt() {
+        bindField("000.000");
+        field.requestFocus();
+        type("123456");
+        field.setCaretPosition(3); // before the dot
+        drive(scene).press(Keys.DELETE);
+        assertEquals("123.56", field.text(), "the 4 went, not the dot");
+        assertEquals(3, field.caretPosition());
+    }
+
+    @Test
+    void pastingOverASelectionThatHoldsALiteralKeepsEveryDigit() {
+        bindField("000.000");
+        scene.setClipboard(TextFieldTest.MockClipboard.holding("34"));
+        field.requestFocus();
+        type("123456");
+        field.select(2, 5); // "3.4"
+        drive(scene).press(Keys.V, COMMAND);
+        assertEquals("123.456", field.text(), "the 3 and the 4 came back, and the 5 stayed");
+    }
+
+    @Test
+    void typingOverASelectionThatHoldsALiteralKeepsEveryDigit() {
+        // The path an input method's commit takes too: characters that replace a selection.
+        bindField("000.000");
+        field.requestFocus();
+        type("123456");
+        field.select(3, 5); // ".4"
+        type("4");
+        assertEquals("123.456", field.text());
+        assertEquals(5, field.caretPosition(), "after the 4 typed");
+    }
+
+    @Test
+    void removingASelectedLiteralAloneTakesNoDigit() {
+        bindField("000.000");
+        scene.setClipboard(new TextFieldTest.MockClipboard());
+        field.requestFocus();
+        type("123456");
+        field.select(3, 4); // "."
+        drive(scene).press(Keys.BACKSPACE);
+        assertEquals("123.456", field.text(), "Backspace on the selected dot: no digit goes");
+        field.select(3, 4);
+        drive(scene).press(Keys.DELETE);
+        assertEquals("123.456", field.text(), "Delete on the selected dot: the same");
+        field.select(3, 4);
+        drive(scene).press(Keys.X, COMMAND);
+        assertEquals("123.456", field.text(), "Cut of the selected dot: the same");
+        drive(scene).press(Keys.Z, COMMAND);
+        assertEquals("", field.text(), "none of the three left an edit to undo: the typing goes");
+    }
+
+    @Test
     void oneUndoTakesAnEditAndItsLiteralsBackTogether() {
         bindField("000.000");
         field.requestFocus();

@@ -78,8 +78,13 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
     private limn.components.internal.text.@Nullable InputMask mask;
     private String maskedText = "";
     private String maskedRaw = "";
-    /** Whether the edit being fitted is a Backspace, which steps over a literal before the caret. */
-    private boolean deletingBackward;
+    /**
+     * Whether the edit being fitted is a Backspace ({@code -1}) or a Delete ({@code +1}) with
+     * nothing selected, {@code 0} for any other edit. Only such a key, having taken a literal
+     * alone, meant the character beyond it: an edit that replaced or removed a selection said
+     * exactly what it took, and stepping over there took a character the user never chose.
+     */
+    private int collapsedDelete;
     /** The pattern, as the description a reader hears; null without a mask. */
     private @Nullable I18nString maskDescription;
     /** The guide's unfilled tail as last shaped, kept while it reads the same. */
@@ -271,19 +276,21 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
 
     /**
      * Fits the text the last edit left to the mask, folding the fitting into that edit so one undo
-     * takes both back. A Backspace or Delete that took only a literal away takes the character
-     * beyond it instead, as the user meant.
+     * takes both back. A Backspace or Delete with nothing selected that took only a literal away
+     * takes the character beyond it instead, as the user meant; any other edit that took only a
+     * literal (a selected one cut, or a selection holding one typed or pasted over with the same
+     * characters) is fitted as it stands, and the literal comes back.
      */
     private void fitToMask() {
         String text = model.text();
         int caret = model.cursor();
         limn.components.internal.text.InputMask.Conformed fit = mask.conform(text, caret);
-        if (fit.raw().equals(maskedRaw) && text.length() < maskedText.length()) {
+        if (collapsedDelete != 0 && fit.raw().equals(maskedRaw) && text.length() < maskedText.length()) {
             // Only literals went: what fills the positions is unchanged.
             String before = mask.conform(text.substring(0, Math.min(caret, text.length())), caret).raw();
             int k = before.codePointCount(0, before.length());
             int count = maskedRaw.codePointCount(0, maskedRaw.length());
-            int gone = deletingBackward ? k - 1 : k;
+            int gone = collapsedDelete < 0 ? k - 1 : k;
             if (gone >= 0 && gone < count) {
                 String raw = limn.components.internal.text.InputMask.removeRaw(maskedRaw, gone);
                 fit = mask.conform(raw, raw.offsetByCodePoints(0, gone));
@@ -1452,14 +1459,21 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
             case Keys.HOME -> model.moveHome(shift);
             case Keys.END -> model.moveEnd(shift);
             case Keys.BACKSPACE -> {
-                deletingBackward = true;
+                collapsedDelete = model.hasSelection() ? 0 : -1;
                 try {
                     editFromUser(word ? model::deleteWordBackward : model::backspace);
                 } finally {
-                    deletingBackward = false;
+                    collapsedDelete = 0;
                 }
             }
-            case Keys.DELETE -> editFromUser(word ? model::deleteWordForward : model::deleteForward);
+            case Keys.DELETE -> {
+                collapsedDelete = model.hasSelection() ? 0 : 1;
+                try {
+                    editFromUser(word ? model::deleteWordForward : model::deleteForward);
+                } finally {
+                    collapsedDelete = 0;
+                }
+            }
             case Keys.A -> {
                 if (shortcut) {
                     model.selectAll();
