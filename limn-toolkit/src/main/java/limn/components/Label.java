@@ -379,9 +379,10 @@ public final class Label extends Widget<Label> {
     protected void onAccessibility(Accessibility a) {
         a.role(role == Role.TITLE ? Accessible.Role.HEADING : Accessible.Role.LABEL);
         if (labelFor != null) {
-            // The text as shown, its access letter's mark taken out, and the letter's chord.
+            // The text as shown, its access letter's mark taken out. The letter's chord goes to
+            // the control it names, which is where the keyboard goes; this static node offers no
+            // verb to carry it.
             a.name(shown().text(), marked.witness(), Accessible.NameFrom.CONTENT);
-            a.accessKey(marked.binding());
         } else {
             a.name(text, Accessible.NameFrom.CONTENT);
         }
