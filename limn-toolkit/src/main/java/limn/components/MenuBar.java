@@ -146,9 +146,8 @@ public final class MenuBar extends Widget<MenuBar> {
         }
 
         /**
-         * How the letter's chord is said to a reader, "Alt+F", or {@code null}: only where it can
-         * be said. A code outside printable ASCII is "Key1060" to Accelerator, which is unreadable,
-         * so a Cyrillic letter is withheld rather than published as a lie.
+         * How the letter's chord is said to a reader, "Alt+F" or "Alt+Ф", or {@code null} where
+         * there is none: see {@link AccessLetters#binding}.
          */
         String binding() {
             char letter = mnemonic();
