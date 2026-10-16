@@ -4,12 +4,13 @@
 // a backend implements, namely audio (limn.sound), video (limn.video) and the window and
 // renderer contracts (limn.backend).
 //
-// It depends on NOTHING that runs, and that is the boundary the whole stack rests on: no
-// LWJGL, no AWT, no third-party code. A dependency added here is a dependency every
-// application carries. The one exception is JSpecify, whose four annotations say where the
-// public API takes or answers null: no class of it is loaded at run time, and module-info
-// requires it `static`, so a modular application that leaves it off its path starts all the
-// same.
+// It depends on almost nothing that runs, and that is the boundary the whole stack rests on:
+// no LWJGL, no AWT, no native code. A dependency added here is a dependency every application
+// carries. There are two exceptions. JSpecify, whose four annotations say where the public API
+// takes or answers null: no class of it is loaded at run time, and module-info requires it
+// `static`, so a modular application that leaves it off its path starts all the same. And the
+// WebP decoder, org.glavo:webp, Java and Apache-2.0, which is a real run-time dependency:
+// module-info requires it, so a modular application that leaves it off its path does not start.
 
 plugins {
     `java-library`

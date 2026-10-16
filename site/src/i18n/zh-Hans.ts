@@ -229,7 +229,7 @@ export const zhHans: Catalog = {
     "Apache License 2.0，含明确的专利授权。商业使用、修改与再分发均获允许。",
   "licence.core.heading": "工具包本身",
   "licence.core.body":
-    "<code>limn-toolkit</code> 除 JDK 外没有任何依赖，所以对它而言，Apache-2.0 就是全部。渲染后端会引入 LWJGL，它采用 BSD-3-Clause。",
+    "<code>limn-toolkit</code> 除 JDK 外只依赖一个库：用 Java 编写的 WebP 解码器（<code>org.glavo:webp</code>），它同样采用 Apache-2.0，所以对它而言，Apache-2.0 就是全部。渲染后端会引入采用 BSD-3-Clause 的 LWJGL，以及 SVG 渲染器 lunasvg 和它用来绘制的 plutovg，两者均采用 MIT。",
   "licence.fonts.heading": "字体",
   "licence.fonts.body":
     "Roboto 与 Noto 回退字体以 SIL Open Font License 分发。每个随附组件及其许可都列在项目的 NOTICE 文件中。",

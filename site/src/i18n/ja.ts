@@ -230,7 +230,7 @@ export const ja: Catalog = {
     "Apache License 2.0。明示的な特許許諾を含みます。商用利用も改変も再配布も、すべて認められています。",
   "licence.core.heading": "ツールキット本体",
   "licence.core.body":
-    "<code>limn-toolkit</code> は JDK 以外に依存がないので、これについては Apache-2.0 がすべてです。描画バックエンドは BSD-3-Clause の LWJGL を追加します。",
+    "<code>limn-toolkit</code> が JDK 以外に依存するのは、Java で書かれた WebP デコーダ（<code>org.glavo:webp</code>）ひとつだけで、これも Apache-2.0 なので、これについては Apache-2.0 がすべてです。描画バックエンドは BSD-3-Clause の LWJGL と、SVG レンダラーの lunasvg およびそれが描画に使う plutovg（どちらも MIT）を追加します。",
   "licence.fonts.heading": "フォント",
   "licence.fonts.body":
     "Roboto と Noto のフォールバックフォントは SIL Open Font License で配布されています。同梱コンポーネントはすべて、ライセンスとともにプロジェクトの NOTICE ファイルに記載しています。",

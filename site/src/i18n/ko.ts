@@ -231,7 +231,7 @@ export const ko: Catalog = {
     "Apache License 2.0이며 명시적 특허 허여를 포함합니다. 상업적 이용, 수정, 재배포가 모두 허용됩니다.",
   "licence.core.heading": "툴킷 자체",
   "licence.core.body":
-    "<code>limn-toolkit</code>은 JDK 외에 의존성이 없으므로, 이에 대해서는 Apache-2.0이 전부입니다. 렌더링 백엔드는 BSD-3-Clause인 LWJGL을 더합니다.",
+    "<code>limn-toolkit</code>이 JDK 외에 의존하는 것은 Java로 작성된 WebP 디코더(<code>org.glavo:webp</code>) 하나뿐이고 이것도 Apache-2.0이므로, 이에 대해서는 Apache-2.0이 전부입니다. 렌더링 백엔드는 BSD-3-Clause인 LWJGL과, SVG 렌더러 lunasvg 및 그것이 그리는 데 쓰는 plutovg(둘 다 MIT)를 더합니다.",
   "licence.fonts.heading": "글꼴",
   "licence.fonts.body":
     "Roboto와 Noto 대체 글꼴은 SIL Open Font License로 배포됩니다. 함께 배포되는 구성 요소는 모두 라이선스와 함께 프로젝트의 NOTICE 파일에 적혀 있습니다.",

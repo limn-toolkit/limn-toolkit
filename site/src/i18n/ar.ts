@@ -231,7 +231,7 @@ export const ar: Catalog = {
     "رخصة Apache License 2.0، بما فيها منح صريح لبراءات الاختراع. الاستخدام التجاري والتعديل وإعادة التوزيع كلها مسموح بها.",
   "licence.core.heading": "الطقم نفسه",
   "licence.core.body":
-    "<code>limn-toolkit</code> لا اعتماديات له خارج JDK، فرخصة Apache-2.0 هي القصة كلها بالنسبة له. خلفية الرسم تضيف LWJGL، وهي برخصة BSD-3-Clause.",
+    "<code>limn-toolkit</code> لا يعتمد خارج JDK إلا على مكتبة واحدة، مفكّك لصور WebP مكتوب بلغة Java (<code>org.glavo:webp</code>)، وهو أيضًا برخصة Apache-2.0، فرخصة Apache-2.0 هي القصة كلها بالنسبة له. خلفية الرسم تضيف LWJGL، وهي برخصة BSD-3-Clause، ومُصيِّر SVG المسمّى lunasvg مع plutovg الذي يرسم به، وكلاهما برخصة MIT.",
   "licence.fonts.heading": "الخطوط",
   "licence.fonts.body":
     "يُشحن Roboto وأوجه Noto الاحتياطية برخصة SIL Open Font License. كل مكوّن مضمّن مذكور مع رخصته في ملف NOTICE الخاص بالمشروع.",
