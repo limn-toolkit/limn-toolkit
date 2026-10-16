@@ -47,6 +47,21 @@ final class Outbound {
      */
     static final int TAIL_BOUND = SIGNAL_BOUND * 16;
 
+    /**
+     * How many ordinary signals one publish may keep back while it is held, counted apart from
+     * {@link #SIGNAL_BOUND}.
+     *
+     * <p>A held signal is not in the writer's backlog, and counting it there made the backlog's
+     * bound a cap on each publish: a form of seventy fields turned editable at once is 140 state
+     * changes, each a signal and a cache item, and everything past the 256th was refused however
+     * fast the reader drained (44 of 300 in a probe). A publish is at most the model's event
+     * budget before it collapses into one re-announcement, and one event is a few signals (the
+     * change, a cache item, a children-changed beside an arrival), so four signals for each event
+     * of the budget holds a whole publish. It is still a bound, so a publish that runs away is
+     * not a leak.
+     */
+    static final int HELD_BOUND = limn.accessibility.Accessibility.EVENT_BUDGET * 4;
+
     /** What an entry is, which decides the slot it holds while it waits. */
     enum Kind {
         /** Owed to a caller; never refused. */
@@ -68,6 +83,8 @@ final class Outbound {
     private boolean holding;
     /** The signals kept back, in the order they were accepted. */
     private final List<Entry> held = new ArrayList<>();
+    /** How many of {@link #held} are ordinary signals, which {@link #HELD_BOUND} bounds. */
+    private int heldSignals;
 
     private record Entry(byte[] bytes, Kind kind) {
     }
@@ -93,10 +110,17 @@ final class Outbound {
         }
     }
 
-    /** Hands every signal kept back since {@link #hold()} to the writer, in order, and stops. */
+    /**
+     * Hands every signal kept back since {@link #hold()} to the writer, in order, and stops. The
+     * ordinary ones join the writer's backlog, which may then stand past {@link #SIGNAL_BOUND}
+     * for as long as the writer takes to drain them: they were accepted, and the next offer is
+     * refused until it has.
+     */
     void release() {
         synchronized (holdLock) {
             holding = false;
+            queuedSignals.addAndGet(heldSignals);
+            heldSignals = 0;
             queue.addAll(held);
             held.clear();
         }
@@ -139,19 +163,30 @@ final class Outbound {
     }
 
     /**
-     * Queues a signal if the backlog is under {@link #SIGNAL_BOUND}.
+     * Queues a signal if the writer's backlog is under {@link #SIGNAL_BOUND}, and, while held,
+     * if the publish has kept back fewer than {@link #HELD_BOUND}. A reader that keeps up leaves
+     * the backlog empty and hears a whole publish; one that has stopped reading leaves it full,
+     * and the signals of the next publishes are refused at the door as before.
      *
      * @param bytes the marshalled message
      * @return whether it was accepted; a refusal is counted and nothing else happens
      */
     boolean offerSignal(byte[] bytes) {
-        if (queuedSignals.get() >= SIGNAL_BOUND) {
-            dropped.incrementAndGet();
-            return false;
+        synchronized (holdLock) {
+            if (queuedSignals.get() >= SIGNAL_BOUND || holding && heldSignals >= HELD_BOUND) {
+                dropped.incrementAndGet();
+                return false;
+            }
+            Entry entry = new Entry(bytes, Kind.SIGNAL);
+            if (holding) {
+                heldSignals++; // in the writer's backlog only once released
+                held.add(entry);
+            } else {
+                queuedSignals.incrementAndGet();
+                queue.add(entry);
+            }
+            return true;
         }
-        queuedSignals.incrementAndGet();
-        enqueueSignal(new Entry(bytes, Kind.SIGNAL));
-        return true;
     }
 
     /**

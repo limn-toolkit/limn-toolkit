@@ -139,4 +139,58 @@ class OutboundTest {
         out.offerSignal(message(4));
         assertEquals(4, out.take()[0], "and after the release nothing is kept back");
     }
+
+    /**
+     * A held publish is not capped by the writer's backlog bound: its signals are not in that
+     * backlog until the release. Counted there, a form of seventy fields made editable in one
+     * publish lost everything past the 256th signal however fast the reader drained (300 offered,
+     * 44 refused).
+     */
+    @Test
+    void aHeldPublishLargerThanTheBacklogBoundIsAcceptedWhole() throws Exception {
+        Outbound out = new Outbound();
+        out.hold();
+        int offered = Outbound.SIGNAL_BOUND + 44;
+        for (int i = 0; i < offered; i++) {
+            assertTrue(out.offerSignal(message(i)), "held signal " + i);
+        }
+        assertEquals(0, out.dropped());
+        out.release();
+        for (int i = 0; i < offered; i++) {
+            assertEquals((byte) i, out.take()[0], "in the order offered");
+            out.written();
+        }
+        assertEquals(0, out.size());
+        assertTrue(out.offerSignal(message(0)), "and every slot came back as the writer drained");
+    }
+
+    /** One held publish has a ceiling of its own, so a publish that runs away is not a leak. */
+    @Test
+    void aHeldPublishHasABoundOfItsOwn() {
+        Outbound out = new Outbound();
+        out.hold();
+        for (int i = 0; i < Outbound.HELD_BOUND; i++) {
+            assertTrue(out.offerSignal(message(i)), "under the held bound, " + i);
+        }
+        assertFalse(out.offerSignal(message(0)), "past it, refused");
+        assertEquals(1, out.dropped());
+    }
+
+    /**
+     * A reader that has stopped reading still costs the next publishes their signals: the writer's
+     * backlog, full, refuses them at the door though they would only be held.
+     */
+    @Test
+    void aFullBacklogRefusesAHeldPublishToo() {
+        Outbound out = new Outbound();
+        out.hold();
+        for (int i = 0; i < Outbound.SIGNAL_BOUND; i++) {
+            out.offerSignal(message(i));
+        }
+        out.release(); // nobody writes: the backlog stands full
+        out.hold();
+        assertFalse(out.offerSignal(message(0)), "the stalled reader's backlog is full");
+        assertEquals(1, out.dropped());
+        assertEquals(Outbound.SIGNAL_BOUND, out.size(), "and the queue did not grow");
+    }
 }
