@@ -57,7 +57,8 @@ Markdown.
 ## 4. A slider of two thumbs
 
 - **`RangeSlider`, a class of its own,** as the owner chose: a lower and an upper value over the
-  same track, steps and marks as `Slider` has, the span between the thumbs filled.
+  same track, steps as `Slider` has, the span between the thumbs filled. (Corrected 2026-10-16:
+  this said "steps and marks"; neither slider has marks.)
 - **A thumb stops at the other,** or at a minimum distance the application sets (at least a day
   between a start and an end). A click on the track moves the nearer thumb. Each thumb is a control
   of its own for the keyboard and for the reader, named for what it is, the lower or the upper.
