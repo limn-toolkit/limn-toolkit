@@ -91,7 +91,73 @@ public final class MenuBar extends Widget<MenuBar> {
      *                 walked on every damaged frame. The mnemonic is final for the entry's life,
      *                 so this needs no witness of its own.
      */
-    private record Entry(limn.i18n.I18nString title, Menu menu, char mnemonic, String binding) {
+    private static final class Entry {
+        private final limn.i18n.I18nString title;
+        private final Menu menu;
+        private final char given;
+        private String markedFrom;
+        private AccessLetters.Parsed marked;
+        private char boundLetter;
+        private String binding;
+        /** Changes whenever {@link #text()} does: what the accessible name is diffed by. */
+        private long witness;
+
+        Entry(limn.i18n.I18nString title, Menu menu, char given) {
+            this.title = title;
+            this.menu = menu;
+            this.given = given;
+        }
+
+        Menu menu() {
+            return menu;
+        }
+
+        /** The title read for its {@code &} mark, again only when the language changed it. */
+        private AccessLetters.Parsed marked() {
+            String raw = title.get();
+            if (!raw.equals(markedFrom)) {
+                markedFrom = raw;
+                marked = AccessLetters.parse(raw);
+                witness++;
+            }
+            return marked;
+        }
+
+        /** The title as shown: the mark taken out. */
+        String text() {
+            return marked().text();
+        }
+
+        long witness() {
+            marked();
+            return witness;
+        }
+
+        /** The access letter: the title's mark, else the letter addMenu was given; 0 for none. */
+        char mnemonic() {
+            char letter = marked().letter();
+            return letter != 0 ? letter : given;
+        }
+
+        /** Where the letter is in {@link #text()}, or -1. */
+        int mnemonicIndex() {
+            AccessLetters.Parsed parsed = marked();
+            return parsed.index() >= 0 ? parsed.index() : MenuInk.mnemonicIndex(parsed.text(), given);
+        }
+
+        /**
+         * How the letter's chord is said to a reader, "Alt+F", or {@code null}: only where it can
+         * be said. A code outside printable ASCII is "Key1060" to Accelerator, which is unreadable,
+         * so a Cyrillic letter is withheld rather than published as a lie.
+         */
+        String binding() {
+            char letter = mnemonic();
+            if (letter != boundLetter) {
+                boundLetter = letter;
+                binding = AccessLetters.binding(letter);
+            }
+            return binding;
+        }
     }
 
     private final List<Entry> entries = new ArrayList<>();
@@ -190,18 +256,7 @@ public final class MenuBar extends Widget<MenuBar> {
         // check above has already refused everything else, so the uppercased letter is a legal
         // accelerator key and the validator below it cannot reject one.
         entries.add(new Entry(Objects.requireNonNull(title, "title"),
-                Objects.requireNonNull(menu, "menu"),
-                letter,
-                // Only where the chord can be SAID. addMenu takes "a letter or a digit" through
-                // Character.isLetterOrDigit, which admits every script, and Accelerator names a
-                // code outside printable ASCII as "Key<code>": a Cyrillic mnemonic published
-                // Alt+Key1060 to a reader, which is unreadable and also a chord that can never
-                // fire, since nothing produces that code and both key routes compare against
-                // Keys constants. A binding withheld is an absence; one like that is a lie with
-                // a keystroke attached. The underline the ink draws promises the same dead chord
-                // and is addMenu's own bug, older than this and not fixed here.
-                letter > 32 && letter < 127
-                        ? new Accelerator(letter, Keys.MOD_ALT).display() : null));
+                Objects.requireNonNull(menu, "menu"), letter));
         markNeedsLayout();
         systemBarChanged();
         return this;
@@ -340,7 +395,7 @@ public final class MenuBar extends Widget<MenuBar> {
             Ui.checkUiThread();
             List<SystemBarReader.Source> sources = new ArrayList<>(entries.size());
             for (Entry entry : entries) {
-                sources.add(new SystemBarReader.Source(entry.title().get(), entry.menu()));
+                sources.add(new SystemBarReader.Source(entry.text(), entry.menu()));
             }
             systemReading = SystemBarReader.read(sources, windowMenu, helpMenu, isRightToLeft());
             if (systemReading.roleGivenTwice() && !saidRoleTwice) {
@@ -493,7 +548,7 @@ public final class MenuBar extends Widget<MenuBar> {
         }
         for (int i = 0; i < entries.size(); i++) {
             titleWidths[i] = Math.max(Strokes.MIN_HIT_TARGET,
-                    titleTextWidth(entries.get(i).title().get(), t) + 2 * t.menuBarPadH());
+                    titleTextWidth(entries.get(i).text(), t) + 2 * t.menuBarPadH());
         }
         widthsTokens = t;
         widthsRulerEpoch = rulerEpoch;
@@ -609,7 +664,7 @@ public final class MenuBar extends Widget<MenuBar> {
             // places a run's LEFT edge in either direction, so a mirrored title finds that edge
             // from its own measured width — through the same call its box was sized with, or it
             // would sit a fraction of a point out of its pad.
-            String title = entries.get(i).title().get();
+            String title = entries.get(i).text();
             // Shaped once and used three times over: the origin a mirrored title is placed from,
             // the ink, and the cluster the mnemonic rule marks. The box above was sized from this
             // same shaping, through titleTextWidth.
@@ -622,9 +677,10 @@ public final class MenuBar extends Widget<MenuBar> {
             // The rule takes its edges off the painted line's own shaping and copes with a
             // right-to-left run itself: the mirrored left edge is the whole of what it needs, and
             // it is handed the very line just drawn rather than a second shaping of the string.
-            MenuInk.underlineMnemonic(canvas, line,
-                    MenuInk.mnemonicIndex(title, entries.get(i).mnemonic()),
-                    textX, baseline, ink);
+            if (lettersShown()) {
+                MenuInk.underlineMnemonic(canvas, line, entries.get(i).mnemonicIndex(),
+                        textX, baseline, ink);
+            }
             cursor += w;
         }
     }
@@ -721,7 +777,8 @@ public final class MenuBar extends Widget<MenuBar> {
                 // A bare access letter while the bar is focused, the other half of Alt+letter.
                 // Modifier-carrying presses are left alone: Alt+letter is the scene hook's, and
                 // a Ctrl chord belongs to an accelerator.
-                int index = event.modifiers() == 0 ? titleForMnemonic(event.key()) : -1;
+                int index = event.modifiers() == 0
+                        ? titleForMnemonic(event.key(), event.layoutCodePoint()) : -1;
                 if (index < 0) {
                     return;
                 }
@@ -731,14 +788,26 @@ public final class MenuBar extends Widget<MenuBar> {
         event.consume();
     }
 
-    /** @return the index of the top-level menu whose access letter is {@code key}, or −1. */
-    private int titleForMnemonic(int key) {
+    /**
+     * @return the index of the top-level menu whose access letter is {@code key}, the key printed
+     *         with it, or {@code codePoint}, what the layout types with it; −1 for none
+     */
+    private int titleForMnemonic(int key, int codePoint) {
         for (int i = 0; i < entries.size(); i++) {
-            if (entries.get(i).mnemonic() != 0 && entries.get(i).mnemonic() == key) {
+            if (AccessLetters.matches(entries.get(i).mnemonic(), key, codePoint)) {
                 return i;
             }
         }
         return -1;
+    }
+
+    /**
+     * Whether the titles' letters are drawn: while Alt is held, and while the bar has the keyboard
+     * (Alt or F10 brought it there). Never on macOS, which has no access letters.
+     */
+    private boolean lettersShown() {
+        return AccessLetters.onThisSystem()
+                && (limn.scene.internal.SceneAccess.accessLettersShown(scene()) || isFocused());
     }
 
     // --------------------------------------------------------- scene shortcuts
@@ -838,7 +907,7 @@ public final class MenuBar extends Widget<MenuBar> {
         // layout's letter (Alt+F is the key printed F), while Alt and F10 above are the keys.
         int shortcut = event.shortcutKey();
         if (mods == Keys.MOD_ALT) {
-            int index = titleForMnemonic(shortcut);
+            int index = titleForMnemonic(shortcut, event.layoutCodePoint());
             if (index >= 0) {
                 openMenu(index);
                 return true;
@@ -964,6 +1033,9 @@ public final class MenuBar extends Widget<MenuBar> {
         float sceneY = localToSceneY();
         PopupMenu popup = new PopupMenu(entries.get(index).menu());
         popup.setDisplayMode(displayMode);
+        if (lettersShown()) {
+            popup.openedFromKeyboard(); // Alt+letter, or Down on the bar Alt or F10 focused
+        }
         popupClosed = popup.observeClose(() -> {
             // The dropdown went away on its own: dismissed, or an item chosen. Both are the
             // user's, and both flip this bar's expanded state, which is what it announces.
@@ -1124,7 +1196,7 @@ public final class MenuBar extends Widget<MenuBar> {
             // The string the bar holds, never the string it reads as: the difference compares a
             // reference, a language and a translation epoch, and get() would allocate per title
             // per frame.
-            a.name(entry.title(), Accessible.NameFrom.CONTENT);
+            a.name(entry.text(), entry.witness(), Accessible.NameFrom.CONTENT);
             // A title by the rules of the MENU shape (MenuAccessibility.describeRow, ADR 045 §3;
             // decision 98). Selection and cursor are one thing here, so the current title is
             // both, and `current` is already gated on the keyboard: the bar is the focused node,

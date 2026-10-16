@@ -201,6 +201,8 @@ public final class PopupMenu {
      * leaves nothing for the end of its fade to do; see {@link #runChosen}.
      */
     private boolean keyboardHandedBack;
+    /** Opened from the keyboard, which is when a menu draws its access letters from the start. */
+    private boolean lettersFromKeyboard;
     /**
      * Keys a menu bar's walk passed on to this menu before its window was made, delivered in order
      * once it is; see {@link #keyFromWalk}. Null while there are none.
@@ -1085,7 +1087,23 @@ public final class PopupMenu {
      * "first baseline" (the first row of a column that may have been flipped above the anchor
      * and scrolled) is not a meaningful alignment reference for anything.
      */
+    /**
+     * Says this menu was opened from the keyboard (Alt+letter, the Menu key, Down on a focused
+     * bar), so it draws its access letters from the start, as a keyboard-opened menu does on
+     * Windows and Linux; opened with the pointer, they show while Alt is held.
+     */
+    void openedFromKeyboard() {
+        lettersFromKeyboard = true;
+    }
+
     private final class MenuSurface extends Widget<MenuSurface> {
+
+        /** Whether the rows' access letters are drawn; never on macOS. */
+        private boolean lettersShown() {
+            return AccessLetters.onThisSystem()
+                    && (lettersFromKeyboard || limn.scene.internal.SceneAccess.accessLettersShown(scene()));
+        }
+
 
         private final TextRuler ruler;
         private final List<Column> cols = new ArrayList<>();
@@ -1379,8 +1397,10 @@ public final class PopupMenu {
                 // The rule takes both its edges off the line's own shaping and copes with a
                 // right-to-left run itself, so the mirrored left edge is all it needs -- and it is
                 // handed the very line just drawn, so it cannot mark a different shaping of it.
-                MenuInk.underlineMnemonic(canvas, label, item.mnemonicIndex(),
-                        labelX, baseline, ink);
+                if (lettersShown()) {
+                    MenuInk.underlineMnemonic(canvas, label, item.mnemonicIndex(),
+                            labelX, baseline, ink);
+                }
                 // The hint is aligned against the SAME trailing margin the submenu arrow uses,
                 // so the two kinds of row end at one edge, and an item can carry only one of
                 // them, so they can never collide inside a row. Only the placement mirrors: the
@@ -1825,10 +1845,18 @@ public final class PopupMenu {
                 event.consume();
                 return;
             }
-            if (event.isPressed() && handleKey(event.shortcutKey(), event.modifiers())) {
-                event.consume();
+            typed = event.layoutCodePoint(); // a letter is also matched as the layout types it
+            try {
+                if (event.isPressed() && handleKey(event.shortcutKey(), event.modifiers())) {
+                    event.consume();
+                }
+            } finally {
+                typed = -1;
             }
         }
+
+        /** What the layout types with the key being handled, or -1; see handleMnemonic. */
+        private int typed = -1;
 
         @Override
         protected void onCharTyped(CharEvent event) {
@@ -1999,7 +2027,7 @@ public final class PopupMenu {
             int next = -1;
             int count = 0;
             for (int i = 0; i < items.size(); i++) {
-                if (!items.get(i).matchesMnemonic(key)) {
+                if (!items.get(i).matchesMnemonic(key, typed)) {
                     continue;
                 }
                 count++;

@@ -66,7 +66,7 @@ import java.util.Objects;
  * the right edge in the other, and the glyph inside it turns around only when the call that
  * placed it said it should &mdash; see {@link limn.graphics.Icon.Mirroring}.
  */
-public final class Label extends Widget<Label> {
+public final class Label extends Widget<Label> implements limn.scene.internal.AccessLetterOwner {
 
     public enum Overflow { CLIP, ELLIPSIS }
 
@@ -136,6 +136,24 @@ public final class Label extends Widget<Label> {
     // follows it shape the paragraph once between them. Refreshed through ShapedText.matches,
     // whose identity fast path on the string costs nothing here because I18nString memoizes it.
     private ShapedText paragraph;
+    /** The text read for an access letter, as a label that names a control reads it. */
+    private final AccessLetters.Held marked = new AccessLetters.Held();
+    /** The text as written, for a label that names nothing: an ampersand is an ampersand. */
+    private final Unmarked unmarked = new Unmarked();
+
+    /** {@link AccessLetters.Parsed} of a text with no mark read, memoized like the marked one. */
+    private static final class Unmarked {
+        private String from;
+        private AccessLetters.Parsed parsed = AccessLetters.Parsed.EMPTY;
+
+        AccessLetters.Parsed of(String raw) {
+            if (!raw.equals(from)) {
+                from = raw;
+                parsed = new AccessLetters.Parsed(raw, -1, (char) 0);
+            }
+            return parsed;
+        }
+    }
 
     // computed at layout. Shaped, not String: alignment reads metrics().width() off the value it
     // is about to draw instead of re-measuring it per line per frame, and a wrapped line's width
@@ -160,9 +178,37 @@ public final class Label extends Widget<Label> {
         this.text = Objects.requireNonNull(text, "text");
     }
 
-    /** The text as it currently reads; see {@link #textSource()} for the key behind it. */
+    /**
+     * The text as it currently reads; see {@link #textSource()} for the key behind it. A label that
+     * names a control ({@link #setLabelFor}) reads its access letter's {@code &} mark out of it:
+     * "&amp;Name" reads "Name". Any other label shows its text as written, an ampersand included.
+     */
     public String text() {
-        return text.get();
+        return shown().text();
+    }
+
+    /** The text read for its access letter where it names a control, and as written otherwise. */
+    private AccessLetters.Parsed shown() {
+        String raw = text.get();
+        return labelFor != null ? marked.of(raw) : unmarked.of(raw);
+    }
+
+    /** Alt and the letter bring the keyboard to the control this label names. */
+    @Override
+    public char accessLetter() {
+        return labelFor == null || !labelFor.isEnabled() ? 0 : shown().letter();
+    }
+
+    @Override
+    public @Nullable Widget<?> accessLetterFocus() {
+        return labelFor;
+    }
+
+    @Override
+    public void accessLetterPressed() {
+        if (labelFor != null) {
+            labelFor.requestFocus();
+        }
     }
 
     /** The localizable value this label holds, which a language change re-resolves. */
@@ -194,9 +240,15 @@ public final class Label extends Widget<Label> {
         if (labelFor != null) {
             labelFor.setAccessibleLabelledBy(null);
         }
+        boolean marks = (labelFor != null) != (target != null);
         labelFor = target;
         if (target != null) {
             target.setAccessibleLabelledBy(this);
+        }
+        if (marks) {
+            // Whether the text is read for a mark changed, and so may what it shows.
+            markNeedsLayoutInPlace();
+            notifyChange(Change.of(Change.Aspect.NAME, Change.Origin.CODE));
         }
         return this;
     }
@@ -269,7 +321,13 @@ public final class Label extends Widget<Label> {
     @Override
     protected void onAccessibility(Accessibility a) {
         a.role(role == Role.TITLE ? Accessible.Role.HEADING : Accessible.Role.LABEL);
-        a.name(text, Accessible.NameFrom.CONTENT);
+        if (labelFor != null) {
+            // The text as shown, its access letter's mark taken out, and the letter's chord.
+            a.name(shown().text(), marked.witness(), Accessible.NameFrom.CONTENT);
+            a.keyBinding(marked.binding());
+        } else {
+            a.name(text, Accessible.NameFrom.CONTENT);
+        }
         if (labelFor != null) {
             a.relation(Accessible.Relation.LABEL_FOR, labelFor);
         }
@@ -343,7 +401,7 @@ public final class Label extends Widget<Label> {
      * direction, or the check passes for a value the shape call would not have produced.
      */
     private ShapedText paragraph(TextRuler ruler, Font f) {
-        String value = text.get();
+        String value = shown().text();
         ShapedText.Direction base = ShapedText.Direction.of(value, neutralBase());
         if (paragraph == null || !paragraph.matches(value, f, base, ruler)) {
             paragraph = ruler.shape(value, f, base);
@@ -695,6 +753,12 @@ public final class Label extends Widget<Label> {
         // same number in both directions and only the edge it is measured from moved.
         float textWidth = Math.max(0, width() - iconSpace);
         float baseline = top + metrics.ascent();
+        // The access letter's line and place in it: the lines are the shown text in order, wrapped
+        // or not, so each is found after the one before. An ellipsized line is not found, and a
+        // letter cut off is not marked.
+        AccessLetters.Parsed shown = shown();
+        int letterAt = AccessLetters.shownIn(this) ? shown.index() : -1;
+        int searchFrom = 0;
         for (int i = 0; i < lines.size(); i++) {
             ShapedText line = lines.get(i);
             // The one place a paint may shape. A line held since the last layout can outlive the
@@ -726,6 +790,15 @@ public final class Label extends Widget<Label> {
                 case RIGHT -> textWidth - line.metrics().width();
             };
             canvas.drawText(line, x, baseline, ink);
+            if (letterAt >= 0) {
+                int at = shown.text().indexOf(line.text(), searchFrom);
+                if (at >= 0) {
+                    searchFrom = at + line.text().length();
+                    if (letterAt >= at && letterAt < searchFrom) {
+                        MenuInk.underlineMnemonic(canvas, line, letterAt - at, x, baseline, ink);
+                    }
+                }
+            }
             baseline += lineHeight;
         }
         canvas.restore();

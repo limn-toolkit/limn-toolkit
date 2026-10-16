@@ -81,15 +81,21 @@ final class ShowcaseStrings {
     static final I18nString THEME_SYSTEM =
             new I18nString("showcase.theme.system", "System");
     static final I18nString MENU_GO =
-            new I18nString("showcase.menu.go", "Go");
+            new I18nString("showcase.menu.go", "&Go");
     static final I18nString MENU_HELP =
-            new I18nString("showcase.menu.help", "Help");
+            new I18nString("showcase.menu.help", "&Help");
+    /** The performance strip's name, the menu's words without their access letter. */
+    static final I18nString PERFORMANCE_STRIP =
+            new I18nString("showcase.performance.strip", "Performance");
+    /** The new order dialog's title, the menu's words without their access letter. */
+    static final I18nString NEW_ORDER_TITLE =
+            new I18nString("showcase.orders.newOrderTitle", "New order");
     static final I18nString MENU_PERFORMANCE =
-            new I18nString("showcase.menu.performance", "Performance");
+            new I18nString("showcase.menu.performance", "&Performance");
     static final I18nString MENU_DOCUMENTATION =
-            new I18nString("showcase.menu.documentation", "Documentation");
+            new I18nString("showcase.menu.documentation", "&Documentation");
     static final I18nString MENU_NEW_ORDER =
-            new I18nString("showcase.menu.newOrder", "New order");
+            new I18nString("showcase.menu.newOrder", "&New order");
     static final I18nString ORDERS_ORDER =
             new I18nString("showcase.orders.order", "Order");
     static final I18nString ORDERS_CUSTOMER =
@@ -133,7 +139,7 @@ final class ShowcaseStrings {
     static final I18nString ORDERS_CREATE =
             new I18nString("showcase.orders.create", "Create");
     static final I18nString ORDERS_REFRESH =
-            new I18nString("showcase.orders.refresh", "Refresh");
+            new I18nString("showcase.orders.refresh", "&Refresh");
     static final I18nString STATUS_READY =
             new I18nString("showcase.status.ready", "Ready.");
     static final I18nString STATUS_LOADING =
@@ -151,11 +157,11 @@ final class ShowcaseStrings {
     static final I18nString TAB_FILES =
             new I18nString("showcase.tab.files", "Files");
     static final I18nString TAB_ABOUT =
-            new I18nString("showcase.tab.about", "About");
+            new I18nString("showcase.tab.about", "&About");
     static final I18nString RENDER_PARTIAL =
-            new I18nString("showcase.render.partial", "Partial rendering");
+            new I18nString("showcase.render.partial", "Partial &rendering");
     static final I18nString RENDER_DAMAGE =
-            new I18nString("showcase.render.damage", "Damage debug");
+            new I18nString("showcase.render.damage", "&Damage debug");
     static final I18nString ACTION_CANCEL =
             new I18nString("showcase.action.cancel", "Cancel");
     static final I18nString ACTION_OK =
@@ -169,17 +175,17 @@ final class ShowcaseStrings {
     static final I18nString STATUS_FULLSCREEN_AT =
             new I18nString("showcase.status.fullscreenAt", "Exclusive fullscreen {0}×{1}");
     static final I18nString MENU_FILE =
-            new I18nString("showcase.menu.file", "File");
+            new I18nString("showcase.menu.file", "&File");
     static final I18nString MENU_EDIT =
-            new I18nString("showcase.menu.edit", "Edit");
+            new I18nString("showcase.menu.edit", "&Edit");
     static final I18nString MENU_FULLSCREEN =
-            new I18nString("showcase.menu.fullscreen", "Fullscreen");
+            new I18nString("showcase.menu.fullscreen", "&Fullscreen");
     static final I18nString MENU_CURRENT_RESOLUTION =
-            new I18nString("showcase.menu.currentResolution", "Current resolution");
+            new I18nString("showcase.menu.currentResolution", "&Current resolution");
     static final I18nString MENU_QUIT =
-            new I18nString("showcase.menu.quit", "Quit");
+            new I18nString("showcase.menu.quit", "&Quit");
     static final I18nString MENU_VIEW =
-            new I18nString("showcase.menu.view", "View");
+            new I18nString("showcase.menu.view", "&View");
     static final I18nString MENU_COPY =
             new I18nString("showcase.menu.copy", "Copy");
     static final I18nString MENU_PASTE =

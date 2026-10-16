@@ -56,6 +56,15 @@ final class Page {
         status = line;
     }
 
+    /**
+     * {@code text} as words, its access letter's mark taken out ("&amp;Open" is "Open"): for a
+     * string a menu or a button shows with its letter, written into a sentence of the status line.
+     */
+    static String plain(I18nString text) {
+        return text.get().replace("&&", "\u0000").replaceAll("&(?=[\\p{L}\\p{N}])", "")
+                .replace("\u0000", "&");
+    }
+
     /** Says in the window's status line what a control did. */
     static void report(String text) {
         if (status != null) {

@@ -46,9 +46,11 @@ import java.util.Objects;
  * drawn inside that square turns around as well is the caller's to say &mdash; see
  * {@link Icon.Mirroring}.
  */
-public final class Button extends Widget<Button> {
+public final class Button extends Widget<Button> implements limn.scene.internal.AccessLetterOwner {
 
     private I18nString text;
+    /** The caption read for its access letter: "&amp;Save" shows "Save", with S as the letter. */
+    private final AccessLetters.Held marked = new AccessLetters.Held();
     private Icon icon;
     // Whether the icon's own glyph turns around when the interface does, which is a different
     // question from which end of the block its square takes. NEVER by default, which is what
@@ -139,7 +141,7 @@ public final class Button extends Widget<Button> {
         if (icon == null) {
             return 0;
         }
-        return t.iconBox() + (text.get().isEmpty() ? 0 : t.gapIcon());
+        return t.iconBox() + (shown().text().isEmpty() ? 0 : t.gapIcon());
     }
 
     /**
@@ -189,9 +191,33 @@ public final class Button extends Widget<Button> {
         return pressAccepted == null || pressAccepted.getAsBoolean();
     }
 
-    /** The caption as it currently reads; see {@link #textSource()} for the key behind it. */
+    /**
+     * The caption as it currently reads, an access letter's {@code &} mark taken out ("&amp;Save"
+     * reads "Save"); see {@link #textSource()} for the value behind it.
+     */
     public String text() {
-        return text.get();
+        return shown().text();
+    }
+
+    /** The caption in the language in effect, read for its access letter. */
+    private AccessLetters.Parsed shown() {
+        return marked.of(text.get());
+    }
+
+    @Override
+    public char accessLetter() {
+        return shown().letter();
+    }
+
+    @Override
+    public Widget<?> accessLetterFocus() {
+        return this;
+    }
+
+    /** Alt and the letter press the button, as a click does, and leave the keyboard where it is. */
+    @Override
+    public void accessLetterPressed() {
+        LeafActionAccessibility.perform(leafHost, Accessible.Action.PRESS);
     }
 
     /** The localizable value this button holds, which a language change re-resolves. */
@@ -242,7 +268,7 @@ public final class Button extends Widget<Button> {
      * same direction, or the check passes for a value the shape call would not have produced.
      */
     private ShapedText caption(TextRuler ruler, Font f) {
-        String value = text.get();
+        String value = shown().text();
         ShapedText.Direction base = ShapedText.Direction.of(value, neutralBase());
         if (caption == null || !caption.matches(value, f, base, ruler)) {
             caption = ruler.shape(value, f, base);
@@ -356,7 +382,11 @@ public final class Button extends Widget<Button> {
         // from the block's own left edge reading right to left, where the gutter is at the far
         // end. With no icon the advance is zero and the two arms are the same number.
         float textX = rtl ? blockX : blockX + advance;
-        canvas.drawText(line, textX, (height() - metrics.height()) / 2 + metrics.ascent(), ink);
+        float baseline = (height() - metrics.height()) / 2 + metrics.ascent();
+        canvas.drawText(line, textX, baseline, ink);
+        if (AccessLetters.shownIn(this)) {
+            MenuInk.underlineMnemonic(canvas, line, shown().index(), textX, baseline, ink);
+        }
     }
 
     /**
@@ -384,7 +414,11 @@ public final class Button extends Widget<Button> {
     @Override
     protected void onAccessibility(Accessibility a) {
         a.role(Accessible.Role.BUTTON);
-        a.name(text, Accessible.NameFrom.CONTENT);
+        // The caption as shown, its access letter's mark taken out, diffed by the witness that
+        // moves when the shown text does; and the letter's chord, where it can be said.
+        AccessLetters.Parsed caption = shown();
+        a.name(caption.text(), marked.witness(), Accessible.NameFrom.CONTENT);
+        a.keyBinding(marked.binding());
         // The LEAF_ACTION shape, written once (ADR 045 §3): PRESS exactly while accepted.
         LeafActionAccessibility.describe(a, pressAccepted());
     }

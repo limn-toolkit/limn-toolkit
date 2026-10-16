@@ -1,6 +1,6 @@
 # ADR 070: Access letters come from the translated text
 
-- **Status:** Accepted, 2026-10-16. The owner asked for the access letters of menus, buttons and
+- **Status:** Accepted and built, 2026-10-16. The owner asked for the access letters of menus, buttons and
   labels to follow the language. He chose to keep the letter given apart from the text beside
   the mark, the window's controls before the menu bar, and Alt+letter alone.
 - **Date:** 2026-10-16

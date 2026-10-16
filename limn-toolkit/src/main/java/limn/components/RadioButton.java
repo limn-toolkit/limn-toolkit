@@ -55,7 +55,7 @@ import java.util.function.Consumer;
  * reaches 24, which is what {@link Tokens#toggleColumnGap(limn.scene.Widget)} gives. Stack
  * a {@link ButtonGroup}'s radios on that gap, not a tighter one.
  */
-public final class RadioButton extends Widget<RadioButton> {
+public final class RadioButton extends Widget<RadioButton> implements limn.scene.internal.AccessLetterOwner {
 
     /**
      * The ring stroke is centred one point inside the indicator box, leaving its outer
@@ -65,6 +65,8 @@ public final class RadioButton extends Widget<RadioButton> {
     private static final float RING_ALIGN_INSET = 1;
 
     private I18nString text;
+    /** The label read for its access letter: "&amp;Notify" shows "Notify", N being the letter. */
+    private final AccessLetters.Held marked = new AccessLetters.Held();
     private boolean selected;
     private ButtonGroup group; // null = standalone
     private Consumer<Boolean> onChange;
@@ -117,7 +119,29 @@ public final class RadioButton extends Widget<RadioButton> {
      *         accessible tree takes this as the control's name.
      */
     public String text() {
-        return text.get();
+        return shown().text();
+    }
+
+    /** The label in the language in effect, read for its access letter. */
+    private AccessLetters.Parsed shown() {
+        return marked.of(text.get());
+    }
+
+    @Override
+    public char accessLetter() {
+        return shown().letter();
+    }
+
+    @Override
+    public limn.scene.Widget<?> accessLetterFocus() {
+        return this;
+    }
+
+    /** Alt and the letter select this radio and bring the keyboard to it. */
+    @Override
+    public void accessLetterPressed() {
+        select(Change.Origin.USER); // first: a group's unselected radio takes no keyboard
+        requestFocus();
     }
 
     /**
@@ -283,8 +307,8 @@ public final class RadioButton extends Widget<RadioButton> {
     @Override
     protected Size onMeasure(Constraints constraints) {
         SizeTokens t = Theme.of(this).tokensFor(this);
-        TextMetrics metrics = textRuler().measure(text.get(), t.body());
-        float width = t.indicator() + (text.get().isEmpty() ? 0 : t.gapLabel() + metrics.width());
+        TextMetrics metrics = textRuler().measure(shown().text(), t.body());
+        float width = t.indicator() + (shown().text().isEmpty() ? 0 : t.gapLabel() + metrics.width());
         float height = Math.max(t.indicator(), metrics.lineHeight());
         return constraints.constrain(width, height);
     }
@@ -296,11 +320,11 @@ public final class RadioButton extends Widget<RadioButton> {
         // report the same reference as an unlabelled box or a BASELINE row containing both
         // drops one of them by several points. Widget.baselineOffset()'s contract is that a
         // widget with no text aligns on its bottom edge.
-        if (text.get().isEmpty()) {
+        if (shown().text().isEmpty()) {
             return super.baselineOffset();
         }
         SizeTokens t = Theme.of(this).tokensFor(this);
-        TextMetrics metrics = textRuler().measure(text.get(), t.body());
+        TextMetrics metrics = textRuler().measure(shown().text(), t.body());
         return (height() - metrics.height()) / 2 + metrics.ascent();
     }
 
@@ -333,7 +357,7 @@ public final class RadioButton extends Widget<RadioButton> {
             // instead of easing on toward the radius the old step wanted.
             canvas.fillCircle(cx, cy, (ring / 2 - t.indicatorInset()) * p, dot);
         }
-        String label = text.get();
+        String label = shown().text();
         if (!label.isEmpty()) {
             TextMetrics metrics = textRuler().measure(label, t.body());
             Color ink = isEnabled() ? theme.text() : theme.disabledText();
@@ -356,8 +380,11 @@ public final class RadioButton extends Widget<RadioButton> {
             float labelX = rtl
                     ? width() - ring - t.gapLabel() - metrics.width()
                     : ring + t.gapLabel();
-            canvas.drawText(line, labelX,
-                    (height() - metrics.height()) / 2 + metrics.ascent(), ink);
+            float baseline = (height() - metrics.height()) / 2 + metrics.ascent();
+            canvas.drawText(line, labelX, baseline, ink);
+            if (AccessLetters.shownIn(this)) {
+                MenuInk.underlineMnemonic(canvas, line, shown().index(), labelX, baseline, ink);
+            }
         }
         float focus = focusFade.value();
         if (focus > 0.001f) {
@@ -428,7 +455,8 @@ public final class RadioButton extends Widget<RadioButton> {
     @Override
     protected void onAccessibility(Accessibility a) {
         a.role(Accessible.Role.RADIO_BUTTON);
-        a.name(text, Accessible.NameFrom.CONTENT);
+        a.name(shown().text(), marked.witness(), Accessible.NameFrom.CONTENT);
+        a.keyBinding(marked.binding());
         // A containerless member of the ROWS shape (decision 107, 2026-09-22): the group is a
         // ButtonGroup and not a widget, so there is no container node, and the membership and
         // the one verb are the helper's, by the rules every row obeys.

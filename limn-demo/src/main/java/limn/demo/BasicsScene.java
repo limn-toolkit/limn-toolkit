@@ -193,7 +193,7 @@ final class BasicsScene {
             RadioButton radio = new RadioButton(name);
             radio.onChange(on -> {
                 if (on) {
-                    Page.report(Text.CHOSEN.format(Text.TYPE.get(), name.get()));
+                    Page.report(Text.CHOSEN.format(Text.TYPE.get(), Page.plain(name)));
                 }
             });
             type.add(radio);
@@ -278,29 +278,29 @@ final class BasicsScene {
         static final I18nString SEARCHING = new I18nString("showcase.inputs.searching", "Searching for “{0}”");
 
         static final I18nString CUSTOMER = new I18nString("showcase.inputs.customer", "Customer");
-        static final I18nString NAME = new I18nString("showcase.inputs.name", "Name");
+        static final I18nString NAME = new I18nString("showcase.inputs.name", "&Name");
         static final I18nString NUMBER = new I18nString("showcase.inputs.number", "Customer number");
-        static final I18nString EMAIL = new I18nString("showcase.inputs.email", "Billing email");
+        static final I18nString EMAIL = new I18nString("showcase.inputs.email", "Billing e&mail");
         static final I18nString EMAIL_INVALID =
                 new I18nString("showcase.inputs.emailInvalid", "Enter an address like name@example.com.");
-        static final I18nString PHONE = new I18nString("showcase.inputs.phone", "Phone");
+        static final I18nString PHONE = new I18nString("showcase.inputs.phone", "&Phone");
         static final I18nString PHONE_HINT =
                 new I18nString("showcase.inputs.phoneHint", "Include the area code.");
-        static final I18nString USERNAME = new I18nString("showcase.inputs.username", "Portal user name");
+        static final I18nString USERNAME = new I18nString("showcase.inputs.username", "Portal &user name");
         static final I18nString USERNAME_SHORT =
                 new I18nString("showcase.inputs.usernameShort", "Use at least 4 characters.");
-        static final I18nString COUPON = new I18nString("showcase.inputs.coupon", "Discount code");
+        static final I18nString COUPON = new I18nString("showcase.inputs.coupon", "&Discount code");
         static final I18nString APPLY_COUPON = new I18nString("showcase.inputs.applyCoupon", "Apply code");
         static final I18nString COUPON_APPLIED =
                 new I18nString("showcase.inputs.couponApplied", "10% off every order this quarter.");
         static final I18nString COUPON_UNKNOWN =
                 new I18nString("showcase.inputs.couponUnknown", "This code does not exist.");
-        static final I18nString SERIAL = new I18nString("showcase.inputs.serial", "Device serial number");
+        static final I18nString SERIAL = new I18nString("showcase.inputs.serial", "Device &serial number");
         static final I18nString SERIAL_COMPLETE =
                 new I18nString("showcase.inputs.serialComplete", "Serial number {0} complete");
-        static final I18nString PASSWORD = new I18nString("showcase.inputs.password", "Portal password");
+        static final I18nString PASSWORD = new I18nString("showcase.inputs.password", "Portal pass&word");
         static final I18nString REVEAL = new I18nString("showcase.inputs.reveal", "Show");
-        static final I18nString NOTES = new I18nString("showcase.inputs.notes", "Notes");
+        static final I18nString NOTES = new I18nString("showcase.inputs.notes", "No&tes");
         static final I18nString WRAP = new I18nString("showcase.inputs.wrap", "Wrap lines");
         static final I18nString INSTRUCTIONS =
                 new I18nString("showcase.inputs.instructions", "Delivery instructions");
@@ -309,8 +309,8 @@ final class BasicsScene {
 
         static final I18nString ACCOUNT = new I18nString("showcase.inputs.account", "Account");
         static final I18nString TYPE = new I18nString("showcase.inputs.type", "Customer type");
-        static final I18nString COMPANY = new I18nString("showcase.inputs.company", "Company");
-        static final I18nString PERSON = new I18nString("showcase.inputs.person", "Individual");
+        static final I18nString COMPANY = new I18nString("showcase.inputs.company", "Compan&y");
+        static final I18nString PERSON = new I18nString("showcase.inputs.person", "&Individual");
         static final I18nString PUBLIC_SECTOR = new I18nString("showcase.inputs.publicSector", "Public sector");
         static final I18nString CYCLE = new I18nString("showcase.inputs.cycle", "Billing cycle");
         static final I18nString MONTHLY = new I18nString("showcase.inputs.monthly", "Monthly");
@@ -320,8 +320,8 @@ final class BasicsScene {
         static final I18nString RETAIL = new I18nString("showcase.inputs.retail", "Retail");
         static final I18nString WHOLESALE = new I18nString("showcase.inputs.wholesale", "Wholesale");
         static final I18nString BILLING = new I18nString("showcase.inputs.billing", "Invoices");
-        static final I18nString EMAIL_INVOICES = new I18nString("showcase.inputs.emailInvoices", "Send by email");
-        static final I18nString PAPER_INVOICES = new I18nString("showcase.inputs.paperInvoices", "Send on paper");
+        static final I18nString EMAIL_INVOICES = new I18nString("showcase.inputs.emailInvoices", "Send &by email");
+        static final I18nString PAPER_INVOICES = new I18nString("showcase.inputs.paperInvoices", "Send on pape&r");
         static final I18nString TAX_EXEMPT = new I18nString("showcase.inputs.taxExempt", "Tax exempt");
         static final I18nString ACCESS = new I18nString("showcase.inputs.access", "Access");
         static final I18nString ACTIVE = new I18nString("showcase.inputs.active", "Active");
@@ -333,8 +333,8 @@ final class BasicsScene {
         static final I18nString PROFILE = new I18nString("showcase.inputs.profile", "Profile complete");
         static final I18nString CREDIT = new I18nString("showcase.inputs.credit", "Credit check");
 
-        static final I18nString SAVE = new I18nString("showcase.inputs.save", "Save customer");
-        static final I18nString SAVE_NEW = new I18nString("showcase.inputs.saveNew", "Save and add another");
+        static final I18nString SAVE = new I18nString("showcase.inputs.save", "Save &customer");
+        static final I18nString SAVE_NEW = new I18nString("showcase.inputs.saveNew", "Save and &add another");
         static final I18nString DELETE = new I18nString("showcase.inputs.delete", "Delete");
         static final I18nString SAVED = new I18nString("showcase.inputs.saved", "Saved {0}");
     }

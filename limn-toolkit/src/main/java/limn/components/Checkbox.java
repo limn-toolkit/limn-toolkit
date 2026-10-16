@@ -58,7 +58,7 @@ import java.util.function.Consumer;
  * thing inside the indicator that does know a direction, because its two ends are a value axis:
  * OFF is the leading end and ON the trailing one.
  */
-public final class Checkbox extends Widget<Checkbox> {
+public final class Checkbox extends Widget<Checkbox> implements limn.scene.internal.AccessLetterOwner {
 
     public enum Variant { BOX, SWITCH }
 
@@ -71,6 +71,8 @@ public final class Checkbox extends Widget<Checkbox> {
 
     private final Variant variant;
     private I18nString text;
+    /** The label read for its access letter: "&amp;Notify" shows "Notify", N being the letter. */
+    private final AccessLetters.Held marked = new AccessLetters.Held();
     private boolean checked;
     private Consumer<Boolean> onChange;
     /** 0 = unchecked visual, 1 = checked visual; eased toward the state. */
@@ -142,7 +144,29 @@ public final class Checkbox extends Widget<Checkbox> {
      *         reachable is a control a screen reader cannot announce.
      */
     public String text() {
-        return text.get();
+        return shown().text();
+    }
+
+    /** The label in the language in effect, read for its access letter. */
+    private AccessLetters.Parsed shown() {
+        return marked.of(text.get());
+    }
+
+    @Override
+    public char accessLetter() {
+        return shown().letter();
+    }
+
+    @Override
+    public limn.scene.Widget<?> accessLetterFocus() {
+        return this;
+    }
+
+    /** Alt and the letter flip the box and bring the keyboard to it, as on Windows and Linux. */
+    @Override
+    public void accessLetterPressed() {
+        requestFocus();
+        toggleFromUser();
     }
 
     /**
@@ -242,7 +266,7 @@ public final class Checkbox extends Widget<Checkbox> {
      *             other, which is a label drawn over its own indicator.
      */
     private ShapedText labelLine(SizeTokens t) {
-        return shapeText(text.get(), t.body());
+        return shapeText(shown().text(), t.body());
     }
 
     @Override
@@ -253,7 +277,7 @@ public final class Checkbox extends Widget<Checkbox> {
         // that lands in it are one number rather than two answers to the same question.
         TextMetrics metrics = labelLine(t).metrics();
         float width = indicatorWidth(t)
-                + (text.get().isEmpty() ? 0 : t.gapLabel() + metrics.width());
+                + (shown().text().isEmpty() ? 0 : t.gapLabel() + metrics.width());
         float height = Math.max(indicatorHeight(t), metrics.lineHeight());
         return constraints.constrain(width, height);
     }
@@ -278,7 +302,7 @@ public final class Checkbox extends Widget<Checkbox> {
         } else {
             paintSwitch(canvas, theme, t, left, cy, rtl);
         }
-        if (!text.get().isEmpty()) {
+        if (!shown().text().isEmpty()) {
             // The row's own direction reaches the shaper as the NEUTRAL FALLBACK and never as an
             // imposition: a Latin label in a right-to-left form still reads left to right, because
             // a strong character outranks the fallback. What the fallback decides is the label
@@ -294,8 +318,11 @@ public final class Checkbox extends Widget<Checkbox> {
             float labelX = rtl
                     ? left - t.gapLabel() - metrics.width()
                     : left + indicatorWidth(t) + t.gapLabel();
-            canvas.drawText(line, labelX,
-                    (height() - metrics.height()) / 2 + metrics.ascent(), ink);
+            float baseline = (height() - metrics.height()) / 2 + metrics.ascent();
+            canvas.drawText(line, labelX, baseline, ink);
+            if (AccessLetters.shownIn(this)) {
+                MenuInk.underlineMnemonic(canvas, line, shown().index(), labelX, baseline, ink);
+            }
         }
         float focus = focusFade.value();
         if (focus > 0.001f) {
@@ -332,7 +359,7 @@ public final class Checkbox extends Widget<Checkbox> {
 
     @Override
     protected float baselineOffset() {
-        if (text.get().isEmpty()) {
+        if (shown().text().isEmpty()) {
             return super.baselineOffset();
         }
         SizeTokens t = Theme.of(this).tokensFor(this);
@@ -434,7 +461,8 @@ public final class Checkbox extends Widget<Checkbox> {
     @Override
     protected void onAccessibility(Accessibility a) {
         a.role(variant == Variant.BOX ? Accessible.Role.CHECK_BOX : Accessible.Role.SWITCH);
-        a.name(text, Accessible.NameFrom.CONTENT);
+        a.name(shown().text(), marked.witness(), Accessible.NameFrom.CONTENT);
+        a.keyBinding(marked.binding());
         // The TOGGLE shape, written once (ADR 045 §3): the state as the facet, and the verb.
         ToggleAccessibility.describe(a, checked, true);
     }

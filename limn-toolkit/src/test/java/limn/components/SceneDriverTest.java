@@ -93,6 +93,11 @@ class SceneDriverTest extends ComponentTestBase {
             public limn.concurrent.Subscription showCursorOf(Scene scene, Scene popup) {
                 return null;
             }
+
+            @Override
+            public boolean accessLettersShown(Scene scene) {
+                return false;
+            }
         }));
     }
 

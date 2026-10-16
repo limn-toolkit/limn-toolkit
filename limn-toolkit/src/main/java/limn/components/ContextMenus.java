@@ -152,7 +152,9 @@ public final class ContextMenus {
         // an event-driven call rather than at construction: this runs with the tree complete.
         boolean rtl = from.isRightToLeft();
         float cornerX = rtl ? from.localToSceneX() + from.width() : from.localToSceneX();
-        new PopupMenu(menu).showAt(from, cornerX, from.localToSceneY() + from.height());
+        PopupMenu popup = new PopupMenu(menu);
+        popup.openedFromKeyboard(); // the keyboard route: the Menu key, Shift+F10
+        popup.showAt(from, cornerX, from.localToSceneY() + from.height());
     }
 
     /**

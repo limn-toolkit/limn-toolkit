@@ -45,6 +45,8 @@ import static limn.testing.SceneDriver.drive;
  */
 class MenuBarAccessibilityTest extends AccessibleComponentTestBase {
 
+    private static final boolean MAC = limn.backend.Platform.current().isMacOs();
+
     /** Every title in the fixtures below is four characters: 10&nbsp;pt each under RULER. */
     private static final SizeTokens MEDIUM = SizeTokens.MEDIUM;
 
@@ -642,7 +644,8 @@ class MenuBarAccessibilityTest extends AccessibleComponentTestBase {
     void aTitleWithAnAccessLetterCarriesItsChordAndTheOthersCarryNone() {
         bindBar();
 
-        assertEquals(new Accelerator('F', Keys.MOD_ALT).display(),
+        // macOS has no access letters (ADR 070), so a Mac publishes none to name.
+        assertEquals(MAC ? null : new Accelerator('F', Keys.MOD_ALT).display(),
                 titles().get(0).actions().keyBinding(),
                 "the only route by which a mnemonic reaches a user who cannot see the underline");
         assertNull(titles().get(1).actions().keyBinding(), describe(tree()));
@@ -769,12 +772,13 @@ class MenuBarAccessibilityTest extends AccessibleComponentTestBase {
         List<AccessibleNode> titles = titles();
         assertEquals(2, titles.size(), describe(tree()));
         String ascii = titles.get(0).actions().keyBinding();
-        assertNotNull(ascii, "printable ASCII is nameable, and that one is published"
-                + describe(tree()));
-        // The modifier's spelling is the host platform's -- Alt+F on Windows and Linux, the option
-        // glyph on macOS -- so what is asserted is the letter and the fact that it was published,
-        // not a rendering this test would then only prove on the machine it ran on.
-        assertTrue(ascii.endsWith("F"), ascii + describe(tree()));
+        if (MAC) {
+            assertNull(ascii, "macOS has no access letters (ADR 070)" + describe(tree()));
+        } else {
+            assertNotNull(ascii, "printable ASCII is nameable, and that one is published"
+                    + describe(tree()));
+            assertTrue(ascii.endsWith("F"), ascii + describe(tree()));
+        }
         assertNull(titles.get(1).actions().keyBinding(),
                 "and the one that would have read Alt+Key1060 says nothing instead"
                         + describe(tree()));

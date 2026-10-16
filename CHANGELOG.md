@@ -304,6 +304,16 @@ Maven Central say which number that was.
 
 ### New
 
+- Access letters come from the translated text (ADR 070). An `&` before a letter marks it in a
+  menu title or item, a `Button`, a `Checkbox`, a `RadioButton` and a `Label` that names a
+  control (`setLabelFor`), so each translation picks its own: "&File", "&Arquivo", "ファイル(&F)";
+  `&&` is an ampersand, and one before a space is text. Alt and the letter press a button, flip a
+  box, select a radio or bring the keyboard to a label's control, within the window or the
+  topmost modal and before the menu bar; several with one letter take turns with the keyboard.
+  The letters are drawn while Alt is held and in a menu opened from the keyboard, on Windows and
+  Linux, and never on macOS, which has none: there the mark goes, a trailing "(&F)" with it, and
+  no binding is published. `MenuItem.setMnemonic` and `MenuBar.addMenu(title, char, menu)` stay,
+  and the text's mark wins over them. A reader is told the letter's chord.
 - A video shows a poster before it plays (ADR 069). `VideoView.setPoster(Poster)` takes
   `Poster.firstPicture()` (the default), `Poster.at(Duration)` for the picture at a time,
   `Poster.image(Image)` for a picture of the application's, or `Poster.none()`; playback starts

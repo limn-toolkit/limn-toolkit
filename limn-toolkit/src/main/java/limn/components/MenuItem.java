@@ -207,10 +207,26 @@ public final class MenuItem {
 
     // ------------------------------------------------------------------- API
 
-    /** The label as it currently reads, or {@code null} for a separator. */
+    /**
+     * The label as it currently reads, or {@code null} for a separator: its text in the language in
+     * effect, an access letter's {@code &} mark taken out ("&amp;Open" reads "Open").
+     */
     public @Nullable String label() {
-        return label == null ? null : label.get();
+        return label == null ? null : marked().text();
     }
+
+    /** The label's text read for its mark, memoized on the text it was read from. */
+    private AccessLetters.Parsed marked() {
+        String raw = label.get();
+        if (!raw.equals(markedFrom)) {
+            markedFrom = raw;
+            markedText = AccessLetters.parse(raw);
+        }
+        return markedText;
+    }
+
+    private String markedFrom;
+    private AccessLetters.Parsed markedText;
 
     /** The localizable value behind {@link #label()}; {@code null} for a separator. */
     public @Nullable I18nString labelSource() {
@@ -323,9 +339,17 @@ public final class MenuItem {
 
     /**
      * The access letter, uppercased, or {@code 0} when none is declared: the character
-     * underlined in the row and the one that chooses this item while its menu is open.
+     * underlined in the row and the one that chooses this item while its menu is open. A letter the
+     * label marks with {@code &} ("&amp;Open") wins over one given to {@link #setMnemonic}, the
+     * translation being the one that knows the word.
      */
     public char mnemonic() {
+        if (label != null) {
+            AccessLetters.Parsed parsed = marked();
+            if (parsed.letter() != 0) {
+                return parsed.letter();
+            }
+        }
         return mnemonic;
     }
 
@@ -353,13 +377,17 @@ public final class MenuItem {
     }
 
     /**
-     * Index into {@link #label()} of the character to underline (the first case-insensitive
-     * occurrence of the mnemonic), or {@code -1} when there is no mnemonic, no label, or the
-     * letter does not occur in it. Recomputed from the current label, so it follows a label that
-     * changed with the UI language.
+     * Index into {@link #label()} of the character to underline: the one the label marks, else the
+     * first case-insensitive occurrence of a letter given to {@link #setMnemonic}; {@code -1}
+     * when there is no letter, no label, or the letter does not occur in it. Recomputed from the
+     * current label, so it follows a label that changed with the UI language.
      */
     public int mnemonicIndex() {
-        return MenuInk.mnemonicIndex(label(), mnemonic);
+        if (label == null) {
+            return -1;
+        }
+        AccessLetters.Parsed parsed = marked();
+        return parsed.index() >= 0 ? parsed.index() : MenuInk.mnemonicIndex(parsed.text(), mnemonic);
     }
 
     // -------------------------------------------------------------- internal
@@ -369,8 +397,8 @@ public final class MenuItem {
      *         item by its mnemonic. False for a disabled item and for a separator, which is what
      *         keeps the access letter honest about what it can reach.
      */
-    boolean matchesMnemonic(int key) {
-        return mnemonic != 0 && isSelectable() && key == mnemonic;
+    boolean matchesMnemonic(int key, int codePoint) {
+        return isSelectable() && AccessLetters.matches(mnemonic(), key, codePoint);
     }
 
     Kind kind() {

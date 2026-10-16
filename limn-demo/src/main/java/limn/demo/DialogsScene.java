@@ -134,24 +134,24 @@ final class DialogsScene {
         static final I18nString MODAL = new I18nString("showcase.menus.modalShort", "Modal");
         static final I18nString FILES_HINT = new I18nString("showcase.menus.filesHint",
                 "Right-click a file, or select one and press the Menu key or Shift+F10.");
-        static final I18nString NEW_FOLDER = new I18nString("showcase.menus.newFolder", "New folder");
-        static final I18nString UPLOAD = new I18nString("showcase.menus.upload", "Upload files…");
-        static final I18nString SORT_BY = new I18nString("showcase.menus.sortBy", "Sort by");
-        static final I18nString BY_NAME = new I18nString("showcase.menus.byName", "Name");
-        static final I18nString BY_SIZE = new I18nString("showcase.menus.bySize", "Size");
-        static final I18nString BY_KIND = new I18nString("showcase.menus.byKind", "Kind");
-        static final I18nString HIDDEN = new I18nString("showcase.menus.hidden", "Show hidden files");
-        static final I18nString PROPERTIES = new I18nString("showcase.menus.properties", "Properties…");
-        static final I18nString OPEN = new I18nString("showcase.menus.open", "Open");
-        static final I18nString OPEN_WITH = new I18nString("showcase.menus.openWith", "Open with");
-        static final I18nString VIEWER = new I18nString("showcase.menus.viewer", "Document viewer");
-        static final I18nString SPREADSHEET = new I18nString("showcase.menus.spreadsheet", "Spreadsheet");
-        static final I18nString TEXT_EDITOR = new I18nString("showcase.menus.textEditor", "Text editor");
-        static final I18nString CUT = new I18nString("showcase.menus.cut", "Cut");
-        static final I18nString COPY = new I18nString("showcase.menus.copy", "Copy");
-        static final I18nString PASTE = new I18nString("showcase.menus.paste", "Paste");
-        static final I18nString RENAME = new I18nString("showcase.menus.rename", "Rename…");
-        static final I18nString DELETE_FILE = new I18nString("showcase.menus.delete", "Delete");
+        static final I18nString NEW_FOLDER = new I18nString("showcase.menus.newFolder", "&New folder");
+        static final I18nString UPLOAD = new I18nString("showcase.menus.upload", "&Upload files…");
+        static final I18nString SORT_BY = new I18nString("showcase.menus.sortBy", "Sort &by");
+        static final I18nString BY_NAME = new I18nString("showcase.menus.byName", "&Name");
+        static final I18nString BY_SIZE = new I18nString("showcase.menus.bySize", "&Size");
+        static final I18nString BY_KIND = new I18nString("showcase.menus.byKind", "&Kind");
+        static final I18nString HIDDEN = new I18nString("showcase.menus.hidden", "Show &hidden files");
+        static final I18nString PROPERTIES = new I18nString("showcase.menus.properties", "&Properties…");
+        static final I18nString OPEN = new I18nString("showcase.menus.open", "&Open");
+        static final I18nString OPEN_WITH = new I18nString("showcase.menus.openWith", "Open &with");
+        static final I18nString VIEWER = new I18nString("showcase.menus.viewer", "&Document viewer");
+        static final I18nString SPREADSHEET = new I18nString("showcase.menus.spreadsheet", "&Spreadsheet");
+        static final I18nString TEXT_EDITOR = new I18nString("showcase.menus.textEditor", "&Text editor");
+        static final I18nString CUT = new I18nString("showcase.menus.cut", "Cu&t");
+        static final I18nString COPY = new I18nString("showcase.menus.copy", "&Copy");
+        static final I18nString PASTE = new I18nString("showcase.menus.paste", "&Paste");
+        static final I18nString RENAME = new I18nString("showcase.menus.rename", "&Rename…");
+        static final I18nString DELETE_FILE = new I18nString("showcase.menus.delete", "&Delete");
 
         static final I18nString KIND_PDF = new I18nString("showcase.menus.kindPdf", "PDF document");
         static final I18nString KIND_SHEET = new I18nString("showcase.menus.kindSheet", "Spreadsheet");
@@ -519,15 +519,14 @@ final class DialogsScene {
             Menu menu = new Menu();
             SortKey[] keys = SortKey.values();
             I18nString[] names = {Text.BY_NAME, Text.BY_SIZE, Text.BY_KIND};
-            char[] letters = {'N', 'S', 'K'};
             for (int i = 0; i < keys.length; i++) {
                 SortKey key = keys[i];
                 I18nString name = names[i];
                 menu.add(MenuItem.check(name, sort[0] == key, on -> {
                     sort[0] = key;
                     resort.run();
-                    Page.report(Text.DID_SORT.format(name.get()));
-                }).setMnemonic(letters[i]));
+                    Page.report(Text.DID_SORT.format(Page.plain(name)));
+                }));
             }
             return menu;
         };
@@ -539,17 +538,17 @@ final class DialogsScene {
             Menu menu = new Menu()
                     .add(MenuItem.of(Text.NEW_FOLDER, () -> Page.report(Text.DID_NEW_FOLDER.get()))
                             .setIcon(Tabler.outline("folder-plus"))
-                            .setAccelerator(Accelerator.command(Keys.N, Keys.MOD_SHIFT)).setMnemonic('N'))
+                            .setAccelerator(Accelerator.command(Keys.N, Keys.MOD_SHIFT)))
                     .add(MenuItem.of(Text.UPLOAD, () -> Page.report(Text.DID_UPLOAD.get()))
                             .setIcon(Tabler.outline("upload"))
-                            .setAccelerator(Accelerator.command(Keys.U)).setMnemonic('U'))
+                            .setAccelerator(Accelerator.command(Keys.U)))
                     .addSeparator()
-                    .add(MenuItem.submenu(Text.SORT_BY, sortMenu.get()).setMnemonic('S'))
+                    .add(MenuItem.submenu(Text.SORT_BY, sortMenu.get()))
                     .add(MenuItem.check(Text.HIDDEN, hidden[0], on -> {
                         hidden[0] = on;
                         resort.run();
                         Page.report(on ? Text.HIDDEN_ON.get() : Text.HIDDEN_OFF.get());
-                    }).setMnemonic('H').setAccelerator(Accelerator.command(Keys.PERIOD, Keys.MOD_SHIFT)))
+                    }).setAccelerator(Accelerator.command(Keys.PERIOD, Keys.MOD_SHIFT)))
                     .addSeparator()
                     .add(MenuItem.of(Text.PROPERTIES, () -> { }).setEnabled(false));
             openBelow(actions, menu, modal.isChecked());
@@ -563,41 +562,41 @@ final class DialogsScene {
             return new Menu()
                     .add(MenuItem.of(Text.OPEN, () -> Page.report(Text.DID_OPEN.format(file.name())))
                             .setIcon(Tabler.outline("external-link"))
-                            .setAccelerator(Accelerator.command(Keys.O)).setMnemonic('O'))
+                            .setAccelerator(Accelerator.command(Keys.O)))
                     .add(MenuItem.submenu(Text.OPEN_WITH, new Menu()
-                            .add(openWith(file, Text.VIEWER, 'D'))
-                            .add(openWith(file, Text.SPREADSHEET, 'S'))
-                            .add(openWith(file, Text.TEXT_EDITOR, 'T'))).setMnemonic('W'))
+                            .add(openWith(file, Text.VIEWER))
+                            .add(openWith(file, Text.SPREADSHEET))
+                            .add(openWith(file, Text.TEXT_EDITOR))))
                     .addSeparator()
                     .add(MenuItem.of(Text.CUT, () -> {
                                 held[0] = file;
                                 Page.report(Text.DID_CUT.format(file.name()));
                             })
                             .setIcon(Tabler.outline("scissors"))
-                            .setAccelerator(Accelerator.command(Keys.X)).setMnemonic('T'))
+                            .setAccelerator(Accelerator.command(Keys.X)))
                     .add(MenuItem.of(Text.COPY, () -> {
                                 held[0] = file;
                                 Page.report(Text.DID_COPY.format(file.name()));
                             })
                             .setIcon(Tabler.outline("copy"))
-                            .setAccelerator(Accelerator.command(Keys.C)).setMnemonic('C'))
+                            .setAccelerator(Accelerator.command(Keys.C)))
                     .add(MenuItem.of(Text.PASTE, () -> Page.report(Text.DID_PASTE.format(held[0].name())))
                             .setIcon(Tabler.outline("clipboard"))
-                            .setAccelerator(Accelerator.command(Keys.V)).setMnemonic('P')
+                            .setAccelerator(Accelerator.command(Keys.V))
                             .setEnabled(held[0] != null))
                     .addSeparator()
                     .add(MenuItem.of(Text.RENAME, () -> Page.report(Text.DID_RENAME.format(file.name())))
                             .setIcon(Tabler.outline("pencil"))
-                            .setAccelerator(Accelerator.of(Keys.F2)).setMnemonic('R'))
+                            .setAccelerator(Accelerator.of(Keys.F2)))
                     .add(MenuItem.of(Text.DELETE_FILE, () -> {
                                 files.remove(file);
                                 resort.run();
                                 Page.report(Text.DID_DELETE.format(file.name()));
                             })
                             .setIcon(Tabler.outline("trash"))
-                            .setAccelerator(Accelerator.of(Keys.DELETE)).setMnemonic('D'))
+                            .setAccelerator(Accelerator.of(Keys.DELETE)))
                     .addSeparator()
-                    .add(MenuItem.submenu(Text.SORT_BY, sortMenu.get()).setMnemonic('B'));
+                    .add(MenuItem.submenu(Text.SORT_BY, sortMenu.get()));
         };
         // The keyboard's route (the Menu key, Shift+F10) and an assistive technology's are the
         // region's; the pointer's is the frame's below, which opens at the pointer.
@@ -612,8 +611,8 @@ final class DialogsScene {
         return page;
     }
 
-    private static MenuItem openWith(Document file, I18nString program, char letter) {
-        return MenuItem.of(program, () -> Page.report(Text.DID_OPEN_WITH.format(file.name(), program.get()))).setMnemonic(letter);
+    private static MenuItem openWith(Document file, I18nString program) {
+        return MenuItem.of(program, () -> Page.report(Text.DID_OPEN_WITH.format(file.name(), Page.plain(program))));
     }
 
     /**

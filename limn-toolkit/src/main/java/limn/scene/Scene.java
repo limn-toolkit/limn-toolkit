@@ -3171,6 +3171,11 @@ public final class Scene {
     static {
         limn.scene.internal.SceneAccess.install(new limn.scene.internal.SceneAccess.Hook() {
             @Override
+            public boolean accessLettersShown(Scene scene) {
+                return scene.accessLettersShown;
+            }
+
+            @Override
             public WindowInput inputOf(Scene scene) {
                 return scene.input;
             }
@@ -3556,6 +3561,9 @@ public final class Scene {
                     }
                 } else if (raw instanceof RawFocus focus) {
                     windowFocused = focus.focused;
+                    if (!focus.focused) {
+                        showAccessLetters(false); // the Alt release goes to the window it moved to
+                    }
                     // The window's own ACTIVE state moved, and nothing else on this path would
                     // say so: the branch below invalidates only when focus is LOST, for the
                     // pointer and key state it has to cancel. The walk this buys is what
@@ -3718,10 +3726,21 @@ public final class Scene {
             return;
         }
         KeyEvent event = new KeyEvent(key.key, key.layoutCodePoint, key.pressed, key.repeat, key.mods);
+        if ((key.key == Keys.LEFT_ALT || key.key == Keys.RIGHT_ALT)
+                && limn.scene.internal.AccessLetterSystem.present()) {
+            showAccessLetters(key.pressed);
+        }
         // Keys go to the focused widget, else the topmost modal layer (so a
         // dialog can handle ESC even with nothing focused).
         Widget<?> keyTarget = focused != null ? focused : keyboardRoot();
         dispatchBubbling(keyTarget, event);
+        // An access letter the focused widget did not want: a control's in the window, or the
+        // topmost modal's, before any menu bar's (the shortcut handlers below).
+        if (!event.isConsumed() && key.pressed && !key.repeat && key.mods == Keys.MOD_ALT
+                && limn.scene.internal.AccessLetterSystem.present()
+                && accessLetter(event.shortcutKey(), key.layoutCodePoint)) {
+            event.consume();
+        }
         if (!event.isConsumed() && key.pressed && !key.repeat && key.key == dragKeyCode
                 && (key.mods & DRAG_KEY_MASK) == dragKeyModifiers && focused != null) {
             if (startDrag(focused, new DragStartEvent(focused.localToSceneX() + focused.width() / 2,
@@ -3748,6 +3767,66 @@ public final class Scene {
      * combo box's list; a precision touchpad's on Windows is delivered as wheel messages too.
      */
     private static final long WHEEL_STREAM_GAP_NANOS = TimeUnit.MILLISECONDS.toNanos(150);
+
+    /** Whether Alt is held, which is when the access letters are drawn. */
+    private boolean accessLettersShown;
+
+    private void showAccessLetters(boolean shown) {
+        if (accessLettersShown == shown) {
+            return;
+        }
+        accessLettersShown = shown;
+        // Every widget that draws a letter draws it, or stops: rare, and cheaper than a list of
+        // them kept in step with the tree.
+        root.invalidate();
+        for (Widget<?> overlay : overlays) {
+            overlay.invalidate();
+        }
+    }
+
+    /**
+     * Acts on the access letter of a key press: the one control of the window, or of the topmost
+     * modal, whose letter it is; or, where several share it, the keyboard moves to the next of
+     * them and none acts, as in a Windows dialog.
+     *
+     * @return whether a control took it
+     */
+    private boolean accessLetter(int key, int codePoint) {
+        List<limn.scene.internal.AccessLetterOwner> owners = new ArrayList<>();
+        collectAccessLetters(inputRoot(), key, codePoint, owners);
+        if (owners.isEmpty()) {
+            return false;
+        }
+        if (owners.size() == 1) {
+            owners.get(0).accessLetterPressed();
+            return true;
+        }
+        int at = -1;
+        for (int i = 0; i < owners.size(); i++) {
+            if (owners.get(i).accessLetterFocus() == focused) {
+                at = i;
+            }
+        }
+        Widget<?> next = owners.get((at + 1) % owners.size()).accessLetterFocus();
+        if (next != null) {
+            requestFocus(next);
+        }
+        return true;
+    }
+
+    private static void collectAccessLetters(Widget<?> at, int key, int codePoint,
+            List<limn.scene.internal.AccessLetterOwner> into) {
+        if (!at.isVisible() || !at.isEnabled()) {
+            return; // hidden or disabled: neither it nor anything inside it answers
+        }
+        if (at instanceof limn.scene.internal.AccessLetterOwner owner
+                && limn.scene.internal.AccessLetterOwner.matches(owner.accessLetter(), key, codePoint)) {
+            into.add(owner);
+        }
+        for (Widget<?> child : at.children()) {
+            collectAccessLetters(child, key, codePoint, into);
+        }
+    }
 
     private boolean wheelSeen;
     private long lastWheelNanos;

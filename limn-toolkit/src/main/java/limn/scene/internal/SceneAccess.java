@@ -87,6 +87,12 @@ public final class SceneAccess {
          * @return a handle that ends it
          */
         Subscription showCursorOf(Scene scene, Scene popup);
+
+        /**
+         * @param scene a scene
+         * @return whether its access letters are drawn now: Alt held, on a system that has them
+         */
+        boolean accessLettersShown(Scene scene);
     }
 
     /**
@@ -139,6 +145,16 @@ public final class SceneAccess {
      * @param scene a scene
      * @return the input adapter the scene hands its window, which a driver calls as a window would
      */
+    /**
+     * Whether {@code scene}'s access letters are drawn now: while Alt is held, on Windows and
+     * Linux. A menu opened from the keyboard draws its own as well; never on macOS.
+     *
+     * @param scene a scene, or {@code null}, which shows none
+     */
+    public static boolean accessLettersShown(@org.jspecify.annotations.Nullable Scene scene) {
+        return scene != null && hook().accessLettersShown(scene);
+    }
+
     public static WindowInput input(Scene scene) {
         return hook().inputOf(java.util.Objects.requireNonNull(scene, "scene"));
     }
