@@ -3752,15 +3752,17 @@ public final class Scene {
                 keysDown.clear(key.key);
             }
         }
+        // Before the drag's branch: Alt let go during a drag (Alt is the link modifier on Windows)
+        // must still take the letters away, or they stay drawn until the next Alt.
+        if ((key.key == Keys.LEFT_ALT || key.key == Keys.RIGHT_ALT)
+                && limn.scene.internal.AccessLetterSystem.present()) {
+            showAccessLetters(key.pressed);
+        }
         if (dragSession != null) {
             dragKey(key); // a drag in flight has the keyboard: Escape, and the keys that steer it
             return;
         }
         KeyEvent event = new KeyEvent(key.key, key.layoutCodePoint, key.pressed, key.repeat, key.mods);
-        if ((key.key == Keys.LEFT_ALT || key.key == Keys.RIGHT_ALT)
-                && limn.scene.internal.AccessLetterSystem.present()) {
-            showAccessLetters(key.pressed);
-        }
         if (key.pressed && !key.repeat && !isModifierKey(key.key)) {
             keyPresses++;
         }

@@ -453,6 +453,49 @@ class AccessLetterDispatchTest extends AccessibleComponentTestBase {
         assertFalse(SceneAccess.accessLettersShown(scene));
     }
 
+    /**
+     * Alt let go during a drag takes the letters away: the drag had the keyboard and the release
+     * never reached the check, so every caption stayed underlined after the drop.
+     */
+    @Test
+    void lettingGoOfAltDuringADragHidesTheLetters() {
+        show(new Button("&Keep"), new DragSource());
+        float x = 20;
+        float y = 50;
+
+        drive(scene).keyEvent(Keys.LEFT_ALT, -1, true, false, Keys.MOD_ALT);
+        drive(scene).inputBatchEnded();
+        assertTrue(SceneAccess.accessLettersShown(scene));
+        drive(scene).mouseMoved(x, y);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, Keys.MOD_ALT, x, y, 1);
+        drive(scene).inputBatchEnded();
+        drive(scene).mouseMoved(x, y + 40);
+        drive(scene).inputBatchEnded();
+        assertTrue(scene.isDragging());
+
+        drive(scene).keyEvent(Keys.LEFT_ALT, -1, false, false, 0);
+        drive(scene).inputBatchEnded();
+        assertFalse(SceneAccess.accessLettersShown(scene), "Alt is up, though the drag has the keyboard");
+    }
+
+    /** A box that starts a drag kept in its window wherever it is pressed. */
+    private static final class DragSource extends limn.scene.Widget<DragSource> {
+        @Override
+        protected limn.scene.Size onMeasure(limn.scene.Constraints constraints) {
+            return constraints.constrain(200, 120);
+        }
+
+        @Override
+        protected void onPaint(limn.graphics.Canvas canvas) {
+        }
+
+        @Override
+        protected limn.transfer.Drag onDragStart(limn.scene.event.DragStartEvent event) {
+            return limn.transfer.Drag.of(limn.transfer.Transfer.of(limn.transfer.DataFormat.TEXT, "card"))
+                    .withinWindow();
+        }
+    }
+
     @Test
     void theLettersStayShownWhereTheSystemAsksForUnderlines() {
         show(new Button("&Save"));
