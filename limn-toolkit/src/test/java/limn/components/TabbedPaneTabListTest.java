@@ -423,6 +423,25 @@ class TabbedPaneTabListTest extends AccessibleComponentTestBase {
         assertEquals(tabStop(pane), scene.focusedWidget(), "the tab now shown");
     }
 
+    /**
+     * A pane disabled while its list is open (a save in progress) is chosen in and closed from by
+     * nobody: the list is not a child of the pane, so the scene's own gate never reaches it, and a
+     * reader, which loses the list's verbs, would disagree with the keys and the pointer.
+     */
+    @Test
+    void aDisabledPanesOpenListNeitherChoosesNorCloses() throws InterruptedException {
+        bindPane(true, false);
+        scene.requestFocus(tabStop(pane));
+        press(Keys.DOWN, Keys.MOD_ALT);
+        pane.setEnabled(false);
+        frame();
+        press(Keys.DELETE, 0);
+        assertEquals(TITLES, titles(), "Delete closed nothing");
+        press(Keys.DOWN, 0);
+        press(Keys.ENTER, 0);
+        assertEquals(0, pane.selectedIndex(), "Enter chose nothing");
+    }
+
     @Test
     void aClickOnARowChoosesItsTab() throws InterruptedException {
         bindPane(false, false);

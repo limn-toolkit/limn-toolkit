@@ -1083,6 +1083,12 @@ public final class TabbedPane extends Widget<TabbedPane> {
      * elsewhere stays there, since the list's button never takes it.
      */
     private void chooseFromList(int row) {
+        if (!isEnabled()) {
+            // The one choke point every choice goes through: a key, a click on a row and a
+            // reader's press. The list is not the pane's child, so the scene's gate on a disabled
+            // pane never reaches it, and a reader, which loses the rows' verbs, would disagree.
+            return;
+        }
         closeTabList();
         if (row >= 0 && row < headers.size()) {
             selectTab(row, listHadKeyboard ? Focus.HEADER : Focus.NONE, Change.Origin.USER);
@@ -1133,9 +1139,12 @@ public final class TabbedPane extends Widget<TabbedPane> {
         }
     }
 
-    /** Closes a tab from the list, as its own button would: the handler is asked, the list stays. */
+    /**
+     * Closes a tab from the list, as its own button would: the handler is asked, the list stays.
+     * Nothing while the pane is disabled, for the reason a choice is refused then.
+     */
     private void closeFromList(int row) {
-        if (row >= 0 && row < headers.size() && headers.get(row).closable) {
+        if (isEnabled() && row >= 0 && row < headers.size() && headers.get(row).closable) {
             requestClose(row, Change.Origin.USER);
         }
     }
