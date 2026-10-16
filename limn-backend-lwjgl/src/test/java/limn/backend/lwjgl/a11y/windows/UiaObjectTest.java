@@ -534,4 +534,38 @@ class UiaObjectTest {
             // what should happen
         }
     }
+
+    /**
+     * An object the registry has let go of hands out nothing: the node left between an RPC
+     * thread's lookup and its count, the count rose on an object already queued to be freed, and
+     * the caller was handed a pointer the next frame freed. Handing out and retiring are one lock.
+     */
+    @Test
+    void anObjectLetGoOfHandsOutNothingAndStaysFreeable() {
+        UiaObject object = anElementServing(UiaInterfaces.RAW_ELEMENT_PROVIDER_SIMPLE);
+        long served = object.handOut(UiaInterfaces.RAW_ELEMENT_PROVIDER_SIMPLE);
+        assertNotEquals(0L, served, "a live object hands its interface out");
+        assertEquals(2, object.references(), "counted for the caller");
+        release(served);
+
+        object.retireLater(); // its node left: the registry's own reference goes
+        assertEquals(0L, object.handOut(UiaInterfaces.RAW_ELEMENT_PROVIDER_SIMPLE),
+                "after that, the caller is told it is not there");
+        assertEquals(0, object.references(), "and no count rose on it");
+        assertTrue(UiaObject.freeRetired() >= 1);
+        assertTrue(object.isFreed());
+    }
+
+    /** A hand-out that came first keeps the object alive past the registry letting it go. */
+    @Test
+    void aHandOutBeforeTheRegistryLetsGoKeepsTheObject() {
+        UiaObject object = anElementServing(UiaInterfaces.RAW_ELEMENT_PROVIDER_SIMPLE);
+        long served = object.handOut(UiaInterfaces.RAW_ELEMENT_PROVIDER_SIMPLE);
+        object.retireLater();
+        UiaObject.freeRetired();
+        assertFalse(object.isFreed(), "the caller's reference holds it");
+        release(served);
+        UiaObject.freeRetired();
+        assertTrue(object.isFreed(), "and its release lets it go");
+    }
 }

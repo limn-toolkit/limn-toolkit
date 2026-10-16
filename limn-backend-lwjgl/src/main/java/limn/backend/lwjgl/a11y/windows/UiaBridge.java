@@ -2210,11 +2210,9 @@ public final class UiaBridge extends PlatformBridge {
             return 0;
         }
         UiaObject object = objects.get(element.pointer());
-        long pointer = object == null ? 0 : object.pointerFor(iface);
-        if (pointer != 0) {
-            object.addRef();
-        }
-        return pointer;
+        // Looked up, served and counted under the object's own lock, which retiring it takes:
+        // the node can leave between the lookup and the count, and a retired object answers 0.
+        return object == null ? 0 : object.handOut(iface);
     }
 
     /**
