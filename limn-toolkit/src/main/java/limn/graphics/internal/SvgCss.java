@@ -19,7 +19,7 @@ import org.jspecify.annotations.Nullable;
  * {@code :nth-child()} and {@code :nth-of-type()}, compounds of them, and the descendant and child
  * combinators. A selector with anything else matches nothing.
  *
- * <p><b>Matching is bounded work</b> (ADR 061): a selector chains at most
+ * <p><b>Matching is bounded work</b>: a selector chains at most
  * {@value #MAX_COMPOUNDS} compounds, each compound is tried once against each element in one
  * match however many descendant combinators could send it back there, and a file whose sheets
  * take more than {@link #MAX_MATCH_STEPS} tries over all its elements is refused.

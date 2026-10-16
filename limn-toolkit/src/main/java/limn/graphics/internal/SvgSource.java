@@ -289,7 +289,7 @@ public final class SvgSource {
          * Drops every reference the cleaning would not have kept: on a picture, anything but a PNG
          * this sanitizer wrote; on any other element, anything but an element of the same file.
          * The last pass over the document, after everything that rewrites its attributes, so that
-         * no path reaches the renderer by a road the cleaning did not walk (ADR 066 section 6).
+         * no path reaches the renderer by a road the cleaning did not walk.
          */
         void vet(SvgXml.Element element) {
             boolean picture = isPicture(element);
@@ -385,7 +385,7 @@ public final class SvgSource {
             this.left = Math.max(MIN_WRITTEN, (long) MAX_WRITTEN_PER_BYTE * fileBytes);
         }
 
-        /** Counts what substitution writes, and refuses the file past what its bytes can back (ADR 061). */
+        /** Counts what substitution writes, and refuses the file past what its bytes can back. */
         private void spend(int characters) {
             left -= characters;
             if (left < 0) {

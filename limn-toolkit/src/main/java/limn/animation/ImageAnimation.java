@@ -74,7 +74,7 @@ public final class ImageAnimation {
 
         /** Two loops are equal when they make the same turns the same way. */
         @Override
-        public boolean equals(Object other) {
+        public boolean equals(@org.jspecify.annotations.Nullable Object other) {
             return other instanceof Loop loop && loop.turns == turns && loop.bounce == bounce;
         }
 

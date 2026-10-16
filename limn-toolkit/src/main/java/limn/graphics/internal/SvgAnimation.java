@@ -439,7 +439,7 @@ public final class SvgAnimation {
          * <p>Each round moves a chain on by one link, so a chain of short links takes as many
          * rounds as it has beginnings in the window, each round over every animation: what the
          * rounds together take is held under {@link #MAX_TIMING_STEPS}, past which the file is
-         * refused (ADR 061). An indicator's chain takes some thousands.
+         * refused. An indicator's chain takes some thousands.
          */
         private void resolve() {
             for (SmilTrack track : smilTracks) {
