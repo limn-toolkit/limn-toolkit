@@ -52,15 +52,25 @@ import java.util.function.IntConsumer;
  * <p><b>Keyboard:</b> the strip is a single tab stop (roving focus): only the
  * selected header is focusable, so Tab/Shift+Tab land on it; Left/Right arrows
  * move between tabs (Home/End jump to the ends) and Enter/Space dive into the
- * panel. Focus follows a programmatic selection while the strip holds it.
+ * panel. Alt+Down opens the list of every tab while the strip overflows. Focus
+ * follows a programmatic selection while the strip holds it.
  *
  * <p><b>Overflow:</b> when the headers don't fit, the strip becomes a clipped,
  * scrollable viewport (alignment is moot then): chevron buttons appear at the
  * edges (the dead side disabled, not hidden; hiding would resize the viewport
  * and oscillate at the ends), the mouse wheel scrolls the strip, and a list
- * button opens a {@link PopupMenu} of all tabs (check on the current one) to
- * jump directly. Selecting a tab (by click, keyboard or
- * {@link #setSelectedIndex}) always scrolls it into view. The three square controls
+ * button opens the list of every tab to jump directly. The list is anchored to
+ * that button, in a window of its own where the platform can place one and in
+ * the window's own scene where it cannot: a row per tab in the strip's order,
+ * the shown tab marked, each tab's icon, and on a closable tab a close button
+ * at the row's end. Up, Down, Home and End move its cursor, Enter or Space shows
+ * the tab under it, a typed letter goes to the next tab whose caption starts with
+ * it, Delete or Ctrl+W (Cmd+W on macOS) closes that tab through
+ * {@link #onTabClose} and the list stays open without it, and Escape or Tab
+ * closes the list. Alt+Down on the focused tab opens it from the keyboard; the
+ * list button stays out of the tab order, so the strip is still one stop. The
+ * list goes with the last tab, and when the tabs fit again. Selecting a tab (by
+ * click, keyboard or {@link #setSelectedIndex}) always scrolls it into view. The three square controls
  * shrink with the pane rather than being dropped, each capped at a sixth of its width, so
  * the viewport never falls below half the pane, never reaches zero, and never changes
  * non-monotonically as the pane is resized.
@@ -385,7 +395,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
 
     /**
      * The application's response to the user choosing a tab: a click on a header, an arrow key
-     * across the strip, a pick from the overflow menu, an assistive technology's select. Never
+     * across the strip, a pick from the list of every tab, an assistive technology's select. Never
      * for {@link #setSelectedIndex}, which is a caller's write; to hear every change whatever
      * caused it, {@linkplain #observeChanges watch} the pane instead.
      *
@@ -826,8 +836,8 @@ public final class TabbedPane extends Widget<TabbedPane> {
      * only where an application named the index.
      *
      * <p>This is also the one seam every selection announces from, with {@code origin} saying who
-     * asked: the public setter passes {@code CODE}, and the header's click and keys, the overflow
-     * menu and an assistive technology's select pass {@code USER}. The announcement is the
+     * asked: the public setter passes {@code CODE}, and the header's click and keys, the list of
+     * every tab and an assistive technology's select pass {@code USER}. The announcement is the
      * <b>last</b> thing here, after the panel swap, the roving focus and the focus move have all
      * settled, so a watcher hears {@code VISIBLE}, {@code VISIBLE}, {@code FOCUSABLE},
      * {@code FOCUSABLE}, {@code FOCUS}, {@code FOCUS} and then the {@code SELECTION} they belong
@@ -2296,9 +2306,9 @@ public final class TabbedPane extends Widget<TabbedPane> {
          * pane itself answers with {@code paintsDecoration} and this one cannot, because a chevron
          * is not a rule. It is operable: a left click reaches {@code activate()}, and an operation
          * is never deleted with the box that carried it. And the all-tabs button is where the
-         * menu it opens points back to: the popup names its opener through the inheritance host,
+         * list it opens points back to: the popup names its opener through the inheritance host,
          * and the walk writes that relation onto the first node it published at or above the host,
-         * so with this widget deleted the menu would announce as the popup of whatever container
+         * so with this widget deleted the list would announce as the popup of whatever container
          * the deleted pane hoisted into.
          *
          * <p>No name is declared. The walk takes the tooltip when nothing else named the node,
@@ -2306,15 +2316,11 @@ public final class TabbedPane extends Widget<TabbedPane> {
          * the walk to add the same string a second time as the description. No description
          * either, for the same reason: the tooltip is spent on the name.
          *
-         * <p>Only the all-tabs button says it has a popup, and it says so with a verb as well as
-         * a state. Both verbs reach the same {@code activate()}: one platform vends its invoke
-         * pattern from the press alone, and a node offering nothing but the menu verb would be
-         * unactuable there, while the other two carry a show-menu action of their own and the
-         * more precise word is worth publishing where it can be routed. This is not the pair a
-         * combo box refused — those were expand and collapse against a facet that already carried
-         * the activation, and there is no expanded bit here to carry: the menu is built, opened
-         * and forgotten in one call, so this widget could not answer whether it is still up. The
-         * fact a reader needs arrives anyway, as the surface's own node pointing back at this one.
+         * <p>Only the all-tabs button says it has a popup, and it says whether the list is open,
+         * with the expanding or collapsing the state allows beside its press: the list is the
+         * pane's own surface (ADR 068), so the pane can answer whether it is still up, as a
+         * combo box answers for its list. A reader also meets the list's own node pointing back
+         * at this one.
          *
          * <p>Nothing is conditional on overflow, though all three controls are laid out and made
          * visible only while the strip overflows. A pane that fits publishes three buttons that
@@ -2350,12 +2356,12 @@ public final class TabbedPane extends Widget<TabbedPane> {
         /**
          * Runs the click this control already has, through the same private path the left button
          * reaches, so that a reader's press scrolls the strip by the same three quarters of a
-         * viewport, or opens the same menu anchored on this button rather than on the scene.
+         * viewport, or opens the same list anchored on this button.
          *
-         * <p>The menu verb is the all-tabs button's alone and is refused on the two chevrons,
-         * which is what the two are doing in one hook: only one of the three has a menu, and a
-         * platform that routes its show-menu action to a chevron has asked for something that
-         * control does not have.
+         * <p>Expanding and collapsing are the all-tabs button's alone and are refused on the two
+         * chevrons, which is what the two are doing in one hook: only one of the three has a
+         * list, and a platform that routes such an action to a chevron has asked for something
+         * that control does not have.
          *
          * <p>There is no enabled guard, and none is needed. The scene walks this widget and every
          * ancestor for the enabled flag and refuses an owner that is not showing before the hook
@@ -2745,7 +2751,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
          * every parent for the enabled flag before it calls the hook, and refuses anything whose
          * owner is not on screen — which, in an overflowing strip, is every header scrolled out of
          * the viewport. Selecting a visible neighbour scrolls the run, and the strip's list
-         * chevron opens a menu of every tab; those are the two routes to a tab a reader cannot
+         * chevron opens the list of every tab; those are the two routes to a tab a reader cannot
          * operate where it stands.
          *
          * @param action what was asked
