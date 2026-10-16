@@ -532,6 +532,62 @@ class MediaPlayerTest {
         assertEquals(stream.slots(), stream.freeSlots());
     }
 
+    /**
+     * A poster whose time cannot be decoded costs the poster and not the video: the player stays
+     * idle, says nothing is on its way, and play starts from the beginning, where the file may
+     * decode perfectly well.
+     */
+    @Test
+    void aCueThatCannotBeDecodedLeavesThePlayerIdleAndPlayStartsFromTheBeginning() {
+        PooledTestStream stream = new PooledTestStream(64, 32, 4);
+        CrashHandler quiet = (phase, error) -> true;
+        Crashes.install(quiet);
+        Hand hand = new Hand();
+        try (MediaPlayer player = manual(stream, hand, 3)) {
+            player.cue(5 * FRAME_MICROS);
+            stream.failOnRead = new IllegalStateException("the poster's picture is broken");
+            pump(player, 2); // the seek to the poster's time, then the read that throws
+            assertEquals(MediaPlayer.State.IDLE, player.state(), "a cue is not playing, and cannot fail it");
+            assertNull(player.failure());
+            assertFalse(player.isCued(), "no poster is on its way");
+            assertNull(player.takePicture());
+
+            stream.failOnRead = null;
+            player.start();
+            pump(player, 3);
+            assertEquals(MediaPlayer.State.PLAYING, player.state());
+            VideoFrame first = player.takePicture();
+            assertNotNull(first, "play is not refused for the poster's sake");
+            assertEquals(0, first.ptsMicros(), "and starts at the beginning");
+            first.release();
+        } finally {
+            Crashes.uninstall(quiet);
+        }
+        assertEquals(stream.slots(), stream.freeSlots());
+    }
+
+    /** A stream that cannot seek cannot start again elsewhere: its cue's failure is play's. */
+    @Test
+    void aCueThatCannotBeDecodedOnAStreamThatCannotSeekFailsAtPlay() {
+        PooledTestStream stream = new PooledTestStream(64, 32, 4);
+        stream.seekable = false;
+        RuntimeException boom = new IllegalStateException("the first picture is broken");
+        CrashHandler quiet = (phase, error) -> true;
+        Crashes.install(quiet);
+        Hand hand = new Hand();
+        try (MediaPlayer player = manual(stream, hand, 3)) {
+            player.cue(0);
+            stream.failOnRead = boom;
+            player.decodeStep();
+            assertEquals(MediaPlayer.State.IDLE, player.state());
+            player.start();
+            assertEquals(MediaPlayer.State.FAILED, player.state());
+            assertSame(boom, player.failure(), "FAILED always carries its failure");
+        } finally {
+            Crashes.uninstall(quiet);
+        }
+    }
+
     @Test
     void aTrackThatSoundsBecomesTheMasterAndTheEngineOwnsItFromThere() {
         PooledTestStream stream = new PooledTestStream(64, 32, 4);

@@ -219,6 +219,12 @@ public final class MediaPlayer implements AutoCloseable {
     private boolean cued;
     private long cuedAt;
     private boolean cuePresentPending;
+    /**
+     * What a cue's decode threw, guarded by {@link #lock}: the poster is lost, the player is not.
+     * {@link #start()} plays from the beginning past it, or, on a stream that cannot seek back,
+     * fails with it.
+     */
+    private @Nullable RuntimeException cueFailure;
     /** The clock's jump tally when the master was installed; a change means it moved off timeline. */
     private long lastJumpCount;
 
@@ -370,23 +376,34 @@ public final class MediaPlayer implements AutoCloseable {
             case IDLE -> {
             }
         }
-        if (cued) {
-            cued = false;
-            cuePresentPending = false;
-            if (cuedAt > 0) {
-                // The cue was a cover elsewhere in the stream; playing begins at the beginning.
-                requestSeek(0, VideoStreamSource.SeekMode.EXACT);
-                drainRing();
-            }
-        }
+        // The cue was a cover elsewhere in the stream; playing begins at the beginning.
+        boolean fromTheStart = cued && cuedAt > 0;
+        cued = false;
+        cuePresentPending = false;
         if (ring.length != ringCapacity) {
             drainRing(); // what a cue decoded into a ring of the old size goes back first
             ring = new VideoFrame[ringCapacity];
             ringPass = new int[ringCapacity];
         }
+        if (failedWhereItCannotLeave()) {
+            return; // before the track sounds for a player that cannot play
+        }
         startAudio();
-        state = State.PLAYING;
         synchronized (lock) {
+            // Under the lock, as fail() writes: a cue's decode that throws lands either before this,
+            // as a cue failure this play gets past, or after, as this play's failure.
+            if (failedWhereItCannotLeave()) {
+                return;
+            }
+            boolean lostPoster = cueFailure != null;
+            cueFailure = null;
+            if (fromTheStart || lostPoster) {
+                // Drained and sought in one step: a picture the decode thread enqueued between the
+                // two would be the old position's shown first, or the new one's drained.
+                drainRing();
+                requestSeek(0, VideoStreamSource.SeekMode.EXACT);
+            }
+            state = State.PLAYING;
             decoding = true;
             sourceEnded = false;
             lock.notifyAll();
@@ -399,6 +416,25 @@ public final class MediaPlayer implements AutoCloseable {
     }
 
     /**
+     * A cue's decode threw on a stream that cannot seek: the cue was where the stream is, and it
+     * cannot go back to the beginning, so play fails as the cue did. Takes the lock.
+     *
+     * @return whether the player moved to {@link State#FAILED}
+     */
+    private boolean failedWhereItCannotLeave() {
+        synchronized (lock) {
+            if (cueFailure == null || video.canSeek()) {
+                return false;
+            }
+            failure = cueFailure;
+            cueFailure = null;
+            state = State.FAILED;
+            lock.notifyAll();
+            return true;
+        }
+    }
+
+    /**
      * Shows a picture before playing: on a player that has not started, decoding begins at
      * {@code micros} with no sound and no clock, and the first picture from there is handed over
      * once through {@link #takePicture()} while the player stays {@link State#IDLE}. That picture is
@@ -406,8 +442,10 @@ public final class MediaPlayer implements AutoCloseable {
      * elsewhere.
      *
      * <p>A stream that cannot seek is cued where it is, which for one never played is its first
-     * picture. A time past the end hands nothing over. Does nothing unless this player is idle, and
-     * nothing on one already cued.
+     * picture. A time past the end hands nothing over. Nor does a picture
+     * that cannot be decoded, which leaves the player idle and not failed: {@link #start()} then
+     * plays from the beginning, or, on a stream that cannot seek, fails as the cue did. Does
+     * nothing unless this player is idle, and nothing on one already cued.
      *
      * @param micros where the picture is, in microseconds on the pictures' own timeline; not
      *               negative
@@ -956,9 +994,9 @@ public final class MediaPlayer implements AutoCloseable {
      * step and makes FAILED stick until something deliberately clears it.
      *
      * <p>The assignments outside this method are the ones with no second writer to race:
-     * {@link #start()} runs from IDLE, where no decode thread is decoding yet, and {@link #stop()},
-     * {@link #close()} and {@link #seek} clear a failure on purpose with the decode thread stopped
-     * or parked.
+     * {@link #start()} moves from IDLE under the lock, where a cue's decode thread may be decoding
+     * but fails without leaving IDLE (see {@link #fail}), and {@link #stop()}, {@link #close()} and
+     * {@link #seek} clear a failure on purpose with the decode thread stopped or parked.
      *
      * <p>Package-private for the test: the losing half of the race cannot be reached through the
      * public methods, because each of them re-reads the state, so the rule is asserted here.
@@ -979,21 +1017,29 @@ public final class MediaPlayer implements AutoCloseable {
      * A read or a seek threw. Discarded when a seek arrived while it was in flight: {@link #seek}
      * clears a failure because a decode that threw at one position says nothing about another, and
      * this one was thrown at the position being left.
+     *
+     * <p>A cue's decode, on a player still idle, fails the poster and not the player: the player
+     * stays idle, {@link #isCued()} says no picture is coming, and {@link #start()} plays from the
+     * beginning, where a file whose poster time is broken may decode perfectly well.
      */
     private Step fail(RuntimeException error, long epoch) {
         synchronized (lock) {
             if (epoch != seekEpoch) {
                 return Step.PRODUCED; // the seek is waiting, so straight on to it
             }
-            failure = error;
             // Not `decoding = false`: the thread parks rather than exiting, so a seek out of a
             // position that could not be decoded is answered by the thread that is already there.
             sourceEnded = true;
-            // Under the lock, and unconditional once the failure is this position's: this is the
-            // write every transition in enterState is checked against, and outside the lock it
-            // could land in the middle of one of them and be overwritten by a state the UI thread
-            // chose before it.
-            state = State.FAILED;
+            if (state == State.IDLE) {
+                cueFailure = error;
+            } else {
+                failure = error;
+                // Under the lock, and unconditional once the failure is this position's: this is
+                // the write every transition in enterState is checked against, and outside the
+                // lock it could land in the middle of one of them and be overwritten by a state
+                // the UI thread chose before it.
+                state = State.FAILED;
+            }
             lock.notifyAll();
         }
         // Somewhere a user can see it: a decode thread belongs to no event-loop phase, so without
@@ -1216,6 +1262,7 @@ public final class MediaPlayer implements AutoCloseable {
             // A seek nobody asked to survive the stop: starting again plays from where the stream
             // is, which is what stop() promises, and a request left armed would move it silently.
             seekRequested = false;
+            cueFailure = null; // a cue's, ended with it
         }
         seekPresentPending = false;
         cued = false; // a stop or a close ends a cue as it ends playing
