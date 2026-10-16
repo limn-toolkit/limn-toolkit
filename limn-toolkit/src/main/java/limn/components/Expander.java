@@ -33,10 +33,11 @@ import java.util.function.Consumer;
  *
  * <p>It opens and closes by a click on the header, by Space or Enter while the header holds the
  * keyboard, and from {@link #setExpanded}. The content slides out over {@link Theme#animExpand},
- * and appears at once when the user asked the system for less motion. While it is closed the
+ * and appears at once when the user asked the system for less motion. Once it is closed the
  * content is hidden: it takes no room, no focus and no pointer, and a reader does not find it.
- * Closing it while the keyboard is inside moves the keyboard to the header, which is where the
- * user just was.
+ * While it slides shut it is still there, drawn and reachable, until the slide ends. Closing it
+ * while the keyboard is inside moves the keyboard to the header as the close starts, which is
+ * where the user just was.
  *
  * <p>A reader hears the header as a button, expanded or collapsed, that controls the content;
  * the summary is its description. An {@link ExpanderGroup} keeps at most one of several open.
