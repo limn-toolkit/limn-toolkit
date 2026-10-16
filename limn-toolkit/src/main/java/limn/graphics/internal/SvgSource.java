@@ -26,7 +26,9 @@ import org.jspecify.annotations.Nullable;
  * <ul>
  *   <li><b>Taken out:</b> scripts, {@code foreignObject}, media elements, every event attribute,
  *       and every reference that is not to an element of the same file. A renderer reads a path
- *       it is given; it is given none.</li>
+ *       it is given; it is given none, neither written in the file nor moved there by an
+ *       animation, and every reference is looked at again once the rest has rewritten the
+ *       file.</li>
  *   <li><b>Pictures</b> are read by the toolkit: one embedded as {@code data:}, and, for a file
  *       read from disk, one beside it, its address relative to the file's own folder and refused
  *       if it leads out. Each is decoded as any picture the toolkit reads, within the same
@@ -37,7 +39,8 @@ import org.jspecify.annotations.Nullable;
  *       the value declared for that name, by an ancestor's {@code style} or by a sheet's rule for
  *       {@code :root}, {@code svg} or {@code *}, or else its fallback. Illustrations exported from
  *       design systems paint this way, and a renderer that does not read {@code var()} drew them
- *       black.</li>
+ *       black. What substitution writes is held to what the file's bytes can back, four
+ *       characters a byte, and a file that would write more is refused.</li>
  *   <li><b>{@code use}</b> is followed to count what drawing the file costs: the elements it
  *       draws, through every reference, are held under {@link #MAX_DRAWN_ELEMENTS}, and a
  *       reference that leads back to itself is refused.</li>
@@ -84,10 +87,14 @@ public final class SvgSource {
         if (!root.localName().equals("svg")) {
             throw SvgXml.refused("the root element is <" + root.name() + ">, not <svg>");
         }
-        new Sanitizer(folder).clean(root);
-        CustomProperties.resolve(root);
+        Sanitizer sanitizer = new Sanitizer(folder);
+        sanitizer.clean(root);
+        new CustomProperties(bytes.length).resolve(root);
         drawnElements(root);
         SvgAnimation animation = SvgAnimation.extract(root);
+        // var() and the animation's reading both rewrite attributes after the cleaning, so every
+        // reference is looked at once more in the text the renderer is about to be given.
+        sanitizer.vet(root);
         return new SvgSource(root, animation);
     }
 
@@ -187,6 +194,19 @@ public final class SvgSource {
         return total;
     }
 
+    /**
+     * Whether an attribute is a reference: {@code href}, plain or under a prefix. The renderer
+     * opens the reference of an {@code image} as a path to read, so what one holds is the
+     * sanitizer's to say and no one else's: an animation never moves one.
+     *
+     * @param attribute an attribute's name as written, or a CSS property's
+     * @return whether it is {@code href} or {@code <prefix>:href}, in any case
+     */
+    static boolean isReference(String attribute) {
+        String lower = attribute.trim().toLowerCase(Locale.ROOT);
+        return lower.equals("href") || lower.endsWith(":href");
+    }
+
     static @Nullable String href(SvgXml.Element element) {
         String href = element.attribute("href");
         return href != null ? href.trim() : element.attribute("xlink:href") == null ? null
@@ -198,6 +218,8 @@ public final class SvgSource {
     private static final class Sanitizer {
 
         private final @Nullable Path folder;
+        /** Every picture this sanitizer wrote, as the address it wrote: the only ones a picture may show. */
+        private final Set<String> written = new java.util.HashSet<>();
 
         Sanitizer(@Nullable Path folder) {
             this.folder = folder;
@@ -209,7 +231,7 @@ public final class SvgSource {
                 String lower = name.toLowerCase(Locale.ROOT);
                 if (lower.startsWith("on")) {
                     element.removeAttribute(i);
-                } else if (lower.equals("href") || lower.equals("xlink:href")) {
+                } else if (isReference(name)) {
                     String value = element.attributeValue(i).trim();
                     String kept = keep(element, value);
                     if (kept == null) {
@@ -234,12 +256,13 @@ public final class SvgSource {
 
         /** @return what an address becomes: itself for a reference inside the file, a PNG for a picture, or null to drop it */
         private @Nullable String keep(SvgXml.Element element, String href) {
-            if (href.startsWith("#")) {
-                return href;
+            if (!isPicture(element)) {
+                return href.startsWith("#") ? href : null; // another file's element: never read
             }
-            String local = element.localName();
-            if (!local.equals("image") && !local.equals("feImage")) {
-                return null; // another file's element: never read
+            if (href.startsWith("#")) {
+                // The renderer reads an image's reference as a path to open, a fragment too, which
+                // names a file in the process's own folder, and on Windows one anywhere through "..".
+                return null;
             }
             byte[] picture = href.regionMatches(true, 0, "data:", 0, 5) ? dataUri(href) : beside(href);
             if (picture == null) {
@@ -252,7 +275,35 @@ public final class SvgSource {
                 return null; // a picture the toolkit does not read is not drawn, as a browser would not
             }
             byte[] png = Images.encode(image, ImageFormat.PNG);
-            return "data:image/png;base64," + Base64.getEncoder().encodeToString(png);
+            String address = "data:image/png;base64," + Base64.getEncoder().encodeToString(png);
+            written.add(address);
+            return address;
+        }
+
+        private static boolean isPicture(SvgXml.Element element) {
+            String local = element.localName();
+            return local.equals("image") || local.equals("feImage");
+        }
+
+        /**
+         * Drops every reference the cleaning would not have kept: on a picture, anything but a PNG
+         * this sanitizer wrote; on any other element, anything but an element of the same file.
+         * The last pass over the document, after everything that rewrites its attributes, so that
+         * no path reaches the renderer by a road the cleaning did not walk.
+         */
+        void vet(SvgXml.Element element) {
+            boolean picture = isPicture(element);
+            for (int i = element.attributeCount() - 1; i >= 0; i--) {
+                if (isReference(element.attributeName(i))) {
+                    String value = element.attributeValue(i).trim();
+                    if (picture ? !written.contains(value) : !value.startsWith("#")) {
+                        element.removeAttribute(i);
+                    }
+                }
+            }
+            for (SvgXml.Element child : element.elements()) {
+                vet(child);
+            }
         }
 
         private static byte @Nullable [] dataUri(String href) {
@@ -317,10 +368,32 @@ public final class SvgSource {
         /** The deepest a property may refer to another before it reads as unset. */
         private static final int MAX_DEPTH = 16;
 
-        private CustomProperties() {
+        /**
+         * What every substitution of a file together may write, in characters, for each byte of
+         * the file: a property that refers to another several times doubles what it writes at
+         * each step, and sixteen steps of that from a few hundred bytes are more than the heap.
+         */
+        static final int MAX_WRITTEN_PER_BYTE = 4;
+        /** And at least this much, however small the file: a mebicharacter. */
+        static final int MIN_WRITTEN = 1 << 20;
+
+        /** What substitution may still write, each call counted as one character more. */
+        private long left;
+
+        /** @param fileBytes the length of the file, which what substitution may write is held to */
+        CustomProperties(int fileBytes) {
+            this.left = Math.max(MIN_WRITTEN, (long) MAX_WRITTEN_PER_BYTE * fileBytes);
         }
 
-        static void resolve(SvgXml.Element root) {
+        /** Counts what substitution writes, and refuses the file past what its bytes can back. */
+        private void spend(int characters) {
+            left -= characters;
+            if (left < 0) {
+                throw SvgXml.refused("var() substitution writes more than its file can back");
+            }
+        }
+
+        void resolve(SvgXml.Element root) {
             Map<String, String> global = new HashMap<>();
             collectGlobal(root, global);
             String rootStyle = root.attribute("style");
@@ -389,7 +462,7 @@ public final class SvgSource {
             return out;
         }
 
-        private static void walk(SvgXml.Element element, Map<String, String> global, Map<String, String> inherited) {
+        private void walk(SvgXml.Element element, Map<String, String> global, Map<String, String> inherited) {
             Map<String, String> own = inherited;
             String style = element.attribute("style");
             if (style != null && style.contains("--")) {
@@ -422,7 +495,7 @@ public final class SvgSource {
         }
 
         /** A sheet with every declaration's {@code var()} resolved against the document's properties. */
-        private static String resolveSheet(String sheet, Map<String, String> global) {
+        private String resolveSheet(String sheet, Map<String, String> global) {
             StringBuilder out = new StringBuilder(sheet.length());
             int at = 0;
             while (true) {
@@ -440,7 +513,7 @@ public final class SvgSource {
         }
 
         /** A declaration block with each {@code var()} resolved, and a declaration that resolves to nothing dropped. */
-        private static @Nullable String resolveDeclarations(String block, Map<String, String> properties) {
+        private @Nullable String resolveDeclarations(String block, Map<String, String> properties) {
             StringBuilder out = new StringBuilder();
             for (String declaration : splitDeclarations(block)) {
                 String trimmed = declaration.trim();
@@ -467,18 +540,21 @@ public final class SvgSource {
         }
 
         /** The value with each {@code var(--name, fallback)} replaced; null when one has neither a value nor a fallback. */
-        static @Nullable String substitute(String value, Map<String, String> properties, int depth) {
+        @Nullable String substitute(String value, Map<String, String> properties, int depth) {
             if (depth > MAX_DEPTH) {
                 return null;
             }
+            spend(1); // a call that writes nothing is work too: a property of empty references
             StringBuilder out = new StringBuilder();
             int at = 0;
             while (true) {
                 int start = value.indexOf("var(", at);
                 if (start < 0) {
+                    spend(value.length() - at);
                     out.append(value, at, value.length());
                     return out.toString();
                 }
+                spend(start - at);
                 out.append(value, at, start);
                 int level = 0;
                 int end = -1;
@@ -508,6 +584,7 @@ public final class SvgSource {
                 if (replacement == null) {
                     return null;
                 }
+                spend(replacement.length());
                 out.append(replacement);
                 at = end + 1;
             }

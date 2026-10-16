@@ -34,12 +34,27 @@ public final class IconTimeline {
 
     /** @return the frame shown, from 0 */
     public int frame() {
+        settle();
         return index;
     }
 
     /** @return whether time still moves it: not at the end of its last turn */
     public boolean isPlaying() {
+        settle();
         return !finished;
+    }
+
+    /**
+     * Follows an icon that stopped moving under the timeline: an SVG the renderer refuses after
+     * some of its frames drew is one still, empty frame from then on, and a frame past its new
+     * count would be refused by the icon on the next paint, or by the next step of the clock.
+     */
+    private void settle() {
+        if (index > 0 && index >= icon.frameCount() || !finished && !icon.isAnimated()) {
+            index = 0;
+            shown = 0;
+            finished = true;
+        }
     }
 
     /**
@@ -49,10 +64,11 @@ public final class IconTimeline {
      * @return whether the frame shown changed
      */
     public boolean advance(double seconds) {
-        if (finished || !(seconds > 0)) {
-            return false;
-        }
         int before = index;
+        settle();
+        if (finished || !(seconds > 0)) {
+            return index != before;
+        }
         shown += seconds * 1000.0;
         long turn = 0;
         for (int f = 0; f < icon.frameCount(); f++) {
@@ -78,6 +94,7 @@ public final class IconTimeline {
 
     /** @return seconds until the frame changes; infinite once it has finished */
     public double secondsUntilNextFrame() {
+        settle();
         return finished ? Double.POSITIVE_INFINITY : Math.max(0, millis(index) - shown) / 1000.0;
     }
 

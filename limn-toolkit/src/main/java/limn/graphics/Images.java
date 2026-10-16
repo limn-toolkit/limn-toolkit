@@ -82,7 +82,7 @@ public final class Images {
      *
      * <p>An SVG is drawn at its own size, one pixel to one of its units, by the installed SVG
      * renderer, and shows only the pictures it embeds: read from a file through
-     * {@link SvgIcon#fromFile}, it shows those beside it too, and an {@link SvgIcon} is what draws
+     * {@link SvgIcon#load}, it shows those beside it too, and an {@link SvgIcon} is what draws
      * one sharp at any size.
      */
     public static Image decode(byte[] fileBytes) {
@@ -714,6 +714,9 @@ public final class Images {
      * the price of the memory it takes for that long. A path already loaded and shared is pinned
      * from this call on, and is the same object.
      *
+     * <p>Pins are counted: each call is taken back by one {@link #unpin(Path)}, so two parts of
+     * an application that each pin a file keep it pinned until both have unpinned it.
+     *
      * @param file the file to read
      * @return the shared future, already running or already complete, completing on the UI thread
      */
@@ -722,8 +725,9 @@ public final class Images {
     }
 
     /**
-     * Puts a file pinned by {@link #loadPinned} back among the shared loads the budget keeps or
-     * lets go. Nothing happens for a file that is not pinned. Any thread.
+     * Takes back one {@link #loadPinned} of a file; when every one is taken back, the file is back
+     * among the shared loads the budget keeps or lets go. Nothing happens for a file that is not
+     * pinned. Any thread.
      *
      * @param file the file a load was pinned by
      */
@@ -744,8 +748,8 @@ public final class Images {
 
     /**
      * Loads a classpath resource as {@link #fromResourceShared} does and keeps the result whatever
-     * the {@linkplain #setSharedBudget budget}, until {@link #unpinResource}; see
-     * {@link #loadPinned}.
+     * the {@linkplain #setSharedBudget budget}, until as many {@link #unpinResource}s as calls;
+     * see {@link #loadPinned}.
      *
      * @param resource the resource's name
      * @return the shared future, already running or already complete, completing on the UI thread
@@ -756,8 +760,9 @@ public final class Images {
     }
 
     /**
-     * Puts a resource pinned by {@link #fromResourcePinned} back among the shared loads the budget
-     * keeps or lets go. Nothing happens for a resource that is not pinned. Any thread.
+     * Takes back one {@link #fromResourcePinned} of a resource; when every one is taken back, the
+     * resource is back among the shared loads the budget keeps or lets go. Nothing happens for a
+     * resource that is not pinned. Any thread.
      *
      * @param resource the name a load was pinned by
      */

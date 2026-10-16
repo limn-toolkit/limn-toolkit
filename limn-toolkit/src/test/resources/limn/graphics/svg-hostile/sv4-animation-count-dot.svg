@@ -1,0 +1,1 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10'><style>@keyframes k { to { opacity: 0 } }</style><rect width='4' height='4' style='animation: k 1s .'/><rect width='4' height='4' style='animation: k 1s 1.2.3'/></svg>

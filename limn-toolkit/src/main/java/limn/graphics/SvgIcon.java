@@ -259,7 +259,7 @@ public final class SvgIcon implements Icon {
      * @throws java.io.UncheckedIOException when the file cannot be read
      * @throws limn.io.MalformedContentException when it is larger than an SVG is read
      */
-    public static SvgIcon fromFile(java.nio.file.Path file) {
+    public static SvgIcon load(java.nio.file.Path file) {
         java.util.Objects.requireNonNull(file, "file");
         try {
             if (java.nio.file.Files.size(file) > limn.graphics.internal.SvgXml.MAX_BYTES) {

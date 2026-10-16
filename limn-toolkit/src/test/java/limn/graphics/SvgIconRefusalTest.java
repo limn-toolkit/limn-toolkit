@@ -71,6 +71,39 @@ class SvgIconRefusalTest {
         }
     }
 
+    /**
+     * A refusal after some frames drew makes an animated icon a still one, one frame long, under
+     * a timeline that stood on a later frame: the clock's next step asked for that frame's time
+     * and threw IndexOutOfBoundsException on the UI thread.
+     */
+    @Test
+    void anAnimatedIconRefusedPartWayStopsItsTimelineOnTheFirstFrame() {
+        limn.graphics.SvgRenderer once = limn.testfixtures.FakeSvg.renderer((svg, px) -> {
+            asked.add(px);
+            if (asked.size() > 1) {
+                throw new IllegalArgumentException("refused at a later moment");
+            }
+            return new Image(px, px, new byte[px * px * 4]);
+        });
+        SvgIcon.installRenderer(once);
+        try {
+            SvgIcon icon = SvgIcon.of("<svg xmlns='http://www.w3.org/2000/svg' width='5' height='5'><rect width='5' "
+                    + "height='5'><animate attributeName='x' from='0' to='5' dur='1s' repeatCount='indefinite'/></rect></svg>");
+            limn.graphics.internal.IconTimeline timeline = new limn.graphics.internal.IconTimeline(icon);
+            icon.image(16, false, timeline.frame());
+            timeline.advance(0.2);
+            assertEquals(4, timeline.frame(), "a fifth of a second at 24 frames a second");
+            icon.image(16, false, timeline.frame()); // refused
+            assertEquals(1, icon.frameCount());
+            assertDoesNotThrow(() -> timeline.advance(0.05));
+            assertEquals(0, timeline.frame());
+            assertEquals(false, timeline.isPlaying(), "a still icon's timeline has finished");
+            assertDoesNotThrow(() -> icon.image(16, false, timeline.frame()));
+        } finally {
+            SvgIcon.uninstallRenderer(once);
+        }
+    }
+
     @Test
     void aSourceThatRasterizesIsUntouched() {
         SvgIcon.installRenderer(working);

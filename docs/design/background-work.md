@@ -154,8 +154,11 @@ lifecycle:
 > cancelled, and a result nobody takes goes to `onDiscarded`.
 >
 > **`...Shared` returns a `CompletableFuture` that is already running**, de-duplicated by source.
+> **`...Pinned`** is the same shape and the same shared load, kept outside the shared budget
+> until it is unpinned as many times as it was pinned (`Images.loadPinned`,
+> `Images.fromResourcePinned`, and the `Sounds` pair).
 
-There is no third shape and no facade-by-facade exception, because the failure mode of getting it
+There is no other shape and no facade-by-facade exception, because the failure mode of getting it
 wrong is silent in one direction: a `Work` whose `start()` was forgotten does nothing and says
 nothing until it is collected. A reader who has just written `Images.decodeAsync(bytes).start()`
 must not find that `Images.loadShared(path)` needed the same call, or that `GltfLoader.loadAsync`
@@ -164,7 +167,8 @@ and a same-shaped `load...` next to it disagree.
 Which of the two a loader gets is not a taste question either. **A de-duplicated result cannot be
 a `Work`**: two callers waiting on one load must not be able to cancel each other, and a shared
 value has no single owner to hand it to `onDiscarded`. So dedup forces `...Shared`, and everything
-else (every operation with one owner) is `...Async`. `ImagesAsyncTest` and `SoundsAsyncTest`
+else (every operation with one owner) is `...Async`; `...Pinned` is `...Shared` with a hold on
+the result, and so a running future for the same reason. `ImagesAsyncTest` and `SoundsAsyncTest`
 pin the unstarted half from the caller's side.
 
 The asynchronous form should be a `Job`, not a bare stage, wherever the request can be superseded or
@@ -200,9 +204,12 @@ because a gap that reads as compliant is the one nobody fixes.
 | `ImageDecoder.decode` (SPI) | Whatever the decode costs | **Excused**: documented callable from any thread and from several at once, which is exactly what lets `Images.decodeAsync` exist. An implementation that is not pure CPU breaks that facade, not itself |
 | `ImageEncoder.encode` (SPI) | The compression | **Excused**: same shape (any thread, no per-call state); `Images.encodeAsync` is the facade's form |
 | `SvgIcon.fromResource` | A few kilobytes off the classpath; nothing is parsed | **Excused**: the expensive half is deferred to `SvgIcon.image` |
+| `SvgIcon.load` | A blocking read of the file, an SVG's text (refused past 16 MiB); nothing is parsed, and the pictures it shows are read when it is first drawn | **Excused** as `fromResource` is: the expensive half is deferred to `SvgIcon.image` |
 | `SvgIcon.image` | A parse and a rasterize on every miss: a new size step, a new content scale, each step of a zoom | `SvgIcon.imageAsync`, which folds the bitmap into the same cache, so a later `image` is a hit |
 | `Icon.image` | Whatever the implementation's bitmap costs | **Excused**: `Icon.paint` calls it inside a frame, and a paint that asked for a bitmap has to be given one before it can finish. A costly implementation carries its own warm-up instead |
-| `SvgRasterizer.rasterize` (SPI) | The parse and the rasterize | **Excused**: documented callable from any thread and from several at once, which is what makes `SvgIcon.imageAsync` possible |
+| `Icon.image(int, boolean, int)` | For a frame of an animation decoded as it plays that is not in memory, that frame's decode and the ones before it | **Excused** as `Icon.image` is: the paint that asks needs its frame now |
+| `Image.frame` | The same: a frame not in memory, and the frames before it, decoded on the calling thread | `Image.frameIfReady`, the player's form: it answers at once, null while the frame is decoded ahead on the pool |
+| `SvgRenderer.open`, `SvgRenderer.Document.render` (SPI) | The parse, and each drawing | **Excused**: documented callable from any thread and from several at once (a document by one thread at a time), which is what makes `SvgIcon.imageAsync` possible |
 | `Tabler.outline`, `Tabler.filled`, `TablerIcon.icon` | On the first call, the pack's index and about three megabytes of concatenated drawings, read off the classpath and inflated, and again after the soft reference holding them is cleared | `Tabler.warmUpAsync`, which does both reads on the pool. It cannot promise they stay read: the blob is held softly on purpose, so this is a cost moved rather than removed |
 | `Tabler.has`, `Tabler.hasFilled`, `Tabler.names` | The index alone, on the same first call | The same `Tabler.warmUpAsync`; the index is read once and kept, so warming it is permanent |
 | `ReadableSurface.readDisplayReferred`, `ReadableSurface.readSceneReferred` | A synchronous GPU read that stalls the pipeline until the queue drains | **Excused**: a read needs the context, and the context is current on one thread inside one frame. The encode that usually follows does leave (`Images.saveAsync`) |

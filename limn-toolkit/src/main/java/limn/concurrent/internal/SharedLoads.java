@@ -23,7 +23,9 @@ import java.util.function.ToLongFunction;
  * be there now. One that landed is kept for as long as what is kept fits the budget, and past it
  * the one asked for longest ago is let go first, a path before a resource: an application's own
  * resources are few and it comes back to them, where the files of a disk have no end. One that
- * was pinned is kept whatever the budget, and counts nothing toward it.
+ * was pinned is kept whatever the budget, and counts nothing toward it, until it was unpinned as
+ * many times as it was pinned: two parts of an application that pin one picture each keep it
+ * pinned until both let it go.
  *
  * <p>Letting go is not forgetting. What was let go is still known for as long as anybody holds
  * it, and an ask for its key hands the same object back, so a picture on screen is never decoded
@@ -58,6 +60,8 @@ public final class SharedLoads<T> {
         long bytes;
         long used;
         boolean pinned;
+        /** How many pinned asks for this key are not unpinned yet; a part follows its load's instead. */
+        int pins;
 
         Entry(Source source) {
             this.source = source;
@@ -92,7 +96,8 @@ public final class SharedLoads<T> {
      *
      * @param key    what identifies the load; two asks with equal keys share one future
      * @param source where the key comes from
-     * @param pinned whether the result is kept whatever the budget, from this ask on
+     * @param pinned whether the result is kept whatever the budget, from this ask on, until as
+     *               many {@link #unpin}s as pinned asks
      * @param loader the work, run at most once per key while its result is known and nothing failed
      * @return the shared future, already running or already complete, completing on the UI thread
      * @throws IllegalStateException if a load has to start and no backend is running
@@ -106,7 +111,7 @@ public final class SharedLoads<T> {
                 entries.put(key, entry);
             }
             entry.used = ++clock;
-            if (pinned && !entry.pinned) {
+            if (pinned && entry.pins++ == 0) {
                 pin(entry);
                 pinParts(key, true);
             }
@@ -150,14 +155,15 @@ public final class SharedLoads<T> {
     }
 
     /**
-     * Stops keeping {@code key} whatever the budget: it counts toward it from now on, and is let
-     * go when its turn comes. Nothing happens for a key that is not pinned.
+     * Takes back one pinned ask for {@code key}. When none is left, it stops being kept whatever
+     * the budget: it counts toward it from now on, and is let go when its turn comes. Nothing
+     * happens for a key that is not pinned.
      *
      * @param key the key a load was pinned by
      */
     public synchronized void unpin(String key) {
         Entry entry = entries.get(key);
-        if (entry == null || !entry.pinned) {
+        if (entry == null || entry.pins == 0 || --entry.pins > 0) {
             return;
         }
         unpin(entry);

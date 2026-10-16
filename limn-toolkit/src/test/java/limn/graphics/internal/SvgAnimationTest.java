@@ -166,6 +166,35 @@ class SvgAnimationTest {
         assertEquals(2, number(source.animation(), 500, "limn-anim-0.r"), 1e-9);
     }
 
+    /**
+     * The renderer opens an image's reference as a path, so an animation that moved one would read
+     * any picture on the disk into an SVG from bytes, which may show none (ADR 066 section 6).
+     */
+    @Test
+    void noAnimationMovesAReference() {
+        String[] moving = {
+            "<image width='4' height='4'><set attributeName='href' to='/etc/private.png'/></image>",
+            "<image width='4' height='4'><set attributeName=' HREF ' to='/etc/private.png'/></image>",
+            "<image width='4' height='4'><animate attributeName='href' values='\\\\host\\share\\a.png;/x.png' "
+                    + "dur='1s' calcMode='discrete' repeatCount='indefinite'/></image>",
+            "<image width='4' height='4'><set attributeName='xlink:href' to='/etc/private.png'/></image>",
+            "<style>@keyframes k { from { href: /etc/private.png } to { href: /etc/private.png } }"
+                    + " image { animation: k 1s infinite }</style><image width='4' height='4'/>",
+        };
+        for (String body : moving) {
+            SvgAnimation animation = source(SVG + body + "<rect width='1' height='1'><animate attributeName='x' "
+                    + "from='0' to='1' dur='1s' repeatCount='indefinite'/></rect></svg>").animation();
+            assertNotNull(animation, body);
+            for (double millis : new double[] {0, 250, 500, 999}) {
+                Recording document = new Recording();
+                animation.apply(document, new SvgAnimation.Applied(), millis);
+                for (String key : document.attributes.keySet()) {
+                    assertFalse(key.toLowerCase(java.util.Locale.ROOT).endsWith("href"), body + " set " + key);
+                }
+            }
+        }
+    }
+
     // ----------------------------------------------------------------------------- CSS
 
     @Test
@@ -303,6 +332,40 @@ class SvgAnimationTest {
         assertEquals(0, number(animation, 900, "b.x"), 1e-9);
         assertEquals(2.5, number(animation, 1500, "b.x"), 1e-9);
         assertEquals(49, animation.frameCount(24), "two seconds and the last moment");
+    }
+
+    /**
+     * An iteration count that looks like a number and is none made {@code Images.decode} throw
+     * NumberFormatException (ADR 061 promises one exception); a browser drops such a
+     * declaration, and so does the toolkit.
+     */
+    @Test
+    void anAnimationShorthandWithANumberThatIsNoneIsDropped() {
+        for (String count : new String[] {".", "1.2.3", ".."}) {
+            assertNull(source(SVG + "<style>@keyframes k { to { opacity: 0 } }</style><rect width='4' height='4' "
+                    + "style='animation: k 1s " + count + "'/></svg>").animation(), count);
+        }
+        assertNotNull(source(SVG + "<style>@keyframes k { to { opacity: 0 } }</style><rect width='4' height='4' "
+                + "style='animation: k 1s .5'/></svg>").animation(), "a count of half a turn");
+    }
+
+    /**
+     * Each round of working out a chain moves it on by one link, over every animation: forty
+     * pairs restarting each other every millisecond took nine seconds, and a hundred and sixty
+     * thirty-six. Past a count of the work, the file is refused.
+     */
+    @Test
+    void aChainOfMillisecondLinksIsRefusedQuickly() {
+        StringBuilder svg = new StringBuilder(SVG);
+        for (int i = 0; i < 40; i++) {
+            svg.append("<rect><animate id='a").append(i).append("' attributeName='x' from='0' to='1' dur='1ms' begin='0;b")
+                    .append(i).append(".end'/><animate id='b").append(i).append("' attributeName='y' from='0' to='1' "
+                    + "dur='1ms' begin='a").append(i).append(".end'/></rect>");
+        }
+        svg.append("</svg>");
+        long start = System.nanoTime();
+        org.junit.jupiter.api.Assertions.assertThrows(limn.io.MalformedContentException.class, () -> source(svg.toString()));
+        assertTrue(System.nanoTime() - start < 2_000_000_000L, (System.nanoTime() - start) / 1_000_000 + " ms");
     }
 
     @Test

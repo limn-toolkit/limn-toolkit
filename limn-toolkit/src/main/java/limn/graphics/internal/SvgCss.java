@@ -2,6 +2,7 @@ package limn.graphics.internal;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -17,8 +18,24 @@ import org.jspecify.annotations.Nullable;
  * {@code [attribute=value]}, {@code :root}, {@code :first-child}, {@code :last-child},
  * {@code :nth-child()} and {@code :nth-of-type()}, compounds of them, and the descendant and child
  * combinators. A selector with anything else matches nothing.
+ *
+ * <p><b>Matching is bounded work</b>: a selector chains at most
+ * {@value #MAX_COMPOUNDS} compounds, each compound is tried once against each element in one
+ * match however many descendant combinators could send it back there, and a file whose sheets
+ * take more than {@link #MAX_MATCH_STEPS} tries over all its elements is refused.
  */
 final class SvgCss {
+
+    /** The most compounds one selector may chain: a file with a longer one is refused. */
+    static final int MAX_COMPOUNDS = 32;
+    /**
+     * The most compounds tried against elements over one file: each element is matched against
+     * every selector once, so an illustration of ten thousand elements under a hundred rules
+     * tries about a million, and the most a file may try is reached in under a second.
+     */
+    static final long MAX_MATCH_STEPS = 20_000_000L;
+
+    private static final int[] NONE = new int[0];
 
     /** One declaration: a property, its value, and whether it is important. */
     record Declaration(String property, String value, boolean important) {
@@ -34,6 +51,12 @@ final class SvgCss {
 
     final List<Rule> rules = new ArrayList<>();
     final Map<String, List<Keyframe>> keyframes = new HashMap<>();
+
+    private long steps;
+    /** For each element asked about: the rules that match it, as pairs of a rule's index and its specificity. */
+    private final Map<SvgXml.Element, int[]> matching = new IdentityHashMap<>();
+    /** For each parent asked about: where each of its children stands among them. */
+    private final Map<SvgXml.Element, Siblings> siblings = new IdentityHashMap<>();
 
     /** Reads every sheet of the document. */
     static SvgCss of(SvgXml.Element root) {
@@ -235,16 +258,10 @@ final class SvgCss {
         String best = null;
         boolean bestImportant = false;
         long bestRank = Long.MIN_VALUE;
-        for (Rule rule : rules) {
-            long specificity = -1;
-            for (Selector selector : rule.selectors) {
-                if (selector.matches(element)) {
-                    specificity = Math.max(specificity, selector.specificity);
-                }
-            }
-            if (specificity < 0) {
-                continue;
-            }
+        int[] matched = matching(element);
+        for (int m = 0; m < matched.length; m += 2) {
+            Rule rule = rules.get(matched[m]);
+            long specificity = matched[m + 1];
             for (Declaration d : rule.declarations) {
                 if (!d.property.equals(property)) {
                     continue;
@@ -272,6 +289,80 @@ final class SvgCss {
         return best;
     }
 
+    /**
+     * The rules that match an element, matched once: the animation asks the cascade for a dozen
+     * properties of each element, and each would match every selector again.
+     */
+    private int[] matching(SvgXml.Element element) {
+        if (rules.isEmpty()) {
+            return NONE;
+        }
+        int[] known = matching.get(element);
+        if (known != null) {
+            return known;
+        }
+        int[] found = new int[8];
+        int n = 0;
+        for (int r = 0; r < rules.size(); r++) {
+            long specificity = -1;
+            for (Selector selector : rules.get(r).selectors) {
+                if (selector.matches(element, this)) {
+                    specificity = Math.max(specificity, selector.specificity);
+                }
+            }
+            if (specificity >= 0) {
+                if (n == found.length) {
+                    found = java.util.Arrays.copyOf(found, n * 2);
+                }
+                found[n++] = r;
+                found[n++] = (int) specificity;
+            }
+        }
+        known = n == 0 ? NONE : java.util.Arrays.copyOf(found, n);
+        matching.put(element, known);
+        return known;
+    }
+
+    /** Counts compounds tried against elements, and refuses the file past {@link #MAX_MATCH_STEPS}. */
+    private void step(int tries) {
+        steps += tries;
+        if (steps > MAX_MATCH_STEPS) {
+            throw SvgXml.refused("matching the style sheets takes more than " + MAX_MATCH_STEPS + " steps");
+        }
+    }
+
+    /** Where the children of one parent stand: from 1, among all of them and among those of their type, and how many of each. */
+    private static final class Siblings {
+        /** How many children the parent had when they were counted: the animation takes some out after. */
+        final int children;
+        final Map<SvgXml.Element, int[]> at = new IdentityHashMap<>();
+
+        Siblings(int children) {
+            this.children = children;
+        }
+    }
+
+    /** @return the element's index among its siblings and their count, then the same among those of its type; null when it is not a child */
+    private int @Nullable [] position(SvgXml.Element element, SvgXml.Element parent) {
+        Siblings known = siblings.get(parent);
+        if (known == null || known.children != parent.children().size()) {
+            known = new Siblings(parent.children().size());
+            List<SvgXml.Element> all = parent.elements();
+            step(all.size());
+            Map<String, int[]> types = new HashMap<>();
+            for (SvgXml.Element child : all) {
+                types.computeIfAbsent(child.localName(), t -> new int[2])[1]++;
+            }
+            for (int i = 0; i < all.size(); i++) {
+                SvgXml.Element child = all.get(i);
+                int[] type = types.get(child.localName());
+                known.at.put(child, new int[] {i + 1, all.size(), ++type[0], type[1]});
+            }
+            siblings.put(parent, known);
+        }
+        return known.at.get(element);
+    }
+
     // ----------------------------------------------------------------------------- selectors
 
     /** One complex selector: compounds joined by combinators, read right to left. */
@@ -281,11 +372,14 @@ final class SvgCss {
         /** For each compound but the last: whether it is the parent of the next (else an ancestor). */
         private final List<Boolean> child;
         final long specificity;
+        /** Whether a failed try may be made again from another ancestor: two descendant combinators or more. */
+        private final boolean backtracks;
 
         private Selector(List<Compound> compounds, List<Boolean> child, long specificity) {
             this.compounds = compounds;
             this.child = child;
             this.specificity = specificity;
+            this.backtracks = child.stream().filter(c -> !c).count() >= 2;
         }
 
         static Selector parse(String text) {
@@ -331,6 +425,9 @@ final class SvgCss {
                 }
                 pendingChild = false;
                 compounds.add(compound);
+                if (compounds.size() > MAX_COMPOUNDS) {
+                    throw SvgXml.refused("a selector of more than " + MAX_COMPOUNDS + " compounds");
+                }
                 ids += compound.ids;
                 classes += compound.classesSpec;
                 types += compound.types;
@@ -345,30 +442,70 @@ final class SvgCss {
             return new Selector(List.of(), List.of(), 0);
         }
 
-        boolean matches(SvgXml.Element element) {
+        boolean matches(SvgXml.Element element, SvgCss css) {
             if (compounds.isEmpty()) {
                 return false;
             }
-            return matchFrom(compounds.size() - 1, element);
+            return matchFrom(compounds.size() - 1, element, css, backtracks ? new IdentityHashMap<>() : null);
         }
 
-        private boolean matchFrom(int index, SvgXml.Element element) {
-            if (!compounds.get(index).matches(element)) {
-                return false;
+        /**
+         * Whether compounds 0 to {@code index} match, compound {@code index} on {@code element}.
+         * With two descendant combinators or more, a try that fails is made again from each
+         * ancestor further down, which grows as the depth to the power of the combinators: a
+         * selector of eleven compounds over forty nested groups took 24 seconds. {@code known}
+         * keeps each answer by element, at {@code index} for this question and past the compounds
+         * for {@link #selfOrAncestor}'s, so that each is worked out once in a match.
+         */
+        private boolean matchFrom(int index, SvgXml.Element element, SvgCss css,
+                                  @Nullable Map<SvgXml.Element, byte[]> known) {
+            byte[] memo = known == null ? null : known.computeIfAbsent(element, e -> new byte[2 * compounds.size()]);
+            if (memo != null && memo[index] != 0) {
+                return memo[index] == 1;
             }
-            if (index == 0) {
-                return true;
-            }
-            if (child.get(index - 1)) {
+            css.step(1);
+            boolean matched = compounds.get(index).matches(element, css);
+            if (matched && index > 0) {
                 SvgXml.Element parent = element.parent();
-                return parent != null && matchFrom(index - 1, parent);
+                matched = child.get(index - 1) ? parent != null && matchFrom(index - 1, parent, css, known)
+                        : selfOrAncestor(index - 1, parent, css, known);
             }
-            for (SvgXml.Element up = element.parent(); up != null; up = up.parent()) {
-                if (matchFrom(index - 1, up)) {
-                    return true;
+            if (memo != null) {
+                memo[index] = (byte) (matched ? 1 : 2);
+            }
+            return matched;
+        }
+
+        /**
+         * Whether compounds 0 to {@code index} match, compound {@code index} on {@code first} or on
+         * one of its ancestors. A walk up, so that a deep tree costs no deep stack; every element
+         * it passes is given the answer, which is the same for each of them.
+         */
+        private boolean selfOrAncestor(int index, SvgXml.@Nullable Element first, SvgCss css,
+                                       @Nullable Map<SvgXml.Element, byte[]> known) {
+            int slot = compounds.size() + index;
+            List<SvgXml.Element> walked = known == null ? null : new ArrayList<>();
+            boolean found = false;
+            for (SvgXml.Element up = first; up != null; up = up.parent()) {
+                if (known != null) {
+                    byte[] memo = known.get(up);
+                    if (memo != null && memo[slot] != 0) {
+                        found = memo[slot] == 1;
+                        break;
+                    }
+                    walked.add(up);
+                }
+                if (matchFrom(index, up, css, known)) {
+                    found = true;
+                    break;
                 }
             }
-            return false;
+            if (known != null) {
+                for (SvgXml.Element element : walked) {
+                    known.computeIfAbsent(element, e -> new byte[2 * compounds.size()])[slot] = (byte) (found ? 1 : 2);
+                }
+            }
+            return found;
         }
     }
 
@@ -469,7 +606,7 @@ final class SvgCss {
             return c;
         }
 
-        boolean matches(SvgXml.Element element) {
+        boolean matches(SvgXml.Element element, SvgCss css) {
             if (type != null && !type.equals(element.localName())) {
                 return false;
             }
@@ -481,9 +618,10 @@ final class SvgCss {
                 if (attribute == null) {
                     return false;
                 }
-                List<String> own = List.of(attribute.trim().split("\\s+"));
-                if (!own.containsAll(classes)) {
-                    return false;
+                for (String wanted : classes) {
+                    if (!hasClass(attribute, wanted)) {
+                        return false;
+                    }
                 }
             }
             for (String[] a : attributes) {
@@ -493,14 +631,31 @@ final class SvgCss {
                 }
             }
             for (String pseudo : pseudos) {
-                if (!pseudo(pseudo, element)) {
+                if (!pseudo(pseudo, element, css)) {
                     return false;
                 }
             }
             return true;
         }
 
-        private static boolean pseudo(String pseudo, SvgXml.Element element) {
+        /** Whether a {@code class} attribute names {@code wanted} among its words. */
+        private static boolean hasClass(String attribute, String wanted) {
+            int at = 0;
+            while (true) {
+                int found = attribute.indexOf(wanted, at);
+                if (found < 0) {
+                    return false;
+                }
+                int end = found + wanted.length();
+                if ((found == 0 || Character.isWhitespace(attribute.charAt(found - 1)))
+                        && (end == attribute.length() || Character.isWhitespace(attribute.charAt(end)))) {
+                    return true;
+                }
+                at = found + 1;
+            }
+        }
+
+        private static boolean pseudo(String pseudo, SvgXml.Element element, SvgCss css) {
             SvgXml.Element parent = element.parent();
             if (pseudo.equals("root")) {
                 return parent == null;
@@ -509,20 +664,20 @@ final class SvgCss {
                 return pseudo.equals("first-child") || pseudo.equals("last-child") || pseudo.equals("first-of-type")
                         || pseudo.equals("last-of-type") || nth(pseudo, 1);
             }
-            List<SvgXml.Element> siblings = parent.elements();
-            boolean ofType = pseudo.contains("of-type");
-            List<SvgXml.Element> counted = new ArrayList<>();
-            for (SvgXml.Element s : siblings) {
-                if (!ofType || s.localName().equals(element.localName())) {
-                    counted.add(s);
-                }
+            // Counted once for each parent: counting the siblings again for each of them was their
+            // number squared, five seconds for sixteen thousand.
+            int[] position = css.position(element, parent);
+            if (position == null) {
+                return false;
             }
-            int index = counted.indexOf(element) + 1;
+            boolean ofType = pseudo.contains("of-type");
+            int index = ofType ? position[2] : position[0];
+            int count = ofType ? position[3] : position[1];
             if (pseudo.startsWith("first")) {
                 return index == 1;
             }
             if (pseudo.startsWith("last")) {
-                return index == counted.size();
+                return index == count;
             }
             return nth(pseudo, index);
         }

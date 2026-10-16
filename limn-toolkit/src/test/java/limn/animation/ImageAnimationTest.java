@@ -24,6 +24,23 @@ class ImageAnimationTest {
         return Images.animation(frames, new int[] {100, 100, 100, 100}, turns);
     }
 
+    /** A loop says what it is, and two that make the same turns are one value. */
+    @Test
+    void aLoopIsAValueThatSaysItsTurns() {
+        assertEquals(ImageAnimation.Loop.times(3), ImageAnimation.Loop.times(3));
+        assertEquals(ImageAnimation.Loop.times(3).hashCode(), ImageAnimation.Loop.times(3).hashCode());
+        assertEquals(ImageAnimation.Loop.ONCE, ImageAnimation.Loop.times(1));
+        assertFalse(ImageAnimation.Loop.FOREVER.equals(ImageAnimation.Loop.BOUNCE));
+        assertEquals(3, ImageAnimation.Loop.times(3).turns());
+        assertEquals(0, ImageAnimation.Loop.FOREVER.turns());
+        assertEquals(-1, ImageAnimation.Loop.FILE.turns());
+        assertTrue(ImageAnimation.Loop.BOUNCE.bounces());
+        assertFalse(ImageAnimation.Loop.ONCE.bounces());
+        assertEquals("Loop.times(3)", ImageAnimation.Loop.times(3).toString());
+        assertEquals("Loop.FILE", ImageAnimation.Loop.FILE.toString());
+        assertEquals("Loop.BOUNCE", ImageAnimation.Loop.BOUNCE.toString());
+    }
+
     @Test
     void timeMovesItFrameByFrameAndRoundAgain() {
         Image image = four(0);

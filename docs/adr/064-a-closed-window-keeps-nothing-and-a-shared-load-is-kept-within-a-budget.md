@@ -83,6 +83,9 @@ and there is a way to say that something never leaves memory.
   toward it and is never let go, until `unpin` or `unpinResource`. A source already shared is
   pinned from the ask that pins it, and is the same object. The intent is written where the
   resource is loaded, which is why it is a way of loading and not a mark put on an image later.
+  **Amended 2026-10-16, after that day's audit:** a pin was a flag, so one part of an application
+  that unpinned a picture took away another part's pin of it too. Pins are counted now: a load
+  pinned twice stays pinned until it is unpinned twice.
 - A load in flight is never let go, a failed one is forgotten as before, and
   `clearSharedCache` forgets everything, the pinned too.
 

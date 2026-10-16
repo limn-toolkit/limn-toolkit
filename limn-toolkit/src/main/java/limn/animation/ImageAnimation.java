@@ -58,6 +58,44 @@ public final class ImageAnimation {
             }
             return turns == 1 ? ONCE : new Loop(turns, false);
         }
+
+        /**
+         * @return how many turns: above 0 for a count, 0 for without end, and -1 for
+         *         {@link #FILE}, whose count is the image's own
+         */
+        public int turns() {
+            return turns;
+        }
+
+        /** @return whether it plays forward and then back: {@link #BOUNCE} */
+        public boolean bounces() {
+            return bounce;
+        }
+
+        /** Two loops are equal when they make the same turns the same way. */
+        @Override
+        public boolean equals(@org.jspecify.annotations.Nullable Object other) {
+            return other instanceof Loop loop && loop.turns == turns && loop.bounce == bounce;
+        }
+
+        @Override
+        public int hashCode() {
+            return turns * 2 + (bounce ? 1 : 0);
+        }
+
+        /** @return the loop as it is written: {@code Loop.FILE}, {@code Loop.times(3)} */
+        @Override
+        public String toString() {
+            if (bounce) {
+                return "Loop.BOUNCE";
+            }
+            return switch (turns) {
+                case -1 -> "Loop.FILE";
+                case 0 -> "Loop.FOREVER";
+                case 1 -> "Loop.ONCE";
+                default -> "Loop.times(" + turns + ")";
+            };
+        }
     }
 
     private final Image image;
