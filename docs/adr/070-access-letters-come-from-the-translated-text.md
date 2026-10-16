@@ -1,7 +1,8 @@
 # ADR 070: Access letters come from the translated text
 
-- **Status:** Proposed, 2026-10-16. The owner asked for the access letters of menus, buttons and
-  labels to follow the language, and for this record before the code.
+- **Status:** Accepted, 2026-10-16. The owner asked for the access letters of menus, buttons and
+  labels to follow the language. He chose to keep the letter given apart from the text beside
+  the mark, the window's controls before the menu bar, and Alt+letter alone.
 - **Date:** 2026-10-16
 - **Scope:**
   - the underlined letter of a menu title and a menu item;
@@ -9,11 +10,11 @@
     control;
   - when each letter is drawn, and on which system;
   - what pressing it does.
-- **New public API:** an `&` before a letter in a text marks it. The API that carries the letter
-  apart from the text is removed: `MenuItem.setMnemonic(char)` and `MenuBar.addMenu(title, char,
-  menu)`.
-- **Compatibility:** breaking inside the repository only (there are no consumers yet). Text with
-  a literal `&` before a letter or digit writes it `&&`.
+- **New public API:** an `&` before a letter in a text marks it. `MenuItem.setMnemonic(char)` and
+  `MenuBar.addMenu(title, char, menu)` stay, for a letter given apart from the text, and where
+  both are given the text's mark wins.
+- **Compatibility:** a menu, button, check box, radio button or field label whose text has a
+  literal `&` before a letter or digit now writes it `&&`.
 
 ---
 
@@ -59,6 +60,9 @@ that needs nothing from the application.
   the string.
 - **Read wherever the text is set**, as a `String` or an `I18nString`. A language change
   re-reads it, so each language carries its own letter.
+- **A letter given apart from the text stays possible** (`MenuItem.setMnemonic`,
+  `MenuBar.addMenu(title, char, menu)`), for an application whose strings carry no marks. Where
+  the text has a mark, the mark wins: the translation is the one that knows the word.
 
 ### 3.2 Which widgets
 
@@ -93,8 +97,8 @@ that needs nothing from the application.
 
 - **The scope is the window, or the topmost modal dialog in it.** A letter never reaches past a
   modal to the window beneath.
-- **The menu bar's titles come first**, then the controls, in focus order. This is the order the
-  bar already resolves Alt+letter against accelerators.
+- **The window's controls come first**, in focus order, and the menu bar's titles after them: the
+  form in use wins a letter both have.
 - **Two controls with one letter:**
   - Each press moves focus to the next of them, and none is activated, as in Windows dialogs.
   - The duplicate is logged once, so a translator's collision is found in development.
