@@ -86,6 +86,47 @@ class ShowcaseUntranslatedTest {
         assertEquals(List.of(), english);
     }
 
+    /**
+     * Each customer card on the text page captions its note in the customer's language, through
+     * the Showcase's string, and the Showcase ships no Thai: the Thai card read the English
+     * "Notes" in every language and logged the key as untranslated each time it was drawn.
+     */
+    @Test
+    void everyCustomerCardCaptionsItsNoteInItsOwnLanguage() {
+        List<String> unresolved = new ArrayList<>();
+        limn.concurrent.Subscription listening = I18n.observeUnresolvedKeys(
+                miss -> unresolved.add(miss.locale().toLanguageTag() + " " + miss.key()));
+        try (HeadlessUi ui = new HeadlessUi(() -> 0L)) {
+            I18n.setLocale(Locale.ENGLISH);
+            Theme.setCurrent(Theme.dark());
+            TextRulers.install(HeadlessWindow.RULER);
+            try {
+                Widget<?> page = BidiScene.tabContent();
+                limn.testing.HeadlessWindow window =
+                        new limn.testing.HeadlessBackend(ui.runtime()).open("text", 1100, 2400);
+                new limn.scene.Scene(page, () -> 0L).bind(window);
+                window.frame();
+                List<String> captions = new ArrayList<>();
+                labels(page, captions);
+                assertTrue(captions.contains("หมายเหตุ"), "the Thai card's caption");
+                assertEquals(List.of(), unresolved);
+            } finally {
+                TextRulers.uninstall(HeadlessWindow.RULER);
+            }
+        } finally {
+            listening.cancel();
+        }
+    }
+
+    private static void labels(Widget<?> at, List<String> out) {
+        if (at instanceof limn.components.Label label) {
+            out.add(label.text());
+        }
+        for (Widget<?> child : at.children()) {
+            labels(child, out);
+        }
+    }
+
     private static void combos(Widget<?> at, List<String> out) {
         if (at instanceof ComboBox<?> combo) {
             out.add(combo.text());

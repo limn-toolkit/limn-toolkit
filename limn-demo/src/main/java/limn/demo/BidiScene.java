@@ -153,6 +153,9 @@ final class BidiScene {
     }
 
     /** One customer of the sample company, in their own script and language. */
+    /** "Notes" in Thai, for the one card in a language the Showcase has no strings in. */
+    private static final String THAI_NOTES = "หมายเหตุ";
+
     private record Customer(String locale, String name, String city, String note) {
     }
 
@@ -306,7 +309,10 @@ final class BidiScene {
 
     /**
      * A customer's card, in the customer's locale and, for a script that reads right to left, in
-     * its direction: the caption above the note is the showcase's own string for "Notes".
+     * its direction: the caption above the note is the showcase's own string for "Notes", read in
+     * the card's language. The Showcase ships no Thai, so the Thai card carries its one word with
+     * its data, as it carries its note; through the string it read the English "Notes" in every
+     * language and logged the key as untranslated each time it was drawn.
      */
     private static Widget<?> card(Customer customer) {
         Column card = new Column();
@@ -314,7 +320,8 @@ final class BidiScene {
         card.add(new Label(customer.name()).setStrong(true).setOverflow(Label.Overflow.ELLIPSIS));
         card.add(new Label(customer.city()).setMuted(true).setOverflow(Label.Overflow.ELLIPSIS));
         card.add(new SizedBox(SizedBox.UNSET, 6, new Column()));
-        card.add(new Label(ShowcaseStrings.ORDERS_NOTES).setMuted(true));
+        card.add(new Label(customer.locale().equals("th") ? I18nString.literal(THAI_NOTES)
+                : ShowcaseStrings.ORDERS_NOTES).setMuted(true));
         card.add(new Label(customer.note()).setFont(PARAGRAPH).setWrap(true));
         Surface surface = Page.card(card);
         Locale locale = customer.locale().equals("ar-EG") ? ARABIC_EGYPT : Locale.forLanguageTag(customer.locale());
