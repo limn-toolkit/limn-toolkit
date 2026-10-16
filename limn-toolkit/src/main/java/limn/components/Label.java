@@ -333,14 +333,31 @@ public final class Label extends Widget<Label> {
         return labelFor == null ? text : marked.shownAsText(shown(), text);
     }
 
-    /** The chord of the access letter this label gives the control it names. */
+    /**
+     * The chord of the access letter this label gives the control it names, only while the letter
+     * would reach it: a caption kept hidden as a field's name, or one in a collapsed or disabled
+     * section, is skipped by the scene, and a reader told "Alt+N" would press a key that does
+     * nothing.
+     */
     @Override
     protected @Nullable String accessibleLabelAccessKey() {
-        if (labelFor == null) {
+        if (accessLetter() == 0 || !answersItsLetter()) {
             return null;
         }
-        shown();
         return marked.binding();
+    }
+
+    /**
+     * Whether Alt and the letter reach this label: it and every widget above it visible and
+     * enabled, the rule the scene applies when it looks for the owner of a letter.
+     */
+    private boolean answersItsLetter() {
+        for (Widget<?> at = this; at != null; at = at.parent()) {
+            if (!at.isVisible() || !at.isEnabled()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

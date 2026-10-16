@@ -436,6 +436,38 @@ class AccessLetterDispatchTest extends AccessibleComponentTestBase {
         assertTrue(key.endsWith("N"), key);
     }
 
+    /**
+     * A caption the letter cannot reach lends the field no key: one kept hidden as the field's name,
+     * one disabled, one in a hidden section. The field published "Alt+N" and the key did nothing.
+     */
+    @Test
+    void aCaptionTheLetterCannotReachLendsNoKey() {
+        TextField hiddenNamed = new TextField();
+        Label hidden = new Label("&Name").setLabelFor(hiddenNamed);
+        hidden.setVisible(false);
+        TextField disabledNamed = new TextField();
+        Label disabled = new Label("&City").setLabelFor(disabledNamed);
+        disabled.setEnabled(false);
+        TextField sectionNamed = new TextField();
+        Column section = new Column();
+        section.add(new Label("&Phone").setLabelFor(sectionNamed));
+        section.setVisible(false);
+        TextField reachedNamed = new TextField();
+        show(hidden, hiddenNamed, disabled, disabledNamed, section, sectionNamed,
+                new Label("&Email").setLabelFor(reachedNamed), reachedNamed);
+
+        java.util.List<String> keys = new java.util.ArrayList<>();
+        for (int i = 0; i < tree().nodeCount(); i++) {
+            limn.accessibility.AccessibleNode node = tree().node(i);
+            if (node.role() == limn.accessibility.Accessible.Role.TEXT_FIELD) {
+                keys.add(node.name() + "=" + (node.actions() == null ? null : node.actions().accessKey()));
+            }
+        }
+        String alt = limn.components.Accelerator.modifiersDisplay(Keys.MOD_ALT);
+        assertEquals(java.util.List.of("Name=null", "City=null", "Phone=null", "Email=" + alt + "E"), keys,
+                describe(tree()));
+    }
+
     @Test
     void aReaderHearsTheWordAndTheChord() {
         show(new Button("&Save"));
