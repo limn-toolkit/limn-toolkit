@@ -226,6 +226,24 @@ class AccessLetterDispatchTest extends AccessibleComponentTestBase {
         assertTrue(bar.isOpen());
     }
 
+    /**
+     * A popup that leaves the keyboard beneath it, as an editable combo box's list drawn in the
+     * scene does, hides none of the window's letters: they were collected from the topmost layer,
+     * which holds none, and the key fell through to the menu bar.
+     */
+    @Test
+    void aPopupThatLeavesTheKeyboardBeneathItHidesNoLetter() {
+        TextField city = new TextField();
+        TextField name = new TextField();
+        show(city, new Label("&Name").setLabelFor(name), name);
+        scene.requestFocus(city);
+        SceneAccess.pushPopupLeavingKeyboard(scene, new Column());
+        frame();
+
+        altAnd(Keys.N);
+        assertSame(name, scene.focusedWidget());
+    }
+
     /** Several with one letter are logged once, as ADR 070 §3.4 promises, so the collision is found. */
     @Test
     void aSharedLetterIsLoggedOnce() {

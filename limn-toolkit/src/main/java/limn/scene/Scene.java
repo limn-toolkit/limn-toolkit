@@ -3835,7 +3835,9 @@ public final class Scene {
      */
     private boolean accessLetter(int key, int codePoint) {
         List<limn.scene.internal.AccessLetterOwner> owners = new ArrayList<>();
-        collectAccessLetters(inputRoot(), key, codePoint, owners);
+        // The layer the keyboard is confined to, not the topmost: a popup that leaves the keyboard
+        // beneath it (an editable combo box's list) holds no letters and must not hide the window's.
+        collectAccessLetters(keyboardRoot(), key, codePoint, owners);
         if (owners.isEmpty()) {
             return false;
         }
