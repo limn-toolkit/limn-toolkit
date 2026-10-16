@@ -61,8 +61,11 @@ back to the picker when the card is gone.
 
 ## 4. The tab list
 
-- A row per tab, in the strip's order: a mark on the selected one, the caption, and on a closable
-  tab a close button at the row's end, shown on the row under the pointer and on the cursor's.
+- A row per tab, in the strip's order: a mark on the selected one, the tab's icon when it has one,
+  the caption, and on a closable tab a close button at the row's end, shown on the row under the
+  pointer and on the cursor's. When any tab has an icon the list keeps a column for it, so the
+  captions line up (amended 2026-10-16 at the owner's request: a row without the icon the strip
+  shows was harder to find).
 - **Keys:** Up and Down move the cursor, Home and End go to the ends, Enter selects the tab under
   the cursor and closes the list, Delete or Ctrl+W (Cmd+W on macOS) closes that tab, Escape closes
   the list. A typed letter moves to the next tab whose caption starts with it.

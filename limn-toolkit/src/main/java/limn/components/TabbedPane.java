@@ -1191,9 +1191,23 @@ public final class TabbedPane extends Widget<TabbedPane> {
         for (TabHeader header : headers) {
             widest = Math.max(widest, textRuler().measure(header.title.get(), t.body()).width());
         }
-        float w = 2 * t.popupRowInsetX() + t.popupMarkerCol() + widest + t.tabIconGap()
-                + t.tabIconSize() + listClosePad(t) + t.popupRowInsetX();
+        float w = 2 * t.popupRowInsetX() + t.popupMarkerCol() + listIconRoom(t) + widest
+                + t.tabIconGap() + t.tabIconSize() + listClosePad(t) + t.popupRowInsetX();
         return Math.min(w, 480);
+    }
+
+    /**
+     * The room the list keeps for the tabs' icons, before the captions: an icon and its gap when
+     * any tab has one, so the captions line up whether or not their own tab has an icon, and
+     * nothing when none has.
+     */
+    private float listIconRoom(SizeTokens t) {
+        for (TabHeader header : headers) {
+            if (header.icon != null) {
+                return t.tabIconSize() + t.tabIconGap();
+            }
+        }
+        return 0;
     }
 
     /**
@@ -1305,7 +1319,10 @@ public final class TabbedPane extends Widget<TabbedPane> {
             TextMetrics metrics = textRuler().measure("Hg", font);
             float side = t.tabIconSize();
             float markX = rtl ? width() - inset - t.popupMarkerCol() / 2 : inset + t.popupMarkerCol() / 2;
-            float textStart = rtl ? width() - inset - t.popupMarkerCol() : inset + t.popupMarkerCol();
+            float iconRoom = listIconRoom(t);
+            float iconStart = rtl ? width() - inset - t.popupMarkerCol() - side : inset + t.popupMarkerCol();
+            float textStart = rtl ? width() - inset - t.popupMarkerCol() - iconRoom
+                    : inset + t.popupMarkerCol() + iconRoom;
             float closeRoom = t.tabIconGap() + side + listClosePad(t) + inset;
             canvas.save();
             canvas.clipRect(Strokes.ROW_CLIP, Strokes.ROW_CLIP,
@@ -1325,16 +1342,22 @@ public final class TabbedPane extends Widget<TabbedPane> {
                 if (i == selected) {
                     canvas.fillCircle(markX, top + itemH / 2, t.popupDotRadius(), theme.primary());
                 }
+                Color ink = isEnabled() ? theme.text() : theme.disabledText();
+                if (header.icon != null) {
+                    // The tab's own icon, as its header draws it, so a row is found by the
+                    // picture the strip shows as well as by its words.
+                    header.icon.paint(canvas, iconStart, top + (itemH - side) / 2, side, ink,
+                            theme.isDark(), rtl && header.iconMirroring == Icon.Mirroring.IN_RTL);
+                }
                 String title = header.title.get();
                 ShapedText line = textRuler().shape(title, font,
                         ShapedText.Direction.of(title, neutralBase()));
-                float room = Math.max(0, width() - inset - t.popupMarkerCol() - closeRoom);
+                float room = Math.max(0, width() - inset - t.popupMarkerCol() - iconRoom - closeRoom);
                 if (line.metrics().width() > room) {
                     line = textRuler().ellipsize(line, room);
                 }
                 canvas.drawText(line, rtl ? textStart - line.metrics().width() : textStart,
-                        top + (itemH - metrics.height()) / 2 + metrics.ascent(),
-                        isEnabled() ? theme.text() : theme.disabledText());
+                        top + (itemH - metrics.height()) / 2 + metrics.ascent(), ink);
                 if (header.closable && active) {
                     float left = closeLeft(t);
                     float y = top + (itemH - side) / 2;

@@ -178,6 +178,57 @@ class TabbedPaneTabListTest extends AccessibleComponentTestBase {
         assertTrue(rows().get(4).has(Accessible.State.ACTIVE), "Echo" + describe(tree()));
     }
 
+    /** A tab's icon leads its row, as in the strip; a tab without one keeps the captions' column. */
+    @Test
+    void aTabsIconLeadsItsRowAndTheCaptionsLineUp() throws InterruptedException {
+        RecordingIcon first = new RecordingIcon();
+        RecordingIcon last = new RecordingIcon();
+        pane = new TabbedPane();
+        for (String title : TITLES) {
+            pane.addTab(title, title.equals("Alpha") ? first : title.equals("Foxtrot") ? last : null,
+                    new SizedBox(60, 60));
+        }
+        Column root = new Column();
+        root.add(new SizedBox(200, 120, pane));
+        bind(root, new StubWindow(false));
+        scene.setTextRuler(RULER);
+        frame();
+        first.at.clear();
+        last.at.clear();
+        scene.renderFrame(new RecordingTestCanvas(400, 300));
+        int firstShut = first.at.size();
+        int lastShut = last.at.size();
+        openList();
+        first.at.clear();
+        last.at.clear();
+        scene.renderFrame(new RecordingTestCanvas(400, 300));
+
+        assertEquals(firstShut + 1, first.at.size(), "Alpha's row draws its icon");
+        assertEquals(lastShut + 1, last.at.size(), "and Foxtrot's, its tab scrolled off the strip");
+        // The strip paints first and the list over it, so each icon's last paint is its row's.
+        float[] alpha = first.at.get(first.at.size() - 1);
+        float[] foxtrot = last.at.get(last.at.size() - 1);
+        assertEquals(alpha[0], foxtrot[0], 0.001f, "the two rows share the icon column");
+        assertTrue(foxtrot[1] > alpha[1], "Foxtrot's row is under Alpha's");
+    }
+
+    /** Records where it was painted, in the painting widget's own coordinates; never rasterized. */
+    private static final class RecordingIcon implements limn.graphics.Icon {
+
+        final List<float[]> at = new ArrayList<>();
+
+        @Override
+        public limn.graphics.Image image(int pixelSize, boolean dark) {
+            throw new UnsupportedOperationException("measure-only");
+        }
+
+        @Override
+        public void paint(limn.graphics.Canvas canvas, float x, float y, float size,
+                limn.graphics.Color tint, boolean dark, boolean mirrored) {
+            at.add(new float[] {x, y});
+        }
+    }
+
     @Test
     void aClickOnARowChoosesItsTab() throws InterruptedException {
         bindPane(false, false);
