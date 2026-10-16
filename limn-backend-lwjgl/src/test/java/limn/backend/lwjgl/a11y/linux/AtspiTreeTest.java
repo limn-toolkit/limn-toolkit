@@ -1462,6 +1462,63 @@ class AtspiTreeTest {
         assertEquals(List.of(), root.body[0], "and so does the application object");
     }
 
+    /**
+     * Three buttons: one with an access key alone, one with an accelerator alone, one with both,
+     * each key given to the node the way a widget's describe hook gives it.
+     */
+    private void publishAWindowWithKeys() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.name(I18nString.literal("A window"), Accessible.NameFrom.EXPLICIT);
+        a.inherited(true, true, true, false, false);
+        String[][] keys = {{"Alt+N", null}, {null, "Ctrl+S"}, {"L", "Ctrl+L"}};
+        for (int i = 0; i < keys.length; i++) {
+            a.begin(1001 + i, 0, Locale.ENGLISH, 10, 20 + 50 * i, 160, 40);
+            a.role(Accessible.Role.BUTTON);
+            a.name(I18nString.literal("Button " + i), Accessible.NameFrom.CONTENT);
+            a.action(Accessible.Action.PRESS);
+            a.accessKey(keys[i][0]);
+            a.keyBinding(keys[i][1]);
+            a.inherited(true, true, true, true, false);
+            a.end();
+        }
+        a.end();
+        tree.set(a.publish(0, 200, 100, 2f, true));
+    }
+
+    private String keyBinding(long id) {
+        return (String) call(path(id), Atspi.I_ACTION, "GetKeyBinding", "i", 0).body[0];
+    }
+
+    private String actionsKeyColumn(long id) {
+        List<?> actions = (List<?>) call(path(id), Atspi.I_ACTION, "GetActions", null).body[0];
+        return (String) ((Object[]) actions.get(0))[2];
+    }
+
+    /**
+     * A node with both an access key and an accelerator serves both, in the
+     * "mnemonic;sequence;accelerator" form Orca splits, and the action list's key column says the
+     * same: the access key alone used to win, and the accelerator was never heard.
+     */
+    @Test
+    void aNodeWithAnAccessKeyAndAnAcceleratorServesBoth() {
+        publishAWindowWithKeys();
+        assertEquals("L;;Ctrl+L", keyBinding(1003));
+        assertEquals("L;;Ctrl+L", actionsKeyColumn(1003));
+    }
+
+    /** An access key alone is served as Orca's mnemonic, and an accelerator alone as itself. */
+    @Test
+    void anAccessKeyOrAnAcceleratorAloneIsServedAsItIs() {
+        publishAWindowWithKeys();
+        assertEquals("Alt+N", keyBinding(1001));
+        assertEquals("Ctrl+S", keyBinding(1002));
+        assertEquals("Alt+N", actionsKeyColumn(1001));
+        assertEquals("Ctrl+S", actionsKeyColumn(1002));
+    }
+
     private DBus.Msg call(String path, String iface, String member, String sig, Object... args) {
         DBus.Msg m = DBus.Msg.call("org.a11y.atspi.Registry", path, iface, member, sig, args);
         m.path = path;
