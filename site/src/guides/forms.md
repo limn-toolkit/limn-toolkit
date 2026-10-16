@@ -80,7 +80,9 @@ and Backspace after a literal takes the character before it. While the field has
 the positions still to fill show after the text as a guide, `KLM-42__-__`; without it, an empty
 field shows its placeholder. `text()` is what shows, `unmaskedText()` the characters typed into
 the positions, and `isMaskComplete()` whether every one is filled, which is the check a form makes
-before it accepts the value. A screen reader hears the pattern as the field's description.
+before it accepts the value. A screen reader hears the text with its literals, but not the
+pattern: `AAA-0000-**` is syntax, not words, so say what the field expects in your user's
+language with a tooltip or `setAccessibleDescription`.
 
 Text between single quotes is literal, so a pattern can hold a `0`, an `A` or a `*` the field
 writes rather than fills: `+'0' 000` shows `+0 123`. Two single quotes are one apostrophe, inside

@@ -21,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * A {@link TextField} with a mask (ADR 067 section 5): typing writes the literals, pasting with or
  * without them gives the same text, Backspace steps over a literal to the digit before it, one undo
  * takes an edit and its literals back together, the guide shows only while the field has the
- * keyboard, and a reader hears the pattern.
+ * keyboard, and a reader hears the text and the application's description but never the pattern.
  */
 class TextFieldMaskTest extends AccessibleComponentTestBase {
 
@@ -226,10 +226,25 @@ class TextFieldMaskTest extends AccessibleComponentTestBase {
     }
 
     @Test
-    void aReaderHearsThePattern() {
-        bindField("000.000.000-00");
+    void aReaderHearsNoPatternSyntax() {
+        bindField("AA-0000");
         frame();
-        assertEquals("000.000.000-00", node(Accessible.Role.TEXT_FIELD).description());
+        String description = node(Accessible.Role.TEXT_FIELD).description();
+        assertFalse(description != null && description.contains("AA-0000"),
+                "the pattern is syntax, not words: " + description);
+    }
+
+    @Test
+    void aMaskLeavesTheTooltipAndTheApplicationToDescribeTheField() {
+        bindField("AA-0000");
+        field.setTooltip("Two letters and four digits");
+        frame();
+        assertEquals("Two letters and four digits", node(Accessible.Role.TEXT_FIELD).description(),
+                "the tooltip describes the field, as on a field without a mask");
+
+        field.setAccessibleDescription("Plate, as printed on the vehicle");
+        frame();
+        assertEquals("Plate, as printed on the vehicle", node(Accessible.Role.TEXT_FIELD).description());
     }
 
     /** Every string the next frame draws. */

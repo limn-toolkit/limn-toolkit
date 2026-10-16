@@ -923,10 +923,13 @@ public final class AccessibilityGallery {
 
     private static Built textFieldWithMask() {
         Column page = page();
-        // The pattern is the description a reader hears; the literals write themselves.
+        // The literals write themselves and are read as part of the text. The pattern is syntax a
+        // reader cannot word, so the application says what each field expects in its own words.
         page.add(Labelled.above("Serial number", new TextField().setMask("AAA-0000-**")
-                .setText("KLM42")));
-        page.add(Labelled.above("Reference", new TextField().setMask("00.000.000/0000")));
+                .setText("KLM42")
+                .setAccessibleDescription("Three letters, four digits and two characters")));
+        page.add(Labelled.above("Reference", new TextField().setMask("00.000.000/0000")
+                .setAccessibleDescription("Fourteen digits")));
         return new Built(page);
     }
 

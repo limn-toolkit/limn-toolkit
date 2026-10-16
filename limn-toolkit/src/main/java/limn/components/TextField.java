@@ -85,8 +85,6 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * exactly what it took, and stepping over there took a character the user never chose.
      */
     private int collapsedDelete;
-    /** The pattern, as the description a reader hears; null without a mask. */
-    private @Nullable I18nString maskDescription;
     /** The guide's unfilled tail as last shaped, kept while it reads the same. */
     private @Nullable String guideTailText;
     private @Nullable ShapedText guideTailLine;
@@ -231,7 +229,9 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * are passed over, and pasting a value with its literals or without them comes out the same.
      * While the field has the keyboard, the positions still to fill show as a guide
      * ({@code ___.___.___-__}); without it, an empty field shows its placeholder. A reader hears
-     * the pattern as the field's description.
+     * the text with its literals but not the pattern, which is syntax and not words: say what the
+     * field expects in the user's language with a tooltip or
+     * {@link #setAccessibleDescription(I18nString)}.
      *
      * <p>Text between single quotes is literal, so a {@code 0}, an {@code A} or a {@code *} can be
      * one: {@code "+'0' 000"} writes {@code +0 } before three digits. Two single quotes are one
@@ -250,7 +250,6 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
     public TextField setMask(@Nullable String pattern) {
         Ui.checkUiThread();
         mask = pattern == null ? null : limn.components.internal.text.InputMask.of(pattern);
-        maskDescription = pattern == null ? null : I18nString.literal(pattern);
         if (mask != null) {
             limn.components.internal.text.InputMask.Conformed fit =
                     mask.conform(model.text(), model.cursor());
@@ -260,8 +259,9 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
                 setText(fit.text(), Change.Origin.CODE);
             }
         }
+        // The guide is drawn and nothing else moves: the text, if the fitting changed it, was
+        // announced by setText, and the pattern is no part of what a reader hears.
         invalidate();
-        notifyChange(Change.of(Change.Aspect.DESCRIPTION, Change.Origin.CODE));
         return this;
     }
 
@@ -1863,19 +1863,23 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * the tooltip, which becomes the description instead when the placeholder already named the
      * node.
      *
-     * <p>No description of its own but a mask's pattern, which is what a reader needs to know to
-     * type into a field that writes its own literals. The validation message beside a field is a {@code Label} the
-     * application owns and binds with {@link Label#setDescriptionFor}, which is what makes it the
-     * field's description and gives the field a {@code DESCRIBED_BY} relation to it; this widget
-     * holds no string for it, and what {@link #setValidation} holds is a colour.
+     * <p>No description of its own, a mask's pattern included. The pattern is syntax and not
+     * words: {@code AA-0000} read aloud is "A A dash zero zero zero zero" where it means two
+     * letters and four digits, in every language; the toolkit cannot word a pattern of the
+     * application's in the user's language either, since its literals and counts are the
+     * application's; and a description set here would take the tooltip's place, which the walk
+     * gives only to a node with none. So the field describes nothing, and what it expects is said
+     * by the application in its own words, a tooltip or {@link #setAccessibleDescription}, while
+     * the literals the field writes are read as part of its text. The validation message beside
+     * a field is a {@code Label} the application owns and binds with
+     * {@link Label#setDescriptionFor}, which is what makes it the field's description and gives
+     * the field a {@code DESCRIBED_BY} relation to it; this widget holds no string for it, and
+     * what {@link #setValidation} holds is a colour.
      */
     @Override
     protected void onAccessibility(Accessibility a) {
         a.role(Accessible.Role.TEXT_FIELD);
         a.name(placeholder, Accessible.NameFrom.PLACEHOLDER);
-        if (maskDescription != null) {
-            a.description(maskDescription);
-        }
         // Always editable, and never read-only: this class has no read-only mode, and a disabled
         // field is still an editable control that happens to be disabled. Conflating the two tells
         // a reader the text can never be typed into, which is a different and false fact.

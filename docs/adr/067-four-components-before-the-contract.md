@@ -76,6 +76,14 @@ Markdown.
   quoting of `java.text.SimpleDateFormat`, the owner's choice. The language had no escape, and
   one added after 1.0 would change what patterns already written mean. A pattern that opens a
   quote and never closes it is refused, naming the pattern.
+- *Amended 2026-10-16:* **the reader no longer hears the pattern.** Read aloud, `AA-0000` is
+  "A A dash zero zero zero zero" where it means two letters and four digits, in every language,
+  and as the field's description it pushed out the tooltip, which the walk gives only to a node
+  with no description. Wording a pattern in the toolkit was weighed and refused: its literals and
+  counts are the application's, so each language would need plurals and names for characters the
+  toolkit cannot know. The field describes nothing; the literals it writes are read as part of
+  its text, and the application says what the field expects with a tooltip or
+  `setAccessibleDescription`, as the accessibility gallery's masked fields now do.
 
 ## 6. Reporting a defect or a vulnerability
 
