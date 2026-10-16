@@ -1075,6 +1075,15 @@ public final class PopupMenu {
     // ========================================================== the surface
 
     /**
+     * Says this menu was opened from the keyboard (Alt+letter, the Menu key, Down on a focused
+     * bar), so it draws its access letters from the start, as a keyboard-opened menu does on
+     * Windows and Linux; opened with the pointer, they show while Alt is held.
+     */
+    void openedFromKeyboard() {
+        lettersFromKeyboard = true;
+    }
+
+    /**
      * Renders the whole open cascade (root column plus any open submenu columns),
      * positioning each with flip + clamp against its bounds, and handling
      * hover/click and keyboard navigation. Serves both roles: the root of the
@@ -1087,15 +1096,6 @@ public final class PopupMenu {
      * "first baseline" (the first row of a column that may have been flipped above the anchor
      * and scrolled) is not a meaningful alignment reference for anything.
      */
-    /**
-     * Says this menu was opened from the keyboard (Alt+letter, the Menu key, Down on a focused
-     * bar), so it draws its access letters from the start, as a keyboard-opened menu does on
-     * Windows and Linux; opened with the pointer, they show while Alt is held.
-     */
-    void openedFromKeyboard() {
-        lettersFromKeyboard = true;
-    }
-
     private final class MenuSurface extends Widget<MenuSurface> {
 
         /** Whether the rows' access letters are drawn; never on macOS. */
@@ -1137,6 +1137,7 @@ public final class PopupMenu {
         MenuSurface(TextRuler ruler) {
             this.ruler = ruler;
             setFocusable(true); // receive keyboard while open
+            limn.scene.internal.SceneAccess.drawsAccessLetters(this); // the rows' letters
         }
 
         void pushRoot() {
@@ -2147,7 +2148,9 @@ public final class PopupMenu {
                 // A submenu is titled by the row that opened it, which is what all three
                 // platforms show. The root column is left unnamed: nothing names it, and the
                 // layer above already carries a name.
-                a.name(openerOf(c), Accessible.NameFrom.CONTENT);
+                MenuItem opener = openerOf(c);
+                a.name(opener == null ? null : opener.labelForReader(),
+                        opener == null ? 0 : opener.labelWitness(), Accessible.NameFrom.CONTENT);
             }
             // Published on every column on every frame, and from the same expressions the clamp
             // uses, so that reaching the clamp moves two numbers instead of making a facet appear
@@ -2200,9 +2203,10 @@ public final class PopupMenu {
                 }
                 a.role(item.kind() == MenuItem.Kind.CHECK
                         ? Accessible.Role.CHECK_MENU_ITEM : Accessible.Role.MENU_ITEM);
-                // The I18nString the model holds, never label(), which resolves and allocates per
-                // row per frame, and never mnemonicIndex(), which calls label() to find its own.
-                a.name(item.labelSource(), Accessible.NameFrom.CONTENT);
+                // The words, the access letter's mark taken out ("Sa&lvar" is heard "Salvar"),
+                // held by the item until they change, so a frame that changed nothing allocates
+                // nothing; never mnemonicIndex(), which resolves its own.
+                a.name(item.labelForReader(), item.labelWitness(), Accessible.NameFrom.CONTENT);
                 if (!item.isEnabled()) {
                     // Said, not only left without verbs (semantics 5, the disabled axis; the 2d
                     // review, 2026-09-15): a reader hears a disabled Cut row as unavailable rather
@@ -2227,6 +2231,11 @@ public final class PopupMenu {
                 MenuAccessibility.describeRow(a, kindOf(item), item.isSelectable(), current,
                         ++position, size, item.hasSubmenu(), expanded, current && deepest,
                         item.isSelectable(), item.isChecked());
+                if (item.isSelectable()) {
+                    // The letter that chooses the row while its menu is open, beside the
+                    // accelerator below, which runs the command from anywhere.
+                    a.accessKey(item.accessKey());
+                }
                 if (expanded) {
                     describeColumn(a, c + 1);
                 } else if (!item.hasSubmenu() && item.isSelectable()
@@ -2244,11 +2253,6 @@ public final class PopupMenu {
             a.endChild();
         }
 
-        /**
-         * @param c a submenu column's index
-         * @return the label of the row that opened it, or {@code null} when the parent column's
-         *         {@link Menu} has been mutated out from under the snapshot and that row is gone
-         */
         private static MenuAccessibility.Kind kindOf(MenuItem item) {
             // What the menu shape calls a row: a check, a submenu (with rows or without), or a
             // command; a separator is never described as a row.
@@ -2259,10 +2263,15 @@ public final class PopupMenu {
             };
         }
 
-        private I18nString openerOf(int c) {
+        /**
+         * @param c a submenu column's index
+         * @return the row that opened it, or {@code null} when the parent column's {@link Menu} has
+         *         been mutated out from under the snapshot and that row is gone
+         */
+        private @Nullable MenuItem openerOf(int c) {
             List<MenuItem> items = cols.get(c - 1).menu.items();
             int i = cols.get(c).parentItem;
-            return i >= 0 && i < items.size() ? items.get(i).labelSource() : null;
+            return i >= 0 && i < items.size() ? items.get(i) : null;
         }
 
         /**

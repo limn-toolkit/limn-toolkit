@@ -20,4 +20,13 @@ public interface PopupOwnerSubject {
 
     /** Closes the popup through the API, as an application would. */
     void close();
+
+    /**
+     * @return true for a disclosure, which opens its own content in place (an expander's
+     *         header) rather than a popup: of the same shape, it says no {@code HAS_POPUP}, and
+     *         the contract finds it by its expand facet instead
+     */
+    default boolean disclosesInPlace() {
+        return false;
+    }
 }

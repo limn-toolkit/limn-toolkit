@@ -108,6 +108,13 @@ final class ShowcaseStrings {
             new I18nString("showcase.menu.performance", "&Performance");
     static final I18nString MENU_DOCUMENTATION =
             new I18nString("showcase.menu.documentation", "&Documentation");
+    /**
+     * The same word on the button that heads a page, without the menu's letter: a control takes
+     * Alt and its letter before the menu bar, and the letter Help's item uses was a bar title's or
+     * a field's in most languages. The Help menu reaches the documentation by letter.
+     */
+    static final I18nString HEAD_DOCUMENTATION =
+            new I18nString("showcase.head.documentation", "Documentation");
     static final I18nString MENU_NEW_ORDER =
             new I18nString("showcase.menu.newOrder", "&New order");
     static final I18nString ORDERS_ORDER =

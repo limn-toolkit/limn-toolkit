@@ -91,6 +91,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * takes a nullable {@code Object} as {@link Object#equals} does, and a public field this file sets
  * to null says so. A null that arrives through a private field is not traced; that is the
  * reviewer's to find.
+ *
+ * <p>The override rule reaches past the API on one side: a class of an exported package that
+ * overrides a method of an internal interface keeps that interface's nullness too, private or
+ * not, since a checker run over the package holds it to it and a reader of the class trusts what
+ * it says. The internal sources are read for their interfaces' declarations alone.
  */
 class NullnessAnnotatedTest {
 
@@ -181,7 +186,14 @@ class NullnessAnnotatedTest {
             }
         }
         List<String> found = new ArrayList<>();
-        overrides(units, found);
+        List<Source> hidden = internalSources(root);
+        Parsed internal = parse(hidden.stream().map(Source::path).toList());
+        List<Unit> declarations = new ArrayList<>();
+        for (CompilationUnitTree unit : internal.units()) {
+            declarations.add(new Unit(unit, root.relativize(Path.of(unit.getSourceFile().toUri())).toString(),
+                    internal));
+        }
+        overrides(units, declarations, found);
         int apiMethods = 0;
         for (Unit unit : units) {
             unit.report(found);
@@ -196,9 +208,13 @@ class NullnessAnnotatedTest {
      * never null stays so, and {@code equals} takes a nullable {@code Object}, as
      * {@link Object#equals} does. The overridden method is looked up by its name and erased
      * parameter types in the API's own supertypes of the overriding class, by their simple names,
-     * so one from outside the API is not seen, {@code equals} apart.
+     * so one from outside the toolkit is not seen, {@code equals} apart. An override in an exported
+     * file is held to the method it overrides whatever its own visibility, and the method
+     * overridden may be in an internal package ({@code declarations}): a private class
+     * implementing an internal interface drops that interface's {@code @Nullable} no more than an
+     * API class may.
      */
-    private static void overrides(List<Unit> units, List<String> found) {
+    private static void overrides(List<Unit> units, List<Unit> declarations, List<String> found) {
         record Declared(Unit unit, Method method) {
             boolean overrides() {
                 return method.tree.getModifiers().getAnnotations().stream().anyMatch(a -> named(a, "Override"));
@@ -220,7 +236,9 @@ class NullnessAnnotatedTest {
             }
         }
         java.util.Map<String, Set<String>> supertypes = new java.util.HashMap<>();
-        for (Unit unit : units) {
+        List<Unit> everything = new ArrayList<>(units);
+        everything.addAll(declarations);
+        for (Unit unit : everything) {
             new TreeScanner<Void, Void>() {
                 @Override
                 public Void visitClass(ClassTree node, Void unused) {
@@ -234,9 +252,16 @@ class NullnessAnnotatedTest {
             }.scan(unit.tree, null);
         }
         java.util.Map<String, List<Declared>> bySignature = new java.util.HashMap<>();
-        for (Unit unit : units) {
+        for (Unit unit : everything) {
             for (Method method : unit.methods) {
-                if (method.api && method.tree.getReturnType() != null) {
+                boolean internal = declarations.contains(unit);
+                // The API's methods, any method of an exported file that overrides, and an
+                // internal interface's methods, which those may override.
+                boolean counted = method.api
+                        || (!internal && method.tree.getModifiers().getAnnotations().stream()
+                                .anyMatch(a -> named(a, "Override")))
+                        || (internal && (method.owner.getKind() == Tree.Kind.INTERFACE));
+                if (counted && method.tree.getReturnType() != null) {
                     String signature = method.name() + method.tree.getParameters().stream()
                             .map(p -> erasure(p.getType())).toList();
                     bySignature.computeIfAbsent(signature, k -> new ArrayList<>()).add(new Declared(unit, method));
@@ -246,7 +271,7 @@ class NullnessAnnotatedTest {
         for (List<Declared> family : bySignature.values()) {
             for (Declared override : family) {
                 List<? extends VariableTree> parameters = override.method.tree.getParameters();
-                if (override.method.name().equals("equals") && parameters.size() == 1
+                if (override.method.api && override.method.name().equals("equals") && parameters.size() == 1
                         && erasure(parameters.get(0).getType()).equals("Object") && !override.takesNull(0)) {
                     found.add(override.where() + "(" + parameters.get(0).getName()
                             + "): equals takes null, as Object.equals does");
@@ -263,8 +288,11 @@ class NullnessAnnotatedTest {
                         }
                     }
                 }
+                // A method outside the API is held to the internal interfaces it implements, which
+                // nothing else checks; to the API's own types it answers as their callers see it.
                 List<Declared> overridden = family.stream()
-                        .filter(d -> ancestors.contains(d.method.owner.getSimpleName().toString())).toList();
+                        .filter(d -> ancestors.contains(d.method.owner.getSimpleName().toString()))
+                        .filter(d -> override.method.api || declarations.contains(d.unit)).toList();
                 for (int i = 0; i < parameters.size(); i++) {
                     int index = i;
                     if (!override.takesNull(i) && overridden.stream().anyMatch(d -> d.takesNull(index))) {
@@ -1068,6 +1096,28 @@ class NullnessAnnotatedTest {
     }
 
     private record Parsed(List<CompilationUnitTree> units, DocTrees docs, com.sun.source.util.Trees trees) {
+    }
+
+    /** The sources of every package a module does not export, read for their declarations. */
+    static List<Source> internalSources(Path root) throws IOException {
+        List<Source> sources = new ArrayList<>();
+        Set<Path> exported = new HashSet<>();
+        for (Source source : exportedSources(root)) {
+            exported.add(source.path());
+        }
+        for (String module : MODULES) {
+            Path main = root.resolve(module).resolve("src/main/java");
+            try (Stream<Path> files = Files.walk(main)) {
+                for (Path file : files.filter(f -> f.toString().endsWith(".java")).sorted().toList()) {
+                    String name = file.getFileName().toString();
+                    if (!exported.contains(file) && !name.equals("package-info.java")
+                            && !name.equals("module-info.java")) {
+                        sources.add(new Source(module, "", file, false));
+                    }
+                }
+            }
+        }
+        return sources;
     }
 
     static List<Source> exportedSources(Path root) throws IOException {

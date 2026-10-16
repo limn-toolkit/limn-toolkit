@@ -199,19 +199,45 @@ public final class Label extends Widget<Label> {
         return labelFor != null ? marked.of(raw) : unmarked.of(raw);
     }
 
-    /** Alt and the letter bring the keyboard to the control this label names. */
+    /**
+     * Alt and the letter bring the keyboard to the control this label names; a label whose control
+     * can take none has no letter, so the key goes on to the menu bar.
+     */
     private char accessLetter() {
-        return labelFor == null || !labelFor.isEnabled() ? 0 : shown().letter();
+        return accessLetterFocus() == null ? 0 : shown().letter();
     }
 
+    /**
+     * Where the letter brings the keyboard: the control this label names, or, for a composite
+     * that takes none itself (a date picker, a range slider, an expander), its first part that
+     * does, as a Windows dialog's label reaches the next control in tab order.
+     */
     private @Nullable Widget<?> accessLetterFocus() {
-        return labelFor;
+        return labelFor == null ? null : firstFocusable(labelFor);
     }
 
     private void accessLetterPressed() {
-        if (labelFor != null) {
-            labelFor.requestFocus();
+        Widget<?> target = accessLetterFocus();
+        if (target != null) {
+            limn.scene.internal.SceneAccess.focusByUser(target); // the user's key, said as USER
         }
+    }
+
+    /** Depth first, the first focusable, visible, enabled widget of a subtree, or {@code null}. */
+    private static @Nullable Widget<?> firstFocusable(Widget<?> widget) {
+        if (!widget.isVisible() || !widget.isEnabled()) {
+            return null;
+        }
+        if (widget.isFocusable()) {
+            return widget;
+        }
+        for (Widget<?> child : widget.children()) {
+            Widget<?> found = firstFocusable(child);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
     }
 
     /** The localizable value this label holds, which a language change re-resolves. */
@@ -307,14 +333,31 @@ public final class Label extends Widget<Label> {
         return labelFor == null ? text : marked.shownAsText(shown(), text);
     }
 
-    /** The chord of the access letter this label gives the control it names. */
+    /**
+     * The chord of the access letter this label gives the control it names, only while the letter
+     * would reach it: a caption kept hidden as a field's name, or one in a collapsed or disabled
+     * section, is skipped by the scene, and a reader told "Alt+N" would press a key that does
+     * nothing.
+     */
     @Override
     protected @Nullable String accessibleLabelAccessKey() {
-        if (labelFor == null) {
+        if (accessLetter() == 0 || !answersItsLetter()) {
             return null;
         }
-        shown();
         return marked.binding();
+    }
+
+    /**
+     * Whether Alt and the letter reach this label: it and every widget above it visible and
+     * enabled, the rule the scene applies when it looks for the owner of a letter.
+     */
+    private boolean answersItsLetter() {
+        for (Widget<?> at = this; at != null; at = at.parent()) {
+            if (!at.isVisible() || !at.isEnabled()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -336,9 +379,10 @@ public final class Label extends Widget<Label> {
     protected void onAccessibility(Accessibility a) {
         a.role(role == Role.TITLE ? Accessible.Role.HEADING : Accessible.Role.LABEL);
         if (labelFor != null) {
-            // The text as shown, its access letter's mark taken out, and the letter's chord.
+            // The text as shown, its access letter's mark taken out. The letter's chord goes to
+            // the control it names, which is where the keyboard goes; this static node offers no
+            // verb to carry it.
             a.name(shown().text(), marked.witness(), Accessible.NameFrom.CONTENT);
-            a.accessKey(marked.binding());
         } else {
             a.name(text, Accessible.NameFrom.CONTENT);
         }

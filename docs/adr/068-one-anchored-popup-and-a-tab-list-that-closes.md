@@ -97,6 +97,9 @@ back to the picker when the card is gone.
 
 The combo box's and the date picker's suites stand as they are, the window, the scene, Wayland,
 fullscreen, the fades and the accessible tree; a change of behaviour in section 3 is a test that
-changes with it, said where it changes. The tab list is tested as the other surfaces are. The
+changes with it, said where it changes. The tab list is tested as the other surfaces are. (Amended
+2026-10-16: its button runs the popup-owner contract of ADR 045; the list itself does not run the
+rows contract, which reads one selection per tree while the strip's tabs are a second, and is held
+by its own tests instead.) The
 combo box and the calendar are heard again by the lab's screen readers, since what moved is the
 code every reading of them goes through, and the tab list is heard for the first time.

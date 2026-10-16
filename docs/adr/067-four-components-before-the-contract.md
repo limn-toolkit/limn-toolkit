@@ -138,6 +138,13 @@ for in the work budget (a section opening, a tab moving). What building found:
   into the edit it follows, so one undo takes both. And Backspace and Delete after a literal leave
   the same text, so the key says which character the user meant.
 
+(Amended 2026-10-16: "the accessible tree on the three bridges' shapes" was each component's own
+tests, not the shape contracts of ADR 045. The contracts now run over the `RangeSlider`'s thumbs,
+each a `VALUE` with the bounds the other thumb leaves it, the `Expander`'s header, a
+`POPUP_OWNER` that discloses in place and so says no `HAS_POPUP`, and the tab strip's list button,
+a `POPUP_OWNER`. The value contract learned to take one node of several and the popup-owner
+contract a disclosure for it.)
+
 What remains: a closable tab's button is a button inside a tab, a structure the shapes of ADR 045
 do not cover, and it has not yet been heard by the three screen readers of the lab. The two
 settings `SECURITY.md` relies on, private reporting and Discussions, are the owner's to turn on.

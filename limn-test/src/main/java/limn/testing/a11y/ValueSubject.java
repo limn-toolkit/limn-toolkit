@@ -38,4 +38,20 @@ public interface ValueSubject {
 
     /** @return how many times the widget's own change listener fired since {@link #build()} */
     int changes();
+
+    /**
+     * @return how many nodes carry a value facet in what {@link #build()} makes: one for most
+     *         widgets, two for a range's thumbs. The contract refuses any other count.
+     */
+    default int valueNodes() {
+        return 1;
+    }
+
+    /**
+     * @return which of those nodes is under contract, counted in tree order from {@code 0}: a
+     *         range's upper thumb is {@code 1}, and the subject's other methods speak of it
+     */
+    default int valueNode() {
+        return 0;
+    }
 }

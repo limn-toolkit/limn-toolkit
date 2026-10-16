@@ -3,6 +3,7 @@ package limn.components;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -50,10 +51,36 @@ class AccessLettersTest {
         assertEquals(new AccessLetters.Parsed("AT&T", -1, (char) 0), AccessLetters.parse("AT&&T", true));
     }
 
+    /**
+     * The Windows form of a command that asks for more, "プロパティ(&amp;P)…", loses its letter on
+     * macOS and keeps its ellipsis: only a bare trailing "(P)" was dropped, and twelve of the
+     * Showcase's menu rows read "プロパティ(P)…" on a Mac.
+     */
+    @Test
+    void macOSDropsTheWindowsLetterBeforeAnEllipsisToo() {
+        assertEquals(new AccessLetters.Parsed("プロパティ…", -1, (char) 0), AccessLetters.parse("プロパティ(&P)…", true));
+        assertEquals(new AccessLetters.Parsed("名前の変更...", -1, (char) 0), AccessLetters.parse("名前の変更(&R)...", true));
+        assertEquals(new AccessLetters.Parsed("속성…", -1, (char) 0), AccessLetters.parse("속성(&P) …", true));
+        assertEquals(new AccessLetters.Parsed("(P) später", -1, (char) 0), AccessLetters.parse("(&P) später", true),
+                "words after the parentheses are not the Windows letter's form, and stay");
+        assertEquals(new AccessLetters.Parsed("プロパティ(P)…", 6, 'P'), elsewhere("プロパティ(&P)…"),
+                "and on Windows and Linux the letter stays, underlined");
+    }
+
     @Test
     void aKeyIsTheLetterPrintedOnItOrTheOneTheLayoutTypes() {
         assertTrue(AccessLetters.matches('A', 'A', -1));
         assertTrue(AccessLetters.matches('Ф', 'A', 'ф'), "a Cyrillic layout types ф on the A key");
         assertEquals(false, AccessLetters.matches((char) 0, 'A', 'a'));
+    }
+
+    /** The codes of keys that print nothing are Latin Extended-A letters' codes, and match none. */
+    @Test
+    void aKeyCodeAboveTheLatinRangeIsNoLetter() {
+        assertFalse(AccessLetters.matches('Č', limn.input.Keys.HOME, -1), "Home is 268, Č's code");
+        assertFalse(AccessLetters.matches('Ć', limn.input.Keys.RIGHT, -1), "Right is 262, Ć's");
+        assertFalse(AccessLetters.matches('Ģ', limn.input.Keys.F1, -1), "F1 is 290, Ģ's");
+        assertTrue(AccessLetters.matches('Č', limn.input.Keys.C, 'č'), "the layout's Č still is");
+        assertTrue(AccessLetters.matches('7', limn.input.Keys.NUM_7, -1), "a digit's key code is the digit");
     }
 }

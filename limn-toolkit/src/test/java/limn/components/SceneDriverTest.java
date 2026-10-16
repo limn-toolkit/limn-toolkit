@@ -103,6 +103,14 @@ class SceneDriverTest extends ComponentTestBase {
             }
 
             @Override
+            public void focusByUser(Widget<?> widget) {
+            }
+
+            @Override
+            public void drawsAccessLetters(Widget<?> widget) {
+            }
+
+            @Override
             public boolean accessLettersShown(Scene scene) {
                 return false;
             }

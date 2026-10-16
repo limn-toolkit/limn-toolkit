@@ -96,7 +96,17 @@ public final class SceneAccess {
 
         void ownAccessLetter(Widget<?> widget, AccessLetterOwner owner);
 
+        void drawsAccessLetters(Widget<?> widget);
+
         void pressFocus(Widget<?> widget, PressFocus filter);
+
+        /**
+         * Moves the keyboard to {@code widget} for a key the user pressed, announcing
+         * {@code FOCUS} as {@code USER}; see {@link SceneAccess#focusByUser}.
+         *
+         * @param widget a widget in a scene, or out of one, which moves nothing
+         */
+        void focusByUser(Widget<?> widget);
 
         /**
          * @param scene a scene
@@ -153,10 +163,6 @@ public final class SceneAccess {
     }
 
     /**
-     * @param scene a scene
-     * @return the input adapter the scene hands its window, which a driver calls as a window would
-     */
-    /**
      * Whether {@code scene}'s access letters are drawn now: while Alt is held, on Windows and
      * Linux. A menu opened from the keyboard draws its own as well; never on macOS.
      *
@@ -178,6 +184,17 @@ public final class SceneAccess {
     }
 
     /**
+     * Says {@code widget} draws access letters it does not own, a menu bar's titles or a menu's
+     * rows, so the scene repaints it when they are shown or hidden. A widget that owns its letter
+     * ({@link #ownAccessLetter}) is repainted without this.
+     *
+     * @param widget a menu bar, a menu's surface
+     */
+    public static void drawsAccessLetters(Widget<?> widget) {
+        hook().drawsAccessLetters(widget);
+    }
+
+    /**
      * Makes {@code filter} what the scene asks before a press moves the keyboard to {@code widget}.
      *
      * @param widget a focusable widget with a spot that acts without taking the keyboard
@@ -185,6 +202,18 @@ public final class SceneAccess {
      */
     public static void pressFocus(Widget<?> widget, PressFocus filter) {
         hook().pressFocus(widget, filter);
+    }
+
+    /**
+     * Moves the keyboard to {@code widget} because the user pressed a key that names it, an access
+     * letter: {@code FOCUS} is announced as {@code USER}, where {@link Widget#requestFocus()} is an
+     * application's move and says {@code CODE}. Refused, as that one is, for a widget that cannot
+     * take the keyboard.
+     *
+     * @param widget the widget the key names
+     */
+    public static void focusByUser(Widget<?> widget) {
+        hook().focusByUser(java.util.Objects.requireNonNull(widget, "widget"));
     }
 
     /**
@@ -198,6 +227,10 @@ public final class SceneAccess {
         return scene == null ? 0 : hook().keyPresses(scene);
     }
 
+    /**
+     * @param scene a scene
+     * @return the input adapter the scene hands its window, which a driver calls as a window would
+     */
     public static WindowInput input(Scene scene) {
         return hook().inputOf(java.util.Objects.requireNonNull(scene, "scene"));
     }

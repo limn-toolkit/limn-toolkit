@@ -1109,6 +1109,25 @@ final class AtspiTree {
         }
     }
 
+    /**
+     * A node's keys as an AT-SPI key binding: the access key alone ("Alt+N", which Orca reads as
+     * the mnemonic), the accelerator alone, or both in the "mnemonic;sequence;accelerator" form
+     * Orca splits ({@code ax_utilities_action.py}), so a node that has both loses neither. The
+     * access key alone used to win, and a node with both was never heard to have its accelerator.
+     */
+    static String keyBindingOf(AccessibleNode node) {
+        limn.accessibility.ActionFacet facet = node.actions();
+        if (facet == null) {
+            return "";
+        }
+        String access = facet.accessKey();
+        String accelerator = facet.keyBinding();
+        if (access != null && accelerator != null) {
+            return access + ";;" + accelerator;
+        }
+        return access != null ? access : accelerator != null ? accelerator : "";
+    }
+
     private static int coordOf(Object v) {
         return v instanceof Number n ? n.intValue() : Atspi.COORD_SCREEN;
     }
@@ -1154,18 +1173,13 @@ final class AtspiTree {
             }
             case "GetDescription":
                 return DBus.Msg.ret(m, "s", "");
-            case "GetKeyBinding": {
-                // The access key where there is one (Alt+N, what Orca reads as the mnemonic), else
-                // the accelerator.
-                String binding = node.actions() == null ? null
-                        : node.actions().accessKey() != null ? node.actions().accessKey()
-                        : node.actions().keyBinding();
-                return DBus.Msg.ret(m, "s", binding == null ? "" : binding);
-            }
+            case "GetKeyBinding":
+                return DBus.Msg.ret(m, "s", keyBindingOf(node));
             case "GetActions": {
                 List<Object> out = new ArrayList<>();
                 for (Accessible.Action verb : verbs) {
-                    out.add(new Object[] {verbName(verb), "", ""});
+                    // The keys go with the first verb, the one the accelerator performs.
+                    out.add(new Object[] {verbName(verb), "", out.isEmpty() ? keyBindingOf(node) : ""});
                 }
                 return DBus.Msg.ret(m, "a(sss)", out);
             }

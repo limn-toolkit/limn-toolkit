@@ -60,7 +60,8 @@ public final class RadioButton extends Widget<RadioButton> {
     {
         // Alt and the letter, found by the scene; not API: the letter is written in the text.
         limn.scene.internal.SceneAccess.ownAccessLetter(this, limn.scene.internal.AccessLetterOwner.of(
-                this::accessLetter, this::accessLetterFocus, this::accessLetterPressed));
+                this::accessLetter, this::accessLetterFocus, this::accessLetterTurn,
+                this::accessLetterPressed));
     }
 
     /**
@@ -141,10 +142,20 @@ public final class RadioButton extends Widget<RadioButton> {
         return this;
     }
 
+    /**
+     * Its turn among several controls of one letter, which move the keyboard and select nothing: a
+     * group's radio that is not its tab stop is lent the stop, or the turn never reaches it.
+     */
+    private void accessLetterTurn() {
+        if (group != null && !isFocusable()) {
+            group.lendStop(this);
+        }
+    }
+
     /** Alt and the letter select this radio and bring the keyboard to it. */
     private void accessLetterPressed() {
         select(Change.Origin.USER); // first: a group's unselected radio takes no keyboard
-        requestFocus();
+        requestFocus(Change.Origin.USER); // the user's key moved it, and FOCUS says so
     }
 
     /**
@@ -607,5 +618,8 @@ public final class RadioButton extends Widget<RadioButton> {
     @Override
     protected void onFocusLost() {
         focusFade.to(0);
+        if (group != null) {
+            group.focusLeft(this);
+        }
     }
 }

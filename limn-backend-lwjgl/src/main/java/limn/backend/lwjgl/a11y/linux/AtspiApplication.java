@@ -811,7 +811,7 @@ final class AtspiApplication {
      * clearing the per-object memory ({@code clear_all_cache_now}) its focus had saved precisely
      * "so we don't double-present aspects about obj" ({@code focus_manager._save_object_details}).
      * A combo box whose in-scene list closes on Enter is the case: the keyboard goes back as the
-     * fade starts (ADR 068 §3), so one publish moves the focus to the combo, collapses it and gives
+     * list's fade starts, so one publish moves the focus to the combo, collapses it and gives
      * it the item picked, and Orca said "Cordilheiras Atlas, caixa de combinação" and then
      * "Cordilheiras Atlas, caixa de combinação recolhido" twice and "Cordilheiras Atlas" once more
      * (.claude/pending/2026-10-16/readers-adr-068/fedora/, the trace068b run: every signal of that

@@ -127,37 +127,54 @@ public record Accelerator(int key, int modifiers) {
 
     /** {@link #display()} for a chosen platform, the seam both branches are tested through. */
     String display(boolean mac) {
+        return modifiersDisplay(modifiers, mac) + keyName(key, mac);
+    }
+
+    /**
+     * The modifiers of {@code mask} as {@link #display()} writes them before the key: {@code "⌥"}
+     * on macOS, {@code "Alt+"} elsewhere. Apart from the key so that a chord whose key has no
+     * code, an access letter of any script ("Alt+Ф"), is written the same way.
+     *
+     * @param mask a mask of {@code Keys.MOD_*} bits
+     * @param mac  whether to write it as macOS does
+     */
+    static String modifiersDisplay(int mask, boolean mac) {
         StringBuilder out = new StringBuilder();
         if (mac) {
             // No separator: ⌃⌥⇧⌘ are one glyph each and a '+' between them is what a menu
             // showing this on a Mac never has.
-            if ((modifiers & Keys.MOD_CONTROL) != 0) {
+            if ((mask & Keys.MOD_CONTROL) != 0) {
                 out.append('\u2303');
             }
-            if ((modifiers & Keys.MOD_ALT) != 0) {
+            if ((mask & Keys.MOD_ALT) != 0) {
                 out.append('\u2325');
             }
-            if ((modifiers & Keys.MOD_SHIFT) != 0) {
+            if ((mask & Keys.MOD_SHIFT) != 0) {
                 out.append('\u21E7');
             }
-            if ((modifiers & Keys.MOD_SUPER) != 0) {
+            if ((mask & Keys.MOD_SUPER) != 0) {
                 out.append('\u2318');
             }
-            return out.append(keyName(key, true)).toString();
+            return out.toString();
         }
-        if ((modifiers & Keys.MOD_CONTROL) != 0) {
+        if ((mask & Keys.MOD_CONTROL) != 0) {
             out.append("Ctrl+");
         }
-        if ((modifiers & Keys.MOD_ALT) != 0) {
+        if ((mask & Keys.MOD_ALT) != 0) {
             out.append("Alt+");
         }
-        if ((modifiers & Keys.MOD_SHIFT) != 0) {
+        if ((mask & Keys.MOD_SHIFT) != 0) {
             out.append("Shift+");
         }
-        if ((modifiers & Keys.MOD_SUPER) != 0) {
+        if ((mask & Keys.MOD_SUPER) != 0) {
             out.append("Meta+");
         }
-        return out.append(keyName(key, false)).toString();
+        return out.toString();
+    }
+
+    /** {@link #modifiersDisplay(int, boolean)} as this platform writes it. */
+    static String modifiersDisplay(int mask) {
+        return modifiersDisplay(mask, MAC);
     }
 
     /**

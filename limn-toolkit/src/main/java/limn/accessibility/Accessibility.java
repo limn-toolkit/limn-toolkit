@@ -1201,6 +1201,9 @@ public final class Accessibility {
     /**
      * Gives this node's primary action the keystroke that performs it, as a user would read it.
      *
+     * <p>Kept only on a node that offers a verb: it is published with the node's
+     * {@link ActionFacet}, which a node with no verb does not have.
+     *
      * @param display the accelerator's display form, or {@code null} for none
      */
     public void keyBinding(@Nullable String display) {
@@ -1211,6 +1214,10 @@ public final class Accessibility {
      * Gives this node its access letter's chord, as a user would read it ("Alt+N"): the letter a
      * menu title, a button or a field's label marks. Not the accelerator; see
      * {@link #keyBinding}.
+     *
+     * <p>Kept only on a node that offers a verb, as the key binding is: it is published with the
+     * node's {@link ActionFacet}. A caption that names a field gives its key to the field, which
+     * is where the keyboard goes, and not to its own static text.
      *
      * @param display the chord's display form, or {@code null} for none
      */
@@ -2010,6 +2017,10 @@ public final class Accessibility {
             Slot s = slots[i];
             for (int r = 0; r < s.relationCount; r++) {
                 s.relationResolved[r] = resolve.resolve(s.relationKinds[r], s.relationTargets[r]);
+                // Resolved, the widget is not needed again, and must not be kept: a slot is
+                // reset only when a later walk reaches it, so one past a tree that shrank held its
+                // targets, and through a caption's parent a form removed from the window.
+                s.relationTargets[r] = null;
             }
         }
     }

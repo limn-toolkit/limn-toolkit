@@ -16,7 +16,8 @@ import java.util.List;
 
 /**
  * What every widget of the {@code POPUP_OWNER} shape owes a reader, as named cases over a
- * {@link PopupOwnerSubject}: it says {@code HAS_POPUP} before anything has happened; its open
+ * {@link PopupOwnerSubject}: it says {@code HAS_POPUP} before anything has happened (a
+ * disclosure, which opens in place, says it nowhere); its open
  * state is the facet's and the API's; closed, it offers {@code EXPAND} and not {@code COLLAPSE};
  * {@code EXPAND} opens it and something appears in the tree, described where it lives; open, it
  * never offers {@code EXPAND}, and offers {@code COLLAPSE} unless a layer above owns the input,
@@ -58,7 +59,9 @@ public final class PopupOwnerContract {
         AccessibleNode node = b.node();
         check(Shape.of(node) == Shape.POPUP_OWNER, b, "the node is a POPUP_OWNER shape, not "
                 + Shape.of(node));
-        check(node.has(State.HAS_POPUP), b, "it says HAS_POPUP before anything has happened");
+        check(node.has(State.HAS_POPUP) != subject.disclosesInPlace(), b, subject.disclosesInPlace()
+                ? "a disclosure opens in place and says no HAS_POPUP"
+                : "it says HAS_POPUP before anything has happened");
         check(!subject.isOpen(), b, "the subject is built closed");
         check(node.expand() != null && !node.expand().expanded(), b,
                 "and the facet says closed");
@@ -77,14 +80,14 @@ public final class PopupOwnerContract {
 
     private static void expandOpensIt(PopupOwnerSubject subject, UiRuntime rt) {
         Bound b = Bound.of(subject, rt);
-        int nodes = b.harness.tree().nodeCount();
+        int nodes = shown(b.harness.tree());
         check(b.perform(Action.EXPAND), b, "EXPAND is accepted");
         check(subject.isOpen(), b, "and the API says open");
         AccessibleNode node = b.node();
         check(node.expand() != null && node.expand().expanded(), b, "and the facet says open");
-        check(b.harness.tree().nodeCount() > nodes, b, "and something appeared in the tree, "
-                + "described where it lives: " + nodes + " nodes before, "
-                + b.harness.tree().nodeCount() + " after");
+        check(shown(b.harness.tree()) > nodes, b, "and something appeared in the tree, "
+                + "described where it lives: " + nodes + " nodes showing before, "
+                + shown(b.harness.tree()) + " after");
         check(!offers(node, Action.EXPAND), b, "open, it never offers EXPAND");
     }
 
@@ -123,6 +126,20 @@ public final class PopupOwnerContract {
         check(b.node().id() == id, b, "and after closing");
     }
 
+    /**
+     * The nodes on screen: a popup adds nodes, and a disclosure shows what it already published
+     * hidden, so a count of the nodes alone would miss the second.
+     */
+    private static int shown(AccessibleTree tree) {
+        int count = 0;
+        for (int i = 0; i < tree.nodeCount(); i++) {
+            if (tree.node(i).has(State.SHOWING)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     private static boolean offers(AccessibleNode node, Action verb) {
         return node.actions() != null && node.actions().has(verb);
     }
@@ -137,13 +154,13 @@ public final class PopupOwnerContract {
         final AccessibleHarness harness;
         final long id;
 
-        private Bound(AccessibleHarness harness) {
+        private Bound(AccessibleHarness harness, boolean disclosure) {
             this.harness = harness;
             AccessibleTree tree = harness.tree();
             long found = 0;
             for (int i = 0; i < tree.nodeCount(); i++) {
                 AccessibleNode node = tree.node(i);
-                if (node.has(State.HAS_POPUP)) {
+                if (disclosure ? node.expand() != null : node.has(State.HAS_POPUP)) {
                     if (found != 0) {
                         throw new AssertionError("two popup owners; the subject must publish "
                                 + "one:" + harness.describe());
@@ -152,14 +169,16 @@ public final class PopupOwnerContract {
                 }
             }
             if (found == 0) {
-                throw new AssertionError("no node says HAS_POPUP:" + harness.describe());
+                throw new AssertionError((disclosure ? "no node carries an expand facet:"
+                        : "no node says HAS_POPUP:") + harness.describe());
             }
             id = found;
         }
 
         /** Bound in a window that cannot position, so the popup opens in the scene and is seen. */
         static Bound of(PopupOwnerSubject subject, UiRuntime runtime) {
-            return new Bound(new AccessibleHarness(runtime, subject.build(), new StubWindow(false)));
+            return new Bound(new AccessibleHarness(runtime, subject.build(), new StubWindow(false)),
+                    subject.disclosesInPlace());
         }
 
         AccessibleNode node() {

@@ -1019,6 +1019,11 @@ public final class TabbedPane extends Widget<TabbedPane> {
     /** The keys the headers are known by to a reader, unique for the life of the pane. */
     private long headerKeys;
 
+    /** @return whether the list of every tab is open; for the shape contracts' subjects */
+    boolean isTabListOpen() {
+        return tabList.isOpen();
+    }
+
     /** Opens the list of every tab under the list button, or closes it when it is open. */
     private void openTabList() {
         if (scene() == null || headers.isEmpty()) {

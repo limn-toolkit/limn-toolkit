@@ -753,34 +753,28 @@ class MenuBarAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /**
-     * A mnemonic this toolkit cannot spell publishes no key binding at all.
-     *
-     * <p>{@code addMenu} takes "a letter or a digit" through {@code Character.isLetterOrDigit},
-     * which admits every script, and {@code Accelerator} names a code outside printable ASCII as
-     * {@code "Key<code>"}. So a Cyrillic access letter published {@code Alt+Key1060} — unreadable,
-     * and a chord that can never fire either, because both key routes compare against
-     * {@code Keys} constants and nothing produces that code. A binding withheld is an absence a
-     * reader can live with; one like that is a lie with a keystroke attached.
+     * A mnemonic of any script publishes its chord, "Alt+Ф" beside "Alt+F": the letter is reached
+     * by the character the layout types, so a Cyrillic title opens with Alt and its letter, and a
+     * reader is told so. The chord was built through an accelerator, which names a key by its
+     * code and has no name for Ф, so a Cyrillic title published no key at all. Read as Windows and
+     * Linux do, whatever the host.
      */
     @Test
-    void aMnemonicThisToolkitCannotSpellPublishesNoBindingRatherThanAWrongOne() {
-        bindBar(new MenuBar()
-                .setDisplayMode(DisplayMode.IN_SCENE)
-                .addMenu("File", 'F', new Menu().addItem("New", () -> { }))
-                .addMenu("Файл", 'ф', new Menu().addItem("Создать", () -> { })), new StubWindow());
+    void aMnemonicOfAnyScriptPublishesItsChord() {
+        boolean system = limn.scene.internal.AccessLetterSystem.setPresentForTests(true);
+        try {
+            bindBar(new MenuBar()
+                    .setDisplayMode(DisplayMode.IN_SCENE)
+                    .addMenu("File", 'F', new Menu().addItem("New", () -> { }))
+                    .addMenu("Файл", 'ф', new Menu().addItem("Создать", () -> { })), new StubWindow());
 
-        List<AccessibleNode> titles = titles();
-        assertEquals(2, titles.size(), describe(tree()));
-        String ascii = titles.get(0).actions().accessKey();
-        if (MAC) {
-            assertNull(ascii, "macOS has no access letters (ADR 070)" + describe(tree()));
-        } else {
-            assertNotNull(ascii, "printable ASCII is nameable, and that one is published"
-                    + describe(tree()));
-            assertTrue(ascii.endsWith("F"), ascii + describe(tree()));
+            List<AccessibleNode> titles = titles();
+            assertEquals(2, titles.size(), describe(tree()));
+            String alt = Accelerator.modifiersDisplay(Keys.MOD_ALT);
+            assertEquals(alt + "F", titles.get(0).actions().accessKey(), describe(tree()));
+            assertEquals(alt + "Ф", titles.get(1).actions().accessKey(), describe(tree()));
+        } finally {
+            limn.scene.internal.AccessLetterSystem.setPresentForTests(system);
         }
-        assertNull(titles.get(1).actions().accessKey(),
-                "and the one that would have read Alt+Key1060 says nothing instead"
-                        + describe(tree()));
     }
 }

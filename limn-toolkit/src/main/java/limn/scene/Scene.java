@@ -431,7 +431,41 @@ public final class Scene {
         // dead. Nothing above it waits for it: the frame it would be read from cannot run until the
         // pump turns, which is after bind returns (2026-09-16 review).
         publishTheWindowNodeIfOwed();
+        watchUnderlines(this);
         runObservers(windowBoundObservers);
+    }
+
+    /** The scenes bound to a window that is open, which a change of the system's underlines repaints. */
+    private static final java.util.Set<Scene> BOUND_SCENES =
+            java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
+    /** The one subscription to the system's preferences, made at the first bind and kept. */
+    private static @Nullable Subscription underlinesWatch;
+    /** Whether the system asked for access letters drawn at all times, as last heard. */
+    private static boolean underlinesWere;
+
+    /**
+     * Repaints {@code scene}'s letters when the system's "underline access keys" setting changes
+     * while it is open (Windows' keyboard accessibility setting): partial rendering repaints only
+     * what was damaged, so without this the underlines appeared or vanished button by button as
+     * each happened to be drawn again.
+     */
+    private static void watchUnderlines(Scene scene) {
+        BOUND_SCENES.add(scene);
+        if (underlinesWatch == null) {
+            underlinesWere = SystemPreferences.current().underlineAccessKeys();
+            underlinesWatch = SystemPreferences.observeChanges(() -> {
+                boolean now = SystemPreferences.current().underlineAccessKeys();
+                if (now == underlinesWere) {
+                    return;
+                }
+                underlinesWere = now;
+                for (Scene each : new ArrayList<>(BOUND_SCENES)) {
+                    if (!each.accessLettersShown) { // Alt held: they are drawn, and stay
+                        each.repaintAccessLetters();
+                    }
+                }
+            });
+        }
     }
 
     private Runnable[] windowBoundObservers;
@@ -3189,14 +3223,31 @@ public final class Scene {
             }
 
             @Override
+            public void drawsAccessLetters(Widget<?> widget) {
+                widget.drawsAccessLetters = true;
+            }
+
+            @Override
             public void pressFocus(Widget<?> widget, limn.scene.internal.PressFocus filter) {
                 widget.pressFocus = filter;
             }
 
             @Override
+            public void focusByUser(Widget<?> widget) {
+                Scene scene = widget.scene();
+                if (scene != null) {
+                    scene.requestFocus(widget, Change.Origin.USER);
+                }
+            }
+
+            @Override
             public boolean accessLettersShown(Scene scene) {
-                // While Alt is held, or always where the user asked the system for underlines.
-                return scene.accessLettersShown || SystemPreferences.current().underlineAccessKeys();
+                // While Alt is held, or always where the user asked the system for underlines. A
+                // popup grafted into another scene's tree (a menu in a window of its own) never has
+                // the keyboard: Alt is held in the window that opened it, and that one's answer is
+                // its own.
+                Scene holder = scene.graftedInto != null ? scene.graftedInto : scene;
+                return holder.accessLettersShown || SystemPreferences.current().underlineAccessKeys();
             }
 
             @Override
@@ -3752,15 +3803,17 @@ public final class Scene {
                 keysDown.clear(key.key);
             }
         }
+        // Before the drag's branch: Alt let go during a drag (Alt is the link modifier on Windows)
+        // must still take the letters away, or they stay drawn until the next Alt.
+        if ((key.key == Keys.LEFT_ALT || key.key == Keys.RIGHT_ALT)
+                && limn.scene.internal.AccessLetterSystem.present()) {
+            showAccessLetters(key.pressed);
+        }
         if (dragSession != null) {
             dragKey(key); // a drag in flight has the keyboard: Escape, and the keys that steer it
             return;
         }
         KeyEvent event = new KeyEvent(key.key, key.layoutCodePoint, key.pressed, key.repeat, key.mods);
-        if ((key.key == Keys.LEFT_ALT || key.key == Keys.RIGHT_ALT)
-                && limn.scene.internal.AccessLetterSystem.present()) {
-            showAccessLetters(key.pressed);
-        }
         if (key.pressed && !key.repeat && !isModifierKey(key.key)) {
             keyPresses++;
         }
@@ -3818,11 +3871,38 @@ public final class Scene {
             return;
         }
         accessLettersShown = shown;
-        // Every widget that draws a letter draws it, or stops: rare, and cheaper than a list of
-        // them kept in step with the tree.
-        root.invalidate();
+        if (SystemPreferences.current().underlineAccessKeys()) {
+            return; // the system has them drawn at all times: nothing on screen changes
+        }
+        repaintAccessLetters();
+    }
+
+    /**
+     * Repaints every widget that draws an access letter, and nothing else: under partial rendering
+     * a frame costs what changed, and Alt pressed over a large table or chart (an Alt+Tab away,
+     * whose focus loss hides them again) repainted the whole window twice for a few underlines.
+     * Found by a walk rather than kept in a list in step with the tree, since Alt is rare.
+     */
+    private void repaintAccessLetters() {
+        invalidateAccessLetters(root);
         for (Widget<?> overlay : overlays) {
-            overlay.invalidate();
+            invalidateAccessLetters(overlay);
+        }
+        // And the menus this window has open in windows of their own, which draw by its Alt.
+        for (int i = 0; i < graftedPopups.size(); i++) {
+            invalidateAccessLetters(graftedPopups.get(i).root);
+        }
+    }
+
+    private static void invalidateAccessLetters(Widget<?> at) {
+        if (!at.isVisible()) {
+            return; // draws nothing, nor does anything inside it
+        }
+        if (at.accessLetterOwner != null || at.drawsAccessLetters) {
+            at.invalidate();
+        }
+        for (Widget<?> child : at.children()) {
+            invalidateAccessLetters(child);
         }
     }
 
@@ -3835,7 +3915,9 @@ public final class Scene {
      */
     private boolean accessLetter(int key, int codePoint) {
         List<limn.scene.internal.AccessLetterOwner> owners = new ArrayList<>();
-        collectAccessLetters(inputRoot(), key, codePoint, owners);
+        // The layer the keyboard is confined to, not the topmost: a popup that leaves the keyboard
+        // beneath it (an editable combo box's list) holds no letters and must not hide the window's.
+        collectAccessLetters(keyboardRoot(), key, codePoint, owners);
         if (owners.isEmpty()) {
             return false;
         }
@@ -3843,17 +3925,58 @@ public final class Scene {
             owners.get(0).accessLetterPressed();
             return true;
         }
+        reportSharedLetter(owners);
         int at = -1;
         for (int i = 0; i < owners.size(); i++) {
             if (owners.get(i).accessLetterFocus() == focused) {
                 at = i;
             }
         }
-        Widget<?> next = owners.get((at + 1) % owners.size()).accessLetterFocus();
-        if (next != null) {
-            requestFocus(next);
+        // The next that takes the keyboard: one that cannot (a label whose control has gone, a
+        // radio its group will not let have it) is stepped past, or the turn would stop there.
+        for (int step = 1; step <= owners.size(); step++) {
+            limn.scene.internal.AccessLetterOwner owner = owners.get((at + step) % owners.size());
+            Widget<?> next = owner.accessLetterFocus();
+            if (next == null) {
+                continue;
+            }
+            owner.accessLetterTurn();
+            requestFocus(next, Change.Origin.USER); // a key the user pressed, not code
+            if (focused == next) {
+                break;
+            }
         }
         return true;
+    }
+
+    /** The letters shared by several controls already logged, each with the set that shares it. */
+    private java.util.Set<String> sharedLettersReported;
+
+    /**
+     * Logs, once for each set of controls, that several share one access letter: a
+     * translator's collision, which a press only turns into a turn of the keyboard, is found in
+     * development rather than by a user.
+     */
+    private void reportSharedLetter(List<limn.scene.internal.AccessLetterOwner> owners) {
+        char letter = owners.get(0).accessLetter();
+        StringBuilder which = new StringBuilder().append(letter);
+        StringBuilder names = new StringBuilder();
+        for (limn.scene.internal.AccessLetterOwner owner : owners) {
+            Widget<?> widget = owner.accessLetterFocus();
+            which.append(':').append(System.identityHashCode(owner));
+            if (names.length() > 0) {
+                names.append(", ");
+            }
+            names.append(widget == null ? "?" : widget.getClass().getSimpleName());
+        }
+        if (sharedLettersReported == null) {
+            sharedLettersReported = new java.util.HashSet<>();
+        }
+        if (sharedLettersReported.add(which.toString())) {
+            LOG.log(Level.WARNING, "access letter {0} is marked by {1} controls in one window ({2}): "
+                    + "each press moves the keyboard among them and none acts; give each its own "
+                    + "letter in this language", letter, owners.size(), names);
+        }
     }
 
     private static void collectAccessLetters(Widget<?> at, int key, int codePoint,
@@ -5885,6 +6008,7 @@ public final class Scene {
      */
     private void detachForTheClosedWindow() {
         detachedByClose = true;
+        BOUND_SCENES.remove(this);
         if (locale != null) {
             limn.i18n.I18n.releaseLocale(locale); // a closed window's language is nobody's to keep loaded
         }

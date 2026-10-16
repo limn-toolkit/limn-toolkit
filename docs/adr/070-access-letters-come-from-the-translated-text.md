@@ -75,6 +75,10 @@ that needs nothing from the application.
 | `Label` with `setLabelFor` | Focuses the control it names |
 | Dialog buttons | Are `Button`s, so as above |
 
+- **A label naming a composite** that takes no keyboard itself (a date picker, a range slider, an
+  expander) focuses the composite's first part that does; one whose control can take none has no
+  letter. (Amended 2026-10-16: the label focused the named widget alone, so these three moved
+  nothing.)
 - **A `Label` without `setLabelFor`** has no access letter. It shows its text as written, so an
   `&` there is literal: a plain label of text must not need escaping because some other widget
   parses it.
@@ -110,6 +114,10 @@ that needs nothing from the application.
 The letter is published as the control's access key, where each bridge has one:
 - UI Automation `AccessKey` ("Alt+A");
 - AT-SPI's key binding.
+
+A menu row's key is its letter alone ("L"), since in an open menu the letter is pressed without
+Alt, as a native menu item's access key reads; its accelerator stays beside it. (Amended
+2026-10-16: rows published only the accelerator, and were named with the mark in their text.)
 
 macOS has none. The tray menu keeps passing the letter to the native menu, which marks it the
 system's way.

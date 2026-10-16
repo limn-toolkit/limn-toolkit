@@ -23,6 +23,14 @@ public interface AccessLetterOwner {
     void accessLetterPressed();
 
     /**
+     * Readies {@link #accessLetterFocus()} to take the keyboard, its turn come among several of one
+     * letter: a radio of a group that is not the group's tab stop becomes it. Called just before
+     * the scene moves the keyboard there; by default nothing.
+     */
+    default void accessLetterTurn() {
+    }
+
+    /**
      * An owner made of a widget's own private methods, which keeps the interface out of the
      * widget's public face.
      *
@@ -32,6 +40,19 @@ public interface AccessLetterOwner {
      */
     static AccessLetterOwner of(java.util.function.IntSupplier letter,
             java.util.function.Supplier<? extends Widget<?>> focus, Runnable pressed) {
+        return of(letter, focus, () -> { }, pressed);
+    }
+
+    /**
+     * The same, with {@link #accessLetterTurn()}.
+     *
+     * @param letter  {@link #accessLetter()}
+     * @param focus   {@link #accessLetterFocus()}
+     * @param turn    {@link #accessLetterTurn()}
+     * @param pressed {@link #accessLetterPressed()}
+     */
+    static AccessLetterOwner of(java.util.function.IntSupplier letter,
+            java.util.function.Supplier<? extends Widget<?>> focus, Runnable turn, Runnable pressed) {
         return new AccessLetterOwner() {
             @Override
             public char accessLetter() {
@@ -41,6 +62,11 @@ public interface AccessLetterOwner {
             @Override
             public Widget<?> accessLetterFocus() {
                 return focus.get();
+            }
+
+            @Override
+            public void accessLetterTurn() {
+                turn.run();
             }
 
             @Override
@@ -54,6 +80,11 @@ public interface AccessLetterOwner {
      * Whether a key press is {@code letter}: the key printed with it, or the character the layout
      * types with it, so a Cyrillic letter is reached on a Cyrillic layout.
      *
+     * <p>The key code is compared only for a Latin letter or a digit, the one range where a key's
+     * code is the character on its cap. Above it the codes name keys that print nothing, and
+     * they are the characters of Latin Extended-A: Home is 268, which is Č, so Alt+Home pressed
+     * a Czech "&amp;Člen", and Insert chose a Polish menu row marked Ą.
+     *
      * @param letter    the access letter, upper-cased; 0 matches nothing
      * @param key       the press's key code, read off the keycap
      * @param codePoint what the layout types with the key, or a negative number when unknown
@@ -62,6 +93,7 @@ public interface AccessLetterOwner {
         if (letter == 0) {
             return false;
         }
-        return key == letter || codePoint > 0 && Character.toUpperCase(codePoint) == letter;
+        boolean onTheCap = letter >= 'A' && letter <= 'Z' || letter >= '0' && letter <= '9';
+        return onTheCap && key == letter || codePoint > 0 && Character.toUpperCase(codePoint) == letter;
     }
 }

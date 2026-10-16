@@ -258,6 +258,32 @@ final class UiaObject {
     }
 
     /**
+     * The pointer for {@code iface}, counted as a reference handed to a caller, in one step the
+     * registry letting this object go cannot cut in two; {@code 0} once it has let go, or when the
+     * interface is not served now.
+     *
+     * <p>An RPC thread used to look the object up, build a gained pattern interface (the slow
+     * part) and only then count its reference, while the user-interface thread could remove the
+     * node, retire the object with no client reference left and free it on the next frame: the
+     * count then rose on freed memory and the caller was handed a pointer into it, the crash in a
+     * freed trampoline that retiring by count exists to prevent. Retiring and freeing take this
+     * object's lock, and so does this.
+     *
+     * @param iface the interface asked for
+     * @return the pointer, already referenced, or {@code 0}
+     */
+    synchronized long handOut(UiaInterfaces.Vtable iface) {
+        if (retired || freed) {
+            return 0L; // its node left the tree: the caller is told it is not there
+        }
+        long pointer = pointerFor(iface);
+        if (pointer != 0L) {
+            references.incrementAndGet();
+        }
+        return pointer;
+    }
+
+    /**
      * Counts a reference this bridge is about to hand a caller.
      *
      * <p>Every interface pointer returned from a COM method is a reference the caller owns and

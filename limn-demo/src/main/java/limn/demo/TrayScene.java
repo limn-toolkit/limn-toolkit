@@ -47,12 +47,13 @@ final class TrayScene {
         static final I18nString NOT_TAKEN = new I18nString("showcase.tray.notTaken", "No tray took the icon.");
         static final I18nString NO_DESKTOP = new I18nString("showcase.tray.noDesktop",
                 "The tray icon needs a desktop to be shown on.");
-        static final I18nString OPEN_WINDOW = new I18nString("showcase.tray.openWindow", "Open the window");
-        static final I18nString NEW_ORDER = new I18nString("showcase.tray.newOrder", "New order");
-        static final I18nString PREFERENCES = new I18nString("showcase.tray.preferences", "Preferences…");
-        static final I18nString PAUSE_SYNC = new I18nString("showcase.tray.pauseSync", "Pause syncing");
-        static final I18nString RECENT = new I18nString("showcase.tray.recent", "Recent orders");
-        static final I18nString QUIT = new I18nString("showcase.tray.quit", "Quit");
+        // The menu's access letters are in the words, so each language gives its own (ADR 070).
+        static final I18nString OPEN_WINDOW = new I18nString("showcase.tray.openWindow", "&Open the window");
+        static final I18nString NEW_ORDER = new I18nString("showcase.tray.newOrder", "&New order");
+        static final I18nString PREFERENCES = new I18nString("showcase.tray.preferences", "&Preferences…");
+        static final I18nString PAUSE_SYNC = new I18nString("showcase.tray.pauseSync", "Pause &syncing");
+        static final I18nString RECENT = new I18nString("showcase.tray.recent", "&Recent orders");
+        static final I18nString QUIT = new I18nString("showcase.tray.quit", "&Quit");
         static final I18nString CHOSE = new I18nString("showcase.tray.chose", "Tray menu: {0}");
         static final I18nString SYNC_PAUSED = new I18nString("showcase.tray.syncPaused", "Syncing paused.");
         static final I18nString SYNC_RESUMED = new I18nString("showcase.tray.syncResumed", "Syncing resumed.");
@@ -144,21 +145,21 @@ final class TrayScene {
                 .add(MenuItem.of(Text.OPEN_WINDOW, () -> {
                     chose(status, Text.OPEN_WINDOW);
                     bring(shown);
-                }).setMnemonic('O').setIcon(picture))
+                }).setIcon(picture))
                 .add(MenuItem.of(Text.NEW_ORDER, () -> chose(status, Text.NEW_ORDER))
                         .setIcon(Tabler.outline("file-plus"))
-                        .setAccelerator(limn.components.Accelerator.command(limn.input.Keys.N)).setMnemonic('N'))
+                        .setAccelerator(limn.components.Accelerator.command(limn.input.Keys.N)))
                 .add(MenuItem.of(Text.PREFERENCES, () -> chose(status, Text.PREFERENCES))
                         .setIcon(Tabler.outline("settings"))
-                        .setAccelerator(limn.components.Accelerator.command(limn.input.Keys.COMMA)).setMnemonic('P'))
+                        .setAccelerator(limn.components.Accelerator.command(limn.input.Keys.COMMA)))
                 .addSeparator()
                 .add(pauseSync)
-                .add(MenuItem.submenu(Text.RECENT, recent).setMnemonic('R'))
+                .add(MenuItem.submenu(Text.RECENT, recent))
                 .addSeparator()
                 .add(MenuItem.of(Text.QUIT, () -> {
                     chose(status, Text.QUIT);
                     backend.requestQuit();
-                }).setAccelerator(limn.components.Accelerator.command(limn.input.Keys.Q)).setMnemonic('Q'));
+                }).setAccelerator(limn.components.Accelerator.command(limn.input.Keys.Q)));
         tray.setMenu(menu);
 
         Runnable tell = () -> available.setText(tray.isAvailable() ? Text.TAKEN : Text.NOT_TAKEN);
@@ -294,8 +295,8 @@ final class TrayScene {
 
     /** A choice from the icon's menu: said in the status line, and on standard output. */
     private static void chose(Label status, I18nString item) {
-        say(status, "chose " + item.english());
-        Page.report(Text.CHOSE.format(item.get()));
+        say(status, "chose " + Page.plain(item.english()));
+        Page.report(Text.CHOSE.format(Page.plain(item)));
     }
 
     /** Shows and focuses the window the switch is in. */
