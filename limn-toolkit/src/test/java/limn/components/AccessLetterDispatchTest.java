@@ -478,6 +478,34 @@ class AccessLetterDispatchTest extends AccessibleComponentTestBase {
         assertFalse(SceneAccess.accessLettersShown(scene), "Alt is up, though the drag has the keyboard");
     }
 
+    /**
+     * A menu in a window of its own, opened with the pointer, shows its letters while Alt is held in
+     * the window that opened it, and is repainted when that changes: it read its own scene's flag,
+     * which never moves because that window never has the keyboard.
+     */
+    @Test
+    void aMenuInAWindowOfItsOwnShowsItsLettersWhileAltIsHeldInItsOwner() {
+        Button opener = new Button("&Menu");
+        show(opener);
+        limn.scene.Widget<?> menuRoot = new DragSource().setInheritanceHost(opener);
+        limn.scene.Scene menu = new limn.scene.Scene(menuRoot);
+        scene.graftPopup(menu);
+        StubWindow menuWindow = new StubWindow(false);
+        menu.bind(menuWindow);
+        menu.renderFrame(canvas);
+        int before = menuWindow.framesRequested;
+        assertFalse(SceneAccess.accessLettersShown(menu));
+
+        drive(scene).keyEvent(Keys.LEFT_ALT, -1, true, false, Keys.MOD_ALT);
+        drive(scene).inputBatchEnded();
+        assertTrue(SceneAccess.accessLettersShown(menu), "Alt is held in the window that opened it");
+        assertTrue(menuWindow.framesRequested > before, "and the menu's window draws again to show them");
+
+        drive(scene).keyEvent(Keys.LEFT_ALT, -1, false, false, 0);
+        drive(scene).inputBatchEnded();
+        assertFalse(SceneAccess.accessLettersShown(menu));
+    }
+
     /** A box that starts a drag kept in its window wherever it is pressed. */
     private static final class DragSource extends limn.scene.Widget<DragSource> {
         @Override

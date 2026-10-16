@@ -3195,8 +3195,12 @@ public final class Scene {
 
             @Override
             public boolean accessLettersShown(Scene scene) {
-                // While Alt is held, or always where the user asked the system for underlines.
-                return scene.accessLettersShown || SystemPreferences.current().underlineAccessKeys();
+                // While Alt is held, or always where the user asked the system for underlines. A
+                // popup grafted into another scene's tree (a menu in a window of its own) never has
+                // the keyboard: Alt is held in the window that opened it, and that one's answer is
+                // its own.
+                Scene holder = scene.graftedInto != null ? scene.graftedInto : scene;
+                return holder.accessLettersShown || SystemPreferences.current().underlineAccessKeys();
             }
 
             @Override
@@ -3825,6 +3829,10 @@ public final class Scene {
         root.invalidate();
         for (Widget<?> overlay : overlays) {
             overlay.invalidate();
+        }
+        // And the menus this window has open in windows of their own, which draw by its Alt.
+        for (int i = 0; i < graftedPopups.size(); i++) {
+            graftedPopups.get(i).root.invalidate();
         }
     }
 
