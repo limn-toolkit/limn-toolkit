@@ -476,6 +476,40 @@ class TabbedPaneTabListTest extends AccessibleComponentTestBase {
                 "gone with the last tab code took out");
     }
 
+    /**
+     * Tabs closed until the rest fit: the list's button goes, and the list with it, rather than
+     * staying open hung from a button that is no longer there.
+     */
+    @Test
+    void theListGoesWhenTheTabsFitAgain() throws InterruptedException {
+        bindPane(false, false);
+        openList();
+        while (pane.tabCount() > 1) {
+            pane.removeTab(pane.tabCount() - 1);
+        }
+        frame();
+        ui.pumpUntil(() -> {
+            frame();
+            return rows().isEmpty();
+        }, 1_000_000_000L);
+        assertEquals(List.of("Alpha"), titles());
+    }
+
+    /** A tab added or moved by code while the list is open takes its row in the list at once. */
+    @Test
+    void aTabAddedOrMovedWhileTheListIsOpenIsInIt() throws InterruptedException {
+        bindPane(false, false);
+        openList();
+        pane.addTab("Golf", new SizedBox(60, 60));
+        frame();
+        List<String> withGolf = new ArrayList<>(TITLES);
+        withGolf.add("Golf");
+        assertEquals(withGolf, rowNames(), describe(tree()));
+        pane.moveTab(6, 0);
+        frame();
+        assertEquals("Golf", rowNames().get(0), describe(tree()));
+    }
+
     @Test
     void aClickOnARowChoosesItsTab() throws InterruptedException {
         bindPane(false, false);

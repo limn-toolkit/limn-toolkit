@@ -302,6 +302,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
         header.setFocusable(index == selected);
         content.setVisible(index == selected);
         markNeedsLayout();
+        tabsChangedUnderTheList();
         if (first) {
             // The pane took its first tab by itself: a consequence of adding, not a caller naming
             // a selection, so a watcher hears it as an adjustment.
@@ -710,6 +711,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
         revealPending = to;
         markNeedsContainedLayout();
         startSlides();
+        tabsChangedUnderTheList();
     }
 
     /** The user moved a tab from the keyboard: moved, heard by the handler, then said. */
@@ -1655,6 +1657,16 @@ public final class TabbedPane extends Widget<TabbedPane> {
             headersTotal += headerWidths[i];
         }
         overflowing = headersTotal > width() + 0.5f;
+        if (!overflowing && tabList.isOpen()) {
+            // The tabs fit again (tabs closed, or the pane widened): the list's button is about to
+            // be hidden, and the list goes with it rather than hang from a button that is not
+            // there. Deferred, so a layout pass never closes a popup over the tree it is placing.
+            Ui.post(() -> {
+                if (!overflowing) {
+                    closeTabList(Change.Origin.ADJUSTMENT);
+                }
+            });
+        }
 
         // With overflow the strip shrinks to a viewport between the controls: ‹ on the edge
         // reading starts from, › and the tab-list chevron on the edge it ends on.
