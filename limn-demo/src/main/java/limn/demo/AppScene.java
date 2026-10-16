@@ -661,7 +661,7 @@ final class AppScene {
         if (scene != null && scene.window() != null) {
             scene.window().launcher().openAddress(address);
         }
-        status.setText(Page.plain(ShowcaseStrings.MENU_DOCUMENTATION) + ": " + address);
+        status.setText(ShowcaseStrings.HEAD_DOCUMENTATION.get() + ": " + address);
     }
 
     /**
@@ -673,7 +673,7 @@ final class AppScene {
         if (place.documentation == null) {
             return content;
         }
-        Button link = new Button(ShowcaseStrings.MENU_DOCUMENTATION).setSecondary(true);
+        Button link = new Button(ShowcaseStrings.HEAD_DOCUMENTATION).setSecondary(true);
         link.setControlSize(ControlSize.SMALL);
         link.setTooltip(SITE + place.documentation);
         link.onAction(() -> openDocumentation(link, place.documentation, status));
