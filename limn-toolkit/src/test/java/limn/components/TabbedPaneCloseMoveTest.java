@@ -341,6 +341,64 @@ class TabbedPaneCloseMoveTest extends AccessibleComponentTestBase {
         assertEquals(List.of("0>2"), moves);
     }
 
+    /**
+     * The tab being dragged closed before it is let go (the command key's W, or code): the release
+     * the scene sends the header it took out must find nothing to finish, or the close stops half
+     * way, leaving the closed tab's page shown under the new selection.
+     */
+    @Test
+    void theTabBeingDraggedClosedBeforeItIsLetGoLeavesThePaneWhole() {
+        bindPane(true, LayoutDirection.LTR);
+        float y = middleY();
+        float start = header(0).localToSceneX() + 5;
+        float end = header(2).localToSceneX() + header(2).width() - 5;
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, start, y, 1);
+        drive(scene).inputBatchEnded();
+        drive(scene).mouseMoved(start + 10, y);
+        drive(scene).inputBatchEnded();
+        drive(scene).mouseMoved(end, y);
+        drive(scene).inputBatchEnded();
+        assertEquals(List.of("Beta", "Gamma", "Alpha"), titles(), "dragged to the end");
+
+        pane.removeTab(2);
+        frame();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, end, y, 1);
+        drive(scene).inputBatchEnded();
+        settleAnimations(null);
+
+        assertEquals(List.of("Beta", "Gamma"), titles());
+        assertTrue(moves.isEmpty(), "a tab that is gone moved nowhere: " + moves);
+        long pages = pane.children().stream().filter(c -> c instanceof Button).count();
+        assertEquals(2, pages, "the closed tab's page left the pane");
+        assertEquals(1, pane.children().stream().filter(c -> c instanceof Button && c.isVisible()).count(),
+                "one page shown");
+    }
+
+    /** Another tab closed while one is dragged: the move told on release is in the order left. */
+    @Test
+    void aTabClosedWhileAnotherIsDraggedLeavesTheMoveToldInTheOrderLeft() {
+        bindPane(true, LayoutDirection.LTR);
+        float y = middleY();
+        float start = header(2).localToSceneX() + header(2).width() - 5;
+        float past = header(1).localToSceneX() + 2;
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, start, y, 1);
+        drive(scene).inputBatchEnded();
+        drive(scene).mouseMoved(start - 10, y);
+        drive(scene).inputBatchEnded();
+        drive(scene).mouseMoved(past, y);
+        drive(scene).inputBatchEnded();
+        assertEquals(List.of("Alpha", "Gamma", "Beta"), titles(), "Gamma dragged past Beta");
+
+        pane.removeTab(0);
+        frame();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, past, y, 1);
+        drive(scene).inputBatchEnded();
+        settleAnimations(null);
+
+        assertEquals(List.of("Gamma", "Beta"), titles());
+        assertEquals(List.of("1>0"), moves, "Gamma was second of the two left, and is first");
+    }
+
     @Test
     void rightToLeftATabDraggedLeftwardMovesOnwardInTheOrder() {
         bindPane(false, LayoutDirection.RTL);

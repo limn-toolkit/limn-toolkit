@@ -639,7 +639,13 @@ public final class TabbedPane extends Widget<TabbedPane> {
         closeAsked.remove(content);
         if (dragged == header) {
             dragged = null;
+        } else if (dragged != null) {
+            dragged.tabLeftDuringDrag(index);
         }
+        // The scene sends a header it takes out the release of a press it held: a tab closed
+        // while it is dragged must find nothing left to finish, or its stale index ends the drag
+        // in a list one shorter and stops this close half way.
+        header.dropDrag();
         if (lifted == header) {
             lifted = null;
         }
@@ -2830,6 +2836,27 @@ public final class TabbedPane extends Widget<TabbedPane> {
             float reach = width() / 2 + 0.5f;
             return rightward ? middle > Math.min(theirs, strip.runEnd() - reach)
                     : middle < Math.max(theirs, strip.runStart() + reach);
+        }
+
+        /** Forgets a press and a drag in progress: the tab is leaving the pane. */
+        private void dropDrag() {
+            pressArmed = false;
+            dragging = false;
+        }
+
+        /**
+         * Another tab closed while this one is dragged: where this one started is counted again
+         * among the tabs left, so the move told on release names places in the order that is.
+         * The tabs other than this one keep their order through a drag, so the closed one was
+         * before the start exactly when it is before it among them.
+         *
+         * @param closed the closed tab's index, in the order before it went
+         */
+        private void tabLeftDuringDrag(int closed) {
+            int amongOthers = closed < index ? closed : closed - 1;
+            if (amongOthers < dragFrom) {
+                dragFrom--;
+            }
         }
 
         /** The tab is let go: it slides into its place, and a move is told once, as the user's. */
