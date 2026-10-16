@@ -37,7 +37,15 @@ class SvgSourceFuzzTest {
                     + "<animate attributeName='r' values='3;1;3' dur='1s' repeatCount='indefinite' calcMode='spline' "
                     + "keySplines='.5 0 .5 1;.5 0 .5 1'/></circle><rect x='9' y='9' width='6' height='6'>"
                     + "<animateTransform attributeName='transform' type='rotate' from='0 12 12' to='360 12 12' dur='2s'/>"
-                    + "</rect></svg>");
+                    + "</rect></svg>",
+            // CSS animation, whose shorthand and keyframes the toolkit reads too, and which no seed
+            // reached: a lone "." as the iteration count escaped as NumberFormatException.
+            "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' style='--c: #0a0'><style>"
+                    + "@keyframes spin { from { transform: rotate(0deg) } 50% { opacity: .5; fill: var(--c) }"
+                    + " to { transform: rotate(360deg) } } .s { animation: spin 1.5s cubic-bezier(.4,0,.2,1) -.2s 3"
+                    + " alternate both; transform-origin: center; transform-box: fill-box }"
+                    + " g > rect:nth-child(2n+1) { animation-duration: 2s }</style>"
+                    + "<g><rect class='s' width='4' height='4'/><rect class='s' x='6' width='4' height='4'/></g></svg>");
 
     private static List<byte[]> seeds() {
         List<byte[]> bytes = new ArrayList<>();

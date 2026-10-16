@@ -1072,7 +1072,11 @@ public final class SvgAnimation {
                 } else if (lower.equals("infinite")) {
                     a.count = Double.POSITIVE_INFINITY;
                 } else if (lower.matches("[0-9.]+")) {
-                    a.count = Double.parseDouble(lower);
+                    try {
+                        a.count = Double.parseDouble(lower);
+                    } catch (NumberFormatException damaged) {
+                        return null; // "." or "1.2.3": a declaration a browser cannot read, and drops
+                    }
                 } else if (Set.of("linear", "ease", "ease-in", "ease-out", "ease-in-out", "step-start", "step-end")
                         .contains(lower) || lower.startsWith("cubic-bezier(") || lower.startsWith("steps(")) {
                     a.easing = t;

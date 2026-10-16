@@ -335,6 +335,21 @@ class SvgAnimationTest {
     }
 
     /**
+     * An iteration count that looks like a number and is none made {@code Images.decode} throw
+     * NumberFormatException (ADR 061 promises one exception); a browser drops such a
+     * declaration, and so does the toolkit.
+     */
+    @Test
+    void anAnimationShorthandWithANumberThatIsNoneIsDropped() {
+        for (String count : new String[] {".", "1.2.3", ".."}) {
+            assertNull(source(SVG + "<style>@keyframes k { to { opacity: 0 } }</style><rect width='4' height='4' "
+                    + "style='animation: k 1s " + count + "'/></svg>").animation(), count);
+        }
+        assertNotNull(source(SVG + "<style>@keyframes k { to { opacity: 0 } }</style><rect width='4' height='4' "
+                + "style='animation: k 1s .5'/></svg>").animation(), "a count of half a turn");
+    }
+
+    /**
      * Each round of working out a chain moves it on by one link, over every animation: forty
      * pairs restarting each other every millisecond took nine seconds, and a hundred and sixty
      * thirty-six. Past a count of the work, the file is refused.

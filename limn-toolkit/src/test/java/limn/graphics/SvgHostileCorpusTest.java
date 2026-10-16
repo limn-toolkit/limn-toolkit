@@ -88,9 +88,12 @@ class SvgHostileCorpusTest {
         refusedQuickly(file(name), name);
     }
 
-    /** Files that took seconds for work that is now done once: they are read, and quickly. */
+    /**
+     * Files that took seconds for work that is now done once, and files whose damage escaped as
+     * an exception other than {@link MalformedContentException}: they are read, and quickly.
+     */
     @ParameterizedTest
-    @ValueSource(strings = {"sv3-descendant-selector.svg", "sv3-nth-child.svg"})
+    @ValueSource(strings = {"sv3-descendant-selector.svg", "sv3-nth-child.svg", "sv4-animation-count-dot.svg"})
     void aFileThatTookSecondsIsReadQuickly(String name) throws IOException {
         byte[] svg = file(name);
         long start = System.nanoTime();
