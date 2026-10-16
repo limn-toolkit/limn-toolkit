@@ -47,6 +47,9 @@ class ShowcaseAccessLettersTest {
         GROUPS.put("openWith", List.of("showcase.menus.viewer", "showcase.menus.spreadsheet",
                 "showcase.menus.textEditor"));
         GROUPS.put("ordersToolbar", List.of("showcase.menu.newOrder"));
+        GROUPS.put("tray", List.of("showcase.tray.openWindow", "showcase.tray.newOrder",
+                "showcase.tray.preferences", "showcase.tray.pauseSync", "showcase.tray.recent",
+                "showcase.tray.quit"));
         GROUPS.put("customerForm", List.of("showcase.inputs.name", "showcase.inputs.email",
                 "showcase.inputs.phone", "showcase.inputs.username", "showcase.inputs.coupon",
                 "showcase.inputs.serial", "showcase.inputs.password", "showcase.inputs.notes",
@@ -120,7 +123,8 @@ class ShowcaseAccessLettersTest {
     /** The English the code declares, each key with its marked default. */
     private static Map<String, String> english() throws Exception {
         Map<String, String> out = new HashMap<>();
-        for (Class<?> holder : List.of(ShowcaseStrings.class, DialogsScene.Text.class, BasicsScene.Text.class)) {
+        for (Class<?> holder : List.of(ShowcaseStrings.class, DialogsScene.Text.class, BasicsScene.Text.class,
+                TrayScene.Text.class)) {
             for (java.lang.reflect.Field field : holder.getDeclaredFields()) {
                 if (field.getType() == limn.i18n.I18nString.class) {
                     field.setAccessible(true);
