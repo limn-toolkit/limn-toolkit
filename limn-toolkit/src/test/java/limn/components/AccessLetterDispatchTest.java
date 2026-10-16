@@ -120,7 +120,9 @@ class AccessLetterDispatchTest extends AccessibleComponentTestBase {
      */
     @Test
     void aLabelNamingACompositeBringsTheKeyboardToItsFirstPart() {
-        limn.components.date.DatePicker date = new limn.components.date.DatePicker();
+        limn.components.date.DatePicker date = new limn.components.date.DatePicker()
+                .setClock(java.time.Clock.fixed(java.time.Instant.parse("2026-09-16T12:00:00Z"),
+                        java.time.ZoneOffset.UTC));
         RangeSlider nights = new RangeSlider(1, 14);
         Expander more = new Expander("More", new Button("Inside"));
         Button start = new Button("Start");

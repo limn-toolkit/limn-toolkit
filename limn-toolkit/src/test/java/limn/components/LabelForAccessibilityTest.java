@@ -385,7 +385,9 @@ class LabelForAccessibilityTest extends AccessibleComponentTestBase {
     /** Built in a frame of its own, so no local of the test holds the form. */
     private java.lang.ref.WeakReference<Column> addAFormAndRemoveIt(Column root) {
         Column form = new Column();
-        limn.components.date.DatePicker date = new limn.components.date.DatePicker();
+        limn.components.date.DatePicker date = new limn.components.date.DatePicker()
+                .setClock(java.time.Clock.fixed(java.time.Instant.parse("2026-09-16T12:00:00Z"),
+                        java.time.ZoneOffset.UTC));
         form.add(new Label("Delivery date").setLabelFor(date));
         form.add(date);
         root.add(form);
