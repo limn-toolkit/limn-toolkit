@@ -225,33 +225,35 @@ public final class ValueContract {
     /** A subject built and bound, with the one value node read off the tree. */
     private static final class Bound {
         final AccessibleHarness harness;
+        final ValueSubject subject;
 
-        private Bound(AccessibleHarness harness) {
+        private Bound(AccessibleHarness harness, ValueSubject subject) {
             this.harness = harness;
+            this.subject = subject;
         }
 
         static Bound of(ValueSubject subject, UiRuntime runtime) {
-            return new Bound(new AccessibleHarness(runtime, subject.build()));
+            return new Bound(new AccessibleHarness(runtime, subject.build()), subject);
         }
 
-        /** The one node carrying a value facet in the tree published last. */
+        /**
+         * The node under contract in the tree published last: of the nodes carrying a value
+         * facet, as many as the subject says it publishes, the one it names.
+         */
         AccessibleNode node() {
             AccessibleTree tree = harness.tree();
-            AccessibleNode found = null;
+            List<AccessibleNode> found = new ArrayList<>();
             for (int i = 0; i < tree.nodeCount(); i++) {
                 AccessibleNode node = tree.node(i);
                 if (node.value() != null) {
-                    if (found != null) {
-                        throw new AssertionError("two nodes carry a value facet; the subject "
-                                + "must publish one:" + harness.describe());
-                    }
-                    found = node;
+                    found.add(node);
                 }
             }
-            if (found == null) {
-                throw new AssertionError("no node carries a value facet:" + harness.describe());
+            if (found.size() != subject.valueNodes()) {
+                throw new AssertionError(found.size() + " node(s) carry a value facet; the subject "
+                        + "publishes " + subject.valueNodes() + ":" + harness.describe());
             }
-            return found;
+            return found.get(subject.valueNode());
         }
 
         boolean perform(Action verb, Accessible.Argument arg) {
