@@ -442,6 +442,40 @@ class TabbedPaneTabListTest extends AccessibleComponentTestBase {
         assertEquals(0, pane.selectedIndex(), "Enter chose nothing");
     }
 
+    /** The origins of the list's opening and closing a watcher of the pane heard. */
+    private List<limn.scene.Change.Origin> expansions() {
+        List<limn.scene.Change.Origin> heard = new ArrayList<>();
+        pane.observeChanges((widget, change) -> {
+            if (change.aspect() == limn.scene.Change.Aspect.EXPANDED) {
+                heard.add(change.origin());
+            }
+        });
+        return heard;
+    }
+
+    /**
+     * The list closes as the user's when the user closes it, and as an adjustment when it goes
+     * because its last tab was taken out by code: a watcher that answers the user collapsing it
+     * must not hear the program's doing as theirs.
+     */
+    @Test
+    void theListClosingSaysWhoClosedIt() throws InterruptedException {
+        bindPane(false, false);
+        List<limn.scene.Change.Origin> heard = expansions();
+        openList();
+        press(Keys.ESCAPE, 0);
+        assertEquals(List.of(limn.scene.Change.Origin.USER, limn.scene.Change.Origin.USER), heard,
+                "opened and closed by the user");
+        heard.clear();
+        openList();
+        while (pane.tabCount() > 0) {
+            pane.removeTab(0);
+        }
+        frame();
+        assertEquals(List.of(limn.scene.Change.Origin.USER, limn.scene.Change.Origin.ADJUSTMENT), heard,
+                "gone with the last tab code took out");
+    }
+
     @Test
     void aClickOnARowChoosesItsTab() throws InterruptedException {
         bindPane(false, false);

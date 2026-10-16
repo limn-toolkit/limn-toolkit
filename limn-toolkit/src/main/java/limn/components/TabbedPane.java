@@ -1013,7 +1013,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
             return;
         }
         if (tabList.isOpen()) {
-            closeTabList();
+            closeTabList(Change.Origin.USER);
             return;
         }
         listCursor = Math.max(0, selected);
@@ -1024,7 +1024,11 @@ public final class TabbedPane extends Widget<TabbedPane> {
         notifyChange(Change.of(Change.Aspect.EXPANDED, Change.Origin.USER));
     }
 
-    private void closeTabList() {
+    /**
+     * @param origin who closed it: the user, or the pane adjusting to its tabs, its window or the
+     *               application losing the keyboard, which a watcher must not hear as the user's
+     */
+    private void closeTabList(Change.Origin origin) {
         if (!tabList.isOpen()) {
             return;
         }
@@ -1032,13 +1036,13 @@ public final class TabbedPane extends Widget<TabbedPane> {
         tabList.close();
         listFocusWas = null; // read by the close, and held no longer than the list is open
         listButton.invalidateAccessible();
-        notifyChange(Change.of(Change.Aspect.EXPANDED, Change.Origin.USER));
+        notifyChange(Change.of(Change.Aspect.EXPANDED, origin));
     }
 
     /** A pane taken out of its window takes its open list with it, as a combo box does. */
     @Override
     protected void onDetached() {
-        closeTabList();
+        closeTabList(Change.Origin.ADJUSTMENT);
         super.onDetached();
     }
 
@@ -1048,7 +1052,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
             return;
         }
         if (headers.isEmpty()) {
-            closeTabList();
+            closeTabList(Change.Origin.ADJUSTMENT);
             return;
         }
         listCursor = Math.max(0, Math.min(listCursor, headers.size() - 1));
@@ -1089,7 +1093,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
             // pane never reaches it, and a reader, which loses the rows' verbs, would disagree.
             return;
         }
-        closeTabList();
+        closeTabList(Change.Origin.USER);
         if (row >= 0 && row < headers.size()) {
             selectTab(row, listHadKeyboard ? Focus.HEADER : Focus.NONE, Change.Origin.USER);
         }
@@ -1111,7 +1115,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
             case Keys.HOME, Keys.PAGE_UP -> moveListCursor(0);
             case Keys.END, Keys.PAGE_DOWN -> moveListCursor(headers.size() - 1);
             case Keys.ENTER, Keys.SPACE -> chooseFromList(listCursor);
-            case Keys.ESCAPE, Keys.TAB -> closeTabList();
+            case Keys.ESCAPE, Keys.TAB -> closeTabList(Change.Origin.USER);
             case Keys.DELETE -> closeFromList(listCursor);
             case Keys.W -> {
                 if (mods == Accelerator.commandModifier()) {
@@ -1179,7 +1183,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
 
         @Override
         public void dismiss(Change.Origin origin) {
-            closeTabList();
+            closeTabList(origin);
         }
 
         /** The list button's own press toggles the list, so it is no press elsewhere. */
@@ -2377,7 +2381,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
 
                         @Override
                         public void close() {
-                            closeTabList();
+                            closeTabList(Change.Origin.USER);
                         }
                     }, action);
                 }
