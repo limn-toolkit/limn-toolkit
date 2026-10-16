@@ -229,7 +229,7 @@ export const zhHant: Catalog = {
     "Apache License 2.0，含明確的專利授權。商業使用、修改與再散布皆獲允許。",
   "licence.core.heading": "工具組本身",
   "licence.core.body":
-    "<code>limn-toolkit</code> 除 JDK 外沒有任何相依套件，所以對它而言，Apache-2.0 就是全部。繪製後端會引入 LWJGL，它採用 BSD-3-Clause。",
+    "<code>limn-toolkit</code> 除 JDK 外只相依一個函式庫：以 Java 撰寫的 WebP 解碼器（<code>org.glavo:webp</code>），它同樣採用 Apache-2.0，所以對它而言，Apache-2.0 就是全部。繪製後端會引入採用 BSD-3-Clause 的 LWJGL，以及 SVG 繪製器 lunasvg 和它用來繪製的 plutovg，兩者皆採用 MIT。",
   "licence.fonts.heading": "字型",
   "licence.fonts.body":
     "Roboto 與 Noto 遞補字型以 SIL Open Font License 散布。每個隨附元件及其授權都列在專案的 NOTICE 檔案中。",

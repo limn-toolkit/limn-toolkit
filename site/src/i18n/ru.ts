@@ -231,7 +231,7 @@ export const ru: Catalog = {
     "Apache License 2.0, включая явную патентную лицензию. Коммерческое использование, изменение и распространение разрешены.",
   "licence.core.heading": "Сам тулкит",
   "licence.core.body":
-    "У <code>limn-toolkit</code> нет зависимостей, кроме JDK, поэтому для него вся история сводится к Apache-2.0. Бэкенд отрисовки добавляет LWJGL под BSD-3-Clause.",
+    "<code>limn-toolkit</code> зависит, кроме JDK, лишь от одной библиотеки: декодера WebP, написанного на Java (<code>org.glavo:webp</code>), тоже под Apache-2.0, поэтому для него вся история сводится к Apache-2.0. Бэкенд отрисовки добавляет LWJGL под BSD-3-Clause, а также SVG-рендерер lunasvg и plutovg, которым он рисует, оба под MIT.",
   "licence.fonts.heading": "Шрифты",
   "licence.fonts.body":
     "Roboto и запасные шрифты Noto поставляются под SIL Open Font License. Каждый встроенный компонент перечислен со своей лицензией в файле NOTICE проекта.",

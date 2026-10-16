@@ -234,7 +234,7 @@ class TrayTest {
             java.util.Arrays.fill(p, (byte) 0xFF);
             return new Image(64, 32, p);
         };
-        Image image = new TrayPicture(wide, null, false).render(16, null, false);
+        Image image = new TrayPicture(wide, null, false, 0).render(16, null, false);
         assertEquals(16, image.width());
         assertEquals(16, image.height());
         assertEquals(0, image.pixels()[3], "above the fitted picture the square is clear");

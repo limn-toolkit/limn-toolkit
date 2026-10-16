@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class ReducedMotionTest {
 
-    private static final SystemPreferences REDUCED = new SystemPreferences(ColorScheme.LIGHT, true, false);
+    private static final SystemPreferences REDUCED = new SystemPreferences(ColorScheme.LIGHT, true, false, false);
 
     private HeadlessUi ui;
 

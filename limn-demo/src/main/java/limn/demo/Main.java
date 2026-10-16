@@ -162,6 +162,7 @@ public final class Main {
             return;
         }
         DemoOptions options = DemoOptions.parse(args);
+        ShowcaseStrings.register(); // before any scene, whichever one is asked for
         boolean screenshotMode = options.screenshotFile() != null;
         String scene = options.scene().equals("default") ? "app" : options.scene();
         if (!SCENES.contains(scene)) {

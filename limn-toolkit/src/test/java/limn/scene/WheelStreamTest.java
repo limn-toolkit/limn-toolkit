@@ -160,4 +160,25 @@ class WheelStreamTest extends SceneTestBase {
         drive(pad.scene()).scroll(0, -1, 50, 50);
         assertEquals(5, pad.wheels, "a letter a widget acted on ends the stream like a key");
     }
+
+    @Test
+    void aModalOpenedMidGestureTakesTheRestOfItFromTheScrollerBeneath() {
+        // A flick on the content, and a dialog pushed by a timer while its inertia still arrives:
+        // the latched scroller is under the scrim, where hit-testing would give the wheel nothing.
+        Pad pad = focusedPad();
+        for (int i = 0; i < 3; i++) {
+            now += 16 * MS;
+            drive(pad.scene()).scroll(0, -1, 50, 50);
+        }
+        assertEquals(3, pad.wheels);
+        Pad dialog = new Pad();
+        pad.scene().pushOverlay(dialog);
+        pad.scene().layoutPass(200, 200);
+        for (int i = 0; i < 4; i++) {
+            now += 16 * MS;
+            drive(pad.scene()).scroll(0, -1, 50, 50);
+        }
+        assertEquals(3, pad.wheels, "the content beneath the modal scrolled no further");
+        assertEquals(4, dialog.wheels, "the rest of the gesture went where the pointer is");
+    }
 }

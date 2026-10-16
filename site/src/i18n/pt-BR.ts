@@ -231,7 +231,7 @@ export const ptBR: Catalog = {
     "Apache License 2.0, incluindo concessão explícita de patentes. Uso comercial, modificação e redistribuição são todos permitidos.",
   "licence.core.heading": "O toolkit em si",
   "licence.core.body":
-    "<code>limn-toolkit</code> não tem dependências além do JDK, então para ele a Apache-2.0 é a história inteira. O backend de renderização acrescenta a LWJGL, que é BSD-3-Clause.",
+    "<code>limn-toolkit</code> depende de uma única biblioteca além do JDK, um decodificador de WebP escrito em Java (<code>org.glavo:webp</code>), também Apache-2.0, então para ele a Apache-2.0 é a história inteira. O backend de renderização acrescenta a LWJGL, que é BSD-3-Clause, e o renderizador de SVG lunasvg com a plutovg com que ele desenha, ambos MIT.",
   "licence.fonts.heading": "Fontes",
   "licence.fonts.body":
     "Roboto e as fontes de fallback Noto são distribuídas sob a SIL Open Font License. Cada componente embarcado está listado com sua licença no arquivo NOTICE do projeto.",

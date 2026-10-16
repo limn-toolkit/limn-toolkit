@@ -585,7 +585,7 @@ final class MacMenuBar implements SystemMenuBar {
         if (kept != null) {
             return kept;
         }
-        long image = MacTray.nsImage(new TrayPicture(icon, null, false)
+        long image = MacTray.nsImage(new TrayPicture(icon, null, false, 0)
                 .render(MacTray.MENU_PIXELS, Color.rgb(0x000000), false), MacTray.MENU_POINTS, icon.tintable());
         if (image != NULL) {
             ObjC.msg(image, "retain"); // for as long as the icon is somebody's

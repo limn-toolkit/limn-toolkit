@@ -36,18 +36,6 @@ public record TrayPicture(Icon icon, @Nullable Color badge, boolean badgeAtLeft,
     }
 
     /**
-     * The first frame of an icon: the whole of a still one, and what a menu shows of an
-     * animated one.
-     *
-     * @param icon        the application's icon
-     * @param badge       the dot's colour, or {@code null} for no dot
-     * @param badgeAtLeft whether the dot is at the top left corner and not the top right
-     */
-    public TrayPicture(Icon icon, @Nullable Color badge, boolean badgeAtLeft) {
-        this(icon, badge, badgeAtLeft, 0);
-    }
-
-    /**
      * Draws the picture into a square of {@code pixelSize}: the icon's {@link #frame} fitted and
      * centred, in {@code tint} when it is one that takes a colour and a tint is given, and the dot
      * over it, which every frame carries.

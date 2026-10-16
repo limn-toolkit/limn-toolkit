@@ -45,14 +45,14 @@ class SystemPreferencesTest {
         List<SystemPreferences> heard = new ArrayList<>();
         Subscription subscription = SystemPreferences.observeChanges(
                 () -> heard.add(SystemPreferences.current()));
-        SystemPreferences dark = new SystemPreferences(ColorScheme.DARK, false, false);
+        SystemPreferences dark = new SystemPreferences(ColorScheme.DARK, false, false, false);
 
         SystemPreferences.report(dark);
         SystemPreferences.report(dark); // the portal's second signal for the same flip
-        SystemPreferences.report(new SystemPreferences(ColorScheme.DARK, true, false));
+        SystemPreferences.report(new SystemPreferences(ColorScheme.DARK, true, false, false));
 
-        assertEquals(List.of(dark, new SystemPreferences(ColorScheme.DARK, true, false)), heard);
-        assertEquals(new SystemPreferences(ColorScheme.DARK, true, false), SystemPreferences.current());
+        assertEquals(List.of(dark, new SystemPreferences(ColorScheme.DARK, true, false, false)), heard);
+        assertEquals(new SystemPreferences(ColorScheme.DARK, true, false, false), SystemPreferences.current());
 
         subscription.cancel();
         SystemPreferences.report(SystemPreferences.NONE);
@@ -61,7 +61,7 @@ class SystemPreferencesTest {
 
     @Test
     void aSchemeIsRequired() {
-        assertThrows(NullPointerException.class, () -> new SystemPreferences(null, false, false));
+        assertThrows(NullPointerException.class, () -> new SystemPreferences(null, false, false, false));
         assertThrows(NullPointerException.class, () -> SystemPreferences.report(null));
     }
 }

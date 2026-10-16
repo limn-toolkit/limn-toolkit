@@ -722,11 +722,16 @@ public final class Scene {
         }
         java.util.Locale previous = this.locale;
         this.locale = locale;
-        if (locale != null) {
-            limn.i18n.I18n.retainLocale(locale);
-        }
-        if (previous != null) {
-            limn.i18n.I18n.releaseLocale(previous);
+        // A scene whose window closed holds no retain: the close released its locale and the next
+        // bind retains whichever it has then. Counting here too would keep a language loaded for
+        // ever, or release one another window still shows.
+        if (!detachedByClose) {
+            if (locale != null) {
+                limn.i18n.I18n.retainLocale(locale);
+            }
+            if (previous != null) {
+                limn.i18n.I18n.releaseLocale(previous);
+            }
         }
         Widget.bumpLocaleEpoch();
         relayout();
@@ -802,6 +807,9 @@ public final class Scene {
         // now-blocked content beneath the scrim: DRAG follows the capture, not
         // hit-testing. Synthesize its RELEASE (window blur's treatment).
         cancelPointerState();
+        // Nor may the rest of a wheel gesture: the scroller that took it is beneath the scrim now,
+        // and the inertia still arriving goes where hit-testing sends it, into the modal.
+        wheelLatch = null;
         overlayFocusReturn.add(focused); // remember who to focus when this closes
         overlays.add(overlay);
         overlay.setSceneRecursively(this);

@@ -78,6 +78,13 @@ import limn.backend.spi.BackendPeer;
  * <p>Waking is not painting: the loop runs the tasks and then renders only the
  * windows something asked a frame of, so an application whose posted task
  * mutates a widget without invalidating it will not see the change.
+ *
+ * <p>On macOS a process runs as an agent, with no icon in the Dock, no menu bar of its own and
+ * no window that comes in front of what the user is doing, when its package says so
+ * ({@code LSUIElement}), and also when it is started with {@code -Dlimn.macos.agent=true} or
+ * with the environment variable {@code LIMN_MACOS_AGENT} set to {@code 1} or {@code true}. The
+ * last two are for runs whose windows nobody looks at, such as tests, and the variable is
+ * inherited: an application started by a process that has it set starts as an agent too.
  */
 public final class LwjglBackend implements BackendPeer {
 
@@ -102,6 +109,10 @@ public final class LwjglBackend implements BackendPeer {
     // The blocked-click alert is just a synthesized tone played through the
     // shared audio engine, the same package applications use for rich sound.
     private final AudioClip blockedClickTone = AudioClip.tone(660f, 0.09f, 0.5f);
+    // The GL entry points a window's context resolved, kept for the popups that follow it.
+    private final GlCapabilitiesCache<org.lwjgl.opengl.GLCapabilities> glCapabilities =
+            new GlCapabilitiesCache<>(GlCapabilitiesCache.reusesByDefault(Platform.current().os(),
+                    System.getProperty(GlCapabilitiesCache.PROPERTY)));
     private final List<LwjglWindow> windows = new ArrayList<>();
     // The same windows, the one given the keyboard last first: the order an ending application
     // asks them in (ADR 048 §1.2). A new window opens in front, as it does on every desktop.
@@ -1429,6 +1440,11 @@ public final class LwjglBackend implements BackendPeer {
         if (pool != 0) {
             ObjC.msgVoid(pool, "drain");
         }
+    }
+
+    /** @return the capabilities windows of one kind of context share; see {@link GlCapabilitiesCache} */
+    GlCapabilitiesCache<org.lwjgl.opengl.GLCapabilities> glCapabilities() {
+        return glCapabilities;
     }
 
     /** @return the windows that are open, for the menu bar's rule of which bar is shown */

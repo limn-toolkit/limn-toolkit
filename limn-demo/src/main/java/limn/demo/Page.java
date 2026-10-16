@@ -35,6 +35,11 @@ final class Page {
     /** Before a section's heading, so it belongs to what follows rather than to what is above. */
     static final float SECTION_GAP = 28;
 
+    static {
+        // Every page is built through this class, and its strings are in the demo's family.
+        ShowcaseStrings.register();
+    }
+
     private static Consumer<String> status; // null until a frame sets it
 
     /**

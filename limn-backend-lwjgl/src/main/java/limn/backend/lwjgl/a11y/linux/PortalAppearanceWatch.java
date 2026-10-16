@@ -122,7 +122,7 @@ public final class PortalAppearanceWatch implements Runnable {
             reduceMotion = Boolean.FALSE.equals(gnome.get("enable-animations"));
         }
         boolean increaseContrast = number(appearance.get("contrast"), 0) == 1;
-        return new SystemPreferences(scheme, reduceMotion, increaseContrast);
+        return new SystemPreferences(scheme, reduceMotion, increaseContrast, false);
     }
 
     private static int number(Object value, int otherwise) {

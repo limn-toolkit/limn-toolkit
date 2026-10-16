@@ -1,6 +1,9 @@
 /**
  * The widget set, layout, the scene graph, the backend SPIs and the pure-Java video decoders.
- * At run time it depends on nothing outside the JDK's base module.
+ * At run time it depends on one module outside the JDK's base module: {@code org.glavo.webp},
+ * the WebP decoder written in Java ({@code org.glavo:webp}, Apache-2.0), which a modular
+ * application puts on its module path with this one; a build that resolves this module's
+ * published dependencies does so already.
  *
  * <p>Every package is exported except those named {@code internal}, which are shared with the
  * other Limn modules and exported to them alone. On the class path the boundary is a naming

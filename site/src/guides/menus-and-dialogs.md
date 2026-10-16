@@ -153,7 +153,12 @@ A few things are the system's and not the toolkit's:
   comes back into the window for as long as it lasts. The green button's fullscreen keeps
   the system's bar, which slides in at the top edge.
 - An application packaged as an agent, with no icon in the Dock (`LSUIElement`), has no
-  bar in the system's: its `MenuBar` is drawn in the window, as on Windows.
+  bar in the system's: its `MenuBar` is drawn in the window, as on Windows. A run started
+  with `-Dlimn.macos.agent=true`, or with the environment variable `LIMN_MACOS_AGENT` set
+  to `1` or `true`, is an agent too, whatever its package says: that is how a build runs
+  its tests without their windows taking the keyboard. The variable is inherited, so an
+  application launched from such a build or script starts with no Dock icon and no menu
+  bar; unset it to run the application as itself.
 
 To keep a bar in its window on macOS, for a tool window with commands of its own:
 `bar.setPlacement(MenuBar.Placement.IN_WINDOW)`. `bar.isInSystemBar()` says where it is.

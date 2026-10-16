@@ -233,7 +233,7 @@ export const de: Catalog = {
     "Apache License 2.0, einschließlich einer ausdrücklichen Patentgewährung. Kommerzielle Nutzung, Änderung und Weitergabe sind allesamt erlaubt.",
   "licence.core.heading": "Das Toolkit selbst",
   "licence.core.body":
-    "<code>limn-toolkit</code> hat außer dem JDK keine Abhängigkeiten, dafür ist Apache-2.0 also die ganze Geschichte. Das Render-Backend fügt LWJGL hinzu, das unter BSD-3-Clause steht.",
+    "<code>limn-toolkit</code> hängt außer vom JDK nur von einer Bibliothek ab, einem in Java geschriebenen WebP-Decoder (<code>org.glavo:webp</code>), ebenfalls Apache-2.0, dafür ist Apache-2.0 also die ganze Geschichte. Das Render-Backend fügt LWJGL hinzu, das unter BSD-3-Clause steht, und den SVG-Renderer lunasvg mit dem plutovg, mit dem er zeichnet, beide MIT.",
   "licence.fonts.heading": "Schriften",
   "licence.fonts.body":
     "Roboto und die Noto-Fallback-Schriften stehen unter der SIL Open Font License. Jede mitgelieferte Komponente ist mit ihrer Lizenz in der NOTICE-Datei des Projekts aufgeführt.",

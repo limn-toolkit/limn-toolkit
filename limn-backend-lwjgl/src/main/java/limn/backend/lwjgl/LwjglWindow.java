@@ -156,6 +156,8 @@ final class LwjglWindow implements WindowPeer {
     /** What {@link #setSizeLimits} last applied, for {@link #sizeLimits()}. */
     private limn.backend.SizeLimits sizeLimits = limn.backend.SizeLimits.NONE;
     private final GLCapabilities glCapabilities;
+    /** The kind of context {@link #glCapabilities} were kept for, given back when the window goes. */
+    private final GlCapabilitiesCache.Key glCapabilitiesKey;
     private final GlRenderer renderer;
     private final limn.backend.Clipboard clipboard;
     private final ChildPopups childPopups = new ChildPopups();
@@ -383,7 +385,14 @@ final class LwjglWindow implements WindowPeer {
         }
         nsglContext = softwareContext;
         makeContextCurrent();
-        glCapabilities = GL.createCapabilities();
+        // Those of a living window whose context is of the same kind where the platform allows
+        // it, because resolving them again is most of what opening a popup costs.
+        glCapabilitiesKey = new GlCapabilitiesCache.Key(config.transparent(), softwareGl,
+                GraphicsProbe.currentContextString(org.lwjgl.opengl.GL11C.GL_VENDOR),
+                GraphicsProbe.currentContextString(org.lwjgl.opengl.GL11C.GL_RENDERER),
+                GraphicsProbe.currentContextString(org.lwjgl.opengl.GL11C.GL_VERSION));
+        glCapabilities = backend.glCapabilities().acquire(glCapabilitiesKey, GL::createCapabilities);
+        GL.setCapabilities(glCapabilities);
         // With the context current, as the query needs; the software macOS context has none to ask.
         bufferAgeQuery = BufferAgeQuery.forWindow(handle);
         setSwapInterval(1); // vsync
@@ -808,6 +817,11 @@ final class LwjglWindow implements WindowPeer {
     /** @return this window's resident texture stats (glyph atlas + image cache). */
     limn.backend.RenderStats renderStats() {
         return renderer.stats();
+    }
+
+    /** @return the capabilities this window's context draws with, which it may share; for tests */
+    GLCapabilities glCapabilities() {
+        return glCapabilities;
     }
 
     /**
@@ -1272,6 +1286,7 @@ final class LwjglWindow implements WindowPeer {
             linuxDrag = null;
         }
         glfwDestroyWindow(handle);
+        backend.glCapabilities().release(glCapabilitiesKey);
     }
 
     @Override

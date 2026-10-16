@@ -67,25 +67,15 @@ public record SystemPreferences(ColorScheme colorScheme, boolean reduceMotion, b
     private static final ChangeListeners LISTENERS = new ChangeListeners();
 
     /**
-     * @param colorScheme      the appearance; never {@code null}
-     * @param reduceMotion     whether less motion is asked for
-     * @param increaseContrast whether more contrast is asked for
+     * @param colorScheme         the appearance; never {@code null}
+     * @param reduceMotion        whether less motion is asked for
+     * @param increaseContrast    whether more contrast is asked for
+     * @param underlineAccessKeys whether access keys are underlined at all times; {@code false}
+     *                            on every system but Windows
      * @throws NullPointerException if {@code colorScheme} is {@code null}
      */
     public SystemPreferences {
         Objects.requireNonNull(colorScheme, "colorScheme");
-    }
-
-    /**
-     * Preferences with access keys underlined only while Alt is held: what every system but
-     * Windows reports.
-     *
-     * @param colorScheme      the appearance; never {@code null}
-     * @param reduceMotion     whether less motion is asked for
-     * @param increaseContrast whether more contrast is asked for
-     */
-    public SystemPreferences(ColorScheme colorScheme, boolean reduceMotion, boolean increaseContrast) {
-        this(colorScheme, reduceMotion, increaseContrast, false);
     }
 
     /**
