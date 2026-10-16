@@ -40,7 +40,8 @@ to them. Letting go is not losing: a picture still on screen, or held anywhere, 
 object when it is asked for again, and only one that nobody holds is read a second time.
 `Images.setSharedBudget` moves the budget. For the pictures that must never be read twice,
 whatever else is loaded, `Images.loadPinned` and `Images.fromResourcePinned` load the same way
-and keep the result outside the budget until `Images.unpin`. `Sounds` has the same calls, with
+and keep the result outside the budget until `Images.unpin`, once for each time it was pinned,
+so two parts of an application can each pin one picture. `Sounds` has the same calls, with
 an eighth of the heap.
 
 ### Pictures that move

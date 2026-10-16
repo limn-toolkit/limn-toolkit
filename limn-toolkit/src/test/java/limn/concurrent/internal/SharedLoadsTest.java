@@ -215,6 +215,29 @@ class SharedLoadsTest {
         assertEquals(null, pinned.get(), "unpinned, it answers to the budget like any other");
     }
 
+    /**
+     * Two parts of an application pin one picture, and one of them unpins it on closing: the
+     * other's pin holds. A pin was a flag, and the first unpin took both.
+     */
+    @Test
+    void aLoadPinnedTwiceStaysPinnedUntilUnpinnedTwice() {
+        SharedLoads<Sized> loads = new SharedLoads<>(sized -> sized.bytes, 0);
+        AtomicInteger runs = new AtomicInteger();
+        java.lang.ref.WeakReference<Sized> logo =
+                new java.lang.ref.WeakReference<>(land(loads, "logo", SharedLoads.Source.FILE, true, runs));
+        land(loads, "logo", SharedLoads.Source.FILE, true, runs);
+        loads.unpin("logo");
+        assertEquals(0, loads.heldBytes(), "still pinned by the other, outside the budget");
+        collect(logo);
+        assertTrue(logo.get() != null, "and kept");
+        assertEquals(1, runs.get());
+
+        loads.unpin("logo");
+        collect(logo);
+        assertEquals(null, logo.get(), "unpinned by both, it answers to the budget");
+        loads.unpin("logo"); // one more is nothing
+    }
+
     @Test
     void aLoadAlreadySharedIsPinnedFromTheAskThatPinsIt() {
         SharedLoads<Sized> loads = new SharedLoads<>(sized -> sized.bytes, 150);
