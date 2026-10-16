@@ -170,6 +170,10 @@ final class ComponentStrings {
     static final I18nString TAB_LIST_ALL =
             new I18nString("limn.tabbedPane.allTabs", "All tabs");
 
+    /** What a row of the list of every tab says of the tab the pane shows, as its description. */
+    static final I18nString TAB_LIST_CURRENT =
+            new I18nString("limn.tabbedPane.currentTab", "Current tab");
+
     // The close button a closable tab draws: a synthetic child with no text of its own.
     static final I18nString TAB_CLOSE =
             new I18nString("limn.tabbedPane.closeTab", "Close tab");

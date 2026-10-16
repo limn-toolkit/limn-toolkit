@@ -178,6 +178,31 @@ class TabbedPaneTabListTest extends AccessibleComponentTestBase {
         assertTrue(rows().get(4).has(Accessible.State.ACTIVE), "Echo" + describe(tree()));
     }
 
+    /**
+     * The list is named as its button; the row under the cursor is the selected one, as in a combo
+     * box's list, and the tab the pane shows is said as its description. Orca read "not selected"
+     * on every row walked while the shown tab was the selected row.
+     */
+    @Test
+    void theCursorsRowIsSelectedAndTheShownTabIsDescribed() throws InterruptedException {
+        bindPane(false, false);
+        openList();
+        AccessibleNode list = null;
+        for (int i = 0; i < tree().nodeCount(); i++) {
+            if (tree().node(i).role() == Accessible.Role.LIST) {
+                list = tree().node(i);
+            }
+        }
+        assertEquals(ComponentStrings.TAB_LIST_ALL.get(), list.name(), describe(tree()));
+        press(Keys.DOWN, 0);
+        AccessibleNode alpha = rows().get(0);
+        AccessibleNode bravo = rows().get(1);
+        assertTrue(bravo.has(Accessible.State.SELECTED), "the cursor's row" + describe(tree()));
+        assertFalse(alpha.has(Accessible.State.SELECTED), describe(tree()));
+        assertEquals(ComponentStrings.TAB_LIST_CURRENT.get(), alpha.description(), "the tab the pane shows" + describe(tree()));
+        assertTrue(bravo.description() == null || bravo.description().isEmpty(), describe(tree()));
+    }
+
     /** Alt+Down on the focused tab opens the list; the arrows then walk it and Enter chooses. */
     @Test
     void altAndDownOnTheFocusedTabOpensTheList() throws InterruptedException {

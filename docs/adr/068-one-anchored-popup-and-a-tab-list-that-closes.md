@@ -75,8 +75,12 @@ back to the picker when the card is gone.
   the list. A typed letter moves to the next tab whose caption starts with it.
 - **Closing a tab from the list asks the pane's close handler** as every other close does, and the
   list stays open, without the closed row; with no tab left it closes.
-- **A reader** hears a list of tabs, each selectable and the selected one marked, and on a closable
-  one a button named as the strip's is, "Close tab".
+- **A reader** hears a list named as its button, "All tabs", whose row under the cursor is the
+  selected one, as in a combo box's list and a menu, the tab the pane shows described as
+  "Current tab", and on a closable one a button named as the strip's is, "Close tab". (Amended
+  2026-10-16 at the owner's word, after the first hearing: with the shown tab as the selected
+  row, Orca read "not selected" on every row walked, and VoiceOver heard no list at all, its
+  node having no name.)
 
 ## 5. Tests
 

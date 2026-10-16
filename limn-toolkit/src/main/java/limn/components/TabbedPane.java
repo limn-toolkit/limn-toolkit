@@ -1454,6 +1454,8 @@ public final class TabbedPane extends Widget<TabbedPane> {
             float itemH = t.popupItemHeight();
             float inset = t.popupRowInsetX();
             a.role(Accessible.Role.LIST);
+            // Named as its button is, so a reader says what list it entered.
+            a.name(ComponentStrings.TAB_LIST_ALL, Accessible.NameFrom.CONTENT);
             RowsAccessibility.describeContainer(a, RowsAccessibility.Selection.SINGLE, true, false);
             float contentH = listContentHeight(t);
             a.scrollFrom(0, 0, 1, 0, scroll, Math.max(0, contentH - height()), height(), contentH);
@@ -1466,9 +1468,15 @@ public final class TabbedPane extends Widget<TabbedPane> {
                 a.bounds(inset, top, width() - 2 * inset, itemH);
                 a.role(Accessible.Role.LIST_ITEM);
                 a.name(header.title, Accessible.NameFrom.CONTENT);
+                // The selection follows the cursor, as in a combo box's list and a menu: marked on
+                // the tab the pane shows, every row walked was read "not selected" (Orca, heard
+                // 2026-10-16). That tab is said as the row's description instead.
                 RowsAccessibility.describeRow(a, RowsAccessibility.Offer.OWNED,
-                        RowsAccessibility.Selection.SINGLE, i == selected, i + 1, headers.size(),
+                        RowsAccessibility.Selection.SINGLE, i == listCursor, i + 1, headers.size(),
                         false, false, i == listCursor, operable, false, false);
+                if (i == selected) {
+                    a.description(ComponentStrings.TAB_LIST_CURRENT);
+                }
                 if (header.closable) {
                     a.child(header.key | CLOSE_KEY_BIT);
                     a.bounds(closeLeft(t), top + (itemH - side) / 2, side, side);
