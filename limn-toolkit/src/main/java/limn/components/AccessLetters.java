@@ -17,7 +17,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *   <li>Only the first mark counts; a second is shown as written and reported once.</li>
  *   <li>On macOS, where no application has access letters, a text keeps its words and loses its
  *       mark, and a trailing "(&amp;F)", the letter Japanese and Chinese strings carry for
- *       Windows, is dropped whole.</li>
+ *       Windows, is dropped whole, an ellipsis after it kept.</li>
  * </ul>
  */
 final class AccessLetters {
@@ -102,7 +102,8 @@ final class AccessLetters {
     /**
      * {@code text} without a trailing "(F)" whose F is the letter at {@code index}: the
      * parenthesised Latin letter CJK strings carry for Windows, which a Mac application does not
-     * show. Any other text comes back as it is.
+     * show. An ellipsis after it stays, since Windows writes a command that asks for more as
+     * "プロパティ(&amp;P)…" and a Mac one as "プロパティ…". Any other text comes back as it is.
      */
     private static String withoutWindowsLetter(String text, int index) {
         int open = index - 1;
@@ -113,10 +114,11 @@ final class AccessLetters {
         char o = text.charAt(open);
         char c = text.charAt(close);
         boolean bracketed = (o == '(' || o == '（') && (c == ')' || c == '）');
-        if (!bracketed || !text.substring(close + 1).isBlank()) {
+        String after = text.substring(close + 1).strip();
+        if (!bracketed || !(after.isEmpty() || after.equals("…") || after.equals("..."))) {
             return text;
         }
-        return text.substring(0, open).stripTrailing();
+        return text.substring(0, open).stripTrailing() + after;
     }
 
     /**

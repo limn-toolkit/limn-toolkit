@@ -50,6 +50,22 @@ class AccessLettersTest {
         assertEquals(new AccessLetters.Parsed("AT&T", -1, (char) 0), AccessLetters.parse("AT&&T", true));
     }
 
+    /**
+     * The Windows form of a command that asks for more, "プロパティ(&amp;P)…", loses its letter on
+     * macOS and keeps its ellipsis: only a bare trailing "(P)" was dropped, and twelve of the
+     * Showcase's menu rows read "プロパティ(P)…" on a Mac.
+     */
+    @Test
+    void macOSDropsTheWindowsLetterBeforeAnEllipsisToo() {
+        assertEquals(new AccessLetters.Parsed("プロパティ…", -1, (char) 0), AccessLetters.parse("プロパティ(&P)…", true));
+        assertEquals(new AccessLetters.Parsed("名前の変更...", -1, (char) 0), AccessLetters.parse("名前の変更(&R)...", true));
+        assertEquals(new AccessLetters.Parsed("속성…", -1, (char) 0), AccessLetters.parse("속성(&P) …", true));
+        assertEquals(new AccessLetters.Parsed("(P) später", -1, (char) 0), AccessLetters.parse("(&P) später", true),
+                "words after the parentheses are not the Windows letter's form, and stay");
+        assertEquals(new AccessLetters.Parsed("プロパティ(P)…", 6, 'P'), elsewhere("プロパティ(&P)…"),
+                "and on Windows and Linux the letter stays, underlined");
+    }
+
     @Test
     void aKeyIsTheLetterPrintedOnItOrTheOneTheLayoutTypes() {
         assertTrue(AccessLetters.matches('A', 'A', -1));
