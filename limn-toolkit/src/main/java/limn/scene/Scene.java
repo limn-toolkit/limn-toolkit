@@ -431,7 +431,41 @@ public final class Scene {
         // dead. Nothing above it waits for it: the frame it would be read from cannot run until the
         // pump turns, which is after bind returns (2026-09-16 review).
         publishTheWindowNodeIfOwed();
+        watchUnderlines(this);
         runObservers(windowBoundObservers);
+    }
+
+    /** The scenes bound to a window that is open, which a change of the system's underlines repaints. */
+    private static final java.util.Set<Scene> BOUND_SCENES =
+            java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
+    /** The one subscription to the system's preferences, made at the first bind and kept. */
+    private static @Nullable Subscription underlinesWatch;
+    /** Whether the system asked for access letters drawn at all times, as last heard. */
+    private static boolean underlinesWere;
+
+    /**
+     * Repaints {@code scene}'s letters when the system's "underline access keys" setting changes
+     * while it is open (Windows' keyboard accessibility setting): partial rendering repaints only
+     * what was damaged, so without this the underlines appeared or vanished button by button as
+     * each happened to be drawn again.
+     */
+    private static void watchUnderlines(Scene scene) {
+        BOUND_SCENES.add(scene);
+        if (underlinesWatch == null) {
+            underlinesWere = SystemPreferences.current().underlineAccessKeys();
+            underlinesWatch = SystemPreferences.observeChanges(() -> {
+                boolean now = SystemPreferences.current().underlineAccessKeys();
+                if (now == underlinesWere) {
+                    return;
+                }
+                underlinesWere = now;
+                for (Scene each : new ArrayList<>(BOUND_SCENES)) {
+                    if (!each.accessLettersShown) { // Alt held: they are drawn, and stay
+                        each.repaintAccessLetters();
+                    }
+                }
+            });
+        }
     }
 
     private Runnable[] windowBoundObservers;
@@ -5966,6 +6000,7 @@ public final class Scene {
      */
     private void detachForTheClosedWindow() {
         detachedByClose = true;
+        BOUND_SCENES.remove(this);
         if (locale != null) {
             limn.i18n.I18n.releaseLocale(locale); // a closed window's language is nobody's to keep loaded
         }

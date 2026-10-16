@@ -598,6 +598,30 @@ class AccessLetterDispatchTest extends AccessibleComponentTestBase {
         assertFalse(SceneAccess.accessLettersShown(scene));
     }
 
+    /**
+     * The system's "underline access keys" setting turned on or off while a window is open draws or
+     * hides every letter at once: nothing asked for a frame, so under partial rendering the
+     * underlines came and went button by button as each happened to be drawn again.
+     */
+    @Test
+    void theSystemsUnderlineSettingChangedRedrawsTheLetters() {
+        show(new Button("&Save"));
+        frame();
+        frame();
+        limn.scene.SystemPreferences was = limn.scene.SystemPreferences.current();
+        int before = window.framesRequested;
+        try {
+            limn.scene.SystemPreferences.report(new limn.scene.SystemPreferences(
+                    limn.scene.SystemPreferences.ColorScheme.NO_PREFERENCE, false, false, true));
+            assertTrue(window.framesRequested > before, "the window draws its letters now");
+            frame();
+            before = window.framesRequested;
+        } finally {
+            limn.scene.SystemPreferences.report(was);
+        }
+        assertTrue(window.framesRequested > before, "and takes them away when the setting goes off");
+    }
+
     @Test
     void macOSHasNone() {
         AccessLetterSystem.setPresentForTests(false);
