@@ -359,4 +359,42 @@ class LabelForAccessibilityTest extends AccessibleComponentTestBase {
         assertNotNull(node(Accessible.Role.TEXT_FIELD, "Stranger"),
                 "and the stranger keeps its own name" + describe(tree()));
     }
+
+    /**
+     * A form whose caption names a composite that hands the caption to a part of it (a date
+     * picker gives it to its field) is let go of when it leaves the window: the walk's redirect
+     * slots were popped by count and kept the last caption and field after every walk, and
+     * through the caption's parent the whole form, for as long as the window lived.
+     */
+    @Test
+    void aRemovedFormWhoseCaptionNamesACompositeIsLetGoOf() {
+        Column root = new Column();
+        root.add(new Label("Stays"));
+        java.lang.ref.WeakReference<Column> gone = addAFormAndRemoveIt(root);
+        for (int i = 0; i < 50 && gone.get() != null; i++) {
+            System.gc();
+            try {
+                Thread.sleep(20);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        assertNull(gone.get(), "the removed form is collected");
+    }
+
+    /** Built in a frame of its own, so no local of the test holds the form. */
+    private java.lang.ref.WeakReference<Column> addAFormAndRemoveIt(Column root) {
+        Column form = new Column();
+        limn.components.date.DatePicker date = new limn.components.date.DatePicker();
+        form.add(new Label("Delivery date").setLabelFor(date));
+        form.add(date);
+        root.add(form);
+        bind(root);
+        frame();
+        frame();
+        root.remove(form);
+        frame();
+        frame();
+        return new java.lang.ref.WeakReference<>(form);
+    }
 }

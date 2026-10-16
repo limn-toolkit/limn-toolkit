@@ -221,6 +221,13 @@ final class AccessibleWalk {
                 delegates[i] = null;
             }
         }
+        // A popup's opener may live in another window's scene, so only one in no scene at all has
+        // left; read by the next walk alone, which lists them again.
+        for (int i = 0; i < popupCount; i++) {
+            if (popupOpeners[i] != null && popupOpeners[i].scene() == null) {
+                popupOpeners[i] = null;
+            }
+        }
     }
 
     private void walkOnce(Scene scene, float sceneWidth, float sceneHeight, boolean contents) {
@@ -663,7 +670,7 @@ final class AccessibleWalk {
         if (builder.isIgnored()) {
             builder.drop();
             if (redirected) {
-                redirectCount--;
+                popRedirect();
             }
             return;              // ignored: no node, and no children either
         }
@@ -682,7 +689,7 @@ final class AccessibleWalk {
             walkChildren(scene, widget, under, -1, id, ownScope, ownEnabled, ownVisible, reachable);
             walkGraftsOf(widget, under, -1, id, ownScope);
             if (redirected) {
-                redirectCount--;
+                popRedirect();
             }
             return;              // transparent: no node, children hoisted in its place
         }
@@ -768,8 +775,20 @@ final class AccessibleWalk {
         walkGraftsOf(widget, slot, slot, id, ownScope);
         builder.end();
         if (redirected) {
-            redirectCount--;
+            popRedirect();
         }
+    }
+
+    /**
+     * Ends the redirect the subtree just walked pushed, and lets go of its two widgets: popped by
+     * the count alone, the slots kept the last carrier and caption after every walk, and through
+     * the caption's parent a form removed from the window for as long as the window lived, since
+     * the forgetting after a walk and at close covers the slots in use and these were not.
+     */
+    private void popRedirect() {
+        redirectCount--;
+        redirectTargets[redirectCount] = null;
+        redirectLabels[redirectCount] = null;
     }
 
     /**

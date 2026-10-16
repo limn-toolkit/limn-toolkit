@@ -2017,6 +2017,10 @@ public final class Accessibility {
             Slot s = slots[i];
             for (int r = 0; r < s.relationCount; r++) {
                 s.relationResolved[r] = resolve.resolve(s.relationKinds[r], s.relationTargets[r]);
+                // Resolved, the widget is not needed again, and must not be kept: a slot is
+                // reset only when a later walk reaches it, so one past a tree that shrank held its
+                // targets, and through a caption's parent a form removed from the window.
+                s.relationTargets[r] = null;
             }
         }
     }
