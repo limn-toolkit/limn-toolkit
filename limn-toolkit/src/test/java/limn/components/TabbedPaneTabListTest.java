@@ -280,6 +280,77 @@ class TabbedPaneTabListTest extends AccessibleComponentTestBase {
         }
     }
 
+    /**
+     * A pane taken out of the window while its list is open takes the list with it: the layer the
+     * list is drawn on in the scene would otherwise stay on top for good, holding the keyboard and
+     * every press of a window whose pane is gone.
+     */
+    @Test
+    void aPaneTakenOutWhileItsListIsOpenTakesTheListWithIt() throws InterruptedException {
+        int[] clicks = {0};
+        Button other = new Button("Other").onAction(() -> clicks[0]++);
+        pane = new TabbedPane();
+        for (String title : TITLES) {
+            pane.addTab(title, new SizedBox(60, 60));
+        }
+        Column root = new Column();
+        SizedBox box = new SizedBox(200, 120, pane);
+        root.add(other);
+        root.add(box);
+        bind(root, new StubWindow(false));
+        scene.setTextRuler(RULER);
+        frame();
+        openList();
+
+        root.remove(box);
+        frame();
+        settleAnimations(root);
+        drive(scene).click(other);
+        frame();
+        assertEquals(1, clicks[0], "the window's own button takes the press again");
+        assertTrue(rows().isEmpty(), describe(tree()));
+    }
+
+    /**
+     * The last tab closed from the list while the application, hearing the pane empty, puts a start
+     * page in its place: the pane is gone by the time the close settles the list, which must go
+     * with it all the same.
+     */
+    @Test
+    void theLastTabClosedFromTheListWhileThePaneIsReplacedLeavesTheWindowUsable() throws InterruptedException {
+        int[] clicks = {0};
+        Button start = new Button("Start page").onAction(() -> clicks[0]++);
+        pane = new TabbedPane().setTabsClosable(true);
+        for (String title : TITLES) {
+            pane.addTab(title, new SizedBox(60, 60));
+        }
+        Column root = new Column();
+        SizedBox box = new SizedBox(200, 120, pane);
+        root.add(box);
+        pane.observeChanges((widget, change) -> {
+            if (change.aspect() == limn.scene.Change.Aspect.CHILDREN && pane.tabCount() == 0
+                    && box.parent() != null) {
+                root.remove(box);
+                root.add(start);
+            }
+        });
+        bind(root, new StubWindow(false));
+        scene.setTextRuler(RULER);
+        frame();
+        openList();
+        for (int i = 0; i < TITLES.size(); i++) {
+            press(Keys.DELETE, 0);
+        }
+        settleAnimations(root);
+
+        drive(scene).click(start);
+        frame();
+        assertEquals(1, clicks[0], "the start page's button takes the press");
+        assertFalse(scene.focusedWidget() != null
+                && scene.focusedWidget().getClass().getName().contains("AnchoredPopup"),
+                "the list's layer holds the keyboard: " + scene.focusedWidget());
+    }
+
     @Test
     void aClickOnARowChoosesItsTab() throws InterruptedException {
         bindPane(false, false);

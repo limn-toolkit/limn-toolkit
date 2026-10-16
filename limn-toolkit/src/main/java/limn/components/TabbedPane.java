@@ -669,8 +669,10 @@ public final class TabbedPane extends Widget<TabbedPane> {
         strip.removeHeader(header);
         markNeedsContainedLayout();
         startSlides();
-        remove(content, origin);
+        // The list is settled before the page goes: the removal announces CHILDREN, and an
+        // application that hears the pane empty may take it out of the window there and then.
         tabsChangedUnderTheList();
+        remove(content, origin);
         if (selected >= 0 && contents.get(selected) != before) {
             // The pane chose the tab that is now selected: a consequence of the close.
             notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.ADJUSTMENT));
@@ -1018,6 +1020,13 @@ public final class TabbedPane extends Widget<TabbedPane> {
         tabList.close();
         listButton.invalidateAccessible();
         notifyChange(Change.of(Change.Aspect.EXPANDED, Change.Origin.USER));
+    }
+
+    /** A pane taken out of its window takes its open list with it, as a combo box does. */
+    @Override
+    protected void onDetached() {
+        closeTabList();
+        super.onDetached();
     }
 
     /** The tabs changed under the open list: it takes their new number, or goes with the last. */
