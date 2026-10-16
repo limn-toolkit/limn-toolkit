@@ -212,6 +212,35 @@ class TextFieldMaskTest extends AccessibleComponentTestBase {
     }
 
     @Test
+    void undoAndRedoTakeAStepOverBackAndForthWhole() {
+        bindField("000.000");
+        field.requestFocus();
+        type("1234");
+        field.setCaretPosition(4); // after the dot
+        drive(scene).press(Keys.BACKSPACE);
+        assertEquals("124", field.text());
+        drive(scene).press(Keys.Z, COMMAND);
+        assertEquals("123.4", field.text(), "the 3 back, and the dot with it");
+        drive(scene).press(Keys.Z, COMMAND | Keys.MOD_SHIFT);
+        assertEquals("124", field.text(), "redo steps over again, and is not fitted as a new edit");
+        assertEquals("124", field.unmaskedText());
+    }
+
+    @Test
+    void aCompositionHidesTheGuideAndItsCommitIsFitted() {
+        bindField("000-000");
+        field.requestFocus();
+        type("12");
+        drive(scene).preeditChanged("３", 1, 0, 1); // a full-width 3, as an input method shows it
+        drive(scene).inputBatchEnded();
+        assertFalse(String.join("|", drawn()).contains("_"), "no guide under a composition");
+        drive(scene).preeditChanged("", 0, 0, 0);
+        type("３4");
+        assertEquals("12３-4", field.text(), "the commit is typing: fitted, literal and all");
+        assertEquals("12３4", field.unmaskedText(), "a digit as the user's script writes it");
+    }
+
+    @Test
     void theGuideShowsOnlyWhileTheFieldHasTheKeyboard() {
         bindField("000-000");
         assertTrue(drawn().contains("Document"), "unfocused and empty: the placeholder");
