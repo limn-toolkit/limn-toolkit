@@ -105,6 +105,24 @@ final class GraphicsProbe {
                 || name.contains("microsoft basic render driver");
     }
 
+    /**
+     * One of the current context's {@code glGetString} answers, read before the context has
+     * capabilities: through the function's own address, which every platform exports beside its
+     * GL 1.1 entry points, because LWJGL's {@code glGetString} goes through the capabilities this
+     * answer is asked for in order to choose ({@link GlCapabilitiesCache}).
+     *
+     * @param name {@code GL_VENDOR}, {@code GL_RENDERER} or {@code GL_VERSION}
+     * @return the answer, or null when the function or the answer is missing
+     */
+    static @Nullable String currentContextString(int name) {
+        long glGetString = org.lwjgl.opengl.GL.getFunctionProvider() == null ? NULL
+                : org.lwjgl.opengl.GL.getFunctionProvider().getFunctionAddress("glGetString");
+        if (glGetString == NULL) {
+            return null;
+        }
+        return MemoryUtil.memUTF8Safe(org.lwjgl.system.JNI.invokeP(name, glGetString));
+    }
+
     /** @return the windowing system GLFW selected at startup; never null */
     static String platformName() {
         return switch (glfwGetPlatform()) {

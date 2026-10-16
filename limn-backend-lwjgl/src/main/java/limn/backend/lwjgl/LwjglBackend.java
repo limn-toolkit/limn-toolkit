@@ -102,6 +102,10 @@ public final class LwjglBackend implements BackendPeer {
     // The blocked-click alert is just a synthesized tone played through the
     // shared audio engine, the same package applications use for rich sound.
     private final AudioClip blockedClickTone = AudioClip.tone(660f, 0.09f, 0.5f);
+    // The GL entry points a window's context resolved, kept for the popups that follow it.
+    private final GlCapabilitiesCache<org.lwjgl.opengl.GLCapabilities> glCapabilities =
+            new GlCapabilitiesCache<>(GlCapabilitiesCache.reusesByDefault(Platform.current().os(),
+                    System.getProperty(GlCapabilitiesCache.PROPERTY)));
     private final List<LwjglWindow> windows = new ArrayList<>();
     // The same windows, the one given the keyboard last first: the order an ending application
     // asks them in (ADR 048 §1.2). A new window opens in front, as it does on every desktop.
@@ -1429,6 +1433,11 @@ public final class LwjglBackend implements BackendPeer {
         if (pool != 0) {
             ObjC.msgVoid(pool, "drain");
         }
+    }
+
+    /** @return the capabilities windows of one kind of context share; see {@link GlCapabilitiesCache} */
+    GlCapabilitiesCache<org.lwjgl.opengl.GLCapabilities> glCapabilities() {
+        return glCapabilities;
     }
 
     /** @return the windows that are open, for the menu bar's rule of which bar is shown */
