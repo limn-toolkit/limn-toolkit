@@ -99,8 +99,20 @@ final class StbFont implements AutoCloseable {
     private HarfBuzzShaper.Handle shaper;
     private boolean shaperTried;
 
+    // A synthetic bold is a view of another face: the same bytes, glyphs and shaping, its glyphs
+    // drawn thicker. `owner` is the face it views, which keeps the bytes and frees them; null for a
+    // face read from a file. `bolder` is this face's view, made on first need.
+    private final StbFont owner;
+    private StbFont bolder;
+
     private StbFont(String name, ByteBuffer data, STBTTFontinfo info, int faceIndex,
                     int ascentUnits, int descentUnits, int lineGapUnits) {
+        this(name, data, info, faceIndex, ascentUnits, descentUnits, lineGapUnits, null);
+    }
+
+    private StbFont(String name, ByteBuffer data, STBTTFontinfo info, int faceIndex,
+                    int ascentUnits, int descentUnits, int lineGapUnits, StbFont owner) {
+        this.owner = owner;
         this.name = name;
         this.data = data;
         this.info = info;
@@ -484,6 +496,71 @@ final class StbFont implements AutoCloseable {
      * empty glyphs return a null bitmap with a valid advance.
      */
     RasterizedGlyph rasterizeGlyph(int glyph, float sizePx) {
+        RasterizedGlyph plain = rasterizePlain(glyph, sizePx);
+        return owner == null ? plain : embolden(plain, sizePx);
+    }
+
+    /**
+     * This face drawn bold where its family has no Bold of its own: the same glyphs, advances and
+     * shaping, each glyph's coverage spread by about a twenty-fourth of the size, as FreeType's
+     * emboldening and other renderers' synthetic bold do. The advance is kept, so a line measures
+     * the same bold or not; the extra ink sits in the room a glyph leaves beside it. Made once
+     * per face, and owned by it: closing this face closes the view's shaper with its own.
+     */
+    StbFont syntheticBold() {
+        if (owner != null) {
+            return this;
+        }
+        if (bolder == null) {
+            bolder = new StbFont(name + " Bold (synthetic)", data, info, faceIndex,
+                    ascentUnits, descentUnits, lineGapUnits, this);
+        }
+        return bolder;
+    }
+
+    /** Whether this face is a {@link #syntheticBold} view. */
+    boolean isSyntheticBold() {
+        return owner != null;
+    }
+
+    /** {@code plain} spread right and up by the emboldening's strength, in a new bitmap. */
+    private static RasterizedGlyph embolden(RasterizedGlyph plain, float sizePx) {
+        if (plain.bitmap() == null) {
+            return plain;
+        }
+        int across = Math.max(1, Math.round(sizePx / 24f));
+        int up = Math.max(1, across / 2);
+        int w = plain.width();
+        int h = plain.height();
+        int outW = w + across;
+        int outH = h + up;
+        ByteBuffer src = plain.bitmap();
+        ByteBuffer out = MemoryUtil.memCalloc(outW * outH);
+        for (int y = 0; y < outH; y++) {
+            for (int x = 0; x < outW; x++) {
+                int best = 0;
+                // The pixel takes the darkest of the source pixels the spread brings over it.
+                for (int dy = 0; dy <= up && best < 255; dy++) {
+                    int sy = y - up + dy;
+                    if (sy < 0 || sy >= h) {
+                        continue;
+                    }
+                    for (int dx = 0; dx <= across; dx++) {
+                        int sx = x - dx;
+                        if (sx >= 0 && sx < w) {
+                            best = Math.max(best, src.get(sy * w + sx) & 0xFF);
+                        }
+                    }
+                }
+                out.put(y * outW + x, (byte) best);
+            }
+        }
+        MemoryUtil.memFree(src);
+        return new RasterizedGlyph(out, outW, outH, plain.bearingX(), plain.bearingY() - up,
+                plain.advance());
+    }
+
+    private RasterizedGlyph rasterizePlain(int glyph, float sizePx) {
         float scale = scaleForSize(sizePx);
         try (MemoryStack stack = MemoryStack.stackPush()) {
             IntBuffer x0 = stack.mallocInt(1);
@@ -522,6 +599,9 @@ final class StbFont implements AutoCloseable {
      * is a wrong one, and it looks like a font that loaded rather than like a bug.
      */
     HarfBuzzShaper.Handle shaper() {
+        if (owner != null) {
+            return owner.shaper(); // the same face: the glyphs are shaped once, drawn thicker
+        }
         if (!shaperTried) {
             shaperTried = true; // set FIRST: a face HarfBuzz rejects must not be retried per string
             if (!closed) {
@@ -544,6 +624,12 @@ final class StbFont implements AutoCloseable {
             return;
         }
         closed = true;
+        if (owner != null) {
+            return; // a view: the bytes, the stb state and the shaper are its owner's to free
+        }
+        if (bolder != null) {
+            bolder.closed = true;
+        }
         // Before memFree(data), and that order is the whole contract: the shaper's blob wraps this
         // buffer READONLY without owning it, so freeing the bytes first would leave HarfBuzz
         // reading whatever the allocator hands out next.

@@ -16,6 +16,11 @@ Maven Central say which number that was.
   middle read as one at its end; it is now the text's ink, faint, on any theme. A disabled
   slider's fill takes the disabled text's grey, darker than the rail it fills, where it was
   lighter.
+- Bold text is bold in every script. A code point the primary face lacks was drawn by its
+  fallback face's Regular whatever the weight asked for, so a bold Arabic, Hebrew, Hindi, Thai,
+  Japanese, Korean or Chinese name sat regular beside bold Latin; a bold primary now takes the
+  fallback's own Bold, and a family with none, the CJK face, is drawn with a synthetic bold that
+  spreads each glyph by about a twenty-fourth of its size and keeps its advance.
 - A line break in a wrapped `Label`'s text is a line on screen. The text was wrapped as one
   paragraph, so a break that fitted the width was shaped as nothing and the two lines ran
   together ("Hello,A reminder"); each piece between two breaks is wrapped on its own now, and an

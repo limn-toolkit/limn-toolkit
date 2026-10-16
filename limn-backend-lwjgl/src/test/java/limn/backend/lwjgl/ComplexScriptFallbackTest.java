@@ -12,6 +12,7 @@ import java.util.concurrent.Executors;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
@@ -219,5 +220,71 @@ class ComplexScriptFallbackTest {
                         family + " bold-italic must degrade to the Bold");
             }
         }
+    }
+    /**
+     * Bold text stays bold in the script that rescues it: behind Roboto Bold, each script's code
+     * points come from that script's Bold, where they came from its Regular and a bold Arabic
+     * name drew as a regular one beside a bold Latin word.
+     */
+    @Test
+    void boldTextFallsBackToTheScriptsBold() {
+        FontStore.HeavyFallbacks loaded = FontStore.parseHeavyFallbacks();
+        Assumptions.assumeTrue(loaded.scripts().size() == SAMPLES.length,
+                "the script faces are not bundled on this machine; see scripts/fetch-fonts.sh");
+        try (FontStore store = new FontStore()) {
+            assertTrue(store.installHeavyFallbacks(loaded));
+            StbFont regular = store.resolve(FONT);
+            StbFont bold = store.resolve(FONT.bold());
+            assertNotSame(regular, bold);
+            for (Sample sample : SAMPLES) {
+                StbFont upright = store.faceForCodepoint(regular, sample.codepoint());
+                StbFont heavy = store.faceForCodepoint(bold, sample.codepoint());
+                assertFalse(upright.name().contains("Bold"), sample.name() + " regular stays regular");
+                assertTrue(heavy.name().contains("Bold"), sample.name() + " behind a bold primary: " + heavy.name());
+                assertTrue(heavy.hasGlyph(sample.codepoint()), sample.name());
+                assertSame(heavy, store.faceForCodepoint(bold, sample.codepoint()),
+                        "one face per run, every time it is asked");
+            }
+        }
+    }
+    /**
+     * A family with no Bold of its own, the CJK face, is drawn bold by spreading its glyphs: the
+     * same glyph and advance, more ink. Bold Japanese behind Roboto Bold drew as regular.
+     */
+    @Test
+    void boldTextInAFamilyWithNoBoldIsDrawnThicker() {
+        FontStore.HeavyFallbacks loaded = FontStore.parseHeavyFallbacks();
+        Assumptions.assumeTrue(loaded.cjk() != null, "the CJK face is not bundled on this machine");
+        try (FontStore store = new FontStore()) {
+            assertTrue(store.installHeavyFallbacks(loaded));
+            int ka = 0x4E2D; // 中
+            StbFont upright = store.faceForCodepoint(store.resolve(FONT), ka);
+            StbFont heavy = store.faceForCodepoint(store.resolve(FONT.bold()), ka);
+            assertFalse(upright.isSyntheticBold());
+            assertTrue(heavy.isSyntheticBold(), heavy.name());
+            assertNotEquals(store.faceId(upright), store.faceId(heavy), "cached apart in the atlas");
+
+            int glyph = upright.glyphIndex(ka);
+            assertEquals(glyph, heavy.glyphIndex(ka), "the same glyph, not another face's");
+            StbFont.RasterizedGlyph thin = upright.rasterizeGlyph(glyph, 24);
+            StbFont.RasterizedGlyph thick = heavy.rasterizeGlyph(glyph, 24);
+            try {
+                assertTrue(thick.width() > thin.width(), "spread across");
+                assertTrue(thick.height() > thin.height(), "and up");
+                assertEquals(thin.advance(), thick.advance(), 0f, "a line measures the same");
+                assertTrue(ink(thick) > ink(thin) * 1.15, "more ink: " + ink(thin) + " to " + ink(thick));
+            } finally {
+                org.lwjgl.system.MemoryUtil.memFree(thin.bitmap());
+                org.lwjgl.system.MemoryUtil.memFree(thick.bitmap());
+            }
+        }
+    }
+
+    private static long ink(StbFont.RasterizedGlyph glyph) {
+        long sum = 0;
+        for (int i = 0; i < glyph.width() * glyph.height(); i++) {
+            sum += glyph.bitmap().get(i) & 0xFF;
+        }
+        return sum;
     }
 }

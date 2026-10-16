@@ -108,6 +108,8 @@ final class FontStore implements AutoCloseable {
 
     private final Map<String, StbFont> byFamily = new HashMap<>();
     private final Map<StbFont, Integer> faceIds = new IdentityHashMap<>();
+    /** A fallback face's Bold, or the face itself when it has none; see {@link #boldTwin}. */
+    private final Map<StbFont, StbFont> boldTwins = new IdentityHashMap<>();
     // The reverse, for a painter holding a ShapedText: a run names its face by id, and the id has
     // to become a face again to reach the atlas. Kept in step with faceIds at both ends, because
     // an id that outlives its face is exactly the case this map exists to answer "no" to.
@@ -514,9 +516,8 @@ final class FontStore implements AutoCloseable {
             // build without the script binaries must not carry lazy entries whose first resolve
             // warn-fails. Bold only, because upstream ships no Italic for any of these scripts;
             // the resolver already drops italic before weight, so an italic request lands here or
-            // on the Regular. The fallback CHAIN stays Regular on purpose — which face rescues a
-            // code point is chosen per code point with no style in the key — so this Bold is
-            // reached when the family is chosen as a primary, not mid-line behind Roboto Bold.
+            // on the Regular. The fallback CHAIN stays Regular, and faceForCodepoint swaps in
+            // this Bold where the primary is bold, so bold Arabic behind Roboto Bold is bold.
             for (LazyFace pending : SCRIPT_FALLBACKS) {
                 if (pending.name().equals(script.name())) {
                     lazyBundled.put(script.name().toLowerCase(Locale.ROOT) + " bold",
@@ -1058,6 +1059,15 @@ final class FontStore implements AutoCloseable {
         for (int i = 0; i < fallbackFaces.size(); i++) {
             StbFont face = fallbackFaces.get(i);
             if (face != primary && face.hasGlyph(codepoint)) {
+                // Bold text stays bold in the script that rescues it: a bold primary takes the
+                // fallback's own Bold where the family has one. Chosen here, per code point, so
+                // the run the shaper cuts and the glyphs the canvas draws agree on the face.
+                if (isBold(primary)) {
+                    StbFont twin = boldTwin(face);
+                    if (twin.hasGlyph(codepoint)) {
+                        return twin;
+                    }
+                }
                 return face;
             }
         }
@@ -1073,6 +1083,32 @@ final class FontStore implements AutoCloseable {
         // re-shapes against the face that has now arrived.
         requestHeavyFallbacks();
         return primary;
+    }
+
+    /** Whether {@code face} is a bold one, by its name: "Roboto Bold", a system "Arial Bold". */
+    private static boolean isBold(StbFont face) {
+        return face.name().toLowerCase(Locale.ROOT).contains("bold");
+    }
+
+    /**
+     * {@code face}'s Bold, parsed on first need: the bundled script faces register theirs as lazy
+     * variants, and a face whose family has none (the CJK face, a system face) is drawn as a
+     * {@linkplain StbFont#syntheticBold synthetic} one.
+     */
+    private StbFont boldTwin(StbFont face) {
+        StbFont twin = boldTwins.get(face);
+        if (twin == null) {
+            StbFont bold = isBold(face) ? null : bundled(face.name().toLowerCase(Locale.ROOT) + " bold");
+            if (bold == null && !isBold(face)) {
+                // No Bold in the family (the CJK face, at sixteen megabytes, ships Regular only):
+                // the face drawn thicker, with an id of its own so its glyphs are cached apart.
+                bold = face.syntheticBold();
+                assignId(bold);
+            }
+            twin = bold != null ? bold : face;
+            boldTwins.put(face, twin);
+        }
+        return twin;
     }
 
     /**
