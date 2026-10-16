@@ -97,7 +97,9 @@ public final class PluralString {
     public String format(long count, @Nullable Object @Nullable ... args) {
         Locale locale = I18n.locale();
         PluralRules.Category category = PluralRules.select(locale, count);
-        String fallback = english.get(category);
+        // What is shown untranslated is English, so English chooses its form: Portuguese counts 0
+        // as "one", and the language's own category picked "0 order" out of the English.
+        String fallback = english.get(PluralRules.select(Locale.ENGLISH, count));
         String pattern = I18n.resolve(key + "." + category.suffix(), null, locale);
         if (pattern == null) {
             // The language's own OTHER before the English: a catalog that translated the plural

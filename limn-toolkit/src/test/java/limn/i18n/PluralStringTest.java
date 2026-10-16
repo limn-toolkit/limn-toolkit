@@ -46,6 +46,19 @@ class PluralStringTest {
      * toolkit writes Latin ones, and a declared system never reached {@code MessageFormat} at
      * all, so one sentence carried its two numbers in two systems.
      */
+    /**
+     * Untranslated, the sentence is English, and English chooses its form: Portuguese counts 0
+     * as "one", and an untranslated count of none read "0 order" in a Portuguese window.
+     */
+    @Test
+    void anUntranslatedCountTakesTheFormEnglishWouldUse() {
+        PluralString orders = PluralString.of("test.plural.untranslated", "{0} order", "{0} orders");
+        I18n.setLocale(Locale.forLanguageTag("pt-BR"));
+        assertEquals("0 orders", orders.format(0));
+        assertEquals("1 order", orders.format(1));
+        assertEquals("2 orders", orders.format(2));
+    }
+
     @Test
     void aNumberTheCallerPassesIsWrittenInTheDigitsOfTheCount() {
         PluralString size = PluralString.of("test.plural.size",

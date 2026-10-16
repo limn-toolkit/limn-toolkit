@@ -16,6 +16,9 @@ Maven Central say which number that was.
   middle read as one at its end; it is now the text's ink, faint, on any theme. A disabled
   slider's fill takes the disabled text's grey, darker than the rail it fills, where it was
   lighter.
+- An untranslated `PluralString` takes the form English uses for the count. It fell back to the
+  English of the form the language in effect chose, and Portuguese counts 0 as "one": an
+  untranslated count of none read "0 order".
 - Bold text is bold in every script. A code point the primary face lacks was drawn by its
   fallback face's Regular whatever the weight asked for, so a bold Arabic, Hebrew, Hindi, Thai,
   Japanese, Korean or Chinese name sat regular beside bold Latin; a bold primary now takes the
