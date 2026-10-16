@@ -80,13 +80,14 @@ class GlCapabilitiesCacheTest {
     }
 
     @Test
-    void macOsAndLinuxReuseByDefaultWindowsDoesNotAndThePropertyWins() {
+    void theThreeDesktopsReuseByDefaultAndThePropertyWins() {
         assertTrue(GlCapabilitiesCache.reusesByDefault(Platform.Os.MACOS, null));
         assertTrue(GlCapabilitiesCache.reusesByDefault(Platform.Os.LINUX, null));
-        assertFalse(GlCapabilitiesCache.reusesByDefault(Platform.Os.WINDOWS, null));
+        assertTrue(GlCapabilitiesCache.reusesByDefault(Platform.Os.WINDOWS, null));
         assertFalse(GlCapabilitiesCache.reusesByDefault(Platform.Os.OTHER, null));
         assertFalse(GlCapabilitiesCache.reusesByDefault(Platform.Os.MACOS, "FALSE"));
-        assertTrue(GlCapabilitiesCache.reusesByDefault(Platform.Os.WINDOWS, "true"));
+        assertFalse(GlCapabilitiesCache.reusesByDefault(Platform.Os.WINDOWS, "false"));
+        assertTrue(GlCapabilitiesCache.reusesByDefault(Platform.Os.OTHER, "true"));
         assertTrue(GlCapabilitiesCache.reusesByDefault(Platform.Os.LINUX, "maybe"));
     }
 }

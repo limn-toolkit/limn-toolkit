@@ -29,8 +29,11 @@ import java.util.function.Supplier;
  * no gain and no harm; and on the Windows 11 ARM64 guest (WGL, a native aarch64 JVM, three runs
  * each way) a fastest popup of 17.8 to 19.8 against 19.0 to 20.8 ms with medians from 18.8 to
  * 27.5 ms either way, a difference inside the noise. Every popup drew the right pixels with
- * shared capabilities on all four, but Windows gains nothing for the risk of a driver that
- * differs, so it keeps resolving per window. The capabilities also say what
+ * shared capabilities on all four. Windows reuses them as well, by the owner's decision of
+ * 2026-10-16: that guest runs the hypervisor's virtual driver on ARM, which says little about
+ * the cost of a real machine's driver; the key is the vendor, renderer and version, which is
+ * what differs between one machine's driver and another's; and {@link #PROPERTY} set to
+ * {@code false} is the way out for a driver that misbehaves. The capabilities also say what
  * the context has (its version, its extensions), so contexts that could differ in that never share:
  * the {@link Key} names the kind of window (transparent framebuffer or not, the macOS software
  * context or not) and what the context itself says it is (vendor, renderer, version).
@@ -80,9 +83,9 @@ final class GlCapabilitiesCache<C> {
     }
 
     /**
-     * Whether this platform reuses capabilities when nothing asks otherwise: on macOS and Linux,
-     * for the reasons in the class description; on Windows not, where it was measured to gain
-     * nothing.
+     * Whether this platform reuses capabilities when nothing asks otherwise: on macOS, Linux and
+     * Windows, for the reasons in the class description; on any other system not, since none was
+     * measured.
      *
      * @param os       the platform
      * @param property what {@link #PROPERTY} says, or null when it is not set; {@code true} or
@@ -95,7 +98,7 @@ final class GlCapabilitiesCache<C> {
         if ("false".equalsIgnoreCase(property)) {
             return false;
         }
-        return os == Platform.Os.MACOS || os == Platform.Os.LINUX;
+        return os == Platform.Os.MACOS || os == Platform.Os.LINUX || os == Platform.Os.WINDOWS;
     }
 
     /** Whether this cache keeps what it creates. */
