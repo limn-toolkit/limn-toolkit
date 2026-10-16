@@ -282,6 +282,16 @@ class ImageViewAnimationTest {
         assertTrue(view.isPlaying(), "given more turns, it goes on");
     }
 
+    /** One handler slot, as every widget's: a second handler throws, and null clears it. */
+    @Test
+    void aSecondFinishedHandlerIsRefusedAndNullClearsTheSlot() {
+        view.onFinished(() -> { });
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+                () -> view.onFinished(() -> { }));
+        view.onFinished(null);
+        view.onFinished(() -> { });
+    }
+
     @Test
     void aStillImageIsDrawnAsItIsAndAViewKeepsWhatItWasToldForTheNextImage() {
         Image still = new Image(2, 2, new byte[16]);
