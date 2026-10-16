@@ -11,7 +11,9 @@ import java.util.Objects;
  *
  * <p>A literal is written when the position after it is filled, never before: a field holding
  * {@code 123} under {@code 000.000} shows {@code 123}, and the dot arrives with the fourth digit.
- * Backspace therefore never leaves a literal dangling at the end.
+ * Backspace therefore never leaves a literal dangling at the end. The literals that end the pattern
+ * have no position after them, so they arrive with the last one: {@code (00)} holding {@code 12}
+ * shows {@code (12)}, the text a complete value has.
  *
  * <p><b>Not API</b>: see the package.
  */
@@ -105,6 +107,7 @@ public final class InputMask {
         StringBuilder raw = new StringBuilder(slots);
         StringBuilder pending = new StringBuilder();
         int rawBeforeCaret = 0;
+        int filled = 0;
         int newCaret = 0;
         int at = 0;
         int p = 0;
@@ -135,6 +138,20 @@ public final class InputMask {
             p++;
             if (beforeCaret) {
                 rawBeforeCaret++;
+                newCaret = out.length();
+            }
+            filled++;
+        }
+        if (filled == slots) {
+            // No position follows the literals that end the pattern, so they arrive with the last
+            // one: a complete value is the pattern's text, "(12)" and not "(12". What the loop
+            // already met is in pending; whatever it did not reach is literal too.
+            out.append(pending);
+            for (; p < codePoints.length; p++) {
+                out.appendCodePoint(codePoints[p]);
+            }
+            if (rawBeforeCaret == slots && caret >= text.length()) {
+                // Typed at the end, the caret ends the text, as it passes a literal mid-pattern.
                 newCaret = out.length();
             }
         }

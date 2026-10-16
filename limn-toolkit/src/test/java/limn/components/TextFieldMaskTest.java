@@ -112,6 +112,28 @@ class TextFieldMaskTest extends AccessibleComponentTestBase {
     }
 
     @Test
+    void aPatternThatEndsInALiteralShowsItOnceTheLastPositionIsFilled() {
+        bindField("(00)");
+        field.requestFocus();
+        type("12");
+        assertEquals("(12)", field.text(), "the text as shown is the pattern's");
+        assertTrue(field.isMaskComplete());
+        assertEquals("12", field.unmaskedText());
+        assertEquals(4, field.caretPosition());
+        scene.requestFocus(null);
+        assertEquals("(12)", field.text(), "the same without the keyboard");
+        field.requestFocus();
+        drive(scene).press(Keys.BACKSPACE);
+        assertEquals("(1", field.text(), "Backspace at the end steps over the closing literal");
+        drive(scene).press(Keys.Z, COMMAND);
+        assertEquals("(12)", field.text(), "one undo puts the digit and its literal back");
+
+        TextField weight = new TextField().setMask("00 kg");
+        weight.setText("12");
+        assertEquals("12 kg", weight.text(), "from code too");
+    }
+
+    @Test
     void deleteBeforeALiteralTakesTheDigitAfterIt() {
         bindField("000.000");
         field.requestFocus();

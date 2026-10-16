@@ -226,7 +226,8 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * Fits what is typed to a pattern: {@code 0} takes a digit, {@code A} a letter, {@code *} any
      * character, and every other character is a literal the field writes by itself as the next
      * position is filled, so {@code "000.000.000-00"} turns {@code 12345678900} into
-     * {@code 123.456.789-00}. Characters a position does not take are passed over, and pasting a
+     * {@code 123.456.789-00}; the literals that end a pattern arrive with its last position, so
+     * {@code "00 kg"} turns {@code 12} into {@code 12 kg}. Characters a position does not take are passed over, and pasting a
      * value with its literals or without them comes out the same. While the field has the
      * keyboard, the positions still to fill show as a guide ({@code ___.___.___-__}); without it,
      * an empty field shows its placeholder. A reader hears the pattern as the field's description.

@@ -30,6 +30,22 @@ class InputMaskTest {
     }
 
     @Test
+    void theLiteralsThatEndThePatternArriveWithTheLastPosition() {
+        InputMask area = InputMask.of("(00)");
+        assertEquals("(1", area.conform("1", 1).text(), "not before the last position is filled");
+        assertEquals("(12)", area.conform("12", 2).text());
+        assertEquals(4, area.conform("12", 2).caret(), "typed at the end: the caret ends the text");
+        assertEquals("(12)", area.conform("(12)", 4).text(), "and taken from the text when there");
+        assertEquals("12", area.conform("(12)", 4).raw());
+        assertTrue(area.isComplete("(12)"));
+        InputMask weight = InputMask.of("00 kg");
+        assertEquals("12 kg", weight.conform("12", 0).text());
+        assertEquals(0, weight.conform("12", 0).caret());
+        assertEquals("12 kg", weight.conform("12 kg", 5).text());
+        assertEquals("1", weight.conform("1", 1).text());
+    }
+
+    @Test
     void whatAPositionDoesNotTakeIsPassedOverAndWhatDoesNotFitIsDropped() {
         assertEquals("123.4", CODE.conform("1a2 3-4", 7).text());
         assertEquals("123.456.789-01", CODE.conform("1234567890123", 13).text());

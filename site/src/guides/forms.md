@@ -73,7 +73,8 @@ TextField serial = new TextField().setPlaceholder("Serial number").setMask("AAA-
 ```
 
 `0` takes a digit, `A` a letter and `*` any character; every other character of the pattern is a
-literal the field writes by itself when the next position is filled. Characters a position does
+literal the field writes by itself when the next position is filled, and the literals that end
+the pattern arrive with its last position (`00 kg` shows `12 kg`). Characters a position does
 not take are passed over, so pasting `KLM-4217-X9` and pasting `KLM4217X9` give the same text,
 and Backspace after a literal takes the character before it. While the field has the keyboard
 the positions still to fill show after the text as a guide, `KLM-42__-__`; without it, an empty
