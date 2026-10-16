@@ -82,7 +82,7 @@ public final class Images {
      *
      * <p>An SVG is drawn at its own size, one pixel to one of its units, by the installed SVG
      * renderer, and shows only the pictures it embeds: read from a file through
-     * {@link SvgIcon#fromFile}, it shows those beside it too, and an {@link SvgIcon} is what draws
+     * {@link SvgIcon#load}, it shows those beside it too, and an {@link SvgIcon} is what draws
      * one sharp at any size.
      */
     public static Image decode(byte[] fileBytes) {

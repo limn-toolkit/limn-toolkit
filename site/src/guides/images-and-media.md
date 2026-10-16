@@ -84,7 +84,7 @@ renderer refuses draws nothing and says why in the log, once.
 
 ### SVG
 
-An `SvgIcon` draws any SVG: `SvgIcon.of(text)`, `fromResource(path)`, or `fromFile(path)`, whose
+An `SvgIcon` draws any SVG: `SvgIcon.of(text)`, `fromResource(path)`, or `load(path)`, whose
 pictures beside it in its own folder are shown too. Gradients, patterns, clipping, masks,
 markers, style sheets and text are drawn; text in the faces the toolkit bundles and in those the
 system has. Of any aspect, it is fitted into the box it is given. An illustration that should fill
