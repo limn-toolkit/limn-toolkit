@@ -191,6 +191,20 @@ class AccessLetterDispatchTest extends AccessibleComponentTestBase {
     }
 
     @Test
+    void theLettersStayShownWhereTheSystemAsksForUnderlines() {
+        show(new Button("&Save"));
+        limn.scene.SystemPreferences was = limn.scene.SystemPreferences.current();
+        try {
+            limn.scene.SystemPreferences.report(new limn.scene.SystemPreferences(
+                    limn.scene.SystemPreferences.ColorScheme.NO_PREFERENCE, false, false, true));
+            assertTrue(SceneAccess.accessLettersShown(scene), "Windows' underline-access-keys setting");
+        } finally {
+            limn.scene.SystemPreferences.report(was);
+        }
+        assertFalse(SceneAccess.accessLettersShown(scene));
+    }
+
+    @Test
     void macOSHasNone() {
         AccessLetterSystem.setPresentForTests(false);
         AtomicInteger saved = new AtomicInteger();

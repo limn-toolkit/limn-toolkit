@@ -94,7 +94,8 @@ final class TrayMenu {
             int modifiers = item.accelerator() == null ? 0 : item.accelerator().modifiers();
             switch (kind) {
                 case CHECK -> out.add(new MenuRow(id, MenuRow.Kind.CHECK, label, item.isEnabled(),
-                        item.isChecked(), item.mnemonic(), List.of(), item.icon(), key, modifiers));
+                        item.isChecked(), item.mnemonic(), List.of(), item.icon(), key, modifiers)
+                        .withMnemonicIndex(item.mnemonicIndex()));
                 case SUBMENU -> {
                     Menu submenu = bridge.submenu(item);
                     // A menu that is its own ancestor, or one deeper than anybody opens, opens nothing.
@@ -102,12 +103,13 @@ final class TrayMenu {
                             || above.size() >= MAX_DEPTH ? List.of() : read(submenu, above);
                     out.add(new MenuRow(id, MenuRow.Kind.SUBMENU, label,
                             item.isEnabled() && !children.isEmpty(), false, item.mnemonic(), children,
-                            item.icon(), "", 0));
+                            item.icon(), "", 0).withMnemonicIndex(item.mnemonicIndex()));
                 }
                 // An item of an editing role acts on the widget with the keyboard, and a tray has none.
                 default -> out.add(new MenuRow(id, MenuRow.Kind.COMMAND, label,
                         item.role().editCommand() == null && item.isEnabled(), false,
-                        item.mnemonic(), List.of(), item.icon(), key, modifiers));
+                        item.mnemonic(), List.of(), item.icon(), key, modifiers)
+                        .withMnemonicIndex(item.mnemonicIndex()));
             }
         }
         above.remove(above.size() - 1);

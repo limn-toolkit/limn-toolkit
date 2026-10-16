@@ -3172,7 +3172,8 @@ public final class Scene {
         limn.scene.internal.SceneAccess.install(new limn.scene.internal.SceneAccess.Hook() {
             @Override
             public boolean accessLettersShown(Scene scene) {
-                return scene.accessLettersShown;
+                // While Alt is held, or always where the user asked the system for underlines.
+                return scene.accessLettersShown || SystemPreferences.current().underlineAccessKeys();
             }
 
             @Override

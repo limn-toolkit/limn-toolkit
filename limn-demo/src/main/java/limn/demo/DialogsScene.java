@@ -598,9 +598,9 @@ final class DialogsScene {
                     .addSeparator()
                     .add(MenuItem.submenu(Text.SORT_BY, sortMenu.get()));
         };
-        // The keyboard's route (the Menu key, Shift+F10) and an assistive technology's are the
-        // region's; the pointer's is the frame's below, which opens at the pointer.
-        Widget<?> folder = ContextMenus.attach(new PointerMenu(list, fileMenu), fileMenu);
+        // The region answers the pointer, the keyboard (the Menu key, Shift+F10) and an assistive
+        // technology alike, opening the menu at the pointer for the first.
+        Widget<?> folder = ContextMenus.attach(list, fileMenu);
         list.setSelectedIndex(0);
 
         Column page = Page.column();
@@ -653,31 +653,6 @@ final class DialogsScene {
                     files.setSelectedIndex(index);
                 }
                 // Not consumed: the press goes on to the region that opens the menu.
-            }
-        }
-    }
-
-    /**
-     * Opens the menu at the pointer on a right press anywhere in its content. {@code
-     * ContextMenus.attach} does the same, but places the menu as far from the pointer as the
-     * region is from the window's corner: it hands a pointer position, which is in the scene's
-     * coordinates, to a call that takes the region's own. Until that is mended the press is
-     * taken here, a step before the region, with the point converted.
-     */
-    private static final class PointerMenu extends Padding {
-
-        private final Supplier<Menu> menu;
-
-        PointerMenu(Widget<?> content, Supplier<Menu> menu) {
-            super(Insets.all(0), content);
-            this.menu = menu;
-        }
-
-        @Override
-        protected void onMouseEvent(MouseEvent event) {
-            if (ContextMenus.isRequest(event)) {
-                event.consume();
-                ContextMenus.showAt(this, menu.get(), sceneToLocalX(event.x()), sceneToLocalY(event.y()));
             }
         }
     }

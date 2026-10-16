@@ -87,7 +87,8 @@ that needs nothing from the application.
 - **Windows and Linux:** while Alt is held, and in a menu opened from the keyboard (Alt, F10,
   Alt+letter, the Menu key). Released, it goes. This is what both systems do by default.
   - A setting to always show it (Windows has one, under keyboard accessibility) is followed
-    where the system answers; otherwise the default holds.
+    where the system answers: `SystemPreferences.underlineAccessKeys()`, read from Windows'
+    `SPI_GETKEYBOARDCUES`. The other systems report none, and the default holds.
 - **macOS:** never.
   - Option+letter keeps typing its character, and nothing is activated.
   - A CJK string's trailing "(&F)" is dropped whole, parentheses included, as Japanese and

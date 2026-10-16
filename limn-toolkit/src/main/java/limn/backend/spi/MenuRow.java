@@ -31,10 +31,38 @@ import org.jspecify.annotations.Nullable;
  *                 chosen through the window that has the keyboard, by
  *                 {@link WindowInput#canEditFocused} and {@link WindowInput#editFocused}, and {@code enabled}
  *                 says only whether the application disabled the item
+ * @param mnemonicIndex where in {@code label} the access letter is, as the text marked it, or
+ *                 {@code -1} for the first occurrence of {@code mnemonic}
  */
 public record MenuRow(int id, Kind kind, String label, boolean enabled, boolean checked, char mnemonic,
         List<MenuRow> children, @Nullable Icon icon, String shortcutKey, int shortcutModifiers,
-        @Nullable EditCommand edit) {
+        @Nullable EditCommand edit, int mnemonicIndex) {
+
+    /** A row whose access letter is the first occurrence of {@code mnemonic} in its label. */
+    public MenuRow(int id, Kind kind, String label, boolean enabled, boolean checked, char mnemonic,
+            List<MenuRow> children, @Nullable Icon icon, String shortcutKey, int shortcutModifiers,
+            @Nullable EditCommand edit) {
+        this(id, kind, label, enabled, checked, mnemonic, children, icon, shortcutKey, shortcutModifiers,
+                edit, -1);
+    }
+
+    /** This row with its access letter where the text marked it: {@code index} into the label. */
+    public MenuRow withMnemonicIndex(int index) {
+        return new MenuRow(id, kind, label, enabled, checked, mnemonic, children, icon, shortcutKey,
+                shortcutModifiers, edit, index);
+    }
+
+    /**
+     * Where the access letter goes in the label: the marked place when the text marked one, else
+     * the first occurrence of the letter, else {@code -1}. The one answer each system's menu reads.
+     */
+    public int mnemonicAt() {
+        if (mnemonicIndex >= 0 && mnemonicIndex < label.length()) {
+            return mnemonicIndex;
+        }
+        return mnemonic == 0 ? -1
+                : label.toUpperCase(java.util.Locale.ROOT).indexOf(Character.toUpperCase(mnemonic));
+    }
 
     /** A row that is no editing command. */
     public MenuRow(int id, Kind kind, String label, boolean enabled, boolean checked, char mnemonic,

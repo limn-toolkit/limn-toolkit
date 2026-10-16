@@ -660,10 +660,7 @@ final class WindowsTray implements TrayPeer {
      */
     static String label(MenuRow row) {
         String text = row.label();
-        int at = -1;
-        if (row.mnemonic() != 0) {
-            at = text.toUpperCase(java.util.Locale.ROOT).indexOf(Character.toUpperCase(row.mnemonic()));
-        }
+        int at = row.mnemonicAt();
         StringBuilder out = new StringBuilder(text.length() + 4);
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);

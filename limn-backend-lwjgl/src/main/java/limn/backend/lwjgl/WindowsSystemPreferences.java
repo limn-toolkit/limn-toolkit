@@ -42,6 +42,8 @@ final class WindowsSystemPreferences {
     private static final int WM_THEMECHANGED = 0x031A;
     private static final int SPI_GETHIGHCONTRAST = 0x0042;
     private static final int SPI_GETCLIENTAREAANIMATION = 0x1042;
+    /** "Underline access keys when available": TRUE keeps them shown, FALSE waits for Alt. */
+    private static final int SPI_GETKEYBOARDCUES = 0x100A;
     private static final int HCF_HIGHCONTRASTON = 0x1;
     /** {@code HIGHCONTRASTW}: cbSize, dwFlags, then the scheme's name, pointer-aligned. */
     private static final int HIGHCONTRAST_SIZE = 16;
@@ -83,7 +85,7 @@ final class WindowsSystemPreferences {
 
     /** @return what Windows says now */
     static SystemPreferences read() {
-        return new SystemPreferences(scheme(), !clientAreaAnimation(), highContrast());
+        return new SystemPreferences(scheme(), !clientAreaAnimation(), highContrast(), keyboardCues());
     }
 
     private static ColorScheme scheme() {
@@ -137,6 +139,15 @@ final class WindowsSystemPreferences {
             int ok = JNI.invokePPPPI(SPI_GETCLIENTAREAANIMATION, 0L, MemoryUtil.memAddress(on), 0L,
                     SYSTEM_PARAMETERS_INFO);
             return ok == 0 || on.get(0) != 0;
+        }
+    }
+
+    private static boolean keyboardCues() {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            IntBuffer on = stack.ints(0);
+            int ok = JNI.invokePPPPI(SPI_GETKEYBOARDCUES, 0L, MemoryUtil.memAddress(on), 0L,
+                    SYSTEM_PARAMETERS_INFO);
+            return ok != 0 && on.get(0) != 0;
         }
     }
 

@@ -29,11 +29,18 @@ import java.util.Objects;
  * {@code enable-animations} where the portal has no reduced-motion key. A platform that cannot say
  * reports {@link ColorScheme#NO_PREFERENCE} and {@code false}, as Ubuntu's default appearance does.
  *
- * @param colorScheme      the appearance the user chose, or {@link ColorScheme#NO_PREFERENCE}
- * @param reduceMotion     whether the user asked for less motion
- * @param increaseContrast whether the user asked for more contrast
+ * <p>The toolkit also follows {@link #underlineAccessKeys()}: while it is set, the access letters
+ * of menus, buttons and labels stay underlined, where otherwise they show only while Alt is held.
+ * Windows answers it (the keyboard setting to underline access keys); the other systems report
+ * {@code false}.
+ *
+ * @param colorScheme         the appearance the user chose, or {@link ColorScheme#NO_PREFERENCE}
+ * @param reduceMotion        whether the user asked for less motion
+ * @param increaseContrast    whether the user asked for more contrast
+ * @param underlineAccessKeys whether the user asked for access keys to be underlined at all times
  */
-public record SystemPreferences(ColorScheme colorScheme, boolean reduceMotion, boolean increaseContrast) {
+public record SystemPreferences(ColorScheme colorScheme, boolean reduceMotion, boolean increaseContrast,
+        boolean underlineAccessKeys) {
 
     /** A light or dark appearance, or none chosen. */
     public enum ColorScheme {
@@ -53,7 +60,7 @@ public record SystemPreferences(ColorScheme colorScheme, boolean reduceMotion, b
 
     /** No preference, no reduced motion, no increased contrast: what a platform that says nothing reports. */
     public static final SystemPreferences NONE =
-            new SystemPreferences(ColorScheme.NO_PREFERENCE, false, false);
+            new SystemPreferences(ColorScheme.NO_PREFERENCE, false, false, false);
 
     private static volatile SystemPreferences current = NONE;
 
@@ -67,6 +74,18 @@ public record SystemPreferences(ColorScheme colorScheme, boolean reduceMotion, b
      */
     public SystemPreferences {
         Objects.requireNonNull(colorScheme, "colorScheme");
+    }
+
+    /**
+     * Preferences with access keys underlined only while Alt is held: what every system but
+     * Windows reports.
+     *
+     * @param colorScheme      the appearance; never {@code null}
+     * @param reduceMotion     whether less motion is asked for
+     * @param increaseContrast whether more contrast is asked for
+     */
+    public SystemPreferences(ColorScheme colorScheme, boolean reduceMotion, boolean increaseContrast) {
+        this(colorScheme, reduceMotion, increaseContrast, false);
     }
 
     /**
