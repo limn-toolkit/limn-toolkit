@@ -250,6 +250,9 @@ public final class SvgAnimation {
     }
 
     private static void set(SvgRenderer.Document document, Applied applied, String id, String attribute, String value) {
+        if (SvgSource.isReference(attribute)) {
+            return; // never set, whoever asks: what the renderer opens as a path is the sanitizer's alone
+        }
         String key = id + '\u0000' + attribute;
         if (!value.equals(applied.written.get(key))) {
             document.setAttribute(id, attribute, value);
@@ -366,8 +369,8 @@ public final class SvgAnimation {
                 return;
             }
             name = name.trim();
-            if (name.startsWith("xlink:")) {
-                return; // a reference does not move
+            if (name.startsWith("xlink:") || SvgSource.isReference(name)) {
+                return; // a reference does not move: the renderer would open what it moved to as a path
             }
             Timing timing = Timing.smil(animation);
             if (timing == null) {
@@ -552,6 +555,8 @@ public final class SvgAnimation {
                         slot.css.add(new CssTrack(animation, frames, property, base, box, origin));
                     } else if (property.equals("offset-distance") || property.startsWith("animation")) {
                         continue; // motion along a path, and the animation's own properties: not played
+                    } else if (SvgSource.isReference(property)) {
+                        continue; // a reference does not move, from a keyframe either
                     } else {
                         Slot slot = slot(element, id, property, true);
                         slot.tracks.add(new CssTrack(animation, frames, property, slot.base, box, origin));

@@ -109,6 +109,23 @@ class SvgSourceTest {
                 "a link that leads out of the folder");
     }
 
+    /**
+     * The renderer opens a picture's reference as a path whatever it holds: a fragment names a file
+     * in the process's folder, and anything var() or an animation writes after the cleaning is
+     * looked at again before the renderer is given it.
+     */
+    @Test
+    void aPictureShowsNothingButAPngTheToolkitWroteWhateverRewritesItsReference() {
+        String out = clean("<svg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' width='4' height='4'>"
+                + "<image href='#/../../outside.png' width='2' height='2'/>"
+                + "<image xlink:href='#r' width='2' height='2'/>"
+                + "<g style='--p: /../../outside.png'><image href='#var(--p)' width='2' height='2'/></g>"
+                + "<image width='2' height='2'><set attributeName='href' to='/etc/outside.png'/></image>"
+                + "<rect id='r' width='1' height='1'/><use href='#r'/></svg>", null);
+        assertFalse(out.matches("(?s).*<image[^>]*href.*"), out);
+        assertTrue(out.contains("<use href=\"#r\"/>"), "a reference to an element of the file stays: " + out);
+    }
+
     @Test
     void anEmbeddedPictureIsReadByTheToolkitAndOneItCannotReadIsDropped() {
         String embedded = "data:image/png;base64," + Base64.getMimeEncoder().encodeToString(png());

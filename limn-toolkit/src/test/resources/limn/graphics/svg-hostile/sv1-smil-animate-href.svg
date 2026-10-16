@@ -1,0 +1,1 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10'><image width='10' height='10'><animate attributeName='href' values='\\host\share\a.png;/x.png;C:\Users\Public\a.png' dur='1s' calcMode='discrete' repeatCount='indefinite'/></image></svg>

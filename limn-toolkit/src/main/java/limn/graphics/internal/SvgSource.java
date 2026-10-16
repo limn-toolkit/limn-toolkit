@@ -26,7 +26,9 @@ import org.jspecify.annotations.Nullable;
  * <ul>
  *   <li><b>Taken out:</b> scripts, {@code foreignObject}, media elements, every event attribute,
  *       and every reference that is not to an element of the same file. A renderer reads a path
- *       it is given; it is given none.</li>
+ *       it is given; it is given none, neither written in the file nor moved there by an
+ *       animation, and every reference is looked at again once the rest has rewritten the
+ *       file.</li>
  *   <li><b>Pictures</b> are read by the toolkit: one embedded as {@code data:}, and, for a file
  *       read from disk, one beside it, its address relative to the file's own folder and refused
  *       if it leads out. Each is decoded as any picture the toolkit reads, within the same
@@ -84,10 +86,14 @@ public final class SvgSource {
         if (!root.localName().equals("svg")) {
             throw SvgXml.refused("the root element is <" + root.name() + ">, not <svg>");
         }
-        new Sanitizer(folder).clean(root);
+        Sanitizer sanitizer = new Sanitizer(folder);
+        sanitizer.clean(root);
         CustomProperties.resolve(root);
         drawnElements(root);
         SvgAnimation animation = SvgAnimation.extract(root);
+        // var() and the animation's reading both rewrite attributes after the cleaning, so every
+        // reference is looked at once more in the text the renderer is about to be given.
+        sanitizer.vet(root);
         return new SvgSource(root, animation);
     }
 
@@ -187,6 +193,19 @@ public final class SvgSource {
         return total;
     }
 
+    /**
+     * Whether an attribute is a reference: {@code href}, plain or under a prefix. The renderer
+     * opens the reference of an {@code image} as a path to read, so what one holds is the
+     * sanitizer's to say and no one else's: an animation never moves one.
+     *
+     * @param attribute an attribute's name as written, or a CSS property's
+     * @return whether it is {@code href} or {@code <prefix>:href}, in any case
+     */
+    static boolean isReference(String attribute) {
+        String lower = attribute.trim().toLowerCase(Locale.ROOT);
+        return lower.equals("href") || lower.endsWith(":href");
+    }
+
     static @Nullable String href(SvgXml.Element element) {
         String href = element.attribute("href");
         return href != null ? href.trim() : element.attribute("xlink:href") == null ? null
@@ -198,6 +217,8 @@ public final class SvgSource {
     private static final class Sanitizer {
 
         private final @Nullable Path folder;
+        /** Every picture this sanitizer wrote, as the address it wrote: the only ones a picture may show. */
+        private final Set<String> written = new java.util.HashSet<>();
 
         Sanitizer(@Nullable Path folder) {
             this.folder = folder;
@@ -209,7 +230,7 @@ public final class SvgSource {
                 String lower = name.toLowerCase(Locale.ROOT);
                 if (lower.startsWith("on")) {
                     element.removeAttribute(i);
-                } else if (lower.equals("href") || lower.equals("xlink:href")) {
+                } else if (isReference(name)) {
                     String value = element.attributeValue(i).trim();
                     String kept = keep(element, value);
                     if (kept == null) {
@@ -234,12 +255,13 @@ public final class SvgSource {
 
         /** @return what an address becomes: itself for a reference inside the file, a PNG for a picture, or null to drop it */
         private @Nullable String keep(SvgXml.Element element, String href) {
-            if (href.startsWith("#")) {
-                return href;
+            if (!isPicture(element)) {
+                return href.startsWith("#") ? href : null; // another file's element: never read
             }
-            String local = element.localName();
-            if (!local.equals("image") && !local.equals("feImage")) {
-                return null; // another file's element: never read
+            if (href.startsWith("#")) {
+                // The renderer reads an image's reference as a path to open, a fragment too, which
+                // names a file in the process's own folder, and on Windows one anywhere through "..".
+                return null;
             }
             byte[] picture = href.regionMatches(true, 0, "data:", 0, 5) ? dataUri(href) : beside(href);
             if (picture == null) {
@@ -252,7 +274,35 @@ public final class SvgSource {
                 return null; // a picture the toolkit does not read is not drawn, as a browser would not
             }
             byte[] png = Images.encode(image, ImageFormat.PNG);
-            return "data:image/png;base64," + Base64.getEncoder().encodeToString(png);
+            String address = "data:image/png;base64," + Base64.getEncoder().encodeToString(png);
+            written.add(address);
+            return address;
+        }
+
+        private static boolean isPicture(SvgXml.Element element) {
+            String local = element.localName();
+            return local.equals("image") || local.equals("feImage");
+        }
+
+        /**
+         * Drops every reference the cleaning would not have kept: on a picture, anything but a PNG
+         * this sanitizer wrote; on any other element, anything but an element of the same file.
+         * The last pass over the document, after everything that rewrites its attributes, so that
+         * no path reaches the renderer by a road the cleaning did not walk (ADR 066 section 6).
+         */
+        void vet(SvgXml.Element element) {
+            boolean picture = isPicture(element);
+            for (int i = element.attributeCount() - 1; i >= 0; i--) {
+                if (isReference(element.attributeName(i))) {
+                    String value = element.attributeValue(i).trim();
+                    if (picture ? !written.contains(value) : !value.startsWith("#")) {
+                        element.removeAttribute(i);
+                    }
+                }
+            }
+            for (SvgXml.Element child : element.elements()) {
+                vet(child);
+            }
         }
 
         private static byte @Nullable [] dataUri(String href) {

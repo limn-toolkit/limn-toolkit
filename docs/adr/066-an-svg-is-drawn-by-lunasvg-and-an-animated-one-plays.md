@@ -173,6 +173,13 @@ As ADR 061 asks of everything the toolkit reads itself:
   reference outside the file, since lunasvg reads a path it is given; and every CSS custom
   property resolved, the value an ancestor's `style` or a sheet's rule for the whole document
   declares, or else the fallback, since lunasvg reads no `var()`.
+  **Amended 2026-10-16, after that day's audit:** the animation reading carried an animated
+  `href` (SMIL's `attributeName="href"`, a keyframe's `href`) to lunasvg, which opens an
+  `image`'s reference as a path whatever it holds, so an SVG from bytes drew any picture on the
+  disk. No animation moves a reference now, an `image`'s fragment reference (which lunasvg also
+  opens as a path) is dropped, and every reference is looked at once more after `var()` and the
+  animation reading have rewritten the document: lunasvg is given a PNG the toolkit wrote or a
+  reference to an element of the file, and nothing else.
 - **A picture beside a file read from disk is read by the toolkit,** as the owner chose: an
   image's `href` relative to the SVG's own folder, resolved there, refused if it leads out of
   that folder, read within the same ceilings as any picture and handed to lunasvg inside the

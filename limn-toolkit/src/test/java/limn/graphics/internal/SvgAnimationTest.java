@@ -166,6 +166,35 @@ class SvgAnimationTest {
         assertEquals(2, number(source.animation(), 500, "limn-anim-0.r"), 1e-9);
     }
 
+    /**
+     * The renderer opens an image's reference as a path, so an animation that moved one would read
+     * any picture on the disk into an SVG from bytes, which may show none (ADR 066 section 6).
+     */
+    @Test
+    void noAnimationMovesAReference() {
+        String[] moving = {
+            "<image width='4' height='4'><set attributeName='href' to='/etc/private.png'/></image>",
+            "<image width='4' height='4'><set attributeName=' HREF ' to='/etc/private.png'/></image>",
+            "<image width='4' height='4'><animate attributeName='href' values='\\\\host\\share\\a.png;/x.png' "
+                    + "dur='1s' calcMode='discrete' repeatCount='indefinite'/></image>",
+            "<image width='4' height='4'><set attributeName='xlink:href' to='/etc/private.png'/></image>",
+            "<style>@keyframes k { from { href: /etc/private.png } to { href: /etc/private.png } }"
+                    + " image { animation: k 1s infinite }</style><image width='4' height='4'/>",
+        };
+        for (String body : moving) {
+            SvgAnimation animation = source(SVG + body + "<rect width='1' height='1'><animate attributeName='x' "
+                    + "from='0' to='1' dur='1s' repeatCount='indefinite'/></rect></svg>").animation();
+            assertNotNull(animation, body);
+            for (double millis : new double[] {0, 250, 500, 999}) {
+                Recording document = new Recording();
+                animation.apply(document, new SvgAnimation.Applied(), millis);
+                for (String key : document.attributes.keySet()) {
+                    assertFalse(key.toLowerCase(java.util.Locale.ROOT).endsWith("href"), body + " set " + key);
+                }
+            }
+        }
+    }
+
     // ----------------------------------------------------------------------------- CSS
 
     @Test
