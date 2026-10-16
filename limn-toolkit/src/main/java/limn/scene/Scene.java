@@ -3181,6 +3181,11 @@ public final class Scene {
             }
 
             @Override
+            public void pressFocus(Widget<?> widget, limn.scene.internal.PressFocus filter) {
+                widget.pressFocus = filter;
+            }
+
+            @Override
             public boolean accessLettersShown(Scene scene) {
                 // While Alt is held, or always where the user asked the system for underlines.
                 return scene.accessLettersShown || SystemPreferences.current().underlineAccessKeys();
@@ -3700,7 +3705,8 @@ public final class Scene {
             while (focusTarget != null && !focusTarget.isFocusable()) {
                 focusTarget = focusTarget.parent();
             }
-            if (focusTarget != null) {
+            if (focusTarget != null && (focusTarget.pressFocus == null
+                    || focusTarget.pressFocus.takesFocusAt(button.x, button.y))) {
                 setFocus(focusTarget, Change.Origin.USER); // click-to-focus
             }
             dispatchBubbling(pressed, new MouseEvent(

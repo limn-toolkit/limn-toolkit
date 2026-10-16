@@ -96,6 +96,8 @@ public final class SceneAccess {
 
         void ownAccessLetter(Widget<?> widget, AccessLetterOwner owner);
 
+        void pressFocus(Widget<?> widget, PressFocus filter);
+
         /**
          * @param scene a scene
          * @return how many keys other than a modifier were pressed in it, counted whoever took
@@ -173,6 +175,16 @@ public final class SceneAccess {
      */
     public static void ownAccessLetter(Widget<?> widget, AccessLetterOwner owner) {
         hook().ownAccessLetter(widget, owner);
+    }
+
+    /**
+     * Makes {@code filter} what the scene asks before a press moves the keyboard to {@code widget}.
+     *
+     * @param widget a focusable widget with a spot that acts without taking the keyboard
+     * @param filter where a press takes it
+     */
+    public static void pressFocus(Widget<?> widget, PressFocus filter) {
+        hook().pressFocus(widget, filter);
     }
 
     /**

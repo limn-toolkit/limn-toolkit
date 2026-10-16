@@ -99,6 +99,10 @@ class SceneDriverTest extends ComponentTestBase {
             }
 
             @Override
+            public void pressFocus(Widget<?> widget, limn.scene.internal.PressFocus filter) {
+            }
+
+            @Override
             public boolean accessLettersShown(Scene scene) {
                 return false;
             }

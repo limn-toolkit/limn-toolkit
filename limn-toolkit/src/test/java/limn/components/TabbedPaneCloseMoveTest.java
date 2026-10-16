@@ -146,6 +146,38 @@ class TabbedPaneCloseMoveTest extends AccessibleComponentTestBase {
         assertSame(header(0), scene.focusedWidget(), "the keyboard is on the tab now selected");
     }
 
+    /**
+     * A press on the close button leaves the keyboard in the page: a close refused (an unsaved
+     * document kept) finds it where the user was typing. It moved to the tab, and a dialog that
+     * asked returned it there.
+     */
+    @Test
+    void theCloseButtonLeavesTheKeyboardInThePage() {
+        bindPane(true, LayoutDirection.LTR);
+        List<TabbedPane.TabCloseRequest> asked = new ArrayList<>();
+        pane.onTabClose(asked::add);
+        Widget<?> page = buttonNamed(pane, "Alpha page");
+        scene.requestFocus(page);
+        click(Keys.MOUSE_LEFT, closeX(0), middleY());
+        assertEquals(1, asked.size());
+        assertSame(page, scene.focusedWidget(), "the press on the close button took no keyboard");
+        asked.get(0).refuse();
+        assertSame(page, scene.focusedWidget());
+    }
+
+    private static Widget<?> buttonNamed(Widget<?> at, String text) {
+        if (at instanceof Button button && text.equals(button.text())) {
+            return button;
+        }
+        for (Widget<?> child : at.children()) {
+            Widget<?> found = buttonNamed(child, text);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
+    }
+
     @Test
     void aRefusedCloseKeepsTheTabAndAPendingOneIsNotAskedAgain() {
         bindPane(true, LayoutDirection.LTR);

@@ -2401,6 +2401,10 @@ public final class TabbedPane extends Widget<TabbedPane> {
         }
 
         TabHeader(I18nString title, Icon icon, Icon.Mirroring iconMirroring, int index) {
+            // A press on the close button closes the tab and leaves the keyboard where it was,
+            // so a close refused (an unsaved document kept) finds it still in the document.
+            limn.scene.internal.SceneAccess.pressFocus(this,
+                    (x, y) -> !overClose(sceneToLocalX(x), sceneToLocalY(y)));
             this.title = title;
             this.icon = icon;
             this.iconMirroring = iconMirroring;
