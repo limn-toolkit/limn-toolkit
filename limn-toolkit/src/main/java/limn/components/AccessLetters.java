@@ -128,14 +128,16 @@ final class AccessLetters {
     }
 
     /**
-     * How {@code letter}'s chord is said to a reader, "Alt+S", or {@code null} where it cannot be:
-     * no letter, macOS, or a code outside printable ASCII, which Accelerator would name "Key1060".
+     * How {@code letter}'s chord is said to a reader, "Alt+S" or "Alt+Ф", or {@code null} where
+     * there is none: no letter, or macOS. Written from the letter itself and not through an
+     * {@link Accelerator}, which names a key by its code and would call a Cyrillic, Hebrew or
+     * accented letter "Key1060".
      */
     static @Nullable String binding(char letter) {
-        if (!onThisSystem() || letter <= 32 || letter >= 127) {
+        if (!onThisSystem() || letter == 0) {
             return null;
         }
-        return new Accelerator(letter, limn.input.Keys.MOD_ALT).display();
+        return Accelerator.modifiersDisplay(limn.input.Keys.MOD_ALT) + letter;
     }
 
     /**

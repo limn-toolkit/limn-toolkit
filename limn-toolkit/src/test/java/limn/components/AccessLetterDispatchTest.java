@@ -346,4 +346,19 @@ class AccessLetterDispatchTest extends AccessibleComponentTestBase {
         assertNotNull(binding, describe(tree()));
         assertTrue(binding.endsWith("S"), binding);
     }
+
+    /**
+     * A letter outside ASCII is a key a reader is told of too: the chord was built through an
+     * accelerator, which has no name for a Cyrillic, Hebrew or accented letter, and five of the
+     * Showcase's languages published no access key at all.
+     */
+    @Test
+    void aLetterOfAnyScriptIsTheKeyAReaderIsTold() {
+        show(new Button("&Файл"), new Button("&Éditer"), new Button("&מסמך"));
+        for (String[] pair : new String[][] {{"Файл", "Ф"}, {"Éditer", "É"}, {"מסמך", "מ"}}) {
+            String binding = node(pair[0]).actions().accessKey();
+            assertNotNull(binding, pair[0] + describe(tree()));
+            assertEquals(limn.components.Accelerator.modifiersDisplay(Keys.MOD_ALT) + pair[1], binding);
+        }
+    }
 }
