@@ -115,6 +115,10 @@ The letter is published as the control's access key, where each bridge has one:
 - UI Automation `AccessKey` ("Alt+A");
 - AT-SPI's key binding.
 
+A menu row's key is its letter alone ("L"), since in an open menu the letter is pressed without
+Alt, as a native menu item's access key reads; its accelerator stays beside it. (Amended
+2026-10-16: rows published only the accelerator, and were named with the mark in their text.)
+
 macOS has none. The tray menu keeps passing the letter to the native menu, which marks it the
 system's way.
 

@@ -706,6 +706,41 @@ class AccessLetterDispatchTest extends AccessibleComponentTestBase {
                 describe(tree()));
     }
 
+    /**
+     * A menu row is named by its words and publishes its letter as its access key, beside its
+     * accelerator: a row published only the accelerator, so a reader never heard the letter that
+     * chooses it, which a native menu item's access key gives.
+     */
+    @Test
+    void aMenuRowPublishesItsLetterBesideItsAccelerator() {
+        MenuItem save = MenuItem.of("Sa&lvar", () -> { })
+                .setAccelerator(Accelerator.of(Keys.S, Keys.MOD_CONTROL));
+        MenuBar bar = new MenuBar().setDisplayMode(DisplayMode.IN_SCENE)
+                .addMenu("&Arquivo", new Menu().add(save).addItem("Fechar", () -> { }));
+        show(bar);
+        altAnd(Keys.A);
+        assertTrue(bar.isOpen());
+
+        AccessibleNodeView row = null;
+        AccessibleNodeView plain = null;
+        for (int i = 0; i < tree().nodeCount(); i++) {
+            limn.accessibility.AccessibleNode node = tree().node(i);
+            if (node.role() == limn.accessibility.Accessible.Role.MENU_ITEM && "Salvar".equals(node.name())) {
+                row = new AccessibleNodeView(node);
+            } else if (node.role() == limn.accessibility.Accessible.Role.MENU_ITEM && "Fechar".equals(node.name())) {
+                plain = new AccessibleNodeView(node);
+            }
+        }
+        assertNotNull(row, "the row is named by its words, the mark taken out" + describe(tree()));
+        assertEquals("L", row.node.actions().accessKey(), "the letter, which chooses it in the open menu");
+        assertEquals(Accelerator.of(Keys.S, Keys.MOD_CONTROL).display(), row.node.actions().keyBinding());
+        assertNotNull(plain, describe(tree()));
+        assertNull(plain.node.actions().accessKey(), "a row with no letter has no key");
+    }
+
+    private record AccessibleNodeView(limn.accessibility.AccessibleNode node) {
+    }
+
     @Test
     void aReaderHearsTheWordAndTheChord() {
         show(new Button("&Save"));

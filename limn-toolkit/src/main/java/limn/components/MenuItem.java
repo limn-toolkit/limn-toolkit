@@ -221,12 +221,47 @@ public final class MenuItem {
         if (!raw.equals(markedFrom)) {
             markedFrom = raw;
             markedText = AccessLetters.parse(raw);
+            markedWitness++;
         }
         return markedText;
     }
 
     private String markedFrom;
     private AccessLetters.Parsed markedText;
+    /** Changes whenever {@link #label()} does: what the row's accessible name is diffed by. */
+    private long markedWitness;
+    private char keyLetter;
+    private @Nullable String key;
+
+    /**
+     * Read by the menu's accessible row, which names it by the words and not by the source, whose
+     * mark a reader would hear spelled out: {@link #label()}, held until it changes.
+     */
+    @Nullable String labelForReader() {
+        return label == null ? null : marked().text();
+    }
+
+    /** @return a value that changes whenever {@link #labelForReader()} does */
+    long labelWitness() {
+        if (label != null) {
+            marked();
+        }
+        return markedWitness;
+    }
+
+    /**
+     * The access letter as a reader is told of it: in an open menu it is pressed alone, so "L"
+     * and not "Alt+L", as a native menu item's access key reads. {@code null} for none, and on
+     * macOS, which has no access letters. Held until the letter changes.
+     */
+    @Nullable String accessKey() {
+        char letter = mnemonic();
+        if (letter != keyLetter) {
+            keyLetter = letter;
+            key = letter == 0 ? null : String.valueOf(letter);
+        }
+        return AccessLetters.onThisSystem() ? key : null;
+    }
 
     /** The localizable value behind {@link #label()}; {@code null} for a separator. */
     public @Nullable I18nString labelSource() {
