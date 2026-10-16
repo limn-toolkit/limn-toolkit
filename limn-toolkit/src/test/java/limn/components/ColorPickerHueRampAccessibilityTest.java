@@ -342,11 +342,11 @@ class ColorPickerHueRampAccessibilityTest extends AccessibleComponentTestBase {
             shape.add(child.role() + " \"" + child.name() + "\"");
         }
         assertEquals(List.of(
-                        "CANVAS \"Saturation and value\"",
-                        "SLIDER \"Hue\"",
                         "IMAGE \"Colour #FFFFFF, was #FFFFFF\"",
                         "LABEL \"#\"",
                         "TEXT_FIELD \"Hex\"",
+                        "CANVAS \"Saturation and value\"",
+                        "SLIDER \"Hue\"",
                         "TAB_LIST \"\"",
                         "BUTTON \"Previous tabs\"",
                         "BUTTON \"Next tabs\"",
@@ -358,10 +358,9 @@ class ColorPickerHueRampAccessibilityTest extends AccessibleComponentTestBase {
                         "SLIDER \"A\"",
                         "SPIN_BUTTON \"A\""),
                 shape,
-                "the ramp is the second thing the chooser holds, behind the plane it sits beside: "
-                        + "the ramps row is the first thing in the column and the plane is the "
-                        + "first thing in that row; the token box, the row and the share around "
-                        + "them are all gone" + describe(tree()));
+                "the ramp follows the plane it sits beside: the ramps row follows the swatch's "
+                        + "row and the plane is the first thing in it; the token box, the row and the "
+                        + "share around them are all gone" + describe(tree()));
 
         for (int i = 0; i < tree().nodeCount(); i++) {
             AccessibleNode node = tree().node(i);

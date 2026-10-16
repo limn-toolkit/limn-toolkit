@@ -98,9 +98,8 @@ class ColorPickerTest extends ComponentTestBase {
     void draggingTheFieldPicksSaturationAndValue() {
         picker.setInitialColor(Color.rgb(0xFF0000));
         changes.clear();
-        // The saturation/value field is the first thing in the column, so its
-        // top-left corner is the widget's, and that corner is white.
-        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 2, 2);
+        // The saturation/value field's top-left corner, under the swatch's row, is white.
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 2, fieldTop() + 2);
         drive(scene).inputBatchEnded();
 
         Color chosen = picker.color();
@@ -113,10 +112,11 @@ class ColorPickerTest extends ComponentTestBase {
     void aDragReportsExactlyOneCommitCarryingTheSettledColour() {
         List<Color> committed = new ArrayList<>();
         picker.onCommit(committed::add);
-        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 20, 20);
-        drive(scene).mouseMoved(40, 40);
-        drive(scene).mouseMoved(60, 60);
-        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 60, 60);
+        float top = fieldTop();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 20, top + 20);
+        drive(scene).mouseMoved(40, top + 40);
+        drive(scene).mouseMoved(60, top + 60);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 60, top + 60);
         drive(scene).inputBatchEnded();
         assertEquals(1, committed.size(), "an undo gesture must close once, not once per move");
         // The decision, not a preview: what onCommit carries is what the picker is left showing,
@@ -569,10 +569,17 @@ class ColorPickerTest extends ComponentTestBase {
     }
 
     /** A press-drag-release inside the saturation/value field. */
+    /** Where the saturation/value field starts down the scene: under the swatch's row. */
+    private float fieldTop() {
+        return picker.saturationValueField().localToSceneY();
+    }
+
+    /** A drag in the field from near its top to {@code y}, both measured from the field's top. */
     private void dragFieldTo(float x, float y) {
-        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, Math.min(y, 20));
-        drive(scene).mouseMoved(x, y);
-        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+        float top = fieldTop();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, top + Math.min(y, 20));
+        drive(scene).mouseMoved(x, top + y);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, top + y);
         drive(scene).inputBatchEnded();
     }
 

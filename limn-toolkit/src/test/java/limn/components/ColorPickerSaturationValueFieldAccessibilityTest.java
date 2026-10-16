@@ -337,7 +337,7 @@ class ColorPickerSaturationValueFieldAccessibilityTest extends AccessibleCompone
     }
 
     @Test
-    void itIsTheChoosersFirstChildAndTheRampFollowsIt() {
+    void itFollowsTheSwatchRowAndTheRampFollowsIt() {
         bindPicker();
 
         List<String> shape = new ArrayList<>();
@@ -345,11 +345,11 @@ class ColorPickerSaturationValueFieldAccessibilityTest extends AccessibleCompone
             shape.add(child.role() + " \"" + child.name() + "\"");
         }
         assertEquals(List.of(
-                        "CANVAS \"Saturation and value\"",
-                        "SLIDER \"Hue\"",
                         "IMAGE \"Colour #FFFFFF, was #FFFFFF\"",
                         "LABEL \"#\"",
                         "TEXT_FIELD \"Hex\"",
+                        "CANVAS \"Saturation and value\"",
+                        "SLIDER \"Hue\"",
                         "TAB_LIST \"\"",
                         "BUTTON \"Previous tabs\"",
                         "BUTTON \"Next tabs\"",
@@ -361,9 +361,9 @@ class ColorPickerSaturationValueFieldAccessibilityTest extends AccessibleCompone
                         "SLIDER \"A\"",
                         "SPIN_BUTTON \"A\""),
                 shape,
-                "the plane is the first thing the chooser holds, because the ramps row is the "
-                        + "first thing in the column and the plane is the first thing in that row; "
-                        + "the expanded share, the token box and the row itself are all deleted"
+                "the plane follows the swatch's row, which heads the column so the comparison stays "
+                        + "in sight, and is the first thing in its own row; the expanded share, the "
+                        + "token box and the row itself are all deleted"
                         + describe(tree()));
 
         for (int i = 0; i < tree().nodeCount(); i++) {

@@ -291,11 +291,11 @@ class ColorPickerAccessibilityTest extends AccessibleComponentTestBase {
             shape.add(child.role() + " \"" + child.name() + "\"");
         }
         assertEquals(List.of(
-                        "CANVAS \"Saturation and value\"",
-                        "SLIDER \"Hue\"",
                         "IMAGE \"Colour #FFFFFF, was #FFFFFF\"",
                         "LABEL \"#\"",
                         "TEXT_FIELD \"Hex\"",
+                        "CANVAS \"Saturation and value\"",
+                        "SLIDER \"Hue\"",
                         "TAB_LIST \"\"",
                         "BUTTON \"Previous tabs\"",
                         "BUTTON \"Next tabs\"",
@@ -309,11 +309,11 @@ class ColorPickerAccessibilityTest extends AccessibleComponentTestBase {
                 shape,
                 "the rows, columns, paddings, token boxes and expanded shares between the picker "
                         + "and its controls are all deleted, and the three parts it draws have "
-                        + "each taken their own step: the saturation/value plane is the CANVAS at "
-                        + "the head of this list and the hue ramp the SLIDER beside it, because "
-                        + "the ramps row is the first thing in the column and they are the two "
-                        + "things in that row, and the swatch is the IMAGE after them, because it "
-                        + "is the first thing in the identity row. What each says is pinned by "
+                        + "each taken their own step: the swatch is the IMAGE at the head of this "
+                        + "list, because the identity row heads the column so the comparison stays "
+                        + "in sight while the colour changes, and the saturation/value plane is the "
+                        + "CANVAS after the hex field with the hue ramp the SLIDER beside it, the "
+                        + "two things in the ramps row. What each says is pinned by "
                         + "limn.components.ColorPickerSaturationValueFieldAccessibilityTest, "
                         + "limn.components.ColorPickerHueRampAccessibilityTest and "
                         + "limn.components.ColorPickerPreviewAccessibilityTest. The notation tabs "
@@ -353,10 +353,13 @@ class ColorPickerAccessibilityTest extends AccessibleComponentTestBase {
         AccessibleNode box = chooser();
         AccessibleNode plane = named("Saturation and value").get(0);
         AccessibleNode ramp = hueRampNode();
+        AccessibleNode swatch = named("Colour #FFFFFF, was #FFFFFF").get(0);
         assertEquals(box.x(), plane.x(), eps, describe(tree()));
-        assertEquals(box.y(), plane.y(), eps, describe(tree()));
+        assertEquals(box.y(), swatch.y(), eps, "the swatch's row heads the picker" + describe(tree()));
+        assertTrue(plane.y() >= swatch.y() + swatch.height() + t.colorGap() - eps,
+                "the plane under the swatch's row" + describe(tree()));
         assertEquals(t.colorFieldH(), plane.height(), eps, describe(tree()));
-        assertEquals(box.y(), ramp.y(), eps, describe(tree()));
+        assertEquals(plane.y(), ramp.y(), eps, describe(tree()));
         assertEquals(t.colorFieldH(), ramp.height(), eps, describe(tree()));
         assertEquals(t.colorRampW(), ramp.width(), eps, describe(tree()));
         assertEquals(box.x() + box.width(), ramp.x() + ramp.width(), eps,

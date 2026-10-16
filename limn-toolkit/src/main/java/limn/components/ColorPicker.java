@@ -189,7 +189,6 @@ public final class ColorPicker extends Widget<ColorPicker> {
         rampsRow.crossAlignment(Flex.CrossAlignment.STRETCH);
         rampsRow.add(Expanded.of(field, 1).paintOverflow(CURSOR_REACH));
         rampsRow.add(new TokenBox(SizeTokens::colorRampW, null, hueRamp).paintOverflow(CURSOR_REACH));
-        root.add(new TokenBox(null, SizeTokens::colorFieldH, rampsRow).paintOverflow(CURSOR_REACH));
 
         // "#" as a label rather than part of the text: the field then holds only
         // digits, so its length is the colour's, nothing has to defend against a
@@ -206,7 +205,10 @@ public final class ColorPicker extends Widget<ColorPicker> {
         hexField.setAccessibleName(ColorPickerStrings.HEX);
         hexField.onChange(this::hexTyped);
         identityRow.add(Expanded.of(hexField, 1));
+        // The swatch first, above the field: the before and after stay in sight while a drag
+        // or a channel changes the colour, where below the field a short window scrolled it out.
         root.add(identityRow);
+        root.add(new TokenBox(null, SizeTokens::colorFieldH, rampsRow).paintOverflow(CURSOR_REACH));
 
         for (Format each : Format.values()) {
             ChannelGroup group = new ChannelGroup(each);
