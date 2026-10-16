@@ -671,7 +671,7 @@ public final class DatePicker extends Widget<DatePicker> {
      * Taken by {@link #dismiss} when the removal is deferred to the end of a fade, and
      * performed by {@link #closeTo} itself otherwise.
      */
-    private DateField refocus;
+    private @Nullable DateField refocus;
 
     /**
      * Closes the popup and puts the focus on a field <em>once the popup is actually gone</em>.
@@ -1020,7 +1020,7 @@ public final class DatePicker extends Widget<DatePicker> {
         }
 
         @Override
-        public boolean contains(Widget<?> target) {
+        public boolean contains(@Nullable Widget<?> target) {
             return target == DatePicker.this || target == field || target == endField;
         }
 
@@ -1057,7 +1057,7 @@ public final class DatePicker extends Widget<DatePicker> {
         }
 
         @Override
-        public Widget<?> refocus() {
+        public @Nullable Widget<?> refocus() {
             DateField pending = refocus;
             refocus = null;
             return pending;
