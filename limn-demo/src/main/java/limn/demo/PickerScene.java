@@ -117,7 +117,9 @@ final class PickerScene {
     static Widget<?> content() {
         Column page = Page.column();
         String key = Accelerator.command(Keys.D, Keys.MOD_SHIFT).display();
-        page.add(Page.hint(I18nString.literal(Text.KEYBOARD_HINT.format(key))));
+        Label keyboard = Page.hint(I18nString.EMPTY);
+        Page.followLanguage(() -> keyboard.setText(Text.KEYBOARD_HINT.format(key)));
+        page.add(keyboard);
 
         // ---- the report: its columns in two lists, and its folders in an outline
         List<Field> available = new ArrayList<>();

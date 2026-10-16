@@ -156,7 +156,7 @@ final class IconsScene {
         grid.setAccessibleName(ShowcaseStrings.NAV_ICONS);
         detail.grid = grid;
 
-        Label count = new Label("").setMuted(true);
+        Label count = Page.label(() -> Text.COUNT.format(catalogue.shown.size())).setMuted(true);
         Runnable refill = () -> {
             grid.setItems(catalogue.rows());
             count.setText(Text.COUNT.format(catalogue.shown.size()));

@@ -680,6 +680,7 @@ final class TreeScene {
                 }
             });
             limn.i18n.I18n.observeChanges(describe);
+            Page.afterLanguageChange(tree::refresh); // a file's size is written as the language writes a number
             open.onAction(() -> {
                 List<Entry> chosen = tree.selectedNodes();
                 Page.report(chosen.size() == 1 ? Text.OPENED.format(chosen.get(0).name)

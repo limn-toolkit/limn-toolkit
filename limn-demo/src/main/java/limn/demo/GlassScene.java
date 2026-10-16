@@ -108,7 +108,7 @@ final class GlassScene {
         Column titles = new Column();
         titles.gap(2);
         titles.add(new Label("Coastline at dusk").setStrong(true));
-        titles.add(new Label(Text.ALBUM_OF.format(4, 12)).setMuted(true));
+        titles.add(Page.label(() -> Text.ALBUM_OF.format(4, 12)).setMuted(true));
         Slider position = new Slider(0, 100).setValue(35);
         position.setAccessibleName(Text.POSITION);
         Row playing = Page.row(12, titles, new SizedBox(180, SizedBox.UNSET, position),

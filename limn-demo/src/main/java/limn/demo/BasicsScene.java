@@ -161,7 +161,7 @@ final class BasicsScene {
             instructionsLine.setText(tooLong ? Text.INSTRUCTIONS_LONG.format(INSTRUCTIONS_LIMIT) : "");
             instructionsLine.setIcon(tooLong ? Tabler.outline("alert-circle") : null);
         };
-        checkInstructions.run();
+        Page.followLanguage(checkInstructions);
         instructions.onChange(text -> checkInstructions.run());
 
         Column form = new Column();

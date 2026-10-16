@@ -244,6 +244,7 @@ final class ListScene {
         log.setVisibleRows(5);
         log.setBarLayout(ScrollGutters.Layout.RESERVED);
         log.setAccessibleName(Text.CALLS);
+        Page.afterLanguageChange(log::refresh); // a call's time is written as the language writes one
 
         Column page = Page.column();
         page.add(Page.firstSection(Text.CONTACTS));

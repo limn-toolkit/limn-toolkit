@@ -247,7 +247,7 @@ final class AnimationsScene {
         Row line = Page.row(12,
                 new SizedBox(84, SizedBox.UNSET, new Label(order.number()).setStrong(true)),
                 Expanded.of(new Label(order.customer()), 1),
-                new Label(DOLLARS.apply(order.amount())));
+                Page.label(() -> DOLLARS.apply(order.amount())));
         Button archive = new Button(Text.ARCHIVE).setSecondary(true).setIcon(TablerDocument.ARCHIVE.icon());
         archive.setControlSize(limn.scene.ControlSize.SMALL);
         line.add(archive);
@@ -277,12 +277,13 @@ final class AnimationsScene {
             total += amount;
             lines.add(Page.row(12, Expanded.of(new Label(item[0]), 1),
                     new SizedBox(40, SizedBox.UNSET, new Label("× " + item[1]).setMuted(true)),
-                    new SizedBox(110, SizedBox.UNSET, new Label(DOLLARS.apply(amount))
+                    new SizedBox(110, SizedBox.UNSET, Page.label(() -> DOLLARS.apply(amount))
                             .setAlign(Label.HAlign.END, Label.VAlign.CENTER))));
         }
+        double sum = total;
         lines.add(limn.components.Separator.horizontal());
         lines.add(Page.row(12, Expanded.of(new Label(Text.TOTAL).setStrong(true), 1),
-                new SizedBox(110, SizedBox.UNSET, new Label(DOLLARS.apply(total)).setStrong(true)
+                new SizedBox(110, SizedBox.UNSET, Page.label(() -> DOLLARS.apply(sum)).setStrong(true)
                         .setAlign(Label.HAlign.END, Label.VAlign.CENTER))));
         Unfold body = new Unfold(new Padding(new Insets(12, 0, 0, 0), lines), false);
 
@@ -295,11 +296,11 @@ final class AnimationsScene {
         });
         Column head = new Column();
         head.gap(2);
-        head.add(new Label(Text.INVOICE_NUMBER.format("INV-2041")).setStrong(true));
+        head.add(Page.label(() -> Text.INVOICE_NUMBER.format("INV-2041")).setStrong(true));
         head.add(new Label("Harbor Lane Supplies").setMuted(true));
         Row top = Page.row(12, head);
         top.add(Expanded.spacer(1));
-        top.add(new Label(DOLLARS.apply(total)));
+        top.add(Page.label(() -> DOLLARS.apply(sum)));
         top.add(toggle);
 
         Column card = new Column();
@@ -572,7 +573,7 @@ final class AnimationsScene {
             Column head = new Column();
             head.gap(2);
             head.add(new Label(CUSTOMER).setStrong(true));
-            head.add(new Label(Text.CUSTOMER_SINCE.format("2019")).setMuted(true));
+            head.add(Page.label(() -> Text.CUSTOMER_SINCE.format("2019")).setMuted(true));
             Row row = Page.row(12, head);
             row.add(Expanded.spacer(1));
             row.add(save);

@@ -89,7 +89,8 @@ final class ControlsScene {
 
     /** A slider under its caption, its value read out at its end and following every move. */
     private static Widget<?> slider(I18nString caption, Slider slider, Supplier<String> value) {
-        Label readout = new Label(value.get());
+        Label readout = new Label("");
+        Page.followLanguage(() -> readout.setText(value.get()));
         slider.observeChanges((source, change) -> {
             if (change.aspect() == Change.Aspect.VALUE) {
                 readout.setText(value.get());
@@ -101,7 +102,8 @@ final class ControlsScene {
 
     /** The same for a range slider, whose readout follows both of its values. */
     private static Widget<?> range(I18nString caption, RangeSlider slider, Supplier<String> value) {
-        Label readout = new Label(value.get());
+        Label readout = new Label("");
+        Page.followLanguage(() -> readout.setText(value.get()));
         slider.observeChanges((source, change) -> {
             if (change.aspect() == Change.Aspect.VALUE) {
                 readout.setText(value.get());

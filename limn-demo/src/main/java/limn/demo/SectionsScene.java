@@ -184,7 +184,9 @@ final class SectionsScene {
         });
 
         String command = limn.backend.Platform.current().isMacOs() ? "Cmd" : "Ctrl";
-        page.add(Page.row(12, add, Page.hint(I18nString.literal(Text.SHORTCUTS.format(command)))));
+        Label shortcuts = Page.hint(I18nString.EMPTY);
+        Page.followLanguage(() -> shortcuts.setText(Text.SHORTCUTS.format(command)));
+        page.add(Page.row(12, add, shortcuts));
         page.add(new SizedBox(SizedBox.UNSET, 200, documents));
     }
 
@@ -222,7 +224,7 @@ final class SectionsScene {
         for (Checkbox each : List.of(inStock, onSale, freeShipping)) {
             each.onChange(checked -> summarize.run());
         }
-        summarize.run();
+        Page.followLanguage(summarize);
         page.add(Page.narrow(NARROW, filter));
 
         page.add(Page.section(Text.QUESTIONS));

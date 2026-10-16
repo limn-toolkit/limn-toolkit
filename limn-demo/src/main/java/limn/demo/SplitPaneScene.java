@@ -146,6 +146,12 @@ final class SplitPaneScene {
         ListView<Mail> messages = new ListView<>(SplitPaneScene::messageRow);
         messages.setItemName(m -> I18nString.literal(m.sender() + ", " + m.subject().get()));
         messages.setAccessibleName(Text.MESSAGES);
+        Page.afterLanguageChange(() -> {
+            // A message's time and date are written as the language writes them, and so is the
+            // line under the subject of the one being read.
+            messages.refresh();
+            reading.show(reading.shown);
+        });
         messages.onSelect(() -> {
             int index = messages.selectedIndex();
             reading.show(index < 0 ? null : messages.items().get(index));
@@ -248,6 +254,8 @@ final class SplitPaneScene {
         private final Widget<?> placeholder;
         private final Column holder = new Column();
         final Widget<?> view = holder;
+        /** The message shown, or null for none. */
+        Mail shown;
 
         Reading() {
             message.gap(6).crossAlignment(Flex.CrossAlignment.STRETCH);
@@ -264,6 +272,7 @@ final class SplitPaneScene {
         }
 
         void show(Mail mail) {
+            shown = mail;
             Widget<?> wanted = mail == null ? placeholder : scroll;
             if (holder.children().get(0) != wanted) {
                 holder.remove(holder.children().get(0));

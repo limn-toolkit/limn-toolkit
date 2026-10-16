@@ -5,6 +5,7 @@ import limn.components.Surface;
 import limn.components.Theme;
 import limn.graphics.Color;
 import limn.graphics.Icon;
+import limn.i18n.I18n;
 import limn.i18n.I18nString;
 import limn.scene.Insets;
 import limn.scene.Widget;
@@ -19,6 +20,7 @@ import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * The parts every page of the Showcase is made of, so that the pages look like one application:
@@ -50,6 +52,10 @@ final class Page {
     private static final Map<Label, Function<Theme, Color>> TINTED = new WeakHashMap<>();
     private static boolean tintFollowsPalette;
 
+    /** The labels {@link #label(Supplier)} made, and what each shows: weak, as {@link #TINTED} is. */
+    private static final Map<Label, Supplier<String>> WORDED = new WeakHashMap<>();
+    private static boolean wordsFollowLanguage;
+
     private Page() {
     }
 
@@ -77,6 +83,41 @@ final class Page {
                 .replaceAll("\\s*[(\uFF08]&[\\p{L}\\p{N}][)\uFF09]", "") // "(&N)" carries only the letter
                 .replaceAll("&(?=[\\p{L}\\p{N}])", "")
                 .replace("\u0000", "&");
+    }
+
+    /**
+     * Runs {@code write} now and again after every change of language: for a line a page formats
+     * from a translation, a number, an amount or a date, which a label holding a {@code String}
+     * keeps in the language it was built in. A page is built once and kept for the life of the
+     * window, so the subscription is kept for that life too.
+     */
+    static void followLanguage(Runnable write) {
+        write.run();
+        afterLanguageChange(write);
+    }
+
+    /**
+     * Runs {@code again} after every change of language, not now: for a list or a tree to bind its
+     * rows again, or a pane to show what it shows again, once its words have changed.
+     */
+    static void afterLanguageChange(Runnable again) {
+        I18n.observeChanges(again); // for the life of the page, which is the life of the window
+    }
+
+    /**
+     * A label that shows {@code text}'s answer, asked again after every change of language: see
+     * {@link #followLanguage}. Kept weakly, as the {@linkplain #tint tinted} labels are, so a row
+     * built and let go of while the page lives (an order added, then archived) takes its label
+     * with it; {@code text} must therefore not hold the label itself.
+     */
+    static Label label(Supplier<String> text) {
+        if (!wordsFollowLanguage) {
+            wordsFollowLanguage = true;
+            afterLanguageChange(() -> WORDED.forEach((each, words) -> each.setText(words.get())));
+        }
+        Label label = new Label(text.get());
+        WORDED.put(label, text);
+        return label;
     }
 
     /** Says in the window's status line what a control did. */

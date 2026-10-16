@@ -129,7 +129,7 @@ final class ChartsScene {
 
         Label total = new Label("").setStrong(true);
         Runnable writeTotal = () -> total.setText(wholeDollars().apply(sum(channels.series().get(0))));
-        followLanguage(writeTotal);
+        Page.followLanguage(writeTotal);
         channels.setCenter(donutCentre(total));
 
         Button refresh = new Button(Text.REFRESH).setSecondary(true);
@@ -212,7 +212,7 @@ final class ChartsScene {
     private static LineChart responseChart() {
         LineChart chart = new LineChart();
         chart.setTitle(Text.RESPONSE);
-        followLanguage(() -> chart.setLabels(hours()));
+        Page.followLanguage(() -> chart.setLabels(hours()));
         chart.addSeries(ChartSeries.of(Text.MEDIAN, 140, 152, 171, 188, 205, 196, 183, 214, 236, 198, 176, 161));
         double[] slowest = {720, 810, 905, 1_080, Double.NaN, Double.NaN, 940, 1_150, 1_320, 1_010, 870, 790};
         chart.addSeries(ChartSeries.of(Text.SLOWEST, slowest));
@@ -228,7 +228,7 @@ final class ChartsScene {
     /** The response chart's footnote: the hours the slowest series has no samples for. */
     private static Label gapFootnote() {
         Label note = new Label("").setMuted(true).setOverflow(Label.Overflow.ELLIPSIS);
-        followLanguage(() -> note.setText(Text.NO_SAMPLES.format(
+        Page.followLanguage(() -> note.setText(Text.NO_SAMPLES.format(
                 clock(FIRST_HOUR + GAP_FROM), clock(FIRST_HOUR + GAP_TO))));
         return note;
     }
@@ -263,7 +263,7 @@ final class ChartsScene {
     private static BarChart warehouseChart() {
         BarChart chart = new BarChart();
         chart.setTitle(Text.WAREHOUSES);
-        followLanguage(() -> chart.setLabels(weekdays()));
+        Page.followLanguage(() -> chart.setLabels(weekdays()));
         chart.addSeries(ChartSeries.of(Text.NORTH_PICKED, 42, 55, 48, 61, 70).setStack("north"));
         chart.addSeries(ChartSeries.of(Text.NORTH_PACKED, 30, 38, 35, 44, 52).setStack("north"));
         chart.addSeries(ChartSeries.of(Text.SOUTH_PICKED, 36, 41, 52, 47, 58).setStack("south"));
@@ -279,7 +279,7 @@ final class ChartsScene {
     private static LineChart customerChart() {
         LineChart chart = new LineChart();
         chart.setTitle(Text.CUSTOMERS);
-        followLanguage(() -> chart.setLabels(months()));
+        Page.followLanguage(() -> chart.setLabels(months()));
         chart.addSeries(ChartSeries.of(Text.TRIAL, 64, 72, 58, 81, 95, 88));
         chart.addSeries(ChartSeries.of(Text.PAID, 28, 31, 35, 42, 47, 55));
         chart.setArea(true);
@@ -294,12 +294,6 @@ final class ChartsScene {
     private static void reportClicks(Chart<?> chart) {
         chart.onPointClick(point -> Page.report(Text.SELECTED.format(point.label(),
                 point.series().name(), chart.valueFormat().apply(point.value()))));
-    }
-
-    /** Runs {@code apply} now and again whenever the language changes. */
-    private static void followLanguage(Runnable apply) {
-        apply.run();
-        I18n.observeChanges(apply); // for the life of the page, which is the life of the demo
     }
 
     /** Whole dollars, as the language in effect writes money: what an axis tick wants. */
