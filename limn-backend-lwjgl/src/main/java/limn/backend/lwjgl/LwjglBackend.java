@@ -78,6 +78,13 @@ import limn.backend.spi.BackendPeer;
  * <p>Waking is not painting: the loop runs the tasks and then renders only the
  * windows something asked a frame of, so an application whose posted task
  * mutates a widget without invalidating it will not see the change.
+ *
+ * <p>On macOS a process runs as an agent, with no icon in the Dock, no menu bar of its own and
+ * no window that comes in front of what the user is doing, when its package says so
+ * ({@code LSUIElement}), and also when it is started with {@code -Dlimn.macos.agent=true} or
+ * with the environment variable {@code LIMN_MACOS_AGENT} set to {@code 1} or {@code true}. The
+ * last two are for runs whose windows nobody looks at, such as tests, and the variable is
+ * inherited: an application started by a process that has it set starts as an agent too.
  */
 public final class LwjglBackend implements BackendPeer {
 
