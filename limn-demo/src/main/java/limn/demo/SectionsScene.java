@@ -140,14 +140,15 @@ final class SectionsScene {
         TextArea draft = new TextArea();
         draft.setText(Text.DRAFT_TEXT);
         String draftTitle = "Coastline Cargo reply*";
-        documents.addTab(draftTitle, Tabler.outline("mail"), Page.card(draft));
+        Widget<?> draftTab = Page.card(draft); // the tab's content, which a close request names
+        documents.addTab(draftTitle, Tabler.outline("mail"), draftTab);
         documents.setTabClosable(0, false);
 
         // The draft has unsaved changes and asks first, in a modal dialog, as an editor does; the
         // request is answered when the dialog is, and the others close at once.
         documents.onTabClose(request -> {
             String title = documents.tabTitle(request.index());
-            if (request.content() != draft) {
+            if (request.content() != draftTab) {
                 Page.report(Text.CLOSED.format(title));
                 request.allow();
                 return;
