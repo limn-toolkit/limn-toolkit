@@ -351,6 +351,78 @@ class TabbedPaneTabListTest extends AccessibleComponentTestBase {
                 "the list's layer holds the keyboard: " + scene.focusedWidget());
     }
 
+    /** Binds six tabs whose pages are fields, the first one holding the keyboard. */
+    private TextField bindTypingPane(boolean inScene) {
+        TextField typing = new TextField();
+        pane = new TabbedPane().setTabsClosable(true);
+        pane.addTab(TITLES.get(0), typing);
+        for (String title : TITLES.subList(1, TITLES.size())) {
+            pane.addTab(title, new TextField());
+        }
+        Column root = new Column();
+        root.add(new SizedBox(200, 120, pane));
+        bind(root, new StubWindow(!inScene));
+        scene.setTextRuler(RULER);
+        frame();
+        scene.requestFocus(typing);
+        frame();
+        return typing;
+    }
+
+    private boolean keyboardInThePane() {
+        for (limn.scene.Widget<?> w = scene.focusedWidget(); w != null; w = w.parent()) {
+            if (w == pane) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * A tab chosen from the list while the keyboard was typing in the page it hides: the keyboard
+     * goes to the chosen tab, where a click on its header would send it, and not to nothing.
+     */
+    @Test
+    void aTabChosenFromTheListWhileTypingInThePageTakesTheKeyboard() throws InterruptedException {
+        for (boolean inScene : new boolean[] {true, false}) {
+            bindTypingPane(inScene);
+            openList();
+            press(Keys.DOWN, 0);
+            press(Keys.ENTER, 0);
+            settleAnimations(null);
+            assertEquals(1, pane.selectedIndex());
+            assertTrue(keyboardInThePane(), (inScene ? "in the scene" : "in a window")
+                    + ", the keyboard went to " + scene.focusedWidget());
+        }
+    }
+
+    /** Escape gives the keyboard back to the field it was typing in, which is still there. */
+    @Test
+    void escapeGivesTheKeyboardBackToThePageItWasIn() throws InterruptedException {
+        TextField typing = bindTypingPane(true);
+        openList();
+        press(Keys.ESCAPE, 0);
+        settleAnimations(null);
+        assertEquals(typing, scene.focusedWidget());
+    }
+
+    /**
+     * Alt+Down on the focused tab, Delete on that same tab, Escape: the keyboard cannot go back to
+     * a tab that is gone, so it goes to the one now shown, and not to nothing.
+     */
+    @Test
+    void theFocusedTabClosedFromTheListLeavesTheKeyboardOnTheNextTab() throws InterruptedException {
+        bindPane(true, false);
+        scene.requestFocus(tabStop(pane));
+        press(Keys.DOWN, Keys.MOD_ALT);
+        press(Keys.DELETE, 0);
+        press(Keys.ESCAPE, 0);
+        settleAnimations(null);
+        assertEquals(TITLES.size() - 1, pane.tabCount());
+        assertTrue(keyboardInThePane(), "the keyboard went to " + scene.focusedWidget());
+        assertEquals(tabStop(pane), scene.focusedWidget(), "the tab now shown");
+    }
+
     @Test
     void aClickOnARowChoosesItsTab() throws InterruptedException {
         bindPane(false, false);

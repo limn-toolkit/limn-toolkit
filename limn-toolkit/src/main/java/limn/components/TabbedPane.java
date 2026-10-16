@@ -1000,6 +1000,10 @@ public final class TabbedPane extends Widget<TabbedPane> {
     private @Nullable TabListPanel tabListPanel;
     /** The row of the list the keyboard is on. */
     private int listCursor = -1;
+    /** Whether the keyboard was in the pane, on its strip or in a page, when the list opened. */
+    private boolean listHadKeyboard;
+    /** Where it was then, while the list is open: what the scene gives it back to as the list goes. */
+    private @Nullable Widget<?> listFocusWas;
     /** The keys the headers are known by to a reader, unique for the life of the pane. */
     private long headerKeys;
 
@@ -1013,6 +1017,8 @@ public final class TabbedPane extends Widget<TabbedPane> {
             return;
         }
         listCursor = Math.max(0, selected);
+        listHadKeyboard = holdsFocus(this);
+        listFocusWas = scene().focusedWidget();
         tabList.open(limn.components.DisplayMode.NATIVE_WINDOW);
         listButton.invalidateAccessible();
         notifyChange(Change.of(Change.Aspect.EXPANDED, Change.Origin.USER));
@@ -1024,6 +1030,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
         }
         tabListPanel = null;
         tabList.close();
+        listFocusWas = null; // read by the close, and held no longer than the list is open
         listButton.invalidateAccessible();
         notifyChange(Change.of(Change.Aspect.EXPANDED, Change.Origin.USER));
     }
@@ -1069,11 +1076,16 @@ public final class TabbedPane extends Widget<TabbedPane> {
         repaintTabList();
     }
 
-    /** Chooses a tab from the list: it is selected, and the list goes. */
+    /**
+     * Chooses a tab from the list: it is selected, and the list goes. A keyboard that was in the
+     * pane goes to the chosen tab, as from a header the arrows reached: the page it may have been
+     * typing in is hidden now, and a focus revoked with it would go to nothing. One that was
+     * elsewhere stays there, since the list's button never takes it.
+     */
     private void chooseFromList(int row) {
         closeTabList();
         if (row >= 0 && row < headers.size()) {
-            selectTab(row, Focus.NONE, Change.Origin.USER);
+            selectTab(row, listHadKeyboard ? Focus.HEADER : Focus.NONE, Change.Origin.USER);
         }
     }
 
@@ -1193,6 +1205,20 @@ public final class TabbedPane extends Widget<TabbedPane> {
         @Override
         public boolean alignsTrailing() {
             return true;
+        }
+
+        /**
+         * Where the keyboard was is where it goes back to, unless that went with a tab closed from
+         * the list (the focused tab itself, or a field in its page): then it goes to the tab now
+         * shown, where it would have gone had the tab closed from the strip, and not to nothing.
+         */
+        @Override
+        public @Nullable Widget<?> refocus() {
+            Widget<?> was = listFocusWas;
+            if (!listHadKeyboard || selected < 0 || (was != null && was.isShowing())) {
+                return null;
+            }
+            return headers.get(selected);
         }
     }
 
