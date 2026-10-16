@@ -173,8 +173,10 @@ final class AnimationsScene {
         timing.onSelect(() -> track.setDuration(durations[timing.selectedIndex()]));
 
         Button animate = new Button(Text.ANIMATE).setSecondary(true).onAction(track::play);
-        Checkbox repeat = new Checkbox(Checkbox.Variant.SWITCH, Text.REPEAT);
+        // On from the start: a dot that keeps crossing the rail shows the curve without a press.
+        Checkbox repeat = new Checkbox(Checkbox.Variant.SWITCH, Text.REPEAT).setChecked(true);
         repeat.onChange(track::setRepeat);
+        track.setRepeat(true);
         Row controls = Page.row(12, new SizedBox(170, SizedBox.UNSET, easing),
                 new SizedBox(130, SizedBox.UNSET, timing), animate, repeat);
         controls.add(Expanded.spacer(1));
@@ -504,6 +506,14 @@ final class AnimationsScene {
         void setRepeat(boolean value) {
             pos.repeat(value);
             play();
+        }
+
+        @Override
+        protected void onAttached() {
+            super.onAttached();
+            if (pos.repeats()) {
+                play(); // set before the page was in a scene, where a transition only jumps
+            }
         }
 
         /**
