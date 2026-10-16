@@ -80,6 +80,48 @@ class UiaPropertiesTest {
                 "the node's own identifier, which §1.3 keeps stable across republishes");
     }
 
+    /** A button with the keys given, published the way a widget's describe hook gives them. */
+    private static AccessibleNode withKeys(String accessKey, String accelerator) {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        a.begin(1001, 0, Locale.ENGLISH, 10, 20, 160, 40);
+        a.role(Accessible.Role.BUTTON);
+        a.name(I18nString.literal("Save"), Accessible.NameFrom.CONTENT);
+        a.action(Accessible.Action.PRESS);
+        a.accessKey(accessKey);
+        a.keyBinding(accelerator);
+        a.inherited(true, true, true, true, false);
+        a.end();
+        a.end();
+        return control(a.publish(0, 0, 0, 1f, true));
+    }
+
+    /**
+     * The access key and the accelerator are two properties, each served from its own string:
+     * AccessKey (30007) is the letter's chord, AcceleratorKey (30006) the command's. Neither was
+     * held by a test, so a swapped id or field would have shipped unheard.
+     */
+    @Test
+    void theAccessKeyAndTheAcceleratorAreTwoPropertiesEachItsOwn() {
+        assertEquals(30007, UiaIds.ACCESS_KEY, "UIA_AccessKeyPropertyId");
+        assertEquals(30006, UiaIds.ACCELERATOR_KEY, "UIA_AcceleratorKeyPropertyId");
+
+        AccessibleNode both = withKeys("Alt+S", "Ctrl+S");
+        assertEquals("Alt+S", UiaProperties.valueOf(both, UiaIds.ACCESS_KEY));
+        assertEquals("Ctrl+S", UiaProperties.valueOf(both, UiaIds.ACCELERATOR_KEY));
+
+        AccessibleNode letterOnly = withKeys("Alt+N", null);
+        assertEquals("Alt+N", UiaProperties.valueOf(letterOnly, UiaIds.ACCESS_KEY));
+        assertNull(UiaProperties.valueOf(letterOnly, UiaIds.ACCELERATOR_KEY), "none is empty, not a guess");
+
+        AccessibleNode none = withKeys(null, null);
+        assertNull(UiaProperties.valueOf(none, UiaIds.ACCESS_KEY));
+        assertNull(UiaProperties.valueOf(none, UiaIds.ACCELERATOR_KEY));
+    }
+
     @Test
     void aWidgetGivenAnIdIsFoundByItAndOneGivenNoneByItsNumber() {
         Accessibility a = new Accessibility();
