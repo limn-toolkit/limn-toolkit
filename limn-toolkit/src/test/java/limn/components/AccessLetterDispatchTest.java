@@ -226,6 +226,42 @@ class AccessLetterDispatchTest extends AccessibleComponentTestBase {
         assertTrue(bar.isOpen());
     }
 
+    /** Several with one letter are logged once, as ADR 070 §3.4 promises, so the collision is found. */
+    @Test
+    void aSharedLetterIsLoggedOnce() {
+        java.util.List<java.util.logging.LogRecord> logged = new java.util.ArrayList<>();
+        java.util.logging.Handler capture = new java.util.logging.Handler() {
+            @Override
+            public void publish(java.util.logging.LogRecord record) {
+                logged.add(record);
+            }
+
+            @Override
+            public void flush() {
+            }
+
+            @Override
+            public void close() {
+            }
+        };
+        java.util.logging.Logger sceneLogger = java.util.logging.Logger.getLogger("limn.scene.Scene");
+        sceneLogger.addHandler(capture);
+        try {
+            show(new Button("&Salvar"), new Button("&Sair"), new Button("&Abrir"));
+            altAnd(Keys.S);
+            altAnd(Keys.S);
+            altAnd(Keys.S);
+            altAnd(Keys.A);
+        } finally {
+            sceneLogger.removeHandler(capture);
+        }
+        java.util.List<java.util.logging.LogRecord> shared = logged.stream()
+                .filter(r -> r.getMessage().contains("access letter")).toList();
+        assertEquals(1, shared.size(), "once, however often the letter is pressed");
+        assertEquals(java.util.logging.Level.WARNING, shared.get(0).getLevel());
+        assertEquals('S', shared.get(0).getParameters()[0]);
+    }
+
     /**
      * Two radios of one group with one letter take turns too, though only one of them is the
      * group's tab stop: the other is lent the stop for its turn, and gives it back when the keyboard

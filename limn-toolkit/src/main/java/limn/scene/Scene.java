@@ -3843,6 +3843,7 @@ public final class Scene {
             owners.get(0).accessLetterPressed();
             return true;
         }
+        reportSharedLetter(owners);
         int at = -1;
         for (int i = 0; i < owners.size(); i++) {
             if (owners.get(i).accessLetterFocus() == focused) {
@@ -3864,6 +3865,36 @@ public final class Scene {
             }
         }
         return true;
+    }
+
+    /** The letters shared by several controls already logged, each with the set that shares it. */
+    private java.util.Set<String> sharedLettersReported;
+
+    /**
+     * Logs, once for each set of controls, that several share one access letter (ADR 070 §3.4): a
+     * translator's collision, which a press only turns into a turn of the keyboard, is found in
+     * development rather than by a user.
+     */
+    private void reportSharedLetter(List<limn.scene.internal.AccessLetterOwner> owners) {
+        char letter = owners.get(0).accessLetter();
+        StringBuilder which = new StringBuilder().append(letter);
+        StringBuilder names = new StringBuilder();
+        for (limn.scene.internal.AccessLetterOwner owner : owners) {
+            Widget<?> widget = owner.accessLetterFocus();
+            which.append(':').append(System.identityHashCode(owner));
+            if (names.length() > 0) {
+                names.append(", ");
+            }
+            names.append(widget == null ? "?" : widget.getClass().getSimpleName());
+        }
+        if (sharedLettersReported == null) {
+            sharedLettersReported = new java.util.HashSet<>();
+        }
+        if (sharedLettersReported.add(which.toString())) {
+            LOG.log(Level.WARNING, "access letter {0} is marked by {1} controls in one window ({2}): "
+                    + "each press moves the keyboard among them and none acts; give each its own "
+                    + "letter in this language", letter, owners.size(), names);
+        }
     }
 
     private static void collectAccessLetters(Widget<?> at, int key, int codePoint,
