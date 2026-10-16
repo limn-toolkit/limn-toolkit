@@ -163,10 +163,6 @@ public final class SceneAccess {
     }
 
     /**
-     * @param scene a scene
-     * @return the input adapter the scene hands its window, which a driver calls as a window would
-     */
-    /**
      * Whether {@code scene}'s access letters are drawn now: while Alt is held, on Windows and
      * Linux. A menu opened from the keyboard draws its own as well; never on macOS.
      *
@@ -231,6 +227,10 @@ public final class SceneAccess {
         return scene == null ? 0 : hook().keyPresses(scene);
     }
 
+    /**
+     * @param scene a scene
+     * @return the input adapter the scene hands its window, which a driver calls as a window would
+     */
     public static WindowInput input(Scene scene) {
         return hook().inputOf(java.util.Objects.requireNonNull(scene, "scene"));
     }

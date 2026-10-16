@@ -1075,6 +1075,15 @@ public final class PopupMenu {
     // ========================================================== the surface
 
     /**
+     * Says this menu was opened from the keyboard (Alt+letter, the Menu key, Down on a focused
+     * bar), so it draws its access letters from the start, as a keyboard-opened menu does on
+     * Windows and Linux; opened with the pointer, they show while Alt is held.
+     */
+    void openedFromKeyboard() {
+        lettersFromKeyboard = true;
+    }
+
+    /**
      * Renders the whole open cascade (root column plus any open submenu columns),
      * positioning each with flip + clamp against its bounds, and handling
      * hover/click and keyboard navigation. Serves both roles: the root of the
@@ -1087,15 +1096,6 @@ public final class PopupMenu {
      * "first baseline" (the first row of a column that may have been flipped above the anchor
      * and scrolled) is not a meaningful alignment reference for anything.
      */
-    /**
-     * Says this menu was opened from the keyboard (Alt+letter, the Menu key, Down on a focused
-     * bar), so it draws its access letters from the start, as a keyboard-opened menu does on
-     * Windows and Linux; opened with the pointer, they show while Alt is held.
-     */
-    void openedFromKeyboard() {
-        lettersFromKeyboard = true;
-    }
-
     private final class MenuSurface extends Widget<MenuSurface> {
 
         /** Whether the rows' access letters are drawn; never on macOS. */
