@@ -179,6 +179,34 @@ class ExpanderTest extends AccessibleComponentTestBase {
         assertTrue(second.isExpanded(), "out of the group it is on its own");
     }
 
+    /**
+     * A section out of the scene it was in is out of its group until it is back, as a radio is out
+     * of its ButtonGroup: a dialog rebuilt each time it opens, against a group the controller keeps,
+     * must not leave the group every section of every dialog before, each still counted and each
+     * holding its content.
+     */
+    @Test
+    void aSectionOutOfItsSceneIsOutOfItsGroupUntilItIsBack() {
+        Expander first = expander("First", new Label("1"));
+        Expander second = expander("Second", new Label("2"));
+        Expander third = expander("Third", new Label("3"));
+        ExpanderGroup group = new ExpanderGroup().add(first).add(second).add(third);
+        Column root = bindAll(first, second, third);
+        group.setExpandedIndex(1);
+
+        root.remove(second);
+        frame();
+        assertEquals(List.of(first, third), group.members(), "the section that left is not counted");
+        assertEquals(-1, group.expandedIndex(), "nor is it the open one");
+        group.setExpandedIndex(0);
+
+        root.add(second);
+        frame();
+        assertEquals(List.of(first, second, third), group.members(), "back in the place it was added at");
+        assertSame(first, group.expanded(), "the group kept the one it opened meanwhile");
+        assertFalse(second.isExpanded(), "and the one that came back open gave way");
+    }
+
     @Test
     void rightToLeftTheTitleStartsOnTheRightAndTheSummaryEndsOnTheLeft() {
         Map<String, Float> ltr = textAt(LayoutDirection.LTR);

@@ -50,7 +50,9 @@ Markdown.
   ends at once when the system asks for less motion (ADR 047). The reader hears a button that is
   expanded or collapsed and controls the content.
 - **`ExpanderGroup`:** like `ButtonGroup`, at most one of its expanders open, an accordion. An
-  expander needs no group.
+  expander needs no group. Like a radio in its group since ADR 064, a section out of the scene it
+  was in is out of its group until it is back (added 2026-10-16, when the final audit found a group
+  holding every section of every dialog rebuilt against it).
 
 ## 4. A slider of two thumbs
 

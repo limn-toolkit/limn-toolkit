@@ -56,6 +56,8 @@ public final class Expander extends Widget<Expander> {
     private @Nullable Consumer<Boolean> onChange;
     /** The group keeping this one of several open, or null. */
     @Nullable ExpanderGroup group;
+    /** The place this section was added to its group at, which it takes again when it comes back. */
+    int placeInGroup;
 
     /** How far open it is drawn, 0 closed and 1 open: what the layout and the arrow read. */
     private float reveal;
@@ -349,6 +351,27 @@ public final class Expander extends Widget<Expander> {
     private float headerHeight(SizeTokens t) {
         float line = textRuler().measure("Hg", t.body()).lineHeight();
         return Math.max(t.controlHeight(), line + 2 * t.padV());
+    }
+
+    /**
+     * A group does not hold a section that is out of the scene: a form rebuilt against the same
+     * group would otherwise leave it every section of every form before, each still counted and
+     * each holding its content.
+     */
+    @Override
+    protected void onDetached() {
+        super.onDetached();
+        if (group != null) {
+            group.left(this);
+        }
+    }
+
+    @Override
+    protected void onAttached() {
+        super.onAttached();
+        if (group != null) {
+            group.returned(this);
+        }
     }
 
     @Override
