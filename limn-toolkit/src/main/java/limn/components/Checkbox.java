@@ -168,7 +168,7 @@ public final class Checkbox extends Widget<Checkbox> {
 
     /** Alt and the letter flip the box and bring the keyboard to it, as on Windows and Linux. */
     private void accessLetterPressed() {
-        requestFocus();
+        requestFocus(Change.Origin.USER); // the user's key moved it, and FOCUS says so
         toggleFromUser();
     }
 

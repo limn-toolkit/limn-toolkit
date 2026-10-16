@@ -144,7 +144,7 @@ public final class RadioButton extends Widget<RadioButton> {
     /** Alt and the letter select this radio and bring the keyboard to it. */
     private void accessLetterPressed() {
         select(Change.Origin.USER); // first: a group's unselected radio takes no keyboard
-        requestFocus();
+        requestFocus(Change.Origin.USER); // the user's key moved it, and FOCUS says so
     }
 
     /**

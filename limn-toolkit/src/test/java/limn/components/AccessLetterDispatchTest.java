@@ -113,6 +113,35 @@ class AccessLetterDispatchTest extends AccessibleComponentTestBase {
         assertSame(field, scene.focusedWidget(), "AT&T marks nothing");
     }
 
+    /**
+     * A letter is a key the user pressed, so the focus it moves is the user's: every path called
+     * the public requestFocus, and a watcher of origins (ADR 040) read Alt+letter as code.
+     */
+    @Test
+    void theFocusALetterMovesIsTheUsers() {
+        TextField field = new TextField();
+        Label name = new Label("&Name").setLabelFor(field);
+        Checkbox notify = new Checkbox(Checkbox.Variant.BOX, "N&otify me");
+        RadioButton yearly = new RadioButton("&Yearly");
+        Button save = new Button("&Save");
+        Button send = new Button("S&end");
+        Button sort = new Button("&Sort");
+        show(name, field, notify, yearly, save, send, sort);
+        java.util.List<String> origins = new java.util.ArrayList<>();
+        scene.observeChanges((source, change) -> {
+            if (change.aspect() == limn.scene.Change.Aspect.FOCUS && source.isFocused()) {
+                origins.add(change.origin().name());
+            }
+        });
+
+        altAnd(Keys.N);
+        altAnd(Keys.O);
+        altAnd(Keys.Y);
+        altAnd(Keys.S); // two with S take turns
+        assertSame(save, scene.focusedWidget());
+        assertEquals(java.util.List.of("USER", "USER", "USER", "USER"), origins);
+    }
+
     @Test
     void severalWithOneLetterTakeTurnsWithTheKeyboardAndNoneActs() {
         AtomicInteger acted = new AtomicInteger();

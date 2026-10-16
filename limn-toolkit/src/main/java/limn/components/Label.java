@@ -210,7 +210,7 @@ public final class Label extends Widget<Label> {
 
     private void accessLetterPressed() {
         if (labelFor != null) {
-            labelFor.requestFocus();
+            limn.scene.internal.SceneAccess.focusByUser(labelFor); // the user's key, said as USER
         }
     }
 

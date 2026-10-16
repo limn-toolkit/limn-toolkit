@@ -3186,6 +3186,14 @@ public final class Scene {
             }
 
             @Override
+            public void focusByUser(Widget<?> widget) {
+                Scene scene = widget.scene();
+                if (scene != null) {
+                    scene.requestFocus(widget, Change.Origin.USER);
+                }
+            }
+
+            @Override
             public boolean accessLettersShown(Scene scene) {
                 // While Alt is held, or always where the user asked the system for underlines.
                 return scene.accessLettersShown || SystemPreferences.current().underlineAccessKeys();
@@ -3843,7 +3851,7 @@ public final class Scene {
         }
         Widget<?> next = owners.get((at + 1) % owners.size()).accessLetterFocus();
         if (next != null) {
-            requestFocus(next);
+            requestFocus(next, Change.Origin.USER); // a key the user pressed, not code
         }
         return true;
     }

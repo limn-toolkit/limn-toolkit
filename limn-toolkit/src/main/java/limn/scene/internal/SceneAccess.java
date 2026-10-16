@@ -99,6 +99,14 @@ public final class SceneAccess {
         void pressFocus(Widget<?> widget, PressFocus filter);
 
         /**
+         * Moves the keyboard to {@code widget} for a key the user pressed, announcing
+         * {@code FOCUS} as {@code USER}; see {@link SceneAccess#focusByUser}.
+         *
+         * @param widget a widget in a scene, or out of one, which moves nothing
+         */
+        void focusByUser(Widget<?> widget);
+
+        /**
          * @param scene a scene
          * @return how many keys other than a modifier were pressed in it, counted whoever took
          *         them: what tells a bare Alt from one that was part of a chord
@@ -185,6 +193,18 @@ public final class SceneAccess {
      */
     public static void pressFocus(Widget<?> widget, PressFocus filter) {
         hook().pressFocus(widget, filter);
+    }
+
+    /**
+     * Moves the keyboard to {@code widget} because the user pressed a key that names it, an access
+     * letter: {@code FOCUS} is announced as {@code USER}, where {@link Widget#requestFocus()} is an
+     * application's move and says {@code CODE}. Refused, as that one is, for a widget that cannot
+     * take the keyboard.
+     *
+     * @param widget the widget the key names
+     */
+    public static void focusByUser(Widget<?> widget) {
+        hook().focusByUser(java.util.Objects.requireNonNull(widget, "widget"));
     }
 
     /**
