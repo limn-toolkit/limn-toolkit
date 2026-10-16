@@ -60,7 +60,25 @@ class AsyncNamingTest {
     }
 
     /**
-     * The guard the two tests above cannot give themselves: a sweep that reached nothing passes
+     * The other half of the rule: a loader's running future says so in its name, shared or
+     * pinned, so the roster's two suffixes and its one variant are every shape there is.
+     */
+    @Test
+    void everyRunningFutureOfALoaderIsNamedSharedOrPinned() throws Exception {
+        List<String> wrong = new ArrayList<>();
+        for (Method method : publicToolkitMethods()) {
+            String owner = method.getDeclaringClass().getSimpleName();
+            boolean loader = owner.equals("Images") || owner.equals("Sounds");
+            if (loader && CompletionStage.class.isAssignableFrom(method.getReturnType())
+                    && !method.getName().endsWith("Shared") && !method.getName().endsWith("Pinned")) {
+                wrong.add(signature(method));
+            }
+        }
+        assertEquals(List.of(), wrong, "a loader's running future is named ...Shared or ...Pinned");
+    }
+
+    /**
+     * The guard the tests above cannot give themselves: a sweep that reached nothing passes
      * both of them, and a broken walk (a moved output directory, a classloader change) looks
      * exactly like a clean bill of health.
      */
