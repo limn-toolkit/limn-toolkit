@@ -5,17 +5,31 @@ import limn.i18n.I18nString;
 import limn.i18n.PropertyBundle;
 
 /**
- * Every string of the demo's own window that is translated: the frame, the orders, the
- * dialogs and the menus.
+ * The strings of the demo's own window that are translated: the frame, the orders, the
+ * dialogs and the menus. Each page's own strings are in a {@code Text} class beside it, and
+ * all of them, these and the pages', are in one family of files, {@code /i18n/showcase}, in
+ * the 21 languages of {@link Languages}.
  *
- * <p>One domain for one program, which is how an application is meant to use this: the
- * static block registers the family, so touching any constant here is what makes the
- * translations available. The pages of the gallery keep their specimens in English.
+ * <p>One domain for one program, which is how an application is meant to use this. The family
+ * is added by {@link #register}, which {@link Main} calls before it builds any scene and
+ * {@link Page} calls as it is first used, because a page run alone ({@code --scene controls})
+ * touches no constant of this class: its own strings resolved in English when only this
+ * class's initialisation added the family.
  */
 final class ShowcaseStrings {
 
+    private static boolean registered;
+
     static {
-        I18n.addBundle(PropertyBundle.family("/i18n/showcase"));
+        register();
+    }
+
+    /** Adds the demo's translations to the process, once; any thread, any number of times. */
+    static synchronized void register() {
+        if (!registered) {
+            registered = true;
+            I18n.addBundle(PropertyBundle.family("/i18n/showcase"));
+        }
     }
 
     static final I18nString NAV_ORDERS =
