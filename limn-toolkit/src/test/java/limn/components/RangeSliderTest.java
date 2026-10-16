@@ -73,7 +73,7 @@ class RangeSliderTest extends ComponentTestBase {
     }
 
     @Test
-    void setRangeClampsSnapsKeepsTheGapAndTellsNoHandler() {
+    void setValuesClampsSnapsKeepsTheGapAndTellsNoHandler() {
         build(new RangeSlider(0, 100).setStep(10));
         slider.setValues(-20, 47);
         assertEquals(0, slider.lower());
@@ -141,6 +141,45 @@ class RangeSliderTest extends ComponentTestBase {
         assertEquals(60, slider.upper(), "the upper's Home stops the gap above the lower");
         key(Keys.END);
         assertEquals(100, slider.upper());
+    }
+
+    /**
+     * A minimum gap that is not a whole number of steps: the thumb the gap pushes lands on the
+     * step's grid, past the gap rather than short of it, so a value is never one the steps cannot
+     * reach. From the API, the keyboard and the bounds a reader is told alike.
+     */
+    @Test
+    void aGapThatIsNotAWholeNumberOfStepsKeepsTheValuesOnTheGrid() {
+        build(new RangeSlider(0, 100).setStep(10).setMinimumGap(15));
+        slider.setValues(50, 60);
+        assertEquals(50, slider.lower());
+        assertEquals(70, slider.upper(), "pushed up to the next step past the gap");
+        slider.setValues(90, 100);
+        assertEquals(80, slider.lower(), "at the top, the lower gives way, down to a step");
+        assertEquals(100, slider.upper());
+        slider.setValues(20, 80);
+        key(Keys.TAB);
+        key(Keys.END);
+        assertEquals(60, slider.lower(), "the keyboard's End stops on a step below the gap");
+        key(Keys.TAB);
+        key(Keys.HOME);
+        assertEquals(80, slider.upper(), "and the upper's Home on a step above it");
+        slider.setMinimumGap(0).setValues(56, 71);
+        slider.setMinimumGap(15);
+        assertTrue(slider.upper() - slider.lower() >= 15, "a gap set later holds as well");
+        assertEquals(0, slider.upper() % 10, 0.001f, "on a step: " + slider.upper());
+    }
+
+    /** A key that cannot move its thumb, at the end of its travel, settles nothing new. */
+    @Test
+    void aKeyAtABlockedEndCommitsNothing() {
+        build(new RangeSlider(0, 100));
+        key(Keys.TAB);
+        key(Keys.HOME);
+        key(Keys.LEFT);
+        assertTrue(committed.isEmpty(), "the lower was at the minimum already: " + committed.size());
+        key(Keys.RIGHT);
+        assertEquals(1, committed.size(), "a key that moved it commits");
     }
 
     @Test
