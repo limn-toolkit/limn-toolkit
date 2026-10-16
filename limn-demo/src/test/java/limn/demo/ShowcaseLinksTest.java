@@ -89,14 +89,20 @@ class ShowcaseLinksTest {
     }
 
     @Test
-    void everyBundleSaysEveryStringOfTheWindow() throws IOException {
+    void everyBundleSaysEveryStringOfTheWindow() throws Exception {
         List<String> keys = new ArrayList<>();
-        for (java.lang.reflect.Field field : ShowcaseStrings.class.getDeclaredFields()) {
-            if (field.getType() == limn.i18n.I18nString.class) {
-                try {
-                    keys.add(((limn.i18n.I18nString) field.get(null)).key());
-                } catch (IllegalAccessException e) {
-                    throw new AssertionError(e);
+        List<String> plurals = new ArrayList<>();
+        for (Class<?> holder : stringHolders()) {
+            for (java.lang.reflect.Field field : holder.getDeclaredFields()) {
+                if (!java.lang.reflect.Modifier.isStatic(field.getModifiers())) {
+                    continue;
+                }
+                field.setAccessible(true);
+                Object value = field.get(null);
+                if (value instanceof limn.i18n.I18nString string && string.key() != null) {
+                    keys.add(string.key());
+                } else if (value instanceof limn.i18n.PluralString plural) {
+                    plurals.add(plural.key());
                 }
             }
         }
@@ -112,17 +118,50 @@ class ShowcaseLinksTest {
                 assertTrue(in != null, resource);
                 bundle.load(new java.io.InputStreamReader(in, StandardCharsets.UTF_8));
             }
-            for (String key : keys) {
+            List<String> wanted = new ArrayList<>(keys);
+            // A count says each of the language's forms, and "other", the form every lookup
+            // falls back to.
+            java.util.Set<String> forms = new java.util.TreeSet<>();
+            for (limn.i18n.PluralRules.Category category : limn.i18n.PluralRules.integerCategories(locale)) {
+                forms.add(category.suffix());
+            }
+            forms.add(limn.i18n.PluralRules.Category.OTHER.suffix());
+            for (String plural : plurals) {
+                for (String form : forms) {
+                    wanted.add(plural + "." + form);
+                }
+            }
+            for (String key : wanted) {
                 if (bundle.getProperty(key, "").isBlank()) {
                     missing.add(locale.toLanguageTag() + " " + key);
                 }
             }
             for (Object key : bundle.keySet()) {
-                if (!keys.contains(key)) {
+                if (!wanted.contains(key)) {
                     missing.add(locale.toLanguageTag() + " says a string nothing shows: " + key);
                 }
             }
         }
         assertEquals(List.of(), missing);
+    }
+
+    /**
+     * Where the Showcase keeps its strings: the frame's in {@link ShowcaseStrings}, and each page's
+     * in a nested {@code Text}, found among the compiled classes so a page added later is held to
+     * the bundles without being listed here.
+     */
+    private static List<Class<?>> stringHolders() throws Exception {
+        List<Class<?>> holders = new ArrayList<>();
+        holders.add(ShowcaseStrings.class);
+        Path dir = Path.of(ShowcaseStrings.class.getResource("ShowcaseStrings.class").toURI()).getParent();
+        try (var files = Files.list(dir)) {
+            for (Path file : files.sorted().toList()) {
+                String name = file.getFileName().toString();
+                if (name.endsWith("$Text.class") || name.endsWith("$NavText.class")) {
+                    holders.add(Class.forName("limn.demo." + name.substring(0, name.length() - 6)));
+                }
+            }
+        }
+        return holders;
     }
 }

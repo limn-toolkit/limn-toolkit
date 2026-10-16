@@ -134,8 +134,6 @@ final class ShowcaseStrings {
             new I18nString("showcase.orders.create", "Create");
     static final I18nString ORDERS_REFRESH =
             new I18nString("showcase.orders.refresh", "Refresh");
-    static final I18nString MENUS_RIGHT_CLICK =
-            new I18nString("showcase.menus.rightClick", "Right-click here");
     static final I18nString STATUS_READY =
             new I18nString("showcase.status.ready", "Ready.");
     static final I18nString STATUS_LOADING =
@@ -144,26 +142,8 @@ final class ShowcaseStrings {
             new I18nString("showcase.status.loaded", "Loaded: {0} records");
     static final I18nString ACTION_SAVE =
             new I18nString("showcase.action.save", "Save");
-    static final I18nString DIALOG_WINDOW_MODAL =
-            new I18nString("showcase.dialog.windowModal", "Window-modal");
-    static final I18nString DIALOG_APP_MODAL =
-            new I18nString("showcase.dialog.appModal", "App-modal");
-    static final I18nString DIALOG_NON_MODAL =
-            new I18nString("showcase.dialog.nonModal", "Non-modal");
-    static final I18nString DIALOG_STACKED =
-            new I18nString("showcase.dialog.stacked", "Stacked (native → internal)");
-    static final I18nString DIALOG_INTERNAL =
-            new I18nString("showcase.dialog.internal", "Internal (in-scene)");
-    static final I18nString DIALOG_ALWAYS_ON_TOP =
-            new I18nString("showcase.dialog.alwaysOnTop", "Always on top");
-    static final I18nString DIALOG_DECORATED =
-            new I18nString("showcase.dialog.decorated", "Decorated (OS frame)");
     static final I18nString ABOUT_BLURB =
             new I18nString("showcase.about.blurb", "A Java GUI toolkit built from scratch on LWJGL, without AWT, Swing or SWT.");
-    static final I18nString MENUS_BUTTON =
-            new I18nString("showcase.menus.button", "Actions menu");
-    static final I18nString MENUS_MODAL =
-            new I18nString("showcase.menus.modal", "Modal (blocks the window)");
     static final I18nString TAB_MENUS =
             new I18nString("showcase.tab.menus", "Menus");
     static final I18nString TAB_DATES =
@@ -176,40 +156,12 @@ final class ShowcaseStrings {
             new I18nString("showcase.render.partial", "Partial rendering");
     static final I18nString RENDER_DAMAGE =
             new I18nString("showcase.render.damage", "Damage debug");
-    static final I18nString DIALOG_TITLE =
-            new I18nString("showcase.dialog.title", "Dialog: {0}");
-    static final I18nString DIALOG_MESSAGE =
-            new I18nString("showcase.dialog.message", "This is a {0} dialog. Choose an option.");
     static final I18nString ACTION_CANCEL =
             new I18nString("showcase.action.cancel", "Cancel");
     static final I18nString ACTION_OK =
             new I18nString("showcase.action.ok", "OK");
-    static final I18nString STATUS_WINDOW_MODAL =
-            new I18nString("showcase.status.windowModal", "Window-modal dialog: {0}");
-    static final I18nString STATUS_APP_MODAL =
-            new I18nString("showcase.status.appModal", "App-modal dialog: {0}");
-    static final I18nString STATUS_NON_MODAL =
-            new I18nString("showcase.status.nonModal", "Non-modal dialog: {0}");
-    static final I18nString STATUS_NEEDS_WINDOW =
-            new I18nString("showcase.status.needsWindow", "Non-modal requires a native window. Turn off 'Internal'");
-    static final I18nString DIALOG_LOWER =
-            new I18nString("showcase.dialog.lower", "Lower dialog");
-    static final I18nString DIALOG_LOWER_BODY =
-            new I18nString("showcase.dialog.lowerBody", "Raised first, and always-on-top.");
     static final I18nString ACTION_CLOSE =
             new I18nString("showcase.action.close", "Close");
-    static final I18nString STATUS_LOWER =
-            new I18nString("showcase.status.lower", "Lower dialog: {0}");
-    static final I18nString DIALOG_UPPER =
-            new I18nString("showcase.dialog.upper", "Upper dialog");
-    static final I18nString DIALOG_UPPER_BODY =
-            new I18nString("showcase.dialog.upperBody", "Raised second, over a window the first one had locked. This one must be answerable.");
-    static final I18nString STATUS_UPPER =
-            new I18nString("showcase.status.upper", "Upper dialog: {0}");
-    static final I18nString STATUS_UPPER_PROMOTED =
-            new I18nString("showcase.status.upperPromoted", "Upper dialog asked for IN_SCENE and was promoted to a window");
-    static final I18nString STATUS_UPPER_IN_SCENE =
-            new I18nString("showcase.status.upperInScene", "Upper dialog stayed in-scene");
     static final I18nString STATUS_WINDOW_RESTORED =
             new I18nString("showcase.status.windowRestored", "Window restored");
     static final I18nString STATUS_FULLSCREEN_CURRENT =
@@ -230,30 +182,12 @@ final class ShowcaseStrings {
             new I18nString("showcase.menu.view", "View");
     static final I18nString MENU_COPY =
             new I18nString("showcase.menu.copy", "Copy");
-    static final I18nString STATUS_COPY =
-            new I18nString("showcase.status.copy", "Menu: Copy");
     static final I18nString MENU_PASTE =
             new I18nString("showcase.menu.paste", "Paste");
-    static final I18nString STATUS_PASTE =
-            new I18nString("showcase.status.paste", "Menu: Paste");
     static final I18nString MENU_BOLD =
             new I18nString("showcase.menu.bold", "Bold");
-    static final I18nString STATUS_BOLD =
-            new I18nString("showcase.status.bold", "Bold: {0}");
-    static final I18nString MENU_ITALIC =
-            new I18nString("showcase.menu.italic", "Italic");
-    static final I18nString STATUS_ITALIC =
-            new I18nString("showcase.status.italic", "Italic: {0}");
     static final I18nString MENU_EXPORT =
             new I18nString("showcase.menu.export", "Export");
-    static final I18nString STATUS_EXPORT_PDF =
-            new I18nString("showcase.status.exportPdf", "Export PDF");
-    static final I18nString STATUS_EXPORT_PNG =
-            new I18nString("showcase.status.exportPng", "Export PNG");
-    static final I18nString STATUS_EXPORT_SVG =
-            new I18nString("showcase.status.exportSvg", "Export SVG");
-    static final I18nString MENU_PROPERTIES =
-            new I18nString("showcase.menu.properties", "Properties…");
 
     private ShowcaseStrings() {
     }

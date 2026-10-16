@@ -241,6 +241,12 @@ public final class Main {
                 limn.i18n.I18n.setLocale(options.locale());
                 System.out.println("Locale: " + options.locale().toLanguageTag());
             }
+            // The Showcase reads in its language's direction from the first frame, as it does when
+            // the language is chosen in its band; a direction asked for on the command line wins.
+            if (scene.equals("app") && options.direction() == null) {
+                limn.scene.LayoutDirection.setProcessDefault(
+                        limn.scene.LayoutDirection.forLocale(limn.i18n.I18n.locale()));
+            }
 
             limn.scene.Scene widgetScene = null;
             limn.components.ComboBox<?> formsCombo = null;

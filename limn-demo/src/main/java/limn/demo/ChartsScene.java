@@ -198,7 +198,9 @@ final class ChartsScene {
         Column centre = new Column();
         centre.gap(2).crossAlignment(Flex.CrossAlignment.CENTER);
         centre.add(total);
-        centre.add(new Label(Text.YEAR_TO_DATE).setMuted(true));
+        // Wrapped and centred: in some languages "year to date" is three words wider than the hole.
+        centre.add(new Label(Text.YEAR_TO_DATE).setMuted(true).setWrap(true)
+                .setAlign(Label.HAlign.CENTER, Label.VAlign.TOP));
         return centre;
     }
 

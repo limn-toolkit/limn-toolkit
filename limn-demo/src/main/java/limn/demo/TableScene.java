@@ -186,9 +186,9 @@ final class TableScene {
         Column<Item> product = Column.<Item>text(Text.PRODUCT, Item::product).width(250).footer(Text.SUM);
         Column<Item> category = Column.<Item>text(Text.CATEGORY, Item::category).width(144);
         Column<Item> warehouse = Column.<Item>text(Text.WAREHOUSE, Item::warehouse).width(116);
-        Column<Item> onHand = Column.<Item>numeric(Text.ON_HAND, Item::onHand).width(96).footerSum();
-        Column<Item> reserved = Column.<Item>numeric(Text.RESERVED, Item::reserved).width(96).footerSum();
-        Column<Item> available = Column.<Item>numeric(Text.AVAILABLE, Item::available).width(100).footerSum();
+        Column<Item> onHand = Column.<Item>numeric(Text.ON_HAND, Item::onHand).width(112).footerSum();
+        Column<Item> reserved = Column.<Item>numeric(Text.RESERVED, Item::reserved).width(112).footerSum();
+        Column<Item> available = Column.<Item>numeric(Text.AVAILABLE, Item::available).width(112).footerSum();
         Column<Item> reorder = Column.<Item>numeric(Text.REORDER, Item::reorderAt).width(100).footerSum();
         Column<Item> cost = Column.<Item>currency(Text.UNIT_COST, Item::unitCost, money).width(112).footerSum();
         Column<Item> value = Column.<Item>currency(Text.VALUE, Item::value, money).width(140).footerSum();

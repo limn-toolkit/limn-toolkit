@@ -344,9 +344,11 @@ final class VideoScene {
      * list because a machine that has not built the native still has the two pure-Java decoders,
      * and a chooser that offered only what the native handles would be wrong there.
      */
-    private static final limn.backend.FileDialogs.Filter PLAYABLE =
-            limn.backend.FileDialogs.Filter.of(Text.VIDEO_FILES.get(), "*.mp4", "*.m4v", "*.mov", "*.3gp",
-                    "*.mkv", "*.webm", "*.y4m");
+    private static limn.backend.FileDialogs.Filter playable() {
+        // Made when the chooser opens, so its name is in the language of that moment.
+        return limn.backend.FileDialogs.Filter.of(Text.VIDEO_FILES.get(), "*.mp4", "*.m4v", "*.mov",
+                "*.3gp", "*.mkv", "*.webm", "*.y4m");
+    }
 
     /**
      * The platform's chooser, or a sentence in {@code caption} when there is no native window to
@@ -360,7 +362,7 @@ final class VideoScene {
             say.accept(Text.NO_WINDOW.get());
             return java.util.concurrent.CompletableFuture.completedFuture(java.util.Optional.empty());
         }
-        return scene.window().fileDialogs().openFile(Text.CHOOSER_TITLE.get(), null, PLAYABLE);
+        return scene.window().fileDialogs().openFile(Text.CHOOSER_TITLE.get(), null, playable());
     }
 
     /**
