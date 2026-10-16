@@ -47,8 +47,11 @@ bar and the tray; none of that is a popup hanging from a field.
 
 ## 3. What becomes the same for both
 
-- **Right to left, a window lines up with the trailing edge** of what it hangs from, as the
-  overlay already did. The calendar's window was hung from the left edge in both directions.
+- **Right to left, a window lines up with the leading edge** of what it hangs from, the right
+  one, as the overlay already did. The calendar's window was hung from the left edge in both
+  directions. (Corrected 2026-10-16: this point said "trailing"; the code lines a list and a
+  calendar up with the anchor's leading edge in both directions, as `AnchoredPopup` says, and only
+  the tab list, whose button ends the strip, lines up with its trailing edge.)
 - **In the scene, the keyboard goes back as the fade starts**, and not when it ends. The calendar
   already did this; the combo box's list left the focus published on a layer about to go for the
   length of its fade. (Noted 2026-10-16, after the first hearing; the decision stands.) It puts the
