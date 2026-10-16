@@ -186,13 +186,13 @@ public final class StatusNotifierTray implements TrayPeer {
     // ---- a shape the panel colours -----------------------------------------------------------
 
     private volatile TrayWire.@Nullable Named named;
-    private java.nio.file.@Nullable Path folder;
-    private int pictures;
+    private @Nullable TrayShapeFiles shapeFiles;
 
     /**
      * Writes the monochrome icon as a file for a panel that colours a named shape itself, when
      * that is what will be shown: no picture in colour, KDE's panel, a runtime folder the panel
-     * can read, which inside a sandbox it cannot, and an encoder for the mask.
+     * can read, which inside a sandbox it cannot, and an encoder for the mask. Each frame of an
+     * animated shape is its own file, written once ({@link TrayShapeFiles}).
      *
      * @return the name and the folder, or {@code null} to send pixels only
      */
@@ -202,77 +202,26 @@ public final class StatusNotifierTray implements TrayPeer {
         if (next.picture() != null || shape == null || runtime == null
                 || !TrayWire.panelColoursNamedShapes(System.getenv("XDG_CURRENT_DESKTOP"))
                 || System.getenv("SNAP") != null || java.nio.file.Files.exists(java.nio.file.Path.of("/.flatpak-info"))) {
+            deleteFolder();
             return null;
         }
         try {
-            limn.graphics.Image mask = new limn.backend.spi.TrayPicture(shape.icon(), null, false)
-                    .render(96, limn.graphics.Color.rgb(0xFFFFFF), true);
-            byte[] png = limn.graphics.Images.encode(mask, limn.graphics.ImageFormat.PNG);
-            java.nio.file.Path into = java.nio.file.Path.of(runtime, "limn-tray",
-                    ProcessHandle.current().pid() + "-" + id, "icons");
-            deleteFolder();
-            sweep(java.nio.file.Path.of(runtime, "limn-tray"));
-            java.nio.file.Files.createDirectories(into);
-            folder = into;
-            // A new name each time: a panel keeps what it loaded under a name it already knows.
-            String name = "limn-" + id + "-" + ++pictures + "-symbolic";
-            java.nio.file.Files.writeString(into.resolve(name + ".svg"),
-                    TrayWire.symbolicSvg(png, shape.badge(), shape.badgeAtLeft()));
-            return new TrayWire.Named(name, into.toString());
+            TrayShapeFiles files = shapeFiles;
+            if (files == null) {
+                files = new TrayShapeFiles(id, java.nio.file.Path.of(runtime, "limn-tray"));
+                shapeFiles = files;
+            }
+            return files.write(shape);
         } catch (java.io.IOException | RuntimeException failed) {
             LOG.log(System.Logger.Level.DEBUG, "the tray's shape was not written as a file", failed);
             return null;
         }
     }
 
-    /** Removes the folders of processes that ended without taking theirs away. */
-    private static void sweep(java.nio.file.Path all) {
-        if (!java.nio.file.Files.isDirectory(all)) {
-            return;
-        }
-        try (java.util.stream.Stream<java.nio.file.Path> each = java.nio.file.Files.list(all)) {
-            for (java.nio.file.Path one : each.toList()) {
-                String name = one.getFileName().toString();
-                int dash = name.indexOf('-');
-                long pid;
-                try {
-                    pid = Long.parseLong(dash < 0 ? name : name.substring(0, dash));
-                } catch (NumberFormatException notOurs) {
-                    continue;
-                }
-                if (ProcessHandle.of(pid).isPresent()) {
-                    continue;
-                }
-                java.nio.file.Path icons = one.resolve("icons");
-                if (java.nio.file.Files.isDirectory(icons)) {
-                    try (java.util.stream.Stream<java.nio.file.Path> files = java.nio.file.Files.list(icons)) {
-                        for (java.nio.file.Path file : files.toList()) {
-                            java.nio.file.Files.deleteIfExists(file);
-                        }
-                    }
-                    java.nio.file.Files.deleteIfExists(icons);
-                }
-                java.nio.file.Files.deleteIfExists(one);
-            }
-        } catch (java.io.IOException | RuntimeException ignored) {
-            // Somebody else's, or already gone.
-        }
-    }
-
     private void deleteFolder() {
-        java.nio.file.Path old = folder;
-        folder = null;
-        if (old == null) {
-            return;
-        }
-        try (java.util.stream.Stream<java.nio.file.Path> files = java.nio.file.Files.list(old)) {
-            for (java.nio.file.Path file : files.toList()) {
-                java.nio.file.Files.deleteIfExists(file);
-            }
-            java.nio.file.Files.deleteIfExists(old);
-            java.nio.file.Files.deleteIfExists(old.getParent());
-        } catch (java.io.IOException | RuntimeException ignored) {
-            // The runtime folder is the session's and goes with it.
+        TrayShapeFiles files = shapeFiles;
+        if (files != null) {
+            files.delete();
         }
     }
 
