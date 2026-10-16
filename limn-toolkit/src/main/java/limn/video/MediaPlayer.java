@@ -442,7 +442,7 @@ public final class MediaPlayer implements AutoCloseable {
      * elsewhere.
      *
      * <p>A stream that cannot seek is cued where it is, which for one never played is its first
-     * picture. A time past the end hands nothing over. Nor does a picture
+     * picture. A time past the end hands nothing over, on a looping player too. Nor does a picture
      * that cannot be decoded, which leaves the player idle and not failed: {@link #start()} then
      * plays from the beginning, or, on a stream that cannot seek, fails as the cue did. Does
      * nothing unless this player is idle, and nothing on one already cued.
@@ -902,7 +902,9 @@ public final class MediaPlayer implements AutoCloseable {
      * performs the seek is what says where the stream is now.
      */
     private Step ended(long epoch) {
-        boolean wrap = looping && video.canReset();
+        // Not while idle: a cue past the end shows nothing, as ADR 069 says, and a wrap would hand
+        // over the first picture as the poster of a time the stream does not have.
+        boolean wrap = looping && video.canReset() && state != State.IDLE;
         synchronized (lock) {
             if (epoch != seekEpoch) {
                 return Step.PRODUCED; // the seek is waiting, so straight on to it

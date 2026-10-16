@@ -588,6 +588,30 @@ class MediaPlayerTest {
         }
     }
 
+    /** A time past the end shows nothing, on a looping player too: a cue is not a pass to wrap. */
+    @Test
+    void aCuePastTheEndOfALoopingPlayerHandsNothingOver() {
+        PooledTestStream stream = new PooledTestStream(64, 32, 4);
+        stream.frameCount = 3;
+        Hand hand = new Hand();
+        try (MediaPlayer player = manual(stream, hand, 3)) {
+            player.setLooping(true);
+            player.cue(10 * FRAME_MICROS);
+            pump(player, 4);
+            assertNull(player.takePicture(), "past the end: no poster, and not the first picture");
+            assertFalse(player.isCued());
+            assertEquals(0, stream.resets, "nothing rewound for a cue");
+
+            player.start();
+            pump(player, 3);
+            VideoFrame first = player.takePicture();
+            assertNotNull(first);
+            assertEquals(0, first.ptsMicros(), "play starts at the beginning");
+            first.release();
+        }
+        assertEquals(stream.slots(), stream.freeSlots());
+    }
+
     @Test
     void aTrackThatSoundsBecomesTheMasterAndTheEngineOwnsItFromThere() {
         PooledTestStream stream = new PooledTestStream(64, 32, 4);
