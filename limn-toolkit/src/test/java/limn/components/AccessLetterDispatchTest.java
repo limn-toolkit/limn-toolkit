@@ -221,6 +221,24 @@ class AccessLetterDispatchTest extends AccessibleComponentTestBase {
         }
     }
 
+    /** Esc closes a menu its title's letter opened: the title is not left lit, the field keeps the keys. */
+    @Test
+    void aMenuOpenedByItsLetterLeavesNoTitleLitWhenClosed() {
+        MenuBar bar = new MenuBar().setDisplayMode(DisplayMode.IN_SCENE)
+                .addMenu("&Sales", new Menu().addItem("Report", () -> { }));
+        TextField field = new TextField();
+        show(bar, field);
+        scene.requestFocus(field);
+
+        altAnd(Keys.S);
+        assertTrue(bar.isOpen());
+        drive(scene).press(Keys.ESCAPE, 0);
+        frame();
+        assertFalse(bar.isOpen());
+        assertSame(field, scene.focusedWidget());
+        assertEquals(-1, bar.hoverIndexForTest(), "no title stays lit");
+    }
+
     @Test
     void theTopmostModalTakesItsLettersAndNothingBeneathAnswers() {
         AtomicInteger killed = new AtomicInteger();

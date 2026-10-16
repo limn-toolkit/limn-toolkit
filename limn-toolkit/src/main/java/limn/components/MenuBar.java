@@ -162,6 +162,8 @@ public final class MenuBar extends Widget<MenuBar> {
 
     private final List<Entry> entries = new ArrayList<>();
     private int hoverIndex = -1;
+    /** The title under the pointer, or -1: what {@link #hoverIndex} returns to when a menu closes. */
+    private int pointerIndex = -1;
     private int openIndex = -1;
     /** What held the keyboard when Alt or F10 moved it here, and gets it back when the bar is left. */
     private @Nullable Widget<?> focusBeforeBar;
@@ -714,6 +716,7 @@ public final class MenuBar extends Widget<MenuBar> {
         switch (event.type()) {
             case MOVE, ENTER -> {
                 int i = titleAt(sceneToLocalX(event.x()), t, rtl);
+                pointerIndex = i;
                 if (i != hoverIndex) {
                     hoverIndex = i;
                     invalidate();
@@ -725,6 +728,7 @@ public final class MenuBar extends Widget<MenuBar> {
                 }
             }
             case EXIT -> {
+                pointerIndex = -1;
                 if (hoverIndex != -1) {
                     hoverIndex = -1;
                     invalidate();
@@ -993,6 +997,10 @@ public final class MenuBar extends Widget<MenuBar> {
         return false;
     }
 
+    int hoverIndexForTest() {
+        return hoverIndex;
+    }
+
     @Override
     protected void onFocusGained() {
         if (hoverIndex < 0 && !entries.isEmpty()) {
@@ -1051,6 +1059,11 @@ public final class MenuBar extends Widget<MenuBar> {
             // user's, and both flip this bar's expanded state, which is what it announces.
             if (openPopup == popup) {
                 releasePopup();
+                if (!isFocused()) {
+                    // Opened by a title's letter with the keyboard left in a field: the title
+                    // stayed lit after Esc, as if the pointer were on it (seen on Windows).
+                    hoverIndex = pointerIndex;
+                }
                 invalidate();
                 notifyChange(Change.of(Change.Aspect.EXPANDED, Change.Origin.USER));
             }
