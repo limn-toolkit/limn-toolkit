@@ -66,6 +66,11 @@ public final class AtspiBridge extends PlatformBridge implements AtspiTree.Windo
     /** Whether this publish sent the frame's own {@code StateChanged active} 1. UI thread. */
     boolean frameActiveSaid;
     /**
+     * The node the focus came to in this publish whose own changes were sent as its cache item
+     * rather than as events, so the item goes once, or 0. UI thread. Cleared by every publish.
+     */
+    long changesFoldedInto;
+    /**
      * The join this window's {@link #reconcileOwed} belongs to, so an owe raised on a connection
      * clients no longer hold is not paid on the next one. UI thread. What was <em>announced</em> is
      * not remembered here: the last effective focus is one memory for the process and lives on

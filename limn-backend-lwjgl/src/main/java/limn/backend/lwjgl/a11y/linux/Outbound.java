@@ -1,5 +1,7 @@
 package limn.backend.lwjgl.a11y.linux;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -60,8 +62,54 @@ final class Outbound {
     private final AtomicInteger queuedTail = new AtomicInteger();
     private final AtomicInteger dropped = new AtomicInteger();
     private volatile Kind lastKind = Kind.REPLY;
+    /** Guards {@link #holding} and {@link #held}, which any offering thread reads. */
+    private final Object holdLock = new Object();
+    /** Whether signals are being kept back until {@link #release()}. */
+    private boolean holding;
+    /** The signals kept back, in the order they were accepted. */
+    private final List<Entry> held = new ArrayList<>();
 
     private record Entry(byte[] bytes, Kind kind) {
+    }
+
+    /**
+     * Keeps the signals offered from now on from the writer until {@link #release()}, so the
+     * signals of one publish reach a client together. Replies are never kept back: a client is
+     * parked waiting on each one.
+     *
+     * <p>A publish's signals are computed one event at a time on the user-interface thread, and the
+     * structure of a subtree that arrived — its cache items — takes milliseconds to compute; the
+     * writer sent each signal as it was offered, so a client could handle the first of them before
+     * the rest existed. Orca 50.3 did: a combo box opening its list in the scene sends its own
+     * {@code focused} 0 and {@code expanded} 1 and then the list's arrival and its {@code focused}
+     * 1, and with the first two alone in its queue Orca read "expanded" on the combo it still stood
+     * on, before the list (2026-10-16, .claude/pending/2026-10-16/readers-adr-068/fedora/, 3 runs
+     * of 5 at 3 to 6 ms between the two halves). The bound is decided at the door as before, so a
+     * refusal is still known to the caller at once.
+     */
+    void hold() {
+        synchronized (holdLock) {
+            holding = true;
+        }
+    }
+
+    /** Hands every signal kept back since {@link #hold()} to the writer, in order, and stops. */
+    void release() {
+        synchronized (holdLock) {
+            holding = false;
+            queue.addAll(held);
+            held.clear();
+        }
+    }
+
+    private void enqueueSignal(Entry entry) {
+        synchronized (holdLock) {
+            if (holding) {
+                held.add(entry);
+            } else {
+                queue.add(entry);
+            }
+        }
     }
 
     /**
@@ -86,7 +134,7 @@ final class Outbound {
             return false;
         }
         queuedTail.incrementAndGet();
-        queue.add(new Entry(bytes, Kind.TAIL));
+        enqueueSignal(new Entry(bytes, Kind.TAIL));
         return true;
     }
 
@@ -102,7 +150,7 @@ final class Outbound {
             return false;
         }
         queuedSignals.incrementAndGet();
-        queue.add(new Entry(bytes, Kind.SIGNAL));
+        enqueueSignal(new Entry(bytes, Kind.SIGNAL));
         return true;
     }
 
@@ -134,8 +182,10 @@ final class Outbound {
         return dropped.get();
     }
 
-    /** @return how many messages are waiting */
+    /** @return how many messages are waiting, the ones kept back included */
     int size() {
-        return queue.size();
+        synchronized (holdLock) {
+            return queue.size() + held.size();
+        }
     }
 }

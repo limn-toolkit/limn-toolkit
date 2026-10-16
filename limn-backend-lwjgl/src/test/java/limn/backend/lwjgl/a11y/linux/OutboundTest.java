@@ -107,4 +107,36 @@ class OutboundTest {
                     "a written reply released no signal slot, because it held none: " + i);
         }
     }
+
+    /**
+     * The signals of one publish reach the writer together: a held signal is not given to the
+     * writer until the release, and then in the order it was offered, while a reply goes at once,
+     * since a client is parked on it. The bound is still decided at the door.
+     */
+    @Test
+    void heldSignalsWaitForTheReleaseInOrderAndAReplyDoesNot() throws Exception {
+        Outbound out = new Outbound();
+        out.offerSignal(message(1));
+        out.hold();
+        assertTrue(out.offerSignal(message(2)), "accepted at the door while held");
+        assertTrue(out.offerTailSignal(message(3)));
+        out.offerReply(message(9));
+        assertEquals(4, out.size(), "the held ones are waiting too");
+
+        assertEquals(1, out.take()[0], "what was queued before the hold goes");
+        out.written();
+        assertEquals(9, out.take()[0], "and a reply is never kept back");
+        out.written();
+        assertEquals(2, out.size(), "the held signals have not reached the writer");
+
+        out.release();
+        assertEquals(2, out.take()[0], "released in the order they were offered");
+        out.written();
+        assertEquals(3, out.take()[0]);
+        out.written();
+        assertEquals(0, out.size());
+
+        out.offerSignal(message(4));
+        assertEquals(4, out.take()[0], "and after the release nothing is kept back");
+    }
 }

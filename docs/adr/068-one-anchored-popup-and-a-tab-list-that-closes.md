@@ -51,7 +51,15 @@ bar and the tray; none of that is a popup hanging from a field.
   overlay already did. The calendar's window was hung from the left edge in both directions.
 - **In the scene, the keyboard goes back as the fade starts**, and not when it ends. The calendar
   already did this; the combo box's list left the focus published on a layer about to go for the
-  length of its fade.
+  length of its fade. (Noted 2026-10-16, after the first hearing; the decision stands.) It puts the
+  focus coming back and the combo's own collapse and new item in one publish, and Orca 50.3 handles
+  a batch's focus before its state and property changes, so it read the combo once for the focus
+  and three more times for the changes, where the jar of 2026-10-12, whose focus came back at the
+  fade's end, was read once. The Linux bridge now sends a node's name, description, value and open
+  state as its cache item, not as events, in the publish the focus comes to it, no longer says
+  that focus a second time as the cursor the list had, and holds a publish's signals until its frame
+  ends, since a reader that handled the first half of the list opening alone read "expanded" on the
+  combo before the list.
 - **The overlay is placed by the same rule as the window:** below unless it does not fit and above
   has more room, eight points from the edge, clamped into the scene.
 

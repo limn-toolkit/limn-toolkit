@@ -77,6 +77,17 @@ final class AtspiApplication {
         default int refused() {
             return -1;
         }
+
+        /**
+         * Keeps the signals queued from now on from the wire until {@link #release()}, so one
+         * publish's signals reach a client together ({@link Outbound#hold()}). Never blocks.
+         */
+        default void hold() {
+        }
+
+        /** Sends what {@link #hold()} kept back, in order. Never blocks. */
+        default void release() {
+        }
     }
 
     /** Joins the accessibility bus as this application and hands the registry its root. */
@@ -365,6 +376,7 @@ final class AtspiApplication {
         window.focusSaid = 0;
         window.cursorSaid = 0;
         window.frameActiveSaid = false;
+        window.changesFoldedInto = 0;
         if (!window.member) {
             windows.add(window);
             window.member = true;
@@ -420,6 +432,7 @@ final class AtspiApplication {
             if (window.shownAsFrame) {
                 frameLeaves(window, now.link(), frameIndexOf(window));
             }
+            now.link().release(); // a publish that never reached its frame's end keeps nothing back
         }
         window.shownAsFrame = false;
         windows.remove(window);
@@ -512,6 +525,23 @@ final class AtspiApplication {
             }
             return;
         }
+        if (readByTheFocusItCameWith(window, event)) {
+            if (trace != null) {
+                trace.accept("read by the focus it came with, sent as the node's cache item: "
+                        + event);
+            }
+            if (window.changesFoldedInto != event.nodeId()) {
+                Object[] item = context.cacheItem(event.nodeId());
+                if (item == null || send(link, new AtspiEvents.Signal(Atspi.PATH_CACHE,
+                        Atspi.I_CACHE, "AddAccessible", Atspi.CACHE_ITEM, new Object[] {item}),
+                        false)) {
+                    window.changesFoldedInto = event.nodeId();
+                } else {
+                    window.reconcileOwed = true;
+                }
+            }
+            return;
+        }
         if (type == AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED) {
             long cursor = cursorOf(event);
             if (cursor != 0 && window.cursorSaid == cursor) {
@@ -578,6 +608,15 @@ final class AtspiApplication {
     void frameEnded(AtspiBridge window) {
         sayTheStartupIfOwed(window);
         reconcileIfOwed(window);
+        releaseTheFrame();
+    }
+
+    /** Sends what the frame's publish kept back, together. User-interface thread. */
+    private void releaseTheFrame() {
+        Joined now = joined.get();
+        if (now != null) {
+            now.link().release();
+        }
     }
 
     /**
@@ -640,6 +679,13 @@ final class AtspiApplication {
     void publishing(AtspiBridge window) {
         sayTheStartupIfOwed(window);
         reconcileIfOwed(window);
+        // Its signals are held until the frame ends, so a client never handles half a publish:
+        // the structure of an arrival is computed after the changes before it, milliseconds Orca
+        // used to read the first half alone in (Outbound#hold).
+        Joined now = joined.get();
+        if (now != null) {
+            now.link().hold();
+        }
     }
 
     /** Says the focus and the cursor again if something left them owed. User-interface thread. */
@@ -689,7 +735,11 @@ final class AtspiApplication {
      * no longer stands.
      */
     private void announceFocus(AtspiBridge window, long node) {
-        if (announcedIn != window) {
+        if (announcedIn != window || announcedFocus != node) {
+            // A cursor belongs to the focus it was announced inside: one the focus has left is no
+            // cursor of the new focus, and kept, it made the tail say the focus a second time as a
+            // cursor that "left a focus which stays" (sayTheFocusTheCursorLeft) — a combo whose
+            // in-scene list closed, its cursor having been the list's highlighted row.
             announcedCursor = 0;
         }
         announcedIn = window;
@@ -746,6 +796,52 @@ final class AtspiApplication {
                 || event.type() == AccessibleEvent.Type.STATE_CHANGED
                         && event.state() == limn.accessibility.Accessible.State.FOCUSED
                         && Boolean.TRUE.equals(event.newValue());
+    }
+
+    /**
+     * Whether the event is a change of the node the focus came to in this publish that the reader
+     * reads by handling that focus: its name, description, value, and the open state the expand
+     * facet gives it.
+     *
+     * <p><b>Sent as events, each is read a second time after the focus.</b> Orca 50.3 queues the
+     * events of a batch by priority and handles {@code focused} (3) before {@code expanded},
+     * {@code accessible-value} and {@code accessible-name} (4) whatever order they arrived in
+     * ({@code EventManager._get_priority}); the focus presents the node as it is now, and each
+     * change after it comes from the locus and is presented again — the expanded handler first
+     * clearing the per-object memory ({@code clear_all_cache_now}) its focus had saved precisely
+     * "so we don't double-present aspects about obj" ({@code focus_manager._save_object_details}).
+     * A combo box whose in-scene list closes on Enter is the case: the keyboard goes back as the
+     * fade starts (ADR 068 §3), so one publish moves the focus to the combo, collapses it and gives
+     * it the item picked, and Orca said "Cordilheiras Atlas, caixa de combinação" and then
+     * "Cordilheiras Atlas, caixa de combinação recolhido" twice and "Cordilheiras Atlas" once more
+     * (.claude/pending/2026-10-16/readers-adr-068/fedora/, the trace068b run: every signal of that
+     * publish sent within 4 ms and all queued before Orca handled the first). Sending them before
+     * the focus in the same batch changes nothing, since the queue reorders them.
+     *
+     * <p>So they go as the node's cache item, once, which is what libatspi keeps the name, the
+     * description and the states from ({@code add_accessible_from_iter}) and what the focus reads.
+     * Only for the node the focus came to — a node that already had it is the locus, and its
+     * changes are the news — and only these kinds: Orca's checked, pressed, selected and
+     * indeterminate handlers decide on their own what to say after a focus (a Space, an arrow in a
+     * table), and text and caret events carry their own cause.
+     */
+    private static boolean readByTheFocusItCameWith(AtspiBridge window, AccessibleEvent event) {
+        switch (event.type()) {
+            case NAME_CHANGED, DESCRIPTION_CHANGED, VALUE_CHANGED -> {
+            }
+            case STATE_CHANGED -> {
+                if (event.state() != limn.accessibility.Accessible.State.EXPANDED
+                        && event.state() != limn.accessibility.Accessible.State.EXPANDABLE) {
+                    return false;
+                }
+            }
+            default -> {
+                return false;
+            }
+        }
+        long focused = window.tree().focused();
+        return focused != 0 && focused == event.nodeId()
+                && window.previousTree.focused() != focused;
     }
 
     private static boolean focusLost(AccessibleEvent event) {
@@ -1307,6 +1403,16 @@ final class AtspiApplication {
             @Override
             public int refused() {
                 return connection.droppedSignals();
+            }
+
+            @Override
+            public void hold() {
+                connection.holdSignals();
+            }
+
+            @Override
+            public void release() {
+                connection.releaseSignals();
             }
         };
     }

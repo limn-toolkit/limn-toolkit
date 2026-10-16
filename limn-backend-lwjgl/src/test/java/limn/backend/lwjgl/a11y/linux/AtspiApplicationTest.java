@@ -42,6 +42,10 @@ class AtspiApplicationTest {
         boolean refusesOrdinarySignals;
         /** How many signals the link has refused. */
         int refusals;
+        /** Whether the application was holding signals back ({@code Link#hold}), one per signal. */
+        final List<Boolean> held = new ArrayList<>();
+        /** Whether signals are being kept back now. */
+        boolean holding;
 
         Runnable lost;
 
@@ -58,7 +62,16 @@ class AtspiApplicationTest {
                     }
                     signals.add(signal);
                     tails.add(tail);
+                    held.add(holding);
                     return true;
+                }
+
+                @Override public void hold() {
+                    holding = true;
+                }
+
+                @Override public void release() {
+                    holding = false;
                 }
 
                 @Override public void close() {
@@ -1142,6 +1155,113 @@ class AtspiApplicationTest {
 
         publish.accept("Carpathians", -1);
         assertEquals(List.of(), spoken(bus.signals), "and a publish after it says nothing");
+    }
+
+    /**
+     * <b>A focus that comes back to a combo box as its list closes is said once, and the combo's
+     * own changes in that publish are not said again after it</b> (ADR 068 §3, heard 2026-10-16).
+     *
+     * <p>In the scene the keyboard goes back as the fade starts, so one publish moves the focus
+     * from the list's layer to the combo and also collapses the combo and gives it its new item.
+     * Orca 50.3 queues a batch by priority and handles {@code focused} (3) before {@code expanded},
+     * {@code accessible-value} and {@code accessible-name} (4), whatever order they were sent in;
+     * the focus reads the combo whole, and each change after it is from the locus and read again —
+     * "Cordilheiras Atlas, caixa de combinação recolhido" twice and the name once more, where the
+     * control jar, whose focus came back at the fade's end, was read once
+     * (.claude/pending/2026-10-16/readers-adr-068/fedora/, run trace068b). So those changes go as
+     * the node's cache item, which the reader's focus reads, and not as events of their own. And
+     * the cursor the layer had is not one the combo left: the focus is said once, not again in the
+     * tail. And the publish's signals are held until its frame ends, so none goes out alone.
+     */
+    @Test
+    void aFocusComingBackWithItsOwnNewItemIsSaidOnceAndItsOwnChangesAreNotSaidAfterIt() {
+        FakeBus bus = new FakeBus();
+        AtspiApplication app = anApplication(bus);
+        AtspiBridge window = app.window();
+        Accessibility a = new Accessibility();
+        String[] rows = {"Andes", "Atlas", "Carpathians"};
+        // cursor >= 0: the list is down in the scene, its layer holding the keyboard, the cursor on
+        // that row; -1: the list is gone and the combo holds the keyboard
+        java.util.function.BiConsumer<Integer, Integer> publish = (selected, cursor) -> {
+            boolean open = cursor >= 0;
+            a.beginWalk(400, 300, Locale.ENGLISH);
+            int root = a.begin(6000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+            a.role(Accessible.Role.WINDOW);
+            a.state(Accessible.State.ACTIVE);
+            a.inherited(true, true, true, false, false);
+            a.begin(6001, root, Locale.ENGLISH, 0, 0, 200, 20);
+            a.role(Accessible.Role.COMBO_BOX);
+            a.name(I18nString.literal(rows[selected]), Accessible.NameFrom.CONTENT);
+            a.expand(open);
+            a.value(selected, 0, rows.length - 1, 1);
+            a.valueText(rows[selected], selected);
+            a.inherited(true, true, true, !open, !open);
+            a.end();
+            if (open) {
+                int layer = a.begin(6002, root, Locale.ENGLISH, 0, 20, 200, 60);
+                a.role(Accessible.Role.GROUP);
+                a.name(I18nString.literal("Mountain ranges"), Accessible.NameFrom.CONTENT);
+                a.inherited(true, true, true, true, true);
+                int list = a.begin(6003, layer, Locale.ENGLISH, 0, 20, 200, 60);
+                a.role(Accessible.Role.LIST);
+                a.inherited(true, true, true, false, false);
+                for (int i = 0; i < rows.length; i++) {
+                    a.begin(6004 + i, list, Locale.ENGLISH, 0, 20 + i * 20, 200, 20);
+                    a.role(Accessible.Role.LIST_ITEM);
+                    a.name(I18nString.literal(rows[i]), Accessible.NameFrom.CONTENT);
+                    if (i == cursor) {
+                        a.state(Accessible.State.ACTIVE);
+                    }
+                    a.inherited(true, true, true, false, false);
+                    a.end();
+                }
+                a.end();
+                a.end();
+            }
+            a.end();
+            window.publish(a.publish(open ? 6002 : 6001, 0, 0, 1f, true), false);
+            for (limn.accessibility.AccessibleEvent event : List.copyOf(a.events())) {
+                window.emit(event);
+            }
+            window.frameEnded();
+        };
+        publish.accept(0, -1);
+        publish.accept(0, 1); // Down opened the list, Down moved to Atlas
+        List<String> open = spoken(bus.signals);
+        assertTrue(open.contains("ActiveDescendantChanged  1 " + path(6002)),
+                "the fixture's cursor is the highlighted row: " + open);
+        bus.signals.clear();
+
+        bus.held.clear();
+        publish.accept(1, -1); // Enter picks Atlas, closes the list, and the combo has the keyboard
+        List<String> sent = spoken(bus.signals);
+        assertFalse(bus.held.contains(false), "every signal of the publish was kept back until the "
+                + "frame ended, so a client never handles half of it: " + bus.held);
+        assertFalse(bus.holding, "and the frame's end let them go");
+        String focus = "StateChanged focused 1 " + path(6001);
+        assertEquals(1, java.util.Collections.frequency(sent, focus),
+                "the focus is said once, and not again as the cursor the layer had: " + sent);
+        for (String own : sent) {
+            assertFalse(own.endsWith(" " + path(6001)) && !own.equals(focus)
+                            && (own.startsWith("PropertyChange ")
+                                    || own.startsWith("StateChanged expanded")
+                                    || own.startsWith("StateChanged collapsed")),
+                    "the combo's new item and its collapse are read by that focus, not after it: "
+                            + sent);
+        }
+        assertTrue(sent.contains("ChildrenChanged remove 1 " + path(6000)),
+                "the list's layer leaves in the same publish (ADR 068 §3): " + sent);
+        assertTrue(bus.signals.stream().anyMatch(m -> m.member.equals("AddAccessible")
+                        && DBus.Ref.of(((Object[]) m.body[0])[0]).path.equals(path(6001))),
+                "and a client's cache is given the combo as it is now: " + sent);
+
+        bus.signals.clear();
+        publish.accept(1, 1); // Down opens it again on Atlas
+        bus.signals.clear();
+        publish.accept(1, -1); // Escape closes it
+        sent = spoken(bus.signals);
+        assertEquals(1, java.util.Collections.frequency(sent, focus), "Escape too: " + sent);
+        assertFalse(sent.contains("StateChanged expanded 0 " + path(6001)), "Escape too: " + sent);
     }
 
     /**

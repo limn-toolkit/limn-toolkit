@@ -847,6 +847,16 @@ final class DBus {
             return tail ? outbound.offerTailSignal(b) : outbound.offerSignal(b);
         }
 
+        /** Keeps the signals offered from now on from the writer; see {@link Outbound#hold()}. */
+        void holdSignals() {
+            outbound.hold();
+        }
+
+        /** Hands the signals kept back to the writer; see {@link Outbound#release()}. */
+        void releaseSignals() {
+            outbound.release();
+        }
+
         /** Drains the outbound queue. The one thread that writes to this connection. */
         private void writeLoop() {
             while (running) {
