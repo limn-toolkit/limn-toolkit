@@ -38,9 +38,10 @@ import java.util.function.Consumer;
  * content is hidden: it takes no room, no focus and no pointer, and a reader does not find it.
  * While it slides shut it is still drawn, as it was and not greyed, but it answers nothing from
  * the moment the close starts: a press on it reaches no control, Tab and an access letter pass it
- * by, and nothing inside can take the keyboard. Closing it while the keyboard is inside moves the
- * keyboard to the header as the close starts, which is where the user just was. The content's own
- * enabled state is the application's and is never changed; opened again, it answers as before.
+ * by, nothing inside can take the keyboard, and a reader finds its nodes but no verb on them
+ * acts. Closing it while the keyboard is inside moves the keyboard to the header as the close
+ * starts, which is where the user just was. The content's own enabled state is the
+ * application's and is never changed; opened again, it answers as before.
  *
  * <p>A reader hears the header as a button, expanded or collapsed, that controls the content;
  * the summary is its description. An {@link ExpanderGroup} keeps at most one of several open.

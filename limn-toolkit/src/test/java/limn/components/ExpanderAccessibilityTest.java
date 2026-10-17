@@ -63,6 +63,43 @@ class ExpanderAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(node("Apply").has(Accessible.State.SHOWING), "and what is in it is there");
     }
 
+    /**
+     * What slides shut stays published, and enabled as the application left it, but offers no verb
+     * and performs none, as the options of a combo's list fading out do (ADR 068): the scene's gate
+     * refuses a verb taken off an older snapshot as well. Open again, it is worked as before.
+     */
+    @Test
+    void aReadersVerbsInsideAreRefusedWhileItCloses() throws InterruptedException {
+        bindSection();
+        java.util.List<String> pressed = new java.util.ArrayList<>();
+        inside.onAction(() -> pressed.add("apply"));
+        section.setExpanded(true);
+        settleAnimations(null);
+        long apply = node("Apply").id();
+        assertTrue(node("Apply").accepts(Accessible.Action.PRESS), describe(tree()));
+
+        section.setExpanded(false);
+        advanceTime(50, null);
+        assertTrue(section.isRevealing(), "still sliding shut");
+
+        AccessibleNode closing = node("Apply");
+        assertTrue(closing.has(Accessible.State.ENABLED), "published as the application left it");
+        assertFalse(closing.accepts(Accessible.Action.PRESS), "and offering no verb: " + describe(tree()));
+        assertFalse(closing.accepts(Accessible.Action.FOCUS));
+        perform(apply, Accessible.Action.PRESS, Accessible.Argument.NONE);
+        perform(apply, Accessible.Action.FOCUS, Accessible.Argument.NONE);
+        frame();
+        assertEquals(java.util.List.of(), pressed, "a verb from the snapshot before is refused too");
+        assertFalse(inside.isFocused());
+
+        section.setExpanded(true);
+        settleAnimations(null);
+        assertTrue(node("Apply").accepts(Accessible.Action.PRESS), "open again, the verb is back");
+        assertTrue(perform(node("Apply").id(), Accessible.Action.PRESS, Accessible.Argument.NONE));
+        frame();
+        assertEquals(java.util.List.of("apply"), pressed);
+    }
+
     @Test
     void aReaderOpensAndClosesItAndIsRefusedWhatTheStateDoesNotAllow() throws InterruptedException {
         bindSection();

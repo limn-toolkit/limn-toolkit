@@ -1544,6 +1544,12 @@ public final class Scene {
             if (!at.isEnabled()) {
                 return; // a control inside a disabled container is one the keyboard refuses too
             }
+            if (at.inert) {
+                // A section's content sliding shut: the pointer and the keyboard pass it by, and
+                // the walk publishes no verb there, so a verb a reader took off an older snapshot
+                // is refused as well (ADR 067 §3, amended 2026-10-16).
+                return;
+            }
         }
         // Not past the top of an overlay's subtree to its inheritance host (ADR 039 §1.9, amended
         // 2026-09-15): the keyboard and the pointer do not climb there either, and the walk
@@ -3244,6 +3250,9 @@ public final class Scene {
                 if (inert && scene != null) {
                     scene.onWidgetDetached(widget); // no hover, press, drag or focus left inside
                 }
+                // Nothing on the glass changes, so no paint asks for the walk that withdraws the
+                // subtree's verbs, or gives them back: it is asked for here.
+                widget.invalidateAccessible();
             }
 
             @Override

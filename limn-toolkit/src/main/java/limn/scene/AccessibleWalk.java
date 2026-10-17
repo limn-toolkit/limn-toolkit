@@ -547,7 +547,12 @@ final class AccessibleWalk {
         // native modal disables the window behind it. Published not enabled, the field under its
         // own list was announced "unavailable" by NVDA on every opening.
         boolean ownEnabled = enabled && widget.isEnabled() && (reachable || beneathOnlyPopups);
-        boolean operable = ownEnabled && reachable;
+        // An inert subtree -- a section's content sliding shut (ADR 067 §3, amended 2026-10-16) --
+        // stays published, ENABLED as the application left it, and offers no verb, as the options
+        // of a combo's list fading out do (ADR 068): the scene's gate refuses every verb there, and
+        // a published verb the scene refuses is a promise every platform breaks.
+        boolean inert = insideInert || widget.inert;
+        boolean operable = ownEnabled && reachable && !inert;
         boolean ownVisible = visible && widget.isVisible();
 
         // Identity first, before either describe hook runs (ADR 039 §1.3, rule 1, amended
@@ -745,7 +750,7 @@ final class AccessibleWalk {
                 builder.clipShowingAt(i, clip[0] + graftDx, clip[1] + graftDy,
                         clip[2] + graftDx, clip[3] + graftDy);
             }
-            if (!builder.isEnabledAt(i) || !ownVisible || !reachable) {
+            if (!builder.isEnabledAt(i) || !ownVisible || !reachable || inert) {
                 // The same rule, read off the bit just published: a synthetic child is refused
                 // with its owner, and so is one its owner narrowed (a refused day, decision 30)
                 // or one under such a child. Visibility is read from the owner rather than from
@@ -932,12 +937,24 @@ final class AccessibleWalk {
     /** That popup's root widget, while it is being walked. */
     private Widget<?> keyboardPopupRoot;
 
+    /**
+     * Whether the widget being walked is inside an {@linkplain Widget#inert inert} subtree: set
+     * while that subtree's children are walked, and put back after.
+     */
+    private boolean insideInert;
+
     private void walkChildren(Scene scene, Widget<?> widget, int into, int ownSlot, long ownId,
                               long scope, boolean enabled, boolean visible, boolean reachable) {
-        List<Widget<?>> children = widget.children();
-        for (int i = 0; i < children.size(); i++) {
-            walkWidget(scene, children.get(i), widget, into, ownSlot, ownId, scope,
-                    enabled, visible, reachable);
+        boolean wasInert = insideInert;
+        insideInert = wasInert || widget.inert;
+        try {
+            List<Widget<?>> children = widget.children();
+            for (int i = 0; i < children.size(); i++) {
+                walkWidget(scene, children.get(i), widget, into, ownSlot, ownId, scope,
+                        enabled, visible, reachable);
+            }
+        } finally {
+            insideInert = wasInert;
         }
     }
 
