@@ -101,6 +101,16 @@ class ShowcaseAlignmentTest {
     }
 
     @Test
+    void theOutlinesRowsStandOnTheListsRowsBesideIt() {
+        Scene scene = open(PickerScene::content);
+        List<Label> labels = all(scene.root(), Label.class);
+        // The fifth row of the list of columns and of the outline of folders, one beside the other.
+        Label listed = only(labels, each -> each.text().equals("Salesperson"));
+        Label outlined = only(labels, each -> each.text().equals("Archive"));
+        assertEquals(middle(listed), middle(outlined), 0.5f, "the fifth rows");
+    }
+
+    @Test
     void noEffectsNameIsCutOnItsPanel() {
         I18n.setLocale(Locale.forLanguageTag("pt-BR")); // where "Vidro, desfoque e véu" was cut
         Scene scene = open(GlassScene::content);

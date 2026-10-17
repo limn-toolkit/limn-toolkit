@@ -174,10 +174,17 @@ final class PickerScene {
         return new SizedBox(SizedBox.UNSET, 200, new Panel(new Padding(Insets.all(6), body)));
     }
 
+    /**
+     * Above and below the words of a row, in the two lists and in the outline alike: the three
+     * stand side by side, and with 7 in the lists and 6 in the outline their rows drifted apart,
+     * the outline's fifth row 10 pt above the lists' fifth, measured.
+     */
+    private static final float ROW_PADDING = 7;
+
     /** One of the two lists: its rows reorder, leave for the other and arrive from it. */
     private static ListView<Field> list(List<Field> fields, I18nString name) {
         ListView<Field> list = new ListView<>(
-                field -> new Padding(Insets.symmetric(7, 10), new Label(field.name.get())));
+                field -> new Padding(Insets.symmetric(ROW_PADDING, 10), new Label(field.name.get())));
         list.setItems(fields);
         list.setItemName(field -> field.name);
         list.setAccessibleName(name);
@@ -293,7 +300,7 @@ final class PickerScene {
             public Widget<?> cellFor(Entry entry) {
                 Label label = new Label(entry.name.get());
                 label.setIcon(Tabler.outline(entry.children == null ? "file-text" : "folder"));
-                return new Padding(Insets.symmetric(6, 6), label);
+                return new Padding(Insets.symmetric(ROW_PADDING, 6), label);
             }
 
             @Override
