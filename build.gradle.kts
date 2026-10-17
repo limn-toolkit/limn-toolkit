@@ -359,14 +359,15 @@ subprojects {
 
 // ------------------------------------------------------- the natives a runnable artifact names
 //
-// limn-backend-lwjgl declares LWJGL's natives for every desktop target, and rightly so: it is a
+// limn-backend-lwjgl declares its natives for every desktop target, and rightly so: it is a
 // library, an application adds it once and deploys wherever it likes. A jar somebody RUNS from
 // its coordinate is the opposite case. The machine resolving it is the machine running it, and
 // the other five platforms' twelve megabytes are pure cost, downloaded to sit inert. So the two
-// runnable modules publish a POM that says one platform at a time: LWJGL is excluded from every
-// dependency that could carry it, the LWJGL modules are declared again plain, and each platform's
-// natives — LWJGL's, and whatever natives-<os>-<arch> classifier the module names itself, which
-// for the demo is the FFmpeg payload — sit in a <profile> keyed on the JVM's os.name and os.arch.
+// runnable modules publish a POM that says one platform at a time: every module the backend
+// declares natives for is excluded from every dependency that could carry it, those modules are
+// declared again plain, and each platform's natives — the backend's (LWJGL's and the SVG
+// renderer's), and whatever natives-<os>-<arch> classifier the module names itself, which for the
+// demo is the FFmpeg payload — sit in a <profile> keyed on the JVM's os.name and os.arch.
 //
 // Maven activates such profiles in a DEPENDENCY's POM, not only in the project's, and so does
 // jbang: verified against 0.141 with an artifact of this shape installed to ~/.m2, `jbang info
@@ -387,9 +388,15 @@ val hostNativesModules = setOf("limn-demo", "limn-theme-editor")
 // arch is what the JVM reports: every 64-bit ARM JVM says "aarch64", while 64-bit Intel is
 // "amd64" on Linux and Windows and "x86_64" on macOS — and one profile cannot name two values,
 // so the Intel rows say "not ARM", which is the only other 64-bit answer LWJGL ships for.
+//
+// A target has two classifiers, because two spellings of it are published: LWJGL's, which leaves
+// 64-bit Intel without an architecture and calls ARM arm64, and Limn's own payloads' (the SVG
+// renderer's, FFmpeg's), which is natives-<id>.
 data class HostPlatform(
     val id: String, val lwjglClassifier: String, val osKey: String, val osValue: String, val arch: String,
-) : java.io.Serializable
+) : java.io.Serializable {
+    fun owns(classifier: String?): Boolean = classifier == lwjglClassifier || classifier == "natives-$id"
+}
 val hostPlatforms = listOf(
     HostPlatform("linux-aarch64", "natives-linux-arm64", "name", "linux", "aarch64"),
     HostPlatform("linux-x86_64", "natives-linux", "name", "linux", "!aarch64"),
@@ -399,48 +406,70 @@ val hostPlatforms = listOf(
     HostPlatform("windows-x86_64", "natives-windows", "family", "windows", "!aarch64"),
 )
 
-// The LWJGL modules the backend uses and the classifiers it declares them under, READ from its
-// build rather than copied here: the backend is where a ninth LWJGL module or a seventh target
-// would be added, and this only redistributes what it says. The classifier set is checked
-// against the table above so that a new target fails this build rather than resolving nothing.
-// Read at configuration time, into plain strings: what the POM task runs later must carry no
-// reference to a project or to this script, or the configuration cache refuses to store it.
+// What the backend brings that has a platform, READ from its build rather than copied here: the
+// backend is where a ninth LWJGL module, a second native payload or a seventh target would be
+// added, and this only redistributes what it says. Every runtimeOnly declaration of the backend
+// with a natives-* classifier is one platform's slice of one module, and every one of them is
+// checked against the table above, so that a new target fails this build rather than resolving
+// nothing. Read at configuration time, into plain strings: what the POM task runs later must
+// carry no reference to a project or to this script, or the configuration cache refuses to store
+// it.
 //
-// Two lists, because not every LWJGL module has natives. lwjgl-egl is classes only — it binds the
-// system's libEGL — and LWJGL publishes no natives-* jar for it; naming one in a profile is a
-// dependency no resolver can satisfy, which is how the 0.9.0 POMs of both runnable modules came
-// to name six jars that do not exist. So the natives come from the backend's runtimeOnly
-// declarations, the only place that says which modules HAVE natives, and the backend resolves
-// those itself on every test run: a module listed there without natives fails the backend's own
-// build long before a POM is written.
-data class LwjglDeclaration(
-    val modules: List<String>, val nativeModules: List<String>, val version: String,
+// The LWJGL modules are a list of their own, because not every one of them has natives. lwjgl-egl
+// is classes only — it binds the system's libEGL — and LWJGL publishes no natives-* jar for it;
+// naming one in a profile is a dependency no resolver can satisfy, which is how the 0.9.0 POMs of
+// both runnable modules came to name six jars that do not exist. So the natives come from the
+// backend's runtimeOnly declarations, the only place that says which modules HAVE natives, and
+// the backend resolves those itself on every test run: a module listed there without natives
+// fails the backend's own build long before a POM is written.
+//
+// The payloads that are not LWJGL's were left out of all this until the 1.0 consumption
+// rehearsal: the SVG renderer's six slices reached the demo through the backend, unexcluded, on
+// every platform, because the shape knew the LWJGL group by name and nothing else.
+data class NativesSlice(
+    val group: String, val module: String, val version: String, val classifier: String, val platform: String,
 ) : java.io.Serializable
-fun lwjglAsDeclaredByTheBackend(): LwjglDeclaration {
+data class BackendNatives(
+    val lwjglModules: List<String>, val lwjglVersion: String, val slices: List<NativesSlice>,
+) : java.io.Serializable {
+    /** Every module the backend declares natives for, as group:module. */
+    val nativeModules: List<String> get() = slices.map { "${it.group}:${it.module}" }.distinct().sorted()
+    /** The modules the POM declares again plain: LWJGL's, and the other payloads' main jars. */
+    val plainModules: List<Pair<String, String>> get() =
+        lwjglModules.map { "org.lwjgl" to it } +
+                slices.filter { it.group != "org.lwjgl" }.map { it.group to it.module }.distinct().sortedBy { "${it.first}:${it.second}" }
+    fun versionOf(group: String, module: String): String =
+        if (group == "org.lwjgl") lwjglVersion else slices.first { it.group == group && it.module == module }.version
+}
+fun nativesAsDeclaredByTheBackend(): BackendNatives {
     val backend = project(":limn-backend-lwjgl")
-    val modules = backend.configurations.getByName("implementation").dependencies
+    val lwjglModules = backend.configurations.getByName("implementation").dependencies
         .filter { it.group == "org.lwjgl" && it.name != "lwjgl-bom" }
         .map { it.name }.distinct().sorted()
-    val natives = backend.configurations.getByName("runtimeOnly").dependencies
-        .filter { it.group == "org.lwjgl" }
-        .map { it as ExternalModuleDependency }
-        .filter { it.artifacts.any { artifact -> artifact.classifier?.startsWith("natives-") == true } }
-    val nativeModules = natives.map { it.name }.distinct().sorted()
-    val expected = hostPlatforms.map { it.lwjglClassifier }.toSet()
-    val classifiersPerModule = natives.groupBy { it.name }
-        .mapValues { (_, declared) -> declared.flatMap { d -> d.artifacts.mapNotNull { it.classifier } }.toSet() }
-    val incomplete = classifiersPerModule.filterValues { it != expected }
-    if (modules.isEmpty() || nativeModules.isEmpty() || incomplete.isNotEmpty()) {
+    val slices = backend.configurations.getByName("runtimeOnly").dependencies
+        .filterIsInstance<ExternalModuleDependency>()
+        .flatMap { dependency ->
+            dependency.artifacts.mapNotNull { it.classifier }.filter { it.startsWith("natives-") }.map { classifier ->
+                val platform = hostPlatforms.firstOrNull { it.owns(classifier) }
+                    ?: throw GradleException(
+                        "limn-backend-lwjgl declares ${dependency.group}:${dependency.name}:$classifier, a platform " +
+                                "the host-natives table in the root build does not know: update the table.")
+                NativesSlice(dependency.group!!, dependency.name, dependency.version!!, classifier, platform.id)
+            }
+        }
+    val platformsPerModule = slices.groupBy { "${it.group}:${it.module}" }.mapValues { (_, s) -> s.map { it.platform }.toSet() }
+    val incomplete = platformsPerModule.filterValues { it != hostPlatforms.map { p -> p.id }.toSet() }
+    if (lwjglModules.isEmpty() || slices.none { it.group == "org.lwjgl" } || incomplete.isNotEmpty()) {
         throw GradleException(
-            "limn-backend-lwjgl declares LWJGL natives $classifiersPerModule, but the host-natives " +
-                    "table in the root build knows $expected for every module: update the table.")
+            "limn-backend-lwjgl declares natives for $platformsPerModule, but the host-natives table in the " +
+                    "root build knows ${hostPlatforms.map { it.id }} for every module: update the table.")
     }
-    val orphans = nativeModules - modules.toSet()
+    val orphans = slices.filter { it.group == "org.lwjgl" }.map { it.module }.distinct() - lwjglModules.toSet()
     if (orphans.isNotEmpty()) {
         throw GradleException(
             "limn-backend-lwjgl declares natives for $orphans without the module itself in implementation.")
     }
-    return LwjglDeclaration(modules, nativeModules, libs.versions.lwjgl.get())
+    return BackendNatives(lwjglModules, libs.versions.lwjgl.get(), slices.sortedBy { "${it.group}:${it.module}:${it.classifier}" })
 }
 
 /**
@@ -470,9 +499,14 @@ object HostNativesPom {
         }
     }
 
+    /** The exclusions that cut every path to the backend's natives: all of LWJGL, and each other payload. */
+    private fun exclusions(natives: BackendNatives): List<Pair<String, String>> =
+        listOf("org.lwjgl" to "*") + natives.nativeModules.map { it.substringBefore(':') to it.substringAfter(':') }
+            .filter { it.first != "org.lwjgl" }
+
     /** Reshapes a generated POM so that it names one platform's natives at a time. */
     fun shape(pom: groovy.util.Node, group: String, published: Set<String>,
-              lwjgl: LwjglDeclaration, platforms: List<HostPlatform>) {
+              natives: BackendNatives, platforms: List<HostPlatform>) {
         val dependencies = child(pom, "dependencies") ?: pom.appendNode("dependencies")
         val perPlatform = platforms.associate { it.id to mutableListOf<groovy.util.Node>() }
         for (dependency in children(dependencies).toList()) {
@@ -480,22 +514,27 @@ object HostNativesPom {
             if (classifier != null && classifier.startsWith("natives-")) {
                 // The module's own per-platform payload, declared six times so that the fat
                 // jar carries all of them: in the POM each goes into its platform's profile.
-                val platform = perPlatform[classifier.removePrefix("natives-")]
+                val platform = platforms.firstOrNull { it.owns(classifier) }
                     ?: throw GradleException("$classifier names a platform the host-natives table does not know")
                 dependencies.remove(dependency)
-                platform += dependency
+                perPlatform.getValue(platform.id) += dependency
             } else if (childText(dependency, "groupId") == group &&
                     childText(dependency, "artifactId") in published) {
-                // Every path that could reach the backend's all-platform LWJGL is cut, and only
+                // Every path that could reach the backend's all-platform natives is cut, and only
                 // a module of this build can be such a path: the fonts and the icon pack,
                 // published from their own repositories, name no backend.
-                dependency.appendNode("exclusions").appendNode("exclusion").apply {
-                    appendNode("groupId", "org.lwjgl")
-                    appendNode("artifactId", "*")
+                val excluded = dependency.appendNode("exclusions")
+                exclusions(natives).forEach { (excludedGroup, excludedModule) ->
+                    excluded.appendNode("exclusion").apply {
+                        appendNode("groupId", excludedGroup)
+                        appendNode("artifactId", excludedModule)
+                    }
                 }
             }
         }
-        lwjgl.modules.forEach { module -> appendDependency(dependencies, "org.lwjgl", module, lwjgl.version) }
+        natives.plainModules.forEach { (plainGroup, module) ->
+            appendDependency(dependencies, plainGroup, module, natives.versionOf(plainGroup, module))
+        }
         val profiles = pom.appendNode("profiles")
         platforms.forEach { platform ->
             val profile = profiles.appendNode("profile")
@@ -504,53 +543,67 @@ object HostNativesPom {
                 appendNode(platform.osKey, platform.osValue)
                 appendNode("arch", platform.arch)
             }
-            val natives = profile.appendNode("dependencies")
-            lwjgl.nativeModules.forEach { module ->
-                appendDependency(natives, "org.lwjgl", module, lwjgl.version, platform.lwjglClassifier)
+            val profileDependencies = profile.appendNode("dependencies")
+            natives.slices.filter { it.platform == platform.id }.forEach { slice ->
+                appendDependency(profileDependencies, slice.group, slice.module, slice.version, slice.classifier)
             }
-            perPlatform.getValue(platform.id).forEach { natives.append(it) }
+            perPlatform.getValue(platform.id).forEach { profileDependencies.append(it) }
         }
     }
 
     /** What is wrong with a shipped POM, as sentences; empty when it resolves one platform at a time. */
     fun problems(pom: groovy.util.Node, group: String, published: Set<String>,
-                 lwjgl: LwjglDeclaration, platforms: List<HostPlatform>): List<String> {
+                 natives: BackendNatives, platforms: List<HostPlatform>): List<String> {
         val plain = children(child(pom, "dependencies"))
         val problems = mutableListOf<String>()
         plain.filter { childText(it, "classifier")?.startsWith("natives-") == true }
             .forEach { problems += "${childText(it, "artifactId")}:${childText(it, "classifier")} sits outside every profile" }
-        plain.filter {
-            childText(it, "groupId") == group && childText(it, "artifactId") in published &&
-                    child(it, "exclusions") == null
-        }
-            .forEach { problems += "${childText(it, "artifactId")} can still reach LWJGL's natives for every platform" }
-        val lwjglModules = plain.filter { childText(it, "groupId") == "org.lwjgl" }.map { childText(it, "artifactId") }
+        val required = exclusions(natives).map { "${it.first}:${it.second}" }
+        plain.filter { childText(it, "groupId") == group && childText(it, "artifactId") in published }
+            .forEach { dependency ->
+                val excluded = children(child(dependency, "exclusions"))
+                    .map { "${childText(it, "groupId")}:${childText(it, "artifactId")}" }
+                val open = required - excluded.toSet()
+                if (open.isNotEmpty()) {
+                    problems += "${childText(dependency, "artifactId")} can still reach the natives of $open " +
+                            "for every platform"
+                }
+            }
+        val plainModules = plain.filter { childText(it, "classifier") == null }
+            .map { childText(it, "groupId") to childText(it, "artifactId") }
+        val lwjglModules = plainModules.filter { it.first == "org.lwjgl" }.map { it.second }
         if (lwjglModules.isEmpty()) problems += "no LWJGL module is declared plain"
-        if (lwjglModules != lwjgl.modules) {
-            problems += "the plain LWJGL modules are $lwjglModules, the backend uses ${lwjgl.modules}"
+        if (lwjglModules != natives.lwjglModules) {
+            problems += "the plain LWJGL modules are $lwjglModules, the backend uses ${natives.lwjglModules}"
         }
+        natives.plainModules.filter { it !in plainModules }
+            .forEach { problems += "${it.first}:${it.second} is not declared plain beside the exclusions that cut it from the backend" }
         val profiles = children(child(pom, "profiles"))
         val ids = profiles.map { childText(it, "id") }
         val expected = platforms.map { "natives-${it.id}" }
         if (ids != expected) problems += "profiles are $ids, expected $expected"
         profiles.forEach { profile ->
-            val natives = children(child(profile, "dependencies"))
-            val lwjglNatives = natives.filter { childText(it, "groupId") == "org.lwjgl" }
-                .map { childText(it, "artifactId") }
-            // Exactly the modules the backend resolves natives for: a module LWJGL publishes no
-            // natives for (lwjgl-egl) named here is a jar no resolver can find, and one missing
-            // is a library that will not load on that platform.
-            val withoutNatives = lwjglNatives.filter { it !in lwjgl.nativeModules }
+            val id = childText(profile, "id")
+            val platform = platforms.firstOrNull { "natives-${it.id}" == id } ?: return@forEach
+            val carried = children(child(profile, "dependencies"))
+            if (carried.any { childText(it, "classifier") == null }) {
+                problems += "$id carries a dependency without a classifier"
+            }
+            // No other platform's natives, from any group: a profile that resolved one would put
+            // two platforms on a machine, and on the module path the wrong one can win.
+            carried.filter { childText(it, "classifier") != null && !platform.owns(childText(it, "classifier")) }
+                .forEach { problems += "$id carries ${childText(it, "artifactId")}:${childText(it, "classifier")}, another platform's" }
+            // Exactly the modules the backend resolves natives for, each once: a module LWJGL
+            // publishes no natives for (lwjgl-egl) named here is a jar no resolver can find, and
+            // one missing is a library that will not load on that platform.
+            val carriedModules = carried.map { "${childText(it, "groupId")}:${childText(it, "artifactId")}" }
+            val withoutNatives = carriedModules.filter { it.startsWith("org.lwjgl:") && it !in natives.nativeModules }
             if (withoutNatives.isNotEmpty()) {
-                problems += "${childText(profile, "id")} names natives of $withoutNatives, " +
-                        "which the backend declares none of and LWJGL may not publish"
+                problems += "$id names natives of $withoutNatives, which the backend declares none of and LWJGL may not publish"
             }
-            if (lwjglNatives.sortedBy { it } != lwjgl.nativeModules) {
-                problems += "${childText(profile, "id")} carries LWJGL natives $lwjglNatives, " +
-                        "expected ${lwjgl.nativeModules}"
-            }
-            if (natives.any { childText(it, "classifier") == null }) {
-                problems += "${childText(profile, "id")} carries a dependency without a classifier"
+            val missing = natives.nativeModules.filter { module -> carriedModules.count { it == module } != 1 }
+            if (missing.isNotEmpty()) {
+                problems += "$id does not carry the natives of $missing exactly once"
             }
         }
         return problems
@@ -630,10 +683,10 @@ subprojects {
                 // Everything the reshaping needs is read now, into values the task can carry.
                 val group = this@subprojects.group.toString()
                 val published = publishedModules.keys.toSet()
-                val lwjgl = lwjglAsDeclaredByTheBackend()
+                val natives = nativesAsDeclaredByTheBackend()
                 val platforms = hostPlatforms
                 publications.withType<MavenPublication>().configureEach {
-                    pom.withXml { HostNativesPom.shape(asNode(), group, published, lwjgl, platforms) }
+                    pom.withXml { HostNativesPom.shape(asNode(), group, published, natives, platforms) }
                 }
             }
         }
@@ -648,17 +701,17 @@ subprojects {
                 .matching { it.name == "generatePomFileForMavenPublication" }
             val checkHostNativesPom = tasks.register("checkHostNativesPom") {
                 group = "verification"
-                description = "Fails if the published POM names natives outside the platform profiles."
+                description = "Fails if the published POM names natives outside the platform profiles, or another platform's inside one."
                 dependsOn(generatePom)
                 val pomFile = layout.buildDirectory.file("publications/maven/pom-default.xml")
                 val group = this@subprojects.group.toString()
                 val published = publishedModules.keys.toSet()
                 val platforms = hostPlatforms
-                val lwjgl = lwjglAsDeclaredByTheBackend()
+                val natives = nativesAsDeclaredByTheBackend()
                 inputs.file(pomFile)
                 doLast {
                     val pom = groovy.xml.XmlParser(false, false).parse(pomFile.get().asFile)
-                    val problems = HostNativesPom.problems(pom, group, published, lwjgl, platforms)
+                    val problems = HostNativesPom.problems(pom, group, published, natives, platforms)
                     if (problems.isNotEmpty()) {
                         throw GradleException(
                             "${pomFile.get()} would not resolve one platform at a time:\n  " +

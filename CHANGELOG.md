@@ -279,6 +279,9 @@ Maven Central say which number that was.
   every platform, a `lwjgl-egl` natives jar LWJGL does not publish, so 0.9.0 of both failed to
   resolve anywhere (`Could not find artifact org.lwjgl:lwjgl-egl:jar:natives-macos-arm64:3.4.3`);
   the fix reaches Central with the next release, and 0.9.0 stays as it is.
+- The demo and the theme editor, run with `jbang` or resolved by Maven, download one platform's
+  SVG renderer natives, as they already did LWJGL's. Their POMs cut only LWJGL out of the
+  backend's dependencies, so all six slices of `limn-lunasvg-natives` arrived on every machine.
 - A Gradle build that asks for the toolkit's documentation, as an IDE does, gets the javadoc jars:
   the published Gradle module metadata lists them beside the sources jars. They were published,
   but only Maven's naming convention found them.
