@@ -106,21 +106,57 @@ final class GraphicsProbe {
     }
 
     /**
-     * One of the current context's {@code glGetString} answers, read before the context has
-     * capabilities: through the function's own address, which every platform exports beside its
-     * GL 1.1 entry points, because LWJGL's {@code glGetString} goes through the capabilities this
-     * answer is asked for in order to choose ({@link GlCapabilitiesCache}).
+     * What the current context says of itself that LWJGL's {@code GL.createCapabilities()} reads,
+     * read before the context has capabilities ({@link GlCapabilitiesCache}): through the
+     * functions' own addresses, because LWJGL's {@code glGetString} and {@code glGetIntegerv} go
+     * through the capabilities this answer is asked for in order to choose. {@code glGetString}
+     * and {@code glGetIntegerv} are exported beside every platform's GL 1.1 entry points;
+     * {@code glGetStringi} is asked of the function provider for this context, as
+     * {@code createCapabilities} asks.
      *
-     * @param name {@code GL_VENDOR}, {@code GL_RENDERER} or {@code GL_VERSION}
-     * @return the answer, or null when the function or the answer is missing
+     * @param softwareGl whether the context is the macOS software one
+     * @return the key; a part a context does not answer is null or 0
      */
-    static @Nullable String currentContextString(int name) {
-        long glGetString = org.lwjgl.opengl.GL.getFunctionProvider() == null ? NULL
-                : org.lwjgl.opengl.GL.getFunctionProvider().getFunctionAddress("glGetString");
-        if (glGetString == NULL) {
-            return null;
+    static GlCapabilitiesCache.Key currentContextKey(boolean softwareGl) {
+        org.lwjgl.system.FunctionProvider functions = org.lwjgl.opengl.GL.getFunctionProvider();
+        long glGetString = functions == null ? NULL : functions.getFunctionAddress("glGetString");
+        long glGetIntegerv = functions == null ? NULL : functions.getFunctionAddress("glGetIntegerv");
+        long glGetStringi = functions == null ? NULL : functions.getFunctionAddress("glGetStringi");
+        int flags = 0;
+        int profile = 0;
+        StringBuilder extensions = new StringBuilder();
+        if (glGetIntegerv != NULL) {
+            try (MemoryStack stack = MemoryStack.stackPush()) {
+                java.nio.IntBuffer answer = stack.ints(0);
+                long at = MemoryUtil.memAddress(answer);
+                org.lwjgl.system.JNI.invokePV(GL33C.GL_CONTEXT_FLAGS, at, glGetIntegerv);
+                flags = answer.get(0);
+                answer.put(0, 0);
+                org.lwjgl.system.JNI.invokePV(GL33C.GL_CONTEXT_PROFILE_MASK, at, glGetIntegerv);
+                profile = answer.get(0);
+                answer.put(0, 0);
+                org.lwjgl.system.JNI.invokePV(GL33C.GL_NUM_EXTENSIONS, at, glGetIntegerv);
+                int count = answer.get(0);
+                for (int i = 0; glGetStringi != NULL && i < count; i++) {
+                    extensions.append(MemoryUtil.memASCIISafe(
+                            org.lwjgl.system.JNI.invokeP(GL33C.GL_EXTENSIONS, i, glGetStringi))).append(' ');
+                }
+            }
         }
-        return MemoryUtil.memUTF8Safe(org.lwjgl.system.JNI.invokeP(name, glGetString));
+        // A query a context refuses leaves an error behind, which must not be the first thing the
+        // window's own drawing reads back.
+        long glGetError = functions == null ? NULL : functions.getFunctionAddress("glGetError");
+        for (int i = 0; glGetError != NULL && i < 8 && org.lwjgl.system.JNI.invokeI(glGetError) != 0; i++) {
+            // drained
+        }
+        return new GlCapabilitiesCache.Key(softwareGl,
+                glGetString == NULL ? null : MemoryUtil.memUTF8Safe(
+                        org.lwjgl.system.JNI.invokeP(GL33C.GL_VENDOR, glGetString)),
+                glGetString == NULL ? null : MemoryUtil.memUTF8Safe(
+                        org.lwjgl.system.JNI.invokeP(GL33C.GL_RENDERER, glGetString)),
+                glGetString == NULL ? null : MemoryUtil.memUTF8Safe(
+                        org.lwjgl.system.JNI.invokeP(GL33C.GL_VERSION, glGetString)),
+                flags, profile, extensions.toString());
     }
 
     /** @return the windowing system GLFW selected at startup; never null */

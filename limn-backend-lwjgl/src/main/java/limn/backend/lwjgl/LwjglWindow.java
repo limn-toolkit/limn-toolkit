@@ -387,10 +387,7 @@ final class LwjglWindow implements WindowPeer {
         makeContextCurrent();
         // Those of a living window whose context is of the same kind where the platform allows
         // it, because resolving them again is most of what opening a popup costs.
-        glCapabilitiesKey = new GlCapabilitiesCache.Key(config.transparent(), softwareGl,
-                GraphicsProbe.currentContextString(org.lwjgl.opengl.GL11C.GL_VENDOR),
-                GraphicsProbe.currentContextString(org.lwjgl.opengl.GL11C.GL_RENDERER),
-                GraphicsProbe.currentContextString(org.lwjgl.opengl.GL11C.GL_VERSION));
+        glCapabilitiesKey = GraphicsProbe.currentContextKey(softwareGl);
         glCapabilities = backend.glCapabilities().acquire(glCapabilitiesKey, GL::createCapabilities);
         GL.setCapabilities(glCapabilities);
         // With the context current, as the query needs; the software macOS context has none to ask.

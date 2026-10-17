@@ -18,33 +18,40 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class GlCapabilitiesCacheTest {
 
-    private static final GlCapabilitiesCache.Key POPUP =
-            new GlCapabilitiesCache.Key(true, false, "Vendor", "Renderer A", "3.3 core");
+    private static final String EXTENSIONS = "GL_ARB_a GL_EXT_b ";
+    private static final GlCapabilitiesCache.Key POPUP = key(false, "Vendor", "Renderer A", "3.3 core", 0, 1,
+            EXTENSIONS);
+
+    private static GlCapabilitiesCache.Key key(boolean softwareGl, String vendor, String renderer, String version,
+            int flags, int profile, String extensions) {
+        return new GlCapabilitiesCache.Key(softwareGl, vendor, renderer, version, flags, profile, extensions);
+    }
 
     @Test
     void contextsOfOneKindShareWhatTheFirstCreated() {
         GlCapabilitiesCache<Object> cache = new GlCapabilitiesCache<>(true);
         AtomicInteger created = new AtomicInteger();
         Object first = cache.acquire(POPUP, () -> "caps " + created.incrementAndGet());
-        Object second = cache.acquire(
-                new GlCapabilitiesCache.Key(true, false, "Vendor", "Renderer A", "3.3 core"),
+        Object second = cache.acquire(key(false, "Vendor", "Renderer A", "3.3 core", 0, 1, EXTENSIONS),
                 () -> "caps " + created.incrementAndGet());
         assertSame(first, second);
         assertEquals(1, created.get(), "the second context resolved nothing");
     }
 
     @Test
-    void anyDifferenceInTheKindOrInWhatTheContextSaysCreatesAgain() {
+    void anyDifferenceInWhatTheContextSaysOrInItsKindCreatesAgain() {
         GlCapabilitiesCache<Object> cache = new GlCapabilitiesCache<>(true);
         AtomicInteger created = new AtomicInteger();
         Object popup = cache.acquire(POPUP, () -> new Object());
         GlCapabilitiesCache.Key[] others = {
-                new GlCapabilitiesCache.Key(false, false, "Vendor", "Renderer A", "3.3 core"),
-                new GlCapabilitiesCache.Key(true, true, "Vendor", "Renderer A", "3.3 core"),
-                new GlCapabilitiesCache.Key(true, false, "Other vendor", "Renderer A", "3.3 core"),
-                new GlCapabilitiesCache.Key(true, false, "Vendor", "Renderer B", "3.3 core"),
-                new GlCapabilitiesCache.Key(true, false, "Vendor", "Renderer A", "4.1 core"),
-                new GlCapabilitiesCache.Key(true, false, null, null, null),
+                key(true, "Vendor", "Renderer A", "3.3 core", 0, 1, EXTENSIONS),
+                key(false, "Other vendor", "Renderer A", "3.3 core", 0, 1, EXTENSIONS),
+                key(false, "Vendor", "Renderer B", "3.3 core", 0, 1, EXTENSIONS),
+                key(false, "Vendor", "Renderer A", "4.1 core", 0, 1, EXTENSIONS),
+                key(false, "Vendor", "Renderer A", "3.3 core", 1, 1, EXTENSIONS),
+                key(false, "Vendor", "Renderer A", "3.3 core", 0, 2, EXTENSIONS),
+                key(false, "Vendor", "Renderer A", "3.3 core", 0, 1, "GL_ARB_a "),
+                new GlCapabilitiesCache.Key(false, null, null, null, 0, 0, ""),
         };
         for (GlCapabilitiesCache.Key other : others) {
             Object caps = cache.acquire(other, () -> {

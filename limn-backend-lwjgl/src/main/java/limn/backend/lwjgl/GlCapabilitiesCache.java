@@ -22,25 +22,38 @@ import java.util.function.Supplier;
  * resolves them in its OpenGL framework, and Linux in a libGL that dispatches to whichever context
  * is current (GLX and EGL alike, GLVND or Mesa). On Windows {@code wglGetProcAddress} answers for
  * the driver of the current context, so the addresses are the same only between contexts of one
- * driver. {@code GlCapabilitiesReuseTest}'s child, run both ways on 2026-10-16 (20 popups a run,
- * each painted and read back), measured what a popup's {@code createWindow} costs with and
- * without the reuse: on this Mac 5.8 against 27.9 ms; on the Fedora KDE guest (Wayland, EGL) 3.5
- * to 3.8 against 4.9 to 5.4 ms; on the Ubuntu guest (X11, GLX) 7.9 to 9.0 against 8.3 to 8.5 ms,
- * no gain and no harm; and on the Windows 11 ARM64 guest (WGL, a native aarch64 JVM, three runs
- * each way) a fastest popup of 17.8 to 19.8 against 19.0 to 20.8 ms with medians from 18.8 to
- * 27.5 ms either way, a difference inside the noise. Every popup drew the right pixels with
- * shared capabilities on all four. Windows reuses them as well, by the owner's decision of
- * 2026-10-16: that guest runs the hypervisor's virtual driver on ARM, which says little about
- * the cost of a real machine's driver; the key is the vendor, renderer and version, which is
- * what differs between one machine's driver and another's; and {@link #PROPERTY} set to
- * {@code false} is the way out for a driver that misbehaves. The capabilities also say what
- * the context has (its version, its extensions), so contexts that could differ in that never share:
- * the {@link Key} names the kind of window (transparent framebuffer or not, the macOS software
- * context or not) and what the context itself says it is (vendor, renderer, version).
+ * driver.
+ *
+ * <p>What two contexts must have in common to share is what {@code GL.createCapabilities()} reads
+ * from a context, and nothing else: read from LWJGL 3.4.3's bytecode, it builds the capabilities
+ * from the function provider's addresses, {@code GL_VERSION}, the extension list, and the context
+ * flags and profile mask that decide forward compatibility, and it never asks about the pixel
+ * format. So the {@link Key} is those, the vendor and renderer that say which driver answered,
+ * and whether the context is the macOS software one, which is built apart from the windowing
+ * library; a transparent framebuffer is not in it. It was until 2026-10-17, and since every popup
+ * is transparent and a main window is not, the main window held an entry no popup used, the
+ * popups' entry went with each popup as it closed, and a list, a calendar or a menu opened,
+ * closed and opened again resolved everything every time: the reuse only ever served popups
+ * open together.
+ *
+ * <p>{@code GlCapabilitiesReuseTest}'s child opens popups one at a time over an opaque owner,
+ * each painted, read back and closed before the next, as a combo box's list is. Measured both
+ * ways on 2026-10-17 (15 popups a run, two runs each), a popup's {@code createWindow} costs, with
+ * the reuse against without: on this Mac 4.7 to 5.4 against 24.3 to 24.8 ms; on the Windows 11
+ * ARM64 guest (WGL, a native aarch64 JVM) 19.4 to 19.7 against 20.5 ms, every popup sharing its
+ * owner's capabilities and drawing the right pixels. Measured on 2026-10-16 with popups open
+ * together: on the Fedora KDE guest (Wayland, EGL) 3.5 to 3.8 against 4.9 to 5.4 ms; on the
+ * Ubuntu guest (X11, GLX) 7.9 to 9.0 against 8.3 to 8.5 ms, no gain and no harm; on the Windows
+ * guest a fastest popup of 17.8 to 19.8 against 19.0 to 20.8 ms, inside the noise; the right
+ * pixels on all of them. Windows reuses them as well, by the owner's decision of 2026-10-16: that
+ * guest runs the hypervisor's virtual driver on ARM, which says little about the cost of a real
+ * machine's driver; the key names the driver, which is what differs between one machine and
+ * another; and {@link #PROPERTY} set to {@code false} is the way out for a driver that
+ * misbehaves.
  *
  * <p>An entry lives while a window holds it, and goes with the last: a driver that is unloaded
  * when its last context is (which Windows may do) must not leave a later window with its old
- * addresses. In practice an application's main window holds the entry its popups use.
+ * addresses. An application's main window holds the entry its popups use.
  *
  * <p>Used on the UI thread only, where windows are made and destroyed.
  *
@@ -56,13 +69,21 @@ final class GlCapabilitiesCache<C> {
     static final String PROPERTY = "limn.backend.reuseGlCapabilities";
 
     /**
-     * What makes two contexts' capabilities interchangeable. The strings are each context's own
-     * {@code GL_VENDOR}, {@code GL_RENDERER} and {@code GL_VERSION}, read before its capabilities
-     * exist, and may be null where a context answered none, which matches only another that
-     * answered none.
+     * What makes two contexts' capabilities interchangeable: everything
+     * {@code GL.createCapabilities()} reads from the context, and which driver answered it. Read
+     * before the context has capabilities ({@link GraphicsProbe#currentContextKey}).
+     *
+     * @param softwareGl  whether the context is the macOS software one, made apart from the
+     *                    windowing library ({@link MacSoftwareGl})
+     * @param vendor      {@code GL_VENDOR}, or null where the context answered none
+     * @param renderer    {@code GL_RENDERER}, or null
+     * @param version     {@code GL_VERSION}, or null
+     * @param flags       {@code GL_CONTEXT_FLAGS}, forward compatibility among them
+     * @param profile     {@code GL_CONTEXT_PROFILE_MASK}
+     * @param extensions  the context's {@code GL_EXTENSIONS}, in the order it gave them
      */
-    record Key(boolean transparent, boolean softwareGl, @Nullable String vendor,
-            @Nullable String renderer, @Nullable String version) {
+    record Key(boolean softwareGl, @Nullable String vendor, @Nullable String renderer,
+            @Nullable String version, int flags, int profile, String extensions) {
     }
 
     private static final class Entry<C> {
