@@ -44,7 +44,9 @@ Maven Central say which number that was.
   a list to its top, a trackpad's inertia included, does not carry on into the page, and the
   next gesture, after a pause, does. On macOS a new swipe is known by the phase AppKit gives
   it, so it passes on even inside the inertia of the swipe before; `WindowInput` gains the
-  `scrolled` that carries it, for a backend that can tell.
+  `scrolled` that carries it, for a backend that can tell. A modal that opens in the middle of a
+  gesture takes the rest of it, where the scroller beneath kept scrolling under its scrim until
+  the inertia ended.
 - A `ScrollView` scrolled before its first layout opens where it was scrolled to: the offset
   was clamped against content not yet measured, to the top, and lost.
 - A checkbox's focus ring sits concentric with its box at every density: its edges fell
@@ -75,10 +77,14 @@ Maven Central say which number that was.
 - A widget removed from a window is collected in a window nobody reads. The accessibility walk
   keeps who answers for each node, and where no screen reader is running the tree is walked once
   and not again, so every widget of a window's first frame stayed for the life of the window,
-  removed or not, with whatever it held.
+  removed or not, with whatever it held. A form whose caption names one of its fields goes with
+  it too, a date picker or an editable combo box among them: the walk, and the tree it builds,
+  kept the caption's target until a later walk reached it.
 - On Windows, with a screen reader running, what stood for a control that has left the window is
   let go when it leaves, and freed once the reader lets go of it too. It was kept until the
-  window closed, which for an application's main window is never.
+  window closed, which for an application's main window is never. What is handed to the reader
+  is counted under the object's own lock, so a control leaving as the reader asks for it is
+  answered as gone, never with what is about to be freed.
 - On macOS a window that is closed is freed. Every window an application had closed stayed in
   the system's overview of windows as an empty frame with its title: the toolkit's own calls to
   the system were handed references that nothing released, since the event loop had no
@@ -86,10 +92,11 @@ Maven Central say which number that was.
 - A window that had the keyboard hands it on when it closes, to the window that owns it or to
   the one in front. On macOS the application was left with no window to type in, and its menu
   bar fell back to the one an application with no window shows, until a window was clicked.
-- A calendar or a menu drawn in the scene gives the keyboard back as it starts to close, and
-  leaves what a screen reader reads at the same moment. The focus came back when the fade ended:
-  until then a key typed went to a calendar that was closing, and VoiceOver, standing on a layer
-  about to be destroyed, read a neighbour of the field before the field.
+- A combo box's list, a calendar or a menu drawn in the scene gives the keyboard back as it
+  starts to close, and leaves what a screen reader reads at the same moment. The focus came back
+  when the fade ended: until then a key typed went to a list or a calendar that was closing, and
+  VoiceOver, standing on a layer about to be destroyed, read a neighbour of the field before the
+  field.
 - On Windows, a tool that keeps an element it found is answered from a current tree for as long
   as it reads. Two seconds after the element was found every property read through it was the
   value of that moment, and a table scrolled through its scroll pattern stayed at the percent it
@@ -298,6 +305,10 @@ Maven Central say which number that was.
   maximized, or 37 points shorter, depending on where the desktop had first put it.
 - A `DateField` tells the input method where the segment being typed is, so a Japanese or Chinese
   candidate window opens under it. It had no anchor.
+- A second click on a `DatePicker`'s calendar button closes the calendar where it is a window of
+  its own (macOS, Windows, X11): the press closed it and the click opened it again.
+- `Scene.setLocale` on a scene whose window has closed keeps the languages in use counted right:
+  a language could stay loaded for ever, or be let go while another window still showed it.
 - A legacy or three-letter language code writes the digits of the language it stands for: `pes`
   and `prs` Persian digits, `arb-EG` Arabic-Indic ones, `npi` and `mar` Devanagari. Java keeps
   these codes as they are, and they all answered Latin digits.
@@ -317,48 +328,93 @@ Maven Central say which number that was.
   to underline access keys, `SystemPreferences.underlineAccessKeys()` says so and the letters
   stay drawn; a tray menu's native rows take the letter where the text marked it. The model
   carries the access key apart from the accelerator (`ActionFacet.accessKey`, set with
-  `Accessibility.accessKey`); Windows serves both, as UI Automation's AccessKey and
-  AcceleratorKey, which it never served before, and a field named by a marked caption is named by
-  its words and carries the caption's key.
+  `Accessibility.accessKey` and kept, as `keyBinding` is, on a node that offers a verb); Windows
+  serves both, as UI Automation's AccessKey and AcceleratorKey, which it never served before, and
+  Linux as `GetKeyBinding`'s "Alt+S;;Ctrl+S", one alone where a node has one; a field named by a
+  marked caption is named by its words and carries the caption's key, unless the caption is
+  hidden, disabled or in a hidden section. A letter of any script is published ("Alt+Ф",
+  "Alt+É", "Alt+מ"), and a popup menu row publishes its letter beside its accelerator and is
+  named by its words. On macOS a Windows-style "(&P)" before an ellipsis goes and the ellipsis
+  stays ("プロパティ…"). Alt and a label's letter bring the keyboard to the first part of a
+  control that takes none itself (a `DatePicker`, a `RangeSlider`, an `Expander`), and the focus
+  a letter moves is the user's (`Change.Origin.USER`). Controls sharing a letter take turns, a
+  radio that is not its group's stop among them, and a letter shared in a window is logged once,
+  at `WARNING`, so a translator's collision is found in development. A key that prints nothing
+  (Home, Insert, an F key) presses no letter, though its code is a Latin letter's; the window's
+  letters answer while a list that leaves the keyboard in its field, an editable combo box's, is
+  open; a menu opened with the pointer underlines its letters while Alt is held in the window
+  that opened it; letting go of Alt during a drag takes the underlines away. Pressing Alt
+  repaints only what draws a letter, and nothing where the system keeps them drawn; turning
+  Windows' "underline access keys" on or off redraws every open window.
 - A video shows a poster before it plays (ADR 069). `VideoView.setPoster(Poster)` takes
   `Poster.firstPicture()` (the default), `Poster.at(Duration)` for the picture at a time,
   `Poster.image(Image)` for a picture of the application's, or `Poster.none()`; playback starts
   at the beginning whichever it is. A view showing a `MediaPlayer` nobody has started showed the
   bar colour and now shows the first picture: the view cues it on the player with
   `MediaPlayer.cue(long)`, which decodes one picture with no sound and no clock and leaves the
-  player idle.
+  player idle, and `isCued()` says whether that picture is still on its way. A poster that
+  cannot be decoded leaves the player idle and play starts from the beginning; a time past the
+  end shows nothing, on a looping player too. `Poster.At` and `Poster.Still` are made by those
+  factories alone, and `Poster.At.time()` answers a `Duration`, to the microsecond.
 - `ScrollView.setBarInsets(Insets)` sets the bars' tracks in from the ends of their
   sides, for content that scrolls under something laid over it, a bar of glass across the top:
   the thumb starts below it and keeps its proportion of the shorter track.
 - Tabs that close and move. `TabbedPane.setTabsClosable(true)` makes the tabs added after it
-  closable, and `setTabClosable(index, value)` one tab: it draws a close button while selected
-  or under the pointer and closes by it, by a middle click, and by Ctrl+W (Cmd+W on macOS) while
-  the keyboard is in the pane. `onTabClose` is handed a `TabCloseRequest` to `allow()` or
+  closable, `isTabsClosable()` reads it, and `setTabClosable(index, value)` makes one tab so: it
+  draws a close button while selected or under the pointer and closes by it, by a middle click,
+  and by Ctrl+W (Cmd+W on macOS) while the keyboard is in the pane. Pressing a tab's close button
+  leaves the keyboard where it was, as a browser's does, so a close refused from a dialog gives it
+  back to the page being typed in. `onTabClose` is handed a `TabCloseRequest` to `allow()` or
   `refuse()`, now or later, and a tab is not asked again while its request is unanswered;
   closing the selected tab selects the next, or the one before when it was the last. A tab is
   dragged along the bar, the others sliding out of its way, and moved by Ctrl+Shift+Page Up
   and Page Down (Cmd on macOS), which a screen reader hears as its new position; `onTabMove`
   hears the user's moves. `removeTab`, `moveTab`, `tabContent` and `indexOfTab` do the same
-  from code, announced as `CHILDREN` with the origin of whoever asked.
+  from code, announced as `CHILDREN` with the origin of whoever asked. A tab closed while it is
+  dragged, by the keyboard or by `removeTab`, ends the drag and takes its page with it, and a
+  drag across another tab's close tells `onTabMove` places in the order that is left.
 - `Expander`, a section that opens and closes: a header with an arrow that turns, a title, an
   optional icon and an optional summary, over content that slides out below it, at once when
   the user asked for less motion (`Theme.animExpand`). Click, Space and Enter open and close it,
   `setExpanded` from code, `onChange` hears the user. `ExpanderGroup` keeps at most one of its
-  sections open. A screen reader hears a button, expanded or collapsed, that controls the
-  content.
+  sections open, and `onSelect` hears the user open or close one, with the open section's index
+  or -1, as `ButtonGroup.onSelect` does; a section out of the scene it was in is out of its group
+  until it is back, as a radio is out of its `ButtonGroup`. A screen reader hears a button,
+  expanded or collapsed, that controls the content.
 - `RangeSlider`, a lower and an upper value on one track: two thumbs that stop at each other or
   at `setMinimumGap`, each a Tab stop moved by the keyboard, a press on the track taking the
-  nearer one. `setRange`, `lower()`, `upper()`, `setStep`, `onChange` for every step and
-  `onCommit` for the range let go at. A screen reader hears two sliders, Minimum and Maximum.
+  nearer one. `setValues`, `lower()`, `upper()`, `setStep`, `onChange` for every step and
+  `onCommit` for the range let go at, which a key or a reader's step at the end of a thumb's
+  travel does not call. A gap that is not a whole number of steps pushes a value to the next
+  step past it, so the values stay on the step's grid, and a value that is not a number is
+  refused. A screen reader hears two sliders, Minimum and Maximum.
 - A mask on `TextField`: `setMask("000.000-00")`, where `0` takes a digit, `A` a letter, `*`
-  any character, and the rest are literals the field writes as the next position fills. Pasting
-  with or without the literals gives the same text, Backspace after a literal takes the
-  character before it, and one undo takes an edit and its literals back. While focused, the
-  positions still to fill show as a guide after the text. `unmaskedText()` and
-  `isMaskComplete()` read the value; a screen reader hears the pattern as the description.
+  any character, and the rest are literals the field writes as the next position fills, and
+  those that end the pattern once its last position is filled (`(00)` reads `(12)`). Text
+  between single quotes is literal, so `0`, `A` and `*` can be too: `setMask("+'0' 000")` shows
+  `+0 123`. Two single quotes are an apostrophe, as in `SimpleDateFormat`, and a quote never
+  closed is refused with an `IllegalArgumentException` that names the pattern. Pasting with or
+  without the literals gives the same text, and an edit that spans a literal keeps every digit;
+  a Backspace or Delete with nothing selected steps over a literal to the character beyond it,
+  and one undo takes an edit and its literals back. While focused, the positions still to fill
+  show as a guide after the text. `unmaskedText()` and `isMaskComplete()` read the value. A
+  screen reader hears the field's text, literals included, and not the pattern, which is syntax
+  ("A A dash zero zero zero zero"); to say what the field expects, give it a tooltip or
+  `setAccessibleDescription`.
 - `Widget.moveChild` reorders a child without taking it out of the tree, so its focus, hover
   and press stay, and lays a parent that clips its children out alone. `remove` and `moveChild`
   take who asked, which the one `CHILDREN` change they make carries.
+- `Widget.accessibleLabelAccessKey()`, beside `accessibleLabelText()`: the chord of the access
+  letter a caption widget of an application's own hands the control it labels.
+- In `limn-test`, `SceneDriver.scrolled(dx, dy, x, y, gestureBegins)` drives a wheel event that
+  begins a gesture; `ValueSubject.valueNodes()` and `valueNode()` run the value contract over one
+  of several value nodes, each thumb of a `RangeSlider`; and `PopupOwnerSubject.disclosesInPlace()`
+  runs the popup-owner contract over a disclosure, an `Expander`'s header, which says no
+  `HAS_POPUP`.
+- On macOS `-Dlimn.macos.agent=true`, or the environment variable `LIMN_MACOS_AGENT`, makes a
+  run an agent, with no icon in the Dock and no menu bar of its own, whatever its package says;
+  the variable is inherited by whatever the process starts. The build sets it for its test runs,
+  so they do not take the keyboard.
 - `SECURITY.md` says where a vulnerability goes: the repository's private reporting, never a
   public issue. The issue templates ask a defect for its version, system and steps, and a
   feature for the need behind it; a question goes to Discussions.
@@ -367,12 +423,15 @@ Maven Central say which number that was.
   are its first frame's, so whatever draws an image without playing it draws a still picture.
   An `ImageView` plays one by itself, with `setPlaying`, `setSpeed`, `setLoop` (as the image
   says, without end, once, a number of times, or forward and back), `seekFrame` and
-  `onFinished`; `limn.animation.ImageAnimation` is the same clockwork for a widget of an
-  application's own. An animated GIF is read as one, where only its first frame was, with the
+  `onFinished`, which refuses a second handler as every handler slot does;
+  `limn.animation.ImageAnimation` is the same clockwork for a widget of an application's own, its
+  `Loop` saying how many `turns()` it makes and whether it `bounces()`, equal to another of the
+  same. An animated GIF is read as one, where only its first frame was, with the
   times of its frames and the turns it asks for. WebP is read, still and animated, which
   nothing here read before, by a decoder written in Java that the toolkit now depends on,
-  `org.glavo:webp`: an application adds nothing, and none of it is loaded until a WebP is
-  decoded. `Images.fromSheet` makes one of a sheet of
+  `org.glavo:webp` (Apache-2.0), its one dependency at run time: an application adds nothing, a
+  modular one finds it on its module path beside the toolkit, and none of it is loaded until a
+  WebP is decoded. `Images.fromSheet` makes one of a sheet of
   sprites and `Images.animation` of frames from anywhere. And `ImageFormat.GIF` is written:
   every frame of an animated image, or a still picture, in the 256 colours the format holds;
   `GifEncoder.INSTANCE` is its encoder, beside `PngEncoder.INSTANCE`.
@@ -397,19 +456,28 @@ Maven Central say which number that was.
   the scene's clock: buttons, labels, tabs, a field's icons, a combo's, list, tree and table
   cells. It starts at the paint that shows it, waits where nobody sees it, rests on its last
   frame, and asks for a frame of its window only when one of its frames is due, repainting the
-  icon's box. A tray plays one in each of its pictures, and `TrayPicture` says which frame it
-  draws. An `ImageCursor` of an animated image plays, counted once in the backend's cache of
-  cursors however many frames it has. A menu, the system's or the toolkit's, shows the first
+  icon's box. A tray plays one in each of its pictures, KDE's monochrome one included, each
+  frame written once, and `TrayPicture` says which frame it draws. An `ImageCursor` of an
+  animated image plays, counted once in the backend's cache of cursors however many frames it
+  has. A menu, the system's or the toolkit's, shows the first
   frame, and so does a window's own icon; the wish for less motion is not applied.
 - SVG is drawn by lunasvg, in place of NanoSVG: gradients and patterns, clipping and masks,
   markers, style sheets, CSS custom properties with their fallbacks, and text in the bundled
   faces and the system's, where NanoSVG drew shapes and little else. It ships as the
   `limn-lunasvg-natives` payload, versioned with lunasvg, which the backend depends on with all
-  six platforms' jars, so an application adds nothing; `lwjgl-nanovg` is gone. Every SVG is read
-  by the toolkit first, in Java: within ceilings, with no script, event or reference outside the
-  file reaching the renderer, and a damaged one refused with `MalformedContentException`.
+  six platforms' jars, so an application adds nothing; `lwjgl-nanovg` is gone. lunasvg and the
+  plutovg it draws with are MIT. Every SVG is read by the toolkit first, in Java: within
+  ceilings, with no script, event or reference outside the file reaching the renderer, and a
+  damaged one refused with `MalformedContentException`. No animation moves a reference, an
+  image's `#…` reference is dropped, and every reference is checked again before the renderer
+  is given the text, so an SVG read from bytes shows no picture from the disk. The work of
+  reading one is bounded too: `var()` substitution writes at most four characters for each byte
+  of the file, a style sheet's selectors are matched in bounded work, and working out when SMIL
+  animations begin is counted, so a file of a few hundred bytes can neither run the heap out nor
+  hold its thread for seconds.
 - `SvgIcon` takes any aspect, fitted into its box, says its own `width()` and `height()`, and
-  reads a file with `fromFile(path)`, whose pictures beside it in its folder are shown.
+  reads a file with `load(path)`, as `Images.load` and `Sounds.load` do, whose pictures beside it
+  in its folder are shown.
   `ImageView` shows an `Icon` as well as an `Image` (`new ImageView(icon)`, `setIcon`), drawn at
   the view's own size and density, so an illustration stays sharp. `Images.decode` reads an SVG,
   drawn at its own size.
@@ -417,20 +485,24 @@ Maven Central say which number that was.
   begin at another's beginning or end among them, and CSS's `@keyframes` with the `animation`
   properties. An animated `SvgIcon` is an animated icon, at 24 frames a second unless
   `withFrameRate(n)` or `-Dlimn.svg.frameRate=n` says otherwise; `Images.decode` of one is an
-  animated image. A transform CSS gives an element is drawn too.
+  animated image. A transform CSS gives an element is drawn too. An `animation` declaration
+  whose count is no number is dropped, as a browser drops it, and an animated icon the renderer
+  refuses part-way through rests on its first frame.
 - `ButtonGroup.remove(radio)` takes a radio out of its group.
 - `Ui.postDelayed` returns a `Subscription` that withdraws the task: a timer armed for
   something that can go away first is cancelled there, where it held all it captured until it
   fell due.
 - `Images.loadPinned` and `Images.fromResourcePinned`, with `unpin` and `unpinResource`, and
   the same four on `Sounds`: a shared load that is kept whatever the budget below, for what an
-  application wants at hand for as long as it runs. `setSharedBudget` and `sharedBudget` move
-  and read that budget.
+  application wants at hand for as long as it runs. Pins are counted: a load pinned twice stays
+  pinned until it is unpinned twice, so one part of an application cannot take away another's.
+  `setSharedBudget` and `sharedBudget` move and read that budget.
 - `BackdropPanel.frosted(content)`: frosted glass that follows the theme. What is behind the
   panel is blurred and laid over with the palette's surface tone, light over a light palette and
   dark over a dark one, and it changes with the palette by itself. `setTint(colour, amount)`
   leans it toward a colour of the application's, and `setCover(share)` says how much of the tone
-  is laid over what is behind. A panel given its effects by hand is as before.
+  is laid over what is behind; a value that is not a number is refused. A panel given its
+  effects by hand is as before.
 - A widget's id is what a tool that drives the application from outside finds it by:
   `Widget.setId` is published as UI Automation's `AutomationId` on Windows, the accessibility
   identifier on macOS and the accessible id on Linux, where each carried a number of the
@@ -622,7 +694,10 @@ Maven Central say which number that was.
   Shipped"), in the 21 shipped languages. Not with a search or with free text.
 - `ComboBox.setChipRenderer(item -> widget)` draws those chips with a widget of the application's,
   drawn and never operated; `ComboBox.setItemIcon(item -> icon)` puts an icon before an item's text
-  in the list, in a chip and in the field of a combo holding one.
+  in the list, in a chip and in the field of a combo holding one, and
+  `setItemIcon(icon, item -> mirroring)` says of each item whether its icon means a direction, so
+  a back arrow is drawn flipped where the combo reads right to left, as `Button`, `Label` and
+  `Expander` say of their one icon.
 - `ComboBox.setEmptySelectionAllowed(true)`: a combo holding one item may hold none. Its list starts
   with an option standing for nothing, whose value is `null`, worded and drawn by the text and icon
   functions asked for `null`; an editable one emptied by hand takes it.
@@ -767,6 +842,44 @@ Maven Central say which number that was.
   measuring every row on the way.
 - A table's header sorts when it is clicked, on the release, and no longer on the press: a press
   that travels now moves the column.
+- The list of every tab, opened from the strip's list button when the tabs do not fit, is a list
+  of its own and no longer a menu (ADR 068): a row per tab in the strip's order, the shown tab
+  marked, each tab's icon in a column of its own when any tab has one, and on a closable tab a
+  close button at the row's end under the pointer or the cursor. Up, Down, Home and End move the
+  cursor, Enter or Space shows the tab, a typed letter goes to the next tab whose caption starts
+  with it, Delete or Ctrl+W (Cmd+W on macOS) closes the tab under the cursor through
+  `onTabClose` and the list stays open without it, Escape or Tab closes the list. Alt+Down on the
+  focused tab opens it while the strip overflows; the list button stays out of the tab order, so
+  the strip is still one stop. A tab chosen from it takes the keyboard when the keyboard was in
+  the pane, and closing the focused tab from it leaves the keyboard on the tab now shown. It
+  closes when the tabs fit again and when the pane leaves its window, takes in a tab
+  added or moved while it is open, and chooses and closes nothing while the pane is disabled;
+  its closing is announced with the origin of what closed it. A screen reader hears a list named
+  "All tabs" whose selected row follows the cursor, the tab shown described as "Current tab", and
+  a closable row's button as "Close tab".
+- A combo box's list and a date picker's calendar open, place, fade and close alike (ADR 068).
+  Right to left, a calendar in a window of its own lines up with the picker's leading edge, the
+  right one, as its in-scene layer already did, where it hung from the left edge; a combo box's
+  list drawn in the scene gives the keyboard back as its fade starts, as the calendar's did; and
+  a list or a calendar drawn in the scene is placed by the window's rule: below unless it does
+  not fit and above has more room, eight points from the scene's edge.
+- A popup window, a combo box's list, a date picker's calendar, the list of every tab or a menu,
+  opens faster: its context draws with the GL entry points a living window of the same kind
+  already resolved, where every new window looked them all up again, about 20 ms on a Mac, where
+  opening one went from about 28 ms to 6 ms; on Linux under Wayland about a millisecond is saved.
+  Contexts share them only with contexts that report the same vendor, renderer and version, and
+  `-Dlimn.backend.reuseGlCapabilities=false` turns the sharing off for a driver that misbehaves.
+- The `ColorPicker` shows its swatch and hex field first, above the saturation and value field,
+  so the colour before and after stays in sight while a drag or a channel changes it; a short
+  window scrolled them out of sight. A reader meets them first too.
+- A tab that holds the keyboard is marked by a rule along its top in the focus colour, the
+  selection's rule mirrored, where a ring around the whole tab crossed the selection's rule and
+  read as a text field.
+- On Linux the bridge sends the name, description, value and open state of the node the focus
+  comes to in that node's cache item, with the focus, rather than as events, holds a publish's
+  signals until its frame has ended, however many there are, and no longer repeats the focus as
+  the cursor the list had: Orca 50.3 handled a batch's focus before its changes and read a combo
+  box again for each one.
 - A popup menu in a window of its own leaves the keyboard focus on the window that opened it, as
   Windows' and macOS's own menus do, and is read by screen readers as part of that window. NVDA and
   VoiceOver no longer announce a window as a menu opens and the application's window again as it
@@ -839,8 +952,11 @@ Maven Central say which number that was.
   its orders, its dialogs and its menus are translated into the 21 languages the old window was;
   each page of the gallery has a button that opens where the site documents it; the performance
   footer is shown from the View menu. `--scene app` names it, the `--scene kitchen*` names are
-  gone, and every scene of the lab is still opened alone by `--scene`. The sample film the demo
-  plays has its soundtrack.
+  gone, and every scene of the lab is still opened alone by `--scene`, in the language asked for.
+  The sample film the demo plays has its soundtrack. What a control did is said in the status
+  line and to a screen reader, politely; menus, buttons and the tray menu carry access letters
+  in every language; and a language chosen while it runs reaches every line of a page already
+  built.
 - The demo opened with no scene named follows the system's light or dark appearance until a theme
   is picked.
 - A chart writes values of 1e15 and more in scientific notation by default, on its value axis and
@@ -858,6 +974,18 @@ Maven Central say which number that was.
 
 ### Breaking, and how to move
 
+- An `&` before a letter or a digit in the text of a menu title or item, a `Button`, a
+  `Checkbox`, a `RadioButton` or a `Label` bound with `setLabelFor` marks its access letter and
+  is not shown (ADR 070): "R&D" shows "RD" with the D underlined, and `text()` answers "RD".
+  Write a literal one `&&` ("R&&D"). An `&` before a space or at the end is text, as before.
+- `Ui.postDelayed` and `UiRuntime.postDelayed` return a `Subscription` where they returned
+  nothing: source code compiles as it did, but a library compiled against 0.9.0 that calls them
+  fails with `NoSuchMethodError` until it is compiled again.
+- `Slider.setValue` throws `IllegalArgumentException` for a value that is not a number, where it
+  stored NaN past a clamp that cannot clamp it; a value past either end is still clamped. Code
+  that could pass NaN checks first.
+- `ActionFacet` has a third component, `accessKey`. The two-component constructor stays, so
+  `new ActionFacet(actions, keyBinding)` compiles as before; a record pattern over it names three.
 - `SvgRasterizer` is `SvgRenderer`, a document opened, measured, changed and drawn, and
   `SvgIcon.installRasterizer`, `uninstallRasterizer` and `isRasterizerInstalled` are
   `installRenderer`, `uninstallRenderer` and `isRendererInstalled`; `BackendServices` takes the
@@ -930,6 +1058,10 @@ Maven Central say which number that was.
   row in GUI tables") and says "not selected" of every selectable cell that is not, and a
   calendar's cursor is not its selection. Left and Right read the day alone. Turning that Orca
   setting off reads one day on every move.
+- Of a masked `TextField`. Right to left, the guide of the positions still to fill is drawn on
+  the wrong side of the text, since the two are drawn as two runs and not shaped as one line. A
+  quoted digit takes the same digit typed first (`+'0' 000`, typing 0) as itself rather than as
+  the first position to fill: which of the two the keystroke meant cannot be told.
 
 ## After 0.8.0
 
