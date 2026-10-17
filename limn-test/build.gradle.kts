@@ -4,6 +4,8 @@
 //   SceneDriver         clicks, keys, text, focus and the close, delivered to a scene as a window
 //                       would, through the input the scene hands its window and nothing else
 //   HeadlessUi          the UI runtime on a thread and a clock the test owns
+//   TestPreferences     the system's appearance, motion, contrast and access-key preferences,
+//                       put in place for a test and put back after it
 //   HeadlessBackend     windows with no platform behind them, whose bridge keeps the last
 //                       accessible tree; dialogs and popups that open windows open here
 //   StubWindow, NoopCanvas, TestRulers

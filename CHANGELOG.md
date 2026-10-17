@@ -418,6 +418,11 @@ Maven Central say which number that was.
   of several value nodes, each thumb of a `RangeSlider`; and `PopupOwnerSubject.disclosesInPlace()`
   runs the popup-owner contract over a disclosure, an `Expander`'s header, which says no
   `HAS_POPUP`.
+- In `limn-test`, `TestPreferences` puts the system's preferences in place for an application's
+  own test, which cannot build a `SystemPreferences` itself: `new TestPreferences()` in a `try`,
+  then `colorScheme(ColorScheme.DARK)`, `reduceMotion(true)`, `increaseContrast(true)` or
+  `underlineAccessKeys(true)`, each reported at once as a backend would, and `close()` puts back
+  what was there. UI thread, inside a `HeadlessUi`.
 - On macOS `-Dlimn.macos.agent=true`, or the environment variable `LIMN_MACOS_AGENT`, makes a
   run an agent, with no icon in the Dock and no menu bar of its own, whatever its package says;
   the variable is inherited by whatever the process starts. The build sets it for its test runs,
