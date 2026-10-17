@@ -300,7 +300,7 @@ tu aplicación.
 <table>
   <tr>
     <td nowrap><samp>limn-toolkit</samp></td>
-    <td>el conjunto de widgets, la disposición, el grafo de escena, las SPI del backend y los decodificadores de vídeo en Java puro; no necesita nada en tiempo de ejecución y solo nombra, para compilar, las anotaciones de nulidad de JSpecify</td>
+    <td>el conjunto de widgets, la disposición, el grafo de escena, las SPI del backend y los decodificadores de vídeo en Java puro; necesita una sola biblioteca en tiempo de ejecución, el decodificador de WebP <code>org.glavo:webp</code> (Java, Apache-2.0), y solo nombra, para compilar, las anotaciones de nulidad de JSpecify</td>
   </tr>
   <tr>
     <td nowrap><samp>limn-backend-lwjgl</samp></td>
@@ -323,6 +323,16 @@ tu aplicación.
     <td>las tipografías pan-CJK y de emojis a color (26 MB que una aplicación que nunca las dibuja no debería cargar), más el resto de los respaldos, en las versiones con las que se probó esta publicación — cada tipografía es un artefacto propio que cambia de versión con la fuente</td>
   </tr>
 </table>
+
+## Versiones
+
+A partir de la 1.0, nada de lo que usa una aplicación se rompe antes de la 2.0: cada publicación
+1.x compila y ejecuta el código escrito para cualquier 1.x anterior, así que actualizar dentro de
+la 1.x siempre es seguro, y las correcciones van a la siguiente 1.x y no a líneas más antiguas. Un
+método marcado con `@Deprecated` sigue funcionando hasta la 2.0, y Java 17 sigue siendo el mínimo
+hasta la 2.0. La única excepción es el paquete `limn.backend.spi`, que solo usa quien escribe un
+backend propio: está en incubación y puede cambiar en una versión menor 1.x, siempre con la
+migración en el registro de cambios.
 
 ## Documentación
 

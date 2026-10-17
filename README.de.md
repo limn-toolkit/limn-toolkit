@@ -302,7 +302,7 @@ Abhängigkeit Ihrer Anwendung.
 <table>
   <tr>
     <td nowrap><samp>limn-toolkit</samp></td>
-    <td>der Widget-Satz, Layout, der Szenengraph, die Backend-SPIs und die reinen Java-Video-Decoder; braucht zur Laufzeit nichts und nennt zum Kompilieren nur die JSpecify-Annotationen für null</td>
+    <td>der Widget-Satz, Layout, der Szenengraph, die Backend-SPIs und die reinen Java-Video-Decoder; braucht zur Laufzeit eine einzige Bibliothek, den WebP-Decoder <code>org.glavo:webp</code> (Java, Apache-2.0), und nennt zum Kompilieren nur die JSpecify-Annotationen für null</td>
   </tr>
   <tr>
     <td nowrap><samp>limn-backend-lwjgl</samp></td>
@@ -325,6 +325,16 @@ Abhängigkeit Ihrer Anwendung.
     <td>die Pan-CJK- und Farb-Emoji-Schriften (26 MB, die eine Anwendung, die sie nie zeichnet, nicht tragen sollte), dazu die übrigen Fallbacks, in den Versionen, mit denen dieses Release getestet wurde — jede Schrift ein eigenes Artefakt, dessen Version der Schrift folgt</td>
   </tr>
 </table>
+
+## Versionen
+
+Ab 1.0 bricht nichts, was eine Anwendung benutzt, vor 2.0: Mit jedem 1.x-Release lässt sich der
+Code, der für ein beliebiges früheres 1.x geschrieben wurde, bauen und ausführen, ein Update
+innerhalb von 1.x ist also immer sicher, und Korrekturen kommen in das nächste 1.x statt in ältere
+Linien. Eine mit `@Deprecated` markierte Methode funktioniert bis 2.0 weiter, und Java 17 bleibt bis
+2.0 das Minimum. Die einzige Ausnahme ist das Paket `limn.backend.spi`, das nur benutzt, wer ein
+eigenes Backend schreibt: Es ist im Inkubationsstadium und kann sich in einem 1.x-Minor-Release
+ändern, immer mit der Migration im Changelog.
 
 ## Dokumentation
 
