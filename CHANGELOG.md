@@ -905,10 +905,11 @@ Maven Central say which number that was.
   a list or a calendar drawn in the scene is placed by the window's rule: below unless it does
   not fit and above has more room, eight points from the scene's edge.
 - A popup window, a combo box's list, a date picker's calendar, the list of every tab or a menu,
-  opens faster: its context draws with the GL entry points a living window of the same kind
-  already resolved, where every new window looked them all up again, about 20 ms on a Mac, where
-  opening one went from about 28 ms to 6 ms; on Linux under Wayland about a millisecond is saved.
-  Contexts share them only with contexts that report the same vendor, renderer and version, and
+  opens faster: it draws with the GL entry points its window already resolved, where every new
+  window looked them all up again. On a Mac that lookup was about 20 ms, and a popup's window
+  went from about 25 ms to 5 ms, opened and closed one at a time as a list or a menu is. This is
+  the default on macOS, Linux and Windows. Two contexts share the entry points only when they
+  report the same vendor, renderer, version, context flags, profile and extensions, and
   `-Dlimn.backend.reuseGlCapabilities=false` turns the sharing off for a driver that misbehaves.
 - The `ColorPicker` shows its swatch and hex field first, above the saturation and value field,
   so the colour before and after stays in sight while a drag or a channel changes it; a short
