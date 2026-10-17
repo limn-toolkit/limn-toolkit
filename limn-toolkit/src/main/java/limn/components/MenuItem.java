@@ -216,7 +216,7 @@ public final class MenuItem {
     }
 
     /** The label's text read for its mark, memoized on the text it was read from. */
-    private AccessLetters.Parsed marked() {
+    private limn.i18n.internal.AccessMarks.Parsed marked() {
         String raw = label.get();
         if (!raw.equals(markedFrom)) {
             markedFrom = raw;
@@ -227,7 +227,7 @@ public final class MenuItem {
     }
 
     private String markedFrom;
-    private AccessLetters.Parsed markedText;
+    private limn.i18n.internal.AccessMarks.Parsed markedText;
     /** Changes whenever {@link #label()} does: what the row's accessible name is diffed by. */
     private long markedWitness;
     private char keyLetter;
@@ -380,7 +380,7 @@ public final class MenuItem {
      */
     public char mnemonic() {
         if (label != null) {
-            AccessLetters.Parsed parsed = marked();
+            limn.i18n.internal.AccessMarks.Parsed parsed = marked();
             if (parsed.letter() != 0) {
                 return parsed.letter();
             }
@@ -421,7 +421,7 @@ public final class MenuItem {
         if (label == null) {
             return -1;
         }
-        AccessLetters.Parsed parsed = marked();
+        limn.i18n.internal.AccessMarks.Parsed parsed = marked();
         return parsed.index() >= 0 ? parsed.index() : MenuInk.mnemonicIndex(parsed.text(), mnemonic);
     }
 

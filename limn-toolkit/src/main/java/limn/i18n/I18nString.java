@@ -1,5 +1,6 @@
 package limn.i18n;
 
+import limn.i18n.internal.AccessMarks;
 import limn.i18n.internal.NumberLocale;
 import org.jspecify.annotations.Nullable;
 
@@ -47,6 +48,12 @@ public final class I18nString {
     /** {@code null} for a literal, which is what makes {@link #get()} skip the registry. */
     private final String key;
     private final String english;
+    /**
+     * Whether this is {@link #withoutAccessLetter()} of the string with the same key and English:
+     * the mark is taken out of each resolution, so the English is kept as written and is never
+     * read twice for its mark, which would take a mark out of an {@code &&}'s ampersand.
+     */
+    private final boolean wordsOnly;
 
     private String cached;
     /** Valid iff {@code cachedEpoch == I18n.epoch()} and the locale matches; 0 is "never resolved". */
@@ -77,12 +84,21 @@ public final class I18nString {
     public I18nString(String key, String english) {
         this.key = Objects.requireNonNull(key, "key");
         this.english = Objects.requireNonNull(english, "english");
+        this.wordsOnly = false;
         I18n.declare(key, english);
     }
 
     private I18nString(String literal) {
         this.key = null;
         this.english = literal;
+        this.wordsOnly = false;
+    }
+
+    /** {@link #withoutAccessLetter()} of a string already declared, or of a literal. */
+    private I18nString(@Nullable String key, String english, boolean wordsOnly) {
+        this.key = key;
+        this.english = english;
+        this.wordsOnly = wordsOnly;
     }
 
     /**
@@ -102,16 +118,45 @@ public final class I18nString {
      */
     public String get() {
         if (key == null) {
-            return english;
+            if (!wordsOnly) {
+                return english;
+            }
+            String words = cached; // a literal's words never change: read once
+            if (words == null) {
+                words = AccessMarks.parse(english, true).text();
+                cached = words;
+            }
+            return words;
         }
         long epoch = I18n.epoch();
         Locale locale = I18n.locale();
         if (cachedEpoch != epoch || !locale.equals(cachedLocale)) {
-            cached = I18n.resolve(key, english, locale);
+            String resolved = I18n.resolve(key, english, locale);
+            cached = wordsOnly ? AccessMarks.parse(resolved, true).text() : resolved;
             cachedEpoch = epoch;
             cachedLocale = locale;
         }
         return cached;
+    }
+
+    /**
+     * This text as words, as the toolkit shows it with its access letter's mark taken out: for a
+     * string a menu or a button shows with its letter, quoted in a sentence, a status line or a
+     * log. "&amp;Open" reads "Open", "R&amp;&amp;D" reads "R&amp;D", an {@code &} before anything
+     * but a letter or a digit is kept ("Terms &amp; conditions"), and the parenthesised letter
+     * Japanese, Korean and Chinese strings carry goes whole, on every system, with an ellipsis
+     * after it kept: "名前(&amp;N)" reads "名前" and "プロパティ(&amp;P)…" reads "プロパティ…". The
+     * reading is the controls' own, so the words are the ones a control shows.
+     *
+     * <p>Resolved at {@link #get()}, like this string: it follows a change of language, and the
+     * mark is taken out of whichever translation is in effect, each of which picks its own letter.
+     * {@link #format} substitutes its arguments into the words, and an argument's own ampersands
+     * are left alone. Called on its own result, it returns that result.
+     *
+     * @return the words; {@code this} when it is already words
+     */
+    public I18nString withoutAccessLetter() {
+        return wordsOnly ? this : new I18nString(key, english, true);
     }
 
     /**
@@ -145,10 +190,11 @@ public final class I18nString {
         try {
             return new MessageFormat(pattern, numbers).format(args);
         } catch (IllegalArgumentException malformedPattern) {
+            String fallback = english();
             try {
-                return new MessageFormat(english, numbers).format(args);
+                return new MessageFormat(fallback, numbers).format(args);
             } catch (IllegalArgumentException ourOwnPatternIsBroken) {
-                return english;
+                return fallback;
             }
         }
     }
@@ -158,9 +204,12 @@ public final class I18nString {
         return key;
     }
 
-    /** The default-language text: also the fallback, and never {@code null}. */
+    /**
+     * The default-language text: also the fallback, and never {@code null}. For
+     * {@link #withoutAccessLetter()}, its words.
+     */
     public String english() {
-        return english;
+        return wordsOnly ? AccessMarks.parse(english, true).text() : english;
     }
 
     /** Whether this is a literal, which no bundle can ever change. */
@@ -177,7 +226,9 @@ public final class I18nString {
     /**
      * Value equality on key and English: two literals of the same text are the same
      * string, and a component's "did this actually change" check keeps working when
-     * its field stops being a {@code String}.
+     * its field stops being a {@code String}. A string {@linkplain #withoutAccessLetter()
+     * without its access letter} equals only another such of the same key and English,
+     * since a translation can mark a letter the English does not.
      */
     @Override
     public boolean equals(@Nullable Object o) {
@@ -187,11 +238,11 @@ public final class I18nString {
         if (!(o instanceof I18nString other)) {
             return false;
         }
-        return Objects.equals(key, other.key) && english.equals(other.english);
+        return Objects.equals(key, other.key) && english.equals(other.english) && wordsOnly == other.wordsOnly;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(key, english);
+        return Objects.hash(key, english, wordsOnly);
     }
 }

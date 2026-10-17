@@ -324,7 +324,11 @@ Maven Central say which number that was.
   The letters are drawn while Alt is held and in a menu opened from the keyboard, on Windows and
   Linux, and never on macOS, which has none: there the mark goes, a trailing "(&F)" with it, and
   no binding is published. `MenuItem.setMnemonic` and `MenuBar.addMenu(title, char, menu)` stay,
-  and the text's mark wins over them. A reader is told the letter's chord. Where Windows is set
+  and the text's mark wins over them. `I18nString.withoutAccessLetter()` reads a marked string
+  as the words a control shows, for a sentence, a status line or a log that quotes it: "&Open"
+  is "Open", "R&&D" is "R&D", and "名前(&N)" is "名前" on every system, "プロパティ(&P)…" keeping
+  its ellipsis; it resolves when read, so it follows the language. A reader is told the letter's
+  chord. Where Windows is set
   to underline access keys, `SystemPreferences.underlineAccessKeys()` says so and the letters
   stay drawn; a tray menu's native rows take the letter where the text marked it. The model
   carries the access key apart from the accelerator (`ActionFacet.accessKey`, set with

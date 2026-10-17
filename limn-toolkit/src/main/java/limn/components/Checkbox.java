@@ -154,7 +154,7 @@ public final class Checkbox extends Widget<Checkbox> {
     }
 
     /** The label in the language in effect, read for its access letter. */
-    private AccessLetters.Parsed shown() {
+    private limn.i18n.internal.AccessMarks.Parsed shown() {
         return marked.of(text.get());
     }
 

@@ -147,15 +147,15 @@ public final class Label extends Widget<Label> {
     /** The text as written, for a label that names nothing: an ampersand is an ampersand. */
     private final Unmarked unmarked = new Unmarked();
 
-    /** {@link AccessLetters.Parsed} of a text with no mark read, memoized like the marked one. */
+    /** {@link limn.i18n.internal.AccessMarks.Parsed} of a text with no mark read, memoized like the marked one. */
     private static final class Unmarked {
         private String from;
-        private AccessLetters.Parsed parsed = AccessLetters.Parsed.EMPTY;
+        private limn.i18n.internal.AccessMarks.Parsed parsed = limn.i18n.internal.AccessMarks.Parsed.EMPTY;
 
-        AccessLetters.Parsed of(String raw) {
+        limn.i18n.internal.AccessMarks.Parsed of(String raw) {
             if (!raw.equals(from)) {
                 from = raw;
-                parsed = new AccessLetters.Parsed(raw, -1, (char) 0);
+                parsed = new limn.i18n.internal.AccessMarks.Parsed(raw, -1, (char) 0);
             }
             return parsed;
         }
@@ -194,7 +194,7 @@ public final class Label extends Widget<Label> {
     }
 
     /** The text read for its access letter where it names a control, and as written otherwise. */
-    private AccessLetters.Parsed shown() {
+    private limn.i18n.internal.AccessMarks.Parsed shown() {
         String raw = text.get();
         return labelFor != null ? marked.of(raw) : unmarked.of(raw);
     }
@@ -814,7 +814,7 @@ public final class Label extends Widget<Label> {
         // The access letter's line and place in it: the lines are the shown text in order, wrapped
         // or not, so each is found after the one before. An ellipsized line is not found, and a
         // letter cut off is not marked.
-        AccessLetters.Parsed shown = shown();
+        limn.i18n.internal.AccessMarks.Parsed shown = shown();
         int letterAt = AccessLetters.shownIn(this) ? shown.index() : -1;
         int searchFrom = 0;
         for (int i = 0; i < lines.size(); i++) {

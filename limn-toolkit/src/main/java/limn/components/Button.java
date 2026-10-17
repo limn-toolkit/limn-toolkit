@@ -206,7 +206,7 @@ public final class Button extends Widget<Button> {
     }
 
     /** The caption in the language in effect, read for its access letter. */
-    private AccessLetters.Parsed shown() {
+    private limn.i18n.internal.AccessMarks.Parsed shown() {
         return marked.of(text.get());
     }
 
@@ -419,7 +419,7 @@ public final class Button extends Widget<Button> {
         a.role(Accessible.Role.BUTTON);
         // The caption as shown, its access letter's mark taken out, diffed by the witness that
         // moves when the shown text does; and the letter's chord, where it can be said.
-        AccessLetters.Parsed caption = shown();
+        limn.i18n.internal.AccessMarks.Parsed caption = shown();
         a.name(caption.text(), marked.witness(), Accessible.NameFrom.CONTENT);
         a.accessKey(marked.binding());
         // The LEAF_ACTION shape, written once (ADR 045 §3): PRESS exactly while accepted.

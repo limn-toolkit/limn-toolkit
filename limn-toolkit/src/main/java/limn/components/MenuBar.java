@@ -96,7 +96,7 @@ public final class MenuBar extends Widget<MenuBar> {
         private final Menu menu;
         private final char given;
         private String markedFrom;
-        private AccessLetters.Parsed marked;
+        private limn.i18n.internal.AccessMarks.Parsed marked;
         private char boundLetter;
         private String binding;
         /** Changes whenever {@link #text()} does: what the accessible name is diffed by. */
@@ -113,7 +113,7 @@ public final class MenuBar extends Widget<MenuBar> {
         }
 
         /** The title read for its {@code &} mark, again only when the language changed it. */
-        private AccessLetters.Parsed marked() {
+        private limn.i18n.internal.AccessMarks.Parsed marked() {
             String raw = title.get();
             if (!raw.equals(markedFrom)) {
                 markedFrom = raw;
@@ -141,7 +141,7 @@ public final class MenuBar extends Widget<MenuBar> {
 
         /** Where the letter is in {@link #text()}, or -1. */
         int mnemonicIndex() {
-            AccessLetters.Parsed parsed = marked();
+            limn.i18n.internal.AccessMarks.Parsed parsed = marked();
             return parsed.index() >= 0 ? parsed.index() : MenuInk.mnemonicIndex(parsed.text(), given);
         }
 

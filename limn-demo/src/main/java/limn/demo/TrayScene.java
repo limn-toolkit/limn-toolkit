@@ -295,7 +295,7 @@ final class TrayScene {
 
     /** A choice from the icon's menu: said in the status line, and on standard output. */
     private static void chose(Label status, I18nString item) {
-        say(status, "chose " + Page.plain(item.english()));
+        say(status, "chose " + item.withoutAccessLetter().english());
         Page.report(Text.CHOSE.format(Page.plain(item)));
     }
 

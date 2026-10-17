@@ -68,6 +68,13 @@ that needs nothing from the application.
 - **A letter given apart from the text stays possible** (`MenuItem.setMnemonic`,
   `MenuBar.addMenu(title, char, menu)`), for an application whose strings carry no marks. Where
   the text has a mark, the mark wins: the translation is the one that knows the word.
+- *Amended 2026-10-16, the same day:* **a marked string quoted in a sentence reads as its
+  words**, through `I18nString.withoutAccessLetter()`: the same reading as the controls', one
+  parser that both share (`limn.i18n.internal.AccessMarks`), with the trailing "(&F)" of a CJK
+  string taken out whole on every system, since a status line or a log is prose and not a
+  control. It resolves at `get()`, so it follows the language. The owner decided it; it
+  replaces the regular-expression copy of the reading that the Showcase kept to quote a marked
+  string in its status line.
 
 ### 3.2 Which widgets
 
@@ -148,7 +155,9 @@ system's way.
 - **Parsing:**
   - `&`, `&&`, a trailing `&`, `&` before a space;
   - two marks;
-  - "(&F)" on macOS and elsewhere.
+  - "(&F)" on macOS and elsewhere;
+  - `withoutAccessLetter()`: the same cases, "(&F)" with and without an ellipsis after it, and a
+    change of language (`WithoutAccessLetterTest`).
 - **Drawing:** the mark is drawn only while Alt is held or a menu was opened from the keyboard,
   and never on macOS.
 - **Each widget's action on Alt+letter,** and the scope:
