@@ -14,6 +14,7 @@ import limn.graphics.Color;
 import limn.graphics.Image;
 import limn.graphics.RoundRect;
 import limn.i18n.I18nString;
+import limn.i18n.NumberFormats;
 import limn.scene.Constraints;
 import limn.scene.Insets;
 import limn.scene.Scene;
@@ -48,6 +49,7 @@ final class GlassScene {
         static final I18nString NEW_ALBUM = new I18nString("showcase.glass.newAlbum", "New album");
         static final I18nString FLOATING = new I18nString("showcase.glass.floating", "Floating panel");
         static final I18nString TINT = new I18nString("showcase.glass.tint", "Tint");
+        static final I18nString TINT_AMOUNT = new I18nString("showcase.glass.tintAmount", "Strength");
         static final I18nString NONE = new I18nString("showcase.glass.none", "None");
         static final I18nString TEAL = new I18nString("showcase.glass.teal", "Teal");
         static final I18nString AMBER = new I18nString("showcase.glass.amber", "Amber");
@@ -122,8 +124,22 @@ final class GlassScene {
         SegmentedControl tint = new SegmentedControl(Text.NONE, Text.TEAL, Text.AMBER, Text.ROSE);
         tint.setAccessibleName(Text.TINT);
         tint.setSelectedIndex(1);
-        tint.onSelect(index -> floating.setTint(TINTS[index], 0.2f));
-        Row tintRow = Page.row(12, new Label(Text.TINT).setMuted(true).setLabelFor(tint), tint);
+        // How far the glass leans toward the colour, shown and changeable: at a fifth a tint is a
+        // hint that is easy to miss, so the page starts at two fifths and lets the viewer compare.
+        Slider strength = new Slider(0, 100).setStep(5).setValue(40);
+        strength.setAccessibleName(Text.TINT_AMOUNT);
+        Label percent = Page.label(() -> NumberFormats.percent(0).apply(strength.value() / 100.0))
+                .setMuted(true);
+        Runnable applyTint = () -> floating.setTint(TINTS[tint.selectedIndex()], strength.value() / 100f);
+        applyTint.run();
+        tint.onSelect(index -> applyTint.run());
+        strength.onChange(value -> {
+            percent.setText(NumberFormats.percent(0).apply(value / 100.0));
+            applyTint.run();
+        });
+        Row tintRow = Page.row(12, new Label(Text.TINT).setMuted(true).setLabelFor(tint), tint,
+                new Label(Text.TINT_AMOUNT).setMuted(true).setLabelFor(strength),
+                new SizedBox(160, SizedBox.UNSET, strength), percent);
         tintRow.add(Expanded.spacer(1));
         column.add(tintRow);
         column.add(new SizedBox(SizedBox.UNSET, 240, limn.demo.site.GlassExample.floatingOver(
