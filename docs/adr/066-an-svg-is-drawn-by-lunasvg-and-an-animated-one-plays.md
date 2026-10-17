@@ -7,7 +7,7 @@
 - **Scope:** how the toolkit reads and draws an SVG, still or animated: the renderer and how it
   ships, the API that hands an SVG to the screen, the animation it plays, and what a damaged or
   hostile file meets.
-- **New public API (proposed):** `SvgIcon` of any aspect and animated; an `ImageView` that shows
+- **New public API:** `SvgIcon` of any aspect and animated; an `ImageView` that shows
   an icon as well as an image; `Images.decode` of an SVG; an `SvgIcon`'s frame rate, and the system property
   `limn.svg.frameRate`; the native payload `limn-lunasvg-natives`.
 - **Compatibility:** every `SvgIcon` that draws today draws the same or better. `lwjgl-nanovg`

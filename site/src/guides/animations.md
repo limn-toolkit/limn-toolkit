@@ -41,8 +41,8 @@ it is sent to:
 
 The durations the components use are on the theme, so that motion of your own keeps their pace:
 `animHover` for a hover, `animFocus` for a focus ring, `animFade` for something appearing or a
-value settling, `animTab` for an indicator sliding, `animWindow` for a popup or a dialog, and
-`animEasing` for the curve.
+value settling, `animTab` for an indicator sliding, `animExpand` for a section opening or
+closing, `animWindow` for a popup or a dialog, and `animEasing` for the curve.
 
 ## Something that repeats
 

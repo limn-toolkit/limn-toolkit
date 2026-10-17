@@ -1,7 +1,8 @@
 # ADR 068: One anchored popup, and a tab list that closes tabs
 
-- **Status:** Accepted, 2026-10-15. The owner chose a list of its own for the tabs, and the shared
-  popup extracted and adopted by the three surfaces in one round.
+- **Status:** Accepted and implemented, 2026-10-15; the amendments of section 4 built 2026-10-16.
+  The owner chose a list of its own for the tabs, and the shared popup extracted and adopted by
+  the three surfaces in one round.
 - **Date:** 2026-10-15
 - **Scope:** the surfaces that hang from a widget inside it: a combo box's list, a date picker's
   calendar, and the list of every tab a `TabbedPane` opens when its tabs do not fit.

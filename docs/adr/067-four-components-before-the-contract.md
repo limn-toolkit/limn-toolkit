@@ -1,12 +1,15 @@
 # ADR 067: Four components before the contract, and how a project is told about a flaw
 
-- **Status:** Accepted, 2026-10-14; built the same day (section 8). The owner chose what enters and how each behaves.
+- **Status:** Accepted and implemented, 2026-10-14; built the same day (section 8). The owner chose
+  what enters and how each behaves.
 - **Date:** 2026-10-14
 - **Scope:** tabs that close and move, a section that opens and closes, a slider of two thumbs,
   a text field that types to a pattern; and the files a person reporting a defect or a
   vulnerability is shown.
-- **New public API (proposed):** `TabbedPane` closing and moving its tabs; `Expander` and
-  `ExpanderGroup`; `RangeSlider`; a mask on `TextField`.
+- **New public API:** `TabbedPane` closing and moving its tabs; `Expander` and
+  `ExpanderGroup`; `RangeSlider`; a mask on `TextField`; and for a widget of an application's own
+  that holds children, `Widget.moveChild(child, index)`, which reorders a child without taking it
+  out, and `moveChild` and `remove` with the `Change.Origin` of who asked (section 8).
 - **Compatibility:** additive. Nothing that exists changes behaviour unless asked.
 
 ---

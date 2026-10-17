@@ -1,13 +1,14 @@
 # ADR 069: A video shows a poster before it plays
 
-- **Status:** Accepted, 2026-10-15. The owner chose the poster in the toolkit, the first picture
+- **Status:** Accepted and implemented, 2026-10-15. The owner chose the poster in the toolkit, the first picture
   by default, a picture at a time or an image of the application's as the alternatives, and the
   time over a picture's number.
 - **Date:** 2026-10-15
 - **Scope:** what a `VideoView` shows before anyone has pressed play, with a stream of its own or
   with a `MediaPlayer`.
 - **New public API:** `limn.video.Poster`; `VideoView.setPoster` and `poster()`;
-  `MediaPlayer.cue(long)`.
+  `MediaPlayer.cue(long)`, and `MediaPlayer.isCued()`, which says whether the picture a cue asked
+  for is still on its way.
 - **Compatibility:** additive. A view showing a `MediaPlayer` that was never started showed the
   bar colour and now shows the first picture: the behaviour `VideoView` already promised for a
   stream, extended to the player.

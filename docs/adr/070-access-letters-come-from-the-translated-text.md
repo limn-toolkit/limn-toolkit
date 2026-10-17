@@ -12,7 +12,12 @@
   - what pressing it does.
 - **New public API:** an `&` before a letter in a text marks it. `MenuItem.setMnemonic(char)` and
   `MenuBar.addMenu(title, char, menu)` stay, for a letter given apart from the text, and where
-  both are given the text's mark wins.
+  both are given the text's mark wins. Around it: `SystemPreferences.underlineAccessKeys()`, the
+  system's wish to see the letters at all times; `Accessibility.accessKey(display)` and
+  `hasAccessKey()`, and `ActionFacet.accessKey()`, the chord a node publishes for its letter;
+  `Widget.accessibleLabelAccessKey()`, the chord a caption widget of an application's own hands the
+  control it labels; and in the SPI, `MenuRow.mnemonicIndex()`, where in a row's words its letter
+  is.
 - **Compatibility:** a menu, button, check box, radio button or field label whose text has a
   literal `&` before a letter or digit now writes it `&&`.
 

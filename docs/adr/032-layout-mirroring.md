@@ -458,6 +458,12 @@ Mechanically it is a negative x scale about the icon's own box, applied inside `
 destination rect is already computed. It does not compose with §1's no-root-transform rule, because
 it is one image and not the tree.
 
+(Added 2026-10-16.) A widget showing many icons of many kinds takes the answer per item, not per
+widget: `ComboBox.setItemIcon(icon, mirroring)` asks each item whether its icon is directional, as
+the icon itself is asked, because one flag for the combo would turn every logo among its items
+around with its one back arrow. The final audit before 1.0 found the combo drawing every item
+icon as authored, the Showcase's "Returned" arrow among them.
+
 ---
 
 ## 2. The work, file by file
