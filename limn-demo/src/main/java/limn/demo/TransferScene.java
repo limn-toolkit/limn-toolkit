@@ -8,6 +8,7 @@ import limn.components.TextField;
 import limn.components.Theme;
 import limn.graphics.Image;
 import limn.i18n.I18nString;
+import limn.i18n.NumberFormats;
 import limn.i18n.PluralString;
 import limn.icons.tabler.Tabler;
 import limn.scene.Insets;
@@ -22,6 +23,9 @@ import limn.scene.layout.SizedBox;
 import limn.transfer.DataFormat;
 import limn.transfer.Offer;
 import limn.transfer.Transfer;
+
+import java.time.LocalDate;
+import java.util.function.Supplier;
 
 /**
  * The clipboard: a line of an invoice copied, cut and pasted, here or in another program, and
@@ -72,8 +76,14 @@ final class TransferScene {
     static Widget<?> content() {
         TextField invoice = new TextField().setText("1042");
         TextField customer = new TextField().setText("Harbor Supply");
-        TextField amount = new TextField().setText("1,250.00");
-        TextField due = new TextField().setText("2026-11-14");
+        TextField amount = new TextField();
+        TextField due = new TextField();
+        // The amount and the due date as the language writes them, as every other page writes
+        // its numbers and dates. The line is copied as the fields show it, which is also what a
+        // spreadsheet in the same language reads as a number: "1.250,00" is one to a spreadsheet
+        // in Portuguese, where "1,250.00" was text.
+        writtenInLanguage(amount, () -> NumberFormats.decimals(2).apply(1250));
+        writtenInLanguage(due, () -> Formats.date(LocalDate.of(2026, 11, 14)));
         TextField[] fields = {invoice, customer, amount, due};
 
         Row line = new Row();
@@ -171,6 +181,20 @@ final class TransferScene {
         page.add(Page.section(Text.RECEIVED));
         page.add(Page.narrow(640, Page.card(received)));
         return page;
+    }
+
+    /**
+     * Fills {@code field} with {@code value}'s answer now and again after every change of language,
+     * unless somebody has changed the field since: what they typed or pasted is theirs.
+     */
+    private static void writtenInLanguage(TextField field, Supplier<String> value) {
+        String[] written = {null};
+        Page.followLanguage(() -> {
+            if (written[0] == null || field.text().equals(written[0])) {
+                written[0] = value.get();
+                field.setText(written[0]);
+            }
+        });
     }
 
     /** One format the clipboard held, in words and with its icon. */

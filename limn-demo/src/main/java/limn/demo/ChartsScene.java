@@ -24,12 +24,9 @@ import limn.scene.layout.Padding;
 import limn.scene.layout.Row;
 import limn.scene.layout.SizedBox;
 
-import java.text.NumberFormat;
 import java.time.DayOfWeek;
 import java.time.LocalTime;
 import java.time.Month;
-import java.time.format.DateTimeFormatter;
-import java.time.format.FormatStyle;
 import java.time.format.TextStyle;
 import java.util.Arrays;
 import java.util.Currency;
@@ -296,14 +293,13 @@ final class ChartsScene {
                 point.series().name(), chart.valueFormat().apply(point.value()))));
     }
 
-    /** Whole dollars, as the language in effect writes money: what an axis tick wants. */
+    /**
+     * Whole dollars, as the language in effect writes money: what an axis tick wants. The
+     * toolkit's format and not the platform's, which under Arabic wrote the Arabic grouping sign
+     * between the Latin digits the toolkit shows there ({@code 815٬800}).
+     */
     private static DoubleFunction<String> wholeDollars() {
-        return v -> {
-            NumberFormat format = NumberFormat.getCurrencyInstance(I18n.locale());
-            format.setCurrency(DOLLARS);
-            format.setMaximumFractionDigits(0);
-            return I18n.localizeDigits(I18n.toAsciiDigits(format.format(v)));
-        };
+        return NumberFormats.currency(DOLLARS, 0);
     }
 
     /** Twelve working hours from {@link #FIRST_HOUR}, as the language writes a time of day. */
@@ -316,8 +312,7 @@ final class ChartsScene {
     }
 
     private static String clock(int hour) {
-        return I18n.localizeDigits(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)
-                .withLocale(I18n.locale()).format(LocalTime.of(hour, 0)));
+        return Formats.time(LocalTime.of(hour, 0));
     }
 
     /** Monday to Friday, short, in the language in effect. */

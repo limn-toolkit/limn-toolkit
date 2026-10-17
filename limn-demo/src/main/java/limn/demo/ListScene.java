@@ -29,8 +29,6 @@ import limn.scene.layout.SizedBox;
 
 import java.text.Collator;
 import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
-import java.time.format.FormatStyle;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -393,8 +391,7 @@ final class ListScene {
             }, call.kind() == Call.Kind.MISSED ? Theme::danger : Theme::textMuted);
             name.setText(call.contact().name());
             company.setText(call.contact().company());
-            time.setText(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)
-                    .withLocale(limn.i18n.I18n.locale()).format(call.at()));
+            time.setText(Formats.time(call.at()));
         }
 
         @Override

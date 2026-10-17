@@ -548,14 +548,11 @@ final class TreeScene {
         }
 
         private static String size(long bytes) {
-            double kb = bytes / 1024.0;
-            return kb < 1024 ? limn.i18n.NumberFormats.number(0).apply(Math.max(1, kb)) + " KB"
-                    : limn.i18n.NumberFormats.number(1).apply(kb / 1024) + " MB";
+            return Formats.size(bytes);
         }
 
         private static String date(LocalDate date) {
-            return java.time.format.DateTimeFormatter.ofLocalizedDate(java.time.format.FormatStyle.MEDIUM)
-                    .withLocale(limn.i18n.I18n.locale()).format(date);
+            return Formats.date(date, java.time.format.FormatStyle.MEDIUM);
         }
 
         static Widget<?> page() {

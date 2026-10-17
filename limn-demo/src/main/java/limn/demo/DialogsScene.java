@@ -469,7 +469,7 @@ final class DialogsScene {
 
     // ================================================================== menus
 
-    /** A file in the shared folder. */
+    /** A file in the shared folder, its size in kilobytes of 1024 bytes as {@link Formats#size} counts them. */
     record Document(String name, I18nString kind, String icon, int kilobytes) {
     }
 
@@ -487,8 +487,8 @@ final class DialogsScene {
                 new Document("Invoice 1042.pdf", Text.KIND_PDF, "file-type-pdf", 84),
                 new Document("Quarterly sales.xlsx", Text.KIND_SHEET, "file-spreadsheet", 412),
                 new Document("Price list 2026.csv", Text.KIND_SHEET, "file-type-csv", 38),
-                new Document("Contract Harbor Supply.pdf", Text.KIND_PDF, "file-type-pdf", 1_260),
-                new Document("Warehouse photos.zip", Text.KIND_ARCHIVE, "file-type-zip", 18_400),
+                new Document("Contract Harbor Supply.pdf", Text.KIND_PDF, "file-type-pdf", 1_331),
+                new Document("Warehouse photos.zip", Text.KIND_ARCHIVE, "file-type-zip", 18_842),
                 new Document("Logo.png", Text.KIND_PICTURE, "photo", 26),
                 new Document("Meeting notes.txt", Text.KIND_TEXT, "file-text", 4),
                 new Document(".sync-state", Text.KIND_TEXT, "file", 1)));
@@ -636,11 +636,11 @@ final class DialogsScene {
             row.gap(16).crossAlignment(Flex.CrossAlignment.CENTER);
             row.add(Expanded.of(new Label(file.name()).setIcon(Tabler.outline(file.icon())), 1));
             row.add(new SizedBox(130, SizedBox.UNSET, new Label(file.kind()).setMuted(true)));
-            String size = file.kilobytes() >= 1000
-                    ? String.format(java.util.Locale.ROOT, "%.1f MB", file.kilobytes() / 1000f)
-                    : file.kilobytes() + " KB";
+            // Written as the tree writes a size, and written again after a change of language,
+            // since a size carries the language's decimal separator and a row can outlive it.
+            Label size = Page.label(() -> Formats.size(file.kilobytes() * 1024L));
             row.add(new SizedBox(70, SizedBox.UNSET,
-                    new Label(size).setMuted(true).setAlign(Label.HAlign.END, Label.VAlign.CENTER)));
+                    size.setMuted(true).setAlign(Label.HAlign.END, Label.VAlign.CENTER)));
             return row;
         }
 

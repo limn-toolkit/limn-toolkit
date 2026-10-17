@@ -8,7 +8,6 @@ import limn.components.Separator;
 import limn.components.SplitPane;
 import limn.components.Theme;
 import limn.graphics.Canvas;
-import limn.i18n.I18n;
 import limn.i18n.I18nString;
 import limn.i18n.NumberFormats;
 import limn.icons.tabler.Tabler;
@@ -24,8 +23,6 @@ import limn.scene.layout.Padding;
 import limn.scene.layout.Row;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.time.format.FormatStyle;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -241,10 +238,9 @@ final class SplitPaneScene {
 
     /** Today's messages by their time, older ones by their date, as the language writes either. */
     private static String when(LocalDateTime at) {
-        DateTimeFormatter format = at.toLocalDate().equals(LocalDateTime.of(2026, 10, 15, 0, 0).toLocalDate())
-                ? DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)
-                : DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT);
-        return I18n.localizeDigits(format.withLocale(I18n.locale()).format(at));
+        return at.toLocalDate().equals(LocalDateTime.of(2026, 10, 15, 0, 0).toLocalDate())
+                ? Formats.time(at)
+                : Formats.date(at.toLocalDate());
     }
 
     /** The reading pane: the message's subject, who sent it to whom and when, and its text. */

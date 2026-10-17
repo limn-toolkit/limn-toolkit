@@ -294,9 +294,11 @@ final class AudioScene {
             return mmss(seconds) + " / " + mmss(TRACK_SECONDS);
         }
 
+        /** Minutes and seconds in the language's digits, as the video's controls write them. */
         private static String mmss(double seconds) {
             int whole = (int) Math.floor(seconds);
-            return (whole / 60) + ":" + String.format(java.util.Locale.ROOT, "%02d", whole % 60);
+            return limn.i18n.I18n.localizeDigits(
+                    (whole / 60) + ":" + String.format(java.util.Locale.ROOT, "%02d", whole % 60));
         }
 
         @Override
