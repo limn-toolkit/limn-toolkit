@@ -2,6 +2,7 @@ package limn.backend.lwjgl;
 
 import limn.scene.SystemPreferences;
 import limn.scene.SystemPreferences.ColorScheme;
+import limn.scene.internal.SystemPreferencesAccess;
 import org.lwjgl.system.APIUtil;
 import org.lwjgl.system.JNI;
 import org.lwjgl.system.MemoryStack;
@@ -85,7 +86,7 @@ final class WindowsSystemPreferences {
 
     /** @return what Windows says now */
     static SystemPreferences read() {
-        return new SystemPreferences(scheme(), !clientAreaAnimation(), highContrast(), keyboardCues());
+        return SystemPreferencesAccess.of(scheme(), !clientAreaAnimation(), highContrast(), keyboardCues());
     }
 
     private static ColorScheme scheme() {

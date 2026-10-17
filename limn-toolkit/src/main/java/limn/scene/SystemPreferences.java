@@ -2,6 +2,8 @@ package limn.scene;
 
 import limn.concurrent.Ui;
 import limn.concurrent.internal.ChangeListeners;
+import limn.scene.internal.SystemPreferencesAccess;
+import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
 
@@ -34,13 +36,13 @@ import java.util.Objects;
  * Windows answers it (the keyboard setting to underline access keys); the other systems report
  * {@code false}.
  *
- * @param colorScheme         the appearance the user chose, or {@link ColorScheme#NO_PREFERENCE}
- * @param reduceMotion        whether the user asked for less motion
- * @param increaseContrast    whether the user asked for more contrast
- * @param underlineAccessKeys whether the user asked for access keys to be underlined at all times
+ * <p><b>A class and not a record</b>, with no public constructor: only a backend builds one. A
+ * record's constructor and its deconstruction pattern would have made the four preferences of
+ * today a contract, so that a fifth, which a system may offer in a later 1.x release, could not be
+ * added without breaking every caller that builds or deconstructs one. An application reads the
+ * accessors, compares two values with {@link #equals}, and starts from {@link #NONE}.
  */
-public record SystemPreferences(ColorScheme colorScheme, boolean reduceMotion, boolean increaseContrast,
-        boolean underlineAccessKeys) {
+public final class SystemPreferences {
 
     /** A light or dark appearance, or none chosen. */
     public enum ColorScheme {
@@ -58,7 +60,10 @@ public record SystemPreferences(ColorScheme colorScheme, boolean reduceMotion, b
         NO_PREFERENCE
     }
 
-    /** No preference, no reduced motion, no increased contrast: what a platform that says nothing reports. */
+    /**
+     * No preference, no reduced motion, no increased contrast, access keys underlined only while
+     * Alt is held: what a platform that says nothing reports.
+     */
     public static final SystemPreferences NONE =
             new SystemPreferences(ColorScheme.NO_PREFERENCE, false, false, false);
 
@@ -66,16 +71,78 @@ public record SystemPreferences(ColorScheme colorScheme, boolean reduceMotion, b
 
     private static final ChangeListeners LISTENERS = new ChangeListeners();
 
+    static {
+        // The one way to build a value from outside this package: the backends' readers and the
+        // tests reach it through an internal class that an application does not name.
+        SystemPreferencesAccess.install(SystemPreferences::new);
+    }
+
+    private final ColorScheme colorScheme;
+    private final boolean reduceMotion;
+    private final boolean increaseContrast;
+    private final boolean underlineAccessKeys;
+
     /**
      * @param colorScheme         the appearance; never {@code null}
      * @param reduceMotion        whether less motion is asked for
      * @param increaseContrast    whether more contrast is asked for
-     * @param underlineAccessKeys whether access keys are underlined at all times; {@code false}
-     *                            on every system but Windows
+     * @param underlineAccessKeys whether access keys are underlined at all times
      * @throws NullPointerException if {@code colorScheme} is {@code null}
      */
-    public SystemPreferences {
-        Objects.requireNonNull(colorScheme, "colorScheme");
+    SystemPreferences(ColorScheme colorScheme, boolean reduceMotion, boolean increaseContrast,
+            boolean underlineAccessKeys) {
+        this.colorScheme = Objects.requireNonNull(colorScheme, "colorScheme");
+        this.reduceMotion = reduceMotion;
+        this.increaseContrast = increaseContrast;
+        this.underlineAccessKeys = underlineAccessKeys;
+    }
+
+    /** @return the appearance the user chose, or {@link ColorScheme#NO_PREFERENCE} */
+    public ColorScheme colorScheme() {
+        return colorScheme;
+    }
+
+    /** @return whether the user asked for less motion */
+    public boolean reduceMotion() {
+        return reduceMotion;
+    }
+
+    /** @return whether the user asked for more contrast */
+    public boolean increaseContrast() {
+        return increaseContrast;
+    }
+
+    /**
+     * @return whether the user asked for access keys to be underlined at all times; {@code false}
+     *         on every system but Windows
+     */
+    public boolean underlineAccessKeys() {
+        return underlineAccessKeys;
+    }
+
+    /** Equal when every preference is: what {@link #report} compares to tell a change. */
+    @Override
+    public boolean equals(@Nullable Object o) {
+        if (this == o) {
+            return true;
+        }
+        return o instanceof SystemPreferences other
+                && colorScheme == other.colorScheme
+                && reduceMotion == other.reduceMotion
+                && increaseContrast == other.increaseContrast
+                && underlineAccessKeys == other.underlineAccessKeys;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(colorScheme, reduceMotion, increaseContrast, underlineAccessKeys);
+    }
+
+    /** Every preference by name, for a log line. */
+    @Override
+    public String toString() {
+        return "SystemPreferences[colorScheme=" + colorScheme + ", reduceMotion=" + reduceMotion
+                + ", increaseContrast=" + increaseContrast + ", underlineAccessKeys=" + underlineAccessKeys + "]";
     }
 
     /**
@@ -99,8 +166,9 @@ public record SystemPreferences(ColorScheme colorScheme, boolean reduceMotion, b
 
     /**
      * Reports what the platform says now. A backend calls it when it starts and whenever the platform
-     * signals a change, and {@link #NONE} when it closes; a test calls it to put a preference in
-     * place. Listeners run only when the value differs from the current one. UI thread only.
+     * signals a change, and {@link #NONE} when it closes; a test calls it to put back what it found
+     * in {@link #current()}. Listeners run only when the value differs from the current one. UI
+     * thread only.
      *
      * @param preferences what the platform says; never {@code null}
      * @throws NullPointerException if {@code preferences} is {@code null}

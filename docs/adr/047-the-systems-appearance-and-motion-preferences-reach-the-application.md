@@ -64,6 +64,14 @@ same shape: a value the toolkit holds, read with an accessor and watched with
 `observeChanges(Runnable)`, which returns a `Subscription`. It is `limn.scene.SystemPreferences`, a
 record beside `ControlSize` and `LayoutDirection`, the other process-wide axes.
 
+*Amended 2026-10-16:* the owner chose a final class with no public constructor over the record,
+before 1.0, so that a preference a system adds later (a fourth came with ADR 070's
+`underlineAccessKeys`) can be added in a 1.x minor: a record's constructor and its deconstruction
+pattern would have made the set of preferences a contract every caller compiles against. The
+accessors, `equals`, `hashCode`, `toString` and `NONE` are as they were; a backend and a test
+build one through `limn.scene.internal.SystemPreferencesAccess`, which the toolkit's module
+exports to the backend and to `limn-test` alone.
+
 ```java
 SystemPreferences p = SystemPreferences.current();
 p.colorScheme();       // LIGHT, DARK, or NO_PREFERENCE

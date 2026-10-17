@@ -777,7 +777,9 @@ Maven Central say which number that was.
   system parameters on Windows, and the desktop portal on Linux, with GNOME's animation switch where
   the portal has no reduced-motion key. A desktop that says nothing, as Ubuntu's default appearance
   does, answers `ColorScheme.NO_PREFERENCE`. The toolkit does not switch the theme; the theming
-  guide shows the few lines that do.
+  guide shows the few lines that do. It is a final class an application reads and compares, with
+  no public constructor and no record pattern, so that a preference a system adds later can join
+  it in a 1.x release; `SystemPreferences.NONE` is the value of a system that says nothing.
 - `Motion` answers how long the toolkit's motion takes given what the user asked for, for an
   animation that drives its own clock.
 - The file choosers are the platform's own and no longer stop the application:

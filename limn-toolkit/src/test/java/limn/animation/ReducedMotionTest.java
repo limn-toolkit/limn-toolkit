@@ -3,6 +3,7 @@ package limn.animation;
 import limn.scene.Scene;
 import limn.scene.SystemPreferences;
 import limn.scene.SystemPreferences.ColorScheme;
+import limn.scene.internal.SystemPreferencesAccess;
 import limn.testing.HeadlessUi;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class ReducedMotionTest {
 
-    private static final SystemPreferences REDUCED = new SystemPreferences(ColorScheme.LIGHT, true, false, false);
+    private static final SystemPreferences REDUCED = SystemPreferencesAccess.of(ColorScheme.LIGHT, true, false, false);
 
     private HeadlessUi ui;
 

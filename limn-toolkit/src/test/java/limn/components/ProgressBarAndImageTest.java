@@ -98,7 +98,7 @@ class ProgressBarAndImageTest extends ComponentTestBase {
 
     @Test
     void anIndeterminateSweepStepsWhileMotionIsReduced() {
-        limn.scene.SystemPreferences.report(new limn.scene.SystemPreferences(
+        limn.scene.SystemPreferences.report(limn.scene.internal.SystemPreferencesAccess.of(
                 limn.scene.SystemPreferences.ColorScheme.LIGHT, true, false, false));
         try {
             ProgressBar bar = new ProgressBar();

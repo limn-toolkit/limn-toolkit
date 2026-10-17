@@ -554,7 +554,7 @@ class AccessLetterDispatchTest extends AccessibleComponentTestBase {
 
         limn.scene.SystemPreferences was = limn.scene.SystemPreferences.current();
         try {
-            limn.scene.SystemPreferences.report(new limn.scene.SystemPreferences(
+            limn.scene.SystemPreferences.report(limn.scene.internal.SystemPreferencesAccess.of(
                     limn.scene.SystemPreferences.ColorScheme.NO_PREFERENCE, false, false, true));
             unbound.renderFrame(surface);
             unbound.renderFrame(surface);
@@ -591,7 +591,7 @@ class AccessLetterDispatchTest extends AccessibleComponentTestBase {
         show(new Button("&Save"));
         limn.scene.SystemPreferences was = limn.scene.SystemPreferences.current();
         try {
-            limn.scene.SystemPreferences.report(new limn.scene.SystemPreferences(
+            limn.scene.SystemPreferences.report(limn.scene.internal.SystemPreferencesAccess.of(
                     limn.scene.SystemPreferences.ColorScheme.NO_PREFERENCE, false, false, true));
             assertTrue(SceneAccess.accessLettersShown(scene), "Windows' underline-access-keys setting");
         } finally {
@@ -613,7 +613,7 @@ class AccessLetterDispatchTest extends AccessibleComponentTestBase {
         limn.scene.SystemPreferences was = limn.scene.SystemPreferences.current();
         int before = window.framesRequested;
         try {
-            limn.scene.SystemPreferences.report(new limn.scene.SystemPreferences(
+            limn.scene.SystemPreferences.report(limn.scene.internal.SystemPreferencesAccess.of(
                     limn.scene.SystemPreferences.ColorScheme.NO_PREFERENCE, false, false, true));
             assertTrue(window.framesRequested > before, "the window draws its letters now");
             frame();

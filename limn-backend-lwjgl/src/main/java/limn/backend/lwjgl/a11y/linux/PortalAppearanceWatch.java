@@ -2,6 +2,7 @@ package limn.backend.lwjgl.a11y.linux;
 
 import limn.scene.SystemPreferences;
 import limn.scene.SystemPreferences.ColorScheme;
+import limn.scene.internal.SystemPreferencesAccess;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -122,7 +123,7 @@ public final class PortalAppearanceWatch implements Runnable {
             reduceMotion = Boolean.FALSE.equals(gnome.get("enable-animations"));
         }
         boolean increaseContrast = number(appearance.get("contrast"), 0) == 1;
-        return new SystemPreferences(scheme, reduceMotion, increaseContrast, false);
+        return SystemPreferencesAccess.of(scheme, reduceMotion, increaseContrast, false);
     }
 
     private static int number(Object value, int otherwise) {

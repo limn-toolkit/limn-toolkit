@@ -4,6 +4,7 @@ import limn.backend.lwjgl.a11y.ClosureArgs;
 import limn.backend.lwjgl.internal.ObjC;
 import limn.scene.SystemPreferences;
 import limn.scene.SystemPreferences.ColorScheme;
+import limn.scene.internal.SystemPreferencesAccess;
 import org.lwjgl.system.APIUtil;
 import org.lwjgl.system.Callback;
 import org.lwjgl.system.CallbackI;
@@ -61,7 +62,7 @@ final class MacSystemPreferences {
         boolean reduceMotion = (ObjC.msg(workspace, "accessibilityDisplayShouldReduceMotion") & 0xff) != 0;
         boolean increaseContrast =
                 (ObjC.msg(workspace, "accessibilityDisplayShouldIncreaseContrast") & 0xff) != 0;
-        return new SystemPreferences(scheme, reduceMotion, increaseContrast, false);
+        return SystemPreferencesAccess.of(scheme, reduceMotion, increaseContrast, false);
     }
 
     /**
