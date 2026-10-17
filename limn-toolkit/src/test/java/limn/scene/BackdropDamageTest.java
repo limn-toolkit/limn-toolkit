@@ -96,6 +96,8 @@ class BackdropDamageTest {
         private final boolean backdrop;
         private final float boxWidth;
         private final float boxHeight;
+        /** How far past its box it reads what is behind it, as a blur does. */
+        float reach;
 
         Box(boolean backdrop) {
             this(backdrop, 100, 40);
@@ -110,6 +112,11 @@ class BackdropDamageTest {
         @Override
         protected boolean paintsFromBackdrop() {
             return backdrop;
+        }
+
+        @Override
+        protected float backdropReach() {
+            return reach;
         }
 
         @Override
@@ -260,6 +267,45 @@ class BackdropDamageTest {
                                 + "paints it back in part: " + canvas.clips);
             }
         }
+    }
+
+    /**
+     * A panel that reads past its box (a blur) repaints when something within that reach changes,
+     * and repaints the reach with it.
+     *
+     * <p>Two defects with one cause. A change just outside a frosted panel, nearer than its blur
+     * reaches, changes the panel's picture, and the damage test, which looked at the box alone,
+     * left the panel showing the old blur. And a pass that held the box alone let the blur read the
+     * margin around it as the last frame had finished it, with whatever was painted over it there,
+     * where a whole frame lets it read that margin before anything later is drawn: a scroll bar over
+     * the end of the Showcase's frosted toolbar came out blurred into the glass on every partial
+     * repaint, by up to 12 levels in 255.
+     */
+    @Test
+    void aChangeWithinThePanelsReachRepaintsItWithItsReach() {
+        Box glass = new Box(true, 100, 40);
+        glass.reach = 10;
+        Box neighbour = new Box(false, 10, 10);
+        limn.scene.layout.Stack layers = new limn.scene.layout.Stack();
+        layers.add(new limn.scene.layout.Padding(new Insets(20, 0, 0, 40), glass));
+        // Four points past the panel's right edge: beyond the point every damage rectangle is
+        // grown by, within the ten the panel reads.
+        layers.add(new limn.scene.layout.Padding(new Insets(30, 0, 0, 144), neighbour));
+        Scene scene = sceneOf(layers);
+        settle(scene);
+
+        neighbour.invalidate();
+        frame(scene);
+        neighbour.invalidate();
+        ClipCanvas canvas = frame(scene);
+        assertFalse(canvas.full(), "the frame is partial");
+        assertTrue(canvas.covers(glass), "a change the panel reads is a change behind it: " + canvas.clips);
+        boolean withItsReach = false;
+        for (float[] clip : canvas.rects) {
+            withItsReach |= clip[0] <= 40 - 10 && clip[1] <= 20 - 10
+                    && clip[0] + clip[2] >= 140 + 10 && clip[1] + clip[3] >= 60 + 10;
+        }
+        assertTrue(withItsReach, "the panel repaints with the margin it reads: " + canvas.clips);
     }
 
     @Test

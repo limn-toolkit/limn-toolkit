@@ -341,6 +341,11 @@ Maven Central say which number that was.
   back only in part, with the window's background mixed in: a thin line ran down the panel's side
   through the picture under it, on a Retina screen, at window widths that put a centred panel off
   the grid, and stayed until something repainted that pixel whole.
+- A `BackdropPanel` repaints with the margin its effect reads around it, a blur's radius or a
+  pane's depth, and repaints when something in that margin changes. It repainted its own box only,
+  so a change just outside a frosted panel left it showing the old blur, and a partial repaint let
+  the blur read that margin as the last frame had finished it, with whatever was drawn over it: a
+  scroll bar over the end of a frosted toolbar came out blurred into the glass.
 
 ### New
 
@@ -564,6 +569,10 @@ Maven Central say which number that was.
   leans it toward a colour of the application's, and `setCover(share)` says how much of the tone
   is laid over what is behind; a value that is not a number is refused. A panel given its
   effects by hand is as before.
+- `BackdropEffect.reach()`: how far outside its shape an effect reads what is behind it, in
+  points (a blur's radius, a pane's thickness, a pixelation's cell, nothing for a wash or a tube).
+  A widget of your own that paints from its backdrop says the same of itself with
+  `Widget.backdropReach()`, and partial rendering repaints it with that margin.
 - A widget's id is what a tool that drives the application from outside finds it by:
   `Widget.setId` is published as UI Automation's `AutomationId` on Windows, the accessibility
   identifier on macOS and the accessible id on Linux, where each carried a number of the

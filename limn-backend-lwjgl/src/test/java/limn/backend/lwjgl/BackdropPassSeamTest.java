@@ -118,9 +118,56 @@ class BackdropPassSeamTest {
         // the rectangle the scene adds a point outside it starts at 38.2, so the pass cuts device
         // pixel 38 at four fifths.
         layers.add(new Padding(new Insets(30.35f, 0, 0, 20.1f), glass));
-        Scene scene = new Scene(layers);
-        scene.setPartialRendering(true);
 
+        assertPartialIsWhole(layers, thumb, () -> assertEquals(20.1f, glass.localToSceneX(), 1e-4f,
+                "the panel sits off the grid, as the case needs"));
+    }
+
+    /**
+     * The same with the panel on the grid and something painted over its surroundings: a bar, as a
+     * scroll bar lies over the end of the Showcase's frosted toolbar, a few points past its edge.
+     *
+     * <p>The glass reads the backdrop as far as its blur reaches. A pass that held its box alone left
+     * that margin as the last frame had finished it, the bar included, and the blur took the bar in;
+     * a whole frame lets the glass read the margin before the bar is drawn. So the pass holds the
+     * margin, and the margin is painted in order inside it.
+     */
+    @Test
+    void aPartialFrameUnderSomethingDrawnOverThePanelsSurroundingsDrawsWhatTheWholeFrameDrew() {
+        Thumb thumb = new Thumb();
+        BackdropPanel glass = BackdropPanel.frosted(Insets.all(10), thumb);
+        Stack layers = new Stack();
+        layers.add(new Picture());
+        layers.add(new Padding(new Insets(30, 0, 0, 20), glass));
+        // Four points past the panel's right edge (20 + 32), inside the ten its blur reads, and drawn
+        // after it.
+        layers.add(new Padding(new Insets(0, 0, 0, 56), new Bar()));
+
+        assertPartialIsWhole(layers, thumb, () -> assertEquals(52f, glass.localToSceneX() + glass.width(), 1e-4f,
+                "the bar stands four points off the panel, as the case needs"));
+    }
+
+    /** A strip drawn after the panel, standing where its blur reads. */
+    private static final class Bar extends Widget<Bar> {
+        @Override
+        protected Size onMeasure(Constraints c) {
+            return c.constrain(6, HEIGHT / SCALE);
+        }
+
+        @Override
+        protected void onPaint(Canvas canvas) {
+            canvas.fillRect(0, 0, width(), height(), Color.rgb(0x101418));
+        }
+    }
+
+    /**
+     * A whole frame, then {@code changed} invalidated and a partial frame into the same target, kept
+     * as a buffer that holds its contents is (age 1), so that what the pass does not repaint is
+     * exactly the whole frame's; then a whole frame of the same state to hold it against.
+     */
+    private void assertPartialIsWhole(Widget<?> root, Widget<?> changed, Runnable premise) {
+        Scene scene = new Scene(root);
+        scene.setPartialRendering(true);
         int texture = GL33C.glGenTextures();
         int fbo = GL33C.glGenFramebuffers();
         int previousFbo = GL33C.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
@@ -128,11 +175,9 @@ class BackdropPassSeamTest {
         GL33C.glGetIntegerv(GL33C.GL_VIEWPORT, previousViewport);
         try {
             bindTarget(texture, fbo);
-            // A whole frame, then the same target kept, as a buffer that holds its contents is (age
-            // 1): what the pass does not repaint is exactly the whole frame's.
             frame(scene, 0);
-            assertEquals(20.1f, glass.localToSceneX(), 1e-4f, "the panel sits off the grid, as the case needs");
-            thumb.invalidate();
+            premise.run();
+            changed.invalidate();
             frame(scene, 1);
             byte[] partial = readTopDown();
             frame(scene, 0);

@@ -138,6 +138,16 @@ paints it back only in part: on a Retina screen, a line of the background mixed 
 ran down the panel's edge whenever something inside it repainted (`BackdropDamageTest`,
 `BackdropPassSeamTest`).
 
+*Amended 2026-10-17, the same day:* the rect is the widget's box grown by how far its effects
+read past it as well (`Widget.backdropReach()`, which `BackdropPanel` answers from
+`BackdropEffect.reach()`, the number the GL canvas already copied around the shape). The box alone
+was short twice over: a change in that margin left the glass showing the old blur, and a pass that
+held the box alone let the blur read the margin as the last frame had *finished* it, with whatever
+is painted after the glass, where a whole frame lets the glass read it first. Measured on the
+Showcase's backdrop page: a scroll bar over the end of the frosted toolbar was blurred into the
+glass, by up to 12 levels in 255, on every partial repaint of the bar, and on none with the margin
+in the pass.
+
 **Reaching is over-approximated on purpose**: what stales the picture is a change *behind* it, and
 the test is any intersection. Front from back needs paint order, which the damage list does not
 carry; over-approximating costs a repaint of something already being painted over and can never

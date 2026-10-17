@@ -82,6 +82,20 @@ public final class BackdropPanel extends Padding {
         return true;
     }
 
+    /**
+     * The widest {@linkplain BackdropEffect#reach() reach} of its effects: each one reads what is
+     * around the shape as the frame left it, since the effects before it write only inside the
+     * shape, so the stack reads no further than its farthest member.
+     */
+    @Override
+    protected float backdropReach() {
+        float reach = 0;
+        for (BackdropEffect each : effects()) {
+            reach = Math.max(reach, each.reach());
+        }
+        return reach;
+    }
+
     // ------------------------------------------------------------ frosted glass
 
     /** Whether the effects are worked out from the theme at each paint; see {@link #frosted}. */

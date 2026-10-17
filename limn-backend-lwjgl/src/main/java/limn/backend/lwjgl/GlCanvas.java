@@ -649,10 +649,10 @@ final class GlCanvas implements Canvas {
         float x1 = rr.x() + rr.width();
         float y1 = rr.y() + rr.height();
         // The copy must cover every texel the shader can reach: the shape's device bounds, the AA
-        // skirt, and however far this effect displaces its sample. Short by a pixel and the rim
-        // samples whatever an earlier effect left in the texture.
-        float margin = reachPx(effect, scale, rr.width() * 0.5f, rr.height() * 0.5f)
-                + AA_PAD_DEVICE + 1;
+        // skirt, and however far this effect displaces its sample (BackdropEffect.reach, the same
+        // number the scene widens a panel's repaint by). Short by a pixel and the rim samples
+        // whatever an earlier effect left in the texture.
+        float margin = effect.reach() * scale + AA_PAD_DEVICE + 1;
         int cx0 = (int) Math.max(0, Math.floor(min4(t.x(rr.x(), rr.y()), t.x(x1, rr.y()),
                 t.x(rr.x(), y1), t.x(x1, y1)) - margin));
         int cy0 = (int) Math.max(0, Math.floor(min4(t.y(rr.x(), rr.y()), t.y(x1, rr.y()),
@@ -705,38 +705,6 @@ final class GlCanvas implements Canvas {
         putCorner(t, cx, cy, 1, 0, 0, 1, -(halfW + pad), halfH + pad);
         batch.triangle(base, base + 1, base + 2);
         batch.triangle(base, base + 2, base + 3);
-    }
-
-    /**
-     * How far, in device pixels, this effect can pull a sample away from the fragment.
-     *
-     * <p>{@code halfW}/{@code halfH} are the shape's own half-extents in points, and only
-     * {@code Crt} reads them: its displacement is a fraction of the distance from the shape's
-     * centre, so unlike a rim width or a cell size its reach is not knowable from the effect
-     * alone. Short by a pixel here and the corners of a bent picture sample whatever the last
-     * effect left in the copy.
-     */
-    private static float reachPx(limn.graphics.BackdropEffect effect, float scale,
-            float halfW, float halfH) {
-        if (effect instanceof limn.graphics.BackdropEffect.Clear clear) {
-            // The slab shift peaks at a grazing ray, where it is exactly the depth; the
-            // dispersion spreads the three taps either side of that and never past it.
-            return clear.thickness() * scale;
-        }
-        if (effect instanceof limn.graphics.BackdropEffect.Pixelate pixelate) {
-            return pixelate.cell() * scale;
-        }
-        if (effect instanceof limn.graphics.BackdropEffect.Crt) {
-            // None. The bulge clamps its target to the shape's own extent, which the copy
-            // already covers, so a tube reads only what is behind the tube however hard it
-            // curves. Reserving for the bend instead is what let it reach the widget next
-            // door and repeat that content inside the screen.
-            return 0;
-        }
-        if (effect instanceof limn.graphics.BackdropEffect.Blur blur) {
-            return blur.radius() * scale;
-        }
-        return 0; // Wash samples where it stands
     }
 
     private static float variantId(limn.graphics.BackdropEffect effect) {

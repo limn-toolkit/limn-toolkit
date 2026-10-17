@@ -31,6 +31,20 @@ public sealed interface BackdropEffect {
     Color tint();
 
     /**
+     * How far outside its shape this effect reads what is behind it, in points: the blur's radius,
+     * the pane's thickness, the cell of a pixelation, and nothing for a wash or a tube, which sample
+     * only inside the shape.
+     *
+     * <p>A shape wearing the effect depends on those pixels as much as on the ones under it, so a
+     * repaint has to treat a change there as a change behind the shape, and has to repaint that
+     * margin with the shape so the effect reads it as the whole frame would have: under what the
+     * frame paints later, never over it. A renderer copies at least this much around the shape.
+     *
+     * @return the reach, 0 or more
+     */
+    float reach();
+
+    /**
      * A transparent pane: the backdrop is not blurred, it is <b>refracted</b> at the rim, the way
      * light bends through the bevelled edge of real glass. The shape's own signed-distance field is
      * the surface, so the effect follows every corner radius exactly and costs no extra geometry.
@@ -83,6 +97,15 @@ public sealed interface BackdropEffect {
         public Clear(Color tint) {
             this(tint, 12f, 0.35f);
         }
+
+        /**
+         * The thickness: the slab shift peaks at a grazing ray, where it is exactly the depth, and
+         * the dispersion spreads the three taps either side of that and never past it.
+         */
+        @Override
+        public float reach() {
+            return thickness;
+        }
     }
 
     /**
@@ -122,6 +145,12 @@ public sealed interface BackdropEffect {
         public Wash(Color tint, float saturation) {
             this(tint, saturation, 0f);
         }
+
+        /** None: a wash samples where it stands. */
+        @Override
+        public float reach() {
+            return 0;
+        }
     }
 
     /**
@@ -142,6 +171,12 @@ public sealed interface BackdropEffect {
         public Pixelate {
             Objects.requireNonNull(tint, "tint");
             Checks.finite(Checks.atLeast(cell, 1f, "cell"), "cell");
+        }
+
+        /** A cell: the grid is the framebuffer's, so a cell at the edge samples a point up to a cell out. */
+        @Override
+        public float reach() {
+            return cell;
         }
     }
 
@@ -188,6 +223,12 @@ public sealed interface BackdropEffect {
             Objects.requireNonNull(tint, "tint");
             Objects.requireNonNull(axis, "axis");
             Checks.notNegative(radius, "radius");
+        }
+
+        /** The radius. */
+        @Override
+        public float reach() {
+            return radius;
         }
     }
 
@@ -250,6 +291,16 @@ public sealed interface BackdropEffect {
         /** A tube with a visible scan and a gentle bulge: the default set of this toolkit. */
         public Crt(Color tint) {
             this(tint, 0.15f, 0.12f);
+        }
+
+        /**
+         * None: the bulge clamps its target to the shape's own extent, so a tube reads only what is
+         * behind the tube however hard it curves. Reserving for the bend instead is what once let
+         * it reach the widget next door and repeat that content inside the screen.
+         */
+        @Override
+        public float reach() {
+            return 0;
         }
     }
 }

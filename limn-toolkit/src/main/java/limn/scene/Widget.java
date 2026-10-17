@@ -2622,6 +2622,25 @@ public abstract class Widget<W extends Widget<W>> {
     }
 
     /**
+     * How far outside its box a widget that {@linkplain #paintsFromBackdrop() paints from its
+     * backdrop} reads the pixels behind it, in points: a blur's radius, a refracting rim's depth.
+     * Default 0. Consulted on every frame, so it may follow the widget's state.
+     *
+     * <p>The scene widens the rectangle it adds to a frame's damage by this much, for two reasons
+     * that are the same reason. A change that far from the widget changes its picture, so it has to
+     * repaint. And it has to be repainted together with that margin: outside the frame's passes the
+     * margin holds the last frame <em>finished</em>, with whatever was painted over it, where a whole
+     * frame lets the widget read it before anything later is drawn. A scroll bar laid over the end
+     * of a bar of frosted glass came out blurred into the glass on every partial repaint, and only
+     * there.
+     *
+     * @return the reach, 0 or more
+     */
+    protected float backdropReach() {
+        return 0;
+    }
+
+    /**
      * Whether what {@link #onPaint} draws is material rather than meaning: a wash, a blur, a
      * shadow, a rule. Default {@code false}.
      *

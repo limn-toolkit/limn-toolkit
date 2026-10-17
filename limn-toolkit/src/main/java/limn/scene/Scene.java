@@ -2052,7 +2052,9 @@ public final class Scene {
                     continue;
                 }
                 Widget<?> widget = backdropDependants.get(i);
-                float outset = 1 + widget.paintOutset();
+                // Its reach as well as its box: what the widget reads is what it depends on, and it
+                // must read it inside the pass, painted in order, as a whole frame would let it.
+                float outset = 1 + widget.paintOutset() + Math.max(0, widget.backdropReach());
                 if (!clippedSceneRect(widget, -outset, -outset,
                         widget.width() + 2 * outset, widget.height() + 2 * outset,
                         backdropScratch)
