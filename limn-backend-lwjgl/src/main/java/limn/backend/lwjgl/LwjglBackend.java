@@ -181,10 +181,35 @@ public final class LwjglBackend implements BackendPeer {
         String loadedFrom = self.getLayer() == null ? null
                 : self.getLayer().configuration().findModule("org.lwjgl.natives")
                         .flatMap(resolved -> resolved.reference().location())
-                        .map(location -> java.nio.file.Path.of(location.getPath()).getFileName().toString())
+                        .map(LwjglBackend::jarName)
                         .orElse(null);
         return new IllegalStateException(modulePathAdvice(missing.getMessage(),
                 nativesClassifier(Platform.current()), loadedFrom, natives), missing);
+    }
+
+    /**
+     * The file name at the end of a module's location, or {@code null} when it has none: read off
+     * the text of the address, never through a {@link java.nio.file.Path}, which on Windows refuses
+     * the {@code /C:/...} a file address carries and would replace this error with its own.
+     */
+    static @Nullable String jarName(java.net.URI location) {
+        // A jar inside a jar ("jar:file:/app.jar!/") is named by the outer one, the part before
+        // its "!/"; anything else by what follows its last slash.
+        String text = location.getRawSchemeSpecificPart();
+        if (text == null) {
+            return null;
+        }
+        int inner = text.indexOf("!/");
+        if (inner >= 0) {
+            text = text.substring(0, inner);
+        }
+        while (text.endsWith("/")) {
+            text = text.substring(0, text.length() - 1);
+        }
+        String name = text.substring(text.lastIndexOf('/') + 1);
+        // An address escapes with %XX and never with "+", which a file name may hold as itself.
+        return name.isEmpty() ? null : java.net.URLDecoder.decode(name.replace("+", "%2B"),
+                java.nio.charset.StandardCharsets.UTF_8);
     }
 
     /**

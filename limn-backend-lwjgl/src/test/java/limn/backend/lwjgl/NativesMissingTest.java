@@ -75,4 +75,22 @@ class NativesMissingTest {
         assertNull(LwjglBackend.nativesClassifier(Platform.of("FreeBSD", "amd64")));
         assertNull(LwjglBackend.nativesClassifier(Platform.of("Linux", "riscv64")));
     }
+
+    /**
+     * The name of the jar the natives module came from is read from the address itself: on
+     * Windows a file address's path is {@code /C:/...}, which a Windows path refuses, and an
+     * opaque address has no path at all; either way the advice must still be given.
+     */
+    @Test
+    void theJarIsNamedFromAnyAddressAModuleCanHave() {
+        assertEquals("lwjgl-3.4.3-natives-macos.jar", LwjglBackend.jarName(
+                java.net.URI.create("file:///C:/Users/me/app/lib/lwjgl-3.4.3-natives-macos.jar")));
+        assertEquals("lwjgl-3.4.3-natives-linux.jar", LwjglBackend.jarName(
+                java.net.URI.create("file:/home/me/app/lib/lwjgl-3.4.3-natives-linux.jar")));
+        assertEquals("app.jar", LwjglBackend.jarName(
+                java.net.URI.create("jar:file:/home/me/app.jar!/")));
+        assertEquals("my natives+1.jar", LwjglBackend.jarName(
+                java.net.URI.create("file:/home/me/my%20natives+1.jar")));
+        assertNull(LwjglBackend.jarName(java.net.URI.create("jrt:/")));
+    }
 }
