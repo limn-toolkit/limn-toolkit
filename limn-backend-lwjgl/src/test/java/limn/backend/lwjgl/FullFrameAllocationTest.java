@@ -16,6 +16,7 @@ import limn.scene.layout.Row;
 import limn.testing.AllocationProbe;
 import limn.testing.HeadlessUi;
 import limn.testing.NoopCanvas;
+import limn.testing.StubWindow;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
@@ -33,49 +34,80 @@ class FullFrameAllocationTest {
     void aFullFrameOfAFormAllocatesAlmostNothing() {
         Assumptions.assumeTrue(AllocationProbe.isSupported(), "no per-thread allocation counter");
         try (HeadlessUi ui = new HeadlessUi(); FontStore store = new FontStore()) {
-            Column list = new Column();
-            list.gap(4);
-            for (int i = 0; i < 40; i++) {
-                Row row = new Row();
-                row.gap(8).crossAlignment(Flex.CrossAlignment.CENTER);
-                row.add(new Label(String.format("Item %03d", i)));
-                row.add(Expanded.of(new TextField().setText("Value " + i), 1));
-                row.add(new Checkbox(Checkbox.Variant.BOX, "Enabled").setChecked(i % 2 == 0));
-                ProgressBar bar = new ProgressBar();
-                bar.setProgress((i % 100) / 100f);
-                row.add(Expanded.of(bar, 1));
-                row.add(new Button("Open"));
-                list.add(row);
-            }
-            Column page = new Column();
-            page.gap(8).crossAlignment(Flex.CrossAlignment.STRETCH);
-            page.add(Expanded.of(new ScrollView(list), 1));
-            page.add(new Label("Ready."));
+            Column page = form();
             Scene scene = new Scene(new Padding(Insets.all(8), page));
-            scene.setTextRuler(new ShapingRuler(store));
-            scene.setPartialRendering(true);
-            // The scalar round-rect forms drawn directly, as GlCanvas draws them: the interface's
-            // default builds a RoundRect per call, which is the canvas's garbage and not the paint's.
-            NoopCanvas canvas = new NoopCanvas(1100, 800) {
-                @Override
-                public void fillRoundRect(float x, float y, float w, float h, float r, limn.graphics.Paint p) {
-                }
-
-                @Override
-                public void drawRoundRect(float x, float y, float w, float h, float r, float s,
-                                          limn.graphics.Paint p) {
-                }
-            };
-            for (int i = 0; i < 50; i++) {
-                scene.requestRender();
-                scene.renderFrame(canvas);
-            }
-            long bytes = AllocationProbe.leastAllocatedBy(() -> {
-                scene.requestRender();
-                scene.renderFrame(canvas);
-            }, 20);
-            assertTrue(bytes <= CEILING, "a full frame allocated " + bytes + " bytes; ceiling " + CEILING);
+            assertFrameUnderCeiling(scene, store, "a full frame");
         }
+    }
+
+    /**
+     * The same form fading as one picture (ADR 071), with one of its rows at a half of its own: the
+     * layer a group opens, the fade's step on every frame and the damage it adds allocate nothing
+     * of their own, so a fade costs the paint path no garbage. The canvas is the measuring one, whose
+     * layer is a save and a multiplied opacity, which is the widget's side of the path; the
+     * backend's layer is measured in pixels and time, not here.
+     */
+    @Test
+    void aFrameOfAFadingFormAllocatesAlmostNothing() {
+        Assumptions.assumeTrue(AllocationProbe.isSupported(), "no per-thread allocation counter");
+        try (HeadlessUi ui = new HeadlessUi(); FontStore store = new FontStore()) {
+            Column page = form();
+            page.children().get(1).setOpacity(0.5f);
+            Scene scene = new Scene(new Padding(Insets.all(8), page));
+            scene.bind(new StubWindow()); // a window, so the fade has frames to step it
+            page.fadeTo(0.2f, 20, null); // in flight for every frame measured, and moving
+            assertFrameUnderCeiling(scene, store, "a frame of a fading form");
+            assertTrue(page.opacity() < 1f && page.opacity() > 0.2f, "the fade moved and is still moving");
+        }
+    }
+
+    /** Forty rows of a label, a field, a check box, a bar and a button, in a scroll view. */
+    private static Column form() {
+        Column list = new Column();
+        list.gap(4);
+        for (int i = 0; i < 40; i++) {
+            Row row = new Row();
+            row.gap(8).crossAlignment(Flex.CrossAlignment.CENTER);
+            row.add(new Label(String.format("Item %03d", i)));
+            row.add(Expanded.of(new TextField().setText("Value " + i), 1));
+            row.add(new Checkbox(Checkbox.Variant.BOX, "Enabled").setChecked(i % 2 == 0));
+            ProgressBar bar = new ProgressBar();
+            bar.setProgress((i % 100) / 100f);
+            row.add(Expanded.of(bar, 1));
+            row.add(new Button("Open"));
+            list.add(row);
+        }
+        Column page = new Column();
+        page.gap(8).crossAlignment(Flex.CrossAlignment.STRETCH);
+        page.add(Expanded.of(new ScrollView(list), 1));
+        page.add(new Label("Ready."));
+        return page;
+    }
+
+    private static void assertFrameUnderCeiling(Scene scene, FontStore store, String what) {
+        scene.setTextRuler(new ShapingRuler(store));
+        scene.setPartialRendering(true);
+        // The scalar round-rect forms drawn directly, as GlCanvas draws them: the interface's
+        // default builds a RoundRect per call, which is the canvas's garbage and not the paint's.
+        NoopCanvas canvas = new NoopCanvas(1100, 800) {
+            @Override
+            public void fillRoundRect(float x, float y, float w, float h, float r, limn.graphics.Paint p) {
+            }
+
+            @Override
+            public void drawRoundRect(float x, float y, float w, float h, float r, float s,
+                                      limn.graphics.Paint p) {
+            }
+        };
+        for (int i = 0; i < 50; i++) {
+            scene.requestRender();
+            scene.renderFrame(canvas);
+        }
+        long bytes = AllocationProbe.leastAllocatedBy(() -> {
+            scene.requestRender();
+            scene.renderFrame(canvas);
+        }, 20);
+        assertTrue(bytes <= CEILING, what + " allocated " + bytes + " bytes; ceiling " + CEILING);
     }
 
     /** Measured at 64 bytes after the fix; the slack is for what the JIT may yet decide. */

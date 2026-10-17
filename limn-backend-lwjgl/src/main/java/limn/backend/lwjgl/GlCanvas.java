@@ -467,7 +467,7 @@ final class GlCanvas implements Canvas {
     }
 
     /**
-     * Opens a layer (ADR 071 §2.3): a picture of the part of the rectangle the clip lets show, on
+     * Opens a layer: a picture of the part of the rectangle the clip lets show, on
      * whole device pixels, into which everything until the matching {@link #restore()} is drawn,
      * and which that restore composites with {@code opacity} as one textured quad.
      *
@@ -938,7 +938,7 @@ final class GlCanvas implements Canvas {
     }
 
     /**
-     * The backdrop of a glass drawn inside open layers (ADR 071 §2.6, decision 5): what it would
+     * The backdrop of a glass drawn inside open layers: what it would
      * read if every layer around it were opaque. The frame's own target is copied first, and each
      * open layer's picture so far is laid over the copy, outermost first, at full opacity, for the
      * region the glass reads; the glass then draws into its own layer as it draws into a window. So

@@ -65,6 +65,12 @@ public sealed interface Change {
         FOCUS,
         /** Which widgets the tree holds under this one. */
         CHILDREN,
+        /**
+         * How opaque the widget is drawn, {@code Widget.opacity()}: a picture and nothing else, which
+         * no accessibility bridge reads. A {@code setOpacity} that changes the value announces it every
+         * time; a {@code fadeTo} announces only its start and its end.
+         */
+        OPACITY,
         // event
         /** The widget was invoked: a button pressed, a row opened. */
         INVOKED,
@@ -175,7 +181,7 @@ public sealed interface Change {
      * Every aspect but a text edit; {@link #aspect()} is never {@link Aspect#TEXT}.
      *
      * <p>A class with a private constructor rather than a record, because every one of its
-     * fifty-one values is interned in a table built once and there is no second way to make one.
+     * fifty-four values is interned in a table built once and there is no second way to make one.
      * Its twin {@link TextEdit} <em>is</em> a record for the opposite reason: it carries numbers
      * that differ per edit, so it is allocated rather than looked up.
      */
@@ -185,7 +191,7 @@ public sealed interface Change {
 
         /**
          * One instance per (aspect, origin) pair, {@code TEXT}'s three left null so {@link #of}
-         * can refuse them. Fifty-one values, built once at class initialisation.
+         * can refuse them. Fifty-four values, built once at class initialisation.
          */
         private static final State[] TABLE = new State[Aspect.values().length * ORIGINS];
 

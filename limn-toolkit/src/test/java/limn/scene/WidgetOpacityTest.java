@@ -1,0 +1,422 @@
+package limn.scene;
+
+import limn.accessibility.Accessibility;
+import limn.accessibility.Accessible;
+import limn.graphics.Canvas;
+import limn.graphics.Color;
+import limn.graphics.Rect;
+import limn.i18n.I18nString;
+import limn.scene.event.MouseEvent;
+import limn.scene.layout.Padding;
+import limn.scene.layout.Stack;
+import limn.testing.AccessibleHarness;
+import limn.testing.NoopCanvas;
+import limn.testing.TestPreferences;
+import org.junit.jupiter.api.Test;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static limn.testing.SceneDriver.drive;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * A widget's opacity (ADR 071 §2.1, §2.3, §2.4): what it takes, what it draws, what it damages and
+ * what a watcher hears. The pixels are the backend's ({@code GlLayerTest}, {@code OpacityPassSeamTest});
+ * this holds the widget's side of it against a canvas that records the layers it is asked to open.
+ */
+class WidgetOpacityTest extends SceneTestBase {
+
+    private static final Change OPACITY = Change.of(Change.Aspect.OPACITY, Change.Origin.CODE);
+
+    /** A focusable leaf that says when it is painted, laid out and pressed, and has a name. */
+    static final class Probe extends Widget<Probe> {
+        final String name;
+        final List<String> painted;
+        int layouts;
+        int presses;
+        /** How often an accessible walk described it: a walk is what a change of the tree costs. */
+        int described;
+
+        Probe(String name, List<String> painted) {
+            this.name = name;
+            this.painted = painted;
+            setFocusable(true);
+        }
+
+        @Override
+        protected Size onMeasure(Constraints constraints) {
+            return constraints.constrain(40, 20);
+        }
+
+        @Override
+        protected void onLayout() {
+            layouts++;
+        }
+
+        @Override
+        protected void onPaint(Canvas canvas) {
+            painted.add(name);
+            canvas.fillRect(0, 0, width(), height(), Color.BLACK);
+        }
+
+        @Override
+        protected void onMouseEvent(MouseEvent event) {
+            if (event.type() == MouseEvent.Type.PRESS) {
+                presses++;
+                event.consume();
+            }
+        }
+
+        @Override
+        protected void onAccessibility(Accessibility a) {
+            described++;
+            a.role(Accessible.Role.BUTTON);
+            a.name(I18nString.literal(name));
+        }
+    }
+
+    /** Keeps each pass's rectangle and each layer it is asked to open. */
+    static final class LayerCanvas extends NoopCanvas {
+        final List<Rect> passes = new ArrayList<>();
+        final List<float[]> layers = new ArrayList<>();
+        int clears;
+
+        LayerCanvas() {
+            super(400, 300);
+        }
+
+        @Override
+        public void clear(Color color) {
+            clears++;
+        }
+
+        @Override
+        public void clipRect(float x, float y, float w, float h) {
+            if (saveCount() == 1) {
+                passes.add(new Rect(x, y, w, h)); // the scene clips each pass at the first save
+            }
+        }
+
+        @Override
+        public void saveLayer(float x, float y, float w, float h, float opacity) {
+            layers.add(new float[] {x, y, w, h, opacity});
+            super.saveLayer(x, y, w, h, opacity);
+        }
+
+        void reset() {
+            passes.clear();
+            layers.clear();
+            clears = 0;
+        }
+    }
+
+    private final long[] now = {TimeUnit.SECONDS.toNanos(1)};
+    private final List<String> painted = new ArrayList<>();
+    private final LayerCanvas canvas = new LayerCanvas();
+
+    /** A scene in a window, so fades have frames to step them, on a clock this test moves. */
+    private Scene sceneOf(Widget<?> root) {
+        Scene scene = new Scene(root, () -> now[0]);
+        scene.bind(new RecordingWindow());
+        scene.setPartialRendering(true);
+        frame(scene);
+        return scene;
+    }
+
+    /** One frame, its buffer one present old, so a pass is exactly what this frame damaged. */
+    private void frame(Scene scene) {
+        canvas.reset();
+        painted.clear();
+        scene.renderFrame(canvas, false, Float.NaN, 1);
+    }
+
+    /** What the harness heard about opacity: the pass markers a layout adds are another matter. */
+    private static List<Change> opacityChanges(AccessibleHarness harness) {
+        return harness.changes.stream().filter(c -> c.aspect() == Change.Aspect.OPACITY).toList();
+    }
+
+    private void advance(Scene scene, long millis) {
+        now[0] += TimeUnit.MILLISECONDS.toNanos(millis);
+        frame(scene);
+    }
+
+    // ------------------------------------------------------------------ the value
+
+    @Test
+    void anOpacityIsClampedNaNIsRefusedAndTheDefaultIsOne() {
+        Probe w = new Probe("w", painted);
+        assertEquals(1f, w.opacity());
+        assertEquals(0.5f, w.setOpacity(0.5f).opacity(), "fluent, and it keeps the value");
+        assertEquals(1f, w.setOpacity(7f).opacity(), "clamped above");
+        assertEquals(0f, w.setOpacity(-1f).opacity(), "clamped below");
+        assertThrows(IllegalArgumentException.class, () -> w.setOpacity(Float.NaN));
+        assertThrows(IllegalArgumentException.class, () -> w.fadeTo(Float.NaN));
+        assertThrows(IllegalArgumentException.class, () -> w.fadeTo(0.5f, -1, null));
+        assertThrows(IllegalArgumentException.class, () -> w.fadeTo(0.5f, Double.NaN, null));
+        assertEquals(0f, w.opacity(), "a refused call changes nothing");
+    }
+
+    @Test
+    void onlyTheUiThreadSetsIt() throws InterruptedException {
+        Probe w = new Probe("w", painted);
+        AtomicReference<Throwable> setting = new AtomicReference<>();
+        AtomicReference<Throwable> fading = new AtomicReference<>();
+        Thread other = new Thread(() -> {
+            try {
+                w.setOpacity(0.5f);
+            } catch (Throwable t) {
+                setting.set(t);
+            }
+            try {
+                w.fadeTo(0.5f);
+            } catch (Throwable t) {
+                fading.set(t);
+            }
+        });
+        other.start();
+        other.join();
+        assertInstanceOf(IllegalStateException.class, setting.get());
+        assertInstanceOf(IllegalStateException.class, fading.get());
+        assertEquals(1f, w.opacity());
+    }
+
+    @Test
+    void aPaintMayNotMoveIt() {
+        Probe w = new Probe("w", painted);
+        Widget.beginPaint();
+        try {
+            assertThrows(IllegalStateException.class, () -> w.setOpacity(0.5f));
+            assertThrows(IllegalStateException.class, () -> w.setOpacity(1f), "even to the value it has");
+            assertThrows(IllegalStateException.class, () -> w.fadeTo(0.5f));
+        } finally {
+            Widget.endPaint();
+        }
+        assertEquals(1f, w.opacity());
+    }
+
+    // ------------------------------------------------------------------ what is drawn
+
+    @Test
+    void oneOpensNoLayerBetweenOpensOneAndZeroPaintsNothing() {
+        Probe a = new Probe("a", painted);
+        Probe b = new Probe("b", painted);
+        Stack group = new Stack();
+        group.add(a);
+        group.add(new Padding(new Insets(30, 0, 0, 0), b));
+        Scene scene = sceneOf(new Padding(Insets.all(10), group));
+
+        scene.requestRender();
+        frame(scene);
+        assertEquals(List.of("a", "b"), painted);
+        assertTrue(canvas.layers.isEmpty(), "at 1 no layer is opened");
+
+        group.setOpacity(0.5f);
+        scene.requestRender();
+        frame(scene);
+        assertEquals(List.of("a", "b"), painted, "between, the whole subtree is painted");
+        assertEquals(1, canvas.layers.size(), "into one layer");
+        float[] layer = canvas.layers.get(0);
+        float outset = 1 + ((Widget<?>) group).paintOutset(); // the hook is package-visible on Widget
+        assertEquals(-outset, layer[0], 1e-4f, "the box grown by a pixel and the outset");
+        assertEquals(group.width() + 2 * outset, layer[2], 1e-4f);
+        assertEquals(0.5f, layer[4]);
+
+        b.setOpacity(0.5f);
+        scene.requestRender();
+        frame(scene);
+        assertEquals(2, canvas.layers.size(), "a child at one half inside the group opens its own, nested");
+
+        group.setOpacity(0f);
+        scene.requestRender();
+        frame(scene);
+        assertTrue(painted.isEmpty(), "at 0 nothing under it is painted");
+        assertTrue(canvas.layers.isEmpty());
+
+        group.setOpacity(0.5f).setVisible(false);
+        scene.requestRender();
+        frame(scene);
+        assertTrue(painted.isEmpty(), "hidden wins over any opacity");
+        group.setVisible(true);
+        assertEquals(0.5f, group.opacity(), "and the opacity is kept for when it is shown");
+    }
+
+    @Test
+    void atZeroTheWidgetIsStillLaidOutHitFocusedAndRead() {
+        Probe w = new Probe("Hidden by opacity", painted);
+        AccessibleHarness harness = new AccessibleHarness(runtime, new Padding(Insets.all(20), w));
+        w.setOpacity(0f);
+        harness.frame();
+
+        assertTrue(w.width() > 0 && w.height() > 0, "laid out");
+        drive(harness.scene).click(w);
+        assertEquals(1, w.presses, "hit");
+        harness.focus(w);
+        assertSame(w, harness.scene.focusedWidget(), "focused");
+        assertNotNull(harness.node("Hidden by opacity"), "read: in the accessible tree");
+    }
+
+    // ------------------------------------------------------------------ what is damaged
+
+    @Test
+    void aChangeDamagesTheBoxAndOutsetAndLaysNothingOut() {
+        Probe w = new Probe("w", painted);
+        Scene scene = sceneOf(new Padding(new Insets(40, 0, 0, 60), w));
+        int layouts = w.layouts;
+
+        // The box a pixel past on every side, as far as the canvas reaches.
+        Rect damage = new Rect(w.localToSceneX() - 1, w.localToSceneY() - 1,
+                Math.min(w.width() + 2, 400 - (w.localToSceneX() - 1)),
+                Math.min(w.height() + 2, 300 - (w.localToSceneY() - 1)));
+        assertEquals(60, damage.x() + 1, "the case puts the box on whole points");
+        w.setOpacity(0.5f);
+        frame(scene);
+        assertEquals(List.of(damage), canvas.passes,
+                "the box, a pixel past it on every side, and nothing else");
+        assertEquals(0, canvas.clears, "not a whole frame");
+        assertEquals(layouts, w.layouts, "no layout");
+
+        w.setOpacity(1f); // the layer stops: the same damage
+        frame(scene);
+        assertEquals(List.of(damage), canvas.passes);
+
+        w.setOpacity(1f);
+        frame(scene);
+        assertTrue(canvas.passes.isEmpty() && canvas.clears == 0, "the value it has damages nothing");
+        assertEquals(layouts, w.layouts);
+    }
+
+    // ------------------------------------------------------------------ what a watcher hears
+
+    @Test
+    void aDirectSetAnnouncesEveryChangeAndNothingForTheSameValue() {
+        Probe w = new Probe("w", painted);
+        AccessibleHarness harness = new AccessibleHarness(runtime, w);
+        int trees = harness.bridge.published.size();
+        int described = w.described;
+
+        w.setOpacity(0.5f);
+        harness.frame();
+        w.setOpacity(0.25f);
+        harness.frame();
+        assertEquals(List.of(OPACITY, OPACITY), opacityChanges(harness), "one change for each set that moved it");
+
+        harness.clearObservations();
+        w.setOpacity(0.25f);
+        harness.frame();
+        assertTrue(opacityChanges(harness).isEmpty(), "none for the value it has");
+        assertEquals(trees, harness.bridge.published.size(), "and the accessible tree is never republished");
+        assertTrue(harness.bridge.events.isEmpty());
+        assertEquals(described, w.described, "nor even walked: nothing in it reads an opacity");
+    }
+
+    @Test
+    void aFadeAnnouncesItsStartAndItsEndAndNoFrameBetween() {
+        Probe w = new Probe("w", painted);
+        AccessibleHarness harness = new AccessibleHarness(runtime, w);
+        int trees = harness.bridge.published.size();
+        int described = w.described;
+        AtomicInteger arrived = new AtomicInteger();
+
+        w.fadeTo(0f, 0.5, arrived::incrementAndGet);
+        assertEquals(List.of(OPACITY), opacityChanges(harness), "the start, at once");
+        harness.frame(); // a ticker's first frame is its start, and moves nothing
+        List<Float> seen = new ArrayList<>();
+        for (int i = 0; i < 12; i++) {
+            harness.advanceTime(50, null);
+            seen.add(w.opacity());
+        }
+        assertEquals(List.of(OPACITY, OPACITY), opacityChanges(harness), "twelve frames, two announcements");
+        assertEquals(1, arrived.get(), "onArrive once");
+        assertEquals(0f, w.opacity(), "at the target");
+        assertTrue(seen.get(0) < 1f && seen.get(0) > 0f, "the frames between move it: " + seen);
+        for (int i = 1; i < seen.size(); i++) {
+            assertTrue(seen.get(i) <= seen.get(i - 1), "eased one way: " + seen);
+        }
+        assertEquals(trees, harness.bridge.published.size(), "a fade republishes no tree");
+        assertEquals(described, w.described, "and walks none, on any of its frames");
+    }
+
+    @Test
+    void aNewerFadeOrASetSupersedesOneInFlightWhoseOnArriveNeverRuns() {
+        Probe w = new Probe("w", painted);
+        AccessibleHarness harness = new AccessibleHarness(runtime, w);
+        AtomicInteger first = new AtomicInteger();
+        AtomicInteger second = new AtomicInteger();
+
+        w.fadeTo(0f, 1.0, first::incrementAndGet);
+        harness.frame();
+        harness.advanceTime(200, null);
+        float mid = w.opacity();
+        assertTrue(mid > 0f && mid < 1f, "in flight: " + mid);
+        w.fadeTo(1f, 0.2, second::incrementAndGet);
+        assertEquals(mid, w.opacity(), "superseded where it was");
+        harness.advanceTime(1500, null);
+        assertEquals(0, first.get(), "the superseded fade's onArrive never runs");
+        assertEquals(1, second.get());
+        assertEquals(1f, w.opacity());
+        assertEquals(List.of(OPACITY, OPACITY, OPACITY, OPACITY), opacityChanges(harness),
+                "the first's start and its end, the second's start and its end");
+
+        harness.clearObservations();
+        w.fadeTo(0f, 1.0, first::incrementAndGet);
+        harness.frame();
+        harness.advanceTime(200, null);
+        w.setOpacity(1f);
+        harness.advanceTime(1500, null);
+        assertEquals(0, first.get(), "a set supersedes it too");
+        assertEquals(1f, w.opacity());
+        assertEquals(List.of(OPACITY, OPACITY, OPACITY), opacityChanges(harness),
+                "the fade's start and its end, and the set's own change");
+    }
+
+    @Test
+    void aFadeThatGoesStraightThereIsOneSet() {
+        Probe w = new Probe("w", painted);
+        AccessibleHarness harness = new AccessibleHarness(runtime, w);
+        AtomicInteger arrived = new AtomicInteger();
+        try (TestPreferences system = new TestPreferences()) {
+            system.reduceMotion(true);
+            w.fadeTo(0.3f, 0.5, arrived::incrementAndGet);
+            assertEquals(0.3f, w.opacity(), "less motion: straight to the target");
+            assertEquals(1, arrived.get(), "onArrive at once");
+            assertEquals(List.of(OPACITY), opacityChanges(harness), "one announcement, as one set");
+
+            harness.clearObservations();
+            w.fadeTo(0.3f, 0.5, arrived::incrementAndGet);
+            assertTrue(opacityChanges(harness).isEmpty(), "none when the value does not change");
+            assertEquals(2, arrived.get());
+        }
+        w.fadeTo(0.6f, 0, arrived::incrementAndGet);
+        assertEquals(0.6f, w.opacity(), "no time: straight there");
+        assertEquals(List.of(OPACITY), opacityChanges(harness));
+        Probe loose = new Probe("loose", painted);
+        loose.fadeTo(0.2f, 0.5, arrived::incrementAndGet);
+        assertEquals(0.2f, loose.opacity(), "no scene to tick: straight there");
+        assertEquals(4, arrived.get());
+    }
+
+    @Test
+    void aFadeOnAWidgetThatLeavesItsSceneSettlesThere() {
+        Probe w = new Probe("w", painted);
+        Stack holder = new Stack();
+        holder.add(w);
+        Scene scene = sceneOf(holder);
+        AtomicInteger arrived = new AtomicInteger();
+        w.fadeTo(0f, 1.0, arrived::incrementAndGet);
+        advance(scene, 100);
+        holder.remove(w);
+        advance(scene, 16);
+        assertEquals(0f, w.opacity(), "at its target");
+        assertEquals(1, arrived.get(), "and its onArrive has run");
+    }
+}

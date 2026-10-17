@@ -1437,6 +1437,13 @@ public final class Theme {
                     + "declares before the theme loads");
         }
         limn.scene.internal.LayoutOverflow.install(widget -> of(widget).focusRingReach());
+        // A widget's fadeTo with no length takes the window animation of the palette in effect for
+        // it; before this class loads it takes WindowAnimation's own number, which must be this one.
+        if (probe.animWindow != limn.scene.internal.WindowAnimation.BEFORE_THEME) {
+            throw new AssertionError("Theme's window animation disagrees with what a fade takes "
+                    + "before the theme loads");
+        }
+        limn.scene.internal.WindowAnimation.install(widget -> of(widget).animWindow);
     }
 }
 

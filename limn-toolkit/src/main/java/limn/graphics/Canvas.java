@@ -165,7 +165,7 @@ public interface Canvas {
      * force when it is opened is the one the composite uses, and drawing inside starts from
      * {@link BlendMode#NORMAL}.
      *
-     * <p><b>What it costs</b> (ADR 071, measured on the renderer this toolkit ships): two batch
+     * <p><b>What it costs</b>, measured on the renderer this toolkit ships: two batch
      * breaks and one composited quad per layer, about 0.03 to 0.1 ms of GPU for a popup-sized
      * layer on a GPU and a percent or two of the frame on a software renderer; a window-sized one
      * costs 0.1 to 0.15 ms of GPU, and about 10% of a frame on a software renderer. A canvas keeps

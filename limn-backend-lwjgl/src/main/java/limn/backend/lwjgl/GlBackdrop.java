@@ -43,7 +43,7 @@ final class GlBackdrop {
 
     /**
      * A framebuffer drawing into the copy, for a glass inside a layer: the layers open around it are
-     * laid over the copy before the glass reads it (ADR 071 §2.6). Made the first time one is asked
+     * laid over the copy before the glass reads it. Made the first time one is asked
      * for, after {@link #capture} has sized the copy; the caller binds it.
      *
      * @return the framebuffer

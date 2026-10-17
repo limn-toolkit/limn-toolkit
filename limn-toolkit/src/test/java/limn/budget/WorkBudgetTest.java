@@ -354,6 +354,36 @@ class WorkBudgetTest {
         assertEquals(0, asked[1], "tabs at rest ask for no frame");
     }
 
+    /**
+     * A group drawn as one picture (ADR 071) costs one command, its composite, whatever it holds:
+     * the rows inside are drawn as they are at an opacity of 1, into the layer instead of the
+     * window, and nothing is drawn per row for the fade.
+     */
+    @Test
+    void aFadingGroupCostsOneCommandWhateverItHolds() {
+        for (int rows : new int[] {10, 40}) {
+            Work opaque = aGroupOf(rows, 1f);
+            Work fading = aGroupOf(rows, 0.5f);
+            assertEquals(opaque.commands() + 1, fading.commands(),
+                    "a group of " + rows + " rows at one half: its layer, and the rows as they were");
+            assertEquals(opaque.painted(), fading.painted(), "the same widgets painted");
+        }
+    }
+
+    private static Work aGroupOf(int rows, float opacity) {
+        limn.scene.layout.Column column = new limn.scene.layout.Column();
+        for (int i = 0; i < rows; i++) {
+            column.add(new Label("Row " + i));
+        }
+        column.setOpacity(opacity);
+        Scene scene = new Scene(column);
+        scene.setTextRuler(TestRulers.FIXED);
+        Work.Counting canvas = new Work.Counting(WIDTH, HEIGHT);
+        scene.layoutPass(WIDTH, HEIGHT);
+        scene.renderFrame(canvas.canvas);
+        return Work.of(scene, canvas, scene::requestRender, WIDTH, HEIGHT, () -> 0);
+    }
+
     @Test
     void aScreenNobodyTouchesAsksForNoFrame() {
         HeadlessWindow window = new HeadlessBackend(ui.runtime()).open("At rest", WIDTH, HEIGHT);

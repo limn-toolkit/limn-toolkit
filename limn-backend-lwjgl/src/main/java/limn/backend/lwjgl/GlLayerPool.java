@@ -8,7 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The offscreen pictures one window's canvas draws its layers into (ADR 071 §2.5): RGBA8
+ * The offscreen pictures one window's canvas draws its layers into: RGBA8
  * textures, premultiplied as the window's own framebuffer is, each with the framebuffer that draws
  * into it.
  *
@@ -21,9 +21,10 @@ import java.util.List;
  * <p><b>Kept only while frames use it.</b> At the end of a frame every picture that frame did not
  * take goes back to the driver, so a fade of twelve frames makes its picture once and the frame
  * after it frees it, and a frame that opens no layer holds nothing after it. A framebuffer that
- * shrinks lets go of the pictures it no longer fits, and a closed window frees them all (ADR 064).
+ * shrinks lets go of the pictures it no longer fits, and a closed window frees them all, as it frees
+ * everything else it held.
  * There is no budget and no knob: the most a window holds is bounded by its own size and the depth
- * of its nesting, and nothing is held once the frames stop using it (decision 8).
+ * of its nesting, and nothing is held once the frames stop using it.
  *
  * <p>Single-threaded: the canvas that owns it, with its context current.
  */

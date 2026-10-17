@@ -1955,6 +1955,20 @@ public final class Scene {
     }
 
     /**
+     * Widget.setOpacity and the steps of a fade: the damage {@link #damageWidget} adds, and no walk
+     * of the accessible tree, because nothing it publishes reads an opacity. A fade of
+     * twelve frames would otherwise walk and compare the tree twelve times to find it unchanged.
+     */
+    void damageWidgetPicture(Widget<?> widget) {
+        if (partialRendering || damageDebug) {
+            float outset = 1 + widget.paintOutset();
+            addClippedDamage(widget, -outset, -outset,
+                    widget.width() + 2 * outset, widget.height() + 2 * outset);
+        }
+        scheduleFrame();
+    }
+
+    /**
      * Adds damage for a rect in {@code widget}'s local coordinates, walking up
      * to scene coordinates while clamping it at every ancestor that clips its
      * children: a region scrolled out of a viewport damages only its visible

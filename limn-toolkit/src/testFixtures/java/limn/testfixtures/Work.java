@@ -16,7 +16,8 @@ import java.util.function.LongSupplier;
  * Not time: a count that grows is a regression on a fast machine and on a slow one alike.
  *
  * @param painted   widgets painted by the last frame of the step
- * @param commands  drawing and filling commands the step's frames issued
+ * @param commands  drawing and filling commands the step's frames issued, a layer counted as one
+ *                  (its picture's composite, ADR 071)
  * @param asked     times the application's own code was called for content during the step: a
  *                  model for its children, a column for a cell's value, a list for a row's widget
  * @param allocated bytes the step allocated, the least of several runs, or -1 where the virtual
@@ -35,7 +36,9 @@ public record Work(int painted, int commands, long asked, long allocated) {
             canvas = (Canvas) Proxy.newProxyInstance(Canvas.class.getClassLoader(), new Class<?>[] {Canvas.class},
                     (proxy, method, args) -> {
                         String name = method.getName();
-                        if (name.startsWith("draw") || name.startsWith("fill") || name.startsWith("stroke")) {
+                        // A layer is a command of its own: the quad its restore composites.
+                        if (name.startsWith("draw") || name.startsWith("fill") || name.startsWith("stroke")
+                                || name.equals("saveLayer")) {
                             commands++;
                         }
                         try {
