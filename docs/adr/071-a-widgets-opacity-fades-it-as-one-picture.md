@@ -1,10 +1,12 @@
 # ADR 071: A widget's opacity fades it as one picture
 
-- **Status:** Proposed, 2026-10-17. The owner decided that Limn gets an opacity on the widget,
-  applied to the widget and everything under it as one picture, and asked for care with the
-  time and the memory it costs. This record is written before any of it is built: section 0 is
-  what was measured, section 2 what is proposed, and section 3 the eight choices that are his,
-  each with a recommendation and its cost.
+- **Status:** Accepted, 2026-10-17; not built. Proposed the same day: the owner decided that
+  Limn gets an opacity on the widget, applied to the widget and everything under it as one
+  picture, and asked for care with the time and the memory it costs. He answered the eight
+  questions of section 3 on 2026-10-17, seven with the recommendation and the second with a rule
+  of his own (a direct set announces every change, a fade only its start and its end), and the
+  probe of section 0 was then run on the lab's three guests (section 0.1), in line with this
+  Mac's. Section 5 names the two measurements that wait for the code.
 - **Date:** 2026-10-17
 - **Scope:**
   - an opacity on every widget, how it combines with an ancestor's, and what it does not change
@@ -14,12 +16,15 @@
   - what a partial frame repaints when an opacity changes, and how it repaints a faded subtree;
   - what a backdrop effect reads inside a faded subtree, and over one;
   - which of the toolkit's own fades move onto it.
-- **New public API (proposed):** `Widget.setOpacity(float)` and `Widget.opacity()`;
-  `Widget.fadeTo(float, double, Runnable)` if question 3 is answered yes;
-  `Canvas.saveLayer(...)`, closed by `restore()`, if question 4 is answered yes.
-- **Compatibility:** additive for applications. Inside the repository the in-scene fades of six
-  surfaces change how they are drawn (section 2.7), which changes what they look like halfway
-  through a fade, and only there.
+- **New public API:** `Widget.setOpacity(float)` and `Widget.opacity()`;
+  `Widget.fadeTo(float, double, Runnable)` and `Widget.fadeTo(float)`;
+  `Change.Aspect.OPACITY`; `Canvas.saveLayer(x, y, width, height, opacity)`, closed by
+  `restore()`.
+- **Compatibility:** `Canvas.setOpacity` multiplies the current opacity instead of replacing it
+  (section 2.3); every caller in the repository is accounted for there. Otherwise additive for
+  applications. Inside the repository the in-scene fades of six surfaces change how they are
+  drawn (section 2.7), which changes what they look like halfway through a fade, and only
+  there.
 
 ---
 
@@ -48,9 +53,10 @@ with `canvas.setOpacity(0.5)`; `LAYER`, the subtree drawn into a kept layer and 
 `NESTED`, as `LAYER` with a second group inside the popup (its rows) composited at 0.8. The modes
 are interleaved frame by frame and rotated, so that the GPU's clock changes land on every mode
 alike: run in blocks, two runs of the same frame differed by a factor of two (0.321 and
-0.159 ms of GPU), which would have been read as a difference between modes. Medians of 300 frames after 60 warm
-ones on the GPU, of 40 after 5 on the software renderer, two rounds each; a frame is timed from
-its first command to a `glFinish`, the GPU's own time by a `GL_TIME_ELAPSED` query.
+0.159 ms of GPU), which would have been read as a difference between modes. Medians of 300
+frames after 60 warm ones on the GPU, of 40 after 5 on the software renderer, two rounds each;
+a frame is timed from its first command to a `glFinish`, the GPU's own time by a
+`GL_TIME_ELAPSED` query.
 
 **On the GPU (Apple M5 Max, OpenGL 4.1 over Metal),** milliseconds per frame, round 1 / round 2:
 
@@ -119,11 +125,96 @@ exact; the step is the layer's own 8-bit rounding.
   directly in a whole frame, in both rounds. It is measured and not explained, and nothing
   below relies on it.
 
-What the probe does not cover, said so that it is not read into it: the Windows and Linux
-guests' drivers, where the composite's fill rate may weigh more than on this GPU; the cost of
-re-basing the canvas's clip and transform into a layer, which the probe got for free by starting
-a frame on the layer; and a glass inside a group (section 2.6), whose cost is estimated, not
-measured. Section 5 measures all three on the guests before the status moves.
+What the probe does not cover, said so that it is not read into it: the cost of re-basing the
+canvas's clip and transform into a layer, which the probe got for free by starting a frame on
+the layer, and a glass inside a group (section 2.6), whose cost is estimated. Neither can be
+measured before the code exists; section 5 measures both when it is built. The guests' drivers
+were the third gap, and section 0.1 closes it.
+
+### 0.1 On the lab's guests (2026-10-17)
+
+The same probe, the same scene and the same interleaved method, run on the three guests after
+the owner's decisions, as section 5 required before the status could move. A guest's OpenGL is
+Parallels' own, translated to this Mac's GPU (Windows and Fedora) or Apple's software renderer
+(the macOS guest has no GPU), so these numbers are about each driver's path, not about other
+hardware.
+
+**Windows 11 ARM64** (Parallels' driver over the M5 Max, OpenGL 4.1; a native ARM64 JDK 21; a
+hidden GLFW window in the console session, started by a one-shot interactive task). Its
+`glFinish` returns before the GPU is done, so the frame column equals the CPU column there, and
+the GPU's own time is the timer query's:
+
+| Subtree | Mode | CPU | GPU |
+|---|---|---|---|
+| popup, partial frame | OPAQUE | 0.155 / 0.153 | 0.122 / 0.129 |
+| | OPAQUE' | 0.154 / 0.151 | 0.121 / 0.127 |
+| | DIRECT | 0.154 / 0.152 | 0.121 / 0.127 |
+| | LAYER | 0.156 / 0.155 | 0.210 / 0.217 |
+| | CREATE | 0.439 / 0.456 | 0.551 / 0.580 |
+| | NESTED | 0.158 / 0.155 | 0.273 / 0.286 |
+| popup, whole frame | DIRECT | 0.321 / 0.308 | 0.192 / 0.192 |
+| | LAYER | 0.322 / 0.308 | 0.287 / 0.283 |
+| whole window | OPAQUE | 0.513 / 0.498 | 0.269 / 0.260 |
+| | OPAQUE' | 0.510 / 0.494 | 0.250 / 0.245 |
+| | DIRECT | 0.507 / 0.493 | 0.244 / 0.235 |
+| | LAYER | 0.506 / 0.495 | 0.345 / 0.338 |
+| | CREATE | 0.915 / 0.902 | 1.373 / 1.355 |
+
+A layer costs no CPU there (within 0.003 ms) and 0.09 ms of GPU for the popup, 0.10 ms for the
+window; a second level 0.06 ms more. Making the layer every frame costs 0.3 ms of CPU and
+0.35 ms of GPU for the popup, 0.4 ms and 1.0 ms for the window: the driver allocates as the
+texture is made (0.55 ms and 1.03 ms for `glTexImage2D` and the framebuffer), which is the case
+for keeping the layer through a fade.
+
+**Fedora 44 KDE under Wayland** (virgl over the M5 Max, OpenGL 4.0 core, Mesa 26.2.3; JDK 25;
+a hidden GLFW window in the running session):
+
+| Subtree | Mode | CPU | GPU | Frame |
+|---|---|---|---|---|
+| popup, partial frame | OPAQUE | 0.175 / 0.168 | 0.336 / 0.327 | 0.312 / 0.305 |
+| | OPAQUE' | 0.171 / 0.165 | 0.335 / 0.327 | 0.310 / 0.298 |
+| | DIRECT | 0.173 / 0.166 | 0.334 / 0.328 | 0.310 / 0.299 |
+| | LAYER | 0.180 / 0.174 | 0.358 / 0.354 | 0.375 / 0.365 |
+| | CREATE | 0.402 / 0.391 | 0.382 / 0.371 | 0.713 / 0.693 |
+| | NESTED | 0.181 / 0.178 | 0.393 / 0.387 | 0.414 / 0.405 |
+| popup, whole frame | DIRECT | 0.336 / 0.329 | 0.435 / 0.438 | 0.521 / 0.521 |
+| | LAYER | 0.345 / 0.341 | 0.462 / 0.481 | 0.601 / 0.605 |
+| whole window | OPAQUE | 0.536 / 0.528 | 0.612 / 0.612 | 0.757 / 0.751 |
+| | OPAQUE' | 0.524 / 0.515 | 0.606 / 0.606 | 0.756 / 0.740 |
+| | DIRECT | 0.522 / 0.511 | 0.607 / 0.605 | 0.745 / 0.725 |
+| | LAYER | 0.529 / 0.514 | 0.771 / 0.751 | 0.808 / 0.784 |
+| | CREATE | 1.747 / 1.730 | 0.938 / 0.890 | 2.612 / 2.576 |
+
+A popup's fade frame costs 0.065 ms more through a layer (0.025 ms of GPU, under 0.01 ms of
+CPU); a whole window's 0.06 ms of frame and 0.15 ms of GPU; a second level 0.04 ms. Making the
+layer every frame costs 0.33 ms per popup frame and 1.8 ms per window frame, for the same
+reason as on Windows.
+
+**macOS 27 without a GPU** (Apple Software Renderer, 4.1 APPLE-24.0.2; JDK 21; a CGL context
+with no window, over SSH), milliseconds per frame, which here is the CPU's:
+
+| Subtree | OPAQUE | OPAQUE' | DIRECT | LAYER | CREATE | NESTED |
+|---|---|---|---|---|---|---|
+| popup, partial frame | 143.5 / 136.9 | 143.4 / 136.8 | 143.8 / 137.2 | 145.0 / 139.4 | 145.1 / 139.4 | 146.8 / 140.5 |
+| popup, whole frame | 230.9 / 221.7 | 231.2 / 222.0 | 231.2 / 222.6 | 226.5 / 216.2 | 226.0 / 216.9 | 227.5 / 218.2 |
+| whole window | 189.9 / 183.4 | 189.6 / 183.4 | 189.4 / 183.9 | 208.2 / 201.6 | 208.1 / 201.9 | — |
+
+A popup's fade frame costs 1.2 to 2.2 ms more through a layer (0.9 to 1.6% of it), a whole
+window's 17.7 to 18.8 ms (about 10%), a second level 1.1 to 1.8 ms; making the layer every frame
+costs nothing measurable, as on the host's software run. The whole-frame popup is again faster
+through a layer, by 4.7 and 6.4 ms, and still not explained. The guest's numbers are within a
+few per cent of the host's software run, which is expected: the renderer is the same, on cores
+of the same machine.
+
+**The pixel** came out as on the host: per draw `157, 177, 229` (Windows, Fedora) and
+`158, 177, 229` (macOS), through a layer `167, 184, 231` and `168, 184, 231`, against an exact
+`168, 184, 231`.
+
+**Against the floor:** OPAQUE and OPAQUE' differ by at most 0.004 ms of CPU and 0.019 ms of GPU
+on Windows, 0.011 ms of frame and 0.006 ms of GPU on Fedora, 0.3 ms on the macOS guest. Every
+cost read above is over its guest's floor, and every one is in line with this Mac's: a fraction of a millisecond
+per fade frame where there is a GPU, and on the renderer with none a share of the frame close to
+the host's own software run.
 
 ## 1. Why
 
@@ -145,7 +236,7 @@ A fade today is drawn in one of two ways, and neither is the one the owner asked
 There is also a narrower defect in the same mechanism. `Canvas.setOpacity` sets the state's
 opacity rather than multiplying it, so a widget inside a fading panel that set an opacity of its
 own would replace the fade rather than combine with it. No widget in the toolkit does today; an
-application's could.
+application's could. Section 2.3 decides it: the call multiplies.
 
 And there is a use the toolkit cannot offer at all: an application that wants to fade a part of
 its own window in or out, a panel that appears, a page that replaces another. The owner sees
@@ -162,12 +253,29 @@ fades as the main use.
   pass and must not move what it paints.
 - **It multiplies.** A widget at 0.5 inside one at 0.5 shows at 0.25, and not by arithmetic on
   draws: the inner one is a picture composited into the outer one's picture. `opacity()` returns
-  the widget's own value; nothing needs the product, and so no getter for it is proposed.
-- **It is a picture, not a state.** It moves no layout, takes nothing from input, focus or the
-  accessible tree, and announces nothing to a watcher; questions 1 and 2 put the two halves of
-  that to the owner.
+  the widget's own value; nothing needs the product, and so no getter for it is added.
+- **It is a picture, not a presence.** It moves no layout and takes nothing from input, focus or
+  the accessible tree, at any value, 0 included (decision 1).
 - **`setVisible(false)` wins.** A hidden widget is not painted whatever its opacity, and keeps
   its opacity for when it is shown again.
+- **`fadeTo(float target, double seconds, Runnable onArrive)` and `fadeTo(float target)`**
+  (decision 3) move the opacity to `target` over `seconds`, or the theme's window animation for
+  the short form, eased as `Scene.fadeWindow` eases, on the scene's ticker only while it moves.
+  A newer `fadeTo` or a `setOpacity` supersedes one in flight. While the system asks for less
+  motion, or with no scene to tick, or for zero seconds, it goes straight to the target and
+  `onArrive` runs at once. `onArrive` runs once, when the fade arrives, and not when it is
+  superseded.
+- **A watcher hears an opacity change by the owner's rule** (decision 2), through a new aspect,
+  `Change.Aspect.OPACITY`, origin `CODE`:
+  - a `setOpacity` that changes the value announces it, every time;
+  - a `fadeTo` announces twice: when the fade starts, and when it arrives or is superseded.
+    Its steps in between go through a path that sets the value and damages the widget without
+    announcing, so a fade of any length wakes a watcher twice and never once a frame;
+  - a `fadeTo` that goes straight to its target is a `setOpacity`: one announcement if the value
+    changed, none if it did not;
+  - nothing is announced for a value set to what it already is;
+  - the accessibility step does not react to the aspect, since a reader reads nothing of it
+    (section 2.8).
 
 ### 2.2 What other toolkits do with an opacity of 0
 
@@ -176,12 +284,12 @@ fades as the main use.
 | A web page's `opacity: 0` | yes | yes | yes | yes |
 | The open Java desktop toolkit's node opacity | yes | yes ("a visible node with any opacity still receives mouse events") | yes | yes |
 | One open cross-platform mobile toolkit's opacity widget | yes | yes | yes | no, unless asked to keep it |
-| **Proposed for Limn** | yes | yes | yes | yes |
+| **Limn (decision 1)** | yes | yes | yes | yes |
 
 All three draw the subtree as one picture between 0 and 1, and all three skip the intermediate
-picture at 1 and draw nothing at 0, which is what section 2.3 proposes. The mobile toolkit is
-the one that takes a fully transparent subtree out of what a reader hears; question 1 is
-whether Limn should do the same, and for input too.
+picture at 1 and draw nothing at 0, which is what section 2.3 decides. The mobile toolkit is
+the one that takes a fully transparent subtree out of what a reader hears; question 1 asked
+whether Limn should do the same, and for input too, and the owner kept the web page's rule.
 
 ### 2.3 How it is drawn
 
@@ -213,6 +321,19 @@ whether Limn should do the same, and for input too.
 - **A canvas that cannot make layers** (the recording and measuring canvases of the tests,
   `NoopCanvas`) falls back to today's per-draw multiplication, which is wrong in the way
   section 1 says and right for counting what is drawn.
+- **The layer is public:** `Canvas.saveLayer(x, y, width, height, opacity)`, closed by
+  `restore()`, is what `Widget.paintWidget` calls and what a widget that paints overlapping
+  parts of its own calls (decision 4). Its default implementation is `save()` and the per-draw
+  multiplication of the point above, so every canvas has it; its Javadoc carries section 0's
+  prices.
+- **`Canvas.setOpacity` multiplies** the current state's opacity instead of replacing it, and
+  says so, so that an opacity set inside a fading group or a layer combines with it. Nothing
+  relies on replacing: every caller in the repository sets it once on a fresh `save()` whose
+  opacity is 1 (the six fades, the drag picture, the demo's test card, `RoundRectPiecesTest`),
+  where multiplying gives the same value, or multiplies by hand already
+  (`canvas.setOpacity(canvas.opacity() * fade)` in `Chart`, two places in the demo's
+  `AnimationsScene` and one in its `VideoScene`), and those four drop the hand multiplication
+  in the same change, or they would square it.
 
 ### 2.4 What a partial frame repaints
 
@@ -244,8 +365,7 @@ whether Limn should do the same, and for input too.
   opens no group gives every pooled texture back to the driver when it ends; a fade of twelve
   frames makes its layer once, and the frame after the fade frees it. A static half-transparent
   group repainted now and then pays the making again each time it is repainted, 0.1 to 0.5 ms
-  (section 0), and holds nothing in between. Question 8 asks whether that rule, or a budget
-  like the images', is the right one.
+  (section 0), and holds nothing in between. There is no knob (decision 8).
 - **A closed window keeps nothing**, as ADR 064 requires of everything a window holds, and a
   framebuffer resize lets go of textures that no longer fit.
 
@@ -261,8 +381,8 @@ content: the window under the group is in another target, and an empty layer is 
   for the effect's bounds and its reach; the glass then draws into its own layer as before. At
   an opacity of 1 there is no layer and this is today's reading, so a frosted surface fading in
   goes from nothing to itself without a jump. The cost is one more textured quad per open layer
-  per glass, over the effect's bounds; it is estimated here and measured in section 5. Question
-  5 puts this against what a web page does.
+  per glass, over the effect's bounds; it is estimated here and measured when it is built
+  (section 5). Decision 5 chose it over what a web page does.
 - **A group over a glass** changes nothing for the glass: the glass was drawn before the group,
   and the group's composite is one more draw over it.
 - **A glass over a fading group** reads the window with the group composited in it, as it reads
@@ -277,29 +397,33 @@ content: the window under the group is in another target, and an empty layer is 
   opacity on each tick instead of the three panels reading `fadeOf` in their paint (combo box,
   date picker, tab list); `PopupMenu`'s cascade; `Dialog`'s card, its veil staying a single
   fill whose alpha fades, since one fill cannot show through itself; and the scene's tooltip,
-  through the layer directly since it is not a widget. The panels lose their fading branches.
-  Question 6.
-- **The chart's tooltip panel** is drawn by the chart, not a widget: it moves only if
-  `Canvas.saveLayer` is public (question 4), and otherwise stays per draw.
+  through `Canvas.saveLayer` since it is not a widget. The panels lose their fading branches.
+  Decision 6.
+- **The chart's tooltip panel** is drawn by the chart, not a widget, and moves onto
+  `Canvas.saveLayer` (decision 4).
 - **The fades of popups in windows of their own stay on the window's opacity.** The compositor
   does it as one picture already, with the frame, the shadow margin and the translucent corners,
   and it costs this process nothing; a layer there would cost a window-sized layer per frame to
   do what is already done. Under Wayland, where GLFW sets no window opacity, a popup is drawn in
   the scene (ADR 028) and so fades through section 2.3; a dialog in a window of its own there
-  appears and goes without a fade, as it does today. Question 7.
+  appears and goes without a fade, as it does today. Decision 7.
 - **The drag picture and the modal scrim** are each one draw at an alpha and stay as they are.
 
 ### 2.8 Readers
 
 Opacity is a picture and nothing else: the accessible tree, its states, its bounds and the
 shapes of ADR 045 do not read it, and no bridge changes. A widget at 0 is announced as it is
-announced at 1; an application that means to take something away hides it (question 1).
+announced at 1; an application that means to take something away hides it (decision 1).
 
-## 3. Questions for the owner
+## 3. The owner's decisions, 2026-10-17
 
-Each with what is recommended and what it costs.
+The eight questions as they were put, each with what was recommended and what it costs, and
+under each what the owner decided. Seven took the recommendation; the second is a rule of his
+own, which section 2.1 carries.
 
 1. **An opacity of 0: still there, or gone for input and readers?**
+   - **Decided:** still there. Laid out, hit, focusable and read at every value;
+     `setVisible(false)` wins.
    - *Recommended:* still there, at every value, as a web page and the open Java toolkit do:
      laid out, hit, focusable, read. One rule (opacity is a picture; `setVisible` is presence)
      and nothing that changes on the last frame of a fade.
@@ -311,6 +435,11 @@ Each with what is recommended and what it costs.
      depends on a float compared with zero, focus is lost on the last frame of a fade-out and a
      reader hears a node appear on the first frame of a fade-in.
 2. **Does a watcher hear an opacity change?**
+   - **Decided, neither option as put:** a `setOpacity` that changes the value announces it, every
+     time, through `Change.Aspect.OPACITY` with origin `CODE`; a `fadeTo` announces only twice,
+     when it starts and when it arrives or is superseded, and its steps go through a path that
+     does not announce (section 2.1). The cost the recommendation feared, a watcher woken on every
+     frame of every fade, does not arise, and a watcher still hears every change it asked for.
    - *Recommended:* no `Change.Aspect` for it. It is a property of the picture, as
      `BackdropPanel`'s tint and cover are, and those announce nothing; announcing it would wake
      every watcher of the widget and its ancestors on every frame of every fade.
@@ -318,6 +447,9 @@ Each with what is recommended and what it costs.
    - *The alternative,* an `OPACITY` aspect with origin `CODE`: one interned change per frame per
      fading widget, and a rule that the accessibility step ignores it.
 3. **An animated form on the widget?**
+   - **Decided:** yes, `fadeTo(target, seconds, onArrive)` and `fadeTo(target)` as recommended:
+     the toolkit's easing, straight to the target while the system asks for less motion, a newer
+     call superseding one in flight.
    - *Recommended:* yes, since fades are the use the owner named:
      `Widget.fadeTo(float target, double seconds, Runnable onArrive)` and the short
      `fadeTo(float target)` with the theme's window animation, eased as `Scene.fadeWindow` eases,
@@ -329,6 +461,8 @@ Each with what is recommended and what it costs.
      window fade already is.
    - *The alternative,* `setOpacity` alone in this record, and an animation API later.
 4. **Is the layer a public `Canvas` method?**
+   - **Decided:** yes, `Canvas.saveLayer(x, y, width, height, opacity)` closed by `restore()`,
+     with the per-draw fallback.
    - *Recommended:* yes, `Canvas.saveLayer(x, y, width, height, opacity)` closed by `restore()`,
      with a default that falls back to multiplying the opacity, so a widget that paints overlapping
      parts of its own (the chart's tooltip panel, an application's custom widget) fades them as
@@ -338,6 +472,7 @@ Each with what is recommended and what it costs.
    - *The alternative:* the method kept out of the public contract (an internal hook the backend
      implements), widget opacity the only way to a layer, the chart's tooltip per draw.
 5. **What does a glass inside a fading group read?**
+   - **Decided:** what it would read if the group were opaque.
    - *Recommended:* what it would read if the group were opaque (section 2.6), so a frosted
      surface fades without changing what it shows through.
    - *Cost:* an extra quad over the glass's bounds per open layer per frame, and the code that
@@ -347,6 +482,7 @@ Each with what is recommended and what it costs.
      simpler, and a frosted popup fading in would show unblurred content through its glass for
      the whole fade and blur it at the last frame.
 6. **Do the in-scene fades move onto widget opacity now?**
+   - **Decided:** yes, the six of section 2.7 now; the dialog's veil stays one fill.
    - *Recommended:* yes, all of section 2.7's list in the same round as the feature, so the one
      mechanism is exercised by the toolkit's own popups from the first day and the
      shows-through defect of section 1 goes.
@@ -355,9 +491,12 @@ Each with what is recommended and what it costs.
      the readers' runs are not owed, since nothing they read moves (section 2.8).
    - *The alternative:* the feature for applications only, the toolkit's fades left per draw.
 7. **Do window fades stay on the window's opacity?**
+   - **Decided:** yes, on `NativeWindow.setOpacity`.
    - *Recommended:* yes (section 2.7).
    - *Cost:* none; a dialog in a window of its own on Wayland keeps appearing without a fade.
 8. **How long does a layer stay?**
+   - **Decided:** kept only while consecutive frames use it, freed at the end of a frame that
+     opens no group, no public knob.
    - *Recommended:* while consecutive frames use it, given back at the end of a frame that opens
      no group (section 2.5), no knob. The most a window holds is bounded by the window and the
      nesting depth, and nothing is held after a fade.
@@ -379,24 +518,35 @@ Each with what is recommended and what it costs.
 - **Opacity in the theme or the editor's file.** Nothing in a theme is a widget's opacity.
 - **The disabled look.** Widgets dim themselves by colour, not by opacity, and stay so.
 
-## 5. Tests, and what is measured before the status moves
+## 5. Tests, and what is measured
 
 - **Pixels, on a real device:** section 0's pixel as a test (a group at one half equals the
   opaque picture mixed with the background, within one step, where the per-draw picture is
   eleven steps off in red); a nested group; a group under a rotation; a group cut by a scroll
   view's clip; a partial pass through a group equal to a whole frame (render both and compare
-  every pixel, as the rounded clip was checked against a cut pass); a glass inside a group at opacity 1 equal to the same glass
-  with no group, and continuous at 0.99.
+  every pixel, as the rounded clip was checked against a cut pass); a glass inside a group at
+  opacity 1 equal to the same glass with no group, and continuous at 0.99.
 - **The API:** clamping, NaN refused, the UI thread, the paint refusal, 0 skipping the subtree,
-  1 opening no layer (counted), `setVisible` winning.
+  1 opening no layer (counted), `setVisible` winning; at 0 the widget still hit, focused and in
+  the accessible tree.
+- **Announcements:** a `setOpacity` that changes the value announces one `OPACITY` change and
+  one that does not announces none; a `fadeTo` of any number of frames announces exactly two, a
+  superseded one its own end and the new one its start; a `fadeTo` under reduced motion announces
+  one and runs `onArrive` at once; the accessible tree is not republished by any of them.
+- **`Canvas.setOpacity` multiplies:** an opacity set inside a layer or under another combines
+  with it; the four hand multiplications are gone and their pictures unchanged.
 - **Damage:** an opacity change damages the box and outset and no layout (`DamageContractTest`'s
   rules); the same value damages nothing.
 - **Memory:** the pool after a fade is empty one frame later; siblings take one texture; a closed
   window frees it (ADR 064's churn); `stats()` reports it.
 - **The budget of ADR 062:** a group's layer and composite counted among the drawing commands,
   and held not to grow with the subtree.
-- **The toolkit's fades,** if question 6 is yes: each surface's fade tests on the new mechanism,
-  and the shows-through pixel on each.
-- **Measured on the guests before Accepted:** section 0's probe on the Windows and Fedora guests
-  and the macOS guest without a GPU, the cost of re-basing the clip and transform (absent from
-  the probe), and a glass inside a group.
+- **The toolkit's fades** (decision 6): each surface's fade tests on the new mechanism, and the
+  shows-through pixel on each.
+- **Measured on the guests:** section 0's probe on the Windows and Fedora guests and the macOS
+  guest without a GPU, done on 2026-10-17 (section 0.1) and in line with this Mac's. Two
+  measurements need the code and are owed by the change that builds it, on the same guests and
+  by the same interleaved method: the cost of re-basing the clip and transform into a layer,
+  against section 0's LAYER rows, and a glass inside a fading group against the same glass with
+  none. Either coming out of line with section 0 reopens this record rather than being absorbed
+  by the build.
