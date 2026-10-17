@@ -20,7 +20,8 @@ If you use the optional FFmpeg video decoder, its native libraries are a separat
 `limn-ffmpeg-natives`, one `natives-<os>-<arch>` classifier per desktop target, and again the
 dependency block you develop with is the one you ship: name the classifier for the machine you
 build for, or `limn-video-ffmpeg-natives-all` for a bundle that goes everywhere
-([Images and media](/docs/images-and-media/) shows both). Where a slice is missing the decoder
+([Images and media](/docs/images-and-media/) shows both). One slice is 2.1 to 2.9 MB, depending
+on the platform, measured at this version. Where a slice is missing the decoder
 reports itself unavailable and the rest of the application is unaffected. Those libraries are a
 trimmed FFmpeg under the LGPL, version 2.1 or later, dynamically linked and replaceable,
 which is what that licence asks. Each jar carries the licence text and the notice that

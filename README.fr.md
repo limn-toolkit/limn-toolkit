@@ -156,8 +156,8 @@ dependencies {
 La première ligne apporte le Java et, avec lui, la couche JNI pour toutes les plateformes. La
 seconde apporte les bibliothèques FFmpeg — depuis `limn-ffmpeg-natives`, un artefact versionné avec
 FFmpeg plutôt qu’avec le toolkit, de sorte qu’il reste dans votre cache d’une mise à jour de Limn à
-l’autre — à raison d’un classifier par cible, de sorte qu’une machine télécharge environ deux
-mégaoctets plutôt que les six :
+l’autre — à raison d’un classifier par cible, de sorte qu’une machine en télécharge un, de 2,1 à
+2,9 Mo selon la plateforme, plutôt que les six :
 
 ```
 natives-linux-x86_64     natives-macos-x86_64     natives-windows-x86_64
@@ -323,7 +323,7 @@ jamais une dépendance de votre application.
   </tr>
   <tr>
     <td nowrap><samp>limn-fonts-all</samp></td>
-    <td>les fontes pan-CJC et emoji couleur (26 Mo qu’une application qui ne les dessine jamais ne devrait pas porter), plus le reste des replis, dans les versions avec lesquelles cette publication a été testée — chaque fonte est un artefact à part entière, versionné avec la fonte</td>
+    <td>les fontes pan-CJC et emoji couleur (23,6 Mo qu’une application qui ne les dessine jamais ne devrait pas porter), plus le reste des replis, dans les versions avec lesquelles cette publication a été testée — chaque fonte est un artefact à part entière, versionné avec la fonte</td>
   </tr>
 </table>
 

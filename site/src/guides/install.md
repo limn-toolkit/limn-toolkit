@@ -79,7 +79,7 @@ time, or runs on the module path, keeps only that platform's:
 It also brings the fonts a UI cannot do without: Roboto (the default family) and the four
 faces that make Arabic, Hebrew, Devanagari and Thai render, each versioned with the font
 rather than with the toolkit. Two faces are yours to opt into, because together they are
-26 MB an app that never draws them should not carry — the pan-CJK face (Chinese, Japanese,
+23.6 MB an app that never draws them should not carry — the pan-CJK face (Chinese, Japanese,
 Korean) and colour emoji:
 
 {% tabs build Gradle Maven %}

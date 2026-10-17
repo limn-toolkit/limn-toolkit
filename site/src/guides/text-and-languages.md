@@ -138,7 +138,7 @@ to break at all and is cut where it stops fitting.
 Latin, Greek and Cyrillic come from the default family, and Arabic, Hebrew, Devanagari and
 Thai from one small Noto face each — those arrive with the backend and parse in the
 background the first time a character needs one. Chinese, Japanese, Korean and colour emoji
-come from two faces the application opts into, because together they are 26 MB an app that
+come from two faces the application opts into, because together they are 23.6 MB an app that
 never draws them should not carry: add `limn-fonts-all` (every fallback at the versions this
 release was tested with) or name `limn-fonts-noto-cjk` / `limn-fonts-noto-emoji` yourself —
 see [Install](/docs/install/). Nothing to register and nothing to choose after that line; a

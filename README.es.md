@@ -154,7 +154,8 @@ dependencies {
 La primera línea trae el Java y, con él, la capa JNI para todas las plataformas. La segunda trae
 las bibliotecas de FFmpeg — de `limn-ffmpeg-natives`, un artefacto que cambia de versión con FFmpeg
 y no con el kit, de modo que sigue en tu caché de una actualización de Limn a otra — con un
-clasificador por destino, de modo que una máquina descarga unos dos megabytes en lugar de las seis:
+clasificador por destino, de modo que una máquina descarga uno, de 2,1 a 2,9 MB según la
+plataforma, en lugar de las seis:
 
 ```
 natives-linux-x86_64     natives-macos-x86_64     natives-windows-x86_64
@@ -320,7 +321,7 @@ tu aplicación.
   </tr>
   <tr>
     <td nowrap><samp>limn-fonts-all</samp></td>
-    <td>las tipografías pan-CJK y de emojis a color (26 MB que una aplicación que nunca las dibuja no debería cargar), más el resto de los respaldos, en las versiones con las que se probó esta publicación — cada tipografía es un artefacto propio que cambia de versión con la fuente</td>
+    <td>las tipografías pan-CJK y de emojis a color (23,6 MB que una aplicación que nunca las dibuja no debería cargar), más el resto de los respaldos, en las versiones con las que se probó esta publicación — cada tipografía es un artefacto propio que cambia de versión con la fuente</td>
   </tr>
 </table>
 

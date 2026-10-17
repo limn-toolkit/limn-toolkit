@@ -154,7 +154,8 @@ dependencies {
 A primeira linha traz o Java e, com ele, o shim JNI para todas as plataformas. A segunda traz as
 bibliotecas do FFmpeg — de `limn-ffmpeg-natives`, um artefato que muda de versão junto com o
 FFmpeg, e não com o toolkit, então ele continua no seu cache de um upgrade do Limn para outro — com
-um classifier por alvo, então uma máquina baixa cerca de dois megabytes em vez dos seis conjuntos:
+um classifier por alvo, então uma máquina baixa um só, de 2,1 a 2,9 MB conforme a plataforma,
+em vez dos seis conjuntos:
 
 ```
 natives-linux-x86_64     natives-macos-x86_64     natives-windows-x86_64
@@ -318,7 +319,7 @@ aplicação.
   </tr>
   <tr>
     <td nowrap><samp>limn-fonts-all</samp></td>
-    <td>as tipografias pan-CJK e de emoji colorido (26 MB que uma aplicação que nunca as desenha não deveria carregar), mais o resto dos fallbacks, nas versões com que este release foi testado — cada tipografia é um artefato próprio, que muda de versão junto com a fonte</td>
+    <td>as tipografias pan-CJK e de emoji colorido (23,6 MB que uma aplicação que nunca as desenha não deveria carregar), mais o resto dos fallbacks, nas versões com que este release foi testado — cada tipografia é um artefato próprio, que muda de versão junto com a fonte</td>
   </tr>
 </table>
 

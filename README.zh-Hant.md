@@ -132,7 +132,7 @@ dependencies {
 
 </details>
 
-第一行帶來 Java 的部分，連同每個平台的 JNI 墊片。第二行帶來 FFmpeg 的原生庫——來自 `limn-ffmpeg-natives`，一個版本跟著 FFmpeg 而不是跟著工具組走的成品，所以 Limn 升級時它仍留在你的快取裡——每個目標各一個 classifier，所以一台機器下載的大約是兩 MB，而不是全部六份：
+第一行帶來 Java 的部分，連同每個平台的 JNI 墊片。第二行帶來 FFmpeg 的原生庫——來自 `limn-ffmpeg-natives`，一個版本跟著 FFmpeg 而不是跟著工具組走的成品，所以 Limn 升級時它仍留在你的快取裡——每個目標各一個 classifier，所以一台機器只下載其中一份，視平台而定為 2.1 至 2.9 MB，而不是全部六份：
 
 ```
 natives-linux-x86_64     natives-macos-x86_64     natives-windows-x86_64
@@ -260,7 +260,7 @@ macOS 的開關和上面一樣。它存下來的是一個 `.limntheme` 檔案，
   </tr>
   <tr>
     <td nowrap><samp>limn-fonts-all</samp></td>
-    <td>泛中日韓字體與彩色表情符號字體（一個從不繪製它們的應用程式不該背負的 26 MB），加上其餘的遞補字體，各自固定在這次發布測試過的版本——每個字體都是獨立的一個成品，版本跟著字型走</td>
+    <td>泛中日韓字體與彩色表情符號字體（一個從不繪製它們的應用程式不該背負的 23.6 MB），加上其餘的遞補字體，各自固定在這次發布測試過的版本——每個字體都是獨立的一個成品，版本跟著字型走</td>
   </tr>
 </table>
 
