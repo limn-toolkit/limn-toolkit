@@ -641,6 +641,15 @@ final class AnimationsScene {
             return true;
         }
 
+        /**
+         * The card behind the invoice's head and the toast: decoration, since the toast's words
+         * are spoken as it appears and the head is labels and a button of their own.
+         */
+        @Override
+        protected boolean paintsDecoration() {
+            return true;
+        }
+
         @Override
         protected void onPaint(Canvas canvas) {
             Theme theme = Theme.of(this);

@@ -926,8 +926,28 @@ final class VideoScene {
         /** Shows the view alone. */
         void showPicture() {
             opening = null;
-            notice = null;
+            noticeIs(null);
+        }
+
+        /**
+         * Draws {@code text} over the picture, or nothing, and has the picture carry it as its
+         * description, so a reader hears "Cannot play this video" or "Opening…" on the video
+         * itself, where a sighted viewer reads it.
+         */
+        private void noticeIs(String text) {
+            notice = text;
+            view.setAccessibleDescription(text == null ? null : limn.i18n.I18nString.literal(text));
             invalidate();
+        }
+
+        /**
+         * What this pane draws on its own is the notice, which the picture carries as its
+         * description, and the subtitles, drawn over the picture for the eye as the player of
+         * this demonstration shows them; the pane itself is no node a reader needs.
+         */
+        @Override
+        protected boolean paintsDecoration() {
+            return true;
         }
 
         /**
@@ -937,8 +957,7 @@ final class VideoScene {
          */
         void showNotice(String why) {
             opening = null;
-            notice = why;
-            invalidate();
+            noticeIs(why);
         }
 
         /**
@@ -975,8 +994,7 @@ final class VideoScene {
                     ? Text.OPENING.get()
                     : Text.OPENING_PERCENT.format(limn.i18n.NumberFormats.percent(0).apply(openingFraction));
             if (!text.equals(notice)) {
-                notice = text;
-                invalidate();
+                noticeIs(text);
             }
         }
 
@@ -2018,6 +2036,15 @@ final class VideoScene {
         protected void onLayout() {
             row.measure(limn.scene.Constraints.tight(width(), height()));
             row.layoutBox(0, 0, width(), height());
+        }
+
+        /**
+         * Draws nothing: its paint only asks for the re-read below, and the button it holds says
+         * what it is. So it is no node a reader needs.
+         */
+        @Override
+        protected boolean paintsDecoration() {
+            return true;
         }
 
         /**

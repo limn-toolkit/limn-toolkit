@@ -323,6 +323,12 @@ final class SplitPaneScene {
             child.layoutBox(0, 0, width(), height());
         }
 
+        /** A surface behind the pane's controls: a reader loses nothing by never hearing of it. */
+        @Override
+        protected boolean paintsDecoration() {
+            return true;
+        }
+
         @Override
         protected void onPaint(Canvas canvas) {
             Theme theme = Theme.of(this);

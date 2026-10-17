@@ -400,6 +400,16 @@ final class IconsScene {
             return constraints.constrain(size, size);
         }
 
+        /**
+         * The picture of an icon whose name is said beside it: by the tile's row in the grid, and
+         * by the detail's title above the large one. A reader loses nothing by never hearing the
+         * picture itself.
+         */
+        @Override
+        protected boolean paintsDecoration() {
+            return true;
+        }
+
         @Override
         protected void onPaint(Canvas canvas) {
             if (icon == null) {
