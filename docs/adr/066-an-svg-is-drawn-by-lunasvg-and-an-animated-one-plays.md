@@ -192,6 +192,18 @@ As ADR 061 asks of everything the toolkit reads itself:
   rules are matched once, siblings are counted once per parent, and the tries over a file (20
   million) and the beginnings read to work out its timing (4 million) are counted, a file past
   either refused.
+  **Amended 2026-10-17, after the review of that day:** the fixed count of 20 million tries
+  refused large ordinary files, since every element was tried against every selector: an export
+  of 50,000 paths under 400 class rules (1.9 MB), which had been read in 8 seconds. A selector is
+  now filed under what its last compound needs of an element (an id, a class, a type, an
+  attribute, or nothing) and tried only on elements that have it, as a browser files its rules,
+  and the tries a file may make grow with it: four for each of its bytes, four million at least.
+  That file and ones of 200,000 paths (7.6 MB) are read in under a second; every hostile file of
+  the audit is still refused in under half a second. The timing count takes in only the
+  animations of a chain, which are the only ones worked out round by round, so thousands of
+  animations beside a short chain are read again. And the animation elements leave the document
+  only once the style sheets are matched, so an `animate` counts among its siblings for
+  `:last-child` and `:nth-child`, as in a browser, whichever element was asked about first.
 - **A picture beside a file read from disk is read by the toolkit,** as the owner chose: an
   image's `href` relative to the SVG's own folder, resolved there, refused if it leads out of
   that folder, read within the same ceilings as any picture and handed to lunasvg inside the
