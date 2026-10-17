@@ -22,14 +22,16 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Popups whose contexts are of one kind draw with the GL capabilities the first of them resolved,
- * and draw what they are asked to with them: a clear and a filled rectangle, which between them
- * reach the canvas's shaders, buffers and draw calls through the shared function table.
+ * Popups opened one at a time, each closed before the next as a combo box's list or a menu is,
+ * draw with the GL capabilities their opaque owner resolved, and draw what they are asked to with
+ * them: a clear and a filled rectangle, which between them reach the canvas's shaders, buffers and
+ * draw calls through the shared function table. A popup's framebuffer is transparent and its
+ * owner's is not, which is no part of what the capabilities are made from.
  *
  * <p>Run in a JVM of its own, for the reasons {@link ClosedWindowTest} gives. The child is also
  * the measurement: run alone, with {@code -Dlimn.backend.reuseGlCapabilities=true} or
- * {@code false} and {@code -Dpopups=20}, it prints what each popup's window cost to create, which
- * is how the Windows guest was read before the default there was chosen.
+ * {@code false}, {@code -Dpopups=20}, and {@code -Dtogether=true} to keep every popup open until
+ * the last, it prints what each popup's window cost to create.
  */
 class GlCapabilitiesReuseTest {
 
@@ -40,7 +42,7 @@ class GlCapabilitiesReuseTest {
     Path directory;
 
     @Test
-    void popupsOfOneKindShareCapabilitiesAndDrawCorrectlyWithThem() throws Exception {
+    void popupsOpenedOneAtATimeShareTheOwnersCapabilitiesAndDrawCorrectlyWithThem() throws Exception {
         List<String> command = new ArrayList<>();
         command.add(Path.of(System.getProperty("java.home"), "bin", "java").toString());
         if (Platform.current().isMacOs()) {
@@ -63,14 +65,15 @@ class GlCapabilitiesReuseTest {
                 () -> "no window can be opened here:\n" + output);
         assertEquals(0, child.exitValue(), output);
         boolean reuses = GlCapabilitiesCache.reusesByDefault(Platform.current().os(), null);
-        assertTrue(output.contains("popups share capabilities: " + reuses), output);
+        assertTrue(output.contains("every popup shares the owner's capabilities: " + reuses), output);
         assertTrue(output.contains("every popup drew what it was asked to"), output);
         assertTrue(output.contains("kept after the popups closed: " + (reuses ? 1 : 0)), output);
     }
 
     /**
      * The child: an opaque owner, then popups opened one after another, each painted a colour of
-     * its own and read back before the next is made, and their capabilities compared.
+     * its own, read back and closed before the next is made, and their capabilities compared with
+     * the owner's.
      */
     static final class Child {
 
@@ -90,7 +93,7 @@ class GlCapabilitiesReuseTest {
                         WindowConfig.of("owner", 160, 120).focusOnShow(false));
                 owner.setOpacity(0f); // shown, as an owner is, but not over the developer's work
                 owner.show();
-                List<LwjglWindow> popups = new ArrayList<>();
+                List<Object> popups = new ArrayList<>();
                 List<Double> millis = new ArrayList<>();
                 Ui.postDelayed(() -> next(backend, owner, popups, millis, count, failed), 50);
                 backend.runEventLoop();
@@ -99,7 +102,7 @@ class GlCapabilitiesReuseTest {
             System.exit(failed[0] ? 1 : 0);
         }
 
-        private static void next(LwjglBackend backend, NativeWindow owner, List<LwjglWindow> popups,
+        private static void next(LwjglBackend backend, NativeWindow owner, List<Object> popups,
                 List<Double> millis, int count, boolean[] failed) {
             if (popups.size() == count) {
                 finish(backend, owner, popups, millis, failed);
@@ -110,7 +113,7 @@ class GlCapabilitiesReuseTest {
             LwjglWindow popup = (LwjglWindow) backend.createWindow(
                     WindowConfig.popup(owner, 80, 60).atInOwner(10, 10));
             millis.add((System.nanoTime() - start) / 1e6);
-            popups.add(popup);
+            popups.add(popup.glCapabilities());
             // A colour per popup, so a frame that reached another window's buffer cannot pass.
             Color background = Color.rgb(0x204060 + index * 0x101010);
             Color square = Color.rgb(0xC03020 + index * 0x000810);
@@ -128,19 +131,32 @@ class GlCapabilitiesReuseTest {
                 System.out.println("popup " + index + ": corner " + corner + " centre " + centre
                         + (right ? "" : " WRONG, asked for " + hex(background) + " and " + hex(square)));
                 failed[0] |= !right;
-                Ui.post(() -> next(backend, owner, popups, millis, count, failed));
+                if (Boolean.getBoolean("together")) {
+                    Ui.post(() -> next(backend, owner, popups, millis, count, failed));
+                } else {
+                    // Closed before the next opens, as a list or a menu is when it is dismissed.
+                    popup.requestClose();
+                    whenClosed(popup, () -> next(backend, owner, popups, millis, count, failed));
+                }
             });
         }
 
-        private static void finish(LwjglBackend backend, NativeWindow owner, List<LwjglWindow> popups,
-                List<Double> millis, boolean[] failed) {
-            boolean shared = true;
-            for (LwjglWindow popup : popups) {
-                shared &= popup.glCapabilities() == popups.get(0).glCapabilities();
+        private static void whenClosed(NativeWindow window, Runnable then) {
+            if (window.isClosed()) {
+                then.run();
+            } else {
+                Ui.postDelayed(() -> whenClosed(window, then), 10);
             }
-            System.out.println("popups share capabilities: " + shared);
-            System.out.println("the owner shares them: "
-                    + (((LwjglWindow) owner).glCapabilities() == popups.get(0).glCapabilities()));
+        }
+
+        private static void finish(LwjglBackend backend, NativeWindow owner, List<Object> popups,
+                List<Double> millis, boolean[] failed) {
+            Object owners = ((LwjglWindow) owner).glCapabilities();
+            boolean shared = true;
+            for (Object capabilities : popups) {
+                shared &= capabilities == owners;
+            }
+            System.out.println("every popup shares the owner's capabilities: " + shared);
             System.out.println("createWindow ms: " + millis);
             List<Double> afterFirst = millis.subList(1, millis.size());
             System.out.printf(Locale.ROOT, "createWindow after the first, mean ms: %.2f%n",
@@ -148,10 +164,13 @@ class GlCapabilitiesReuseTest {
             if (!failed[0]) {
                 System.out.println("every popup drew what it was asked to");
             }
-            popups.forEach(NativeWindow::requestClose);
+            for (NativeWindow window : new ArrayList<>(backend.openWindows())) {
+                if (window != owner) {
+                    window.requestClose();
+                }
+            }
             Ui.postDelayed(() -> {
-                // The owner's opaque context is of another kind and holds an entry of its own; the
-                // popups' entry went with the last of them.
+                // The owner still holds the entry every popup drew with.
                 System.out.println("kept after the popups closed: " + backend.glCapabilities().size());
                 owner.requestClose();
             }, 100);
