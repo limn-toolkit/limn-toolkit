@@ -102,7 +102,7 @@ final class ShapingRuler implements TextRuler, AutoCloseable {
         }
 
         @Override
-        public boolean equals(Object other) {
+        public boolean equals(@org.jspecify.annotations.Nullable Object other) {
             return other instanceof Key key && key.hash == hash && key.base == base
                     && key.text.equals(text) && key.font.equals(font);
         }

@@ -92,10 +92,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * to null says so. A null that arrives through a private field is not traced; that is the
  * reviewer's to find.
  *
- * <p>The override rule reaches past the API on one side: a class of an exported package that
- * overrides a method of an internal interface keeps that interface's nullness too, private or
- * not, since a checker run over the package holds it to it and a reader of the class trusts what
- * it says. The internal sources are read for their interfaces' declarations alone.
+ * <p>The override rule reaches past the API: every override in the modules' sources, of an
+ * exported package or an internal one, private or not, keeps the nullness of the method it
+ * overrides, of the API or of an internal interface, and every {@code equals} takes a nullable
+ * {@code Object}, since a checker run over the package holds each to it and a reader of the class
+ * trusts what it says. The internal sources are read for their overrides and their interfaces'
+ * declarations; the rest of this test reads the API alone.
  */
 class NullnessAnnotatedTest {
 
@@ -207,12 +209,12 @@ class NullnessAnnotatedTest {
      * a parameter the overridden method takes as nullable stays nullable, a value it promises is
      * never null stays so, and {@code equals} takes a nullable {@code Object}, as
      * {@link Object#equals} does. The overridden method is looked up by its name and erased
-     * parameter types in the API's own supertypes of the overriding class, by their simple names,
-     * so one from outside the toolkit is not seen, {@code equals} apart. An override in an exported
-     * file is held to the method it overrides whatever its own visibility, and the method
-     * overridden may be in an internal package ({@code declarations}): a private class
-     * implementing an internal interface drops that interface's {@code @Nullable} no more than an
-     * API class may.
+     * parameter types in the toolkit's own supertypes of the overriding class, by their simple
+     * names, so one from outside the toolkit is not seen, {@code equals} apart. Every override is
+     * held to the method it overrides whatever its own visibility and wherever it is, and the
+     * method overridden may be in an internal package ({@code declarations}): a package-private
+     * window of the backend drops {@code NativeWindow}'s {@code @Nullable} no more than an API
+     * class may, nor a private class an internal interface's.
      */
     private static void overrides(List<Unit> units, List<Unit> declarations, List<String> found) {
         record Declared(Unit unit, Method method) {
@@ -255,11 +257,11 @@ class NullnessAnnotatedTest {
         for (Unit unit : everything) {
             for (Method method : unit.methods) {
                 boolean internal = declarations.contains(unit);
-                // The API's methods, any method of an exported file that overrides, and an
-                // internal interface's methods, which those may override.
+                // The API's methods, any method that overrides, and an internal interface's
+                // methods, which those may override.
                 boolean counted = method.api
-                        || (!internal && method.tree.getModifiers().getAnnotations().stream()
-                                .anyMatch(a -> named(a, "Override")))
+                        || method.tree.getModifiers().getAnnotations().stream()
+                                .anyMatch(a -> named(a, "Override"))
                         || (internal && (method.owner.getKind() == Tree.Kind.INTERFACE));
                 if (counted && method.tree.getReturnType() != null) {
                     String signature = method.name() + method.tree.getParameters().stream()
@@ -271,7 +273,7 @@ class NullnessAnnotatedTest {
         for (List<Declared> family : bySignature.values()) {
             for (Declared override : family) {
                 List<? extends VariableTree> parameters = override.method.tree.getParameters();
-                if (override.method.api && override.method.name().equals("equals") && parameters.size() == 1
+                if (override.method.name().equals("equals") && parameters.size() == 1
                         && erasure(parameters.get(0).getType()).equals("Object") && !override.takesNull(0)) {
                     found.add(override.where() + "(" + parameters.get(0).getName()
                             + "): equals takes null, as Object.equals does");
@@ -288,11 +290,11 @@ class NullnessAnnotatedTest {
                         }
                     }
                 }
-                // A method outside the API is held to the internal interfaces it implements, which
-                // nothing else checks; to the API's own types it answers as their callers see it.
+                // Held to every supertype of the toolkit's it has, API or internal: a caller holding
+                // the class as its interface, and a checker over its package, both read it so.
                 List<Declared> overridden = family.stream()
                         .filter(d -> ancestors.contains(d.method.owner.getSimpleName().toString()))
-                        .filter(d -> override.method.api || declarations.contains(d.unit)).toList();
+                        .toList();
                 for (int i = 0; i < parameters.size(); i++) {
                     int index = i;
                     if (!override.takesNull(i) && overridden.stream().anyMatch(d -> d.takesNull(index))) {

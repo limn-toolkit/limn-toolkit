@@ -188,7 +188,7 @@ final class LwjglDisplay implements Display {
     }
 
     @Override
-    public boolean equals(Object other) {
+    public boolean equals(@org.jspecify.annotations.Nullable Object other) {
         return other instanceof LwjglDisplay display && display.monitor == monitor;
     }
 

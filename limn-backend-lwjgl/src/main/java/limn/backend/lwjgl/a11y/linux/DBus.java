@@ -72,7 +72,7 @@ final class DBus {
             return new Ref((String) a[0], (String) a[1]);
         }
         @Override public String toString() { return "(" + name + ", " + path + ")"; }
-        @Override public boolean equals(Object o) {
+        @Override public boolean equals(@org.jspecify.annotations.Nullable Object o) {
             return o instanceof Ref && ((Ref) o).name.equals(name) && ((Ref) o).path.equals(path);
         }
         @Override public int hashCode() { return name.hashCode() * 31 + path.hashCode(); }

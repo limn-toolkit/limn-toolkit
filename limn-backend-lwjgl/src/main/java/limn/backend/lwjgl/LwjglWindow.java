@@ -1666,7 +1666,7 @@ final class LwjglWindow implements WindowPeer {
     }
 
     @Override
-    public void setCursor(Cursor newCursor) {
+    public void setCursor(@Nullable Cursor newCursor) {
         backend.uiRuntime().checkUiThread();
         Cursor target = newCursor == null ? Cursor.DEFAULT : newCursor;
         if (destroyed || target == cursor) {
@@ -1695,7 +1695,7 @@ final class LwjglWindow implements WindowPeer {
     }
 
     @Override
-    public void setImageCursor(limn.backend.ImageCursor newCursor) {
+    public void setImageCursor(limn.backend.@Nullable ImageCursor newCursor) {
         backend.uiRuntime().checkUiThread();
         if (destroyed || java.util.Objects.equals(newCursor, imageCursor)) {
             return;
@@ -1711,7 +1711,7 @@ final class LwjglWindow implements WindowPeer {
     }
 
     @Override
-    public void setPointerMode(limn.backend.PointerMode mode) {
+    public void setPointerMode(limn.backend.@Nullable PointerMode mode) {
         backend.uiRuntime().checkUiThread();
         limn.backend.PointerMode target =
                 mode == null ? limn.backend.PointerMode.NORMAL : mode;
