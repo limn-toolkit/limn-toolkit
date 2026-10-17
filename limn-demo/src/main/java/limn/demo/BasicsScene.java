@@ -25,10 +25,12 @@ import limn.scene.layout.Expanded;
 import limn.scene.layout.Flex;
 import limn.scene.layout.Row;
 import limn.scene.layout.SizedBox;
+import java.util.function.Predicate;
 
 /**
  * The controls every screen is made of, as the form they make: a new customer, with a toolbar
- * above it, its fields in two columns, the choices of its account, and the actions under it.
+ * above it, its fields in two columns, the numbers its taxes and payments are checked by, the
+ * choices of its account, and the actions under it.
  */
 final class BasicsScene {
 
@@ -44,6 +46,8 @@ final class BasicsScene {
         page.add(toolbar());
         page.add(Page.section(Text.CUSTOMER));
         page.add(customer(name));
+        page.add(Page.section(Text.PAYMENT));
+        page.add(payment());
         page.add(Page.section(Text.ACCOUNT));
         page.add(account());
         page.add(Page.section(Text.ONBOARDING));
@@ -182,6 +186,60 @@ final class BasicsScene {
         return form;
     }
 
+    /**
+     * Numbers that carry their own check digits, each masked to its layout and checked once every
+     * position is filled: a Brazilian taxpayer's CPF, a German IBAN, whose country is a literal of
+     * the mask and so is never typed, and a card number. The card holds the sandbox test number
+     * with its last digit off by one, so the page shows the error the check gives.
+     */
+    private static Widget<?> payment() {
+        TextField cpf = new TextField().setMask("000.000.000-00").setPlaceholder("000.000.000-00")
+                .setLeadingIcon(Tabler.outline("id"));
+        cpf.setText("123.456.789-09");
+        Label cpfLine = checked(cpf, Documents::cpfValid, Text.CHECK_DIGITS_MATCH, Text.CPF_INVALID);
+
+        TextField iban = new TextField().setMask("'DE'00 0000 0000 0000 0000 00")
+                .setPlaceholder("DE00 0000 0000 0000 0000 00").setLeadingIcon(Tabler.outline("building-bank"));
+        iban.setText("DE89 3704 0044 0532 0130 00");
+        Label ibanLine = checked(iban, Documents::ibanValid, Text.CHECK_DIGITS_MATCH, Text.IBAN_INVALID);
+
+        TextField card = new TextField().setMask("0000 0000 0000 0000").setPlaceholder("0000 0000 0000 0000")
+                .setLeadingIcon(Tabler.outline("credit-card"));
+        card.setText("4111 1111 1111 1112");
+        Label cardLine = checked(card, Documents::luhnValid, Text.CARD_VALID, Text.CARD_INVALID);
+
+        Column form = new Column();
+        form.gap(16).crossAlignment(Flex.CrossAlignment.STRETCH);
+        form.add(Page.columns(Page.field(Text.CPF, cpf, Page.withMessage(cpf, cpfLine)),
+                Page.field(Text.IBAN, iban, Page.withMessage(iban, ibanLine))));
+        form.add(Page.columns(Page.field(Text.CARD, card, Page.withMessage(card, cardLine)),
+                new SizedBox(0, 0)));
+        return form;
+    }
+
+    /**
+     * The line under a masked {@code field} that says what {@code valid} makes of its text: nothing
+     * while a position is still to fill, then {@code ok} in the success state or {@code wrong} in
+     * the error state, after every edit.
+     */
+    private static Label checked(TextField field, Predicate<String> valid, I18nString ok, I18nString wrong) {
+        Label line = Page.message(I18nString.EMPTY, Theme::success, null, field);
+        Runnable check = () -> {
+            if (!field.isMaskComplete()) {
+                field.setValidation(TextField.Validation.NONE);
+                say(line, null, null);
+                return;
+            }
+            boolean passes = valid.test(field.text());
+            field.setValidation(passes ? TextField.Validation.SUCCESS : TextField.Validation.ERROR);
+            Page.tint(line, passes ? Theme::success : Theme::danger);
+            say(line, passes ? ok : wrong, passes ? "circle-check" : "alert-circle");
+        };
+        check.run();
+        field.onChange(text -> check.run());
+        return line;
+    }
+
     /** Puts a message on its line with its glyph, or empties the line, glyph and all. */
     private static void say(Label line, I18nString text, String icon) {
         line.setText(text == null ? I18nString.EMPTY : text);
@@ -309,6 +367,21 @@ final class BasicsScene {
                 new I18nString("showcase.inputs.instructions", "Delivery instructions");
         static final PluralString INSTRUCTIONS_LONG = PluralString.of("showcase.inputs.instructionsLong",
                 "Keep it to {0} character.", "Keep it to {0} characters.");
+
+        static final I18nString PAYMENT = new I18nString("showcase.inputs.payment", "Tax and payment");
+        static final I18nString CPF = new I18nString("showcase.inputs.cpf", "CPF (Brazil)");
+        static final I18nString CPF_INVALID =
+                new I18nString("showcase.inputs.cpfInvalid", "Not a valid CPF. Look for a mistyped digit.");
+        static final I18nString IBAN = new I18nString("showcase.inputs.iban", "IBAN (Germany)");
+        static final I18nString IBAN_INVALID =
+                new I18nString("showcase.inputs.ibanInvalid", "Not a valid IBAN. Look for a mistyped digit.");
+        static final I18nString CHECK_DIGITS_MATCH =
+                new I18nString("showcase.inputs.checkDigitsMatch", "The check digits match.");
+        static final I18nString CARD = new I18nString("showcase.inputs.card", "Card number");
+        static final I18nString CARD_VALID =
+                new I18nString("showcase.inputs.cardValid", "Passes the card number check.");
+        static final I18nString CARD_INVALID = new I18nString("showcase.inputs.cardInvalid",
+                "Fails the card number check. Look for a mistyped digit.");
 
         static final I18nString ACCOUNT = new I18nString("showcase.inputs.account", "Account");
         static final I18nString TYPE = new I18nString("showcase.inputs.type", "Customer type");
