@@ -158,6 +158,38 @@ class InputMaskTest {
         assertEquals("555-1", prefixed.conform("51", 2).text(), "a 5 alone is not the run");
     }
 
+    private static final InputMask IBAN = InputMask.of("'DE'00 0000 0000 0000 0000 00");
+
+    @Test
+    void aRunTheTextEndsInIsWrittenAsFarAsTheTextShowsIt() {
+        assertEquals("D", IBAN.conform("D", 1).text(), "a D typed shows");
+        assertEquals(1, IBAN.conform("D", 1).caret());
+        assertEquals("DE", IBAN.conform("DE", 2).text());
+        assertEquals(2, IBAN.conform("DE", 2).caret());
+        assertEquals("DE89", typed(IBAN, "DE89"));
+        assertEquals("DE89 3704 0044 0532 0130 00", typed(IBAN, "DE89 3704 0044 0532 0130 00"));
+        assertEquals("DE89 3704 0044 0532 0130 00", typed(IBAN, "89370400440532013000"));
+        assertEquals("123.", CODE.conform("123.", 4).text(), "a dot the text ends in stays");
+        InputMask phone = InputMask.of("+1 (000) 000-0000");
+        assertEquals("+1", phone.conform("+1", 2).text(), "the + shows the 1 is the literal's");
+        assertEquals("+1 (1", phone.conform("1", 1).text(), "a 1 alone is a digit");
+        assertEquals("+1 (555) 123-4567", typed(phone, "+1 (555) 123-4567"));
+        assertEquals("+1 (555) 123-4567", typed(phone, "5551234567"));
+        assertEquals("555", InputMask.of("'55'00000").conform("5", 1).text(),
+                "a run of digits alone is not written from a part of it");
+    }
+
+    @Test
+    void theLiteralsBeforeTheNextPositionAreWhereTheCaretIsDrawn() {
+        assertEquals("DE", IBAN.literalsAt(0));
+        assertEquals("+1 (", InputMask.of("+1 (000) 000-0000").literalsAt(0));
+        assertEquals(".", CODE.literalsAt(3), "after 123");
+        assertEquals("", CODE.literalsAt(2), "between two positions");
+        assertEquals("", IBAN.literalsAt(1), "the text ends in the run: the caret follows it");
+        assertEquals("", CODE.literalsAt(4), "after 123. there is a position next");
+        assertEquals("", InputMask.of("00").literalsAt(2), "complete");
+    }
+
     /** What a field shows after {@code keys} are typed one by one at its end. */
     private static String typed(InputMask mask, String keys) {
         String text = "";

@@ -88,6 +88,8 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
     /** The guide's unfilled tail as last shaped, kept while it reads the same. */
     private @Nullable String guideTailText;
     private @Nullable ShapedText guideTailLine;
+    /** The whole guide as last shaped for an empty focused field, kept while it reads the same. */
+    private @Nullable ShapedText guideHintLine;
     private Consumer<String> onChange;
     private Consumer<String> onSubmit;
     /**
@@ -227,8 +229,14 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * {@code 123.456.789-00}; the literals that end a pattern arrive with its last position, so
      * {@code "00 kg"} turns {@code 12} into {@code 12 kg}. Characters a position does not take
      * are passed over, and pasting a value with its literals or without them comes out the same.
+     * A literal typed by hand shows as it is typed, when it is a character the next position
+     * would refuse or follows one: the {@code D} and then the {@code E} of {@code "'DE'00"}, the
+     * {@code +1} of {@code "+1 (000)"}; Backspace takes such literals back one at a time.
      * While the field has the keyboard, the positions still to fill show as a guide
-     * ({@code ___.___.___-__}); without it, an empty field shows its placeholder. A reader hears
+     * ({@code ___.___.___-__}), and the caret at the end of the text is drawn where the next
+     * character will appear, past the literals the guide shows before it (after {@code DE} in an
+     * empty {@code "'DE'00"}); the text holds no literal it has not written. Without the keyboard,
+     * an empty field shows its placeholder. A reader hears
      * the text with its literals but not the pattern, which is syntax and not words: say what the
      * field expects in the user's language with a tooltip or
      * {@link #setAccessibleDescription(I18nString)}.
@@ -293,8 +301,8 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
 
     /**
      * Fits the text the last edit left to the mask, folding the fitting into that edit so one undo
-     * takes both back. A Backspace or Delete with nothing selected that took only a literal away
-     * takes the character beyond it instead, as the user meant; any other edit that took only a
+     * takes both back. A Backspace or Delete with nothing selected that took only a literal the
+     * fitting puts back takes the character beyond it instead, as the user meant; any other edit that took only a
      * literal (a selected one cut, or a selection holding one typed or pasted over with the same
      * characters) is fitted as it stands, and the literal comes back.
      */
@@ -302,8 +310,9 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         String text = model.text();
         int caret = model.cursor();
         limn.components.internal.text.InputMask.Conformed fit = mask.conform(text, caret);
-        if (collapsedDelete != 0 && fit.raw().equals(maskedRaw) && text.length() < maskedText.length()) {
-            // Only literals went: what fills the positions is unchanged.
+        if (collapsedDelete != 0 && fit.raw().equals(maskedRaw) && fit.text().equals(maskedText)) {
+            // Only literals went, and the fitting put them back: the key came to nothing. A
+            // literal the text ended in is not put back, so Backspace takes it alone.
             String before = mask.conform(text.substring(0, Math.min(caret, text.length())), caret).raw();
             int k = before.codePointCount(0, before.length());
             int count = maskedRaw.codePointCount(0, maskedRaw.length());
@@ -1022,9 +1031,59 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * model already stores apart.
      */
     private float caretDisplayX(SizeTokens t) {
-        return preedit.isEmpty()
-                ? displayLine(t).caretX(model.cursor(), model.caretAffinity())
-                : composedLine(t).caretX(composedCaretIndex(), ShapedText.Affinity.UPSTREAM);
+        if (!preedit.isEmpty()) {
+            return composedLine(t).caretX(composedCaretIndex(), ShapedText.Affinity.UPSTREAM);
+        }
+        ShapedText line = displayLine(t);
+        float x = line.caretX(model.cursor(), model.caretAffinity());
+        return x + guideLead(t, line, x);
+    }
+
+    /**
+     * How far past the caret a masked field draws it, so that it stands where the next character
+     * will appear: after the literals the guide shows before the next position to fill, the
+     * {@code DE} of an empty {@code 'DE'00} or the dot after {@code 123} under {@code 000.000},
+     * which the text itself writes only with that character. Drawn there and never written, so
+     * the text, the value and an empty field stay what they are; the caret box the input method
+     * and a reader are handed is this same x, and a click past the end lands at the end, which
+     * draws here.
+     *
+     * <p>Only with the caret at the end of the text and nothing selected, and only where the
+     * guide continues the line: on a line whose end is not its right edge (text that runs right
+     * to left, whose guide is drawn on the far side of it) the caret stays where it was.
+     */
+    private float guideLead(SizeTokens t, ShapedText line, float caretX) {
+        if (mask == null || !isFocused() || model.hasSelection() || model.cursor() != model.length()) {
+            return 0;
+        }
+        String lead = mask.literalsAt(maskedText.codePointCount(0, maskedText.length()));
+        if (lead.isEmpty()) {
+            return 0;
+        }
+        if (model.length() == 0) {
+            // The guide is the hint, shaped and placed as the paint places it.
+            ShapedText hint = guideHint(t);
+            float hintStart = isRightToLeft() ? -hint.metrics().width() : 0;
+            return hintStart + hint.caretX(lead.length(), ShapedText.Affinity.UPSTREAM);
+        }
+        ShapedText tail = guideTail(t);
+        float end = line.metrics().width();
+        if (tail == null || Math.abs(caretX - end) > 0.01f) {
+            return 0;
+        }
+        return tail.caretX(lead.length(), ShapedText.Affinity.UPSTREAM);
+    }
+
+    /** The whole guide as an empty focused field shows it, shaped as the paint shapes its hint. */
+    private ShapedText guideHint(SizeTokens t) {
+        Font f = t.body();
+        String guide = mask.guide();
+        ShapedText.Direction base = ShapedText.Direction.of(guide, neutralBase());
+        if (guideHintLine == null || !guideHintLine.text().equals(guide) || !f.equals(guideHintLine.font())
+                || guideHintLine.baseDirection() != base || guideHintLine.epoch() != textRuler().epoch()) {
+            guideHintLine = textRuler().shape(guide, f, base);
+        }
+        return guideHintLine;
     }
 
     // ---------------------------------------------------------------- paint
@@ -1120,10 +1179,13 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
             // Keep the hint visible even while focused (only the caret joins it). The hint is a
             // string and not a held line, so it is shaped here for the field's own direction and
             // placed against the leading edge, which is the edge the caret is on.
-            ShapedText hintLine = textRuler().shape(hint, f,
+            ShapedText hintLine = guided ? guideHint(t) : textRuler().shape(hint, f,
                     ShapedText.Direction.of(hint, neutralBase()));
             float hintX = rtl ? left + inner - hintLine.metrics().width() : left;
-            float caretX = rtl ? left + inner : left;
+            // The caret is where the caret box says, so the input method's window, a reader's
+            // cursor and the line drawn agree: the leading edge, or past the literals a guide
+            // starts with, where the first character will appear.
+            float caretX = originX + caretDisplayX(t);
             // Muted, and the disabled ink on a disabled field, where it read brighter than the
             // disabled text beside it.
             canvas.drawText(hintLine, hintX, baseline,
@@ -1159,7 +1221,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
                 // ONE caret, not the two caretAt() offers: the model stores the side, so there is
                 // no ambiguity left to show -- and caretRect() describes one column, which is what
                 // a blink damages, so a second mark elsewhere on the line would not be repainted.
-                float cx = originX + line.caretX(model.caret());
+                float cx = originX + caretDisplayX(t);
                 canvas.drawLine(cx, inkTop - Strokes.INK_BLEED,
                         cx, inkTop + metrics.height() + Strokes.INK_BLEED,
                         Strokes.CARET, theme.text());

@@ -437,11 +437,16 @@ Maven Central say which number that was.
   literals are all characters its positions take (`'55'00000`) reads a value that begins with
   them as carrying them, so set it from its formatted text. An edit that spans a literal keeps
   every digit; a Backspace or Delete with nothing selected steps over a literal to the character
-  beyond it, and one undo takes an edit and its literals back. While focused, the positions
-  still to fill show as a guide after the text. `unmaskedText()` and `isMaskComplete()` read
-  the value. A screen reader hears the field's text, literals included, and not the pattern,
-  which is syntax ("A A dash zero zero zero zero"); to say what the field expects, give it a
-  tooltip or `setAccessibleDescription`.
+  beyond it, and one undo takes an edit and its literals back. Literals typed by hand show as
+  they are typed: under `'DE'00 0000` the `D`, then the `E`, then the digits, and `DE89` and
+  `89` give the same value; Backspace takes a run the text ends in back one character at a time
+  (`123.4` loses the 4, then the dot). While focused, the positions still to fill show as a guide
+  after the text, and the caret at the end stands where the next character will appear, past
+  the guide's literals (after `DE` in an empty field, after the dot of `123.___`); the input
+  method's window and a click past the end go there too. `unmaskedText()` and
+  `isMaskComplete()` read the value. A screen reader hears the field's text, literals included,
+  and not the pattern, which is syntax ("A A dash zero zero zero zero"); to say what the field
+  expects, give it a tooltip or `setAccessibleDescription`.
 - `Widget.moveChild` reorders a child without taking it out of the tree, so its focus, hover
   and press stay, and lays a parent that clips its children out alone. `remove` and `moveChild`
   take who asked, which the one `CHILDREN` change they make carries.

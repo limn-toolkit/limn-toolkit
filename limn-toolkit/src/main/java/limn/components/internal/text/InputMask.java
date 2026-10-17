@@ -10,11 +10,13 @@ import java.util.Objects;
  * where the caret goes, so typing, pasting with or without the literals, deleting and setting from
  * code all come out the same way.
  *
- * <p>A literal is written when the position after it is filled, never before: a field holding
- * {@code 123} under {@code 000.000} shows {@code 123}, and the dot arrives with the fourth digit.
- * Backspace therefore never leaves a literal dangling at the end. The literals that end the pattern
- * have no position after them, so they arrive with the last one: {@code (00)} holding {@code 12}
- * shows {@code (12)}, the text a complete value has.
+ * <p>A literal is written when the position after it is filled: a field holding {@code 123} under
+ * {@code 000.000} shows {@code 123}, and the dot arrives with the fourth digit. The literals that
+ * end the pattern have no position after them, so they arrive with the last one: {@code (00)}
+ * holding {@code 12} shows {@code (12)}, the text a complete value has. And a literal the text
+ * itself ends in stays, when it shows the text was written with its literals: the user who types
+ * the {@code D} of {@code 'DE'00} sees it, and Backspace takes such a run back one character at a
+ * time, so {@code 123.4} loses the 4 and then the dot.
  *
  * <p>Text between single quotes is literal, so a {@code 0}, an {@code A} or a {@code *} can be one
  * ({@code +'0' 000}), and two single quotes are one apostrophe, inside quotes and out: the rule of
@@ -161,6 +163,7 @@ public final class InputMask {
         int rawBeforeCaret = 0;
         int filled = 0;
         int newCaret = 0;
+        boolean caretAfterLiterals = false;
         int at = 0;
         int p = 0;
         while (p < codePoints.length && at < text.length()) {
@@ -172,12 +175,28 @@ public final class InputMask {
                 // take is the value's, not the literal's, even when it is the same character.
                 int end = p;
                 while (end < codePoints.length && !slotAt[end]) {
-                    pending.appendCodePoint(codePoints[end]);
                     end++;
                 }
-                if (readsLiterals) {
-                    at = afterRun(text, at, p, end);
+                RunRead read = readsLiterals ? afterRun(text, at, p, end) : new RunRead(at, p);
+                if (read.at() > at && read.at() >= text.length()) {
+                    // The text ends in the run, which it carries this far: the literals typed by
+                    // hand are written now, a keystroke that shows, and the rest wait as ever.
+                    for (int r = p; r < read.through(); r++) {
+                        out.appendCodePoint(codePoints[r]);
+                    }
+                    for (int r = read.through(); r < end; r++) {
+                        pending.appendCodePoint(codePoints[r]);
+                    }
+                    if (caret >= text.length()) {
+                        newCaret = out.length();
+                        caretAfterLiterals = true;
+                    }
+                } else {
+                    for (int r = p; r < end; r++) {
+                        pending.appendCodePoint(codePoints[r]);
+                    }
                 }
+                at = read.at();
                 p = end;
                 continue;
             }
@@ -212,7 +231,7 @@ public final class InputMask {
                 newCaret = out.length();
             }
         }
-        if (rawBeforeCaret == 0) {
+        if (rawBeforeCaret == 0 && !caretAfterLiterals) {
             newCaret = 0;
         }
         return new Conformed(out.toString(), Math.min(newCaret, out.length()), raw.toString());
@@ -235,24 +254,65 @@ public final class InputMask {
      * carried only whole, and a text that begins with it can be told from a formatted one by
      * nothing, so it reads as formatted; where the caller knows the characters are a value's
      * alone, {@link #conformRaw} reads no literal at all.
+     *
+     * <p>A text that ends inside the run carries as much of it as it holds, so long as what it
+     * holds shows it was written with its literals: {@code D} under {@code 'DE'00}, {@code +1}
+     * under {@code +1 (000)}. A {@code 1} alone there shows nothing, and goes to the position.
+     *
+     * @return where the text goes on, and the end of the run's literals it carried, which is
+     *         {@code from} when it carried none
      */
-    private int afterRun(String text, int at, int from, int to) {
+    private RunRead afterRun(String text, int at, int from, int to) {
         int next = to < codePoints.length ? codePoints[to] : -1;
         int t = at;
+        int through = from;
         boolean refusable = false;
         boolean refusableShown = false;
+        boolean whole = true;
         for (int r = from; r < to; r++) {
+            if (t >= text.length()) {
+                // The text ends inside the run: what it holds so far decides.
+                whole = false;
+                break;
+            }
             int literal = codePoints[r];
             boolean taken = next >= 0 && accepts(next, literal);
             refusable |= !taken;
-            if (t < text.length() && text.codePointAt(t) == literal) {
+            if (text.codePointAt(t) == literal) {
                 t += Character.charCount(literal);
                 refusableShown |= !taken;
+                through = r + 1;
             } else if (taken) {
-                return at;
+                return new RunRead(at, from);
             }
         }
-        return !refusable || refusableShown ? t : at;
+        // A literal the position would refuse is the evidence; a run without one is carried only
+        // whole, since a part of it is as much a value's as the run's.
+        return refusableShown || (!refusable && whole) ? new RunRead(t, through) : new RunRead(at, from);
+    }
+
+    /** What {@link #afterRun} read: where the text goes on, and the end of the literals carried. */
+    private record RunRead(int at, int through) {
+    }
+
+    /**
+     * The literals the guide shows between a conformed text and the next position to fill, where a
+     * focused field draws its caret: {@code DE} for an empty field under {@code 'DE'00}, the
+     * {@code .} after {@code 123} under {@code 000.000}. None when the text itself ends in a
+     * literal, where the user is writing the run by hand and the caret follows what was written.
+     *
+     * @param written how many entries of the pattern a conformed text holds: its code points
+     * @return the literals, possibly none
+     */
+    public String literalsAt(int written) {
+        if (written > 0 && written <= codePoints.length && !slotAt[written - 1]) {
+            return "";
+        }
+        StringBuilder out = new StringBuilder();
+        for (int i = written; i < codePoints.length && !slotAt[i]; i++) {
+            out.appendCodePoint(codePoints[i]);
+        }
+        return out.toString();
     }
 
     /**

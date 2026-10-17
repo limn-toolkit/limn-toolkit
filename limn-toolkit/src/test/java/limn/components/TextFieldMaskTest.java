@@ -195,12 +195,152 @@ class TextFieldMaskTest extends AccessibleComponentTestBase {
     }
 
     @Test
-    void backspaceAtTheEndShortensWithoutLeavingALiteral() {
+    void backspaceAtTheEndTakesTheLiteralsBackOneAtATime() {
         bindField("000.000");
         field.requestFocus();
         type("1234");
         drive(scene).press(Keys.BACKSPACE);
-        assertEquals("123", field.text());
+        assertEquals("123.", field.text(), "the 4 went; the dot the text ends in stays");
+        drive(scene).press(Keys.BACKSPACE);
+        assertEquals("123", field.text(), "and goes with the next Backspace, not the 3 with it");
+        assertEquals("123", field.unmaskedText());
+    }
+
+    // ------------------------------------------------- where the caret is drawn
+
+    @Test
+    void anEmptyFieldDrawsItsCaretAfterTheLiteralsTheGuideStartsWith() {
+        assertCaretPastGuideLiterals("'DE'00 0000 0000 0000 0000 00", "DE");
+        assertCaretPastGuideLiterals("+1 (000) 000-0000", "+1 (");
+    }
+
+    private void assertCaretPastGuideLiterals(String pattern, String lead) {
+        bindField(pattern);
+        float unfocused = field.caretRect().x(); // the leading edge, as the field computes it
+        field.requestFocus();
+        float advance = 10f * lead.length(); // the test ruler's advance
+        assertEquals(unfocused + advance, field.caretRect().x(), 0.001f,
+                pattern + ": the box the input method is handed, after " + lead);
+        assertEquals(field.heldCaretBox().x(), paintedCaretX(), 0.001f,
+                pattern + ": the caret drawn where the box says");
+        assertEquals("", field.text(), "nothing is written by focusing");
+    }
+
+    @Test
+    void afterATypedRunTheCaretStandsPastTheLiteralTheNextDigitBrings() {
+        bindField("000.000.000-00");
+        field.requestFocus();
+        type("123");
+        assertEquals("123", field.text(), "the dot is not written yet");
+        float atEnd = field.caretRect().x();
+        field.setCaretPosition(2);
+        float beforeThe3 = field.caretRect().x();
+        assertEquals(beforeThe3 + 20f, atEnd, 0.001f, "past the 3 and the guide's dot");
+        field.setCaretPosition(3);
+        assertEquals(field.heldCaretBox().x(), paintedCaretX(), 0.001f);
+        type("4");
+        assertEquals("123.4", field.text());
+        assertEquals(beforeThe3 + 30f, field.caretRect().x(), 0.001f,
+                "the 4 appeared where the caret stood, and the caret is after it");
+    }
+
+    @Test
+    void aClickPastTheEndLandsWhereTheNextDigitWillAppear() {
+        bindField("000.000.000-00");
+        field.requestFocus();
+        type("123");
+        field.setCaretPosition(0);
+        float start = field.caretRect().x();
+        drive(scene).click(field.localToSceneX() + field.width() - 4,
+                field.localToSceneY() + field.height() / 2);
+        assertEquals(3, field.caretPosition(), "the end of the text");
+        assertEquals(start + 40f, field.caretRect().x(), 0.001f, "drawn past the guide's dot");
+    }
+
+    @Test
+    void aCaretInsideTheTextIsDrawnWhereItIs() {
+        bindField("'DE'00 0000");
+        field.requestFocus();
+        type("12");
+        assertEquals("DE12", field.text());
+        float atEnd = field.caretRect().x(); // past the guide's space
+        field.setCaretPosition(3);
+        assertEquals(atEnd - 20f, field.caretRect().x(), 0.001f,
+                "before the 2: back one cluster and the space, which is drawn only at the end");
+        field.select(3, 4);
+        field.setCaretPosition(4);
+        assertEquals(atEnd, field.caretRect().x(), 0.001f, "and at the end again, past it");
+    }
+
+    // ------------------------------------------------- typing the literals by hand
+
+    @Test
+    void typingTheLiteralsOfARunShowsEachOne() {
+        bindField("'DE'00 0000 0000 0000 0000 00");
+        field.requestFocus();
+        type("D");
+        assertEquals("D", field.text(), "the keystroke shows");
+        assertEquals(1, field.caretPosition());
+        type("E");
+        assertEquals("DE", field.text());
+        type("8");
+        assertEquals("DE8", field.text());
+        type("9");
+        assertEquals("DE89", field.text());
+        assertEquals(4, field.caretPosition(), "the caret after it");
+        assertEquals("89", field.unmaskedText());
+    }
+
+    @Test
+    void typingTheRunAndTypingOnlyDigitsGiveTheSameValue() {
+        String iban = "DE89 3704 0044 0532 0130 00";
+        bindField("'DE'00 0000 0000 0000 0000 00");
+        field.requestFocus();
+        type(iban);
+        assertEquals(iban, field.text());
+        bindField("'DE'00 0000 0000 0000 0000 00");
+        field.requestFocus();
+        type("89370400440532013000");
+        assertEquals(iban, field.text());
+        assertEquals("89370400440532013000", field.unmaskedText());
+        assertTrue(field.isMaskComplete());
+
+        bindField("+1 (000) 000-0000");
+        field.requestFocus();
+        type("+1 (555) 123-4567");
+        assertEquals("+1 (555) 123-4567", field.text(), "typed by hand, the 1 included");
+        bindField("+1 (000) 000-0000");
+        field.requestFocus();
+        type("5551234567");
+        assertEquals("+1 (555) 123-4567", field.text());
+        bindField("+1 (000) 000-0000");
+        field.requestFocus();
+        type("1");
+        assertEquals("+1 (1", field.text(), "a 1 alone is a digit: nothing shows it is the literal's");
+    }
+
+    @Test
+    void pastingWithOrWithoutTheRunGivesTheSameValue() {
+        for (String pasted : new String[]{"DE89 3704 0044 0532 0130 00", "89370400440532013000"}) {
+            bindField("'DE'00 0000 0000 0000 0000 00");
+            scene.setClipboard(TextFieldTest.MockClipboard.holding(pasted));
+            field.requestFocus();
+            drive(scene).press(Keys.V, COMMAND);
+            assertEquals("DE89 3704 0044 0532 0130 00", field.text(), pasted);
+        }
+    }
+
+    @Test
+    void backspaceTakesAPartRunBackOneCharacterAtATime() {
+        bindField("'DE'00 0000 0000 0000 0000 00");
+        field.requestFocus();
+        type("DE8");
+        drive(scene).press(Keys.BACKSPACE);
+        assertEquals("DE", field.text());
+        drive(scene).press(Keys.BACKSPACE);
+        assertEquals("D", field.text());
+        drive(scene).press(Keys.BACKSPACE);
+        assertEquals("", field.text());
     }
 
     @Test
@@ -352,6 +492,22 @@ class TextFieldMaskTest extends AccessibleComponentTestBase {
         field.setAccessibleDescription("Plate, as printed on the vehicle");
         frame();
         assertEquals("Plate, as printed on the vehicle", node(Accessible.Role.TEXT_FIELD).description());
+    }
+
+    /** The x of the vertical line the next frame draws for the caret. */
+    private float paintedCaretX() {
+        float[] x = {Float.NaN};
+        canvas = new FakeCanvas(400, 300) {
+            @Override
+            public void drawLine(float x1, float y1, float x2, float y2, float strokeWidth, Paint paint) {
+                if (x1 == x2 && y1 != y2) {
+                    x[0] = x1;
+                }
+            }
+        };
+        field.invalidate();
+        frame();
+        return x[0];
     }
 
     /** Every string the next frame draws. */

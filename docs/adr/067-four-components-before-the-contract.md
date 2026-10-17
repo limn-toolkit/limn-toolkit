@@ -106,6 +106,17 @@ Markdown.
   only of characters its position takes cannot be told from a value and reads as formatted;
   where the field knows it holds a value's characters alone, after Backspace steps over a
   literal, it reads no literal at all.
+- *Amended 2026-10-17:* **a keystroke lands where it shows.** Trying the Showcase, the owner
+  found the caret of an empty `'DE'00 …` and `+1 (000) …` drawn before the guide's literals,
+  and a `D` or `E` typed by hand taken in silence until a digit wrote the run. The caret at the
+  end of the text is now drawn past the literals the guide shows before the next position, and
+  the input method's rectangle, a reader's caret box and a click past the end go with it; the
+  text is unchanged, so an empty field stays empty and holds no literal by being focused. A
+  literal typed by hand is written as it is typed when it shows the text is being written with
+  its literals (a character the next position would refuse, or one after such a character), so
+  `D`, `DE`, `DE8`; a lone digit that equals a literal still goes to the position. A literal the
+  text ends in is therefore kept, and Backspace takes it back one character at a time instead
+  of stepping over it, which it still does where the fitting would put the literal back.
 - *Amended 2026-10-16:* **the reader no longer hears the pattern.** Read aloud, `AA-0000` is
   "A A dash zero zero zero zero" where it means two letters and four digits, in every language,
   and as the field's description it pushed out the tooltip, which the walk gives only to a node
