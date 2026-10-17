@@ -50,7 +50,7 @@ final class GlassScene {
         static final I18nString FLOATING = new I18nString("showcase.glass.floating", "Floating panel");
         static final I18nString TINT = new I18nString("showcase.glass.tint", "Tint");
         static final I18nString TINT_AMOUNT = new I18nString("showcase.glass.tintAmount", "Strength");
-        static final I18nString COVER = new I18nString("showcase.glass.cover", "Opacity");
+        static final I18nString COVER = new I18nString("showcase.glass.cover", "Coverage");
         static final I18nString NONE = new I18nString("showcase.glass.none", "None");
         static final I18nString TEAL = new I18nString("showcase.glass.teal", "Teal");
         static final I18nString AMBER = new I18nString("showcase.glass.amber", "Amber");
@@ -143,7 +143,7 @@ final class GlassScene {
                 new SizedBox(160, SizedBox.UNSET, strength), percent);
         tintRow.add(Expanded.spacer(1));
         column.add(tintRow);
-        // How much of its tone the glass lays over the picture: at none it only blurs, at all it
+        // Coverage, not opacity: how much of its tone the glass lays over the picture; at none it only blurs, at all it
         // hides what is behind. The example starts at the 0.3 it was built with.
         Slider cover = new Slider(0, 100).setStep(5).setValue(30);
         cover.setAccessibleName(Text.COVER);
