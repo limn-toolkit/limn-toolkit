@@ -1,9 +1,13 @@
 package limn.demo;
 
+import limn.components.Checkbox;
 import limn.components.ProgressBar;
+import limn.components.RadioButton;
+import limn.components.SegmentedControl;
 import limn.components.Theme;
 import limn.graphics.TextRulers;
 import limn.i18n.I18n;
+import limn.i18n.I18nString;
 import limn.scene.Scene;
 import limn.scene.Widget;
 import limn.testing.HeadlessBackend;
@@ -56,12 +60,43 @@ class ShowcaseAlignmentTest {
         assertEquals(profile.width(), credit.width(), 0.5f, "both bars as long as their columns");
     }
 
+    @Test
+    void theAccountsChoicesStandOnTheLinesOfTheirNeighbours() {
+        Scene scene = open(BasicsScene::content);
+        RadioButton company = only(all(scene.root(), RadioButton.class),
+                each -> each.text().equals(BasicsScene.Text.COMPANY.withoutAccessLetter().get()));
+        SegmentedControl cycle = only(all(scene.root(), SegmentedControl.class), each -> each.segmentCount() == 3);
+        assertEquals(middle(cycle), middle(company), 0.5f, "the radio buttons on the cycle's line");
+
+        I18nString[][] pairs = {
+                {BasicsScene.Text.EMAIL_INVOICES, BasicsScene.Text.ACTIVE},
+                {BasicsScene.Text.PAPER_INVOICES, BasicsScene.Text.PORTAL},
+                {BasicsScene.Text.TAX_EXEMPT, BasicsScene.Text.CREDIT_HOLD}};
+        List<Checkbox> boxes = all(scene.root(), Checkbox.class);
+        for (I18nString[] pair : pairs) {
+            Checkbox box = only(boxes, each -> each.text().equals(pair[0].withoutAccessLetter().get()));
+            Checkbox toggle = only(boxes, each -> each.text().equals(pair[1].withoutAccessLetter().get()));
+            assertEquals(middle(toggle), middle(box), 0.5f, pair[0].english() + " beside " + pair[1].english());
+        }
+    }
+
     private Scene open(Supplier<Widget<?>> page) {
         Scene scene = new Scene(page.get(), () -> 0L);
         HeadlessWindow window = new HeadlessBackend(ui.runtime()).open("page", 1000, 2400);
         scene.bind(window);
         window.frame();
         return scene;
+    }
+
+    /** The y of {@code widget}'s middle, in the scene. */
+    private static float middle(Widget<?> widget) {
+        return widget.localToSceneY() + widget.height() / 2;
+    }
+
+    private static <T> T only(List<T> found, java.util.function.Predicate<T> which) {
+        List<T> matching = found.stream().filter(which).toList();
+        assertEquals(1, matching.size(), "one match");
+        return matching.get(0);
     }
 
     private static <T> List<T> all(Widget<?> at, Class<T> type) {

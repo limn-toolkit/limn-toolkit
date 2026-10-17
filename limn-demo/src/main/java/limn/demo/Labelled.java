@@ -77,6 +77,18 @@ public final class Labelled {
     // #endregion
 
     /**
+     * A caption on its own, naming {@code control}: for a form whose captions stand on a line of
+     * their own above a line of the controls they name.
+     *
+     * @param caption the text
+     * @param control what it names
+     * @return the caption
+     */
+    public static Label caption(I18nString caption, Widget<?> control) {
+        return new Label(caption).setLabelFor(control);
+    }
+
+    /**
      * A caption above a control with the control's value at the end of the caption's line: for a
      * bar thinner than a line of text, which set on one line with its value would be centred on
      * the value's height and sit lower under its caption than a control beside it sits under

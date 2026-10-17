@@ -209,6 +209,17 @@ final class Page {
     }
 
     /**
+     * One line across the columns of a form, its cells as wide as {@link #columns}' and centred on
+     * one another: for controls of different heights side by side, a row of radio buttons beside
+     * a segmented control, a check box beside a switch, which tops on one line would set off-centre.
+     */
+    static Row lines(Widget<?>... cells) {
+        Row row = columns(cells);
+        row.crossAlignment(Flex.CrossAlignment.CENTER);
+        return row;
+    }
+
+    /**
      * The line under a field that says what is wrong with it, or right: in the state's ink, a
      * step smaller than the field's text, and declared the field's description so a reader
      * hears it after the field's name and state.

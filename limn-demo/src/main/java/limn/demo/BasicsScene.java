@@ -270,19 +270,34 @@ final class BasicsScene {
         SegmentedControl prices = new SegmentedControl(Text.RETAIL, Text.WHOLESALE).setSelectedIndex(1);
         prices.setEnabled(false); // follows the customer type
 
-        Column billing = group(Text.BILLING,
+        Widget<?>[] billing = {
                 new Checkbox(Text.EMAIL_INVOICES).setChecked(true),
                 new Checkbox(Text.PAPER_INVOICES),
-                disabled(new Checkbox(Text.TAX_EXEMPT).setChecked(true)));
-        Column access = group(Text.ACCESS,
+                disabled(new Checkbox(Text.TAX_EXEMPT).setChecked(true))};
+        Widget<?>[] access = {
                 new Checkbox(Checkbox.Variant.SWITCH, Text.ACTIVE).setChecked(true),
                 new Checkbox(Checkbox.Variant.SWITCH, Text.PORTAL),
-                disabled(new Checkbox(Checkbox.Variant.SWITCH, Text.CREDIT_HOLD)));
+                disabled(new Checkbox(Checkbox.Variant.SWITCH, Text.CREDIT_HOLD))};
+
+        // Line by line across the two columns rather than a column of each: the radio buttons
+        // are shorter than the segmented control and a check box shorter than a switch, so two
+        // columns stacked on their own put the radios 3 pt above the control's middle and each
+        // check box further above its switch, 2, 6 and then 10 pt, measured.
+        Column choices = new Column();
+        choices.gap(4).crossAlignment(Flex.CrossAlignment.STRETCH);
+        choices.add(Page.columns(new Label(Text.TYPE), Labelled.caption(Text.CYCLE, cycle)));
+        choices.add(Page.lines(types, Page.row(0, cycle)));
+        Column options = new Column();
+        options.gap(8).crossAlignment(Flex.CrossAlignment.STRETCH);
+        options.add(Page.columns(new Label(Text.BILLING), new Label(Text.ACCESS)));
+        for (int i = 0; i < billing.length; i++) {
+            options.add(Page.lines(Page.row(0, billing[i]), Page.row(0, access[i])));
+        }
 
         Column form = new Column();
         form.gap(16).crossAlignment(Flex.CrossAlignment.STRETCH);
-        form.add(Page.columns(group(Text.TYPE, types), Page.field(Text.CYCLE, cycle, Page.row(0, cycle))));
-        form.add(Page.columns(billing, access));
+        form.add(choices);
+        form.add(options);
         form.add(Page.columns(Page.field(Text.PRICES, prices, Page.row(0, prices)), new SizedBox(0, 0)));
         return form;
     }
@@ -290,17 +305,6 @@ final class BasicsScene {
     private static Checkbox disabled(Checkbox box) {
         box.setEnabled(false);
         return box;
-    }
-
-    /** A caption over a few controls that carry their own words, each on its line. */
-    private static Column group(I18nString caption, Widget<?>... members) {
-        Column column = new Column();
-        column.gap(8).crossAlignment(Flex.CrossAlignment.START);
-        column.add(new Label(caption));
-        for (Widget<?> member : members) {
-            column.add(member);
-        }
-        return column;
     }
 
     private static Widget<?> onboarding() {
