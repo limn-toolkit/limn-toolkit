@@ -10,7 +10,10 @@
 // The backend module IMPLEMENTS the SPI (limn.backend.*) defined in limn-toolkit
 // (dependency inversion): no module above it sees LWJGL/OpenGL.
 
+import com.vanniktech.maven.publish.JavaLibrary
+import com.vanniktech.maven.publish.JavadocJar
 import com.vanniktech.maven.publish.MavenPublishBaseExtension
+import com.vanniktech.maven.publish.SourcesJar
 
 plugins {
     base
@@ -131,10 +134,14 @@ subprojects {
                 languageVersion.set(JavaLanguageVersion.of(21))
             }
             withSourcesJar()
-            // No withJavadocJar() here, and the published modules still get one: the publishing
-            // plugin builds it (`plainJavadocJar`), because Maven Central requires a javadoc jar
-            // in every deployment. Asking for both produces two tasks writing one file, which
-            // Gradle rejects outright rather than picking a winner.
+            // The javadoc jar as a variant of the component, which is what puts it in the Gradle
+            // module metadata: a Gradle build asking for an artifact's documentation reads the
+            // .module file, and the jar the publishing plugin used to add on its own
+            // (`plainJavadocJar`) was in the POM's directory and nowhere in that file. The plugin
+            // is told below to add none (JavadocJar.None), because both at once are two tasks
+            // writing one file, which Gradle rejects outright rather than picking a winner; Maven
+            // Central still gets the jar it requires in every deployment, from this variant.
+            withJavadocJar()
             //
             // What that jar carries is not a formality: this repository splits its documentation
             // on the premise that a member's contract stands alone because a user with the
@@ -564,6 +571,14 @@ subprojects {
             // Central accepts, it keeps, and a wrong artifact cannot be replaced, only
             // superseded by a version number that nobody wanted to spend.
             publishToMavenCentral()
+
+            // The sources and javadoc jars are the java component's own variants (see
+            // withJavadocJar above), so the plugin adds no javadoc jar of its own. A platform
+            // module (the two aggregator POMs) is left to the plugin's own choice, which has no
+            // jar to add.
+            if (pluginId == "java") {
+                configure(JavaLibrary(JavadocJar.None(), SourcesJar.Sources()))
+            }
 
             // Signing is conditional on a key being configured, and the guard below is the other
             // half of that sentence. Unconditional, it would break the one workflow this
