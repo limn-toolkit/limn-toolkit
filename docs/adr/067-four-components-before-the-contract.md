@@ -52,6 +52,16 @@ Markdown.
   Space or Enter on the focused header, and from the API. The transition is the toolkit's own, and
   ends at once when the system asks for less motion (ADR 047). The reader hears a button that is
   expanded or collapsed and controls the content.
+- **Closing, the content answers nothing** (amended 2026-10-16, the owner's decision after the
+  final audit found a press and Tab still reaching the content while it slid shut). From the
+  moment the close starts the content is inert: still drawn, as it was and not greyed, but a press
+  on it reaches no control, Tab and an access letter pass it by, and no focus can land in it; the
+  focus inside, if any, has already gone to the header. It is not disabled: its enabled state
+  stays the application's, unchanged, and a disabled control would have been painted greyed for
+  the length of the slide. The mechanism is the scene's (an inert subtree, which the pointer's
+  hit, the focus funnel, Tab's order and the access letters skip), lent to the component through
+  `limn.scene.internal.SceneAccess.setInert`, not public API. Opened again, the content answers
+  as before; a content replaced while closing is given back reachable.
 - **`ExpanderGroup`:** like `ButtonGroup`, at most one of its expanders open, an accordion. An
   expander needs no group. Like a radio in its group since ADR 064, a section out of the scene it
   was in is out of its group until it is back (added 2026-10-16, when the final audit found a group

@@ -380,9 +380,12 @@ Maven Central say which number that was.
 - `Expander`, a section that opens and closes: a header with an arrow that turns, a title, an
   optional icon and an optional summary, over content that slides out below it, at once when
   the user asked for less motion (`Theme.animExpand`). Click, Space and Enter open and close it,
-  `setExpanded` from code, `onChange` hears the user. `ExpanderGroup` keeps at most one of its
-  sections open, and `onSelect` hears the user open or close one, with the open section's index
-  or -1, as `ButtonGroup.onSelect` does; a section out of the scene it was in is out of its group
+  `setExpanded` from code, `onChange` hears the user. While it slides shut, its content is still
+  drawn, not greyed, but answers nothing: a press, Tab and an access letter pass it by and
+  nothing inside takes the keyboard, which goes to the header if it was inside; the content's
+  own enabled state is never changed. `ExpanderGroup` keeps at most one of its sections open,
+  and `onSelect` hears the user open or close one, with the open section's index or -1, as
+  `ButtonGroup.onSelect` does; a section out of the scene it was in is out of its group
   until it is back, as a radio is out of its `ButtonGroup`. A screen reader hears a button,
   expanded or collapsed, that controls the content.
 - `RangeSlider`, a lower and an upper value on one track: two thumbs that stop at each other or

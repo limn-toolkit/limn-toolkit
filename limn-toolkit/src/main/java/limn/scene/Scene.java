@@ -1004,7 +1004,8 @@ public final class Scene {
         // Return focus to the widget that had it before this overlay opened
         // (the button that triggered the dialog), if it is still usable.
         if (restore != null && restore != overlay && isInSubtree(restore, keyboardRoot())
-                && restore.isFocusable() && restore.isVisible() && restore.isEnabled()) {
+                && restore.isFocusable() && restore.isVisible() && restore.isEnabled()
+                && !restore.inertInTree()) {
             // The overlay closing is what moved the focus, not whoever closed it.
             setFocus(restore, Change.Origin.ADJUSTMENT);
         } else {
@@ -2747,7 +2748,8 @@ public final class Scene {
     /** The funnel the origin travels through; see {@link #requestFocus(Widget)}. */
     void requestFocus(Widget<?> widget, Change.Origin origin) {
         Ui.checkUiThread();
-        if (widget != null && (!widget.isFocusable() || !widget.isVisible() || !widget.isEnabled())) {
+        if (widget != null && (!widget.isFocusable() || !widget.isVisible() || !widget.isEnabled()
+                || widget.inertInTree())) {
             return;
         }
         // Focus is confined to the input root (the top modal overlay): every
@@ -2926,7 +2928,7 @@ public final class Scene {
     }
 
     private static void collectFocusable(Widget<?> widget, List<Widget<?>> out) {
-        if (!widget.isVisible() || !widget.isEnabled()) {
+        if (!widget.isVisible() || !widget.isEnabled() || widget.inert) {
             return;
         }
         if (widget.isFocusable()) {
@@ -3233,6 +3235,18 @@ public final class Scene {
             }
 
             @Override
+            public void setInert(Widget<?> widget, boolean inert) {
+                if (widget.inert == inert) {
+                    return;
+                }
+                widget.inert = inert;
+                Scene scene = widget.scene();
+                if (inert && scene != null) {
+                    scene.onWidgetDetached(widget); // no hover, press, drag or focus left inside
+                }
+            }
+
+            @Override
             public void focusByUser(Widget<?> widget) {
                 Scene scene = widget.scene();
                 if (scene != null) {
@@ -3523,7 +3537,8 @@ public final class Scene {
         closingOverlays.add(overlay);
         Widget<?> restore = overlayFocusReturn.get(index);
         if (restore != null && restore != overlay && isInSubtree(restore, keyboardRoot())
-                && restore.isFocusable() && restore.isVisible() && restore.isEnabled()) {
+                && restore.isFocusable() && restore.isVisible() && restore.isEnabled()
+                && !restore.inertInTree()) {
             setFocus(restore, Change.Origin.ADJUSTMENT);
         } else {
             setFocus(null, Change.Origin.ADJUSTMENT);
@@ -3981,8 +3996,8 @@ public final class Scene {
 
     private static void collectAccessLetters(Widget<?> at, int key, int codePoint,
             List<limn.scene.internal.AccessLetterOwner> into) {
-        if (!at.isVisible() || !at.isEnabled()) {
-            return; // hidden or disabled: neither it nor anything inside it answers
+        if (!at.isVisible() || !at.isEnabled() || at.inert) {
+            return; // hidden, disabled or inert: neither it nor anything inside it answers
         }
         limn.scene.internal.AccessLetterOwner owner = at.accessLetterOwner;
         if (owner != null
@@ -4216,9 +4231,25 @@ public final class Scene {
         // fullscreen in-scene menu), which then hit-tests the content below.
         Widget<?> top = topOverlay();
         if (top != null && !top.overlayPassesPointer(sceneX, sceneY)) {
-            return top.hitTest(sceneX - top.x(), sceneY - top.y());
+            return outsideInert(top.hitTest(sceneX - top.x(), sceneY - top.y()));
         }
-        return root.hitTest(sceneX - root.x(), sceneY - root.y());
+        return outsideInert(root.hitTest(sceneX - root.x(), sceneY - root.y()));
+    }
+
+    /**
+     * {@code hit}, or, when it is inside an {@linkplain Widget#inert inert} subtree, the parent of
+     * the outermost one: the pointer passes that subtree by. Filtered here, after the walk, and not
+     * in {@link Widget#hitTest}, because a list, a tree and a table answer their own hit test and
+     * would carry the pointer into a closing section's content past a check written there.
+     */
+    private static @Nullable Widget<?> outsideInert(@Nullable Widget<?> hit) {
+        Widget<?> answer = hit;
+        for (Widget<?> w = hit; w != null; w = w.parent()) {
+            if (w.inert) {
+                answer = w.parent();
+            }
+        }
+        return answer;
     }
 
     /** @return whether the hover leaf changed (ENTER/EXIT dispatched, no bubbling) */
@@ -4693,7 +4724,7 @@ public final class Scene {
     }
 
     private static void collectDropCandidates(Widget<?> widget, List<Widget<?>> out) {
-        if (!widget.isVisible() || !widget.isEnabled()) {
+        if (!widget.isVisible() || !widget.isEnabled() || widget.inert) {
             return;
         }
         out.add(widget);

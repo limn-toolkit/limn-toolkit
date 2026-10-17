@@ -414,7 +414,10 @@ new ExpanderGroup().add(shipping).add(returns).setExpandedIndex(0);
 ```
 
 It opens and closes by a click, by Space or Enter on the header, and with `setExpanded`;
-`onChange` hears the user. An `ExpanderGroup` keeps at most one of its sections open, an
+`onChange` hears the user. From the moment it starts to close, its content answers nothing while
+it slides shut: it is drawn as it was, but a click, Tab and an access letter pass it by, and the
+keyboard, if it was inside, goes to the header. Its controls keep the enabled state you gave
+them. An `ExpanderGroup` keeps at most one of its sections open, an
 accordion; a section needs no group. A screen reader hears the header as a button that is
 expanded or collapsed and controls the content, and the summary as its description.
 

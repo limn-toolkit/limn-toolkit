@@ -101,6 +101,12 @@ public final class SceneAccess {
         void pressFocus(Widget<?> widget, PressFocus filter);
 
         /**
+         * @param widget the root of the subtree; see {@link SceneAccess#setInert}
+         * @param inert  whether it is out of reach
+         */
+        void setInert(Widget<?> widget, boolean inert);
+
+        /**
          * Moves the keyboard to {@code widget} for a key the user pressed, announcing
          * {@code FOCUS} as {@code USER}; see {@link SceneAccess#focusByUser}.
          *
@@ -202,6 +208,22 @@ public final class SceneAccess {
      */
     public static void pressFocus(Widget<?> widget, PressFocus filter) {
         hook().pressFocus(widget, filter);
+    }
+
+    /**
+     * Puts {@code widget}'s subtree out of reach, or back: while it is inert it is drawn as it is
+     * and keeps its enabled state, which is the application's, but the pointer passes it by (a
+     * press, a hover, a wheel or a drop lands on its parent), Tab and Alt and a letter skip it, and
+     * no move of the focus lands in it. Going inert takes the hover, a press, a drag and the focus
+     * out of it, as disabling does. For a section's content while it slides shut, which must look
+     * as it did and answer nothing; not for a control the user should see refused, which is
+     * {@link Widget#setEnabled}.
+     *
+     * @param widget the root of the subtree
+     * @param inert  whether it is out of reach
+     */
+    public static void setInert(Widget<?> widget, boolean inert) {
+        hook().setInert(java.util.Objects.requireNonNull(widget, "widget"), inert);
     }
 
     /**

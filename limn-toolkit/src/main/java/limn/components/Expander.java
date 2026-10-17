@@ -21,6 +21,7 @@ import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
+import limn.scene.internal.SceneAccess;
 import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
@@ -35,9 +36,11 @@ import java.util.function.Consumer;
  * keyboard, and from {@link #setExpanded}. The content slides out over {@link Theme#animExpand},
  * and appears at once when the user asked the system for less motion. Once it is closed the
  * content is hidden: it takes no room, no focus and no pointer, and a reader does not find it.
- * While it slides shut it is still there, drawn and reachable, until the slide ends. Closing it
- * while the keyboard is inside moves the keyboard to the header as the close starts, which is
- * where the user just was.
+ * While it slides shut it is still drawn, as it was and not greyed, but it answers nothing from
+ * the moment the close starts: a press on it reaches no control, Tab and an access letter pass it
+ * by, and nothing inside can take the keyboard. Closing it while the keyboard is inside moves the
+ * keyboard to the header as the close starts, which is where the user just was. The content's own
+ * enabled state is the application's and is never changed; opened again, it answers as before.
  *
  * <p>A reader hears the header as a button, expanded or collapsed, that controls the content;
  * the summary is its description. An {@link ExpanderGroup} keeps at most one of several open.
@@ -91,6 +94,7 @@ public final class Expander extends Widget<Expander> {
         add(header);
         add(content);
         content.setVisible(false);
+        SceneAccess.setInert(content, true);
     }
 
     // ------------------------------------------------------------------------------ the API
@@ -183,10 +187,13 @@ public final class Expander extends Widget<Expander> {
             return this;
         }
         boolean focusInside = holdsFocus(content);
-        remove(content);
+        Widget<?> old = content;
+        remove(old);
+        SceneAccess.setInert(old, false); // it is the application's again, to put anywhere
         content = newContent;
         add(newContent);
         newContent.setVisible(expanded || reveal > 0);
+        SceneAccess.setInert(newContent, !expanded);
         if (focusInside) {
             header.focusFrom(Change.Origin.ADJUSTMENT);
         }
@@ -260,10 +267,17 @@ public final class Expander extends Widget<Expander> {
     void applyExpanded(boolean value, Change.Origin origin) {
         expanded = value;
         if (value) {
+            SceneAccess.setInert(content, false);
             content.setVisible(true);
-        } else if (holdsFocus(content)) {
-            // The keyboard was in what is closing: it goes back to where the user just was.
-            header.focusFrom(origin);
+        } else {
+            if (holdsFocus(content)) {
+                // The keyboard was in what is closing: it goes back to where the user just was.
+                header.focusFrom(origin);
+            }
+            // What slides shut is still drawn, as it was and not greyed, but it answers nothing:
+            // a press on it, Tab and a letter pass it by, and no focus can land in it. Its own
+            // enabled state is the application's and is not touched.
+            SceneAccess.setInert(content, true);
         }
         header.invalidate();
         startReveal(value ? 1 : 0);

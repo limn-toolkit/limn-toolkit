@@ -103,6 +103,10 @@ class SceneDriverTest extends ComponentTestBase {
             }
 
             @Override
+            public void setInert(Widget<?> widget, boolean inert) {
+            }
+
+            @Override
             public void focusByUser(Widget<?> widget) {
             }
 

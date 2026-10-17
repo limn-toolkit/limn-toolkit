@@ -82,6 +82,21 @@ public abstract class Widget<W extends Widget<W>> {
     boolean drawsAccessLetters;
     /** Where a press does not take the keyboard, for the few widgets with such a spot; see SceneAccess. */
     limn.scene.internal.@Nullable PressFocus pressFocus;
+    /**
+     * Whether this subtree is passing out of reach: drawn and enabled as it is, but no pointer
+     * lands in it and no focus moves into it. See {@link limn.scene.internal.SceneAccess#setInert}.
+     */
+    boolean inert;
+
+    /** @return whether this widget or an ancestor is {@linkplain #inert inert} */
+    final boolean inertInTree() {
+        for (Widget<?> w = this; w != null; w = w.parent) {
+            if (w.inert) {
+                return true;
+            }
+        }
+        return false;
+    }
     private Cursor cursor; // null = inherit from an ancestor (arrow at the root)
     private String id;
     /** The clocks of the animated icons this widget paints; null until it paints one. */

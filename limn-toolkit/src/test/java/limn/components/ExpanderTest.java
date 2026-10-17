@@ -124,6 +124,150 @@ class ExpanderTest extends AccessibleComponentTestBase {
         assertFalse(inside.isFocused());
     }
 
+    /** Opens {@code section}, lets the slide end, starts the close, and stops a quarter of the way. */
+    private void openThenStartClosing(Expander section) {
+        section.setExpanded(true);
+        settleAnimations(null);
+        section.setExpanded(false);
+        advanceTime(50, null);
+        assertTrue(section.isRevealing(), "still sliding shut");
+        assertTrue(section.content().isVisible(), "still drawn");
+    }
+
+    private void click(Widget<?> at) {
+        float x = at.localToSceneX() + at.width() / 2;
+        float y = at.localToSceneY() + at.height() / 2;
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+        drive(scene).inputBatchEnded();
+        frame();
+    }
+
+    @Test
+    void aClickOnTheContentWhileItClosesReachesNothing() {
+        List<String> pressed = new ArrayList<>();
+        Button inside = new Button("Inside").onAction(() -> pressed.add("inside"));
+        Expander section = expander("Details", inside);
+        bindAll(section);
+        openThenStartClosing(section);
+
+        click(inside);
+
+        assertEquals(List.of(), pressed, "a press on what is closing reaches no control");
+        assertFalse(inside.isFocused(), "and does not bring the keyboard into it");
+        assertFalse(section.isExpanded(), "nor opens or closes the section");
+
+        section.setExpanded(true);
+        settleAnimations(null);
+        click(inside);
+        assertEquals(List.of("inside"), pressed, "open again, it answers as before");
+    }
+
+    @Test
+    void tabWhileItClosesPassesTheContentBy() {
+        Button inside = new Button("Inside");
+        Button after = new Button("After");
+        Expander section = expander("Details", inside);
+        Column root = bindAll(section);
+        root.add(after);
+        frame();
+        key(Keys.TAB, true);
+        key(Keys.TAB, false);
+        assertSame(section, scene.focusedWidget().parent(), "the header holds the keyboard");
+        openThenStartClosing(section);
+
+        key(Keys.TAB, true);
+        key(Keys.TAB, false);
+
+        assertTrue(after.isFocused(), "Tab goes past what is closing");
+        assertFalse(inside.isFocused());
+    }
+
+    @Test
+    void nothingInsideCanTakeTheKeyboardWhileItCloses() {
+        Button inside = new Button("Inside");
+        Expander section = expander("Details", inside);
+        bindAll(section);
+        section.setExpanded(true);
+        settleAnimations(null);
+        inside.requestFocus();
+        section.setExpanded(false);
+        assertSame(section, scene.focusedWidget().parent(), "the close took it to the header");
+        advanceTime(50, null);
+        assertTrue(section.isRevealing());
+
+        inside.requestFocus();
+
+        assertFalse(inside.isFocused(), "a request into what is closing is refused");
+        assertSame(section, scene.focusedWidget().parent());
+    }
+
+    @Test
+    void theContentsOwnEnabledStateIsNeverTouched() {
+        Button inside = new Button("Inside");
+        Button refused = new Button("Refused").setEnabled(false);
+        Column content = new Column();
+        content.add(inside);
+        content.add(refused);
+        Expander section = expander("Details", content);
+        bindAll(section);
+        List<Change> changes = new ArrayList<>();
+        inside.observeChanges((w, change) -> changes.add(change));
+        refused.observeChanges((w, change) -> changes.add(change));
+
+        openThenStartClosing(section);
+        assertTrue(content.isEnabled() && inside.isEnabled(), "drawn as it was, not greyed");
+        assertFalse(refused.isEnabled());
+        settleAnimations(null);
+        section.setExpanded(true);
+        settleAnimations(null);
+
+        assertTrue(content.isEnabled() && inside.isEnabled());
+        assertFalse(refused.isEnabled(), "what the application disabled stays disabled");
+        assertTrue(changes.stream().noneMatch(c -> c.aspect() == Change.Aspect.ENABLED),
+                "no ENABLED change was announced: " + changes);
+    }
+
+    @Test
+    void anAccessLetterInsideWhileItClosesPressesNothing() {
+        boolean system = limn.scene.internal.AccessLetterSystem.setPresentForTests(true);
+        try {
+            List<String> pressed = new ArrayList<>();
+            Button inside = new Button("&Inside").onAction(() -> pressed.add("inside"));
+            Expander section = expander("Details", inside);
+            bindAll(section);
+            openThenStartClosing(section);
+
+            drive(scene).press(Keys.I, Keys.MOD_ALT);
+            frame();
+            assertEquals(List.of(), pressed, "Alt and a letter pass what is closing by");
+
+            section.setExpanded(true);
+            settleAnimations(null);
+            drive(scene).press(Keys.I, Keys.MOD_ALT);
+            frame();
+            assertEquals(List.of("inside"), pressed, "open again, its letter answers");
+        } finally {
+            limn.scene.internal.AccessLetterSystem.setPresentForTests(system);
+        }
+    }
+
+    @Test
+    void contentTakenOutWhileItClosesIsTheApplicationsAgain() {
+        List<String> pressed = new ArrayList<>();
+        Button first = new Button("First").onAction(() -> pressed.add("first"));
+        Expander section = expander("Details", first);
+        Column root = bindAll(section);
+        openThenStartClosing(section);
+
+        section.setContent(new Label("Other"));
+        root.add(first);
+        frame();
+        click(first);
+
+        assertEquals(List.of("first"), pressed, "out of the section, it answers again");
+    }
+
     @Test
     void aGroupKeepsOneOpenAndTellsTheUsersChangesInOrder() {
         List<String> order = new ArrayList<>();
