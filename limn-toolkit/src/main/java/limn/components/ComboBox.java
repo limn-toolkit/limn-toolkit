@@ -95,6 +95,10 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     private @Nullable Function<? super T, ? extends @Nullable Icon> iconOf;
     /** Each item's icon, in the order of {@link #values}, while {@link #iconOf} is set; else empty. */
     private List<@Nullable Icon> icons = List.of();
+    /** Whether an item's icon means a direction; see {@link #setItemIcon(Function, Function)}. */
+    private Function<? super T, Icon.Mirroring> mirroringOf = item -> Icon.Mirroring.NEVER;
+    /** The items of {@link #icons} whose icon is flipped right to left, by index. */
+    private java.util.BitSet mirroredIcons = new java.util.BitSet();
     /** Where the items come from while the user types, or {@code null} for the list in memory. */
     private @Nullable Function<String, ? extends java.util.concurrent.CompletionStage<? extends List<? extends T>>> search;
     /** Numbers the searches asked for: an answer for any but the newest is dropped. */
@@ -126,6 +130,8 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     private I18nString emptyLabel = I18nString.literal("");
     /** The empty option's icon: the icon function's answer for {@code null}. */
     private @Nullable Icon emptyIcon;
+    /** Whether {@link #emptyIcon} is flipped right to left. */
+    private boolean emptyIconMirrored;
     /** How a chip is drawn, or {@code null} for the default pill; see {@link #setChipRenderer}. */
     private @Nullable Function<? super T, ? extends Widget<?>> chipRenderer;
     /** The chips standing for a selection of many in the field, while holding many; else null. */
@@ -346,6 +352,14 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     /** @return the icon the field shows: the selected item's, or the empty option's */
     private @Nullable Icon selectedIcon() {
         return selectedIndex >= 0 ? iconOfItem(selectedIndex) : emptyChosen() ? emptyIcon : null;
+    }
+
+    /**
+     * @return whether row item {@code item}'s icon, the empty option's included, means a direction,
+     *         and so is drawn flipped where the combo reads right to left
+     */
+    private boolean mirrorsIconOfRow(int item) {
+        return item == EMPTY_ROW ? emptyIconMirrored : item >= 0 && mirroredIcons.get(item);
     }
 
     /**
@@ -684,7 +698,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         }
         emptyAllowed = allowed;
         emptyLabel = asText(askForEmpty(textOf));
-        emptyIcon = askForEmpty(iconOf);
+        takeEmptyIcon();
         rows = everyRow();
         if (!allowed && selectionMode == SelectionMode.SINGLE && selectedIndex < 0
                 && freeText == null && !items.isEmpty()) {
@@ -892,10 +906,33 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
      * @return this combo
      */
     public ComboBox<T> setItemIcon(@Nullable Function<? super T, ? extends @Nullable Icon> icon) {
+        return setItemIcon(icon, item -> Icon.Mirroring.NEVER);
+    }
+
+    /**
+     * Gives each item an icon, as {@link #setItemIcon(Function)} does, and says of each whether its
+     * icon means a direction: one that answers {@link Icon.Mirroring#IN_RTL}, a back arrow or a
+     * paper plane, is drawn flipped while the combo reads right to left. Asked with the icon, and
+     * handed {@code null} for the empty option as the icon function is. UI thread only.
+     *
+     * @param icon      an item's icon, answering {@code null} for an item without one; or
+     *                  {@code null} to show none
+     * @param mirroring whether an item's icon is flipped right to left;
+     *                  {@link Icon.Mirroring#NEVER} unless the glyph is directional
+     * @return this combo
+     */
+    public ComboBox<T> setItemIcon(@Nullable Function<? super T, ? extends @Nullable Icon> icon,
+                                   Function<? super T, Icon.Mirroring> mirroring) {
         Ui.checkUiThread();
         this.iconOf = icon;
-        icons = iconsOf(values);
-        emptyIcon = emptyAllowed ? askForEmpty(icon) : null;
+        this.mirroringOf = Objects.requireNonNull(mirroring, "mirroring");
+        takeIcons(values);
+        if (emptyAllowed) {
+            takeEmptyIcon();
+        } else {
+            emptyIcon = null;
+            emptyIconMirrored = false;
+        }
         syncEditor();
         if (chipStrip != null) {
             chipStrip.forget(); // a custom chip may show the icon too
@@ -1027,16 +1064,29 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         invalidate();
     }
 
-    private List<@Nullable Icon> iconsOf(List<T> of) {
+    /** Asks for the icon of each of {@code of}, and whether it is flipped right to left. */
+    private void takeIcons(List<T> of) {
         Function<? super T, ? extends @Nullable Icon> icon = iconOf;
+        mirroredIcons = new java.util.BitSet();
         if (icon == null) {
-            return List.of();
+            icons = List.of();
+            return;
         }
         List<@Nullable Icon> out = new java.util.ArrayList<>(of.size());
         for (T value : of) {
-            out.add(icon.apply(value));
+            Icon each = icon.apply(value);
+            if (each != null && mirroringOf.apply(value) == Icon.Mirroring.IN_RTL) {
+                mirroredIcons.set(out.size());
+            }
+            out.add(each);
         }
-        return java.util.Collections.unmodifiableList(out);
+        icons = java.util.Collections.unmodifiableList(out);
+    }
+
+    /** Asks for the empty option's icon, and whether it is flipped right to left. */
+    private void takeEmptyIcon() {
+        emptyIcon = askForEmpty(iconOf);
+        emptyIconMirrored = emptyIcon != null && askForEmpty(mirroringOf) == Icon.Mirroring.IN_RTL;
     }
 
     /** @return item {@code index}'s icon, or {@code null} when it has none or no item has one */
@@ -1240,6 +1290,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         values = List.of();
         items = List.of();
         icons = List.of();
+        mirroredIcons = new java.util.BitSet();
         rows = new int[0];
         if (text.isEmpty()) {
             statusLine = null;
@@ -1282,7 +1333,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         } else {
             values = List.copyOf(found);
             items = labelsOf(values, textOf);
-            icons = iconsOf(values);
+            takeIcons(values);
             rows = everyRow();
             statusLine = rows.length == 0 ? ComponentStrings.COMBO_NO_RESULTS : null;
             Scene scene = scene();
@@ -1957,7 +2008,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             if (icon != null) {
                 float ico = t.fieldIcon();
                 icon.paint(canvas, rtl ? width() - t.fieldPadH() - ico : t.fieldPadH(),
-                        (height() - ico) / 2, ico, ink, theme.isDark(), false);
+                        (height() - ico) / 2, ico, ink, theme.isDark(), rtl && mirrorsIconOfRow(EMPTY_ROW));
             }
             paintHint(canvas, theme, t, rtl, lead);
             paintChevron(canvas, theme, t, rtl);
@@ -1966,7 +2017,8 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         if (icon != null) {
             float ico = t.fieldIcon();
             icon.paint(canvas, rtl ? width() - t.fieldPadH() - ico : t.fieldPadH(),
-                    (height() - ico) / 2, ico, ink, theme.isDark(), false);
+                    (height() - ico) / 2, ico, ink, theme.isDark(),
+                    rtl && mirrorsIconOfRow(selectedIndex >= 0 ? selectedIndex : EMPTY_ROW));
         }
         float textX = rtl ? width() - t.fieldPadH() - lead - line.metrics().width()
                 : t.fieldPadH() + lead;
@@ -2616,7 +2668,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             if (icon != null) {
                 float ico = t.fieldIcon();
                 icon.paint(canvas, rtl ? width() - pad - ico : pad, (height() - ico) / 2, ico, ink,
-                        theme.isDark(), false);
+                        theme.isDark(), rtl && mirrorsIconOfRow(item));
                 x += ico + t.spacingSmall();
             }
             Font font = t.body();
@@ -2974,7 +3026,8 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
                     // The icon leads the text, on the side reading starts from, and the text
                     // moves past it; a row without one keeps the column, so the labels align.
                     icon.paint(canvas, rtl ? textStart - ico : textStart,
-                            top + (itemH - ico) / 2, ico, theme.text(), theme.isDark(), false);
+                            top + (itemH - ico) / 2, ico, theme.text(), theme.isDark(),
+                            rtl && mirrorsIconOfRow(rows[i]));
                 }
                 canvas.drawText(line, rtl ? textStart - lead - line.metrics().width()
                                 : textStart + lead,
