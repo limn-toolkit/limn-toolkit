@@ -312,7 +312,7 @@ tu aplicación.
   </tr>
   <tr>
     <td nowrap><samp>limn-icons-tabler</samp></td>
-    <td>el paquete de iconos Tabler, si lo quieres — ahora un artefacto propio, que cambia de versión con Tabler (<code>3.46.0.x</code> es Tabler 3.46.0)</td>
+    <td>el paquete de iconos Tabler, si lo quieres — ahora un artefacto propio, que cambia de versión con Tabler (<code>3.48.0.x</code> es Tabler 3.48.0)</td>
   </tr>
   <tr>
     <td nowrap><samp>limn-test</samp></td>

@@ -315,7 +315,7 @@ jamais une dépendance de votre application.
   </tr>
   <tr>
     <td nowrap><samp>limn-icons-tabler</samp></td>
-    <td>le jeu d’icônes Tabler, si vous le voulez — désormais un artefact à part entière, versionné avec Tabler (<code>3.46.0.x</code> est Tabler 3.46.0)</td>
+    <td>le jeu d’icônes Tabler, si vous le voulez — désormais un artefact à part entière, versionné avec Tabler (<code>3.48.0.x</code> est Tabler 3.48.0)</td>
   </tr>
   <tr>
     <td nowrap><samp>limn-test</samp></td>

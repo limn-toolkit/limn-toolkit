@@ -314,7 +314,7 @@ Abhängigkeit Ihrer Anwendung.
   </tr>
   <tr>
     <td nowrap><samp>limn-icons-tabler</samp></td>
-    <td>das Tabler-Icon-Paket, falls Sie es wollen — inzwischen ein eigenes Artefakt, dessen Version Tabler folgt (<code>3.46.0.x</code> ist Tabler 3.46.0)</td>
+    <td>das Tabler-Icon-Paket, falls Sie es wollen — inzwischen ein eigenes Artefakt, dessen Version Tabler folgt (<code>3.48.0.x</code> ist Tabler 3.48.0)</td>
   </tr>
   <tr>
     <td nowrap><samp>limn-test</samp></td>

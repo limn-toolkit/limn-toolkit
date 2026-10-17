@@ -19,7 +19,10 @@
 #      catalog bump cannot leave a guide naming yesterday's payload;
 #   3. a Maven <lwjgl.version> property, which the packaging guide's one-platform recipe declares
 #      because Maven cannot keep one classifier of the backend's LWJGL without naming LWJGL again,
-#      says the LWJGL version the catalog pins.
+#      says the LWJGL version the catalog pins;
+#   4. in a README or a guide, the icon pack's version example (`3.48.0.x` is Tabler 3.48.0) names
+#      the Tabler release the catalog pins, which every README and a guide said wrong for a whole
+#      Tabler release after the pin moved. The ADRs are left alone: they say what was true then.
 #
 # The publish workflow's verify job runs this before anything is built; so does tag-releases.
 set -euo pipefail
@@ -89,6 +92,19 @@ while IFS= read -r file; do
       status=1
     fi
   done < <(grep -oE '<lwjgl.version>[^<]+</lwjgl.version>' "$file" | sed -E 's/<[^>]+>//g')
+  # 4. The icon pack's version example.
+  case "$file" in
+    README*.md|site/src/guides/*)
+      tabler="$(catalog limn-icons-tabler)"; tabler="${tabler%.*}"
+      while IFS= read -r example; do
+        [ -n "$example" ] || continue
+        if [ "$example" != "$tabler" ]; then
+          echo "✗ $file gives Tabler $example as the icon pack's version, but gradle/libs.versions.toml pins Tabler $tabler" >&2
+          status=1
+        fi
+      done < <(grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.x|Tabler [0-9]+\.[0-9]+\.[0-9]+' "$file" | sed -E 's/\.x$//; s/^Tabler //')
+      ;;
+  esac
 done < <(git ls-files -- '*.md' '*.astro' '*.ts' '*.mdx' | grep -v '^site/src/content/docs/')
 
 if [ "$status" -ne 0 ]; then

@@ -300,7 +300,7 @@ macOS 플래그는 위와 같습니다. 저장되는 것은 `.limntheme` 파일,
   </tr>
   <tr>
     <td nowrap><samp>limn-icons-tabler</samp></td>
-    <td>원한다면 쓸 수 있는 Tabler 아이콘 팩 — 이제는 Tabler와 함께 버전이 오르는 독립 아티팩트(<code>3.46.0.x</code>는 Tabler 3.46.0)</td>
+    <td>원한다면 쓸 수 있는 Tabler 아이콘 팩 — 이제는 Tabler와 함께 버전이 오르는 독립 아티팩트(<code>3.48.0.x</code>는 Tabler 3.48.0)</td>
   </tr>
   <tr>
     <td nowrap><samp>limn-test</samp></td>

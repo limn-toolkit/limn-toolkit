@@ -252,7 +252,7 @@ macOS 的開關和上面一樣。它存下來的是一個 `.limntheme` 檔案，
   </tr>
   <tr>
     <td nowrap><samp>limn-icons-tabler</samp></td>
-    <td>Tabler 圖示包，需要就用——如今是獨立的一個成品，版本跟著 Tabler 走（<code>3.46.0.x</code> 即 Tabler 3.46.0）</td>
+    <td>Tabler 圖示包，需要就用——如今是獨立的一個成品，版本跟著 Tabler 走（<code>3.48.0.x</code> 即 Tabler 3.48.0）</td>
   </tr>
   <tr>
     <td nowrap><samp>limn-test</samp></td>

@@ -252,7 +252,7 @@ macOS のフラグは上と同じです。保存されるのは `.limntheme` フ
   </tr>
   <tr>
     <td nowrap><samp>limn-icons-tabler</samp></td>
-    <td>必要なら使える Tabler のアイコンパック——今では独立した成果物として、Tabler と一緒に版が進みます（<code>3.46.0.x</code> は Tabler 3.46.0）</td>
+    <td>必要なら使える Tabler のアイコンパック——今では独立した成果物として、Tabler と一緒に版が進みます（<code>3.48.0.x</code> は Tabler 3.48.0）</td>
   </tr>
   <tr>
     <td nowrap><samp>limn-test</samp></td>

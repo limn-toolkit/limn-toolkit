@@ -304,7 +304,7 @@ application.
   </tr>
   <tr>
     <td nowrap><samp>limn-icons-tabler</samp></td>
-    <td>the Tabler icon pack, if you want it — an artifact of its own now, versioned with Tabler (<code>3.46.0.x</code> is Tabler 3.46.0)</td>
+    <td>the Tabler icon pack, if you want it — an artifact of its own now, versioned with Tabler (<code>3.48.0.x</code> is Tabler 3.48.0)</td>
   </tr>
   <tr>
     <td nowrap><samp>limn-test</samp></td>

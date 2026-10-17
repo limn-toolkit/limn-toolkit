@@ -312,7 +312,7 @@ jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-e
   </tr>
   <tr>
     <td nowrap><samp>limn-icons-tabler</samp></td>
-    <td>набор иконок Tabler, если он вам нужен — теперь сам по себе артефакт, версия которого идёт вместе с Tabler (<code>3.46.0.x</code> — это Tabler 3.46.0)</td>
+    <td>набор иконок Tabler, если он вам нужен — теперь сам по себе артефакт, версия которого идёт вместе с Tabler (<code>3.48.0.x</code> — это Tabler 3.48.0)</td>
   </tr>
   <tr>
     <td nowrap><samp>limn-test</samp></td>

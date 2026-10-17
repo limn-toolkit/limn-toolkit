@@ -118,7 +118,7 @@ offers no control over its icon; to hold, speed or loop one, show it in an `Imag
 
 The `limn-icons-tabler` artifact packages the Tabler icon set if you would rather not draw your
 own — one enum constant per icon, drawn through the same `SvgIcon`. It is versioned with Tabler
-rather than with the toolkit (`3.46.0.x` is Tabler 3.46.0), so it stays in your cache across
+rather than with the toolkit (`3.48.0.x` is Tabler 3.48.0), so it stays in your cache across
 Limn upgrades:
 
 {% tabs build Gradle Maven %}

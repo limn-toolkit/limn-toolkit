@@ -310,7 +310,7 @@ aplicação.
   </tr>
   <tr>
     <td nowrap><samp>limn-icons-tabler</samp></td>
-    <td>o pacote de ícones Tabler, se você quiser — agora um artefato próprio, que muda de versão junto com o Tabler (<code>3.46.0.x</code> é Tabler 3.46.0)</td>
+    <td>o pacote de ícones Tabler, se você quiser — agora um artefato próprio, que muda de versão junto com o Tabler (<code>3.48.0.x</code> é Tabler 3.48.0)</td>
   </tr>
   <tr>
     <td nowrap><samp>limn-test</samp></td>
