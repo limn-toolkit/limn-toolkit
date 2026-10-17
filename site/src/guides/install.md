@@ -150,6 +150,17 @@ Four things are happening:
    [Closing a window, and ending the application](/docs/menus-and-dialogs/#closing-a-window-and-ending-the-application)
    covers "unsaved changes" and Quit.
 
+## Versions and compatibility
+
+From 1.0 on, nothing an application uses breaks before 2.0. Every 1.x release builds and runs
+the code written for any earlier 1.x, so moving to the newest 1.x is always safe, and fixes go
+into the next 1.x rather than into older lines. A method marked `@Deprecated` keeps working
+until 2.0, and JDK 17 stays the minimum until 2.0.
+
+The one exception is the package `limn.backend.spi`, which an application never touches: it is
+for someone writing a backend of their own, it is incubating, and it may change in a 1.x minor,
+always with the migration in the changelog.
+
 ## Where to go next
 
 [Widgets and scenes](/docs/widgets/) explains the model this program uses without saying so.

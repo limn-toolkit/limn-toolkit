@@ -292,7 +292,7 @@ application.
 <table>
   <tr>
     <td nowrap><samp>limn-toolkit</samp></td>
-    <td>the widget set, layout, the scene graph, the backend SPIs and the pure-Java video decoders; needs nothing at run time, and names only the JSpecify nullness annotations to compile against</td>
+    <td>the widget set, layout, the scene graph, the backend SPIs and the pure-Java video decoders; needs one library at run time, the WebP decoder <code>org.glavo:webp</code> (Java, Apache-2.0), and names only the JSpecify nullness annotations to compile against</td>
   </tr>
   <tr>
     <td nowrap><samp>limn-backend-lwjgl</samp></td>
@@ -315,6 +315,15 @@ application.
     <td>the pan-CJK and colour-emoji faces (26 MB an app that never draws them should not carry), plus the rest of the fallbacks, at the versions this release was tested with — each face an artifact of its own that versions with the font</td>
   </tr>
 </table>
+
+## Versions
+
+From 1.0 on, nothing an application uses breaks before 2.0: every 1.x release builds and runs
+the code written for any earlier 1.x, so upgrading within 1.x is always safe, and fixes go into
+the next 1.x rather than into older lines. A method marked `@Deprecated` keeps working until
+2.0, and Java 17 stays the minimum until 2.0. The one exception is the package
+`limn.backend.spi`, which only someone writing a backend of their own uses: it is incubating
+and may change in a 1.x minor, always with the migration in the changelog.
 
 ## Documentation
 
