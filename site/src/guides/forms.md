@@ -89,6 +89,14 @@ writes rather than fills: `+'0' 000` shows `+0 123`. Two single quotes are one a
 quotes and out. It is the quoting `SimpleDateFormat` uses, and a pattern that opens a quote
 without closing it is refused.
 
+A digit is never lost to a literal that happens to be the same digit. Under
+`+55 (00) 00000-0000`, `setText("51987654321")` keeps the area code 51 and shows
+`+55 (51) 98765-4321`, and `+'0' 000` takes `012` as three digits, `+0 012`; set either from its
+formatted text and it reads the same. The field tells a formatted text by the literals no position
+would take, the `+`, a space, a parenthesis. A pattern whose literals are only characters its
+positions take, such as `'55'00000`, cannot be told apart, and a value that begins with them is
+read as carrying them: set such a field from its formatted text.
+
 No pattern of any country ships with the toolkit: write the one your form needs. Numbers and
 amounts are a `Spinner`, which follows the user's language.
 

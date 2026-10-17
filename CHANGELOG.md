@@ -423,13 +423,18 @@ Maven Central say which number that was.
   between single quotes is literal, so `0`, `A` and `*` can be too: `setMask("+'0' 000")` shows
   `+0 123`. Two single quotes are an apostrophe, as in `SimpleDateFormat`, and a quote never
   closed is refused with an `IllegalArgumentException` that names the pattern. Pasting with or
-  without the literals gives the same text, and an edit that spans a literal keeps every digit;
-  a Backspace or Delete with nothing selected steps over a literal to the character beyond it,
-  and one undo takes an edit and its literals back. While focused, the positions still to fill
-  show as a guide after the text. `unmaskedText()` and `isMaskComplete()` read the value. A
-  screen reader hears the field's text, literals included, and not the pattern, which is syntax
-  ("A A dash zero zero zero zero"); to say what the field expects, give it a tooltip or
-  `setAccessibleDescription`.
+  without the literals gives the same text, and no digit is lost to a literal that is the same
+  digit: under `+55 (00) 00000-0000`, `setText("51987654321")` keeps the area code 51 and reads
+  `+55 (51) 98765-4321`, and under `+'0' 000` a 0 typed first is the first digit. A text is read
+  with its literals when it carries one no position would take (`+`, a space); a pattern whose
+  literals are all characters its positions take (`'55'00000`) reads a value that begins with
+  them as carrying them, so set it from its formatted text. An edit that spans a literal keeps
+  every digit; a Backspace or Delete with nothing selected steps over a literal to the character
+  beyond it, and one undo takes an edit and its literals back. While focused, the positions
+  still to fill show as a guide after the text. `unmaskedText()` and `isMaskComplete()` read
+  the value. A screen reader hears the field's text, literals included, and not the pattern,
+  which is syntax ("A A dash zero zero zero zero"); to say what the field expects, give it a
+  tooltip or `setAccessibleDescription`.
 - `Widget.moveChild` reorders a child without taking it out of the tree, so its focus, hover
   and press stay, and lays a parent that clips its children out alone. `remove` and `moveChild`
   take who asked, which the one `CHILDREN` change they make carries.
@@ -1095,9 +1100,7 @@ Maven Central say which number that was.
   calendar's cursor is not its selection. Left and Right read the day alone. Turning that Orca
   setting off reads one day on every move.
 - Of a masked `TextField`. Right to left, the guide of the positions still to fill is drawn on
-  the wrong side of the text, since the two are drawn as two runs and not shaped as one line. A
-  quoted digit takes the same digit typed first (`+'0' 000`, typing 0) as itself rather than as
-  the first position to fill: which of the two the keystroke meant cannot be told.
+  the wrong side of the text, since the two are drawn as two runs and not shaped as one line.
 
 ## After 0.8.0
 

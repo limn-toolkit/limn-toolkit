@@ -106,6 +106,84 @@ class TextFieldMaskTest extends AccessibleComponentTestBase {
     }
 
     @Test
+    void codeSetsAValueWhoseDigitsMatchALiteralWithOrWithoutTheLiterals() {
+        TextField phone = new TextField().setMask("+55 (00) 00000-0000");
+        phone.setText("51987654321");
+        assertEquals("+55 (51) 98765-4321", phone.text(), "area code 51 kept");
+        assertEquals("51987654321", phone.unmaskedText());
+        assertTrue(phone.isMaskComplete());
+        phone.setText("+55 (51) 98765-4321");
+        assertEquals("51987654321", phone.unmaskedText(), "the formatted value reads the same");
+        phone.setText(phone.unmaskedText());
+        assertEquals("+55 (51) 98765-4321", phone.text(), "and what the application read sets it back");
+        phone.setText("5512345678");
+        assertEquals("+55 (55) 12345-678", phone.text(), "area code 55, the literal's own digits");
+        assertFalse(phone.isMaskComplete());
+
+        TextField zero = new TextField().setMask("+'0' 000");
+        zero.setText("012");
+        assertEquals("+0 012", zero.text());
+        assertEquals("012", zero.unmaskedText());
+        assertTrue(zero.isMaskComplete());
+        zero.setText("+0 012");
+        assertEquals("012", zero.unmaskedText());
+    }
+
+    @Test
+    void typingIntoAPatternWithDigitLiteralsFillsThePositions() {
+        bindField("+55 (00) 00000-0000");
+        field.requestFocus();
+        type("5");
+        assertEquals("+55 (5", field.text());
+        type("1987654321");
+        assertEquals("+55 (51) 98765-4321", field.text());
+        assertEquals("51987654321", field.unmaskedText());
+
+        bindField("+'0' 000");
+        field.requestFocus();
+        type("0");
+        assertEquals("+0 0", field.text(), "a 0 typed first is the first digit");
+    }
+
+    @Test
+    void typingTheLiteralsByHandOrPastingThemStepsOverThem() {
+        bindField("(00) 000-0000");
+        field.requestFocus();
+        type("(12) 345-6789");
+        assertEquals("(12) 345-6789", field.text());
+        assertEquals("123456789", field.unmaskedText());
+
+        bindField("+55 (00) 00000-0000");
+        scene.setClipboard(TextFieldTest.MockClipboard.holding("+55 (51) 98765-4321"));
+        field.requestFocus();
+        drive(scene).press(Keys.V, COMMAND);
+        assertEquals("+55 (51) 98765-4321", field.text());
+        assertEquals("51987654321", field.unmaskedText());
+    }
+
+    @Test
+    void backspaceOverALiteralKeepsADigitThatMatchesALiteral() {
+        bindField("+55 (00) 00000-0000");
+        field.requestFocus();
+        type("51987");
+        field.setCaretPosition(9); // after "+55 (51) ", before the 9
+        drive(scene).press(Keys.BACKSPACE);
+        assertEquals("+55 (59) 87", field.text(), "the 1 went, and the 5 stayed");
+        assertEquals("5987", field.unmaskedText());
+
+        // A run made only of digits: the characters left after the step are the value's alone,
+        // and their leading 55 is not the literal's.
+        bindField("'55'0-000");
+        field.requestFocus();
+        type("1552");
+        assertEquals("551-552", field.text());
+        field.setCaretPosition(4); // after the dash
+        drive(scene).press(Keys.BACKSPACE);
+        assertEquals("555-52", field.text(), "the 1 went, and 552 stayed");
+        assertEquals("552", field.unmaskedText());
+    }
+
+    @Test
     void backspaceAfterALiteralTakesTheDigitBeforeIt() {
         bindField("000.000");
         field.requestFocus();

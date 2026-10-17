@@ -238,6 +238,14 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * apostrophe, inside quotes and out ({@code "'o''clock' 00"}). This is the quoting of
      * {@link java.text.SimpleDateFormat}.
      *
+     * <p>A character a position takes is never lost to a literal that happens to be the same
+     * character: under {@code "+55 (00) 00000-0000"}, {@code 51987654321} keeps its area code 51
+     * and reads {@code +55 (51) 98765-4321}, which reads back as the same value. A text is read
+     * with its literals when it carries them, and a literal no position would take ({@code +}, a
+     * space, a parenthesis) is what shows it does. A run of literals made only of characters its
+     * position takes ({@code "'55'00000"}) is the one case the text cannot tell: a value that
+     * begins with that run is read as carrying it, so set such a field from its formatted text.
+     *
      * <p>The text already in the field is fitted at once. {@code null} takes the mask away and
      * leaves the text as it is.
      *
@@ -302,7 +310,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
             int gone = collapsedDelete < 0 ? k - 1 : k;
             if (gone >= 0 && gone < count) {
                 String raw = limn.components.internal.text.InputMask.removeRaw(maskedRaw, gone);
-                fit = mask.conform(raw, raw.offsetByCodePoints(0, gone));
+                fit = mask.conformRaw(raw, raw.offsetByCodePoints(0, gone));
             }
         }
         maskedText = fit.text();
