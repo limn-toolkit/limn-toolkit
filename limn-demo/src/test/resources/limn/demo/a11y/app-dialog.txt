@@ -8,8 +8,8 @@
   7     menu item "Help" [disabled, selectable, expandable, has-popup] item 5 of 5 unselected collapsed
   8   heading "Limn Showcase" [disabled]
   9   combo box "Language" (explicit) [disabled, expandable, has-popup] value=0 [0..21 step 1] "English" collapsed
- 10   combo box "Direction" (explicit) [disabled, expandable, has-popup] value=0 [0..1 step 1] "LTR" collapsed
- 11   combo box "Size" (explicit) [disabled, expandable, has-popup] value=2 [0..4 step 1] "MEDIUM" collapsed
+ 10   combo box "Direction" (explicit) [disabled, expandable, has-popup] value=0 [0..1 step 1] "Left to right" collapsed
+ 11   combo box "Size" (explicit) [disabled, expandable, has-popup] value=2 [0..4 step 1] "Medium" collapsed
  12   combo box "Theme" (explicit) [disabled, expandable, has-popup] value=2 [0..15 step 1] "Dark" collapsed
  13   separator "" [disabled, horizontal]
  14   split pane "Pages" (explicit) [disabled]
