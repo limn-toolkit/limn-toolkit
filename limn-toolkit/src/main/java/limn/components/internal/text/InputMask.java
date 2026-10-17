@@ -128,9 +128,9 @@ public final class InputMask {
 
     /**
      * Fits {@code text} to the pattern. Each position to fill takes the next character of the text
-     * it accepts, passing over the ones it does not; a literal of the pattern met in the text where
-     * the pattern has it is taken as that literal. What does not fit after the last position is
-     * dropped.
+     * it accepts, passing over the ones it does not; a run of literals the text carries where the
+     * pattern has it is taken as those literals (see {@link #afterRun} for when it does). What
+     * does not fit after the last position is dropped.
      *
      * @param text  any text
      * @param caret a caret in {@code text}, in chars
@@ -138,6 +138,23 @@ public final class InputMask {
      *         and the filled characters alone
      */
     public Conformed conform(String text, int caret) {
+        return conform(text, caret, true);
+    }
+
+    /**
+     * Fits characters known to be a value's alone, without literals, to the pattern: as
+     * {@link #conform}, except that no character is ever taken as a literal, which matters for a
+     * run made only of characters its position takes, where the text alone cannot say.
+     *
+     * @param raw   the filled characters, such as {@link Conformed#raw()} with one taken out
+     * @param caret a caret in {@code raw}, in chars
+     * @return what {@link #conform} returns
+     */
+    public Conformed conformRaw(String raw, int caret) {
+        return conform(raw, caret, false);
+    }
+
+    private Conformed conform(String text, int caret, boolean readsLiterals) {
         StringBuilder out = new StringBuilder(pattern.length());
         StringBuilder raw = new StringBuilder(slots);
         StringBuilder pending = new StringBuilder();
@@ -149,14 +166,19 @@ public final class InputMask {
         while (p < codePoints.length && at < text.length()) {
             int slot = codePoints[p];
             if (!slotAt[p]) {
-                // Written when the next position is filled; and taken from the text when it is
-                // there, so a pasted value with its literals reads the same as one without.
-                pending.appendCodePoint(slot);
-                int cp = text.codePointAt(at);
-                if (cp == slot) {
-                    at += Character.charCount(cp);
+                // A run of literals is written when the next position is filled, and taken from
+                // the text when the text carries it, so a value pasted with its literals reads
+                // the same as one without. Never otherwise: a character the next position would
+                // take is the value's, not the literal's, even when it is the same character.
+                int end = p;
+                while (end < codePoints.length && !slotAt[end]) {
+                    pending.appendCodePoint(codePoints[end]);
+                    end++;
                 }
-                p++;
+                if (readsLiterals) {
+                    at = afterRun(text, at, p, end);
+                }
+                p = end;
                 continue;
             }
             int cp = text.codePointAt(at);
@@ -194,6 +216,43 @@ public final class InputMask {
             newCaret = 0;
         }
         return new Conformed(out.toString(), Math.min(newCaret, out.length()), raw.toString());
+    }
+
+    /**
+     * Where the text goes on after the run of literals {@code [from, to)} of the pattern, read
+     * at {@code at}: past the literals the text carries there, or {@code at} itself when it does
+     * not carry the run.
+     *
+     * <p>A literal the position after the run would take ({@code 5} in {@code +55 (00)}, a
+     * quoted {@code 0}) is the one to be careful with, since the same character is also a value's:
+     * the text carries the run only if every such literal is there, in order, and, when the run
+     * also has literals that position would refuse ({@code +}, a space, a parenthesis), at least
+     * one of those is there too, which is what says the text was written with its literals. So
+     * a raw {@code 51987654321} keeps its area code 51 and a raw {@code 012} its 0, while
+     * {@code +55 (51) 98765-4321}, and {@code +55(51)98765-4321} without its spaces, read as
+     * formatted. A literal the next position would refuse may be missing: it would be passed
+     * over anyway. A run made only of characters its position takes ({@code '55'00000}) is
+     * carried only whole, and a text that begins with it can be told from a formatted one by
+     * nothing, so it reads as formatted; where the caller knows the characters are a value's
+     * alone, {@link #conformRaw} reads no literal at all.
+     */
+    private int afterRun(String text, int at, int from, int to) {
+        int next = to < codePoints.length ? codePoints[to] : -1;
+        int t = at;
+        boolean refusable = false;
+        boolean refusableShown = false;
+        for (int r = from; r < to; r++) {
+            int literal = codePoints[r];
+            boolean taken = next >= 0 && accepts(next, literal);
+            refusable |= !taken;
+            if (t < text.length() && text.codePointAt(t) == literal) {
+                t += Character.charCount(literal);
+                refusableShown |= !taken;
+            } else if (taken) {
+                return at;
+            }
+        }
+        return !refusable || refusableShown ? t : at;
     }
 
     /**

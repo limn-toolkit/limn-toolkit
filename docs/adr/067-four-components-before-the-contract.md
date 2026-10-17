@@ -97,6 +97,15 @@ Markdown.
   quoting of `java.text.SimpleDateFormat`, the owner's choice. The language had no escape, and
   one added after 1.0 would change what patterns already written mean. A pattern that opens a
   quote and never closes it is refused, naming the pattern.
+- *Amended 2026-10-17:* **a literal never takes a character a position would.** The fitting
+  took a literal from the text whenever the next character was the same one, so under
+  `+55 (00) 00000-0000` a stored `51987654321` read `+55 (19) 87654-321` and lost its area
+  code, and the quoted `0` above ate a value's leading 0. A run of literals is now taken from the
+  text only when the text carries it: every literal the next position would take is there, and,
+  if the run has any, one the position would refuse (`+`, a space) is there too. A run made
+  only of characters its position takes cannot be told from a value and reads as formatted;
+  where the field knows it holds a value's characters alone, after Backspace steps over a
+  literal, it reads no literal at all.
 - *Amended 2026-10-16:* **the reader no longer hears the pattern.** Read aloud, `AA-0000` is
   "A A dash zero zero zero zero" where it means two letters and four digits, in every language,
   and as the field's description it pushed out the tooltip, which the walk gives only to a node

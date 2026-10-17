@@ -109,6 +109,65 @@ class InputMaskTest {
         assertThrows(IllegalArgumentException.class, () -> InputMask.of("'o''clock 00"));
     }
 
+    private static final InputMask PHONE = InputMask.of("+55 (00) 00000-0000");
+
+    @Test
+    void aRawValueWhoseCharactersMatchALiteralKeepsEveryOne() {
+        // Area code 51: its 5 is the literal's 5, and it is still the value's first digit.
+        assertEquals("+55 (51) 98765-4321", PHONE.conform("51987654321", 11).text());
+        assertEquals("51987654321", PHONE.conform("51987654321", 11).raw());
+        // Area code 55: the literal's two characters exactly, and still the value's.
+        assertEquals("+55 (55) 12345-678", PHONE.conform("5512345678", 10).text());
+        assertEquals("5512345678", PHONE.conform("5512345678", 10).raw());
+        InputMask zero = InputMask.of("+'0' 000");
+        assertEquals("+0 012", zero.conform("012", 3).text());
+        assertEquals("012", zero.conform("012", 3).raw());
+        assertTrue(zero.isComplete("+0 012"));
+    }
+
+    @Test
+    void aFormattedValueIsStillReadWithItsLiterals() {
+        assertEquals("51987654321", PHONE.conform("+55 (51) 98765-4321", 0).raw());
+        assertEquals("51987654321", PHONE.conform("+55(51)98765-4321", 0).raw(),
+                "a value written without the spaces is still the formatted one");
+        assertEquals("012", InputMask.of("+'0' 000").conform("+0 012", 0).raw());
+        assertEquals("5512345678", PHONE.conform("+55 (55) 12345-678", 0).raw());
+    }
+
+    @Test
+    void typingDigitByDigitFillsThePositions() {
+        assertEquals("+55 (51) 98765-4321", typed(PHONE, "51987654321"));
+        assertEquals("+0 012", typed(InputMask.of("+'0' 000"), "012"));
+        assertEquals("+0 0", typed(InputMask.of("+'0' 000"), "0"), "a 0 typed first is a digit");
+    }
+
+    @Test
+    void typingTheLiteralCharactersByHandStepsOverThem() {
+        assertEquals("123.456", typed(CODE, "123.456"));
+        assertEquals("(12) 345-6789", typed(InputMask.of("(00) 000-0000"), "(12) 345-6789"));
+        assertEquals("+55 (51) 9", typed(PHONE, "51) 9"), "a closing literal typed by hand");
+    }
+
+    @Test
+    void aRunOfDigitsAloneIsReadOnlyWholeAndNeverFromAValueKnownToBeRaw() {
+        InputMask prefixed = InputMask.of("'55'0-000");
+        assertEquals("551-552", prefixed.conform("551552", 6).text(), "carried whole: the literal");
+        assertEquals("2", prefixed.conform("552", 3).raw(), "the same text, read as formatted");
+        assertEquals("555-52", prefixed.conformRaw("552", 3).text(), "known to be the value's");
+        assertEquals("552", prefixed.conformRaw("552", 3).raw());
+        assertEquals("555-1", prefixed.conform("51", 2).text(), "a 5 alone is not the run");
+    }
+
+    /** What a field shows after {@code keys} are typed one by one at its end. */
+    private static String typed(InputMask mask, String keys) {
+        String text = "";
+        for (int i = 0; i < keys.length(); i++) {
+            String next = text + keys.charAt(i);
+            text = mask.conform(next, next.length()).text();
+        }
+        return text;
+    }
+
     @Test
     void removingAFilledCharacterClosesUp() {
         assertEquals("1245", InputMask.removeRaw("12345", 2));
