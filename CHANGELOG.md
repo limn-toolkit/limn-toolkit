@@ -279,6 +279,8 @@ Maven Central say which number that was.
   every platform, a `lwjgl-egl` natives jar LWJGL does not publish, so 0.9.0 of both failed to
   resolve anywhere (`Could not find artifact org.lwjgl:lwjgl-egl:jar:natives-macos-arm64:3.4.3`);
   the fix reaches Central with the next release, and 0.9.0 stays as it is.
+- The `limn-toolkit` POM no longer says it depends on nothing: it names the WebP decoder it needs
+  at run time and the JSpecify annotations it compiles against.
 - A retired two-letter region (`SU`, `YU`, `ZR`, `AN`, …) is read as the region ICU reads it as, for
   its week, digits and direction.
 - A key pressed while a menu bar walks from one menu to the next reaches the next menu: Right twice

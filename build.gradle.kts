@@ -51,7 +51,8 @@ allprojects {
 val publishedModules = mapOf(
     "limn-toolkit" to
             "The widget set, layout, the scene graph, the backend SPIs and the pure-Java video " +
-            "decoders; depends on nothing.",
+            "decoders. Depends on the WebP decoder org.glavo:webp at run time and on the " +
+            "JSpecify nullness annotations at compile time, and on nothing else.",
     "limn-test" to
             "Testing a Limn UI without a display: a SceneDriver that clicks, types and presses keys " +
             "through a scene's window input, a headless UI runtime and backend, stub windows, " +
