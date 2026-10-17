@@ -10,6 +10,8 @@ Maven Central say which number that was.
 
 ### Fixed
 
+- `ColorPicker`'s alpha line is spaced from the last channel line as the channel lines are spaced from one
+  another; it stood 2 pt further down at the default size.
 - `MediaControls` and `ColorPicker` speak the interface's language. The transport's six names
   (play, pause, the scrub bar, mute, unmute, volume) and the words a screen reader hears from the
   picker (its hex field, hue ramp, saturation and value plane and axes, and before/after swatch)
