@@ -1,5 +1,6 @@
 package limn.demo;
 
+import limn.components.BackdropPanel;
 import limn.components.Checkbox;
 import limn.components.Label;
 import limn.components.ProgressBar;
@@ -97,6 +98,27 @@ class ShowcaseAlignmentTest {
                     Constraints.UNBOUNDED_LIMIT)).width();
             assertTrue(caption.width() >= whole - 0.5f, "\"" + caption.text() + "\" whole");
         }
+    }
+
+    @Test
+    void noEffectsNameIsCutOnItsPanel() {
+        I18n.setLocale(Locale.forLanguageTag("pt-BR")); // where "Vidro, desfoque e véu" was cut
+        Scene scene = open(GlassScene::content);
+        List<BackdropPanel> panels = all(scene.root(), BackdropPanel.class);
+        int names = 0;
+        for (BackdropPanel panel : panels) {
+            for (Label name : all(panel, Label.class)) {
+                names++;
+                Constraints free = new Constraints(0, Constraints.UNBOUNDED_LIMIT, 0, Constraints.UNBOUNDED_LIMIT);
+                limn.scene.Size oneLine = name.measure(free);
+                if (oneLine.width() > name.width() + 0.5f) {
+                    float laidOut = name.measure(Constraints.loose(name.width(), Constraints.UNBOUNDED_LIMIT)).height();
+                    assertTrue(laidOut >= 2 * oneLine.height() - 0.5f,
+                            "\"" + name.text() + "\" wider than its panel and on one line, so cut");
+                }
+            }
+        }
+        assertTrue(names >= 7, "the effects' names, found " + names);
     }
 
     private Scene open(Supplier<Widget<?>> page) {

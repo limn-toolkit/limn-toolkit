@@ -176,6 +176,16 @@ final class GlassScene {
         return new Label(name).setRole(Label.Role.TITLE);
     }
 
+    /**
+     * The name of an effect on a panel larger than the name: in the panel's middle, as a panel
+     * that hugs its name has it, and on two lines when one is not enough. At the start of the
+     * panel, the CRT's name stood 88 pt left of the middle the Pixelate name beside it is in,
+     * and pt-BR's "Vidro, desfoque e véu" was cut to "Vidro, desfoque e v…".
+     */
+    private static Label centredTitle(I18nString name) {
+        return title(name).setAlign(Label.HAlign.CENTER, Label.VAlign.CENTER).setWrap(true);
+    }
+
     /** One sample: the plate, with a panel of {@code effect} floating over its middle. */
     private static Widget<?> over(Image picture, BackdropEffect effect, I18nString name) {
         Stack stack = new Stack().alignment(Stack.Alignment.CENTER);
@@ -196,7 +206,7 @@ final class GlassScene {
     private static Widget<?> screen(Image picture, BackdropEffect effect, I18nString name) {
         Stack stack = new Stack().alignment(Stack.Alignment.CENTER);
         stack.add(new ImageView(picture).setFit(ImageView.Fit.COVER));
-        BackdropPanel panel = new BackdropPanel(effect, Insets.all(14), title(name));
+        BackdropPanel panel = new BackdropPanel(effect, Insets.all(14), centredTitle(name));
         panel.setCornerRadius(0);
         stack.add(new SizedBox(240, 180, panel));
         return new SizedBox(240, 180, stack);
@@ -210,7 +220,7 @@ final class GlassScene {
     private static Widget<?> stack(Image picture, I18nString name, BackdropEffect... effects) {
         Stack layers = new Stack().alignment(Stack.Alignment.CENTER);
         layers.add(new ImageView(picture).setFit(ImageView.Fit.COVER));
-        BackdropPanel panel = new BackdropPanel(effects[0], Insets.all(14), title(name));
+        BackdropPanel panel = new BackdropPanel(effects[0], Insets.all(14), centredTitle(name));
         panel.setEffects(effects);
         layers.add(new SizedBox(216, 156, panel));
         return new SizedBox(240, 180, layers);
