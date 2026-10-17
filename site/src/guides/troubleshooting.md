@@ -34,8 +34,11 @@ named modules the backend requires, and they load from there as they do from the
 ## "LWJGL's native libraries did not load"
 
 On the module path, LWJGL's `natives` jars are modules that nothing requires, so they are never
-loaded. The message ends with the `--add-modules` line that loads them for your platform. The
-other fix is to put those jars on the class path.
+loaded unless named, and every platform's jar of one LWJGL module has the same module name, so the
+first on the path wins, whichever platform it is for. The message says which of the two happened:
+it names this machine's classifier, and either the `--add-modules` line that loads the natives or
+the other platform's jar that was loaded instead. Keep only this platform's natives, as
+[Packaging](/docs/packaging/#natives-for-one-platform) shows, or put them on the class path.
 
 ## Warnings at startup on JDK 24 and later
 

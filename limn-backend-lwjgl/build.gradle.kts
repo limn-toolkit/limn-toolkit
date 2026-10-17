@@ -169,4 +169,9 @@ tasks.test {
     inputs.file(rootProject.file("docs/design/accessibility.md"))
             .withPropertyName("accessibilityDesignNote")
             .withPathSensitivity(PathSensitivity.RELATIVE)
+    // `PackagingRecipeTest` reads the packaging guide's recipes for one platform's natives, for the
+    // same reason.
+    inputs.file(rootProject.file("site/src/guides/packaging.md"))
+            .withPropertyName("packagingGuide")
+            .withPathSensitivity(PathSensitivity.RELATIVE)
 }

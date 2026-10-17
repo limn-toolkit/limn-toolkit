@@ -282,6 +282,12 @@ Maven Central say which number that was.
 - The demo and the theme editor, run with `jbang` or resolved by Maven, download one platform's
   SVG renderer natives, as they already did LWJGL's. Their POMs cut only LWJGL out of the
   backend's dependencies, so all six slices of `limn-lunasvg-natives` arrived on every machine.
+- On the module path, the error for LWJGL's native libraries not loading says which of two
+  causes it was, with this machine's classifier (`natives-macos-arm64`): the natives modules were
+  never resolved, and here is the `--add-modules` line, or another platform's jar won the module
+  name, and here is the jar. Every platform's natives jar of one LWJGL module declares the same
+  module name, and the backend brings all six, so on an Apple Silicon Mac the Intel Mac's jar
+  could be the one loaded, and the `--add-modules` line the error advised could not help.
 - A Gradle build that asks for the toolkit's documentation, as an IDE does, gets the javadoc jars:
   the published Gradle module metadata lists them beside the sources jars. They were published,
   but only Maven's naming convention found them.
@@ -323,6 +329,13 @@ Maven Central say which number that was.
 
 ### New
 
+- The Packaging guide shows how to keep one platform's natives, with Gradle (a component metadata
+  rule keyed on the classifier, for the machine running the build or for a target named with
+  `-PlimnTarget`) and with Maven (the backend's LWJGL and SVG natives excluded and declared again
+  with one classifier, a profile per system choosing it). The one-line install still brings all
+  six platforms: 24.8 MB of jars, measured at this release, where one platform's are 10.3 to
+  11.5 MB. An application on the module path needs it, because there every platform's natives
+  jar of one LWJGL module has the same module name; the guide has the `--add-modules` line too.
 - Access letters come from the translated text (ADR 070). An `&` before a letter marks it in a
   menu title or item, a `Button`, a `Checkbox`, a `RadioButton` and a `Label` that names a
   control (`setLabelFor`), so each translation picks its own: "&File", "&Arquivo", "ファイル(&F)";

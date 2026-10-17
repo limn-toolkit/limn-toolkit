@@ -160,10 +160,15 @@ public final class LwjglBackend implements BackendPeer {
     private volatile boolean terminated;
 
     /**
-     * The error for LWJGL's native libraries not loading, which on the module path has one usual
-     * cause that LWJGL's own advice (a library path) does not name: its natives jars are modules
-     * that nothing requires, so they are never resolved. The module names are this
-     * module's own LWJGL requirements with {@code .natives} after them, which is LWJGL's naming.
+     * The error for LWJGL's native libraries not loading, which on the module path has two usual
+     * causes that LWJGL's own advice (a library path) does not name. Its natives jars are modules
+     * that nothing requires, so they are never resolved unless named. And every platform's natives
+     * jar of one LWJGL module declares the same module name, so with the backend's default
+     * dependencies, which bring all six platforms, the first jar on the path is the one resolved,
+     * whichever platform it is for: on an Apple Silicon Mac it was the Intel Mac's, and the
+     * {@code --add-modules} line this error used to advise alone could not help. The module names
+     * are this module's own LWJGL requirements with {@code .natives} after them, which is LWJGL's
+     * naming.
      */
     static RuntimeException nativesMissing(UnsatisfiedLinkError missing) {
         Module self = LwjglBackend.class.getModule();
@@ -173,11 +178,65 @@ public final class LwjglBackend implements BackendPeer {
         }
         String natives = nativesModules(self.getDescriptor().requires().stream()
                 .map(java.lang.module.ModuleDescriptor.Requires::name).toList());
-        return new IllegalStateException("LWJGL's native libraries did not load ("
-                + missing.getMessage() + "). limn.backend.lwjgl is running from the module path, "
-                + "where LWJGL's lwjgl-*-natives-<platform> jars are modules that nothing requires "
-                + "and so are never loaded. Put the jars for this platform on the class path, or "
-                + "keep them on the module path and add: --add-modules " + natives, missing);
+        String loadedFrom = self.getLayer() == null ? null
+                : self.getLayer().configuration().findModule("org.lwjgl.natives")
+                        .flatMap(resolved -> resolved.reference().location())
+                        .map(location -> java.nio.file.Path.of(location.getPath()).getFileName().toString())
+                        .orElse(null);
+        return new IllegalStateException(modulePathAdvice(missing.getMessage(),
+                nativesClassifier(Platform.current()), loadedFrom, natives), missing);
+    }
+
+    /**
+     * What {@link #nativesMissing} says on the module path, as a function of what it found, so
+     * that both of its answers can be tested from the class path the tests run on.
+     *
+     * @param failure    what LWJGL said
+     * @param classifier the classifier of this machine's natives jars, or {@code null} when LWJGL
+     *                   publishes none this toolkit knows the spelling of
+     * @param loadedFrom the file the module {@code org.lwjgl.natives} was resolved from, or
+     *                   {@code null} when it was not resolved
+     * @param natives    the {@code --add-modules} list that resolves the natives modules
+     */
+    static String modulePathAdvice(String failure, @Nullable String classifier,
+                                   @Nullable String loadedFrom, String natives) {
+        String these = classifier == null ? "this machine's natives jars" : "the " + classifier + " jars";
+        String recipe = " The packaging guide shows how to resolve one platform's natives with "
+                + "Gradle or Maven: https://limn-toolkit.github.io/limn-toolkit/docs/packaging/#natives-for-one-platform";
+        if (loadedFrom != null) {
+            return "LWJGL's native libraries did not load (" + failure + "). limn.backend.lwjgl "
+                    + "is running from the module path, where every platform's natives jar of one "
+                    + "LWJGL module declares the same module name, and the first on the path is "
+                    + "the one loaded: org.lwjgl.natives came from " + loadedFrom + ", and this "
+                    + "machine needs " + these + ". Keep only " + these + " on the module path, "
+                    + "or put the natives on the class path." + recipe;
+        }
+        return "LWJGL's native libraries did not load (" + failure + "). limn.backend.lwjgl is "
+                + "running from the module path, where LWJGL's natives jars are modules that "
+                + "nothing requires, and so are never loaded. Keep only " + these + " on the "
+                + "module path, because every platform's jar of one LWJGL module declares the "
+                + "same module name and the first on the path wins, and add: --add-modules "
+                + natives + ". Or put the natives on the class path." + recipe;
+    }
+
+    /**
+     * The classifier LWJGL publishes a platform's natives under, which spells 64-bit Intel with no
+     * architecture at all ({@code natives-macos} is the Intel Mac's) and 64-bit ARM as
+     * {@code arm64}; {@code null} for a platform that is not one of the six desktop targets.
+     */
+    static @Nullable String nativesClassifier(Platform platform) {
+        String os = switch (platform.os()) {
+            case MACOS -> "macos";
+            case WINDOWS -> "windows";
+            case LINUX -> "linux";
+            case OTHER -> null;
+        };
+        String arch = switch (platform.arch()) {
+            case "x86_64" -> "";
+            case "aarch64" -> "-arm64";
+            default -> null;
+        };
+        return os == null || arch == null ? null : "natives-" + os + arch;
     }
 
     /**

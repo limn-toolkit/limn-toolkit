@@ -117,7 +117,12 @@ what it is. `TextField`'s `model` field stops being protected (§2 makes the que
     gone; any bundle the application registers translates the `limn.themeEditor.*` keys.
   - LWJGL's natives jars are modules nothing requires, and six platforms share each name, so
     requiring them would pick the wrong platform. The backend now says the fix when they fail to
-    load: the class path, or the `--add-modules` line it prints.
+    load: the class path, or the `--add-modules` line it prints. *Amended 2026-10-17:* that line
+    alone resolves whichever platform's jar is first on the path, and with the backend's
+    six-platform default the 1.0 consumption rehearsal got the Intel Mac's on an Apple Silicon Mac.
+    The error now names this machine's classifier and says which cause it was (natives never
+    resolved, or another platform's jar loaded, named), and the packaging guide gives a Gradle and
+    a Maven recipe that resolve one platform's natives, each run from a consumer of that rehearsal.
   - Rehearsed twice: first with the fonts and natives built locally, then on 2026-09-23 with the
     released fonts `.2` and natives 7.1.5.1 resolved from Maven Central: every font jar, the FFmpeg
     main jar and a classifier jar side by side on the module path with no flag, ten headless

@@ -69,10 +69,12 @@ That one line is the whole install. `limn-backend-lwjgl` is the window and the r
 it exports `limn-toolkit` — the widget set, the layout and the scene graph — to whatever
 depends on it. Everything else (FFmpeg video decoding, the icon set) is optional and separate.
 
-The backend brings LWJGL's native binaries with it for every desktop platform: Windows,
-macOS and Linux, x64 and ARM alike. There is nothing per-platform to add: the JVM loads the
-slice that matches the machine it is running on, and the rest sit inert on the classpath,
-costing download size and nothing else.
+The backend brings its native binaries, LWJGL's and the SVG renderer's, with it for every
+desktop platform: Windows, macOS and Linux, x64 and ARM alike. There is nothing per-platform to
+add: the JVM loads the slice that matches the machine it is running on, and the rest sit inert on
+the classpath, costing download size and nothing else. A build that ships one platform at a
+time, or runs on the module path, keeps only that platform's:
+[Packaging](/docs/packaging/#natives-for-one-platform) shows how.
 
 It also brings the fonts a UI cannot do without: Roboto (the default family) and the four
 faces that make Arabic, Hebrew, Devanagari and Thai render, each versioned with the font

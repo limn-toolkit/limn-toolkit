@@ -8,10 +8,11 @@ description: "Turning your application into something you can send someone: nati
 Two things beyond your own code:
 
 1. **The toolkit jars**: `limn-toolkit` and `limn-backend-lwjgl`. The
-   dependency block you develop with is the one you ship: the backend declares LWJGL's
-   native binaries for every desktop platform, x64 and ARM alike, so there is no
-   per-platform classifier to remember at packaging time. The JVM loads the slice for the
-   machine it lands on; the rest sit inert.
+   dependency block you develop with is the one you ship: the backend declares its native
+   binaries, LWJGL's and the SVG renderer's, for every desktop platform, x64 and ARM alike, so
+   there is no per-platform classifier to remember at packaging time. The JVM loads the slice
+   for the machine it lands on; the rest sit inert. To ship one platform's alone, see
+   [Natives for one platform](#natives-for-one-platform).
 2. **A JDK 17 or newer**, unless you are confident your users already have one. Bundling it
    is usually the right answer for a desktop application.
 
@@ -26,6 +27,134 @@ which is what that licence asks. Each jar carries the licence text and the notic
 shipping them requires, so a distribution that includes it has already shipped both. If
 you would rather distribute no FFmpeg at all, leave the module out: nothing depends on it, and
 every other media format keeps working.
+
+## Natives for one platform
+
+The one-line install brings the natives of all six desktop platforms, so that one build runs
+anywhere. Measured at this version, that is 24.8 MB of jars, of which one machine uses 10.3 to
+11.5 MB: the rest is the other five platforms' LWJGL and SVG natives. A build that packages one
+platform at a time, an installer per target, need not carry them, and an application on the
+[module path](#on-the-module-path) must not.
+
+Two of the backend's dependencies come in one classifier per platform: LWJGL's natives
+(`natives-macos-arm64`, `natives-windows`, …) and the SVG renderer's, `limn-lunasvg-natives`
+(`natives-macos-aarch64`, `natives-windows-x86_64`, …). Keeping one platform is keeping one
+classifier of each:
+
+{% tabs build Gradle Maven %}
+```kotlin title="build.gradle.kts"
+// The platform to keep: "macos-aarch64", "macos-x86_64", "linux-x86_64", "linux-aarch64",
+// "windows-x86_64" or "windows-aarch64". The machine running Gradle unless -PlimnTarget says.
+val limnTarget = findProperty("limnTarget")?.toString() ?: run {
+    val os = System.getProperty("os.name").lowercase()
+    val name = if ("mac" in os) "macos" else if ("win" in os) "windows" else "linux"
+    val arch = if (System.getProperty("os.arch") in setOf("aarch64", "arm64")) "aarch64" else "x86_64"
+    "$name-$arch"
+}
+
+// Drops every natives-* dependency of the backend that is not for limnTarget.
+abstract class OnePlatformNatives @Inject constructor(private val target: String) : ComponentMetadataRule {
+    override fun execute(context: ComponentMetadataContext) {
+        // LWJGL spells the same target without "-x86_64", and with "-arm64" for "-aarch64".
+        val keep = setOf("natives-$target",
+            "natives-" + target.removeSuffix("-x86_64").replace("-aarch64", "-arm64"))
+        context.details.allVariants {
+            withDependencies {
+                removeIf { dependency ->
+                    dependency.artifactSelectors.any {
+                        it.classifier?.startsWith("natives-") == true && it.classifier !in keep
+                    }
+                }
+            }
+        }
+    }
+}
+
+dependencies {
+    components.withModule<OnePlatformNatives>("io.github.limn-toolkit:limn-backend-lwjgl") {
+        params(limnTarget)
+    }
+    implementation("io.github.limn-toolkit:limn-backend-lwjgl:{{version}}")
+    // The FFmpeg payload, if you play video, spells its classifier the same way.
+    // runtimeOnly("io.github.limn-toolkit:limn-ffmpeg-natives:9.0.2.0:natives-$limnTarget")
+}
+```
+```xml title="pom.xml"
+<properties>
+  <lwjgl.version>3.4.3</lwjgl.version>
+</properties>
+
+<!-- This machine's natives. -Dlwjgl.natives=… -Dlimn.natives=… names another. -->
+<profiles>
+  <profile><id>macos-aarch64</id>
+    <activation><os><family>mac</family><arch>aarch64</arch></os></activation>
+    <properties><lwjgl.natives>natives-macos-arm64</lwjgl.natives><limn.natives>natives-macos-aarch64</limn.natives></properties>
+  </profile>
+  <profile><id>macos-x86_64</id>
+    <activation><os><family>mac</family><arch>!aarch64</arch></os></activation>
+    <properties><lwjgl.natives>natives-macos</lwjgl.natives><limn.natives>natives-macos-x86_64</limn.natives></properties>
+  </profile>
+  <profile><id>linux-aarch64</id>
+    <activation><os><name>linux</name><arch>aarch64</arch></os></activation>
+    <properties><lwjgl.natives>natives-linux-arm64</lwjgl.natives><limn.natives>natives-linux-aarch64</limn.natives></properties>
+  </profile>
+  <profile><id>linux-x86_64</id>
+    <activation><os><name>linux</name><arch>!aarch64</arch></os></activation>
+    <properties><lwjgl.natives>natives-linux</lwjgl.natives><limn.natives>natives-linux-x86_64</limn.natives></properties>
+  </profile>
+  <profile><id>windows-aarch64</id>
+    <activation><os><family>windows</family><arch>aarch64</arch></os></activation>
+    <properties><lwjgl.natives>natives-windows-arm64</lwjgl.natives><limn.natives>natives-windows-aarch64</limn.natives></properties>
+  </profile>
+  <profile><id>windows-x86_64</id>
+    <activation><os><family>windows</family><arch>!aarch64</arch></os></activation>
+    <properties><lwjgl.natives>natives-windows</lwjgl.natives><limn.natives>natives-windows-x86_64</limn.natives></properties>
+  </profile>
+</profiles>
+
+<dependencies>
+  <dependency>
+    <groupId>io.github.limn-toolkit</groupId>
+    <artifactId>limn-backend-lwjgl</artifactId>
+    <version>{{version}}</version>
+    <!-- Every platform's natives, declared again below with one classifier. -->
+    <exclusions>
+      <exclusion><groupId>org.lwjgl</groupId><artifactId>*</artifactId></exclusion>
+      <exclusion><groupId>io.github.limn-toolkit</groupId><artifactId>limn-lunasvg-natives</artifactId></exclusion>
+    </exclusions>
+  </dependency>
+  <dependency><groupId>io.github.limn-toolkit</groupId><artifactId>limn-lunasvg-natives</artifactId><version>3.5.0.0</version></dependency>
+  <dependency><groupId>io.github.limn-toolkit</groupId><artifactId>limn-lunasvg-natives</artifactId><version>3.5.0.0</version><classifier>${limn.natives}</classifier></dependency>
+  <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-egl</artifactId><version>${lwjgl.version}</version></dependency>
+  <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl</artifactId><version>${lwjgl.version}</version></dependency>
+  <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl</artifactId><version>${lwjgl.version}</version><classifier>${lwjgl.natives}</classifier></dependency>
+  <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-glfw</artifactId><version>${lwjgl.version}</version></dependency>
+  <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-glfw</artifactId><version>${lwjgl.version}</version><classifier>${lwjgl.natives}</classifier></dependency>
+  <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-harfbuzz</artifactId><version>${lwjgl.version}</version></dependency>
+  <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-harfbuzz</artifactId><version>${lwjgl.version}</version><classifier>${lwjgl.natives}</classifier></dependency>
+  <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-openal</artifactId><version>${lwjgl.version}</version></dependency>
+  <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-openal</artifactId><version>${lwjgl.version}</version><classifier>${lwjgl.natives}</classifier></dependency>
+  <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-opengl</artifactId><version>${lwjgl.version}</version></dependency>
+  <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-opengl</artifactId><version>${lwjgl.version}</version><classifier>${lwjgl.natives}</classifier></dependency>
+  <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-stb</artifactId><version>${lwjgl.version}</version></dependency>
+  <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-stb</artifactId><version>${lwjgl.version}</version><classifier>${lwjgl.natives}</classifier></dependency>
+  <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-tinyfd</artifactId><version>${lwjgl.version}</version></dependency>
+  <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-tinyfd</artifactId><version>${lwjgl.version}</version><classifier>${lwjgl.natives}</classifier></dependency>
+  <!-- The FFmpeg payload, if you play video, spells its classifier like the SVG renderer's:
+  <dependency><groupId>io.github.limn-toolkit</groupId><artifactId>limn-ffmpeg-natives</artifactId><version>9.0.2.0</version><classifier>${limn.natives}</classifier><scope>runtime</scope></dependency>
+  -->
+</dependencies>
+```
+{% endtabs %}
+
+In Gradle, the rule takes the other platforms' natives out of the backend's dependencies before
+anything is downloaded, and `-PlimnTarget=windows-x86_64` on the command line packages for
+another target. Maven cannot drop one classifier of a dependency, only the whole module, so the
+backend's LWJGL and SVG renderer are excluded and declared again, each with one classifier: a
+profile per system picks the machine's, as `limn-demo`'s own POM does, and
+`-Dlwjgl.natives=natives-windows -Dlimn.natives=natives-windows-x86_64` names another. The
+versions are the ones this release was tested with; `lwjgl-egl` has no natives, because it binds
+the system's own library.
 
 ## The macOS flag, one more time
 
@@ -84,9 +213,24 @@ The font jars and the FFmpeg native jars need nothing: each names itself as a mo
 backend and the video decoder require them, and the JVM loads them from the module path. Two
 kinds of jar still need a word:
 
-- **LWJGL's native jars.** They are modules that nothing requires, so on the module path they are
-  never loaded. Put your platform's jars on the class path, or keep them on the module path and
-  add the `--add-modules` line the backend prints when it stops for want of them.
+- **LWJGL's native jars.** Each LWJGL module's natives jar declares the same module name for all
+  six platforms (`org.lwjgl.glfw.natives`, whichever platform it is for), so on the module path the
+  first jar of a name wins, and with the one-line install that can be another platform's. They are
+  also modules that nothing requires, so they are never loaded unless named. Resolve only your
+  target's natives, as [Natives for one platform](#natives-for-one-platform) shows, and name them:
+
+  ```kotlin title="build.gradle.kts"
+  // LWJGL's natives modules, by name: for ./gradlew run, and for a distribution's start scripts.
+  val lwjglNatives = listOf("--add-modules", "org.lwjgl.natives,org.lwjgl.glfw.natives," +
+      "org.lwjgl.harfbuzz.natives,org.lwjgl.openal.natives,org.lwjgl.opengl.natives," +
+      "org.lwjgl.stb.natives,org.lwjgl.tinyfd.natives")
+  tasks.named<JavaExec>("run") { jvmArgs(lwjglNatives) }
+  application { applicationDefaultJvmArgs += lwjglNatives }
+  ```
+
+  Or put that platform's natives jars on the class path instead. When the backend stops for want
+  of them, it says which of the two went wrong, and prints this line if it is the missing one.
+  The SVG renderer's natives need neither: each platform's jar has a module name of its own.
 - **jlayer**, the MP3 decoder. It has no module name, and the backend reads it from the class
   path, which is where Gradle puts it.
 

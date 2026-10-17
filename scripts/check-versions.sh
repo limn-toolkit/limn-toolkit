@@ -14,9 +14,12 @@
 #      io.github.limn-toolkit:<module>:1.2.3 nor <artifactId>limn-<module></artifactId> beside a
 #      literal <version>;
 #   2. every coordinate of an artifact that versions on its OWN cadence (the fonts, the FFmpeg
-#      payload, the icon pack — literals by design, they are pins) says what the version catalog
-#      says, in a Gradle coordinate or a Maven <artifactId>/<version> pair alike, so a catalog bump
-#      cannot leave a guide naming yesterday's payload.
+#      and SVG payloads, the icon pack — literals by design, they are pins) says what the version
+#      catalog says, in a Gradle coordinate or a Maven <artifactId>/<version> pair alike, so a
+#      catalog bump cannot leave a guide naming yesterday's payload;
+#   3. a Maven <lwjgl.version> property, which the packaging guide's one-platform recipe declares
+#      because Maven cannot keep one classifier of the backend's LWJGL without naming LWJGL again,
+#      says the LWJGL version the catalog pins.
 #
 # The publish workflow's verify job runs this before anything is built; so does tag-releases.
 set -euo pipefail
@@ -37,6 +40,7 @@ pin_of() {
     limn-fonts-noto-scripts)  echo limn-fonts-noto-scripts ;;
     limn-ffmpeg-natives)      echo limn-ffmpeg-natives ;;
     limn-icons-tabler)        echo limn-icons-tabler ;;
+    limn-lunasvg-natives)     echo limn-lunasvg-natives ;;
     *) echo "" ;;
   esac
 }
@@ -73,9 +77,18 @@ while IFS= read -r file; do
       status=1
     fi
   done < <({
-    grep -oE "$GROUP:limn-(fonts-[a-z-]+|ffmpeg-natives|icons-tabler):[0-9][0-9.]*[0-9]" "$file"
-    perl -0777 -ne 'while (/<artifactId>(limn-(?:fonts-[a-z-]+|ffmpeg-natives|icons-tabler))<\/artifactId>\s*<version>([^<]+)<\/version>/g) { print "io.github.limn-toolkit:$1:$2\n" }' "$file"
+    grep -oE "$GROUP:limn-(fonts-[a-z-]+|ffmpeg-natives|lunasvg-natives|icons-tabler):[0-9][0-9.]*[0-9]" "$file"
+    perl -0777 -ne 'while (/<artifactId>(limn-(?:fonts-[a-z-]+|ffmpeg-natives|lunasvg-natives|icons-tabler))<\/artifactId>\s*<version>([^<]+)<\/version>/g) { print "io.github.limn-toolkit:$1:$2\n" }' "$file"
   } | sort -u)
+  # 3. The LWJGL version a Maven recipe declares.
+  lwjgl="$(catalog lwjgl)"
+  while IFS= read -r declared; do
+    [ -n "$declared" ] || continue
+    if [ "$declared" != "$lwjgl" ]; then
+      echo "✗ $file declares lwjgl.version $declared but gradle/libs.versions.toml pins $lwjgl" >&2
+      status=1
+    fi
+  done < <(grep -oE '<lwjgl.version>[^<]+</lwjgl.version>' "$file" | sed -E 's/<[^>]+>//g')
 done < <(git ls-files -- '*.md' '*.astro' '*.ts' '*.mdx' | grep -v '^site/src/content/docs/')
 
 if [ "$status" -ne 0 ]; then
