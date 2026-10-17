@@ -1370,7 +1370,7 @@ final class VideoScene {
                 canvas.save();
                 try {
                     canvas.clipRect(0, 0, width(), height());
-                    canvas.setOpacity(canvas.opacity() * reveal.value());
+                    canvas.setOpacity(reveal.value());
                     paintChild(canvas, transport,
                             (1 - reveal.value()) * (transport.height() + CHROME_MARGIN));
                 } finally {

@@ -478,7 +478,7 @@ final class AnimationsScene {
             canvas.save();
             try {
                 canvas.clipRect(0, 0, width(), height());
-                canvas.setOpacity(canvas.opacity() * Math.min(1, shown * 1.5f));
+                canvas.setOpacity(Math.min(1, shown * 1.5f));
                 super.paintChildren(canvas);
             } finally {
                 canvas.restore();
@@ -665,7 +665,7 @@ final class AnimationsScene {
                 try {
                     canvas.clipRect(0, 0, width(), height());
                     float v = slide.value();
-                    canvas.setOpacity(canvas.opacity() * v);
+                    canvas.setOpacity(v);
                     paintChild(canvas, toast, (1 - v) * (toast.height() + MARGIN));
                 } finally {
                     canvas.restore();

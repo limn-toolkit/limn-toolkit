@@ -17,7 +17,9 @@ in vec4 v_clip;      // the clip rectangle: every clip's device bounds intersect
 in vec2 v_uv;
 in vec4 v_roundClip; // the rounded clip's own device rectangle (radius: v_misc.w)
 
-uniform vec2 u_viewport;
+uniform vec2 u_viewport; // the target's size in device px: the window, or a layer (ADR 071)
+uniform vec2 u_origin;   // the target's top-left in the window's device px, top-down; 0 for the window
+uniform vec2 u_window;   // the window's framebuffer size in device px, and so the backdrop copy's
 
 // CRT pitches, in local units (points). Locked rather than passed: see
 // BackdropEffect.Crt, which carries the same numbers and the reasoning.
@@ -135,7 +137,13 @@ void main() {
     // rounded clip the two rectangles coincide and the rounded distance, never below the
     // rectangle's, is the answer; only a rounded clip that a rectangle has cut needs the max.
     // Each branch gives exactly what the max gives, so the coverage is unchanged bit for bit.
-    vec2 fragDev = vec2(gl_FragCoord.x, u_viewport.y - gl_FragCoord.y);
+    //
+    // Every clip, and the backdrop copy, is in the window's device pixels, so the fragment finds
+    // itself there first: inside a layer gl_FragCoord counts from the layer's own corner, and the
+    // layer's origin moves it back. With no layer the offset is exactly zero and this is
+    // gl_FragCoord itself, bit for bit.
+    vec2 fragWin = gl_FragCoord.xy + vec2(u_origin.x, u_window.y - u_origin.y - u_viewport.y);
+    vec2 fragDev = vec2(fragWin.x, u_window.y - fragWin.y);
     vec2 clipCenter = (v_clip.xy + v_clip.zw) * 0.5;
     vec2 clipHalf = (v_clip.zw - v_clip.xy) * 0.5;
     float dClip;
@@ -186,7 +194,7 @@ void main() {
         float variant = v_colorB.x;
         float param1 = v_colorB.y;
         float param2 = v_colorB.z;
-        vec2 uv = gl_FragCoord.xy / u_viewport;
+        vec2 uv = fragWin / u_window;
         vec3 sampled;
         if (variant < 0.5) {
             // Clear: a pane with a rounded bevel, refracting by Snell's law.
@@ -237,7 +245,7 @@ void main() {
                 // higher index has to displace MORE, and blue has the higher index.
                 offset[channel] = depth * (sinIn * cosOut - cosIn * sinOut) / cosOut;
             }
-            vec2 dir = normal / u_viewport;
+            vec2 dir = normal / u_window;
             sampled = vec3(backdropAt(uv + dir * offset.r).r,
                            backdropAt(uv + dir * offset.g).g,
                            backdropAt(uv + dir * offset.b).b);
@@ -254,8 +262,8 @@ void main() {
             // framebuffer rather than to the shape: a panel that moves must not
             // shimmer through its own cells.
             float cellPx = max(param1 * scale, 1.0);
-            vec2 snapped = (floor(gl_FragCoord.xy / cellPx) + 0.5) * cellPx;
-            sampled = backdropAt(snapped / u_viewport);
+            vec2 snapped = (floor(fragWin / cellPx) + 0.5) * cellPx;
+            sampled = backdropAt(snapped / u_window);
         } else if (variant < 3.5) {
             // CRT: the picture is bent onto a tube face and then striped by the scan.
             // Both are anchored to the SHAPE, which is the opposite of Pixelate above
@@ -290,7 +298,7 @@ void main() {
                 pushDev = vec2(jy.y * pushLocal.x - jx.y * pushLocal.y,
                               -jy.x * pushLocal.x + jx.x * pushLocal.y) / det;
             }
-            sampled = backdropAt(uv + pushDev / u_viewport);
+            sampled = backdropAt(uv + pushDev / u_window);
 
             // Everything below is in LOCAL units, so every pitch is in points and the
             // structure is the same size on a dense display as on a coarse one.
@@ -336,7 +344,7 @@ void main() {
             // count came from a varying is not something every driver in the portable
             // subset compiles well, and a wide blur wants fewer, further taps anyway.
             vec2 axis = param2 < 0.5 ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
-            vec2 step1 = axis * (param1 * scale / u_viewport) / 4.0;
+            vec2 step1 = axis * (param1 * scale / u_window) / 4.0;
             // Gaussian-ish weights, normalized: 0.20 centre, then 0.17, 0.12, 0.07, 0.04.
             sampled = backdropAt(uv) * 0.2;
             sampled += (backdropAt(uv + step1) + backdropAt(uv - step1)) * 0.17;

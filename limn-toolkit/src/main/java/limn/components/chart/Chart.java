@@ -1335,7 +1335,7 @@ public abstract class Chart<W extends Chart<W>> extends Widget<W> {
 
         canvas.save();
         try {
-            canvas.setOpacity(canvas.opacity() * fade);
+            canvas.setOpacity(fade);
             canvas.fillRoundRectWithBorder(px, py, panelWidth, panelHeight, t.radiusSmall(),
                     theme.surfaceRaised(), Strokes.BORDER, theme.outline());
             float y = py + padV;

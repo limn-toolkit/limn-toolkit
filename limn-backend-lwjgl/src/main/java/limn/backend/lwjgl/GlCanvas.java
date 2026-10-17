@@ -80,6 +80,18 @@ final class GlCanvas implements Canvas {
         limn.graphics.BlendMode blendMode = limn.graphics.BlendMode.NORMAL;
         limn.graphics.Sampling sampling = limn.graphics.Sampling.SMOOTH;
         boolean pixelSnap = true;             // image quads only (see Canvas doc)
+        /**
+         * The picture this state draws into when it is a layer's (see {@link #saveLayer}), and
+         * null for every other state, a save inside a layer included: its restore composites it.
+         */
+        GlLayerPool.Picture layer;
+        /** The layer's rectangle in the window's device pixels, top-down. */
+        int layerX;
+        int layerY;
+        int layerWidth;
+        int layerHeight;
+        /** What the layer is composited with, before the enclosing state's opacity. */
+        float layerOpacity;
 
         void copyFrom(State other) {
             transform.copyFrom(other.transform);
@@ -88,6 +100,7 @@ final class GlCanvas implements Canvas {
             blendMode = other.blendMode;
             sampling = other.sampling;
             pixelSnap = other.pixelSnap;
+            layer = null; // a save is never a layer of its own; saveLayer makes it one
         }
     }
 
@@ -111,6 +124,16 @@ final class GlCanvas implements Canvas {
     private int fbWidth;
     private int fbHeight;
     private GlBackdrop backdrop; // lazy: only a window that draws an effect pays for the copy
+    private GlLayerPool layers;  // lazy: only a window that opens a layer pays for the pool
+    /** How many layers are open now, nested: the states between here and the root that hold one. */
+    private int openLayers;
+    /**
+     * The framebuffer the frame draws into when no layer is open, read when the frame's first layer
+     * opens: the window's own, or whatever a test or a probe bound before beginning the frame.
+     */
+    private int baseFramebuffer;
+    /** The clip a composite draws under: the whole window, since a layer's picture is already cut. */
+    private final DeviceClip wholeWindow = new DeviceClip();
     // Lazy, and normally never built: the standing-in ruler for a canvas nobody installed one for.
     // See ruler() for why that case exists at all and why it is not simply an error.
     private ShapingRuler ownRuler;
@@ -171,6 +194,11 @@ final class GlCanvas implements Canvas {
         // Frame boundary: no pending geometry references the old pages/textures.
         boolean texturesDeleted = imageTextures.beginFrameAndEvict();
         texturesDeleted |= atlas.beginFrameAndEvict();
+        if (layers != null) {
+            texturesDeleted |= layers.beginFrame(framebufferWidth, framebufferHeight);
+        }
+        openLayers = 0;
+        wholeWindow.reset(framebufferWidth, framebufferHeight);
         if (texturesDeleted) {
             batch.resetTexture();
         }
@@ -184,8 +212,14 @@ final class GlCanvas implements Canvas {
     void endFrame() {
         if (depth != 0) {
             LOG.log(Level.WARNING, "unbalanced save()/restore(): {0} save(s) not restored", depth);
+            if (openLayers > 0) {
+                restoreToCount(0); // a layer left open still holds the target: put the window back
+            }
         }
         batch.flush();
+        if (layers != null && layers.endFrame()) {
+            batch.resetTexture(); // a picture this frame did not use went back to the driver
+        }
         inFrame = false;
         current = null;
     }
@@ -245,6 +279,9 @@ final class GlCanvas implements Canvas {
         if (backdrop != null) {
             s = s.plus(backdrop.stats());
         }
+        if (layers != null) {
+            s = s.plus(layers.stats());
+        }
         if (gl3d != null) {
             s = s.plus(gl3d.stats());
         }
@@ -267,6 +304,9 @@ final class GlCanvas implements Canvas {
         imageTextures.close();
         if (backdrop != null) {
             backdrop.dispose();
+        }
+        if (layers != null) {
+            layers.dispose();
         }
         batch.close();
         if (ownRuler != null) {
@@ -321,10 +361,24 @@ final class GlCanvas implements Canvas {
         if (x1 <= x0 || y1 <= y0) {
             return;
         }
+        // Inside a layer the region is the layer's part of it, counted from the layer's corner.
+        State layer = innermostLayer();
+        int originX = layer != null ? layer.layerX : 0;
+        int originY = layer != null ? layer.layerY : 0;
+        int targetHeight = layer != null ? layer.layerHeight : fbHeight;
+        if (layer != null) {
+            x0 = Math.max(x0, originX);
+            y0 = Math.max(y0, originY);
+            x1 = Math.min(x1, originX + layer.layerWidth);
+            y1 = Math.min(y1, originY + targetHeight);
+            if (x1 <= x0 || y1 <= y0) {
+                return;
+            }
+        }
         // A scissored clear REPLACES the region, including alpha 0 on the
         // translucent popup framebuffers, which no blended fill can produce.
         org.lwjgl.opengl.GL33C.glEnable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
-        org.lwjgl.opengl.GL33C.glScissor(x0, fbHeight - y1, x1 - x0, y1 - y0);
+        org.lwjgl.opengl.GL33C.glScissor(x0 - originX, originY + targetHeight - y1, x1 - x0, y1 - y0);
         GlColors.clearPremultiplied(color);
         glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
         // The next batch flush re-arms the damage scissor from its own state.
@@ -405,7 +459,176 @@ final class GlCanvas implements Canvas {
         if (depth == 0) {
             throw new IllegalStateException("restore() without a matching save()");
         }
+        State closing = states.get(depth);
         depth--;
+        if (closing.layer != null) {
+            closeLayer(closing);
+        }
+    }
+
+    /**
+     * Opens a layer (ADR 071 §2.3): a picture of the part of the rectangle the clip lets show, on
+     * whole device pixels, into which everything until the matching {@link #restore()} is drawn,
+     * and which that restore composites with {@code opacity} as one textured quad.
+     *
+     * <p><b>Nothing of the state is re-based.</b> Every vertex and every clip stays in the window's
+     * device pixels; the batch is told the layer's corner and size, and the programs move the
+     * projection and the fragment's way back to the window by it. Opening one therefore costs a
+     * flush, a bind and the clear of the picture's part, and nothing per draw inside it.
+     *
+     * <p>Inside it the opacity starts again from 1 and the blend mode from normal, since the
+     * composite carries both; the clip is cut to the layer. An opacity of 1 opens no layer and is a
+     * {@link #save()}; one of 0, or a rectangle nothing of which can show, is a save under an empty
+     * clip, which draws nothing. Where the driver cannot make a picture, the layer falls back to the
+     * per-draw opacity every canvas without layers draws.
+     */
+    @Override
+    public void saveLayer(float x, float y, float width, float height, float opacity) {
+        ensureInFrame();
+        float alpha = opacity > 0 ? Math.min(1f, opacity) : 0f;
+        save();
+        State s = state();
+        if (alpha >= 1f) {
+            return; // nothing to fade: drawing straight into the target is the same picture
+        }
+        // The rectangle's device bounds, cut to the clip and moved outward to whole device pixels,
+        // so every draw inside keeps the pixel grid it has in the window.
+        Transform2D t = s.transform;
+        float rx1 = x + Math.max(0, width);
+        float ry1 = y + Math.max(0, height);
+        float dx0 = Math.max(s.clip.x0, min4(t.x(x, y), t.x(rx1, y), t.x(x, ry1), t.x(rx1, ry1)));
+        float dy0 = Math.max(s.clip.y0, min4(t.y(x, y), t.y(rx1, y), t.y(x, ry1), t.y(rx1, ry1)));
+        float dx1 = Math.min(s.clip.x1, max4(t.x(x, y), t.x(rx1, y), t.x(x, ry1), t.x(rx1, ry1)));
+        float dy1 = Math.min(s.clip.y1, max4(t.y(x, y), t.y(rx1, y), t.y(x, ry1), t.y(rx1, ry1)));
+        int lx0 = Math.max(0, (int) Math.floor(dx0 + PIXEL_EDGE_TOLERANCE));
+        int ly0 = Math.max(0, (int) Math.floor(dy0 + PIXEL_EDGE_TOLERANCE));
+        int lx1 = Math.min(fbWidth, (int) Math.ceil(dx1 - PIXEL_EDGE_TOLERANCE));
+        int ly1 = Math.min(fbHeight, (int) Math.ceil(dy1 - PIXEL_EDGE_TOLERANCE));
+        if (alpha <= 0f || s.opacity <= 0f || lx1 <= lx0 || ly1 <= ly0) {
+            s.clip.intersectRect(0, 0, 0, 0); // nothing of it can show: draw nothing
+            return;
+        }
+        if (layers == null) {
+            layers = new GlLayerPool();
+        }
+        // What is queued belongs to the target the layer opens over, and must reach it first.
+        batch.flush();
+        if (openLayers == 0) {
+            baseFramebuffer = org.lwjgl.opengl.GL33C.glGetInteger(
+                    org.lwjgl.opengl.GL33C.GL_DRAW_FRAMEBUFFER_BINDING);
+        }
+        int lw = lx1 - lx0;
+        int lh = ly1 - ly0;
+        GlLayerPool.Picture picture = layers.take(lw, lh, fbWidth, fbHeight);
+        if (picture == null) {
+            bindTarget(innermostLayer()); // making it bound another framebuffer; put ours back
+            s.opacity *= alpha; // no picture to draw into: the per-draw fade of a canvas without layers
+            return;
+        }
+        s.layer = picture;
+        s.layerX = lx0;
+        s.layerY = ly0;
+        s.layerWidth = lw;
+        s.layerHeight = lh;
+        s.layerOpacity = alpha;
+        s.opacity = 1f;
+        s.blendMode = limn.graphics.BlendMode.NORMAL;
+        s.clip.intersectRect(lx0, ly0, lx1, ly1);
+        openLayers++;
+        bindTarget(s);
+        // Only the part this layer draws in is cleared: the picture may be larger than the layer,
+        // and the rest of it is never sampled.
+        org.lwjgl.opengl.GL33C.glEnable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
+        org.lwjgl.opengl.GL33C.glScissor(0, 0, lw, lh);
+        org.lwjgl.opengl.GL33C.glClearColor(0f, 0f, 0f, 0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+        org.lwjgl.opengl.GL33C.glDisable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
+    }
+
+    /**
+     * Closes a layer: what was drawn into it reaches its picture, the target it opened over is bound
+     * again, and the picture goes into that target as one quad, at the layer's opacity times the
+     * enclosing state's, with the enclosing state's blend mode. The quad draws under no clip: the
+     * picture was drawn under the clip already, its pixels cut where the clip cut them, and a second
+     * pass of the same clip would square its antialiased edge.
+     */
+    private void closeLayer(State closing) {
+        GlLayerPool.Picture picture = closing.layer;
+        closing.layer = null;
+        batch.flush();
+        openLayers--;
+        bindTarget(innermostLayer());
+        State s = state();
+        float alpha = closing.layerOpacity * s.opacity;
+        if (alpha > 0f) {
+            int x0 = closing.layerX;
+            int y0 = closing.layerY;
+            int x1 = x0 + closing.layerWidth;
+            int y1 = y0 + closing.layerHeight;
+            // The layer drew into the picture's bottom-left part, its top row the part's top.
+            float u1 = closing.layerWidth / (float) picture.width;
+            float vTop = closing.layerHeight / (float) picture.height;
+            applyBlend(s);
+            batch.requireTexture(picture.texture);
+            batch.setShape(0, 0, 0, 0, 0, 0, -1, KIND_IMAGE, PAINT_SOLID);
+            batch.setColors(1, 1, 1, alpha, 0, 0, 0, 0);
+            batch.setGradient(0, 0, 0, 0);
+            batch.setClip(wholeWindow);
+            batch.ensure(4, 6);
+            int base = batch.baseVertex();
+            batch.vertex(x0, y0, 0, 0, 0, vTop);
+            batch.vertex(x1, y0, 0, 0, u1, vTop);
+            batch.vertex(x1, y1, 0, 0, u1, 0);
+            batch.vertex(x0, y1, 0, 0, 0, 0);
+            batch.triangle(base, base + 1, base + 2);
+            batch.triangle(base, base + 2, base + 3);
+        }
+        // Back in the pool for the next layer, whose opening flushes this quad before anything is
+        // drawn into the picture again.
+        layers.give(picture);
+    }
+
+    /** @return the state of the innermost layer open now, or null when the frame's own target is */
+    private State innermostLayer() {
+        if (openLayers == 0) {
+            return null;
+        }
+        for (int i = depth; i > 0; i--) {
+            State s = states.get(i);
+            if (s.layer != null) {
+                return s;
+            }
+        }
+        return null;
+    }
+
+    /** Binds a layer's picture as the target, or the frame's own target for null, and tells the batch. */
+    private void bindTarget(State layer) {
+        if (layer != null) {
+            org.lwjgl.opengl.GL33C.glBindFramebuffer(org.lwjgl.opengl.GL33C.GL_FRAMEBUFFER,
+                    layer.layer.framebuffer);
+            org.lwjgl.opengl.GL33C.glViewport(0, 0, layer.layerWidth, layer.layerHeight);
+            batch.setTarget(true, layer.layerX, layer.layerY, layer.layerWidth, layer.layerHeight);
+        } else {
+            org.lwjgl.opengl.GL33C.glBindFramebuffer(org.lwjgl.opengl.GL33C.GL_FRAMEBUFFER, baseFramebuffer);
+            org.lwjgl.opengl.GL33C.glViewport(0, 0, fbWidth, fbHeight);
+            batch.setTarget(false, 0, 0, fbWidth, fbHeight);
+        }
+    }
+
+    /** @return how many layers are open now; for tests */
+    int openLayers() {
+        return openLayers;
+    }
+
+    /** @return the layer pictures this canvas holds now, as the performance monitor counts them; for tests */
+    limn.backend.RenderStats layerStats() {
+        return layers == null ? limn.backend.RenderStats.EMPTY : layers.stats();
+    }
+
+    /** @return the names of the textures its layer pictures hold now; for tests */
+    int[] layerTextures() {
+        return layers == null ? new int[0] : layers.textures();
     }
 
     @Override
@@ -436,9 +659,15 @@ final class GlCanvas implements Canvas {
         state().transform.rotate(angleRadians);
     }
 
+    /**
+     * Multiplies, as the interface says: an opacity set inside a fading surface or a layer
+     * combines with it. NaN is taken as 0, so a bad factor hides what it would have tinted rather
+     * than poisoning every colour after it.
+     */
     @Override
     public void setOpacity(float opacity) {
-        state().opacity = Math.min(1f, Math.max(0f, opacity));
+        State s = state();
+        s.opacity = opacity > 0 ? s.opacity * Math.min(1f, opacity) : 0f;
     }
 
     @Override
@@ -671,7 +900,8 @@ final class GlCanvas implements Canvas {
         if (backdrop == null) {
             backdrop = new GlBackdrop();
         }
-        int texture = backdrop.capture(fbWidth, fbHeight, cx0, fbHeight - cy1, cx1 - cx0, cy1 - cy0);
+        int texture = openLayers > 0 ? captureThroughLayers(cx0, cy0, cx1, cy1)
+                : backdrop.capture(fbWidth, fbHeight, cx0, fbHeight - cy1, cx1 - cx0, cy1 - cy0);
 
         // Half a texel in from the copied region: LINEAR filtering at the boundary would otherwise
         // fetch the neighbour outside it, which holds an older frame.
@@ -705,6 +935,67 @@ final class GlCanvas implements Canvas {
         putCorner(t, cx, cy, 1, 0, 0, 1, -(halfW + pad), halfH + pad);
         batch.triangle(base, base + 1, base + 2);
         batch.triangle(base, base + 2, base + 3);
+    }
+
+    /**
+     * The backdrop of a glass drawn inside open layers (ADR 071 §2.6, decision 5): what it would
+     * read if every layer around it were opaque. The frame's own target is copied first, and each
+     * open layer's picture so far is laid over the copy, outermost first, at full opacity, for the
+     * region the glass reads; the glass then draws into its own layer as it draws into a window. So
+     * a frosted surface fading in shows what it will show at the end of the fade from the first
+     * frame, at the fade's opacity, and at an opacity of 1 there is no layer and the reading is the
+     * window's, as it always was.
+     *
+     * <p>The price is one textured quad per open layer per glass over the region, and two binds;
+     * section 5 of the record measured it. The caller has flushed: every layer's picture holds what
+     * was drawn into it before the glass.
+     *
+     * @return the copy, ready to sample, in the window's coordinates like any backdrop copy
+     */
+    private int captureThroughLayers(int cx0, int cy0, int cx1, int cy1) {
+        org.lwjgl.opengl.GL33C.glBindFramebuffer(org.lwjgl.opengl.GL33C.GL_READ_FRAMEBUFFER, baseFramebuffer);
+        int texture = backdrop.capture(fbWidth, fbHeight, cx0, fbHeight - cy1, cx1 - cx0, cy1 - cy0);
+        org.lwjgl.opengl.GL33C.glBindFramebuffer(org.lwjgl.opengl.GL33C.GL_FRAMEBUFFER, backdrop.framebuffer());
+        org.lwjgl.opengl.GL33C.glViewport(0, 0, fbWidth, fbHeight);
+        // A layer's target, so no damage scissor: the copy is not the window.
+        batch.setTarget(true, 0, 0, fbWidth, fbHeight);
+        GlBlend.Factors normal = GlBlend.of(limn.graphics.BlendMode.NORMAL);
+        batch.requireBlend(normal.srcRgb(), normal.dstRgb(), normal.srcAlpha(), normal.dstAlpha());
+        for (int i = 1; i <= depth; i++) {
+            State layer = states.get(i);
+            if (layer.layer == null) {
+                continue;
+            }
+            int x0 = Math.max(cx0, layer.layerX);
+            int y0 = Math.max(cy0, layer.layerY);
+            int x1 = Math.min(cx1, layer.layerX + layer.layerWidth);
+            int y1 = Math.min(cy1, layer.layerY + layer.layerHeight);
+            if (x1 <= x0 || y1 <= y0) {
+                continue;
+            }
+            GlLayerPool.Picture picture = layer.layer;
+            float u0 = (x0 - layer.layerX) / (float) picture.width;
+            float u1 = (x1 - layer.layerX) / (float) picture.width;
+            // Rows of the picture count up from the layer's bottom edge.
+            float v0 = (layer.layerY + layer.layerHeight - y0) / (float) picture.height;
+            float v1 = (layer.layerY + layer.layerHeight - y1) / (float) picture.height;
+            batch.requireTexture(picture.texture);
+            batch.setShape(0, 0, 0, 0, 0, 0, -1, KIND_IMAGE, PAINT_SOLID);
+            batch.setColors(1, 1, 1, 1, 0, 0, 0, 0);
+            batch.setGradient(0, 0, 0, 0);
+            batch.setClip(wholeWindow);
+            batch.ensure(4, 6);
+            int base = batch.baseVertex();
+            batch.vertex(x0, y0, 0, 0, u0, v0);
+            batch.vertex(x1, y0, 0, 0, u1, v0);
+            batch.vertex(x1, y1, 0, 0, u1, v1);
+            batch.vertex(x0, y1, 0, 0, u0, v1);
+            batch.triangle(base, base + 1, base + 2);
+            batch.triangle(base, base + 2, base + 3);
+        }
+        batch.flush();
+        bindTarget(innermostLayer());
+        return texture;
     }
 
     private static float variantId(limn.graphics.BackdropEffect effect) {

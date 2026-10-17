@@ -19,6 +19,7 @@ import java.nio.ByteBuffer;
 final class GlBackdrop {
 
     private int texture;
+    private int framebuffer; // lazy: only a glass inside a layer draws into the copy
     private int width;
     private int height;
 
@@ -38,6 +39,25 @@ final class GlBackdrop {
         GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
         GL33C.glCopyTexSubImage2D(GL33C.GL_TEXTURE_2D, 0, x, yBottomUp, x, yBottomUp, w, h);
         return texture;
+    }
+
+    /**
+     * A framebuffer drawing into the copy, for a glass inside a layer: the layers open around it are
+     * laid over the copy before the glass reads it (ADR 071 §2.6). Made the first time one is asked
+     * for, after {@link #capture} has sized the copy; the caller binds it.
+     *
+     * @return the framebuffer
+     */
+    int framebuffer() {
+        if (framebuffer == 0) {
+            framebuffer = GL33C.glGenFramebuffers();
+            GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, framebuffer);
+            GL33C.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
+                    GL33C.GL_TEXTURE_2D, texture, 0);
+            int fbo = framebuffer;
+            Gl.requireFramebufferComplete("backdrop copy", () -> GL33C.glDeleteFramebuffers(fbo));
+        }
+        return framebuffer;
     }
 
     private void ensureSized(int framebufferWidth, int framebufferHeight) {
@@ -63,6 +83,10 @@ final class GlBackdrop {
     }
 
     void dispose() {
+        if (framebuffer != 0) {
+            GL33C.glDeleteFramebuffers(framebuffer); // attached to the texture below, so it goes first
+            framebuffer = 0;
+        }
         if (texture != 0) {
             GL33C.glDeleteTextures(texture);
             texture = 0;

@@ -16,7 +16,10 @@ layout(location = 8) in vec4 a_clip;     // device px: x0,y0,x1,y1, every clip i
 layout(location = 9) in vec2 a_uv;       // glyph atlas texels (normalized)
 layout(location = 10) in vec4 a_roundClip; // device px: the rounded clip's own x0,y0,x1,y1
 
-uniform vec2 u_viewport;                 // framebuffer size in device px
+uniform vec2 u_viewport;                 // the target's size in device px: the window, or a layer
+uniform vec2 u_origin;                   // the target's top-left in the window's device px (a layer's
+                                         // corner; 0 for the window): positions stay in the window's
+                                         // pixels and only the projection moves (ADR 071)
 
 out vec2 v_local;
 out vec2 v_halfSize;
@@ -30,7 +33,7 @@ out vec2 v_uv;
 out vec4 v_roundClip;
 
 void main() {
-    vec2 ndc = a_pos / u_viewport * 2.0 - 1.0;
+    vec2 ndc = (a_pos - u_origin) / u_viewport * 2.0 - 1.0;
     gl_Position = vec4(ndc.x, -ndc.y, 0.0, 1.0);
     v_local = a_local;
     v_halfSize = a_halfSize;

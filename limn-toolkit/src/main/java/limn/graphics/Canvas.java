@@ -16,7 +16,9 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>State ({@link #save()}/{@link #restore()}) covers the transform, the
  * opacity and the clip. Clips only intersect (never expand) and are restored
- * by {@code restore()}.
+ * by {@code restore()}; an opacity multiplies the one in force. A
+ * {@link #saveLayer layer} is a save whose drawing is composited as one
+ * picture by its {@code restore()}.
  *
  * <p>A Canvas is only valid during a frame callback and is single-threaded
  * (UI thread).
@@ -126,12 +128,64 @@ public interface Canvas {
     void rotate(float angleRadians);
 
     /**
-     * Sets the current state's opacity multiplier in [0..1]; every subsequent
-     * paint's alpha is multiplied by it. Restored by {@link #restore()}.
+     * <b>Multiplies</b> the current state's opacity by {@code opacity}, clamped to [0..1]; every
+     * subsequent paint's alpha is multiplied by the result. Restored by {@link #restore()}.
+     *
+     * <p>It multiplies rather than replaces so that an opacity set inside a fading surface, or
+     * inside a {@linkplain #saveLayer layer}, combines with the one around it instead of undoing
+     * it: a widget at one half inside a panel fading at one half draws at a quarter. On a fresh
+     * {@link #save()} the current opacity is whatever the enclosing state carries, which is 1 at
+     * the top of a frame and inside a layer, so a caller that saves and sets once gets the number
+     * it asked for. A caller that wants an absolute value has to know what it is multiplying.
+     *
+     * <p>This is a per-draw alpha: each draw is translucent on its own, so where one draw covers
+     * another the one beneath shows through it. To fade overlapping draws as one picture, open a
+     * {@link #saveLayer layer} instead.
+     *
+     * @param opacity the factor, clamped to [0..1]
      */
     void setOpacity(float opacity);
 
+    /** @return the current state's opacity, the product of every {@link #setOpacity} still in force */
     float opacity();
+
+    /**
+     * Opens a layer: until the matching {@link #restore()}, everything drawn goes into an offscreen
+     * picture, and the restore composites that picture over what is beneath it with
+     * {@code opacity}, once. Overlapping draws inside it therefore fade as one picture: a row's
+     * highlight does not show through the row's icon, and a panel's shadow does not darken the
+     * panel. This is what {@code Widget.setOpacity} draws through, and what a widget that paints
+     * overlapping parts of its own uses to fade them together.
+     *
+     * <p>The rectangle, in current coordinates, is what the picture keeps: whatever is drawn outside
+     * it is lost. A canvas sizes the picture to the rectangle as far as its current clip lets it be
+     * seen, on whole device pixels, so a layer is never larger than what can show. Like
+     * {@link #save()} it pushes the state (transform, clip, blend mode, sampling, pixel snap), and
+     * inside it the opacity starts again from 1, since the composite carries it; the blend mode in
+     * force when it is opened is the one the composite uses, and drawing inside starts from
+     * {@link BlendMode#NORMAL}.
+     *
+     * <p><b>What it costs</b> (ADR 071, measured on the renderer this toolkit ships): two batch
+     * breaks and one composited quad per layer, about 0.03 to 0.1 ms of GPU for a popup-sized
+     * layer on a GPU and a percent or two of the frame on a software renderer; a window-sized one
+     * costs 0.1 to 0.15 ms of GPU, and about 10% of a frame on a software renderer. A canvas keeps
+     * the layer's memory, four bytes a device pixel, only while consecutive frames open layers.
+     * An opacity of 1 does not need one, and a caller should not open one for it.
+     *
+     * <p><b>A canvas that cannot make layers</b> (a recording or measuring one) falls back to what
+     * the default does: a {@link #save()} and a per-draw {@link #setOpacity}, which draws the same
+     * things in the same places and lets overlapping draws show through each other.
+     *
+     * @param x       the left edge of what the layer keeps, in current coordinates
+     * @param y       its top edge
+     * @param width   its width
+     * @param height  its height
+     * @param opacity the opacity the picture is composited with, clamped to [0..1]
+     */
+    default void saveLayer(float x, float y, float width, float height, float opacity) {
+        save();
+        setOpacity(opacity);
+    }
 
     /**
      * Sets the current state's {@link BlendMode}: how every subsequent

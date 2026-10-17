@@ -71,6 +71,8 @@ final class GlBatch implements AutoCloseable {
 
     private final ShaderProgram program;
     private final int uniformViewport;
+    private final int uniformOrigin;
+    private final int uniformWindow;
     private final int uniformExposure;
     private final int vao;
     private final int vbo;
@@ -80,6 +82,7 @@ final class GlBatch implements AutoCloseable {
     static final int FLAT_VERTEX_FLOATS = 6;
     private final ShaderProgram flatProgram;
     private final int flatUniformViewport;
+    private final int flatUniformOrigin;
     private final int flatVao;
     private final int flatVbo;
     private FloatBuffer flatVertices = MemoryUtil.memAllocFloat(6 * 8 * FLAT_VERTEX_FLOATS);
@@ -109,6 +112,8 @@ final class GlBatch implements AutoCloseable {
                 "/limn/backend/lwjgl/shaders/canvas.vert",
                 "/limn/backend/lwjgl/shaders/canvas.frag");
         uniformViewport = program.uniformLocation("u_viewport");
+        uniformOrigin = program.uniformLocation("u_origin");
+        uniformWindow = program.uniformLocation("u_window");
         uniformExposure = program.uniformLocation("u_exposure");
         vao = glGenVertexArrays();
         vbo = glGenBuffers();
@@ -136,6 +141,7 @@ final class GlBatch implements AutoCloseable {
                 "/limn/backend/lwjgl/shaders/canvas_flat.vert",
                 "/limn/backend/lwjgl/shaders/canvas_flat.frag");
         flatUniformViewport = flatProgram.uniformLocation("u_viewport");
+        flatUniformOrigin = flatProgram.uniformLocation("u_origin");
         flatVao = glGenVertexArrays();
         flatVbo = glGenBuffers();
         glBindVertexArray(flatVao);
@@ -154,6 +160,11 @@ final class GlBatch implements AutoCloseable {
     void beginFrame(int framebufferWidth, int framebufferHeight) {
         fbWidth = framebufferWidth;
         fbHeight = framebufferHeight;
+        targetX = 0;
+        targetY = 0;
+        targetWidth = framebufferWidth;
+        targetHeight = framebufferHeight;
+        inLayer = false;
         vertices.clear();
         indices.clear();
         vertexCount = 0;
@@ -171,6 +182,36 @@ final class GlBatch implements AutoCloseable {
     private int scissorY; // GL scissor space: origin at the bottom-left
     private int scissorW;
     private int scissorH;
+
+    // The target the geometry is drawn into (ADR 071): the window, or a layer, given as its corner
+    // and size in the window's device pixels. Every vertex and every clip stays in the window's
+    // pixels whatever the target is; only the projection and the fragment's way back to the window
+    // move with it, which is what lets a layer open without touching the canvas's state.
+    private int targetX;
+    private int targetY;
+    private int targetWidth;
+    private int targetHeight;
+    private boolean inLayer;
+
+    /**
+     * Declares the target the geometry that follows is drawn into. The caller has flushed what was
+     * pending for the old one and bound the new one: this only changes what the next draw tells the
+     * programs. Inside a layer the damage scissor is off, since a layer is already cut to the pass,
+     * and the window's scissor is kept for when the window is the target again.
+     *
+     * @param layer  whether the target is a layer rather than the window
+     * @param x      its left edge in the window's device pixels
+     * @param y      its top edge, top-down
+     * @param width  its width in device pixels
+     * @param height its height
+     */
+    void setTarget(boolean layer, int x, int y, int width, int height) {
+        inLayer = layer;
+        targetX = x;
+        targetY = y;
+        targetWidth = width;
+        targetHeight = height;
+    }
 
     void setScissor(boolean enabled, int x, int yBottomUp, int w, int h) {
         this.scissorEnabled = enabled;
@@ -387,7 +428,9 @@ final class GlBatch implements AutoCloseable {
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices, GL_STREAM_DRAW);
 
         program.use();
-        glUniform2f(uniformViewport, fbWidth, fbHeight);
+        glUniform2f(uniformViewport, targetWidth, targetHeight);
+        glUniform2f(uniformOrigin, targetX, targetY);
+        glUniform2f(uniformWindow, fbWidth, fbHeight);
         glUniform1f(uniformExposure, exposure);
         if (textureId != 0) {
             glActiveTexture(GL_TEXTURE0);
@@ -412,7 +455,8 @@ final class GlBatch implements AutoCloseable {
         glBindBuffer(GL_ARRAY_BUFFER, flatVbo);
         glBufferData(GL_ARRAY_BUFFER, flatVertices, GL_STREAM_DRAW);
         flatProgram.use();
-        glUniform2f(flatUniformViewport, fbWidth, fbHeight);
+        glUniform2f(flatUniformViewport, targetWidth, targetHeight);
+        glUniform2f(flatUniformOrigin, targetX, targetY);
         applyRasterState();
         glDrawArrays(GL_TRIANGLES, 0, flatVertexCount);
         glBindVertexArray(0);
@@ -428,7 +472,7 @@ final class GlBatch implements AutoCloseable {
         glBlendFuncSeparate(blendSrcRgb, blendDstRgb, blendSrcAlpha, blendDstAlpha);
         glDisable(GL_DEPTH_TEST);
         glDisable(GL_CULL_FACE);
-        if (scissorEnabled) {
+        if (scissorEnabled && !inLayer) {
             glEnable(GL_SCISSOR_TEST);
             glScissor(scissorX, scissorY, scissorW, scissorH);
         } else {
