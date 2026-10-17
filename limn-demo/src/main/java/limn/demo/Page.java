@@ -176,6 +176,14 @@ final class Page {
         return Labelled.above(caption, control, placed);
     }
 
+    /**
+     * A caption above a bar, the bar's value at the end of the caption's line, so that the bar
+     * is as long as the column and as far under its caption as any control is under its own.
+     */
+    static Widget<?> fieldWithValue(I18nString caption, Widget<?> control, Widget<?> value) {
+        return Labelled.aboveWithValue(caption, control, value);
+    }
+
     /** A row of controls, centred on one line, {@code gap} apart. */
     static Row row(float gap, Widget<?>... children) {
         Row row = new Row();

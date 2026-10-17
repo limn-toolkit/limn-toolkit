@@ -310,8 +310,11 @@ final class BasicsScene {
         ProgressBar credit = new ProgressBar();
         // Once the page is in a scene: the bar runs on the scene's clock, and has none before.
         Ui.postDelayed(() -> credit.setIndeterminate(true), 0);
+        // The percentage on the caption's line: beside the bar, the bar was centred on the
+        // label's height, 4 pt lower under its caption than the credit check's bar and 38 pt
+        // shorter than the column, measured.
         return Page.columns(
-                Page.field(Text.PROFILE, profile, Page.row(12, Expanded.of(profile, 1), percent)),
+                Page.fieldWithValue(Text.PROFILE, profile, percent),
                 Page.field(Text.CREDIT, credit));
     }
 

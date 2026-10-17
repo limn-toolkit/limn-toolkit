@@ -1,0 +1,81 @@
+package limn.demo;
+
+import limn.components.ProgressBar;
+import limn.components.Theme;
+import limn.graphics.TextRulers;
+import limn.i18n.I18n;
+import limn.scene.Scene;
+import limn.scene.Widget;
+import limn.testing.HeadlessBackend;
+import limn.testing.HeadlessUi;
+import limn.testing.HeadlessWindow;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.function.Supplier;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+/**
+ * What the Showcase's pages set side by side lines up: the controls of a form's two columns, each
+ * as far under its caption as its neighbour is under its own and as long as its column. Each case
+ * is a misalignment the owner saw, or one the sweep of 2026-10-17 measured on the filmed pages.
+ */
+class ShowcaseAlignmentTest {
+
+    private HeadlessUi ui;
+
+    @BeforeEach
+    void setUp() {
+        ui = new HeadlessUi(() -> 0L);
+        I18n.setLocale(Locale.ENGLISH);
+        Theme.setCurrent(Theme.light());
+        TextRulers.install(HeadlessWindow.RULER);
+    }
+
+    @AfterEach
+    void tearDown() {
+        TextRulers.uninstall(HeadlessWindow.RULER);
+        I18n.setLocale(Locale.ENGLISH); // a case read in pt-BR leaves the next class in English
+        ui.close();
+    }
+
+    @Test
+    void theOnboardingBarsAreOnOneLineAndAsLongAsTheirColumns() {
+        Scene scene = open(BasicsScene::content);
+        List<ProgressBar> bars = all(scene.root(), ProgressBar.class);
+        assertEquals(2, bars.size(), "the profile and the credit check");
+        ProgressBar profile = bars.get(0);
+        ProgressBar credit = bars.get(1);
+        assertEquals(profile.localToSceneY(), credit.localToSceneY(), 0.5f,
+                "both bars as far under their captions, so on one line");
+        assertEquals(profile.width(), credit.width(), 0.5f, "both bars as long as their columns");
+    }
+
+    private Scene open(Supplier<Widget<?>> page) {
+        Scene scene = new Scene(page.get(), () -> 0L);
+        HeadlessWindow window = new HeadlessBackend(ui.runtime()).open("page", 1000, 2400);
+        scene.bind(window);
+        window.frame();
+        return scene;
+    }
+
+    private static <T> List<T> all(Widget<?> at, Class<T> type) {
+        List<T> found = new ArrayList<>();
+        collect(at, type, found);
+        return found;
+    }
+
+    private static <T> void collect(Widget<?> at, Class<T> type, List<T> found) {
+        if (type.isInstance(at)) {
+            found.add(type.cast(at));
+        }
+        for (Widget<?> child : at.children()) {
+            collect(child, type, found);
+        }
+    }
+}

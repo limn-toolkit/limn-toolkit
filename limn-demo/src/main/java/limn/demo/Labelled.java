@@ -4,7 +4,9 @@ import limn.components.Label;
 import limn.i18n.I18nString;
 import limn.scene.Widget;
 import limn.scene.layout.Column;
+import limn.scene.layout.Expanded;
 import limn.scene.layout.Flex;
+import limn.scene.layout.Row;
 
 /**
  * A caption beside a control, with the caption declared as the control's label.
@@ -73,6 +75,29 @@ public final class Labelled {
         return column;
     }
     // #endregion
+
+    /**
+     * A caption above a control with the control's value at the end of the caption's line: for a
+     * bar thinner than a line of text, which set on one line with its value would be centred on
+     * the value's height and sit lower under its caption than a control beside it sits under
+     * its own, and shorter too.
+     *
+     * @param caption the text
+     * @param control what it names, and what is placed
+     * @param value   what is shown at the end of the caption's line
+     * @return the column holding both
+     */
+    public static Widget<?> aboveWithValue(I18nString caption, Widget<?> control, Widget<?> value) {
+        Row head = new Row();
+        head.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
+        head.add(Expanded.of(new Label(caption).setLabelFor(control), 1));
+        head.add(value);
+        Column column = new Column();
+        column.gap(4).crossAlignment(Flex.CrossAlignment.STRETCH);
+        column.add(head);
+        column.add(control);
+        return column;
+    }
 
     /**
      * A muted caption below a control, the shape the controls, cursors and animations scenes
