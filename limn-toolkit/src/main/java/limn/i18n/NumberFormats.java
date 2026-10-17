@@ -184,6 +184,28 @@ public final class NumberFormats {
      */
     public static DoubleFunction<String> currency(Currency currency) {
         Objects.requireNonNull(currency, "currency");
+        return currency(currency, currency.getDefaultFractionDigits());
+    }
+
+    /**
+     * {@link #currency(Currency)} with exactly {@code decimals} decimals instead of the
+     * currency's own: what a chart's axis wants, whose ticks are whole amounts, or a price list
+     * kept to the tenth of a cent. {@code currency(dollars, 0)} writes {@code 815800} as
+     * {@code "US$ 815.800"} under {@code pt-BR} and {@code "$815,800"} under {@code en}.
+     *
+     * <p>Money with other decimals than the currency's is written here rather than with the
+     * platform's currency format asked for the language in effect, because that format writes
+     * the separators of the language's default digits, which are not always the digits shown:
+     * under a bare {@code ar}, whose numbers the toolkit writes in Latin digits, it puts the
+     * Arabic grouping sign between them ({@code 815٬800}), where this writes {@code 815,800}.
+     *
+     * @param currency the currency the amounts are in; never {@code null}
+     * @param decimals the decimals every amount is written with; a negative count writes none
+     * @return the format
+     */
+    public static DoubleFunction<String> currency(Currency currency, int decimals) {
+        Objects.requireNonNull(currency, "currency");
+        int digits = Math.max(0, decimals);
         return v -> {
             if (!Double.isFinite(v)) {
                 return "-";
@@ -191,8 +213,8 @@ public final class NumberFormats {
             Locale numbers = NumberLocale.inEffect();
             NumberFormat format = NumberFormat.getCurrencyInstance(numbers);
             format.setCurrency(currency);
-            format.setMinimumFractionDigits(currency.getDefaultFractionDigits());
-            format.setMaximumFractionDigits(currency.getDefaultFractionDigits());
+            format.setMinimumFractionDigits(digits);
+            format.setMaximumFractionDigits(digits);
             return localized(keepSymbolWhole(format.format(v), currency.getSymbol(numbers)));
         };
     }

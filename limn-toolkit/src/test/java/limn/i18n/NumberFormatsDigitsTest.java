@@ -257,4 +257,34 @@ class NumberFormatsDigitsTest {
         assertEquals("\u0662 \u20AC", NumberFormats.keepSymbolWhole("\u0662 \u20AC", "\u20AC"),
                 "a one-sign symbol cannot be split and is left alone");
     }
+
+    /**
+     * Whole amounts of money, as a chart's axis writes them. The Showcase's charts asked the
+     * platform's currency format for them, which under a bare {@code ar} writes the Arabic
+     * grouping sign, and the toolkit's fold to Latin digits then left {@code 815\u066C800}: one
+     * system's separator between the other's digits.
+     */
+    @Test
+    void moneyWithOtherDecimalsKeepsTheSeparatorsOfItsDigits() {
+        java.util.Currency dollars = java.util.Currency.getInstance("USD");
+        I18n.setLocale(Locale.forLanguageTag("ar"));
+        String arabic = NumberFormats.currency(dollars, 0).apply(815_800);
+        assertTrue(arabic.contains("815,800"), "Latin digits with the Latin grouping comma: " + arabic);
+        assertTrue(!arabic.contains("\u066C"), "and no Arabic grouping sign between them: " + arabic);
+        assertEquals(NumberFormats.currency(dollars).apply(815_800),
+                NumberFormats.currency(dollars, 2).apply(815_800),
+                "the currency's own decimals are what the one-argument format writes");
+
+        I18n.setLocale(Locale.forLanguageTag("ar-EG"));
+        assertTrue(NumberFormats.currency(dollars, 0).apply(815_800).contains("\u0668\u0661\u0665\u066C"),
+                "Arabic-Indic digits keep the Arabic grouping sign");
+
+        I18n.setLocale(Locale.forLanguageTag("pt-BR"));
+        assertEquals("US$\u00A0815.800", NumberFormats.currency(dollars, 0).apply(815_800));
+        assertEquals("US$\u00A04,990", NumberFormats.currency(dollars, 3).apply(4.99));
+        I18n.setLocale(Locale.ENGLISH);
+        assertEquals("$815,800", NumberFormats.currency(dollars, 0).apply(815_800));
+        assertEquals("$816", NumberFormats.currency(dollars, -1).apply(815.6),
+                "a negative count writes no decimals");
+    }
 }

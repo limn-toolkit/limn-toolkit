@@ -817,6 +817,10 @@ Maven Central say which number that was.
 - `NumberFormats.scientific(maxDecimals)` writes a number in scientific notation in the current
   language's terms: `1.2E25` in English, `1,2E25` in German, `1,2×10^25` in Swedish, with the
   language's own digits and minus sign.
+- `NumberFormats.currency(currency, decimals)` writes money with other decimals than the
+  currency's own, such as the whole amounts a chart's axis wants: `currency(usd, 0)` writes
+  `US$ 815.800` in Brazilian Portuguese. It keeps the separators that go with the digits shown,
+  which the platform's own currency format did not: under a bare Arabic it wrote `815٬800`.
 - `Backend.requestQuit()` ends the application by asking once: the quit handler
   (`Backend.setQuitHandler`) first, then every open window's close handler, the window used last
   first and one at a time. A refusal anywhere keeps every window open; once all agree, every window
