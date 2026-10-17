@@ -220,6 +220,67 @@ final class Page {
     }
 
     /**
+     * Boxes as wide as the widest of what they hold, wherever on the page each stands: the
+     * captions before a page's sliders, which start on one line only if the captions' column is as
+     * wide as the longest caption in the language shown. A width fixed for English cut pt-BR's
+     * "Panorâmica" to "Panorâmi…".
+     */
+    static final class SameWidth {
+        private final java.util.List<Widget<?>> held = new java.util.ArrayList<>();
+
+        /** {@code content} in a box of this group's width, its height its own. */
+        Widget<?> box(Widget<?> content) {
+            held.add(content);
+            return new Box(content, 0);
+        }
+
+        /**
+         * {@code content} in a box {@code more} wider than this group, which it does not join:
+         * for what should end where the controls beside the group's boxes end.
+         */
+        Widget<?> wider(float more, Widget<?> content) {
+            return new Box(content, more);
+        }
+
+        /** The widest of the contents, each measured at its own width. */
+        private float widest(limn.scene.Constraints c) {
+            limn.scene.Constraints free = new limn.scene.Constraints(0, limn.scene.Constraints.UNBOUNDED_LIMIT,
+                    0, c.maxHeight());
+            float widest = 0;
+            for (Widget<?> each : held) {
+                if (each.isVisible()) {
+                    widest = Math.max(widest, each.measure(free).width());
+                }
+            }
+            return widest;
+        }
+
+        private final class Box extends Widget<Box> {
+            private final Widget<?> content;
+            private final float more;
+
+            Box(Widget<?> content, float more) {
+                this.content = content;
+                this.more = more;
+                add(content);
+            }
+
+            @Override
+            protected limn.scene.Size onMeasure(limn.scene.Constraints c) {
+                float width = c.constrainWidth(widest(c) + more);
+                limn.scene.Size inner = content.measure(new limn.scene.Constraints(width, width, 0, c.maxHeight()));
+                return c.constrain(width, inner.height());
+            }
+
+            @Override
+            protected void onLayout() {
+                content.measure(limn.scene.Constraints.tight(width(), height()));
+                content.layoutBox(0, 0, width(), height());
+            }
+        }
+    }
+
+    /**
      * The line under a field that says what is wrong with it, or right: in the state's ink, a
      * step smaller than the field's text, and declared the field's description so a reader
      * hears it after the field's name and state.

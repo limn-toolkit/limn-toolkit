@@ -74,8 +74,6 @@ final class AudioScene {
 
     /** How wide a mixer's slider is: long enough to set a level, short enough to read as one. */
     private static final float SLIDER_WIDTH = 400;
-    /** How wide the captions before the sliders are, so the sliders start on one line. */
-    private static final float CAPTION_WIDTH = 72;
 
     private AudioScene() {
     }
@@ -90,6 +88,10 @@ final class AudioScene {
     /** The subtree, reusable as a page of the showcase. */
     static Widget<?> content() {
         Column column = Page.column();
+        // The captions before the sliders, as wide as the longest of them in the language shown
+        // so the sliders start on one line: a width fixed for English, 72 pt, cut pt-BR's
+        // "Panorâmica" short.
+        Page.SameWidth captions = new Page.SameWidth();
 
         // Shared clips, synthesized once.
         AudioClip chime = AudioClip.tone(880f, 0.09f, 0.5f);
@@ -110,13 +112,13 @@ final class AudioScene {
                 .withPitch(0.9f + (float) Math.random() * 0.2f)
                 .withPan(pan.value() / 100f)));
         column.add(Page.row(12, playChime, playThud));
-        column.add(levelRow(Text.PAN, pan, null, null));
+        column.add(levelRow(captions, Text.PAN, pan, null, null));
 
         // --- Mixer: a level and a mute for each bus ---------------------------------------
         column.add(Page.section(Text.MIXER));
-        column.add(mixerRow(Text.MASTER, Sounds::setMasterGain));
-        column.add(mixerRow(Text.MUSIC, value -> Sounds.setBusGain(AudioBus.MUSIC, value)));
-        column.add(mixerRow(Text.EFFECTS_BUS, value -> Sounds.setBusGain(AudioBus.SFX, value)));
+        column.add(mixerRow(captions, Text.MASTER, Sounds::setMasterGain));
+        column.add(mixerRow(captions, Text.MUSIC, value -> Sounds.setBusGain(AudioBus.MUSIC, value)));
+        column.add(mixerRow(captions, Text.EFFECTS_BUS, value -> Sounds.setBusGain(AudioBus.SFX, value)));
 
         // --- Music streamed from a file, with its place in the track ----------------------
         column.add(Page.section(Text.MUSIC));
@@ -128,21 +130,26 @@ final class AudioScene {
                         .withGain(0.4f).withPitch(0.8f + (float) Math.random() * 0.6f));
             }
         });
-        MusicPanel music = new MusicPanel(burst);
+        MusicPanel music = new MusicPanel(captions, burst);
         column.add(music);
 
         // --- A sound placed around the listener ---------------------------------------------
         column.add(Page.section(Text.POSITIONAL));
         column.add(Page.hint(Text.POSITIONAL_HINT));
-        column.add(Page.narrow(SLIDER_WIDTH + CAPTION_WIDTH + 12, new PositionalPad()));
+        // Ending where the sliders above it end, whatever the captions' width.
+        Row pad = new Row();
+        pad.add(captions.wider(12 + SLIDER_WIDTH, new PositionalPad()));
+        pad.add(Expanded.spacer(1));
+        column.add(pad);
 
         return column; // the page scrolls it
     }
 
     /** A caption, a slider of {@link #SLIDER_WIDTH}, and what else the row carries after it. */
-    private static Row levelRow(I18nString caption, Slider slider, Widget<?> value, Widget<?> more) {
+    private static Row levelRow(Page.SameWidth captions, I18nString caption, Slider slider, Widget<?> value,
+                                Widget<?> more) {
         Label label = new Label(caption).setMuted(true).setLabelFor(slider);
-        Row row = Page.row(12, new SizedBox(CAPTION_WIDTH, SizedBox.UNSET, label),
+        Row row = Page.row(12, captions.box(label),
                 new SizedBox(SLIDER_WIDTH, SizedBox.UNSET, slider));
         if (value != null) {
             row.add(value);
@@ -155,7 +162,7 @@ final class AudioScene {
     }
 
     /** One bus: its level, the level as a number, and a mute that keeps the level for later. */
-    private static Row mixerRow(I18nString caption, Consumer<Float> apply) {
+    private static Row mixerRow(Page.SameWidth captions, I18nString caption, Consumer<Float> apply) {
         Slider slider = new Slider(0, 100).setValue(100);
         Label value = new Label(percent(100)).setMuted(true);
         Checkbox mute = new Checkbox(Text.MUTE);
@@ -167,7 +174,7 @@ final class AudioScene {
         });
         mute.onChange(on -> apply.accept(on ? 0f : slider.value() / 100f));
         mute.setAccessibleDescription(caption);
-        return levelRow(caption, slider, new SizedBox(48, SizedBox.UNSET, value), mute);
+        return levelRow(captions, caption, slider, new SizedBox(48, SizedBox.UNSET, value), mute);
     }
 
     private static String percent(float level) {
@@ -190,7 +197,7 @@ final class AudioScene {
         private boolean dragging;
         private double sinceClock;
 
-        MusicPanel(Button burst) {
+        MusicPanel(Page.SameWidth captions, Button burst) {
             rows.gap(12).crossAlignment(limn.scene.layout.Flex.CrossAlignment.STRETCH);
             Row buttons = Page.row(12, play, pause, stop, burst);
             buttons.add(Expanded.spacer(1));
@@ -200,7 +207,7 @@ final class AudioScene {
             // (MediaControls declares the same), and so does the clock that reads it.
             position.setLayoutDirection(limn.scene.LayoutDirection.LTR);
             clock.setLayoutDirection(limn.scene.LayoutDirection.LTR);
-            rows.add(levelRow(Text.POSITION, position, clock, null));
+            rows.add(levelRow(captions, Text.POSITION, position, clock, null));
             add(rows);
             pause.setEnabled(false);
             stop.setEnabled(false);

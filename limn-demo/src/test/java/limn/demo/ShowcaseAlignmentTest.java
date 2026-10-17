@@ -1,13 +1,16 @@
 package limn.demo;
 
 import limn.components.Checkbox;
+import limn.components.Label;
 import limn.components.ProgressBar;
 import limn.components.RadioButton;
 import limn.components.SegmentedControl;
+import limn.components.Slider;
 import limn.components.Theme;
 import limn.graphics.TextRulers;
 import limn.i18n.I18n;
 import limn.i18n.I18nString;
+import limn.scene.Constraints;
 import limn.scene.Scene;
 import limn.scene.Widget;
 import limn.testing.HeadlessBackend;
@@ -23,6 +26,7 @@ import java.util.Locale;
 import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * What the Showcase's pages set side by side lines up: the controls of a form's two columns, each
@@ -77,6 +81,21 @@ class ShowcaseAlignmentTest {
             Checkbox box = only(boxes, each -> each.text().equals(pair[0].withoutAccessLetter().get()));
             Checkbox toggle = only(boxes, each -> each.text().equals(pair[1].withoutAccessLetter().get()));
             assertEquals(middle(toggle), middle(box), 0.5f, pair[0].english() + " beside " + pair[1].english());
+        }
+    }
+
+    @Test
+    void theSoundPagesCaptionsAreWholeAndItsSlidersStartOnOneLine() {
+        I18n.setLocale(Locale.forLanguageTag("pt-BR")); // where "Panorâmica" was cut
+        Scene scene = open(AudioScene::content);
+        List<Slider> sliders = all(scene.root(), Slider.class);
+        assertEquals(5, sliders.size(), "pan, three levels and the track's position");
+        for (Slider slider : sliders) {
+            assertEquals(sliders.get(0).localToSceneX(), slider.localToSceneX(), 0.5f, "where the sliders start");
+            Label caption = (Label) slider.parent().parent().children().get(0).children().get(0);
+            float whole = caption.measure(new Constraints(0, Constraints.UNBOUNDED_LIMIT, 0,
+                    Constraints.UNBOUNDED_LIMIT)).width();
+            assertTrue(caption.width() >= whole - 0.5f, "\"" + caption.text() + "\" whole");
         }
     }
 
