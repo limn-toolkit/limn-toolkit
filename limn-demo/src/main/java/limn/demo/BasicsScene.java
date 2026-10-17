@@ -97,7 +97,10 @@ final class BasicsScene {
         checkEmail.run();
         email.onChange(text -> checkEmail.run());
 
-        TextField phone = new TextField().setText("+1 415").setLeadingIcon(Tabler.outline("phone"));
+        // A mask whose literals hold a digit, the country code's 1: an area code typed or set
+        // from code keeps every digit, a 1 included, and is never read as the literal.
+        TextField phone = new TextField().setMask("+1 (000) 000-0000")
+                .setPlaceholder("+1 (415) 555-0123").setLeadingIcon(Tabler.outline("phone"));
         phone.setValidation(TextField.Validation.INFO);
         Label phoneLine = Page.message(Text.PHONE_HINT, Theme::info, Tabler.outline("info-circle"), phone);
 
