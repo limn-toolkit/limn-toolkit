@@ -9,7 +9,6 @@ import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Path2D;
-import limn.i18n.I18nString;
 import limn.scene.Constraints;
 import limn.scene.Insets;
 import limn.scene.LayoutDirection;
@@ -87,19 +86,6 @@ public final class MediaControls extends Widget<MediaControls> {
     /** How often the clock and the thumb are re-read while the bar is on screen. */
     private static final int POLL_MILLIS = 100;
 
-    private static final I18nString PLAY =
-            new I18nString("limn.mediaControls.play", "Play");
-    private static final I18nString PAUSE =
-            new I18nString("limn.mediaControls.pause", "Pause");
-    private static final I18nString SCRUB =
-            new I18nString("limn.mediaControls.scrub", "Drag to scrub");
-    private static final I18nString MUTE =
-            new I18nString("limn.mediaControls.mute", "Mute");
-    private static final I18nString UNMUTE =
-            new I18nString("limn.mediaControls.unmute", "Unmute");
-    private static final I18nString VOLUME =
-            new I18nString("limn.mediaControls.volume", "Volume");
-
     /** Whether the mute button and volume slider are offered. */
     public enum Sound {
         /** Always shown, sounding or not. */
@@ -155,7 +141,7 @@ public final class MediaControls extends Widget<MediaControls> {
         // which is why this one line is legal where resolving a direction is not.
         setLayoutDirection(LayoutDirection.LTR);
         row.gap(8).crossAlignment(Flex.CrossAlignment.CENTER);
-        bar.setTooltip(SCRUB);
+        bar.setTooltip(ComponentStrings.MEDIA_SCRUB);
         bar.onChange(fraction -> {
             dragging = true;
             scrubTo(fraction, false);
@@ -164,7 +150,7 @@ public final class MediaControls extends Widget<MediaControls> {
             dragging = false;
             scrubTo(fraction, true);
         });
-        volume.setTooltip(VOLUME);
+        volume.setTooltip(ComponentStrings.MEDIA_VOLUME);
         volume.setValue(100);
         volume.onChange(value -> {
             level = value / 100f;
@@ -364,7 +350,7 @@ public final class MediaControls extends Widget<MediaControls> {
      * comparison and tells the tree nothing.
      */
     private void syncMuteTooltip() {
-        mute.setTooltip(muted ? UNMUTE : MUTE);
+        mute.setTooltip(muted ? ComponentStrings.MEDIA_UNMUTE : ComponentStrings.MEDIA_MUTE);
     }
 
     /**
@@ -512,7 +498,8 @@ public final class MediaControls extends Widget<MediaControls> {
         boolean paused = view.isPaused();
         if (showingPaused == null || showingPaused != paused) {
             showingPaused = paused;
-            playPause.setTooltip(paused ? PLAY : PAUSE);
+            playPause.setTooltip(paused ? ComponentStrings.MEDIA_PLAY
+                    : ComponentStrings.MEDIA_PAUSE);
             playPause.invalidate();
         }
         updateSoundCluster();

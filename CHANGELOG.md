@@ -10,6 +10,13 @@ Maven Central say which number that was.
 
 ### Fixed
 
+- `MediaControls` and `ColorPicker` speak the interface's language. The transport's six names
+  (play, pause, the scrub bar, mute, unmute, volume) and the words a screen reader hears from the
+  picker (its hex field, hue ramp, saturation and value plane and axes, and before/after swatch)
+  were declared in English and translated into nothing, so under pt-BR, Arabic or Japanese a
+  reader said "Play" and "Mute"; they are in all 21 shipped languages now. A test refuses any key
+  the toolkit declares that a shipped language does not carry, except the colour notations, their
+  channel letters and the palettes' own names, which stay as written.
 - The empty part of a `Slider`'s and a `RangeSlider`'s rail and of a `ProgressBar`'s groove
   shows on every surface. It was painted in the raised surface's tone, which in the Light theme
   is the page's own (#EDF0F6 on #EEF0F4), so on a page the rail vanished and a slider at its

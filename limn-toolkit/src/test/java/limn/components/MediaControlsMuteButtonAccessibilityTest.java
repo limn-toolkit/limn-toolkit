@@ -53,7 +53,10 @@ class MediaControlsMuteButtonAccessibilityTest extends AccessibleComponentTestBa
 
     private static final Locale BRAZILIAN = Locale.forLanguageTag("pt-BR");
 
-    /** The two verbs in Portuguese; everything else falls through to the English. */
+    /**
+     * The two verbs in Portuguese, the words the shipped pt-BR file has too: registered here so
+     * the case below proves the re-resolution whatever that file says.
+     */
     private static final StringBundle SOUND = (key, locale) -> {
         if (!BRAZILIAN.equals(locale)) {
             return null;
@@ -70,6 +73,15 @@ class MediaControlsMuteButtonAccessibilityTest extends AccessibleComponentTestBa
 
     /** The mute button's node identifier, taken from the first tree and stable for the test. */
     private long muteId;
+
+    /**
+     * The cases assert the English names, which every shipped language now translates, so they
+     * are pinned to English rather than left to the machine's language.
+     */
+    @org.junit.jupiter.api.BeforeEach
+    void pinTheLanguage() {
+        I18n.setLocale(Locale.ENGLISH);
+    }
 
     @AfterEach
     void resetLanguage() {

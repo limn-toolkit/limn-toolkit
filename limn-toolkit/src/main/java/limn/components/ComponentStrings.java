@@ -48,6 +48,19 @@ final class ComponentStrings {
     static final I18nString VIDEO_DECODE_FAILED =
             new I18nString("limn.videoView.decodeFailed", "This video cannot be played");
 
+    // MediaControls' tooltips, which are also what a screen reader calls each control of the
+    // transport. Here rather than in MediaControls because touching them is then what registers
+    // the file family that translates them, whatever else the application shows. Until the audit
+    // before 1.0 they were declared in the widget and translated nowhere, and a reader on a pt-BR
+    // desktop heard "Play" and "Mute".
+    static final I18nString MEDIA_PLAY = new I18nString("limn.mediaControls.play", "Play");
+    static final I18nString MEDIA_PAUSE = new I18nString("limn.mediaControls.pause", "Pause");
+    static final I18nString MEDIA_SCRUB =
+            new I18nString("limn.mediaControls.scrub", "Drag to scrub");
+    static final I18nString MEDIA_MUTE = new I18nString("limn.mediaControls.mute", "Mute");
+    static final I18nString MEDIA_UNMUTE = new I18nString("limn.mediaControls.unmute", "Unmute");
+    static final I18nString MEDIA_VOLUME = new I18nString("limn.mediaControls.volume", "Volume");
+
     // The text widgets' context menu. Plain platform verbs on purpose: these are the four rows a
     // user has read in every other application, and a cleverer word here is one they have to
     // stop and parse.

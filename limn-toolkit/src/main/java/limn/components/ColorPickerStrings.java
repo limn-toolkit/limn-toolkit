@@ -12,6 +12,11 @@ import limn.i18n.PropertyBundle;
  * follow (R, V, B / T, S, V / C, M, J, N). That is the reason these are keys at all,
  * and the reason the tab captions stop coming from {@code Format.name()}: an enum
  * constant is API, and API cannot be translated.
+ *
+ * <p>The words below the letters are another matter: they are what a screen reader calls the
+ * parts of the picker that name nothing on screen, and every shipped language translates them.
+ * {@code ShippedTranslationsTest} holds both halves, the symbols on its list of keys kept as
+ * written and the words to every language.
  */
 final class ColorPickerStrings {
 
@@ -74,8 +79,9 @@ final class ColorPickerStrings {
      *
      * <p>Keys like the rest, because a channel's name is not the same word in every language: the
      * value axis is one of the two French renames after which that notation is TSV, and saturation
-     * happens to be the same word in French and falls back to the English declared here, as
-     * {@link #HEX} does.
+     * happens to be the same word in French, which its file writes out all the same, as it does
+     * {@link #HEX}: every shipped language answers every word here, and only the symbols above
+     * are left to the English.
      */
     static final I18nString FIELD =
             new I18nString("limn.colorPicker.field", "Saturation and value");

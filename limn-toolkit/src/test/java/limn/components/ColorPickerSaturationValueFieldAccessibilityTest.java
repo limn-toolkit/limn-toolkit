@@ -835,8 +835,7 @@ class ColorPickerSaturationValueFieldAccessibilityTest extends AccessibleCompone
         assertEquals(Locale.FRENCH, plane().locale(), describe(tree()));
         assertEquals(canvas, plane().id(), "a language is not a rebuild" + describe(tree()));
         assertEquals("Saturation", saturationAxis().name(),
-                "French says the same word here and falls back to the English the component "
-                        + "declares, as Hex does" + describe(tree()));
+                "French says the same word here, and its file writes it out" + describe(tree()));
         assertEquals("Valeur", valueAxis().name(), describe(tree()));
         assertEquals(Locale.FRENCH, valueAxis().locale(),
                 "and the axes record the language they were resolved under" + describe(tree()));

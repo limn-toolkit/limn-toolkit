@@ -102,15 +102,23 @@ class MediaControlsAccessibilityTest extends AccessibleComponentTestBase {
 
     private Logger walkLogger;
 
+    private java.util.Locale before;
+
     @BeforeEach
-    void captureTheWalksLog() {
+    void captureTheWalksLogAndPinTheLanguage() {
         walkLogger = Logger.getLogger("limn.scene.AccessibleWalk");
         walkLogger.addHandler(capture);
+        before = limn.i18n.I18n.processLocale();
+        // The bar's names are translated into every shipped language, and the cases below assert
+        // the English ones, so they are pinned to it: a machine set to Portuguese would otherwise
+        // hear "Reproduzir" where they look for "Play". One case asks for pt-BR by name.
+        limn.i18n.I18n.setLocale(java.util.Locale.ENGLISH);
     }
 
     @AfterEach
     void theBarIsNeverNamedInAnApplicationsLog() {
         walkLogger.removeHandler(capture);
+        limn.i18n.I18n.setLocale(before);
         for (LogRecord record : logged) {
             String message = String.valueOf(record.getMessage()) + java.util.Arrays.toString(
                     record.getParameters());
@@ -296,6 +304,26 @@ class MediaControlsAccessibilityTest extends AccessibleComponentTestBase {
         controls.setBackdrop(true);
         frame();
         assertEquals(bar.id(), toolbar().id(), "the panel is paint, not identity");
+    }
+
+    /**
+     * The transport names its controls in the language around it. Until the audit before 1.0 its
+     * six strings were translated into no language at all, and a reader on a pt-BR desktop heard
+     * "Play" and "Mute" inside a Portuguese window.
+     */
+    @Test
+    void theControlsAreNamedInTheLanguageAroundThem() {
+        bindControls();
+        List<String> english = childNames();
+
+        controls.setLocale(java.util.Locale.forLanguageTag("pt-BR"));
+        frame();
+
+        assertEquals(List.of("Reproduzir", "Silenciar", "Volume", "Arraste para mudar a posição",
+                        "0:00"),
+                childNames(),
+                "every control the bar builds is named in the subtree's language; in English they "
+                        + "read " + english + describe(tree()));
     }
 
     @Test

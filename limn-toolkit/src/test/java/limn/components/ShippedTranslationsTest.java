@@ -66,6 +66,10 @@ class ShippedTranslationsTest extends ComponentTestBase {
         initialise("limn.components.date.DateStrings", "limn.components.tree.TreeStrings",
                 "limn.components.table.TableStrings", "limn.scene.DragStrings",
                 "limn.backend.spi.SystemMenuLabels");
+        // And every other class whose source declares a string, found by reading the sources
+        // rather than by a list: a domain added after this test, or a widget that declares its
+        // strings in its own body, is in the catalog without anyone remembering to name it here.
+        initialise(declaringClasses().toArray(String[]::new));
         return I18n.declaredKeys().keySet().stream()
                 .filter(key -> key.startsWith("limn."))
                 .collect(Collectors.toCollection(TreeSet::new));
@@ -78,11 +82,203 @@ class ShippedTranslationsTest extends ComponentTestBase {
     private static void initialise(String... classNames) {
         for (String name : classNames) {
             try {
-                Class.forName(name, true, ShippedTranslationsTest.class.getClassLoader());
+                Class<?> loaded =
+                        Class.forName(name, true, ShippedTranslationsTest.class.getClassLoader());
+                // A nested class is initialised on its own first use, not with its outer one.
+                for (Class<?> nested : loaded.getDeclaredClasses()) {
+                    initialise(nested.getName());
+                }
             } catch (ClassNotFoundException e) {
                 throw new AssertionError("a string domain moved or was renamed: " + name, e);
             }
         }
+    }
+
+    /** What constructs a translatable string: the two declarations a key can be born in. */
+    private static final java.util.regex.Pattern DECLARES = java.util.regex.Pattern.compile(
+            "new\\s+I18nString\\s*\\(|PluralString\\.of\\s*\\(");
+
+    /**
+     * The binary names of the main classes whose source constructs an {@code I18nString} or a
+     * {@code PluralString}, read from the source tree. A match inside a comment only costs the
+     * initialisation of a class that declares nothing.
+     */
+    private static List<String> declaringClasses() {
+        Path sources = Path.of("src/main/java");
+        try (Stream<Path> files = Files.walk(sources)) {
+            List<String> out = new ArrayList<>();
+            for (Path file : files.filter(p -> p.toString().endsWith(".java")).sorted().toList()) {
+                String name = file.getFileName().toString();
+                if (name.equals("package-info.java") || name.equals("module-info.java")
+                        || !DECLARES.matcher(Files.readString(file)).find()) {
+                    continue;
+                }
+                String relative = sources.relativize(file).toString();
+                out.add(relative.substring(0, relative.length() - ".java".length())
+                        .replace(file.getFileSystem().getSeparator(), "."));
+            }
+            return out;
+        } catch (IOException e) {
+            throw new UncheckedIOException("reading " + sources.toAbsolutePath(), e);
+        }
+    }
+
+    /**
+     * The declared keys that no shipped file has to translate, because they stay as written.
+     *
+     * <p>Each is here for a reason a translator would give, and nothing else is: a key left out
+     * of a language reads English to a user of that language, on screen and in a screen reader,
+     * which is the defect {@link #everyDeclaredKeyIsTranslatedIntoEveryShippedLanguage} exists to
+     * refuse. A file may still carry one of these where its language really renames it.
+     */
+    private static final Set<String> KEPT_AS_WRITTEN = Set.of(
+            // The colour picker's notations and channel letters are symbols, read as written: every
+            // shipped language but French keeps RGB, HSV and CMYK and their letters, and French
+            // renames them in colorpicker_fr (RVB, TSV, CMJN). See ColorPickerStrings.
+            "limn.colorPicker.format.rgb", "limn.colorPicker.format.hsv",
+            "limn.colorPicker.format.cmyk",
+            "limn.colorPicker.channel.r", "limn.colorPicker.channel.g", "limn.colorPicker.channel.b",
+            "limn.colorPicker.channel.h", "limn.colorPicker.channel.s", "limn.colorPicker.channel.v",
+            "limn.colorPicker.channel.c", "limn.colorPicker.channel.m", "limn.colorPicker.channel.y",
+            "limn.colorPicker.channel.k", "limn.colorPicker.channel.alpha",
+            // The built-in palettes' own names are proper names, the same in every language: only
+            // Light, Dark and High Contrast describe what they are, and those are translated. See
+            // ThemeStrings.
+            "limn.theme.limn", "limn.theme.limn-light", "limn.theme.darkling",
+            "limn.theme.draculite", "limn.theme.nordic", "limn.theme.arch-dark",
+            "limn.theme.onyx-dark", "limn.theme.monoko-pro", "limn.theme.grovebox-dark",
+            "limn.theme.solaris-light", "limn.theme.solaris-dark", "limn.theme.octo-light");
+
+    /**
+     * Every key the toolkit declares is in every shipped language of the file family that carries
+     * it, unless it is {@linkplain #KEPT_AS_WRITTEN kept as written}.
+     *
+     * <p>The other tests here check the files against each other and against the catalog, and
+     * none of them could see a key that <b>no</b> file carries: the media transport's six strings
+     * and half the colour picker's were declared in English only, and a screen reader under
+     * pt-BR, Arabic or Japanese read "Play" and "Mute" inside an interface in its own language.
+     * So the catalog is taken from the sources rather than from a list kept beside them: every
+     * class that constructs an {@code I18nString} or a {@code PluralString} is initialised, and
+     * what it declared is what is checked, keys built by concatenation at run time included.
+     *
+     * <p>A counted sentence is held to any one of its forms; which forms a language owes is the
+     * business of
+     * {@link #everyLocaleOfADomainCarriesTheKeysItOwesAndTheFormsItsLanguageUses}.
+     */
+    @Test
+    void everyDeclaredKeyIsTranslatedIntoEveryShippedLanguage() {
+        // The catalog is process-wide, and other tests in this JVM declare keys of their own
+        // ("limn.test.dialog.first") that no shipped file is meant to carry: only what the main
+        // sources spell is the toolkit's.
+        Set<String> spelled = keysSpelledInTheSources();
+        Set<String> catalog = new TreeSet<>();
+        for (String key : declaredKeys()) {
+            if (spelledBy(spelled, key)) {
+                catalog.add(key);
+            }
+        }
+        Map<String, Map<String, Set<String>>> families = new LinkedHashMap<>();
+        for (Path file : shippedFiles()) {
+            String name = file.getFileName().toString().replace(".properties", "");
+            int split = name.indexOf('_');
+            families.computeIfAbsent(name.substring(0, split), f -> new LinkedHashMap<>())
+                    .put(name.substring(split + 1), read(file).stringPropertyNames());
+        }
+
+        // A counted sentence is owed as its base, ending in ".", and a file carries it with any of
+        // its forms: Polish and Russian count whole numbers with one, few and many, and no other.
+        Set<String> owed = new TreeSet<>();
+        for (String key : catalog) {
+            if (!KEPT_AS_WRITTEN.contains(key)) {
+                owed.add(formOf(key) == null ? key : key.substring(0, key.lastIndexOf('.') + 1));
+            }
+        }
+        List<String> untranslated = new ArrayList<>();
+        for (String key : owed) {
+            List<String> carrying = new ArrayList<>();
+            Set<String> missing = new TreeSet<>();
+            for (var family : families.entrySet()) {
+                if (family.getValue().values().stream().noneMatch(keys -> carries(keys, key))) {
+                    continue;
+                }
+                carrying.add(family.getKey());
+                for (String tag : LOCALES) {
+                    if (!carries(family.getValue().getOrDefault(tag, Set.of()), key)) {
+                        missing.add(tag);
+                    }
+                }
+            }
+            if (carrying.isEmpty()) {
+                untranslated.add(key + " is in no shipped file");
+            } else if (!missing.isEmpty()) {
+                untranslated.add(key + " (" + String.join(", ", carrying) + ") is missing in "
+                        + missing);
+            }
+        }
+        assertEquals(List.of(), untranslated,
+                untranslated.size() + " declared keys read English in a shipped language; "
+                        + "translate them, or add a symbol that stays as written to KEPT_AS_WRITTEN "
+                        + "with the reason");
+
+        Set<String> stale = new TreeSet<>(KEPT_AS_WRITTEN);
+        stale.removeAll(catalog);
+        assertEquals(Set.of(), stale, "kept-as-written keys that nothing declares any more");
+    }
+
+    /** A string literal in the main sources that could be a key, or the prefix one is built on. */
+    private static final java.util.regex.Pattern KEY_LITERAL =
+            java.util.regex.Pattern.compile("\"(limn\\.[A-Za-z0-9._-]+)\"");
+
+    /** Every key-like string literal the main sources spell; see {@link #spelledBy}. */
+    private static Set<String> keysSpelledInTheSources() {
+        Path sources = Path.of("src/main/java");
+        Set<String> out = new TreeSet<>();
+        try (Stream<Path> files = Files.walk(sources)) {
+            for (Path file : files.filter(p -> p.toString().endsWith(".java")).toList()) {
+                java.util.regex.Matcher m = KEY_LITERAL.matcher(Files.readString(file));
+                while (m.find()) {
+                    out.add(m.group(1));
+                }
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("reading " + sources.toAbsolutePath(), e);
+        }
+        return out;
+    }
+
+    /**
+     * Whether the main sources spell a declared key: as a literal, as the base of a counted
+     * sentence it is one form of, or as a prefix it was built on at run time
+     * ({@code "limn.theme." + name}, {@code "limn.role." + role}). A prefix counts only below
+     * the first segment, so a stray {@code "limn."} cannot claim the whole catalog.
+     */
+    private static boolean spelledBy(Set<String> spelled, String key) {
+        if (spelled.contains(key)) {
+            return true;
+        }
+        if (formOf(key) != null && spelled.contains(key.substring(0, key.lastIndexOf('.')))) {
+            return true;
+        }
+        for (String literal : spelled) {
+            if (literal.endsWith(".") && literal.indexOf('.') < literal.length() - 1
+                    && key.startsWith(literal)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Whether a file's keys carry an owed key: the key itself, or a form of a counted base. */
+    private static boolean carries(Set<String> keys, String owed) {
+        if (!owed.endsWith(".")) {
+            return keys.contains(owed);
+        }
+        for (String key : keys) {
+            if (key.startsWith(owed) && key.indexOf('.', owed.length()) < 0 && formOf(key) != null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Test
@@ -238,11 +434,15 @@ class ShippedTranslationsTest extends ComponentTestBase {
         return out;
     }
 
-    /** The keys of a file that are not one form of a counted sentence. */
+    /**
+     * The keys of a file that are not one form of a counted sentence, nor a symbol
+     * {@linkplain #KEPT_AS_WRITTEN kept as written}: those a file carries only where its language
+     * renames them, which is French alone for the colour notations.
+     */
     private static Set<String> plainKeys(Set<String> keys) {
         Set<String> out = new TreeSet<>();
         for (String key : keys) {
-            if (formOf(key) == null) {
+            if (formOf(key) == null && !KEPT_AS_WRITTEN.contains(key)) {
                 out.add(key);
             }
         }
@@ -334,7 +534,9 @@ class ShippedTranslationsTest extends ComponentTestBase {
 
         I18n.setLocale(Locale.GERMAN);
         assertEquals("RGB", ColorPickerStrings.FORMAT_RGB.get(),
-                "German keeps the acronym, so it ships no file and falls back to English");
+                "German keeps the acronym: its file translates the words, and the symbols fall "
+                        + "back to English");
+        assertEquals("Farbton", ColorPickerStrings.HUE.get(), "while the words are its own");
     }
 
     /**

@@ -69,11 +69,11 @@ class ColorPickerPreviewAccessibilityTest extends AccessibleComponentTestBase {
     /**
      * One bundle for one key, and it puts the opening colour first.
      *
-     * <p>No shipped bundle translates this pattern &mdash; French renames the notations and their
-     * letters and nothing else here &mdash; so a language switch alone leaves the sentence in the
-     * English the component declares, and could not tell a memo that reads the language from one
-     * that does not. This is what makes the case bite, and it is also the only place the pattern's
-     * two slots are proved to be reorderable by whoever translates it.
+     * <p>The shipped pt-BR file translates this pattern too, keeping the English order of the two
+     * slots, so this bundle registered over it is a second, different answer in the same language:
+     * what makes a change of epoch alone tell a memo that sees the epoch from one that does not.
+     * It is also the only place the pattern's two slots are proved to be reorderable by whoever
+     * translates it.
      */
     private static final StringBundle TRANSLATED = (key, locale) ->
             "limn.colorPicker.swatch".equals(key) && BRAZILIAN.equals(locale)
@@ -323,9 +323,9 @@ class ColorPickerPreviewAccessibilityTest extends AccessibleComponentTestBase {
 
         assertEquals(BRAZILIAN, swatch().locale(),
                 "the node says which language it is in" + describe(tree()));
-        assertEquals("Colour #3366CC, was #FFFFFF", swatch().name(),
-                "nothing translates the pattern yet, so it is still the English the component "
-                        + "declares" + describe(tree()));
+        assertEquals("Cor #3366CC, antes #FFFFFF", swatch().name(),
+                "the language alone moves the sentence to the shipped pt-BR translation"
+                        + describe(tree()));
 
         // The epoch alone now: the subtree's language has not moved, and a memo that could not see
         // a translation arriving would go on saying the sentence it built before this line.
