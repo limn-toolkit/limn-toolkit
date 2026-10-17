@@ -618,6 +618,39 @@ class ColorPickerTest extends ComponentTestBase {
         assertTrue(cmyk > rgb, "CMYK measured " + cmyk + ", RGB " + rgb);
     }
 
+    /**
+     * The alpha line is one more channel line, letter, rail and number on the columns of the lines
+     * above it, so it stands as far under the last channel as each channel stands under the one
+     * before. It sat in the picker's own column, whose gap is the wider one between the picker's
+     * blocks: 2 pt further down at MEDIUM, measured on the Showcase's Colours page.
+     */
+    @Test
+    void theAlphaLineIsSpacedAsTheChannelLinesAre() {
+        for (limn.scene.ControlSize step : limn.scene.ControlSize.values()) {
+            ColorPicker sized = sizedPicker(step);
+            List<Spinner> numbers = new ArrayList<>();
+            collectShowing(sized, Spinner.class, numbers);
+            assertEquals(4, numbers.size(), "R, G, B and alpha at " + step);
+            float pitch = numbers.get(1).localToSceneY() - numbers.get(0).localToSceneY();
+            assertEquals(pitch, numbers.get(2).localToSceneY() - numbers.get(1).localToSceneY(), 0.01f,
+                    "the channel lines at " + step);
+            assertEquals(pitch, numbers.get(3).localToSceneY() - numbers.get(2).localToSceneY(), 0.01f,
+                    "the alpha line under the last channel at " + step);
+        }
+    }
+
+    private static <T> void collectShowing(Widget<?> at, Class<T> type, List<T> into) {
+        if (!at.isShowing()) {
+            return;
+        }
+        if (type.isInstance(at)) {
+            into.add(type.cast(at));
+        }
+        for (Widget<?> child : at.children()) {
+            collectShowing(child, type, into);
+        }
+    }
+
     private float pickerHeightAt(limn.scene.ControlSize step) {
         return sizedPicker(step).measure(limn.scene.Constraints.loose(320, 4000)).height();
     }

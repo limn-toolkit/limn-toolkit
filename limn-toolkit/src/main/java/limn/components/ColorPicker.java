@@ -152,6 +152,8 @@ public final class ColorPicker extends Widget<ColorPicker> {
     private final List<ChannelGroup> groups = new ArrayList<>();
     private final Spinner alphaField = new Spinner(0, 100, 1);
     private final Row alphaRow = new Row();
+    /** The tabs and the alpha line under them, spaced as the channel lines are. */
+    private final Column channels = new Column();
 
     private float hue;
     private float saturation;
@@ -235,7 +237,9 @@ public final class ColorPicker extends Widget<ColorPicker> {
                 setFormat(Format.values()[formatTabs.selectedIndex()]);
             }
         });
-        root.add(formatTabs);
+        channels.crossAlignment(Flex.CrossAlignment.STRETCH);
+        channels.add(formatTabs);
+        root.add(channels);
 
         alphaField.setSnapToStep(false);
         // A handler and not a watcher, deliberately: it hears the user typing or stepping the
@@ -250,7 +254,9 @@ public final class ColorPicker extends Widget<ColorPicker> {
         // rail, stepper, on the columns the block above already established. It
         // sits under the model rows rather than inside them because it belongs to
         // no model: the three tabs re-notate the colour, and none of them
-        // re-notates its alpha.
+        // re-notates its alpha. It is spaced from the last channel line as the lines are
+        // from one another, in a column of its own with the tabs: in the picker's column it
+        // took that column's wider gap and stood 2 pt further down at MEDIUM, measured.
         alphaRow.crossAlignment(Flex.CrossAlignment.CENTER);
         // The letter names both controls on the line, the same wiring every channel line gets
         // below and for the same reason; see there.
@@ -260,7 +266,7 @@ public final class ColorPicker extends Widget<ColorPicker> {
         alphaRow.add(new TokenBox(SizeTokens::fieldIcon, null, alphaLetter));
         alphaRow.add(Expanded.of(alphaRail, 1));
         alphaRow.add(alphaField);
-        root.add(alphaRow);
+        channels.add(alphaRow);
 
         add(root);
         setFormat(Format.RGB);
@@ -450,6 +456,7 @@ public final class ColorPicker extends Widget<ColorPicker> {
         rampsRow.gap(gap);
         identityRow.gap(gap);
         alphaRow.gap(gap);
+        channels.gap(t.spacingSmall());
         for (Padding pad : tabPads) {
             pad.setInsets(new Insets(gap, 0, 0, 0));
         }
