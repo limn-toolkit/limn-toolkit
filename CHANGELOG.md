@@ -335,6 +335,12 @@ Maven Central say which number that was.
 - A legacy or three-letter language code writes the digits of the language it stands for: `pes`
   and `prs` Persian digits, `arb-EG` Arabic-Indic ones, `npi` and `mar` Devanagari. Java keeps
   these codes as they are, and they all answered Latin digits.
+- No line appears at the edge of a `BackdropPanel` when something inside it repaints. The panel's
+  rectangle went into the repaint at its layout position, a fraction of a point in, where every
+  other repaint rectangle is whole device pixels, so the pixel its edge cut was cleared and painted
+  back only in part, with the window's background mixed in: a thin line ran down the panel's side
+  through the picture under it, on a Retina screen, at window widths that put a centred panel off
+  the grid, and stayed until something repainted that pixel whole.
 
 ### New
 

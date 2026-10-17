@@ -131,6 +131,13 @@ the same ancestor-clipping walk `invalidate()` uses, so a panel scrolled out of 
 nothing, and it is widened *before* the frame stores its damage, so the other buffer gets it too.
 Inert where there are none, which is almost every scene: one emptiness check per frame.
 
+*Amended 2026-10-17:* the rect is snapped outward to the device pixel grid, through the same
+helper as every other damage rect. It went in at the panel's layout position, a fraction of a
+point in when the panel is centred, and a pass whose edge cuts a pixel clears that pixel whole and
+paints it back only in part: on a Retina screen, a line of the background mixed into the picture
+ran down the panel's edge whenever something inside it repainted (`BackdropDamageTest`,
+`BackdropPassSeamTest`).
+
 **Reaching is over-approximated on purpose**: what stales the picture is a change *behind* it, and
 the test is any intersection. Front from back needs paint order, which the damage list does not
 carry; over-approximating costs a repaint of something already being painted over and can never

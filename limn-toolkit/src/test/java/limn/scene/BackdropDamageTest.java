@@ -33,16 +33,30 @@ class BackdropDamageTest {
     /** Records the clip the scene applies before anything is drawn: the frame's repaint region. */
     private static final class ClipCanvas extends NoopCanvas {
         final List<String> clips = new ArrayList<>();
+        final List<float[]> rects = new ArrayList<>();
+        private final float scale;
         private boolean drew;
 
         ClipCanvas() {
+            this(1);
+        }
+
+        /** @param scale device pixels per point: 2 is a Retina screen's, where a quarter point is half a pixel */
+        ClipCanvas(float scale) {
             super(400, 300);
+            this.scale = scale;
+        }
+
+        @Override
+        public float contentScale() {
+            return scale;
         }
 
         @Override
         public void clipRect(float x, float y, float w, float h) {
             if (!drew) {
-                clips.add(String.format(Locale.ROOT, "%.0f,%.0f %.0fx%.0f", x, y, w, h));
+                clips.add(String.format(Locale.ROOT, "%.3f,%.3f %.3fx%.3f", x, y, w, h));
+                rects.add(new float[] {x, y, w, h});
             }
         }
 
@@ -63,12 +77,11 @@ class BackdropDamageTest {
         boolean covers(Widget<?> widget) {
             float wx = widget.localToSceneX();
             float wy = widget.localToSceneY();
-            for (String clip : clips) {
-                String[] parts = clip.split("[, x]+");
-                float x = Float.parseFloat(parts[0]);
-                float y = Float.parseFloat(parts[1]);
-                float w = Float.parseFloat(parts[2]);
-                float h = Float.parseFloat(parts[3]);
+            for (float[] clip : rects) {
+                float x = clip[0];
+                float y = clip[1];
+                float w = clip[2];
+                float h = clip[3];
                 if (x <= wx && y <= wy
                         && x + w >= wx + widget.width() && y + h >= wy + widget.height()) {
                     return true;
@@ -81,9 +94,17 @@ class BackdropDamageTest {
     /** A widget with a size, which paints and can be told it lives off its backdrop. */
     private static class Box extends Widget<Box> {
         private final boolean backdrop;
+        private final float boxWidth;
+        private final float boxHeight;
 
         Box(boolean backdrop) {
+            this(backdrop, 100, 40);
+        }
+
+        Box(boolean backdrop, float width, float height) {
             this.backdrop = backdrop;
+            this.boxWidth = width;
+            this.boxHeight = height;
         }
 
         @Override
@@ -93,7 +114,7 @@ class BackdropDamageTest {
 
         @Override
         protected Size onMeasure(Constraints c) {
-            return c.constrain(100, 40);
+            return c.constrain(boxWidth, boxHeight);
         }
 
         @Override
@@ -121,13 +142,21 @@ class BackdropDamageTest {
 
     /** Two frames of nothing, so the two-frame union has settled and a damage is visible alone. */
     private void settle(Scene scene) {
+        settle(scene, 1);
+    }
+
+    private void settle(Scene scene, float scale) {
         for (int i = 0; i < 3; i++) {
-            scene.renderFrame(new ClipCanvas());
+            scene.renderFrame(new ClipCanvas(scale));
         }
     }
 
     private ClipCanvas frame(Scene scene) {
-        ClipCanvas canvas = new ClipCanvas();
+        return frame(scene, 1);
+    }
+
+    private ClipCanvas frame(Scene scene, float scale) {
+        ClipCanvas canvas = new ClipCanvas(scale);
         scene.renderFrame(canvas);
         return canvas;
     }
@@ -189,6 +218,48 @@ class BackdropDamageTest {
         behind.invalidate();
         ClipCanvas canvas = frame(scene);
         assertFalse(canvas.covers(glass), "damage it does not touch is none of its business");
+    }
+
+    /**
+     * The pass a backdrop panel widens the damage into lies on the device grid, as every other pass
+     * does.
+     *
+     * <p>The defect this pins was seen on a Retina screen as a thin line down the edge of a floating
+     * panel of glass, through the picture it floats over, whenever something inside the panel
+     * repainted: a slider moving, a button lighting up under the pointer. The panel's rectangle was
+     * added at its layout position, a fraction of a point in, while every other damage rectangle is
+     * snapped outward to whole device pixels. The pass then cleared the pixel its edge cut through
+     * whole, rounding, and painted it back at the clip's fractional coverage, so what showed there
+     * was the picture with a share of the window's background in it: a column of it the height of
+     * the pass, standing until something repainted that pixel whole. The backend's
+     * BackdropPassSeamTest measures the column itself on a GPU.
+     */
+    @Test
+    void thePassABackdropPanelWidensTheDamageIntoLiesOnTheDeviceGrid() {
+        Box glass = new Box(true, 100.6f, 40);
+        Box inside = new Box(false, 10, 10);
+        limn.scene.layout.Stack layers = new limn.scene.layout.Stack();
+        // Where a centred panel lands: a fraction of a point in, on both axes.
+        layers.add(new limn.scene.layout.Padding(new Insets(10.35f, 0, 0, 20.1f), glass));
+        layers.add(new limn.scene.layout.Padding(new Insets(25, 0, 0, 60), inside));
+        Scene scene = sceneOf(layers);
+        assertEquals(20.1f, glass.localToSceneX(), 1e-4f, "the panel sits off the grid, as the case needs");
+        settle(scene, 2);
+
+        inside.invalidate(); // something over the glass repaints, and the glass with it
+        frame(scene, 2);
+        inside.invalidate();
+        ClipCanvas canvas = frame(scene, 2);
+        assertFalse(canvas.full(), "the frame is partial");
+        assertTrue(canvas.covers(glass), "the panel is in the damage: " + canvas.clips);
+        for (float[] clip : canvas.rects) {
+            for (float edge : new float[] {clip[0], clip[1], clip[0] + clip[2], clip[1] + clip[3]}) {
+                float device = edge * 2;
+                assertEquals(Math.round(device), device, 1e-3f,
+                        "every pass edge is a whole device pixel, or the pass clears a pixel whole and "
+                                + "paints it back in part: " + canvas.clips);
+            }
+        }
     }
 
     @Test

@@ -2025,9 +2025,16 @@ public final class Scene {
      *
      * <p>Inert when there are none, which is almost every scene: one emptiness check per frame.
      *
+     * <p>Each rectangle goes in snapped to the device grid, as {@link #consumeFreshDamage} snaps
+     * every other one. A panel lies wherever layout put it, a fraction of a point in when it is
+     * centred, and a pass whose edge cuts a pixel clears that pixel whole and paints it back only in
+     * part: on a Retina screen that was a line down the panel's edge, the picture under it mixed with
+     * the window's background, as tall as the pass and standing until the pixel was repainted whole.
+     *
+     * @param canvas the frame's canvas, for its grid and its bounds
      * @param fresh this frame's damage, widened in place; whole or empty, it has nothing to add
      */
-    private void withBackdropDependants(DamageRects fresh) {
+    private void withBackdropDependants(Canvas canvas, DamageRects fresh) {
         if (backdropDependants.isEmpty() || fresh.isWhole() || fresh.isEmpty()) {
             return;
         }
@@ -2048,7 +2055,8 @@ public final class Scene {
                 float outset = 1 + widget.paintOutset();
                 if (!clippedSceneRect(widget, -outset, -outset,
                         widget.width() + 2 * outset, widget.height() + 2 * outset,
-                        backdropScratch)) {
+                        backdropScratch)
+                        || !snapToDeviceGrid(canvas, backdropScratch)) {
                     backdropTaken[i] = true; // clipped away or hidden: nothing of it is on screen
                     continue;
                 }
@@ -5320,7 +5328,7 @@ public final class Scene {
             consumeFreshDamage(canvas, fresh);
             // Widened BEFORE it is recorded as this present's change, so the older buffers repaint
             // the backdrop rects too, for the same reason this one does.
-            withBackdropDependants(fresh);
+            withBackdropDependants(canvas, fresh);
             change.copyFrom(fresh);
             if (damageDebug) {
                 List<Rect> flashNow = updateDamageFlashes(fresh.isWhole() ? null : fresh.toList(),
@@ -5432,11 +5440,6 @@ public final class Scene {
         }
     }
 
-    /**
-     * Resolves and resets the damage accumulated since the last content frame into
-     * {@code out}: whole = the whole scene, empty = nothing. Rects are clamped and
-     * snapped outward to whole logical pixels.
-     */
     private static DamageRects[] newPresentHistory() {
         DamageRects[] history = new DamageRects[PRESENT_HISTORY];
         for (int i = 0; i < history.length; i++) {
@@ -5445,6 +5448,11 @@ public final class Scene {
         return history;
     }
 
+    /**
+     * Resolves and resets the damage accumulated since the last content frame into
+     * {@code out}: whole = the whole scene, empty = nothing. Rects are clamped and
+     * snapped outward to the device pixel grid ({@link #snapToDeviceGrid}).
+     */
     private void consumeFreshDamage(Canvas canvas, DamageRects out) {
         float scrimTarget = window != null && window.isModalBlocked() ? SCRIM_MAX_ALPHA : 0f;
         boolean full = fullDamagePending
@@ -5459,22 +5467,48 @@ public final class Scene {
         if (pendingDamage.isEmpty()) {
             return;
         }
-        // Snap outward to the DEVICE pixel grid: pass clips then have hard,
-        // whole-pixel edges (no fractional AA coverage at the seam), which is
-        // what lets clearRect replace exactly the pixels the pass repaints.
-        // Required on translucent backgrounds, exact everywhere else.
-        float s = canvas.contentScale();
+        float[] rect = snapScratch;
         for (int i = 0; i < pendingDamage.size(); i++) {
-            float x = Math.max(0, (float) Math.floor(pendingDamage.x(i) * s) / s);
-            float y = Math.max(0, (float) Math.floor(pendingDamage.y(i) * s) / s);
-            float right = Math.min(canvas.width(), (float) Math.ceil(pendingDamage.right(i) * s) / s);
-            float bottom = Math.min(canvas.height(),
-                    (float) Math.ceil(pendingDamage.bottom(i) * s) / s);
-            if (right > x && bottom > y) {
-                out.append(x, y, right - x, bottom - y);
+            rect[0] = pendingDamage.x(i);
+            rect[1] = pendingDamage.y(i);
+            rect[2] = pendingDamage.width(i);
+            rect[3] = pendingDamage.height(i);
+            if (snapToDeviceGrid(canvas, rect)) {
+                out.append(rect[0], rect[1], rect[2], rect[3]);
             }
         }
         pendingDamage.clear();
+    }
+
+    private final float[] snapScratch = new float[4];
+
+    /**
+     * Grows a damage rectangle ({@code x, y, width, height}, in place) outward to the DEVICE pixel
+     * grid and clamps it to the canvas; every rectangle a pass is painted in goes through here.
+     *
+     * <p>A pass clears its rectangle rounded to whole device pixels and paints inside a clip that
+     * antialiases its edges, so an edge between two pixels clears the pixel it cuts and paints it
+     * back only in part: what shows there is the content with a share of the background in it, a
+     * line the height of the pass. On the grid both are exact, which is what lets clearRect replace
+     * exactly the pixels the pass repaints, on a translucent background as on an opaque one. A union
+     * of rectangles on the grid is on the grid, so merging them afterwards keeps it.
+     *
+     * @return whether anything of it is left on the canvas
+     */
+    private static boolean snapToDeviceGrid(Canvas canvas, float[] rect) {
+        float s = canvas.contentScale();
+        float x = Math.max(0, (float) Math.floor(rect[0] * s) / s);
+        float y = Math.max(0, (float) Math.floor(rect[1] * s) / s);
+        float right = Math.min(canvas.width(), (float) Math.ceil((rect[0] + rect[2]) * s) / s);
+        float bottom = Math.min(canvas.height(), (float) Math.ceil((rect[1] + rect[3]) * s) / s);
+        if (right <= x || bottom <= y) {
+            return false;
+        }
+        rect[0] = x;
+        rect[1] = y;
+        rect[2] = right - x;
+        rect[3] = bottom - y;
+        return true;
     }
 
     /**
