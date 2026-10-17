@@ -32,8 +32,15 @@ import java.util.stream.Collectors;
  */
 final class CombosScene {
 
-    /** An order status, with its icon. */
-    record Status(I18nString label, String icon) {
+    /**
+     * An order status, with its icon, and whether that icon means a direction and so turns around
+     * where the interface reads right to left.
+     */
+    record Status(I18nString label, String icon, Icon.Mirroring mirroring) {
+        Status(I18nString label, String icon) {
+            this(label, icon, Icon.Mirroring.NEVER);
+        }
+
         Icon glyph() {
             return Tabler.outline(icon);
         }
@@ -44,7 +51,7 @@ final class CombosScene {
             new Status(Text.INVOICED, "file-invoice"),
             new Status(Text.SHIPPED, "truck"),
             new Status(Text.CANCELLED, "circle-x"),
-            new Status(Text.RETURNED, "arrow-back-up"));
+            new Status(Text.RETURNED, "arrow-back-up", Icon.Mirroring.IN_RTL)); // back is the other way
 
     /** The customers a search runs over: the orders page's, and a few more. */
     private static final List<String> CUSTOMERS = List.of(
@@ -84,7 +91,7 @@ final class CombosScene {
         customer.setPlaceholder(Text.CUSTOMER_HINT);
         report(customer, Text.CUSTOMER, () -> customer.text());
 
-        ComboBox<Status> status = new ComboBox<>(STATUSES, Status::label).setItemIcon(Status::glyph);
+        ComboBox<Status> status = new ComboBox<>(STATUSES, Status::label).setItemIcon(Status::glyph, Status::mirroring);
         status.setSelectedIndex(1);
         report(status, Text.STATUS, () -> status.selectedItem().label().get());
 

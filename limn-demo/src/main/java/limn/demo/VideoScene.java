@@ -1535,7 +1535,7 @@ final class VideoScene {
      * sizes from the {@link SizeTokens} row the widget resolves. A control that is legible but
      * unreachable from the keyboard would be a worse bar than the one this replaces.
      */
-    private static final class GlassButton extends Widget<GlassButton> {
+    static final class GlassButton extends Widget<GlassButton> {
 
         /** How far the glass lightens under the pointer, and under a press. */
         private static final float HOVER_ALPHA = 0.14f;
@@ -1639,16 +1639,21 @@ final class VideoScene {
             limn.graphics.Font font = tokens.body();
             limn.graphics.TextMetrics metrics = textRuler().measure(text, font);
             float advance = iconAdvance(tokens);
-            float cursorX = (width() - (advance + metrics.width())) / 2;
+            float blockX = (width() - (advance + metrics.width())) / 2;
+            // The icon leads the words on the side reading starts from, as a Button's does: the
+            // left reading left to right, the right reading right to left. The block is centred
+            // either way, so only the order of the two inside it changes.
+            boolean rtl = isRightToLeft();
+            float textX = rtl ? blockX : blockX + advance;
             if (icon != null) {
                 float box = tokens.iconBox();
+                float iconX = rtl ? blockX + advance + metrics.width() - box : blockX;
                 // dark = true whatever the palette is doing: the surface under this icon is the
                 // glass, and an icon that has a light-scheme drawing would pick the wrong one.
-                icon.paint(canvas, cursorX, (height() - box) / 2, box, ink, true);
-                cursorX += advance;
+                icon.paint(canvas, iconX, (height() - box) / 2, box, ink, true);
             }
             if (!text.isEmpty()) {
-                canvas.drawText(text, cursorX,
+                canvas.drawText(text, textX,
                         (height() - metrics.height()) / 2 + metrics.ascent(), font, ink);
             }
         }

@@ -8,6 +8,7 @@ import limn.components.ExpanderGroup;
 import limn.components.Label;
 import limn.components.TabbedPane;
 import limn.components.TextArea;
+import limn.graphics.Icon;
 import limn.i18n.I18nString;
 import limn.i18n.PluralString;
 import limn.icons.tabler.Tabler;
@@ -231,17 +232,21 @@ final class SectionsScene {
         ExpanderGroup group = new ExpanderGroup();
         Column questions = new Column();
         questions.gap(4).crossAlignment(Flex.CrossAlignment.STRETCH);
-        questions.add(question(group, Text.Q_SHIPPING, Text.A_SHIPPING, Text.S_SHIPPING, "truck-delivery"));
-        questions.add(question(group, Text.Q_RETURNS, Text.A_RETURNS, Text.S_RETURNS, "arrow-back-up"));
-        questions.add(question(group, Text.Q_WARRANTY, Text.A_WARRANTY, Text.S_WARRANTY, "shield-check"));
+        questions.add(question(group, Text.Q_SHIPPING, Text.A_SHIPPING, Text.S_SHIPPING, "truck-delivery",
+                Icon.Mirroring.NEVER));
+        // Back is the other way reading right to left, so the returns arrow turns around there.
+        questions.add(question(group, Text.Q_RETURNS, Text.A_RETURNS, Text.S_RETURNS, "arrow-back-up",
+                Icon.Mirroring.IN_RTL));
+        questions.add(question(group, Text.Q_WARRANTY, Text.A_WARRANTY, Text.S_WARRANTY, "shield-check",
+                Icon.Mirroring.NEVER));
         group.setExpandedIndex(0);
         page.add(Page.narrow(NARROW, Page.card(questions)));
     }
 
     private static Expander question(ExpanderGroup group, I18nString question, I18nString answer,
-                                     I18nString summary, String icon) {
+                                     I18nString summary, String icon, Icon.Mirroring mirroring) {
         Expander section = new Expander(question, new Label(answer).setWrap(true)).setSummary(summary);
-        section.setIcon(Tabler.outline(icon));
+        section.setIcon(Tabler.outline(icon), mirroring);
         group.add(section);
         return section;
     }

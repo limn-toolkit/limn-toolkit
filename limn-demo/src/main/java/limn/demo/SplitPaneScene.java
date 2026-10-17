@@ -97,8 +97,15 @@ final class SplitPaneScene {
     private static final float FOLDERS_RATIO = 0.2f;
     private static final float LIST_RATIO = 0.42f;
 
-    /** One folder of the mailbox. */
-    private record Folder(I18nString name, String icon) {
+    /**
+     * One folder of the mailbox, and whether its icon means a direction and so turns around where
+     * the interface reads right to left: the paper plane of what was sent flies the way the
+     * interface reads.
+     */
+    private record Folder(I18nString name, String icon, limn.graphics.Icon.Mirroring mirroring) {
+        Folder(I18nString name, String icon) {
+            this(name, icon, limn.graphics.Icon.Mirroring.NEVER);
+        }
     }
 
     /** One message. */
@@ -120,7 +127,7 @@ final class SplitPaneScene {
     /** Reusable subtree (a page of the showcase). */
     static Widget<?> content() {
         Folder inbox = new Folder(Text.INBOX, "inbox");
-        Folder sent = new Folder(Text.SENT, "send");
+        Folder sent = new Folder(Text.SENT, "send", limn.graphics.Icon.Mirroring.IN_RTL);
         Folder drafts = new Folder(Text.DRAFTS, "file-pencil");
         Folder archive = new Folder(Text.ARCHIVE, "archive");
         Folder trash = new Folder(Text.TRASH, "trash");
@@ -207,7 +214,7 @@ final class SplitPaneScene {
     private static Widget<?> folderRow(Folder folder, List<Mail> mail) {
         long unread = mail.stream().filter(m -> m.folder() == folder && m.unread()).count();
         Label name = new Label(folder.name()).setOverflow(Label.Overflow.ELLIPSIS);
-        name.setIcon(Tabler.outline(folder.icon()));
+        name.setIcon(Tabler.outline(folder.icon()), folder.mirroring());
         Label count = new Label(unread == 0 ? "" : NumberFormats.number().apply(unread))
                 .setStrong(true).setAlign(Label.HAlign.END, Label.VAlign.CENTER);
         Row row = new Row();
