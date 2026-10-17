@@ -96,7 +96,7 @@ final class TrayScene {
     static Scene create(Backend backend) {
         use(backend);
         Label status = new Label("").setMuted(true);
-        Page.reportTo(status::setText); // the only window: its line is the status line
+        Page.reportTo(status); // the only window: its line is the status line
         Column page = new Column();
         page.gap(16).crossAlignment(Flex.CrossAlignment.STRETCH);
         page.add(content(backend, status));

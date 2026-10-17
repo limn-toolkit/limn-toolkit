@@ -559,7 +559,7 @@ final class AnimationsScene {
         private static final float HEIGHT = 128;
         private static final float MARGIN = 12;
         private static final double HOLD_SECONDS = 2.5;
-        private static final String CUSTOMER = "Meadowbrook Clinic";
+        static final String CUSTOMER = "Meadowbrook Clinic";
         private final Widget<?> content;
         private final Label message = new Label("");
         private final Widget<?> toast;
@@ -589,7 +589,9 @@ final class AnimationsScene {
         }
 
         private void saved() {
-            message.setText(Text.SAVED.format(CUSTOMER));
+            String saved = Text.SAVED.format(CUSTOMER);
+            message.setText(saved);
+            Page.say(this, saved); // a toast is seen, and a reader's user hears it
             toast.setVisible(true);
             boolean arming = held < 0;
             held = 0;

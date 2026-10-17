@@ -18,7 +18,6 @@ import limn.scene.layout.SizedBox;
 
 import java.util.Map;
 import java.util.WeakHashMap;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -42,7 +41,7 @@ final class Page {
         ShowcaseStrings.register();
     }
 
-    private static Consumer<String> status; // null until a frame sets it
+    private static Label status; // null until a frame sets it
 
     /**
      * The labels drawn in one of the palette's colours, and which one: a label holds a colour and
@@ -63,7 +62,7 @@ final class Page {
      * Where {@link #report} writes: the window's status line, set by the frame once. Pages built
      * with no frame (a capture, a test) report nowhere.
      */
-    static void reportTo(Consumer<String> line) {
+    static void reportTo(Label line) {
         status = line;
     }
 
@@ -120,10 +119,27 @@ final class Page {
         return label;
     }
 
-    /** Says in the window's status line what a control did. */
+    /**
+     * Says in the window's status line what a control did, and says it to a screen reader too,
+     * politely and without moving the focus: a reader hears a label only when it reads it, so the
+     * line alone left a reader's user with no word that "Discard and close" had closed the tab.
+     */
     static void report(String text) {
         if (status != null) {
-            status.accept(text);
+            status.setText(text);
+            say(status, text);
+        }
+    }
+
+    /**
+     * Says {@code text} to a screen reader in {@code from}'s window, politely, after what it is
+     * reading, and without moving the focus: for a line the window writes by itself, which a
+     * reader does not read unless it is on it. Nothing when {@code from} is in no window.
+     */
+    static void say(Widget<?> from, String text) {
+        limn.scene.Scene scene = from.scene();
+        if (scene != null) {
+            scene.announce(text, limn.accessibility.Accessible.Politeness.POLITE);
         }
     }
 
