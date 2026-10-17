@@ -511,9 +511,11 @@ Maven Central say which number that was.
   image's `#…` reference is dropped, and every reference is checked again before the renderer
   is given the text, so an SVG read from bytes shows no picture from the disk. The work of
   reading one is bounded too: `var()` substitution writes at most four characters for each byte
-  of the file, a style sheet's selectors are matched in bounded work, and working out when SMIL
-  animations begin is counted, so a file of a few hundred bytes can neither run the heap out nor
-  hold its thread for seconds.
+  of the file, a style sheet's rule is tried only on the elements its last compound can name (by
+  id, class, type or attribute) and the tries a file may make grow with its size, and working out
+  when chained SMIL animations begin is counted, so a file of a few hundred bytes can neither run
+  the heap out nor hold its thread for seconds, while an export of hundreds of thousands of paths
+  under hundreds of class rules is read in under a second.
 - `SvgIcon` takes any aspect, fitted into its box, says its own `width()` and `height()`, and
   reads a file with `load(path)`, as `Images.load` and `Sounds.load` do, whose pictures beside it
   in its folder are shown.

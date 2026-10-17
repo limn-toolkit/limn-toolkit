@@ -91,7 +91,7 @@ public final class SvgSource {
         sanitizer.clean(root);
         new CustomProperties(bytes.length).resolve(root);
         drawnElements(root);
-        SvgAnimation animation = SvgAnimation.extract(root);
+        SvgAnimation animation = SvgAnimation.extract(root, bytes.length);
         // var() and the animation's reading both rewrite attributes after the cleaning, so every
         // reference is looked at once more in the text the renderer is about to be given.
         sanitizer.vet(root);

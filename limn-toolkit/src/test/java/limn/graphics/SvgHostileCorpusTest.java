@@ -29,8 +29,10 @@ class SvgHostileCorpusTest {
 
     private static final String CORPUS = "/limn/graphics/svg-hostile/";
 
-    /** Longer than any of these takes once it is refused; far shorter than any took before. */
+    /** Longer than any of these takes to be read once its work is done once; far shorter than any took before. */
     private static final long QUICKLY_NANOS = 2_000_000_000L;
+    /** Longer than any of these takes to be refused (half a second at most); far shorter than any took before. */
+    private static final long REFUSED_NANOS = 1_000_000_000L;
 
     private static final Pattern REFERENCE = Pattern.compile("([\\w:-]*href)=\"([^\"]*)\"", Pattern.CASE_INSENSITIVE);
 
@@ -109,7 +111,7 @@ class SvgHostileCorpusTest {
             throw new AssertionError(name + " was read");
         } catch (MalformedContentException expected) {
             long took = System.nanoTime() - start;
-            assertTrue(took < QUICKLY_NANOS, name + " took " + took / 1_000_000 + " ms to refuse");
+            assertTrue(took < REFUSED_NANOS, name + " took " + took / 1_000_000 + " ms to refuse");
         }
     }
 }

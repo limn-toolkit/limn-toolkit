@@ -52,6 +52,13 @@ public final class SvgXml {
         private final List<String> values = new ArrayList<>(4);
         private final List<Object> children = new ArrayList<>(2);
         private @Nullable Element parent;
+        /**
+         * Scratch of the style sheets' matcher in this package: the answers one match has worked
+         * out on this element, valid while {@link #matchStamp} is that match's. Kept on the
+         * element because a map from elements to answers cost a lookup on every try.
+         */
+        byte @Nullable [] matchMemo;
+        long matchStamp;
 
         /** @param name the element's name as written */
         public Element(String name) {

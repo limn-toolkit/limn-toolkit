@@ -48,9 +48,10 @@ public final class SvgAnimation {
     /** The most animations one file may have. */
     public static final int MAX_ANIMATIONS = 10_000;
     /**
-     * The most beginnings and ends read, over every round, to work out when a file's SMIL
+     * The most beginnings and ends read, over every round, to work out when a file's chained SMIL
      * animations begin: a chain that restarts its links every millisecond took 36 seconds before
-     * this was counted.
+     * this was counted. An animation that begins at its own times only is worked out once and
+     * not counted.
      */
     public static final long MAX_TIMING_STEPS = 4_000_000L;
 
@@ -275,7 +276,17 @@ public final class SvgAnimation {
      * @return the animation, or null when nothing in the document moves
      */
     public static @Nullable SvgAnimation extract(SvgXml.Element root) {
-        Reader reader = new Reader(root);
+        return extract(root, 0);
+    }
+
+    /**
+     * Takes the animations out of a document read from a file of {@code fileBytes}, which the
+     * work its style sheets may cost is held to.
+     *
+     * @return the animation, or null when nothing in the document moves
+     */
+    public static @Nullable SvgAnimation extract(SvgXml.Element root, int fileBytes) {
+        Reader reader = new Reader(root, fileBytes);
         reader.read();
         if (reader.slots.isEmpty() && reader.transforms.values().stream().noneMatch(t -> !t.smil.isEmpty() || !t.css.isEmpty())) {
             return null;
@@ -299,9 +310,9 @@ public final class SvgAnimation {
         private int animations;
         private int nextId;
 
-        Reader(SvgXml.Element root) {
+        Reader(SvgXml.Element root, int fileBytes) {
             this.root = root;
-            this.css = SvgCss.of(root);
+            this.css = SvgCss.of(root, fileBytes);
         }
 
         void read() {
@@ -309,7 +320,16 @@ public final class SvgAnimation {
             smil(root);
             resolve();
             cssWalk(root);
+            // The SMIL elements leave the document only now, so that every selector was matched
+            // against the document as written, where an animation is a child like any other and
+            // counts in a :last-child or an :nth-child, as it does in a browser.
+            for (SvgXml.Element[] read : taken) {
+                read[0].children().remove(read[1]);
+            }
         }
+
+        /** The SMIL elements read, each with its parent, to be taken out once the reading is done. */
+        private final List<SvgXml.Element[]> taken = new ArrayList<>();
 
         private void index(SvgXml.Element element) {
             String id = element.attribute("id");
@@ -348,7 +368,7 @@ public final class SvgAnimation {
                     if (SMIL.contains(child.localName())) {
                         count();
                         smilElement(child, element);
-                        children.remove(i--);
+                        taken.add(new SvgXml.Element[] {element, child});
                     } else {
                         smil(child);
                     }
@@ -437,21 +457,29 @@ public final class SvgAnimation {
          * nothing changes. A beginning while one plays restarts it.
          *
          * <p>Each round moves a chain on by one link, so a chain of short links takes as many
-         * rounds as it has beginnings in the window, each round over every animation: what the
-         * rounds together take is held under {@link #MAX_TIMING_STEPS}, past which the file is
-         * refused. An indicator's chain takes some thousands.
+         * rounds as it has beginnings in the window, each round over every animation of a chain:
+         * what the rounds together take is held under {@link #MAX_TIMING_STEPS}, past which the
+         * file is refused. An indicator's chain takes some thousands.
          */
         private void resolve() {
+            List<SmilTrack> chained = new ArrayList<>();
             for (SmilTrack track : smilTracks) {
                 track.instances(track.timing.offsets());
+                if (!track.timing.syncs().isEmpty()) {
+                    chained.add(track);
+                }
             }
+            // Only an animation that begins at another's beginning or end changes from round to
+            // round: one that begins at its own times has them from the start, and is neither
+            // worked out again nor counted, however many of them a file has.
+            List<SmilTrack> moved = new ArrayList<>(smilTracks);
             long steps = 0;
             for (int round = 0; round < 4096; round++) {
-                for (SmilTrack track : smilTracks) {
+                for (SmilTrack track : moved) {
                     track.intervals();
                 }
-                boolean changed = false;
-                for (SmilTrack track : smilTracks) {
+                moved.clear();
+                for (SmilTrack track : chained) {
                     List<Double> instances = new ArrayList<>(track.timing.offsets());
                     for (Sync sync : track.timing.syncs()) {
                         SmilTrack base = smilById.get(sync.id());
@@ -468,9 +496,11 @@ public final class SvgAnimation {
                     }
                     steps += 1 + instances.size();
                     timingSteps(steps);
-                    changed |= track.instances(instances);
+                    if (track.instances(instances)) {
+                        moved.add(track);
+                    }
                 }
-                if (!changed) {
+                if (moved.isEmpty()) {
                     return;
                 }
             }
@@ -537,6 +567,9 @@ public final class SvgAnimation {
         // ------------------------------------------------------------------------- CSS
 
         private void cssWalk(SvgXml.Element element) {
+            if (SMIL.contains(element.localName())) {
+                return; // read already, and leaving the document
+            }
             if (!element.localName().equals("style")) {
                 cssElement(element);
             }
