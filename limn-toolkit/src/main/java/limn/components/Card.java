@@ -127,8 +127,8 @@ public final class Card extends Widget<Card> {
     private static volatile boolean saidNameless;
 
     /** The text colour laid over the area while the pointer is over it, and while it is pressed. */
-    private static final float HOVER_VEIL = 0.06f;
-    private static final float PRESS_VEIL = 0.11f;
+    static final float HOVER_VEIL = 0.06f;
+    static final float PRESS_VEIL = 0.11f;
     /** The accent's share in the tint behind an icon that stretches, light and dark. */
     private static final float ICON_TINT_LIGHT = 0.16f;
     private static final float ICON_TINT_DARK = 0.26f;
