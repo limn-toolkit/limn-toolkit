@@ -12,9 +12,9 @@ import java.util.Objects;
 
 /**
  * The values one {@link limn.scene.layout.Transform} container draws its child with, the motions
- * that move them, and the one ticker that steps every motion: the translation, the scale, the
- * origin they are taken about, and the turn of a flip, composed into the matrix the container
- * draws its child through.
+ * that move them, and the one ticker that steps every motion: the translation, the rotation, the
+ * scale, the general matrix, the origin they are taken about, and the turn of a flip, composed
+ * into the matrix the container draws its child through.
  *
  * <p>Here, beside {@link Widget}, and not in the container, for the reasons {@link OpacityGroup}
  * is: the matrix is read by the widget's paint, hit test and conversions, a change damages through
@@ -22,9 +22,10 @@ import java.util.Objects;
  * widget's own walk of the tree sees. A widget holds one only when it is such a container.
  *
  * <p>The matrix is composed in a fixed order about the origin, {@code O · translation · flip ·
- * scale · O⁻¹}, with the translation's x and the origin's fraction read from the start edge, so
- * that a right-to-left subtree moves and grows toward its own end. The turns and the general
- * matrix of the design take their places in the same product, between the flip and the scale.
+ * rotation · scale · matrix · O⁻¹}, with the translation's x and the origin's fraction read from
+ * the start edge, so that a right-to-left subtree moves and grows toward its own end; the rotation
+ * and the matrix are physical, as a clock turns the same way in either direction. The turns in
+ * depth of the design take their place in the same product, between the flip and the rotation.
  */
 final class TransformGroup implements TransformAccess.Values {
 
@@ -43,6 +44,10 @@ final class TransformGroup implements TransformAccess.Values {
     private float scaleY = 1;
     private float originX = 0.5f;
     private float originY = 0.5f;
+    /** Clockwise on the screen, in degrees. */
+    private float rotation;
+    /** The general matrix, applied first, or null for the identity. */
+    private @Nullable Mat4 general;
     /**
      * The turn of a flip in flight, in degrees, physical (the direction already resolved): 0 at
      * rest, toward 90 on one side of the edge and from −90 on the other. Only a flip moves it.
@@ -53,6 +58,8 @@ final class TransformGroup implements TransformAccess.Values {
 
     private @Nullable Motion slide;
     private @Nullable Motion scale;
+    /** A rotation in flight: its first pair of numbers is the angle, the second unused. */
+    private @Nullable Motion rotating;
     private @Nullable Flip flip;
     /**
      * The one ticker stepping every motion of this container while it is registered, or null: one
@@ -66,7 +73,7 @@ final class TransformGroup implements TransformAccess.Values {
         this.owner = owner;
     }
 
-    /** A slide or a scale in flight: two numbers from where they were to where they go. */
+    /** A slide, a scale or a rotation in flight: two numbers from where they were to where they go. */
     private static final class Motion {
         final float fromA;
         final float fromB;
@@ -178,6 +185,16 @@ final class TransformGroup implements TransformAccess.Values {
     }
 
     @Override
+    public float rotation() {
+        return rotation;
+    }
+
+    @Override
+    public Mat4 matrix() {
+        return general != null ? general : Mat4.IDENTITY;
+    }
+
+    @Override
     public void setTranslation(float x, float y) {
         checkSettable();
         finite(x, "translation");
@@ -206,6 +223,59 @@ final class TransformGroup implements TransformAccess.Values {
     }
 
     @Override
+    public void setRotation(float degrees) {
+        checkSettable();
+        finite(degrees, "rotation");
+        rotating = supersede(rotating);
+        if (degrees != rotation) {
+            rotation = degrees;
+            moved(true);
+            announce();
+        }
+    }
+
+    @Override
+    public void setMatrix(Mat4 next) {
+        checkSettable();
+        Objects.requireNonNull(next, "matrix");
+        for (int row = 0; row < 4; row++) {
+            for (int col = 0; col < 4; col++) {
+                finite(next.get(row, col), "matrix's entry");
+            }
+        }
+        if (next.get(3, 0) != 0 || next.get(3, 1) != 0 || !(next.get(3, 3) > 0)) {
+            // A plane the matrix tilts toward the eye is a perspective, which the turns in depth
+            // bring with the near plane and the backface; until then w stays the plane's own.
+            throw new IllegalArgumentException("a transform's matrix keeps the plane affine: its "
+                    + "bottom row is (0, 0, any, a positive w), not (" + next.get(3, 0) + ", "
+                    + next.get(3, 1) + ", " + next.get(3, 2) + ", " + next.get(3, 3) + ")");
+        }
+        Mat4 kept = ChildTransform.isIdentity(next) ? null : next;
+        if (!sameMatrix(kept, general)) {
+            general = kept;
+            moved(true);
+            announce();
+        }
+    }
+
+    /** Whether two matrices, null as the identity, have the same entries. */
+    private static boolean sameMatrix(@Nullable Mat4 a, @Nullable Mat4 b) {
+        if (a == b) {
+            return true;
+        }
+        Mat4 left = a != null ? a : Mat4.IDENTITY;
+        Mat4 right = b != null ? b : Mat4.IDENTITY;
+        for (int row = 0; row < 4; row++) {
+            for (int col = 0; col < 4; col++) {
+                if (left.get(row, col) != right.get(row, col)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    @Override
     public void setOrigin(float fractionX, float fractionY) {
         checkSettable();
         finite(fractionX, "origin");
@@ -223,9 +293,11 @@ final class TransformGroup implements TransformAccess.Values {
         checkSettable();
         slide = supersede(slide);
         scale = supersede(scale);
+        rotating = supersede(rotating);
         flip = supersede(flip);
         boolean atRest = translationX == 0 && translationY == 0 && scaleX == 1 && scaleY == 1
-                && originX == 0.5f && originY == 0.5f && flipDegrees == 0;
+                && originX == 0.5f && originY == 0.5f && flipDegrees == 0 && rotation == 0
+                && general == null;
         if (!atRest) {
             translationX = 0;
             translationY = 0;
@@ -234,6 +306,8 @@ final class TransformGroup implements TransformAccess.Values {
             originX = 0.5f;
             originY = 0.5f;
             flipDegrees = 0;
+            rotation = 0;
+            general = null;
             moved(true);
             announce();
         }
@@ -282,6 +356,26 @@ final class TransformGroup implements TransformAccess.Values {
             return;
         }
         scale = new Motion(scaleX, scaleY, sx, sy, motionSeconds(seconds), onArrive);
+        start(ticking);
+    }
+
+    @Override
+    public void rotateTo(float degrees, double seconds, @Nullable Runnable onArrive) {
+        checkSettable();
+        finite(degrees, "rotation");
+        checkSeconds(seconds);
+        rotating = supersede(rotating);
+        Scene ticking = tickingScene(seconds);
+        if (ticking == null || degrees == rotation) {
+            if (degrees != rotation) {
+                rotation = degrees;
+                moved(true);
+                announce();
+            }
+            runIfAny(onArrive);
+            return;
+        }
+        rotating = new Motion(rotation, 0, degrees, 0, motionSeconds(seconds), onArrive);
         start(ticking);
     }
 
@@ -349,15 +443,17 @@ final class TransformGroup implements TransformAccess.Values {
         if (ticker != stepping) {
             return false; // on a scene the container has left, whose leaving settled its motions
         }
-        if (slide == null && scale == null && flip == null) {
+        if (slide == null && scale == null && rotating == null && flip == null) {
             ticker = null;
             return false;
         }
         Motion sliding = slide;
         Motion scaling = scale;
+        Motion turning = rotating;
         Flip flipping = flip;
         boolean slideArrives = sliding != null && advance(sliding, dt);
         boolean scaleArrives = scaling != null && advance(scaling, dt);
+        boolean turnArrives = turning != null && advance(turning, dt);
         boolean flipArrives = false;
         boolean flipReachesEdge = false;
         if (sliding != null) {
@@ -369,6 +465,9 @@ final class TransformGroup implements TransformAccess.Values {
             float t = eased(scaling);
             scaleX = scaling.fromA + (scaling.toA - scaling.fromA) * t;
             scaleY = scaling.fromB + (scaling.toB - scaling.fromB) * t;
+        }
+        if (turning != null) {
+            rotation = turning.fromA + (turning.toA - turning.fromA) * eased(turning);
         }
         if (flipping != null) {
             if (flipping.started) {
@@ -390,10 +489,13 @@ final class TransformGroup implements TransformAccess.Values {
             scaleX = scaling.toA;
             scaleY = scaling.toB;
         }
+        if (turnArrives) {
+            rotation = turning.toA;
+        }
         // One damage for the frame, of where the child was and where it is: the accessible tree
         // is walked only when something arrives, so a reader's highlight jumps to where the child
         // came to rest and does not follow the frames between.
-        moved(slideArrives || scaleArrives || flipArrives);
+        moved(slideArrives || scaleArrives || turnArrives || flipArrives);
         if (flipReachesEdge && flip == flipping) {
             flipping.swapped = true;
             flipping.atEdge.run(); // the application swaps what the child shows, edge-on
@@ -406,6 +508,10 @@ final class TransformGroup implements TransformAccess.Values {
             scale = null;
             arrive(scaling.onArrive);
         }
+        if (turnArrives && rotating == turning) {
+            rotating = null;
+            arrive(turning.onArrive);
+        }
         if (flipArrives && flip == flipping) {
             flip = null;
             arrive(flipping.onArrive);
@@ -413,14 +519,14 @@ final class TransformGroup implements TransformAccess.Values {
         if (ticker != stepping) {
             return false; // an onArrive took the container out of this scene
         }
-        if (slide != null || scale != null || flip != null) {
+        if (slide != null || scale != null || rotating != null || flip != null) {
             return true; // still moving, or an onArrive started another motion on this ticker
         }
         ticker = null;
         return false;
     }
 
-    /** Steps a slide's or a scale's clock; whether it has arrived. */
+    /** Steps a slide's, a scale's or a rotation's clock; whether it has arrived. */
     private static boolean advance(Motion motion, double dt) {
         if (motion.started) {
             motion.elapsed += dt;
@@ -452,12 +558,14 @@ final class TransformGroup implements TransformAccess.Values {
         ticker = null; // the ticker left behind finds itself replaced, if that scene ticks again
         Motion sliding = slide;
         Motion scaling = scale;
+        Motion turning = rotating;
         Flip flipping = flip;
-        if (sliding == null && scaling == null && flipping == null) {
+        if (sliding == null && scaling == null && turning == null && flipping == null) {
             return;
         }
         slide = null;
         scale = null;
+        rotating = null;
         flip = null;
         if (sliding != null) {
             translationX = sliding.toA;
@@ -466,6 +574,9 @@ final class TransformGroup implements TransformAccess.Values {
         if (scaling != null) {
             scaleX = scaling.toA;
             scaleY = scaling.toB;
+        }
+        if (turning != null) {
+            rotation = turning.toA;
         }
         if (flipping != null) {
             flipDegrees = 0;
@@ -479,6 +590,9 @@ final class TransformGroup implements TransformAccess.Values {
         }
         if (scaling != null) {
             arrive(scaling.onArrive);
+        }
+        if (turning != null) {
+            arrive(turning.onArrive);
         }
         if (flipping != null) {
             arrive(flipping.onArrive);
@@ -511,15 +625,16 @@ final class TransformGroup implements TransformAccess.Values {
 
     /** Whether every value is at rest, so the container draws its child where layout put it. */
     private boolean atRest() {
-        return translationX == 0 && translationY == 0 && scaleX == 1 && scaleY == 1 && flipDegrees == 0;
+        return translationX == 0 && translationY == 0 && scaleX == 1 && scaleY == 1 && flipDegrees == 0
+                && rotation == 0 && general == null;
     }
 
     /**
      * The matrix the values make, composed into the one this container holds, or null at rest:
-     * {@code O · translation · flip · scale · O⁻¹}, with the origin's x and the translation's x read
-     * from the start edge. In place, into one matrix held for the life of the container: a frame of
-     * a motion allocates only the vectors handed to {@link MutMat4#setTrs}, 72 bytes measured, where
-     * a new matrix a frame cost several times that.
+     * {@code O · translation · flip · rotation · scale · matrix · O⁻¹}, with the origin's x and the
+     * translation's x read from the start edge. In place, into one matrix held for the life of the
+     * container: a frame of a motion allocates only the vectors and the turn handed to
+     * {@link MutMat4#setTrs}, where a new matrix a frame cost several times that.
      */
     private @Nullable MutMat4 composed() {
         if (atRest()) {
@@ -537,7 +652,17 @@ final class TransformGroup implements TransformAccess.Values {
             float cos = (float) Math.cos(half);
             turn = flipAboutVertical ? new Quat(0, sin, 0, cos) : new Quat(sin, 0, 0, cos);
         }
+        if (rotation != 0) {
+            // About z, clockwise on the screen since y runs down, after the flip's turn: the flip
+            // turns the child as it appears, rotated or not.
+            double half = Math.toRadians(rotation) / 2;
+            Quat clockwise = new Quat(0, 0, (float) Math.sin(half), (float) Math.cos(half));
+            turn = turn == Quat.IDENTITY ? clockwise : turn.multiply(clockwise);
+        }
         matrix.setTrs(new Vec3(ox + tx, oy + translationY, 0), turn, new Vec3(scaleX, scaleY, 1));
+        if (general != null) {
+            matrix.mul(general);
+        }
         return matrix.mul(toOrigin.setTrs(new Vec3(-ox, -oy, 0), Quat.IDENTITY, ONE));
     }
 

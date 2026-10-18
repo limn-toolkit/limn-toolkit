@@ -2267,16 +2267,31 @@ public abstract class Widget<W extends Widget<W>> {
      * an exact rectangle and the glyphs keep their grid, so the frame costs only the pixels the
      * move repaints. A child collapsed to a line or a point is not drawn at all.
      *
-     * <p>Any other matrix, a rotation or a turn, needs a picture of the subtree drawn upright and
-     * composited through it; until that is built the children are drawn where layout put them,
-     * which only the tests' turned container asks for.
+     * <p>Any other matrix, a rotation, a skew or a turn, draws the children upright into a picture
+     * of their own, in this widget's space, which the canvas lays through the matrix
+     * ({@link Canvas#saveLayer(float, float, float, float, float, limn.math.Mat4)}): every clip
+     * inside is an exact rectangle again and {@link Canvas#clipBounds()} answers, so what scrolled
+     * out of a view inside is skipped as it is upright. The picture keeps what the children paint,
+     * each widget's box grown by a pixel and its outset, before the matrix; the canvas cuts it to
+     * what the clip lets be seen.
      */
     private void paintChildrenThrough(Canvas canvas, ChildTransform through) {
         if (through.collapsed) {
             return;
         }
         if (!through.axisAligned) {
-            paintChildren(canvas);
+            float[] b = PAINTED_BOUNDS;
+            paintedRect(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY,
+                    Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY, false, b);
+            if (!(b[2] > b[0] && b[3] > b[1])) {
+                return; // no child paints anything
+            }
+            canvas.saveLayer(b[0], b[1], b[2] - b[0], b[3] - b[1], 1f, through.asMat4());
+            try {
+                paintChildren(canvas);
+            } finally {
+                canvas.restore();
+            }
             return;
         }
         canvas.save();
@@ -2331,7 +2346,7 @@ public abstract class Widget<W extends Widget<W>> {
      */
     private void paintedRect(float[] out) {
         float outset = 1 + paintOutset();
-        paintedRect(-outset, -outset, width + outset, height + outset, out);
+        paintedRect(-outset, -outset, width + outset, height + outset, true, out);
     }
 
     /**
@@ -2344,7 +2359,7 @@ public abstract class Widget<W extends Widget<W>> {
     final float[] childrenPaintedBounds() {
         float[] b = PAINTED_BOUNDS;
         paintedRect(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY,
-                Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY, b);
+                Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY, true, b);
         if (!(b[2] > b[0] && b[3] > b[1])) {
             b[0] = Float.NaN;
             b[1] = Float.NaN;
@@ -2394,11 +2409,13 @@ public abstract class Widget<W extends Widget<W>> {
     /**
      * {@link #paintedRect(float[])} from a rectangle of this widget's own, {@code (x0, y0)} to
      * {@code (x1, y1)}, which may be empty: the union with every visible child's painted rectangle,
-     * moved and cut as this widget draws it.
+     * moved and cut as this widget draws it, through the matrix it draws its children with when
+     * {@code throughMatrix} holds, and upright otherwise, as they are drawn into the picture the
+     * matrix lays.
      */
-    private void paintedRect(float x0, float y0, float x1, float y1, float[] out) {
+    private void paintedRect(float x0, float y0, float x1, float y1, boolean throughMatrix, float[] out) {
         boolean clips = clipsChildren();
-        ChildTransform through = childTransform;
+        ChildTransform through = throughMatrix ? childTransform : null;
         if (through == null || !through.collapsed) {
             for (int i = 0; i < children.size(); i++) {
                 Widget<?> child = children.get(i);

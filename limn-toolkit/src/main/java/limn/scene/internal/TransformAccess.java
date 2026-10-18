@@ -85,6 +85,18 @@ public final class TransformAccess {
         /** @return the origin's y, a fraction of the box from its top */
         float originY();
 
+        /** @return the rotation, clockwise on the screen, in degrees */
+        float rotation();
+
+        /** @return the general matrix, the identity when there is none */
+        Mat4 matrix();
+
+        /** @param degrees clockwise on the screen */
+        void setRotation(float degrees);
+
+        /** @param matrix the general matrix, applied first, affine on the plane */
+        void setMatrix(Mat4 matrix);
+
         /**
          * @param x toward the end
          * @param y down
@@ -121,6 +133,13 @@ public final class TransformAccess {
          * @param onArrive run when it arrives, or null
          */
         void scaleTo(float sx, float sy, double seconds, @Nullable Runnable onArrive);
+
+        /**
+         * @param degrees  clockwise on the screen
+         * @param seconds  how long
+         * @param onArrive run when it arrives, or null
+         */
+        void rotateTo(float degrees, double seconds, @Nullable Runnable onArrive);
 
         /**
          * @param aboutVertical whether the turn is about the vertical axis (forward and backward)

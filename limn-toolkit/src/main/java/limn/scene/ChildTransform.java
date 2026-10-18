@@ -96,8 +96,15 @@ final class ChildTransform {
         this.matrix = null;
     }
 
+    /** The matrix a container loads in place, kept to answer {@link #asMat4()}; null for one set whole. */
+    private @Nullable MutMat4 loaded;
+    /** {@link #loaded} as a value, taken the first time a paint asks after a load, or null. */
+    private @Nullable Mat4 snapshot;
+
     /** Loads {@code m} in place, for a container that holds this one; allocates nothing. */
     void set(MutMat4 m) {
+        loaded = m;
+        snapshot = null;
         load(m.get(0, 0), m.get(0, 1), m.get(0, 3), m.get(1, 0), m.get(1, 1), m.get(1, 3),
                 m.get(3, 0), m.get(3, 1), m.get(3, 3));
     }
@@ -131,6 +138,25 @@ final class ChildTransform {
         paintScaleX = affine ? (float) (h00 / h22) : 1;
         paintScaleY = affine ? (float) (h11 / h22) : 1;
         collapsed = affine && Math.abs((h00 * h11 - h01 * h10) / (h22 * h22)) <= COLLAPSED;
+    }
+
+    /**
+     * The matrix as a value, for a canvas that draws the children through a picture: the one set,
+     * or a snapshot of the one loaded, taken once per load, so that a turned container repainted
+     * while still allocates nothing and a frame of its motion one matrix.
+     *
+     * @return the matrix
+     */
+    Mat4 asMat4() {
+        if (matrix != null) {
+            return matrix;
+        }
+        Mat4 taken = snapshot;
+        if (taken == null) {
+            taken = java.util.Objects.requireNonNull(loaded, "loaded").toMat4();
+            snapshot = taken;
+        }
+        return taken;
     }
 
     /**

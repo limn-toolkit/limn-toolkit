@@ -1,6 +1,7 @@
 package limn.scene.layout;
 
 import limn.concurrent.Ui;
+import limn.math.Mat4;
 import limn.scene.Change;
 import limn.scene.Constraints;
 import limn.scene.Size;
@@ -12,8 +13,8 @@ import org.jspecify.annotations.Nullable;
 import java.util.Objects;
 
 /**
- * Draws one child moved, scaled or flipped, without changing where layout put anything: a render
- * transform. The child is drawn, hit by the pointer and published to a screen reader where the
+ * Draws one child moved, scaled, rotated, skewed or flipped, without changing where layout put
+ * anything: a render transform. The child is drawn, hit by the pointer and published to a screen reader where the
  * transform puts it, and its box, the container's box and every sibling's place stay what they are
  * at rest. A child scaled to twice its size overlaps its neighbours; it does not push them.
  *
@@ -27,15 +28,20 @@ import java.util.Objects;
  *   <li>a translation, {@link #setTranslation}, in points: {@code x} toward the end of the layout
  *       direction (right in a left-to-right subtree, left in a right-to-left one), {@code y} down;
  *       {@code (0, 0)};</li>
+ *   <li>a rotation, {@link #setRotation}, in degrees clockwise on the screen, the same way in
+ *       either direction, as a clock turns; {@code 0};</li>
  *   <li>a scale, {@link #setScale(float, float)}: a negative factor mirrors, and a factor of 0
  *       collapses the child to a line or a point, which then draws nothing and takes no pointer;
  *       {@code (1, 1)};</li>
- *   <li>an origin, {@link #setOrigin}: the point a scale and a flip keep still, as fractions of
- *       the box measured from its start edge and its top, so that a scale that grows from the
- *       start grows toward the end in either direction; {@code (0.5, 0.5)}.</li>
+ *   <li>a general matrix, {@link #setMatrix}, for a skew or any other affine map of the plane;
+ *       the identity;</li>
+ *   <li>an origin, {@link #setOrigin}: the point a rotation, a scale, the matrix and a flip keep
+ *       still, as fractions of the box measured from its start edge and its top, so that a scale
+ *       that grows from the start grows toward the end in either direction; {@code (0.5, 0.5)}.</li>
  * </ul>
- * In that order: for a point of the child, the scale about the origin, then the translation of the
- * result, so a translation moves the scaled child as it is. Another order is two containers nested.
+ * In this order, for a point of the child: the matrix, the scale and the rotation, each about the
+ * origin, then the translation of the result, so that a translation moves the turned child as it
+ * is and a rotation turns the scaled one. Another order is two containers nested.
  *
  * <p><b>Transparent to everything but where its child is drawn.</b> It measures, lays out and
  * aligns on a baseline as its child alone does, the child given its whole box; it paints nothing of
@@ -49,6 +55,13 @@ import java.util.Objects;
  * scaled, the child is drawn straight into the window, moved and scaled, every clip inside it exact;
  * a change repaints where the child was and where it is, and lays nothing out. A uniform scale
  * keeps text crisp; a scale animation draws the glyphs again at each size it passes through.
+ * Rotated or skewed, the child is drawn upright into a picture of its own, at the size it is seen
+ * at, and the picture is laid at the angle: every clip inside stays an exact rectangle, a view
+ * scrolled inside still skips what scrolled away, the edges are smoothed over about a pixel, and
+ * text reads slightly softer, as text at an angle does. A frosted glass inside reads the window
+ * behind as it would upright. The picture costs what an {@link Opacity} container's fade costs a
+ * frame of the same size; it is made again whenever something inside repaints while the child is
+ * turned, and given back the frame after the child comes to rest upright.
  *
  * <p><b>A watcher hears it</b> as {@link Change.Aspect#TRANSFORM} with origin {@code CODE} on this
  * container: every time a set changes a value, once for {@link #reset()}, and twice for a motion,
@@ -194,6 +207,59 @@ public final class Transform extends Widget<Transform> {
     }
 
     /**
+     * Turns the child by {@code degrees} clockwise on the screen about the
+     * {@link #setOrigin origin}, at once. Physical: a right-to-left subtree turns the same way, as a
+     * clock does. A {@link #rotateTo rotation} in flight is superseded. The child is drawn through a
+     * picture while it is turned (see the class's note on what it costs); a whole turn of 360
+     * degrees draws it upright, through the picture still.
+     *
+     * @param degrees clockwise on the screen
+     * @return this
+     * @throws IllegalArgumentException if it is {@code NaN} or infinite
+     * @throws IllegalStateException    off the UI thread, or from inside a paint
+     */
+    public Transform setRotation(float degrees) {
+        Ui.checkUiThread();
+        values.setRotation(degrees);
+        return this;
+    }
+
+    /** @return the rotation, in degrees clockwise on the screen */
+    public float rotation() {
+        return values.rotation();
+    }
+
+    /**
+     * Sets a general matrix the child is drawn through, about the {@link #setOrigin origin}, before
+     * the scale and the rotation: a skew, or any affine map of the plane the other values do not
+     * name. The child lies in the plane {@code z = 0}, so a point {@code (x, y)} of it, taken from
+     * the origin, is drawn at the matrix's x and y of {@code (x, y, 0, 1)}; the z row and column
+     * matter only through a perspective, which this container does not apply. Physical, as the
+     * rotation is. The identity is no matrix. {@link limn.math.Mat4#affine2D} makes one from the
+     * six numbers of a 2D affine map.
+     *
+     * <p>The matrix must keep the plane affine: its bottom row is {@code (0, 0, any, w)} with
+     * {@code w} positive, the last dividing the rest, since a tilt toward the eye is a perspective.
+     *
+     * @param matrix the matrix
+     * @return this
+     * @throws NullPointerException     if it is null
+     * @throws IllegalArgumentException if an entry is {@code NaN} or infinite, or its bottom row
+     *                                  tilts the plane
+     * @throws IllegalStateException    off the UI thread, or from inside a paint
+     */
+    public Transform setMatrix(Mat4 matrix) {
+        Ui.checkUiThread();
+        values.setMatrix(matrix);
+        return this;
+    }
+
+    /** @return the general matrix, {@link Mat4#IDENTITY} when none is set */
+    public Mat4 matrix() {
+        return values.matrix();
+    }
+
+    /**
      * Puts every value back at rest, the origin included, and stops every motion in flight, as one
      * change: a watcher hears it once, besides the end of each motion it superseded.
      *
@@ -290,6 +356,42 @@ public final class Transform extends Widget<Transform> {
     public Transform scaleTo(float sx, float sy, double seconds, @Nullable Runnable onArrive) {
         Ui.checkUiThread();
         values.scaleTo(sx, sy, seconds, onArrive);
+        return this;
+    }
+
+    /**
+     * {@link #rotateTo(float, double, Runnable)} over the theme's window animation, with nothing
+     * run at the end.
+     *
+     * @param degrees the rotation to arrive at, clockwise on the screen
+     * @return this
+     * @throws IllegalArgumentException if it is {@code NaN} or infinite
+     * @throws IllegalStateException    off the UI thread, or from inside a paint
+     */
+    public Transform rotateTo(float degrees) {
+        return rotateTo(degrees, WindowAnimation.of(this), null);
+    }
+
+    /**
+     * Moves the {@link #setRotation rotation} to {@code degrees} over {@code seconds}, by the rules
+     * {@link #slideTo(float, float, double, Runnable) slideTo} states: eased, on the one ticker
+     * beside a slide and a scale, straight there under less motion, superseded by a newer rotation
+     * or a {@link #setRotation}, settled as the container leaves its scene, and heard twice. It
+     * turns the short way or the long way as the numbers say: from 350 to 10 degrees is 340 degrees
+     * back, and to 370 is twenty forward.
+     *
+     * @param degrees  the rotation to arrive at, clockwise on the screen
+     * @param seconds  how long it takes, when the system does not ask for less motion
+     * @param onArrive run once when it arrives, or at once when it goes straight there; never when
+     *                 it is superseded; may be null
+     * @return this
+     * @throws IllegalArgumentException if {@code degrees} is {@code NaN} or infinite, or
+     *                                  {@code seconds} is negative, {@code NaN} or infinite
+     * @throws IllegalStateException    off the UI thread, or from inside a paint
+     */
+    public Transform rotateTo(float degrees, double seconds, @Nullable Runnable onArrive) {
+        Ui.checkUiThread();
+        values.rotateTo(degrees, seconds, onArrive);
         return this;
     }
 

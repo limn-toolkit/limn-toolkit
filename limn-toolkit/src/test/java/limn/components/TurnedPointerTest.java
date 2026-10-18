@@ -12,6 +12,7 @@ import limn.scene.Size;
 import limn.scene.Turned;
 import limn.scene.Widget;
 import limn.scene.layout.Padding;
+import limn.scene.layout.Transform;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
@@ -32,12 +33,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * resize, a tree's triangle, the menu bar's titles, a list's rows, a split pane's divider and a
  * range slider's thumbs.
  *
- * <p>Each runs three times on the same scene: upright, rotated in the plane, and turned about its
+ * <p>Each runs five times on the same scene: upright, rotated in the plane, and turned about its
  * vertical axis in perspective, through {@link Turned}, which hands the scene the matrix and draws
- * nothing turned. The pointer is put where the matrix draws the local point the upright run
- * presses, computed here from the matrix and the layout's own offsets rather than by the
- * conversions under test. A component that still sums its offsets up the tree, or converts one
- * axis at a time, presses somewhere else at an angle and fails.
+ * nothing turned; and inside the real {@link Transform}, rotated and skewed, which draws the
+ * component through a picture as an application's would be. The pointer is put where the matrix
+ * draws the local point the upright run presses, computed here from the matrix and the layout's
+ * own offsets rather than by the conversions under test; for the container, from the matrix its
+ * values must make about its middle, written out here. A component that still sums its offsets up
+ * the tree, or converts one axis at a time, presses somewhere else at an angle and fails.
  */
 class TurnedPointerTest extends ComponentTestBase {
 
@@ -62,24 +65,44 @@ class TurnedPointerTest extends ComponentTestBase {
         }
     }
 
-    /** The three ways each case runs: upright, rotated in the plane, turned in perspective. */
-    private static List<@Nullable Mat4> angles() {
-        List<@Nullable Mat4> angles = new ArrayList<>();
-        angles.add(null);
-        angles.add(Turned.rotation(W / 2, H / 2, 33));
-        angles.add(Turned.turn(W / 2, H / 2, 38, 1200));
+    /**
+     * One way a case runs: what the padded component is mounted in, and the matrix the pointer is
+     * placed through, null upright.
+     */
+    private record Mount(String name, Function<Widget<?>, Widget<?>> wrap, @Nullable Mat4 matrix) {
+    }
+
+    /** A skew along x by 20 degrees, as a general matrix. */
+    private static final Mat4 SKEW = Mat4.affine2D(1, 0, (float) Math.tan(Math.toRadians(20)), 1, 0, 0);
+
+    /**
+     * The five ways each case runs: upright, rotated in the plane and turned in perspective by the
+     * test container; rotated and skewed by the real one, about its middle, its origin's default.
+     */
+    private static List<Mount> angles() {
+        List<Mount> angles = new ArrayList<>();
+        angles.add(new Mount("upright", padded -> new Turned(padded), null));
+        Mat4 rotation = Turned.rotation(W / 2, H / 2, 33);
+        angles.add(new Mount("rotated in the plane", padded -> new Turned(padded).setMatrix(rotation), rotation));
+        Mat4 turn = Turned.turn(W / 2, H / 2, 38, 1200);
+        angles.add(new Mount("turned in perspective", padded -> new Turned(padded).setMatrix(turn), turn));
+        angles.add(new Mount("rotated by a Transform", padded -> new Transform(padded).setRotation(33),
+                rotation));
+        Mat4 skew = Turned.translation(W / 2, H / 2).multiply(SKEW).multiply(Turned.translation(-W / 2, -H / 2));
+        angles.add(new Mount("skewed by a Transform", padded -> new Transform(padded).setMatrix(SKEW), skew));
         return angles;
     }
 
     /**
-     * Mounts {@code component} padded inside a turned container at the scene's origin, under
-     * {@code matrix}, and runs {@code drive} with a pointer that presses where the matrix draws a
-     * point of a widget's layout; answers what {@code read} reads before and after.
+     * Mounts {@code component} padded inside the mount's container at the scene's origin, and runs
+     * {@code drive} with a pointer that presses where the mount's matrix draws a point of a widget's
+     * layout; answers what {@code read} reads before and after.
      */
-    private <C extends Widget<?>, R> List<R> run(Supplier<C> build, @Nullable Mat4 matrix,
+    private <C extends Widget<?>, R> List<R> run(Supplier<C> build, Mount mount,
                                                  BiConsumer<C, Pointer> drive, Function<C, R> read) {
         C component = build.get();
-        Turned turned = new Turned(new Padding(Insets.all(PAD), component)).setMatrix(matrix);
+        Widget<?> turned = mount.wrap().apply(new Padding(Insets.all(PAD), component));
+        Mat4 matrix = mount.matrix();
         Scene scene = new Scene(turned);
         scene.bind(new limn.testing.StubWindow());
         scene.setTextRuler(RULER);
@@ -142,16 +165,18 @@ class TurnedPointerTest extends ComponentTestBase {
                                                           BiConsumer<C, Pointer> drive, Function<C, R> read) {
         List<R> answers = new ArrayList<>();
         R before = null;
-        for (Mat4 matrix : angles()) {
-            List<R> run = run(build, matrix, drive, read);
+        List<Mount> mounts = angles();
+        for (Mount mount : mounts) {
+            List<R> run = run(build, mount, drive, read);
             if (before == null) {
                 before = run.get(0);
             }
             answers.add(run.get(1));
         }
         assertNotEquals(before, answers.get(0), what + ": the upright run must change something to compare");
-        assertEquals(answers.get(0), answers.get(1), what + ": rotated in the plane");
-        assertEquals(answers.get(0), answers.get(2), what + ": turned in perspective");
+        for (int i = 1; i < mounts.size(); i++) {
+            assertEquals(answers.get(0), answers.get(i), what + ": " + mounts.get(i).name());
+        }
     }
 
     @Test
