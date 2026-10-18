@@ -76,6 +76,12 @@ class SceneDriverTest extends ComponentTestBase {
             }
 
             @Override
+            public limn.concurrent.Subscription observeAnchorMoved(Scene scene, limn.scene.Widget<?> anchor,
+                                                                   Runnable placeAgain) {
+                return null;
+            }
+
+            @Override
             public limn.scene.Widget<?> focusedBefore(Scene scene) {
                 return null;
             }

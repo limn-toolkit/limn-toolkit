@@ -164,6 +164,8 @@ public final class AnchoredPopup {
     private @Nullable Subscription fullscreen;
     private @Nullable Subscription cursor;
     private @Nullable Subscription route;
+    /** While its window is up: placing it again when a transform above the anchor comes to rest. */
+    private @Nullable Subscription anchorMoved;
 
     public AnchoredPopup(Host host) {
         this.host = Objects.requireNonNull(host, "host");
@@ -302,6 +304,13 @@ public final class AnchoredPopup {
             cursor = SceneAccess.showCursorOf(scene, popupScene);
         }
         popupScene.bind(window);
+        // A transform above the anchor that comes to rest somewhere new moves where the anchor is
+        // drawn: the window is placed again there, a turn later, outside the frame that settled it.
+        anchorMoved = SceneAccess.observeAnchorMoved(scene, anchor, () -> Ui.post(() -> {
+            if (window != null) {
+                refit();
+            }
+        }));
         // A click inside may hand the popup's window the keyboard; its losing it is the same rule.
         popupBlur = popupScene.observeWindowBlur(() -> Ui.post(this::closeUnlessRefocused));
         popupScene.setBackground(Color.TRANSPARENT);
@@ -429,11 +438,13 @@ public final class AnchoredPopup {
             return;
         }
         open = false;
-        for (Subscription each : new Subscription[] {cursor, route, presses, blur, popupBlur, fullscreen}) {
+        for (Subscription each : new Subscription[] {cursor, route, presses, blur, popupBlur, fullscreen,
+                anchorMoved}) {
             if (each != null) {
                 each.cancel();
             }
         }
+        anchorMoved = null;
         cursor = null;
         route = null;
         presses = null;

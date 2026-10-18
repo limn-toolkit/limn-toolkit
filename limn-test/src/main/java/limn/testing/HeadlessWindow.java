@@ -332,7 +332,37 @@ public final class HeadlessWindow implements WindowPeer {
     @Override public Clipboard clipboard() { return backend.clipboard; }
     @Override public int screenX() { return 0; }
     @Override public int screenY() { return 0; }
-    @Override public void setScreenPosition(int x, int y) { }
+    @Override public void setScreenPosition(int x, int y) {
+        positionRequests++;
+        requestedX = x;
+        requestedY = y;
+    }
+
+    private int positionRequests;
+    private int requestedX;
+    private int requestedY;
+
+    /**
+     * How many times something asked to place this window on the screen, which a popup does when
+     * what it stands against moves. The window itself stays where {@link #screenX()} says, as a
+     * headless window has no screen to move on.
+     *
+     * @return the requests since the window was made
+     */
+    public int screenPositionRequests() {
+        return positionRequests;
+    }
+
+    /** @return the x of the last {@link #setScreenPosition} asked for, in screen pixels; 0 before any */
+    public int requestedScreenX() {
+        return requestedX;
+    }
+
+    /** @return the y of the last {@link #setScreenPosition} asked for, in screen pixels; 0 before any */
+    public int requestedScreenY() {
+        return requestedY;
+    }
+
     @Override public float logicalToScreenFactor() { return 1; }
     @Override public void captureNextFrame(Consumer<Image> sink) { }
     @Override public void setContentScaleListener(ContentScaleListener listener) { }

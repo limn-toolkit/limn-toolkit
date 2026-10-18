@@ -2007,8 +2007,10 @@ public final class Scene {
 
     /**
      * A transform container came to rest somewhere new, by a set or at a motion's arrival: a popup
-     * drawn in this scene whose anchor lies under it is laid out again, so that it stands against
-     * where its anchor is now drawn. Not on the frames of a motion, which a popup does not follow.
+     * drawn in this scene whose anchor lies under it is laid out again, and a popup in a window of
+     * its own placed against such an anchor is placed again by what placed it, so that each stands
+     * against where its anchor is now drawn. Not on the frames of a motion, which a popup does not
+     * follow.
      */
     void anchorsMoved(Widget<?> container) {
         for (int i = 0; i < overlays.size(); i++) {
@@ -2018,6 +2020,40 @@ public final class Scene {
                 overlay.markNeedsLayout();
             }
         }
+        if (anchoredWindows.isEmpty()) {
+            return;
+        }
+        // A copy: placing a window again may close a popup, which lets go of its entry.
+        for (AnchoredWindow placed : List.copyOf(anchoredWindows)) {
+            if (isInSubtree(placed.anchor(), container)) {
+                placed.placeAgain().run();
+            }
+        }
+    }
+
+    /** A popup's window placed against {@code anchor}, and what places it again. */
+    private record AnchoredWindow(Widget<?> anchor, Runnable placeAgain) {
+    }
+
+    /** The popup windows placed against an anchor in this scene; see {@link #observeAnchorMoved}. */
+    private final List<AnchoredWindow> anchoredWindows = new ArrayList<>();
+
+    /**
+     * Not API: tells {@code placeAgain} each time a transform container above {@code anchor} comes
+     * to rest somewhere new, for a popup in a window of its own placed against the anchor, which the
+     * scene cannot place since it knows nothing of the window's placement. Laid out again in the
+     * scene, a popup drawn there needs none of this.
+     *
+     * @param anchor     the widget the popup's window stands against
+     * @param placeAgain places the window again against where the anchor is now drawn
+     * @return a handle that unregisters
+     */
+    Subscription observeAnchorMoved(Widget<?> anchor, Runnable placeAgain) {
+        Ui.checkUiThread();
+        AnchoredWindow placed = new AnchoredWindow(Objects.requireNonNull(anchor, "anchor"),
+                Objects.requireNonNull(placeAgain, "placeAgain"));
+        anchoredWindows.add(placed);
+        return once(() -> anchoredWindows.remove(placed));
     }
 
     /**
@@ -3424,6 +3460,11 @@ public final class Scene {
             @Override
             public Subscription observeWindowBound(Scene scene, Runnable observer) {
                 return scene.observeWindowBound(observer);
+            }
+
+            @Override
+            public Subscription observeAnchorMoved(Scene scene, Widget<?> anchor, Runnable placeAgain) {
+                return scene.observeAnchorMoved(anchor, placeAgain);
             }
 
             @Override

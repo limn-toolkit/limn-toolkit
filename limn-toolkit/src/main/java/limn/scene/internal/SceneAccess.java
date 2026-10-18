@@ -64,6 +64,14 @@ public final class SceneAccess {
 
         Subscription observeWindowBound(Scene scene, Runnable observer);
 
+        /**
+         * @param scene      the scene the anchor is in
+         * @param anchor     the widget a popup's window stands against
+         * @param placeAgain places it again; see {@link SceneAccess#observeAnchorMoved}
+         * @return a handle that unregisters
+         */
+        Subscription observeAnchorMoved(Scene scene, Widget<?> anchor, Runnable placeAgain);
+
         @org.jspecify.annotations.Nullable Widget<?> focusedBefore(Scene scene);
 
         /**
@@ -300,6 +308,21 @@ public final class SceneAccess {
     /** Tells {@code observer} each time {@code scene} is bound to a window. */
     public static Subscription observeWindowBound(Scene scene, Runnable observer) {
         return hook().observeWindowBound(java.util.Objects.requireNonNull(scene, "scene"), observer);
+    }
+
+    /**
+     * Tells {@code placeAgain} each time a transform container above {@code anchor} comes to rest
+     * somewhere new, by a set or at a motion's arrival and not on its frames: for a popup in a window
+     * of its own, placed against the anchor, which the scene cannot place again since it knows
+     * nothing of the window's placement. A popup drawn in the scene is laid out again by the scene.
+     *
+     * @param scene      the scene the anchor is in
+     * @param anchor     the widget the popup's window stands against
+     * @param placeAgain places the window against where the anchor is now drawn; UI thread
+     * @return a handle that unregisters; twice is a no-op
+     */
+    public static Subscription observeAnchorMoved(Scene scene, Widget<?> anchor, Runnable placeAgain) {
+        return hook().observeAnchorMoved(java.util.Objects.requireNonNull(scene, "scene"), anchor, placeAgain);
     }
 
     /** @return the widget that had the keyboard in {@code scene} before the one that has it now, or null */
