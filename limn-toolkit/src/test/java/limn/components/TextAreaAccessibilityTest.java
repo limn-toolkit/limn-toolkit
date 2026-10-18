@@ -578,7 +578,7 @@ class TextAreaAccessibilityTest extends AccessibleComponentTestBase {
         Rect published = areaNode().text().caretRect();
         assertNotNull(published, describe(tree()));
         Rect ime = exposed.caretRect();
-        assertEquals(new Rect(ime.x() - exposed.localToSceneX(), ime.y() - exposed.localToSceneY(),
+        assertEquals(new Rect(ime.x() - exposed.localToScene(0, 0).x(), ime.y() - exposed.localToScene(0, 0).y(),
                         ime.width(), ime.height()), published,
                 "a second caret expression would drift from the one the candidate window is "
                         + "placed under" + describe(tree()));

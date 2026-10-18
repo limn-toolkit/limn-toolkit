@@ -1,6 +1,7 @@
 package limn.demo.site;
 
 import limn.math.Scalars;
+import limn.math.Vec2;
 import limn.scene.Widget;
 
 import java.util.ArrayList;
@@ -422,15 +423,17 @@ final class Motion {
                 aimed = resolve(glide.aim());
                 fromX = x;
                 fromY = y;
-                toX = aimed.localToSceneX() + aimed.width() * glide.aim().fx();
-                toY = aimed.localToSceneY() + aimed.height() * glide.aim().fy();
+                Vec2 to = aimed.localToScene(aimed.width() * glide.aim().fx(),
+                        aimed.height() * glide.aim().fy());
+                toX = to.x();
+                toY = to.y();
                 requireReaches(glide.aim(), aimed, toX, toY);
             } else if (current instanceof Step.Reveal reveal) {
                 aimed = resolve(reveal.aim());
                 // Read once, not per frame: a target that has just come into view can have
                 // its centre on the other side of the pointer, and a direction re-read every
                 // frame would then scroll it straight back out.
-                wheelDirection = aimed.localToSceneY() + aimed.height() / 2 > y ? -1 : 1;
+                wheelDirection = aimed.localToScene(aimed.width() / 2, aimed.height() / 2).y() > y ? -1 : 1;
                 overshoot = REVEAL_OVERSHOOT;
             }
         }
@@ -521,7 +524,7 @@ final class Motion {
          * Refuses a glide whose destination is not on the widget it names.
          *
          * <p>This is the published defect, in the form the capture can catch: the derive
-         * button was scrolled out of its viewport, {@code localToSceneY} answered anyway, and
+         * button was scrolled out of its viewport, {@code localToScene} answered anyway, and
          * the film showed the pointer travelling to a blank stretch of the window and pressing
          * there. A widget out of view is still laid out; hit-testing is the thing that knows.
          */
@@ -547,11 +550,11 @@ final class Motion {
          * would scroll it past its own viewport looking for a corner it cannot have.
          */
         private static boolean reaches(Widget<?> widget) {
-            float middle = widget.localToSceneX() + widget.width() / 2;
-            float top = widget.localToSceneY() + 1;
-            float bottom = widget.localToSceneY() + widget.height() - 1;
-            return reaches(widget, middle, top) && reaches(widget, middle, bottom)
-                    && reaches(widget, middle, (top + bottom) / 2);
+            Vec2 top = widget.localToScene(widget.width() / 2, 1);
+            Vec2 bottom = widget.localToScene(widget.width() / 2, widget.height() - 1);
+            Vec2 middle = widget.localToScene(widget.width() / 2, widget.height() / 2);
+            return reaches(widget, top.x(), top.y()) && reaches(widget, bottom.x(), bottom.y())
+                    && reaches(widget, middle.x(), middle.y());
         }
 
         /** Whether a press at this scene point lands on {@code target} or inside it. */
@@ -587,8 +590,9 @@ final class Motion {
         }
 
         private static String box(Widget<?> widget) {
-            return String.format(Locale.ROOT, "%.0f,%.0f %.0fx%.0f", widget.localToSceneX(),
-                    widget.localToSceneY(), widget.width(), widget.height());
+            Vec2 corner = widget.localToScene(0, 0);
+            return String.format(Locale.ROOT, "%.0f,%.0f %.0fx%.0f", corner.x(),
+                    corner.y(), widget.width(), widget.height());
         }
 
     }

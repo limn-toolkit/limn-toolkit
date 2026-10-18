@@ -322,8 +322,8 @@ class ScrollViewAccessibilityTest extends AccessibleComponentTestBase {
                         + describe(tree()));
         assertEquals((100 - t) / 200.0, node.scroll().horizontalViewSize(), EPS, describe(tree()));
         assertTrue(node.scroll().verticalViewSize() < 100.0 / 400.0, describe(tree()));
-        assertEquals(pane.localToSceneX(), node.x(), 1e-3, describe(tree()));
-        assertEquals(pane.localToSceneY(), node.y(), 1e-3, describe(tree()));
+        assertEquals(pane.localToScene(0, 0).x(), node.x(), 1e-3, describe(tree()));
+        assertEquals(pane.localToScene(0, 0).y(), node.y(), 1e-3, describe(tree()));
         assertEquals(pane.width(), node.width(), 1e-3,
                 "the node is the whole box, gutters included, because the bars sit inside it"
                         + describe(tree()));
@@ -356,8 +356,8 @@ class ScrollViewAccessibilityTest extends AccessibleComponentTestBase {
         bindIn(100, 100, pane);
 
         AccessibleNode strip = node("In the strip");
-        assertTrue(strip.x() >= pane.localToSceneX() + 100 - t
-                        && strip.x() + strip.width() <= pane.localToSceneX() + 100,
+        assertTrue(strip.x() >= pane.localToScene(0, 0).x() + 100 - t
+                        && strip.x() + strip.width() <= pane.localToScene(0, 0).x() + 100,
                 "the fixture put it wholly in the vertical bar's strip" + describe(tree()));
         assertTrue(strip.has(Accessible.State.VISIBLE), "nothing hid it" + describe(tree()));
         assertFalse(strip.has(Accessible.State.SHOWING),

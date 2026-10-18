@@ -3060,7 +3060,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         @Override
         protected void onMouseEvent(MouseEvent event) {
             SizeTokens t = tokens(); // one resolution per event: the hit row is this row formula
-            float ly = sceneToLocalY(event.y());
+            float ly = sceneToLocal(event.x(), event.y()).y();
             int index = rowAt(ly, t);
             boolean valid = index >= 0 && index < rows.length;
             switch (event.type()) {

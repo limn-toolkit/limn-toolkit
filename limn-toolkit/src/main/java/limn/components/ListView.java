@@ -12,6 +12,7 @@ import limn.graphics.Canvas;
 import limn.i18n.I18nString;
 import limn.input.Keys;
 import limn.internal.lang.Checks;
+import limn.math.Vec2;
 import limn.scene.Constraints;
 import limn.scene.Scrollable;
 import limn.scene.Size;
@@ -729,8 +730,9 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         if (event.isKeyboard()) {
             index = cursor;
         } else {
-            float localX = event.x() - localToSceneX();
-            float localY = event.y() - localToSceneY();
+            Vec2 local = sceneToLocal(event.x(), event.y());
+            float localX = local.x();
+            float localY = local.y();
             // The bar's thumb is dragged by the same gesture, and so is whatever a row holds
             // that takes the keyboard: a slider, a field's selection.
             for (Widget<?> w = hitTest(localX, localY); w != null && w != this; w = w.parent()) {
@@ -863,7 +865,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
                         : ComponentStrings.DROP_AFTER.format(textOf(count - 1)));
             }
         } else {
-            at = placeAt(event.y() - localToSceneY());
+            at = placeAt(sceneToLocal(event.x(), event.y()).y());
         }
         if (at != dropAt || placeByKeyboard != event.isKeyboard()) {
             slides.rowsAreHere();
@@ -1886,7 +1888,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
             }
             case PRESS -> {
                 if (event.button() == Keys.MOUSE_LEFT) {
-                    int index = rowAtLocalY(sceneToLocalY(event.y()));
+                    int index = rowAtLocalY(sceneToLocal(event.x(), event.y()).y());
                     if (index >= 0) {
                         press(index, event);
                     }

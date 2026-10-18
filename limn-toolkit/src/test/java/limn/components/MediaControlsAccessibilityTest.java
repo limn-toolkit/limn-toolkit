@@ -217,8 +217,8 @@ class MediaControlsAccessibilityTest extends AccessibleComponentTestBase {
 
     /** Delivers one click at the centre of {@code target}'s box, as a pointer does, and frames it. */
     private void click(Widget<?> target) {
-        float x = target.localToSceneX() + target.width() / 2;
-        float y = target.localToSceneY() + target.height() / 2;
+        float x = target.localToScene(0, 0).x() + target.width() / 2;
+        float y = target.localToScene(0, 0).y() + target.height() / 2;
         drive(scene).mouseMoved(x, y);
         drive(scene).inputBatchEnded();
         frame();
@@ -277,8 +277,8 @@ class MediaControlsAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals("0:00", last.name(),
                 "with no duration and nothing to seek, the clock is a constant" + describe(tree()));
 
-        assertEquals(controls.localToSceneX(), bar.x(), describe(tree()));
-        assertEquals(controls.localToSceneY(), bar.y(), describe(tree()));
+        assertEquals(controls.localToScene(0, 0).x(), bar.x(), describe(tree()));
+        assertEquals(controls.localToScene(0, 0).y(), bar.y(), describe(tree()));
         assertEquals(controls.width(), bar.width(), describe(tree()));
         assertEquals(controls.height(), bar.height(), describe(tree()));
         for (AccessibleNode child : children) {
@@ -475,8 +475,8 @@ class MediaControlsAccessibilityTest extends AccessibleComponentTestBase {
                 "the triangle and the bars are paint carrying nothing the name does not"
                         + describe(tree()));
 
-        assertEquals(widget.localToSceneX(), play.x(), 0.001f, describe(tree()));
-        assertEquals(widget.localToSceneY(), play.y(), 0.001f, describe(tree()));
+        assertEquals(widget.localToScene(0, 0).x(), play.x(), 0.001f, describe(tree()));
+        assertEquals(widget.localToScene(0, 0).y(), play.y(), 0.001f, describe(tree()));
         assertEquals(widget.width(), play.width(), 0.001f,
                 "the box is the square the button measured; the focus ring's outset is damage, "
                         + "not bounds" + describe(tree()));

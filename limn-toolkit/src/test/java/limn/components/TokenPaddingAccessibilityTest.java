@@ -205,8 +205,8 @@ class TokenPaddingAccessibilityTest extends AccessibleComponentTestBase {
 
         AccessibleNode named = node("Page");
         assertEquals(Accessible.Role.GROUP, named.role());
-        assertEquals(padding.localToSceneX(), named.x(), "the outer box, padding included");
-        assertEquals(padding.localToSceneY(), named.y());
+        assertEquals(padding.localToScene(0, 0).x(), named.x(), "the outer box, padding included");
+        assertEquals(padding.localToScene(0, 0).y(), named.y());
         assertEquals(padding.width(), named.width());
         assertEquals(padding.height(), named.height());
 
@@ -240,11 +240,11 @@ class TokenPaddingAccessibilityTest extends AccessibleComponentTestBase {
 
     /** @return the gap between the padding's own box and its content's, across */
     private float insetX(TokenPadding padding) {
-        return node("content").x() - padding.localToSceneX();
+        return node("content").x() - padding.localToScene(0, 0).x();
     }
 
     /** @return the same gap, down */
     private float insetY(TokenPadding padding) {
-        return node("content").y() - padding.localToSceneY();
+        return node("content").y() - padding.localToScene(0, 0).y();
     }
 }

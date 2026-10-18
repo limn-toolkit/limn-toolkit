@@ -20,6 +20,7 @@ import limn.graphics.TextRuler;
 import limn.i18n.I18nString;
 import limn.input.Keys;
 import limn.internal.lang.Checks;
+import limn.math.Vec2;
 import limn.scene.Change;
 import limn.scene.Constraints;
 import limn.scene.Size;
@@ -1332,8 +1333,9 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
 
     private void handleMouse(MouseEvent event) {
         SizeTokens t = Theme.of(this).tokensFor(this);
-        float lx = sceneToLocalX(event.x());
-        float ly = sceneToLocalY(event.y());
+        Vec2 local = sceneToLocal(event.x(), event.y());
+        float lx = local.x();
+        float ly = local.y();
         // Bounded on both axes: a DRAG that leaves the field vertically used to keep
         // reporting "over the trailing button" because Y was ignored entirely.
         float trailingLeft = trailingRegionX(t);
@@ -1367,7 +1369,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
                     // Focus first: the menu's Cut and Paste act on this field, and a field that
                     // was not focused when they run would edit while the caret lives elsewhere.
                     requestFocus();
-                    showContextMenu(sceneToLocalX(event.x()), sceneToLocalY(event.y()));
+                    showContextMenu(lx, ly);
                     event.consume();
                 } else if (event.button() == Keys.MOUSE_LEFT) {
                     if (overTrailing) {
@@ -1729,8 +1731,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
     protected @Nullable Rect caretRect() {
         Rect local = heldCaretBox();
         return local == null ? null
-                : new Rect(localToSceneX() + local.x(), localToSceneY() + local.y(),
-                        local.width(), local.height());
+                : localToSceneBounds(local.x(), local.y(), local.width(), local.height());
     }
 
     /**
@@ -1752,9 +1753,8 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
     protected void showContextMenuForFocus() {
         // At the caret, not at a corner of the box: on a wide field the two are far apart, and
         // the caret is the only place the request can have meant.
-        Rect caret = caretRect();
-        showContextMenu(caret.x() - localToSceneX(),
-                caret.y() + caret.height() - localToSceneY());
+        Rect caret = heldCaretBox();
+        showContextMenu(caret.x(), caret.y() + caret.height());
     }
 
     private TextContextMenu.Host contextMenuHost() {
@@ -2125,14 +2125,14 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
 
     /** Damages just the caret column: a blink repaints ~1×line-height, not the whole field. */
     private void invalidateCaret() {
-        Rect caret = caretRect(); // scene coordinates, clamped inside the field
+        Rect caret = heldCaretBox(); // this field's coordinates
         if (caret != null && scene() != null) {
             // Local-coords invalidate: the damage then clamps against clipping
             // ancestors: a caret scrolled out of a viewport damages nothing.
             // Margin for AA + hairline snap. Locked: growing it per step inflates per-blink
             // damage and defeats the partial rendering this is here to enable.
-            invalidate(caret.x() - localToSceneX() - Strokes.DAMAGE_MARGIN,
-                    caret.y() - localToSceneY() - Strokes.DAMAGE_MARGIN,
+            invalidate(caret.x() - Strokes.DAMAGE_MARGIN,
+                    caret.y() - Strokes.DAMAGE_MARGIN,
                     caret.width() + 2 * Strokes.DAMAGE_MARGIN,
                     caret.height() + 2 * Strokes.DAMAGE_MARGIN);
         } else {

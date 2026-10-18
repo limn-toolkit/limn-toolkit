@@ -10,6 +10,7 @@ import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.input.Keys;
 import limn.internal.lang.Checks;
+import limn.math.Vec2;
 import limn.scene.Constraints;
 import limn.scene.Size;
 import limn.scene.Change;
@@ -576,10 +577,11 @@ public final class SplitPane extends Widget<SplitPane> {
          * has no pointer at all.
          */
         private float pointerMain(MouseEvent event) {
+            Vec2 local = SplitPane.this.sceneToLocal(event.x(), event.y());
             if (!horizontal()) {
-                return SplitPane.this.sceneToLocalY(event.y());
+                return local.y();
             }
-            float x = SplitPane.this.sceneToLocalX(event.x());
+            float x = local.x();
             return SplitPane.this.mirrored() ? SplitPane.this.width() - x : x;
         }
 

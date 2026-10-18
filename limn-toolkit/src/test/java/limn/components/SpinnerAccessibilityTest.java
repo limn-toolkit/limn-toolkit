@@ -830,20 +830,20 @@ class SpinnerAccessibilityTest extends AccessibleComponentTestBase {
         AccessibleNode down = arrows().get(1);
         assertEquals(columnW, up.width(), describe(tree()));
         assertEquals(columnW, down.width(), describe(tree()));
-        assertEquals(spinner.localToSceneX() + w - columnW, up.x(),
+        assertEquals(spinner.localToScene(0, 0).x() + w - columnW, up.x(),
                 "the column sits on the side reading ends on" + describe(tree()));
         assertEquals(up.x(), down.x(), describe(tree()));
-        assertEquals(spinner.localToSceneY(), up.y(), describe(tree()));
+        assertEquals(spinner.localToScene(0, 0).y(), up.y(), describe(tree()));
         assertEquals(up.y() + up.height(), down.y(),
                 "the two halves tile the column with no seam and no gap" + describe(tree()));
-        assertEquals(spinner.localToSceneY() + h, down.y() + down.height(),
+        assertEquals(spinner.localToScene(0, 0).y() + h, down.y() + down.height(),
                 "and the lower one runs to the bottom, which is the open-ended half regionAt "
                         + "tests for" + describe(tree()));
 
         root.setLayoutDirection(LayoutDirection.RTL);
         frame();
 
-        assertEquals(spinner.localToSceneX(), arrows().get(0).x(),
+        assertEquals(spinner.localToScene(0, 0).x(), arrows().get(0).x(),
                 "reading right to left the column is the leading one, at the box's own edge"
                         + describe(tree()));
         assertEquals(columnW, arrows().get(0).width(), describe(tree()));
@@ -912,7 +912,7 @@ class SpinnerAccessibilityTest extends AccessibleComponentTestBase {
                 "the whole of what is left is the stepper column, which is exactly what regionAt "
                         + "answers once the value area has been squeezed to nothing"
                         + describe(tree()));
-        assertEquals(spinner.localToSceneX(), up.x(), describe(tree()));
+        assertEquals(spinner.localToScene(0, 0).x(), up.x(), describe(tree()));
         assertEquals(up.x(), arrows().get(1).x(), describe(tree()));
 
         // A click at the centre of that box still steps, which is the whole point of deriving the
@@ -1371,8 +1371,8 @@ class SpinnerAccessibilityTest extends AccessibleComponentTestBase {
         // the value area, the upper half, the value area again, the lower half.
         AccessibleNode up = arrows().get(0);
         AccessibleNode down = arrows().get(1);
-        float insideTheValue = spinner.localToSceneX() + 4;
-        float middle = spinner.localToSceneY() + spinner.height() / 2;
+        float insideTheValue = spinner.localToScene(0, 0).x() + 4;
+        float middle = spinner.localToScene(0, 0).y() + spinner.height() / 2;
         hoverAt(insideTheValue, middle);
         hoverAt(up.x() + up.width() / 2, up.y() + up.height() / 2);
         hoverAt(insideTheValue, middle);

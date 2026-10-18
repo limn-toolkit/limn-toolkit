@@ -566,7 +566,7 @@ class TableTest extends ComponentTestBase {
         assertSame(before, scene.focusedWidget(), "and Shift+Tab from the header leaves");
 
         float headerY = headerHeight(table) / 2;
-        float tableTop = table.localToSceneY();
+        float tableTop = table.localToScene(0, 0).y();
         assertTrue(tableTop > 0, "the table sits under the first button: " + tableTop);
         click(scene, 130, tableTop + headerY, 0); // the Age header
         assertFalse(table.isHeaderFocused(), "the pointer sorts; the keyboard stays in the rows");

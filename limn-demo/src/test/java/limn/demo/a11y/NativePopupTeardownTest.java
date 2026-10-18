@@ -94,7 +94,7 @@ class NativePopupTeardownTest {
         menu.addItem("Cut", () -> { });
         menu.addItem("Copy", () -> { });
         PopupMenu popupMenu = new PopupMenu(menu);
-        popupMenu.showAnchored(anchor, anchor.localToSceneX(), anchor.localToSceneY(),
+        popupMenu.showAnchored(anchor, anchor.localToScene(0, 0).x(), anchor.localToScene(0, 0).y(),
                 anchor.width(), anchor.height());
         runtime.drain(); // the window is created from a posted task
         assertEquals(2, backend.windows().size(), "the host and the cascade");
@@ -136,7 +136,7 @@ class NativePopupTeardownTest {
         Menu menu = new Menu();
         menu.addItem("Cut", () -> { });
         PopupMenu popupMenu = new PopupMenu(menu);
-        popupMenu.showAnchored(anchor, anchor.localToSceneX(), anchor.localToSceneY(),
+        popupMenu.showAnchored(anchor, anchor.localToScene(0, 0).x(), anchor.localToScene(0, 0).y(),
                 anchor.width(), anchor.height());
         runtime.drain();
         HeadlessWindow popup = backend.windows().get(1);

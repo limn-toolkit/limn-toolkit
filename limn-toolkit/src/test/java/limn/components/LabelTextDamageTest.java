@@ -79,7 +79,7 @@ class LabelTextDamageTest extends ComponentTestBase {
     }
 
     private static Rect sceneBox(Widget<?> w) {
-        return new Rect(w.localToSceneX(), w.localToSceneY(), w.width(), w.height());
+        return new Rect(w.localToScene(0, 0).x(), w.localToScene(0, 0).y(), w.width(), w.height());
     }
 
     private boolean repainted(Rect box) {
@@ -197,7 +197,7 @@ class LabelTextDamageTest extends ComponentTestBase {
     }
 
     private static void collect(Widget<?> w, List<String> out) {
-        out.add(w.getClass().getSimpleName() + "@" + w.localToSceneX() + "," + w.localToSceneY()
+        out.add(w.getClass().getSimpleName() + "@" + w.localToScene(0, 0).x() + "," + w.localToScene(0, 0).y()
                 + " " + w.width() + "x" + w.height());
         for (Widget<?> child : w.children()) {
             collect(child, out);

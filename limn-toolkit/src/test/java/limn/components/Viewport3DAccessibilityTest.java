@@ -155,8 +155,8 @@ class Viewport3DAccessibilityTest extends AccessibleComponentTestBase {
                 "a viewport composites one quad and addresses nothing inside it"
                         + describe(tree()));
 
-        assertEquals(viewport.localToSceneX(), node.x(), 0.01f, describe(tree()));
-        assertEquals(viewport.localToSceneY(), node.y(), 0.01f, describe(tree()));
+        assertEquals(viewport.localToScene(0, 0).x(), node.x(), 0.01f, describe(tree()));
+        assertEquals(viewport.localToScene(0, 0).y(), node.y(), 0.01f, describe(tree()));
         assertEquals(viewport.width(), node.width(), 0.01f, describe(tree()));
         assertEquals(viewport.height(), node.height(), 0.01f, describe(tree()));
         assertEquals(200, node.width(), 0.01f, "and it is the widget's box, not the window's"

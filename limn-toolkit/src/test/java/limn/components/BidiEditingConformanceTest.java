@@ -177,7 +177,7 @@ class BidiEditingConformanceTest extends ComponentTestBase {
     }
 
     private static float column(TextField widget) {
-        return widget.caretRect().x() - widget.localToSceneX();
+        return widget.caretRect().x() - widget.localToScene(0, 0).x();
     }
 
     /** Selects exactly {@code [start, end)} without going through a gesture. */

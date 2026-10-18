@@ -63,7 +63,7 @@ class ColorPickerMirroringTest extends ComponentTestBase {
         Widget<?> red = picker.rail(0);
         float thumb = Theme.current().tokensFor(red).colorThumbW();
 
-        assertEquals(red.localToSceneX() + red.width() - thumb / 2,
+        assertEquals(red.localToScene(0, 0).x() + red.width() - thumb / 2,
                 thumbCentre(paint(), red), EPS,
                 "the range starts at the leading edge, which reading right to left is the right");
     }
@@ -75,7 +75,7 @@ class ColorPickerMirroringTest extends ComponentTestBase {
         Widget<?> red = picker.rail(0);
         float thumb = Theme.current().tokensFor(red).colorThumbW();
 
-        assertEquals(red.localToSceneX() + thumb / 2, thumbCentre(paint(), red), EPS);
+        assertEquals(red.localToScene(0, 0).x() + thumb / 2, thumbCentre(paint(), red), EPS);
     }
 
     @Test
@@ -86,7 +86,7 @@ class ColorPickerMirroringTest extends ComponentTestBase {
         float thumb = Theme.current().tokensFor(red).colorThumbW();
         float fraction = (float) (picker.channel(0).value() / 255.0);
 
-        assertEquals(red.localToSceneX() + red.width()
+        assertEquals(red.localToScene(0, 0).x() + red.width()
                         - (thumb / 2 + fraction * (red.width() - thumb)),
                 thumbCentre(paint(), red), EPS,
                 "the travel is a magnitude and only its coordinate is reflected");
@@ -179,7 +179,7 @@ class ColorPickerMirroringTest extends ComponentTestBase {
                 "hue zero belongs against the leading edge, under the thumb showing it");
         assertEquals(Color.hsv(0, 1, 1, 1), first.end());
         assertEquals(hueRail.width() - band, first.x0(), EPS);
-        assertEquals(hueRail.localToSceneX() + hueRail.width() - band - 1, bands.get(0).x(), EPS,
+        assertEquals(hueRail.localToScene(0, 0).x() + hueRail.width() - band - 1, bands.get(0).x(), EPS,
                 "the overlapping point goes toward the band drawn next, which is the left one");
 
         LinearGradient last = (LinearGradient) bands.get(BANDS - 1).paint();
@@ -200,7 +200,7 @@ class ColorPickerMirroringTest extends ComponentTestBase {
         assertEquals(0, first.x0(), EPS);
         assertEquals(band, first.x1(), EPS);
         assertEquals(Color.hsv(0, 1, 1, 1), first.start());
-        assertEquals(hueRail.localToSceneX(), bands.get(0).x(), EPS);
+        assertEquals(hueRail.localToScene(0, 0).x(), bands.get(0).x(), EPS);
     }
 
     @Test
@@ -303,7 +303,7 @@ class ColorPickerMirroringTest extends ComponentTestBase {
         picker.setInitialColor(Color.hsv(200, 0.25f, 1f, 1f));
         Widget<?> plane = picker.saturationValueField();
 
-        assertEquals(plane.localToSceneX() + 0.25f * plane.width(), cursorX(paint(), plane), 0.05f,
+        assertEquals(plane.localToScene(0, 0).x() + 0.25f * plane.width(), cursorX(paint(), plane), 0.05f,
                 "the cursor rides saturation from the left, like the gradient under it");
     }
 
@@ -313,8 +313,8 @@ class ColorPickerMirroringTest extends ComponentTestBase {
         picker.setInitialColor(Color.hsv(200, 0.8f, 0.8f, 1f));
         Widget<?> plane = picker.saturationValueField();
 
-        float x = plane.localToSceneX() + 0.25f * plane.width();
-        float y = plane.localToSceneY() + plane.height() / 2;
+        float x = plane.localToScene(0, 0).x() + 0.25f * plane.width();
+        float y = plane.localToScene(0, 0).y() + plane.height() / 2;
         drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
         drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
         drive(scene).inputBatchEnded();
@@ -350,16 +350,16 @@ class ColorPickerMirroringTest extends ComponentTestBase {
             LinearGradient g = (LinearGradient) fill.paint();
             assertEquals(g.x0(), g.x1(), EPS,
                     "every band on the ramp runs down the box; there is no x here to reflect");
-            assertEquals(ramp.localToSceneX(), fill.x(), EPS);
+            assertEquals(ramp.localToScene(0, 0).x(), fill.x(), EPS);
             assertEquals(ramp.width(), fill.w(), EPS);
         }
 
         Fill thumb = thumbIn(frame, ramp);
         float proud = (thumb.w() - ramp.width()) / 2;
         assertTrue(proud > 0, "the thumb stands proud of the ramp, as a rail's thumb does");
-        assertEquals(ramp.localToSceneX() - proud, thumb.x(), EPS,
+        assertEquals(ramp.localToScene(0, 0).x() - proud, thumb.x(), EPS,
                 "by the same amount on both sides, whichever way the picker reads");
-        assertEquals(ramp.localToSceneY() + 120f / 360f * ramp.height(),
+        assertEquals(ramp.localToScene(0, 0).y() + 120f / 360f * ramp.height(),
                 thumb.y() + thumb.h() / 2, EPS, "and its only variable coordinate is a y");
     }
 
@@ -407,9 +407,9 @@ class ColorPickerMirroringTest extends ComponentTestBase {
 
         Widget<?> swatch = picker.preview();
         Frame frame = paint();
-        assertEquals(swatch.localToSceneX() + swatch.width() / 2, halfX(frame, swatch, opened), EPS,
+        assertEquals(swatch.localToScene(0, 0).x() + swatch.width() / 2, halfX(frame, swatch, opened), EPS,
                 "before and after are an ordered pair, so the before is on the leading half");
-        assertEquals(swatch.localToSceneX(), halfX(frame, swatch, now), EPS);
+        assertEquals(swatch.localToScene(0, 0).x(), halfX(frame, swatch, now), EPS);
     }
 
     @Test
@@ -422,8 +422,8 @@ class ColorPickerMirroringTest extends ComponentTestBase {
 
         Widget<?> swatch = picker.preview();
         Frame frame = paint();
-        assertEquals(swatch.localToSceneX(), halfX(frame, swatch, opened), EPS);
-        assertEquals(swatch.localToSceneX() + swatch.width() / 2, halfX(frame, swatch, now), EPS);
+        assertEquals(swatch.localToScene(0, 0).x(), halfX(frame, swatch, opened), EPS);
+        assertEquals(swatch.localToScene(0, 0).x() + swatch.width() / 2, halfX(frame, swatch, now), EPS);
     }
 
     // ------------------------------------------------------------------- driving
@@ -440,7 +440,7 @@ class ColorPickerMirroringTest extends ComponentTestBase {
     }
 
     private void pressRailAt(Widget<?> rail, float sceneX) {
-        float y = rail.localToSceneY() + rail.height() / 2;
+        float y = rail.localToScene(0, 0).y() + rail.height() / 2;
         drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, sceneX, y);
         drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, sceneX, y);
         drive(scene).inputBatchEnded();
@@ -453,7 +453,7 @@ class ColorPickerMirroringTest extends ComponentTestBase {
      */
     private float travelX(Widget<?> rail, float fraction) {
         float thumb = Theme.current().tokensFor(rail).colorThumbW();
-        return rail.localToSceneX() + thumb / 2 + fraction * (rail.width() - thumb);
+        return rail.localToScene(0, 0).x() + thumb / 2 + fraction * (rail.width() - thumb);
     }
 
     // ------------------------------------------------------------- reading a frame
@@ -493,7 +493,7 @@ class ColorPickerMirroringTest extends ComponentTestBase {
      */
     private float thumbCentre(Frame frame, Widget<?> rail) {
         SizeTokens t = Theme.current().tokensFor(rail);
-        float top = rail.localToSceneY() + rail.height() / 2 - t.colorThumbH() / 2;
+        float top = rail.localToScene(0, 0).y() + rail.height() / 2 - t.colorThumbH() / 2;
         for (Fill fill : frame.roundRects()) {
             if (Math.abs(fill.w() - t.colorThumbW()) < EPS
                     && Math.abs(fill.h() - t.colorThumbH()) < EPS
@@ -509,10 +509,10 @@ class ColorPickerMirroringTest extends ComponentTestBase {
         Fill widest = null;
         for (Fill fill : frame.roundRects()) {
             float centreX = fill.x() + fill.w() / 2;
-            float rampCentre = ramp.localToSceneX() + ramp.width() / 2;
+            float rampCentre = ramp.localToScene(0, 0).x() + ramp.width() / 2;
             if (fill.w() > ramp.width() + EPS && Math.abs(centreX - rampCentre) < EPS
-                    && fill.y() >= ramp.localToSceneY() - EPS
-                    && fill.y() + fill.h() <= ramp.localToSceneY() + ramp.height() + EPS
+                    && fill.y() >= ramp.localToScene(0, 0).y() - EPS
+                    && fill.y() + fill.h() <= ramp.localToScene(0, 0).y() + ramp.height() + EPS
                     && (widest == null || fill.w() > widest.w())) {
                 widest = fill;
             }
@@ -537,10 +537,10 @@ class ColorPickerMirroringTest extends ComponentTestBase {
     /** The x the saturation/value cursor was rung around. */
     private float cursorX(Frame frame, Widget<?> plane) {
         for (Ring ring : frame.circles()) {
-            if (ring.cx() >= plane.localToSceneX() - EPS
-                    && ring.cx() <= plane.localToSceneX() + plane.width() + EPS
-                    && ring.cy() >= plane.localToSceneY() - EPS
-                    && ring.cy() <= plane.localToSceneY() + plane.height() + EPS) {
+            if (ring.cx() >= plane.localToScene(0, 0).x() - EPS
+                    && ring.cx() <= plane.localToScene(0, 0).x() + plane.width() + EPS
+                    && ring.cy() >= plane.localToScene(0, 0).y() - EPS
+                    && ring.cy() <= plane.localToScene(0, 0).y() + plane.height() + EPS) {
                 return ring.cx();
             }
         }
@@ -584,10 +584,10 @@ class ColorPickerMirroringTest extends ComponentTestBase {
      * the reflection is about.
      */
     private boolean covers(Widget<?> widget, Fill fill) {
-        return fill.centreX() >= widget.localToSceneX()
-                && fill.centreX() <= widget.localToSceneX() + widget.width()
-                && fill.centreY() >= widget.localToSceneY()
-                && fill.centreY() <= widget.localToSceneY() + widget.height();
+        return fill.centreX() >= widget.localToScene(0, 0).x()
+                && fill.centreX() <= widget.localToScene(0, 0).x() + widget.width()
+                && fill.centreY() >= widget.localToScene(0, 0).y()
+                && fill.centreY() <= widget.localToScene(0, 0).y() + widget.height();
     }
 
     /**

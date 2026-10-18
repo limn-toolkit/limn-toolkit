@@ -96,7 +96,7 @@ class ScrollViewTest extends ComponentTestBase {
         assertEquals(102, outer.offsetY(), EPS, "so the page took the detent");
 
         scene.layoutPass(100, 300);
-        float y = inner.localToSceneY() + 50;
+        float y = inner.localToScene(0, 0).y() + 50;
         drive(scene).scrolled(0, -1, 50, y); // down: the inner view can move, and moves alone
         drive(scene).inputBatchEnded();
         assertEquals(48, inner.offsetY(), EPS);
@@ -128,7 +128,7 @@ class ScrollViewTest extends ComponentTestBase {
         outer.scrollTo(0, 150);
         inner.scrollTo(0, 60);
         scene.layoutPass(100, 300);
-        float y = inner.localToSceneY() + 50;
+        float y = inner.localToScene(0, 0).y() + 50;
 
         for (int i = 0; i < 6; i++) { // one flick upward, an event every 16 ms
             now[0] += 16_000_000L;
@@ -164,7 +164,7 @@ class ScrollViewTest extends ComponentTestBase {
         outer.scrollTo(0, 150);
         inner.scrollTo(0, 60);
         scene.layoutPass(100, 300);
-        float y = inner.localToSceneY() + 50;
+        float y = inner.localToScene(0, 0).y() + 50;
 
         drive(scene).scrolled(0, 1, 50, y, true); // a swipe up
         drive(scene).inputBatchEnded();
@@ -206,7 +206,7 @@ class ScrollViewTest extends ComponentTestBase {
         drive(scene).inputBatchEnded();
         scene.layoutPass(100, 300);
         assertEquals(102, outer.offsetY(), EPS, "the page took the gesture");
-        assertTrue(inner.localToSceneY() <= y && y < inner.localToSceneY() + inner.height(),
+        assertTrue(inner.localToScene(0, 0).y() <= y && y < inner.localToScene(0, 0).y() + inner.height(),
                 "and the inner view is now under the pointer");
 
         now[0] += 16_000_000L;
@@ -228,7 +228,7 @@ class ScrollViewTest extends ComponentTestBase {
         scene.layoutPass(300, 50);
         outer.scrollTo(150, 0);
         scene.layoutPass(300, 50);
-        drive(scene).scrolled(1, 0, inner.localToSceneX() + 50, 25); // toward the start
+        drive(scene).scrolled(1, 0, inner.localToScene(0, 0).x() + 50, 25); // toward the start
         drive(scene).inputBatchEnded();
         assertEquals(0, inner.offsetX(), EPS);
         assertEquals(102, outer.offsetX(), EPS, "the inner view at its start passed it on");
@@ -248,7 +248,7 @@ class ScrollViewTest extends ComponentTestBase {
         scene.layoutPass(100, 300);
         outer.scrollTo(0, 150);
         scene.layoutPass(100, 300);
-        drive(scene).scrolled(0, 1, 50, area.localToSceneY() + 40); // up, the text at its top
+        drive(scene).scrolled(0, 1, 50, area.localToScene(0, 0).y() + 40); // up, the text at its top
         drive(scene).inputBatchEnded();
         assertEquals(102, outer.offsetY(), EPS, "the page took the detent the area could not use");
     }

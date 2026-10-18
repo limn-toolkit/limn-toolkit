@@ -273,8 +273,8 @@ class ColorPickerAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(node.has(Accessible.State.ENABLED), describe(tree()));
         assertTrue(node.has(Accessible.State.SHOWING), describe(tree()));
 
-        assertEquals(picker.localToSceneX(), node.x(), describe(tree()));
-        assertEquals(picker.localToSceneY(), node.y(), describe(tree()));
+        assertEquals(picker.localToScene(0, 0).x(), node.x(), describe(tree()));
+        assertEquals(picker.localToScene(0, 0).y(), node.y(), describe(tree()));
         assertEquals(picker.width(), node.width(), describe(tree()));
         assertEquals(picker.height(), node.height(),
                 "the picker's own box: the root column is laid out over the whole of it, so every "

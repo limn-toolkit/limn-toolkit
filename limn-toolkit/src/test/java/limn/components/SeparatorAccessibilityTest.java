@@ -243,8 +243,8 @@ class SeparatorAccessibilityTest extends AccessibleComponentTestBase {
         bindHorizontal();
         AccessibleNode node = node(Accessible.Role.SEPARATOR);
 
-        assertEquals(separator.localToSceneX(), node.x(), 0.01f, describe(tree()));
-        assertEquals(separator.localToSceneY(), node.y(), 0.01f);
+        assertEquals(separator.localToScene(0, 0).x(), node.x(), 0.01f, describe(tree()));
+        assertEquals(separator.localToScene(0, 0).y(), node.y(), 0.01f);
         assertEquals(separator.width(), node.width(), 0.01f);
         assertEquals(separator.height(), node.height(), 0.01f);
         float box = SizeTokens.of(separator.controlSize()).separatorBox();

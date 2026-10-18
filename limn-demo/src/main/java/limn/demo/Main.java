@@ -670,8 +670,8 @@ public final class Main {
                     ss.focusTraverse(false);
                     ss.focusTraverse(false);
                     limn.scene.Widget<?> d = ss.focusedWidget();
-                    inner.set(new float[] {
-                            d.localToSceneX() + d.width() / 2, d.localToSceneY() + d.height() / 2});
+                    limn.math.Vec2 middle = d.localToScene(d.width() / 2, d.height() / 2);
+                    inner.set(new float[] {middle.x(), middle.y()});
                     ss.focusTraverse(false);
                     drive(ss).inputBatchEnded();
                 }, 150);

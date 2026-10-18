@@ -755,8 +755,8 @@ class ColorPickerChannelTrackAccessibilityTest extends AccessibleComponentTestBa
         bindPicker();
 
         AccessibleNode node = rail("R");
-        assertEquals(picker.rail(0).localToSceneX(), node.x(), describe(tree()));
-        assertEquals(picker.rail(0).localToSceneY(), node.y(), describe(tree()));
+        assertEquals(picker.rail(0).localToScene(0, 0).x(), node.x(), describe(tree()));
+        assertEquals(picker.rail(0).localToScene(0, 0).y(), node.y(), describe(tree()));
         assertEquals(picker.rail(0).width(), node.width(),
                 "the Expanded above it hands the rail (0, 0, width(), height()), so the rail's box "
                         + "is the share's box, and it is the rectangle Rail#pick inverts"

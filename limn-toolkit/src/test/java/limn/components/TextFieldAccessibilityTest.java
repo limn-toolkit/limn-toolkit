@@ -534,7 +534,7 @@ class TextFieldAccessibilityTest extends AccessibleComponentTestBase {
         Rect published = fieldNode().text().caretRect();
         assertNotNull(published, describe(tree()));
         Rect ime = exposed.caretRect();
-        assertEquals(new Rect(ime.x() - exposed.localToSceneX(), ime.y() - exposed.localToSceneY(),
+        assertEquals(new Rect(ime.x() - exposed.localToScene(0, 0).x(), ime.y() - exposed.localToScene(0, 0).y(),
                         ime.width(), ime.height()), published,
                 "the reader's caret and the IME's are the same rectangle by construction: one is "
                         + "the other translated by the widget's own origin" + describe(tree()));

@@ -504,8 +504,9 @@ final class AudioScene {
             switch (event.type()) {
                 case RELEASE -> suppressDrag = false;
                 case PRESS, DRAG -> {
-                    float lx = sceneToLocalX(event.x());
-                    float ly = sceneToLocalY(event.y());
+                    limn.math.Vec2 local = sceneToLocal(event.x(), event.y());
+                    float lx = local.x();
+                    float ly = local.y();
                     float cx = width() / 2;
                     float cy = height() - 24;
                     float wx = (lx - cx) / (width() / 2 - 20) * WORLD;

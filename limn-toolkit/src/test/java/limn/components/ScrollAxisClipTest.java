@@ -90,7 +90,7 @@ class ScrollAxisClipTest extends ComponentTestBase {
     }
 
     private static Rect sceneBox(Widget<?> w) {
-        return new Rect(w.localToSceneX(), w.localToSceneY(), w.width(), w.height());
+        return new Rect(w.localToScene(0, 0).x(), w.localToScene(0, 0).y(), w.width(), w.height());
     }
 
     private static boolean inside(Rect inner, Rect outer) {
@@ -194,7 +194,7 @@ class ScrollAxisClipTest extends ComponentTestBase {
         mountAButtonAtTheLeadingEdge(false, true, LayoutDirection.LTR, true);
         wholeFrame();
         List<InkRecorder.Ink> rings = ringsOf(Strokes.FOCUS_RING);
-        assertTrue(rings.get(0).ink().x() < view.localToSceneX(),
+        assertTrue(rings.get(0).ink().x() < view.localToScene(0, 0).x(),
                 "the fixture puts the ring across the view's left edge, or it proves nothing");
         assertWhole(rings, "focus ring");
     }
@@ -204,7 +204,7 @@ class ScrollAxisClipTest extends ComponentTestBase {
         mountAButtonAtTheLeadingEdge(false, true, LayoutDirection.RTL, true);
         wholeFrame();
         List<InkRecorder.Ink> rings = ringsOf(Strokes.FOCUS_RING);
-        assertTrue(rings.get(0).ink().right() > view.localToSceneX() + view.width(),
+        assertTrue(rings.get(0).ink().right() > view.localToScene(0, 0).x() + view.width(),
                 "reading right to left the ring crosses the view's right edge");
         assertWhole(rings, "focus ring");
     }
@@ -319,7 +319,7 @@ class ScrollAxisClipTest extends ComponentTestBase {
             passes.addAll(canvas.passes);
         }
         Rect ring = ringBox();
-        assertTrue(ring.x() < view.localToSceneX() - FEATHER, "the ring hangs past the view");
+        assertTrue(ring.x() < view.localToScene(0, 0).x() - FEATHER, "the ring hangs past the view");
         for (float y = ring.y() + 0.25f; y < ring.bottom(); y += 0.5f) {
             for (float x = ring.x() + 0.25f; x < ring.right(); x += 0.5f) {
                 boolean covered = false;
@@ -735,8 +735,8 @@ class ScrollAxisClipTest extends ComponentTestBase {
             Rect ring = rings.stream().map(InkRecorder.Ink::ink)
                     .max(java.util.Comparator.comparingDouble(Rect::width)).orElseThrow();
             assertTrue(direction == LayoutDirection.LTR
-                            ? ring.x() < body.localToSceneX()
-                            : ring.right() > body.localToSceneX() + body.width(),
+                            ? ring.x() < body.localToScene(0, 0).x()
+                            : ring.right() > body.localToScene(0, 0).x() + body.width(),
                     direction + ": the checkbox is flush with the body's leading edge, so its "
                             + "ring hangs past it");
             assertWhole(rings, direction + " checkbox's focus ring");
@@ -850,7 +850,7 @@ class ScrollAxisClipTest extends ComponentTestBase {
     @Test
     void thePickersCursorOnWhiteIsWholeAtTheDialogBodysLeftEdge() {
         List<InkRecorder.Ink> cursor = pickerCursorOn(Color.WHITE, LayoutDirection.LTR);
-        assertTrue(cursor.get(0).ink().x() < body.localToSceneX(),
+        assertTrue(cursor.get(0).ink().x() < body.localToScene(0, 0).x(),
                 "on white the cursor hangs past the body's left edge");
         assertWhole(cursor, "cursor ring");
     }
@@ -863,7 +863,7 @@ class ScrollAxisClipTest extends ComponentTestBase {
     @Test
     void thePickersCursorOnThePureHueIsWholeAtTheDialogBodysRightEdgeReadingRightToLeft() {
         List<InkRecorder.Ink> cursor = pickerCursorOn(Color.rgb(0xFF0000), LayoutDirection.RTL);
-        assertTrue(cursor.get(0).ink().right() > body.localToSceneX() + body.width(),
+        assertTrue(cursor.get(0).ink().right() > body.localToScene(0, 0).x() + body.width(),
                 "on the pure hue, reading right to left, the cursor hangs past the body's right "
                         + "edge: " + cursor + " against " + sceneBox(body));
         assertWhole(cursor, "cursor ring");
@@ -907,7 +907,7 @@ class ScrollAxisClipTest extends ComponentTestBase {
         for (InkRecorder.Ink circle : cursor) {
             ring = ring.union(circle.ink());
         }
-        float left = body.localToSceneX();
+        float left = body.localToScene(0, 0).x();
         Rect band = new Rect(left - 7, ring.centerY() - 2, 2, 4);
         assertTrue(meets(band, ring), "the band meets the cursor");
         assertTrue(band.right() < left - Theme.current().focusRingReach() - FEATHER,

@@ -235,8 +235,8 @@ class ToolBarAccessibilityTest extends AccessibleComponentTestBase {
         AccessibleNode node = strip();
         assertEquals(AccessibleNode.NONE, node.firstChild(), describe(tree()));
         assertTrue(node.has(Accessible.State.HORIZONTAL), describe(tree()));
-        assertEquals(bar.localToSceneX(), node.x(), EPS, describe(tree()));
-        assertEquals(bar.localToSceneY(), node.y(), EPS);
+        assertEquals(bar.localToScene(0, 0).x(), node.x(), EPS, describe(tree()));
+        assertEquals(bar.localToScene(0, 0).y(), node.y(), EPS);
         assertEquals(bar.width(), node.width(), EPS);
         assertEquals(bar.height(), node.height(), EPS);
     }
@@ -306,7 +306,7 @@ class ToolBarAccessibilityTest extends AccessibleComponentTestBase {
 
         Widget<?>[] widgets = {first, second, third};
         for (int i = 0; i < widgets.length; i++) {
-            assertEquals(widgets[i].localToSceneX(), items.get(i).x(), EPS, describe(tree()));
+            assertEquals(widgets[i].localToScene(0, 0).x(), items.get(i).x(), EPS, describe(tree()));
             assertEquals(widgets[i].width(), items.get(i).width(), EPS, describe(tree()));
         }
 

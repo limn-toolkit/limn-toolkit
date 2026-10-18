@@ -210,20 +210,20 @@ class BackdropPanelAccessibilityTest extends AccessibleComponentTestBase {
     void theControlsBoxIsItsOwnAndMirrorsWithTheSubtree() {
         bindPanel(new Insets(4, 30, 4, 10));
 
-        assertEquals(content.localToSceneX(), node("Play").x(), 0.01f, describe(tree()));
-        assertEquals(content.localToSceneY(), node("Play").y(), 0.01f);
+        assertEquals(content.localToScene(0, 0).x(), node("Play").x(), 0.01f, describe(tree()));
+        assertEquals(content.localToScene(0, 0).y(), node("Play").y(), 0.01f);
         assertEquals(content.width(), node("Play").width(), 0.01f);
         assertEquals(content.height(), node("Play").height(), 0.01f);
-        assertEquals(panel.localToSceneX() + 10, node("Play").x(), 0.01f,
+        assertEquals(panel.localToScene(0, 0).x() + 10, node("Play").x(), 0.01f,
                 "the leading inset in a left-to-right subtree" + describe(tree()));
 
         panel.setLayoutDirection(LayoutDirection.RTL);
         frame();
 
-        assertEquals(panel.localToSceneX() + 30, node("Play").x(), 0.01f,
+        assertEquals(panel.localToScene(0, 0).x() + 30, node("Play").x(), 0.01f,
                 "and the other one reading the other way, with no accessibility code anywhere"
                         + describe(tree()));
-        assertEquals(content.localToSceneX(), node("Play").x(), 0.01f);
+        assertEquals(content.localToScene(0, 0).x(), node("Play").x(), 0.01f);
     }
 
     // ------------------------------------------------------------------------- what it costs
@@ -322,7 +322,7 @@ class BackdropPanelAccessibilityTest extends AccessibleComponentTestBase {
 
         assertEquals(id, node("Play").id(), "and neither is where the panel put it");
         assertNotEquals(wasAt, node("Play").x(), "which did move" + describe(tree()));
-        assertEquals(content.localToSceneX(), node("Play").x(), 0.01f);
+        assertEquals(content.localToScene(0, 0).x(), node("Play").x(), 0.01f);
         assertTrue(bridge.countOf(AccessibleEvent.Type.BOUNDS_CHANGED) > 0,
                 "the move is what a reader is told about: " + bridge.events);
         assertEquals(0, bridge.countOf(AccessibleEvent.Type.NODE_DESTROYED),
@@ -348,7 +348,7 @@ class BackdropPanelAccessibilityTest extends AccessibleComponentTestBase {
         AccessibleNode named = node("Transport");
         assertEquals(Accessible.Role.GROUP, named.role());
         assertEquals(Accessible.NameFrom.EXPLICIT, named.nameFrom());
-        assertEquals(panel.localToSceneX(), named.x(), 0.01f, "the outer box, glass included");
+        assertEquals(panel.localToScene(0, 0).x(), named.x(), 0.01f, "the outer box, glass included");
         assertEquals(panel.width(), named.width(), 0.01f);
         assertEquals(tree().indexOf(named.id()), node("Play").parent(), describe(tree()));
         assertEquals(child, node("Play").id(),

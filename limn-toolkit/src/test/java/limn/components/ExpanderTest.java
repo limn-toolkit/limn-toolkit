@@ -46,8 +46,8 @@ class ExpanderTest extends AccessibleComponentTestBase {
     }
 
     private void clickHeader(Expander section) {
-        float x = section.localToSceneX() + 20;
-        float y = section.localToSceneY() + 8;
+        float x = section.localToScene(0, 0).x() + 20;
+        float y = section.localToScene(0, 0).y() + 8;
         drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
         drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
         drive(scene).inputBatchEnded();
@@ -135,8 +135,8 @@ class ExpanderTest extends AccessibleComponentTestBase {
     }
 
     private void click(Widget<?> at) {
-        float x = at.localToSceneX() + at.width() / 2;
-        float y = at.localToSceneY() + at.height() / 2;
+        float x = at.localToScene(0, 0).x() + at.width() / 2;
+        float y = at.localToScene(0, 0).y() + at.height() / 2;
         drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
         drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
         drive(scene).inputBatchEnded();

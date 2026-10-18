@@ -182,8 +182,8 @@ class ImageViewAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(node.has(Accessible.State.SHOWING), describe(tree()));
         assertFalse(node.has(Accessible.State.FOCUSABLE), describe(tree()));
 
-        assertEquals(view.localToSceneX(), node.x(), 0.01f, describe(tree()));
-        assertEquals(view.localToSceneY(), node.y(), 0.01f);
+        assertEquals(view.localToScene(0, 0).x(), node.x(), 0.01f, describe(tree()));
+        assertEquals(view.localToScene(0, 0).y(), node.y(), 0.01f);
         assertEquals(view.width(), node.width(), 0.01f);
         assertEquals(view.height(), node.height(), 0.01f);
 
@@ -312,8 +312,8 @@ class ImageViewAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(200, node.width(), 0.01f,
                 "CONTAIN draws 200x100 in the middle; the node is the box" + describe(tree()));
         assertEquals(200, node.height(), 0.01f, describe(tree()));
-        assertEquals(view.localToSceneX(), node.x(), 0.01f);
-        assertEquals(view.localToSceneY(), node.y(), 0.01f);
+        assertEquals(view.localToScene(0, 0).x(), node.x(), 0.01f);
+        assertEquals(view.localToScene(0, 0).y(), node.y(), 0.01f);
         assertNotEquals(32f, node.width(),
                 "and it is not the picture's own size either" + describe(tree()));
 

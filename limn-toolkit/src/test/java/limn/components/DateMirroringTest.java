@@ -208,7 +208,7 @@ class DateMirroringTest extends AccessibleComponentTestBase {
      * against this, so a run placed from the wrong edge moves all of them off it.
      */
     private static float[] monthFromTheTrailingEdge(DateField field) {
-        float runEnd = field.localToSceneX() + field.width()
+        float runEnd = field.localToScene(0, 0).x() + field.width()
                 - Theme.current().tokensFor(field).fieldPadH();
         return new float[] {runEnd - 50 - 20, 20};
     }
@@ -225,7 +225,7 @@ class DateMirroringTest extends AccessibleComponentTestBase {
         assertEquals(0, field.focusedSegment(), "the caret starts on the day");
         float[] month = monthFromTheTrailingEdge(field);
 
-        drive(scene).click(month[0] + month[1] / 2, field.localToSceneY() + field.height() / 2);
+        drive(scene).click(month[0] + month[1] / 2, field.localToScene(0, 0).y() + field.height() / 2);
         frame();
 
         assertEquals(1, field.focusedSegment(),

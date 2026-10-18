@@ -18,6 +18,7 @@ import limn.i18n.I18nString;
 import limn.i18n.PluralString;
 import limn.icons.tabler.Tabler;
 import limn.input.Keys;
+import limn.math.Vec2;
 import limn.scene.Constraints;
 import limn.scene.Insets;
 import limn.scene.Scene;
@@ -423,14 +424,14 @@ final class PickerScene {
             return c.constrain(c.maxWidth(), HEADER + Math.max(ROWS, cards.size()) * ROW + PAD);
         }
 
-        private int cardAt(float sceneY) {
-            return (int) Math.floor((sceneToLocalY(sceneY) - HEADER) / ROW);
+        private int cardAt(float sceneX, float sceneY) {
+            return (int) Math.floor((sceneToLocal(sceneX, sceneY).y() - HEADER) / ROW);
         }
 
         @Override
         protected void onMouseEvent(MouseEvent event) {
             if (event.type() == MouseEvent.Type.PRESS) {
-                int card = cardAt(event.y());
+                int card = cardAt(event.x(), event.y());
                 if (card >= 0 && card < cards.size()) {
                     focusedCard = card;
                     invalidate();
@@ -449,7 +450,7 @@ final class PickerScene {
 
         @Override
         protected Drag onDragStart(DragStartEvent event) {
-            int index = event.isKeyboard() ? focusedCard : cardAt(event.y());
+            int index = event.isKeyboard() ? focusedCard : cardAt(event.x(), event.y());
             if (index < 0 || index >= cards.size()) {
                 return null;
             }
@@ -459,8 +460,9 @@ final class PickerScene {
                 return null; // a pinned card does not leave its place
             }
             movedWithin = false;
-            float holdX = event.isKeyboard() ? 0 : sceneToLocalX(event.x()) - PAD;
-            float holdY = event.isKeyboard() ? 0 : sceneToLocalY(event.y()) - HEADER - index * ROW - 2;
+            Vec2 held = sceneToLocal(event.x(), event.y());
+            float holdX = event.isKeyboard() ? 0 : held.x() - PAD;
+            float holdY = event.isKeyboard() ? 0 : held.y() - HEADER - index * ROW - 2;
             return Drag.of(Transfer.of(CARD, card).with(DataFormat.TEXT, card.text))
                     .allow(DropAction.MOVE, DropAction.COPY)
                     .describedAs(card.text)
@@ -502,7 +504,7 @@ final class PickerScene {
                 dropAt = Math.max(0, Math.min(cards.size(), dropAt + event.stepY()));
                 event.describePlace(Text.PLACE.format(title.get(), dropAt + 1, cards.size() + 1));
             } else {
-                float y = sceneToLocalY(event.y()) - HEADER;
+                float y = sceneToLocal(event.x(), event.y()).y() - HEADER;
                 dropAt = Math.max(0, Math.min(cards.size(), Math.round(y / ROW)));
             }
             event.accept();

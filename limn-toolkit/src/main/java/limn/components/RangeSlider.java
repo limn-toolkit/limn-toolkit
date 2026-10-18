@@ -393,7 +393,7 @@ public final class RangeSlider extends Widget<RangeSlider> {
     protected void onMouseEvent(MouseEvent event) {
         SizeTokens t = Theme.of(this).tokensFor(this);
         boolean rtl = isRightToLeft();
-        float x = sceneToLocalX(event.x());
+        float x = sceneToLocal(event.x(), event.y()).x();
         switch (event.type()) {
             case ENTER, MOVE -> {
                 if (dragged == null) {

@@ -10,6 +10,7 @@ import limn.concurrent.Subscription;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Font;
+import limn.graphics.Rect;
 import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.i18n.I18n;
@@ -715,7 +716,7 @@ public final class MenuBar extends Widget<MenuBar> {
         boolean rtl = isRightToLeft();
         switch (event.type()) {
             case MOVE, ENTER -> {
-                int i = titleAt(sceneToLocalX(event.x()), t, rtl);
+                int i = titleAt(sceneToLocal(event.x(), event.y()).x(), t, rtl);
                 pointerIndex = i;
                 if (i != hoverIndex) {
                     hoverIndex = i;
@@ -738,7 +739,7 @@ public final class MenuBar extends Widget<MenuBar> {
                 if (event.button() != Keys.MOUSE_LEFT) {
                     return;
                 }
-                int i = titleAt(sceneToLocalX(event.x()), t, rtl);
+                int i = titleAt(sceneToLocal(event.x(), event.y()).x(), t, rtl);
                 if (i >= 0) {
                     if (i == openIndex) {
                         closeMenu();
@@ -1047,8 +1048,7 @@ public final class MenuBar extends Widget<MenuBar> {
         // The anchor rect is the title box the bar actually painted, mirrored included; the
         // column then aligns itself to that rect's leading edge on its own, which is the right
         // edge of the title reading right to left.
-        float sceneX = localToSceneX() + titleX(index, t, rtl);
-        float sceneY = localToSceneY();
+        Rect title = localToSceneBounds(titleX(index, t, rtl), 0, titleWidth(index, t), height());
         PopupMenu popup = new PopupMenu(entries.get(index).menu());
         popup.setDisplayMode(displayMode);
         if (lettersShown()) {
@@ -1081,7 +1081,7 @@ public final class MenuBar extends Widget<MenuBar> {
         invalidate();
         // Anchored on THIS widget, not on the scene: that is what makes a SMALL bar drop a
         // SMALL menu instead of one at the scene's (or the process's) default step.
-        popup.showAnchored(this, sceneX, sceneY, titleWidth(index, t), height());
+        popup.showAnchored(this, title.x(), title.y(), title.width(), title.height());
         if (!wasOpen && isOpen()) {
             notifyChange(Change.of(Change.Aspect.EXPANDED, Change.Origin.USER));
         }

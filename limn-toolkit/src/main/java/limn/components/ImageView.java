@@ -11,6 +11,7 @@ import limn.graphics.Image;
 import limn.graphics.Images;
 import limn.graphics.SvgIcon;
 import limn.internal.lang.Checks;
+import limn.math.Vec2;
 import limn.scene.Constraints;
 import limn.scene.Size;
 import limn.scene.Widget;
@@ -495,8 +496,9 @@ public final class ImageView extends Widget<ImageView> {
             return null;
         }
         float scale = Math.min(1, DRAG_PREVIEW_MAX / Math.max(width(), height()));
-        float holdX = event.isKeyboard() ? 0 : (event.x() - localToSceneX()) * scale;
-        float holdY = event.isKeyboard() ? 0 : (event.y() - localToSceneY()) * scale;
+        Vec2 held = event.isKeyboard() ? Vec2.ZERO : sceneToLocal(event.x(), event.y());
+        float holdX = held.x() * scale;
+        float holdY = held.y() * scale;
         // Named for a keyboard drag by the scene, from the name the application gave the view.
         Transfer content = Transfer.of(DataFormat.IMAGE, picture);
         String file = dragFileName;

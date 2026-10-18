@@ -220,8 +220,8 @@ class SplitPaneAccessibilityTest extends AccessibleComponentTestBase {
         frame();
         Widget<?> divider = split.divider();
 
-        assertEquals(divider.localToSceneX(), splitter().x(), 0.01f, describe(tree()));
-        assertEquals(divider.localToSceneY(), splitter().y(), 0.01f);
+        assertEquals(divider.localToScene(0, 0).x(), splitter().x(), 0.01f, describe(tree()));
+        assertEquals(divider.localToScene(0, 0).y(), splitter().y(), 0.01f);
         assertEquals(divider.width(), splitter().width(), 0.01f);
         assertEquals(divider.height(), splitter().height(), 0.01f);
         assertEquals(Strokes.MIN_HIT_TARGET, splitter().width(), 0.01f,
@@ -233,7 +233,7 @@ class SplitPaneAccessibilityTest extends AccessibleComponentTestBase {
         frame();
 
         assertNotEquals(wasX, splitter().x(), "the band moved to the other side");
-        assertEquals(divider.localToSceneX(), splitter().x(), 0.01f,
+        assertEquals(divider.localToScene(0, 0).x(), splitter().x(), 0.01f,
                 "and the box is still the divider's own" + describe(tree()));
         assertEquals(wasValue, splitter().value().value(), 0.01,
                 "the value is a magnitude along the divided axis; it does not turn around");
@@ -260,9 +260,9 @@ class SplitPaneAccessibilityTest extends AccessibleComponentTestBase {
         List<AccessibleNode> children = childrenOf(node(Accessible.Role.SPLIT_PANE));
         assertEquals(band.id(), children.get(1).id(), "published between them, not on top");
 
-        float y = band.y() + band.height() / 2 - split.localToSceneY();
+        float y = band.y() + band.height() / 2 - split.localToScene(0, 0).y();
         for (float x = band.x() + 0.5f; x < band.x() + band.width(); x += 1) {
-            assertTrue(split.hitTest(x - split.localToSceneX(), y) == split.divider(),
+            assertTrue(split.hitTest(x - split.localToScene(0, 0).x(), y) == split.divider(),
                     "the pointer drags the divider at x=" + x + ", inside the splitter's box");
         }
     }
@@ -328,8 +328,8 @@ class SplitPaneAccessibilityTest extends AccessibleComponentTestBase {
                 "this virtual machine does not count per-thread allocation");
         bindSplit();
         Widget<?> divider = split.divider();
-        drive(scene).mouseMoved(divider.localToSceneX() + divider.width() / 2,
-                divider.localToSceneY() + divider.height() / 2);
+        drive(scene).mouseMoved(divider.localToScene(0, 0).x() + divider.width() / 2,
+                divider.localToScene(0, 0).y() + divider.height() / 2);
         drive(scene).inputBatchEnded();
         frame();
         int published = bridge.published.size();

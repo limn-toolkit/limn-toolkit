@@ -105,8 +105,8 @@ class RadioButtonAccessibilityTest extends AccessibleComponentTestBase {
 
     /** Moves the pointer to the centre of a radio's box, as a hover does. */
     private void hover(RadioButton radio) {
-        drive(scene).mouseMoved(radio.localToSceneX() + radio.width() / 2,
-                radio.localToSceneY() + radio.height() / 2);
+        drive(scene).mouseMoved(radio.localToScene(0, 0).x() + radio.width() / 2,
+                radio.localToScene(0, 0).y() + radio.height() / 2);
         drive(scene).inputBatchEnded();
     }
 
@@ -217,8 +217,8 @@ class RadioButtonAccessibilityTest extends AccessibleComponentTestBase {
         RadioButton small = radios.get(0);
 
         AccessibleNode node = node("Small");
-        assertEquals(small.localToSceneX(), node.x(), describe(tree()));
-        assertEquals(small.localToSceneY(), node.y(), describe(tree()));
+        assertEquals(small.localToScene(0, 0).x(), node.x(), describe(tree()));
+        assertEquals(small.localToScene(0, 0).y(), node.y(), describe(tree()));
         assertEquals(small.width(), node.width(), describe(tree()));
         assertEquals(small.height(), node.height(),
                 "the box is the widget's own, which is exactly what a pointer hits; the focus "
@@ -229,7 +229,7 @@ class RadioButtonAccessibilityTest extends AccessibleComponentTestBase {
         frame();
 
         AccessibleNode mirrored = node("Small");
-        assertEquals(small.localToSceneX(), mirrored.x(), describe(tree()));
+        assertEquals(small.localToScene(0, 0).x(), mirrored.x(), describe(tree()));
         assertEquals(small.width(), mirrored.width(),
                 "reading right to left moves the ring to the other end of the same row"
                         + describe(tree()));

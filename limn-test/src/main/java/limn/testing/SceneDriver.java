@@ -80,8 +80,8 @@ public final class SceneDriver implements WindowInput {
         if (widget.scene() != scene) {
             throw new IllegalArgumentException(widget + " is not in the scene this driver drives");
         }
-        return click(widget.localToSceneX() + widget.width() / 2,
-                widget.localToSceneY() + widget.height() / 2);
+        limn.math.Vec2 middle = widget.localToScene(widget.width() / 2, widget.height() / 2);
+        return click(middle.x(), middle.y());
     }
 
     /**

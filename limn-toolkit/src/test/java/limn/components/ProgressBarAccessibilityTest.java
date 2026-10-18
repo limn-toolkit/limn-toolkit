@@ -437,8 +437,8 @@ class ProgressBarAccessibilityTest extends AccessibleComponentTestBase {
                 "the sized box is scaffolding and hoists the bar" + describe(tree()));
         AccessibleNode node = progressNode();
         assertEquals(360f, bar.width(), "the fixture really did widen the bar");
-        assertEquals(bar.localToSceneX(), node.x(), describe(tree()));
-        assertEquals(bar.localToSceneY(), node.y(), describe(tree()));
+        assertEquals(bar.localToScene(0, 0).x(), node.x(), describe(tree()));
+        assertEquals(bar.localToScene(0, 0).y(), node.y(), describe(tree()));
         assertEquals(bar.width(), node.width(), describe(tree()));
         assertEquals(bar.height(), node.height(),
                 "the step's progressThickness, and nothing outside it is painted"

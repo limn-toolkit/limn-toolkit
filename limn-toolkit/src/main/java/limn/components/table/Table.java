@@ -24,6 +24,7 @@ import limn.i18n.I18n;
 import limn.i18n.LanguageWitness;
 import limn.input.Keys;
 import limn.internal.lang.Checks;
+import limn.math.Vec2;
 import limn.scene.Change;
 import limn.scene.Constraints;
 import limn.scene.Scrollable;
@@ -3587,8 +3588,9 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
 
     @Override
     protected void onMouseEvent(MouseEvent event) {
-        float x = sceneToLocalX(event.x());
-        float y = sceneToLocalY(event.y());
+        Vec2 local = sceneToLocal(event.x(), event.y());
+        float x = local.x();
+        float y = local.y();
         switch (event.type()) {
             case WHEEL -> {
                 // A detent is a device unit: the same flick travels the same distance in a dense

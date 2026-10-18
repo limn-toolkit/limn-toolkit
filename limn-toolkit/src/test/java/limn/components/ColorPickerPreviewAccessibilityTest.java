@@ -460,8 +460,8 @@ class ColorPickerPreviewAccessibilityTest extends AccessibleComponentTestBase {
         bindPicker();
 
         AccessibleNode node = swatch();
-        assertEquals(picker.preview().localToSceneX(), node.x(), describe(tree()));
-        assertEquals(picker.preview().localToSceneY(), node.y(), describe(tree()));
+        assertEquals(picker.preview().localToScene(0, 0).x(), node.x(), describe(tree()));
+        assertEquals(picker.preview().localToScene(0, 0).y(), node.y(), describe(tree()));
         assertEquals(2 * node.height(), node.width(),
                 "one control tall and two wide, which is the token box's own extent handed "
                         + "straight down: it lays the child out over its whole box, so the "

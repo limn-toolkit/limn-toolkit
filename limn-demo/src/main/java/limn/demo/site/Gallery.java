@@ -985,12 +985,13 @@ public final class Gallery {
                                 buttonDown = false;
                                 Widget<?> content = built.content();
                                 if (content != null) {
+                                    limn.graphics.Rect box = content.localToSceneBounds(0, 0,
+                                            content.width(), content.height());
                                     FILM_CONTENT.put(shot.entry().id(), String.format(
                                             java.util.Locale.ROOT,
                                             "{ \"x\": %.1f, \"y\": %.1f, \"width\": %.1f,"
                                                     + " \"height\": %.1f }",
-                                            content.localToSceneX(), content.localToSceneY(),
-                                            content.width(), content.height()));
+                                            box.x(), box.y(), box.width(), box.height()));
                                 }
                             }
                         }

@@ -251,8 +251,8 @@ class TextFieldMaskTest extends AccessibleComponentTestBase {
         type("123");
         field.setCaretPosition(0);
         float start = field.caretRect().x();
-        drive(scene).click(field.localToSceneX() + field.width() - 4,
-                field.localToSceneY() + field.height() / 2);
+        drive(scene).click(field.localToScene(0, 0).x() + field.width() - 4,
+                field.localToScene(0, 0).y() + field.height() / 2);
         assertEquals(3, field.caretPosition(), "the end of the text");
         assertEquals(start + 40f, field.caretRect().x(), 0.001f, "drawn past the guide's dot");
     }

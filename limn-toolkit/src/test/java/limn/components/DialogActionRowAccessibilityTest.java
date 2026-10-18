@@ -189,11 +189,11 @@ class DialogActionRowAccessibilityTest extends AccessibleComponentTestBase {
 
         AccessibleNode cancel = node("Cancel");
         AccessibleNode ok = node("OK");
-        assertEquals(row.localToSceneX() + row.width(), ok.x() + ok.width(),
+        assertEquals(row.localToScene(0, 0).x() + row.width(), ok.x() + ok.width(),
                 "END packs the last button against the card's trailing edge");
         assertEquals(GAP_AT_MEDIUM, gapBetween("Cancel", "OK"), "gapButtonRow at MEDIUM");
         assertEquals(cancel.y(), ok.y(), "one line, centred on the cross axis");
-        assertEquals(row.localToSceneY() + (row.height() - ok.height()) / 2, ok.y());
+        assertEquals(row.localToScene(0, 0).y() + (row.height() - ok.height()) / 2, ok.y());
         assertTrue(ok.y() > 0, "below the body, not over it");
         assertTrue(cancel.has(Accessible.State.SHOWING), describe(tree()));
         assertTrue(ok.has(Accessible.State.SHOWING), describe(tree()));
@@ -209,7 +209,7 @@ class DialogActionRowAccessibilityTest extends AccessibleComponentTestBase {
         ok = node("OK");
         assertEquals(List.of("Cancel", "OK"), buttonReadingOrder(),
                 "reading order is logical and does not turn around");
-        assertEquals(row.localToSceneX(), ok.x(),
+        assertEquals(row.localToScene(0, 0).x(), ok.x(),
                 "and the boxes are physical, so END is now the left edge and OK is leftmost");
         assertEquals(GAP_AT_XSMALL, gapBetween("OK", "Cancel"),
                 "with the gutter reflected between them");

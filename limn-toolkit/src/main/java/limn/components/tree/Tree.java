@@ -22,6 +22,7 @@ import limn.graphics.Path2D;
 import limn.i18n.I18nString;
 import limn.input.Keys;
 import limn.internal.lang.Checks;
+import limn.math.Vec2;
 import limn.scene.Change;
 import limn.scene.Constraints;
 import limn.scene.Scrollable;
@@ -2551,8 +2552,9 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         if (event.isKeyboard()) {
             node = cursor;
         } else {
-            float localX = event.x() - localToSceneX();
-            float localY = event.y() - localToSceneY();
+            Vec2 local = sceneToLocal(event.x(), event.y());
+            float localX = local.x();
+            float localY = local.y();
             if (!inViewport(localX, localY)) {
                 return null; // a bar's strip
             }
@@ -2892,7 +2894,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
                         .format(name));
             }
         } else {
-            place = placeAt(event.y() - localToSceneY());
+            place = placeAt(sceneToLocal(event.x(), event.y()).y());
             if (own && isUnderDragged(place.parent())) {
                 setDropPlace(null); // a node does not go into itself
                 rest(null);
@@ -3427,8 +3429,9 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         // The event is in scene coordinates and every row and triangle is in this widget's own,
         // as the table and the list convert them. The two agree only for a tree at the scene's
         // origin, which is where every test of this widget had mounted it.
-        float x = sceneToLocalX(event.x());
-        float y = sceneToLocalY(event.y());
+        Vec2 local = sceneToLocal(event.x(), event.y());
+        float x = local.x();
+        float y = local.y();
         // A press on a reserved strip whose bar has faded is still the bar's, as hitTest says.
         if (!inViewport(x, y)) {
             return;

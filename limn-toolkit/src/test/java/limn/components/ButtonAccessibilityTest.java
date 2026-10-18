@@ -81,8 +81,8 @@ class ButtonAccessibilityTest extends AccessibleComponentTestBase {
 
     /** Delivers one click at the centre of the button's box, as a pointer does, and frames it. */
     private void click() {
-        float x = button.localToSceneX() + button.width() / 2;
-        float y = button.localToSceneY() + button.height() / 2;
+        float x = button.localToScene(0, 0).x() + button.width() / 2;
+        float y = button.localToScene(0, 0).y() + button.height() / 2;
         drive(scene).mouseMoved(x, y);
         drive(scene).inputBatchEnded();
         frame();
@@ -136,8 +136,8 @@ class ButtonAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(List.of(), node.relations(), describe(tree()));
         assertEquals(List.of(), childrenOf(node), "a button holds nothing" + describe(tree()));
 
-        assertEquals(button.localToSceneX(), node.x(), describe(tree()));
-        assertEquals(button.localToSceneY(), node.y(), describe(tree()));
+        assertEquals(button.localToScene(0, 0).x(), node.x(), describe(tree()));
+        assertEquals(button.localToScene(0, 0).y(), node.y(), describe(tree()));
         assertEquals(button.width(), node.width(), describe(tree()));
         assertEquals(button.height(), node.height(),
                 "the box is the fill, which is what a user aims at" + describe(tree()));

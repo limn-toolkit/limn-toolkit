@@ -119,7 +119,7 @@ class BackdropPassSeamTest {
         // pixel 38 at four fifths.
         layers.add(new Padding(new Insets(30.35f, 0, 0, 20.1f), glass));
 
-        assertPartialIsWhole(layers, thumb, () -> assertEquals(20.1f, glass.localToSceneX(), 1e-4f,
+        assertPartialIsWhole(layers, thumb, () -> assertEquals(20.1f, glass.localToScene(0, 0).x(), 1e-4f,
                 "the panel sits off the grid, as the case needs"));
     }
 
@@ -143,7 +143,7 @@ class BackdropPassSeamTest {
         // after it.
         layers.add(new Padding(new Insets(0, 0, 0, 56), new Bar()));
 
-        assertPartialIsWhole(layers, thumb, () -> assertEquals(52f, glass.localToSceneX() + glass.width(), 1e-4f,
+        assertPartialIsWhole(layers, thumb, () -> assertEquals(52f, glass.localToScene(0, 0).x() + glass.width(), 1e-4f,
                 "the bar stands four points off the panel, as the case needs"));
     }
 

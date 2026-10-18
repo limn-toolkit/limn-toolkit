@@ -390,13 +390,13 @@ public final class Slider extends Widget<Slider> {
                 if (event.button() == Keys.MOUSE_LEFT && isEnabled()) {
                     dragging = true;
                     hover.to(1);
-                    applyFromX(t, rtl, sceneToLocalX(event.x()));
+                    applyFromX(t, rtl, sceneToLocal(event.x(), event.y()).x());
                     event.consume();
                 }
             }
             case DRAG -> {
                 if (dragging) {
-                    applyFromX(t, rtl, sceneToLocalX(event.x()));
+                    applyFromX(t, rtl, sceneToLocal(event.x(), event.y()).x());
                     event.consume();
                 }
             }

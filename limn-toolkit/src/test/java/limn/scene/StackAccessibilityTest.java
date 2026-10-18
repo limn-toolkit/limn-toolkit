@@ -243,34 +243,34 @@ class StackAccessibilityTest extends AccessibleTestBase {
         frame();
 
         AccessibleNode badge = node("badge");
-        assertEquals(stack.localToSceneX() + stack.width() - badge.width(), badge.x(),
+        assertEquals(stack.localToScene(0, 0).x() + stack.width() - badge.width(), badge.x(),
                 "TOP_RIGHT names a corner of the box, and the box is the scene's");
-        assertEquals(stack.localToSceneY(), badge.y());
+        assertEquals(stack.localToScene(0, 0).y(), badge.y());
 
         stack.setLayoutDirection(LayoutDirection.RTL);
         frame();
 
         AccessibleNode physical = node("badge");
-        assertEquals(stack.localToSceneX() + stack.width() - physical.width(), physical.x(),
+        assertEquals(stack.localToScene(0, 0).x() + stack.width() - physical.width(), physical.x(),
                 "a physical constant keeps naming the same corner: " + describe(tree()));
-        assertEquals(stack.localToSceneY(), physical.y());
+        assertEquals(stack.localToScene(0, 0).y(), physical.y());
 
         stack.alignment(Stack.Alignment.CENTER_END);
         frame();
 
         AccessibleNode logical = node("badge");
-        assertEquals(stack.localToSceneX(), logical.x(),
+        assertEquals(stack.localToScene(0, 0).x(), logical.x(),
                 "END is the left edge reading right to left");
-        assertEquals(stack.localToSceneY() + (stack.height() - logical.height()) / 2, logical.y(),
+        assertEquals(stack.localToScene(0, 0).y() + (stack.height() - logical.height()) / 2, logical.y(),
                 "and the vertical half of the constant has no reading order to follow");
 
         stack.setLayoutDirection(LayoutDirection.LTR);
         frame();
 
         AccessibleNode flipped = node("badge");
-        assertEquals(stack.localToSceneX() + stack.width() - flipped.width(), flipped.x(),
+        assertEquals(stack.localToScene(0, 0).x() + stack.width() - flipped.width(), flipped.x(),
                 "and it turns around with the direction");
-        assertEquals(stack.localToSceneY() + (stack.height() - flipped.height()) / 2, flipped.y());
+        assertEquals(stack.localToScene(0, 0).y() + (stack.height() - flipped.height()) / 2, flipped.y());
     }
 
     /**
@@ -395,8 +395,8 @@ class StackAccessibilityTest extends AccessibleTestBase {
 
         AccessibleNode named = node("Player");
         assertEquals(Accessible.Role.GROUP, named.role());
-        assertEquals(stack.localToSceneX(), named.x(), "the stack's own box");
-        assertEquals(stack.localToSceneY(), named.y());
+        assertEquals(stack.localToScene(0, 0).x(), named.x(), "the stack's own box");
+        assertEquals(stack.localToScene(0, 0).y(), named.y());
         assertEquals(stack.width(), named.width());
         assertEquals(stack.height(), named.height());
         assertEquals(tree().indexOf(named.id()), node("background").parent(), describe(tree()));

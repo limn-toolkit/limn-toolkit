@@ -69,14 +69,14 @@ class TreePressTest extends ComponentTestBase {
         scene.setTextRuler(RULER);
         scene.layoutPass(TREE_W + 2 * INSET, TREE_H + 2 * INSET);
         scene.renderFrame(new FakeCanvas(TREE_W + 2 * INSET, TREE_H + 2 * INSET));
-        assertEquals(INSET, tree.localToSceneX(), 1e-3f, "the fixture has to offset the tree");
-        assertEquals(INSET, tree.localToSceneY(), 1e-3f);
+        assertEquals(INSET, tree.localToScene(0, 0).x(), 1e-3f, "the fixture has to offset the tree");
+        assertEquals(INSET, tree.localToScene(0, 0).y(), 1e-3f);
         return tree;
     }
 
     private void pressAtLocal(Tree<Node> tree, float localX, float localY) {
-        float x = tree.localToSceneX() + localX;
-        float y = tree.localToSceneY() + localY;
+        float x = tree.localToScene(0, 0).x() + localX;
+        float y = tree.localToScene(0, 0).y() + localY;
         drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
         drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
         drive(scene).inputBatchEnded();

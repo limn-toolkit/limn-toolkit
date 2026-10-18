@@ -22,6 +22,7 @@ import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Icon;
 import limn.graphics.Image;
+import limn.graphics.Rect;
 import limn.i18n.I18nString;
 import limn.icons.tabler.Tabler;
 import limn.input.Keys;
@@ -663,7 +664,7 @@ final class DialogsScene {
      * window, and in the host's when it is an overlay.
      */
     private static void openBelow(Widget<?> anchor, Menu menu, boolean modal) {
-        new PopupMenu(menu).setModal(modal).showAnchored(anchor, anchor.localToSceneX(), anchor.localToSceneY(),
-                anchor.width(), anchor.height());
+        Rect box = anchor.localToSceneBounds(0, 0, anchor.width(), anchor.height());
+        new PopupMenu(menu).setModal(modal).showAnchored(anchor, box.x(), box.y(), box.width(), box.height());
     }
 }

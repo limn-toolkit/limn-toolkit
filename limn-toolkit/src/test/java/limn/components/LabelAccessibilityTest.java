@@ -131,8 +131,8 @@ class LabelAccessibilityTest extends AccessibleComponentTestBase {
                         + describe(tree()));
         assertNull(node.value(), describe(tree()));
         assertNull(node.toggle(), describe(tree()));
-        assertEquals(label.localToSceneX(), node.x(), describe(tree()));
-        assertEquals(label.localToSceneY(), node.y(), describe(tree()));
+        assertEquals(label.localToScene(0, 0).x(), node.x(), describe(tree()));
+        assertEquals(label.localToScene(0, 0).y(), node.y(), describe(tree()));
         assertEquals(label.width(), node.width(),
                 "the box is the widget's own laid-out box, which is what the text is clipped to"
                         + describe(tree()));

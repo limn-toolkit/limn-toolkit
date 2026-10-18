@@ -56,7 +56,7 @@ class CustomWidgetExampleTest {
         Scene scene = sceneOf(rating);
 
         float dot = rating.height();
-        drive(scene).click(rating.localToSceneX() + 2.5f * dot, rating.localToSceneY() + dot / 2);
+        drive(scene).click(rating.localToScene(0, 0).x() + 2.5f * dot, rating.localToScene(0, 0).y() + dot / 2);
 
         assertEquals(3, rating.value());
         assertEquals(1, handled[0]);
@@ -100,8 +100,8 @@ class CustomWidgetExampleTest {
         Scene scene = sceneOf(rating);
 
         float dot = rating.height();
-        drive(scene).click(rating.localToSceneX() + rating.width() - dot / 2,
-                rating.localToSceneY() + dot / 2);
+        drive(scene).click(rating.localToScene(0, 0).x() + rating.width() - dot / 2,
+                rating.localToScene(0, 0).y() + dot / 2);
 
         assertEquals(1, rating.value());
     }

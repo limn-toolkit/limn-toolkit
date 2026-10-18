@@ -87,8 +87,8 @@ class CheckboxAccessibilityTest extends AccessibleComponentTestBase {
 
     /** Moves the pointer to the centre of the checkbox's box, as a hover does. */
     private void hover() {
-        drive(scene).mouseMoved(checkbox.localToSceneX() + checkbox.width() / 2,
-                checkbox.localToSceneY() + checkbox.height() / 2);
+        drive(scene).mouseMoved(checkbox.localToScene(0, 0).x() + checkbox.width() / 2,
+                checkbox.localToScene(0, 0).y() + checkbox.height() / 2);
         drive(scene).inputBatchEnded();
     }
 
@@ -171,8 +171,8 @@ class CheckboxAccessibilityTest extends AccessibleComponentTestBase {
         AccessibleNode node = node(Accessible.Role.CHECK_BOX);
         float labelledWidth = checkbox.width();
 
-        assertEquals(checkbox.localToSceneX(), node.x(), describe(tree()));
-        assertEquals(checkbox.localToSceneY(), node.y(), describe(tree()));
+        assertEquals(checkbox.localToScene(0, 0).x(), node.x(), describe(tree()));
+        assertEquals(checkbox.localToScene(0, 0).y(), node.y(), describe(tree()));
         assertEquals(checkbox.width(), node.width(), describe(tree()));
         assertEquals(checkbox.height(), node.height(),
                 "the box is the widget's own, which is exactly what a pointer hits"
@@ -187,8 +187,8 @@ class CheckboxAccessibilityTest extends AccessibleComponentTestBase {
         frame();
 
         AccessibleNode mirrored = node(Accessible.Role.CHECK_BOX);
-        assertEquals(checkbox.localToSceneX(), mirrored.x(), describe(tree()));
-        assertEquals(checkbox.localToSceneY(), mirrored.y(), describe(tree()));
+        assertEquals(checkbox.localToScene(0, 0).x(), mirrored.x(), describe(tree()));
+        assertEquals(checkbox.localToScene(0, 0).y(), mirrored.y(), describe(tree()));
         assertEquals(checkbox.width(), mirrored.width(),
                 "reading right to left translates the indicator inside the row; the row itself "
                         + "is the same box" + describe(tree()));

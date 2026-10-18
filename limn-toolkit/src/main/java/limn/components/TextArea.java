@@ -19,6 +19,7 @@ import limn.i18n.I18n;
 import limn.i18n.internal.LocaleServices;
 import limn.input.Keys;
 import limn.internal.lang.Checks;
+import limn.math.Vec2;
 import limn.scene.Change;
 import limn.scene.Constraints;
 import limn.scene.Size;
@@ -1978,15 +1979,16 @@ public final class TextArea extends Widget<TextArea> {
         // that was drawn under it only while these two expressions stay identical.
         float padX = t.fieldPadH();
         float padY = t.areaPad();
-        float lx = sceneToLocalX(event.x());
-        float ly = sceneToLocalY(event.y());
+        Vec2 local = sceneToLocal(event.x(), event.y());
+        float lx = local.x();
+        float ly = local.y();
         switch (event.type()) {
             case PRESS -> {
                 if (ContextMenus.isRequest(event)) {
                     // Focus first: the menu's Cut and Paste act on this area, and one that was
                     // not focused when they run would edit while the caret lives elsewhere.
                     requestFocus();
-                    showContextMenu(sceneToLocalX(event.x()), sceneToLocalY(event.y()));
+                    showContextMenu(lx, ly);
                     event.consume();
                     return;
                 }
@@ -2154,7 +2156,7 @@ public final class TextArea extends Widget<TextArea> {
         // Where the caret was, when this key can only move it: see the end of this method. Nothing
         // is being composed here, because onKeyEvent swallows every press while something is.
         Rect caretWas = !shift && isCaretMoveKey(event.key()) && !model.hasSelection()
-                ? caretRect() : null;
+                ? heldCaretBox(tokens()) : null;
         float scrollXWas = scrollX;
         float scrollYWas = scrollY;
         switch (event.shortcutKey()) {
@@ -2299,9 +2301,8 @@ public final class TextArea extends Widget<TextArea> {
     protected void showContextMenuForFocus() {
         // At the caret, not at a corner of the box: on a wide field the two are far apart, and
         // the caret is the only place the request can have meant.
-        Rect caret = caretRect();
-        showContextMenu(caret.x() - localToSceneX(),
-                caret.y() + caret.height() - localToSceneY());
+        Rect caret = heldCaretBox(tokens());
+        showContextMenu(caret.x(), caret.y() + caret.height());
     }
 
     private TextContextMenu.Host contextMenuHost() {
@@ -2493,8 +2494,7 @@ public final class TextArea extends Widget<TextArea> {
         // is no enclosing measure/paint pass to thread tokens down from.
         Rect local = heldCaretBox(tokens());
         return local == null ? null
-                : new Rect(localToSceneX() + local.x(), localToSceneY() + local.y(),
-                        local.width(), local.height());
+                : localToSceneBounds(local.x(), local.y(), local.width(), local.height());
     }
 
     /**
@@ -2810,7 +2810,7 @@ public final class TextArea extends Widget<TextArea> {
 
     /** Damages just the caret column: a blink repaints ~1×line-height, not the whole area. */
     private void invalidateCaret() {
-        damageCaret(caretRect()); // scene coordinates, clamped inside the viewport
+        damageCaret(heldCaretBox(tokens())); // this area's coordinates
     }
 
     /**
@@ -2823,15 +2823,15 @@ public final class TextArea extends Widget<TextArea> {
                 || key == Keys.PAGE_UP || key == Keys.PAGE_DOWN;
     }
 
-    /** Damages one caret column given in scene coordinates, or the whole area without one. */
-    private void damageCaret(Rect caret) {
+    /** Damages one caret column given in this area's coordinates, or the whole area without one. */
+    private void damageCaret(@Nullable Rect caret) {
         if (caret != null && scene() != null) {
             // Local-coords invalidate: the damage then clamps against clipping
             // ancestors: a caret scrolled out of a viewport damages nothing.
             // Margin for AA + hairline snap. Locked: growing it per step inflates per-blink
             // damage and defeats the partial rendering this is here to enable.
-            invalidate(caret.x() - localToSceneX() - Strokes.DAMAGE_MARGIN,
-                    caret.y() - localToSceneY() - Strokes.DAMAGE_MARGIN,
+            invalidate(caret.x() - Strokes.DAMAGE_MARGIN,
+                    caret.y() - Strokes.DAMAGE_MARGIN,
                     caret.width() + 2 * Strokes.DAMAGE_MARGIN,
                     caret.height() + 2 * Strokes.DAMAGE_MARGIN);
         } else {

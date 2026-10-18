@@ -1468,8 +1468,10 @@ public final class AccessibilityGallery {
         Column page = page();
         Button anchor = new Button("Options");
         page.add(anchor);
-        return new Built(page, () -> new PopupMenu(editingMenu()).showAnchored(anchor,
-                anchor.localToSceneX(), anchor.localToSceneY(), anchor.width(), anchor.height()));
+        return new Built(page, () -> {
+            limn.graphics.Rect box = anchor.localToSceneBounds(0, 0, anchor.width(), anchor.height());
+            new PopupMenu(editingMenu()).showAnchored(anchor, box.x(), box.y(), box.width(), box.height());
+        });
     }
 
     private static Menu editingMenu() {

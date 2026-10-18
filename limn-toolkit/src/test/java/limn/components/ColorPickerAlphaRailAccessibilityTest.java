@@ -432,8 +432,8 @@ class ColorPickerAlphaRailAccessibilityTest extends AccessibleComponentTestBase 
         assertEquals(leftToRight.id(), mirrored.id(), "a direction is not a rebuild");
         assertEquals(leftToRight.value(), mirrored.value(),
                 "the facet is the value, and a value has no side" + describe(tree()));
-        assertEquals(picker.alphaRail().localToSceneX(), mirrored.x(), describe(tree()));
-        assertEquals(picker.alphaRail().localToSceneY(), mirrored.y(), describe(tree()));
+        assertEquals(picker.alphaRail().localToScene(0, 0).x(), mirrored.x(), describe(tree()));
+        assertEquals(picker.alphaRail().localToScene(0, 0).y(), mirrored.y(), describe(tree()));
 
         perform(mirrored.id(), Accessible.Action.INCREMENT, Accessible.Argument.NONE);
         frame();
@@ -571,8 +571,8 @@ class ColorPickerAlphaRailAccessibilityTest extends AccessibleComponentTestBase 
         bindPicker();
 
         AccessibleNode node = alphaNode();
-        assertEquals(picker.alphaRail().localToSceneX(), node.x(), describe(tree()));
-        assertEquals(picker.alphaRail().localToSceneY(), node.y(), describe(tree()));
+        assertEquals(picker.alphaRail().localToScene(0, 0).x(), node.x(), describe(tree()));
+        assertEquals(picker.alphaRail().localToScene(0, 0).y(), node.y(), describe(tree()));
         assertEquals(picker.alphaRail().width(), node.width(),
                 "the Expanded above it hands the rail (0, 0, width(), height()), so the rail's "
                         + "box is the share's box" + describe(tree()));

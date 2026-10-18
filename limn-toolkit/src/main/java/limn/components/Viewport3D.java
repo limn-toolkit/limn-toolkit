@@ -18,6 +18,7 @@ import limn.internal.lang.Checks;
 import limn.math.Aabb;
 import limn.math.Mat4;
 import limn.math.Ray;
+import limn.math.Vec2;
 import limn.math.Vec3;
 import limn.render3d.Camera;
 import limn.render3d.CameraController;
@@ -332,8 +333,9 @@ public class Viewport3D extends Widget<Viewport3D> {
 
     @Override
     protected void onMouseEvent(MouseEvent event) {
-        float lx = sceneToLocalX(event.x());
-        float ly = sceneToLocalY(event.y());
+        Vec2 local = sceneToLocal(event.x(), event.y());
+        float lx = local.x();
+        float ly = local.y();
         switch (event.type()) {
             case PRESS -> {
                 // Only a LEFT press arms a camera/click gesture; other buttons

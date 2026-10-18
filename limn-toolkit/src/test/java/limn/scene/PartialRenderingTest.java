@@ -107,10 +107,10 @@ class PartialRenderingTest extends SceneTestBase {
 
     /** The damage rect invalidate() records: widget scene bounds +1px, snapped and clamped. */
     private Rect expectedDamage(Widget<?> w) {
-        float x = Math.max(0, (float) Math.floor(w.localToSceneX() - 1));
-        float y = Math.max(0, (float) Math.floor(w.localToSceneY() - 1));
-        float right = Math.min(canvas.width(), (float) Math.ceil(w.localToSceneX() + w.width() + 1));
-        float bottom = Math.min(canvas.height(), (float) Math.ceil(w.localToSceneY() + w.height() + 1));
+        float x = Math.max(0, (float) Math.floor(w.localToScene(0, 0).x() - 1));
+        float y = Math.max(0, (float) Math.floor(w.localToScene(0, 0).y() - 1));
+        float right = Math.min(canvas.width(), (float) Math.ceil(w.localToScene(0, 0).x() + w.width() + 1));
+        float bottom = Math.min(canvas.height(), (float) Math.ceil(w.localToScene(0, 0).y() + w.height() + 1));
         return new Rect(x, y, right - x, bottom - y);
     }
 
@@ -405,8 +405,8 @@ class PartialRenderingTest extends SceneTestBase {
         bottom.invalidate(10, 20, 5, 8);
         frame();
         assertTrue(canvas.partialFramePainted());
-        float x = (float) Math.floor(bottom.localToSceneX() + 10 - 1);
-        float y = (float) Math.floor(bottom.localToSceneY() + 20 - 1);
+        float x = (float) Math.floor(bottom.localToScene(0, 0).x() + 10 - 1);
+        float y = (float) Math.floor(bottom.localToScene(0, 0).y() + 20 - 1);
         assertRectEquals(new Rect(x, y, 7, 10), canvas.lastClip);
     }
 

@@ -116,7 +116,7 @@ class DialogCardColumnAccessibilityTest extends AccessibleComponentTestBase {
     /** @return the viewport's bottom edge in scene coordinates: the clip edge the column set */
     private float viewportBottom() {
         ScrollView scroll = viewport();
-        return scroll.localToSceneY() + scroll.height();
+        return scroll.localToScene(0, 0).y() + scroll.height();
     }
 
     private static <T extends Widget<?>> T find(Widget<?> at, Class<T> type) {
@@ -150,11 +150,11 @@ class DialogCardColumnAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     private static void assertInside(AccessibleNode node, Widget<?> box) {
-        assertTrue(node.x() >= box.localToSceneX(), node.name() + " starts inside the card");
-        assertTrue(node.y() >= box.localToSceneY(), node.name() + " starts inside the card");
-        assertTrue(node.x() + node.width() <= box.localToSceneX() + box.width(),
+        assertTrue(node.x() >= box.localToScene(0, 0).x(), node.name() + " starts inside the card");
+        assertTrue(node.y() >= box.localToScene(0, 0).y(), node.name() + " starts inside the card");
+        assertTrue(node.x() + node.width() <= box.localToScene(0, 0).x() + box.width(),
                 node.name() + " ends inside the card");
-        assertTrue(node.y() + node.height() <= box.localToSceneY() + box.height(),
+        assertTrue(node.y() + node.height() <= box.localToScene(0, 0).y() + box.height(),
                 node.name() + " ends inside the card");
     }
 

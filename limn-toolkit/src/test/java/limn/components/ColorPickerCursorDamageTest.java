@@ -88,10 +88,10 @@ class ColorPickerCursorDamageTest extends ComponentTestBase {
         Widget<?> field = picker.saturationValueField();
         Rect box = null;
         for (Ring ring : canvas.rings) {
-            if (ring.cx() >= field.localToSceneX() - 1e-3f
-                    && ring.cx() <= field.localToSceneX() + field.width() + 1e-3f
-                    && ring.cy() >= field.localToSceneY() - 1e-3f
-                    && ring.cy() <= field.localToSceneY() + field.height() + 1e-3f) {
+            if (ring.cx() >= field.localToScene(0, 0).x() - 1e-3f
+                    && ring.cx() <= field.localToScene(0, 0).x() + field.width() + 1e-3f
+                    && ring.cy() >= field.localToScene(0, 0).y() - 1e-3f
+                    && ring.cy() <= field.localToScene(0, 0).y() + field.height() + 1e-3f) {
                 float reach = ring.radius() + ring.pen() / 2 + FEATHER;
                 Rect one = new Rect(ring.cx() - reach, ring.cy() - reach, 2 * reach, 2 * reach);
                 box = box == null ? one : box.union(one);
@@ -103,7 +103,7 @@ class ColorPickerCursorDamageTest extends ComponentTestBase {
     }
 
     private static Rect sceneBox(Widget<?> w) {
-        return new Rect(w.localToSceneX(), w.localToSceneY(), w.width(), w.height());
+        return new Rect(w.localToScene(0, 0).x(), w.localToScene(0, 0).y(), w.width(), w.height());
     }
 
     // ------------------------------------------------------------------ damage

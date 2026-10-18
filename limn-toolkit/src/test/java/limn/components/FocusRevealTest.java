@@ -47,7 +47,7 @@ class FocusRevealTest extends ComponentTestBase {
 
     /** The button's y inside the viewport (scroll view at the scene origin). */
     private float viewportY(Button button) {
-        return button.localToSceneY() - scroll.localToSceneY();
+        return button.localToScene(0, 0).y() - scroll.localToScene(0, 0).y();
     }
 
     private void assertVisible(Button button) {

@@ -402,8 +402,8 @@ class OpacityTest extends SceneTestBase {
         SizedBox inBand = new SizedBox(4, 4);
         layers.add(new Padding(new Insets(40, 0, 0, 88), inBand));
         Scene scene = sceneOf(layers);
-        assertEquals(80, card.localToSceneX() + card.width(), "the case puts the card's edge at 80");
-        assertEquals(88, inBand.localToSceneX());
+        assertEquals(80, card.localToScene(0, 0).x() + card.width(), "the case puts the card's edge at 80");
+        assertEquals(88, inBand.localToScene(0, 0).x());
 
         inBand.invalidate();
         frame(scene);
@@ -420,9 +420,9 @@ class OpacityTest extends SceneTestBase {
         int layouts = p.layouts;
 
         // The box a pixel past on every side, as far as the canvas reaches.
-        Rect damage = new Rect(w.localToSceneX() - 1, w.localToSceneY() - 1,
-                Math.min(w.width() + 2, 400 - (w.localToSceneX() - 1)),
-                Math.min(w.height() + 2, 300 - (w.localToSceneY() - 1)));
+        Rect damage = new Rect(w.localToScene(0, 0).x() - 1, w.localToScene(0, 0).y() - 1,
+                Math.min(w.width() + 2, 400 - (w.localToScene(0, 0).x() - 1)),
+                Math.min(w.height() + 2, 300 - (w.localToScene(0, 0).y() - 1)));
         assertEquals(60, damage.x() + 1, "the case puts the box on whole points");
         w.setOpacity(0.5f);
         frame(scene);

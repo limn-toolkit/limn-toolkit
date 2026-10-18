@@ -183,8 +183,8 @@ class ThemeEditorTest extends EditorTestBase {
     private void click(String caption) {
         limn.components.Button button = findButton(scene.root(), caption);
         assertNotNull(button, "no button captioned \"" + caption + '"');
-        float x = button.localToSceneX() + button.width() / 2;
-        float y = button.localToSceneY() + button.height() / 2;
+        float x = button.localToScene(0, 0).x() + button.width() / 2;
+        float y = button.localToScene(0, 0).y() + button.height() / 2;
         drive(scene).mouseMoved(x, y);
         drive(scene).mouseButton(limn.input.Keys.MOUSE_LEFT, true, 0, x, y);
         drive(scene).mouseButton(limn.input.Keys.MOUSE_LEFT, false, 0, x, y);
@@ -241,8 +241,8 @@ class ThemeEditorTest extends EditorTestBase {
 
     /** Presses at the slider's own left edge, which is what "drag it to zero" is. */
     private void dragSliderToStart(limn.components.Slider slider) {
-        float x = slider.localToSceneX() + 1;
-        float y = slider.localToSceneY() + slider.height() / 2;
+        float x = slider.localToScene(0, 0).x() + 1;
+        float y = slider.localToScene(0, 0).y() + slider.height() / 2;
         drive(scene).mouseButton(limn.input.Keys.MOUSE_LEFT, true, 0, x, y);
         drive(scene).mouseButton(limn.input.Keys.MOUSE_LEFT, false, 0, x, y);
         drive(scene).inputBatchEnded();
@@ -481,13 +481,13 @@ class ThemeEditorTest extends EditorTestBase {
     void theVeilRowCanBeBroughtOnScreen() {
         scene.layoutPass(900, 320);
         ColorPickerButton well = editor.wellFor(Theme.Token.SCRIM);
-        assertTrue(well.localToSceneY() + well.height() > 320,
+        assertTrue(well.localToScene(0, 0).y() + well.height() > 320,
                 "the column has to overflow for this test to be about anything");
 
         well.revealInView();
-        assertTrue(well.localToSceneY() >= 0
-                        && well.localToSceneY() + well.height() <= 320,
-                "the veil's row cannot be scrolled to: " + well.localToSceneY());
+        assertTrue(well.localToScene(0, 0).y() >= 0
+                        && well.localToScene(0, 0).y() + well.height() <= 320,
+                "the veil's row cannot be scrolled to: " + well.localToScene(0, 0).y());
     }
 
     /** Every string the tree is holding, findings included. */

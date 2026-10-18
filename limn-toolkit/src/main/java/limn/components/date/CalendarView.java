@@ -22,6 +22,7 @@ import limn.i18n.LanguageWitness;
 import limn.i18n.internal.LocaleServices;
 import limn.input.Keys;
 import limn.internal.lang.Checks;
+import limn.math.Vec2;
 import limn.scene.Change;
 import limn.scene.Constraints;
 import limn.scene.LayoutDirection;
@@ -2171,8 +2172,9 @@ public final class CalendarView extends Widget<CalendarView> {
     @Override
     protected void onMouseEvent(MouseEvent event) {
         boolean rtl = isRightToLeft();
-        float lx = sceneToLocalX(event.x());
-        float ly = sceneToLocalY(event.y());
+        Vec2 local = sceneToLocal(event.x(), event.y());
+        float lx = local.x();
+        float ly = local.y();
         switch (event.type()) {
             case MOVE, ENTER -> {
                 int paging = pagingAt(lx, ly, rtl);

@@ -30,7 +30,7 @@ class DragWithinWindowTest {
     }
 
     private static DragStartEvent at(limn.scene.Widget<?> widget) {
-        return new DragStartEvent(widget.localToSceneX() + 8, widget.localToSceneY() + 8, 0, false);
+        return new DragStartEvent(widget.localToScene(0, 0).x() + 8, widget.localToScene(0, 0).y() + 8, 0, false);
     }
 
     @Test

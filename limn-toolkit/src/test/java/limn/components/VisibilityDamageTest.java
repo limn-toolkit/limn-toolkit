@@ -88,7 +88,7 @@ class VisibilityDamageTest extends ComponentTestBase {
     }
 
     private static Rect sceneBox(Widget<?> w) {
-        return new Rect(w.localToSceneX(), w.localToSceneY(), w.width(), w.height());
+        return new Rect(w.localToScene(0, 0).x(), w.localToScene(0, 0).y(), w.width(), w.height());
     }
 
     private boolean repainted(Rect box) {

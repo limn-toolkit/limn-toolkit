@@ -381,8 +381,8 @@ class ColorPickerSaturationValueFieldAccessibilityTest extends AccessibleCompone
 
         Widget<?> widget = picker.saturationValueField();
         for (AccessibleNode node : List.of(plane(), saturationAxis(), valueAxis())) {
-            assertEquals(widget.localToSceneX(), node.x(), describe(tree()));
-            assertEquals(widget.localToSceneY(), node.y(), describe(tree()));
+            assertEquals(widget.localToScene(0, 0).x(), node.x(), describe(tree()));
+            assertEquals(widget.localToScene(0, 0).y(), node.y(), describe(tree()));
             assertEquals(widget.width(), node.width(),
                     "both axes are operated over the whole plane, so a strip or a band for one of "
                             + "them would be a box no gesture respects" + describe(tree()));
@@ -417,7 +417,7 @@ class ColorPickerSaturationValueFieldAccessibilityTest extends AccessibleCompone
         AccessibleNode mirrored = plane();
         assertEquals(leftToRight.id(), mirrored.id(), "a direction is not a rebuild");
         for (AccessibleNode node : List.of(mirrored, saturationAxis(), valueAxis())) {
-            assertEquals(widget.localToSceneX(), node.x(),
+            assertEquals(widget.localToScene(0, 0).x(), node.x(),
                     "the plane changes sides with the row that places it, and the published x is "
                             + "where that fact lives" + describe(tree()));
             assertEquals(widget.width(), node.width(), describe(tree()));

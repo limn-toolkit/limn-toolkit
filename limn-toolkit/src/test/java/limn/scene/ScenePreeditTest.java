@@ -39,7 +39,7 @@ class ScenePreeditTest extends SceneTestBase {
 
         @Override
         protected Rect caretRect() {
-            return new Rect(localToSceneX() + 5, localToSceneY() + 2, 1, 16);
+            return localToSceneBounds(5, 2, 1, 16);
         }
 
         @Override

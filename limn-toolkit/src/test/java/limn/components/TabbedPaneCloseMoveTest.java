@@ -84,11 +84,11 @@ class TabbedPaneCloseMoveTest extends AccessibleComponentTestBase {
         SizeTokens t = SizeTokens.MEDIUM;
         float edge = t.tabPadH() / 2;
         float left = h.isRightToLeft() ? edge : h.width() - edge - t.tabIconSize();
-        return h.localToSceneX() + left + t.tabIconSize() / 2;
+        return h.localToScene(0, 0).x() + left + t.tabIconSize() / 2;
     }
 
     private float middleY() {
-        return header(0).localToSceneY() + header(0).height() / 2;
+        return header(0).localToScene(0, 0).y() + header(0).height() / 2;
     }
 
     @Test
@@ -105,7 +105,7 @@ class TabbedPaneCloseMoveTest extends AccessibleComponentTestBase {
     void rightToLeftTheCloseButtonIsAtTheTabsLeftEndAndCloses() {
         bindPane(true, LayoutDirection.RTL);
         Widget<?> first = header(0);
-        assertTrue(closeX(0) < first.localToSceneX() + first.width() / 2, "at the end reading goes to");
+        assertTrue(closeX(0) < first.localToScene(0, 0).x() + first.width() / 2, "at the end reading goes to");
         click(Keys.MOUSE_LEFT, closeX(0), middleY());
         assertEquals(List.of("Beta", "Gamma"), titles());
     }
@@ -129,9 +129,9 @@ class TabbedPaneCloseMoveTest extends AccessibleComponentTestBase {
     void aMiddleClickClosesAClosableTabAndNotAnother() {
         bindPane(false, LayoutDirection.LTR);
         pane.setTabClosable(1, true);
-        click(Keys.MOUSE_MIDDLE, header(0).localToSceneX() + 5, middleY());
+        click(Keys.MOUSE_MIDDLE, header(0).localToScene(0, 0).x() + 5, middleY());
         assertEquals(3, pane.tabCount(), "not closable");
-        click(Keys.MOUSE_MIDDLE, header(1).localToSceneX() + 5, middleY());
+        click(Keys.MOUSE_MIDDLE, header(1).localToScene(0, 0).x() + 5, middleY());
         assertEquals(List.of("Alpha", "Gamma"), titles());
         assertEquals(0, pane.selectedIndex(), "a tab that was not selected leaves the selection");
     }
@@ -250,8 +250,8 @@ class TabbedPaneCloseMoveTest extends AccessibleComponentTestBase {
     void aTabDraggedPastItsNeighbourTakesItsPlaceAndIsToldOnceWhenLetGo() {
         bindPane(false, LayoutDirection.LTR);
         float y = middleY();
-        float start = header(0).localToSceneX() + 5;
-        float past = header(1).localToSceneX() + header(1).width() - 2;
+        float start = header(0).localToScene(0, 0).x() + 5;
+        float past = header(1).localToScene(0, 0).x() + header(1).width() - 2;
         drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, start, y, 1);
         drive(scene).inputBatchEnded();
         drive(scene).mouseMoved(start + 10, y);
@@ -266,7 +266,7 @@ class TabbedPaneCloseMoveTest extends AccessibleComponentTestBase {
         assertEquals(List.of("0>1"), moves);
         assertEquals(1, pane.selectedIndex(), "the dragged tab is the selected one");
         assertEquals(1, changes.stream().filter(c -> c.aspect() == Change.Aspect.CHILDREN).count());
-        assertEquals(header(0).width(), header(1).localToSceneX() - header(0).localToSceneX(), 0.01f,
+        assertEquals(header(0).width(), header(1).localToScene(0, 0).x() - header(0).localToScene(0, 0).x(), 0.01f,
                 "home in its place");
     }
 
@@ -274,22 +274,22 @@ class TabbedPaneCloseMoveTest extends AccessibleComponentTestBase {
     void aDraggedTabStaysUnderThePointerStepByStep() {
         bindPane(false, LayoutDirection.LTR);
         float y = middleY();
-        float start = header(0).localToSceneX() + 10;
-        float grab = start - header(0).localToSceneX();
+        float start = header(0).localToScene(0, 0).x() + 10;
+        float grab = start - header(0).localToScene(0, 0).x();
         Widget<?> dragged = header(0);
         drive(scene).mouseMoved(start, y);
         drive(scene).inputBatchEnded();
         drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, start, y, 1);
         drive(scene).inputBatchEnded();
-        float end = header(2).localToSceneX() + header(2).width() - 20;
-        float runEnd = header(2).localToSceneX() + header(2).width();
+        float end = header(2).localToScene(0, 0).x() + header(2).width() - 20;
+        float runEnd = header(2).localToScene(0, 0).x() + header(2).width();
         for (float x = start + 3; x <= end; x += 3) {
             drive(scene).mouseMoved(x, y);
             drive(scene).inputBatchEnded();
             advanceTime(16, null);
             if (x - start >= 4) { // a press becomes a drag past four points
                 // Under the pointer, and held inside the bar: it stops at the last tab's end.
-                assertEquals(Math.min(x - grab, runEnd - dragged.width()), dragged.localToSceneX(), 0.5f,
+                assertEquals(Math.min(x - grab, runEnd - dragged.width()), dragged.localToScene(0, 0).x(), 0.5f,
                         "under the pointer at " + x);
             }
         }
@@ -312,8 +312,8 @@ class TabbedPaneCloseMoveTest extends AccessibleComponentTestBase {
         frame();
         Widget<?> wide = header(0);
         float y = middleY();
-        float start = wide.localToSceneX() + 10;
-        float end = header(2).localToSceneX() + header(2).width() + 60;
+        float start = wide.localToScene(0, 0).x() + 10;
+        float end = header(2).localToScene(0, 0).x() + header(2).width() + 60;
         drive(scene).mouseMoved(start, y);
         drive(scene).inputBatchEnded();
         drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, start, y, 1);
@@ -350,8 +350,8 @@ class TabbedPaneCloseMoveTest extends AccessibleComponentTestBase {
     void theTabBeingDraggedClosedBeforeItIsLetGoLeavesThePaneWhole() {
         bindPane(true, LayoutDirection.LTR);
         float y = middleY();
-        float start = header(0).localToSceneX() + 5;
-        float end = header(2).localToSceneX() + header(2).width() - 5;
+        float start = header(0).localToScene(0, 0).x() + 5;
+        float end = header(2).localToScene(0, 0).x() + header(2).width() - 5;
         drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, start, y, 1);
         drive(scene).inputBatchEnded();
         drive(scene).mouseMoved(start + 10, y);
@@ -379,8 +379,8 @@ class TabbedPaneCloseMoveTest extends AccessibleComponentTestBase {
     void aTabClosedWhileAnotherIsDraggedLeavesTheMoveToldInTheOrderLeft() {
         bindPane(true, LayoutDirection.LTR);
         float y = middleY();
-        float start = header(2).localToSceneX() + header(2).width() - 5;
-        float past = header(1).localToSceneX() + 2;
+        float start = header(2).localToScene(0, 0).x() + header(2).width() - 5;
+        float past = header(1).localToScene(0, 0).x() + 2;
         drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, start, y, 1);
         drive(scene).inputBatchEnded();
         drive(scene).mouseMoved(start - 10, y);
@@ -403,9 +403,9 @@ class TabbedPaneCloseMoveTest extends AccessibleComponentTestBase {
     void rightToLeftATabDraggedLeftwardMovesOnwardInTheOrder() {
         bindPane(false, LayoutDirection.RTL);
         float y = middleY();
-        assertTrue(header(1).localToSceneX() < header(0).localToSceneX(), "the second tab is on the left");
-        float start = header(0).localToSceneX() + header(0).width() - 5;
-        float past = header(1).localToSceneX() + 2;
+        assertTrue(header(1).localToScene(0, 0).x() < header(0).localToScene(0, 0).x(), "the second tab is on the left");
+        float start = header(0).localToScene(0, 0).x() + header(0).width() - 5;
+        float past = header(1).localToScene(0, 0).x() + 2;
         drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, start, y, 1);
         drive(scene).inputBatchEnded();
         drive(scene).mouseMoved(start - 10, y);

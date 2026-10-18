@@ -116,7 +116,7 @@ class ContainerOverflowTest extends ComponentTestBase {
     }
 
     private static Rect sceneBox(Widget<?> w) {
-        return new Rect(w.localToSceneX(), w.localToSceneY(), w.width(), w.height());
+        return new Rect(w.localToScene(0, 0).x(), w.localToScene(0, 0).y(), w.width(), w.height());
     }
 
     private static boolean meets(Rect a, Rect b) {
@@ -190,7 +190,7 @@ class ContainerOverflowTest extends ComponentTestBase {
         Padding root = new Padding(Insets.all(INSET), line);
         root.setLayoutDirection(LayoutDirection.RTL);
         mount(root);
-        assertTrue(neighbour.localToSceneX() < row.localToSceneX(),
+        assertTrue(neighbour.localToScene(0, 0).x() < row.localToScene(0, 0).x(),
                 "reading right to left the neighbour is on the row's left");
 
         assertTheRingSurvivesARepaintBeside(row, button, neighbour::invalidate);

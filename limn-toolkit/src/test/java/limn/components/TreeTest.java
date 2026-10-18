@@ -534,8 +534,8 @@ class TreeTest extends ComponentTestBase {
     /** A press and release at the middle of {@code name}'s cell, with {@code modifiers} held. */
     private void click(Tree<Node> tree, String name, int modifiers) {
         Widget<?> cell = cellOf(tree, name);
-        float x = cell.localToSceneX() + cell.width() / 2;
-        float y = cell.localToSceneY() + cell.height() / 2;
+        float x = cell.localToScene(0, 0).x() + cell.width() / 2;
+        float y = cell.localToScene(0, 0).y() + cell.height() / 2;
         drive(scene).mouseButton(Keys.MOUSE_LEFT, true, modifiers, x, y);
         drive(scene).mouseButton(Keys.MOUSE_LEFT, false, modifiers, x, y);
         drive(scene).inputBatchEnded();
@@ -795,8 +795,8 @@ class TreeTest extends ComponentTestBase {
         Widget<?> cell = cellOf(tree, name);
         // The band sits immediately before the cell; half a band back from the cell's edge is
         // inside it at every depth, and the other test of this widget aims the same way.
-        float x = cell.localToSceneX() - 8;
-        float y = cell.localToSceneY() + cell.height() / 2;
+        float x = cell.localToScene(0, 0).x() - 8;
+        float y = cell.localToScene(0, 0).y() + cell.height() / 2;
         drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
         drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
         drive(scene).inputBatchEnded();
@@ -1509,8 +1509,8 @@ class TreeTest extends ComponentTestBase {
             }
         }
         assertTrue(line != null, "the loading line is mounted: " + drawn(tree));
-        float x = line.localToSceneX() + line.width() / 2;
-        float y = line.localToSceneY() + line.height() / 2;
+        float x = line.localToScene(0, 0).x() + line.width() / 2;
+        float y = line.localToScene(0, 0).y() + line.height() / 2;
         drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
         drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
         drive(scene).inputBatchEnded();
@@ -1703,9 +1703,9 @@ class TreeTest extends ComponentTestBase {
         float midX = tree.width() / 2;
         float midY = tree.height() / 2;
         drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0,
-                tree.localToSceneX() + midX, tree.localToSceneY() + midY);
+                tree.localToScene(0, 0).x() + midX, tree.localToScene(0, 0).y() + midY);
         drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0,
-                tree.localToSceneX() + midX, tree.localToSceneY() + midY);
+                tree.localToScene(0, 0).x() + midX, tree.localToScene(0, 0).y() + midY);
         drive(scene).inputBatchEnded();
         scene.layoutPass(220, 200);
 
@@ -1765,14 +1765,14 @@ class TreeTest extends ComponentTestBase {
         assertEquals(2, tree.visibleRowCount());
         assertEquals(2, badges.size(), "one cell per realized row, built by the model");
 
-        float rowRight = badges.get(0).localToSceneX() + badges.get(0).width();
-        float childRight = badges.get(1).localToSceneX() + badges.get(1).width();
+        float rowRight = badges.get(0).localToScene(0, 0).x() + badges.get(0).width();
+        float childRight = badges.get(1).localToScene(0, 0).x() + badges.get(1).width();
         assertEquals(rowRight, childRight, 0.5f,
                 "both badges sit against the same trailing edge: the cell is stretched to the "
                         + "width the indent leaves, whatever the row's depth");
 
-        float parentLeft = badges.get(0).parent().localToSceneX();
-        float childLeft = badges.get(1).parent().localToSceneX();
+        float parentLeft = badges.get(0).parent().localToScene(0, 0).x();
+        float childLeft = badges.get(1).parent().localToScene(0, 0).x();
         assertTrue(childLeft > parentLeft,
                 "and a child's cell starts further in than its parent's: " + childLeft
                         + " against " + parentLeft);
@@ -1849,7 +1849,7 @@ class TreeTest extends ComponentTestBase {
         small.setTextRuler(RULER);
         small.layoutPass(220, 200);
         small.renderFrame(new RecordingTestCanvas(220, 200));
-        drive(small).scrolled(0, -3, shortTree.localToSceneX() + 10, shortTree.localToSceneY() + 10);
+        drive(small).scrolled(0, -3, shortTree.localToScene(0, 0).x() + 10, shortTree.localToScene(0, 0).y() + 10);
         drive(small).inputBatchEnded();
         assertEquals(1, shortTree.visibleRowCount(), "nothing moved, and nothing was consumed");
     }
@@ -2163,8 +2163,8 @@ class TreeTest extends ComponentTestBase {
         float before = top.x();
         assertTrue(before < 0, "the root's start is out of view: " + before);
 
-        float x = tree.localToSceneX() + 200;
-        float y = top.localToSceneY() + top.height() / 2;
+        float x = tree.localToScene(0, 0).x() + 200;
+        float y = top.localToScene(0, 0).y() + top.height() / 2;
         drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
         drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
         drive(scene).inputBatchEnded();
@@ -2315,8 +2315,8 @@ class TreeTest extends ComponentTestBase {
         float xBefore = deepest.x();
         float yBefore = deepest.y();
 
-        float x = tree.localToSceneX() + 20;
-        float y = tree.localToSceneY() + 20;
+        float x = tree.localToScene(0, 0).x() + 20;
+        float y = tree.localToScene(0, 0).y() + 20;
         drive(scene).mouseMoved(x, y);
         drive(scene).scrolled(-1, -1, x, y);
         drive(scene).inputBatchEnded();
@@ -2357,8 +2357,8 @@ class TreeTest extends ComponentTestBase {
         float xBefore = deepest.x();
         float yBefore = deepest.y();
 
-        float x = tree.localToSceneX() + 20;
-        float y = tree.localToSceneY() + 20;
+        float x = tree.localToScene(0, 0).x() + 20;
+        float y = tree.localToScene(0, 0).y() + 20;
         drive(scene).mouseMoved(x, y);
         drive(scene).keyEvent(Keys.LEFT_SHIFT, true, false, Keys.MOD_SHIFT);
         drive(scene).scrolled(-1, 0, x, y); // the shape macOS gives Shift and a notch
@@ -2383,8 +2383,8 @@ class TreeTest extends ComponentTestBase {
         Map<String, Widget<?>> cells = new java.util.HashMap<>();
         Tree<Node> tree = chainInAPane(cells);
         ScrollView pane = (ScrollView) scene.root();
-        float x = tree.localToSceneX() + 20;
-        float y = tree.localToSceneY() + 20;
+        float x = tree.localToScene(0, 0).x() + 20;
+        float y = tree.localToScene(0, 0).y() + 20;
         drive(scene).mouseMoved(x, y);
 
         // Up at the top: the tree has nowhere to go, so the pane takes the detent — and it too is
@@ -2510,8 +2510,8 @@ class TreeTest extends ComponentTestBase {
         scene.layoutPass(220, 200);
         assertEquals("row 0", tree.cursorNode().name(), what);
 
-        float x = tree.localToSceneX() + 20;
-        float y = tree.localToSceneY() + 20;
+        float x = tree.localToScene(0, 0).x() + 20;
+        float y = tree.localToScene(0, 0).y() + 20;
         drive(scene).mouseMoved(x, y);
         int notches = 0;
         while (pane.offsetY() == 0 && notches < 200) {
@@ -2732,8 +2732,8 @@ class TreeTest extends ComponentTestBase {
         }
         assertTrue(!Float.isNaN(triangleX), "the row's triangle has to be painted at all");
 
-        float x = tree.localToSceneX() + triangleX + 2;
-        float y = tree.localToSceneY() + rowMid;
+        float x = tree.localToScene(0, 0).x() + triangleX + 2;
+        float y = tree.localToScene(0, 0).y() + rowMid;
         drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
         drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
         drive(scene).inputBatchEnded();
@@ -2745,16 +2745,16 @@ class TreeTest extends ComponentTestBase {
     }
 
     private void wheelSideways(Tree<Node> tree, float notches) {
-        float x = tree.localToSceneX() + tree.width() / 2;
-        float y = tree.localToSceneY() + tree.height() / 2;
+        float x = tree.localToScene(0, 0).x() + tree.width() / 2;
+        float y = tree.localToScene(0, 0).y() + tree.height() / 2;
         drive(scene).mouseMoved(x, y);
         drive(scene).scrolled(notches, 0, x, y);
         drive(scene).inputBatchEnded();
     }
 
     private void wheel(Tree<Node> tree, float notches) {
-        float x = tree.localToSceneX() + tree.width() / 2;
-        float y = tree.localToSceneY() + tree.height() / 2;
+        float x = tree.localToScene(0, 0).x() + tree.width() / 2;
+        float y = tree.localToScene(0, 0).y() + tree.height() / 2;
         drive(scene).mouseMoved(x, y);
         drive(scene).scrolled(0, notches, x, y);
         drive(scene).inputBatchEnded();

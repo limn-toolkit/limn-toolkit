@@ -191,8 +191,8 @@ class ChartOutOfScaleTest extends ComponentTestBase {
     }
 
     private static void assertInside(Chart<?> chart, List<float[]> boxes, String what) {
-        float x = chart.localToSceneX();
-        float y = chart.localToSceneY();
+        float x = chart.localToScene(0, 0).x();
+        float y = chart.localToScene(0, 0).y();
         for (float[] box : boxes) {
             assertTrue(box[0] >= x - 0.01f && box[1] >= y - 0.01f
                             && box[2] <= x + chart.width() + 0.01f && box[3] <= y + chart.height() + 0.01f,
@@ -311,7 +311,7 @@ class ChartOutOfScaleTest extends ComponentTestBase {
             assertTrue(canvas.texts.stream().anyMatch(text -> text.endsWith("\u2026")),
                     "a label too long for the gutter is cut, not dropped, " + which + ": "
                             + canvas.texts);
-            float left = chart.localToSceneX();
+            float left = chart.localToScene(0, 0).x();
             float right = left + chart.width();
             for (float[] span : canvas.labelSpans) {
                 assertTrue(span[0] >= left - 0.01f && span[1] <= right + 0.01f,

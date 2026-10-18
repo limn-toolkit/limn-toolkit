@@ -97,8 +97,8 @@ class PaddingAccessibilityTest extends AccessibleTestBase {
         frame();
 
         AccessibleNode child = node("ok");
-        assertEquals(padding.localToSceneX() + 10, child.x(), "the left inset, left to right");
-        assertEquals(padding.localToSceneY() + 4, child.y());
+        assertEquals(padding.localToScene(0, 0).x() + 10, child.x(), "the left inset, left to right");
+        assertEquals(padding.localToScene(0, 0).y() + 4, child.y());
         assertEquals(padding.width() - 40, child.width());
         assertEquals(padding.height() - 12, child.height());
 
@@ -106,9 +106,9 @@ class PaddingAccessibilityTest extends AccessibleTestBase {
         frame();
 
         AccessibleNode mirrored = node("ok");
-        assertEquals(padding.localToSceneX() + 30, mirrored.x(),
+        assertEquals(padding.localToScene(0, 0).x() + 30, mirrored.x(),
                 "mirrored, the content starts from the right inset");
-        assertEquals(padding.localToSceneY() + 4, mirrored.y(), "and the vertical insets do not");
+        assertEquals(padding.localToScene(0, 0).y() + 4, mirrored.y(), "and the vertical insets do not");
         assertEquals(padding.width() - 40, mirrored.width());
         assertEquals(padding.height() - 12, mirrored.height());
     }
@@ -133,8 +133,8 @@ class PaddingAccessibilityTest extends AccessibleTestBase {
                 "a negative rectangle is unrecoverable at the bridge: " + child.bounds());
         assertEquals(0, child.width());
         assertEquals(0, child.height());
-        assertEquals(padding.localToSceneX() + 150, child.x());
-        assertEquals(padding.localToSceneY() + 150, child.y());
+        assertEquals(padding.localToScene(0, 0).x() + 150, child.x());
+        assertEquals(padding.localToScene(0, 0).y() + 150, child.y());
     }
 
     /**
@@ -235,8 +235,8 @@ class PaddingAccessibilityTest extends AccessibleTestBase {
 
         AccessibleNode named = node("Sidebar");
         assertEquals(Accessible.Role.GROUP, named.role());
-        assertEquals(padding.localToSceneX(), named.x(), "the outer, padded box, not the content's");
-        assertEquals(padding.localToSceneY(), named.y());
+        assertEquals(padding.localToScene(0, 0).x(), named.x(), "the outer, padded box, not the content's");
+        assertEquals(padding.localToScene(0, 0).y(), named.y());
         assertEquals(padding.width(), named.width());
         assertEquals(padding.height(), named.height());
         AccessibleNode inside = node("ok");

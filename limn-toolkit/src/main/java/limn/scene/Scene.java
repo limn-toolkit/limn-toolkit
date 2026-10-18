@@ -13,6 +13,7 @@ import limn.graphics.Rect;
 import limn.input.Keys;
 import limn.internal.lang.Checks;
 import limn.math.Scalars;
+import limn.math.Vec2;
 import limn.scene.event.CharEvent;
 import limn.scene.event.PreeditEvent;
 import limn.scene.event.DragEvent;
@@ -3888,8 +3889,8 @@ public final class Scene {
         }
         if (!event.isConsumed() && key.pressed && !key.repeat && key.key == dragKeyCode
                 && (key.mods & DRAG_KEY_MASK) == dragKeyModifiers && focused != null) {
-            if (startDrag(focused, new DragStartEvent(focused.localToSceneX() + focused.width() / 2,
-                    focused.localToSceneY() + focused.height() / 2, key.mods, true))) {
+            Vec2 middle = focused.localToScene(focused.width() / 2, focused.height() / 2);
+            if (startDrag(focused, new DragStartEvent(middle.x(), middle.y(), key.mods, true))) {
                 event.consume();
             }
         }
@@ -4711,8 +4712,9 @@ public final class Scene {
         }
         float wasX = session.x;
         float wasY = session.y;
-        session.x = widget.localToSceneX() + widget.width() / 2;
-        session.y = widget.localToSceneY() + widget.height() / 2;
+        Vec2 middle = widget.localToScene(widget.width() / 2, widget.height() / 2);
+        session.x = middle.x();
+        session.y = middle.y();
         DragEvent event = dragEvent(session, stepX, stepY);
         widget.dispatchDragOver(event);
         if (!event.isAccepted()) {
@@ -4864,8 +4866,9 @@ public final class Scene {
             startSystemDrag(session, host, null, session.x, session.y, 0, 0);
             return;
         }
-        float partX = session.source.localToSceneX() + session.partX;
-        float partY = session.source.localToSceneY() + session.partY;
+        Vec2 part = session.source.localToScene(session.partX, session.partY);
+        float partX = part.x();
+        float partY = part.y();
         float sceneWidth = width;
         host.captureNextFrame(frame -> {
             if (dragSession != session) {
@@ -5061,12 +5064,11 @@ public final class Scene {
                 return true;
             }
             waited = 0;
-            float left = target.localToSceneX();
-            float top = target.localToSceneY();
-            float dx = session.x < left + AUTO_SCROLL_EDGE ? 1
-                    : session.x > left + target.width() - AUTO_SCROLL_EDGE ? -1 : 0;
-            float dy = session.y < top + AUTO_SCROLL_EDGE ? 1
-                    : session.y > top + target.height() - AUTO_SCROLL_EDGE ? -1 : 0;
+            limn.graphics.Rect box = target.localToSceneBounds(0, 0, target.width(), target.height());
+            float dx = session.x < box.x() + AUTO_SCROLL_EDGE ? 1
+                    : session.x > box.right() - AUTO_SCROLL_EDGE ? -1 : 0;
+            float dy = session.y < box.y() + AUTO_SCROLL_EDGE ? 1
+                    : session.y > box.bottom() - AUTO_SCROLL_EDGE ? -1 : 0;
             if (dx != 0 || dy != 0) {
                 dispatchBubbling(target, new MouseEvent(MouseEvent.Type.WHEEL, session.x, session.y, -1,
                         dx, dy, 0));
@@ -5091,8 +5093,9 @@ public final class Scene {
             return;
         }
         Widget<?> source = session.source;
-        float pressLocalX = session.x - source.localToSceneX();
-        float pressLocalY = session.y - source.localToSceneY();
+        Vec2 pressLocal = source.sceneToLocal(session.x, session.y);
+        float pressLocalX = pressLocal.x();
+        float pressLocalY = pressLocal.y();
         if (drag.previewPainter() != null) {
             // The source paints the item alone: its size, and where the pointer holds it.
             session.partW = drag.previewWidth();
@@ -5581,6 +5584,8 @@ public final class Scene {
     private float cullY0;
     private float cullX1;
     private float cullY1;
+    /** The box of the widget a pass is asking about, in the scene: one, since the paint runs on the UI thread. */
+    private final float[] cullScratch = new float[4];
 
     private void beginPaintCull(float x, float y, float width, float height) {
         cullActive = true;
@@ -5602,10 +5607,11 @@ public final class Scene {
         // +1: analytic AA feathers up to a pixel past the box (invalidate()
         // inflates damage by the same margin).
         float outset = 1 + widget.paintOutset();
-        float x = widget.localToSceneX();
-        float y = widget.localToSceneY();
-        return x + widget.width() + outset <= cullX0 || x - outset >= cullX1
-                || y + widget.height() + outset <= cullY0 || y - outset >= cullY1;
+        float[] box = cullScratch;
+        widget.localToSceneBounds(-outset, -outset, widget.width() + outset, widget.height() + outset, box);
+        // A box whose every corner lies behind the eye answers NaN, and NaN is not culled: what
+        // cannot be placed is painted rather than lost.
+        return box[2] <= cullX0 || box[0] >= cullX1 || box[3] <= cullY0 || box[1] >= cullY1;
     }
 
     private static final Color DAMAGE_DEBUG_FILL = Color.rgba(0xFF2BD6, 0.10f);

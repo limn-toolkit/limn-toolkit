@@ -155,8 +155,8 @@ class NotificationContractTest extends ComponentTestBase {
                             // On the header, at the top: the section is stretched to the scene
                             // and its middle is where the content opens.
                             (scene, w) -> {
-                                float x = w.localToSceneX() + 20;
-                                float y = w.localToSceneY() + 8;
+                                float x = w.localToScene(0, 0).x() + 20;
+                                float y = w.localToScene(0, 0).y() + 8;
                                 drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
                                 drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
                                 drive(scene).inputBatchEnded();
@@ -491,8 +491,8 @@ class NotificationContractTest extends ComponentTestBase {
     }
 
     private static void click(Scene scene, Widget<?> w) {
-        float x = w.localToSceneX() + w.width() / 2;
-        float y = w.localToSceneY() + w.height() / 2;
+        float x = w.localToScene(0, 0).x() + w.width() / 2;
+        float y = w.localToScene(0, 0).y() + w.height() / 2;
         drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
         drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
         drive(scene).inputBatchEnded();

@@ -14,6 +14,7 @@ import limn.components.Theme;
 import limn.concurrent.Subscription;
 import limn.concurrent.Ui;
 import limn.graphics.Color;
+import limn.graphics.Rect;
 import limn.scene.Change;
 import limn.scene.Constraints;
 import limn.scene.Scene;
@@ -320,25 +321,25 @@ public final class AnchoredPopup {
         SizeTokens t = Theme.of(anchor).tokensFor(anchor);
         float gap = t.popupGap();
         float factor = parent.logicalToScreenFactor();
-        float top = anchor.localToSceneY();
-        int anchorTop = parent.screenY() + Math.round(top * factor);
-        int anchorBottom = parent.screenY() + Math.round((top + anchor.height() + gap) * factor);
+        Rect box = anchor.localToSceneBounds(0, 0, anchor.width(), anchor.height());
+        int anchorTop = parent.screenY() + Math.round(box.y() * factor);
+        int anchorBottom = parent.screenY() + Math.round((box.bottom() + gap) * factor);
         ScreenRect area = parent.display() != null ? parent.display().workArea() : null;
         float spaceBelow = area != null
                 ? (area.bottom() - anchorBottom) / factor - EDGE_MARGIN : Float.MAX_VALUE;
         float spaceAbove = area != null
                 ? (anchorTop - area.y()) / factor - gap - EDGE_MARGIN : Float.MAX_VALUE;
         Placement p = host.place(t, spaceAbove, spaceBelow);
-        float y = p.above() ? top - gap - p.height() : top + anchor.height() + gap;
+        float y = p.above() ? box.y() - gap - p.height() : box.bottom() + gap;
         float x = alignedX(anchor, p.width());
         return new float[] {x, y, p.width(), p.height()};
     }
 
     /** The left edge that lines a box of {@code width} up with the anchor's leading edge, or its trailing one. */
     private float alignedX(Widget<?> anchor, float width) {
-        float left = anchor.localToSceneX();
+        Rect box = anchor.localToSceneBounds(0, 0, anchor.width(), anchor.height());
         boolean fromRight = anchor.isRightToLeft() != host.alignsTrailing();
-        return fromRight ? left + anchor.width() - width : left;
+        return fromRight ? box.right() - width : box.x();
     }
 
     /**
@@ -543,8 +544,9 @@ public final class AnchoredPopup {
             float gap = t.popupGap();
             // Read after the root was laid out: the scene lays overlays out last, so the anchor's
             // place here is this frame's.
-            float top = anchor.localToSceneY();
-            float bottom = top + anchor.height() + gap;
+            Rect box = anchor.localToSceneBounds(0, 0, anchor.width(), anchor.height());
+            float top = box.y();
+            float bottom = box.bottom() + gap;
             Placement p = host.place(t, top - gap - EDGE_MARGIN, height() - bottom - EDGE_MARGIN);
             float w = Math.min(p.width(), width());
             float h = Math.min(p.height(), height());

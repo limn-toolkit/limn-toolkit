@@ -352,8 +352,8 @@ class TokenRowAccessibilityTest extends AccessibleComponentTestBase {
 
         AccessibleNode named = node("Actions");
         assertEquals(Accessible.Role.GROUP, named.role());
-        assertEquals(row.localToSceneX(), named.x(), "the row's own box");
-        assertEquals(row.localToSceneY(), named.y());
+        assertEquals(row.localToScene(0, 0).x(), named.x(), "the row's own box");
+        assertEquals(row.localToScene(0, 0).y(), named.y());
         assertEquals(row.width(), named.width());
         assertEquals(row.height(), named.height());
         assertEquals(tree().indexOf(named.id()), node("first").parent(), describe(tree()));

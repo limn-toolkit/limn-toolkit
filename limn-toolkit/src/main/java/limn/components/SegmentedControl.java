@@ -897,7 +897,7 @@ public final class SegmentedControl extends Widget<SegmentedControl> {
         // functions that turn an x into a strip coordinate or a gutter, and applying it here as
         // well would flip every branch below a second time.
         boolean rtl = isRightToLeft();
-        float lx = sceneToLocalX(event.x());
+        float lx = sceneToLocal(event.x(), event.y()).x();
         switch (event.type()) {
             case MOVE, ENTER -> {
                 int chevron = chevronAt(lx, rtl);

@@ -347,8 +347,8 @@ class DatePickerTest extends ComponentTestBase {
         picker.open();
         scene.renderFrame(new limn.testing.NoopCanvas(600, 600));
         DateField row = timeRowOf(picker);
-        float x = row.localToSceneX() + 4; // the hour segment, at the row's start
-        float y = row.localToSceneY() + row.height() / 2;
+        float x = row.localToScene(0, 0).x() + 4; // the hour segment, at the row's start
+        float y = row.localToScene(0, 0).y() + row.height() / 2;
         drive(scene).mouseMoved(x, y);
         drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
         drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
@@ -373,13 +373,13 @@ class DatePickerTest extends ComponentTestBase {
         picker.open();
         scene.renderFrame(new limn.testing.NoopCanvas(600, 600));
         DateField row = timeRowOf(picker);
-        clickAt(row.localToSceneX() + 4, row.localToSceneY() + row.height() / 2);
+        clickAt(row.localToScene(0, 0).x() + 4, row.localToScene(0, 0).y() + row.height() / 2);
 
         CalendarView calendar = picker.calendar();
         SizeTokens t = Theme.of(calendar).tokensFor(calendar);
         LocalDate shown = calendar.visibleMonth();
-        clickAt(calendar.localToSceneX() + calendar.width() - t.spacingSmall() - t.calendarCell() / 2,
-                calendar.localToSceneY() + t.spacingSmall() + 4); // the arrow that pages on
+        clickAt(calendar.localToScene(0, 0).x() + calendar.width() - t.spacingSmall() - t.calendarCell() / 2,
+                calendar.localToScene(0, 0).y() + t.spacingSmall() + 4); // the arrow that pages on
         assertEquals(shown.plusMonths(1), calendar.visibleMonth(), "the arrow paged");
         key(Keys.UP, 0);
         assertEquals(LocalTime.of(18, 30), picker.time(), "and the arrows left the time row");

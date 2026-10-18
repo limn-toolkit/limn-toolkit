@@ -260,7 +260,7 @@ class InSceneFadesAsOnePictureTest {
         owner.setTooltip("A tooltip");
         bind(new Padding(Insets.all(20), owner), true);
         assertOnePictureHalfway("the scene's tooltip", () -> {
-            drive(scene).mouseMoved(owner.localToSceneX() + 5, owner.localToSceneY() + 5);
+            drive(scene).mouseMoved(owner.localToScene(0, 0).x() + 5, owner.localToScene(0, 0).y() + 5);
             drive(scene).inputBatchEnded();
             advance(700); // the dwell before a tooltip shows
         });

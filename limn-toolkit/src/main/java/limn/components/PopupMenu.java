@@ -25,6 +25,7 @@ import limn.i18n.I18nString;
 import limn.input.Keys;
 import limn.internal.lang.Checks;
 import limn.math.Scalars;
+import limn.math.Vec2;
 import limn.scene.Change;
 import limn.scene.Constraints;
 import limn.scene.ControlSize;
@@ -1652,8 +1653,9 @@ public final class PopupMenu {
             if (!fillScene || !inScenePassThrough.test(sceneX, sceneY)) {
                 return false;
             }
-            float lx = sceneToLocalX(sceneX) + offsetX;
-            float ly = sceneToLocalY(sceneY) + offsetY;
+            Vec2 local = sceneToLocal(sceneX, sceneY);
+            float lx = local.x() + offsetX;
+            float ly = local.y() + offsetY;
             return hit(lx, ly) == null;
         }
 
@@ -1667,8 +1669,9 @@ public final class PopupMenu {
                 return;
             }
             rebuildStaleColumns(); // never hit-test against a live-mutated Menu
-            float lx = sceneToLocalX(event.x()) + offsetX;
-            float ly = sceneToLocalY(event.y()) + offsetY;
+            Vec2 local = sceneToLocal(event.x(), event.y());
+            float lx = local.x() + offsetX;
+            float ly = local.y() + offsetY;
             switch (event.type()) {
                 case MOVE, ENTER, DRAG -> {
                     if (pointerMoved(event)) {

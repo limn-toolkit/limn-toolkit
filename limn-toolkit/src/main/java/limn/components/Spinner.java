@@ -20,6 +20,7 @@ import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.input.Keys;
 import limn.internal.lang.Checks;
+import limn.math.Vec2;
 import limn.scene.Constraints;
 import limn.scene.Scene;
 import limn.scene.Size;
@@ -1336,7 +1337,8 @@ public final class Spinner extends Widget<Spinner> {
         SizeTokens t = Theme.of(this).tokensFor(this);
         switch (event.type()) {
             case MOVE, ENTER -> {
-                int region = regionAt(t, sceneToLocalX(event.x()), sceneToLocalY(event.y()));
+                Vec2 local = sceneToLocal(event.x(), event.y());
+                int region = regionAt(t, local.x(), local.y());
                 if (region != hoverButton) {
                     hoverButton = region;
                     invalidate();
@@ -1352,8 +1354,9 @@ public final class Spinner extends Widget<Spinner> {
                 if (event.button() != Keys.MOUSE_LEFT || !isEnabled()) {
                     return;
                 }
-                float lx = sceneToLocalX(event.x());
-                int region = regionAt(t, lx, sceneToLocalY(event.y()));
+                Vec2 local = sceneToLocal(event.x(), event.y());
+                float lx = local.x();
+                int region = regionAt(t, lx, local.y());
                 if (region == 1 || region == 2) {
                     // Reaching for the arrows is leaving the text: commit first, so
                     // the step lands on the number the user typed and not on the one
@@ -1380,7 +1383,7 @@ public final class Spinner extends Widget<Spinner> {
                     // The row resolved at the top of this handler, not a second one of its own:
                     // a drag that measured its origin against a different step than the press did
                     // would slip a character at the moment the pointer started moving.
-                    float lx = sceneToLocalX(event.x());
+                    float lx = sceneToLocal(event.x(), event.y()).x();
                     float textX = lx - editOriginX(t, editLine(t).metrics().width());
                     edit.setCaret(caretAt(textX, t), true);
                     afterEditChange();

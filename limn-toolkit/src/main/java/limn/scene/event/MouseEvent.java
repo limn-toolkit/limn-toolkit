@@ -3,7 +3,7 @@ package limn.scene.event;
 /**
  * A pointer event, positioned in scene coordinates (logical points, origin at
  * the window's top-left). Convert to a widget's space with
- * {@code widget.sceneToLocalX/Y}. {@code ENTER}/{@code EXIT} target the
+ * {@code widget.sceneToLocal(event.x(), event.y())}. {@code ENTER}/{@code EXIT} target the
  * hovered leaf and do not bubble; every other type bubbles from the target to
  * its ancestors until consumed.
  *
@@ -29,8 +29,8 @@ public final class MouseEvent extends InputEvent {
 
     /**
      * A pointer event. {@code x} and {@code y} are in <b>scene</b> coordinates, whichever widget
-     * receives it: a widget turns them into its own with {@code sceneToLocalX} and
-     * {@code sceneToLocalY}.
+     * receives it: a widget turns them into its own with {@code sceneToLocal(x, y)}, which
+     * converts the point as a whole.
      */
     public MouseEvent(Type type, float x, float y, int button,
                       float scrollX, float scrollY, int modifiers) {

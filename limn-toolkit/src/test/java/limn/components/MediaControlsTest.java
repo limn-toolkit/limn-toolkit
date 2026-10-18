@@ -55,7 +55,7 @@ class MediaControlsTest extends ComponentTestBase {
     }
 
     private float sceneX(Widget<?> widget) {
-        return widget.localToSceneX();
+        return widget.localToScene(0, 0).x();
     }
 
     @Test
@@ -208,7 +208,7 @@ class MediaControlsTest extends ComponentTestBase {
         scene.setTextRuler(RULER);
         scene.layoutPass(BAR_W, BAR_H);
         Slider bar = scrubBar(controls);
-        float y = bar.localToSceneY() + bar.height() / 2;
+        float y = bar.localToScene(0, 0).y() + bar.height() / 2;
 
         drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, alongBar(bar, 0.2f), y);
         drive(scene).inputBatchEnded();
@@ -272,7 +272,7 @@ class MediaControlsTest extends ComponentTestBase {
 
     /** @return the scene x {@code fraction} of the way along {@code bar}'s box */
     private static float alongBar(Slider bar, float fraction) {
-        return bar.localToSceneX() + bar.width() * fraction;
+        return bar.localToScene(0, 0).x() + bar.width() * fraction;
     }
 
     /** A do-nothing video source: enough for a player that is never started. */

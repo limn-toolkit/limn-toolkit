@@ -60,7 +60,7 @@ class ShowcaseAlignmentTest {
         assertEquals(2, bars.size(), "the profile and the credit check");
         ProgressBar profile = bars.get(0);
         ProgressBar credit = bars.get(1);
-        assertEquals(profile.localToSceneY(), credit.localToSceneY(), 0.5f,
+        assertEquals(profile.localToScene(0, 0).y(), credit.localToScene(0, 0).y(), 0.5f,
                 "both bars as far under their captions, so on one line");
         assertEquals(profile.width(), credit.width(), 0.5f, "both bars as long as their columns");
     }
@@ -92,7 +92,7 @@ class ShowcaseAlignmentTest {
         List<Slider> sliders = all(scene.root(), Slider.class);
         assertEquals(5, sliders.size(), "pan, three levels and the track's position");
         for (Slider slider : sliders) {
-            assertEquals(sliders.get(0).localToSceneX(), slider.localToSceneX(), 0.5f, "where the sliders start");
+            assertEquals(sliders.get(0).localToScene(0, 0).x(), slider.localToScene(0, 0).x(), 0.5f, "where the sliders start");
             Label caption = (Label) slider.parent().parent().children().get(0).children().get(0);
             float whole = caption.measure(new Constraints(0, Constraints.UNBOUNDED_LIMIT, 0,
                     Constraints.UNBOUNDED_LIMIT)).width();
@@ -141,7 +141,7 @@ class ShowcaseAlignmentTest {
 
     /** The y of {@code widget}'s middle, in the scene. */
     private static float middle(Widget<?> widget) {
-        return widget.localToSceneY() + widget.height() / 2;
+        return widget.localToScene(0, 0).y() + widget.height() / 2;
     }
 
     private static <T> T only(List<T> found, java.util.function.Predicate<T> which) {

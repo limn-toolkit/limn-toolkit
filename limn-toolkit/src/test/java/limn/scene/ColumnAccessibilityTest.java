@@ -175,7 +175,7 @@ class ColumnAccessibilityTest extends AccessibleTestBase {
         bind(column);
         frame();
 
-        assertEquals(column.localToSceneY(), node("a").y(),
+        assertEquals(column.localToScene(0, 0).y(), node("a").y(),
                 "START puts the first child against the column's own leading edge");
         assertEquals(12f, node("b").y() - (node("a").y() + node("a").height()),
                 "the gap is the distance between the boxes: " + describe(tree()));
@@ -346,7 +346,7 @@ class ColumnAccessibilityTest extends AccessibleTestBase {
         assertEquals(50f, column.height(), "the column itself was clamped to the box");
         AccessibleNode last = node("e");
         assertEquals(100f, last.y(), "and the cursor kept walking past the bottom edge");
-        assertTrue(last.y() + last.height() > column.localToSceneY() + column.height(),
+        assertTrue(last.y() + last.height() > column.localToScene(0, 0).y() + column.height(),
                 "the overflowing child's box lies outside the column's own: " + last.bounds());
         assertTrue(last.has(Accessible.State.SHOWING),
                 "a column does not clip, so nothing here is hidden: " + describe(tree()));
@@ -377,8 +377,8 @@ class ColumnAccessibilityTest extends AccessibleTestBase {
 
         AccessibleNode named = node("Sidebar");
         assertEquals(Accessible.Role.GROUP, named.role());
-        assertEquals(column.localToSceneX(), named.x(), "the column's own box");
-        assertEquals(column.localToSceneY(), named.y());
+        assertEquals(column.localToScene(0, 0).x(), named.x(), "the column's own box");
+        assertEquals(column.localToScene(0, 0).y(), named.y());
         assertEquals(column.width(), named.width());
         assertEquals(column.height(), named.height());
         AccessibleNode inside = node("a");

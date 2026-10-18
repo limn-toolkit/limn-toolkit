@@ -65,8 +65,8 @@ class ListExampleTest {
             scene.renderFrame(canvas);
 
             limn.components.Button remove = buttonInRowShowing(list, "Person 80");
-            float x = remove.localToSceneX() + remove.width() / 2;
-            float y = remove.localToSceneY() + remove.height() / 2;
+            float x = remove.localToScene(0, 0).x() + remove.width() / 2;
+            float y = remove.localToScene(0, 0).y() + remove.height() / 2;
             drive(scene).mouseMoved(x, y);
             drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
             drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);

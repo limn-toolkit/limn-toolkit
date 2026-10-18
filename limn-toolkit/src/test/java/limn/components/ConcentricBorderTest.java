@@ -184,8 +184,8 @@ class ConcentricBorderTest extends ComponentTestBase {
         assertFilled(canvas, "before/after swatch", picker.preview(), t.radiusSmall());
         for (Widget<?> rail : List.of(picker.rail(0), picker.alphaRail())) {
             float railH = t.colorRailH();
-            float top = rail.localToSceneY() + (rail.height() - railH) / 2;
-            assertFilled(canvas, "channel rail", rail.localToSceneX(), top, rail.width(), railH,
+            float top = rail.localToScene(0, 0).y() + (rail.height() - railH) / 2;
+            assertFilled(canvas, "channel rail", rail.localToScene(0, 0).x(), top, rail.width(), railH,
                     Math.min(railH / 2, t.radiusSmall()));
         }
     }
@@ -225,7 +225,7 @@ class ConcentricBorderTest extends ComponentTestBase {
 
     /** {@link #assertFilled(BorderCanvas, String, float, float, float, float, float)} over a widget's own box. */
     private static Op assertFilled(BorderCanvas canvas, String what, Widget<?> widget, float radius) {
-        return assertFilled(canvas, what, widget.localToSceneX(), widget.localToSceneY(),
+        return assertFilled(canvas, what, widget.localToScene(0, 0).x(), widget.localToScene(0, 0).y(),
                 widget.width(), widget.height(), radius);
     }
 

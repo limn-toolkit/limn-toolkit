@@ -171,8 +171,8 @@ class ColorPickerButtonAccessibilityTest extends AccessibleComponentTestBase {
 
     /** Delivers one click at the centre of the well, as a pointer does, framing while held. */
     private void click() {
-        float x = well.localToSceneX() + well.width() / 2;
-        float y = well.localToSceneY() + well.height() / 2;
+        float x = well.localToScene(0, 0).x() + well.width() / 2;
+        float y = well.localToScene(0, 0).y() + well.height() / 2;
         drive(scene).mouseMoved(x, y);
         drive(scene).inputBatchEnded();
         frame();
@@ -243,8 +243,8 @@ class ColorPickerButtonAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(List.of(), node.relations(),
                 "nothing is owed here while no dialog exists" + describe(tree()));
 
-        assertEquals(well.localToSceneX(), node.x(), describe(tree()));
-        assertEquals(well.localToSceneY(), node.y(), describe(tree()));
+        assertEquals(well.localToScene(0, 0).x(), node.x(), describe(tree()));
+        assertEquals(well.localToScene(0, 0).y(), node.y(), describe(tree()));
         assertEquals(well.width(), node.width(), describe(tree()));
         assertEquals(well.height(), node.height(), describe(tree()));
         assertNotEquals(well.height() + 2 * Strokes.FOCUS_RING_OUTSET, node.height(),

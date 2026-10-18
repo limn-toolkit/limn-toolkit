@@ -121,8 +121,8 @@ class TokenBoxAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     private void assertCoincides(TokenBox box, AccessibleNode child, String why) {
-        assertEquals(box.localToSceneX(), child.x(), why + ": x");
-        assertEquals(box.localToSceneY(), child.y(), why + ": y");
+        assertEquals(box.localToScene(0, 0).x(), child.x(), why + ": x");
+        assertEquals(box.localToScene(0, 0).y(), child.y(), why + ": y");
         assertEquals(box.width(), child.width(), why + ": width");
         assertEquals(box.height(), child.height(), why + ": height");
     }
@@ -348,8 +348,8 @@ class TokenBoxAccessibilityTest extends AccessibleComponentTestBase {
 
         AccessibleNode named = node("Swatch");
         assertEquals(Accessible.Role.GROUP, named.role());
-        assertEquals(box.localToSceneX(), named.x(), "the box's own rectangle");
-        assertEquals(box.localToSceneY(), named.y());
+        assertEquals(box.localToScene(0, 0).x(), named.x(), "the box's own rectangle");
+        assertEquals(box.localToScene(0, 0).y(), named.y());
         assertEquals(box.width(), named.width());
         assertEquals(box.height(), named.height());
 

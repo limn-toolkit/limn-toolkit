@@ -646,8 +646,8 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
         list.requestFocus();
         list.setSelectedIndex(0);
         frame();
-        float x = list.localToSceneX() + list.width() / 2;
-        float y = list.localToSceneY() + list.height() / 2;
+        float x = list.localToScene(0, 0).x() + list.width() / 2;
+        float y = list.localToScene(0, 0).y() + list.height() / 2;
         drive(scene).scrolled(0, -10, x, y);
         drive(scene).inputBatchEnded();
         frame();

@@ -386,7 +386,7 @@ class ColorPickerTest extends ComponentTestBase {
         // Three moves that all round to the same value: the rail is ~220pt over
         // 255 steps, so a point of travel is under a step.
         Widget<?> rail = picker.rail(2);
-        float y = rail.localToSceneY() + rail.height() / 2;
+        float y = rail.localToScene(0, 0).y() + rail.height() / 2;
         drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, railX(rail, 0.5f), y);
         drive(scene).mouseMoved(railX(rail, 0.5f) + 0.2f, y);
         drive(scene).mouseMoved(railX(rail, 0.5f) + 0.4f, y);
@@ -518,7 +518,7 @@ class ColorPickerTest extends ComponentTestBase {
     }
 
     private void dragRail(Widget<?> rail, float from, float to) {
-        float y = rail.localToSceneY() + rail.height() / 2;
+        float y = rail.localToScene(0, 0).y() + rail.height() / 2;
         drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, railX(rail, from), y);
         drive(scene).mouseMoved(railX(rail, to), y);
         drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, railX(rail, to), y);
@@ -532,7 +532,7 @@ class ColorPickerTest extends ComponentTestBase {
      */
     private float railX(Widget<?> rail, float fraction) {
         float thumb = SizeTokens.of(rail.controlSize()).colorThumbW();
-        return rail.localToSceneX() + thumb / 2 + fraction * (rail.width() - thumb);
+        return rail.localToScene(0, 0).x() + thumb / 2 + fraction * (rail.width() - thumb);
     }
 
     /** Puts the picker on the CMYK tab, opened on {@code color}, laid out and ready. */
@@ -571,7 +571,7 @@ class ColorPickerTest extends ComponentTestBase {
     /** A press-drag-release inside the saturation/value field. */
     /** Where the saturation/value field starts down the scene: under the swatch's row. */
     private float fieldTop() {
-        return picker.saturationValueField().localToSceneY();
+        return picker.saturationValueField().localToScene(0, 0).y();
     }
 
     /** A drag in the field from near its top to {@code y}, both measured from the field's top. */
@@ -631,10 +631,10 @@ class ColorPickerTest extends ComponentTestBase {
             List<Spinner> numbers = new ArrayList<>();
             collectShowing(sized, Spinner.class, numbers);
             assertEquals(4, numbers.size(), "R, G, B and alpha at " + step);
-            float pitch = numbers.get(1).localToSceneY() - numbers.get(0).localToSceneY();
-            assertEquals(pitch, numbers.get(2).localToSceneY() - numbers.get(1).localToSceneY(), 0.01f,
+            float pitch = numbers.get(1).localToScene(0, 0).y() - numbers.get(0).localToScene(0, 0).y();
+            assertEquals(pitch, numbers.get(2).localToScene(0, 0).y() - numbers.get(1).localToScene(0, 0).y(), 0.01f,
                     "the channel lines at " + step);
-            assertEquals(pitch, numbers.get(3).localToSceneY() - numbers.get(2).localToSceneY(), 0.01f,
+            assertEquals(pitch, numbers.get(3).localToScene(0, 0).y() - numbers.get(2).localToScene(0, 0).y(), 0.01f,
                     "the alpha line under the last channel at " + step);
         }
     }

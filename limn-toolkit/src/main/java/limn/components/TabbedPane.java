@@ -18,6 +18,7 @@ import limn.i18n.I18nString;
 import limn.graphics.TextMetrics;
 import limn.input.Keys;
 import limn.internal.lang.Checks;
+import limn.math.Vec2;
 import limn.scene.Constraints;
 import limn.scene.Scrollable;
 import limn.scene.Size;
@@ -1445,8 +1446,9 @@ public final class TabbedPane extends Widget<TabbedPane> {
         @Override
         protected void onMouseEvent(MouseEvent event) {
             SizeTokens t = tokens();
-            float x = sceneToLocalX(event.x());
-            float y = sceneToLocalY(event.y());
+            Vec2 local = sceneToLocal(event.x(), event.y());
+            float x = local.x();
+            float y = local.y();
             int row = rowAt(y, t);
             switch (event.type()) {
                 case ENTER, MOVE -> {
@@ -2474,7 +2476,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
             // A press on the close button closes the tab and leaves the keyboard where it was,
             // so a close refused (an unsaved document kept) finds it still in the document.
             limn.scene.internal.SceneAccess.pressFocus(this,
-                    (x, y) -> !overClose(sceneToLocalX(x), sceneToLocalY(y)));
+                    (x, y) -> !overCloseAtScene(x, y));
             this.title = title;
             this.icon = icon;
             this.iconMirroring = iconMirroring;
@@ -2532,7 +2534,13 @@ public final class TabbedPane extends Widget<TabbedPane> {
 
         /** Whether a pointer event, which carries scene coordinates, is over the close button. */
         private boolean overCloseAt(MouseEvent event) {
-            return overClose(sceneToLocalX(event.x()), sceneToLocalY(event.y()));
+            return overCloseAtScene(event.x(), event.y());
+        }
+
+        /** Whether a scene point is over the close button. */
+        private boolean overCloseAtScene(float sceneX, float sceneY) {
+            Vec2 local = sceneToLocal(sceneX, sceneY);
+            return overClose(local.x(), local.y());
         }
 
         /**
@@ -2541,7 +2549,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
          * it does.
          */
         private float stripX(MouseEvent event) {
-            return event.x() - strip.localToSceneX();
+            return strip.sceneToLocal(event.x(), event.y()).x();
         }
 
         private boolean closeShown() {

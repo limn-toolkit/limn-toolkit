@@ -336,8 +336,8 @@ class TokenColumnAccessibilityTest extends AccessibleComponentTestBase {
 
         AccessibleNode named = node("Sidebar");
         assertEquals(Accessible.Role.GROUP, named.role());
-        assertEquals(column.localToSceneX(), named.x(), "the column's own box");
-        assertEquals(column.localToSceneY(), named.y());
+        assertEquals(column.localToScene(0, 0).x(), named.x(), "the column's own box");
+        assertEquals(column.localToScene(0, 0).y(), named.y());
         assertEquals(column.width(), named.width());
         assertEquals(column.height(), named.height());
         assertEquals(tree().indexOf(named.id()), node("a").parent(), describe(tree()));

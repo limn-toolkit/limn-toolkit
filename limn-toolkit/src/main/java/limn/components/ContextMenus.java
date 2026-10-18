@@ -4,6 +4,7 @@ import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.components.internal.a11y.PopupOwnerAccessibility;
 import limn.input.Keys;
+import limn.math.Vec2;
 import limn.scene.Constraints;
 import limn.scene.Size;
 import limn.scene.Widget;
@@ -117,8 +118,8 @@ public final class ContextMenus {
         if (menu == null || menu.items().isEmpty()) {
             return;
         }
-        new PopupMenu(menu).showAt(anchor,
-                anchor.localToSceneX() + localX, anchor.localToSceneY() + localY);
+        Vec2 at = anchor.localToScene(localX, localY);
+        new PopupMenu(menu).showAt(anchor, at.x(), at.y());
     }
 
     /**
@@ -151,10 +152,10 @@ public final class ContextMenus {
         // Resolved once, after the fallback has chosen which widget the menu drops from, and in
         // an event-driven call rather than at construction: this runs with the tree complete.
         boolean rtl = from.isRightToLeft();
-        float cornerX = rtl ? from.localToSceneX() + from.width() : from.localToSceneX();
+        Vec2 corner = from.localToScene(rtl ? from.width() : 0, from.height());
         PopupMenu popup = new PopupMenu(menu);
         popup.openedFromKeyboard(); // the keyboard route: the Menu key, Shift+F10
-        popup.showAt(from, cornerX, from.localToSceneY() + from.height());
+        popup.showAt(from, corner.x(), corner.y());
     }
 
     /**
@@ -214,7 +215,8 @@ public final class ContextMenus {
             if (isRequest(event)) {
                 event.consume();
                 // A mouse event's point is the scene's; showAt takes this widget's own.
-                showAt(this, source.get(), sceneToLocalX(event.x()), sceneToLocalY(event.y()));
+                Vec2 local = sceneToLocal(event.x(), event.y());
+                showAt(this, source.get(), local.x(), local.y());
             }
         }
 

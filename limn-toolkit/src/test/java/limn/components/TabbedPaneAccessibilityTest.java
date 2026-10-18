@@ -217,8 +217,8 @@ class TabbedPaneAccessibilityTest extends AccessibleComponentTestBase {
 
     /** Moves the pointer to the centre of a widget's box, as a hover does. */
     private void hover(Widget<?> widget) {
-        drive(scene).mouseMoved(widget.localToSceneX() + widget.width() / 2,
-                widget.localToSceneY() + widget.height() / 2);
+        drive(scene).mouseMoved(widget.localToScene(0, 0).x() + widget.width() / 2,
+                widget.localToScene(0, 0).y() + widget.height() / 2);
         drive(scene).inputBatchEnded();
     }
 
@@ -309,8 +309,8 @@ class TabbedPaneAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(nodeOf(Accessible.Role.TAB, "Alpha").id(),
                 only(panel, Accessible.Relation.LABELLED_BY).target(),
                 "and the link says which tab it was borrowed from" + describe(tree()));
-        assertEquals(panels[0].localToSceneX(), panel.x(), describe(tree()));
-        assertEquals(panels[0].localToSceneY(), panel.y(),
+        assertEquals(panels[0].localToScene(0, 0).x(), panel.x(), describe(tree()));
+        assertEquals(panels[0].localToScene(0, 0).y(), panel.y(),
                 "the panel starts under the strip" + describe(tree()));
         assertEquals(panels[0].width(), panel.width(), describe(tree()));
         assertEquals(panels[0].height(), panel.height(),

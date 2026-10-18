@@ -20,6 +20,7 @@ import limn.i18n.I18nString;
 import limn.i18n.NumberFormats;
 import limn.input.Keys;
 import limn.internal.lang.Checks;
+import limn.math.Vec2;
 import limn.scene.Change;
 import limn.scene.Constraints;
 import limn.scene.ControlSize;
@@ -1470,8 +1471,9 @@ public abstract class Chart<W extends Chart<W>> extends Widget<W> {
 
     @Override
     protected void onMouseEvent(MouseEvent event) {
-        float localX = sceneToLocalX(event.x());
-        float localY = sceneToLocalY(event.y());
+        Vec2 local = sceneToLocal(event.x(), event.y());
+        float localX = local.x();
+        float localY = local.y();
         switch (event.type()) {
             case ENTER, MOVE, DRAG -> updatePointer(localX, localY);
             case EXIT -> clearPointer();

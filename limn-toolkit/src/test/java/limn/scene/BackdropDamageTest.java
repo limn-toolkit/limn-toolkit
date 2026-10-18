@@ -75,8 +75,8 @@ class BackdropDamageTest {
         }
 
         boolean covers(Widget<?> widget) {
-            float wx = widget.localToSceneX();
-            float wy = widget.localToSceneY();
+            float wx = widget.localToScene(0, 0).x();
+            float wy = widget.localToScene(0, 0).y();
             for (float[] clip : rects) {
                 float x = clip[0];
                 float y = clip[1];
@@ -250,7 +250,7 @@ class BackdropDamageTest {
         layers.add(new limn.scene.layout.Padding(new Insets(10.35f, 0, 0, 20.1f), glass));
         layers.add(new limn.scene.layout.Padding(new Insets(25, 0, 0, 60), inside));
         Scene scene = sceneOf(layers);
-        assertEquals(20.1f, glass.localToSceneX(), 1e-4f, "the panel sits off the grid, as the case needs");
+        assertEquals(20.1f, glass.localToScene(0, 0).x(), 1e-4f, "the panel sits off the grid, as the case needs");
         settle(scene, 2);
 
         inside.invalidate(); // something over the glass repaints, and the glass with it

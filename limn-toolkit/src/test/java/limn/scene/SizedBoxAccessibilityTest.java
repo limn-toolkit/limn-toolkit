@@ -108,8 +108,8 @@ class SizedBoxAccessibilityTest extends AccessibleTestBase {
     }
 
     private void assertCoincides(SizedBox sized, AccessibleNode child, String why) {
-        assertEquals(sized.localToSceneX(), child.x(), why + ": x");
-        assertEquals(sized.localToSceneY(), child.y(), why + ": y");
+        assertEquals(sized.localToScene(0, 0).x(), child.x(), why + ": x");
+        assertEquals(sized.localToScene(0, 0).y(), child.y(), why + ": y");
         assertEquals(sized.width(), child.width(), why + ": width");
         assertEquals(sized.height(), child.height(), why + ": height");
     }

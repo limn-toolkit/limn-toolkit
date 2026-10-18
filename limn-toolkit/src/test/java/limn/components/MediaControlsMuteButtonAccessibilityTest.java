@@ -452,8 +452,8 @@ class MediaControlsMuteButtonAccessibilityTest extends AccessibleComponentTestBa
 
         AccessibleNode node = mute();
         Widget<?> button = muteWidget();
-        assertEquals(button.localToSceneX(), node.x(), describe(tree()));
-        assertEquals(button.localToSceneY(), node.y(), describe(tree()));
+        assertEquals(button.localToScene(0, 0).x(), node.x(), describe(tree()));
+        assertEquals(button.localToScene(0, 0).y(), node.y(), describe(tree()));
         assertEquals(button.width(), node.width(), describe(tree()));
         assertEquals(button.height(), node.height(), describe(tree()));
         assertEquals(node.width(), node.height(), "a square" + describe(tree()));
@@ -461,7 +461,7 @@ class MediaControlsMuteButtonAccessibilityTest extends AccessibleComponentTestBa
                 "paintOutset() is damage and never bounds" + describe(tree()));
         assertTrue(node.x() > play().x(),
                 "second in the row, after the play button" + describe(tree()));
-        assertTrue(node.x() >= playWidget().localToSceneX() + playWidget().width(),
+        assertTrue(node.x() >= playWidget().localToScene(0, 0).x() + playWidget().width(),
                 "and clear of it" + describe(tree()));
     }
 
@@ -482,7 +482,7 @@ class MediaControlsMuteButtonAccessibilityTest extends AccessibleComponentTestBa
         assertTrue(mute().x() > play().x(),
                 "the transport is the standing exception to mirroring, so the mute stays to the "
                         + "right of the play button under a mirrored tree" + describe(tree()));
-        assertEquals(muteWidget().localToSceneX(), mute().x(), describe(tree()));
+        assertEquals(muteWidget().localToScene(0, 0).x(), mute().x(), describe(tree()));
     }
 
     // ------------------------------------------------------------------------------ what it costs

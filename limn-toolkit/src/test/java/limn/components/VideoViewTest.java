@@ -400,8 +400,8 @@ class VideoViewTest extends ComponentTestBase {
         assertFalse(canvas.cleared, "a new picture is a partial frame, not a full one");
         assertNotNull(canvas.firstClip, "and it must actually repaint");
         // The view's own box, grown by the pixel of feathering every widget's damage carries.
-        float left = view.localToSceneX() - 1;
-        float top = view.localToSceneY() - 1;
+        float left = view.localToScene(0, 0).x() - 1;
+        float top = view.localToScene(0, 0).y() - 1;
         assertTrue(canvas.firstClip.x() >= left && canvas.firstClip.y() >= top
                         && canvas.firstClip.right() <= left + view.width() + 2
                         && canvas.firstClip.bottom() <= top + view.height() + 2,

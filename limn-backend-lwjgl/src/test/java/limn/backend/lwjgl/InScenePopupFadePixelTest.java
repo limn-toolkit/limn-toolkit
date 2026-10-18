@@ -133,8 +133,8 @@ class InScenePopupFadePixelTest {
         byte[] opaque = read();
 
         SizeTokens t = Theme.current().tokensFor(combo);
-        float listTop = combo.localToSceneY() + combo.height() + t.popupGap() + t.popupPadV();
-        int x = (int) ((combo.localToSceneX() + combo.width() * 0.8f) * SCALE);
+        float listTop = combo.localToScene(0, 0).y() + combo.height() + t.popupGap() + t.popupPadV();
+        int x = (int) ((combo.localToScene(0, 0).x() + combo.width() * 0.8f) * SCALE);
         int highlighted = (int) ((listTop + 0.5f * t.popupItemHeight()) * SCALE); // the selection, row 0
         int plain = (int) ((listTop + 2.5f * t.popupItemHeight()) * SCALE);
 

@@ -60,8 +60,8 @@ class TabbedPaneFocusTest extends ComponentTestBase {
     /** Clicks the next (›) chevron, whose box is the second square from the right edge. */
     private void clickNextChevron() {
         float stripH = tabs.children().get(0).height();
-        float cx = tabs.localToSceneX() + tabs.width() - 1.5f * stripH; // › chevron
-        float cy = tabs.localToSceneY() + stripH / 2;
+        float cx = tabs.localToScene(0, 0).x() + tabs.width() - 1.5f * stripH; // › chevron
+        float cy = tabs.localToScene(0, 0).y() + stripH / 2;
         drive(scene).mouseButton(limn.input.Keys.MOUSE_LEFT, true, 0, cx, cy);
         drive(scene).mouseButton(limn.input.Keys.MOUSE_LEFT, false, 0, cx, cy);
         drive(scene).inputBatchEnded(); // no layout pass in between

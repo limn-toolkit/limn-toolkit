@@ -186,7 +186,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
 
     /** Where a published row's box starts, measured from the tree's own left edge. */
     private double rowStart(AccessibleNode row) {
-        return row.x() - tree.localToSceneX();
+        return row.x() - tree.localToScene(0, 0).x();
     }
 
     /** Where a published row's box ends, measured from the tree's own left edge. */
@@ -592,8 +592,8 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(node("row 2").has(Accessible.State.ACTIVE), describe(tree()));
         assertTrue(node("row 2").has(Accessible.State.SHOWING));
 
-        float x = tree.localToSceneX() + tree.width() / 2;
-        float y = tree.localToSceneY() + tree.height() / 2;
+        float x = tree.localToScene(0, 0).x() + tree.width() / 2;
+        float y = tree.localToScene(0, 0).y() + tree.height() / 2;
         drive(scene).scrolled(0, -20, x, y); // twenty notches: well past the box, clamped to the end
         drive(scene).inputBatchEnded();
         frame();
@@ -640,8 +640,8 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         scene.requestFocus(tree);
         tree.setSelected(branch);
         frame();
-        float x = tree.localToSceneX() + tree.width() / 2;
-        float y = tree.localToSceneY() + tree.height() / 2;
+        float x = tree.localToScene(0, 0).x() + tree.width() / 2;
+        float y = tree.localToScene(0, 0).y() + tree.height() / 2;
         drive(scene).scrolled(0, -20, x, y);
         drive(scene).inputBatchEnded();
         frame();
@@ -796,8 +796,8 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         // And a scroll after a reveal the pass has not settled moves from where the rows stand.
         drive(scene).keyEvent(limn.input.Keys.END, true, false, 0);
         drive(scene).keyEvent(limn.input.Keys.END, false, false, 0);
-        drive(scene).scrolled(0, -1, tree.localToSceneX() + tree.width() / 2,
-                tree.localToSceneY() + tree.height() / 2);
+        drive(scene).scrolled(0, -1, tree.localToScene(0, 0).x() + tree.width() / 2,
+                tree.localToScene(0, 0).y() + tree.height() / 2);
         drive(scene).inputBatchEnded();
         frame();
         assertFalse(showing("row 1"), "the notch scrolled from the top: " + describe(tree()));
@@ -807,8 +807,8 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
 
     /** Wheels {@code notches} at a time, up to ten times, until the named row is in the box. */
     private void wheelUntilShowing(String name, int notches) {
-        float x = tree.localToSceneX() + tree.width() / 2;
-        float y = tree.localToSceneY() + tree.height() / 2;
+        float x = tree.localToScene(0, 0).x() + tree.width() / 2;
+        float y = tree.localToScene(0, 0).y() + tree.height() / 2;
         for (int i = 0; i < 10 && !showing(name); i++) {
             drive(scene).scrolled(0, notches, x, y);
             drive(scene).inputBatchEnded();
@@ -825,8 +825,8 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
 
     /** Twenty wheel notches over the tree: past the box, clamped to the end. */
     private void wheelToTheEnd() {
-        float x = tree.localToSceneX() + tree.width() / 2;
-        float y = tree.localToSceneY() + tree.height() / 2;
+        float x = tree.localToScene(0, 0).x() + tree.width() / 2;
+        float y = tree.localToScene(0, 0).y() + tree.height() / 2;
         drive(scene).scrolled(0, -20, x, y);
         drive(scene).inputBatchEnded();
         frame();
@@ -853,8 +853,8 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         scene.requestFocus(tree);
         tree.setSelected(Node.leaf("row 2"));
         frame();
-        float x = tree.localToSceneX() + tree.width() / 2;
-        float y = tree.localToSceneY() + tree.height() / 2;
+        float x = tree.localToScene(0, 0).x() + tree.width() / 2;
+        float y = tree.localToScene(0, 0).y() + tree.height() / 2;
         drive(scene).scrolled(0, -20, x, y);
         drive(scene).inputBatchEnded();
         frame();
@@ -1018,14 +1018,14 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         tree.scrollBy(0, ROW_H / 2);
         frame();
         AccessibleNode first = node("row 1");
-        assertEquals(-ROW_H / 2, first.y() - tree.localToSceneY(), 1e-3,
+        assertEquals(-ROW_H / 2, first.y() - tree.localToScene(0, 0).y(), 1e-3,
                 "half of the first row is above the box: " + describe(tree()));
         assertTrue(first.actions().has(Accessible.Action.SCROLL_INTO_VIEW), describe(tree()));
 
         assertTrue(perform(first.id(), Accessible.Action.SCROLL_INTO_VIEW, Accessible.Argument.NONE));
         frame();
 
-        assertEquals(0, node("row 1").y() - tree.localToSceneY(), 1e-3,
+        assertEquals(0, node("row 1").y() - tree.localToScene(0, 0).y(), 1e-3,
                 "and the reveal scrolled it back into the box: " + describe(tree()));
     }
 

@@ -110,8 +110,8 @@ class ComboBoxChipsTest extends AccessibleComponentTestBase {
         combo.setSelectedIndices(0);
         frame();
         Widget<?> chip = shownChips().get(0);
-        float x = chip.localToSceneX() + chip.width() / 2;
-        float y = chip.localToSceneY() + chip.height() / 2;
+        float x = chip.localToScene(0, 0).x() + chip.width() / 2;
+        float y = chip.localToScene(0, 0).y() + chip.height() / 2;
         assertSame(combo, scene.root().hitTest(x - scene.root().x(), y - scene.root().y()),
                 "a press on a chip is the field's");
         limn.accessibility.AccessibleTree tree = tree();

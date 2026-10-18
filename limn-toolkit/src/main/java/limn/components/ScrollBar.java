@@ -10,6 +10,7 @@ import limn.animation.Transition;
 import limn.backend.Cursor;
 import limn.graphics.Canvas;
 import limn.input.Keys;
+import limn.math.Vec2;
 import limn.scene.Constraints;
 import limn.scene.Size;
 import limn.scene.Widget;
@@ -451,7 +452,8 @@ public final class ScrollBar extends Widget<ScrollBar> {
                     return;
                 }
                 boolean rtl = isRightToLeft(); // once for this press, then handed down
-                float pos = vertical() ? sceneToLocalY(event.y()) : sceneToLocalX(event.x());
+                Vec2 local = sceneToLocal(event.x(), event.y());
+                float pos = vertical() ? local.y() : local.x();
                 float[] t = thumbRect(rtl);
                 float thumbStart = vertical() ? t[1] : t[0];
                 float thumbLen = vertical() ? t[3] : t[2];
@@ -474,7 +476,8 @@ public final class ScrollBar extends Widget<ScrollBar> {
             case DRAG -> {
                 if (dragging) {
                     boolean rtl = isRightToLeft(); // once for this drag step, then handed down
-                    float pos = vertical() ? sceneToLocalY(event.y()) : sceneToLocalX(event.x());
+                    Vec2 local = sceneToLocal(event.x(), event.y());
+                    float pos = vertical() ? local.y() : local.x();
                     float travel = Math.max(1, trackLength() - thumbLength());
                     // The algebraic inverse of thumbStart, so it has to invert with it: mirror
                     // one and not the other and the thumb slides away from the hand holding it.

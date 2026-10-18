@@ -18,6 +18,7 @@ import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
 import limn.input.Keys;
 import limn.internal.lang.Checks;
+import limn.math.Vec2;
 import limn.scene.Change;
 import limn.scene.Constraints;
 import limn.scene.Size;
@@ -1287,8 +1288,9 @@ public final class DatePicker extends Widget<DatePicker> {
                     : open || hover || isFocused() ? theme.text() : theme.textMuted();
 
             float size = Math.round(t.fieldIcon());
-            float sceneX = localToSceneX();
-            float sceneY = localToSceneY();
+            Vec2 origin = localToScene(0, 0);
+            float sceneX = origin.x();
+            float sceneY = origin.y();
             float x = Math.round(sceneX + (width() - size) / 2) - sceneX;
             float y = Math.round(sceneY + (height() - size) / 2) - sceneY;
             float pen = Strokes.BORDER;

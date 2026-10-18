@@ -2048,7 +2048,7 @@ public final class DateField extends Widget<DateField> {
                 if (slot == focusedSlot) {
                     float padX = t.spinnerFieldPadX();
                     float inset = t.spinnerFieldInset();
-                    return new Rect(localToSceneX() + x - padX, localToSceneY() + inset,
+                    return localToSceneBounds(x - padX, inset,
                             pieceWidth + 2 * padX, height() - 2 * inset);
                 }
                 slot++;
@@ -2072,7 +2072,7 @@ public final class DateField extends Widget<DateField> {
             pointerHook.run();
         }
         requestFocus();
-        focusSegment(slotAt(sceneToLocalX(event.x())));
+        focusSegment(slotAt(sceneToLocal(event.x(), event.y()).x()));
     }
 
     /**

@@ -165,8 +165,8 @@ class TabbedPaneStripButtonAccessibilityTest extends AccessibleComponentTestBase
 
     /** Moves the pointer to the centre of a widget's box, as a hover does. */
     private void hover(Widget<?> widget) {
-        drive(scene).mouseMoved(widget.localToSceneX() + widget.width() / 2,
-                widget.localToSceneY() + widget.height() / 2);
+        drive(scene).mouseMoved(widget.localToScene(0, 0).x() + widget.width() / 2,
+                widget.localToScene(0, 0).y() + widget.height() / 2);
         drive(scene).inputBatchEnded();
     }
 
@@ -269,8 +269,8 @@ class TabbedPaneStripButtonAccessibilityTest extends AccessibleComponentTestBase
 
         for (Widget<?> widget : List.of(previous(), next(), all())) {
             AccessibleNode node = node(widget.tooltipSource().get());
-            assertEquals(widget.localToSceneX(), node.x(), describe(tree()));
-            assertEquals(widget.localToSceneY(), node.y(), describe(tree()));
+            assertEquals(widget.localToScene(0, 0).x(), node.x(), describe(tree()));
+            assertEquals(widget.localToScene(0, 0).y(), node.y(), describe(tree()));
             assertEquals(widget.width(), node.width(), describe(tree()));
             assertEquals(widget.height(), node.height(), describe(tree()));
         }
@@ -345,7 +345,7 @@ class TabbedPaneStripButtonAccessibilityTest extends AccessibleComponentTestBase
                 "so it publishes no verb (semantics 5, 2026-09-15)" + describe(tree()));
         assertTrue(nextNode().has(Accessible.State.ENABLED), describe(tree()));
 
-        float restingX = strip().children().get(0).localToSceneX();
+        float restingX = strip().children().get(0).localToScene(0, 0).x();
         assertTrue(perform(previousNode().id(), Accessible.Action.PRESS, Accessible.Argument.NONE),
                 "the identifier is in the published tree, so the answer to the platform is "
                         + "accepted; the refusal is a precondition re-checked on arrival");
@@ -353,7 +353,7 @@ class TabbedPaneStripButtonAccessibilityTest extends AccessibleComponentTestBase
 
         assertEquals(0, stripNode().scroll().horizontalPercent(), EPS,
                 "and nothing moved" + describe(tree()));
-        assertEquals(restingX, strip().children().get(0).localToSceneX(), describe(tree()));
+        assertEquals(restingX, strip().children().get(0).localToScene(0, 0).x(), describe(tree()));
 
         pane.setSelectedIndex(SIX.length - 1);
         frame();

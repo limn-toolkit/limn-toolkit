@@ -123,7 +123,7 @@ class DamageContractTest extends ComponentTestBase {
     }
 
     private static Gesture hoverAt(String name, float dx, float dy) {
-        return new Gesture(name, (s, w) -> move(s, w.localToSceneX() + dx, w.localToSceneY() + dy),
+        return new Gesture(name, (s, w) -> move(s, w.localToScene(0, 0).x() + dx, w.localToScene(0, 0).y() + dy),
                 0, ANY, null);
     }
 
@@ -137,8 +137,8 @@ class DamageContractTest extends ComponentTestBase {
 
     private static Gesture clickAt(String name, float dx, float dy) {
         return new Gesture(name, (s, w) -> {
-            float x = dx < 0 ? centreX(w) : w.localToSceneX() + dx;
-            float y = dy < 0 ? centreY(w) : w.localToSceneY() + dy;
+            float x = dx < 0 ? centreX(w) : w.localToScene(0, 0).x() + dx;
+            float y = dy < 0 ? centreY(w) : w.localToScene(0, 0).y() + dy;
             drive(s).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
             drive(s).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
             drive(s).inputBatchEnded();
@@ -187,11 +187,11 @@ class DamageContractTest extends ComponentTestBase {
     }
 
     private static float centreX(Widget<?> w) {
-        return w.localToSceneX() + w.width() / 2;
+        return w.localToScene(0, 0).x() + w.width() / 2;
     }
 
     private static float centreY(Widget<?> w) {
-        return w.localToSceneY() + w.height() / 2;
+        return w.localToScene(0, 0).y() + w.height() / 2;
     }
 
     // ------------------------------------------------------------------------------ fixtures
@@ -325,8 +325,8 @@ class DamageContractTest extends ComponentTestBase {
                     tableKey("command+Shift+Page Down moves the tab", Keys.PAGE_DOWN,
                             Accelerator.commandModifier() | Keys.MOD_SHIFT).ceiling(1.05f),
                     new Gesture("middle click closes a tab", (s, w) -> {
-                        float x = w.localToSceneX() + 20;
-                        float y = w.localToSceneY() + 14;
+                        float x = w.localToScene(0, 0).x() + 20;
+                        float y = w.localToScene(0, 0).y() + 14;
                         drive(s).mouseButton(Keys.MOUSE_MIDDLE, true, 0, x, y);
                         drive(s).mouseButton(Keys.MOUSE_MIDDLE, false, 0, x, y);
                         drive(s).inputBatchEnded();
@@ -663,8 +663,8 @@ class DamageContractTest extends ComponentTestBase {
     private void check(Row row, Widget<?> widget, Gesture gesture, List<String> offenders) {
         gesture.perform().accept(scene, widget);
         float reach = Math.max(REACH, 1 + declaredOutset(widget));
-        float bx = widget.localToSceneX();
-        float by = widget.localToSceneY();
+        float bx = widget.localToScene(0, 0).x();
+        float by = widget.localToScene(0, 0).y();
         float box = Math.max(1, widget.width() * widget.height());
         String who = row.name().replace("limn.components.", "") + ", " + gesture.name();
         String broke = null;

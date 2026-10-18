@@ -12,6 +12,7 @@ import limn.i18n.LanguageWitness;
 import limn.input.Keys;
 import limn.internal.lang.Checks;
 import limn.math.Scalars;
+import limn.math.Vec2;
 import limn.scene.Change;
 import limn.scene.Constraints;
 import limn.scene.Insets;
@@ -1331,7 +1332,7 @@ public final class ColorPicker extends Widget<ColorPicker> {
             // arrives as a physical x, and the direction is what turns it back into a
             // distance travelled from the end the range starts at.
             boolean rtl = isRightToLeft();
-            float local = sceneToLocalX(event.x());
+            float local = sceneToLocal(event.x(), event.y()).x();
             float along = rtl ? width() - local : local;
             moveTo(Scalars.clamp01((along - travelInset(t)) / travelWidth(t)));
             event.consume();
@@ -1626,7 +1627,7 @@ public final class ColorPicker extends Widget<ColorPicker> {
                     return false;
                 }
                 float h = Math.max(1, ramp.height());
-                apply.accept(Scalars.clamp01(ramp.sceneToLocalY(event.y()) / h));
+                apply.accept(Scalars.clamp01(ramp.sceneToLocal(event.x(), event.y()).y() / h));
                 event.consume();
                 return true;
             }
@@ -1735,7 +1736,8 @@ public final class ColorPicker extends Widget<ColorPicker> {
         private void pick(MouseEvent event) {
             float w = Math.max(1, width());
             float h = Math.max(1, height());
-            moveField(sceneToLocalX(event.x()) / w, 1 - sceneToLocalY(event.y()) / h);
+            Vec2 local = sceneToLocal(event.x(), event.y());
+            moveField(local.x() / w, 1 - local.y() / h);
             event.consume();
         }
 

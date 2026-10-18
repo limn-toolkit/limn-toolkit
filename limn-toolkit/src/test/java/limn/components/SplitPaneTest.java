@@ -76,7 +76,7 @@ class SplitPaneTest extends ComponentTestBase {
     /** The grab band still wins where it overlaps a pane, now that the second pane is added last. */
     @Test
     void theGrabBandOverThePaneIsTheDividers() {
-        float x = right.localToSceneX() + 1; // inside the right pane, inside the band
+        float x = right.localToScene(0, 0).x() + 1; // inside the right pane, inside the band
         Widget<?> hit = split.hitTest(x, 100);
         assertNotNull(hit);
         assertEquals(split, hit.parent(), "the divider, not the pane under it: " + hit);
@@ -117,8 +117,8 @@ class SplitPaneTest extends ComponentTestBase {
         // edge of it must not snap the split to the pointer.
         Widget<?> divider = split.divider();
         float before = left.width();
-        float x = divider.localToSceneX() + 1;
-        float y = divider.localToSceneY() + divider.height() / 2;
+        float x = divider.localToScene(0, 0).x() + 1;
+        float y = divider.localToScene(0, 0).y() + divider.height() / 2;
         drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
         drive(scene).inputBatchEnded();
         scene.layoutPass(400, 200);
@@ -215,8 +215,8 @@ class SplitPaneTest extends ComponentTestBase {
     /** Presses on the divider, moves the pointer by {@code delta} points, releases. */
     private void dragDivider(float delta) {
         Widget<?> divider = split.divider();
-        float x = divider.localToSceneX() + divider.width() / 2;
-        float y = divider.localToSceneY() + divider.height() / 2;
+        float x = divider.localToScene(0, 0).x() + divider.width() / 2;
+        float y = divider.localToScene(0, 0).y() + divider.height() / 2;
         drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
         drive(scene).mouseMoved(x + delta, y);
         drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x + delta, y);
@@ -296,8 +296,8 @@ class SplitPaneTest extends ComponentTestBase {
         host.setTextRuler(RULER);
         host.layoutPass(400, 200);
         Widget<?> divider = pane.divider();
-        float x = divider.localToSceneX() + divider.width() / 2;
-        float y = divider.localToSceneY() + divider.height() / 2;
+        float x = divider.localToScene(0, 0).x() + divider.width() / 2;
+        float y = divider.localToScene(0, 0).y() + divider.height() / 2;
 
         Color rest = lineColor(host, clock);
         divider.requestFocus();

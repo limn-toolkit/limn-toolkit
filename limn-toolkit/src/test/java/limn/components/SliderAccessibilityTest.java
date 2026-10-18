@@ -133,8 +133,8 @@ class SliderAccessibilityTest extends AccessibleComponentTestBase {
 
     /** Moves the pointer to the centre of the slider's box, as a hover does. */
     private void hover() {
-        drive(scene).mouseMoved(slider.localToSceneX() + slider.width() / 2,
-                slider.localToSceneY() + slider.height() / 2);
+        drive(scene).mouseMoved(slider.localToScene(0, 0).x() + slider.width() / 2,
+                slider.localToScene(0, 0).y() + slider.height() / 2);
         drive(scene).inputBatchEnded();
     }
 
@@ -428,8 +428,8 @@ class SliderAccessibilityTest extends AccessibleComponentTestBase {
         // the same size, wherever it was put: the pad is reserved at both ends and only which
         // end min sits at flips, which is not a fact of the box.
         AccessibleNode mirrored = sliderNode();
-        assertEquals(slider.localToSceneX(), mirrored.x(), describe(tree()));
-        assertEquals(slider.localToSceneY(), mirrored.y(), describe(tree()));
+        assertEquals(slider.localToScene(0, 0).x(), mirrored.x(), describe(tree()));
+        assertEquals(slider.localToScene(0, 0).y(), mirrored.y(), describe(tree()));
         assertEquals(leftToRight.width(), mirrored.width(), describe(tree()));
         assertEquals(leftToRight.height(), mirrored.height(), describe(tree()));
         assertEquals(leftToRight.value(), mirrored.value(), describe(tree()));
@@ -599,8 +599,8 @@ class SliderAccessibilityTest extends AccessibleComponentTestBase {
                 "the sized box is scaffolding and hoists the slider" + describe(tree()));
         AccessibleNode node = sliderNode();
         assertEquals(300f, slider.width(), "the fixture really did widen the slider");
-        assertEquals(slider.localToSceneX(), node.x(), describe(tree()));
-        assertEquals(slider.localToSceneY(), node.y(), describe(tree()));
+        assertEquals(slider.localToScene(0, 0).x(), node.x(), describe(tree()));
+        assertEquals(slider.localToScene(0, 0).y(), node.y(), describe(tree()));
         assertEquals(slider.width(), node.width(), describe(tree()));
         assertEquals(slider.height(), node.height(),
                 "the step's slider height; the hovered knob and the ring are inside it, so there "

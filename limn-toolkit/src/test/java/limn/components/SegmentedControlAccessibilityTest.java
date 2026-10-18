@@ -327,7 +327,7 @@ class SegmentedControlAccessibilityTest extends AccessibleComponentTestBase {
         AccessibleNode node = group();
         assertEquals(SCENE_WIDTH, node.width(),
                 "a stretching parent hands the control the whole row" + describe(tree()));
-        float trackLeft = seg.localToSceneX() + (SCENE_WIDTH - TRACK) / 2;
+        float trackLeft = seg.localToScene(0, 0).x() + (SCENE_WIDTH - TRACK) / 2;
 
         List<AccessibleNode> children = segments();
         for (int i = 0; i < children.size(); i++) {
@@ -380,7 +380,7 @@ class SegmentedControlAccessibilityTest extends AccessibleComponentTestBase {
                 "only the coordinates mirror: the first segment is the rightmost, which a hook "
                         + "that walked the edge array as physical x would get right in one "
                         + "direction and silently wrong in the other" + describe(tree()));
-        float trackLeft = seg.localToSceneX() + (SCENE_WIDTH - TRACK) / 2;
+        float trackLeft = seg.localToScene(0, 0).x() + (SCENE_WIDTH - TRACK) / 2;
         assertEquals(trackLeft + TRACK - SEG, children.get(0).x(), EPS, describe(tree()));
     }
 
@@ -403,9 +403,9 @@ class SegmentedControlAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(Accessible.Role.BUTTON, forward.role(), describe(tree()));
         assertNull(back.selectionItem(),
                 "an arrow is not a member of the selection" + describe(tree()));
-        assertEquals(seg.localToSceneX(), back.x(), EPS, describe(tree()));
+        assertEquals(seg.localToScene(0, 0).x(), back.x(), EPS, describe(tree()));
         assertEquals(GUTTER, back.width(), EPS, describe(tree()));
-        assertEquals(seg.localToSceneX() + NARROW - GUTTER, forward.x(), EPS, describe(tree()));
+        assertEquals(seg.localToScene(0, 0).x() + NARROW - GUTTER, forward.x(), EPS, describe(tree()));
         assertEquals(GUTTER, forward.width(), EPS,
                 "the zone the widget's own chevron test maps, not the smaller glyph drawn inside "
                         + "it: the box published is the box a click lands in" + describe(tree()));
@@ -438,10 +438,10 @@ class SegmentedControlAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(List.of(chevronName(true), "A", "B", "C", chevronName(false)),
                 children.stream().map(AccessibleNode::name).toList(),
                 "the arrow that scrolls back is still first in reading order" + describe(tree()));
-        assertEquals(seg.localToSceneX() + NARROW - GUTTER, children.get(0).x(), EPS,
+        assertEquals(seg.localToScene(0, 0).x() + NARROW - GUTTER, children.get(0).x(), EPS,
                 "and it sits in the gutter reading starts from, which is the right one here"
                         + describe(tree()));
-        assertEquals(seg.localToSceneX(), children.get(4).x(), EPS, describe(tree()));
+        assertEquals(seg.localToScene(0, 0).x(), children.get(4).x(), EPS, describe(tree()));
     }
 
     @Test
@@ -475,7 +475,7 @@ class SegmentedControlAccessibilityTest extends AccessibleComponentTestBase {
                         + "own maximum; computing it from the track instead would overstate how "
                         + "much is on screen by the two gutters" + describe(tree()));
 
-        drive(scene).scrolled(0, -10, seg.localToSceneX() + NARROW / 2, seg.localToSceneY() + HEIGHT / 2);
+        drive(scene).scrolled(0, -10, seg.localToScene(0, 0).x() + NARROW / 2, seg.localToScene(0, 0).y() + HEIGHT / 2);
         drive(scene).inputBatchEnded();
         frame();
 

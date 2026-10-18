@@ -6,8 +6,10 @@ import limn.concurrent.internal.Listeners;
 import limn.concurrent.Subscription;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
+import limn.graphics.Rect;
 import limn.i18n.I18n;
 import limn.internal.lang.Checks;
+import limn.math.Vec2;
 import limn.scene.event.CharEvent;
 import limn.scene.event.DragEvent;
 import limn.scene.event.DragStartEvent;
@@ -548,12 +550,22 @@ public abstract class Widget<W extends Widget<W>> {
 
     // ---------------------------------------------------------------- bounds
 
-    /** @return x in parent coordinates */
+    /**
+     * Where layout put this widget's left edge, in its parent's space: the layout position, before
+     * anything an ancestor draws its children through. For where the widget is in the scene, ask
+     * {@link #localToScene(float, float)} or {@link #localToSceneBounds}.
+     *
+     * @return x in parent coordinates
+     */
     public final float x() {
         return x;
     }
 
-    /** @return y in parent coordinates */
+    /**
+     * Where layout put this widget's top edge, in its parent's space; see {@link #x()}.
+     *
+     * @return y in parent coordinates
+     */
     public final float y() {
         return y;
     }
@@ -568,40 +580,132 @@ public abstract class Widget<W extends Widget<W>> {
         return height;
     }
 
-    /** Converts a scene x coordinate into this widget's local space. */
-    public final float sceneToLocalX(float sceneX) {
-        float local = sceneX;
-        for (Widget<?> w = this; w != null; w = w.parent) {
-            local -= w.x;
-        }
-        return local;
+    // The conversions take and give whole points, never one axis: once an ancestor may draw its
+    // children turned, a local x depends on the scene's x and y both, and a per-axis signature
+    // could not answer it whatever its body did (ADR 072 §3.3). The public forms allocate the one
+    // record they return; the scene's own paths use the package-private forms below, which write
+    // into the caller's array, because an idle window must not allocate.
+
+    /**
+     * Where a point of this widget's space lies in the scene: the widget's own offsets and each
+     * ancestor's, summed to the scene's root, through anything an ancestor draws its children
+     * through on the way.
+     *
+     * <p>The middle of a widget, where a click on it lands, is
+     * {@code widget.localToScene(widget.width() / 2, widget.height() / 2)}. A point that cannot be
+     * seen because it lies behind the eye answers {@code (NaN, NaN)}.
+     *
+     * @param x a point's x in this widget's space
+     * @param y a point's y in this widget's space
+     * @return the point in the scene's space
+     */
+    public final Vec2 localToScene(float x, float y) {
+        float[] out = new float[2];
+        localToScene(x, y, out);
+        return new Vec2(out[0], out[1]);
     }
 
-    /** Converts a scene y coordinate into this widget's local space. */
-    public final float sceneToLocalY(float sceneY) {
-        float local = sceneY;
-        for (Widget<?> w = this; w != null; w = w.parent) {
-            local -= w.y;
-        }
-        return local;
+    /**
+     * Where a point of the scene lies in this widget's space: what a widget does with a pointer
+     * event's position, which is the scene's, to know where in itself the pointer is.
+     *
+     * <p>Answers {@code (NaN, NaN)} for a scene point that falls on no point of this widget's
+     * plane: one an ancestor draws the widget turned edge-on at, or collapsed, or one that would
+     * lie behind the eye. {@code NaN} fails every comparison, so the usual test
+     * {@code p.x() >= 0 && p.x() < width()} already counts such a point outside the widget.
+     *
+     * @param sceneX a point's x in the scene
+     * @param sceneY a point's y in the scene
+     * @return the point in this widget's space, or {@code (NaN, NaN)}
+     */
+    public final Vec2 sceneToLocal(float sceneX, float sceneY) {
+        float[] out = new float[2];
+        sceneToLocal(sceneX, sceneY, out);
+        return new Vec2(out[0], out[1]);
     }
 
-    /** This widget's origin x in scene coordinates (its offsets summed to the root). */
-    public final float localToSceneX() {
-        float sceneX = 0;
-        for (Widget<?> w = this; w != null; w = w.parent) {
-            sceneX += w.x;
+    /**
+     * The rectangle, in the scene, that a rectangle of this widget's space covers: its bounds
+     * there, as an axis-aligned box, which is the rectangle itself moved when nothing above turns
+     * it. What a popup is anchored to, what a drag image starts from and what the accessible tree
+     * publishes; the widget's own box in the scene is
+     * {@code widget.localToSceneBounds(0, 0, widget.width(), widget.height())}.
+     *
+     * <p>The part of the rectangle that would lie behind the eye is cut away before the bounds
+     * are taken; a rectangle wholly behind it answers a rectangle of no size at {@code NaN}.
+     *
+     * @param x      the rectangle's left, in this widget's space
+     * @param y      its top
+     * @param width  its width
+     * @param height its height
+     * @return its bounds in the scene
+     */
+    public final Rect localToSceneBounds(float x, float y, float width, float height) {
+        float[] out = new float[4];
+        localToSceneBounds(x, y, x + width, y + height, out);
+        if (Float.isNaN(out[0])) {
+            return new Rect(Float.NaN, Float.NaN, 0, 0);
         }
-        return sceneX;
+        return new Rect(out[0], out[1], out[2] - out[0], out[3] - out[1]);
     }
 
-    /** This widget's origin y in scene coordinates (its offsets summed to the root). */
-    public final float localToSceneY() {
-        float sceneY = 0;
+    /**
+     * {@link #localToScene(float, float)} into {@code out[0..1]}, allocating nothing.
+     *
+     * @param x   a point's x in this widget's space
+     * @param y   a point's y in this widget's space
+     * @param out two floats to fill with the point in the scene
+     */
+    final void localToScene(float x, float y, float[] out) {
+        float px = x;
+        float py = y;
         for (Widget<?> w = this; w != null; w = w.parent) {
-            sceneY += w.y;
+            px += w.x;
+            py += w.y;
         }
-        return sceneY;
+        out[0] = px;
+        out[1] = py;
+    }
+
+    /**
+     * {@link #sceneToLocal(float, float)} into {@code out[0..1]}, allocating nothing.
+     *
+     * @param sceneX a point's x in the scene
+     * @param sceneY a point's y in the scene
+     * @param out    two floats to fill with the point in this widget's space
+     */
+    final void sceneToLocal(float sceneX, float sceneY, float[] out) {
+        float px = sceneX;
+        float py = sceneY;
+        for (Widget<?> w = this; w != null; w = w.parent) {
+            px -= w.x;
+            py -= w.y;
+        }
+        out[0] = px;
+        out[1] = py;
+    }
+
+    /**
+     * The bounds in the scene of the rectangle {@code (x0, y0)} to {@code (x1, y1)} of this
+     * widget's space, into {@code out} as {@code x0, y0, x1, y1}, allocating nothing.
+     *
+     * @param x0  the rectangle's left, in this widget's space
+     * @param y0  its top
+     * @param x1  its right
+     * @param y1  its bottom
+     * @param out four floats to fill
+     */
+    final void localToSceneBounds(float x0, float y0, float x1, float y1, float[] out) {
+        float dx = 0;
+        float dy = 0;
+        for (Widget<?> w = this; w != null; w = w.parent) {
+            dx += w.x;
+            dy += w.y;
+        }
+        out[0] = Math.min(x0, x1) + dx;
+        out[1] = Math.min(y0, y1) + dy;
+        out[2] = Math.max(x0, x1) + dx;
+        out[3] = Math.max(y0, y1) + dy;
     }
 
     /**
@@ -2074,7 +2178,7 @@ public abstract class Widget<W extends Widget<W>> {
      * nothing is skipped.
      */
     private boolean missesClip(Canvas canvas) {
-        limn.graphics.Rect clip = canvas.clipBounds();
+        Rect clip = canvas.clipBounds();
         if (clip == null) {
             return false;
         }
@@ -3218,7 +3322,7 @@ public abstract class Widget<W extends Widget<W>> {
         return acceptsTextInput();
     }
 
-    final limn.graphics.Rect caretRectInternal() {
+    final Rect caretRectInternal() {
         return caretRect();
     }
 

@@ -116,8 +116,8 @@ class ExpandedAccessibilityTest extends AccessibleTestBase {
     }
 
     private void assertCoincides(Expanded wrapper, AccessibleNode child, String why) {
-        assertEquals(wrapper.localToSceneX(), child.x(), why + ": x");
-        assertEquals(wrapper.localToSceneY(), child.y(), why + ": y");
+        assertEquals(wrapper.localToScene(0, 0).x(), child.x(), why + ": x");
+        assertEquals(wrapper.localToScene(0, 0).y(), child.y(), why + ": y");
         assertEquals(wrapper.width(), child.width(), why + ": width");
         assertEquals(wrapper.height(), child.height(), why + ": height");
     }
@@ -495,7 +495,7 @@ class ExpandedAccessibilityTest extends AccessibleTestBase {
 
         AccessibleNode named = node("Volume");
         assertEquals(Accessible.Role.GROUP, named.role());
-        assertEquals(wrapper.localToSceneX(), named.x(), "the wrapper's own box");
+        assertEquals(wrapper.localToScene(0, 0).x(), named.x(), "the wrapper's own box");
         assertEquals(wrapper.width(), named.width());
         AccessibleNode inside = node("ok");
         assertEquals(named.x(), inside.x(),

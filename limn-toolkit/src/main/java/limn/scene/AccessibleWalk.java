@@ -69,6 +69,8 @@ final class AccessibleWalk {
     private boolean[] synthetic = new boolean[64];
     /** Scratch for {@link Widget#showingClip}: the owner's clip, in scene coordinates. */
     private final float[] clip = new float[4];
+    /** Scratch for a widget's box in the scene, which every node of every walk publishes. */
+    private final float[] boundsScratch = new float[4];
     /**
      * Per widget node: the verbs its container claimed (a bit per {@code Action} ordinal) and
      * the container that claimed them, which is where the scene routes those verbs. Zero and
@@ -607,8 +609,10 @@ final class AccessibleWalk {
         }
         long ownScope = keyed ? id : scope;
         int under = host >= 0 ? host : into;
-        int slot = builder.begin(id, under, widget.locale(), widget.localToSceneX() + graftDx,
-                widget.localToSceneY() + graftDy, widget.width(), widget.height());
+        float[] box = boundsScratch;
+        widget.localToSceneBounds(0, 0, widget.width(), widget.height(), box);
+        int slot = builder.begin(id, under, widget.locale(), box[0] + graftDx, box[1] + graftDy,
+                box[2] - box[0], box[3] - box[1]);
         if (host >= 0) {
             builder.markHosted();
         }

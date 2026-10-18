@@ -173,8 +173,8 @@ class TabStripAccessibilityTest extends AccessibleComponentTestBase {
                 "the strip holds a selection and is not a member of one" + describe(tree()));
         assertEquals(List.of(), list.relations(), describe(tree()));
 
-        assertEquals(strip().localToSceneX(), list.x(), describe(tree()));
-        assertEquals(strip().localToSceneY(), list.y(), describe(tree()));
+        assertEquals(strip().localToScene(0, 0).x(), list.x(), describe(tree()));
+        assertEquals(strip().localToScene(0, 0).y(), list.y(), describe(tree()));
         assertEquals(SCENE_WIDTH, list.width(),
                 "nothing overflows, so the viewport is the whole strip row" + describe(tree()));
         assertEquals(strip().height(), list.height(), describe(tree()));
@@ -247,7 +247,7 @@ class TabStripAccessibilityTest extends AccessibleComponentTestBase {
                         + "keeps three of them and the strip starts after one; publishing the "
                         + "pane's own width here would put a reader's cursor on a strip half "
                         + "again as wide as the one on screen" + describe(tree()));
-        assertEquals(strip().localToSceneX(), list.x(), describe(tree()));
+        assertEquals(strip().localToScene(0, 0).x(), list.x(), describe(tree()));
         assertEquals(strip().width(), list.width(),
                 "the walk's free box, which is the viewport by construction" + describe(tree()));
 
@@ -319,7 +319,7 @@ class TabStripAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(1.5 * list.x(), SCENE_WIDTH - list.width(), EPS,
                 "the three controls swap ends keeping their order, so two of them sit before the "
                         + "viewport and one after it" + describe(tree()));
-        assertEquals(strip().localToSceneX(), list.x(), describe(tree()));
+        assertEquals(strip().localToScene(0, 0).x(), list.x(), describe(tree()));
         assertEquals(strip().width(), list.width(), describe(tree()));
         assertTrue(list.scroll().horizontallyScrollable(), describe(tree()));
         assertEquals(0, list.scroll().horizontalPercent(), EPS,

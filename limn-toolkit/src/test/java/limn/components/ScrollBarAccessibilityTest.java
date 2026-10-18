@@ -653,9 +653,9 @@ class ScrollBarAccessibilityTest extends AccessibleComponentTestBase {
         AccessibleNode node = barNode();
         assertEquals(300f, view.width(), "the fixture really did size the view");
         float t = ScrollBar.thickness();
-        assertEquals(view.localToSceneX() + 300 - t, node.x(),
+        assertEquals(view.localToScene(0, 0).x() + 300 - t, node.x(),
                 "the strip on the trailing side" + describe(tree()));
-        assertEquals(view.localToSceneY(), node.y(), describe(tree()));
+        assertEquals(view.localToScene(0, 0).y(), node.y(), describe(tree()));
         assertEquals(t, node.width(), describe(tree()));
         assertEquals(200f, node.height(),
                 "the whole strip, which is the rectangle the hit test accepts while shown, and not "
@@ -685,7 +685,7 @@ class ScrollBarAccessibilityTest extends AccessibleComponentTestBase {
         frame();
         AccessibleNode mirrored = barNode();
         assertEquals(id, mirrored.id());
-        assertEquals(view.localToSceneX(), mirrored.x(),
+        assertEquals(view.localToScene(0, 0).x(), mirrored.x(),
                 "reading right to left the host lays the strip on the left; a host that stopped "
                         + "doing so would put a reader's cursor over the content" + describe(tree()));
         assertEquals(t, mirrored.width(), describe(tree()));
@@ -710,8 +710,8 @@ class ScrollBarAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(1, nodesWith(Accessible.State.VERTICAL).size(), describe(tree()));
         assertEquals(1, nodesWith(Accessible.State.HORIZONTAL).size(), describe(tree()));
 
-        float x = view.localToSceneX();
-        float y = view.localToSceneY();
+        float x = view.localToScene(0, 0).x();
+        float y = view.localToScene(0, 0).y();
         assertEquals(x + 300 - t, vertical.x(), describe(tree()));
         assertEquals(y, vertical.y(), describe(tree()));
         assertEquals(t, vertical.width(), describe(tree()));

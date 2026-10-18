@@ -166,8 +166,8 @@ class TabbedPaneTabHeaderAccessibilityTest extends AccessibleComponentTestBase {
 
     /** Moves the pointer to the centre of a widget's box, as a hover does. */
     private void hover(Widget<?> widget) {
-        drive(scene).mouseMoved(widget.localToSceneX() + widget.width() / 2,
-                widget.localToSceneY() + widget.height() / 2);
+        drive(scene).mouseMoved(widget.localToScene(0, 0).x() + widget.width() / 2,
+                widget.localToScene(0, 0).y() + widget.height() / 2);
         drive(scene).inputBatchEnded();
     }
 
@@ -236,8 +236,8 @@ class TabbedPaneTabHeaderAccessibilityTest extends AccessibleComponentTestBase {
 
         Widget<?> header = headers().get(1);
         AccessibleNode beta = node("Beta");
-        assertEquals(header.localToSceneX(), beta.x(), describe(tree()));
-        assertEquals(header.localToSceneY(), beta.y(), describe(tree()));
+        assertEquals(header.localToScene(0, 0).x(), beta.x(), describe(tree()));
+        assertEquals(header.localToScene(0, 0).y(), beta.y(), describe(tree()));
         assertEquals(header.width(), beta.width(), describe(tree()));
         assertEquals(header.height(), beta.height(),
                 "the walk's free box, which the strip has already placed" + describe(tree()));
@@ -535,12 +535,12 @@ class TabbedPaneTabHeaderAccessibilityTest extends AccessibleComponentTestBase {
                 "the first tab is inside the viewport" + describe(tree()));
         AccessibleNode away = node("Tab G");
         Widget<?> header = headers().get(6);
-        assertEquals(header.localToSceneX(), away.x(),
+        assertEquals(header.localToScene(0, 0).x(), away.x(),
                 "the real rectangle, not a clamped or a zeroed one: the strip lays its headers "
                         + "out with the scroll offset folded in and moves them the moment it "
                         + "scrolls" + describe(tree()));
         assertEquals(header.width(), away.width(), describe(tree()));
-        assertTrue(away.x() >= strip.localToSceneX() + strip.width(),
+        assertTrue(away.x() >= strip.localToScene(0, 0).x() + strip.width(),
                 "and that rectangle really is outside the viewport" + describe(tree()));
         assertTrue(away.has(Accessible.State.VISIBLE), describe(tree()));
         assertFalse(away.has(Accessible.State.SHOWING),
@@ -590,7 +590,7 @@ class TabbedPaneTabHeaderAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(new SelectionItemFacet(false, 3, 3), rtl.get(2).selectionItem(),
                 describe(tree()));
         for (int i = 0; i < 3; i++) {
-            assertEquals(headers().get(i).localToSceneX(), rtl.get(i).x(), describe(tree()));
+            assertEquals(headers().get(i).localToScene(0, 0).x(), rtl.get(i).x(), describe(tree()));
         }
     }
 

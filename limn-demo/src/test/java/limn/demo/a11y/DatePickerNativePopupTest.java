@@ -220,8 +220,8 @@ class DatePickerNativePopupTest {
             todo.addAll(at.children());
         }
         assertTrue(row != null, "a time row on the calendar's card");
-        float x = row.localToSceneX() + 4;
-        float y = row.localToSceneY() + row.height() / 2;
+        float x = row.localToScene(0, 0).x() + 4;
+        float y = row.localToScene(0, 0).y() + row.height() / 2;
         Scene popupScene = row.scene();
         // What the desktop does on a click into the popup's window, and nothing undoes it.
         host.desktopFocus(false);

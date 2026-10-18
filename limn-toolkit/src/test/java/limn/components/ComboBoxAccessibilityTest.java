@@ -159,8 +159,8 @@ class ComboBoxAccessibilityTest extends AccessibleComponentTestBase {
                     "a shut combo publishes no list: the options are the panel's, and there is no "
                             + "panel" + describe(tree()));
         }
-        assertEquals(combo.localToSceneX(), node.x(), 0.01f, describe(tree()));
-        assertEquals(combo.localToSceneY(), node.y(), 0.01f);
+        assertEquals(combo.localToScene(0, 0).x(), node.x(), 0.01f, describe(tree()));
+        assertEquals(combo.localToScene(0, 0).y(), node.y(), 0.01f);
         assertEquals(combo.width(), node.width(), 0.01f);
         assertEquals(combo.height(), node.height(), 0.01f);
     }
