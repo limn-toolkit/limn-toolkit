@@ -13,12 +13,15 @@ import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.MouseEvent;
 import limn.scene.layout.Opacity;
+import limn.scene.layout.SizedBox;
+import limn.scene.layout.Transform;
 
 /**
  * The worked examples the animations guide shows: a value that eases to where it is sent, a
  * colour that does, a pulse that repeats, a ticker for motion that is not a move from one value
- * to another, and a part of a window fading in and out. Compiled by {@code ./gradlew check} and run by {@code AnimationExampleTest},
- * so what the guide says they do is what they do.
+ * to another, a part of a window fading in and out, and one sliding in and turning over.
+ * Compiled by {@code ./gradlew check} and run by {@code AnimationExampleTest}, so what the guide
+ * says they do is what they do.
  */
 public final class AnimationExample {
 
@@ -205,6 +208,36 @@ public final class AnimationExample {
     static void dismissNotice(Opacity notice) {
         // At 0 it would still take a click, a Tab and a reader's attention: hidden when the fade arrives.
         notice.fadeTo(0, 0.25, () -> notice.setVisible(false));
+    }
+    // #endregion
+
+    // #region guide:animation-transform
+    /** How wide the drawer is: the distance it slides. */
+    static final float DRAWER_WIDTH = 280;
+
+    /** A drawer laid out at the end edge of a page, in the container that moves its picture; hidden to start with. */
+    static Transform drawerOf(Widget<?> panel) {
+        return new Transform(new SizedBox(DRAWER_WIDTH, SizedBox.UNSET, panel)).setVisible(false);
+    }
+
+    /** Slides the drawer in from the end edge: the right in a left-to-right window, the left in a right-to-left one. */
+    static void openDrawer(Transform drawer) {
+        drawer.setTranslation(DRAWER_WIDTH, 0).setVisible(true); // its own width toward the end: out of sight
+        drawer.slideTo(0, 0);                                    // in, over the theme's window animation
+    }
+
+    /** Slides it out again, and hides it when the slide arrives. */
+    static void closeDrawer(Transform drawer) {
+        // Out of sight it would still take a click and a Tab: hidden when the slide arrives.
+        drawer.slideTo(DRAWER_WIDTH, 0, 0.2, () -> drawer.setVisible(false));
+    }
+
+    /** Turns a card over: its two faces are layers of a stack, swapped while the card is edge-on. */
+    static void turnOver(Transform card, Widget<?> front, Widget<?> back) {
+        card.flipTo(Transform.Flip.FORWARD, () -> {
+            front.setVisible(!front.isVisible());
+            back.setVisible(!back.isVisible());
+        });
     }
     // #endregion
 

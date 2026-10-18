@@ -1,6 +1,6 @@
 ---
 title: "Animations"
-description: "Moving things in a Limn window: a value that eases to where it is sent, a colour that does, a part of a window that fades as one picture, a pulse that repeats, a ticker for motion of your own, pausing and slowing, what a user who asked for less motion gets, and how to test any of it."
+description: "Moving things in a Limn window: a value that eases to where it is sent, a colour that does, a part of a window that fades as one picture, one that slides, scales or turns over, a pulse that repeats, a ticker for motion of your own, pausing and slowing, what a user who asked for less motion gets, and how to test any of it."
 ---
 
 Nothing in a Limn window moves by a timer of your own. A widget holds the number it wants to
@@ -77,6 +77,38 @@ closed by `restore()`. `Canvas.setOpacity` is the other way, an alpha on each dr
 what one draw covers shows through it; it multiplies the opacity in force, so a part set to one
 half inside something fading at one half draws at a quarter.
 
+## Moving part of a window
+
+A part of a window moves, scales or turns over in a `Transform` container, which wraps one widget
+as `Opacity` does and changes where it is drawn without changing where layout put anything: its
+box, its neighbours and the space it takes stay what they are, and a child scaled up overlaps what
+is beside it rather than pushing it. `setTranslation` moves it by points, at once, `setScale`
+scales it about its origin, the middle by default and anywhere `setOrigin` puts it, and `reset()`
+puts everything back. `slideTo` and `scaleTo` move there over a duration, the theme's
+`animWindow` when none is given, and `flipTo` turns the child over, running what it is handed when
+the child is edge-on, which is where to swap what it shows:
+
+{% snippet guide:animation-transform %}
+
+The translation's `x` runs toward the end of the reading direction, and the origin is measured
+from the start edge, so the drawer above comes in from the right in an English window and from
+the left in an Arabic one with the same lines, and `Flip.FORWARD` turns the way a page turns
+forward in either. `Flip.UP` and `Flip.DOWN` turn about the horizontal axis.
+
+The child is drawn moved, and it is found there: a click lands on it where it is drawn, and a
+screen reader is told where it is when a value is set and when a motion arrives, not on every
+frame between. A move or a scale is drawn straight into the window, with every clip inside the
+child kept exact and text crisp at a uniform scale, and a frame of it repaints where the child was
+and where it is and lays nothing out. At rest the container costs nothing at all.
+
+As with a fade, moving something out of sight does not take it away: hide it when the motion
+arrives, as the drawer does. A newer motion of the same value, or a set of it, stops one in flight
+where it is, and its `onArrive` never runs; a slide and a scale run together. While the user asked
+for less motion, every motion goes straight to its target, and a flip swaps the faces at once,
+with no turn. Something watching the container hears `Change.Aspect.TRANSFORM` each time a set
+changes a value, and twice for a motion. To fade a moving part as well, put the `Opacity` outside:
+`new Opacity(new Transform(child))`.
+
 ## Something that repeats
 
 With `repeat(true)` a transition goes to its target and back for as long as it is left to, which
@@ -114,7 +146,8 @@ drawn by a large widget itself, a row's highlight in a list, give the transition
 
 An animation must not change a size. Animate what is painted, an offset, an opacity, a colour,
 and leave `markNeedsLayout()` for when something really is a different size: a layout on every
-frame measures the screen on every frame.
+frame measures the screen on every frame. A part that has to move or grow on screen goes in a
+`Transform`, which moves the picture and lays nothing out.
 
 ## Pausing and slowing
 

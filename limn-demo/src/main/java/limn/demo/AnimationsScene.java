@@ -33,6 +33,8 @@ import limn.scene.layout.Flex;
 import limn.scene.layout.Padding;
 import limn.scene.layout.Row;
 import limn.scene.layout.SizedBox;
+import limn.scene.layout.Stack;
+import limn.scene.layout.Transform;
 
 import java.util.Currency;
 import java.util.List;
@@ -42,8 +44,8 @@ import java.util.function.DoubleFunction;
  * The Motion page: what an application animates. The scene's clock on top, which slows or stops
  * everything below it; an easing track; a list of orders that opens a row as it arrives and
  * closes it as it leaves; an invoice that unfolds its lines; a notification that slides in after
- * a save; a status whose colour changes with a {@link ColorTransition}; animated icons; and a
- * window that fades in and out. Everything is driven by the toolkit's {@code limn.animation}
+ * a save; a card that turns over to show its back, in a {@link Transform}; a status whose colour
+ * changes with a {@link ColorTransition}; animated icons; and a window that fades in and out. Everything is driven by the toolkit's {@code limn.animation}
  * classes and the scene's tickers; nothing hand-rolls a clock.
  */
 final class AnimationsScene {
@@ -94,6 +96,8 @@ final class AnimationsScene {
         static final I18nString REMINDER_TEXT = new I18nString("showcase.motion.reminderText",
                 "Call the supplier about order {0} before 3 pm.");
         static final I18nString CLOSE = new I18nString("showcase.motion.close", "Close");
+        static final I18nString TWO_SIDED = new I18nString("showcase.motion.twoSided", "Two-sided card");
+        static final I18nString TURN_OVER = new I18nString("showcase.motion.turnOver", "Turn over");
 
         private Text() {
         }
@@ -193,6 +197,10 @@ final class AnimationsScene {
         // --- A notification that slides in after a save -------------------------------------
         column.add(Page.section(Text.NOTIFICATION));
         column.add(Page.narrow(640, new ToastHost()));
+
+        // --- A card that turns over: its faces swapped edge-on, where neither is seen ---------
+        column.add(Page.section(Text.TWO_SIDED));
+        column.add(Page.narrow(640, twoSidedCard()));
 
         // --- A status whose colour moves with it ---------------------------------------------
         column.add(Page.section(Text.STATUS));
@@ -308,6 +316,39 @@ final class AnimationsScene {
         card.add(top);
         card.add(body);
         return Page.card(card);
+    }
+
+    // ------------------------------------------------------------------ the two-sided card
+
+    /**
+     * A customer's card, whose back holds a reminder about them: a {@link Transform} turns it over
+     * with a flip, drawn flat, and swaps the two faces when it is edge-on. The faces are two layers
+     * of a stack, one of them hidden, so a reader and the keyboard meet only the side that shows;
+     * the container moves nothing layout placed, so the button beside the card stays where it is.
+     * Under less motion the faces swap at once, with no turn.
+     */
+    private static Widget<?> twoSidedCard() {
+        Column front = new Column();
+        front.gap(2);
+        front.add(new Label(ToastHost.CUSTOMER).setStrong(true));
+        front.add(Page.label(() -> Text.CUSTOMER_SINCE.format("2019")).setMuted(true));
+        Column back = new Column();
+        back.gap(2);
+        back.add(new Label(Text.REMINDER).setStrong(true));
+        back.add(Page.label(() -> Text.REMINDER_TEXT.format("SO-10482")));
+        back.setVisible(false);
+        Stack faces = new Stack();
+        faces.add(front);
+        faces.add(back);
+        Transform card = new Transform(Page.card(new Padding(Insets.symmetric(12, 16), faces)));
+        Button turn = new Button(Text.TURN_OVER).setSecondary(true);
+        turn.onAction(() -> card.flipTo(Transform.Flip.FORWARD, 0.45, () -> {
+            front.setVisible(!front.isVisible());
+            back.setVisible(!back.isVisible());
+        }, null));
+        Row row = Page.row(16, Expanded.of(card, 1), turn);
+        row.crossAlignment(Flex.CrossAlignment.CENTER);
+        return row;
     }
 
     // ------------------------------------------------------------------ animated icons

@@ -98,6 +98,55 @@ class AnimationExampleTest {
     }
 
     @Test
+    void aDrawerSlidesInFromTheEndEdgeAndIsHiddenWhenItSlidesOut() {
+        Lamp inside = new Lamp();
+        limn.scene.layout.Transform drawer = AnimationExample.drawerOf(inside);
+        assertTrue(!drawer.isVisible(), "hidden to start with");
+        show(drawer);
+        scene.bind(new limn.testing.StubWindow()); // a window: frames to slide over
+        AnimationExample.openDrawer(drawer);
+        assertTrue(drawer.isVisible());
+        assertEquals(AnimationExample.DRAWER_WIDTH, drawer.translationX(), "out of sight, about to come in");
+        frame(0);
+        frame(80);
+        float part = drawer.translationX();
+        assertTrue(part > 0 && part < AnimationExample.DRAWER_WIDTH, "part of the way: " + part);
+        assertEquals(drawer.localToScene(0, 0).x(), drawer.x(), "where layout put it, which the slide does not move");
+        float drawnAt = inside.localToScene(0, 0).x();
+        assertEquals(drawer.x() + part, drawnAt, 1e-3f, "the content is drawn, and found, where the slide has it");
+        frame(200);
+        assertEquals(0f, drawer.translationX(), "in, once the window animation has gone by");
+
+        AnimationExample.closeDrawer(drawer);
+        frame(0);
+        frame(100);
+        assertTrue(drawer.isVisible(), "still shown while it slides out");
+        frame(200);
+        assertEquals(AnimationExample.DRAWER_WIDTH, drawer.translationX());
+        assertTrue(!drawer.isVisible(), "and hidden when it arrives, so nothing out of sight takes a click");
+    }
+
+    @Test
+    void aCardTurnsOverAndShowsItsBackOnceItIsEdgeOn() {
+        Lamp front = new Lamp();
+        Lamp back = new Lamp();
+        back.setVisible(false);
+        limn.scene.layout.Stack faces = new limn.scene.layout.Stack();
+        faces.add(front);
+        faces.add(back);
+        limn.scene.layout.Transform card = new limn.scene.layout.Transform(faces);
+        show(card);
+        scene.bind(new limn.testing.StubWindow());
+        AnimationExample.turnOver(card, front, back);
+        frame(0);
+        frame(40);
+        assertTrue(front.isVisible() && !back.isVisible(), "the front, until the card is edge-on");
+        frame(200);
+        frame(200);
+        assertTrue(!front.isVisible() && back.isVisible(), "and the back once it has turned over");
+    }
+
+    @Test
     void theGuidesOwnTestOfALampFindsItPartOfTheWay() {
         assertTrue(AnimationExample.isPartWayAfter90Millis(new Lamp()));
     }
