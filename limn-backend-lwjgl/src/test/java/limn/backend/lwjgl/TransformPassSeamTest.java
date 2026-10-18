@@ -1,0 +1,274 @@
+package limn.backend.lwjgl;
+
+import limn.components.Theme;
+import limn.graphics.Canvas;
+import limn.graphics.Color;
+import limn.scene.Constraints;
+import limn.scene.Insets;
+import limn.scene.Scene;
+import limn.scene.Size;
+import limn.scene.Widget;
+import limn.scene.layout.Opacity;
+import limn.scene.layout.Padding;
+import limn.scene.layout.Stack;
+import limn.scene.layout.Transform;
+import limn.testing.HeadlessUi;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.lwjgl.opengl.GL33C;
+import org.lwjgl.system.MemoryUtil;
+
+import java.nio.ByteBuffer;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
+
+/**
+ * A partial frame through a moving {@link Transform} draws what the whole frame drew, against a real
+ * device (ADR 072 §2.6, §6, stage 1): the change damages where the child was and where it is, a
+ * pass reaches the child wherever it is drawn, and nothing outside the passes is read or written.
+ *
+ * <p>Each case is a whole frame, then one change and a partial frame into the same target kept as a
+ * buffer that holds its contents (age 1), then a whole frame of the same state to hold it against,
+ * as {@code OpacityPassSeamTest} does for a fade. The container sits a fraction of a point off the
+ * grid and moves by fractions, which is where a damage rounded the wrong way would show as a seam.
+ */
+class TransformPassSeamTest {
+
+    private static final float SCALE = 2f;
+    private static final int WIDTH = 360;
+    private static final int HEIGHT = 200;
+
+    private GlCanvas canvas;
+    private FontStore fonts;
+    private HeadlessUi ui;
+
+    @BeforeEach
+    void openContext() {
+        HeadlessGl.assumeAvailable();
+        ui = new HeadlessUi();
+        fonts = new FontStore();
+        canvas = new GlCanvas(fonts);
+        Theme.setCurrent(Theme.dark());
+    }
+
+    @AfterEach
+    void closeContext() {
+        if (canvas != null) {
+            canvas.dispose();
+            canvas = null;
+        }
+        if (fonts != null) {
+            fonts.close();
+            fonts = null;
+        }
+        if (ui != null) {
+            ui.close();
+            ui = null;
+        }
+    }
+
+    /** Bright stripes behind everything, so a stale pixel anywhere shows. */
+    private static final class Picture extends Widget<Picture> {
+        @Override
+        protected Size onMeasure(Constraints c) {
+            return c.constrain(WIDTH / SCALE, HEIGHT / SCALE);
+        }
+
+        @Override
+        protected void onPaint(Canvas canvas) {
+            for (int band = 0; band * 6 < height(); band++) {
+                canvas.fillRect(0, band * 6, width(), 6,
+                        band % 2 == 0 ? Color.rgb(0xF2A65A) : Color.rgb(0x3050C8));
+            }
+        }
+    }
+
+    /** A card with a shadow-like rim and a highlight, its rim declared as its outset. */
+    private static final class Card extends Widget<Card> {
+        @Override
+        protected Size onMeasure(Constraints c) {
+            return c.constrain(50, 34);
+        }
+
+        @Override
+        protected float paintOutset() {
+            return 3;
+        }
+
+        @Override
+        protected void onPaint(Canvas canvas) {
+            canvas.fillRoundRect(-3, -3, width() + 6, height() + 6, 9, Color.rgba(0x000000, 0.3f));
+            canvas.fillRoundRectWithBorder(0, 0, width(), height(), 6, Color.WHITE, 1, Color.rgb(0x808890));
+            canvas.fillRoundRect(5, 12, width() - 10, 10, 4, Color.rgb(0xD6E4FF));
+        }
+    }
+
+    /** A small thing that changes colour by itself, where the slid card now lies. */
+    private static final class Thumb extends Widget<Thumb> {
+        private Color color = Color.rgb(0x20A060);
+
+        @Override
+        protected Size onMeasure(Constraints c) {
+            return c.constrain(6, 6);
+        }
+
+        @Override
+        protected void onPaint(Canvas canvas) {
+            canvas.fillRect(0, 0, width(), height(), color);
+        }
+
+        void recolor() {
+            color = Color.rgb(0xC02080);
+            invalidate();
+        }
+    }
+
+    /** The stripes, and the card in a container a fraction off the grid, in a padding of its own. */
+    private static Stack layers(Widget<?> moving) {
+        Stack layers = new Stack();
+        layers.add(new Picture());
+        layers.add(new Padding(new Insets(30.35f, 0, 0, 20.1f), moving));
+        return layers;
+    }
+
+    @Test
+    void aSlideStepDrawsWhatTheWholeFrameDrew() {
+        Transform t = new Transform(new Card()).setTranslation(7.3f, 4.6f);
+        assertPartialIsWhole(layers(t), () -> t.setTranslation(23.15f, 9.25f));
+    }
+
+    @Test
+    void aSlidePastAnUnclippedParentsBoxDrawsWhatTheWholeFrameDrew() {
+        // The padding's box ends at the card's right edge, and the card goes three widths past it.
+        Transform t = new Transform(new Card());
+        assertPartialIsWhole(layers(t), () -> t.setTranslation(97.7f, 21.3f));
+    }
+
+    @Test
+    void somethingRepaintingWhereASlidCardLiesDrawsWhatTheWholeFrameDrew() {
+        Transform t = new Transform(new Card()).setTranslation(97.7f, 21.3f);
+        Thumb thumb = new Thumb();
+        Stack root = layers(t);
+        root.add(new Padding(new Insets(30.35f + 21.3f + 14, 0, 0, 20.1f + 97.7f + 20), thumb));
+        assertPartialIsWhole(root, thumb::recolor);
+    }
+
+    @Test
+    void aScaleStepDrawsWhatTheWholeFrameDrew() {
+        Transform t = new Transform(new Card()).setOrigin(0.2f, 0.7f).setScale(1.13f);
+        assertPartialIsWhole(layers(t), () -> t.setScale(1.71f, 1.37f).setTranslation(3.3f, -2.1f));
+    }
+
+    @Test
+    void aFadingSlideDrawsWhatTheWholeFrameDrewInEitherOrder() {
+        Transform outer = new Transform(new Card()).setTranslation(7.3f, 4.6f);
+        Opacity fadingOutside = new Opacity(outer).setOpacity(0.6f);
+        assertPartialIsWhole(layers(fadingOutside), () -> outer.setTranslation(61.15f, 9.25f));
+
+        Opacity fadingInside = new Opacity(new Card()).setOpacity(0.6f);
+        Transform around = new Transform(fadingInside).setTranslation(7.3f, 4.6f);
+        assertPartialIsWhole(layers(around), () -> around.setTranslation(61.15f, 9.25f));
+    }
+
+    private void assertPartialIsWhole(Widget<?> root, Runnable change) {
+        Scene scene = new Scene(root);
+        scene.setPartialRendering(true);
+        int texture = GL33C.glGenTextures();
+        int fbo = GL33C.glGenFramebuffers();
+        int previousFbo = GL33C.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
+        int[] previousViewport = new int[4];
+        GL33C.glGetIntegerv(GL33C.GL_VIEWPORT, previousViewport);
+        try {
+            bindTarget(texture, fbo);
+            frame(scene, 0);
+            byte[] before = readTopDown();
+            change.run();
+            frame(scene, 1);
+            byte[] partial = readTopDown();
+            frame(scene, 0);
+            byte[] whole = readTopDown();
+            assertTrue(differs(before, whole), "the change moved something, or the case proves nothing");
+            assertSame(whole, partial);
+        } finally {
+            GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, previousFbo);
+            GL33C.glViewport(previousViewport[0], previousViewport[1], previousViewport[2], previousViewport[3]);
+            GL33C.glDeleteFramebuffers(fbo);
+            GL33C.glDeleteTextures(texture);
+        }
+    }
+
+    private void frame(Scene scene, int bufferAge) {
+        canvas.beginFrame(WIDTH, HEIGHT, SCALE);
+        scene.renderFrame(canvas, false, Float.NaN, bufferAge);
+        canvas.endFrame();
+    }
+
+    private static boolean differs(byte[] a, byte[] b) {
+        for (int i = 0; i < a.length; i++) {
+            if (a[i] != b[i]) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Every pixel within 2 of the reference, or the worst one and how many are not. */
+    private static void assertSame(byte[] expected, byte[] actual) {
+        int bad = 0;
+        int worst = 0;
+        int where = 0;
+        for (int i = 0; i < expected.length; i++) {
+            if (i % 4 == 3) {
+                continue;
+            }
+            int d = Math.abs((expected[i] & 0xFF) - (actual[i] & 0xFF));
+            if (d > 2) {
+                bad++;
+            }
+            if (d > worst) {
+                worst = d;
+                where = i / 4;
+            }
+        }
+        if (bad > 0) {
+            fail("the partial frame differs from the whole one in " + bad + " channel(s), worst " + worst
+                    + " at " + (where % WIDTH) + "," + (where / WIDTH));
+        }
+        assertEquals(0, bad);
+    }
+
+    private static void bindTarget(int texture, int fbo) {
+        GL33C.glActiveTexture(GL33C.GL_TEXTURE0);
+        GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
+        GL33C.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, WIDTH, HEIGHT, 0,
+                GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, (ByteBuffer) null);
+        GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MIN_FILTER, GL33C.GL_NEAREST);
+        GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MAG_FILTER, GL33C.GL_NEAREST);
+        GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, fbo);
+        GL33C.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
+                GL33C.GL_TEXTURE_2D, texture, 0);
+        assertEquals(GL33C.GL_FRAMEBUFFER_COMPLETE, GL33C.glCheckFramebufferStatus(GL33C.GL_FRAMEBUFFER),
+                "render target");
+        GL33C.glViewport(0, 0, WIDTH, HEIGHT);
+    }
+
+    private static byte[] readTopDown() {
+        ByteBuffer pixels = MemoryUtil.memAlloc(WIDTH * HEIGHT * 4);
+        try {
+            GL33C.glPixelStorei(GL33C.GL_PACK_ALIGNMENT, 1);
+            GL33C.glReadPixels(0, 0, WIDTH, HEIGHT, GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, pixels);
+            byte[] out = new byte[WIDTH * HEIGHT * 4];
+            int stride = WIDTH * 4;
+            for (int row = 0; row < HEIGHT; row++) {
+                pixels.position((HEIGHT - 1 - row) * stride);
+                pixels.get(out, row * stride, stride);
+            }
+            return out;
+        } finally {
+            MemoryUtil.memFree(pixels);
+        }
+    }
+}
