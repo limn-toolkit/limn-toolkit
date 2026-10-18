@@ -58,6 +58,31 @@ public final class Mat4 {
         return new Mat4(r);
     }
 
+    /**
+     * The 2D affine map {@code x' = a·x + c·y + e}, {@code y' = b·x + d·y + f} of the plane, as a
+     * matrix whose z row and column are the identity's: the six numbers in the order a 2D canvas's
+     * or a vector drawing's matrix lists them. A skew along x by an angle θ is
+     * {@code affine2D(1, 0, tan θ, 1, 0, 0)}.
+     *
+     * @param a how far x moves along x per unit of x
+     * @param b how far y moves per unit of x
+     * @param c how far x moves per unit of y
+     * @param d how far y moves per unit of y
+     * @param e the translation along x
+     * @param f the translation along y
+     * @return the matrix
+     */
+    public static Mat4 affine2D(float a, float b, float c, float d, float e, float f) {
+        float[] r = identityArray();
+        r[0] = a;
+        r[1] = b;
+        r[4] = c;
+        r[5] = d;
+        r[12] = e;
+        r[13] = f;
+        return new Mat4(r);
+    }
+
     /** Translate · Rotate · Scale, composed directly. */
     public static Mat4 trs(Vec3 t, Quat q, Vec3 s) {
         Mat3 r3 = q.toMat3();

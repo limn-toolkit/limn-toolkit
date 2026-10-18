@@ -191,6 +191,71 @@ public interface Canvas {
     }
 
     /**
+     * Opens a layer drawn in a space of its own and composited through {@code transform}: until the
+     * matching {@link #restore()}, current coordinates are the layer's, upright, and its picture is
+     * laid where the canvas as it stood draws {@code transform} times each of its points. The
+     * layer's space is the plane {@code z = 0}: a point {@code (x, y)} of it is drawn at the
+     * matrix's x and y of {@code (x, y, 0, 1)}, each divided by its w. This is how a rotated or
+     * skewed subtree keeps every clip inside it an exact rectangle (a scroll view turned a few
+     * degrees shows nothing in its corners), and {@link #clipBounds()} answering inside it, so that
+     * what scrolled away is still skipped.
+     *
+     * <p>The rectangle, in the layer's own coordinates, is what the picture keeps. A canvas sizes
+     * the picture to the part of the rectangle that the clip in force lets be seen once it is
+     * turned, at the largest magnification the transform gives any point of it, so text and
+     * shapes are drawn into it at the size they are seen at; past the window's size the picture is
+     * drawn smaller and composited softer. Its edges are antialiased by a clear ring of one pixel
+     * round what is drawn, which the composite's filtering ramps over about a pixel. The clip in
+     * force when it is opened, rounded or not, cuts the composite. Otherwise as
+     * {@link #saveLayer(float, float, float, float, float)}: the opacity and the blend mode in
+     * force are the composite's, and drawing inside starts again from an opacity of 1 and
+     * {@link BlendMode#NORMAL}.
+     *
+     * <p><b>What it costs</b>: what a layer of the same size costs, since it is one picture and one
+     * quad, and the frame after the last one that opens it frees the picture. A transform that
+     * only moves and scales along the axes needs no picture, and a canvas draws through it
+     * straight, as {@link #translate} and {@link #scale} would.
+     *
+     * <p><b>A canvas that cannot make layers</b> applies the transform's flat part, its x, y and w
+     * rows and columns without the w row's tilt, straight to its own transform, through
+     * {@link #translate}, {@link #rotate} and {@link #scale}, and the opacity per draw: the same
+     * commands in nearly the same places, which is what counting them needs.
+     *
+     * @param x         the left edge of what the layer keeps, in the layer's own coordinates
+     * @param y         its top edge
+     * @param width     its width
+     * @param height    its height
+     * @param opacity   the opacity the picture is composited with, clamped to [0..1]
+     * @param transform where the layer's space is drawn, applied after the canvas's own transform
+     */
+    default void saveLayer(float x, float y, float width, float height, float opacity,
+                           limn.math.Mat4 transform) {
+        save();
+        // The flat part, a x + c y + e and b x + d y + f, as a translation, a rotation, a scale on
+        // the axes and a second rotation: any linear map of the plane is two rotations about a
+        // scale, by its singular value decomposition, which the three calls every canvas has can
+        // express where a skew alone could not.
+        float w = transform.get(3, 3) != 0 ? transform.get(3, 3) : 1;
+        float a = transform.get(0, 0) / w;
+        float b = transform.get(1, 0) / w;
+        float c = transform.get(0, 1) / w;
+        float d = transform.get(1, 1) / w;
+        translate(transform.get(0, 3) / w, transform.get(1, 3) / w);
+        double sum = (a + d) / 2.0;
+        double diff = (a - d) / 2.0;
+        double cross = (b + c) / 2.0;
+        double turn = (b - c) / 2.0;
+        double q = Math.hypot(sum, turn);
+        double r = Math.hypot(diff, cross);
+        double before = Math.atan2(cross, diff);
+        double after = Math.atan2(turn, sum);
+        rotate((float) ((after + before) / 2));
+        scale((float) (q + r), (float) (q - r));
+        rotate((float) ((after - before) / 2));
+        setOpacity(opacity);
+    }
+
+    /**
      * Sets the current state's {@link BlendMode}: how every subsequent
      * primitive (shape, text, image) combines with the destination. Restored
      * by {@link #restore()}. Backends without blend-mode support paint

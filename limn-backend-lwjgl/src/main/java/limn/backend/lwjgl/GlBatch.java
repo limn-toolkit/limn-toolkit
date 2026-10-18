@@ -39,6 +39,17 @@ import static org.lwjgl.opengl.GL33C.glUniform1f;
 import static org.lwjgl.opengl.GL33C.glUniform1i;
 import static org.lwjgl.opengl.GL33C.glUniform2f;
 import static org.lwjgl.opengl.GL33C.glVertexAttribPointer;
+import static org.lwjgl.opengl.GL33C.GL_CLAMP_TO_EDGE;
+import static org.lwjgl.opengl.GL33C.GL_LINEAR;
+import static org.lwjgl.opengl.GL33C.GL_TEXTURE_MAG_FILTER;
+import static org.lwjgl.opengl.GL33C.GL_TEXTURE_MIN_FILTER;
+import static org.lwjgl.opengl.GL33C.GL_TEXTURE_WRAP_S;
+import static org.lwjgl.opengl.GL33C.GL_TEXTURE_WRAP_T;
+import static org.lwjgl.opengl.GL33C.glBindSampler;
+import static org.lwjgl.opengl.GL33C.glDeleteSamplers;
+import static org.lwjgl.opengl.GL33C.glGenSamplers;
+import static org.lwjgl.opengl.GL33C.glSamplerParameteri;
+import static org.lwjgl.opengl.GL33C.glUniform4f;
 
 /**
  * Geometry batcher: accumulates every canvas primitive of a frame into one
@@ -88,12 +99,33 @@ final class GlBatch implements AutoCloseable {
     private FloatBuffer flatVertices = MemoryUtil.memAllocFloat(6 * 8 * FLAT_VERTEX_FLOATS);
     private int flatVertexCount;
 
-    /** Floats per composite vertex: device position, then the picture's texture coordinates. */
-    static final int COMPOSITE_VERTEX_FLOATS = 4;
+    /**
+     * Floats per composite vertex: the homogeneous device position {@code (x, y, 0, 1)} times w,
+     * then the picture's texture coordinates.
+     */
+    static final int COMPOSITE_VERTEX_FLOATS = 6;
     private final ShaderProgram compositeProgram;
     private final int compositeUniformViewport;
     private final int compositeUniformOrigin;
     private final int compositeUniformAlpha;
+    /**
+     * The composite under a rounded clip, for a picture drawn in a space of its own: the same
+     * vertices, and the clip's coverage at each fragment. Apart from the plain one so that a picture
+     * under no rounded clip pays nothing per pixel for it.
+     */
+    private final ShaderProgram clippedCompositeProgram;
+    private final int clippedUniformViewport;
+    private final int clippedUniformOrigin;
+    private final int clippedUniformAlpha;
+    private final int clippedUniformClip;
+    private final int clippedUniformRoundClip;
+    private final int clippedUniformClipRadius;
+    /**
+     * Bilinear sampling for a picture laid at an angle or another scale, bound over the picture's
+     * own sampling, which is nearest because a picture laid back on the pixels it was drawn on must
+     * not be filtered.
+     */
+    private final int smoothSampler;
     private final int compositeVao;
     private final int compositeVbo;
     private final FloatBuffer compositeVertices = MemoryUtil.memAllocFloat(6 * COMPOSITE_VERTEX_FLOATS);
@@ -174,9 +206,27 @@ final class GlBatch implements AutoCloseable {
         glBindVertexArray(compositeVao);
         glBindBuffer(GL_ARRAY_BUFFER, compositeVbo);
         int compositeStride = COMPOSITE_VERTEX_FLOATS * Float.BYTES;
-        attribute(0, 2, compositeStride, 0); // a_pos
-        attribute(1, 2, compositeStride, 2); // a_uv
+        attribute(0, 4, compositeStride, 0); // a_pos
+        attribute(1, 2, compositeStride, 4); // a_uv
         glBindVertexArray(0);
+
+        clippedCompositeProgram = ShaderProgram.fromResources(
+                "/limn/backend/lwjgl/shaders/canvas_composite.vert",
+                "/limn/backend/lwjgl/shaders/canvas_composite_clip.frag");
+        clippedUniformViewport = clippedCompositeProgram.uniformLocation("u_viewport");
+        clippedUniformOrigin = clippedCompositeProgram.uniformLocation("u_origin");
+        clippedUniformAlpha = clippedCompositeProgram.uniformLocation("u_alpha");
+        clippedUniformClip = clippedCompositeProgram.uniformLocation("u_clip");
+        clippedUniformRoundClip = clippedCompositeProgram.uniformLocation("u_roundClip");
+        clippedUniformClipRadius = clippedCompositeProgram.uniformLocation("u_clipRadius");
+        clippedCompositeProgram.use();
+        glUniform1i(clippedCompositeProgram.uniformLocation("u_picture"), 0);
+
+        smoothSampler = glGenSamplers();
+        glSamplerParameteri(smoothSampler, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glSamplerParameteri(smoothSampler, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glSamplerParameteri(smoothSampler, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glSamplerParameteri(smoothSampler, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     }
 
     private static void attribute(int location, int size, int strideBytes, int floatOffset) {
@@ -447,30 +497,128 @@ final class GlBatch implements AutoCloseable {
                    float u0, float v0, float u1, float v1, float alpha) {
         flush();
         compositeVertices.clear();
-        compositeVertex(x0, y0, u0, v0);
-        compositeVertex(x1, y0, u1, v0);
-        compositeVertex(x1, y1, u1, v1);
-        compositeVertex(x0, y0, u0, v0);
-        compositeVertex(x1, y1, u1, v1);
-        compositeVertex(x0, y1, u0, v1);
+        compositeVertex(x0, y0, 1, u0, v0);
+        compositeVertex(x1, y0, 1, u1, v0);
+        compositeVertex(x1, y1, 1, u1, v1);
+        compositeVertex(x0, y0, 1, u0, v0);
+        compositeVertex(x1, y1, 1, u1, v1);
+        compositeVertex(x0, y1, 1, u0, v1);
+        drawComposite(texture, alpha, false, null);
+    }
+
+    /**
+     * Draws a picture drawn in a space of its own into the current target now, as one quad through
+     * the picture's transform: its four corners, in order round the quad, each given as the
+     * homogeneous device position {@code (x, y)} times {@code w} and its {@code w}, with the
+     * picture's texture coordinates at each, sampled bilinearly, so that a turned edge ramps over
+     * about a pixel. The picture was drawn under a clip of its own, so the enclosing clip is
+     * applied here: a rectangle on whole pixels as a scissor, inside the damage scissor while the
+     * window is the target, which costs nothing per pixel; a rounded clip, or a rectangle with an
+     * edge between pixels, by the variant program, which computes the coverage at each fragment as
+     * the canvas program does, inside a scissor at the clip's bounds.
+     *
+     * @param texture the picture
+     * @param corners {@code x, y, w} of each corner, x and y already times w: twelve numbers
+     * @param uvs     {@code u, v} of each corner, eight numbers
+     * @param alpha   the opacity
+     * @param clip    the enclosing clip, in the device pixels of the target's space
+     */
+    void compositeThrough(int texture, float[] corners, float[] uvs, float alpha, DeviceClip clip) {
+        flush();
+        compositeVertices.clear();
+        for (int i : QUAD_CORNERS) {
+            compositeVertex(corners[i * 3], corners[i * 3 + 1], corners[i * 3 + 2], uvs[i * 2], uvs[i * 2 + 1]);
+        }
+        drawComposite(texture, alpha, true, clip);
+    }
+
+    /** The two triangles of a quad whose corners are given in order round it. */
+    private static final int[] QUAD_CORNERS = {0, 1, 2, 0, 2, 3};
+
+    private void drawComposite(int texture, float alpha, boolean smooth, DeviceClip clip) {
         compositeVertices.flip();
         glBindVertexArray(compositeVao);
         glBindBuffer(GL_ARRAY_BUFFER, compositeVbo);
         glBufferData(GL_ARRAY_BUFFER, compositeVertices, GL_STREAM_DRAW);
-        compositeProgram.use();
-        glUniform2f(compositeUniformViewport, targetWidth, targetHeight);
-        glUniform2f(compositeUniformOrigin, targetX, targetY);
-        glUniform1f(compositeUniformAlpha, alpha);
+        boolean computed = clip != null && (clip.radius > 0 || offTheGrid(clip));
+        if (computed) {
+            clippedCompositeProgram.use();
+            glUniform2f(clippedUniformViewport, targetWidth, targetHeight);
+            glUniform2f(clippedUniformOrigin, targetX, targetY);
+            glUniform1f(clippedUniformAlpha, alpha);
+            glUniform4f(clippedUniformClip, clip.x0, clip.y0, clip.x1, clip.y1);
+            glUniform4f(clippedUniformRoundClip, clip.roundX0, clip.roundY0, clip.roundX1, clip.roundY1);
+            glUniform1f(clippedUniformClipRadius, clip.radius);
+        } else {
+            compositeProgram.use();
+            glUniform2f(compositeUniformViewport, targetWidth, targetHeight);
+            glUniform2f(compositeUniformOrigin, targetX, targetY);
+            glUniform1f(compositeUniformAlpha, alpha);
+        }
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture);
+        if (smooth) {
+            glBindSampler(0, smoothSampler);
+        }
         applyRasterState();
-        glDrawArrays(GL_TRIANGLES, 0, 6);
+        if (clip == null || scissorTo(clip, computed)) {
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+            drawCalls++;
+        }
+        if (smooth) {
+            glBindSampler(0, 0);
+        }
         glBindVertexArray(0);
-        drawCalls++;
     }
 
-    private void compositeVertex(float x, float y, float u, float v) {
-        compositeVertices.put(x).put(y).put(u).put(v);
+    /**
+     * Whether an edge of the clip's rectangle falls between pixels, where the canvas program covers
+     * the pixels it cuts in part: a scissor would cover them wholly or not at all, so the variant
+     * program computes that coverage as the canvas's does. A pass's clip and a viewport laid on the
+     * grid fall on whole pixels, and are left to the scissor.
+     */
+    private static boolean offTheGrid(DeviceClip clip) {
+        return offPixel(clip.x0) || offPixel(clip.y0) || offPixel(clip.x1) || offPixel(clip.y1);
+    }
+
+    private static boolean offPixel(float edge) {
+        return Math.abs(edge - Math.round(edge)) > 1e-3f;
+    }
+
+    /**
+     * Arms the scissor at the clip's rectangle, in the target's pixels: at its edges when they lie
+     * on whole pixels, where the canvas program's own coverage of a rectangle turns from none to
+     * all, or outward when the variant program computes the coverage itself; and inside the damage
+     * scissor while the window is the target.
+     *
+     * @return whether anything is left to draw
+     */
+    private boolean scissorTo(DeviceClip clip, boolean outward) {
+        int x0 = (outward ? (int) Math.floor(clip.x0) : Math.round(clip.x0)) - targetX;
+        int x1 = (outward ? (int) Math.ceil(clip.x1) : Math.round(clip.x1)) - targetX;
+        int top = (outward ? (int) Math.floor(clip.y0) : Math.round(clip.y0)) - targetY;
+        int bottom = (outward ? (int) Math.ceil(clip.y1) : Math.round(clip.y1)) - targetY;
+        // GL counts rows up from the target's bottom edge.
+        int y0 = Math.max(targetHeight - bottom, 0);
+        int y1 = Math.min(targetHeight - top, targetHeight);
+        x0 = Math.max(x0, 0);
+        x1 = Math.min(x1, targetWidth);
+        if (scissorEnabled && !inLayer) {
+            x0 = Math.max(x0, scissorX);
+            y0 = Math.max(y0, scissorY);
+            x1 = Math.min(x1, scissorX + scissorW);
+            y1 = Math.min(y1, scissorY + scissorH);
+        }
+        if (x1 <= x0 || y1 <= y0) {
+            return false;
+        }
+        glEnable(GL_SCISSOR_TEST);
+        glScissor(x0, y0, x1 - x0, y1 - y0);
+        return true;
+    }
+
+    private void compositeVertex(float x, float y, float w, float u, float v) {
+        compositeVertices.put(x).put(y).put(0f).put(w).put(u).put(v);
     }
 
     /** Uploads accumulated geometry and draws it: one draw call per program with any pending. */
@@ -563,6 +711,8 @@ final class GlBatch implements AutoCloseable {
         glDeleteBuffers(compositeVbo);
         glDeleteVertexArrays(compositeVao);
         compositeProgram.close();
+        clippedCompositeProgram.close();
+        glDeleteSamplers(smoothSampler);
         MemoryUtil.memFree(compositeVertices);
         MemoryUtil.memFree(vertices);
         MemoryUtil.memFree(indices);

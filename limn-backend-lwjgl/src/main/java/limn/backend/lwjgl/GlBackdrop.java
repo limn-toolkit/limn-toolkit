@@ -20,6 +20,8 @@ final class GlBackdrop {
 
     private int texture;
     private int framebuffer; // lazy: only a glass inside a layer draws into the copy
+    private int warpedTexture; // lazy: only a glass inside a rotated or skewed layer reads one
+    private int warpedFramebuffer;
     private int width;
     private int height;
 
@@ -60,6 +62,42 @@ final class GlBackdrop {
         return framebuffer;
     }
 
+    /** @return the copy {@link #capture} last wrote, to sample */
+    int texture() {
+        return texture;
+    }
+
+    /**
+     * A second copy the size of the first, for a glass inside a rotated or skewed layer: the first
+     * is read, warped into the glass's own space, and drawn into this one, which the glass then
+     * samples at its own pixels. Made the first time one is asked for, and kept with the first.
+     *
+     * @return the second copy's texture
+     */
+    int warped(int framebufferWidth, int framebufferHeight) {
+        ensureSized(framebufferWidth, framebufferHeight);
+        if (warpedTexture == 0) {
+            warpedTexture = GL33C.glGenTextures();
+            GL33C.glActiveTexture(GL33C.GL_TEXTURE0);
+            GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, warpedTexture);
+            GL33C.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, width, height, 0,
+                    GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, (ByteBuffer) null);
+            Gl.sample2D(GL33C.GL_LINEAR, GL33C.GL_CLAMP_TO_EDGE);
+            warpedFramebuffer = GL33C.glGenFramebuffers();
+            GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, warpedFramebuffer);
+            GL33C.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
+                    GL33C.GL_TEXTURE_2D, warpedTexture, 0);
+            int fbo = warpedFramebuffer;
+            Gl.requireFramebufferComplete("warped backdrop copy", () -> GL33C.glDeleteFramebuffers(fbo));
+        }
+        return warpedTexture;
+    }
+
+    /** @return the framebuffer drawing into the second copy; {@link #warped} made it */
+    int warpedFramebuffer() {
+        return warpedFramebuffer;
+    }
+
     private void ensureSized(int framebufferWidth, int framebufferHeight) {
         if (texture != 0 && width == framebufferWidth && height == framebufferHeight) {
             return;
@@ -79,10 +117,22 @@ final class GlBackdrop {
 
     /** What the perf monitor should show for this canvas's backdrop copy (nothing until one). */
     RenderStats stats() {
-        return texture == 0 ? RenderStats.EMPTY : new RenderStats(1, (long) width * height * 4);
+        if (texture == 0) {
+            return RenderStats.EMPTY;
+        }
+        int textures = warpedTexture == 0 ? 1 : 2;
+        return new RenderStats(textures, (long) textures * width * height * 4);
     }
 
     void dispose() {
+        if (warpedFramebuffer != 0) {
+            GL33C.glDeleteFramebuffers(warpedFramebuffer);
+            warpedFramebuffer = 0;
+        }
+        if (warpedTexture != 0) {
+            GL33C.glDeleteTextures(warpedTexture);
+            warpedTexture = 0;
+        }
         if (framebuffer != 0) {
             GL33C.glDeleteFramebuffers(framebuffer); // attached to the texture below, so it goes first
             framebuffer = 0;

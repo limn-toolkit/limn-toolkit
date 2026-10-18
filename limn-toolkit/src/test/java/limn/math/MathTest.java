@@ -35,6 +35,20 @@ class MathTest {
     }
 
     @Test
+    void affine2DMapsThePlaneAsATwoDimensionalCanvasMatrixDoesAndLeavesZAlone() {
+        // x' = a x + c y + e, y' = b x + d y + f, in the order a 2D canvas lists them.
+        Mat4 m = Mat4.affine2D(2, 0.5f, -1, 3, 10, 20);
+        assertVec(new Vec3(2 * 4 - 1 * 5 + 10, 0.5f * 4 + 3 * 5 + 20, 7), m.transformPoint(new Vec3(4, 5, 7)));
+        assertEquals(1, m.get(2, 2), EPS, "z kept");
+        assertEquals(0, m.get(3, 0), EPS, "w untouched by x");
+        assertEquals(0, m.get(3, 1), EPS, "and by y");
+        assertEquals(1, m.get(3, 3), EPS);
+        // A skew by 30 degrees along x: a point one unit down moves tan 30 to the right.
+        Mat4 skew = Mat4.affine2D(1, 0, (float) Math.tan(Math.toRadians(30)), 1, 0, 0);
+        assertVec(new Vec3((float) Math.tan(Math.toRadians(30)), 1, 0), skew.transformPoint(new Vec3(0, 1, 0)));
+    }
+
+    @Test
     void mat4TranslationMovesAPoint() {
         assertVec(new Vec3(1, 2, 3), Mat4.translation(new Vec3(1, 2, 3)).transformPoint(Vec3.ZERO));
         // A direction ignores translation.

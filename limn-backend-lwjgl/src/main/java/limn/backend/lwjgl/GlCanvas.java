@@ -92,6 +92,18 @@ final class GlCanvas implements Canvas {
         int layerHeight;
         /** What the layer is composited with, before the enclosing state's opacity. */
         float layerOpacity;
+        /**
+         * Whether the layer is drawn in a space of its own, re-based, and composited through
+         * {@link #toParent}: a rotated or skewed subtree. A layer that is not draws on the device
+         * pixels of the space it was opened in, and lays its picture back on them.
+         */
+        boolean rebased;
+        /**
+         * For a re-based layer, the plane's homography from its own space's device pixels to those
+         * of the space it is composited into, row-major: {@code (x, y, w)} of a point is this times
+         * {@code (vx, vy, 1)}.
+         */
+        final double[] toParent = new double[9];
 
         void copyFrom(State other) {
             transform.copyFrom(other.transform);
@@ -101,6 +113,7 @@ final class GlCanvas implements Canvas {
             sampling = other.sampling;
             pixelSnap = other.pixelSnap;
             layer = null; // a save is never a layer of its own; saveLayer makes it one
+            rebased = false;
         }
     }
 
@@ -127,6 +140,17 @@ final class GlCanvas implements Canvas {
     private GlLayerPool layers;  // lazy: only a window that opens a layer pays for the pool
     /** How many layers are open now, nested: the states between here and the root that hold one. */
     private int openLayers;
+    /** A layer's homography as it opens, before its state holds it; reused, as every scratch is. */
+    private final double[] spaceScratch = new double[9];
+    /** The visible part of a re-based layer, in its own coordinates: x0, y0, x1, y1. */
+    private final double[] visibleScratch = new double[4];
+    /** A composite's corners, {@code x, y, w} each, and their texture coordinates. */
+    private final float[] cornerScratch = new float[12];
+    private final float[] uvScratch = new float[8];
+    /** The region a glass reads, as the clip the composites into its copy are cut to. */
+    private final DeviceClip readRegion = new DeviceClip();
+    /** Maps from a glass's space to each space outward, by state index; see {@link #captureInSpace}. */
+    private double[][] spaceMaps = new double[8][9];
     /**
      * The framebuffer the frame draws into when no layer is open, read when the frame's first layer
      * opens: the window's own, or whatever a test or a probe bound before beginning the frame.
@@ -485,8 +509,13 @@ final class GlCanvas implements Canvas {
     @Override
     public void saveLayer(float x, float y, float width, float height, float opacity) {
         ensureInFrame();
-        float alpha = opacity > 0 ? Math.min(1f, opacity) : 0f;
         save();
+        openLayer(x, y, width, height, opacity);
+    }
+
+    /** {@link #saveLayer(float, float, float, float, float)} after its save. */
+    private void openLayer(float x, float y, float width, float height, float opacity) {
+        float alpha = opacity > 0 ? Math.min(1f, opacity) : 0f;
         State s = state();
         if (alpha >= 1f && s.blendMode == limn.graphics.BlendMode.NORMAL) {
             // Nothing to fade and nothing to blend: drawing straight into the target is the same
@@ -561,11 +590,290 @@ final class GlCanvas implements Canvas {
     }
 
     /**
+     * Opens a layer drawn in a space of its own and composited through {@code transform}, after the
+     * canvas's own transform: a rotated, skewed or turned subtree.
+     *
+     * <p><b>A transform that keeps the axes needs no picture.</b> A translation and a scale, a
+     * mirror among them, are applied straight to the state, every clip inside staying exact, and the
+     * layer is then the plain one of {@link #saveLayer(float, float, float, float, float)}, which at
+     * an opacity of 1 under normal blending is no layer at all.
+     *
+     * <p><b>Any other is drawn re-based.</b> The picture covers what of the rectangle the enclosing
+     * clip lets be seen: the clip's corners mapped back into the layer's space, their bounds grown
+     * by two of the picture's pixels so that a filtered sample at the clip's edge reads what was
+     * drawn, cut to the rectangle. It is drawn at the largest magnification the transform gives any
+     * point of that part, so that text and shapes are rasterized at the size they are seen at, and
+     * smaller when that would not fit the framebuffer. Inside, the state's transform is the layer's
+     * space times that one scale, and its clip the picture's own rectangle, so that every clip
+     * inside is an exact rectangle again, rounded clips included, and {@link #clipBounds()} answers.
+     *
+     * <p>The layer's space is window-sized, with the picture at its bottom-left corner: what clamps a
+     * draw to the window's pixels clamps it to the picture's space as well, a glass inside finds its
+     * copy at its own pixels as a glass in the window does, and the picture's rows count from the
+     * same bottom edge as the space's. Its corner sits on the space's grid of two by two pixels, as a
+     * plain layer's sits on the window's, measured from the scaled space's origin, so that a pass
+     * that cuts a smaller picture of the same subtree antialiases every curve in it as the whole
+     * frame's did. A ring of one pixel round what is drawn is cleared, inside the picture and past
+     * it, since the composite filters and would otherwise read an earlier frame's texels there.
+     *
+     * <p>Closed by {@link #restore()}, which lays the picture through the transform as one quad in
+     * homogeneous coordinates, filtered, under the enclosing clip (see {@link #closeLayer}).
+     */
+    @Override
+    public void saveLayer(float x, float y, float width, float height, float opacity,
+                          limn.math.Mat4 transform) {
+        ensureInFrame();
+        Objects.requireNonNull(transform, "transform");
+        Transform2D t = state().transform;
+        double m00 = transform.get(0, 0);
+        double m01 = transform.get(0, 1);
+        double m03 = transform.get(0, 3);
+        double m10 = transform.get(1, 0);
+        double m11 = transform.get(1, 1);
+        double m13 = transform.get(1, 3);
+        double m30 = transform.get(3, 0);
+        double m31 = transform.get(3, 1);
+        double m33 = transform.get(3, 3);
+        // The plane's homography, the canvas's transform after the layer's: the x, y and w rows and
+        // columns, since the layer's space is the plane z = 0.
+        double[] h = spaceScratch;
+        h[0] = t.m00 * m00 + t.m01 * m10 + t.tx * m30;
+        h[1] = t.m00 * m01 + t.m01 * m11 + t.tx * m31;
+        h[2] = t.m00 * m03 + t.m01 * m13 + t.tx * m33;
+        h[3] = t.m10 * m00 + t.m11 * m10 + t.ty * m30;
+        h[4] = t.m10 * m01 + t.m11 * m11 + t.ty * m31;
+        h[5] = t.m10 * m03 + t.m11 * m13 + t.ty * m33;
+        h[6] = m30;
+        h[7] = m31;
+        h[8] = m33;
+        State parent = state();
+        save();
+        State s = state();
+        boolean affine = h[6] == 0 && h[7] == 0;
+        if (affine && !(h[8] > 0)) {
+            s.clip.intersectRect(0, 0, 0, 0); // the plane lies behind the eye: nothing of it is seen
+            return;
+        }
+        if (affine && h[1] == 0 && h[3] == 0) {
+            Transform2D straight = s.transform;
+            straight.m00 = (float) (h[0] / h[8]);
+            straight.m01 = 0;
+            straight.m10 = 0;
+            straight.m11 = (float) (h[4] / h[8]);
+            straight.tx = (float) (h[2] / h[8]);
+            straight.ty = (float) (h[5] / h[8]);
+            openLayer(x, y, width, height, opacity);
+            return;
+        }
+        openSpace(x, y, width, height, opacity, h, parent, s);
+    }
+
+    /** The re-based half of {@link #saveLayer(float, float, float, float, float, limn.math.Mat4)}. */
+    private void openSpace(float x, float y, float width, float height, float opacity, double[] h,
+                           State parent, State s) {
+        float alpha = opacity > 0 ? Math.min(1f, opacity) : 0f;
+        double rx0 = x;
+        double ry0 = y;
+        double rx1 = x + Math.max(0, width);
+        double ry1 = y + Math.max(0, height);
+        if (alpha <= 0f || parent.opacity <= 0f || parent.clip.isEmpty() || rx1 <= rx0 || ry1 <= ry0) {
+            s.clip.intersectRect(0, 0, 0, 0);
+            return;
+        }
+        // What of the rectangle the enclosing clip lets be seen, in the layer's own coordinates: a
+        // large panel turned inside a small viewport draws only its visible part.
+        double[] seen = visibleScratch;
+        boolean bounded = clipSeenFrom(h, parent.clip, seen);
+        double vx0 = bounded ? Math.max(rx0, seen[0]) : rx0;
+        double vy0 = bounded ? Math.max(ry0, seen[1]) : ry0;
+        double vx1 = bounded ? Math.min(rx1, seen[2]) : rx1;
+        double vy1 = bounded ? Math.min(ry1, seen[3]) : ry1;
+        if (!(vx1 > vx0 && vy1 > vy0)) {
+            s.clip.intersectRect(0, 0, 0, 0); // turned out of sight
+            return;
+        }
+        double k = magnification(h, vx0, vy0, vx1, vy1);
+        if (!(k > 1e-4) || Double.isInfinite(k)) {
+            s.clip.intersectRect(0, 0, 0, 0); // collapsed to a line, or nearly: nothing to draw
+            return;
+        }
+        long kx0 = 0;
+        long ky0 = 0;
+        long kx1 = 0;
+        long ky1 = 0;
+        for (int attempt = 0; attempt < 4; attempt++) {
+            // Two of the picture's pixels past what can be seen, so that a filtered sample at the
+            // clip's edge reads texels that were drawn; then a ring of one more, cleared.
+            double margin = 2 / k;
+            double ax0 = bounded ? Math.max(rx0, vx0 - margin) : rx0;
+            double ay0 = bounded ? Math.max(ry0, vy0 - margin) : ry0;
+            double ax1 = bounded ? Math.min(rx1, vx1 + margin) : rx1;
+            double ay1 = bounded ? Math.min(ry1, vy1 + margin) : ry1;
+            kx0 = Math.floorDiv((long) Math.floor(k * ax0) - 1, 2) * 2;
+            ky0 = (long) Math.floor(k * ay0) - 1;
+            kx1 = (long) Math.ceil(k * ax1) + 1;
+            ky1 = -Math.floorDiv(-((long) Math.ceil(k * ay1) + 1), 2) * 2;
+            if (kx1 - kx0 <= fbWidth && ky1 - ky0 <= fbHeight) {
+                break;
+            }
+            // Larger than the window: drawn smaller, and composited softer.
+            k *= Math.min((fbWidth - 4.0) / (kx1 - kx0), (fbHeight - 4.0) / (ky1 - ky0));
+        }
+        int lw = (int) Math.min(kx1 - kx0, fbWidth);
+        int lh = (int) Math.min(ky1 - ky0, fbHeight);
+        if (lw <= 0 || lh <= 0) {
+            s.clip.intersectRect(0, 0, 0, 0);
+            return;
+        }
+        if (layers == null) {
+            layers = new GlLayerPool();
+        }
+        batch.flush();
+        if (openLayers == 0) {
+            baseFramebuffer = org.lwjgl.opengl.GL33C.glGetInteger(
+                    org.lwjgl.opengl.GL33C.GL_DRAW_FRAMEBUFFER_BINDING);
+        }
+        GlLayerPool.Picture picture = layers.take(lw, lh, fbWidth, fbHeight);
+        if (picture == null) {
+            bindTarget(innermostLayer()); // making it bound another framebuffer; put ours back
+            // No picture to draw into: the flat part straight, and the per-draw fade, as a canvas
+            // without layers draws it.
+            Transform2D flat = s.transform;
+            double w = h[8] != 0 ? h[8] : 1;
+            flat.m00 = (float) (h[0] / w);
+            flat.m01 = (float) (h[1] / w);
+            flat.tx = (float) (h[2] / w);
+            flat.m10 = (float) (h[3] / w);
+            flat.m11 = (float) (h[4] / w);
+            flat.ty = (float) (h[5] / w);
+            s.opacity *= alpha;
+            return;
+        }
+        // The picture's space: k times the layer's coordinates, moved so that the picture's
+        // top-left corner is at (0, fbHeight - lh) and its bottom edge on the space's.
+        float originX = -kx0;
+        float originY = fbHeight - ky1;
+        s.layer = picture;
+        s.rebased = true;
+        s.layerX = 0;
+        s.layerY = fbHeight - lh;
+        s.layerWidth = lw;
+        s.layerHeight = lh;
+        s.layerOpacity = alpha;
+        s.opacity = 1f;
+        s.blendMode = limn.graphics.BlendMode.NORMAL;
+        Transform2D inside = s.transform;
+        inside.m00 = (float) k;
+        inside.m01 = 0;
+        inside.m10 = 0;
+        inside.m11 = (float) k;
+        inside.tx = originX;
+        inside.ty = originY;
+        s.clip.resetTo(0, fbHeight - lh, lw, fbHeight);
+        // From the picture's space back to the parent's: the homography after the scale's inverse.
+        double[] up = s.toParent;
+        for (int row = 0; row < 3; row++) {
+            double a = h[row * 3];
+            double b = h[row * 3 + 1];
+            up[row * 3] = a / k;
+            up[row * 3 + 1] = b / k;
+            up[row * 3 + 2] = (-originX * a - originY * b) / k + h[row * 3 + 2];
+        }
+        openLayers++;
+        bindTarget(s);
+        // The part drawn and a ring of one texel past it on the sides the picture goes on: the
+        // composite filters, and those texels hold an earlier frame's content otherwise.
+        org.lwjgl.opengl.GL33C.glEnable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
+        org.lwjgl.opengl.GL33C.glScissor(0, 0, Math.min(picture.width, lw + 1), Math.min(picture.height, lh + 1));
+        org.lwjgl.opengl.GL33C.glClearColor(0f, 0f, 0f, 0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+        org.lwjgl.opengl.GL33C.glDisable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
+    }
+
+    /**
+     * The bounds, in a layer's own coordinates, of what the clip rectangle covers: its four corners
+     * mapped back through the homography {@code h}, into {@code out} as x0, y0, x1, y1.
+     *
+     * @return false where a corner maps to no point in front of the eye, whose bounds would not
+     *         hold the part seen, so nothing is cut
+     */
+    private static boolean clipSeenFrom(double[] h, DeviceClip clip, double[] out) {
+        // The adjugate: the inverse up to a factor, which the division by w cancels.
+        double a00 = h[4] * h[8] - h[5] * h[7];
+        double a01 = h[2] * h[7] - h[1] * h[8];
+        double a02 = h[1] * h[5] - h[2] * h[4];
+        double a10 = h[5] * h[6] - h[3] * h[8];
+        double a11 = h[0] * h[8] - h[2] * h[6];
+        double a12 = h[2] * h[3] - h[0] * h[5];
+        double a20 = h[3] * h[7] - h[4] * h[6];
+        double a21 = h[1] * h[6] - h[0] * h[7];
+        double a22 = h[0] * h[4] - h[1] * h[3];
+        double minX = Double.POSITIVE_INFINITY;
+        double minY = Double.POSITIVE_INFINITY;
+        double maxX = Double.NEGATIVE_INFINITY;
+        double maxY = Double.NEGATIVE_INFINITY;
+        for (int i = 0; i < 4; i++) {
+            double dx = i == 1 || i == 2 ? clip.x1 : clip.x0;
+            double dy = i >= 2 ? clip.y1 : clip.y0;
+            double q = a20 * dx + a21 * dy + a22;
+            double px = (a00 * dx + a01 * dy + a02) / q;
+            double py = (a10 * dx + a11 * dy + a12) / q;
+            double w = h[6] * px + h[7] * py + h[8];
+            if (!(w > 1e-6) || Double.isNaN(px) || Double.isNaN(py)) {
+                return false;
+            }
+            minX = Math.min(minX, px);
+            minY = Math.min(minY, py);
+            maxX = Math.max(maxX, px);
+            maxY = Math.max(maxY, py);
+        }
+        out[0] = minX;
+        out[1] = minY;
+        out[2] = maxX;
+        out[3] = maxY;
+        return true;
+    }
+
+    /**
+     * The largest magnification the homography {@code h} gives a point of the rectangle: the
+     * largest singular value of its derivative, which for an affine map is one number everywhere
+     * and under a perspective is largest at a corner, the near edge.
+     */
+    private static double magnification(double[] h, double x0, double y0, double x1, double y1) {
+        if (h[6] == 0 && h[7] == 0) {
+            return largestStretch(h[0] / h[8], h[1] / h[8], h[3] / h[8], h[4] / h[8]);
+        }
+        double most = 0;
+        for (int i = 0; i < 4; i++) {
+            double px = i == 1 || i == 2 ? x1 : x0;
+            double py = i >= 2 ? y1 : y0;
+            double w = h[6] * px + h[7] * py + h[8];
+            if (!(w > 1e-6)) {
+                continue;
+            }
+            double sx = (h[0] * px + h[1] * py + h[2]) / w;
+            double sy = (h[3] * px + h[4] * py + h[5]) / w;
+            most = Math.max(most, largestStretch((h[0] - sx * h[6]) / w, (h[1] - sx * h[7]) / w,
+                    (h[3] - sy * h[6]) / w, (h[4] - sy * h[7]) / w));
+        }
+        return most;
+    }
+
+    /** The largest singular value of the 2 by 2 matrix {@code [[a, b], [c, d]]}. */
+    private static double largestStretch(double a, double b, double c, double d) {
+        double sum = a * a + b * b + c * c + d * d;
+        double det = a * d - b * c;
+        return Math.sqrt((sum + Math.sqrt(Math.max(0, sum * sum - 4 * det * det))) / 2);
+    }
+
+    /**
      * Closes a layer: what was drawn into it reaches its picture, the target it opened over is bound
      * again, and the picture goes into that target as one quad, at the layer's opacity times the
      * enclosing state's, with the enclosing state's blend mode, by the batch's composite program.
-     * The quad draws under no clip: the picture was drawn under the clip already, its pixels cut
-     * where the clip cut them, and a second pass of the same clip would square its antialiased edge.
+     * A plain layer's quad draws under no clip: the picture was drawn under the clip already, its
+     * pixels cut where the clip cut them, and a second pass of the same clip would square its
+     * antialiased edge. A re-based layer's picture was drawn under a clip of its own, so its quad,
+     * the picture's corners through the layer's homography, is cut by the enclosing clip.
      */
     private void closeLayer(State closing) {
         GlLayerPool.Picture picture = closing.layer;
@@ -577,10 +885,43 @@ final class GlCanvas implements Canvas {
         float alpha = closing.layerOpacity * s.opacity;
         if (alpha > 0f) {
             applyBlend(s);
-            compositePart(picture, closing, closing.layerX, closing.layerY,
-                    closing.layerX + closing.layerWidth, closing.layerY + closing.layerHeight, alpha);
+            if (closing.rebased) {
+                compositeThrough(picture, closing, s.clip, alpha);
+            } else {
+                compositePart(picture, closing, closing.layerX, closing.layerY,
+                        closing.layerX + closing.layerWidth, closing.layerY + closing.layerHeight, alpha);
+            }
         }
         layers.give(picture);
+    }
+
+    /**
+     * Lays a re-based layer's picture through its homography into the current target, cut by
+     * {@code clip}: the picture's four corners, top-left first round the quad, each as the
+     * homogeneous position the homography gives it, so that the rasterizer interpolates the texture
+     * perspective-correctly whatever the transform.
+     */
+    private void compositeThrough(GlLayerPool.Picture picture, State layer, DeviceClip clip, float alpha) {
+        throughCorners(picture, layer, layer.toParent, cornerScratch, uvScratch);
+        batch.compositeThrough(picture.texture, cornerScratch, uvScratch, alpha, clip);
+    }
+
+    /**
+     * The corners of a layer's part of its picture, top-left first round the quad, through
+     * {@code map}, as {@code x, y, w} with x and y times w, and their texture coordinates: the
+     * layer drew into the picture's bottom-left part, whose rows count up from its bottom edge.
+     */
+    private static void throughCorners(GlLayerPool.Picture picture, State layer, double[] map,
+                                       float[] corners, float[] uvs) {
+        for (int i = 0; i < 4; i++) {
+            int vx = layer.layerX + (i == 1 || i == 2 ? layer.layerWidth : 0);
+            int vy = layer.layerY + (i >= 2 ? layer.layerHeight : 0);
+            corners[i * 3] = (float) (map[0] * vx + map[1] * vy + map[2]);
+            corners[i * 3 + 1] = (float) (map[3] * vx + map[4] * vy + map[5]);
+            corners[i * 3 + 2] = (float) (map[6] * vx + map[7] * vy + map[8]);
+            uvs[i * 2] = (vx - layer.layerX) / (float) picture.width;
+            uvs[i * 2 + 1] = (layer.layerY + layer.layerHeight - vy) / (float) picture.height;
+        }
     }
 
     /**
@@ -962,6 +1303,10 @@ final class GlCanvas implements Canvas {
      * @return the copy, ready to sample, in the window's coordinates like any backdrop copy
      */
     private int captureThroughLayers(int cx0, int cy0, int cx1, int cy1) {
+        int space = innermostSpace(depth);
+        if (space > 0) {
+            return captureInSpace(space, cx0, cy0, cx1, cy1);
+        }
         org.lwjgl.opengl.GL33C.glBindFramebuffer(org.lwjgl.opengl.GL33C.GL_READ_FRAMEBUFFER, baseFramebuffer);
         int texture = backdrop.capture(fbWidth, fbHeight, cx0, fbHeight - cy1, cx1 - cx0, cy1 - cy0);
         org.lwjgl.opengl.GL33C.glBindFramebuffer(org.lwjgl.opengl.GL33C.GL_FRAMEBUFFER, backdrop.framebuffer());
@@ -987,6 +1332,168 @@ final class GlCanvas implements Canvas {
         batch.flush();
         bindTarget(innermostLayer());
         return texture;
+    }
+
+    /**
+     * @param from a state's index
+     * @return the index of the innermost re-based layer open at or outside it, whose space the
+     *         state draws in, or 0 for the window's own
+     */
+    private int innermostSpace(int from) {
+        for (int i = from; i > 0; i--) {
+            State s = states.get(i);
+            if (s.layer != null && s.rebased) {
+                return i;
+            }
+        }
+        return 0;
+    }
+
+    /**
+     * The backdrop of a glass drawn inside a re-based layer, a rotated or skewed subtree: what it
+     * would read if every layer round it were opaque, in the glass's own space. The window's copy
+     * is warped into that space through the inverse of the way from it to the window, as one quad
+     * over the region the glass reads, and each open layer's picture so far is laid over it through
+     * its own way into the space, outermost first, as {@link #captureThroughLayers} lays them for a
+     * glass in the window's space. A frosted card turned a few degrees keeps showing the window
+     * through its glass, as it does upright.
+     *
+     * <p>A layer whose way out is not affine, a subtree turned in perspective, is a backdrop root:
+     * what lies outside it is not read, and a glass inside it reads only the content drawn into it
+     * and the layers inside it, since what a blur reads through a plane seen at an angle has no
+     * answer a user could check.
+     *
+     * <p>The price is one quad for the window and one per open layer, over the region the glass
+     * reads, into a second copy the size of the window, kept beside the first.
+     *
+     * @param glassSpace the index of the re-based layer the glass draws in
+     * @return the warped copy, ready to sample at the glass's own pixels
+     */
+    private int captureInSpace(int glassSpace, int cx0, int cy0, int cx1, int cy1) {
+        if (spaceMaps.length <= depth) {
+            spaceMaps = new double[depth + 8][9];
+        }
+        // The way from the glass's space to each space outward, held at that space's index: the
+        // glass's own is the identity, and each outer one the layer's homography after the last.
+        double[] own = spaceMaps[glassSpace];
+        java.util.Arrays.fill(own, 0);
+        own[0] = 1;
+        own[4] = 1;
+        own[8] = 1;
+        int root = 0;
+        for (int inner = glassSpace; inner > 0; ) {
+            State layer = states.get(inner);
+            if (layer.toParent[6] != 0 || layer.toParent[7] != 0) {
+                root = inner; // turned in perspective: nothing outside it is read
+                break;
+            }
+            int outer = innermostSpace(inner - 1);
+            multiply(layer.toParent, spaceMaps[inner], spaceMaps[outer]);
+            inner = outer;
+        }
+        int warped = backdrop.warped(fbWidth, fbHeight); // which may bind its framebuffer, made now
+        org.lwjgl.opengl.GL33C.glBindFramebuffer(org.lwjgl.opengl.GL33C.GL_READ_FRAMEBUFFER, baseFramebuffer);
+        boolean window = false;
+        if (root == 0) {
+            // The window's pixels the region comes from, copied as any glass's are.
+            double[] toWindow = spaceMaps[0];
+            double minX = Double.POSITIVE_INFINITY;
+            double minY = Double.POSITIVE_INFINITY;
+            double maxX = Double.NEGATIVE_INFINITY;
+            double maxY = Double.NEGATIVE_INFINITY;
+            for (int i = 0; i < 4; i++) {
+                double px = i == 1 || i == 2 ? cx1 : cx0;
+                double py = i >= 2 ? cy1 : cy0;
+                double w = toWindow[6] * px + toWindow[7] * py + toWindow[8];
+                double wx = (toWindow[0] * px + toWindow[1] * py + toWindow[2]) / w;
+                double wy = (toWindow[3] * px + toWindow[4] * py + toWindow[5]) / w;
+                minX = Math.min(minX, wx);
+                minY = Math.min(minY, wy);
+                maxX = Math.max(maxX, wx);
+                maxY = Math.max(maxY, wy);
+            }
+            int wx0 = (int) Math.max(0, Math.floor(minX) - 2);
+            int wy0 = (int) Math.max(0, Math.floor(minY) - 2);
+            int wx1 = (int) Math.min(fbWidth, Math.ceil(maxX) + 2);
+            int wy1 = (int) Math.min(fbHeight, Math.ceil(maxY) + 2);
+            if (wx1 > wx0 && wy1 > wy0) {
+                backdrop.capture(fbWidth, fbHeight, wx0, fbHeight - wy1, wx1 - wx0, wy1 - wy0);
+                window = true;
+            }
+        }
+        org.lwjgl.opengl.GL33C.glBindFramebuffer(org.lwjgl.opengl.GL33C.GL_FRAMEBUFFER, backdrop.warpedFramebuffer());
+        org.lwjgl.opengl.GL33C.glViewport(0, 0, fbWidth, fbHeight);
+        // A layer's target, so no damage scissor: the copy is not the window.
+        batch.setTarget(true, 0, 0, fbWidth, fbHeight);
+        GlBlend.Factors normal = GlBlend.of(limn.graphics.BlendMode.NORMAL);
+        batch.requireBlend(normal.srcRgb(), normal.dstRgb(), normal.srcAlpha(), normal.dstAlpha());
+        // What an earlier glass left in the region goes: the root of a backdrop reads from nothing.
+        org.lwjgl.opengl.GL33C.glEnable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
+        org.lwjgl.opengl.GL33C.glScissor(cx0, fbHeight - cy1, cx1 - cx0, cy1 - cy0);
+        org.lwjgl.opengl.GL33C.glClearColor(0f, 0f, 0f, 0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+        org.lwjgl.opengl.GL33C.glDisable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
+        readRegion.resetTo(cx0, cy0, cx1, cy1);
+        float[] corners = cornerScratch;
+        float[] uvs = uvScratch;
+        if (window) {
+            double[] toWindow = spaceMaps[0];
+            for (int i = 0; i < 4; i++) {
+                int px = i == 1 || i == 2 ? cx1 : cx0;
+                int py = i >= 2 ? cy1 : cy0;
+                double w = toWindow[6] * px + toWindow[7] * py + toWindow[8];
+                double wx = (toWindow[0] * px + toWindow[1] * py + toWindow[2]) / w;
+                double wy = (toWindow[3] * px + toWindow[4] * py + toWindow[5]) / w;
+                corners[i * 3] = px;
+                corners[i * 3 + 1] = py;
+                corners[i * 3 + 2] = 1;
+                uvs[i * 2] = (float) (wx / fbWidth);
+                uvs[i * 2 + 1] = (float) ((fbHeight - wy) / fbHeight); // the copy's rows count up
+            }
+            batch.compositeThrough(backdrop.texture(), corners, uvs, 1f, readRegion);
+        }
+        double[] back = spaceScratch;
+        for (int i = Math.max(1, root); i <= depth; i++) {
+            State layer = states.get(i);
+            if (layer.layer == null) {
+                continue;
+            }
+            int space = layer.rebased ? i : innermostSpace(i - 1);
+            adjugate(spaceMaps[space], back); // from that space into the glass's, up to a factor
+            if (back[8] < 0) {
+                for (int j = 0; j < 9; j++) {
+                    back[j] = -back[j]; // the factor's sign: a mirrored way out keeps w positive
+                }
+            }
+            throughCorners(layer.layer, layer, back, corners, uvs);
+            batch.compositeThrough(layer.layer.texture, corners, uvs, 1f, readRegion);
+        }
+        batch.flush();
+        bindTarget(innermostLayer());
+        return warped;
+    }
+
+    /** {@code out = a · b}, three by three, row-major; {@code out} is neither. */
+    private static void multiply(double[] a, double[] b, double[] out) {
+        for (int row = 0; row < 3; row++) {
+            for (int col = 0; col < 3; col++) {
+                out[row * 3 + col] = a[row * 3] * b[col] + a[row * 3 + 1] * b[3 + col]
+                        + a[row * 3 + 2] * b[6 + col];
+            }
+        }
+    }
+
+    /** The adjugate of {@code m}, three by three, row-major: its inverse up to a factor. */
+    private static void adjugate(double[] m, double[] out) {
+        out[0] = m[4] * m[8] - m[5] * m[7];
+        out[1] = m[2] * m[7] - m[1] * m[8];
+        out[2] = m[1] * m[5] - m[2] * m[4];
+        out[3] = m[5] * m[6] - m[3] * m[8];
+        out[4] = m[0] * m[8] - m[2] * m[6];
+        out[5] = m[2] * m[3] - m[0] * m[5];
+        out[6] = m[3] * m[7] - m[4] * m[6];
+        out[7] = m[1] * m[6] - m[0] * m[7];
+        out[8] = m[0] * m[4] - m[1] * m[3];
     }
 
     private static float variantId(limn.graphics.BackdropEffect effect) {

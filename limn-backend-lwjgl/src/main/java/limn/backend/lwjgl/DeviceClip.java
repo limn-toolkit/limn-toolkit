@@ -54,6 +54,22 @@ final class DeviceClip {
         radius = 0;
     }
 
+    /**
+     * The clip of a space of its own, a re-based layer's: its picture's rectangle, and no rounded
+     * clip, whatever clipped the state it was opened in, which its composite applies instead.
+     */
+    void resetTo(float left, float top, float right, float bottom) {
+        x0 = left;
+        y0 = top;
+        x1 = right;
+        y1 = bottom;
+        roundX0 = left;
+        roundY0 = top;
+        roundX1 = right;
+        roundY1 = bottom;
+        radius = 0;
+    }
+
     void copyFrom(DeviceClip other) {
         x0 = other.x0;
         y0 = other.y0;
