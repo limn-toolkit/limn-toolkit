@@ -161,6 +161,27 @@ class TransformRotationPixelTest {
         assertEquals(0, inkOutside, "pixels drawn past the turned viewport");
     }
 
+    @Test
+    void aRotatedScrollViewStillSkipsTheRowsScrolledOutOfItsView() {
+        // Two hundred rows of 20 points behind a viewport of 100: inside the picture the clip is an
+        // exact rectangle again and the canvas answers it, so the rows past it are not painted.
+        int upright = paintedWithRows(0);
+        int turned = paintedWithRows(30);
+        assertTrue(upright < 30, "upright, the view paints what it shows: " + upright);
+        assertEquals(upright, turned, "turned, it paints the same rows, and not two hundred");
+    }
+
+    private int paintedWithRows(float degrees) {
+        limn.scene.layout.Column rows = new limn.scene.layout.Column();
+        for (int i = 0; i < 200; i++) {
+            rows.add(new Fill(160, 20, i % 2 == 0 ? INK : PAGE));
+        }
+        Transform t = new Transform(new SizedBox(160, 100, new ScrollView(rows))).setRotation(degrees);
+        Scene scene = scene(page(t, 70, 100));
+        frame(scene, 0);
+        return (int) scene.metrics().paintedWidgets().last();
+    }
+
     // ------------------------------------------------------------------ a turned text field
 
     @Test
