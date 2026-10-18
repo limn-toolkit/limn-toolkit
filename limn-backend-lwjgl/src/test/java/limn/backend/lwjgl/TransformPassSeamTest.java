@@ -173,6 +173,43 @@ class TransformPassSeamTest {
         assertPartialIsWhole(layers(around), () -> around.setTranslation(61.15f, 9.25f));
     }
 
+    // ------------------------------------------------------------------ turned (stage 2)
+
+    @Test
+    void aRotationStepDrawsWhatTheWholeFrameDrew() {
+        Transform t = new Transform(new Card()).setRotation(7.5f);
+        assertPartialIsWhole(layers(t), () -> t.setRotation(23.25f).setTranslation(3.3f, -2.1f));
+    }
+
+    @Test
+    void aSkewStepDrawsWhatTheWholeFrameDrew() {
+        Transform t = new Transform(new Card()).setMatrix(limn.math.Mat4.affine2D(1, 0, 0.2f, 1, 0, 0));
+        assertPartialIsWhole(layers(t), () -> t.setMatrix(limn.math.Mat4.affine2D(1, 0.15f, -0.3f, 1, 0, 0)));
+    }
+
+    @Test
+    void somethingRepaintingInsideATurnedCardDrawsWhatTheWholeFrameDrew() {
+        // The pass is the thumb's box, turned: a small part of the card's picture, cut out of it
+        // by the pass and laid at the angle, against the whole card's picture.
+        Thumb thumb = new Thumb();
+        Stack card = new Stack();
+        card.add(new Card());
+        card.add(new Padding(new Insets(14, 0, 0, 22), thumb));
+        Transform t = new Transform(card).setRotation(-17.3f);
+        assertPartialIsWhole(layers(t), thumb::recolor);
+    }
+
+    @Test
+    void aFadingRotationDrawsWhatTheWholeFrameDrewInEitherOrder() {
+        Transform outer = new Transform(new Card()).setRotation(11);
+        Opacity fadingOutside = new Opacity(outer).setOpacity(0.6f);
+        assertPartialIsWhole(layers(fadingOutside), () -> outer.setRotation(29.5f));
+
+        Opacity fadingInside = new Opacity(new Card()).setOpacity(0.6f);
+        Transform around = new Transform(fadingInside).setRotation(11);
+        assertPartialIsWhole(layers(around), () -> around.setRotation(29.5f));
+    }
+
     private void assertPartialIsWhole(Widget<?> root, Runnable change) {
         Scene scene = new Scene(root);
         scene.setPartialRendering(true);

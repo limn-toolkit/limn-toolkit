@@ -392,9 +392,9 @@ class WorkBudgetTest {
     @Test
     void aStillFormCostsTheSameInTransformsAtRestOrMoved() {
         for (int rows : new int[] {10, 40}) {
-            Work plain = aFormOf(rows, false, false);
-            Work atRest = aFormOf(rows, true, false);
-            Work moved = aFormOf(rows, true, true);
+            Work plain = aFormOf(rows, false, false, false);
+            Work atRest = aFormOf(rows, true, false, false);
+            Work moved = aFormOf(rows, true, true, false);
             assertEquals(plain.commands(), atRest.commands(), rows + " rows at rest: the same commands");
             assertEquals(plain.painted() + rows, atRest.painted(),
                     rows + " rows at rest: the same widgets, and each container, which paints nothing");
@@ -403,7 +403,23 @@ class WorkBudgetTest {
         }
     }
 
-    private static Work aFormOf(int rows, boolean wrapped, boolean moved) {
+    /**
+     * A turned row (ADR 072, stage 2) is drawn into a picture laid at the angle, which the budget
+     * counts as one command, as it counts an opacity's: the rows' own commands are what they are
+     * upright, and each turned container adds its picture and nothing else.
+     */
+    @Test
+    void aStillFormInTurnedTransformsCostsItsPicturesAndNothingMore() {
+        for (int rows : new int[] {10, 40}) {
+            Work plain = aFormOf(rows, false, false, false);
+            Work turned = aFormOf(rows, true, false, true);
+            assertEquals(plain.commands() + rows, turned.commands(),
+                    rows + " rows turned: the same commands, and one picture for each");
+            assertEquals(plain.painted() + rows, turned.painted(), rows + " rows turned: the same widgets");
+        }
+    }
+
+    private static Work aFormOf(int rows, boolean wrapped, boolean moved, boolean turned) {
         limn.scene.layout.Column column = new limn.scene.layout.Column();
         for (int i = 0; i < rows; i++) {
             Label row = new Label("Row " + i);
@@ -411,6 +427,9 @@ class WorkBudgetTest {
                 limn.scene.layout.Transform t = new limn.scene.layout.Transform(row);
                 if (moved) {
                     t.setTranslation(6, 0).setScale(1.25f);
+                }
+                if (turned) {
+                    t.setRotation(3);
                 }
                 column.add(t);
             } else {

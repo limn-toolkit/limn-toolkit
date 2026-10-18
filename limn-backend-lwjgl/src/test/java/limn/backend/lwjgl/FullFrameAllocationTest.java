@@ -91,6 +91,31 @@ class FullFrameAllocationTest {
         }
     }
 
+    /**
+     * The same form turning in a Transform container (ADR 072, stage 2), with its status line in a
+     * skewed container of its own: the step of the rotation, the matrix loaded in place and taken
+     * as a value once per step for the picture, the damage of the turned bounds, and the paint into
+     * the picture allocate almost nothing; the skewed line, still, takes its value once and then
+     * nothing at all.
+     */
+    @Test
+    void aFrameOfARotatingFormAllocatesAlmostNothing() {
+        Assumptions.assumeTrue(AllocationProbe.isSupported(), "no per-thread allocation counter");
+        try (HeadlessUi ui = new HeadlessUi(); FontStore store = new FontStore()) {
+            Column page = form();
+            Widget<?> status = page.children().get(1);
+            page.remove(status);
+            page.add(new Transform(status).setMatrix(limn.math.Mat4.affine2D(1, 0, 0.3f, 1, 0, 0)));
+            Transform turning = new Transform(page).setRotation(2);
+            Scene scene = new Scene(new Padding(Insets.all(8), turning));
+            scene.bind(new StubWindow()); // a window, so the rotation has frames to step it
+            turning.rotateTo(25, 20, null); // in flight for every frame measured, and moving
+            assertFrameUnderCeiling(scene, store, "a frame of a rotating form");
+            assertTrue(turning.rotation() > 2f && turning.rotation() < 25f,
+                    "the rotation moved and is still moving");
+        }
+    }
+
     /** Forty rows of a label, a field, a check box, a bar and a button, in a scroll view. */
     private static Column form() {
         Column list = new Column();
