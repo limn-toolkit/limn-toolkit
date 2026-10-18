@@ -178,7 +178,7 @@ class TransformRotationTest extends SceneTestBase {
         }
         assertThrows(NullPointerException.class, () -> t.setMatrix(null));
         // A matrix that tilts the plane toward the eye is a perspective, not a flat map.
-        Mat4 tilted = limn.math.PerspectiveForTest.eyeAt(800)
+        Mat4 tilted = Mat4.perspectiveAt(800)
                 .multiply(Mat4.rotation(limn.math.Quat.fromAxisAngle(new limn.math.Vec3(0, 1, 0), 0.5f)));
         assertThrows(IllegalArgumentException.class, () -> t.setMatrix(tilted));
         assertEquals(30f, t.rotation(), "a refused call changes nothing");

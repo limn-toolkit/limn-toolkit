@@ -3,6 +3,8 @@ package limn.math;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Correctness of the linear-algebra core: the part most prone to layout bugs. */
@@ -46,6 +48,25 @@ class MathTest {
         // A skew by 30 degrees along x: a point one unit down moves tan 30 to the right.
         Mat4 skew = Mat4.affine2D(1, 0, (float) Math.tan(Math.toRadians(30)), 1, 0, 0);
         assertVec(new Vec3((float) Math.tan(Math.toRadians(30)), 1, 0), skew.transformPoint(new Vec3(0, 1, 0)));
+    }
+
+    @Test
+    void perspectiveAtKeepsThePlaneAndDrawsANearerPointLargerFromTheOrigin() {
+        Mat4 eye = Mat4.perspectiveAt(800);
+        // On the plane z = 0 nothing moves.
+        assertVec(new Vec3(30, -40, 0), eye.transformPoint(new Vec3(30, -40, 0)));
+        // A quarter of the way to the eye: divided by 1 - 200 / 800, so a third larger.
+        Vec4 near = eye.transform(new Vec4(30, -40, 200, 1));
+        assertEquals(0.75f, near.w(), EPS);
+        assertEquals(40f, near.x() / near.w(), EPS);
+        assertEquals(-160f / 3, near.y() / near.w(), EPS);
+        // At the eye and past it nothing is in front of it.
+        assertEquals(0f, eye.transform(new Vec4(1, 1, 800, 1)).w(), EPS);
+        assertTrue(eye.transform(new Vec4(1, 1, 900, 1)).w() < 0);
+        assertSame(Mat4.IDENTITY, Mat4.perspectiveAt(Float.POSITIVE_INFINITY), "infinitely far: none");
+        for (float bad : new float[] {0, -5, Float.NaN, Float.NEGATIVE_INFINITY}) {
+            assertThrows(IllegalArgumentException.class, () -> Mat4.perspectiveAt(bad), "distance " + bad);
+        }
     }
 
     @Test

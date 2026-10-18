@@ -83,6 +83,32 @@ public final class Mat4 {
         return new Mat4(r);
     }
 
+    /**
+     * A perspective seen from an eye {@code distance} in front of the plane {@code z = 0}, on the
+     * z axis, z running toward the viewer: a point is divided by {@code 1 − z / distance}, so the
+     * plane itself is left where it is, a point nearer the eye is drawn larger and farther from the
+     * axis, and one at the eye or past it has no place in front of it ({@code w} not above 0). The
+     * vanishing point is the origin; a translation before this matrix moves it. Unlike
+     * {@link #perspective}, a camera's projection into clip space, it keeps the units it is given,
+     * which is what a picture turned in depth about a point of a window needs. An infinite distance
+     * is no perspective, the identity.
+     *
+     * @param distance how far the eye is from the plane, in the plane's own units
+     * @return the perspective
+     * @throws IllegalArgumentException if {@code distance} is not above 0, or is {@code NaN}
+     */
+    public static Mat4 perspectiveAt(float distance) {
+        if (!(distance > 0)) {
+            throw new IllegalArgumentException("an eye in front of the plane is at a distance above 0: " + distance);
+        }
+        if (distance == Float.POSITIVE_INFINITY) {
+            return IDENTITY;
+        }
+        float[] r = identityArray();
+        r[11] = -1f / distance; // column 2, row 3: w gains −z / distance
+        return new Mat4(r);
+    }
+
     /** Translate · Rotate · Scale, composed directly. */
     public static Mat4 trs(Vec3 t, Quat q, Vec3 s) {
         Mat3 r3 = q.toMat3();

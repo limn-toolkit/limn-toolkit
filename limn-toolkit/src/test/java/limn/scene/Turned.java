@@ -1,7 +1,6 @@
 package limn.scene;
 
 import limn.math.Mat4;
-import limn.math.PerspectiveForTest;
 import limn.math.Quat;
 import limn.math.Vec3;
 import limn.math.Vec4;
@@ -77,7 +76,7 @@ public final class Turned extends Widget<Turned> {
      */
     public static Mat4 turn(float cx, float cy, float degrees, float distance) {
         Mat4 rotation = Mat4.rotation(Quat.fromAxisAngle(new Vec3(0, 1, 0), (float) Math.toRadians(degrees)));
-        return about(cx, cy, PerspectiveForTest.eyeAt(distance).multiply(rotation));
+        return about(cx, cy, Mat4.perspectiveAt(distance).multiply(rotation));
     }
 
     /**
