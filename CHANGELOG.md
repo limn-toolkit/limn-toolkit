@@ -949,6 +949,20 @@ Maven Central say which number that was.
   a widget under a `Transform` is published where it is drawn, scaled with its owner.
 - The Showcase's Motion page has a two-sided card that turns over with `flipTo`, and the Animations
   guide a section on moving part of a window.
+- A `Transform` rotates and skews its child: `setRotation(degrees)` turns it clockwise about its
+  origin, the same way in either reading direction, as a clock does, and `rotateTo(degrees)` turns it
+  there over the theme's `animWindow` or a given time, by the rules of `slideTo`; `setMatrix(Mat4)`
+  draws it through any flat map of the plane, a skew made with the new `Mat4.affine2D(a, b, c, d, e,
+  f)`. A turned child is drawn upright into a picture of its own and laid at the angle: every clip
+  inside stays exact, a scroll view inside skips what scrolled away, the edges are smooth, text reads
+  a little softer, and a frosted glass inside reads the window as it would upright. The picture costs
+  what a fade of the same size costs while the child is turned; measured on an Apple M5 Max, nothing
+  a GPU shows, and about 3 ms of a frame on the software renderer.
+- `Canvas.saveLayer(x, y, width, height, opacity, Mat4)` opens a layer in a space of its own,
+  composited through the transform under the clip in force; a canvas without layers applies the
+  transform's flat part straight.
+- A combo box's list, a date picker's calendar or a tab list open in a window of their own follow
+  their anchor when a `Transform` above it is set or a motion of it arrives.
 
 ### Changed
 
@@ -1132,6 +1146,7 @@ Maven Central say which number that was.
   itself moves them to those versions.
 - The guides and the demo name `limn-icons-tabler` 3.48.0.0: 36 more icons, none removed or moved,
   so code that names a constant compiles unchanged.
+- `Opacity.fadeTo` refuses an infinite number of seconds, as a `Transform`'s motions do.
 
 ### Breaking, and how to move
 
