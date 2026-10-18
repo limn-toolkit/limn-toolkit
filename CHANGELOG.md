@@ -354,24 +354,27 @@ Maven Central say which number that was.
 
 ### New
 
-- A widget fades as one picture (ADR 071). `Widget.setOpacity(float)` sets how opaque the widget
-  and everything under it are drawn, from 0 to 1, and `opacity()` answers it; `fadeTo(target,
-  seconds, onArrive)` moves it there eased as the toolkit's popups fade, and `fadeTo(target)` over
-  the theme's `animWindow`. Between 0 and 1 the subtree is drawn into an offscreen picture laid
-  over the window once, so the parts of a panel do not show through each other halfway; a child's
-  opacity multiplies its parents'; at 1 nothing extra is drawn and at 0 nothing is drawn. Under a
-  blend mode a parent's paint left in force, the subtree is one picture blended once at every
-  opacity, 1 included, so a fade arriving at 1 does not jump. It is a
-  picture and not a presence: at 0 the widget is still laid out, takes a click and the keyboard,
-  and is read by a screen reader, and `setVisible(false)` is what takes it away, which a fade out
-  does in its `onArrive`. While the system asks for less motion, or with no window to fade in, a
-  fade goes straight to its target; a newer `fadeTo` or a `setOpacity` stops one in flight, whose
-  `onArrive` never runs; a widget taken out of its window mid-fade arrives as it leaves, and runs
-  its `onArrive` then. A watcher hears `Change.Aspect.OPACITY` each time `setOpacity` changes the
-  value and twice for a fade, as it starts and as it ends. Measured on an Apple M5 Max, a popup's
-  fade frame costs 0.04 ms of CPU and 0.02 ms of GPU more than the same frame opaque; on Apple's
-  software renderer about 3 ms of a 150 ms frame. A window keeps the pictures only while
-  consecutive frames use them, and its performance monitor counts them.
+- Part of a window fades as one picture in an `Opacity` container (ADR 071), which wraps one
+  widget as `Padding` does: `new Opacity(panel)`. `setOpacity(float)` sets how opaque the child and
+  everything under it are drawn, from 0 to 1, and `opacity()` answers it; `fadeTo(target, seconds,
+  onArrive)` moves it there eased as the toolkit's popups fade, and `fadeTo(target)` over the
+  theme's `animWindow`. Between 0 and 1 the child is drawn into an offscreen picture laid over the
+  window once, so the parts of a panel do not show through each other halfway; a container inside
+  another multiplies its opacity; at 1 nothing extra is drawn and at 0 nothing is drawn. Under a
+  blend mode a parent's paint left in force, the container's child is one picture blended once at
+  every opacity, 1 included, so a fade arriving at 1 does not jump. The container is nothing else:
+  it measures and lays out as its child alone, a screen reader does not see it, and a widget that is
+  in none pays nothing. It is a picture and not a presence: at 0 the child is still laid out, takes
+  a click and the keyboard, and is read by a screen reader, and `setVisible(false)` is what takes
+  it away, which a fade out does in its `onArrive`. While the system asks for less motion, or with
+  no window to fade in, a fade goes straight to its target; a newer `fadeTo` or a `setOpacity` stops
+  one in flight, whose `onArrive` never runs; a container taken out of its window mid-fade arrives
+  as it leaves, and runs its `onArrive` then. A watcher of the container hears
+  `Change.Aspect.OPACITY` each time `setOpacity` changes the value and twice for a fade, as it
+  starts and as it ends. Measured on an Apple M5 Max, a popup's fade frame costs 0.04 ms of CPU and
+  0.02 ms of GPU more than the same frame opaque; on Apple's software renderer about 3 ms of a
+  150 ms frame. A window keeps the pictures only while consecutive frames use them, and its
+  performance monitor counts them.
 - `Canvas.saveLayer(x, y, width, height, opacity)`, closed by `restore()`, draws what is painted
   until the restore as one picture composited with the opacity: what a widget that paints
   overlapping parts of its own uses to fade them together, as `Chart` fades its tooltip panel.
@@ -381,7 +384,7 @@ Maven Central say which number that was.
   a `save()` and a per-draw `setOpacity`, which its default does, each draw in the mode in force.
 - The Showcase's Backdrop panel page fades its floating panel with an Opacity slider and its
   percentage, beside the Coverage slider that sets how much tone the glass lays down, and a button
-  fades the panel out and back with `fadeTo`. The Animations guide has a section on fading part of
+  fades the panel out and back with `fadeTo`, through an `Opacity` container round the panel. The Animations guide has a section on fading part of
   a window.
 - The Packaging guide shows how to keep one platform's natives, with Gradle (a component metadata
   rule keyed on the classifier, for the machine running the build or for a target named with

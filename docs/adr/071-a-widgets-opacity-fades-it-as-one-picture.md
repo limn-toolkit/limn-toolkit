@@ -8,20 +8,24 @@
   probe of section 0 was then run on the lab's three guests (section 0.1), in line with this
   Mac's. Built the same day: the two measurements section 5 left to the code are in section 6.1,
   in line with section 0 once the composite had a program of its own, and section 6.2 says where
-  the build departs from the text above and why.
+  the build departs from the text above and why. Amended the same day, before any release carried
+  it (section 7): the owner decided that the opacity is a container, `Opacity`, as `Padding` is for
+  space, and not a method of `Widget`; everything else this record decides holds, carried by the
+  container.
 - **Date:** 2026-10-17
 - **Scope:**
-  - an opacity on every widget, how it combines with an ancestor's, and what it does not change
-    (layout, input, focus, the accessible tree);
+  - an opacity on every widget (on an `Opacity` container round any widget since section 7), how
+    it combines with an ancestor's, and what it does not change (layout, input, focus, the
+    accessible tree);
   - how the renderer draws a widget whose opacity is between 0 and 1: an offscreen layer, its
     size, its lifetime and its memory;
   - what a partial frame repaints when an opacity changes, and how it repaints a faded subtree;
   - what a backdrop effect reads inside a faded subtree, and over one;
   - which of the toolkit's own fades move onto it.
-- **New public API:** `Widget.setOpacity(float)` and `Widget.opacity()`;
-  `Widget.fadeTo(float, double, Runnable)` and `Widget.fadeTo(float)`;
-  `Change.Aspect.OPACITY`; `Canvas.saveLayer(x, y, width, height, opacity)`, closed by
-  `restore()`.
+- **New public API:** the `limn.scene.layout.Opacity` container, with `setOpacity(float)`,
+  `opacity()`, `fadeTo(float, double, Runnable)` and `fadeTo(float)` (section 7; built first as
+  those four methods on `Widget`, which section 7 took off it); `Change.Aspect.OPACITY`;
+  `Canvas.saveLayer(x, y, width, height, opacity)`, closed by `restore()`.
 - **Compatibility:** `Canvas.setOpacity` multiplies the current opacity instead of replacing it
   (section 2.3); every caller in the repository is accounted for there. Otherwise additive for
   applications. Inside the repository the in-scene fades of six surfaces change how they are
@@ -247,6 +251,9 @@ fades as the main use.
 ## 2. Decision
 
 ### 2.1 The API
+
+(2026-10-17, section 7: the four methods below are the `Opacity` container's, which holds the
+widget it fades, and not `Widget`'s; every rule here holds for the container.)
 
 - **`Widget.setOpacity(float opacity)`**, fluent like `setVisible`, and **`opacity()`**. 1 by
   default. A number past either end is clamped to it and NaN is refused with
@@ -740,3 +747,115 @@ build.
   `InScenePopupFadePixelTest`: on a real device a combo box list's highlighted row halfway through
   its fade is the opaque row mixed with what is beneath by the plain row's share, where the per-draw
   fade drew it 12.5 steps darker.
+
+## 7. The opacity is a container, 2026-10-17
+
+### 7.1 The decision
+
+After the build above, and before any release carried it, the owner decided that the opacity is a
+container, `limn.scene.layout.Opacity`, which holds one child as `Padding` holds one for space round
+it, and not a method of `Widget`. `Widget.setOpacity`, `Widget.opacity()` and both `Widget.fadeTo`
+are gone from the public API; the container has `setOpacity(float)`, `opacity()`,
+`fadeTo(float, double, Runnable)` and `fadeTo(float)`. His reasons:
+
+- **`Widget` stays lean before 1.0.** Every public method of `Widget` is a method of every widget of
+  every application, and part of the 1.0 contract for all of them; an effect few widgets need is a
+  type of its own.
+- **The cost exists only where the container is.** A widget nobody fades carries one null reference,
+  where the build above gave every widget an opacity, a fade and a ticker field, and its paint opens
+  nothing under any blend mode (section 7.3).
+- **The group is explicit.** What fades as one picture is what the container holds, there in the
+  tree as the code wrote it, and not whatever subtree a call on some widget happens to reach.
+- **The composer chooses the order of effects.** Two effects on one child are two containers, and
+  the order they are nested in is the order they apply, where two properties on one widget would
+  need an order fixed by the toolkit for everyone.
+- **A `Transform` container will follow the same shape**: ADR 072 is being drafted with it.
+
+The feature is new since 0.9.0, so no application has to move: the CHANGELOG describes the container
+and not a removal.
+
+### 7.2 What the container is
+
+Everything sections 2.1 to 2.8 decide about the opacity holds, carried by the container: clamped to
+0..1 and NaN refused; UI thread only and refused inside a paint; at 0 the child is still laid out,
+hit, focused and read, and `setVisible(false)` wins and keeps the opacity; one container inside
+another multiplies; `fadeTo` goes straight to its target and counts as one set while the system asks
+for less motion, for zero seconds, for the value it has, or with no scene or no window to tick it; a
+newer `fadeTo` or a `setOpacity` supersedes one in flight, whose `onArrive` does not run; one ticker
+per container however many fades are asked for between two frames; a container leaving its scene
+mid-fade settles at its target and runs `onArrive` then; and the owner's rule of decision 2, a direct
+set that changes the value announcing `Change.Aspect.OPACITY` each time and a fade only at its start
+and at its arrival or supersession, now announced on the container.
+
+And it is transparent to everything but the picture:
+
+- **To layout:** it measures and lays out its child as the child alone, handing it its whole box,
+  and its baseline is the child's. In a `Row` or a `Column` the container is the flex child, so an
+  `Expanded` goes outside it.
+- **To the accessible tree:** it declares no role, name, action or state and has no `onPaint`, so
+  ADR 039 §1.6's predicate deletes it and hoists the child into its place, as for `Padding`. Its
+  opacity is read by no bridge (section 2.8).
+- **To partial rendering:** its `paintOutset()` is the child's own. The other wrappers declare the
+  reach of the theme's focus ring and take another number through `paintOverflow`; here the child
+  covers the container's box exactly, so the child's declaration is the exact answer, and the ring's
+  reach would be wrong both ways: short of a card's shadow, so that a repaint of the shadow's band
+  alone culled the container and cleared the band, and past a plain child, which every repaint
+  would grow for nothing. Its layer is still `Widget.paintedBounds`, the box and outset of every
+  visible descendant (section 2.3's amendment).
+
+### 7.3 How it is built
+
+- **The machinery stays in `limn.scene`, behind the container.** A package-private `OpacityGroup`
+  holds the value, the fade in flight and the one ticker, with the stepping, the settling and the
+  announcements that were `Widget`'s; `Widget` keeps one nullable reference to it, which only the
+  container sets, through `limn.scene.internal.OpacityAccess`, a hook `Widget`'s static initializer
+  installs and that refuses an install from any other class, as `SceneAccess` does.
+- **`Widget.paintWidget` still opens the layer, for a group only,** rather than the container
+  opening it in a paint of its own. That path is the one sections 6.1 to 6.3 measured and the tests
+  proved: the layer sized to `paintedBounds`, the trim that closes it in the `finally` that closes
+  every save, the subtree skipped at 0 (and left out of an enclosing group's bounds), the damage
+  through `Scene.damageWidgetPicture` that walks no accessible tree, and a partial frame equal to a
+  whole one. And a fade settles as the container leaves its scene, from one scene straight into
+  another included, which only the widget's own walk of a scene change sees; no public hook
+  (`onDetached` is not called on a move between two scenes) would have carried it.
+- **The blend-mode rule of section 2.3's amendment is a group's only.** At 1, under a blend mode
+  other than normal, a container opens its layer so that a fade arriving at 1 does not jump; a
+  widget that is no container draws under that mode as it did before this record, each draw
+  blended on its own, since nothing fades it and so nothing can jump. Under the build above every
+  widget painted directly under such a mode opened a layer.
+
+### 7.4 The toolkit's fades
+
+- **`AnchoredPopup`** (the combo box's list, the date picker's calendar, the tab list) puts the
+  panel it presents in a container between its scene-wide `Layer` and the panel, and fades the
+  container in and out; section 6.2's reason for fading the panel and not the layer holds for the
+  container, whose box is the panel's.
+- **`Dialog`** puts its card in a container when the card goes into the scene, presented there or
+  moved there from a window of its own, and the overlay places the container; the container's
+  opacity is the dialog's fade, which the veil and the slide read and whose arrival ends the
+  dialog (section 6.2). The overlay still resolves the card's size tokens on the card, since an
+  explicit step on the dialog lands there and the container inherits the overlay's.
+- **No surface needed the internal hook instead.** Wrapping changes no accessible tree: the
+  container is deleted and the panel or the card is hoisted where it was.
+- `PopupMenu`'s cascade, the scene's tooltip and the chart's tooltip panel stay on
+  `Canvas.saveLayer`, as section 6.2 has it: none is a widget of its own.
+
+### 7.5 Tests
+
+`WidgetOpacityTest` became `OpacityTest` and runs every case it had against the container: the
+value, the UI thread and the paint refusal; one opening no layer, between one, 0 nothing, nested
+containers two, `setVisible` winning; at 0 laid out, hit, focused and read; the damage of a change
+and none for the same value; the announcement rule for a set and for a fade, the tree neither
+republished nor walked; one ticker for ten thousand fades, a fade started in another's `onArrive` on
+the same ticker, straight-there fades as one set, and a container leaving its scene or moved to
+another window settling as it leaves and holding nothing of the scene it left. New: the container
+is nothing to layout (size, child box, baseline) and nothing to the accessible tree; a repaint in
+the child's shadow band alone reaches the child (fails with the focus ring's reach as the outset);
+under another blend mode the container is one picture at 1 and a plain widget opens nothing (fails
+with the build above's rule); a widget nobody fades holds no group. The pixels run against the
+container: `GlLayerTest` (a container under a parent's MULTIPLY draws the same at 1 as at 0.999),
+`OpacityPassSeamTest` (partial equal to whole through a fading container, a fade step, a glass in a
+container, a child past an unclipped parent's edge), `InScenePopupFadePixelTest`,
+`InSceneFadesAsOnePictureTest`, `InSceneFadeEndsTest`, `WorkBudgetTest` and
+`FullFrameAllocationTest`; the demo's Backdrop page and the Animations guide's example
+(`AnimationExampleTest`) use the container.
