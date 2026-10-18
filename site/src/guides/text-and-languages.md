@@ -209,6 +209,14 @@ convention. Your own strings are never rewritten — a part number keeps exactly
 characters you authored — and the same seam is public for your own formatting:
 `I18n.localizeDigits(text)` on the way out, `I18n.toAsciiDigits(text)` on the way back in.
 
+A number you format yourself takes the same digits when you format it under
+`I18n.numberLocale()` rather than `I18n.locale()`: the language in effect with the toolkit's
+digits named on it, which the platform's own choice for a bare locale is not (it writes plain `ar`
+in Arabic-Indic digits). Dates and times want `DateFormats`, beside `NumberFormats`:
+`DateFormats.date(FormatStyle.SHORT)`, `time` and `dateTime` write the language's own order and
+words in the toolkit's digits, where the platform writes every date in ASCII digits, so a date
+under `ar-EG` reads in the same digits as the amount beside it.
+
 A spinner's number is written and read the way the language writes it: a spinner stepping by
 a quarter shows a half as `0,50` in German, Swedish writes a negative value with a true minus
 sign (`−1,5`), and no language's thousands are ever grouped. Typing is more forgiving than the display — a leading `+`, the hyphen

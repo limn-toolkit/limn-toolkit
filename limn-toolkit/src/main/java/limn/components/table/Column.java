@@ -2,6 +2,7 @@ package limn.components.table;
 
 import limn.i18n.NumberFormats;
 import limn.concurrent.Ui;
+import limn.i18n.I18n;
 import limn.i18n.I18nString;
 import limn.scene.Widget;
 import org.jspecify.annotations.Nullable;
@@ -27,6 +28,12 @@ import java.util.function.ToDoubleFunction;
  * the everyday cases &mdash; {@link #text}, {@link #numeric} and {@link #of} with a formatter
  * &mdash; and {@link #widget} is the seam for a cell that is a control rather than a value: a
  * switch, a button, an icon. Everything after the factory is a fluent setter.
+ *
+ * <p><b>The language a cell is written in</b> is the table's {@linkplain Widget#locale() own}:
+ * every formatter a column runs, a cell's, a footer's and the text a sort falls back to, runs with
+ * the table's locale {@linkplain I18n#pushScope in scope}, so {@link NumberFormats},
+ * {@link limn.i18n.DateFormats} and anything else that reads {@link I18n#locale()} write a cell
+ * in the table's language even when the table reads its rows again outside a pass.
  *
  * <p><b>The UI thread.</b> Every setter runs on the UI thread, as every widget's does, and throws
  * {@link IllegalStateException} on any other thread and before a backend is running. The table
@@ -222,12 +229,57 @@ public final class Column<T> {
     }
 
     /**
-     * A column over any value, with the formatter that turns it into text under the table's
-     * locale: a date through a {@code DateTimeFormatter}, an enum through its own words.
+     * A column over any value, with a format that turns it into text and reads the language in
+     * effect as it does, as {@link limn.i18n.DateFormats} and {@link NumberFormats} do: a date
+     * through {@code DateFormats.date(FormatStyle.SHORT)}, an enum through its own words. The
+     * table's locale is in scope while it formats.
      *
      * @param title  what the header says
      * @param value  a row's value; {@code null} draws an empty cell and sorts first
-     * @param format the value as text under a locale; never asked for {@code null}
+     * @param format the value as text; never asked for {@code null}
+     * @param <T>    the row type
+     * @param <V>    the value type
+     * @return the column
+     */
+    @SuppressWarnings("unchecked")
+    public static <T, V> Column<T> of(I18nString title, Function<T, @Nullable V> value,
+                                      Function<? super V, String> format) {
+        Objects.requireNonNull(value, "value");
+        Objects.requireNonNull(format, "format");
+        return new Column<>(title, value::apply,
+                (v, locale) -> v == null ? "" : format.apply((V) v), null);
+    }
+
+    /**
+     * {@link #of(I18nString, Function, Function)} with a literal title.
+     *
+     * @param title  what the header says
+     * @param value  a row's value
+     * @param format the value as text
+     * @param <T>    the row type
+     * @param <V>    the value type
+     * @return the column
+     */
+    public static <T, V> Column<T> of(String title, Function<T, @Nullable V> value,
+                                      Function<? super V, String> format) {
+        return of(I18nString.literal(title), value, format);
+    }
+
+    /**
+     * A column over any value, with a formatter that is handed the locale to write it in:
+     * {@link I18n#numberLocale()} under the table's language, the locale the toolkit writes
+     * numbers in. It names the numbering system the toolkit writes ({@code -u-nu-}) wherever the
+     * platform would otherwise write other digits, so {@code String.format(locale, "%.1f MB", mb)}
+     * writes {@code 1234.5} as {@code 1234.5 MB} under a bare {@code ar} and {@code ١٢٣٤٫٥ MB}
+     * under {@code ar-EG}, in the digits of the numeric columns beside it; the bare locale wrote
+     * Arabic-Indic digits under {@code ar}, where the toolkit writes Latin ones. The language is the table's: a month's name or a word looked up
+     * under this locale is in that language. A date wants
+     * {@link #of(I18nString, Function, Function)} with {@link limn.i18n.DateFormats} instead,
+     * because the platform writes a date in ASCII digits under any locale.
+     *
+     * @param title  what the header says
+     * @param value  a row's value; {@code null} draws an empty cell and sorts first
+     * @param format the value as text under the locale handed to it; never asked for {@code null}
      * @param <T>    the row type
      * @param <V>    the value type
      * @return the column
@@ -237,8 +289,9 @@ public final class Column<T> {
                                       BiFunction<V, Locale, String> format) {
         Objects.requireNonNull(value, "value");
         Objects.requireNonNull(format, "format");
+        // Read inside the scope every call site opens on the table's locale.
         return new Column<>(title, value::apply,
-                (v, locale) -> v == null ? "" : format.apply((V) v, locale), null);
+                (v, locale) -> v == null ? "" : format.apply((V) v, I18n.numberLocale()), null);
     }
 
     /**
@@ -246,7 +299,7 @@ public final class Column<T> {
      *
      * @param title  what the header says
      * @param value  a row's value
-     * @param format the value as text under a locale
+     * @param format the value as text under the locale handed to it
      * @param <T>    the row type
      * @param <V>    the value type
      * @return the column
@@ -590,7 +643,7 @@ public final class Column<T> {
             return null;
         }
         Object v = footer.apply(rows);
-        return v == null ? "" : footerFormat.apply(v, locale);
+        return v == null ? "" : written(footerFormat, v, locale);
     }
 
     /**
@@ -641,7 +694,23 @@ public final class Column<T> {
         if (value == null) {
             return "";
         }
-        return format.apply(value.apply(row), locale);
+        return written(format, value.apply(row), locale);
+    }
+
+    /**
+     * {@code format} applied with {@code locale} in scope: what makes a format that reads the
+     * language in effect, as every one of {@code NumberFormats} does, write in the table's
+     * language when the table reads its rows outside a pass, on a language change, where the scope
+     * would otherwise be the process's. Inside a pass the table's locale is in scope already, and
+     * the push costs nothing.
+     */
+    private static String written(BiFunction<Object, Locale, String> format, Object v, Locale locale) {
+        Locale enclosing = I18n.pushScope(locale);
+        try {
+            return format.apply(v, locale);
+        } finally {
+            I18n.popScope(enclosing);
+        }
     }
 
     /** The widget of {@code row}'s cell, for a widget column. */
@@ -694,7 +763,7 @@ public final class Column<T> {
                 return byName;
             }
         }
-        return collator.compare(format.apply(va, locale), format.apply(vb, locale));
+        return collator.compare(written(format, va, locale), written(format, vb, locale));
     }
 
     /** The kinds a value sorts among, in the order they sort in when two values' kinds differ. */
@@ -872,7 +941,7 @@ public final class Column<T> {
 
     private java.text.CollationKey formatted(SortKey key, Collator collator, Locale locale) {
         if (key.formatted == null) {
-            key.formatted = collator.getCollationKey(format.apply(key.value, locale));
+            key.formatted = collator.getCollationKey(written(format, key.value, locale));
         }
         return key.formatted;
     }

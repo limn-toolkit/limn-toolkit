@@ -54,6 +54,28 @@ public final class LocaleServices {
     }
 
     /**
+     * The language's own time-of-day format of {@code style}: "14:09" for a short French time.
+     *
+     * @param style  how much of the time to write
+     * @param locale the language in effect
+     * @return the formatter
+     */
+    public static DateTimeFormatter localizedTime(FormatStyle style, Locale locale) {
+        return DateTimeFormatter.ofLocalizedTime(style).withLocale(LanguageAliases.resolve(locale));
+    }
+
+    /**
+     * The language's own format of a date and a time, both of {@code style}.
+     *
+     * @param style  how much of each to write
+     * @param locale the language in effect
+     * @return the formatter
+     */
+    public static DateTimeFormatter localizedDateTime(FormatStyle style, Locale locale) {
+        return DateTimeFormatter.ofLocalizedDateTime(style).withLocale(LanguageAliases.resolve(locale));
+    }
+
+    /**
      * The pattern the language writes a date, a time or both in, for a calendar system.
      *
      * @param date       the date style, or {@code null} for a time alone

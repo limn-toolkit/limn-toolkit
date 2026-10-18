@@ -306,6 +306,30 @@ public final class I18n {
     }
 
     /**
+     * The locale a number is written in here: the {@linkplain #locale() locale in effect}, with
+     * the {@linkplain #numberingSystem() numbering system in effect} named on it
+     * ({@code -u-nu-}) wherever the platform would otherwise write other digits, and its language
+     * read as ICU reads the code. It is the locale {@link NumberFormats} formats under, published
+     * for a format of the application's own: {@code String.format(I18n.numberLocale(), "%.1f MB",
+     * size)} writes the digits and the separators a number the toolkit wrote beside it has.
+     *
+     * <p>The bare locale is not that. The platform's idea of a language's default digits is not
+     * always the toolkit's: for a bare {@code ar} it writes {@code ١٢٣٤٫٥} where the toolkit writes
+     * Latin digits, and a date or time it writes in ASCII digits whatever the language, where the
+     * toolkit writes {@code ar-EG}'s and Persian's own. {@link DateFormats} writes those.
+     *
+     * <p>The one case it cannot carry is a legacy locale form that takes no extension, whose
+     * formatter writes the platform's own digits; text formatted under it is put right by
+     * {@link #localizeDigits}{@code (}{@link #toAsciiDigits}{@code (text))}, which is what the
+     * toolkit's own formats do.
+     *
+     * @return the locale to format a number the user reads in
+     */
+    public static Locale numberLocale() {
+        return limn.i18n.internal.NumberLocale.inEffect();
+    }
+
+    /**
      * Overrides the locale's numbering system; {@code null} returns to following the locale.
      * Treated as a text change: the epoch bumps and every live scene re-lays-out, exactly as a
      * locale switch does, because every formatted number on screen just changed.

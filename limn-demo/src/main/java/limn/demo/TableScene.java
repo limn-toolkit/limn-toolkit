@@ -12,6 +12,7 @@ import limn.components.table.Column;
 import limn.components.table.SortOrder;
 import limn.components.table.Table;
 import limn.concurrent.Ui;
+import limn.i18n.DateFormats;
 import limn.i18n.I18nString;
 import limn.icons.tabler.TablerText;
 import limn.scene.Insets;
@@ -24,7 +25,6 @@ import limn.scene.layout.Wrap;
 
 import java.text.Collator;
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -178,7 +178,6 @@ final class TableScene {
         List<Item> rows = items();
         List<Item> catalogue = List.copyOf(rows); // the order the server keeps them in
         Currency money = Currency.getInstance("USD");
-        DateTimeFormatter dates = DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT);
 
         Column<Item> sku = Column.<Item>text(Text.SKU, Item::sku).width(110);
         Column<Item> product = Column.<Item>text(Text.PRODUCT, Item::product).width(250).footer(Text.SUM);
@@ -192,7 +191,7 @@ final class TableScene {
         Column<Item> value = Column.<Item>currency(Text.VALUE, Item::value, money).width(140).footerSum();
         // A date reads at the end of its cell too, where the figures beside it end.
         Column<Item> counted = Column.<Item, LocalDate>of(Text.COUNTED, Item::counted,
-                        (date, locale) -> dates.withLocale(locale).format(date))
+                        DateFormats.date(FormatStyle.SHORT))
                 .width(120).align(Column.Alignment.END).visible(false);
         List<Column<Item>> figures = List.of(onHand, reserved, available, reorder, cost, value);
 

@@ -22,6 +22,7 @@ import limn.components.table.SortOrder;
 import limn.components.table.Table;
 import limn.components.tree.Tree;
 import limn.concurrent.Ui;
+import limn.i18n.DateFormats;
 import limn.i18n.I18n;
 import limn.i18n.I18nString;
 import limn.scene.Change;
@@ -38,7 +39,6 @@ import limn.scene.layout.Row;
 import limn.scene.layout.SizedBox;
 
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -1091,12 +1091,12 @@ final class AppScene {
             // The footer's words for what the sum under Total adds up: "48 orders".
             Column<Order> customer = Column.<Order>text(ShowcaseStrings.ORDERS_CUSTOMER, order -> order.customer)
                     .width(130).weight(1).footer(rows -> Text.COUNT.format(rows.size()));
+            // DateFormats and not the platform's formatter, which writes ASCII digits in every
+            // language: under ar-EG the dates read in other digits than the totals beside them.
             Column<Order> placed = Column.<Order, LocalDate>of(ShowcaseStrings.ORDERS_PLACED, order -> order.placed,
-                    (date, locale) -> DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT).withLocale(locale)
-                            .format(date)).width(118);
+                    DateFormats.date(FormatStyle.SHORT)).width(118);
             Column<Order> due = Column.<Order, LocalDate>of(ShowcaseStrings.ORDERS_DUE, order -> order.due,
-                    (date, locale) -> DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT).withLocale(locale)
-                            .format(date)).width(118);
+                    DateFormats.date(FormatStyle.SHORT)).width(118);
             // A pill per row, coloured by where the order stands; it sorts in the order an order
             // moves through, not by the word, which changes with the language.
             Column<Order> state = Column.<Order>widget(ShowcaseStrings.ORDERS_STATUS,

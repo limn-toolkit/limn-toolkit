@@ -34,6 +34,9 @@ import java.util.function.DoubleFunction;
  * Column.currency("Total", Order::total, Currency.getInstance("BRL")); // -> "R$ 1.234,50"
  * }</pre>
  *
+ * <p>{@link DateFormats} is its counterpart for dates and times, and {@link I18n#numberLocale()}
+ * the locale these formats write in, for a format of an application's own.
+ *
  * <p>This class was once {@code limn.components.chart.ChartFormats}; the table gave it a second
  * caller and the name moved with it.
  */

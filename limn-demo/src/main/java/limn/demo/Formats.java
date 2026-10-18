@@ -1,10 +1,9 @@
 package limn.demo;
 
-import limn.i18n.I18n;
+import limn.i18n.DateFormats;
 import limn.i18n.NumberFormats;
 
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
 import java.time.temporal.TemporalAccessor;
 
@@ -49,9 +48,13 @@ final class Formats {
         return date(date, FormatStyle.SHORT);
     }
 
-    /** A date at {@code style}'s length: {@code MEDIUM} reads {@code Oct 9, 2026} in English. */
+    /**
+     * A date at {@code style}'s length: {@code MEDIUM} reads {@code Oct 9, 2026} in English. In
+     * the language's digits, as {@link DateFormats} writes every date: under {@code ar-EG} a date
+     * beside an amount reads in the amount's digits.
+     */
     static String date(LocalDate date, FormatStyle style) {
-        return written(DateTimeFormatter.ofLocalizedDate(style), date);
+        return DateFormats.date(style).apply(date);
     }
 
     /**
@@ -59,16 +62,6 @@ final class Formats {
      * Brazilian Portuguese.
      */
     static String time(TemporalAccessor time) {
-        return written(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT), time);
-    }
-
-    /**
-     * {@code value} by {@code format} in the language in effect, its digits the language's: the
-     * platform's date formats write ASCII digits whatever the language, where a number on the
-     * same page writes the toolkit's, so a date beside an amount under {@code ar-EG} would have
-     * read in Latin digits and the amount in Arabic-Indic ones.
-     */
-    private static String written(DateTimeFormatter format, TemporalAccessor value) {
-        return I18n.localizeDigits(format.withLocale(I18n.locale()).format(value));
+        return DateFormats.time(FormatStyle.SHORT).apply(time);
     }
 }
