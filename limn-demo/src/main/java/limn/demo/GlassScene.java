@@ -51,6 +51,8 @@ final class GlassScene {
         static final I18nString TINT = new I18nString("showcase.glass.tint", "Tint");
         static final I18nString TINT_AMOUNT = new I18nString("showcase.glass.tintAmount", "Strength");
         static final I18nString COVER = new I18nString("showcase.glass.cover", "Coverage");
+        static final I18nString OPACITY = new I18nString("showcase.glass.opacity", "Opacity");
+        static final I18nString FADE = new I18nString("showcase.glass.fade", "Fade out and in");
         static final I18nString NONE = new I18nString("showcase.glass.none", "None");
         static final I18nString TEAL = new I18nString("showcase.glass.teal", "Teal");
         static final I18nString AMBER = new I18nString("showcase.glass.amber", "Amber");
@@ -158,6 +160,23 @@ final class GlassScene {
                 new SizedBox(160, SizedBox.UNSET, cover), coverPercent);
         coverRow.add(Expanded.spacer(1));
         column.add(coverRow);
+        // Opacity is the whole panel's, the widget's own: the glass, its tone and the controls on it
+        // fade as one picture over the picture behind, and the glass still reads that picture as if
+        // the panel were opaque. The button fades it out and back to where the slider stands.
+        Slider opacity = new Slider(0, 100).setStep(5).setValue(100);
+        opacity.setAccessibleName(Text.OPACITY);
+        Label opacityPercent = Page.label(() -> NumberFormats.percent(0).apply(opacity.value() / 100.0))
+                .setMuted(true);
+        opacity.onChange(value -> {
+            opacityPercent.setText(NumberFormats.percent(0).apply(value / 100.0));
+            floating.setOpacity(value / 100f);
+        });
+        Button fade = new Button(Text.FADE).setSecondary(true).onAction(() -> floating.fadeTo(0f, 0.6,
+                () -> floating.fadeTo(opacity.value() / 100f, 0.6, null)));
+        Row opacityRow = Page.row(12, new Label(Text.OPACITY).setMuted(true).setLabelFor(opacity),
+                new SizedBox(160, SizedBox.UNSET, opacity), opacityPercent, fade);
+        opacityRow.add(Expanded.spacer(1));
+        column.add(opacityRow);
         column.add(new SizedBox(SizedBox.UNSET, 240, limn.demo.site.GlassExample.floatingOver(
                 new ImageView(dusk()).setFit(ImageView.Fit.COVER), floating)));
 
