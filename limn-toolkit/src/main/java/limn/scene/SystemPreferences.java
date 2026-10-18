@@ -18,7 +18,7 @@ import java.util.Objects;
  * be its brand. Following the system is one line:
  *
  * <pre>{@code
- * SystemPreferences.observeChanges(() -> pickTheme(SystemPreferences.current()).apply(scene));
+ * SystemPreferences.observeChanges(() -> pickTheme(SystemPreferences.current()).apply());
  * }</pre>
  *
  * <p>The one preference the toolkit acts on by itself is {@link #reduceMotion()}: while it is set,

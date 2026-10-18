@@ -234,7 +234,9 @@ it is the seam a per-subtree theme can be added behind later without breaking an
 was. `theme.apply(Scene...)` joins it, the one call that switches the palette, repaints each scene and
 applies the theme's font (decision 117's rule, as API); `Theme.setCurrent` stays as the cheaper
 half for a colour well that switches the palette on every frame of a drag. The guides and the class Javadoc teach that
-call and nothing else.
+call and nothing else. *Amended 2026-10-18:* the call is `theme.apply()` now, with no scenes,
+because every scene hears the palette move and repaints, and one the application gave no
+background clears to the palette's (ADR 040 §1.9, amendment of that date).
 
 ## 8. Order, and what proves each step
 

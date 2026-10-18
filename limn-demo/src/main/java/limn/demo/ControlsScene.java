@@ -4,7 +4,6 @@ import limn.components.Label;
 import limn.components.RangeSlider;
 import limn.components.Slider;
 import limn.components.Spinner;
-import limn.components.Theme;
 import limn.i18n.I18nString;
 import limn.i18n.NumberFormats;
 import limn.i18n.PluralString;
@@ -37,7 +36,6 @@ final class ControlsScene {
     /** Standalone {@code --scene controls}. */
     static Scene create() {
         Scene scene = new Scene(new Padding(Insets.all(20), content()));
-        scene.setBackground(Theme.current().background());
         return scene;
     }
 

@@ -84,7 +84,6 @@ final class ControlSizeAuditScene {
         page.add(trackRow());
 
         Scene scene = new Scene(new Padding(Insets.all(20), new TargetOverlay(page)));
-        scene.setBackground(Theme.current().background());
         return scene;
     }
 

@@ -87,7 +87,6 @@ final class GlassScene {
     static Scene create(boolean lightTheme) {
         Theme.setCurrent(lightTheme ? Theme.light() : Theme.dark());
         Scene scene = new Scene(new Padding(Insets.all(20), content()));
-        scene.setBackground(Theme.current().background());
         return scene;
     }
 

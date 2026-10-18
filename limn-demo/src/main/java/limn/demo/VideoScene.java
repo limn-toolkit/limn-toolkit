@@ -184,7 +184,6 @@ final class VideoScene {
         Theme.setCurrent(light ? Theme.light() : Theme.dark());
         Scene scene = new Scene(new Padding(Insets.all(20),
                 tabContent(SCENE_PICTURE_WIDTH, SCENE_PICTURE_HEIGHT, SOURCES, true)));
-        scene.setBackground(Theme.current().background());
         return scene;
     }
 

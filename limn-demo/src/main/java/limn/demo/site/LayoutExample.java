@@ -11,7 +11,6 @@ import limn.components.SegmentedControl;
 import limn.components.Separator;
 import limn.components.SplitPane;
 import limn.components.TextField;
-import limn.components.Theme;
 import limn.components.ToolBar;
 import limn.graphics.Color;
 import limn.graphics.Image;
@@ -325,7 +324,6 @@ public final class LayoutExample {
     // #region showcase:layout-scene
     public static Scene scene() {
         Scene scene = new Scene(shell());
-        scene.setBackground(Theme.current().background());
         return scene;
     }
     // #endregion

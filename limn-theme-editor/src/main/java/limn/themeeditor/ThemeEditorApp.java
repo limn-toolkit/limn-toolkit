@@ -84,7 +84,6 @@ public final class ThemeEditorApp {
             column.add(Expanded.of(editor));
 
             Scene scene = new Scene(new Padding(Insets.all(20), column));
-            scene.setBackground(start.background());
             scene.bind(window);
 
             backend.runEventLoop();

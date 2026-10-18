@@ -1074,7 +1074,6 @@ final class GalleryScenes {
         Stack root = new Stack().alignment(Stack.Alignment.CENTER);
         root.add(source.root());
         Scene scene = new Scene(root, clock);
-        scene.setBackground(Theme.current().background());
         // The arrow is the scene's front painter, not the last child of this stack. A child
         // paints under every overlay, so an in-scene dialog hides it completely; see
         // PointerLayer for the film that caught it.
@@ -1100,10 +1099,6 @@ final class GalleryScenes {
         Stack root = new Stack().alignment(Stack.Alignment.CENTER);
         root.add(new Padding(limn.scene.Insets.all(20), centred));
         Scene scene = new Scene(root, clock);
-        // Scene's default background is a hard-coded tone of the generic Dark palette, not
-        // the current theme's. Leaving it gives every light capture a dark canvas with
-        // light-palette ink on it. That is what the first run of this gallery produced.
-        scene.setBackground(Theme.current().background());
         pointer.attachTo(scene);
         return new Built(scene, pointer, widget, clock);
     }

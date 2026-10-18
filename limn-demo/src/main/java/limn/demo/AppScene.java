@@ -481,7 +481,6 @@ final class AppScene {
         page.add(performanceStrip);
 
         Scene scene = new Scene(page);
-        scene.setBackground(Theme.current().background());
 
         // The call a theme picker makes: the palette becomes current, its face is applied, and
         // the scene clears to its background and repaints. A palette is a repaint, never a
@@ -498,7 +497,7 @@ final class AppScene {
             }
             Theme wanted = scheme == SystemPreferences.ColorScheme.DARK ? Theme.dark() : Theme.light();
             if (wanted != Theme.current()) {
-                wanted.apply(scene);
+                wanted.apply();
             }
         };
         theme.onSelect(() -> {
@@ -506,18 +505,17 @@ final class AppScene {
             if (following[0]) {
                 applySystemAppearance.run();
             } else {
-                Theme.builtins().get(theme.selectedIndex() - 1).apply(scene);
+                Theme.builtins().get(theme.selectedIndex() - 1).apply();
             }
         });
         // And when something else changes the theme, a launch option or the system's
-        // appearance: the window repaints in it, and a picker that names a palette names this one.
+        // appearance: the window repaints in it by itself, and a picker that names a palette
+        // names this one.
         Theme.observeChanges(() -> {
             int now = Theme.builtins().indexOf(Theme.current());
             if (!following[0] && now >= 0 && now + 1 != theme.selectedIndex()) {
                 theme.setSelectedIndex(now + 1);
             }
-            scene.setBackground(Theme.current().background());
-            scene.root().invalidate();
         });
         SystemPreferences.observeChanges(applySystemAppearance); // for the life of the demo
         Runnable followSystemAppearance = () -> {

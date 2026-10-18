@@ -335,7 +335,6 @@ final class TreeScene {
         Scene scene = null;
         if (withScene) {
             scene = new Scene(new Padding(Insets.all(24), page));
-            scene.setBackground(Theme.current().background());
         }
         return new Parts(page, scene, tree, deep, remote, trash, emptyFolder, docs,
                 docs.kids().get(0), docs.kids().get(0).kids().get(1));

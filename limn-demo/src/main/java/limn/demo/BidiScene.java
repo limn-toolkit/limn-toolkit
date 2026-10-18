@@ -199,7 +199,6 @@ final class BidiScene {
         TextField arabic = arabicField();
         TextField hebrew = hebrewField();
         Scene scene = new Scene(new Padding(Insets.all(20), new ScrollView(page(arabic, hebrew))));
-        scene.setBackground(Theme.current().background());
         scene.requestFocus(arabic);
         // Derived from the fixtures rather than written down: editing either constant would
         // otherwise slide a literal index onto the wrong side of the boundary this has to cross.

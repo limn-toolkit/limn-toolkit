@@ -83,19 +83,16 @@ final class ComponentsScene {
 
         content.add(Expanded.spacer(1));
 
-        // Theme toggle: swaps the global theme and re-layouts everything.
+        // Theme toggle: swaps the global theme, which repaints the window.
         Button themeToggle = new Button(lightTheme ? "Switch to dark theme" : "Switch to light theme");
         content.add(themeToggle);
 
         Widget<?> root = Padding.all(20, content);
         Scene scene = new Scene(root);
-        scene.setBackground(Theme.current().background());
         themeToggle.onAction(() -> {
             boolean toLight = Theme.current() == Theme.dark();
-            Theme.setCurrent(toLight ? Theme.light() : Theme.dark());
+            (toLight ? Theme.light() : Theme.dark()).apply();
             themeToggle.setText(toLight ? "Switch to dark theme" : "Switch to light theme");
-            scene.setBackground(Theme.current().background());
-            root.markNeedsLayout(); // typography/sizes may differ between themes
         });
         return scene;
     }

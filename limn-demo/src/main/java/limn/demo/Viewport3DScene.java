@@ -115,7 +115,6 @@ final class Viewport3DScene {
     static Scene create(boolean light) {
         Theme.setCurrent(light ? Theme.light() : Theme.dark());
         Scene scene = new Scene(new Padding(Insets.all(20), content()));
-        scene.setBackground(Theme.current().background());
         return scene;
     }
 
@@ -365,7 +364,6 @@ final class Viewport3DScene {
                 .setMuted(true).setWrap(true));
         col.add(normalMapViewport(700, 500));
         Scene scene = new Scene(new Padding(Insets.all(20), new ScrollView(col)));
-        scene.setBackground(theme.background());
         return scene;
     }
 
@@ -382,7 +380,6 @@ final class Viewport3DScene {
                 + "shadow. Drag to orbit.").setMuted(true).setWrap(true));
         col.add(blendViewport(700, 500));
         Scene scene = new Scene(new Padding(Insets.all(20), new ScrollView(col)));
-        scene.setBackground(theme.background());
         return scene;
     }
 
@@ -764,7 +761,6 @@ final class Viewport3DScene {
                 .setMuted(true).setWrap(true));
         col.add(customSurfaceViewport(700, 460));
         Scene scene = new Scene(new Padding(Insets.all(20), new ScrollView(col)));
-        scene.setBackground(theme.background());
         return scene;
     }
 
@@ -779,7 +775,6 @@ final class Viewport3DScene {
                 + "dynamic shadows on the ground. Drag to orbit.").setMuted(true).setWrap(true));
         col.add(shadowViewport(700, 500));
         Scene scene = new Scene(new Padding(Insets.all(20), new ScrollView(col)));
-        scene.setBackground(theme.background());
         return scene;
     }
 
@@ -795,7 +790,6 @@ final class Viewport3DScene {
                 + "Drag to orbit.").setMuted(true).setWrap(true));
         col.add(debugViewport(700, 460, true, false));
         Scene scene = new Scene(new Padding(Insets.all(20), new ScrollView(col)));
-        scene.setBackground(theme.background());
         return scene;
     }
 
@@ -1194,7 +1188,6 @@ final class Viewport3DScene {
                 .setMuted(true).setWrap(true));
         col.add(bloomDemo(700, 480, false));
         Scene scene = new Scene(new Padding(Insets.all(20), new ScrollView(col)));
-        scene.setBackground(theme.background());
         return scene;
     }
 
@@ -1211,7 +1204,6 @@ final class Viewport3DScene {
                 .setMuted(true).setWrap(true));
         col.add(iblViewport(700, 500));
         Scene scene = new Scene(new Padding(Insets.all(20), new ScrollView(col)));
-        scene.setBackground(theme.background());
         return scene;
     }
 

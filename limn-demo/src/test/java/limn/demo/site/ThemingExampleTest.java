@@ -15,7 +15,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
-/** What the theming guide says its picker does: the palette chosen is current, and the scene clears to it. */
+/**
+ * What the theming guide says its picker does: the palette chosen is current, and a window the
+ * picker was never told of clears to it.
+ */
 class ThemingExampleTest {
 
     @Test
@@ -24,8 +27,7 @@ class ThemingExampleTest {
         try (HeadlessUi ui = new HeadlessUi()) {
             Label content = new Label("hello");
             Scene window = new Scene(content);
-            window.setBackground(Theme.current().background());
-            ComboBox<I18nString> picker = ThemingExample.themePicker(window);
+            ComboBox<I18nString> picker = ThemingExample.themePicker();
             // The picker in a scene of its own, so that a key reaches it: the choice has to be
             // the user's, which is what the picker answers.
             Scene scene = new Scene(picker);

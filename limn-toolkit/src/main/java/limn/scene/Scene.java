@@ -175,7 +175,8 @@ public final class Scene {
 
     private Runnable renderRequester = () -> {
     };
-    private Color background = Color.rgb(0x14181F);
+    /** The colour the application chose to clear to, or null to clear to the theme's background. */
+    private @Nullable Color background;
 
     // Keys physically down, by key code: the state no push-only input SPI keeps for you, and
     // the only way to release them when focus is stolen (see cancelKeyState).
@@ -271,6 +272,7 @@ public final class Scene {
                 ControlSize.observeChanges(metricsListener),
                 LayoutDirection.observeChanges(metricsListener),
                 limn.i18n.I18n.observeChanges(metricsListener));
+        paletteListener.armed(limn.scene.internal.SceneBackground.observeChanges(paletteListener));
     }
 
     private limn.graphics.TextRuler textRuler;
@@ -295,7 +297,8 @@ public final class Scene {
      * measurement moves — the UI font family/catalog ({@link limn.graphics.Fonts}), the process
      * default control size ({@link ControlSize}), the process default layout direction
      * ({@link LayoutDirection}) or the language ({@link limn.i18n.I18n}) — and a repaint when the
-     * palette does ({@link limn.components.Theme}).
+     * palette does ({@link limn.components.Theme}, heard through
+     * {@link limn.scene.internal.SceneBackground}).
      *
      * <p>Holds the scene WEAKLY: a scene replaced on a live window (a new scene bound over it)
      * never receives {@code windowClosed}, and a strong process-wide listener would pin the
@@ -313,15 +316,15 @@ public final class Scene {
      * <p><b>The response is a field and not the method body</b>, because {@code run()} takes no
      * argument and no axis hands it one: one instance on several axes can only answer them all
      * identically, so an axis whose answer differs takes an instance of its own carrying its own
-     * response. The four measurement axes share one, answering {@code relayout()}.
+     * response. The four measurement axes share one, answering {@code relayout()}; the palette
+     * has its own, answering a repaint.
      *
-     * <p><b>The palette is not among them, and that is a package boundary rather than a
-     * judgement about what a palette costs.</b> {@code Theme} is a {@code limn.components} type
-     * and this is {@code limn.scene}, the layer that package is built on -- no file here has ever
-     * named one, and a repaint is not worth being the first. So a palette switch is still the
-     * application's to answer, with the {@code invalidate()} or {@code relayout()} it already
-     * writes; what {@code Theme} gained is the same {@code observeChanges} handle the four axes
-     * hand back, so a subscriber there writes no list of its own.
+     * <p><b>The palette is heard without being named.</b> {@code Theme} is a
+     * {@code limn.components} type and this is {@code limn.scene}, the layer that package is built
+     * on, and no file here names one. So the theme tells {@link limn.scene.internal.SceneBackground}
+     * when it switches, and the scene subscribes there. Until 2026-10-18 a palette switch was the
+     * application's to answer, scene by scene, and a window it forgot, or opened after the switch,
+     * cleared to the old palette's canvas behind the new palette's widgets.
      */
     private static final class GlobalAxisListener implements Runnable {
         private final java.lang.ref.WeakReference<Scene> scene;
@@ -365,6 +368,22 @@ public final class Scene {
     }
 
     private final GlobalAxisListener metricsListener = new GlobalAxisListener(this, Scene::relayoutForAnAxis);
+
+    private final GlobalAxisListener paletteListener = new GlobalAxisListener(this, Scene::repaintForThePalette);
+
+    /**
+     * What the palette moving asks of this scene: to repaint whole, since every widget reads it as
+     * it paints and so does the clear colour unless {@link #setBackground} chose one. With no
+     * runtime installed the scene only keeps the fact, for the reason {@link #relayoutForAnAxis}
+     * gives.
+     */
+    private void repaintForThePalette() {
+        if (!Ui.isInstalled()) {
+            fullDamagePending = true;
+            return;
+        }
+        requestRender();
+    }
 
     /**
      * What a process-wide axis moving asks of this scene: to measure again. With a runtime
@@ -1044,21 +1063,29 @@ public final class Scene {
     }
 
     /**
-     * The colour cleared behind the tree each frame. A translucent one only shows
-     * through where the window itself is translucent.
+     * The colour cleared behind the tree each frame, chosen by the application and kept whatever
+     * the palette does: a scene that clears to transparent to let the desktop through, a video
+     * that wants black around it. A translucent one only shows through where the window itself
+     * is translucent.
+     *
+     * <p>A scene whose application chose none, which is every scene until this is called, clears
+     * to the background of the palette in effect and follows it when the palette switches, in
+     * every window, those opened after the switch included.
+     *
+     * @param color the colour to clear to, or {@code null} to follow the palette again
      */
-    public void setBackground(Color color) {
+    public void setBackground(@Nullable Color color) {
         Ui.checkUiThread();
-        this.background = Objects.requireNonNull(color);
+        this.background = color;
     }
 
     /**
-     * The colour cleared behind the tree each frame. Read it before replacing it to tell a
-     * deliberately translucent scene from one that simply took a theme's canvas: a caller
-     * swapping the palette under a built scene must leave the first alone.
+     * @return the colour the next frame clears to: the one {@link #setBackground} chose, or the
+     *         background of the palette in effect when none was chosen
      */
     public Color background() {
-        return background;
+        Color chosen = background;
+        return chosen != null ? chosen : limn.scene.internal.SceneBackground.of(root);
     }
 
     /** Budget above which an event handler is reported (default 8 ms). */
@@ -5539,9 +5566,11 @@ public final class Scene {
             updateModalScrim();
             updateTooltipFade();
         }
+        // Once for the frame: the palette's background is the same for every pass of it.
+        Color clearTo = background();
         if (repaint.isWhole()) {
             canvas.damageScissorHint(0, 0, 0, 0); // disabled: the frame is full
-            canvas.clear(background);
+            canvas.clear(clearTo);
             paintFramePass(canvas);
         } else if (!repaint.isEmpty()) {
             // Rasterization can never leave the union of the passes: let the
@@ -5573,7 +5602,7 @@ public final class Scene {
                     // clear() ignores the clip; clearRect REPLACES exactly this
                     // pass (works on translucent popup framebuffers too, where a
                     // blended fill could never write alpha back to 0).
-                    canvas.clearRect(px, py, pw, ph, background);
+                    canvas.clearRect(px, py, pw, ph, clearTo);
                     beginPaintCull(px, py, pw, ph);
                     try {
                         paintFramePass(canvas);
@@ -6220,6 +6249,7 @@ public final class Scene {
         bridge = limn.backend.AccessibilityBridge.NONE;
         publishedTree = limn.accessibility.AccessibleTree.EMPTY;
         metricsListener.release();
+        paletteListener.release();
         Runnable cb = winFadeOnArrive;
         winFadeOnArrive = null;
         winFadeGeneration++;

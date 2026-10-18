@@ -40,7 +40,6 @@ final class PerfScene {
         column.add(new PerfFooter());
 
         Scene scene = new Scene(new Padding(Insets.all(20), column));
-        scene.setBackground(Theme.current().background());
         partialRendering.onChange(scene::setPartialRendering);
         damageDebug.onChange(scene::setDamageDebug);
         return scene;

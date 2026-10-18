@@ -278,7 +278,6 @@ public final class FormExample {
                 .crossAlignment(Flex.CrossAlignment.CENTER);
         centred.add(new SizedBox(420, SizedBox.UNSET, form()));
         Scene scene = new Scene(new Padding(Insets.all(32), centred));
-        scene.setBackground(Theme.current().background());
         return scene;
     }
     // #endregion

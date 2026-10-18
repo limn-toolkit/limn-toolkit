@@ -11,7 +11,6 @@ import limn.components.Label;
 import limn.components.ProgressBar;
 import limn.components.ScrollView;
 import limn.components.TextField;
-import limn.components.Theme;
 import limn.concurrent.Ui;
 import limn.scene.Scene;
 import limn.scene.layout.Column;
@@ -164,7 +163,6 @@ final class Bench {
             page.add(status);
 
             Scene scene = new Scene(new Padding(limn.scene.Insets.all(8), page));
-            scene.setBackground(Theme.current().background());
             scene.setPartialRendering(partialRendering);
             scene.bind(window);
             window.show();

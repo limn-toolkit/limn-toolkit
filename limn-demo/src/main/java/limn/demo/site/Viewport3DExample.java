@@ -1,6 +1,5 @@
 package limn.demo.site;
 
-import limn.components.Theme;
 import limn.components.Viewport3D;
 import limn.math.Quat;
 import limn.math.Transform3D;
@@ -161,7 +160,6 @@ public final class Viewport3DExample {
         column.add(Expanded.of(viewport(600, 380), 1));
 
         Scene scene = new Scene(column);
-        scene.setBackground(Theme.current().background());
         return scene;
     }
 }

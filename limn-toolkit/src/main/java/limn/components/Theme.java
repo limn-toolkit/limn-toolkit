@@ -27,9 +27,9 @@ import org.jspecify.annotations.Nullable;
  * Arch&nbsp;Dark, Onyx&nbsp;Dark, Monoko&nbsp;Pro, Grovebox&nbsp;Dark, Solaris light/dark,
  * Octo&nbsp;Light, High&nbsp;contrast).
  *
- * <p><b>Switching one is one call:</b> {@link #apply(Scene...) theme.apply(scene)}, which makes the palette
- * current, applies its font and repaints each scene you pass. A widget reads the
- * palette it paints with through {@link #of(Widget)}, never through a field.
+ * <p><b>Switching one is one call:</b> {@link #apply() theme.apply()}, which makes the palette
+ * current, applies its font and repaints every window, the colour each clears to included. A
+ * widget reads the palette it paints with through {@link #of(Widget)}, never through a field.
  *
  * <p><b>An application can build its own.</b> {@link #builder(String, boolean)} starts from
  * a working palette and {@link #toBuilder()} starts from this one, so a palette of your own
@@ -479,8 +479,8 @@ public final class Theme {
     private static volatile Theme current = DARK;
 
     /**
-     * Listeners notified when the palette changes. No scene is one of them (see
-     * {@link #setCurrent}); {@link #apply} is what repaints the scenes it is handed. Mirrors
+     * Listeners notified when the palette changes. No scene is one of them: scenes hear the
+     * change through {@code SceneBackground} (see {@link #setCurrent}). Mirrors
      * {@link Fonts#observeChanges}.
      */
     private static final limn.concurrent.internal.ChangeListeners LISTENERS = new limn.concurrent.internal.ChangeListeners();
@@ -546,34 +546,24 @@ public final class Theme {
     }
 
     /**
-     * Switches to this palette and shows it: makes it current, applies its font
-     * ({@link #applyFontFamily}), and repaints every scene given. A palette is a
+     * Switches to this palette and shows it: makes it current, which repaints every window
+     * ({@link #setCurrent}), and applies its font ({@link #applyFontFamily}). A palette is a
      * repaint and never a re-measure; the font, when it changes, relayouts through its own axis.
-     * The call a theme picker or a settings screen makes. UI thread.
+     * The call a theme picker or a settings screen makes, and the one to make before the first
+     * window opens, so that the first frame is already in this palette. UI thread.
      *
-     * <p>Each scene given also clears to this palette's {@link #background()} from its next
-     * frame on, unless its background is translucent: a scene that clears to transparent does
-     * so to let the desktop through, which is not a palette's decision to overrule.
+     * <p>Every scene whose application chose no background with {@link Scene#setBackground}
+     * clears to this palette's {@link #background()} from its next frame on, in every window,
+     * those opened later included. One that chose a colour keeps it: a scene that clears to
+     * transparent does so to let the desktop through, which is not a palette's decision to
+     * overrule.
      *
-     * <pre>{@code Theme.limnLight().apply(scene);}</pre>
-     *
-     * @param scenes the live scenes to repaint, usually every window's
+     * <pre>{@code Theme.limnLight().apply();}</pre>
      */
-    public void apply(Scene... scenes) {
+    public void apply() {
         Ui.checkUiThread();
         setCurrent(this);
         applyFontFamily();
-        for (Scene scene : scenes) {
-            // The clear colour is the one thing a widget does not read from the palette as it
-            // paints: it was copied into the scene when the scene was built, so without this a
-            // light palette drew its dark ink on the previous palette's dark canvas.
-            if (scene.background().a() >= 1f) {
-                scene.setBackground(background);
-            }
-            if (scene.root() != null) {
-                scene.root().invalidate();
-            }
-        }
     }
 
     /** @return this palette's {@code name} */
@@ -762,8 +752,8 @@ public final class Theme {
      * before shape existed.
      *
      * <p><b>Why the radii are allowed out and nothing else is.</b> No scene re-measures on
-     * {@link #setCurrent} -- the caller repaints, and no scene subscribes to this axis (see
-     * there) -- so a palette that could change a metric something <em>measures</em> from would
+     * {@link #setCurrent} -- each repaints, and none measures again (see there) -- so a palette
+     * that could change a metric something <em>measures</em> from would
      * change every measurement in every window with no relayout behind it. A radius is the one
      * metric nothing measures from: no {@code onMeasure}, {@code onLayout},
      * {@code baselineOffset} or {@code paintOutset} in this toolkit reads one, which
@@ -791,23 +781,24 @@ public final class Theme {
     }
 
     /**
-     * Switches the process-wide palette and tells whoever is listening, and does nothing else:
-     * <b>no scene repaints and no font changes</b>. A theme picker, a settings screen and a
-     * switch between light and dark want {@link #apply}, which is this plus the repaint and the
-     * font; called from one of those, this leaves the window showing the old colours until
-     * something else repaints it. This is the call for a colour well that switches the palette
-     * on every frame of a drag and repaints its own preview.
+     * Switches the process-wide palette, repaints every scene and tells whoever is listening, and
+     * does not change the font. A theme picker, a settings screen and a switch between light and
+     * dark want {@link #apply}, which is this plus the font. This alone is the call for a colour
+     * well that switches the palette on every frame of a drag, where a font file read inside a
+     * frame is not wanted. UI thread, when a user-interface runtime is installed.
      *
-     * <p><b>Why a scene does not subscribe itself, unlike the four measurement axes.</b>
-     * {@code Scene} is {@code limn.scene}, the layer this package is built on, and no file there
-     * has ever named a {@code limn.components} type. A repaint is not worth being the first, so
-     * the response stays where it is today -- with the caller that switched the palette -- and
-     * what this axis is for is everything else that wants to hear it without hand-rolling a fifth
-     * listener list.
+     * <p><b>Every scene repaints, without being handed over.</b> A scene subscribes to the change
+     * as it subscribes to the four measurement axes, through {@code limn.scene.internal}, since
+     * {@code Scene} is {@code limn.scene}, the layer this package is built on, and names no type
+     * of this one. Its clear colour follows too, unless its application chose one with
+     * {@link Scene#setBackground}. Until 2026-10-18 the scenes were the caller's to repaint, one
+     * by one, and the clear colour was copied out of the palette when a scene was built: a window
+     * opened after a switch, or never handed to {@link #apply}, drew this palette's widgets on the
+     * previous palette's canvas.
      *
-     * <p>What that answer would be, when something does subscribe, is a <b>repaint and not a
-     * re-measure</b>, and that is the restriction that keeps a palette switch cheap enough for a
-     * colour well to make one on every frame of a drag. A palette carries colours and corner
+     * <p>The answer is a <b>repaint and not a re-measure</b>, and that is the restriction that
+     * keeps a palette switch cheap enough for a colour well to make one on every frame of a drag.
+     * A palette carries colours and corner
      * radii, and nothing in this toolkit measures from a radius -- no {@code onMeasure},
      * {@code onLayout}, {@code baselineOffset} or {@code paintOutset} reads one, which
      * {@code ThemeShapeTest} asserts by measuring a tree at two shapes and demanding the same
@@ -816,6 +807,7 @@ public final class Theme {
      */
     public static void setCurrent(Theme theme) {
         current = Objects.requireNonNull(theme, "theme");
+        limn.scene.internal.SceneBackground.changed();
         LISTENERS.fire();
     }
 
@@ -871,7 +863,7 @@ public final class Theme {
      *         .deriveAccentStates()
      *         .deriveDisabled()
      *         .build();
-     * mine.apply(scene);
+     * mine.apply();
      * }</pre>
      *
      * @param name the palette's identifier and its fallback display text; see
@@ -1445,6 +1437,15 @@ public final class Theme {
                     + "before the theme loads");
         }
         limn.scene.internal.WindowAnimation.install(widget -> of(widget).animWindow);
+        // A scene the application gave no background clears to the palette's, asked on every
+        // frame through the scene's root; before this class loads it clears to SceneBackground's
+        // own colour, which must therefore be the starting palette's, or a window cleared before
+        // the first control was built would change colour the moment one was.
+        if (!probe.background.equals(limn.scene.internal.SceneBackground.BEFORE_THEME)) {
+            throw new AssertionError("Theme's starting background disagrees with what a scene "
+                    + "clears to before the theme loads");
+        }
+        limn.scene.internal.SceneBackground.install(root -> of(root).background);
     }
 }
 

@@ -6,11 +6,15 @@ description: "Palettes, density and how to make the toolkit look like your produ
 ## Picking a palette
 
 A theme is a palette plus one shape metric. Switching one is a single call, which makes it
-current, applies its font, and repaints the scenes you hand it on the palette's own background:
+current, applies its font, and repaints every window on the palette's own background:
 
 ```java
-Theme.limnLight().apply(scene);
+Theme.limnLight().apply();
 ```
+
+Made before the first window opens, the same call is how an application starts in a palette
+other than the default: a scene clears to the background of the palette in effect from its
+first frame, so there is nothing to copy into it.
 
 Fifteen palettes ship with the toolkit. `Theme.limn()` and `Theme.limnLight()` are the
 project's own dark and light pair (the ones every screenshot on this site is rendered in),
@@ -34,11 +38,12 @@ A theme picker is a combo box over `Theme.builtins()` whose choice calls `apply`
 
 {% snippet guide:theme-picker %}
 
-`apply` does three things, and a picker needs all three: it makes the palette current, it
-applies the palette's own font, and it repaints the scenes you hand it, each clearing to the
-palette's `background` from its next frame (unless its background is translucent, as a
-popup's is). The palette is process-wide, so hand it **every** scene you have open, one for
-each window.
+`apply` does what a picker needs: it makes the palette current, which repaints every window,
+each clearing to the palette's `background` from its next frame, and it applies the palette's
+own font. The palette is process-wide, and so is the repaint: a window opened later, or one you
+never mention, follows it too. A scene keeps a background you chose for it yourself with
+`scene.setBackground(colour)`, as a popup that clears to transparent does; `setBackground(null)`
+hands it back to the palette.
 
 Nothing is re-measured by a palette switch, because a palette carries colours and corner radii
 and nothing in the toolkit measures from either. The palette's font is the one part that
@@ -46,16 +51,15 @@ re-measures, and `apply` sends it through the font axis, which lays every scene 
 itself.
 
 :::caution[`apply`, not `setCurrent`]
-`Theme.setCurrent(palette)` switches the palette and repaints **nothing**: the window keeps
-showing the old colours until something else happens to repaint it, piece by piece, on the old
-background, and the palette's font is never applied. It is the half of `apply` meant for a
-colour well that changes the palette on every frame of a drag and repaints its own preview. A
-theme picker, a settings screen and a "dark mode" switch all want `apply`.
+`Theme.setCurrent(palette)` switches the palette and repaints every window, but never applies
+the palette's font. It is the half of `apply` meant for a colour well that changes the palette
+on every frame of a drag, where reading a font file inside a frame is not wanted. A theme
+picker, a settings screen and a "dark mode" switch all want `apply`.
 :::
 
-Language, direction and control size are different: setting any of them lays out every scene
-again with nothing more to call. A palette is the one process-wide switch you hand the scenes
-to, and `Theme.observeChanges` is there for whatever else of yours has to hear of it.
+Language, direction and control size work the same way: setting any of them lays out every
+scene again with nothing more to call, as a palette repaints them. `Theme.observeChanges` is
+there for whatever else of yours has to hear of a palette switch.
 
 ## Building your own
 
@@ -210,8 +214,8 @@ palette to use is your call, and it may be your brand. Following the system take
 ```java
 Runnable follow = () -> {
     switch (SystemPreferences.current().colorScheme()) {
-        case DARK -> Theme.limn().apply(scene);
-        case LIGHT -> Theme.limnLight().apply(scene);
+        case DARK -> Theme.limn().apply();
+        case LIGHT -> Theme.limnLight().apply();
         case NO_PREFERENCE -> { } // the desktop says nothing: keep your own default
     }
 };

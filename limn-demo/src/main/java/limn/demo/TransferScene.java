@@ -5,7 +5,6 @@ import limn.components.Button;
 import limn.components.ImageView;
 import limn.components.Label;
 import limn.components.TextField;
-import limn.components.Theme;
 import limn.graphics.Image;
 import limn.i18n.I18nString;
 import limn.i18n.NumberFormats;
@@ -69,7 +68,6 @@ final class TransferScene {
     /** Standalone {@code --scene transfer}. */
     static Scene create() {
         Scene scene = new Scene(new Padding(Insets.all(24), content()));
-        scene.setBackground(Theme.current().background());
         return scene;
     }
 

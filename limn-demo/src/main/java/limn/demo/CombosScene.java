@@ -2,7 +2,6 @@ package limn.demo;
 
 import limn.components.ComboBox;
 import limn.components.SelectionMode;
-import limn.components.Theme;
 import limn.graphics.Icon;
 import limn.i18n.I18n;
 import limn.i18n.I18nString;
@@ -81,7 +80,6 @@ final class CombosScene {
     /** Standalone {@code --scene combos}. */
     static Scene create() {
         Scene scene = new Scene(new Padding(Insets.all(24), content()));
-        scene.setBackground(Theme.current().background());
         return scene;
     }
 

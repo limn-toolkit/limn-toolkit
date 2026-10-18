@@ -1710,6 +1710,25 @@ answering `relayout()`, and one on `Theme` alone, answering `invalidate()`. Two 
 scene rather than one, sixteen bytes and a second array slot, against a response that is right for
 the axis that fired.
 
+**Amendment, 2026-10-18: the scene now hears the palette, and clears to it.** §7.1 records that, as
+built, no scene subscribed to `Theme`, because `limn.scene` names no `limn.components` type, and a
+palette switch stayed the caller's to answer. A workaround hunt the day before counted what that
+choice cost: the scene cleared to a literal, the dark palette's background copied into
+`Scene.java`, so about sixty places in the demo, the site's examples, the theme editor and the
+reader driver wrote `scene.setBackground(Theme.current().background())` at construction, four
+switch handlers rewrote `apply` by hand, and `Theme.light().apply()` before the first window still
+drew light widgets on a dark canvas, as did a second window opened after a switch. The owner
+reopened the choice. The layering stands and the subscription now exists, through
+`limn.scene.internal.SceneBackground`, the shape `LayoutOverflow` and `WindowAnimation` already
+have: the theme installs a resolver there as it loads, which a scene with no background of its
+application's choosing asks on every frame it clears, and `Theme.setCurrent` tells it the palette
+moved, which every scene hears through the second weak listener this section describes, answering
+a whole repaint. An explicit `Scene.setBackground` still wins, and `setBackground(null)` hands the
+scene back to the palette. `Theme.apply()` takes no scenes any more: it is `setCurrent` plus the
+palette's font, and the repaint reaches every window, those never handed over and those opened
+later included. The restriction above is unchanged: the answer is a repaint and never a
+re-measure.
+
 **The weak listener purges itself by identity today, and a handle-only channel would break that
 purge unless the handle lives on the listener — so it does.** Read out of the source
 (`Scene.java:253-274`): the listener holds the scene in a `WeakReference`, and when `run()` finds

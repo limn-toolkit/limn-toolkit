@@ -5,7 +5,6 @@ import limn.backend.NativeWindow;
 import limn.backend.WindowConfig;
 import limn.backend.lwjgl.LwjglBackend;
 import limn.components.DisplayMode;
-import limn.components.Theme;
 import limn.concurrent.Ui;
 import limn.demo.DocumentationDay;
 import limn.demo.a11y.AccessibilityGallery.Built;
@@ -224,7 +223,6 @@ public final class ReaderDriver {
             }
             DocumentationDay.pin(built.root());
             Scene scene = new Scene(new Padding(Insets.all(16), built.root()));
-            scene.setBackground(Theme.current().background());
             scene.bind(window);
             placeKeyboardOnFirstFrame(window, scene, built, System.out::println);
             window.show();

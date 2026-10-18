@@ -426,10 +426,12 @@ class ThemeEditorTest extends EditorTestBase {
         live.setToken(Theme.Token.BACKGROUND, Color.rgb(0x101010));
         assertEquals(Color.rgb(0x101010), Theme.current().background());
         assertEquals(Color.rgb(0x101010), liveScene.background(),
-                "the clear colour is the one thing a repaint cannot fix");
+                "the window clears to the palette being edited");
 
         live.detachLive();
         assertSame(started, Theme.current());
+        assertEquals(started.background(), liveScene.background(),
+                "and to the one put back");
     }
 
     @Test

@@ -87,7 +87,6 @@ final class ShowcaseScene {
         content.add(new SizedBox(SizedBox.UNSET, 18, status));
 
         Scene scene = new Scene(limn.scene.layout.Padding.all(22, content));
-        scene.setBackground(Theme.current().background());
 
         // Now that widgets are in a scene, the indeterminate bar can animate.
         indeterminate.setIndeterminate(true);

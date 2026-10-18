@@ -470,21 +470,13 @@ public final class Main {
                 dialogOpener = built.opener();
             }
             // After the scene, never before: every scene sets the palette it wants while it
-            // builds, so an override applied earlier would simply be overwritten. Widgets read
-            // the theme as they paint, so replacing it here needs no rebuild, but sizes and
-            // typography come from layout, hence the relayout.
+            // builds, so an override applied earlier would simply be overwritten. Widgets and the
+            // colour cleared behind them read the theme as they paint, so replacing it here needs
+            // no rebuild, but sizes and typography come from layout, hence the relayout.
             if (options.theme() != null) {
                 limn.components.Theme.setCurrent(options.theme());
                 if (widgetScene != null) {
                     widgetScene.root().markNeedsLayout();
-                    // Widgets read the theme as they paint, but the colour cleared behind them
-                    // was copied out of the palette when the scene was built, so it alone stays
-                    // stale: a light palette on a dark canvas. Only opaque backgrounds are
-                    // replaced: a scene that cleared to transparent did so to let the desktop
-                    // through, and that is not a palette choice to override.
-                    if (widgetScene.background().a() >= 1f) {
-                        widgetScene.setBackground(options.theme().background());
-                    }
                 }
                 System.out.println("Theme: " + options.theme().name());
             }

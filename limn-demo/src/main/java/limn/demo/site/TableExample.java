@@ -3,7 +3,6 @@ package limn.demo.site;
 import limn.components.SelectionMode;
 
 import limn.components.Label;
-import limn.components.Theme;
 import limn.components.table.Column;
 import limn.components.table.SortOrder;
 import limn.components.table.Table;
@@ -103,7 +102,6 @@ public final class TableExample {
      */
     public static Scene scene() {
         Scene scene = new Scene(screen());
-        scene.setBackground(Theme.current().background());
         return scene;
     }
 

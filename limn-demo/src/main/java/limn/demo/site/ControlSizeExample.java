@@ -5,7 +5,6 @@ import limn.components.Checkbox;
 import limn.components.ComboBox;
 import limn.components.Separator;
 import limn.components.TextField;
-import limn.components.Theme;
 import limn.scene.ControlSize;
 import limn.scene.Insets;
 import limn.scene.Scene;
@@ -102,7 +101,6 @@ public final class ControlSizeExample {
                 .crossAlignment(Flex.CrossAlignment.STRETCH);
         centred.add(board());
         Scene scene = new Scene(centred);
-        scene.setBackground(Theme.current().background());
         return scene;
     }
 }

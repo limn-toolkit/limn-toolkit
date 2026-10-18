@@ -7,7 +7,6 @@ import limn.components.Label;
 import limn.components.Menu;
 import limn.components.MenuItem;
 import limn.components.TextField;
-import limn.components.Theme;
 import limn.concurrent.Ui;
 import limn.desktop.Tray;
 import limn.graphics.BitmapIcon;
@@ -102,7 +101,6 @@ final class TrayScene {
         page.add(content(backend, status));
         page.add(status);
         Scene scene = new Scene(new Padding(Insets.all(24), page));
-        scene.setBackground(Theme.current().background());
         return scene;
     }
 

@@ -1,7 +1,6 @@
 package limn.demo.site;
 
 import limn.components.Label;
-import limn.components.Theme;
 import limn.components.date.DateField;
 import limn.components.date.DatePicker;
 import limn.components.tree.Tree;
@@ -86,7 +85,6 @@ public final class DataExample {
      */
     public static Scene scene() {
         Scene scene = new Scene(screen());
-        scene.setBackground(Theme.current().background());
         return scene;
     }
 

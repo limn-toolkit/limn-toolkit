@@ -5,7 +5,6 @@ import limn.components.Checkbox;
 import limn.components.ComboBox;
 import limn.components.Label;
 import limn.components.TextField;
-import limn.components.Theme;
 import limn.scene.ControlSize;
 import limn.scene.Insets;
 import limn.scene.Scene;
@@ -58,7 +57,6 @@ final class ControlSizesScene {
         page.add(mixedRow());
 
         Scene scene = new Scene(new Padding(Insets.all(20), page));
-        scene.setBackground(Theme.current().background());
         return scene;
     }
 

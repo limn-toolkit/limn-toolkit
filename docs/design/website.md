@@ -107,9 +107,10 @@ success.
 
 - `Scene.bind` installs its own frame callback, replacing the driver's; the window then renders
   forever, captures nothing and never closes. Re-install after every bind, and keep the watchdog.
-- `Scene`'s default background is a hard-coded tone of the generic Dark palette, not the current
-  theme's. Without `setBackground(Theme.current().background())` every light capture is a dark canvas
-  with light-palette ink on it.
+- A `Scene` clears to the current palette's background unless something chose one for it. Until
+  2026-10-18 its default was a hard-coded tone of the generic Dark palette, and without
+  `setBackground(Theme.current().background())` every light capture was a dark canvas with
+  light-palette ink on it; a capture scene now sets nothing.
 - **Never resize the window between shots.** The resize lands asynchronously, so a scene built too
   early lays out at the previous entry's size and the capture returns the shot before it. Every
   entry is captured on one fixed canvas and trimmed afterwards, which removes the race rather than

@@ -111,7 +111,6 @@ final class PickerScene {
     /** Standalone {@code --scene picker}. */
     static Scene create() {
         Scene scene = new Scene(new Padding(Insets.all(24), content()));
-        scene.setBackground(Theme.current().background());
         return scene;
     }
 

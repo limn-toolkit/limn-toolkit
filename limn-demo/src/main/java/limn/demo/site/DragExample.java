@@ -399,7 +399,6 @@ public final class DragExample {
         centred.mainAlignment(Flex.MainAlignment.CENTER).crossAlignment(Flex.CrossAlignment.CENTER);
         centred.add(screen());
         Scene scene = new Scene(new Padding(Insets.all(28), centred));
-        scene.setBackground(Theme.current().background());
         return scene;
     }
 }

@@ -31,7 +31,6 @@ import limn.internal.lang.Checks;
 import limn.scene.Change;
 import limn.scene.Constraints;
 import limn.scene.ControlSize;
-import limn.scene.Scene;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.layout.Expanded;
@@ -441,7 +440,6 @@ public final class ThemeEditor extends Widget<ThemeEditor> {
             // The typeface is process-wide and outlives the palette that asked for it, so putting
             // the palette back without this leaves the application wearing a font it never chose.
             themeAtStart.applyFontFamily();
-            refreshScene();
         }
     }
 
@@ -564,33 +562,6 @@ public final class ThemeEditor extends Widget<ThemeEditor> {
         // is the one act in the toolkit that can read a font file inside the next frame. A palette
         // whose family did change pays that once, on the frame the picker was used.
         theme.applyFontFamily();
-        refreshScene();
-    }
-
-    /**
-     * Repaints the window in the new palette.
-     *
-     * <p><b>A repaint, not a relayout</b>, and that is load-bearing rather than an
-     * optimisation: this runs on every frame of a colour drag, and marking the root for
-     * layout would re-measure the whole tree sixty times a second. It is safe because a
-     * palette carries no metric at all: spacing, radii and type come from the process-wide
-     * size table, which {@code ThemeBuilderTest} asserts. If a palette ever gains a metric,
-     * this line has to become {@code markNeedsLayout} and the drag has to be throttled.
-     *
-     * <p>The clear colour is the one thing that must be assigned rather than repainted: it
-     * was copied out of the palette when the scene was built. A translucent one is left
-     * alone: a scene that cleared to transparent did so to let the desktop through, and
-     * that is not a palette's decision to overrule.
-     */
-    private void refreshScene() {
-        Scene scene = scene();
-        if (scene == null) {
-            return;
-        }
-        if (scene.background().a() >= 1f) {
-            scene.setBackground(Theme.current().background());
-        }
-        scene.root().invalidate();
     }
 
     /**

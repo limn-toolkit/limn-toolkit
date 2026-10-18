@@ -178,7 +178,6 @@ public final class MosaicExample {
                 .mainAlignment(Flex.MainAlignment.START);
         fill.add(board());
         Scene scene = new Scene(fill);
-        scene.setBackground(Theme.current().background());
         return scene;
     }
 }

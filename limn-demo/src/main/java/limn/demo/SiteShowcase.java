@@ -424,13 +424,11 @@ public final class SiteShowcase {
     /**
      * Scenes pick their own light/dark palette while they build, so the palette wanted here is
      * applied afterwards, the same order {@code --theme} uses, and for the same reason. The
-     * cleared background is copied out of the palette at construction and is the one thing a
-     * relayout does not revisit, so it is set explicitly.
+     * cleared background follows the palette by itself.
      */
     private static Scene retheme(Scene scene, Theme theme) {
         Theme.setCurrent(theme);
         scene.root().markNeedsLayout();
-        scene.setBackground(theme.background());
         return scene;
     }
 }

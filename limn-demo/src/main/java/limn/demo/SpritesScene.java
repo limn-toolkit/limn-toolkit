@@ -81,7 +81,6 @@ final class SpritesScene {
     /** Standalone {@code --scene sprites}. */
     static Scene create() {
         Scene scene = new Scene(new Padding(Insets.all(20), content()));
-        scene.setBackground(Theme.current().background());
         return scene;
     }
 

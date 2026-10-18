@@ -148,7 +148,6 @@ final class FormsScene {
         page.add(new SizedBox(520, SizedBox.UNSET, form));
 
         Scene scene = new Scene(Padding.all(20, page));
-        scene.setBackground(Theme.current().background());
         return new Built(scene, combo);
     }
 }

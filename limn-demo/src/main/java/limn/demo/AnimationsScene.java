@@ -128,7 +128,6 @@ final class AnimationsScene {
     /** Standalone {@code --scene animations}. */
     static Scene create() {
         Scene scene = new Scene(new Padding(Insets.all(20), content()));
-        scene.setBackground(Theme.current().background());
         return scene;
     }
 

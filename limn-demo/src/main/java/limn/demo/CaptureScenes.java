@@ -277,7 +277,6 @@ final class CaptureScenes {
 
     private static Scene scene(Widget<?> content) {
         Scene scene = new Scene(new Padding(Insets.all(22), content));
-        scene.setBackground(Theme.current().background());
         return scene;
     }
 }

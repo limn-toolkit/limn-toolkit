@@ -147,7 +147,6 @@ public final class DatesExample {
                 .crossAlignment(Flex.CrossAlignment.CENTER);
         centred.add(row);
         Scene scene = new Scene(new Padding(Insets.all(28), centred));
-        scene.setBackground(Theme.current().background());
         return scene;
     }
 }

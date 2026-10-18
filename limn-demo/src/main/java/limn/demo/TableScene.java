@@ -8,7 +8,6 @@ import limn.components.Menu;
 import limn.components.PopupMenu;
 import limn.components.ProgressBar;
 import limn.components.SelectionMode;
-import limn.components.Theme;
 import limn.components.table.Column;
 import limn.components.table.SortOrder;
 import limn.components.table.Table;
@@ -166,7 +165,6 @@ final class TableScene {
     static Scene create() {
         Parts parts = parts();
         Scene scene = new Scene(new Padding(Insets.all(16), parts.page()));
-        scene.setBackground(Theme.current().background());
         stateFor(scene, parts.table(), parts.product());
         return scene;
     }

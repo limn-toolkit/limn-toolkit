@@ -60,7 +60,6 @@ final class MenuScene {
         page.add(new SizedBox(SizedBox.UNSET, 18, status));
 
         Scene scene = new Scene(new Padding(Insets.all(20), page));
-        scene.setBackground(Theme.current().background());
 
         // The pointer and keyboard routes are ContextMenus' business; this one exists only so a
         // screenshot can open the menu without a pointer, and it hands the popup back because a
