@@ -119,7 +119,7 @@ public final class SplitPane extends Widget<SplitPane> {
         // Between the panes, where it is on screen, so Tab and a reader meet it there: added
         // last it came after the second pane's whole subtree, and in a split inside a split the
         // outer divider was the last stop, behind the inner one. The hit test and the paint
-        // still put it on top; see hitTest and paintChildren.
+        // still put it on top; see onHitTest and paintChildren.
         add(firstPane);
         add(divider);
         add(secondPane);
@@ -130,13 +130,9 @@ public final class SplitPane extends Widget<SplitPane> {
      * point of the band; everywhere else the panes as ever.
      */
     @Override
-    public @Nullable Widget<?> hitTest(float localX, float localY) {
-        Widget<?> hit = super.hitTest(localX, localY);
-        if (hit == null) {
-            return null;
-        }
-        Widget<?> onDivider = divider.hitTest(localX - divider.x(), localY - divider.y());
-        return onDivider != null ? onDivider : hit;
+    protected @Nullable Widget<?> onHitTest(float localX, float localY) {
+        Widget<?> onDivider = hitTestChild(divider, localX, localY);
+        return onDivider != null ? onDivider : super.onHitTest(localX, localY);
     }
 
     /** The panes and then the divider, so its line is drawn over a ring that reaches the gutter. */

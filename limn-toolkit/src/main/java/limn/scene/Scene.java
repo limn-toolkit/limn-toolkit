@@ -4269,32 +4269,21 @@ public final class Scene {
         }
     }
 
-    private Widget<?> hitAt(float sceneX, float sceneY) {
+    private @Nullable Widget<?> hitAt(float sceneX, float sceneY) {
         // A modal overlay owns all input; hit-testing never reaches the content,
         // unless the overlay yields this point (e.g. a menu bar's titles behind a
-        // fullscreen in-scene menu), which then hit-tests the content below.
+        // fullscreen in-scene menu), which then hit-tests the content below. An inert
+        // subtree is passed by in Widget.hitTest itself, which every widget's answer goes
+        // through now that it is the one entry.
         Widget<?> top = topOverlay();
-        if (top != null && !top.overlayPassesPointer(sceneX, sceneY)) {
-            return outsideInert(top.hitTest(sceneX - top.x(), sceneY - top.y()));
-        }
-        return outsideInert(root.hitTest(sceneX - root.x(), sceneY - root.y()));
+        Widget<?> asked = top != null && !top.overlayPassesPointer(sceneX, sceneY) ? top : root;
+        float[] local = hitScratch;
+        asked.sceneToLocal(sceneX, sceneY, local);
+        return asked.hitTest(local[0], local[1]);
     }
 
-    /**
-     * {@code hit}, or, when it is inside an {@linkplain Widget#inert inert} subtree, the parent of
-     * the outermost one: the pointer passes that subtree by. Filtered here, after the walk, and not
-     * in {@link Widget#hitTest}, because a list, a tree and a table answer their own hit test and
-     * would carry the pointer into a closing section's content past a check written there.
-     */
-    private static @Nullable Widget<?> outsideInert(@Nullable Widget<?> hit) {
-        Widget<?> answer = hit;
-        for (Widget<?> w = hit; w != null; w = w.parent()) {
-            if (w.inert) {
-                answer = w.parent();
-            }
-        }
-        return answer;
-    }
+    /** The point {@link #hitAt} asks about, in the asked root's space; one, since input runs on the UI thread. */
+    private final float[] hitScratch = new float[2];
 
     /** @return whether the hover leaf changed (ENTER/EXIT dispatched, no bubbling) */
     private boolean updateHover(Widget<?> newHover) {

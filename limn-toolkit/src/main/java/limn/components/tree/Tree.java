@@ -3511,14 +3511,10 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     }
 
     @Override
-    public @Nullable Widget<?> hitTest(float localX, float localY) {
-        if (!isVisible() || !isEnabled()
-                || localX < 0 || localY < 0 || localX >= width() || localY >= height()) {
-            return null;
-        }
-        Widget<?> barHit = vBar.hitTest(localX - vBar.x(), localY - vBar.y());
+    protected @Nullable Widget<?> onHitTest(float localX, float localY) {
+        Widget<?> barHit = hitTestChild(vBar, localX, localY);
         if (barHit == null) {
-            barHit = hBar.hitTest(localX - hBar.x(), localY - hBar.y());
+            barHit = hitTestChild(hBar, localX, localY);
         }
         if (barHit != null) {
             return barHit;
@@ -3537,7 +3533,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
             if (child == vBar || child == hBar || slotOfCell(child) < 0) {
                 continue; // the bars were asked above; a cell awaiting release is nobody's row
             }
-            Widget<?> hit = child.hitTest(localX - child.x(), localY - child.y());
+            Widget<?> hit = hitTestChild(child, localX, localY);
             if (hit != null) {
                 return hit;
             }

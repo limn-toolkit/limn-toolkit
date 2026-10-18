@@ -513,7 +513,7 @@ public final class RangeSlider extends Widget<RangeSlider> {
 
         /** Transparent to the pointer: the slider takes every press, to give it to the nearer thumb. */
         @Override
-        public @Nullable Widget<?> hitTest(float localX, float localY) {
+        protected @Nullable Widget<?> onHitTest(float localX, float localY) {
             return null;
         }
 

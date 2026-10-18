@@ -1833,13 +1833,9 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
     }
 
     @Override
-    public @Nullable Widget<?> hitTest(float localX, float localY) {
-        if (!isVisible() || !isEnabled()
-                || localX < 0 || localY < 0 || localX >= width() || localY >= height()) {
-            return null;
-        }
+    protected @Nullable Widget<?> onHitTest(float localX, float localY) {
         // The scrollbar overlays on top, so it wins the hit when shown.
-        Widget<?> barHit = vBar.hitTest(localX - vBar.x(), localY - vBar.y());
+        Widget<?> barHit = hitTestChild(vBar, localX, localY);
         if (barHit != null) {
             return barHit;
         }
@@ -1847,7 +1843,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
             if (child == vBar) {
                 continue;
             }
-            Widget<?> hit = child.hitTest(localX - child.x(), localY - child.y());
+            Widget<?> hit = hitTestChild(child, localX, localY);
             if (hit != null) {
                 return hit;
             }

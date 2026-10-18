@@ -700,8 +700,8 @@ public final class MenuBar extends Widget<MenuBar> {
      * titles show.
      */
     @Override
-    public @Nullable Widget<?> hitTest(float localX, float localY) {
-        Widget<?> hit = super.hitTest(localX, localY);
+    protected @Nullable Widget<?> onHitTest(float localX, float localY) {
+        Widget<?> hit = super.onHitTest(localX, localY);
         if (hit != this) {
             return hit;
         }
@@ -1117,13 +1117,8 @@ public final class MenuBar extends Widget<MenuBar> {
      *         outside the menu and closes it.
      */
     private boolean pointOverTitle(float sceneX, float sceneY) {
-        float bx = 0;
-        float by = 0;
-        for (Widget<?> w = this; w != null; w = w.parent()) {
-            bx += w.x();
-            by += w.y();
-        }
-        return hitTest(sceneX - bx, sceneY - by) == this;
+        limn.math.Vec2 local = sceneToLocal(sceneX, sceneY);
+        return hitTest(local.x(), local.y()) == this;
     }
 
     /** Closes the dropdown as the user's doing: a press on the open title, a reader's collapse. */

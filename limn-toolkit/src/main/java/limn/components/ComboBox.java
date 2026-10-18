@@ -2556,7 +2556,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         }
 
         @Override
-        public @Nullable Widget<?> hitTest(float localX, float localY) {
+        protected @Nullable Widget<?> onHitTest(float localX, float localY) {
             return null; // paint to the pointer: a press is the field's
         }
 

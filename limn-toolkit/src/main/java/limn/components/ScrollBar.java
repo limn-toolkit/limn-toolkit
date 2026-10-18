@@ -428,11 +428,11 @@ public final class ScrollBar extends Widget<ScrollBar> {
 
     /** Transparent to events while effectively invisible, so it never blocks the content. */
     @Override
-    public @Nullable Widget<?> hitTest(float localX, float localY) {
+    protected @Nullable Widget<?> onHitTest(float localX, float localY) {
         if (effectiveOpacity() < 0.05f) {
             return null;
         }
-        return super.hitTest(localX, localY);
+        return super.onHitTest(localX, localY);
     }
 
     @Override

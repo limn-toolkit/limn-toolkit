@@ -2330,24 +2330,83 @@ public abstract class Widget<W extends Widget<W>> {
 
     // ---------------------------------------------------------------- events
 
+    // One entry for every hit test, with one preamble, and a hook for what a widget decides
+    // itself (ADR 072 §3.2, seam A). Until 2026-10-18 hitTest was the overridable method, and
+    // ListView, Tree and Table each copied the visible, enabled and bounds checks word for word,
+    // and every container that answered for its children mapped a point into them by
+    // subtracting child.x() itself: a mapping no ancestor could ever change, nor a check it
+    // forgot. The scene also filtered inert subtrees after the walk for that reason.
+
     /**
-     * Deepest visible/enabled descendant containing the point (local coords),
-     * or this widget itself; {@code null} when outside. Later children win
-     * because they paint on top.
+     * The deepest widget under a point, this one, or {@code null}: what a press at the point
+     * lands on. The point is in this widget's space; {@link #sceneToLocal(float, float)} turns a
+     * scene point into it.
+     *
+     * <p>{@code null} for a widget that is not {@linkplain #isVisible() visible} or not
+     * {@linkplain #isEnabled() enabled}, for one whose subtree is passing out of reach, and for a
+     * point outside its box, a point of {@code NaN} included; otherwise what {@link #onHitTest}
+     * answers. Final, so that these hold for every widget and no container's own answer can skip
+     * them: a widget decides only where, inside itself, a point that reached it lands.
+     *
+     * @param localX the point's x in this widget's space
+     * @param localY the point's y in this widget's space
+     * @return the widget the point lands on, or {@code null} to let it through to what is beneath
      */
-    public @Nullable Widget<?> hitTest(float localX, float localY) {
-        if (!isVisible() || !enabled
-                || localX < 0 || localY < 0 || localX >= width || localY >= height) {
+    public final @Nullable Widget<?> hitTest(float localX, float localY) {
+        if (!isVisible() || !enabled || inert) {
             return null;
         }
+        // Asked as "inside" rather than as "outside", so that NaN, a point no plane of this
+        // widget holds, fails every comparison and counts as outside.
+        boolean inside = localX >= 0 && localY >= 0 && localX < width && localY < height;
+        if (!inside) {
+            return null;
+        }
+        return onHitTest(localX, localY);
+    }
+
+    /**
+     * What this widget answers for a point that reached it: one of its children's answers,
+     * itself, or {@code null} to let the point through to what is beneath it. Called by
+     * {@link #hitTest} only for a widget that is visible, enabled and in reach, with the point
+     * inside its box, so an override checks none of that again.
+     *
+     * <p>The default asks each child through {@link #hitTestChild}, the last first because it is
+     * painted on top, and answers the first that is hit, or this widget when none is. A widget
+     * overrides it to ask one child before the others (a scroll bar over the content it scrolls),
+     * to keep a part of itself from its children, or to be transparent to the pointer.
+     *
+     * @param localX the point's x in this widget's space
+     * @param localY the point's y in this widget's space
+     * @return the widget the point lands on, or {@code null}
+     */
+    protected @Nullable Widget<?> onHitTest(float localX, float localY) {
         for (int i = children.size() - 1; i >= 0; i--) {
-            Widget<?> child = children.get(i);
-            Widget<?> hit = child.hitTest(localX - child.x, localY - child.y);
+            Widget<?> hit = hitTestChild(children.get(i), localX, localY);
             if (hit != null) {
                 return hit;
             }
         }
         return this;
+    }
+
+    /**
+     * Asks one child what a point lands on: maps the point from this widget's space into the
+     * child's and calls the child's {@link #hitTest}. The only way a widget reaches a child's
+     * hit test, so that where this widget draws the child, and not only where layout put it, is
+     * where the pointer finds it.
+     *
+     * @param child  a child of this widget
+     * @param localX the point's x in this widget's space
+     * @param localY the point's y in this widget's space
+     * @return what the child answers
+     * @throws IllegalArgumentException if {@code child} is not a child of this widget
+     */
+    protected final @Nullable Widget<?> hitTestChild(Widget<?> child, float localX, float localY) {
+        if (child.parent != this) {
+            throw new IllegalArgumentException("not a child of this widget: " + child);
+        }
+        return child.hitTest(localX - child.x, localY - child.y);
     }
 
     /**

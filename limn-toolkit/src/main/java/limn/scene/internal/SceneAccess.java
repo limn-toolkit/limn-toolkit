@@ -213,12 +213,12 @@ public final class SceneAccess {
     /**
      * Puts {@code widget}'s subtree out of reach, or back: while it is inert it is drawn as it is
      * and keeps its enabled state, which is the application's, but the pointer passes it by (a
-     * press, a hover, a wheel or a drop lands on its parent), Tab and Alt and a letter skip it, no
-     * move of the focus lands in it, and an assistive technology's verbs on its nodes are refused,
-     * the nodes staying published without them. Going inert takes the hover, a press, a drag and
-     * the focus out of it, as disabling does. For a section's content while it slides shut, which
-     * must look as it did and answer nothing; not for a control the user should see refused, which
-     * is {@link Widget#setEnabled}.
+     * press, a hover, a wheel or a drop lands on what is beneath it, its parent where nothing else
+     * is), Tab and Alt and a letter skip it, no move of the focus lands in it, and an assistive
+     * technology's verbs on its nodes are refused, the nodes staying published without them.
+     * Going inert takes the hover, a press, a drag and the focus out of it, as disabling does. For
+     * a section's content while it slides shut, which must look as it did and answer nothing; not
+     * for a control the user should see refused, which is {@link Widget#setEnabled}.
      *
      * @param widget the root of the subtree
      * @param inert  whether it is out of reach

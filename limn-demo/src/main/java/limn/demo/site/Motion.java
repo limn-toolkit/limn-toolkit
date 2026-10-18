@@ -581,7 +581,8 @@ final class Motion {
             while (top.parent() != null) {
                 top = top.parent();
             }
-            return top.hitTest(sceneX - top.x(), sceneY - top.y());
+            Vec2 local = top.sceneToLocal(sceneX, sceneY);
+            return top.hitTest(local.x(), local.y());
         }
 
         private static String describe(Widget<?> widget) {

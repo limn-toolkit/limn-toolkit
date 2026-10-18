@@ -3494,16 +3494,12 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
     }
 
     @Override
-    public @Nullable Widget<?> hitTest(float localX, float localY) {
-        if (!isVisible() || !isEnabled()
-                || localX < 0 || localY < 0 || localX >= width() || localY >= height()) {
-            return null;
-        }
-        Widget<?> hit = vBar.hitTest(localX - vBar.x(), localY - vBar.y());
+    protected @Nullable Widget<?> onHitTest(float localX, float localY) {
+        Widget<?> hit = hitTestChild(vBar, localX, localY);
         if (hit != null) {
             return hit;
         }
-        hit = hBar.hitTest(localX - hBar.x(), localY - hBar.y());
+        hit = hitTestChild(hBar, localX, localY);
         if (hit != null) {
             return hit;
         }
@@ -3516,7 +3512,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
                         || child.y() >= rowsTop() + rowsViewportHeight()) {
                     continue;
                 }
-                Widget<?> inner = child.hitTest(localX - child.x(), localY - child.y());
+                Widget<?> inner = hitTestChild(child, localX, localY);
                 if (inner != null) {
                     return inner;
                 }
