@@ -120,6 +120,11 @@ public final class SceneAccess {
          *         them: what tells a bare Alt from one that was part of a chord
          */
         long keyPresses(Scene scene);
+
+        /**
+         * @param widget a widget; see {@link SceneAccess#repaintPicture}
+         */
+        void repaintPicture(Widget<?> widget);
     }
 
     /**
@@ -237,6 +242,19 @@ public final class SceneAccess {
      */
     public static void focusByUser(Widget<?> widget) {
         hook().focusByUser(java.util.Objects.requireNonNull(widget, "widget"));
+    }
+
+    /**
+     * Repaints what {@code widget} and its subtree paint, as {@link Widget#invalidate()} does, and
+     * does not have the accessible tree walked for it: for a change of a picture that nothing the
+     * tree publishes reads, made on every frame of an animation, such as a dialog's veil deepening
+     * as its card fades in. A walk per frame finds the tree unchanged and costs a comparison of
+     * every node.
+     *
+     * @param widget the widget to repaint
+     */
+    public static void repaintPicture(Widget<?> widget) {
+        hook().repaintPicture(java.util.Objects.requireNonNull(widget, "widget"));
     }
 
     /**

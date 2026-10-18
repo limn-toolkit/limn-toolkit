@@ -3356,6 +3356,14 @@ public final class Scene {
             }
 
             @Override
+            public void repaintPicture(Widget<?> widget) {
+                Scene scene = widget.scene();
+                if (scene != null) {
+                    scene.damageWidgetPicture(widget);
+                }
+            }
+
+            @Override
             public void setInert(Widget<?> widget, boolean inert) {
                 if (widget.inert == inert) {
                     return;

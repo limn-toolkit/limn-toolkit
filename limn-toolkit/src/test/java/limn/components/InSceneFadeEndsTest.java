@@ -77,7 +77,8 @@ class InSceneFadeEndsTest {
                 .setDisplayMode(DisplayMode.IN_SCENE);
         float[] cardWhenItWent = {-1};
         java.util.concurrent.CompletionStage<String> answered = dialog.show(scene);
-        Opacity card = (Opacity) dialog.contentRoot().parent(); // the container that fades the card
+        // The card in the container that slides it, in the container that fades it.
+        Opacity card = (Opacity) dialog.contentRoot().parent().parent();
         answered.thenAccept(r -> cardWhenItWent[0] = card.opacity());
         frame(); // the fade's first frame is its start
         advance(3 * FRAME);

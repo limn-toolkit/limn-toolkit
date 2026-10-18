@@ -123,6 +123,10 @@ class SceneDriverTest extends ComponentTestBase {
             public long keyPresses(Scene scene) {
                 return 0;
             }
+
+            @Override
+            public void repaintPicture(limn.scene.Widget<?> widget) {
+            }
         }));
     }
 

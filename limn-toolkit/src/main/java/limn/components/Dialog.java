@@ -26,6 +26,7 @@ import limn.scene.event.MouseEvent;
 import limn.scene.internal.SceneAccess;
 import limn.scene.layout.Flex;
 import limn.scene.layout.Opacity;
+import limn.scene.layout.Transform;
 import limn.scene.layout.Row;
 import org.jspecify.annotations.Nullable;
 
@@ -175,13 +176,19 @@ public final class Dialog {
     private boolean dismissOnScrim; // default false: modal (ignore + beep), like a native modal
     /** How far the dialog has faded in where nothing fades its card: 1 in a window of its own. */
     private float fade;
-    /** In the scene the card's opacity is the dialog's fade, which the veil and the slide read. */
+    /** In the scene the card's opacity is the dialog's fade, which the veil reads and the slide keeps pace with. */
     private boolean cardFades;
     /**
      * The container the card is faded through in the scene, made as the card moves into it; its
      * opacity is the dialog's fade there.
      */
     private @Nullable Opacity cardFade;
+    /**
+     * The container inside it that slides the card, {@link #SLIDE_DISTANCE} below its place when the
+     * fade is at nothing and at its place when it is whole: a picture moved, which neither the
+     * layout nor the accessible tree follows frame by frame.
+     */
+    private @Nullable Transform cardSlide;
     /** Whether the card's fade is moving, so the veil has to be repainted with it. */
     private boolean cardMoving;
     /** Whether the ticker that repaints the veil while the card fades is registered. */
@@ -1067,24 +1074,34 @@ public final class Dialog {
     }
 
     /**
-     * The card in the {@link Opacity} container that fades it in the scene, made the first time: it
-     * adopts the card, which takes the card out of the scene it was the root of when it moves in
-     * from a window of its own. The container is no node of the accessible tree, so the card is
-     * read under the overlay where it was.
+     * The card in the containers that fade and slide it in the scene, {@code Opacity(Transform(card))},
+     * made the first time: they adopt the card, which takes it out of the scene it was the root of
+     * when it moves in from a window of its own. Neither container is a node of the accessible tree,
+     * so the card is read under the overlay where it was. The fade outside, so the opacity's picture
+     * lies on the window's grid and holds the card wherever the slide draws it.
      */
     private Opacity fadingCard() {
         Opacity fading = cardFade;
         if (fading == null) {
-            fading = new Opacity(panel);
+            Transform slide = new Transform(panel);
+            cardSlide = slide;
+            fading = new Opacity(slide);
             cardFade = fading;
         }
         return fading;
     }
 
+    /** The container that slides the card, made with {@link #fadingCard()}. */
+    private Transform slidingCard() {
+        fadingCard();
+        return java.util.Objects.requireNonNull(cardSlide);
+    }
+
     /**
      * Fades the card in, in the scene, through the container round it, which draws it, its shadow
-     * and its buttons as one picture. That opacity is the dialog's fade: the veil's alpha and the card's
-     * slide read it as they paint, and the fade out that ends the dialog is the card's too. One
+     * and its buttons as one picture. That opacity is the dialog's fade: the veil's alpha reads it as
+     * it paints, the card's slide keeps pace with it, and the fade out that ends the dialog is the
+     * card's too. One
      * fade and not two side by side: two kept apart, the dialog's linear one and the card's eased
      * one, met only at their ends, so a dialog closed while it faded in took its veil away with its
      * card still partly drawn, and while the dialog's fade in went on stepping up beside the fade
@@ -1096,12 +1113,14 @@ public final class Dialog {
         Opacity fading = fadingCard();
         if (limn.animation.Motion.reduced()) {
             fading.setOpacity(1f); // no fade for a user who asked for less motion: the card is there at once
+            slidingCard().setTranslation(0, 0);
             if (overlay != null) {
                 overlay.invalidate();
             }
             return;
         }
         fading.setOpacity(0f);
+        slidingCard().setTranslation(0, SLIDE_DISTANCE);
         fadeCard(1f, Theme.current().animWindow, null);
     }
 
@@ -1109,13 +1128,19 @@ public final class Dialog {
      * Moves the card's opacity, and the veil and the slide with it, to {@code target}: its
      * container's {@code fadeTo}, on wall time (a dialog is shell, and its fade out completes the result
      * future), and while it moves a ticker that repaints the veil, one however many fades follow.
+     *
+     * <p>The slide is the card's other container sliding to {@code (1 - target)} of its distance
+     * over the same time, eased the same way on the same wall-time frames from where it is, which
+     * keeps it at {@code (1 - fade)} of the distance on every frame: a picture moved, where the card
+     * was laid at a new place inside each frame's paint and the accessible tree walked again for it.
      */
     private void fadeCard(float target, double seconds, @Nullable Runnable onArrive) {
+        slidingCard().slideTo(0, (1 - target) * SLIDE_DISTANCE, seconds, null);
         cardMoving = true;
         fadingCard().fadeTo(target, seconds, () -> {
             cardMoving = false;
             if (overlay != null) {
-                overlay.invalidate(); // the veil's last step
+                SceneAccess.repaintPicture(overlay); // the veil's last step
             }
             if (onArrive != null) {
                 onArrive.run();
@@ -1125,7 +1150,9 @@ public final class Dialog {
             veilFollowing = true;
             hostScene.addRealTimeTicker(dt -> {
                 if (overlay != null) {
-                    overlay.invalidate();
+                    // The veil's alpha, a picture: nothing the accessible tree publishes moved, so
+                    // no frame of the fade walks it, as no frame of the slide does.
+                    SceneAccess.repaintPicture(overlay);
                 }
                 veilFollowing = cardMoving;
                 return veilFollowing;
@@ -1658,7 +1685,7 @@ public final class Dialog {
                         dragOffsetY += event.y() - grabY;
                         grabX = event.x();
                         grabY = event.y();
-                        overlay.invalidate();
+                        overlay.placeCard();
                     }
                 }
                 case RELEASE -> {
@@ -1733,9 +1760,20 @@ public final class Dialog {
             return (width() - cardWidth) / 2 + dragOffsetX;
         }
 
-        /** Where its top goes: centred, lowered by what is left of the fade's slide, dragged. */
+        /** Where its top goes: centred, then dragged; the fade's slide is a picture the card's container moves. */
         private float cardY(float cardHeight) {
-            return (height() - cardHeight) / 2 + (1 - fadeLevel()) * SLIDE_DISTANCE + dragOffsetY;
+            return (height() - cardHeight) / 2 + dragOffsetY;
+        }
+
+        /**
+         * Puts the card where a drag left it, for real: a dragged card is where the user put it, so
+         * the accessible tree and the pointer must say so, which a picture moved would not. On the
+         * drag's events only, never in a paint, and the damage of the whole overlay asks for the
+         * accessible walk that publishes the new box.
+         */
+        void placeCard() {
+            moveChild(card, cardX(card.width()), cardY(card.height()));
+            invalidate();
         }
 
         @Override
@@ -1767,27 +1805,6 @@ public final class Dialog {
         @Override
         protected boolean paintsDecoration() {
             return true;
-        }
-
-        @Override
-        protected void paintChildren(Canvas canvas) {
-            float wasX = card.x();
-            float wasY = card.y();
-            // Re-placed for the current fade slide and drag by moving it, not by laying it out
-            // again: between two layout passes nothing else moves it, and a layout run from here
-            // ran every layout inside the card on every frame, so one that repainted itself each
-            // time it was laid out, as the body's scroll bar did, asked from inside each frame for
-            // the next, and a dialog left alone never let the loop go idle.
-            moveChild(card, cardX(card.width()), cardY(card.height()));
-            if (card.x() != wasX || card.y() != wasY) {
-                // A placement the layout pass never saw. The accessible tree reads every box
-                // before the paint passes, so on a frame that slid or dragged the card the tree
-                // carries the box the previous paint left, and nothing that knows the card moved
-                // would say so once the fade and the drag are over. Two float compares, and a
-                // frame bought only while a reader is listening.
-                invalidateAccessible();
-            }
-            super.paintChildren(canvas);
         }
 
         @Override
