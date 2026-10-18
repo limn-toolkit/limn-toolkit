@@ -1009,6 +1009,13 @@ public final class Theme {
      * different from a file it had just been saved to, and two palettes that render
      * identically would compare unequal. A colour handed in at higher precision (anything
      * interpolated, which is most derived tones) is rounded, by at most 1/255.
+     *
+     * <p><b>Every tone but {@link #scrim} is opaque.</b> Each other setter drops the alpha of the
+     * colour it is handed, so a translucent colour sets the opaque colour beneath it, and
+     * {@link #get} answers it so. A palette's tones are painted at full strength or faded by the
+     * widget that paints them, and a fade replaces the alpha by some widgets and multiplies it by
+     * others, so a translucent tone would have been one ring on a button and another on a list.
+     * The scrim keeps its alpha, which is the depth of the veil it is.
      */
     public static final class Builder {
 
@@ -1114,85 +1121,85 @@ public final class Theme {
 
         /** @see Theme#background */
         public Builder background(Color value) {
-            this.background = snap(Objects.requireNonNull(value, "background"));
+            this.background = opaque(Objects.requireNonNull(value, "background"));
             return this;
         }
 
         /** @see Theme#surface */
         public Builder surface(Color value) {
-            this.surface = snap(Objects.requireNonNull(value, "surface"));
+            this.surface = opaque(Objects.requireNonNull(value, "surface"));
             return this;
         }
 
         /** @see Theme#surfaceRaised */
         public Builder surfaceRaised(Color value) {
-            this.surfaceRaised = snap(Objects.requireNonNull(value, "surfaceRaised"));
+            this.surfaceRaised = opaque(Objects.requireNonNull(value, "surfaceRaised"));
             return this;
         }
 
         /** The accent at rest; {@link #deriveAccentStates()} turns it into the ramp. */
         public Builder primary(Color value) {
-            this.primary = snap(Objects.requireNonNull(value, "primary"));
+            this.primary = opaque(Objects.requireNonNull(value, "primary"));
             return this;
         }
 
         /** @see Theme#primaryHover */
         public Builder primaryHover(Color value) {
-            this.primaryHover = snap(Objects.requireNonNull(value, "primaryHover"));
+            this.primaryHover = opaque(Objects.requireNonNull(value, "primaryHover"));
             return this;
         }
 
         /** @see Theme#primaryPressed */
         public Builder primaryPressed(Color value) {
-            this.primaryPressed = snap(Objects.requireNonNull(value, "primaryPressed"));
+            this.primaryPressed = opaque(Objects.requireNonNull(value, "primaryPressed"));
             return this;
         }
 
         /** @see Theme#onPrimary */
         public Builder onPrimary(Color value) {
-            this.onPrimary = snap(Objects.requireNonNull(value, "onPrimary"));
+            this.onPrimary = opaque(Objects.requireNonNull(value, "onPrimary"));
             return this;
         }
 
         /** @see Theme#text */
         public Builder text(Color value) {
-            this.text = snap(Objects.requireNonNull(value, "text"));
+            this.text = opaque(Objects.requireNonNull(value, "text"));
             return this;
         }
 
         /** @see Theme#textMuted */
         public Builder textMuted(Color value) {
-            this.textMuted = snap(Objects.requireNonNull(value, "textMuted"));
+            this.textMuted = opaque(Objects.requireNonNull(value, "textMuted"));
             return this;
         }
 
         /** @see Theme#outline */
         public Builder outline(Color value) {
-            this.outline = snap(Objects.requireNonNull(value, "outline"));
+            this.outline = opaque(Objects.requireNonNull(value, "outline"));
             return this;
         }
 
         /** @see Theme#focusRing */
         public Builder focusRing(Color value) {
-            this.focusRing = snap(Objects.requireNonNull(value, "focusRing"));
+            this.focusRing = opaque(Objects.requireNonNull(value, "focusRing"));
             return this;
         }
 
         /** @see Theme#disabledFill */
         public Builder disabledFill(Color value) {
-            this.disabledFill = snap(Objects.requireNonNull(value, "disabledFill"));
+            this.disabledFill = opaque(Objects.requireNonNull(value, "disabledFill"));
             return this;
         }
 
         /** @see Theme#disabledText */
         public Builder disabledText(Color value) {
-            this.disabledText = snap(Objects.requireNonNull(value, "disabledText"));
+            this.disabledText = opaque(Objects.requireNonNull(value, "disabledText"));
             return this;
         }
 
         /**
          * The modal veil; see {@link Theme#scrim}. The <b>only</b> tone whose alpha is
-         * read rather than assumed opaque, and passing an opaque colour here is the way to
+         * kept: every other setter drops it. Passing an opaque colour here is the way to
          * make a modal hide what it blocks instead of dimming it.
          */
         public Builder scrim(Color value) {
@@ -1202,25 +1209,25 @@ public final class Theme {
 
         /** @see Theme#danger */
         public Builder danger(Color value) {
-            this.danger = snap(Objects.requireNonNull(value, "danger"));
+            this.danger = opaque(Objects.requireNonNull(value, "danger"));
             return this;
         }
 
         /** @see Theme#success */
         public Builder success(Color value) {
-            this.success = snap(Objects.requireNonNull(value, "success"));
+            this.success = opaque(Objects.requireNonNull(value, "success"));
             return this;
         }
 
         /** @see Theme#warning */
         public Builder warning(Color value) {
-            this.warning = snap(Objects.requireNonNull(value, "warning"));
+            this.warning = opaque(Objects.requireNonNull(value, "warning"));
             return this;
         }
 
         /** @see Theme#info */
         public Builder info(Color value) {
-            this.info = snap(Objects.requireNonNull(value, "info"));
+            this.info = opaque(Objects.requireNonNull(value, "info"));
             return this;
         }
 
@@ -1292,6 +1299,11 @@ public final class Theme {
         private static Color snap(Color color) {
             return new Color(round(color.r()), round(color.g()), round(color.b()),
                     round(color.a()));
+        }
+
+        /** {@link #snap}, with the alpha dropped: every tone but the scrim. */
+        private static Color opaque(Color color) {
+            return new Color(round(color.r()), round(color.g()), round(color.b()), 1f);
         }
 
         private static float round(float channel) {

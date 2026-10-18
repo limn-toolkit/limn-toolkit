@@ -88,7 +88,12 @@ Adding a tone to `Theme` therefore means: the field, the `Token` constant, and a
 Every other tone is a surface or an ink drawn on one, and both the audit's contrast maths
 and the editor's colour wells are built on that: a translucent tone composites against
 whatever happens to be behind it, which is exactly what a palette cannot know, so
-`ThemeEditor.tokenRow` turns alpha *off* for every well but the scrim's.
+`ThemeEditor.tokenRow` turns alpha *off* for every well but the scrim's. Since 2026-10-18 the
+palette enforces it too: `Theme.Builder` and so `ThemeFormat.parse` drop the alpha of every tone
+but the scrim, so a theme file with an eight-digit `focusRing` loads an opaque ring. Before that
+the alpha passed through, and the widgets disagreed on it: a button replaced the ring's alpha with
+its focus fade and a list multiplied it, so one file drew two rings. The editor's switch stays,
+as the picker not offering a slider that would do nothing.
 
 The scrim is the exception because compositing is its whole job: it is the veil an in-scene
 modal paints over the window, and its alpha is the strength of the dimming. Consequences

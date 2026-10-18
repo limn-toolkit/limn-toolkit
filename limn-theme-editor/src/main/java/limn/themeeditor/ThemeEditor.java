@@ -844,6 +844,8 @@ public final class ThemeEditor extends Widget<ThemeEditor> {
         // one thing a palette cannot know, and the audit's contrast maths would be measuring
         // a colour that never appears on screen. The scrim is the exception because
         // compositing is its whole job, and an opaque one would hide what it means to block.
+        // The builder drops the alpha of every other tone itself, so this is the picker not
+        // offering a slider that would do nothing, rather than the rule's only guard.
         well.setAlphaEnabled(token == Theme.Token.SCRIM);
         well.setPickerDisplayMode(pickerDisplayMode);
         well.onChange(colour -> {

@@ -52,6 +52,10 @@ import java.util.Objects;
  * five numbers each, the key layer's offset, blur and opacity and the ambient layer's blur and
  * opacity), which fall back to the mode's.
  *
+ * <p><b>Colours are {@code #RRGGBB}.</b> The {@code scrim} may carry an alpha as
+ * {@code #RRGGBBAA}, the depth of the veil under a modal; an alpha written on any other tone is
+ * dropped, as {@link Theme.Builder} drops it, because every other tone of a palette is opaque.
+ *
  * <p><b>What may not.</b> A key that is not {@code name}, {@code dark}, {@code cornerScale},
  * {@code fontFamily}, a shadow's or a {@link Theme.Token#key()} is an error rather than a shrug, and so is a repeated key: a
  * palette that silently ignored {@code primaryHovor} would be debugged by eye, in a
