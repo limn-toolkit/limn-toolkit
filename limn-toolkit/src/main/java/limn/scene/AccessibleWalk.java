@@ -58,6 +58,15 @@ final class AccessibleWalk {
     private Widget<?>[] redirectLabels = new Widget<?>[4];
     private int redirectCount;
 
+    /**
+     * The overrides in flight down the walk: a name or a description the application wrote on a
+     * composite that said a descendant carries its label, pushed with the composite and popped
+     * when its subtree ends, as the labels above are. Grown once, reused.
+     */
+    private Widget<?>[] carryTargets = new Widget<?>[4];
+    private Widget<?>[] carrySources = new Widget<?>[4];
+    private int carryCount;
+
     /** Per published node: the widget that owns it. Grown once, reused. */
     private Widget<?>[] owners = new Widget<?>[64];
     private long[] ids = new long[64];
@@ -189,6 +198,7 @@ final class AccessibleWalk {
         int nodes = count;
         int popups = popupCount;
         int redirects = redirectCount;
+        int carries = carryCount;
         try {
             walkOnce(scene, sceneWidth, sceneHeight, contents);
         } finally {
@@ -200,6 +210,8 @@ final class AccessibleWalk {
             forget(popupOpeners, popupCount, popups);
             forget(redirectTargets, redirectCount, redirects);
             forget(redirectLabels, redirectCount, redirects);
+            forget(carryTargets, carryCount, carries);
+            forget(carrySources, carryCount, carries);
         }
     }
 
@@ -240,6 +252,7 @@ final class AccessibleWalk {
         popupCount = 0;
         focusedId = 0;
         redirectCount = 0;
+        carryCount = 0;
 
         Widget<?> root = scene.root();
         if (windowNodeId == 0) {
@@ -494,8 +507,11 @@ final class AccessibleWalk {
         forget(popupOpeners, 0, popupCount);
         forget(redirectTargets, 0, redirectCount);
         forget(redirectLabels, 0, redirectCount);
+        forget(carryTargets, 0, carryCount);
+        forget(carrySources, 0, carryCount);
         popupCount = 0;
         redirectCount = 0;
+        carryCount = 0;
         count = 0;
         if (mirrorHost != null) {
             Scene host = mirrorHost;
@@ -645,6 +661,19 @@ final class AccessibleWalk {
         } else {
             label = redirectedLabelFor(widget);
         }
+        // A name, a description or a tooltip the application wrote on a composite goes where its
+        // caption would (ADR 073 §2.7): to the descendant the keyboard lands on, the node a reader
+        // reaches. Left on a composite that publishes nothing else, it would name a node the
+        // composite does not want and the focus never visits.
+        boolean carried = false;
+        if (widget.accessibleName() != null || widget.accessibleDescription() != null
+                || widget.tooltipSource() != null) {
+            Widget<?> carrier = labelTargetOf(widget);
+            if (carrier != widget) {
+                pushCarry(carrier, widget);
+                carried = true;
+            }
+        }
         if (label == null && widget.parent() == null && widget.inheritanceHost() != null
                 && (scene.isPopup(widget) || scene.isGraftedPopupRoot(widget))) {
             // A popup is named by the caption that names the field it opened from (2026-09-23): a
@@ -661,11 +690,16 @@ final class AccessibleWalk {
         // in a subtree declaring another language records that language and speaks the process's.
         Locale enclosing = limn.i18n.I18n.pushScope(widget.locale());
         try {
-            applyOverrides(widget, label);
-            if (!builder.hasName() && widget.tooltipSource() != null) {
-                builder.name(widget.tooltipSource(), Accessible.NameFrom.TOOLTIP);
-            } else if (!builder.hasDescription() && widget.tooltipSource() != null) {
-                builder.description(widget.tooltipSource());
+            applyOverrides(widget, label, carried);
+            limn.i18n.I18nString tooltip = carried ? null : widget.tooltipSource();
+            if (tooltip == null) {
+                Widget<?> composite = carriedOverridesFor(widget);
+                tooltip = composite == null ? null : composite.tooltipSource();
+            }
+            if (!builder.hasName() && tooltip != null) {
+                builder.name(tooltip, Accessible.NameFrom.TOOLTIP);
+            } else if (!builder.hasDescription() && tooltip != null) {
+                builder.description(tooltip);
             }
         } finally {
             limn.i18n.I18n.popScope(enclosing);
@@ -680,6 +714,9 @@ final class AccessibleWalk {
             builder.drop();
             if (redirected) {
                 popRedirect();
+            }
+            if (carried) {
+                popCarry();
             }
             return;              // ignored: no node, and no children either
         }
@@ -699,6 +736,9 @@ final class AccessibleWalk {
             walkGraftsOf(widget, under, -1, id, ownScope);
             if (redirected) {
                 popRedirect();
+            }
+            if (carried) {
+                popCarry();
             }
             return;              // transparent: no node, children hoisted in its place
         }
@@ -797,6 +837,9 @@ final class AccessibleWalk {
         builder.end();
         if (redirected) {
             popRedirect();
+        }
+        if (carried) {
+            popCarry();
         }
     }
 
@@ -910,6 +953,34 @@ final class AccessibleWalk {
         return false;
     }
 
+    private void pushCarry(Widget<?> carrier, Widget<?> source) {
+        if (carryCount == carryTargets.length) {
+            int grown = carryTargets.length * 2;
+            carryTargets = java.util.Arrays.copyOf(carryTargets, grown);
+            carrySources = java.util.Arrays.copyOf(carrySources, grown);
+        }
+        carryTargets[carryCount] = carrier;
+        carrySources[carryCount] = source;
+        carryCount++;
+    }
+
+    /** Ends the carry the subtree just walked pushed, and lets go of its two widgets. */
+    private void popCarry() {
+        carryCount--;
+        carryTargets[carryCount] = null;
+        carrySources[carryCount] = null;
+    }
+
+    /** The composite whose name and description land on {@code widget}, or {@code null}; nearest wins. */
+    private Widget<?> carriedOverridesFor(Widget<?> widget) {
+        for (int i = carryCount - 1; i >= 0; i--) {
+            if (carryTargets[i] == widget) {
+                return carrySources[i];
+            }
+        }
+        return null;
+    }
+
     private void pushRedirect(Widget<?> carrier, Widget<?> label) {
         if (redirectCount == redirectTargets.length) {
             int grown = redirectTargets.length * 2;
@@ -993,11 +1064,13 @@ final class AccessibleWalk {
     }
 
     /**
-     * @param widget the widget whose node is open
-     * @param label  the caption that names it, or {@code null}: its own binding, or one a
-     *               composite above it redirected here, decided by the caller
+     * @param widget  the widget whose node is open
+     * @param label   the caption that names it, or {@code null}: its own binding, or one a
+     *                composite above it redirected here, decided by the caller
+     * @param carried whether the name and description written on {@code widget} were sent down to
+     *                the descendant that carries its label, and so are not this node's
      */
-    private void applyOverrides(Widget<?> widget, Widget<?> label) {
+    private void applyOverrides(Widget<?> widget, Widget<?> label, boolean carried) {
         limn.accessibility.Accessible.Role role = widget.accessibleRole();
         if (role != null) {
             builder.role(role);
@@ -1031,12 +1104,23 @@ final class AccessibleWalk {
             }
             builder.relation(Accessible.Relation.DESCRIBED_BY, describer);
         }
-        limn.i18n.I18nString name = widget.accessibleName();
+        // What a composite above wrote and sent here, then what was written on this widget, which
+        // wins: the same order as a caption bound to the composite and one bound here.
+        Widget<?> composite = carriedOverridesFor(widget);
+        if (composite != null) {
+            if (composite.accessibleName() != null) {
+                builder.name(composite.accessibleName(), Accessible.NameFrom.EXPLICIT);
+            }
+            if (composite.accessibleDescription() != null) {
+                builder.description(composite.accessibleDescription());
+            }
+        }
+        limn.i18n.I18nString name = carried ? null : widget.accessibleName();
         if (name != null) {
             builder.name(name, Accessible.NameFrom.EXPLICIT);
         }
         builder.identifier(widget.id());
-        limn.i18n.I18nString description = widget.accessibleDescription();
+        limn.i18n.I18nString description = carried ? null : widget.accessibleDescription();
         if (description != null) {
             builder.description(description);
         }
