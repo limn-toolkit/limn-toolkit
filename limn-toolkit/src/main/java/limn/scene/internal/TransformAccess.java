@@ -37,6 +37,13 @@ public final class TransformAccess {
         void setChildMatrix(Widget<?> widget, @Nullable Mat4 matrix);
 
         /**
+         * @param widget  the widget whose children the matrix moves
+         * @param visible whether its children are drawn and hit while the matrix turns their back
+         *                to the viewer; {@code true} until set
+         */
+        void setBackfaceVisible(Widget<?> widget, boolean visible);
+
+        /**
          * @param widget a widget
          * @return the matrix it draws its children through, or null while it is at rest
          */
@@ -183,6 +190,19 @@ public final class TransformAccess {
      */
     public static void setChildMatrix(Widget<?> widget, @Nullable Mat4 matrix) {
         hook.setChildMatrix(widget, matrix);
+    }
+
+    /**
+     * Sets whether {@code widget}'s children are drawn and hit while its matrix turns their back
+     * to the viewer: a plane turned over, as a half turn about the vertical axis turns it, and not
+     * one mirrored by a negative scale, whose face is still toward the viewer. {@code true} until
+     * set; the flag outlives the matrix. UI thread only.
+     *
+     * @param widget  the widget
+     * @param visible whether a back face is drawn and hit
+     */
+    public static void setBackfaceVisible(Widget<?> widget, boolean visible) {
+        hook.setBackfaceVisible(widget, visible);
     }
 
     /**

@@ -38,6 +38,15 @@ public final class Turned extends Widget<Turned> {
         return this;
     }
 
+    /**
+     * @param visible whether the child is drawn and hit while the matrix turns its back to the viewer
+     * @return this
+     */
+    public Turned setBackfaceVisible(boolean visible) {
+        TransformAccess.setBackfaceVisible(this, visible);
+        return this;
+    }
+
     @Override
     protected Size onMeasure(Constraints constraints) {
         Size size = child.measure(constraints);

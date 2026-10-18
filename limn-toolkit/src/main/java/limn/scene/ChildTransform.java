@@ -16,7 +16,18 @@ import org.jspecify.annotations.Nullable;
  * <p>Three cases answer {@code NaN}, which every comparison fails, so a caller's own bounds test
  * counts the point outside: a point that would lie behind the eye ({@code w} not above
  * {@link #NEAR}); and, going back from the drawing to the plane, a plane seen edge-on or collapsed,
- * which covers less than {@link #COLLAPSED} of the area it had at the point asked about.
+ * which covers less than {@link #COLLAPSED} of the area it had at the point asked about, or one
+ * that {@linkplain #drawsNothing draws nothing}: a back face turned to the viewer while the widget
+ * hides back faces, or a plane edge-on everywhere.
+ *
+ * <p>Which face is turned to the viewer is read from the whole matrix and not from the plane's
+ * homography alone, which cannot tell a plane turned over from one mirrored: a scale of −1 along x
+ * mirrors the children with their face still toward the viewer, and a half turn about the vertical
+ * axis draws the same picture with their back to it. The plane's image is the plane whose
+ * coefficients are the third row of the matrix's inverse, and the viewer looks along z, so the
+ * plane faces the viewer when that row's z coefficient is positive, as a web page's
+ * {@code backface-visibility} reads it; the cosine between the image's normal and z says how far
+ * it is from edge-on.
  *
  * <p>Replaced when a matrix is set as a {@link Mat4}, as the tests' turned container sets one; a
  * transform container's values are loaded into the one it holds instead, in place, so that a
@@ -39,6 +50,14 @@ final class ChildTransform {
      */
     static final double COLLAPSED = 1e-6;
 
+    /**
+     * The cosine, between the plane's image and the line of sight, below which the plane is seen
+     * edge-on and draws nothing: a turn of ninety degrees, which single precision leaves at about
+     * 4e-8, and under a perspective a plane through the eye, which projects to a line. A millionth
+     * is a turn some six hundred-thousandths of a degree from edge-on.
+     */
+    static final double EDGE_ON = 1e-6;
+
     /** The matrix this was made from, or null for one a transform container loads in place. */
     final @Nullable Mat4 matrix;
 
@@ -57,11 +76,30 @@ final class ChildTransform {
     float paintScaleY;
     /**
      * Whether the matrix, with no perspective, leaves the plane less than {@link #COLLAPSED} of its
-     * area everywhere: a scale of 0 on either axis, or a flip seen exactly edge-on. Such children
-     * draw nothing, and {@link #unmap} already answers {@code NaN} for every point of them. A
-     * perspective's area changes from point to point and is never counted here.
+     * area everywhere: a scale of 0 on either axis, or a flip seen exactly edge-on. A perspective's
+     * area changes from point to point and is never counted here; {@link #edgeOn} is its case.
      */
-    boolean collapsed;
+    private boolean collapsed;
+    /**
+     * Whether the plane's image lies along the line of sight, within {@link #EDGE_ON}: a turn of
+     * exactly ninety degrees out of the screen, with a perspective or without, or a plane
+     * collapsed in a way the line of sight cannot see past.
+     */
+    private boolean edgeOn;
+    /** Whether the plane shows the viewer its back: turned over, and not merely mirrored. */
+    boolean facesAway;
+    /** Whether a back face turned to the viewer is drawn and hit; see {@link #setBackfaceVisible}. */
+    private boolean backfaceVisible = true;
+    /**
+     * Whether the children draw nothing and take no pointer, whatever the point: the plane
+     * collapsed to a line or a point, seen edge-on, or showing its back while back faces are
+     * hidden. The paint skips them, {@link #unmap} answers {@code NaN} everywhere, and every walk
+     * that carries bounds through the matrix leaves them out.
+     */
+    boolean drawsNothing;
+
+    /** The matrix's sixteen entries, row-major, kept to read which face is turned to the viewer. */
+    private final double[] entries = new double[16];
 
     private double h00;
     private double h01;
@@ -86,9 +124,12 @@ final class ChildTransform {
 
     ChildTransform(Mat4 matrix) {
         this.matrix = matrix;
-        load(matrix.get(0, 0), matrix.get(0, 1), matrix.get(0, 3),
-                matrix.get(1, 0), matrix.get(1, 1), matrix.get(1, 3),
-                matrix.get(3, 0), matrix.get(3, 1), matrix.get(3, 3));
+        for (int row = 0; row < 4; row++) {
+            for (int col = 0; col < 4; col++) {
+                entries[row * 4 + col] = matrix.get(row, col);
+            }
+        }
+        load();
     }
 
     /** One a transform container loads its values into, with {@link #set}. */
@@ -105,22 +146,41 @@ final class ChildTransform {
     void set(MutMat4 m) {
         loaded = m;
         snapshot = null;
-        load(m.get(0, 0), m.get(0, 1), m.get(0, 3), m.get(1, 0), m.get(1, 1), m.get(1, 3),
-                m.get(3, 0), m.get(3, 1), m.get(3, 3));
+        for (int row = 0; row < 4; row++) {
+            for (int col = 0; col < 4; col++) {
+                entries[row * 4 + col] = m.get(row, col);
+            }
+        }
+        load();
     }
 
-    /** The plane's homography, its adjugate, and what the paint and the collapse test read of it. */
-    private void load(double m00, double m01, double m03, double m10, double m11, double m13,
-                      double m30, double m31, double m33) {
-        h00 = m00;
-        h01 = m01;
-        h02 = m03;
-        h10 = m10;
-        h11 = m11;
-        h12 = m13;
-        h20 = m30;
-        h21 = m31;
-        h22 = m33;
+    /**
+     * Whether a back face turned to the viewer is drawn and hit: {@code true} unless the widget
+     * hides back faces. Kept here beside the face the matrix turns, so that {@link #drawsNothing}
+     * is one field to read.
+     *
+     * @param visible whether a back face is drawn
+     */
+    void setBackfaceVisible(boolean visible) {
+        backfaceVisible = visible;
+        drawsNothing = collapsed || edgeOn || (facesAway && !visible);
+    }
+
+    /**
+     * The plane's homography, its adjugate, which face it turns to the viewer, and what the paint
+     * and the collapse test read of it, from {@link #entries}.
+     */
+    private void load() {
+        double[] e = entries;
+        h00 = e[0];
+        h01 = e[1];
+        h02 = e[3];
+        h10 = e[4];
+        h11 = e[5];
+        h12 = e[7];
+        h20 = e[12];
+        h21 = e[13];
+        h22 = e[15];
         a00 = h11 * h22 - h12 * h21;
         a01 = h02 * h21 - h01 * h22;
         a02 = h01 * h12 - h02 * h11;
@@ -138,6 +198,33 @@ final class ChildTransform {
         paintScaleX = affine ? (float) (h00 / h22) : 1;
         paintScaleY = affine ? (float) (h11 / h22) : 1;
         collapsed = affine && Math.abs((h00 * h11 - h01 * h10) / (h22 * h22)) <= COLLAPSED;
+        // The third row of the inverse is the plane's image, up to the determinant: its entries
+        // are the cofactors of the third column, of which the one for z is the homography's own
+        // determinant. Each is a minor of the three other rows, over x, y and w.
+        double c0 = minor(e, 1, 2, 3);
+        double c1 = -minor(e, 0, 2, 3);
+        double c2 = det;
+        double c3 = -minor(e, 0, 1, 2);
+        double whole = e[2] * c0 + e[6] * c1 + e[10] * c2 + e[14] * c3;
+        double facing = c2 / Math.sqrt(c0 * c0 + c1 * c1 + c2 * c2);
+        edgeOn = !(Math.abs(facing) > EDGE_ON);
+        // A matrix that collapses z has no inverse and no back to show: the face is then the front.
+        facesAway = !edgeOn && whole != 0 && (facing < 0) != (whole < 0);
+        setBackfaceVisible(backfaceVisible);
+    }
+
+    /** The determinant of rows {@code r0}, {@code r1} and {@code r2} of {@code e}, over x, y and w. */
+    private static double minor(double[] e, int r0, int r1, int r2) {
+        double a0 = e[r0 * 4];
+        double a1 = e[r0 * 4 + 1];
+        double a3 = e[r0 * 4 + 3];
+        double b0 = e[r1 * 4];
+        double b1 = e[r1 * 4 + 1];
+        double b3 = e[r1 * 4 + 3];
+        double d0 = e[r2 * 4];
+        double d1 = e[r2 * 4 + 1];
+        double d3 = e[r2 * 4 + 3];
+        return a0 * (b1 * d3 - b3 * d1) - a1 * (b0 * d3 - b3 * d0) + a3 * (b0 * d1 - b1 * d0);
     }
 
     /**
@@ -227,8 +314,11 @@ final class ChildTransform {
         return holds(px, py) ? (float) py : Float.NaN;
     }
 
-    /** Whether a point of the plane is drawn in front of the eye and with area left. */
+    /** Whether a point of the plane is drawn in front of the eye, with area left, and seen. */
     private boolean holds(double px, double py) {
+        if (drawsNothing) {
+            return false;
+        }
         double w = h20 * px + h21 * py + h22;
         // The area a small patch of the plane keeps at this point, drawn: det / w³.
         return w > NEAR && Math.abs(det / (w * w * w)) > COLLAPSED;

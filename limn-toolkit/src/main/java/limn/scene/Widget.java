@@ -108,6 +108,11 @@ public abstract class Widget<W extends Widget<W>> {
             }
 
             @Override
+            public void setBackfaceVisible(Widget<?> widget, boolean visible) {
+                widget.setChildBackfaceVisible(visible);
+            }
+
+            @Override
             public limn.math.@Nullable Mat4 childMatrix(Widget<?> widget) {
                 ChildTransform transform = widget.childTransform;
                 if (transform == null) {
@@ -195,9 +200,33 @@ public abstract class Widget<W extends Widget<W>> {
         install(held);
     }
 
+    /**
+     * Whether the children are drawn and hit while the matrix turns their back to the viewer;
+     * {@code true} unless a transform container hides back faces. Kept on the widget, and handed to
+     * each matrix it installs, since a matrix set whole is replaced and the flag must outlive it.
+     */
+    private boolean childBackfaceVisible = true;
+
+    /**
+     * Sets whether the children are drawn and hit while their back is turned to the viewer. The
+     * caller damages what changes, as for a matrix. UI thread only.
+     *
+     * @param visible whether a back face is drawn
+     */
+    final void setChildBackfaceVisible(boolean visible) {
+        Ui.checkUiThread();
+        childBackfaceVisible = visible;
+        if (childTransform != null) {
+            childTransform.setBackfaceVisible(visible);
+        }
+    }
+
     /** Makes {@code next} the matrix the children are drawn through, keeping the scene's list. */
     private void install(@Nullable ChildTransform next) {
         boolean was = childTransform != null;
+        if (next != null) {
+            next.setBackfaceVisible(childBackfaceVisible);
+        }
         childTransform = next;
         if (scene != null && was != (next != null)) {
             if (next != null) {
@@ -966,7 +995,7 @@ public abstract class Widget<W extends Widget<W>> {
             // And where the parent draws it: through the matrix it draws its children with.
             ChildTransform through = node.parent != null ? node.parent.childTransform : null;
             if (through != null) {
-                if (through.collapsed) {
+                if (through.drawsNothing) {
                     return false; // drawn as a line or a point: nothing of it shows
                 }
                 float[] b = SHOWING_SCRATCH;
@@ -2276,7 +2305,7 @@ public abstract class Widget<W extends Widget<W>> {
      * what the clip lets be seen.
      */
     private void paintChildrenThrough(Canvas canvas, ChildTransform through) {
-        if (through.collapsed) {
+        if (through.drawsNothing) {
             return;
         }
         if (!through.axisAligned) {
@@ -2402,7 +2431,7 @@ public abstract class Widget<W extends Widget<W>> {
             b[2] = child.x + child.width + o;
             b[3] = child.y + child.height + o;
             if (through != null) {
-                if (through.collapsed) {
+                if (through.drawsNothing) {
                     continue;
                 }
                 through.bounds(b[0], b[1], b[2], b[3], b);
@@ -2425,7 +2454,7 @@ public abstract class Widget<W extends Widget<W>> {
     private void paintedRect(float x0, float y0, float x1, float y1, boolean throughMatrix, float[] out) {
         boolean clips = clipsChildren();
         ChildTransform through = throughMatrix ? childTransform : null;
-        if (through == null || !through.collapsed) {
+        if (through == null || !through.drawsNothing) {
             for (int i = 0; i < children.size(); i++) {
                 Widget<?> child = children.get(i);
                 if (!child.isVisible() || child.groupOpacity() <= 0f) {
@@ -2794,7 +2823,7 @@ public abstract class Widget<W extends Widget<W>> {
         float y0 = Float.POSITIVE_INFINITY;
         float x1 = Float.NEGATIVE_INFINITY;
         float y1 = Float.NEGATIVE_INFINITY;
-        if (transform != null && !transform.collapsed) {
+        if (transform != null && !transform.drawsNothing) {
             for (int i = 0; i < children.size(); i++) {
                 Widget<?> child = children.get(i);
                 if (child.isVisible()) {

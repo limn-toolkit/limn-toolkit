@@ -177,6 +177,44 @@ class PointConversionTest extends SceneTestBase {
     }
 
     @Test
+    void aPlaneEdgeOnInPerspectiveHoldsNoPointAndAHiddenBackFaceNone() {
+        // A quarter turn seen from 800 points: the plane passes through the eye and draws a line.
+        build(Turned.turn(CX, CY, 90, 800));
+        Vec2 drawn = leaf.localToScene(100, 100);
+        Vec2 local = leaf.sceneToLocal(drawn.x(), drawn.y());
+        assertTrue(Float.isNaN(local.x()), "edge-on in perspective: " + local);
+        assertNull(turned.hitTest(drawn.x() - OUTER, drawn.y() - OUTER), "nothing is hit there");
+
+        // Turned 150 degrees, the back toward the viewer: hit while back faces are drawn, and not
+        // once they are hidden; the flag outlives the matrix it was set under.
+        Mat4 over = Turned.turn(CX, CY, 150, 900);
+        build(over);
+        float[] at = expected(over, 100, 100);
+        assertSame(leaf, root.hitTest(at[0], at[1]), "a back face is drawn and hit by default");
+        turned.setBackfaceVisible(false);
+        assertNotSame(leaf, root.hitTest(at[0], at[1]), "a hidden back face takes no pointer");
+        assertTrue(Float.isNaN(leaf.sceneToLocal(at[0], at[1]).x()), "and holds no point");
+        turned.setMatrix(Turned.turn(CX, CY, 160, 900));
+        float[] still = expected(Turned.turn(CX, CY, 160, 900), 100, 100);
+        assertNotSame(leaf, root.hitTest(still[0], still[1]), "hidden under the next matrix too");
+        Mat4 front = Turned.turn(CX, CY, 20, 900);
+        turned.setMatrix(front);
+        float[] seen = expected(front, 100, 100);
+        assertSame(leaf, root.hitTest(seen[0], seen[1]), "the front is hit with back faces hidden");
+
+        // A mirror shows the same picture as a half turn, with its face still toward the viewer.
+        Mat4 mirror = Turned.scale(CX, CY, -1, 1);
+        turned.setMatrix(mirror);
+        float[] mirrored = expected(mirror, 100, 100);
+        assertSame(leaf, root.hitTest(mirrored[0], mirrored[1]), "a mirror is not a back face");
+        Mat4 halfTurn = Turned.turn(CX, CY, 180, Float.POSITIVE_INFINITY);
+        turned.setMatrix(halfTurn);
+        float[] turnedOver = expected(halfTurn, 100, 100);
+        assertEquals(mirrored[0], turnedOver[0], 1e-3f, "the same picture");
+        assertNotSame(leaf, root.hitTest(turnedOver[0], turnedOver[1]), "but its back is turned");
+    }
+
+    @Test
     void theBoundsAreTheFourCornersWorkedOutByHand() {
         float x = 12;
         float y = 7;
