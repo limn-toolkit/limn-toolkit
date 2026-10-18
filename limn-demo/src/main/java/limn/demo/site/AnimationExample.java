@@ -7,6 +7,7 @@ import limn.animation.Transition;
 import limn.components.Theme;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
+import limn.math.Vec3;
 import limn.scene.Constraints;
 import limn.scene.Scene;
 import limn.scene.Size;
@@ -246,6 +247,20 @@ public final class AnimationExample {
         // down is a quarter turn clockwise from the right, and counterclockwise from the left.
         float down = arrow.isRightToLeft() ? -90 : 90;
         arrow.rotateTo(open ? down : 0);
+    }
+    // #endregion
+
+    // #region guide:animation-depth
+    /** A card whose flip turns it over in depth: seen from 900 points, about three times its width. */
+    static Transform cardInDepth(Widget<?> faces) {
+        return new Transform(faces).setPerspective(900); // flipTo now turns it in depth, not flat
+    }
+
+    /** Lays a panel back about its bottom edge, as a sheet lying on a desk is seen, or stands it up. */
+    static void layBack(Transform panel, boolean back) {
+        panel.setOrigin(0.5f, 1)                          // the bottom edge stays where it is
+                .setPerspective(1200)                     // from three or four times its height
+                .setRotation3D(Vec3.UNIT_X, back ? 25 : 0); // about x: the top edge goes away
     }
     // #endregion
 

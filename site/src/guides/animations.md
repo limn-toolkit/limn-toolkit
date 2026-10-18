@@ -108,6 +108,22 @@ its own and the picture is laid at the angle: a scroll view inside still shows o
 view, the edges are smooth, text reads a little softer, and the picture costs what a fade of the
 same size costs, for as long as the child is turned. At rest the container costs nothing at all.
 
+A part can also turn out of the screen. `setRotation3D` turns its plane about an axis through the
+origin, with x to the right, y down and z toward the reader, and `setPerspective` sets how far in
+front of the origin the eye is, so that the edge that comes toward the reader is drawn larger than
+the one that goes away; two to four times the part's larger side is the usual look, and with none a
+turn about the vertical axis only narrows it. Seen in perspective, `flipTo` turns the part over in
+depth instead of flat:
+
+{% snippet guide:animation-depth %}
+
+A turn in depth has no motion of its own besides the flip, and is set at once. Turned past a
+quarter, the part shows its back, mirrored, unless `setBackfaceVisible(false)` hides it; turned
+exactly a quarter it is edge-on, draws nothing and takes no click. Its picture is drawn at the size
+of the edge nearest the reader, so text far from it reads softer, and what a turn brings past the
+eye is not drawn. A frosted glass inside a part seen in perspective shows its own tint and none of
+the window behind it.
+
 As with a fade, moving something out of sight does not take it away: hide it when the motion
 arrives, as the drawer does. A newer motion of the same value, or a set of it, stops one in flight
 where it is, and its `onArrive` never runs; a slide and a scale run together. While the user asked

@@ -147,6 +147,49 @@ class AnimationExampleTest {
     }
 
     @Test
+    void aCardSeenInDepthTurnsOverWithTheEdgeComingOverGrowingTowardTheReader() {
+        Lamp front = new Lamp();
+        Lamp back = new Lamp();
+        back.setVisible(false);
+        limn.scene.layout.Stack faces = new limn.scene.layout.Stack();
+        faces.add(front);
+        faces.add(back);
+        limn.scene.layout.Transform card = AnimationExample.cardInDepth(faces);
+        show(card);
+        scene.bind(new limn.testing.StubWindow());
+        AnimationExample.turnOver(card, front, back);
+        frame(0);
+        frame(60);
+        float w = faces.width();
+        float h = faces.height();
+        // Forward in a left-to-right window: the right edge comes up toward the reader.
+        float right = faces.localToScene(w, h).y() - faces.localToScene(w, 0).y();
+        float left = faces.localToScene(0, h).y() - faces.localToScene(0, 0).y();
+        assertTrue(right > h && left < h, "seen in depth, the near edge is taller: " + right + " and " + left);
+        frame(200);
+        frame(200);
+        assertTrue(!front.isVisible() && back.isVisible(), "and the back shows once it has turned over");
+        assertEquals(900f, card.perspective(), "the perspective stays for the next turn");
+    }
+
+    @Test
+    void aPanelLaidBackKeepsItsBottomEdgeAndNarrowsItsTop() {
+        Lamp sheet = new Lamp();
+        limn.scene.layout.Transform panel = new limn.scene.layout.Transform(sheet);
+        show(panel);
+        float w = sheet.width();
+        float h = sheet.height();
+        limn.math.Vec2 bottomLeft = sheet.localToScene(0, h);
+        AnimationExample.layBack(panel, true);
+        assertEquals(bottomLeft.x(), sheet.localToScene(0, h).x(), 1e-3f, "the bottom edge stays");
+        assertEquals(bottomLeft.y(), sheet.localToScene(0, h).y(), 1e-3f);
+        float top = sheet.localToScene(w, 0).x() - sheet.localToScene(0, 0).x();
+        assertTrue(top < w, "the top edge goes away from the reader, narrower: " + top);
+        AnimationExample.layBack(panel, false);
+        assertEquals(sheet.localToScene(0, 0).y(), bottomLeft.y() - h, 1e-3f, "and stands up again");
+    }
+
+    @Test
     void aSectionsArrowTurnsDownAsItOpensClockwiseOrNotByTheDirection() {
         Lamp shape = new Lamp();
         limn.scene.layout.Transform arrow = new limn.scene.layout.Transform(shape);

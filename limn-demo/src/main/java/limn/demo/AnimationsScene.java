@@ -322,7 +322,8 @@ final class AnimationsScene {
 
     /**
      * A customer's card, whose back holds a reminder about them: a {@link Transform} turns it over
-     * with a flip, drawn flat, and swaps the two faces when it is edge-on. The faces are two layers
+     * with a flip, in depth, seen from about three times the card's width so that the edge coming
+     * over grows toward the reader, and swaps the two faces when it is edge-on. The faces are two layers
      * of a stack, one of them hidden, so a reader and the keyboard meet only the side that shows;
      * the container moves nothing layout placed, so the button beside the card stays where it is.
      * Under less motion the faces swap at once, with no turn.
@@ -340,7 +341,8 @@ final class AnimationsScene {
         Stack faces = new Stack();
         faces.add(front);
         faces.add(back);
-        Transform card = new Transform(Page.card(new Padding(Insets.symmetric(12, 16), faces)));
+        Transform card = new Transform(Page.card(new Padding(Insets.symmetric(12, 16), faces)))
+                .setPerspective(1200);
         Button turn = new Button(Text.TURN_OVER).setSecondary(true);
         turn.onAction(() -> card.flipTo(Transform.Flip.FORWARD, 0.45, () -> {
             front.setVisible(!front.isVisible());
