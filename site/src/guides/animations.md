@@ -62,7 +62,8 @@ size of a popup, and a percent or two of the frame where the system draws withou
 An opacity is a picture and nothing else. At 0 a widget is still laid out, still takes a click and
 the keyboard, and a screen reader still reads it; to take it away, hide it, which the example does
 when its fade out arrives. A newer `fadeTo` or a `setOpacity` stops a fade where it is, and that
-fade's `onArrive` never runs. While the user asked for less motion, `fadeTo` goes straight to its
+fade's `onArrive` never runs; a widget taken out of its window mid-fade arrives as it leaves, and
+runs its `onArrive` then. While the user asked for less motion, `fadeTo` goes straight to its
 target and runs `onArrive` at once. Something watching the widget hears `Change.Aspect.OPACITY`
 each time `setOpacity` changes the value, and twice for a fade, as it starts and as it ends.
 
