@@ -3059,6 +3059,14 @@ public final class Scene {
         pendingDisposals.clear();
     }
 
+    /**
+     * @return how many tickers are registered, those joining on the next frame included, and how
+     *         many of the wall-time and first-frame sets hold; for tests that hold them bounded
+     */
+    int[] tickerCounts() {
+        return new int[] {tickers.size() + pendingTickers.size(), realTimeTickers.size(), freshTickers.size()};
+    }
+
     /** Package-private so tests can advance registered tickers without a Canvas. */
     void tickAnimations() {
         if (tickers.isEmpty()) {

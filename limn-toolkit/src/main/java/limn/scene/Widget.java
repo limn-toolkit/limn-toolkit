@@ -838,6 +838,13 @@ public abstract class Widget<W extends Widget<W>> {
     private float opacity = 1;
     /** The fade moving {@link #opacity} now, or null. See fadeTo. */
     private @Nullable Fade fade;
+    /**
+     * The one ticker stepping this widget's fades, while it is registered, or null. One per widget
+     * and not one per fade, as {@code Transition} keeps one: a superseded fade's ticker went only at
+     * its next tick, and a covered or minimized window renders no frames, so a fade asked for there
+     * on every update of some data added a ticker each time that nothing took away.
+     */
+    private @Nullable FadeTicker fadeTicker;
 
     /** One fade in flight: where it started, where it goes, how long it takes, what it runs at the end. */
     private static final class Fade {
@@ -845,16 +852,29 @@ public abstract class Widget<W extends Widget<W>> {
         final float target;
         final double seconds;
         final @Nullable Runnable onArrive;
-        /** The scene whose frames move it; a widget that leaves it has its fade settled. */
-        final Scene scene;
         double elapsed;
+        /** Whether a frame has stepped it: its first frame is its start and moves nothing. */
+        boolean started;
 
-        Fade(float from, float target, double seconds, @Nullable Runnable onArrive, Scene scene) {
+        Fade(float from, float target, double seconds, @Nullable Runnable onArrive) {
             this.from = from;
             this.target = target;
             this.seconds = seconds;
             this.onArrive = onArrive;
+        }
+    }
+
+    /** The ticker on one scene's wall-time frames that steps whichever fade is current. */
+    private final class FadeTicker implements Scene.Ticker {
+        final Scene scene;
+
+        FadeTicker(Scene scene) {
             this.scene = scene;
+        }
+
+        @Override
+        public boolean tick(double dt) {
+            return stepFade(this, dt);
         }
     }
 
@@ -978,30 +998,55 @@ public abstract class Widget<W extends Widget<W>> {
             }
             return self();
         }
-        Fade started = new Fade(opacity, value, length, onArrive, ticking);
-        fade = started;
+        fade = new Fade(opacity, value, length, onArrive);
         notifyChange(Change.of(Change.Aspect.OPACITY, Change.Origin.CODE));
-        ticking.addRealTimeTicker(dt -> stepFade(started, dt));
+        FadeTicker ticker = fadeTicker;
+        if (ticker == null || ticker.scene != ticking) {
+            // The one this widget has steps the new fade as it would have stepped the old one.
+            ticker = new FadeTicker(ticking);
+            fadeTicker = ticker;
+            ticking.addRealTimeTicker(ticker);
+        }
         return self();
     }
 
-    /** One frame of a fade: eased toward its target, quietly, and settled at the end. */
-    private boolean stepFade(Fade stepping, double dt) {
-        if (fade != stepping) {
-            return false; // superseded, which announced its end
+    /**
+     * One frame of whichever fade is current: eased toward its target, quietly, and settled at the
+     * end. The ticker stops when no fade is left for it, a superseded one having announced its end.
+     */
+    private boolean stepFade(FadeTicker ticker, double dt) {
+        if (fadeTicker != ticker) {
+            return false; // replaced by one on the scene the widget fades in now
         }
-        if (scene != stepping.scene) {
+        Fade stepping = fade;
+        if (stepping == null) {
+            fadeTicker = null;
+            return false;
+        }
+        if (scene != ticker.scene) {
+            fadeTicker = null;
             settleFade(stepping); // left the scene it was fading in: it ends where it was going
             return false;
         }
-        stepping.elapsed += dt;
-        float t = (float) Math.min(1.0, stepping.elapsed / stepping.seconds);
-        if (t >= 1f) {
-            settleFade(stepping);
-            return false;
+        if (stepping.started) {
+            stepping.elapsed += dt;
+        } else {
+            stepping.started = true; // its first frame is its start, as a fresh ticker's is
         }
-        moveOpacity(stepping.from + (stepping.target - stepping.from) * limn.math.Scalars.smoothstep(t));
-        return true;
+        float t = (float) Math.min(1.0, stepping.elapsed / stepping.seconds);
+        if (t < 1f) {
+            moveOpacity(stepping.from + (stepping.target - stepping.from) * limn.math.Scalars.smoothstep(t));
+            return true;
+        }
+        settleFade(stepping);
+        if (fadeTicker != ticker) {
+            return false; // its onArrive moved the widget to a fade on another scene
+        }
+        if (fade != null) {
+            return true; // its onArrive started another fade, which this ticker steps
+        }
+        fadeTicker = null;
+        return false;
     }
 
     /** A fade arrives: the target, its one announcement of the end, and what it runs. */

@@ -380,6 +380,58 @@ class WidgetOpacityTest extends SceneTestBase {
     }
 
     @Test
+    void fadesAskedForWithNoFrameBetweenThemKeepOneTicker() {
+        Probe w = new Probe("w", painted);
+        Stack holder = new Stack();
+        holder.add(w);
+        Scene scene = sceneOf(holder);
+        int[] before = scene.tickerCounts();
+        AtomicInteger arrived = new AtomicInteger();
+
+        // A covered or minimized window renders no frame: a fade asked for on each update of some
+        // data, all day, is asked for again and again with nothing stepping the one before.
+        for (int i = 0; i < 10_000; i++) {
+            w.fadeTo((i & 1) == 0 ? 0.2f : 0.8f, 0.3, arrived::incrementAndGet);
+        }
+        int[] during = scene.tickerCounts();
+        for (int set = 0; set < during.length; set++) {
+            assertEquals(before[set] + 1, during[set], "one ticker, whatever the number of fades: set " + set);
+        }
+
+        advance(scene, 16); // the window shows again: the last fade asked for is the one that runs
+        advance(scene, 100);
+        float mid = w.opacity();
+        assertTrue(mid < 1f && mid > 0.8f, "stepping the last fade, from 1 where no frame moved it: " + mid);
+        advance(scene, 400);
+        assertEquals(0.8f, w.opacity(), "at the last fade's target");
+        assertEquals(1, arrived.get(), "and only its onArrive ran");
+        assertEquals(before[0], scene.tickerCounts()[0], "and the ticker is gone with the fade");
+    }
+
+    @Test
+    void aFadeStartedInAnotherFadesOnArriveRunsOnTheSameTicker() {
+        Probe w = new Probe("w", painted);
+        Stack holder = new Stack();
+        holder.add(w);
+        Scene scene = sceneOf(holder);
+        int[] before = scene.tickerCounts();
+        AtomicInteger back = new AtomicInteger();
+        w.fadeTo(0f, 0.2, () -> w.fadeTo(1f, 0.2, back::incrementAndGet));
+        advance(scene, 16);
+        advance(scene, 300);
+        assertEquals(0f, w.opacity(), "the first arrived");
+        assertEquals(before[0] + 1, scene.tickerCounts()[0], "and the second runs on its ticker");
+        advance(scene, 16); // the second's first frame is its start, as any fade's is
+        advance(scene, 100);
+        float mid = w.opacity();
+        assertTrue(mid > 0f && mid < 1f, "the second moves: " + mid);
+        advance(scene, 300);
+        assertEquals(1f, w.opacity());
+        assertEquals(1, back.get());
+        assertEquals(before[0], scene.tickerCounts()[0]);
+    }
+
+    @Test
     void aFadeThatGoesStraightThereIsOneSet() {
         Probe w = new Probe("w", painted);
         AccessibleHarness harness = new AccessibleHarness(runtime, w);
