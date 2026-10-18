@@ -3457,6 +3457,12 @@ public final class Scene {
             }
 
             @Override
+            public boolean namedByApplication(Widget<?> widget) {
+                return widget.accessibleName() != null || widget.accessibleLabelledBy() != null
+                        || widget.tooltipSource() != null;
+            }
+
+            @Override
             public void observeHoverWithin(Widget<?> widget,
                                            limn.scene.internal.SceneAccess.@Nullable HoverWithin observer) {
                 if (widget.hoverWithin == null && observer != null) {

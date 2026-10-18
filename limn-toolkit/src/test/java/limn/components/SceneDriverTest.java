@@ -148,6 +148,11 @@ class SceneDriverTest extends ComponentTestBase {
             public void observeHoverWithin(limn.scene.Widget<?> widget,
                                            limn.scene.internal.SceneAccess.HoverWithin observer) {
             }
+
+            @Override
+            public boolean namedByApplication(limn.scene.Widget<?> widget) {
+                return false;
+            }
         }));
     }
 

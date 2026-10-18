@@ -250,6 +250,24 @@ class DamageContractTest extends ComponentTestBase {
                     new BackdropEffect.Wash(Color.BLACK, 0.4f, -0.2f), Insets.NONE,
                     new Button("inside")), pointer()),
             natural("Button", () -> new Button("Go"), both()),
+            // An activated card with a footer (ADR 073 §2.10): the hover, the press and the focus
+            // repaint the clicked area and its ring; that the pointer in the footer's band repaints
+            // nothing of it is CardDamageTest's. Its shadow's reach is declared, and bounds rule 1.
+            natural("Card", () -> {
+                Card card = new Card(new Label("Three items, due on Friday.")).setTitle("Invoice 1042")
+                        .setFooter(new Button("Approve"));
+                card.onActivate(() -> { });
+                return card;
+            }, List.of(
+                    hoverAt("pointer onto the area", 20, 20).ceiling(0.9f),
+                    unhover(),
+                    new Gesture("pointer onto the footer's band", (s, w) -> move(s,
+                            w.localToScene(0, 0).x() + 4, w.localToScene(0, 0).y() + w.height() - 4),
+                            0, ANY, null),
+                    new Gesture("focus arrives on the area", (s, w) -> ((Card) w).area().requestFocus(),
+                            2, 0.9f, null),
+                    key("SPACE", Keys.SPACE).ceiling(0.9f),
+                    clickAt("click on the area", 20, 20).ceiling(0.9f))),
             natural("Checkbox", () -> new Checkbox(Checkbox.Variant.BOX, "Opt"), both()),
             // A colour change repaints each part it touches -- the plane, both ramps, the preview
             // and the fields -- and they span the picker, so the union is the picker. Measured,

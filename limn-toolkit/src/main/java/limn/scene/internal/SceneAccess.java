@@ -152,6 +152,12 @@ public final class SceneAccess {
          * @param observer told as the hover enters and leaves its subtree, or {@code null} to stop
          */
         void observeHoverWithin(Widget<?> widget, @org.jspecify.annotations.Nullable HoverWithin observer);
+
+        /**
+         * @param widget a widget
+         * @return whether the application named it; see {@link SceneAccess#namedByApplication}
+         */
+        boolean namedByApplication(Widget<?> widget);
     }
 
     /**
@@ -338,6 +344,19 @@ public final class SceneAccess {
      */
     public static void observeHoverWithin(Widget<?> widget, @org.jspecify.annotations.Nullable HoverWithin observer) {
         hook().observeHoverWithin(java.util.Objects.requireNonNull(widget, "widget"), observer);
+    }
+
+    /**
+     * Whether the application gave {@code widget} a name of its own for an assistive technology:
+     * a name written on it, a caption bound to it, or a tooltip, which names a node nothing else
+     * names. For a component whose only name is one the application must supply, to say so once
+     * when it is published without.
+     *
+     * @param widget a widget
+     * @return whether a name, a bound caption or a tooltip is on it
+     */
+    public static boolean namedByApplication(Widget<?> widget) {
+        return hook().namedByApplication(java.util.Objects.requireNonNull(widget, "widget"));
     }
 
     /**
