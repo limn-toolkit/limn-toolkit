@@ -35,7 +35,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * A card: a surface that holds one record, made of parts that are each optional. From the top,
  * a picture (the <em>media</em>), a header of a title over a subtitle with a part before them and a
  * part after them, the content, and a footer of actions at the trailing edge. A part that is not
- * set takes no room and leaves no gap.
+ * set, or is hidden, takes no room and leaves no gap.
  *
  * <pre>{@code
  * Card invoice = new Card(new Label("Three items, due on Friday.").setWrap(true))
@@ -400,7 +400,7 @@ public final class Card extends Widget<Card> {
         for (Widget<?> each : actions) {
             Objects.requireNonNull(each, "an action");
         }
-        boolean had = hasFooter();
+        boolean had = !footer.children().isEmpty();
         for (Widget<?> old : new ArrayList<>(footer.children())) {
             footer.remove(old);
         }
@@ -408,7 +408,7 @@ public final class Card extends Widget<Card> {
             footer.add(each);
         }
         markNeedsLayout();
-        if (had != hasFooter()) {
+        if (had != (actions.length > 0)) {
             // The published tree changes shape: an activated card turns from a button into a
             // group holding it, or back.
             notifyChange(Change.of(Change.Aspect.CHILDREN, Change.Origin.CODE));
@@ -421,8 +421,20 @@ public final class Card extends Widget<Card> {
         return Collections.unmodifiableList(new ArrayList<>(footer.children()));
     }
 
+    /** Whether the footer shows an action: one hidden takes no room, and neither does a footer of them. */
     private boolean hasFooter() {
-        return !footer.children().isEmpty();
+        List<Widget<?>> actions = footer.children();
+        for (int i = 0; i < actions.size(); i++) {
+            if (actions.get(i).isVisible()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Whether a part is there to lay out: set, and not hidden, since a hidden part takes no room. */
+    private static boolean shown(@Nullable Widget<?> part) {
+        return part != null && part.isVisible();
     }
 
     /** A one-line label of the header. */
@@ -704,11 +716,11 @@ public final class Card extends Widget<Card> {
     private final Arrangement arrangement = new Arrangement();
 
     private boolean hasMedia() {
-        return media != null || mediaIcon != null;
+        return shown(media) || mediaIcon != null;
     }
 
     private boolean hasHeader() {
-        return prefix != null || titleLabel != null || subtitleLabel != null || suffix != null;
+        return shown(prefix) || titleLabel != null || subtitleLabel != null || shown(suffix);
     }
 
     /** The widest the parts are asked to be, inside the padding, for a card {@code width} wide. */
@@ -726,7 +738,7 @@ public final class Card extends Widget<Card> {
         float inner = limit - 2 * pad;
         float widest = 0;
         float mediaWidth = 0;
-        if (media != null) {
+        if (shown(media)) {
             mediaWidth = media.measure(loose(inner)).width();
         } else if (mediaIcon != null) {
             mediaWidth = mediaFit == MediaFit.NATURAL ? 2 * t.iconBox() : 4 * t.iconBox();
@@ -771,7 +783,7 @@ public final class Card extends Widget<Card> {
         float gap = t.spacingMedium();
         float inner = Math.max(0, width - 2 * pad);
         out.width = width;
-        out.iconMedia = media == null && mediaIcon != null;
+        out.iconMedia = !shown(media) && mediaIcon != null;
         clear(out.mediaBox, out.prefixBox, out.titleBox, out.subtitleBox, out.suffixBox, out.contentBox);
         boolean horizontal = orientation == Orientation.HORIZONTAL && hasMedia();
         boolean cover = hasMedia() && mediaFit == MediaFit.COVER;
@@ -791,7 +803,7 @@ public final class Card extends Widget<Card> {
         if (hasMedia() && !horizontal) {
             float[] box = out.mediaBox;
             if (mediaFit == MediaFit.NATURAL) {
-                Size size = media != null ? media.measure(loose(inner)) : new Size(2 * t.iconBox(), 2 * t.iconBox());
+                Size size = shown(media) ? media.measure(loose(inner)) : new Size(2 * t.iconBox(), 2 * t.iconBox());
                 set(box, pad, pad, Math.min(inner, size.width()), size.height());
             } else if (mediaFit == MediaFit.STRETCH) {
                 set(box, pad, pad, inner, inner / mediaAspect);
@@ -808,28 +820,28 @@ public final class Card extends Widget<Card> {
             float top = y == 0 ? pad : y + (coverLast ? pad : gap);
             float prefixWidth = 0;
             float prefixHeight = 0;
-            if (prefix != null) {
+            if (shown(prefix)) {
                 Size size = prefix.measure(loose(columnWidth));
                 prefixWidth = size.width();
                 prefixHeight = size.height();
             }
             float suffixWidth = 0;
             float suffixHeight = 0;
-            if (suffix != null) {
+            if (shown(suffix)) {
                 Size size = suffix.measure(loose(columnWidth));
                 suffixWidth = size.width();
                 suffixHeight = size.height();
             }
-            float textX = columnX + (prefix != null ? prefixWidth + gap : 0);
-            float textWidth = Math.max(0, columnX + columnWidth - (suffix != null ? suffixWidth + gap : 0) - textX);
+            float textX = columnX + (shown(prefix) ? prefixWidth + gap : 0);
+            float textWidth = Math.max(0, columnX + columnWidth - (shown(suffix) ? suffixWidth + gap : 0) - textX);
             float titleHeight = titleLabel == null ? 0 : titleLabel.measure(loose(textWidth)).height();
             float subtitleHeight = subtitleLabel == null ? 0 : subtitleLabel.measure(loose(textWidth)).height();
             float text = titleHeight + subtitleHeight;
             float band = Math.max(text, Math.max(prefixHeight, suffixHeight));
-            if (prefix != null) {
+            if (shown(prefix)) {
                 set(out.prefixBox, columnX, top + (band - prefixHeight) / 2, prefixWidth, prefixHeight);
             }
-            if (suffix != null) {
+            if (shown(suffix)) {
                 set(out.suffixBox, columnX + columnWidth - suffixWidth, top + (band - suffixHeight) / 2,
                         suffixWidth, suffixHeight);
             }
@@ -845,7 +857,7 @@ public final class Card extends Widget<Card> {
         }
         float contentTop = 0;
         float contentHeight = 0;
-        if (content != null) {
+        if (shown(content)) {
             contentTop = y == 0 ? pad : y + (coverLast ? pad : gap);
             contentHeight = content.measure(loose(columnWidth)).height();
             y = contentTop + contentHeight;
@@ -855,9 +867,9 @@ public final class Card extends Widget<Card> {
         float mediaMinimum = 0;
         if (horizontal) {
             if (mediaFit == MediaFit.NATURAL) {
-                Size size = media != null ? media.measure(loose(mediaColumn)) : new Size(2 * t.iconBox(), 2 * t.iconBox());
+                Size size = shown(media) ? media.measure(loose(mediaColumn)) : new Size(2 * t.iconBox(), 2 * t.iconBox());
                 mediaMinimum = size.height() + 2 * pad;
-            } else if (media != null) {
+            } else if (shown(media)) {
                 // A picture keeps its own proportions at the column's width, at the least; it
                 // grows with the text beside it, cropped as its own fit says.
                 Size natural = media.measure(loose(Constraints.UNBOUNDED_LIMIT));
@@ -886,7 +898,7 @@ public final class Card extends Widget<Card> {
         }
         float total = Float.isNaN(height) ? natural : Math.max(height, 0);
         float extra = Math.max(0, total - natural);
-        if (content != null) {
+        if (shown(content)) {
             set(out.contentBox, columnX, contentTop, columnWidth, contentHeight + extra);
         }
         out.height = total;
@@ -901,7 +913,7 @@ public final class Card extends Widget<Card> {
         if (horizontal) {
             float[] box = out.mediaBox;
             if (mediaFit == MediaFit.NATURAL) {
-                Size size = media != null ? media.measure(loose(mediaColumn)) : new Size(2 * t.iconBox(), 2 * t.iconBox());
+                Size size = shown(media) ? media.measure(loose(mediaColumn)) : new Size(2 * t.iconBox(), 2 * t.iconBox());
                 set(box, pad, pad, Math.min(mediaColumn, size.width()), size.height());
             } else if (mediaFit == MediaFit.STRETCH) {
                 set(box, pad, pad, mediaColumn, Math.max(0, out.areaHeight - 2 * pad));
@@ -918,7 +930,7 @@ public final class Card extends Widget<Card> {
      */
     private float mediaColumnWidth(SizeTokens t, float width, float inner) {
         float third = width / 3;
-        if (media != null) {
+        if (shown(media)) {
             if (mediaFit == MediaFit.NATURAL) {
                 return Math.min(inner / 2, media.measure(loose(inner / 2)).width());
             }

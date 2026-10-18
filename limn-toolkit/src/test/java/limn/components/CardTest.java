@@ -148,6 +148,21 @@ class CardTest extends AccessibleComponentTestBase {
     }
 
     @Test
+    void aHiddenPartTakesNoRoomAndNoGap() {
+        Block content = new Block(100, 40);
+        Block media = new Block(60, 30);
+        Block action = new Block(50, 24);
+        Card card = bindCard(new Card(content).setTitle("Payroll").setMedia(media).setFooter(action));
+        float all = card.height();
+        media.setVisible(false);
+        frame();
+        assertEquals(all - 30 - GAP, card.height(), 0.5f, "the media hidden: its room and its gap go");
+        action.setVisible(false);
+        frame();
+        assertEquals(all - 30 - GAP - 24 - GAP, card.height(), 0.5f, "a footer of hidden actions is no footer");
+    }
+
+    @Test
     void theExtraHeightGoesToTheContentAndFootersLineUpInARow() {
         Block shortContent = new Block(80, 20);
         Block tallContent = new Block(80, 90);
