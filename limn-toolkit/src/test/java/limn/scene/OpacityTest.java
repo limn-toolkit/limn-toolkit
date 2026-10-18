@@ -217,6 +217,8 @@ class OpacityTest extends SceneTestBase {
         assertThrows(IllegalArgumentException.class, () -> w.fadeTo(Float.NaN));
         assertThrows(IllegalArgumentException.class, () -> w.fadeTo(0.5f, -1, null));
         assertThrows(IllegalArgumentException.class, () -> w.fadeTo(0.5f, Double.NaN, null));
+        // Finite, as a Transform's motions are: an infinite fade would never arrive, nor run onArrive.
+        assertThrows(IllegalArgumentException.class, () -> w.fadeTo(0.5f, Double.POSITIVE_INFINITY, null));
         assertEquals(0f, w.opacity(), "a refused call changes nothing");
     }
 

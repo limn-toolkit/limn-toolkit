@@ -84,8 +84,11 @@ final class OpacityGroup {
         Ui.checkUiThread();
         Widget.checkNotPainting(Change.Aspect.OPACITY);
         float clamped = checked(target);
-        if (!(seconds >= 0)) {
-            throw new IllegalArgumentException("a fade takes zero seconds or more: " + seconds);
+        if (!(seconds >= 0) || Double.isInfinite(seconds)) {
+            // Finite, as a transform's motions are: a fade of infinite length would never arrive,
+            // and its onArrive, often what hides or removes the container, would never run.
+            throw new IllegalArgumentException("a fade takes a finite number of seconds, zero or more: "
+                    + seconds);
         }
         supersede();
         Scene ticking = owner.scene();

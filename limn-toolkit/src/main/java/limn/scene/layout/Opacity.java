@@ -138,7 +138,8 @@ public final class Opacity extends Widget<Opacity> {
      * @param onArrive run once when the fade arrives, or at once when it goes straight there; never
      *                 when it is superseded; may be null
      * @return this
-     * @throws IllegalArgumentException if {@code target} is NaN, or {@code seconds} is negative or NaN
+     * @throws IllegalArgumentException if {@code target} is NaN, or {@code seconds} is negative,
+     *                                  NaN or infinite
      * @throws IllegalStateException    off the UI thread, or if called from inside a paint
      */
     public Opacity fadeTo(float target, double seconds, @Nullable Runnable onArrive) {

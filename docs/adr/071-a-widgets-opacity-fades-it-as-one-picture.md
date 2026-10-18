@@ -785,7 +785,10 @@ newer `fadeTo` or a `setOpacity` supersedes one in flight, whose `onArrive` does
 per container however many fades are asked for between two frames; a container leaving its scene
 mid-fade settles at its target and runs `onArrive` then; and the owner's rule of decision 2, a direct
 set that changes the value announcing `Change.Aspect.OPACITY` each time and a fade only at its start
-and at its arrival or supersession, now announced on the container.
+and at its arrival or supersession, now announced on the container. (2026-10-18, with stage 2 of
+ADR 072: `fadeTo` refuses an infinite number of seconds with `IllegalArgumentException`, as the
+`Transform` container's motions do, since a fade that never arrives never runs its `onArrive`; it
+accepted one before, which ADR 072 §9.2 left open for the two to agree on before 1.0.)
 
 And it is transparent to everything but the picture:
 
