@@ -1052,14 +1052,24 @@ public final class Dialog {
         return result;
     }
 
+    /**
+     * Fades the card in, in the scene. Two things move together over the window animation: the
+     * card's own opacity, which draws it, its shadow and its buttons as one picture, and this
+     * dialog's {@code fade}, which the veil's alpha and the card's slide follow and which the
+     * fade-out ends on. The veil is one fill and fades by its alpha, as one fill cannot show
+     * through itself.
+     */
     private void startFadeInScene() {
         if (limn.animation.Motion.reduced()) {
             fade = 1; // no fade for a user who asked for less motion: the card is there at once
+            panel.setOpacity(1f);
             if (overlay != null) {
                 overlay.invalidate();
             }
             return;
         }
+        panel.setOpacity(0f);
+        panel.fadeTo(1f, Theme.current().animWindow, null);
         // Wall time: a dialog is shell, and its twin fade-out completes the result future.
         hostScene.addRealTimeTicker(dt -> {
             fade = (float) Math.min(1, fade + limn.animation.Motion.progress(dt, Theme.current().animWindow));
@@ -1188,6 +1198,8 @@ public final class Dialog {
                 closeOverlay();
                 result.complete(value);
             });
+            // The card's picture fades with the veil; the ticker below is what ends the dialog.
+            panel.fadeTo(0f, Theme.current().animWindow, null);
             // Wall time, and load-bearing: this ticker's last frame is what removes the overlay
             // and completes `result`. On scene time a paused app could never close a dialog.
             hostScene.addRealTimeTicker(dt -> {
@@ -1534,15 +1546,15 @@ public final class Dialog {
                     // lies over the scrim and fades in with the card; in a window of its own
                     // the shadow is the compositor's, or drawn here into the window's margin
                     // where the compositor casts none.
-                    canvas.save();
-                    canvas.setOpacity(fade);
                     theme.drawElevation(canvas, limn.graphics.RoundRect.of(0, 0, w, h, t.radiusLarge()),
                             Elevation.MODAL);
-                    canvas.restore();
                 }
+                // Solid: in the scene the card's own opacity fades it, its shadow, border and
+                // buttons together as one picture (see startFadeInScene), so the border no longer
+                // shows through the buttons halfway; a window of its own fades through its
+                // compositor opacity.
                 canvas.fillRoundRectWithBorder(0, 0, w, h, t.radiusLarge(),
-                        theme.surface().withAlpha(0.98f * fade),
-                        Strokes.BORDER, theme.outline().withAlpha(fade));
+                        theme.surface().withAlpha(0.98f), Strokes.BORDER, theme.outline());
                 return;
             }
             switch (style) {
@@ -1556,20 +1568,6 @@ public final class Dialog {
                 }
                 default -> {
                 }
-            }
-        }
-
-        @Override
-        protected void paintChildren(Canvas canvas) {
-            // In a finally: the whole dialog subtree paints inside this one save, so anything
-            // throwing anywhere in it would leave the frame both unbalanced AND at the wrong
-            // opacity for whatever painted next.
-            canvas.save();
-            try {
-                canvas.setOpacity(fade);
-                super.paintChildren(canvas);
-            } finally {
-                canvas.restore();
             }
         }
 

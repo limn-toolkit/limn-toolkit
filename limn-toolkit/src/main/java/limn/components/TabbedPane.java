@@ -1370,12 +1370,8 @@ public final class TabbedPane extends Widget<TabbedPane> {
         protected void onPaint(Canvas canvas) {
             Theme theme = Theme.of(this);
             SizeTokens t = tokens();
-            float fade = AnchoredPopup.fadeOf(this);
-            boolean fading = fade < 1f;
-            if (fading) {
-                canvas.save();
-                canvas.setOpacity(fade);
-            }
+            // No fade here: in the scene the list's own opacity fades it as one picture, and a
+            // window of its own fades through its compositor opacity.
             if (castsShadow()) {
                 theme.drawElevation(canvas, limn.graphics.RoundRect.of(0, 0, width(), height(),
                         t.radiusLarge()), Elevation.OVERLAY);
@@ -1444,9 +1440,6 @@ public final class TabbedPane extends Widget<TabbedPane> {
                 }
             }
             canvas.restore();
-            if (fading) {
-                canvas.restore();
-            }
         }
 
         @Override

@@ -250,8 +250,12 @@ class TabbedPaneTabListTest extends AccessibleComponentTestBase {
         int firstShut = first.at.size();
         int lastShut = last.at.size();
         openList();
+        // The list fades in from nothing, and a picture at an opacity of 0 is not drawn at all:
+        // the rows are read once the fade has arrived.
+        advanceTime(400, null);
         first.at.clear();
         last.at.clear();
+        scene.requestRender(); // the whole frame, as the strip's frame above was
         scene.renderFrame(new RecordingTestCanvas(400, 300));
 
         assertEquals(firstShut + 1, first.at.size(), "Alpha's row draws its icon");

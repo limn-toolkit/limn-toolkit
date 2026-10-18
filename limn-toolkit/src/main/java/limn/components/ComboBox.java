@@ -2943,14 +2943,8 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             boolean rtl = isRtl();
             float itemH = t.popupItemHeight();
             float inset = t.popupRowInsetX();
-            // In-scene the canvas opacity does the fade; a popup window fades through its own
-            // compositor opacity, so that presentation paints solid here.
-            float fade = AnchoredPopup.fadeOf(this);
-            boolean fading = fade < 1f;
-            if (fading) {
-                canvas.save();
-                canvas.setOpacity(fade);
-            }
+            // No fade here: in the scene the list's own opacity fades it as one picture, and a
+            // window of its own fades through its compositor opacity.
             // Slightly translucent panel: the desktop shows through, and the rounded corners are
             // genuinely transparent (framebuffer alpha 0). In-scene the same 0.94 composites
             // over the owner's own content instead of over the desktop, and a list you can read
@@ -3049,9 +3043,6 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
                 canvas.restore();
             }
             canvas.restore();
-            if (fading) {
-                canvas.restore();
-            }
         }
 
         /**

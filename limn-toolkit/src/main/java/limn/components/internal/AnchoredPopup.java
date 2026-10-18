@@ -155,8 +155,6 @@ public final class AnchoredPopup {
     private @Nullable Scene popupScene;
     private @Nullable Widget<?> panel;
     private @Nullable Layer layer;
-    /** How far the layer in the scene has faded in, 0 to 1; a window fades itself. */
-    private float fade = 1;
     private int margin;
     private @Nullable Subscription blur;
     private @Nullable Subscription popupBlur;
@@ -197,11 +195,6 @@ public final class AnchoredPopup {
     /** @return the margin its window keeps around the panel for a shadow, in pixels */
     public int margin() {
         return margin;
-    }
-
-    /** @return how far the layer in the scene has faded in, which its panel paints with; 1 in a window */
-    public float fade() {
-        return layer != null ? fade : 1;
     }
 
     /**
@@ -375,32 +368,33 @@ public final class AnchoredPopup {
         window.requestFrame();
     }
 
-    /** Draws the panel in the owner's scene, on a layer that takes every press beside it. */
+    /**
+     * Draws the panel in the owner's scene, on a layer that takes every press beside it, and fades
+     * the panel in through its own opacity: the panel and its shadow, rows, highlight and icons as
+     * one picture, so nothing in it shows through what covers it halfway through the fade. The
+     * panel's and not the layer's, which covers the whole scene: a picture the size of the panel
+     * and a repaint of the panel's box each frame, not of the window.
+     */
     private void presentInScene(Scene owner) {
-        panel = host.createPanel(false);
+        Widget<?> card = host.createPanel(false);
+        panel = card;
         // Before the layer is pushed, for the reason a window's root takes it before binding.
-        panel.setInheritanceHost(host.opener());
-        layer = new Layer(panel);
+        card.setInheritanceHost(host.opener());
+        layer = new Layer(card);
         // On the layer as well, and it is the layer's that works: a host link on a widget with a
         // parent loses to the tree, and the panel's parent is the layer.
         layer.setInheritanceHost(host.opener());
         boolean animate = owner.window() != null && !Motion.reduced();
-        fade = animate ? 0 : 1;
+        if (animate) {
+            card.setOpacity(0f); // before the push, so nothing in the scene hears a fresh panel start
+        }
         if (host.keepsKeyboard()) {
             SceneAccess.pushPopupLeavingKeyboard(owner, layer);
         } else {
             owner.pushPopup(layer);
         }
         if (animate) {
-            Layer fading = layer;
-            owner.addRealTimeTicker(dt -> {
-                if (!open || layer != fading) {
-                    return false; // closed mid-fade: the fade-out takes over
-                }
-                fade = (float) Math.min(1, fade + Motion.progress(dt, Theme.of(host.anchor()).animWindow));
-                fading.invalidate();
-                return fade < 1;
-            });
+            card.fadeTo(1f, Theme.of(host.anchor()).animWindow, null); // a close supersedes it
         }
     }
 
@@ -506,38 +500,14 @@ public final class AnchoredPopup {
         if (refocus != null) {
             refocus.requestFocus();
         }
-        float[] left = {fade};
-        closing.fade = left[0];
-        // Wall time: this fade's last frame removes the layer that holds the pointer, and frozen it
-        // would leave a paused application with its field beneath unreachable.
-        owner.addRealTimeTicker(dt -> {
-            left[0] = (float) Math.max(0, left[0] - Motion.progress(dt, Theme.of(host.anchor()).animWindow));
-            closing.fade = left[0];
-            closing.invalidate();
-            if (left[0] > 0) {
-                return true;
-            }
+        // From wherever the fade in had got to, on wall time: this fade's arrival removes the layer
+        // that holds the pointer, and a paused application must still get its field beneath back.
+        // Nothing else fades this panel, a fresh one for each presentation, so nothing supersedes
+        // the fade that removes it.
+        closing.content.fadeTo(0f, Theme.of(host.anchor()).animWindow, () -> {
             owner.removeOverlay(closing);
             host.released();
-            return false;
         });
-    }
-
-    /**
-     * The opacity a panel paints with: its layer's fade in the scene, in and out, and 1 in a
-     * window, which fades itself. A layer keeps its own fade from the moment it closes, so a popup
-     * opened again meanwhile fades in on its own.
-     *
-     * @param widget the panel, or anything inside it
-     * @return the opacity, 0 to 1
-     */
-    public static float fadeOf(Widget<?> widget) {
-        for (Widget<?> w = widget; w != null; w = w.parent()) {
-            if (w instanceof AnchoredPopup.Layer l) {
-                return l.paintFade();
-            }
-        }
-        return 1;
     }
 
     /**
@@ -548,17 +518,11 @@ public final class AnchoredPopup {
     private final class Layer extends Widget<Layer> {
 
         private final Widget<?> content;
-        /** -1 while open, when the popup's own fade is read; the fade-out's own value after. */
-        private float fade = -1;
 
         Layer(Widget<?> content) {
             this.content = content;
             setFocusable(true);
             add(content);
-        }
-
-        float paintFade() {
-            return fade >= 0 ? fade : AnchoredPopup.this.fade;
         }
 
         @Override

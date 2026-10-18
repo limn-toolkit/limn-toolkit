@@ -1333,9 +1333,10 @@ public abstract class Chart<W extends Chart<W>> extends Widget<W> {
         float rowHeight = measure("X", rowFont).lineHeight();
         float headingHeight = heading.isEmpty() ? 0 : measure(heading, headingFont).lineHeight();
 
-        canvas.save();
+        // The panel, its border, its swatches and its lines fade as one picture, so the border
+        // does not show through the text that covers it halfway through the fade.
+        canvas.saveLayer(px - 1, py - 1, panelWidth + 2, panelHeight + 2, fade);
         try {
-            canvas.setOpacity(fade);
             canvas.fillRoundRectWithBorder(px, py, panelWidth, panelHeight, t.radiusSmall(),
                     theme.surfaceRaised(), Strokes.BORDER, theme.outline());
             float y = py + padV;

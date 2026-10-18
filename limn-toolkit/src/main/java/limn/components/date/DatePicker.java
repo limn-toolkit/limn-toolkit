@@ -1467,26 +1467,16 @@ public final class DatePicker extends Widget<DatePicker> {
         }
 
         /**
-         * In-scene the canvas opacity runs the fade; a popup window fades through its own
-         * compositor opacity, so that presentation paints solid here.
-         *
-         * <p>The grid is a <b>child</b> of this panel, unlike the combo box's rows, which it
-         * paints itself. So the opacity has to be applied twice &mdash; here and around
-         * {@link #paintChildren} &mdash; or the card fades in from nothing while the calendar on
-         * it is already fully drawn, which is not a fade but a flash. The alternative, alpha on
-         * the fill colour alone, is what produced exactly that.
+         * The card, painted solid: in the scene the panel's own opacity fades the card and the
+         * calendar on it as one picture, so the grid, a child, fades with the card that holds it
+         * and never shows the card through itself; a popup window fades through its compositor
+         * opacity.
          */
         @Override
         protected void onPaint(Canvas canvas) {
             Theme theme = Theme.of(this);
             SizeTokens t = theme.tokensFor(DatePicker.this);
             float radius = t.radiusLarge();
-            float fade = AnchoredPopup.fadeOf(this);
-            boolean fading = fade < 1f;
-            if (fading) {
-                canvas.save();
-                canvas.setOpacity(fade);
-            }
             // Solid in the scene, slightly translucent in a window of its own: in a window the
             // desktop shows through and the rounded corners are genuinely transparent, while in
             // the scene the same translucency would composite over the form underneath, and a
@@ -1498,22 +1488,6 @@ public final class DatePicker extends Widget<DatePicker> {
             canvas.fillRoundRectWithBorder(0, 0, width(), height(), radius,
                     !inWindow ? theme.surfaceRaised() : theme.surfaceRaised().withAlpha(0.94f),
                     Strokes.BORDER, theme.outline());
-            if (fading) {
-                canvas.restore();
-            }
-        }
-
-        @Override
-        protected void paintChildren(Canvas canvas) {
-            float fade = AnchoredPopup.fadeOf(this);
-            if (fade >= 1f) {
-                super.paintChildren(canvas);
-                return;
-            }
-            canvas.save();
-            canvas.setOpacity(fade);
-            super.paintChildren(canvas);
-            canvas.restore();
         }
 
         /**

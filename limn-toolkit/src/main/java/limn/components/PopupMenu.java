@@ -187,7 +187,8 @@ public final class PopupMenu {
     private DisplayMode requested = defaultDisplayMode;
     // In-scene overlay opacity: 1 in native mode (the window opacity does the fade);
     // animated 0→1 on open and 1→0 on close for the fullscreen fallback, which has no
-    // separate window to fade, so it mirrors the native popup's fade in/out.
+    // separate window to fade, so it mirrors the native popup's fade in/out. The cascade is
+    // composited with it as one picture (MenuSurface.saveFadeLayer).
     private float sceneFade = 1f;
     private Scene owner;
     private MenuSurface surface;
@@ -536,7 +537,7 @@ public final class PopupMenu {
                 limn.scene.internal.SceneAccess.releaseOverlayKeyboard(o, s);
                 o.addRealTimeTicker(dt -> {
                     sceneFade = (float) Math.max(0, sceneFade - limn.animation.Motion.progress(dt, Theme.current().animWindow));
-                    s.invalidate();
+                    s.invalidateCascade();
                     if (sceneFade > 0) {
                         return true;
                     }
@@ -723,7 +724,7 @@ public final class PopupMenu {
                     return false; // closed mid-fade: let the fade-out ticker take over
                 }
                 sceneFade = (float) Math.min(1, sceneFade + limn.animation.Motion.progress(dt, Theme.current().animWindow));
-                surface.invalidate();
+                surface.invalidateCascade();
                 return sceneFade < 1;
             });
         }
@@ -1278,12 +1279,12 @@ public final class PopupMenu {
                 // cannot index past the live item list.
                 Ui.post(this::rebuildStaleColumns);
             }
-            // In-scene fallback fades the whole cascade via the canvas opacity; the
+            // In the scene the cascade fades as one picture, so a column's shadow does not darken
+            // the column and a submenu does not show the menu beneath it through itself; the
             // native popup fades through its window opacity, so it paints solid here.
             boolean fading = fillScene && sceneFade < 1f;
             if (fading) {
-                canvas.save();
-                canvas.setOpacity(sceneFade);
+                saveFadeLayer(canvas);
             }
             for (Column col : cols) {
                 paintColumn(canvas, col);
@@ -1291,6 +1292,66 @@ public final class PopupMenu {
             if (fading) {
                 canvas.restore();
             }
+        }
+
+        /**
+         * Opens the layer the cascade fades through: over the columns and what their shadows reach,
+         * and not this surface's own opacity, because in the scene this surface covers the scene,
+         * and a picture of it would be the window's on every frame of the fade.
+         */
+        private void saveFadeLayer(Canvas canvas) {
+            float reach = cascadeReach();
+            canvas.saveLayer(cascadeLeft() - reach, cascadeTop() - reach,
+                    cascadeRight() - cascadeLeft() + 2 * reach, cascadeBottom() - cascadeTop() + 2 * reach,
+                    sceneFade);
+        }
+
+        /** Repaints the cascade and what its shadows reach: what a step of its fade changes. */
+        void invalidateCascade() {
+            if (cols.isEmpty()) {
+                return;
+            }
+            float reach = cascadeReach();
+            invalidate(cascadeLeft() - reach, cascadeTop() - reach,
+                    cascadeRight() - cascadeLeft() + 2 * reach, cascadeBottom() - cascadeTop() + 2 * reach);
+        }
+
+        private float cascadeReach() {
+            return 1 + Theme.of(this).elevation(Elevation.OVERLAY).reach();
+        }
+
+        // The cascade's edges in this surface's coordinates; none of the four allocates, as a fade
+        // frame asks them of every column on every frame.
+        private float cascadeLeft() {
+            float v = Float.MAX_VALUE;
+            for (Column col : cols) {
+                v = Math.min(v, col.x - offsetX);
+            }
+            return cols.isEmpty() ? 0 : v;
+        }
+
+        private float cascadeTop() {
+            float v = Float.MAX_VALUE;
+            for (Column col : cols) {
+                v = Math.min(v, col.y - offsetY);
+            }
+            return cols.isEmpty() ? 0 : v;
+        }
+
+        private float cascadeRight() {
+            float v = -Float.MAX_VALUE;
+            for (Column col : cols) {
+                v = Math.max(v, col.x + col.w - offsetX);
+            }
+            return cols.isEmpty() ? 0 : v;
+        }
+
+        private float cascadeBottom() {
+            float v = -Float.MAX_VALUE;
+            for (Column col : cols) {
+                v = Math.max(v, col.y + col.visibleH - offsetY);
+            }
+            return cols.isEmpty() ? 0 : v;
         }
 
         private void paintColumn(Canvas canvas, Column col) {
