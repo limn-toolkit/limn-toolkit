@@ -359,7 +359,8 @@ Maven Central say which number that was.
   and is read by a screen reader, and `setVisible(false)` is what takes it away, which a fade out
   does in its `onArrive`. While the system asks for less motion, or with no window to fade in, a
   fade goes straight to its target; a newer `fadeTo` or a `setOpacity` stops one in flight, whose
-  `onArrive` never runs. A watcher hears `Change.Aspect.OPACITY` each time `setOpacity` changes the
+  `onArrive` never runs; a widget taken out of its window mid-fade arrives as it leaves, and runs
+  its `onArrive` then. A watcher hears `Change.Aspect.OPACITY` each time `setOpacity` changes the
   value and twice for a fade, as it starts and as it ends. Measured on an Apple M5 Max, a popup's
   fade frame costs 0.04 ms of CPU and 0.02 ms of GPU more than the same frame opaque; on Apple's
   software renderer about 3 ms of a 150 ms frame. A window keeps the pictures only while

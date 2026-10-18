@@ -410,6 +410,9 @@ public abstract class Widget<W extends Widget<W>> {
         // sees itself in a scene; detach fires bottom-up (children before this).
         boolean attaching = old == null && newScene != null;
         boolean detaching = old != null && newScene == null;
+        if (old != null && newScene != old) {
+            settleFadeOnLeaving(); // while scene() still answers the one it is leaving
+        }
         if (!detaching) {
             this.scene = newScene;
         }
@@ -958,7 +961,8 @@ public abstract class Widget<W extends Widget<W>> {
      *
      * <p><b>A newer {@code fadeTo} or a {@link #setOpacity} supersedes one in flight</b>: it stops
      * where it is, and its {@code onArrive} never runs. A fade on a widget that leaves its scene
-     * settles at its target at that scene's next frame, and runs its {@code onArrive} then.
+     * (removed from the tree, or its window closed) settles at its target as it leaves, announcing
+     * its end and running its {@code onArrive} then.
      *
      * <p><b>A watcher hears a fade twice</b>, as {@link Change.Aspect#OPACITY} with origin
      * {@code CODE}: when it starts, and when it arrives or is superseded. The steps between set the
@@ -1016,16 +1020,11 @@ public abstract class Widget<W extends Widget<W>> {
      */
     private boolean stepFade(FadeTicker ticker, double dt) {
         if (fadeTicker != ticker) {
-            return false; // replaced by one on the scene the widget fades in now
+            return false; // on a scene this widget has left, whose leaving settled its fade
         }
         Fade stepping = fade;
         if (stepping == null) {
             fadeTicker = null;
-            return false;
-        }
-        if (scene != ticker.scene) {
-            fadeTicker = null;
-            settleFade(stepping); // left the scene it was fading in: it ends where it was going
             return false;
         }
         if (stepping.started) {
@@ -1040,13 +1039,34 @@ public abstract class Widget<W extends Widget<W>> {
         }
         settleFade(stepping);
         if (fadeTicker != ticker) {
-            return false; // its onArrive moved the widget to a fade on another scene
+            return false; // its onArrive took the widget out of this scene
         }
         if (fade != null) {
             return true; // its onArrive started another fade, which this ticker steps
         }
         fadeTicker = null;
         return false;
+    }
+
+    /**
+     * The widget leaves the scene whose frames step its fade: the fade settles at its target now,
+     * announcing its end and running its {@code onArrive}, as it would have at its last frame, and
+     * the widget lets go of the ticker, and through it of that scene. Not at that scene's next
+     * frame, as it once did, which a closed, covered or minimized window never renders: the widget
+     * moved to another window kept a value between the two for good and the scene it left alive.
+     *
+     * <p>Settled and not dropped, because the design of fades says a widget that leaves its scene
+     * settles at its target and runs its {@code onArrive}, and that is the one end that
+     * keeps its two announcements and what an {@code onArrive} is for: it hides or removes
+     * something, and a widget taken away mid-fade has asked for that end, not stopped short of it.
+     * Only a newer fade or a set supersedes one, which is the caller choosing another end.
+     */
+    private void settleFadeOnLeaving() {
+        fadeTicker = null; // the ticker left behind finds itself replaced, if that scene ticks again
+        Fade leaving = fade;
+        if (leaving != null) {
+            settleFade(leaving);
+        }
     }
 
     /** A fade arrives: the target, its one announcement of the end, and what it runs. */

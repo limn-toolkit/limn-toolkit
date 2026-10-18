@@ -471,4 +471,43 @@ class WidgetOpacityTest extends SceneTestBase {
         assertEquals(0f, w.opacity(), "at its target");
         assertEquals(1, arrived.get(), "and its onArrive has run");
     }
+
+    @Test
+    void aFadeOnAWidgetMovedToAnotherWindowSettlesAsItLeavesAndKeepsNothingOfTheOldScene()
+            throws ReflectiveOperationException {
+        Probe w = new Probe("w", painted);
+        Stack inA = new Stack();
+        inA.add(w);
+        Scene a = sceneOf(inA);
+        AtomicInteger arrived = new AtomicInteger();
+        List<Change> heard = new ArrayList<>();
+        w.observeChanges((source, change) -> heard.add(change));
+        w.fadeTo(0f, 0.3, arrived::incrementAndGet);
+        advance(a, 16);
+        advance(a, 100);
+        float mid = w.opacity();
+        assertTrue(mid > 0f && mid < 1f, "in flight: " + mid);
+
+        // A's window never renders again (closed, covered or minimized); the widget goes to B.
+        inA.remove(w);
+        assertEquals(0f, w.opacity(), "settled at its target as it left, not at A's next frame");
+        assertEquals(1, arrived.get(), "its onArrive run then, once");
+        assertEquals(2, heard.stream().filter(c -> c.aspect() == Change.Aspect.OPACITY).count(),
+                "its start and its end, and nothing else");
+
+        Stack inB = new Stack();
+        inB.add(w);
+        Scene b = sceneOf(inB);
+        for (int i = 0; i < 30; i++) {
+            advance(b, 16);
+        }
+        assertEquals(0f, w.opacity(), "nothing moves it in B");
+        assertEquals(1, arrived.get());
+        for (String field : new String[] {"fade", "fadeTicker"}) {
+            java.lang.reflect.Field f = Widget.class.getDeclaredField(field);
+            f.setAccessible(true);
+            assertEquals(null, f.get(w), field + ": nothing of A is held through the widget");
+        }
+        assertNotNull(a); // A is kept by this test, not by the widget
+    }
 }

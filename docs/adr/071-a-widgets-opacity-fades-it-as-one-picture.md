@@ -676,8 +676,12 @@ build.
 - **`fadeTo` runs on the scene's wall-time ticker** (`addRealTimeTicker`), as the window fades do:
   an `onArrive` often hides or removes something, and a paused scene must still be able to. "No
   scene to tick" is a widget in no scene or in a scene with no window, as `Scene.fadeWindow` has
-  it; a fade on a widget that leaves its scene settles at its target at that scene's next frame
-  and runs its `onArrive` then. `fadeTo(target)` takes the theme's `animWindow` through
+  it; a fade on a widget that leaves its scene settles at its target as it leaves and runs its
+  `onArrive` then (2026-10-17, after review: it settled at that scene's next frame, which a
+  closed, covered or minimized window never renders, so a widget moved to another window kept a
+  value between the two and the scene it left alive). A widget keeps one ticker for its fades,
+  whatever the number of `fadeTo` calls (2026-10-17, after review: one per call accumulated while
+  a covered window rendered no frame). `fadeTo(target)` takes the theme's `animWindow` through
   `limn.scene.internal.WindowAnimation`, which the theme installs as it does `LayoutOverflow`.
 - **An opacity change's damage asks for no accessible walk** (`Scene.damageWidgetPicture`), since
   nothing the tree publishes reads it (section 2.8): a fade of twelve frames walked and compared
