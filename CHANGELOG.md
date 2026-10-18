@@ -370,7 +370,7 @@ Maven Central say which number that was.
   widget as `Padding` does: `new Opacity(panel)`. `setOpacity(float)` sets how opaque the child and
   everything under it are drawn, from 0 to 1, and `opacity()` answers it; `fadeTo(target, seconds,
   onArrive)` moves it there eased as the toolkit's popups fade, and `fadeTo(target)` over the
-  theme's `animWindow`. Between 0 and 1 the child is drawn into an offscreen picture laid over the
+  theme's `animWindow`, in a finite number of seconds. Between 0 and 1 the child is drawn into an offscreen picture laid over the
   window once, so the parts of a panel do not show through each other halfway; a container inside
   another multiplies its opacity; at 1 nothing extra is drawn and at 0 nothing is drawn. Under a
   blend mode a parent's paint left in force, the container's child is one picture blended once at
@@ -952,8 +952,8 @@ Maven Central say which number that was.
 - A `Transform` rotates and skews its child: `setRotation(degrees)` turns it clockwise about its
   origin, the same way in either reading direction, as a clock does, and `rotateTo(degrees)` turns it
   there over the theme's `animWindow` or a given time, by the rules of `slideTo`; `setMatrix(Mat4)`
-  draws it through any flat map of the plane, a skew made with the new `Mat4.affine2D(a, b, c, d, e,
-  f)`. A turned child is drawn upright into a picture of its own and laid at the angle: every clip
+  draws it through any finite matrix, a skew made with the new `Mat4.affine2D(a, b, c, d, e, f)` or
+  a perspective of its own. A turned child is drawn upright into a picture of its own and laid at the angle: every clip
   inside stays exact, a scroll view inside skips what scrolled away, the edges are smooth, text reads
   a little softer, and a frosted glass inside reads the window as it would upright. The picture costs
   what a fade of the same size costs while the child is turned; measured on an Apple M5 Max, nothing
@@ -963,6 +963,20 @@ Maven Central say which number that was.
   transform's flat part straight.
 - A combo box's list, a date picker's calendar or a tab list open in a window of their own follow
   their anchor when a `Transform` above it is set or a motion of it arrives.
+- A `Transform` turns its child in depth: `setRotation3D(axis, degrees)` or `setRotation3D(Quat)`
+  turns its plane about an axis through the origin, x to the right, y down and z toward the reader,
+  and `setPerspective(distance)` looks at it from that many points in front of the origin, so the
+  near edge is drawn larger than the far one; with a perspective set, `flipTo` turns the child over in
+  depth instead of flat. `setBackfaceVisible(false)` hides a child turned past a quarter, which is
+  otherwise drawn mirrored; a mirror made by a negative scale still faces the reader. A turn of
+  exactly a quarter draws nothing and takes no click, and what a turn brings past the eye is not
+  drawn. A frosted glass inside a child seen in perspective shows its own tint and none of the window.
+  Measured on an Apple M5 Max, the perspective's composite costs nothing a GPU shows and 2 to 3 ms of
+  a frame on the software renderer; a card turned far is drawn at its near edge's size, which costs
+  the software renderer up to 60 ms of a frame while it is turned.
+- `Mat4.perspectiveAt(distance)`: a perspective seen from an eye in front of the plane z = 0, in the
+  plane's own units.
+- The Showcase's two-sided card turns over in depth, and the Animations guide shows a turn in depth.
 
 ### Changed
 
@@ -1146,7 +1160,6 @@ Maven Central say which number that was.
   itself moves them to those versions.
 - The guides and the demo name `limn-icons-tabler` 3.48.0.0: 36 more icons, none removed or moved,
   so code that names a constant compiles unchanged.
-- `Opacity.fadeTo` refuses an infinite number of seconds, as a `Transform`'s motions do.
 
 ### Breaking, and how to move
 
