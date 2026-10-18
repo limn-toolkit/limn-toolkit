@@ -972,8 +972,14 @@ Maven Central say which number that was.
   exactly a quarter draws nothing and takes no click, and what a turn brings past the eye is not
   drawn. A frosted glass inside a child seen in perspective shows its own tint and none of the window.
   Measured on an Apple M5 Max, the perspective's composite costs nothing a GPU shows and 2 to 3 ms of
-  a frame on the software renderer; a card turned far is drawn at its near edge's size, which costs
-  the software renderer up to 60 ms of a frame while it is turned.
+  a frame on the software renderer. With a graphics processor the picture is drawn at its near
+  edge's size; with none it is drawn at the child's own size, so the near edge reads a little softer
+  while it is turned and a card turned 30 or 75 degrees costs some 3 ms more a frame, or less, than
+  the card drawn straight, where the near edge's size cost 45 and 62 ms. A picture seen at less than
+  half its size somewhere, a page laid far back, is laid through mipmaps, so its fine detail is
+  averaged instead of flickering as it turns, and a change inside it repaints the whole picture: a
+  few hundredths of a millisecond a frame on the GPU, about 9 ms, 3% of the frame, on the software
+  renderer; a turn that does not shrink its picture past two to one costs nothing more.
 - `Mat4.perspectiveAt(distance)`: a perspective seen from an eye in front of the plane z = 0, in the
   plane's own units.
 - The Showcase's two-sided card turns over in depth, and the Animations guide shows a turn in depth.
