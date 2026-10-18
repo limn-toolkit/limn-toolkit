@@ -132,8 +132,6 @@ final class GlCanvas implements Canvas {
      * opens: the window's own, or whatever a test or a probe bound before beginning the frame.
      */
     private int baseFramebuffer;
-    /** The clip a composite draws under: the whole window, since a layer's picture is already cut. */
-    private final DeviceClip wholeWindow = new DeviceClip();
     // Lazy, and normally never built: the standing-in ruler for a canvas nobody installed one for.
     // See ruler() for why that case exists at all and why it is not simply an error.
     private ShapingRuler ownRuler;
@@ -198,7 +196,6 @@ final class GlCanvas implements Canvas {
             texturesDeleted |= layers.beginFrame(framebufferWidth, framebufferHeight);
         }
         openLayers = 0;
-        wholeWindow.reset(framebufferWidth, framebufferHeight);
         if (texturesDeleted) {
             batch.resetTexture();
         }
@@ -548,9 +545,9 @@ final class GlCanvas implements Canvas {
     /**
      * Closes a layer: what was drawn into it reaches its picture, the target it opened over is bound
      * again, and the picture goes into that target as one quad, at the layer's opacity times the
-     * enclosing state's, with the enclosing state's blend mode. The quad draws under no clip: the
-     * picture was drawn under the clip already, its pixels cut where the clip cut them, and a second
-     * pass of the same clip would square its antialiased edge.
+     * enclosing state's, with the enclosing state's blend mode, by the batch's composite program.
+     * The quad draws under no clip: the picture was drawn under the clip already, its pixels cut
+     * where the clip cut them, and a second pass of the same clip would square its antialiased edge.
      */
     private void closeLayer(State closing) {
         GlLayerPool.Picture picture = closing.layer;
@@ -561,31 +558,25 @@ final class GlCanvas implements Canvas {
         State s = state();
         float alpha = closing.layerOpacity * s.opacity;
         if (alpha > 0f) {
-            int x0 = closing.layerX;
-            int y0 = closing.layerY;
-            int x1 = x0 + closing.layerWidth;
-            int y1 = y0 + closing.layerHeight;
-            // The layer drew into the picture's bottom-left part, its top row the part's top.
-            float u1 = closing.layerWidth / (float) picture.width;
-            float vTop = closing.layerHeight / (float) picture.height;
             applyBlend(s);
-            batch.requireTexture(picture.texture);
-            batch.setShape(0, 0, 0, 0, 0, 0, -1, KIND_IMAGE, PAINT_SOLID);
-            batch.setColors(1, 1, 1, alpha, 0, 0, 0, 0);
-            batch.setGradient(0, 0, 0, 0);
-            batch.setClip(wholeWindow);
-            batch.ensure(4, 6);
-            int base = batch.baseVertex();
-            batch.vertex(x0, y0, 0, 0, 0, vTop);
-            batch.vertex(x1, y0, 0, 0, u1, vTop);
-            batch.vertex(x1, y1, 0, 0, u1, 0);
-            batch.vertex(x0, y1, 0, 0, 0, 0);
-            batch.triangle(base, base + 1, base + 2);
-            batch.triangle(base, base + 2, base + 3);
+            compositePart(picture, closing, closing.layerX, closing.layerY,
+                    closing.layerX + closing.layerWidth, closing.layerY + closing.layerHeight, alpha);
         }
-        // Back in the pool for the next layer, whose opening flushes this quad before anything is
-        // drawn into the picture again.
         layers.give(picture);
+    }
+
+    /**
+     * Lays the part of a layer's picture that covers the window's device pixels {@code (x0, y0)} to
+     * {@code (x1, y1)} over the current target at {@code alpha}. The layer drew into the picture's
+     * bottom-left part, and a picture's rows count up from its bottom edge.
+     */
+    private void compositePart(GlLayerPool.Picture picture, State layer, int x0, int y0, int x1, int y1,
+                               float alpha) {
+        float u0 = (x0 - layer.layerX) / (float) picture.width;
+        float u1 = (x1 - layer.layerX) / (float) picture.width;
+        float v0 = (layer.layerY + layer.layerHeight - y0) / (float) picture.height;
+        float v1 = (layer.layerY + layer.layerHeight - y1) / (float) picture.height;
+        batch.composite(picture.texture, x0, y0, x1, y1, u0, v0, u1, v1, alpha);
     }
 
     /** @return the state of the innermost layer open now, or null when the frame's own target is */
@@ -946,9 +937,9 @@ final class GlCanvas implements Canvas {
      * frame, at the fade's opacity, and at an opacity of 1 there is no layer and the reading is the
      * window's, as it always was.
      *
-     * <p>The price is one textured quad per open layer per glass over the region, and two binds;
-     * section 5 of the record measured it. The caller has flushed: every layer's picture holds what
-     * was drawn into it before the glass.
+     * <p>The price is one composite per open layer per glass, over the region the glass reads, and
+     * two binds. The caller has flushed: every layer's picture holds what was drawn into it before
+     * the glass.
      *
      * @return the copy, ready to sample, in the window's coordinates like any backdrop copy
      */
@@ -973,25 +964,7 @@ final class GlCanvas implements Canvas {
             if (x1 <= x0 || y1 <= y0) {
                 continue;
             }
-            GlLayerPool.Picture picture = layer.layer;
-            float u0 = (x0 - layer.layerX) / (float) picture.width;
-            float u1 = (x1 - layer.layerX) / (float) picture.width;
-            // Rows of the picture count up from the layer's bottom edge.
-            float v0 = (layer.layerY + layer.layerHeight - y0) / (float) picture.height;
-            float v1 = (layer.layerY + layer.layerHeight - y1) / (float) picture.height;
-            batch.requireTexture(picture.texture);
-            batch.setShape(0, 0, 0, 0, 0, 0, -1, KIND_IMAGE, PAINT_SOLID);
-            batch.setColors(1, 1, 1, 1, 0, 0, 0, 0);
-            batch.setGradient(0, 0, 0, 0);
-            batch.setClip(wholeWindow);
-            batch.ensure(4, 6);
-            int base = batch.baseVertex();
-            batch.vertex(x0, y0, 0, 0, u0, v0);
-            batch.vertex(x1, y0, 0, 0, u1, v0);
-            batch.vertex(x1, y1, 0, 0, u1, v1);
-            batch.vertex(x0, y1, 0, 0, u0, v1);
-            batch.triangle(base, base + 1, base + 2);
-            batch.triangle(base, base + 2, base + 3);
+            compositePart(layer.layer, layer, x0, y0, x1, y1, 1f);
         }
         batch.flush();
         bindTarget(innermostLayer());

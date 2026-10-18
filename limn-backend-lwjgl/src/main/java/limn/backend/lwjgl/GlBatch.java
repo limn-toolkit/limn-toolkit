@@ -88,6 +88,16 @@ final class GlBatch implements AutoCloseable {
     private FloatBuffer flatVertices = MemoryUtil.memAllocFloat(6 * 8 * FLAT_VERTEX_FLOATS);
     private int flatVertexCount;
 
+    /** Floats per composite vertex: device position, then the picture's texture coordinates. */
+    static final int COMPOSITE_VERTEX_FLOATS = 4;
+    private final ShaderProgram compositeProgram;
+    private final int compositeUniformViewport;
+    private final int compositeUniformOrigin;
+    private final int compositeUniformAlpha;
+    private final int compositeVao;
+    private final int compositeVbo;
+    private final FloatBuffer compositeVertices = MemoryUtil.memAllocFloat(6 * COMPOSITE_VERTEX_FLOATS);
+
     private FloatBuffer vertices = MemoryUtil.memAllocFloat(INITIAL_VERTICES * VERTEX_FLOATS);
     private IntBuffer indices = MemoryUtil.memAllocInt(INITIAL_INDICES);
     private int vertexCount;
@@ -149,6 +159,23 @@ final class GlBatch implements AutoCloseable {
         int flatStride = FLAT_VERTEX_FLOATS * Float.BYTES;
         attribute(0, 2, flatStride, 0); // a_pos
         attribute(1, 4, flatStride, 2); // a_color
+        glBindVertexArray(0);
+
+        compositeProgram = ShaderProgram.fromResources(
+                "/limn/backend/lwjgl/shaders/canvas_composite.vert",
+                "/limn/backend/lwjgl/shaders/canvas_composite.frag");
+        compositeUniformViewport = compositeProgram.uniformLocation("u_viewport");
+        compositeUniformOrigin = compositeProgram.uniformLocation("u_origin");
+        compositeUniformAlpha = compositeProgram.uniformLocation("u_alpha");
+        compositeProgram.use();
+        glUniform1i(compositeProgram.uniformLocation("u_picture"), 0);
+        compositeVao = glGenVertexArrays();
+        compositeVbo = glGenBuffers();
+        glBindVertexArray(compositeVao);
+        glBindBuffer(GL_ARRAY_BUFFER, compositeVbo);
+        int compositeStride = COMPOSITE_VERTEX_FLOATS * Float.BYTES;
+        attribute(0, 2, compositeStride, 0); // a_pos
+        attribute(1, 2, compositeStride, 2); // a_uv
         glBindVertexArray(0);
     }
 
@@ -407,6 +434,45 @@ final class GlBatch implements AutoCloseable {
         flatVertexCount++;
     }
 
+    /**
+     * Draws a layer's picture into the current target now, as one quad: device pixels of the
+     * window {@code (x0, y0)} to {@code (x1, y1)}, sampling the picture's texture coordinates
+     * {@code (u0, v0)} to {@code (u1, v1)}, every texel times {@code alpha}, under the blend
+     * factors and the damage scissor in force and under no clip. What was pending is drawn first,
+     * so paint order holds; the composite is a draw call of its own, as it was in the measurement
+     * that priced a layer, and runs a program that does nothing else, because the canvas program's
+     * clip and branches over every pixel of a layer cost a renderer without a GPU most of a frame.
+     */
+    void composite(int texture, float x0, float y0, float x1, float y1,
+                   float u0, float v0, float u1, float v1, float alpha) {
+        flush();
+        compositeVertices.clear();
+        compositeVertex(x0, y0, u0, v0);
+        compositeVertex(x1, y0, u1, v0);
+        compositeVertex(x1, y1, u1, v1);
+        compositeVertex(x0, y0, u0, v0);
+        compositeVertex(x1, y1, u1, v1);
+        compositeVertex(x0, y1, u0, v1);
+        compositeVertices.flip();
+        glBindVertexArray(compositeVao);
+        glBindBuffer(GL_ARRAY_BUFFER, compositeVbo);
+        glBufferData(GL_ARRAY_BUFFER, compositeVertices, GL_STREAM_DRAW);
+        compositeProgram.use();
+        glUniform2f(compositeUniformViewport, targetWidth, targetHeight);
+        glUniform2f(compositeUniformOrigin, targetX, targetY);
+        glUniform1f(compositeUniformAlpha, alpha);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, texture);
+        applyRasterState();
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+        glBindVertexArray(0);
+        drawCalls++;
+    }
+
+    private void compositeVertex(float x, float y, float u, float v) {
+        compositeVertices.put(x).put(y).put(u).put(v);
+    }
+
     /** Uploads accumulated geometry and draws it: one draw call per program with any pending. */
     void flush() {
         flushFlat();
@@ -494,6 +560,10 @@ final class GlBatch implements AutoCloseable {
         glDeleteBuffers(flatVbo);
         glDeleteVertexArrays(flatVao);
         flatProgram.close();
+        glDeleteBuffers(compositeVbo);
+        glDeleteVertexArrays(compositeVao);
+        compositeProgram.close();
+        MemoryUtil.memFree(compositeVertices);
         MemoryUtil.memFree(vertices);
         MemoryUtil.memFree(indices);
         MemoryUtil.memFree(flatVertices);
