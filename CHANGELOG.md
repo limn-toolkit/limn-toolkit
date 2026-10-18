@@ -375,6 +375,10 @@ Maven Central say which number that was.
 - A table under Arabic, Egyptian Arabic or Persian writes every figure in one set of digits: a
   `Column.of` formatter is handed the locale the toolkit writes numbers in, where the bare locale
   wrote `ar` in Arabic-Indic digits.
+- A message bound with `Label.setDescriptionFor` to a `DatePicker` describes its field, where a
+  screen reader is; it described a group that publishes no node, and the reader heard nothing.
+- A `Label` whose icon comes or goes lays out in place, as a change of its text does, instead of
+  laying out and repainting the whole window.
 
 ### New
 
@@ -1001,6 +1005,20 @@ Maven Central say which number that was.
   format of your own.
 - `Column.of(title, value, format)` with a one-argument format, such as `DateFormats.date(FormatStyle.SHORT)`.
 - `Scene.setBackground(null)` hands a scene back to the palette.
+- `Field`, a field of a form around any control: a caption above it that names it to a screen
+  reader, a line under it that shows the helper text or, while a state is set, the message in
+  the state's colour with a mark before it, and `setRequired`, an asterisk after the caption and
+  the required state on every system. The line keeps its height once shown, so a form does not
+  move on the first error. A text field, a text area, a combo box, a spinner, a date field and a
+  date picker draw the state on their border, and a date that refuses a day says why on the line
+  by itself. A screen reader hears the caption as the control's name and the line as its
+  description, on the part the keyboard lands on; required is `IsRequiredForForm` on Windows,
+  `AXRequired` on macOS and `REQUIRED` on Linux, and an error is `IsDataValidForForm` false on
+  Windows and `INVALID_ENTRY` on Linux.
+- `Tone` and `Label.setTone`: a text colour said by what it means (`NEUTRAL`, `ACCENT`, `INFO`,
+  `SUCCESS`, `WARNING`, `DANGER`) and asked of the palette on every paint, so a change of palette
+  re-colours it. `Tone.colorIn(theme)` answers the colour for a widget of your own.
+- `TextArea.validation()`.
 
 ### Changed
 
@@ -1280,6 +1298,12 @@ Maven Central say which number that was.
 - `Column.of`'s two-argument formatter is handed `I18n.numberLocale()` instead of the table's bare
   locale. The language is the same; only the digits, and in a few cases the separators, change.
   A date formatter there switches to `Column.of(title, value, DateFormats.date(style))`.
+- `TextField.Validation` is `limn.components.Validation`, with the same five constants: replace
+  `TextField.Validation` with `Validation` and import `limn.components.Validation`.
+- A caption above a control and a message bound under it are one `Field` now:
+  `new Field("Email", email)`, then `field.setValidation(Validation.ERROR, "Enter an address")`
+  where you set the text field's state and the message label's text, and `field.clearValidation()`
+  where you emptied them. A message coloured with `setColor(theme.danger())` is `setTone(Tone.DANGER)`.
 
 ### Known, and left for later
 
