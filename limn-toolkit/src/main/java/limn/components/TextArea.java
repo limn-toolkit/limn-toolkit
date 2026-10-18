@@ -143,6 +143,11 @@ public final class TextArea extends Widget<TextArea> {
                     // times over -- see Transition.damages.
                     .damages(this::damageBorder);
     private Validation validation = Validation.NONE;
+
+    static {
+        // As a text field: a field around an area sets the area's own state.
+        limn.components.internal.FieldControls.ownBorder(TextArea.class, TextArea::setValidation);
+    }
     /** Whether long lines wrap at the text column's edge instead of scrolling; see {@link #setSoftWrap}. */
     private boolean softWrap;
     /**
@@ -355,6 +360,11 @@ public final class TextArea extends Widget<TextArea> {
     /** Convenience: {@code ERROR} when true, {@code NONE} when false. */
     public TextArea setError(boolean error) {
         return setValidation(error ? Validation.ERROR : Validation.NONE);
+    }
+
+    /** The current validation state, which drives the border's colour, as a text field's does. */
+    public Validation validation() {
+        return validation;
     }
 
     /**

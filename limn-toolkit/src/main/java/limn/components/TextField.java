@@ -110,6 +110,12 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
     private boolean trailingHover;
     private boolean trailingArmed; // trailing button pressed, draws the press feedback
     private Validation validation = Validation.NONE;
+
+    static {
+        // A field around a text field sets the field's own state, so the two cannot disagree; the
+        // subclasses (a password, a search, an editable combo's editor) inherit the entry.
+        limn.components.internal.FieldControls.ownBorder(TextField.class, TextField::setValidation);
+    }
     // Active IME composition ("preedit"): shown inline at the caret, underlined,
     // NOT part of the model; the commit later arrives as an ordinary CharEvent.
     private String preedit = "";

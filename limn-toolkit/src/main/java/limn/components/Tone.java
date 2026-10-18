@@ -11,7 +11,7 @@ import limn.graphics.Color;
  * {@link Theme#current()} while a page is built is the palette of that moment, and a change of
  * palette afterwards (the system turning dark, the user picking another) leaves it behind; a tone
  * is asked of the theme on every paint, so it follows. That is what {@link Label#setTone} gives a
- * line of text.
+ * line of text, and what a {@link Field} draws its line under the control with.
  *
  * <p>Each tone is one of the palette's tokens, so its contrast is the palette's: the built-in
  * palettes are tested for each as text on the canvas, on a card and on a popover.

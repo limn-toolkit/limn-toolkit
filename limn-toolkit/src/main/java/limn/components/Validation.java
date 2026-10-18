@@ -3,11 +3,13 @@ package limn.components;
 /**
  * What an application has decided about the value a control holds: nothing yet, wrong, doubtful,
  * accepted, or worth a note. The application decides it, in a handler or a watcher, and the
- * toolkit shows it, on the border of a {@link TextField} or a {@link TextArea}.
+ * toolkit shows it: on the border of a {@link TextField} or a {@link TextArea}, and, around any
+ * control, a {@link Field}'s border, its line under the control and what a screen reader is told.
  *
  * <p>Only {@link #ERROR} reaches a reader as a state: each platform has one flag for a value that
  * failed validation and none for the other three, and a field that passed announced as failing
- * would be the wrong fact.
+ * would be the wrong fact. The message a {@link Field} shows says the rest, as the control's
+ * description.
  */
 public enum Validation {
     /** Nothing has been decided, or the decision was taken back: the control draws as it rests. */

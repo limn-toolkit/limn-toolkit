@@ -656,7 +656,10 @@ public final class Label extends Widget<Label> {
         }
         this.icon = newIcon;
         this.iconMirroring = mirroring;
-        markNeedsLayout();
+        // In place, as a change of text is: an icon that comes or goes changes this label's width
+        // and nothing outside the nearest ancestor whose size survives it, and a line of state
+        // under a field that gains its glyph with its message would otherwise repaint the window.
+        markNeedsLayoutInPlace();
         notifyChange(Change.of(Change.Aspect.NAME, Change.Origin.CODE));
         return this;
     }

@@ -89,6 +89,21 @@ public final class DatePicker extends Widget<DatePicker> {
     private final DateField field;
     /** The second end of a period, or {@code null} for a picker that is not one. */
     private final DateField endField;
+    /** The state a field around this picker shows on its box, drawn when larger than its fields'. */
+    private limn.components.Validation fieldState = limn.components.Validation.NONE;
+
+    static {
+        limn.components.internal.FieldControls.ownBorder(DatePicker.class, (picker, state) -> {
+            if (picker.fieldState != state) {
+                picker.fieldState = state;
+                picker.invalidate();
+            }
+        });
+        // What the picker's fields say, the start's first: the box is one control to a field.
+        limn.components.internal.FieldControls.ownMessage(DatePicker.class, picker ->
+                picker.field.validationMessage() != null || picker.endField == null
+                        ? picker.field.validationMessage() : picker.endField.validationMessage());
+    }
     private final CalendarView calendar = new CalendarView();
     /**
      * The clock under the grid, present while the granularity has a time of day.
@@ -1160,7 +1175,11 @@ public final class DatePicker extends Widget<DatePicker> {
         canvas.fillRoundRectWithBorder(0, 0, w, h, radius,
                 enabled ? theme.surface() : theme.disabledFill(),
                 Strokes.BORDER + (Strokes.FOCUS_RING - Strokes.BORDER) * focus,
-                invalid ? theme.danger() : theme.outline().lerp(theme.focusRing(), focus));
+                limn.components.internal.FieldControls.borderColor(theme,
+                        limn.components.internal.FieldControls.larger(invalid
+                                ? limn.components.Validation.ERROR : limn.components.Validation.NONE,
+                                fieldState),
+                        theme.outline().lerp(theme.focusRing(), focus)));
 
         if (endField != null) {
             // The dash sits in the gap the layout left between the two fields, centred in it.

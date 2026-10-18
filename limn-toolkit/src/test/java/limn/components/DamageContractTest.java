@@ -263,6 +263,18 @@ class DamageContractTest extends ComponentTestBase {
                     hover(), unhover(),
                     click().fullFrameBecause("the section grows and moves what is below it"),
                     focus(), key("RIGHT", Keys.RIGHT), key("DOWN", Keys.DOWN))),
+            // A field takes no gesture of its own: its control has its row. What it answers is the
+            // application's state, and a message that takes the reserved line, changes, or goes
+            // repaints the line and the control's border and never the window (ADR 074 section
+            // 2.2): each message fits the line's one reserved line, so no layout moves anything. A
+            // message that wraps grows the field, and that is a layout like any other.
+            natural("Field", () -> new Field("Email", new TextField()).setHelperText("Where the receipt goes"),
+                    List.of(
+                            new Gesture("an error and its message", (s, w) -> ((Field) w).setValidation(
+                                    Validation.ERROR, "Enter an address"), 0, ANY, null),
+                            new Gesture("the message changes", (s, w) -> ((Field) w).setValidation(
+                                    Validation.ERROR, "Add a domain"), 0, ANY, null),
+                            new Gesture("fixed", (s, w) -> ((Field) w).clearValidation(), 0, ANY, null))),
             inert("ImageView", () -> new ImageView(new Image(8, 8, new byte[8 * 8 * 4])),
                     "a picture: nothing about it answers to a pointer or a key"),
             inert("internal.PopupFrame", () -> new limn.components.internal.PopupFrame(new Plain(), 8, () -> { }),

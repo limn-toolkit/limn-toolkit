@@ -318,6 +318,12 @@ class NotificationContractTest extends ComponentTestBase {
                                 drive(scene).charTyped('a');
                                 drive(scene).inputBatchEnded();
                             })),
+            // The application's state, said as VALIDITY once and never again while it holds; a
+            // field has no handler, since nothing the user does to it is a field's own.
+            new Row("limn.components.Field",
+                    () -> new Field("Email", new TextField()),
+                    w -> ((Field) w).setValidation(Validation.ERROR, "Enter an address"),
+                    Change.Aspect.VALIDITY, null),
             new Row("limn.components.TokenBox",
                     () -> new TokenBox(SizeTokens::fieldIcon, null, new Plain()),
                     w -> w.setVisible(false), Change.Aspect.VISIBLE, null),

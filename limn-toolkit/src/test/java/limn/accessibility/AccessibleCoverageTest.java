@@ -124,6 +124,13 @@ class AccessibleCoverageTest {
             // unconditional. A closed section's content is hidden, so it publishes without VISIBLE
             // and SHOWING. Pinned by limn.components.ExpanderAccessibilityTest.
             "limn.components.Expander",
+            // A caption, a control and a line under it, and nothing of its own: never focusable,
+            // painting nothing, so the predicate deletes it and hoists the three into its place.
+            // What it says is said on the others: the caption is bound to the control as its
+            // name, the line as its description while it says something (an empty line is
+            // ignored), the asterisk is ignored, and the two form states reach the control through
+            // the walk's own hook. Pinned by limn.components.FieldAccessibilityTest.
+            "limn.components.Field",
             // The chips of a combo holding many, their "+N" badge and the strip that holds them
             // (ADR 052 §4): the strip is setAccessibleIgnored, so the walk never enters it and none
             // of the three is ever a node, and they repeat what the field's value already says,

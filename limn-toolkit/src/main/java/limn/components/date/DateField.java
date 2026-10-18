@@ -244,6 +244,21 @@ public final class DateField extends Widget<DateField> {
     private Predicate<LocalDate> dateFilter;
 
     private I18nString validity;
+    /**
+     * The state a field around this one shows on its border, drawn when it is larger than the
+     * field's own: a refused day stays in the danger colour whatever the field says.
+     */
+    private limn.components.Validation fieldState = limn.components.Validation.NONE;
+
+    static {
+        limn.components.internal.FieldControls.ownBorder(DateField.class, (date, state) -> {
+            if (date.fieldState != state) {
+                date.fieldState = state;
+                date.invalidate();
+            }
+        });
+        limn.components.internal.FieldControls.ownMessage(DateField.class, DateField::validationMessage);
+    }
     private Runnable onChange;
     /** Which half moved, so one announcement reaches the one handler it belongs to. */
     private boolean lastMoveWasTime;
@@ -1912,7 +1927,10 @@ public final class DateField extends Widget<DateField> {
         if (!chrome) {
             return;
         }
-        Color border = validity != null ? theme.danger() : theme.outline().lerp(theme.focusRing(), focus);
+        Color border = limn.components.internal.FieldControls.borderColor(theme,
+                limn.components.internal.FieldControls.larger(validity != null
+                        ? limn.components.Validation.ERROR : limn.components.Validation.NONE, fieldState),
+                theme.outline().lerp(theme.focusRing(), focus));
         canvas.drawRoundRectBorder(0, 0, w, h, radius, pen, border);
     }
 

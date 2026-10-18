@@ -811,6 +811,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         if (value) {
             editor = new Editor(this);
             editor.setPlaceholder(placeholder);
+            editor.setValidation(fieldState); // a field's state, kept across the switch
             add(editor);
             syncEditor(); // the selected item's text, or holding many, none
             refreshChips(); // back above the editor
@@ -1937,6 +1938,32 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         return (height() - metrics.height()) / 2 + metrics.ascent();
     }
 
+    /**
+     * The state a field around this combo shows on its border: drawn here, and handed to the editor,
+     * which draws the frame of an editable combo. A combo has no state of its own.
+     */
+    private Validation fieldState = Validation.NONE;
+
+    static {
+        limn.components.internal.FieldControls.<ComboBox<?>>ownBorder(comboClass(), ComboBox::showFieldState);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Class<ComboBox<?>> comboClass() {
+        return (Class<ComboBox<?>>) (Class<?>) ComboBox.class;
+    }
+
+    private void showFieldState(Validation state) {
+        if (state == fieldState) {
+            return;
+        }
+        fieldState = state;
+        if (editor != null) {
+            editor.setValidation(state);
+        }
+        invalidate();
+    }
+
     @Override
     protected void onPaint(Canvas canvas) {
         if (editable) {
@@ -1955,7 +1982,8 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         // delete the focus fade outright.
         canvas.fillRoundRectWithBorder(0, 0, width(), height(), t.radiusMedium(), fill,
                 Strokes.BORDER + (Strokes.FOCUS_RING - Strokes.BORDER) * focus,
-                theme.outline().lerp(theme.focusRing(), focus));
+                limn.components.internal.FieldControls.borderColor(theme, fieldState,
+                        theme.outline().lerp(theme.focusRing(), focus)));
 
         if (selectionMode == SelectionMode.MULTI) {
             if (showsPlaceholder()) {

@@ -174,6 +174,21 @@ public final class Spinner extends Widget<Spinner> {
      * eased back to 0, and at rest the rest of the time, so a spinner that never refuses anything
      * paints exactly the border it always did.
      */
+    /**
+     * The state a field around this spinner shows on its border. A spinner has none of its own: a
+     * refused step flashes the danger colour over whatever this is, and the flash ends on it.
+     */
+    private Validation fieldState = Validation.NONE;
+
+    static {
+        limn.components.internal.FieldControls.ownBorder(Spinner.class, (spinner, state) -> {
+            if (spinner.fieldState != state) {
+                spinner.fieldState = state;
+                spinner.invalidate();
+            }
+        });
+    }
+
     private final Transition refusedFlash =
             new Transition(this).duration(REFUSED_FLASH_SECONDS).easing(Easing.EASE_IN);
     private final Path2D triangle = new Path2D();
@@ -1193,7 +1208,8 @@ public final class Spinner extends Widget<Spinner> {
         // here. Only the colour moves and never the width, so a flash cannot put a weight on the
         // screen that is not one of the declared pens; at rest the lerp is the identity.
         canvas.drawRoundRectBorder(0, 0, w, h, radius, pen,
-                theme.outline().lerp(theme.focusRing(), focus)
+                limn.components.internal.FieldControls.borderColor(theme, fieldState,
+                                theme.outline().lerp(theme.focusRing(), focus))
                         .lerp(theme.danger(), refusedFlash.value()));
     }
 
