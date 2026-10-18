@@ -34,6 +34,11 @@ public sealed interface Change {
      * whole of the information — a watcher that missed one has missed it. <b>{@link #LAYOUT}</b>
      * is neither: it is one marker per layout pass, sourced at the scene's root, and what it says
      * is <i>re-read the bounds you hold</i>.
+     *
+     * <p><b>A minor release may add a constant</b>, as {@link #OPACITY} was added for the
+     * {@link limn.scene.layout.Opacity} container: a {@code switch} over the aspects that names
+     * every one of them still carries a {@code default} branch, which is where an aspect added
+     * later arrives.
      */
     enum Aspect {
         // state
