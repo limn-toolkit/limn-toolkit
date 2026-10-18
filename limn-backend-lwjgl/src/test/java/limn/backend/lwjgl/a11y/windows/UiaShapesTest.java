@@ -2,6 +2,7 @@ package limn.backend.lwjgl.a11y.windows;
 
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
+import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
 import limn.accessibility.Shape;
@@ -141,6 +142,41 @@ class UiaShapesTest {
         assertEquals(Shape.MENU, Shape.of(title));
         assertEquals(List.of(UiaIds.EXPAND_COLLAPSE_PATTERN, UiaIds.SELECTION_ITEM_PATTERN),
                 patternsOf(title));
+    }
+
+    /**
+     * A text a form requires, holding an error: the two form properties UI Automation has, the
+     * second the inverse of the state, and the changes a client is told when either moves.
+     */
+    @Test
+    void aRequiredAndAnInvalidTextSayItInTheFormsTwoProperties() {
+        AccessibleNode field = publish(Accessible.Role.TEXT_FIELD, a -> {
+            a.text("invoices", 0, 8, ShapedText.Affinity.UPSTREAM, 8, 8, 1,
+                    new Rect(40, 2, 1, 12), false);
+            a.state(Accessible.State.REQUIRED);
+            a.state(Accessible.State.INVALID);
+        });
+        assertEquals(Shape.TEXT, Shape.of(field));
+        assertEquals(List.of(UiaIds.VALUE_PATTERN), patternsOf(field), "the states add no pattern");
+        assertEquals(Boolean.TRUE, UiaProperties.valueOf(field, UiaIds.IS_REQUIRED_FOR_FORM));
+        assertEquals(Boolean.FALSE, UiaProperties.valueOf(field, UiaIds.IS_DATA_VALID_FOR_FORM));
+
+        AccessibleNode plain = publish(Accessible.Role.TEXT_FIELD, a -> a.text("invoices", 0, 8, ShapedText.Affinity.UPSTREAM, 8, 8, 1,
+                    new Rect(40, 2, 1, 12), false));
+        assertEquals(Boolean.FALSE, UiaProperties.valueOf(plain, UiaIds.IS_REQUIRED_FOR_FORM));
+        assertEquals(Boolean.TRUE, UiaProperties.valueOf(plain, UiaIds.IS_DATA_VALID_FOR_FORM),
+                "a node that says nothing is valid");
+
+        int required = UiaBridge.changedProperty(
+                AccessibleEvent.state(field.id(), Accessible.State.REQUIRED, true), field);
+        assertEquals(UiaIds.IS_REQUIRED_FOR_FORM, required);
+        assertEquals(Boolean.TRUE, UiaBridge.changedValue(required, Boolean.TRUE, field));
+        int invalid = UiaBridge.changedProperty(
+                AccessibleEvent.state(field.id(), Accessible.State.INVALID, false), field);
+        assertEquals(UiaIds.IS_DATA_VALID_FOR_FORM, invalid);
+        assertEquals(Boolean.TRUE, UiaBridge.changedValue(invalid, Boolean.FALSE, field),
+                "an error fixed is data that became valid");
+        assertEquals(Boolean.FALSE, UiaBridge.changedValue(invalid, Boolean.TRUE, field));
     }
 
     private AccessibleNode publish(Accessible.Role role, Consumer<Accessibility> facets) {

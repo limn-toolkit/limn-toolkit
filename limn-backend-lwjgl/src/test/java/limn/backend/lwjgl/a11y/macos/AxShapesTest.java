@@ -167,6 +167,33 @@ class AxShapesTest {
         assertFalse(allows(pane, "accessibilityPerformPress"));
     }
 
+    /**
+     * A text a form requires answers AXRequired, and a text that is not offers no such attribute.
+     * An invalid one answers nothing more: AppKit exports no attribute of its own for it (the dump,
+     * NSAccessibilityInvalidAttribute not exported), and the message is the node's help.
+     */
+    @Test
+    void aRequiredTextAnswersRequiredAndAnInvalidOneNothingMore() {
+        AccessibleNode field = publish(Accessible.Role.TEXT_FIELD, a -> {
+            a.text("invoices", 0, 8, ShapedText.Affinity.UPSTREAM, 8, 8, 1,
+                    new Rect(40, 2, 1, 12), false);
+            a.state(Accessible.State.EDITABLE);
+            a.state(Accessible.State.REQUIRED);
+            a.state(Accessible.State.INVALID);
+        });
+        assertEquals(Shape.TEXT, Shape.of(field));
+        assertTrue(allows(field, "isAccessibilityRequired"));
+        assertTrue(settable(field, AxSetters.VALUE), "and is still a text that takes a value write");
+
+        AccessibleNode plain = publish(Accessible.Role.TEXT_FIELD, a -> {
+            a.text("invoices", 0, 8, ShapedText.Affinity.UPSTREAM, 8, 8, 1,
+                    new Rect(40, 2, 1, 12), false);
+            a.state(Accessible.State.EDITABLE);
+            a.state(Accessible.State.INVALID);
+        });
+        assertFalse(allows(plain, "isAccessibilityRequired"), "offered only where it is true");
+    }
+
     private boolean allows(AccessibleNode node, String selector) {
         return AxGate.allows(grid, node, selector);
     }

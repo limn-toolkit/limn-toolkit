@@ -161,6 +161,15 @@ final class UiaProperties {
                 return node.role() == Accessible.Role.DIALOG
                         || node.role() == Accessible.Role.ALERT;
 
+            // A form's two flags, from the two states a field around a control publishes on it
+            // (and INVALID, which a text field holding an error publishes on its own). The second
+            // is the inverse of the state, since the platform asks whether the data is valid: an
+            // element that says nothing is valid, which is what every node without INVALID answers.
+            case UiaIds.IS_REQUIRED_FOR_FORM:
+                return node.has(Accessible.State.REQUIRED);
+            case UiaIds.IS_DATA_VALID_FOR_FORM:
+                return !node.has(Accessible.State.INVALID);
+
             // Semantics 6 (decision 4): "n of m" from the selection item's numbers and
             // the depth from the hierarchy facet, each only when it is not zero, which is the
             // model's "no number" and a client's too (NVDA 2024.4.2 uses each only when positive,

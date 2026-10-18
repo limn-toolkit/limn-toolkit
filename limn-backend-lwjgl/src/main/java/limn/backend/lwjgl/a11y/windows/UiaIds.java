@@ -127,6 +127,16 @@ final class UiaIds {
     static final int TRANSFORM_CAN_MOVE = 30087;
     static final int TRANSFORM_CAN_RESIZE = 30088;
     static final int TRANSFORM_CAN_ROTATE = 30089;
+    /**
+     * {@code UIA_IsDataValidForFormPropertyId}: whether the element's value passes the form's
+     * validation, true unless it says otherwise. Read on the Windows 11 ARM64 guest on 2026-09-13
+     * with the rest of this table and not taken in then, because nothing published an invalid
+     * state a form would ask about: 30103 in UIAutomationCore.dll's embedded type library, module
+     * {@code UIA_PropertyIds}, as {@code VT_I4} ({@code dump-uia-typelib.ps1},
+     * readings/windows-dump-uia-typelib.txt), and as {@code IsDataValidForForm = 30103} from the
+     * interop assembly ({@code dump-uia-constants.ps1}, readings/windows-dump-uia-constants.txt).
+     */
+    static final int IS_DATA_VALID_FOR_FORM = 30103;
     static final int CONTROLLER_FOR = 30104;
     /**
      * The one identifier here that the guest's interop assemblies could not supply: the managed

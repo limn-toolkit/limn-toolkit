@@ -140,6 +140,7 @@ final class AxSelectors {
         kinds.put("accessibilityDisclosedByRow", Kind.ID);
         kinds.put("accessibilityDisclosedRows", Kind.ID);
         kinds.put("isAccessibilityExpanded", Kind.BOOL);
+        kinds.put("isAccessibilityRequired", Kind.BOOL);
         kinds.put("accessibilityAttributeValue:", Kind.ID_OF_ID);
         kinds.put("accessibilityAttributeNames", Kind.ID);
         ON_ELEMENT = List.copyOf(kinds.keySet());

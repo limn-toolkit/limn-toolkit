@@ -444,6 +444,10 @@ final class AxElementClass {
         // Where the user is, not which widget holds the keyboard around it (semantics 4): the cursor
         // cell of a focused table answers true and the table does not, as the focused element does.
         addBool("isAccessibilityFocused", is(source::isFocused));
+        // A field that must be filled in, as a field around a control publishes it; offered on the
+        // nodes that are, by the gate (AxGate). Invalid has no attribute of AppKit's own and is not
+        // answered: the message that says what is wrong is the node's help, above.
+        addBool("isAccessibilityRequired", is(node -> node.has(Accessible.State.REQUIRED)));
 
         installHitTest();
         installFocusedElement();

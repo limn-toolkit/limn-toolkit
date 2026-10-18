@@ -36,7 +36,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>The committed dump was regenerated once, at the end of the phase-3 macOS lane, on the macOS 26.6.2
  * guest (25G83) on 2026-09-15, so every selector and symbol the bridge names at that point is read
  * there; the sets of selectors and symbols owed to that regeneration, which this test carried until it
- * ran, are gone with it. A selector or symbol added later is read on a guest before it is used.
+ * ran, are gone with it. A selector or symbol added later is read on a guest before it is used: the
+ * required state's getter was, on 2026-10-18, by regenerating the whole dump on the guest, then at
+ * macOS 27.0 (26A428), and nothing already in it moved.
  *
  * <p>What this cannot catch is AppKit changing a value after the file was captured, and nothing
  * short of running on the machine can. That is what the probe run's own startup assertions are for;

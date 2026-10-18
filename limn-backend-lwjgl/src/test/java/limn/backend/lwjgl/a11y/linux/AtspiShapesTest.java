@@ -105,6 +105,24 @@ class AtspiShapesTest {
         assertFalse(AtspiMenuShape.dropsVerb(row, Accessible.Action.EXPAND));
     }
 
+    /** A text a form requires, holding an error, carries the two bits the platform has for them. */
+    @Test
+    void aRequiredAndAnInvalidTextCarryTheirTwoStates() {
+        AccessibleNode field = publish(Accessible.Role.TEXT_FIELD, a -> {
+            a.text("invoices", 0, 8, ShapedText.Affinity.UPSTREAM, 8, 8, 1,
+                    new Rect(40, 2, 1, 12), false);
+            a.state(Accessible.State.REQUIRED);
+            a.state(Accessible.State.INVALID);
+        });
+        assertEquals(Shape.TEXT, Shape.of(field));
+        long states = AtspiStates.setOf(field::has);
+        assertEquals(1L << 33, states & (1L << 33), "REQUIRED");
+        assertEquals(1L << 36, states & (1L << 36), "INVALID_ENTRY");
+        long plain = AtspiStates.setOf(publish(Accessible.Role.TEXT_FIELD, a -> a.text("invoices", 0, 8, ShapedText.Affinity.UPSTREAM, 8, 8, 1,
+                    new Rect(40, 2, 1, 12), false))::has);
+        assertEquals(0, plain & ((1L << 33) | (1L << 36)));
+    }
+
     private int bitsOf(Accessible.Role role, Consumer<Accessibility> facets) {
         return AtspiTree.interfaceBitsOf(publish(role, facets));
     }

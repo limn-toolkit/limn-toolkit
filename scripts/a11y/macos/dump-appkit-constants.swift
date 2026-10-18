@@ -113,6 +113,9 @@ let attributes = [
     // A header cell's sort direction (decision 36) and a column's own attributes (M4).
     "NSAccessibilitySortDirectionAttribute", "NSAccessibilityVisibleColumnsAttribute",
     "NSAccessibilitySelectedColumnsAttribute", "NSAccessibilityHeaderAttribute",
+    // A field that must be filled in (ADR 074), and whether AppKit has a name of its own for a value
+    // that failed validation: the second is asked, not assumed, and a miss is the answer.
+    "NSAccessibilityRequiredAttribute", "NSAccessibilityInvalidAttribute",
 ]
 
 // Action names: what a client's AXPerformAction carries, and what accessibilityActionNames lists.
@@ -158,6 +161,8 @@ let selectors = [
     "setAccessibilityDisclosureLevel:",
     // Open or closed, for a combo box or anything else that expands (MACOS-NEW-5).
     "isAccessibilityExpanded", "setAccessibilityExpanded:",
+    // A field that must be filled in (ADR 074).
+    "isAccessibilityRequired", "setAccessibilityRequired:",
     // The setter half a reader writes through (MACOS-NEW-11), selected children (MACOS-NEW-2) and
     // columns (M4's vended-column option).
     "setAccessibilityValue:", "setAccessibilitySelectedChildren:", "setAccessibilityColumns:",
@@ -218,6 +223,8 @@ let installedByTheBridge: [(String, String)] = [
     // A sorted column's direction on its header cell (decision 36), added by the phase-3 fix
     // round's integration once the model's CellFacet carried one.
     ("accessibilitySortDirection", "element"),
+    // A field that must be filled in (ADR 074).
+    ("isAccessibilityRequired", "element"),
     ("accessibilityRole", "column class"), ("accessibilityIndex", "column class"),
     ("accessibilityRows", "column class"), ("accessibilityVisibleRows", "column class"),
     ("accessibilityHeader", "column class"), ("accessibilityParent", "column class"),
@@ -226,7 +233,7 @@ let installedByTheBridge: [(String, String)] = [
 
 // Fragments searched for across the class chains and the protocols below, so a name is read rather
 // than spelled: the scroll-to-visible action (MACOS-NEW-11), disclosure (M1), expanded (MACOS-NEW-5).
-let fragments = ["ScrollToVisible", "Disclos", "Expanded"]
+let fragments = ["ScrollToVisible", "Disclos", "Expanded", "Required", "Invalid"]
 
 // The classes worth asking, in the order a bridge would trust them. A selector's encoding is a fact
 // about the ObjC runtime, not about the class it was read from, so the first class that declares it

@@ -1592,6 +1592,10 @@ public final class UiaBridge extends PlatformBridge {
                 // told when the item starts and stops working, or it would go on reading a folder
                 // as loading after its children arrived.
                 case BUSY -> UiaIds.ITEM_STATUS;
+                // A field's two states, which a client that read either on focus would otherwise go
+                // on holding after the form changed them: a field left required, an error fixed.
+                case REQUIRED -> UiaIds.IS_REQUIRED_FOR_FORM;
+                case INVALID -> UiaIds.IS_DATA_VALID_FOR_FORM;
                 default -> 0;
             };
             // A rectangle that moved is not raised (raise() says why, before it gets here).
@@ -1678,6 +1682,10 @@ public final class UiaBridge extends PlatformBridge {
      * @param node       the node, for its locale and its facets, or {@code null} when it is gone
      */
     static Object changedValue(int propertyId, Object value, AccessibleNode node) {
+        if (propertyId == UiaIds.IS_DATA_VALID_FOR_FORM && value instanceof Boolean invalid) {
+            // The model moves INVALID and the property is its inverse, as the getter answers it.
+            return !invalid;
+        }
         if (propertyId != UiaIds.ITEM_STATUS) {
             return value;
         }

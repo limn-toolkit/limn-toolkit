@@ -1,5 +1,5 @@
 AppKit: /System/Library/Frameworks/AppKit.framework/AppKit
-macOS: Version 26.6.2 (Build 25G83)
+macOS: Version 27.0 (Build 26A428)
 
 ==== roles ====
   NSAccessibilityButtonRole = "AXButton"
@@ -107,6 +107,7 @@ macOS: Version 26.6.2 (Build 25G83)
   NSAccessibilityFocusedUIElementAttribute = "AXFocusedUIElement"
   NSAccessibilityHeaderAttribute = "AXHeader"
   NSAccessibilityIndexAttribute = "AXIndex"
+  NSAccessibilityRequiredAttribute = "AXRequired"
   NSAccessibilityRoleAttribute = "AXRole"
   NSAccessibilityRowCountAttribute = "AXRowCount"
   NSAccessibilityRowsAttribute = "AXRows"
@@ -119,6 +120,7 @@ macOS: Version 26.6.2 (Build 25G83)
   NSAccessibilityValueAttribute = "AXValue"
   NSAccessibilityVisibleColumnsAttribute = "AXVisibleColumns"
   NSAccessibilityVisibleRowsAttribute = "AXVisibleRows"
+  !! NOT EXPORTED BY THIS APPKIT: NSAccessibilityInvalidAttribute
 
 ==== action names ====
   NSAccessibilityCancelAction = "AXCancel"
@@ -217,6 +219,8 @@ macOS: Version 26.6.2 (Build 25G83)
   -setAccessibilityDisclosureLevel:  v24@0:8q16  (from NSAccessibilityElement)
   -isAccessibilityExpanded  B16@0:8  (from NSAccessibilityElement)
   -setAccessibilityExpanded:  v20@0:8B16  (from NSAccessibilityElement)
+  -isAccessibilityRequired  B16@0:8  (from NSAccessibilityElement)
+  -setAccessibilityRequired:  v20@0:8B16  (from NSAccessibilityElement)
   -setAccessibilityValue:  v24@0:8@16  (from NSAccessibilityElement)
   -setAccessibilitySelectedChildren:  v24@0:8@16  (from NSAccessibilityElement)
   -setAccessibilityColumns:  v24@0:8@16  (from NSAccessibilityElement)
@@ -313,6 +317,8 @@ macOS: Version 26.6.2 (Build 25G83)
   -setAccessibilityDisclosureLevel:  answered by NSAccessibilityElement  v24@0:8q16  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement setAccessibilityDisclosureLevel:]
   -isAccessibilityExpanded  answered by NSAccessibilityElement  B16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement isAccessibilityExpanded]
   -setAccessibilityExpanded:  answered by NSAccessibilityElement  v20@0:8B16  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement setAccessibilityExpanded:]
+  -isAccessibilityRequired  answered by NSAccessibilityElement  B16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement isAccessibilityRequired]
+  -setAccessibilityRequired:  answered by NSAccessibilityElement  v20@0:8B16  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement setAccessibilityRequired:]
   -setAccessibilityValue:  answered by NSAccessibilityElement  v24@0:8@16  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement setAccessibilityValue:]
   -setAccessibilitySelectedChildren:  answered by NSAccessibilityElement  v24@0:8@16  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement setAccessibilitySelectedChildren:]
   -setAccessibilityColumns:  answered by NSAccessibilityElement  v24@0:8@16  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement setAccessibilityColumns:]
@@ -409,6 +415,8 @@ macOS: Version 26.6.2 (Build 25G83)
   -setAccessibilityDisclosureLevel:  @protocol NSAccessibility required v24@0:8q16
   -isAccessibilityExpanded  @protocol NSAccessibility required B16@0:8
   -setAccessibilityExpanded:  @protocol NSAccessibility required v20@0:8B16
+  -isAccessibilityRequired  @protocol NSAccessibility required B16@0:8
+  -setAccessibilityRequired:  @protocol NSAccessibility required v20@0:8B16
   -setAccessibilityValue:  @protocol NSAccessibility required v24@0:8@16
   -setAccessibilitySelectedChildren:  @protocol NSAccessibility required v24@0:8@16
   -setAccessibilityColumns:  @protocol NSAccessibility required v24@0:8@16
@@ -425,18 +433,36 @@ macOS: Version 26.6.2 (Build 25G83)
   -accessibilityArrayAttributeValues:index:maxCount:  declared by no NSAccessibility protocol
   -accessibilityIndexOfChild:  declared by no NSAccessibility protocol
 
-==== selectors containing ["ScrollToVisible", "Disclos", "Expanded"] (own method lists of both chains, NSWindow's and NSApplication's; every protocol above) ====
+==== selectors containing ["ScrollToVisible", "Disclos", "Expanded", "Required", "Invalid"] (own method lists of both chains, NSWindow's and NSApplication's; every protocol above) ====
+  -_complainAboutImproperDeclaredConstraintInvalidation  NSView v16@0:8
+  -_contentsHaveInvalidRestorableState  NSWindow B16@0:8  | NSApplication B16@0:8
   -_effectiveToolbarStyleAssumingExpandedIfHidden  NSWindow q16@0:8
+  -_hasEverHadInvalidRestorableState  NSView B16@0:8  | NSResponder B16@0:8  | NSWindow B16@0:8
+  -_hasInvalidRestorableState  NSView B16@0:8  | NSResponder B16@0:8  | NSWindow B16@0:8  | NSApplication B16@0:8
+  -_intrinsicContentSizeInvalidatedForChildView:  NSView v24@0:8@16
+  -_markAsEverHavingInvalidRestorableState  NSResponder v16@0:8  | NSWindow v16@0:8
+  -_postInvalidCursorRects  NSWindow v16@0:8
+  -_recursivelyInvalidateCachedContentStyle  NSView v16@0:8
+  -_registerRequiredAEHandlers  NSApplication v16@0:8
+  -_setContentsHaveInvalidRestorableState:  NSWindow v20@0:8B16  | NSApplication v20@0:8B16
+  -_setHasInvalidRestorableState:  NSView v20@0:8B16  | NSResponder v20@0:8B16  | NSWindow v20@0:8B16  | NSApplication v20@0:8B16
+  -_setupViewLayoutInvalidatorIfNecessary  NSView v16@0:8
+  -_showLaunchDisclosurePromptForManagedMacs  NSApplication v16@0:8
+  -_updateConstraintsForSubtreeIfNeededCollectingViewsWithInvalidBaselines:  NSView v24@0:8^@16
+  -_updateTrackingAreasWithInvalidCursorRects:  NSView v20@0:8B16
+  -_windowSharingControllerDidInvalidate  NSWindow v16@0:8
   -accessibilityDisclosedByRow  NSAccessibilityElement @16@0:8  | NSResponder @16@0:8  | @protocol NSAccessibility required @16@0:8
   -accessibilityDisclosedRows  NSAccessibilityElement @16@0:8  | NSResponder @16@0:8  | @protocol NSAccessibility required @16@0:8
   -accessibilityDisclosureLevel  NSAccessibilityElement q16@0:8  | NSResponder q16@0:8  | @protocol NSAccessibility required q16@0:8  | @protocol NSAccessibilityRow optional q16@0:8
   -isAccessibilityDisclosed  NSAccessibilityElement B16@0:8  | NSResponder B16@0:8  | @protocol NSAccessibility required B16@0:8
   -isAccessibilityExpanded  NSAccessibilityElement B16@0:8  | NSResponder B16@0:8  | @protocol NSAccessibility required B16@0:8
+  -isAccessibilityRequired  NSAccessibilityElement B16@0:8  | NSResponder B16@0:8  | @protocol NSAccessibility required B16@0:8
   -setAccessibilityDisclosed:  NSAccessibilityElement v20@0:8B16  | NSResponder v20@0:8B16  | @protocol NSAccessibility required v20@0:8B16
   -setAccessibilityDisclosedByRow:  NSAccessibilityElement v24@0:8@16  | NSResponder v24@0:8@16  | @protocol NSAccessibility required v24@0:8@16
   -setAccessibilityDisclosedRows:  NSAccessibilityElement v24@0:8@16  | NSResponder v24@0:8@16  | @protocol NSAccessibility required v24@0:8@16
   -setAccessibilityDisclosureLevel:  NSAccessibilityElement v24@0:8q16  | NSResponder v24@0:8q16  | @protocol NSAccessibility required v24@0:8q16
   -setAccessibilityExpanded:  NSAccessibilityElement v20@0:8B16  | NSResponder v20@0:8B16  | @protocol NSAccessibility required v20@0:8B16
+  -setAccessibilityRequired:  NSAccessibilityElement v20@0:8B16  | NSResponder v20@0:8B16  | @protocol NSAccessibility required v20@0:8B16
 
 ==== selectors the bridge installs (AxSelectors), looked up as AxObjC.encodingOf does ====
   -accessibilityRole  @16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [1 protocol declaration(s)]
@@ -491,10 +517,13 @@ macOS: Version 26.6.2 (Build 25G83)
   -setAccessibilityExpanded:  v20@0:8B16  (from NSAccessibilityElement)  on the element  [in the encodings table]  [1 protocol declaration(s)]
   -setAccessibilityValue:  v24@0:8@16  (from NSAccessibilityElement)  on the element  [in the encodings table]  [1 protocol declaration(s)]
   -setAccessibilitySelectedRows:  v24@0:8@16  (from NSAccessibilityElement)  on the element  [in the encodings table]  [2 protocol declaration(s)]
+  -accessibilityIsAttributeSettable:  B24@0:8@16  (from NSView)  on the element  [in the encodings table]  [no NSAccessibility protocol declares it]
   -accessibilityActionNames  @16@0:8  (from NSView)  on the element  [in the encodings table]  [no NSAccessibility protocol declares it]
   -accessibilityPerformAction:  v24@0:8@16  (from NSView)  on the element  [in the encodings table]  [no NSAccessibility protocol declares it]
   -accessibilityVisibleColumns  @16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [2 protocol declaration(s)]
   -accessibilitySelectedColumns  @16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [2 protocol declaration(s)]
+  -accessibilitySortDirection  q16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [1 protocol declaration(s)]
+  -isAccessibilityRequired  B16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [1 protocol declaration(s)]
   -accessibilityRole  @16@0:8  (from NSAccessibilityElement)  on the column class  [in the encodings table]  [1 protocol declaration(s)]
   -accessibilityIndex  q16@0:8  (from NSAccessibilityElement)  on the column class  [in the encodings table]  [2 protocol declaration(s)]
   -accessibilityRows  @16@0:8  (from NSAccessibilityElement)  on the column class  [in the encodings table]  [2 protocol declaration(s)]

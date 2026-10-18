@@ -117,6 +117,10 @@ final class AxGate {
             case "accessibilityDisclosureLevel" -> grid.isOutlineRow(node)
                     && node.hierarchy().level() > 0;
             case "isAccessibilityExpanded" -> node.expand() != null && !grid.isOutlineRow(node);
+            // AXRequired where it is true and nowhere else: a node that is not required has no
+            // field asking, and a NO on every button and label would add an attribute to each that
+            // says nothing. A field let go of withdraws it, which a client reads as not required.
+            case "isAccessibilityRequired" -> node.has(limn.accessibility.Accessible.State.REQUIRED);
             // Everything else this class implements is an attribute every node answers, and answering
             // false for one of those would hide the node's name.
             default -> true;
@@ -156,5 +160,5 @@ final class AxGate {
             "accessibilitySelectedColumns", "accessibilityColumnHeaderUIElements", "accessibilityRowCount",
             "accessibilityColumnCount", "accessibilityRowIndexRange", "accessibilityColumnIndexRange",
             "accessibilityCellForColumn:row:", "accessibilityLinkedUIElements", "accessibilityPerformAction:",
-            "accessibilitySortDirection");
+            "accessibilitySortDirection", "isAccessibilityRequired");
 }
