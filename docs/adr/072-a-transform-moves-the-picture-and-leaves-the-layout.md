@@ -5,9 +5,12 @@
   opacity moved from `Widget` into an `Opacity` container by an amendment of ADR 071 (its section
   7), and this record designs the transform container beside it. The owner answered every
   question of section 4 the same day, and one more the answers raised (section 4.1): the two seams, the
-  2D tier and the 3D tier all ship before 1.0, in one final `Transform`. Nothing here is built.
-  The measurements of section 7 are owed on the lab's guests before the status moves to
-  Accepted; a number that contradicts a decision comes back to the owner.
+  2D tier and the 3D tier all ship before 1.0, in one final `Transform`. The measurements of
+  section 7 are owed on the lab's guests before the status moves to Accepted; a number that
+  contradicts a decision comes back to the owner. **Stage 0 built, 2026-10-18** (section 8): the
+  two seams, the internal hook and the test-only container that prove them at rotated and turned
+  points, the sentence on `Change.Aspect`, and the hit test cut at a clipping parent's clip; the
+  container itself, stages 1 to 3, is not built.
 - **Date:** 2026-10-17
 - **Scope:**
   - a container that draws its child moved, scaled, rotated or turned in 3D, without changing
@@ -436,7 +439,9 @@ protected final @Nullable Widget<?> hitTestChild(Widget<?> child, float localX, 
   box's chips and the range slider's thumbs do today).
 - **`hitTestChild`** subtracts the child's position and, in a Transform, applies the inverse of
   what the Transform applies to its child; then calls the child's `hitTest`. It throws
-  `IllegalArgumentException` for a widget that is not this widget's child.
+  `IllegalArgumentException` for a widget that is not this widget's child. (2026-10-18, as
+  built: the inverse first, then the position, and nothing where a clipping parent cuts the
+  child away; section 8.2.)
 - **The scene's root and its overlays**, which have no parent, are asked through `hitTest` with
   the scene point converted by `sceneToLocal` (section 3.3).
 - **What moves in the repository.** The eight overrides become `onHitTest` and lose their
@@ -493,7 +498,8 @@ are `public final`:
 - **A class that overrides `hitTest`** no longer compiles. The fix: rename it `onHitTest`, delete
   the visible, enabled and bounds checks the entry now makes, and replace
   `child.hitTest(x - child.x(), y - child.y())` with `hitTestChild(child, x, y)`.
-- **A call of `hitTest`** compiles and answers as before.
+- **A call of `hitTest`** compiles and answers as before. (2026-10-18: but for three answers,
+  all fixes, at `NaN`, on an inert widget and where a parent clips; section 8.2.)
 - **A call of any per-axis conversion** no longer compiles. The fix is mechanical:
   `w.sceneToLocalX(sx)` and `w.sceneToLocalY(sy)` become one `w.sceneToLocal(sx, sy)`;
   `w.localToSceneX() + a` and `w.localToSceneY() + b` become `w.localToScene(a, b)`; a box in the
@@ -713,3 +719,127 @@ the floor, on this Mac's GPU and software renderer and on the Windows, Fedora an
 - **`glGenerateMipmap` per frame** on the three guests, for question 11.
 - **A partial frame through a moved child** against a whole frame (stage 1's pixel test, run on
   the guests), since the scene's set of Transforms changes what a pass paints.
+
+## 8. Stage 0, built 2026-10-18
+
+Built on `claude/adr-072-stage0` from `73f35415`, in six commits before this section: seam B,
+seam A, the internal hook with the test-only container, the sentence on `Change.Aspect`, the clip
+in the hit test, and one allocation taken out of `localToScene`. Nothing draws a transform yet;
+the container is stage 1.
+
+### 8.1 What was built
+
+- **Seam B (section 3.3)**, as written: `Widget.localToScene(float, float)` and
+  `sceneToLocal(float, float)` return a `limn.math.Vec2`, `localToSceneBounds(float, float, float,
+  float)` a `limn.graphics.Rect`, all `public final`, and the four per-axis forms are gone.
+  Package-private forms write into a caller's `float[]` and allocate nothing; `Scene.culledFromPaint`,
+  `Scene.hitAt` and `AccessibleWalk` use them. Every caller moved: 35 main files besides `Widget`
+  (the toolkit, the demo, `SceneDriver.click`, whose signature is unchanged) and 477 calls in 89
+  test files, the tests mechanically to `localToScene(0, 0).x()`, the main sources by hand to the
+  point that was meant (a popup's anchor is `localToSceneBounds` of the anchor's rectangle; a text
+  field's caret damage and keyboard menu use the caret's own box). `MouseEvent`'s Javadoc teaches
+  the point form; `x()` and `y()` say they are the layout position.
+- **Seam A (section 3.2)**, as written: `hitTest` is `public final`, `onHitTest` the protected
+  hook with the default of section 3.2, `hitTestChild` the protected final helper that refuses a
+  stranger with `IllegalArgumentException`. The eight overrides became `onHitTest`; the twelve hand
+  mappings and the two hand walks moved (ListView 2, Tree 3, Table 3, SplitPane 1 and the
+  scene's 2 to `hitTestChild` or the package `sceneToLocal`, the demo's `Motion.hitAt` to the
+  public one; `MenuBar.pointOverTitle` and `IconsScene.openBelow` to `sceneToLocal` and
+  `localToSceneBounds`).
+- **The hook and the test container (section 3.5).** `limn.scene.internal.TransformAccess`
+  (`setChildMatrix(Widget, Mat4)`, `childMatrix(Widget)`), installed by `Widget`'s static
+  initializer as `OpacityAccess` is; a package-private `ChildTransform` holds the plane's
+  homography and its inverse; the scene keeps the widgets with a matrix in a list. The test-only
+  container is `limn.scene.Turned` in the toolkit's tests, with `limn.math.PerspectiveForTest`.
+- **Section 3.6:** `Change.Aspect`'s Javadoc says a minor release may add a constant, as
+  `OPACITY` was added, so a `switch` naming every aspect keeps a `default`.
+- **The clip in the hit test** (the workarounds hunt of 2026-10-17, its second item): see 8.2.
+
+### 8.2 What the build settles, and where it departs from the text above
+
+- **2026-10-18. The matrix is the widget's, in its own space.** The hook takes the matrix a widget
+  draws its children through, applied to a point of the widget's own space with the child's
+  position already added: a child point `q` is drawn at `M · (child.x + q)`, as a paint that
+  concatenates `M` and then translates by `child.x()` draws it. So `hitTestChild` applies the
+  inverse first and then subtracts the child's position, the reverse of section 3.2's wording;
+  for the `Transform`, whose child sits at its origin, the two orders agree. The children lie in
+  the plane `z = 0`, so the matrix's x, y and w rows and columns make a 3 × 3 homography of the
+  plane, held with its adjugate in double precision when the matrix is set.
+- **2026-10-18. What `NaN` means, in numbers.** A point is behind the eye when its `w` is not above
+  `1e-6`. A plane is edge-on or collapsed at a point when less than a millionth of its area is left
+  there (`det / w³`): a quarter turn leaves single precision a cosine of about `4e-8`, not 0, so
+  exact zero is not the test. `localToSceneBounds` of a rectangle wholly behind the eye answers
+  `Rect(NaN, NaN, 0, 0)`, which section 3.3 left open; one partly behind keeps its front, cut at
+  `w = 1e-6`, whose edge projects very far, which is the true answer near the eye.
+- **2026-10-18. The pointer passes through boxes in stage 0, not stage 1.** Section 3.2's rule for
+  a widget that does not clip (a point outside its box goes on to a descendant drawn moved there)
+  is built now, because the test container needs it to prove a slid child is hit where it is
+  drawn. The scene's list is of widgets with a matrix (stage 1's set of Transforms away from rest
+  is the same list), and the test is against the bounds of each such widget's visible children's
+  boxes through its matrix, carried up to the asking widget; outside its box a widget answers the
+  descendant or `null`, never itself. Boxes, not outsets: a pointer hits a box.
+- **2026-10-18. Inert is in the entry, and lands on what is beneath.** `Scene.outsideInert` is
+  gone, as section 3.1 foresaw. A press over an inert subtree now lands on what is beneath it, a
+  sibling under it where there is one and its parent where there is none; the filter after the
+  walk always gave the parent. `SceneAccess.setInert`'s Javadoc says so.
+- **2026-10-18. Section 3.4 is not quite right that every call of `hitTest` "answers as
+  before".** Three answers change, all fixes: a point of `NaN` is outside (the copied preambles
+  and the base class let it through, and a list then answered itself); an inert widget answers
+  `null` itself; and a clipped child is not hit where its parent cuts it away (below).
+- **2026-10-18. The clip is honoured in `hitTestChild`.** A widget that `clipsChildren()` answers
+  `null` for a child at a point outside the clip rectangle it gives that child
+  (`clipX`/`clipY`/`clipWidth`/`clipHeight`), in its own space before any matrix, as the paint cuts
+  it. Content under a scroll pane's reserved gutter no longer takes the press meant for the
+  gutter, and `Table` lost its hand test of the rows' band, its clip accessors already answering
+  the rows' viewport. `Tree` keeps its `inViewport` test: it answers the default clip, its box,
+  for its cells, and giving it the accessors changes what `isShowing` and the damage clamp say of
+  its cells, which is not this stage's.
+- **2026-10-18. What follows the matrix in stage 0, and what does not.** The conversions, the hit
+  test, the accessible tree's published bounds (`AccessibleWalk` takes `localToSceneBounds`) and
+  `Scene.culledFromPaint` (the box and outset through `localToSceneBounds`) follow it. The paint,
+  `invalidate()`'s damage, `isShowing`, `showingClip`, `revealInView` and `paintedBounds` still sum
+  layout offsets, which is right while nothing paints moved; stage 1 routes each through the
+  matrix (sections 2.6 and 2.8), and a partial pass under the test container would cull by where
+  the matrix would draw while the paint draws upright, which no test does.
+- **2026-10-18. The public forms' cost.** `localToScene` allocates the one record it returns;
+  `sceneToLocal` and `localToSceneBounds` a two- or four-float array besides, which the walk from
+  the root and the clipped bounds need. Only `localToScene` is asked from a paint (the date
+  picker's button, to put its glyph on the pixel grid).
+- **For stage 3:** `Mat4` has no public factory for a perspective seen from a distance along z
+  (`Mat4.perspective` is a camera's projection), and its array constructor is package-private; the
+  tests build one in `limn.math`. `setPerspective` needs one, or the container composes its matrix
+  in `limn.math`'s package. The hook has no backface flag yet; section 2.7's miss on a hidden
+  backface is stage 3's, through the same hook.
+
+### 8.3 Section 6's stage 0 tests, and where they are
+
+- **Each migrated component at rotated and turned points** (`TurnedPointerTest`): a slider's drag,
+  a text field's caret placement, a table's column resize, a tree's triangle, the menu bar's titles
+  (a press on one, then the pointer onto another through the dropdown drawn in the scene, which is
+  `MenuBar.pointOverTitle`), a list's rows, a split pane's divider and a range slider's thumbs,
+  upright, rotated 33 degrees and turned 38 degrees about the vertical axis with the eye 1200
+  points away, the pointer put where the matrix draws the upright point, worked out from
+  `Mat4.transform` and the layout's offsets. With the slider, the range slider and
+  `pointOverTitle` summing offsets again, those three fail; with `sceneToLocal` ignoring the matrix,
+  six of the eight fail.
+- **The round trip, `NaN` and the bounds** (`PointConversionTest`): translation, scale, two
+  rotations, a turn in perspective, a turn after a rotation and two containers nested; a point
+  behind the eye `NaN` both ways; edge-on and scaled to 0 on either axis; the four corners by hand;
+  a rectangle wholly behind the eye; a child hit where it is drawn and not where it was; a slid
+  child hit past two boxes unless its parent clips; the scene's list kept on rest and detach; and
+  the allocations (one record from `localToScene`, nothing from the package forms).
+- **The entry's preamble for every former override, and `hitTestChild` refusing a stranger**
+  (`HitTestEntryTest`): the eight hidden, disabled, inert, outside on each side and at `NaN`; an
+  application widget asked only past the preamble; a stranger refused; a press over an inert widget
+  landing on the one beneath; the scroll pane's gutter and the table's header not hitting the
+  content cut away there.
+- **Proved both ways**, each piece backed out and the tests run: with the old entry, the
+  preamble cases fail at `NaN` for the list, the tree, the table, the split pane and the scroll
+  bar and when inert for all six that answer, and the inert press lands on the stack; without the
+  inverse in `hitTestChild`, the tree's triangle and three hit cases; without the matrix in
+  `sceneToLocal`, six components and four conversion cases; without the rule for moved children,
+  both hit cases past a box; with a point mapped in place of the bounds, both bounds cases;
+  without the clip in `hitTestChild`, the gutter and the header; with the array back in
+  `localToScene`, the allocation case (48 bytes).
+- **The whole suite unchanged, `FullFrameAllocationTest` and `WorkBudgetTest` green**:
+  `./gradlew check --continue` at `a138f933`, 7306 tests, 90 skipped, none failed.
