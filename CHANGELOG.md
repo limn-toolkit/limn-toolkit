@@ -363,6 +363,18 @@ Maven Central say which number that was.
   slide nor the veil asks for an accessible walk on each frame of the fade; the card was laid at a
   new place inside every frame's paint and the tree walked again for it. A drag still moves the card
   for real.
+- A control inside a disabled or hidden container is out of reach on every path. Code calling
+  `requestFocus`, a dialog giving the focus back as it closed and a menu bar letting go of the
+  keyboard could put the focus on a button inside a disabled form, and Enter then ran its action;
+  the control also kept its enabled look there.
+- A window clears to the palette in effect. `Theme.light().apply()` before the first window drew
+  light controls on a dark canvas, and a window opened after a switch, or never handed to `apply`,
+  mixed the two palettes.
+- A theme file's eight-digit tone loads opaque, except the scrim's: `focusRing = #5B9DFF80` drew a
+  half-transparent ring on lists and an opaque one on buttons.
+- A table under Arabic, Egyptian Arabic or Persian writes every figure in one set of digits: a
+  `Column.of` formatter is handed the locale the toolkit writes numbers in, where the bare locale
+  wrote `ar` in Arabic-Indic digits.
 
 ### New
 
@@ -983,6 +995,12 @@ Maven Central say which number that was.
 - `Mat4.perspectiveAt(distance)`: a perspective seen from an eye in front of the plane z = 0, in the
   plane's own units.
 - The Showcase's two-sided card turns over in depth, and the Animations guide shows a turn in depth.
+- `DateFormats.date`, `time` and `dateTime`, beside `NumberFormats`: the language's date and time
+  in the toolkit's digits, where the platform writes every date in ASCII digits.
+- `I18n.numberLocale()`: the locale the toolkit writes numbers in, for `String.format` and any
+  format of your own.
+- `Column.of(title, value, format)` with a one-argument format, such as `DateFormats.date(FormatStyle.SHORT)`.
+- `Scene.setBackground(null)` hands a scene back to the palette.
 
 ### Changed
 
@@ -1249,6 +1267,19 @@ Maven Central say which number that was.
   where it wrote `child.hitTest(x - child.x(), y - child.y())`; `hitTestChild` refuses a widget
   that is not a child. A call of `hitTest` compiles and answers as before, but for the three
   fixes under "Fixed" (a point that is not a number, an inert widget, a point a parent clips away).
+- `Widget.isEnabled()` answers for the widget and every ancestor, as `isShowing()` does for
+  visibility; `setEnabled` still sets the widget's own flag. Code that read `isEnabled()` to save
+  and restore a flag reads its own bookkeeping instead; disable a form's container rather than
+  each field.
+- `Theme.apply(Scene...)` is `Theme.apply()`: every window repaints by itself. Drop the arguments.
+  `Theme.setCurrent` repaints every window too, and still leaves the font alone.
+- A `Scene` no longer starts at a fixed dark colour: drop `scene.setBackground(Theme.current().background())`.
+  A colour you set yourself is kept across a switch.
+- `Theme.Builder` and `ThemeFormat` drop the alpha of every tone but `scrim`. Put a translucent
+  colour in your own painting instead of in a tone.
+- `Column.of`'s two-argument formatter is handed `I18n.numberLocale()` instead of the table's bare
+  locale. The language is the same; only the digits, and in a few cases the separators, change.
+  A date formatter there switches to `Column.of(title, value, DateFormats.date(style))`.
 
 ### Known, and left for later
 
