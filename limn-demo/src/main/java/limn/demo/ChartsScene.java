@@ -1,6 +1,7 @@
 package limn.demo;
 
 import limn.components.Button;
+import limn.components.Card;
 import limn.components.Label;
 import limn.components.Theme;
 import limn.components.chart.BarChart;
@@ -147,9 +148,9 @@ final class ChartsScene {
 
         Column page = Page.column();
         page.add(Page.row(12, refresh, Page.hint(Text.LEGEND_HINT)));
-        page.add(band(Page.card(revenue), Page.card(channels)));
-        page.add(band(Page.card(withFootnote(response, gapFootnote())), Page.card(tickets)));
-        page.add(band(Page.card(warehouses), Page.card(customers)));
+        page.add(band(new Card(revenue), new Card(channels)));
+        page.add(band(new Card(withFootnote(response, gapFootnote())), new Card(tickets)));
+        page.add(band(new Card(warehouses), new Card(customers)));
         return page;
     }
 

@@ -5,6 +5,7 @@ import limn.components.Checkbox;
 import limn.components.Dialog;
 import limn.components.Expander;
 import limn.components.ExpanderGroup;
+import limn.components.Card;
 import limn.components.Label;
 import limn.components.TabbedPane;
 import limn.components.TextArea;
@@ -121,6 +122,7 @@ final class SectionsScene {
         documents(page);
         preferences(page);
         sections(page);
+
         return page;
     }
 
@@ -141,7 +143,7 @@ final class SectionsScene {
         TextArea draft = new TextArea();
         draft.setText(Text.DRAFT_TEXT);
         String draftTitle = "Coastline Cargo reply*";
-        Widget<?> draftTab = Page.card(draft); // the tab's content, which a close request names
+        Widget<?> draftTab = new Card(draft); // the tab's content, which a close request names
         documents.addTab(draftTitle, Tabler.outline("mail"), draftTab);
         documents.setTabClosable(0, false);
 
@@ -202,7 +204,7 @@ final class SectionsScene {
         tabs.addTab(Text.NOTIFICATIONS, Tabler.outline("bell"), options(
                 new Checkbox(Text.NOTIFY_ORDERS).setChecked(true),
                 new Checkbox(Text.NOTIFY_PAYMENTS)));
-        page.add(Page.narrow(NARROW, Page.card(new SizedBox(SizedBox.UNSET, 130, tabs))));
+        page.add(Page.narrow(NARROW, new Card(new SizedBox(SizedBox.UNSET, 130, tabs))));
     }
 
     /** An expander of filters, and a card of questions that keeps one answer open. */
@@ -240,7 +242,7 @@ final class SectionsScene {
         questions.add(question(group, Text.Q_WARRANTY, Text.A_WARRANTY, Text.S_WARRANTY, "shield-check",
                 Icon.Mirroring.NEVER));
         group.setExpandedIndex(0);
-        page.add(Page.narrow(NARROW, Page.card(questions)));
+        page.add(Page.narrow(NARROW, new Card(questions)));
     }
 
     private static Expander question(ExpanderGroup group, I18nString question, I18nString answer,
@@ -253,7 +255,7 @@ final class SectionsScene {
 
     /** A tab's body: a surface holding the document's text. */
     private static Widget<?> body(I18nString text) {
-        return Page.card(new Label(text).setWrap(true).setAlign(Label.HAlign.START, Label.VAlign.TOP));
+        return new Card(new Label(text).setWrap(true).setAlign(Label.HAlign.START, Label.VAlign.TOP));
     }
 
     /** A preferences tab's body: its options, one under the other. */

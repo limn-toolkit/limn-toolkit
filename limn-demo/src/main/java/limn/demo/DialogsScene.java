@@ -9,6 +9,7 @@ import limn.components.ComboBox;
 import limn.components.ContextMenus;
 import limn.components.Dialog;
 import limn.components.DisplayMode;
+import limn.components.Card;
 import limn.components.Label;
 import limn.components.ListView;
 import limn.components.Menu;
@@ -607,7 +608,7 @@ final class DialogsScene {
         Column page = Page.column();
         page.add(Page.firstSection(Text.FILES));
         page.add(wrapRow(actions, modal));
-        page.add(Page.narrow(640, Page.card(new SizedBox(SizedBox.UNSET, 7 * 34 + 8, folder))));
+        page.add(Page.narrow(640, new Card(new SizedBox(SizedBox.UNSET, 7 * 34 + 8, folder))));
         page.add(Page.hint(Text.FILES_HINT));
         return page;
     }

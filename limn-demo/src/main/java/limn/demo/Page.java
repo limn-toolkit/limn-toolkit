@@ -1,7 +1,7 @@
 package limn.demo;
 
 import limn.components.Label;
-import limn.components.Surface;
+
 import limn.components.Theme;
 import limn.graphics.Color;
 import limn.graphics.Icon;
@@ -161,10 +161,6 @@ final class Page {
         return new Label(text).setMuted(true).setWrap(true);
     }
 
-    /** A card: content set a little above the page, with room inside. */
-    static Surface card(Widget<?> content) {
-        return new Surface(new Padding(Insets.all(16), content));
-    }
 
     /** A caption above a control, the caption naming it to a reader. */
     static Widget<?> field(I18nString caption, Widget<?> control) {
