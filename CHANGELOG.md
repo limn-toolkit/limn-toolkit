@@ -349,6 +349,30 @@ Maven Central say which number that was.
 
 ### New
 
+- A widget fades as one picture (ADR 071). `Widget.setOpacity(float)` sets how opaque the widget
+  and everything under it are drawn, from 0 to 1, and `opacity()` answers it; `fadeTo(target,
+  seconds, onArrive)` moves it there eased as the toolkit's popups fade, and `fadeTo(target)` over
+  the theme's `animWindow`. Between 0 and 1 the subtree is drawn into an offscreen picture laid
+  over the window once, so the parts of a panel do not show through each other halfway; a child's
+  opacity multiplies its parents'; at 1 nothing extra is drawn and at 0 nothing is drawn. It is a
+  picture and not a presence: at 0 the widget is still laid out, takes a click and the keyboard,
+  and is read by a screen reader, and `setVisible(false)` is what takes it away, which a fade out
+  does in its `onArrive`. While the system asks for less motion, or with no window to fade in, a
+  fade goes straight to its target; a newer `fadeTo` or a `setOpacity` stops one in flight, whose
+  `onArrive` never runs. A watcher hears `Change.Aspect.OPACITY` each time `setOpacity` changes the
+  value and twice for a fade, as it starts and as it ends. Measured on an Apple M5 Max, a popup's
+  fade frame costs 0.04 ms of CPU and 0.02 ms of GPU more than the same frame opaque; on Apple's
+  software renderer about 3 ms of a 150 ms frame. A window keeps the pictures only while
+  consecutive frames use them, and its performance monitor counts them.
+- `Canvas.saveLayer(x, y, width, height, opacity)`, closed by `restore()`, draws what is painted
+  until the restore as one picture composited with the opacity: what a widget that paints
+  overlapping parts of its own uses to fade them together, as `Chart` fades its tooltip panel. A
+  canvas that cannot make pictures, a recording or measuring one, falls back to a `save()` and a
+  per-draw `setOpacity`, which its default does.
+- The Showcase's Backdrop panel page fades its floating panel with an Opacity slider and its
+  percentage, beside the Coverage slider that sets how much tone the glass lays down, and a button
+  fades the panel out and back with `fadeTo`. The Animations guide has a section on fading part of
+  a window.
 - The Packaging guide shows how to keep one platform's natives, with Gradle (a component metadata
   rule keyed on the classifier, for the machine running the build or for a target named with
   `-PlimnTarget`) and with Maven (the backend's LWJGL and SVG natives excluded and declared again
@@ -878,6 +902,16 @@ Maven Central say which number that was.
 
 ### Changed
 
+- The in-scene fades of a `ComboBox`'s list, a `DatePicker`'s calendar, a `TabbedPane`'s list of
+  every tab, a `PopupMenu`'s cascade, an in-scene `Dialog`'s card, the hover tooltip and a chart's
+  tooltip panel draw their surface as one picture: halfway through, a highlight no longer shows
+  through a row's icon, a shadow no longer darkens its panel, and a card's border no longer shows
+  through its buttons. The dialog's veil is still one fill whose alpha fades. Each step of such a
+  fade repaints the surface and its shadow, where the list's, the menu's and the dialog's
+  repainted the window. A popup in a window of its own fades through the window's opacity, as
+  before.
+- `Work.Counting`, in the toolkit's test fixtures, counts a `saveLayer` as one drawing command:
+  its picture's composite.
 - A `Tree` keeps the children a load produced for as long as their row is open, and lets them
   go when it closes: opening the row again loads again. It kept the children of every node
   ever opened until `refresh()`, which over a model with no end, a disk, is everything the user
@@ -1051,6 +1085,13 @@ Maven Central say which number that was.
 
 ### Breaking, and how to move
 
+- `Canvas.setOpacity` multiplies the opacity in force instead of replacing it, so an opacity set
+  inside a fading surface or a layer combines with it. Code that set it once on a fresh `save()`
+  draws as before. Code that multiplied by hand, `setOpacity(canvas.opacity() * fade)`, drops the
+  product, `setOpacity(fade)`, or its fade is squared. Code that meant to replace an opacity in
+  force divides by it.
+- `Change.Aspect` has `OPACITY`. A `switch` over the aspects that names every one, with no
+  `default`, needs a case for it to compile.
 - An `&` before a letter or a digit in the text of a menu title or item, a `Button`, a
   `Checkbox`, a `RadioButton` or a `Label` bound with `setLabelFor` marks its access letter and
   is not shown (ADR 070): "R&D" shows "RD" with the D underlined, and `text()` answers "RD".

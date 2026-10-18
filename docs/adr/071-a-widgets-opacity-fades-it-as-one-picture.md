@@ -1,12 +1,14 @@
 # ADR 071: A widget's opacity fades it as one picture
 
-- **Status:** Accepted, 2026-10-17; not built. Proposed the same day: the owner decided that
-  Limn gets an opacity on the widget, applied to the widget and everything under it as one
+- **Status:** Accepted and implemented, 2026-10-17. Proposed the same day: the owner decided
+  that Limn gets an opacity on the widget, applied to the widget and everything under it as one
   picture, and asked for care with the time and the memory it costs. He answered the eight
   questions of section 3 on 2026-10-17, seven with the recommendation and the second with a rule
   of his own (a direct set announces every change, a fade only its start and its end), and the
   probe of section 0 was then run on the lab's three guests (section 0.1), in line with this
-  Mac's. Section 5 names the two measurements that wait for the code.
+  Mac's. Built the same day: the two measurements section 5 left to the code are in section 6.1,
+  in line with section 0 once the composite had a program of its own, and section 6.2 says where
+  the build departs from the text above and why.
 - **Date:** 2026-10-17
 - **Scope:**
   - an opacity on every widget, how it combines with an ancestor's, and what it does not change
@@ -550,3 +552,160 @@ own, which section 2.1 carries.
   against section 0's LAYER rows, and a glass inside a fading group against the same glass with
   none. Either coming out of line with section 0 reopens this record rather than being absorbed
   by the build.
+
+## 6. Built, 2026-10-17
+
+### 6.1 The two measurements section 5 owed
+
+Run on this Mac, on the built canvas, by section 0's method: the same window, page, popup and
+window-sized page, the modes interleaved frame by frame and rotated, medians of 300 frames after
+60 warm ones on the GPU and of 40 after 5 on the software renderer, two rounds, OPAQUE against
+OPAQUE' as the floor. Each mode drew with a canvas of its own, so that a canvas's pool saw what a
+fade gives it, consecutive frames that open the same layer, whatever the interleaving. The modes
+section 0 did not have:
+
+- **REAL**, the subtree drawn through `GlCanvas.saveLayer`, the built path: no frame of its own,
+  the canvas's clip and transform as they are, the picture from the canvas's pool, against
+  section 0's **LAYER**, which started each layer as a frame of its own (run again here beside
+  it); **NESTED_REAL** with the rows in a second `saveLayer` at 0.8.
+- **A glass inside a fading group:** a frosted band over the popup's rows (two blur passes and a
+  tint, 280 × 120 points) in the popup's partial frame, **GLASS** with no group and
+  **GLASS_GROUP** in a group at one half, and the same band filled flat as their control,
+  **PLAIN** and **PLAIN_GROUP**, so that (GLASS_GROUP − GLASS) − (PLAIN_GROUP − PLAIN) is what
+  composing the glass's copy through the open layer costs.
+
+**First run: out of line, and why.** With the picture composited by the canvas's own program (a
+textured quad in the batch), the software renderer took 180.8 ms for the popup's fade frame
+against 145.9 ms for LAYER and 445.5 ms for the window against 212.4 ms, and the GPU 0.02 to
+0.05 ms more than LAYER on the popup's frame. The canvas program runs its clip and its branches
+on every pixel of the picture, which on a renderer that runs fragment shaders on the CPU is the
+whole cost, as it was for the scrim before the flat program (`GlCanvas.emitFlatRect`). The
+composite now has a program of its own, `canvas_composite`, which samples the picture and
+multiplies it by the opacity and nothing else, as one draw call of its own as section 0's was;
+the numbers below are with it.
+
+**On the GPU (Apple M5 Max, OpenGL 4.1 over Metal),** milliseconds, round 1 / round 2 (the GPU's
+clock moved between rounds, and within a round every mode saw the same clocks):
+
+| Subtree | Mode | CPU | GPU | Frame |
+|---|---|---|---|---|
+| popup, partial frame | OPAQUE | 0.225 / 0.222 | 0.308 / 0.308 | 0.573 / 0.566 |
+| | OPAQUE' | 0.224 / 0.221 | 0.309 / 0.314 | 0.572 / 0.574 |
+| | DIRECT | 0.227 / 0.221 | 0.311 / 0.310 | 0.580 / 0.570 |
+| | LAYER | 0.267 / 0.261 | 0.331 / 0.333 | 0.608 / 0.603 |
+| | REAL | 0.269 / 0.261 | 0.331 / 0.329 | 0.609 / 0.601 |
+| | NESTED_REAL | 0.301 / 0.294 | 0.364 / 0.363 | 0.661 / 0.650 |
+| popup, whole frame | OPAQUE | 0.480 / 0.414 | 0.591 / 0.188 | 1.089 / 0.691 |
+| | LAYER | 0.528 / 0.467 | 0.622 / 0.196 | 1.135 / 0.721 |
+| | REAL | 0.537 / 0.466 | 0.621 / 0.196 | 1.145 / 0.729 |
+| whole window | OPAQUE | 0.597 / 0.543 | 0.287 / 0.219 | 0.899 / 0.786 |
+| | OPAQUE' | 0.597 / 0.544 | 0.287 / 0.219 | 0.897 / 0.786 |
+| | LAYER | 0.636 / 0.582 | 0.319 / 0.255 | 0.948 / 0.833 |
+| | REAL | 0.644 / 0.583 | 0.324 / 0.253 | 0.954 / 0.835 |
+| glass band, partial frame | PLAIN | 0.218 / 0.207 | 0.315 / 0.112 | 0.570 / 0.349 |
+| | PLAIN' | 0.218 / 0.209 | 0.316 / 0.112 | 0.567 / 0.350 |
+| | PLAIN_GROUP | 0.257 / 0.243 | 0.337 / 0.120 | 0.601 / 0.362 |
+| | GLASS | 0.306 / 0.292 | 0.420 / 0.141 | 0.684 / 0.383 |
+| | GLASS_GROUP | 0.380 / 0.371 | 0.470 / 0.166 | 0.740 / 0.445 |
+
+**On the software renderer (Apple Software Renderer, 4.1 APPLE-24.0.2),** one number per frame:
+
+| Subtree | OPAQUE | OPAQUE' | DIRECT | LAYER | REAL | NESTED_REAL |
+|---|---|---|---|---|---|---|
+| popup, partial frame | 146.6 / 149.6 | 146.7 / 149.4 | 146.7 / 149.7 | 148.7 / 152.1 | 149.4 / 153.0 | 151.2 / 154.9 |
+| popup, whole frame | 231.7 / 239.5 | 231.5 / 239.7 | 231.3 / 240.7 | 225.7 / 234.1 | 226.4 / 234.6 | — |
+| whole window | 195.2 / 201.4 | 195.2 / 201.3 | — | 213.8 / 219.8 | 212.8 / 219.9 | — |
+
+| Glass band, partial frame | PLAIN | PLAIN' | PLAIN_GROUP | GLASS | GLASS_GROUP |
+|---|---|---|---|---|---|
+| software renderer | 147.5 / 150.3 | 147.2 / 150.1 | 150.4 / 152.3 | 215.5 / 218.7 | 220.9 / 224.0 |
+
+**The pixel** came out `167, 184, 231` on the GPU and `168, 184, 231` on the software renderer
+through the built layer, against an exact `168, 184, 231` and `157, 177, 229` per draw, as section
+0 had it.
+
+**Measurement 1, re-basing into a layer: nothing to re-base, and nothing measurable.** The build
+re-bases neither the clip nor the transform (section 6.2): REAL against LAYER is +0.002 / 0.000 ms
+of CPU, 0.000 / −0.004 ms of GPU and +0.001 / −0.002 ms of frame for the popup's fade frame, inside
+the floor (OPAQUE against OPAQUE' at most 0.005 ms of CPU, 0.006 ms of GPU, 0.008 ms of frame),
+and the same for the whole frame and the window. Over the opaque frame the built layer costs the
+popup's fade frame +0.044 / +0.039 ms of CPU and +0.023 / +0.021 ms of GPU, section 0's +0.04 and
++0.03; a second level +0.03 of each, as section 0 found. On the software renderer REAL is 0.6 to
+0.9 ms over LAYER on the popup's fade frame (0.4 to 0.6% of it, floor 0.1 to 0.2 ms), the clear of
+the picture's part and one more flush, and within a millisecond of it on the whole frame and the
+window; over the opaque frame +2.8 / +3.4 ms on the popup's fade frame, section 0's 1.9 ms being
+this run's LAYER at +2.1 / +2.5.
+
+**Measurement 2, a glass inside a fading group: in line with the estimate.** Composing the glass's
+copy through the open layer, one composite per glass over the region it reads, costs the band's
+two glass draws +0.035 / +0.043 ms of CPU and +0.028 / +0.017 ms of GPU on the GPU, and +2.5 /
++3.3 ms on the software renderer, 1.1 to 1.5% of a 216 ms frame, over what the group costs the
+same band filled flat (+0.039 / +0.036 ms of CPU and +0.022 / +0.008 ms of GPU, +2.9 / +2.0 ms on
+the software renderer). Section 2.6 estimated one more textured quad per open layer per glass over
+the effect's bounds, and that is what it costs.
+
+Neither reopens this record. They were run on this Mac's GPU and its software renderer, the
+renderer the macOS guest draws with; the three guests of section 0.1 were not run again for the
+build.
+
+### 6.2 Where the build departs from the text above, and why
+
+- **Nothing is re-based (section 2.3).** Every vertex, every clip and the backdrop copy stay in the
+  window's device pixels; the batch is told the target's corner and size, and the programs take
+  them as uniforms (`u_origin`, `u_viewport`, and `u_window` for the backdrop's coordinates), so a
+  layer moves only the projection and the fragment's way back to the window. With no layer the
+  offset is exactly zero and the fragment's position is `gl_FragCoord` bit for bit. The
+  partial-rendering scissor is off while a layer is the target and kept for the window.
+- **The composite is a program of its own (section 2.3, "as an ordinary batched draw"):** section
+  6.1 says why. It draws under no clip, since the picture was drawn under the clip already and a
+  second pass of it would square the antialiased edge.
+- **Pictures are rounded up to 64 pixels**, capped at the framebuffer, so a fade one pixel larger
+  takes the same one; at the end of a frame every picture that frame did not take goes back to
+  the driver, which keeps decision 8's rule ("kept only while consecutive frames use it") per
+  picture rather than per frame.
+- **`AnchoredPopup` fades the panel it presents, not its layer (section 2.7).** The `Layer` widget
+  covers the scene so that a press beside the card dismisses it; its opacity would make a picture,
+  and a repaint, the size of the window on every frame of the fade. The panel is the card and its
+  shadow (its `paintOutset`), so the picture and each frame's repaint are the card's.
+- **`PopupMenu`'s cascade fades through `Canvas.saveLayer`**, over its columns and what their
+  shadows reach, and not through the surface's widget opacity: in the scene that surface covers
+  the scene, for the same reason. A step of its fade now repaints the cascade, where it repainted
+  the window.
+- **`Dialog`'s card** fades through its own `fadeTo` beside the dialog's own fade, which the veil's
+  alpha and the card's slide follow and which ends the dialog; the veil stays one fill.
+- **`fadeTo` runs on the scene's wall-time ticker** (`addRealTimeTicker`), as the window fades do:
+  an `onArrive` often hides or removes something, and a paused scene must still be able to. "No
+  scene to tick" is a widget in no scene or in a scene with no window, as `Scene.fadeWindow` has
+  it; a fade on a widget that leaves its scene settles at its target at that scene's next frame
+  and runs its `onArrive` then. `fadeTo(target)` takes the theme's `animWindow` through
+  `limn.scene.internal.WindowAnimation`, which the theme installs as it does `LayoutOverflow`.
+- **An opacity change's damage asks for no accessible walk** (`Scene.damageWidgetPicture`), since
+  nothing the tree publishes reads it (section 2.8): a fade of twelve frames walked and compared
+  the tree twelve times to find it unchanged.
+- **The work budget of ADR 062** counts a layer as one drawing command (`Work.Counting`), and a
+  group costs exactly one whatever it holds.
+
+### 6.3 What section 5 asked for, and where it is
+
+- Pixels on a real device (`GlLayerTest`): the record's pixel, 168 through a layer and 157 per
+  draw; nesting; a rotation; a clip off the grid; 0 drawing nothing and 1 opening nothing; a glass
+  inside a group at 0.99 within four steps of the glass with none, and a glass over the page inside
+  a group reading the page. `OpacityPassSeamTest`: a partial frame through a fading panel, a fade
+  step, and a glass inside a fading panel, each equal to the whole frame within two steps.
+- The API, announcements and damage (`WidgetOpacityTest`): clamping, NaN, the UI thread, the paint
+  refusal, 0 skipping the subtree and 1 opening no layer, `setVisible` winning; at 0 still laid
+  out, hit, focused and in the tree; a set announcing every change and none for the same value, a
+  fade of twelve frames announcing two, a superseded one its end and the new one its start, an
+  instant one one; the tree neither republished nor walked; the box and outset damaged with no
+  layout, the same value damaging nothing.
+- `Canvas.setOpacity` multiplying, inside a layer and under another (`GlLayerTest`); the four hand
+  multiplications are gone.
+- Memory (`GlLayerTest`): siblings share one picture, counted in `stats()`; a frame with no layer
+  frees it; a closed canvas deletes its textures.
+- The budget (`WorkBudgetTest`): a group costs one command at ten rows and at forty;
+  `FullFrameAllocationTest` holds a fading form to the same ceiling as a still one.
+- The toolkit's fades (`InSceneFadesAsOnePictureTest`): each of the six and the chart's tooltip
+  halfway through its fade is one layer at the fade's opacity with every draw inside at 1;
+  `InScenePopupFadePixelTest`: on a real device a combo box list's highlighted row halfway through
+  its fade is the opaque row mixed with what is beneath by the plain row's share, where the per-draw
+  fade drew it 12.5 steps darker.

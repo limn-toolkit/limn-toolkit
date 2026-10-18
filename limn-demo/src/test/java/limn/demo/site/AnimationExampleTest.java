@@ -74,6 +74,30 @@ class AnimationExampleTest {
     }
 
     @Test
+    void aNoticeFadesInAsOnePictureAndIsHiddenWhenItsFadeOutArrives() {
+        Lamp notice = new Lamp();
+        notice.setVisible(false);
+        show(notice);
+        scene.bind(new limn.testing.StubWindow()); // a window: frames to fade over
+        AnimationExample.showNotice(notice);
+        assertTrue(notice.isVisible());
+        assertEquals(0f, notice.opacity(), "shown at nothing, fading in");
+        frame(0);
+        frame(80);
+        assertTrue(notice.opacity() > 0f && notice.opacity() < 1f, "part of the way: " + notice.opacity());
+        frame(200);
+        assertEquals(1f, notice.opacity(), "there once the window animation has gone by");
+
+        AnimationExample.dismissNotice(notice);
+        frame(0);
+        frame(120);
+        assertTrue(notice.isVisible(), "still shown while it fades");
+        frame(200);
+        assertEquals(0f, notice.opacity());
+        assertTrue(!notice.isVisible(), "and hidden when the fade arrives, so nothing invisible takes a click");
+    }
+
+    @Test
     void theGuidesOwnTestOfALampFindsItPartOfTheWay() {
         assertTrue(AnimationExample.isPartWayAfter90Millis(new Lamp()));
     }

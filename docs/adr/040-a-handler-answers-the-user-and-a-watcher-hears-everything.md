@@ -879,6 +879,10 @@ it. So `TEXT` is not in `of`'s table and the table is fifty-one values rather th
 `Change.edit` is the only way to make one, and `aspect() == TEXT` and `instanceof TextEdit` are the
 same question. The throw is at the announcing site and names the aspect.
 
+*2026-10-17:* ADR 071 added a nineteenth aspect, `OPACITY`, a state aspect that `Widget.opacity()`
+answers, so the table is now fifty-four values rather than fifty-seven; every count of fifty-one in
+this record is of the eighteen aspects it was written with.
+
 ```java
 package limn.concurrent;
 

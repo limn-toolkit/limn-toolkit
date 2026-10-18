@@ -15,8 +15,8 @@ import limn.scene.event.MouseEvent;
 
 /**
  * The worked examples the animations guide shows: a value that eases to where it is sent, a
- * colour that does, a pulse that repeats, and a ticker for motion that is not a move from one
- * value to another. Compiled by {@code ./gradlew check} and run by {@code AnimationExampleTest},
+ * colour that does, a pulse that repeats, a ticker for motion that is not a move from one value
+ * to another, and a part of a window fading in and out. Compiled by {@code ./gradlew check} and run by {@code AnimationExampleTest},
  * so what the guide says they do is what they do.
  */
 public final class AnimationExample {
@@ -185,6 +185,19 @@ public final class AnimationExample {
                 return true;          // again next frame
             });
         }
+    }
+    // #endregion
+
+    // #region guide:animation-fade
+    /** A notice that fades in where it was hidden, and fades out and is hidden when dismissed. */
+    static void showNotice(Widget<?> notice) {
+        notice.setOpacity(0).setVisible(true);
+        notice.fadeTo(1);       // over the theme's window animation, the notice and all it holds as one picture
+    }
+
+    static void dismissNotice(Widget<?> notice) {
+        // At 0 it would still take a click, a Tab and a reader's attention: hidden when the fade arrives.
+        notice.fadeTo(0, 0.25, () -> notice.setVisible(false));
     }
     // #endregion
 
