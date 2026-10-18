@@ -3503,19 +3503,17 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         if (hit != null) {
             return hit;
         }
-        if (localY >= rowsTop() && localY < rowsTop() + rowsViewportHeight()) {
-            for (Widget<?> child : children()) {
-                if (child == vBar || child == hBar) {
-                    continue;
-                }
-                if (child.y() + child.height() <= rowsTop()
-                        || child.y() >= rowsTop() + rowsViewportHeight()) {
-                    continue;
-                }
-                Widget<?> inner = hitTestChild(child, localX, localY);
-                if (inner != null) {
-                    return inner;
-                }
+        // A cell widget is hit only inside the rows' viewport, past the kept columns' band for a
+        // cell that scrolls: hitTestChild cuts each child at the clip rectangle this table answers
+        // for it, which is where the paint cuts it, so a cell scrolled under the header, the
+        // footer, a reserved gutter or a kept column takes no press there.
+        for (Widget<?> child : children()) {
+            if (child == vBar || child == hBar) {
+                continue;
+            }
+            Widget<?> inner = hitTestChild(child, localX, localY);
+            if (inner != null) {
+                return inner;
             }
         }
         return this;

@@ -24,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The hit test's one entry: {@code Widget.hitTest} is final and makes the visible, enabled, in
@@ -255,6 +256,77 @@ class HitTestEntryTest extends ComponentTestBase {
         IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
                 () -> w.askStranger(35, 35));
         assertNotNull(thrown.getMessage());
+    }
+
+    /** A box of a fixed size, for content larger than the pane it scrolls in. */
+    private static final class Box extends Widget<Box> {
+        private final float w;
+        private final float h;
+
+        Box(float w, float h) {
+            this.w = w;
+            this.h = h;
+        }
+
+        @Override
+        protected Size onMeasure(Constraints c) {
+            return c.constrain(w, h);
+        }
+    }
+
+    /**
+     * A scroll pane whose bars hold gutters of their own clips its content to the viewport, and
+     * the content running on under a gutter, where it is not drawn, takes no press there: the bar
+     * has it while it shows, and the pane while it has faded.
+     */
+    @Test
+    void aChildIsNotHitWhereItsParentClipsItAway() {
+        Box content = new Box(1000, 1000);
+        ScrollView view = new ScrollView(content, true, true).setBarLayout(ScrollGutters.Layout.RESERVED);
+        Scene scene = new Scene(view);
+        scene.setTextRuler(RULER);
+        scene.layoutPass(200, 200);
+        float bar = ScrollBar.thickness();
+        assertEquals(200 - bar, view.viewportWidth(), 1e-3f, "both gutters held open");
+        assertEquals(1000, content.width(), 1e-3f, "the content runs on under the vertical gutter");
+        assertSame(content, view.hitTest(50, 50), "inside the viewport, the content");
+        Widget<?> inGutter = view.hitTest(200 - bar / 2, 50);
+        assertTrue(inGutter != content, "in the vertical gutter, never the content: " + inGutter);
+        Widget<?> inOther = view.hitTest(50, 200 - bar / 2);
+        assertTrue(inOther != content, "nor in the horizontal one: " + inOther);
+    }
+
+    /**
+     * A table cuts a widget cell scrolled up under its header at the rows' viewport, and the part
+     * cut away, drawn over by the header, takes no press: the table's own hand check of the rows'
+     * band went when the entry learned the clip.
+     */
+    @Test
+    void aTableCellScrolledUnderTheHeaderIsNotHitThere() {
+        Table<String> table = new Table<>(List.of(
+                Column.<String>widget("Mark", s -> new Box(10, 10)).width(120)));
+        List<String> rows = new ArrayList<>();
+        for (int i = 0; i < 30; i++) {
+            rows.add("row " + i);
+        }
+        table.setRows(rows);
+        Scene scene = mount(table);
+        // The first row's mark sits in the middle of its row, 11 points below the header's edge:
+        // 15 points up puts it across the edge.
+        table.scrollBy(0, 15);
+        scene.layoutPass(WIDTH + 2 * INSET, HEIGHT + 2 * INSET);
+        scene.renderFrame(new FakeCanvas(WIDTH + 2 * INSET, HEIGHT + 2 * INSET));
+        float header = Theme.current().tokensFor(table).controlHeight();
+        Widget<?> under = null;
+        for (Widget<?> child : table.children()) {
+            if (child instanceof Box && child.y() < header - 2 && child.y() + child.height() > header + 2) {
+                under = child;
+            }
+        }
+        assertNotNull(under, "the fixture scrolls a cell part way under the header");
+        Widget<?> hit = table.hitTest(under.x() + 2, header - 2);
+        assertTrue(!(hit instanceof Box), "on the header, over the cell's hidden part: " + hit);
+        assertSame(under, table.hitTest(under.x() + 2, header + 2), "and the cell just below it");
     }
 
     /** A widget that counts the presses that land on it. */

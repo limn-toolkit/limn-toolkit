@@ -2547,7 +2547,8 @@ public abstract class Widget<W extends Widget<W>> {
      * Asks one child what a point lands on: maps the point from this widget's space into the
      * child's and calls the child's {@link #hitTest}. The only way a widget reaches a child's
      * hit test, so that where this widget draws the child, and not only where layout put it, is
-     * where the pointer finds it.
+     * where the pointer finds it: {@code null} where this widget {@linkplain #clipsChildren()
+     * clips} the child away, its {@linkplain #clipX(Widget) clip rectangle} for that child.
      *
      * @param child  a child of this widget
      * @param localX the point's x in this widget's space
@@ -2558,6 +2559,19 @@ public abstract class Widget<W extends Widget<W>> {
     protected final @Nullable Widget<?> hitTestChild(Widget<?> child, float localX, float localY) {
         if (child.parent != this) {
             throw new IllegalArgumentException("not a child of this widget: " + child);
+        }
+        if (clipsChildren()) {
+            // Where this widget cuts the child away the child is not drawn, so it is not hit
+            // there either: until 2026-10-18 content lying under a scroll pane's reserved gutter
+            // took the press meant for the gutter, and the tree and the table each checked their
+            // viewport by hand. The clip is in this widget's own space, before any matrix it
+            // draws the child through, as the paint applies it.
+            float cx = clipX(child);
+            float cy = clipY(child);
+            if (!(localX >= cx && localY >= cy
+                    && localX < cx + clipWidth(child) && localY < cy + clipHeight(child))) {
+                return null;
+            }
         }
         float x = localX;
         float y = localY;
