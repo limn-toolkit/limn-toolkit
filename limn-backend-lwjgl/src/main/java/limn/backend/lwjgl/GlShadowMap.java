@@ -18,23 +18,34 @@ final class GlShadowMap {
     private int fbo;
     private int depthTexture;
 
+    /**
+     * Makes the map, and leaves the framebuffer bindings as it found them: like a render target's,
+     * it is made inside a paint, where the bound framebuffer may be a faded group's layer and not
+     * the window, and a binding left at 0 there would send the rest of the group into the window.
+     */
     GlShadowMap(int size) {
         this.size = size;
-        depthTexture = GL33C.glGenTextures();
-        GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, depthTexture);
-        GL33C.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_DEPTH_COMPONENT24, size, size, 0,
-                GL33C.GL_DEPTH_COMPONENT, GL33C.GL_UNSIGNED_INT, (ByteBuffer) null);
-        Gl.sample2D(GL33C.GL_NEAREST, GL33C.GL_CLAMP_TO_EDGE);
+        int previousDraw = GL33C.glGetInteger(GL33C.GL_DRAW_FRAMEBUFFER_BINDING);
+        int previousRead = GL33C.glGetInteger(GL33C.GL_READ_FRAMEBUFFER_BINDING);
+        try {
+            depthTexture = GL33C.glGenTextures();
+            GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, depthTexture);
+            GL33C.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_DEPTH_COMPONENT24, size, size, 0,
+                    GL33C.GL_DEPTH_COMPONENT, GL33C.GL_UNSIGNED_INT, (ByteBuffer) null);
+            Gl.sample2D(GL33C.GL_NEAREST, GL33C.GL_CLAMP_TO_EDGE);
 
-        fbo = GL33C.glGenFramebuffers();
-        GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, fbo);
-        GL33C.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_DEPTH_ATTACHMENT,
-                GL33C.GL_TEXTURE_2D, depthTexture, 0);
-        GL33C.glDrawBuffer(GL33C.GL_NONE); // depth-only: no color buffer
-        GL33C.glReadBuffer(GL33C.GL_NONE);
-        Gl.requireFramebufferComplete("shadow", this::dispose);
-        GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, 0);
-        GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, 0);
+            fbo = GL33C.glGenFramebuffers();
+            GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, fbo);
+            GL33C.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_DEPTH_ATTACHMENT,
+                    GL33C.GL_TEXTURE_2D, depthTexture, 0);
+            GL33C.glDrawBuffer(GL33C.GL_NONE); // depth-only: no color buffer
+            GL33C.glReadBuffer(GL33C.GL_NONE);
+            Gl.requireFramebufferComplete("shadow", this::dispose);
+        } finally {
+            GL33C.glBindFramebuffer(GL33C.GL_READ_FRAMEBUFFER, previousRead);
+            GL33C.glBindFramebuffer(GL33C.GL_DRAW_FRAMEBUFFER, previousDraw);
+            GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, 0);
+        }
     }
 
     int framebuffer() {

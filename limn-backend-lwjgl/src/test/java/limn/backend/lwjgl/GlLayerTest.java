@@ -251,6 +251,43 @@ class GlLayerTest {
         assertAtMost(0, render(GlLayerTest::popup), one, "the frame of today");
     }
 
+    // ------------------------------------------------------------------ a 3D view inside a layer
+
+    @Test
+    void aThreeDTargetMadeOrResizedInsideALayerLeavesTheLayerBound() {
+        Color ink = Color.rgb(0x2050C0);
+        Consumer<GlCanvas> group = c -> {
+            c.fillRect(40, 40, 60, 60, ink); // queued when the target is made: it must reach the layer
+        };
+        Consumer<GlCanvas> after = c -> c.fillRect(120, 40, 60, 60, ink);
+        byte[] control = render(c -> {
+            c.saveLayer(30, 30, 160, 80, 0.5f);
+            group.accept(c);
+            after.accept(c);
+            c.restore();
+        });
+        int[] bound = new int[4];
+        limn.render3d.RenderTarget[] made = new limn.render3d.RenderTarget[1];
+        byte[] made3d = render(c -> {
+            c.saveLayer(30, 30, 160, 80, 0.5f);
+            group.accept(c);
+            bound[0] = GL33C.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
+            // What a Viewport3D does on its first paint, and on any paint whose size changed.
+            made[0] = c.gl3d().createTarget(64, 64, 4);
+            bound[1] = GL33C.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
+            made[0].resize(96, 48);
+            bound[2] = GL33C.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
+            after.accept(c);
+            c.restore();
+        });
+        made[0].dispose();
+        // The whole frame, the window's bottom-left corner included, where the group used to land
+        // at full opacity when the window's framebuffer was bound under it.
+        assertAtMost(0, control, made3d, "a group that makes a 3D target inside its layer");
+        assertEquals(bound[0], bound[1], "making the target leaves the layer's picture bound");
+        assertEquals(bound[0], bound[2], "and so does resizing it");
+    }
+
     // ------------------------------------------------------------------ memory
 
     @Test

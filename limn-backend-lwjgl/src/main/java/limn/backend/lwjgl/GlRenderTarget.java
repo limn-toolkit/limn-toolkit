@@ -52,7 +52,27 @@ final class GlRenderTarget implements RenderTarget {
         allocate();
     }
 
+    /**
+     * Makes the target's GL objects, and leaves the framebuffer bindings as it found them. It runs
+     * inside a paint (a {@code Viewport3D} makes its target on its first paint and resizes it on
+     * any later one), and there the bound framebuffer may be a faded group's layer
+     * ({@code Canvas.saveLayer}) and not the window: one left at 0 sent the rest of the group into the window's corner, at
+     * full opacity, and composited an empty layer where the group was.
+     */
     private void allocate() {
+        int previousDraw = GL33C.glGetInteger(GL33C.GL_DRAW_FRAMEBUFFER_BINDING);
+        int previousRead = GL33C.glGetInteger(GL33C.GL_READ_FRAMEBUFFER_BINDING);
+        try {
+            allocateBound();
+        } finally {
+            GL33C.glBindFramebuffer(GL33C.GL_READ_FRAMEBUFFER, previousRead);
+            GL33C.glBindFramebuffer(GL33C.GL_DRAW_FRAMEBUFFER, previousDraw);
+            GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, 0);
+            GL33C.glBindRenderbuffer(GL33C.GL_RENDERBUFFER, 0);
+        }
+    }
+
+    private void allocateBound() {
         resolveFbo = GL33C.glGenFramebuffers();
         GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, resolveFbo);
         colorTex = GL33C.glGenTextures();
@@ -90,9 +110,6 @@ final class GlRenderTarget implements RenderTarget {
         }
         GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, resolveFbo);
         requireComplete("resolve");
-        GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, 0);
-        GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, 0);
-        GL33C.glBindRenderbuffer(GL33C.GL_RENDERBUFFER, 0);
     }
 
     private void requireComplete(String which) {
@@ -158,8 +175,8 @@ final class GlRenderTarget implements RenderTarget {
     }
 
     /**
-     * Allocates the half-res ping-pong pair on first bloomy frame (leaves the
-     * FRAMEBUFFER binding changed; the bloom chain binds its own next).
+     * Allocates the half-res ping-pong pair on first bloomy frame, leaving the framebuffer
+     * bindings as it found them, as {@link #allocate()} does (the bloom chain binds its own next).
      * Half-res RGBA16F like the main texture: the chain carries premultiplied
      * linear scene-referred RGBA, alpha included.
      */
@@ -176,18 +193,25 @@ final class GlRenderTarget implements RenderTarget {
     }
 
     private int[] createBloomAttachment() {
-        int fbo = GL33C.glGenFramebuffers();
-        GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, fbo);
-        int tex = GL33C.glGenTextures();
-        GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, tex);
-        GL33C.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA16F, bloomWidthPx(), bloomHeightPx(),
-                0, GL33C.GL_RGBA, GL33C.GL_HALF_FLOAT, (ByteBuffer) null);
-        Gl.sample2D(GL33C.GL_LINEAR, GL33C.GL_CLAMP_TO_EDGE);
-        GL33C.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
-                GL33C.GL_TEXTURE_2D, tex, 0);
-        requireComplete("bloom");
-        GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, 0);
-        return new int[]{fbo, tex};
+        int previousDraw = GL33C.glGetInteger(GL33C.GL_DRAW_FRAMEBUFFER_BINDING);
+        int previousRead = GL33C.glGetInteger(GL33C.GL_READ_FRAMEBUFFER_BINDING);
+        try {
+            int fbo = GL33C.glGenFramebuffers();
+            GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, fbo);
+            int tex = GL33C.glGenTextures();
+            GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, tex);
+            GL33C.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA16F, bloomWidthPx(), bloomHeightPx(),
+                    0, GL33C.GL_RGBA, GL33C.GL_HALF_FLOAT, (ByteBuffer) null);
+            Gl.sample2D(GL33C.GL_LINEAR, GL33C.GL_CLAMP_TO_EDGE);
+            GL33C.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
+                    GL33C.GL_TEXTURE_2D, tex, 0);
+            requireComplete("bloom");
+            return new int[]{fbo, tex};
+        } finally {
+            GL33C.glBindFramebuffer(GL33C.GL_READ_FRAMEBUFFER, previousRead);
+            GL33C.glBindFramebuffer(GL33C.GL_DRAW_FRAMEBUFFER, previousDraw);
+            GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, 0);
+        }
     }
 
     // -------------------------------------------------------------- readback
