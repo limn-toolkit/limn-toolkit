@@ -359,7 +359,9 @@ Maven Central say which number that was.
   seconds, onArrive)` moves it there eased as the toolkit's popups fade, and `fadeTo(target)` over
   the theme's `animWindow`. Between 0 and 1 the subtree is drawn into an offscreen picture laid
   over the window once, so the parts of a panel do not show through each other halfway; a child's
-  opacity multiplies its parents'; at 1 nothing extra is drawn and at 0 nothing is drawn. It is a
+  opacity multiplies its parents'; at 1 nothing extra is drawn and at 0 nothing is drawn. Under a
+  blend mode a parent's paint left in force, the subtree is one picture blended once at every
+  opacity, 1 included, so a fade arriving at 1 does not jump. It is a
   picture and not a presence: at 0 the widget is still laid out, takes a click and the keyboard,
   and is read by a screen reader, and `setVisible(false)` is what takes it away, which a fade out
   does in its `onArrive`. While the system asks for less motion, or with no window to fade in, a
@@ -372,9 +374,11 @@ Maven Central say which number that was.
   consecutive frames use them, and its performance monitor counts them.
 - `Canvas.saveLayer(x, y, width, height, opacity)`, closed by `restore()`, draws what is painted
   until the restore as one picture composited with the opacity: what a widget that paints
-  overlapping parts of its own uses to fade them together, as `Chart` fades its tooltip panel. A
-  canvas that cannot make pictures, a recording or measuring one, falls back to a `save()` and a
-  per-draw `setOpacity`, which its default does.
+  overlapping parts of its own uses to fade them together, as `Chart` fades its tooltip panel.
+  Inside it drawing starts from `BlendMode.NORMAL` and the picture is blended in the mode in force
+  when it opened, at every opacity: at 1 under `NORMAL` it opens nothing, under another mode it
+  opens a picture. A canvas that cannot make pictures, a recording or measuring one, falls back to
+  a `save()` and a per-draw `setOpacity`, which its default does, each draw in the mode in force.
 - The Showcase's Backdrop panel page fades its floating panel with an Opacity slider and its
   percentage, beside the Coverage slider that sets how much tone the glass lays down, and a button
   fades the panel out and back with `fadeTo`. The Animations guide has a section on fading part of

@@ -474,10 +474,13 @@ final class GlCanvas implements Canvas {
      * flush, a bind and the clear of the picture's part, and nothing per draw inside it.
      *
      * <p>Inside it the opacity starts again from 1 and the blend mode from normal, since the
-     * composite carries both; the clip is cut to the layer. An opacity of 1 opens no layer and is a
-     * {@link #save()}; one of 0, or a rectangle nothing of which can show, is a save under an empty
-     * clip, which draws nothing. Where the driver cannot make a picture, the layer falls back to the
-     * per-draw opacity every canvas without layers draws.
+     * composite carries both; the clip is cut to the layer. An opacity of 1 under
+     * {@link limn.graphics.BlendMode#NORMAL} opens no layer and is a {@link #save()}, since the
+     * picture is then the same drawn straight; under another mode it opens one, so that the rule
+     * holds at every opacity and a fade arriving at 1 does not jump. One of 0, or a rectangle
+     * nothing of which can show, is a save under an empty clip, which draws nothing. Where the
+     * driver cannot make a picture, the layer falls back to what every canvas without layers draws:
+     * the per-draw opacity, each draw in the blend mode in force.
      */
     @Override
     public void saveLayer(float x, float y, float width, float height, float opacity) {
@@ -485,8 +488,11 @@ final class GlCanvas implements Canvas {
         float alpha = opacity > 0 ? Math.min(1f, opacity) : 0f;
         save();
         State s = state();
-        if (alpha >= 1f) {
-            return; // nothing to fade: drawing straight into the target is the same picture
+        if (alpha >= 1f && s.blendMode == limn.graphics.BlendMode.NORMAL) {
+            // Nothing to fade and nothing to blend: drawing straight into the target is the same
+            // picture. Under another mode it is not, since each draw would blend on its own where
+            // the picture is blended once, and a fade arriving at 1 would jump.
+            return;
         }
         // The rectangle's device bounds, cut to the clip and moved outward to whole device pixels,
         // so every draw inside keeps the pixel grid it has in the window.

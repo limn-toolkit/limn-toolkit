@@ -323,6 +323,91 @@ class GlLayerTest {
         assertEquals(bound[0], bound[2], "and so does resizing it");
     }
 
+    // ------------------------------------------------------------------ blend modes
+
+    /** Two squares overlapping in their middle, so a picture blended once and draws blended each differ. */
+    private static void overlapping(GlCanvas c) {
+        c.fillRect(40, 40, 60, 60, Color.rgb(0x40A0E0));
+        c.fillRect(70, 70, 60, 60, Color.rgb(0xE0A040));
+    }
+
+    @Test
+    void aLayerUnderAnotherBlendModeIsBlendedOnceAtEveryOpacityOneIncluded() {
+        byte[] atOne = render(c -> {
+            c.setBlendMode(limn.graphics.BlendMode.MULTIPLY);
+            c.saveLayer(30, 30, 110, 110, 1f);
+            overlapping(c);
+            c.restore();
+        });
+        byte[] nearlyOne = render(c -> {
+            c.setBlendMode(limn.graphics.BlendMode.MULTIPLY);
+            c.saveLayer(30, 30, 110, 110, 0.999f);
+            overlapping(c);
+            c.restore();
+        });
+        // Drawing inside starts from NORMAL and the composite takes MULTIPLY, at 1 as below it: a
+        // fade arriving at 1 does not jump to each square multiplying the page on its own.
+        assertAtMost(2, nearlyOne, atOne, "a layer at 1 against one at 0.999 under MULTIPLY");
+
+        int[] open = new int[1];
+        render(c -> {
+            c.saveLayer(30, 30, 110, 110, 1f);
+            open[0] = c.openLayers();
+            c.restore();
+        });
+        assertEquals(0, open[0], "under NORMAL, 1 still opens nothing");
+    }
+
+    @Test
+    void aWidgetUnderAnotherBlendModeDrawsTheSamePictureAtOneAsJustBelowIt() {
+        class Squares extends limn.scene.Widget<Squares> {
+            @Override
+            protected limn.scene.Size onMeasure(limn.scene.Constraints c) {
+                return c.constrain(140, 140);
+            }
+
+            @Override
+            protected void onPaint(limn.graphics.Canvas canvas) {
+                overlapping((GlCanvas) canvas);
+            }
+        }
+        class Multiplying extends limn.scene.Widget<Multiplying> {
+            Multiplying(Squares child) {
+                add(child);
+            }
+
+            @Override
+            protected limn.scene.Size onMeasure(limn.scene.Constraints c) {
+                children().get(0).measure(c);
+                return c.constrain(140, 140);
+            }
+
+            @Override
+            protected void onLayout() {
+                children().get(0).layoutBox(0, 0, 140, 140);
+            }
+
+            @Override
+            protected void onPaint(limn.graphics.Canvas canvas) {
+                canvas.setBlendMode(limn.graphics.BlendMode.MULTIPLY); // what its children paint under
+            }
+        }
+        Squares child = new Squares();
+        Multiplying parent = new Multiplying(child);
+        parent.measure(limn.scene.Constraints.loose(W_PT, H_PT));
+        parent.layoutBox(0, 0, 140, 140);
+        Consumer<GlCanvas> paint = c -> {
+            c.save();
+            parent.paintWidget(c);
+            c.restore();
+        };
+        child.setOpacity(0.999f);
+        byte[] fading = render(paint);
+        child.setOpacity(1f);
+        byte[] arrived = render(paint);
+        assertAtMost(2, fading, arrived, "a child under its parent's MULTIPLY, arriving at 1");
+    }
+
     // ------------------------------------------------------------------ memory
 
     @Test

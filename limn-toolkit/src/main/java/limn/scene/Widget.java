@@ -2129,7 +2129,9 @@ public abstract class Widget<W extends Widget<W>> {
      * subtree paints as partial rendering reckons it, each widget's box grown by a pixel and its
      * {@link #paintOutset()}, a child's past this one's edge included ({@link #paintedBounds()}),
      * and the trim that closes every save closes it too. At 0 nothing is painted, as for a widget that
-     * misses the clip; at 1 no layer is opened.
+     * misses the clip; at 1 no layer is opened, unless an ancestor's paint left a
+     * {@link limn.graphics.BlendMode} other than normal in force, under which the subtree is one
+     * picture blended once at every opacity, as {@link Canvas#saveLayer} draws it.
      */
     public final void paintWidget(Canvas canvas) {
         if (!isVisible()) {
@@ -2160,7 +2162,10 @@ public abstract class Widget<W extends Widget<W>> {
         Object enclosingPainter = limn.graphics.internal.IconPlayer.enter(this);
         int inside = depth;
         try {
-            if (alpha < 1f) {
+            if (alpha < 1f || canvas.blendMode() != limn.graphics.BlendMode.NORMAL) {
+                // A picture at 1 too where an ancestor's paint left a blend mode in force: the
+                // picture is blended once at every opacity, and a fade arriving at 1 does not jump
+                // to each of its draws blending on its own.
                 // The layer keeps what the subtree may paint, as far as partial rendering believes
                 // it does: each widget's box and outset, a child laid out past an unclipped
                 // parent's edge included. A widget that paints past its own outset was already

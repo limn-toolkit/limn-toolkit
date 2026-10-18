@@ -295,7 +295,13 @@ whether Limn should do the same, and for input too, and the owner kept the web p
 
 ### 2.3 How it is drawn
 
-- **At 1, nothing changes**: no layer, no cost, the frame is the frame of today.
+- **At 1, nothing changes**: no layer, no cost, the frame is the frame of today. (2026-10-17,
+  after review: under `BlendMode.NORMAL`. Where a paint has left another mode in force, a
+  layer at 1 is opened too, by `Canvas.saveLayer` and by `Widget.paintWidget`, since drawing
+  straight would blend each draw on its own where the picture below 1 is drawn in NORMAL and
+  blended once, and a fade arriving at 1 jumped; the rule of section 2.3, the composite in the
+  mode in force and the inside from NORMAL, holds at every opacity. A canvas without layers keeps
+  the mode on each draw at every opacity.)
 - **At 0, nothing is drawn**: `paintWidget` returns before the subtree, as it does for a widget
   that misses the clip. The widget is still there (section 2.1).
 - **Between, the subtree is drawn into a layer and the layer is composited with the opacity.**

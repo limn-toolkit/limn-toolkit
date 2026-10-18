@@ -170,11 +170,14 @@ public interface Canvas {
      * layer on a GPU and a percent or two of the frame on a software renderer; a window-sized one
      * costs 0.1 to 0.15 ms of GPU, and about 10% of a frame on a software renderer. A canvas keeps
      * the layer's memory, four bytes a device pixel, only while consecutive frames open layers.
-     * An opacity of 1 does not need one, and a caller should not open one for it.
+     * An opacity of 1 under {@link BlendMode#NORMAL} needs none, and a canvas opens none for it;
+     * under another mode it does, since the rule above holds at every opacity: drawing at 1
+     * blend by blend would not be the picture blended once, and a fade arriving at 1 would jump.
      *
      * <p><b>A canvas that cannot make layers</b> (a recording or measuring one) falls back to what
      * the default does: a {@link #save()} and a per-draw {@link #setOpacity}, which draws the same
-     * things in the same places and lets overlapping draws show through each other.
+     * things in the same places and lets overlapping draws show through each other, each in the
+     * blend mode in force, at every opacity alike.
      *
      * @param x       the left edge of what the layer keeps, in current coordinates
      * @param y       its top edge
