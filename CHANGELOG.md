@@ -359,6 +359,10 @@ Maven Central say which number that was.
   `SplitPane` and a `ScrollBar` answered themselves.
 - A press over an `Expander`'s content while it slides shut lands on what is beneath it, as over
   a hidden widget; it always landed on the content's parent.
+- An in-scene `Dialog`'s card slides in as a picture moved, through a `Transform`, and neither the
+  slide nor the veil asks for an accessible walk on each frame of the fade; the card was laid at a
+  new place inside every frame's paint and the tree walked again for it. A drag still moves the card
+  for real.
 
 ### New
 
@@ -924,6 +928,27 @@ Maven Central say which number that was.
   bounds in the scene, what a popup's anchor, a drag picture or a caret rectangle needs.
 - `Change.Aspect` says that a minor release may add a constant: a `switch` that names every
   aspect keeps a `default`.
+- Part of a window moves, scales or turns over in a `Transform` container (ADR 072), which wraps
+  one widget as `Opacity` does and changes where it is drawn without moving anything layout placed:
+  `setTranslation(x, y)`, whose x runs toward the end of the reading direction, `setScale(s)` and
+  `setScale(sx, sy)` about an origin that `setOrigin(fractionX, fractionY)` measures from the start
+  edge, the middle by default, and `reset()`. `slideTo` and `scaleTo` move there eased over the
+  theme's `animWindow` or a given time, and `flipTo(Transform.Flip, atEdge)` turns the child over,
+  drawn flat, running `atEdge` when it is edge-on, where the application swaps what it shows;
+  `FORWARD` and `BACKWARD` follow the reading direction, `UP` and `DOWN` do not. The child is drawn,
+  clicked and read by a screen reader where it is moved to, a reader told on a set and when a motion
+  arrives, not on the frames between; a move or a scale is drawn straight into the window with
+  every clip inside exact, a frame of it repaints where the child was and where it is and lays
+  nothing out, and at rest the container costs nothing. A newer motion or a set stops one in flight,
+  whose `onArrive` never runs; a container taken out of its window mid-motion arrives as it leaves;
+  under less motion every motion goes straight to its target and a flip swaps at once. A watcher
+  hears `Change.Aspect.TRANSFORM` on every set that changes a value and twice for a motion.
+  Measured on an Apple M5 Max, the first scale of a card full of text rasterizes its glyphs at each
+  size it passes, about 0.25 ms of CPU a frame, and a repeat costs what the still card costs.
+- `Accessibility.syntheticBoxAt` and `placeSyntheticAt`, for the publish step: a synthetic child of
+  a widget under a `Transform` is published where it is drawn, scaled with its owner.
+- The Showcase's Motion page has a two-sided card that turns over with `flipTo`, and the Animations
+  guide a section on moving part of a window.
 
 ### Changed
 
