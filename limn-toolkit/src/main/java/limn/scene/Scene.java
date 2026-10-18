@@ -1955,15 +1955,16 @@ public final class Scene {
     }
 
     /**
-     * Widget.setOpacity and the steps of a fade: the damage {@link #damageWidget} adds, and no walk
-     * of the accessible tree, because nothing it publishes reads an opacity. A fade of
+     * Widget.setOpacity and the steps of a fade: the damage {@link #damageWidget} adds, grown to
+     * what the subtree paints, and no walk of the accessible tree, because nothing it publishes reads an opacity. A fade of
      * twelve frames would otherwise walk and compare the tree twelve times to find it unchanged.
      */
     void damageWidgetPicture(Widget<?> widget) {
         if (partialRendering || damageDebug) {
-            float outset = 1 + widget.paintOutset();
-            addClippedDamage(widget, -outset, -outset,
-                    widget.width() + 2 * outset, widget.height() + 2 * outset);
+            // What the whole subtree paints, and not the widget's box and outset alone: a child
+            // laid out past the edge of a parent that does not clip fades with it.
+            float[] b = widget.paintedBounds();
+            addClippedDamage(widget, b[0], b[1], b[2] - b[0], b[3] - b[1]);
         }
         scheduleFrame();
     }

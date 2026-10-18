@@ -160,7 +160,73 @@ class OpacityPassSeamTest {
         assertPartialIsWhole(layers, thumb::invalidate);
     }
 
-    private void assertPartialIsWhole(Widget<?> root, Runnable change) {
+    /** A badge, all one colour, so where it is drawn and how faded reads off one pixel. */
+    private static final Color BADGE = Color.rgb(0xE04020);
+
+    private static final class Badge extends Widget<Badge> {
+        @Override
+        protected Size onMeasure(Constraints c) {
+            return c.constrain(16, 16);
+        }
+
+        @Override
+        protected void onPaint(Canvas canvas) {
+            canvas.fillRect(0, 0, width(), height(), BADGE);
+        }
+    }
+
+    /**
+     * A card with a badge laid out past its top right corner, as a count on an icon is, and no
+     * clip: the badge reaches 6 points above the box and 8 past its right edge.
+     */
+    private static final class Overhang extends Widget<Overhang> {
+        private final Card card = new Card();
+        private final Badge badge = new Badge();
+
+        Overhang() {
+            add(card);
+            add(badge);
+        }
+
+        @Override
+        protected Size onMeasure(Constraints c) {
+            card.measure(c);
+            badge.measure(Constraints.loose(16, 16));
+            return c.constrain(90, 60);
+        }
+
+        @Override
+        protected void onLayout() {
+            card.layoutBox(0, 0, 90, 60);
+            badge.layoutBox(82, -6, 16, 16);
+        }
+    }
+
+    @Test
+    void aChildPastTheEdgeOfAnUnclippedFadingParentFadesWithItWholeAndPartial() {
+        Overhang panel = new Overhang();
+        Stack layers = new Stack();
+        layers.add(new Picture());
+        layers.add(new Padding(new Insets(30.35f, 0, 0, 20.1f), panel));
+
+        // From opaque, as a fade starts: the badge's overhang was drawn whole on the frame before,
+        // and a partial frame that does not repaint it leaves it opaque beside a faded card.
+        byte[] whole = assertPartialIsWhole(layers, () -> panel.setOpacity(0.55f));
+
+        // In the whole frame too, the overhang is the badge faded over the stripes, not cut away:
+        // (115, 26) lies above the card's box and past its right edge, on an orange stripe.
+        int at = ((int) (26 * SCALE) * WIDTH + (int) (115 * SCALE)) * 4;
+        Color stripe = Color.rgb(0xF2A65A);
+        float[] badge = {BADGE.r(), BADGE.g(), BADGE.b()};
+        float[] under = {stripe.r(), stripe.g(), stripe.b()};
+        for (int channel = 0; channel < 3; channel++) {
+            float expected = 255 * (0.55f * badge[channel] + 0.45f * under[channel]);
+            assertEquals(Math.round(expected), whole[at + channel] & 0xFF, 2,
+                    "channel " + channel + " of the badge's overhang, faded with its parent");
+        }
+    }
+
+    private byte[] assertPartialIsWhole(Widget<?> root, Runnable change) {
         Scene scene = new Scene(root);
         scene.setPartialRendering(true);
         int texture = GL33C.glGenTextures();
@@ -178,6 +244,7 @@ class OpacityPassSeamTest {
             frame(scene, 0);
             byte[] whole = readTopDown();
             assertSame(whole, partial);
+            return whole;
         } finally {
             GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, previousFbo);
             GL33C.glViewport(previousViewport[0], previousViewport[1], previousViewport[2], previousViewport[3]);

@@ -308,6 +308,10 @@ whether Limn should do the same, and for input too, and the owner kept the web p
   in the window. Under a rotation it is the transformed box's bounding box. A widget that paints
   past what it declares is already a partial-rendering defect (stale pixels); inside a group it
   is also clipped at the layer's edge in a whole frame, which makes the defect visible sooner.
+  (2026-10-17, after review: the box and outset are every visible descendant's too, each cut
+  where an ancestor clips its children, `Widget.paintedBounds`. A child laid out past the edge of
+  a parent that does not clip, a badge or a focus ring flush with it, declares nothing wrong, and
+  the widget's own box cut it while the parent faded.)
 - **The layer is 8-bit RGBA, premultiplied**, as the window's own framebuffer is: compositing it
   loses at most one step of 255 (section 0), and a 16-bit layer would double the memory for a
   precision the window cannot show.
@@ -340,7 +344,9 @@ whether Limn should do the same, and for input too, and the owner kept the web p
 ### 2.4 What a partial frame repaints
 
 - **An opacity change damages the widget's box grown by its outset**, what `invalidate()`
-  damages, and nothing more: no layout, since nothing moves. Going to 0, coming from 0, and the
+  damages, and nothing more: no layout, since nothing moves. (2026-10-17, after review: what the
+  layer covers, so a child laid out past an unclipped parent's edge too; a partial frame that
+  started a fade left such a child's overhang opaque beside its faded parent.) Going to 0, coming from 0, and the
   frame at which the layer starts or stops (1 to below 1 and back) are the same damage. Setting
   the value the widget already has damages nothing.
 - **A pass repaints a group correctly by the rule it already follows.** A pass clears its

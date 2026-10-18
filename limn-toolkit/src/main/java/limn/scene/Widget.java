@@ -896,10 +896,10 @@ public abstract class Widget<W extends Widget<W>> {
      * {@code onArrive}, or leaves something nobody can see that a click or a Tab still reaches.
      *
      * <p><b>What it costs</b>, as measured: nothing at 1, nothing drawn at 0, and between the two a layer
-     * the size of the widget's box and {@link #paintOutset()}, as far as it can be seen, on every
-     * frame that repaints it: on a GPU a few hundredths of a millisecond for a popup-sized widget,
-     * on a software renderer a percent or two of the frame. A change damages the widget's box and
-     * outset and lays nothing out.
+     * the size of the widget's box and {@link #paintOutset()}, and of any child's laid out past
+     * them, as far as it can be seen, on every frame that repaints it: on a GPU a few hundredths
+     * of a millisecond for a popup-sized widget, on a software renderer a percent or two of the
+     * frame. A change damages the same rectangle and lays nothing out.
      *
      * <p><b>A watcher hears it</b> as {@link Change.Aspect#OPACITY} with origin {@code CODE}, every
      * time this changes the value and never when it does not. A {@link #fadeTo fade} in flight is
@@ -1088,9 +1088,10 @@ public abstract class Widget<W extends Widget<W>> {
     }
 
     /**
-     * Sets the opacity and damages what it draws, with no announcement and no layout: the widget's
-     * box and {@link #paintOutset()}, what {@link #invalidate()} damages, as a picture-only damage
-     * that does not ask the accessible tree to be walked, since nothing in it reads an opacity.
+     * Sets the opacity and damages what it draws, with no announcement and no layout: what the
+     * subtree paints ({@link #paintedBounds()}), the widget's box and {@link #paintOutset()} and any
+     * child's past them, as a picture-only damage that does not ask the accessible tree to be
+     * walked, since nothing in it reads an opacity.
      */
     private void moveOpacity(float value) {
         if (value == opacity) {
@@ -2124,9 +2125,10 @@ public abstract class Widget<W extends Widget<W>> {
      * would only bury it.
      *
      * <p><b>An {@linkplain #setOpacity opacity} below 1 draws the subtree as one picture</b>: the
-     * canvas's {@link Canvas#saveLayer layer} is opened around the three paints over the box grown
-     * by a pixel and {@link #paintOutset()}, what partial rendering grows its damage by, and the
-     * trim that closes every save closes it too. At 0 nothing is painted, as for a widget that
+     * canvas's {@link Canvas#saveLayer layer} is opened around the three paints over what the
+     * subtree paints as partial rendering reckons it, each widget's box grown by a pixel and its
+     * {@link #paintOutset()}, a child's past this one's edge included ({@link #paintedBounds()}),
+     * and the trim that closes every save closes it too. At 0 nothing is painted, as for a widget that
      * misses the clip; at 1 no layer is opened.
      */
     public final void paintWidget(Canvas canvas) {
@@ -2159,11 +2161,12 @@ public abstract class Widget<W extends Widget<W>> {
         int inside = depth;
         try {
             if (alpha < 1f) {
-                // The layer keeps what the widget may paint, as far as partial rendering believes
-                // it does: a widget that paints past its outset was already leaving stale pixels,
-                // and inside a group it is cut at the layer's edge in a whole frame too.
-                float outset = 1 + paintOutset();
-                canvas.saveLayer(-outset, -outset, width + 2 * outset, height + 2 * outset, alpha);
+                // The layer keeps what the subtree may paint, as far as partial rendering believes
+                // it does: each widget's box and outset, a child laid out past an unclipped
+                // parent's edge included. A widget that paints past its own outset was already
+                // leaving stale pixels, and inside a group it is cut at the layer's edge too.
+                float[] b = paintedBounds();
+                canvas.saveLayer(b[0], b[1], b[2] - b[0], b[3] - b[1], alpha);
                 inside = canvas.saveCount();
             }
             onPaint(canvas);
@@ -2180,6 +2183,86 @@ public abstract class Widget<W extends Widget<W>> {
             if (canvas.saveCount() != depth) {
                 canvas.restoreToCount(depth); // and the layer's restore composites it
             }
+        }
+    }
+
+    /** The rectangle {@link #paintedBounds()} answers in; one, since the paint runs on the UI thread. */
+    private static final float[] PAINTED_BOUNDS = new float[4];
+
+    /**
+     * What this widget and its subtree may paint, in this widget's coordinates, as partial
+     * rendering reckons each widget's paint: its box grown by the pixel the antialiasing reaches
+     * and its {@link #paintOutset()}, for this widget and every visible descendant, each cut where
+     * an ancestor below this one clips its children, and none for a descendant whose opacity is 0.
+     * The picture a fade draws into, and what a change of its opacity repaints: the widget's own
+     * box and outset left out a child laid out past the edge of a parent that does not clip, a
+     * badge or a focus ring flush with the edge, which the layer cut while the parent faded and
+     * which a partial frame did not repaint.
+     *
+     * <p>Into a buffer of the class's, read before anything else asks: {@code x0, y0, x1, y1}.
+     * A walk of the subtree, on frames that fade it, which the paint walks too; it allocates
+     * nothing.
+     *
+     * @return the bounds, {@code x0, y0, x1, y1}; valid until the next call
+     */
+    final float[] paintedBounds() {
+        float[] b = PAINTED_BOUNDS;
+        float outset = 1 + paintOutset();
+        b[0] = -outset;
+        b[1] = -outset;
+        b[2] = width + outset;
+        b[3] = height + outset;
+        for (int i = 0; i < children.size(); i++) {
+            Widget<?> child = children.get(i);
+            if (clipsChildren()) {
+                child.unionPainted(b, child.x, child.y, clipX(child) - 1, clipY(child) - 1,
+                        clipX(child) + clipWidth(child) + 1, clipY(child) + clipHeight(child) + 1);
+            } else {
+                child.unionPainted(b, child.x, child.y, Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY,
+                        Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY);
+            }
+        }
+        return b;
+    }
+
+    /**
+     * Grows {@code b} by this widget's painted rectangle and its subtree's, this widget's corner at
+     * {@code (ox, oy)} and everything cut to {@code (cx0, cy0, cx1, cy1)}, all in the coordinates
+     * of the widget {@link #paintedBounds()} was asked of. The clip takes the antialiased pixel
+     * past it, as the damage clamp does.
+     */
+    private void unionPainted(float[] b, float ox, float oy, float cx0, float cy0, float cx1, float cy1) {
+        if (!isVisible() || opacity <= 0f) {
+            return; // paints nothing, and nothing under it either
+        }
+        float outset = 1 + paintOutset();
+        float x0 = Math.max(cx0, ox - outset);
+        float y0 = Math.max(cy0, oy - outset);
+        float x1 = Math.min(cx1, ox + width + outset);
+        float y1 = Math.min(cy1, oy + height + outset);
+        if (x1 > x0 && y1 > y0) {
+            b[0] = Math.min(b[0], x0);
+            b[1] = Math.min(b[1], y0);
+            b[2] = Math.max(b[2], x1);
+            b[3] = Math.max(b[3], y1);
+        }
+        boolean clips = clipsChildren();
+        for (int i = 0; i < children.size(); i++) {
+            Widget<?> child = children.get(i);
+            float ncx0 = cx0;
+            float ncy0 = cy0;
+            float ncx1 = cx1;
+            float ncy1 = cy1;
+            if (clips) {
+                ncx0 = Math.max(cx0, ox + clipX(child) - 1);
+                ncy0 = Math.max(cy0, oy + clipY(child) - 1);
+                ncx1 = Math.min(cx1, ox + clipX(child) + clipWidth(child) + 1);
+                ncy1 = Math.min(cy1, oy + clipY(child) + clipHeight(child) + 1);
+                if (ncx1 <= ncx0 || ncy1 <= ncy0) {
+                    continue; // clipped away whole: scrolled out of a viewport
+                }
+            }
+            child.unionPainted(b, ox + child.x, oy + child.y, ncx0, ncy0, ncx1, ncy1);
         }
     }
 
