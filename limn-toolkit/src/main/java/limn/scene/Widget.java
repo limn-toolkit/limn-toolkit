@@ -836,16 +836,33 @@ public abstract class Widget<W extends Widget<W>> {
     public final void revealInView(float rectX, float rectY, float rectWidth, float rectHeight) {
         for (Widget<?> ancestor = parent; ancestor != null; ancestor = ancestor.parent) {
             if (ancestor instanceof Scrollable scrollable) {
-                float left = rectX;
-                float top = rectY;
+                // Where the ancestor draws the rectangle, through any matrix on the way: a field in
+                // a scaled card is revealed at the size and the place it is drawn.
+                float[] r = REVEAL_SCRATCH;
+                r[0] = rectX;
+                r[1] = rectY;
+                r[2] = rectX + rectWidth;
+                r[3] = rectY + rectHeight;
                 for (Widget<?> w = this; w != ancestor; w = w.parent) {
-                    left += w.x;
-                    top += w.y;
+                    r[0] += w.x;
+                    r[1] += w.y;
+                    r[2] += w.x;
+                    r[3] += w.y;
+                    ChildTransform through = w.parent.childTransform;
+                    if (through != null) {
+                        through.bounds(r[0], r[1], r[2], r[3], r);
+                    }
                 }
-                scrollable.revealRect(left, top, rectWidth, rectHeight);
+                if (Float.isNaN(r[0])) {
+                    continue; // nothing of it in front of the eye: nothing to scroll to
+                }
+                scrollable.revealRect(r[0], r[1], r[2] - r[0], r[3] - r[1]);
             }
         }
     }
+
+    /** The rectangle {@link #revealInView(float, float, float, float)} carries up; the UI thread's. */
+    private static final float[] REVEAL_SCRATCH = new float[4];
 
     // ----------------------------------------------------------------- flags
 
@@ -898,9 +915,28 @@ public abstract class Widget<W extends Widget<W>> {
             y0 += node.y;
             x1 += node.x;
             y1 += node.y;
+            // And where the parent draws it: through the matrix it draws its children with.
+            ChildTransform through = node.parent != null ? node.parent.childTransform : null;
+            if (through != null) {
+                if (through.collapsed) {
+                    return false; // drawn as a line or a point: nothing of it shows
+                }
+                float[] b = SHOWING_SCRATCH;
+                through.bounds(x0, y0, x1, y1, b);
+                if (Float.isNaN(b[0])) {
+                    return false; // behind the eye
+                }
+                x0 = b[0];
+                y0 = b[1];
+                x1 = b[2];
+                y1 = b[3];
+            }
         }
         return true;
     }
+
+    /** The rectangle {@link #isShowing()} and {@link #showingClip} carry through a matrix. */
+    private static final float[] SHOWING_SCRATCH = new float[4];
 
     /**
      * The rectangle, in scene coordinates, that this widget's
@@ -944,6 +980,17 @@ public abstract class Widget<W extends Widget<W>> {
             y0 += node.y;
             x1 += node.x;
             y1 += node.y;
+            ChildTransform through = node.parent != null ? node.parent.childTransform : null;
+            if (through != null && clipped) {
+                // Through the parent's matrix, as isShowing does; a rectangle no ancestor has cut
+                // yet is the whole plane, and stays so.
+                float[] b = SHOWING_SCRATCH;
+                through.bounds(x0, y0, x1, y1, b);
+                x0 = b[0];
+                y0 = b[1];
+                x1 = b[2];
+                y1 = b[3];
+            }
         }
         if (clipped) {
             out[0] = x0;
@@ -2143,7 +2190,12 @@ public abstract class Widget<W extends Widget<W>> {
                 inside = canvas.saveCount();
             }
             onPaint(canvas);
-            paintChildren(canvas);
+            ChildTransform through = childTransform;
+            if (through == null) {
+                paintChildren(canvas);
+            } else {
+                paintChildrenThrough(canvas, through);
+            }
             onPaintOverlay(canvas);
             completed = true;
         } finally {
@@ -2156,6 +2208,36 @@ public abstract class Widget<W extends Widget<W>> {
             if (canvas.saveCount() != depth) {
                 canvas.restoreToCount(depth); // and the layer's restore composites it
             }
+        }
+    }
+
+    /**
+     * Paints the children through the matrix a transform container draws them with, which the hit
+     * test, the conversions, the damage and the culling all read too, so that the pointer finds a
+     * child where it is drawn. A translation and a scale, a flip seen flat among them, are drawn
+     * straight: the canvas is moved and scaled about the widget's origin, every clip inside stays
+     * an exact rectangle and the glyphs keep their grid, so the frame costs only the pixels the
+     * move repaints. A child collapsed to a line or a point is not drawn at all.
+     *
+     * <p>Any other matrix, a rotation or a turn, needs a picture of the subtree drawn upright and
+     * composited through it; until that is built the children are drawn where layout put them,
+     * which only the tests' turned container asks for.
+     */
+    private void paintChildrenThrough(Canvas canvas, ChildTransform through) {
+        if (through.collapsed) {
+            return;
+        }
+        if (!through.axisAligned) {
+            paintChildren(canvas);
+            return;
+        }
+        canvas.save();
+        try {
+            canvas.translate(through.paintX, through.paintY);
+            canvas.scale(through.paintScaleX, through.paintScaleY);
+            paintChildren(canvas);
+        } finally {
+            canvas.restore();
         }
     }
 
@@ -2181,63 +2263,76 @@ public abstract class Widget<W extends Widget<W>> {
      */
     final float[] paintedBounds() {
         float[] b = PAINTED_BOUNDS;
-        float outset = 1 + paintOutset();
-        b[0] = -outset;
-        b[1] = -outset;
-        b[2] = width + outset;
-        b[3] = height + outset;
-        for (int i = 0; i < children.size(); i++) {
-            Widget<?> child = children.get(i);
-            if (clipsChildren()) {
-                child.unionPainted(b, child.x, child.y, clipX(child) - 1, clipY(child) - 1,
-                        clipX(child) + clipWidth(child) + 1, clipY(child) + clipHeight(child) + 1);
-            } else {
-                child.unionPainted(b, child.x, child.y, Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY,
-                        Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY);
-            }
-        }
+        paintedRect(b);
         return b;
     }
 
     /**
-     * Grows {@code b} by this widget's painted rectangle and its subtree's, this widget's corner at
-     * {@code (ox, oy)} and everything cut to {@code (cx0, cy0, cx1, cy1)}, all in the coordinates
-     * of the widget {@link #paintedBounds()} was asked of. The clip takes the antialiased pixel
-     * past it, as the damage clamp does.
+     * What this widget and its subtree paint, into {@code out} as {@code x0, y0, x1, y1} in this
+     * widget's own space: its box grown by a pixel and its outset, and each visible child's own
+     * answer moved to where this widget draws it, through the matrix it draws its children with,
+     * and cut where it clips them, the antialiased pixel past the clip kept, as the damage clamp
+     * keeps it. Children first, into the same array, so the walk holds four floats a level on the
+     * stack and allocates nothing.
+     *
+     * <p>From the children up, because a matrix at any level moves everything under it: the walk
+     * that carried offsets down could not carry a scale. Under a transform container its own
+     * outset, the projected overhang of its child, is the bound partial rendering reads, and the
+     * walk here gives the exact rectangle the child is drawn in besides; an {@code Opacity}
+     * container round a moving child takes the union of both as its layer.
      */
-    private void unionPainted(float[] b, float ox, float oy, float cx0, float cy0, float cx1, float cy1) {
-        if (!isVisible() || groupOpacity() <= 0f) {
-            return; // paints nothing, and nothing under it either
-        }
+    private void paintedRect(float[] out) {
         float outset = 1 + paintOutset();
-        float x0 = Math.max(cx0, ox - outset);
-        float y0 = Math.max(cy0, oy - outset);
-        float x1 = Math.min(cx1, ox + width + outset);
-        float y1 = Math.min(cy1, oy + height + outset);
-        if (x1 > x0 && y1 > y0) {
-            b[0] = Math.min(b[0], x0);
-            b[1] = Math.min(b[1], y0);
-            b[2] = Math.max(b[2], x1);
-            b[3] = Math.max(b[3], y1);
-        }
+        paintedRect(-outset, -outset, width + outset, height + outset, out);
+    }
+
+    /**
+     * {@link #paintedRect(float[])} from a rectangle of this widget's own, {@code (x0, y0)} to
+     * {@code (x1, y1)}, which may be empty: the union with every visible child's painted rectangle,
+     * moved and cut as this widget draws it.
+     */
+    private void paintedRect(float x0, float y0, float x1, float y1, float[] out) {
         boolean clips = clipsChildren();
-        for (int i = 0; i < children.size(); i++) {
-            Widget<?> child = children.get(i);
-            float ncx0 = cx0;
-            float ncy0 = cy0;
-            float ncx1 = cx1;
-            float ncy1 = cy1;
-            if (clips) {
-                ncx0 = Math.max(cx0, ox + clipX(child) - 1);
-                ncy0 = Math.max(cy0, oy + clipY(child) - 1);
-                ncx1 = Math.min(cx1, ox + clipX(child) + clipWidth(child) + 1);
-                ncy1 = Math.min(cy1, oy + clipY(child) + clipHeight(child) + 1);
-                if (ncx1 <= ncx0 || ncy1 <= ncy0) {
-                    continue; // clipped away whole: scrolled out of a viewport
+        ChildTransform through = childTransform;
+        if (through == null || !through.collapsed) {
+            for (int i = 0; i < children.size(); i++) {
+                Widget<?> child = children.get(i);
+                if (!child.isVisible() || child.groupOpacity() <= 0f) {
+                    continue; // paints nothing, and nothing under it either
+                }
+                child.paintedRect(out);
+                float cx0 = out[0] + child.x;
+                float cy0 = out[1] + child.y;
+                float cx1 = out[2] + child.x;
+                float cy1 = out[3] + child.y;
+                if (through != null) {
+                    through.bounds(cx0, cy0, cx1, cy1, out);
+                    if (Float.isNaN(out[0])) {
+                        continue; // behind the eye
+                    }
+                    cx0 = out[0];
+                    cy0 = out[1];
+                    cx1 = out[2];
+                    cy1 = out[3];
+                }
+                if (clips) {
+                    cx0 = Math.max(cx0, clipX(child) - 1);
+                    cy0 = Math.max(cy0, clipY(child) - 1);
+                    cx1 = Math.min(cx1, clipX(child) + clipWidth(child) + 1);
+                    cy1 = Math.min(cy1, clipY(child) + clipHeight(child) + 1);
+                }
+                if (cx1 > cx0 && cy1 > cy0) {
+                    x0 = Math.min(x0, cx0);
+                    y0 = Math.min(y0, cy0);
+                    x1 = Math.max(x1, cx1);
+                    y1 = Math.max(y1, cy1);
                 }
             }
-            child.unionPainted(b, ox + child.x, oy + child.y, ncx0, ncy0, ncx1, ncy1);
         }
+        out[0] = x0;
+        out[1] = y0;
+        out[2] = x1;
+        out[3] = y1;
     }
 
     /** The clocks of the animated icons this widget paints, made at the first. */
@@ -2265,8 +2360,62 @@ public abstract class Widget<W extends Widget<W>> {
             return false;
         }
         float outset = 1 + paintOutset();
-        return width + outset <= clip.x() || -outset >= clip.x() + clip.width()
+        boolean misses = width + outset <= clip.x() || -outset >= clip.x() + clip.width()
                 || height + outset <= clip.y() || -outset >= clip.y() + clip.height();
+        // Unless something under it is drawn moved into the clip: a drawer slid past this box is
+        // painted from here whatever the box says.
+        return misses && !drawsMovedChildIn(clip.x(), clip.y(), clip.x() + clip.width(), clip.y() + clip.height());
+    }
+
+    /**
+     * Whether a widget at or under this one draws its children moved into the rectangle
+     * {@code (x0, y0)} to {@code (x1, y1)} of this widget's space: where they are drawn, the pixel
+     * the antialiasing reaches and their outsets included. What lets a repaint through this
+     * widget's box to a child a transform moved past it, which a pass that culled by the box alone
+     * would skip and leave stale. With no matrix in the scene, the usual case, one test of an
+     * empty list.
+     */
+    final boolean drawsMovedChildIn(float x0, float y0, float x1, float y1) {
+        if (scene == null) {
+            return false;
+        }
+        List<Widget<?>> moved = scene.transformed();
+        for (int i = 0; i < moved.size(); i++) {
+            Widget<?> mover = moved.get(i);
+            if (mover.isAtOrUnder(this)) {
+                float[] b = MOVED_BOUNDS;
+                mover.drawnChildrenBounds(this, true, b);
+                if (b[2] > x0 && b[0] < x1 && b[3] > y0 && b[1] < y1) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * {@link #drawsMovedChildIn} for a rectangle of the scene, which is what a repaint pass culls
+     * by: each moved widget's drawn children taken all the way up through every matrix.
+     */
+    final boolean drawsMovedChildInScene(float x0, float y0, float x1, float y1) {
+        if (scene == null) {
+            return false;
+        }
+        List<Widget<?>> moved = scene.transformed();
+        for (int i = 0; i < moved.size(); i++) {
+            Widget<?> mover = moved.get(i);
+            if (mover.isAtOrUnder(this)) {
+                float[] b = MOVED_BOUNDS;
+                mover.drawnChildrenBounds(mover, true, b);
+                if (!Float.isNaN(b[0])) {
+                    mover.localToSceneBounds(b[0], b[1], b[2], b[3], b);
+                }
+                if (b[2] > x0 && b[0] < x1 && b[3] > y0 && b[1] < y1) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /** Class names already reported, so a widget painted every frame is named once and not 60 times. */
@@ -2488,7 +2637,7 @@ public abstract class Widget<W extends Widget<W>> {
         return false;
     }
 
-    /** The rectangle {@link #drawsChildrenAt} works in; one, since hit testing runs on the UI thread. */
+    /** The rectangle {@link #drawnChildrenBounds} works in; one, since hit tests and paints run on the UI thread. */
     private static final float[] MOVED_BOUNDS = new float[4];
 
     /**
@@ -2496,39 +2645,54 @@ public abstract class Widget<W extends Widget<W>> {
      * {@code ancestor}'s space, hold the point given in it.
      */
     private boolean drawsChildrenAt(Widget<?> ancestor, float x, float y) {
+        float[] b = MOVED_BOUNDS;
+        drawnChildrenBounds(ancestor, false, b);
+        return x >= b[0] && x < b[2] && y >= b[1] && y < b[3];
+    }
+
+    /**
+     * The bounds of where this widget draws its visible children through its matrix, carried up to
+     * {@code ancestor}'s space, into {@code out} as {@code x0, y0, x1, y1}: their boxes for the
+     * pointer, which hits a box, and for a paint grown by the pixel the antialiasing reaches and
+     * each child's own outset. All four {@code NaN} when nothing is drawn: no matrix, no visible
+     * child, a collapsed one, or all of it behind the eye.
+     */
+    private void drawnChildrenBounds(Widget<?> ancestor, boolean painted, float[] out) {
         ChildTransform transform = childTransform;
-        if (transform == null) {
-            return false;
-        }
         float x0 = Float.POSITIVE_INFINITY;
         float y0 = Float.POSITIVE_INFINITY;
         float x1 = Float.NEGATIVE_INFINITY;
         float y1 = Float.NEGATIVE_INFINITY;
-        for (int i = 0; i < children.size(); i++) {
-            Widget<?> child = children.get(i);
-            if (child.isVisible()) {
-                x0 = Math.min(x0, child.x);
-                y0 = Math.min(y0, child.y);
-                x1 = Math.max(x1, child.x + child.width);
-                y1 = Math.max(y1, child.y + child.height);
+        if (transform != null && !transform.collapsed) {
+            for (int i = 0; i < children.size(); i++) {
+                Widget<?> child = children.get(i);
+                if (child.isVisible()) {
+                    float grow = painted ? 1 + child.paintOutset() : 0;
+                    x0 = Math.min(x0, child.x - grow);
+                    y0 = Math.min(y0, child.y - grow);
+                    x1 = Math.max(x1, child.x + child.width + grow);
+                    y1 = Math.max(y1, child.y + child.height + grow);
+                }
             }
         }
         if (!(x1 > x0 && y1 > y0)) {
-            return false;
+            out[0] = Float.NaN;
+            out[1] = Float.NaN;
+            out[2] = Float.NaN;
+            out[3] = Float.NaN;
+            return;
         }
-        float[] b = MOVED_BOUNDS;
-        transform.bounds(x0, y0, x1, y1, b);
-        for (Widget<?> w = this; w != ancestor && !Float.isNaN(b[0]); w = w.parent) {
-            b[0] += w.x;
-            b[1] += w.y;
-            b[2] += w.x;
-            b[3] += w.y;
+        transform.bounds(x0, y0, x1, y1, out);
+        for (Widget<?> w = this; w != ancestor && !Float.isNaN(out[0]); w = w.parent) {
+            out[0] += w.x;
+            out[1] += w.y;
+            out[2] += w.x;
+            out[3] += w.y;
             ChildTransform above = w.parent.childTransform;
             if (above != null) {
-                above.bounds(b[0], b[1], b[2], b[3], b);
+                above.bounds(out[0], out[1], out[2], out[3], out);
             }
         }
-        return x >= b[0] && x < b[2] && y >= b[1] && y < b[3];
     }
 
     /**

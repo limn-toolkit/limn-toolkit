@@ -20,9 +20,10 @@ import org.jspecify.annotations.Nullable;
  * not the identity also lets the pointer through its ancestors' boxes to where it draws its
  * children, unless an ancestor clips them.
  *
- * <p>Not yet followed by the paint, the damage or {@code isShowing()}: in this build only tests
- * set a matrix, to prove the conversions and the hit test at turned points before anything draws
- * turned.
+ * <p>The paint follows it too, for a matrix that keeps the plane's axes (a translation and a
+ * scale), and so do the damage, {@code isShowing()}, the reveal in a scrolling ancestor and the
+ * rectangle an opacity's picture covers; a repaint pass reaches what it moves wherever it is drawn.
+ * A rotation or a turn is still drawn where layout put the children.
  *
  * <p>The widget installs the hook from its own static initializer, and only the widget can: an
  * install from any other class is refused, so the hook cannot be replaced by whoever loads first.

@@ -1106,6 +1106,8 @@ public final class Scene {
      * matrix comes and goes.
      */
     private final List<Widget<?>> transformed = new ArrayList<>();
+    /** A rectangle carried through a matrix by the damage clamp; one, since damage runs on the UI thread. */
+    private final float[] projectScratch = new float[4];
     // The frame's damage, as fixed-capacity float lists rather than lists of Rect: every
     // invalidate() lands in pendingDamage, and with partial rendering on by default an object per
     // call there was the toolkit's busiest allocation. See DamageRects. A list that starts whole
@@ -2027,6 +2029,20 @@ public final class Scene {
             y0 += node.y();
             x1 += node.x();
             y1 += node.y();
+            // Where the parent draws it, through the matrix a transform container draws its
+            // children with: the damage lands where the pixels are.
+            Widget<?> up = node.parent();
+            if (up != null && up.childTransform != null) {
+                float[] b = projectScratch;
+                up.childTransform.bounds(x0, y0, x1, y1, b);
+                if (Float.isNaN(b[0])) {
+                    return false; // behind the eye: nothing drawn
+                }
+                x0 = b[0];
+                y0 = b[1];
+                x1 = b[2];
+                y1 = b[3];
+            }
         }
         if (x1 <= x0 || y1 <= y0) {
             return false;
@@ -5624,7 +5640,12 @@ public final class Scene {
         widget.localToSceneBounds(-outset, -outset, widget.width() + outset, widget.height() + outset, box);
         // A box whose every corner lies behind the eye answers NaN, and NaN is not culled: what
         // cannot be placed is painted rather than lost.
-        return box[2] <= cullX0 || box[0] >= cullX1 || box[3] <= cullY0 || box[1] >= cullY1;
+        boolean misses = box[2] <= cullX0 || box[0] >= cullX1 || box[3] <= cullY0 || box[1] >= cullY1;
+        // A pass reaches a moved child wherever it is drawn (ADR 072 §2.6): an ancestor's box says
+        // nothing of where a transform under it moved its child, and a drawer slid past it would be
+        // skipped by the pass that repaints where the drawer now is.
+        return misses && (transformed.isEmpty()
+                || !widget.drawsMovedChildInScene(cullX0, cullY0, cullX1, cullY1));
     }
 
     private static final Color DAMAGE_DEBUG_FILL = Color.rgba(0xFF2BD6, 0.10f);

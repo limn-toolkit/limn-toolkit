@@ -37,6 +37,27 @@ final class ChildTransform {
 
     final Mat4 matrix;
 
+    /**
+     * Whether the matrix keeps the plane's axes where they are: a translation and a scale, each
+     * axis on its own, a mirror and a flip seen flat included. Such a matrix keeps every rectangle a
+     * rectangle, so the canvas draws the children through it straight, with {@link #paintX},
+     * {@link #paintY}, {@link #paintScaleX} and {@link #paintScaleY}, every clip inside staying
+     * exact; any other is drawn through a picture of its own.
+     */
+    final boolean axisAligned;
+    /** Where the axis-aligned matrix puts the widget's origin, and how much it scales each axis. */
+    final float paintX;
+    final float paintY;
+    final float paintScaleX;
+    final float paintScaleY;
+    /**
+     * Whether the matrix, with no perspective, leaves the plane less than {@link #COLLAPSED} of its
+     * area everywhere: a scale of 0 on either axis, or a flip seen exactly edge-on. Such children
+     * draw nothing, and {@link #unmap} already answers {@code NaN} for every point of them. A
+     * perspective's area changes from point to point and is never counted here.
+     */
+    final boolean collapsed;
+
     private final double h00;
     private final double h01;
     private final double h02;
@@ -79,6 +100,13 @@ final class ChildTransform {
         a21 = h01 * h20 - h00 * h21;
         a22 = h00 * h11 - h01 * h10;
         det = h00 * a00 + h01 * a10 + h02 * a20;
+        boolean affine = h20 == 0 && h21 == 0 && h22 > 0;
+        axisAligned = affine && h01 == 0 && h10 == 0;
+        paintX = affine ? (float) (h02 / h22) : 0;
+        paintY = affine ? (float) (h12 / h22) : 0;
+        paintScaleX = affine ? (float) (h00 / h22) : 1;
+        paintScaleY = affine ? (float) (h11 / h22) : 1;
+        collapsed = affine && Math.abs((h00 * h11 - h01 * h10) / (h22 * h22)) <= COLLAPSED;
     }
 
     /**

@@ -1751,6 +1751,51 @@ public final class Accessibility {
     }
 
     /**
+     * The box a synthetic child declared with {@link #bounds}, in its owner's own coordinates, into
+     * {@code out} as {@code x0, y0, x1, y1}. The publish step reads it to carry the box through a
+     * transform drawn above the owner, which the owner's corner alone cannot do: a cell of a table
+     * drawn at twice its size lies twice as far from the table's corner and is twice as large. A
+     * widget never asks.
+     *
+     * @param index the node's index in this walk
+     * @param out   four floats to fill
+     * @throws IndexOutOfBoundsException if {@code index} names no node in this walk
+     */
+    public void syntheticBoxAt(int index, float[] out) {
+        Objects.checkIndex(index, count);
+        Slot s = slots[index];
+        out[0] = s.x - s.originX;
+        out[1] = s.y - s.originY;
+        out[2] = out[0] + s.width;
+        out[3] = out[1] + s.height;
+    }
+
+    /**
+     * Places a synthetic child's box in the scene where its owner is drawn, the bounds of the box
+     * {@link #syntheticBoxAt} gave carried through the transforms above the owner. The publish step
+     * calls this before it narrows the child's {@code SHOWING}, and only for an owner a transform
+     * moves; a widget never does.
+     *
+     * @param index  the node's index in this walk
+     * @param x      the left edge, in the scene
+     * @param y      the top edge
+     * @param width  the width
+     * @param height the height
+     * @throws IndexOutOfBoundsException if {@code index} names no node in this walk
+     */
+    public void placeSyntheticAt(int index, float x, float y, float width, float height) {
+        Objects.checkIndex(index, count);
+        Slot s = slots[index];
+        if (!s.synthetic) {
+            return;
+        }
+        s.x = x;
+        s.y = y;
+        s.width = width;
+        s.height = height;
+    }
+
+    /**
      * Whether the node at an index of the walk in progress is published {@code ENABLED}, as
      * {@link #inherited} or {@link #inheritedAt} settled it. Only the publish step reads it, after
      * that call, as <em>half</em> of the question whether the node is one {@link #inoperableAt}

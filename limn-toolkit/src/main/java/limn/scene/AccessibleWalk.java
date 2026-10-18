@@ -742,7 +742,19 @@ final class AccessibleWalk {
         // child there is (decision 100, 2026-09-22). Only when some ancestor clips: a child a
         // widget places outside its own box keeps its owner's bit otherwise.
         boolean clipped = showing && builder.nodeCount() > slot + 1 && widget.showingClip(clip);
+        // Where a transform above the owner draws it, its synthetic children are drawn too, moved
+        // and scaled with it: the owner's corner, which the builder adds to each child's box,
+        // carries a translation and nothing else.
+        boolean moved = builder.nodeCount() > slot + 1 && drawnMoved(scene, widget);
         for (int i = slot + 1; i < builder.nodeCount(); i++) {
+            if (moved && builder.isSyntheticAt(i)) {
+                builder.syntheticBoxAt(i, box);
+                widget.localToSceneBounds(box[0], box[1], box[2], box[3], box);
+                if (!Float.isNaN(box[0])) {
+                    builder.placeSyntheticAt(i, box[0] + graftDx, box[1] + graftDy,
+                            box[2] - box[0], box[3] - box[1]);
+                }
+            }
             record(widget, builder.idAt(i), i, builder.isSyntheticAt(i));
             keys[i] = builder.syntheticKeyAt(i);
             // The owner's bits, on every node the owner drew. They cannot ride on the call below:
@@ -786,6 +798,24 @@ final class AccessibleWalk {
         if (redirected) {
             popRedirect();
         }
+    }
+
+    /**
+     * Whether a transform container above {@code widget} draws it moved or scaled: never while its
+     * scene holds none away from rest, which is almost always, so the walk pays one emptiness test
+     * per widget that declares synthetic children.
+     */
+    private static boolean drawnMoved(Scene scene, Widget<?> widget) {
+        Scene own = widget.scene();
+        if ((own != null ? own : scene).transformed().isEmpty()) {
+            return false;
+        }
+        for (Widget<?> at = widget.parent(); at != null; at = at.parent()) {
+            if (at.childTransform != null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
