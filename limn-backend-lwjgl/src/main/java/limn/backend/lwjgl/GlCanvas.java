@@ -188,6 +188,13 @@ final class GlCanvas implements Canvas {
      */
     boolean flatInteriors;
     /**
+     * Whether a picture seen in perspective is drawn at its natural size rather than at its near
+     * edge's magnification (see {@link #pictureScale}): only where the renderer runs fragment shaders
+     * on the CPU, read from the context when the canvas is built, by the rule that chooses
+     * {@link #flatInteriors}. Tests set it to take either path on whatever device they run on.
+     */
+    boolean depthAtNaturalSize;
+    /**
      * The current shape's pieces (see {@link #emitRoundRectPieces}): each boundary's device
      * coordinate and local coordinate, in local order, and the cut to the clip in device pixels.
      */
@@ -207,8 +214,10 @@ final class GlCanvas implements Canvas {
         states.add(new State());
         // Built with its context current (the batch above has just made its buffers in it), and a
         // context's renderer never changes, so it is read once.
-        flatInteriors = GraphicsProbe.isSoftwareRenderer(
+        boolean software = GraphicsProbe.isSoftwareRenderer(
                 org.lwjgl.opengl.GL33C.glGetString(org.lwjgl.opengl.GL33C.GL_RENDERER));
+        flatInteriors = software;
+        depthAtNaturalSize = software;
     }
 
     void beginFrame(int framebufferWidth, int framebufferHeight, float contentScale) {
@@ -614,10 +623,12 @@ final class GlCanvas implements Canvas {
      * pixels so that a filtered sample at the clip's edge reads what was drawn. It is drawn at the
      * largest magnification the transform gives any corner of that part, the one nearest the eye
      * under a perspective, so that text and shapes are rasterized at the size they are seen at, and
-     * smaller when that would not fit the framebuffer. A plane seen edge-on, which covers no pixel,
-     * opens no picture. Inside, the state's transform is the layer's
-     * space times that one scale, and its clip the picture's own rectangle, so that every clip
-     * inside is an exact rectangle again, rounded clips included, and {@link #clipBounds()} answers.
+     * smaller when that would not fit the framebuffer; on a renderer without a GPU a picture seen in
+     * perspective is drawn at no more than its natural size (see {@link #pictureScale}). A plane
+     * seen edge-on, which covers no pixel, opens no picture. Inside, the state's transform is the
+     * layer's space times that one scale, and its clip the picture's own rectangle, so that every
+     * clip inside is an exact rectangle again, rounded clips included, and {@link #clipBounds()}
+     * answers.
      *
      * <p>The layer's space is window-sized, with the picture at its bottom-left corner: what clamps a
      * draw to the window's pixels clamps it to the picture's space as well, a glass inside finds its
@@ -728,6 +739,9 @@ final class GlCanvas implements Canvas {
             s.clip.intersectRect(0, 0, 0, 0); // collapsed to a line, or nearly: nothing to draw
             return;
         }
+        Transform2D above = parent.transform;
+        k = pictureScale(k, largestStretch(above.m00, above.m01, above.m10, above.m11),
+                h[6] != 0 || h[7] != 0, depthAtNaturalSize);
         long kx0 = 0;
         long ky0 = 0;
         long kx1 = 0;
@@ -933,6 +947,31 @@ final class GlCanvas implements Canvas {
                     (h[3] - sy * h[6]) / w, (h[4] - sy * h[7]) / w));
         }
         return most;
+    }
+
+    /**
+     * The scale a re-based layer's picture is drawn at, before the framebuffer's cap: the largest
+     * magnification the transform gives what the window lets be seen, so that text and shapes are
+     * rasterized at the size they are seen at; but, on a renderer that runs fragment shaders on the
+     * CPU, no more than the natural scale for a picture seen in perspective. There every pixel of the
+     * picture is paid in CPU time, and a card turned 30 or 75 degrees in depth cost Apple's software
+     * renderer 44 and 62 ms more a frame than the card drawn straight, nearly all of it the picture
+     * made at its near edge's magnification, some 1.3 and 1.5 times the upright card's pixels
+     * (measured on this Mac's software renderer and on a Mac without a GPU, 2026-10-18). Drawn at its
+     * natural size, the near edge is composited magnified, and softer, for as long as the card is
+     * turned, which a flip passes through in a third of a second. A GPU, where the same turns cost
+     * hundredths of a millisecond, keeps the sharp edge; so does an affine picture, whose
+     * magnification is the scale already in force but for a skew's or a scale's stretch.
+     *
+     * @param magnification the largest magnification, in device pixels per unit of the layer's space
+     * @param natural       the scale the canvas is at where the layer opens: the device's, times any
+     *                      scale above the layer
+     * @param perspective   whether the transform divides by a {@code w} that varies over the plane
+     * @param cpuRasterizer whether the renderer runs fragment shaders on the CPU
+     */
+    static double pictureScale(double magnification, double natural, boolean perspective,
+                               boolean cpuRasterizer) {
+        return perspective && cpuRasterizer ? Math.min(magnification, natural) : magnification;
     }
 
     /** The largest singular value of the 2 by 2 matrix {@code [[a, b], [c, d]]}. */

@@ -7,6 +7,7 @@ import limn.math.Quat;
 import limn.math.Vec3;
 import limn.testing.HeadlessUi;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.lwjgl.opengl.GL33C;
@@ -169,7 +170,8 @@ class GlDepthLayerTest {
     void thePictureIsDrawnAtTheMagnificationOfItsNearestCorner() {
         // ADR 072 section 2.4's case at half the size, to fit the window: a 200 point card turned 80
         // degrees, the eye 400 points away; its near edge is seen at 1.33 times, and its picture is
-        // drawn at that size.
+        // drawn at that size. On a GPU: a renderer without one draws it at its natural size (below).
+        Assumptions.assumeFalse(HeadlessGl.isSoftware(), "a GPU's picture; a software renderer's is the next case");
         float degrees = -80;
         float distance = 400;
         render(c -> {
@@ -196,6 +198,55 @@ class GlDepthLayerTest {
         assertTrue(most > 1.33 && most < 1.38, "the near corner's magnification, by hand: " + most);
         assertEquals(SCALE * most, canvas.lastSpaceScale(), SCALE * most * 1e-3,
                 "drawn at the near corner's size times the device's");
+    }
+
+    @Test
+    void onARendererWithoutAGpuAPictureInPerspectiveIsDrawnAtItsNaturalSize() {
+        // ADR 072 section 12, the owner's decision of 2026-10-18: the same card, whose near corner
+        // would want 1.37 times, is drawn at the device's scale on a renderer that pays every pixel
+        // in CPU time, and still lies where the projection puts it; an affine picture keeps its
+        // magnification there, a scale above the layer included.
+        HeadlessGl.onSoftwareRenderer(() -> {
+            GlCanvas software = new GlCanvas(fonts);
+            try {
+                assertTrue(software.depthAtNaturalSize, "read from the context: " + HeadlessGl.describe());
+                render(software, c -> {
+                    c.saveLayer(CX - 100, CY - 75, 200, 150, 1f, turned(-80, 400));
+                    c.fillRect(CX - 100, CY - 75, 200, 150, INK);
+                    c.restore();
+                });
+                assertEquals(SCALE, software.lastSpaceScale(), 1e-6, "the device's scale, not the near corner's");
+
+                float degrees = 55;
+                float distance = 420;
+                byte[] image = render(software, c -> {
+                    c.saveLayer(CX - 120, CY - 80, 240, 160, 1f, turned(degrees, distance));
+                    c.fillRect(CX - 120, CY - 80, 180, 160, INK);
+                    c.fillRect(CX + 60, CY - 80, 60, 160, RED);
+                    c.restore();
+                });
+                assertEquals(SCALE, software.lastSpaceScale(), 1e-6);
+                assertEveryPixel(image, degrees, distance, uv -> {
+                    if (uv[0] < -120 || uv[0] > 120 || uv[1] < -80 || uv[1] > 80) {
+                        return PAGE;
+                    }
+                    return uv[0] < 60 ? INK : RED;
+                }, "the turned card at its natural size");
+
+                Mat4 rotated = Mat4.translation(new Vec3(110, 100, 0))
+                        .multiply(Mat4.rotation(Quat.fromAxisAngle(Vec3.UNIT_Z, (float) Math.toRadians(20))))
+                        .multiply(Mat4.translation(new Vec3(-110, -100, 0)));
+                render(software, c -> {
+                    c.scale(1.5f, 1.5f);
+                    c.saveLayer(60, 60, 100, 80, 1f, rotated);
+                    c.fillRect(60, 60, 100, 80, INK);
+                    c.restore();
+                });
+                assertEquals(SCALE * 1.5, software.lastSpaceScale(), 1e-4, "an affine picture is not capped");
+            } finally {
+                software.dispose();
+            }
+        });
     }
 
     // ------------------------------------------------------------------ the near plane
@@ -349,6 +400,11 @@ class GlDepthLayerTest {
 
     /** One frame over the page into a texture of its own, read back top-down. */
     private byte[] render(Consumer<GlCanvas> paint) {
+        return render(canvas, paint);
+    }
+
+    /** One frame of {@code canvas} over the page into a texture of its own, read back top-down. */
+    private static byte[] render(GlCanvas canvas, Consumer<GlCanvas> paint) {
         int texture = GL33C.glGenTextures();
         int fbo = GL33C.glGenFramebuffers();
         int previousFbo = GL33C.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
