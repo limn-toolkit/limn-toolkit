@@ -36,7 +36,8 @@ public sealed interface Change {
      * is <i>re-read the bounds you hold</i>.
      *
      * <p><b>A minor release may add a constant</b>, as {@link #OPACITY} was added for the
-     * {@link limn.scene.layout.Opacity} container: a {@code switch} over the aspects that names
+     * {@link limn.scene.layout.Opacity} container and {@link #TRANSFORM} for the
+     * {@link limn.scene.layout.Transform} one: a {@code switch} over the aspects that names
      * every one of them still carries a {@code default} branch, which is where an aspect added
      * later arrives.
      */
@@ -77,6 +78,13 @@ public sealed interface Change {
          * time; a {@code fadeTo} announces only its start and its end.
          */
         OPACITY,
+        /**
+         * Where a {@link limn.scene.layout.Transform} container draws its child: its translation,
+         * its scale, its origin and the turn of a flip, announced on the container. A picture and
+         * the bounds published for it, with nothing laid out again. A direct set that changes a
+         * value announces it every time; a motion announces only its start and its end.
+         */
+        TRANSFORM,
         // event
         /** The widget was invoked: a button pressed, a row opened. */
         INVOKED,

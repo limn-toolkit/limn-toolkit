@@ -112,6 +112,19 @@ public abstract class Widget<W extends Widget<W>> {
                 ChildTransform transform = widget.childTransform;
                 return transform != null ? transform.matrix : null;
             }
+
+            @Override
+            public limn.scene.internal.TransformAccess.Values makeContainer(Widget<?> widget) {
+                if (widget.transformGroup == null) {
+                    widget.transformGroup = new TransformGroup(widget);
+                }
+                return widget.transformGroup;
+            }
+
+            @Override
+            public float paintOutsetOf(Widget<?> widget) {
+                return widget.drawnChildrenOverhang();
+            }
         });
     }
 
@@ -147,8 +160,14 @@ public abstract class Widget<W extends Widget<W>> {
      */
     @Nullable ChildTransform childTransform;
 
+    /**
+     * The values and motions of a {@link limn.scene.layout.Transform} container, which compose
+     * {@link #childTransform}; null for every other widget.
+     */
+    private @Nullable TransformGroup transformGroup;
+
     /** Sets {@link #childTransform}; the identity, like null, is none. UI thread only. */
-    private void setChildMatrix(limn.math.@Nullable Mat4 matrix) {
+    final void setChildMatrix(limn.math.@Nullable Mat4 matrix) {
         Ui.checkUiThread();
         ChildTransform next = matrix == null || ChildTransform.isIdentity(matrix) ? null
                 : new ChildTransform(matrix);
@@ -487,6 +506,9 @@ public abstract class Widget<W extends Widget<W>> {
         boolean detaching = old != null && newScene == null;
         if (old != null && newScene != old && opacityGroup != null) {
             opacityGroup.settleOnLeaving(); // while scene() still answers the one it is leaving
+        }
+        if (old != null && newScene != old && transformGroup != null) {
+            transformGroup.settleOnLeaving(); // likewise; its matrix may come to rest here
         }
         if (childTransform != null && newScene != old) {
             // The scene keeps the widgets that draw their children moved, for the hit test's
@@ -2284,6 +2306,63 @@ public abstract class Widget<W extends Widget<W>> {
     private void paintedRect(float[] out) {
         float outset = 1 + paintOutset();
         paintedRect(-outset, -outset, width + outset, height + outset, out);
+    }
+
+    /**
+     * Where this widget's children are drawn, each with what it paints, through the matrix it draws
+     * them with, in its own space: what a change of that matrix damages, before and after. All four
+     * {@code NaN} when no child paints anything.
+     *
+     * @return the bounds, {@code x0, y0, x1, y1}; valid until the next call
+     */
+    final float[] childrenPaintedBounds() {
+        float[] b = PAINTED_BOUNDS;
+        paintedRect(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY,
+                Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY, b);
+        if (!(b[2] > b[0] && b[3] > b[1])) {
+            b[0] = Float.NaN;
+            b[1] = Float.NaN;
+            b[2] = Float.NaN;
+            b[3] = Float.NaN;
+        }
+        return b;
+    }
+
+    /**
+     * How far a transform container's children, each grown by its own outset, are drawn past its
+     * box through its matrix, on the side they reach
+     * farthest: its outset, which partial rendering grows its damage and its culling by. The
+     * child's own outset at rest, as an {@code Opacity} container declares; four corners through
+     * the matrix otherwise, which keeps the hook constant-time. A descendant moved past its own
+     * parent by another transform deeper down is not counted here: the scene's set of moved widgets
+     * carries a pass to it.
+     */
+    final float drawnChildrenOverhang() {
+        ChildTransform through = childTransform;
+        float reach = 0;
+        float[] b = MOVED_BOUNDS;
+        for (int i = 0; i < children.size(); i++) {
+            Widget<?> child = children.get(i);
+            if (!child.isVisible()) {
+                continue;
+            }
+            float o = child.paintOutset();
+            b[0] = child.x - o;
+            b[1] = child.y - o;
+            b[2] = child.x + child.width + o;
+            b[3] = child.y + child.height + o;
+            if (through != null) {
+                if (through.collapsed) {
+                    continue;
+                }
+                through.bounds(b[0], b[1], b[2], b[3], b);
+                if (Float.isNaN(b[0])) {
+                    continue;
+                }
+            }
+            reach = Math.max(reach, Math.max(Math.max(-b[0], -b[1]), Math.max(b[2] - width, b[3] - height)));
+        }
+        return reach;
     }
 
     /**

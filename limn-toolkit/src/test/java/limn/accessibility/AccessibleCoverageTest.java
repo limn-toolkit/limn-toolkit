@@ -400,6 +400,16 @@ class AccessibleCoverageTest {
             // naming hatch is per instance only. Pinned by
             // limn.scene.OpacityTest.theContainerIsNothingToLayoutAndNothingToTheAccessibleTree.
             "limn.scene.layout.Opacity",
+            // Declares no role, name, description, action or state and no onPaint (what it draws is
+            // its child, through the matrix its paintWidget applies), is never focusable of its own
+            // accord, and holds one child, so §1.6's predicate deletes it and hoists the child into
+            // its place, as Opacity's is. What the deletion leaves behind is the child's published
+            // rectangle, which the walk already takes through the matrix (localToSceneBounds), and
+            // its synthetic children's, carried the same way: a reader sees the child where it is
+            // drawn, from the set or the arrival of a motion on. It is final, so the naming hatch is
+            // per instance only. Pinned by
+            // limn.scene.TransformTest.theContainerIsNothingToLayoutAndNothingToTheAccessibleTree.
+            "limn.scene.layout.Transform",
             // Declares no role, name, description, action or state and no onPaint, is never
             // focusable of its own accord and carries no tooltip, so §1.6's predicate deletes it in
             // silence and hoists its one child. What the deletion leaves behind is an extent and no

@@ -1981,6 +1981,46 @@ public final class Scene {
     }
 
     /**
+     * A transform container's set, a frame of its motion and an arrival: where its children are
+     * drawn as its matrix stands, each with what it paints, damaged as {@link #damageWidget} damage
+     * is, clamped by every clipping ancestor, and no layout. The container calls it before its
+     * matrix changes and after, so that a move repaints the place it leaves and the place it
+     * reaches; under a perspective neither is a fixed outset, which is why it is the projection
+     * that is damaged.
+     *
+     * @param widget  the container
+     * @param settled a set or an arrival, which moves the bounds the accessible tree publishes and
+     *                so has it walked; a frame between has not, as a fade's has not
+     */
+    void damageMovedPicture(Widget<?> widget, boolean settled) {
+        if (partialRendering || damageDebug) {
+            float[] b = widget.childrenPaintedBounds();
+            if (!Float.isNaN(b[0])) {
+                addClippedDamage(widget, b[0], b[1], b[2] - b[0], b[3] - b[1]);
+            }
+        }
+        if (settled) {
+            markAccessibleNodesDirty();
+        }
+        scheduleFrame();
+    }
+
+    /**
+     * A transform container came to rest somewhere new, by a set or at a motion's arrival: a popup
+     * drawn in this scene whose anchor lies under it is laid out again, so that it stands against
+     * where its anchor is now drawn. Not on the frames of a motion, which a popup does not follow.
+     */
+    void anchorsMoved(Widget<?> container) {
+        for (int i = 0; i < overlays.size(); i++) {
+            Widget<?> overlay = overlays.get(i);
+            Widget<?> anchor = overlay.inheritanceHost();
+            if (anchor != null && isInSubtree(anchor, container)) {
+                overlay.markNeedsLayout();
+            }
+        }
+    }
+
+    /**
      * Adds damage for a rect in {@code widget}'s local coordinates, walking up
      * to scene coordinates while clamping it at every ancestor that clips its
      * children: a region scrolled out of a viewport damages only its visible
