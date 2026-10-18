@@ -13,7 +13,11 @@
   **Stage 1 built, 2026-10-18** (section 9): the `Transform` container with its translation,
   scale and origin, `slideTo`, `scaleTo` and a flat `flipTo`, `Change.Aspect.TRANSFORM`, every path
   stage 0 left summing offsets routed through the matrix, the dialog's slide, and section 7's glyph
-  measurement on this Mac; stages 2 and 3 are not built.
+  measurement on this Mac. **Stage 2 built, 2026-10-18** (section 10): the rotation, `rotateTo` and
+  a flat `setMatrix` on the container, drawn through a picture in local space that the canvas's new
+  `saveLayer` with a matrix composites as a projected quad under the enclosing clip, the warped
+  glass, popup windows placed again, `Opacity.fadeTo`'s finite seconds, and section 7's two layer
+  measurements on this Mac; stage 3 is not built.
 - **Date:** 2026-10-17
 - **Scope:**
   - a container that draws its child moved, scaled, rotated or turned in 3D, without changing
@@ -140,7 +144,10 @@ All setters are fluent, UI thread only, and throw when called from inside a pain
   origin after the scale. A 2D affine, a skew included, is a `Mat4` whose z row and column are
   the identity's; no separate 2D affine type is added, because `Mat3` is a 3D normal matrix
   and a second matrix type would carry the same numbers. The child's plane is `z = 0`, so a
-  matrix that moves points in z only matters through the perspective.
+  matrix that moves points in z only matters through the perspective. (2026-10-18, stage 2:
+  built with a matrix that keeps the plane flat, its bottom row `(0, 0, any, w > 0)`, and refused
+  otherwise until stage 3 brings the perspective; `Mat4.affine2D` makes one from a 2D affine map's
+  six numbers, the factory a skew needed; section 10.2.)
 - **The order is fixed.** For a point `p` of the child, with `O` the translation to the origin:
   `O · translation · perspective · rotation3D · rotation · scale · matrix · O⁻¹ · p`, then the
   Transform's own position in its parent. So a scale, a rotation and a turn share one pivot, a
@@ -217,7 +224,9 @@ There are three cases, and only the third makes a picture.
     canvas opens it with a transform of its own, the Transform's local space times one scale, and
     a device clip of its own, the picture's rectangle. Every clip inside (a scroll view, a text
     field, a table) is therefore an exact rectangle again, rounded clips included, and
-    `clipBounds()` answers, so culling inside works as it does in the window.
+    `clipBounds()` answers, so culling inside works as it does in the window. (2026-10-18, as
+    built: that space times the one scale, moved by whole pixels so that the picture lies at the
+    bottom-left of a space the window's size, its corner on that space's 2x2 grid; section 10.2.)
   - **The picture covers the part of the child that can be seen**: what the subtree paints
     (`paintedBounds`), intersected with the enclosing clip and the repaint pass mapped back into
     local space through the inverse transform. A large panel turned inside a small viewport draws
@@ -239,7 +248,10 @@ There are three cases, and only the third makes a picture.
   rounded clip's distance in the composite program; it is a variant of the program used only when
   a rounded clip is in force, because ADR 071 §6.1 found that the canvas program's clip over every
   pixel of a picture cost Apple's software renderer 251 ms on a window's frame. Its cost there is
-  owed (section 7).
+  owed (section 7). (2026-10-18, as built: the variant also takes a rectangle with an edge between
+  pixels, which a scissor cannot cut as the canvas program does, and runs only on the strips of
+  the picture near the clip's edges and corners, the plain program under a scissor over the rest;
+  measured in section 7, section 10.2.)
 - **Edges are antialiased by the picture's own transparent ring.** The picture covers the
   painted bounds grown by a pixel, so its outermost texels are clear, and bilinear filtering
   ramps a rotated edge over about a pixel. A pooled picture larger than the part drawn clears a
@@ -359,7 +371,9 @@ Both depend on section 3, and with it they are short.
   they are placed again: an in-scene popup's layer is laid out again, and a popup window is placed
   again, when a Transform above its anchor is set or arrives. They do not follow the frames of an
   animation. (2026-10-18, stage 1: the in-scene layer is laid out again; a popup in a window of its
-  own is not placed again yet, section 9.4.)
+  own is not placed again yet, section 9.4. Stage 2, the same day: a popup window placed against a
+  widget is placed again by its owner, which the scene asks; a popup menu, opened at a point or a
+  rectangle and not against a widget, is not followed; section 10.2.)
 
 ### 2.9 Backdrop effects under and inside a transform
 
@@ -371,7 +385,8 @@ Both depend on section 3, and with it they are short.
   at the picture's pixels. Proposed: it reads what it would read if the picture were opaque, as
   inside ADR 071's group, by drawing the window's copy into local space through the inverse
   affine, one more quad per glass per open picture over the glass's bounds; a frosted card turned
-  a few degrees keeps showing the window through its glass (question 10).
+  a few degrees keeps showing the window through its glass (question 10). (2026-10-18, as built,
+  into a second copy the window's size; within 8 steps of the glass upright; section 10.2.)
 - **Inside a 3D picture**, a glass reads only the subtree's own content: the Transform is a
   backdrop root, as a web page's isolated groups are. Warping the window through an inverse
   projection is possible with the same program, but what a blur reads through a plane seen at an
@@ -731,6 +746,70 @@ the floor, on this Mac's GPU and software renderer and on the Windows, Fedora an
   against the same card in an opacity group.
 - **The rounded enclosing clip in the composite program** on the software renderer, against the
   scissor alone.
+
+  **Both measured on this Mac, 2026-10-18** (the probe `TransformLayerProbe` in the backend's
+  tests, run by setting `LIMN_PROBE_TRANSFORM_LAYER`; the guests' run still owed): ADR 071 section
+  0's popup, 300 by 400 points with two shadows, a bordered panel and sixteen rows, over a striped
+  page in a 1280 × 800 window at 2x, each frame repainting the card, the modes interleaved and
+  rotated, each on a canvas of its own; partial frames (the card's own damage, which a turned card
+  makes larger by its turned bounds) and whole frames (the same window for every mode, only the
+  picture differing). OPAQUE and OPAQUE' the card drawn straight, the floor; GROUP the card in an
+  `Opacity` at one half; TURNED and TURNED_30 the card in a `Transform` at 3 and 30 degrees;
+  RECT_CLIP and ROUND_CLIP the card at 3 degrees inside a panel that clips it square or with
+  16-point corners. Round 1 / round 2, medians, milliseconds.
+
+  On Apple's software renderer (4.1 APPLE-24.0.2), 40 frames after 5, one number per frame, with
+  the composite's computed clip confined to the picture's edges (section 10.2):
+
+  | Frame | OPAQUE | OPAQUE' | GROUP | TURNED | TURNED_30 | RECT_CLIP | ROUND_CLIP |
+  |---|---|---|---|---|---|---|---|
+  | partial | 163.7 / 163.0 | 164.1 / 163.4 | 166.9 / 166.4 | 173.6 / 172.5 | 198.4 / 198.2 | 154.4 / 154.1 | 155.3 / 154.5 |
+  | whole | 343.5 / 342.8 | 343.5 / 343.1 | 343.2 / 343.1 | 346.3 / 346.0 | 345.7 / 345.7 | 338.1 / 337.6 | 339.4 / 337.9 |
+
+  Before that, with the variant program over the whole picture, the same probe gave RECT_CLIP
+  174.4 / 174.7 and ROUND_CLIP 187.3 / 187.7 in partial frames, 382.1 / 382.4 and 395.2 / 395.3 in
+  whole ones, against OPAQUE 185.5 / 185.3 and 387.8 / 388.4 (the machine ran some 12% slower in
+  that run; each run is read only against itself).
+
+  On this Mac's GPU (Apple M5 Max, OpenGL 4.1 over Metal), 300 frames after 60, CPU / GPU / frame:
+
+  | Frame | Mode | Round 1 | Round 2 |
+  |---|---|---|---|
+  | partial | OPAQUE | 0.149 / 0.216 / 0.561 | 0.083 / 0.022 / 0.228 |
+  | | OPAQUE' | 0.148 / 0.217 / 0.559 | 0.078 / 0.021 / 0.228 |
+  | | GROUP | 0.174 / 0.290 / 0.584 | 0.096 / 0.067 / 0.241 |
+  | | TURNED | 0.172 / 0.300 / 0.594 | 0.101 / 0.067 / 0.247 |
+  | | TURNED_30 | 0.177 / 0.351 / 0.656 | 0.105 / 0.067 / 0.251 |
+  | | RECT_CLIP | 0.170 / 0.264 / 0.552 | 0.100 / 0.065 / 0.248 |
+  | | ROUND_CLIP | 0.178 / 0.298 / 0.599 | 0.104 / 0.064 / 0.251 |
+  | whole | OPAQUE | 0.107 / 0.088 / 0.338 | 0.106 / 0.086 / 0.339 |
+  | | OPAQUE' | 0.103 / 0.087 / 0.334 | 0.100 / 0.086 / 0.333 |
+  | | GROUP | 0.121 / 0.147 / 0.333 | 0.119 / 0.145 / 0.329 |
+  | | TURNED | 0.126 / 0.148 / 0.339 | 0.123 / 0.143 / 0.334 |
+  | | TURNED_30 | 0.125 / 0.145 / 0.337 | 0.124 / 0.145 / 0.335 |
+  | | RECT_CLIP | 0.126 / 0.143 / 0.336 | 0.124 / 0.142 / 0.334 |
+  | | ROUND_CLIP | 0.128 / 0.151 / 0.339 | 0.126 / 0.141 / 0.336 |
+
+  What the numbers say:
+
+  - **The re-basing costs a turned card's whole frame 3 ms on the software renderer** over the same
+    card in an opacity group (+3.0 / +2.9, under 1% of the frame; floor 0.0 / 0.3; +3.0 / +3.2 in
+    the run before), and nothing a GPU
+    shows (+0.005 / +0.004 ms of CPU and +0.001 / −0.002 ms of GPU, inside the floor). It is not
+    the state being moved, which costs nothing per draw, but the picture drawn at the card's
+    magnification and laid back filtered: the same at 3 and at 30 degrees (345.7 against 346.3).
+  - **A turned card's partial frame costs more than its picture**: +6.7 / +6.1 ms over the group
+    at 3 degrees and +31.5 / +31.8 at 30 on the software renderer, because the pass is the turned
+    bounds of the card and its shadow, a tenth larger than the upright card's at 3 degrees and
+    nearly twice as large at 30, and everything under it is repainted. On the GPU the difference is a few hundredths of
+    a millisecond, within the clock's movement between rounds (round 1's clocks were low
+    throughout, every mode alike).
+  - **The rounded enclosing clip costs 0.4 to 1.3 ms of a frame on the software renderer** over
+    the scissor alone (floor 0.0 to 0.4), once the variant runs only on the picture's edge strips;
+    run over the whole picture as section 2.4 first had it, it cost 13 ms, 7% of the frame, which
+    is why the build splits it. On the GPU it is within the floor.
+  - Neither reopens a decision: a turned card costs what a fading one costs plus a few percent of a
+    software frame, as section 2.4's table estimated.
 - **Glyphs under a scale animation:** rasterizations and atlas pages per frame of a `scaleTo` of a
   text-heavy card, and the frame time it costs. **Measured on this Mac, 2026-10-18** (the probe
   `TransformGlyphProbe` in the backend's tests, run by setting `LIMN_PROBE_TRANSFORM_GLYPHS`; the
@@ -1043,6 +1122,9 @@ layer and 3D are stages 2 and 3.
 
 ### 9.4 What stage 2 must still do
 
+(2026-10-18: done in stage 2, section 10, but for the guests' runs, which come in one round after
+stage 3, and what section 8.2 left for stage 3.)
+
 - **The layer in local space** for every matrix that turns the axes, replacing the upright branch
   of `Widget.paintChildrenThrough`: re-based, the composite with `vec4` positions, the scissor and
   the rounded-clip variant, the cleared ring, as section 2.4 has them; `setRotation`, `rotation()`,
@@ -1058,3 +1140,173 @@ layer and 3D are stages 2 and 3.
 - **`Opacity.fadeTo` and the motions agreeing on an infinite duration** (section 9.2).
 - What section 8.2 left for stage 3 stands: a public perspective factory or the composition in
   `limn.math`, and a backface flag on the hook.
+
+## 10. Stage 2, built 2026-10-18
+
+Built on `claude/adr-072-stage2` from `7d60118f` (stage 1 and its CHANGELOG entries), in ten
+commits before this section: the opacity's finite seconds, the canvas's layer through a transform
+with the warped glass, the container's rotation and matrix drawn through it, the device tests, the
+popup windows placed again, the guide, the exact layer of an `Opacity` round a moving Transform,
+the scroll view's culling held, the probe of section 7, and the composite's clip computed only
+where a pixel can be cut. The turns
+in depth, the perspective, the backface and the near plane are stage 3.
+
+### 10.1 What was built
+
+- **`Canvas.saveLayer(x, y, width, height, opacity, Mat4 transform)`** (section 2.4), public as
+  ADR 071's `saveLayer` is: a layer in a space of its own, the rectangle in that space, composited
+  through `transform` after the canvas's own. Its default, for a canvas that cannot make layers,
+  applies the matrix's flat part straight with `translate`, `rotate`, `scale` and `rotate` again
+  (two rotations about a scale, which expresses a skew no single call does) and the opacity per
+  draw. `Mat4.affine2D(a, b, c, d, e, f)` makes a matrix from a 2D affine map's six numbers.
+- **`GlCanvas`'s re-based layer.** A transform that keeps the axes is applied straight and the
+  layer is the plain one (none at an opacity of 1). Any other: the picture covers what of the
+  rectangle the enclosing clip lets be seen, the clip's corners mapped back through the inverse
+  homography and grown by two of the picture's pixels; it is drawn at the largest magnification the
+  transform gives that part, the largest singular value of its derivative, and smaller where that
+  would pass the framebuffer; inside, the transform is that scale and the clip the picture's own
+  rectangle, so every clip in the subtree is an exact rectangle again and `clipBounds()` answers.
+  A ring of one texel past the part drawn is cleared. The restore lays the picture's four corners
+  through the homography as `vec4` positions (`canvas_composite.vert` takes `vec4`; a plain layer's
+  `w` is 1), sampled bilinearly through a sampler object over the pool's nearest sampling, under
+  the enclosing clip (10.2).
+- **The warped glass** (section 2.9, answer 10): a glass inside a re-based layer reads what it
+  would read were every layer round it opaque, in its own space: the window's copy warped into it
+  through the inverse of the way out to the window, as one quad over the region the glass reads,
+  then each open layer's picture so far through its own way in, into a second window-sized copy
+  `GlBackdrop` keeps beside the first. A layer whose way out is not affine is a backdrop root,
+  which is section 2.9's rule for 3D, there for stage 3 to turn on.
+- **`Transform`'s rotation and matrix** (section 2.2): `setRotation(float degrees)`, `rotation()`,
+  `rotateTo(degrees)` and `rotateTo(degrees, seconds, onArrive)` by `slideTo`'s rules
+  (announcements, supersession, less motion, settling on leaving, one ticker); `setMatrix(Mat4)` and
+  `matrix()`. `TransformGroup` composes `O · translation · flip · rotation · scale · matrix · O⁻¹`.
+  `reset()` puts both back.
+- **The paint through the picture** (section 9.4's first item): `Widget.paintChildrenThrough`, for
+  a matrix that does not keep the axes, opens the layer over what the children paint upright in the
+  container's space (`paintedRect` with the matrix left out) and paints them into it; the matrix is
+  `ChildTransform.asMat4()`, the one set or a snapshot of the one loaded in place, taken once per
+  load.
+- **Popup windows placed again** (section 9.4): `Scene.observeAnchorMoved(anchor, placeAgain)`,
+  reached through `SceneAccess`, keeps each popup window's anchor and what places it; a set and an
+  arrival (`Scene.anchorsMoved`) run it for every anchor under the container. `AnchoredPopup` (the
+  combo box's list, the date picker's calendar, the tab list) subscribes while its window is up and
+  places it again a turn later through its own `refit`. `HeadlessWindow` keeps the positions asked
+  of it, for the test.
+- **`Opacity.fadeTo`** refuses an infinite number of seconds (section 9.2's open question), with a
+  dated note in ADR 071 section 7.2.
+- **The guide:** "Moving part of a window" names the rotation and the matrix, says what a turned
+  child costs and looks like, and shows a section's arrow that turns down as the section opens,
+  clockwise or not by the direction (`AnimationExample.showOpen`). The Showcase's Motion page
+  already turns a card over; a rotation there would be forced and was not added.
+
+### 10.2 What the build settles, and where it departs from the text above
+
+- **2026-10-18. `setMatrix` lands now, restricted to a flat matrix.** Sections 2.2, 6 and 9.4 put
+  "the general 2D matrix" in stage 2 and list `setMatrix` in stage 3's tests too. It lands in stage
+  2 with the signature of section 2.2 and refuses, with `IllegalArgumentException`, a matrix whose
+  bottom row tilts the plane toward the eye (not `(0, 0, any, w > 0)`): that is a perspective, which
+  stage 3 brings with the near plane, the backface and the magnification under it, and which will
+  lift the restriction without changing the signature. Its z row and column are inert while no
+  perspective is applied, as section 2.2 says.
+- **2026-10-18. `Mat4.affine2D` is added.** Section 2.2 adds "no separate 2D affine type", and
+  none is; but `Mat4` had no factory a skew could be made with (its array constructor is
+  package-private, and the public factories make translations, scales and turns), so a factory
+  taking the six numbers of a 2D canvas's matrix was the smallest way to make `setMatrix` usable.
+  Stage 3's perspective factory (section 8.2) is still owed.
+- **2026-10-18. The picture's space is window-sized, the picture at its bottom-left.** Section 2.4
+  has the canvas open the picture with "the Transform's local space times one scale". As built
+  it is that space times one scale and moved by whole pixels, so that the picture lies inside a
+  space the window's size with its bottom edge on the space's: every clamp to the framebuffer, the
+  rule that keeps a nested opacity layer on the 2x2 grid, and a glass's own coordinates in the
+  backdrop copy then hold inside it unchanged. The picture's corner sits on the 2x2 grid of the
+  scaled space, as ADR 071's sits on the window's, measured from the scaled space's own origin:
+  without it a pass's smaller picture of a turned card antialiased its curves up to 5 steps off the
+  whole frame's (`TransformPassSeamTest`).
+- **2026-10-18. The clip at the composite.** Section 2.4 applies the enclosing rectangle as a
+  scissor and a rounded clip by a variant of the program. A rectangle with an edge between pixels
+  (a viewport laid at a fraction of a point) takes the variant too: a scissor covers such an edge's
+  pixels wholly or not at all where the canvas program covers them in part, 106 steps apart at the
+  edge (`GlTurnedLayerTest`). And the variant runs only where a pixel can be cut: the band between
+  the rounded clip's corners, inside every edge by half a pixel, is drawn by the plain program under
+  a scissor, and the variant takes the strips above, below and beside it, five draws of the one
+  quad. Measured before and after in section 7.
+- **2026-10-18. The picture's reach past what is seen** is two of its pixels, so that a filtered
+  sample at the clip's edge reads texels that were drawn. No test fails without it (the culling's
+  own pixel of margin covers the cases tried); it is kept as the cheap guard section 2.4's filtering
+  asks for.
+- **2026-10-18. The glass, within 8 steps.** Section 6 asks for "a few steps". A glass in a card
+  turned 4 degrees reads the window within 8 steps of the same glass upright under the inverse turn,
+  read between pixels; the 8 are two filtered resamplings (the warp, the picture laid at the angle)
+  rounding a ramp's turning points by a share of a pixel. Without the warp it is 125 off.
+- **2026-10-18. An `Opacity` round a moving Transform makes an exact layer.** Section 9.2 found the
+  layer as much wider toward the start as the child slid to the end, and 9.4 left it "if measured to
+  matter". It needed no measurement to fix: a transform container away from rest paints nothing of
+  its own, so `Widget.paintedRect` gives, for it, exactly where it draws its children, and not its
+  box grown by the one-number overhang partial rendering reads (`TransformTest`'s pair case holds the
+  layer to the child and its antialiased point).
+- **2026-10-18. Popup menus are not followed.** A `PopupMenu` opens at a point or a rectangle its
+  caller gives in scene coordinates, not against a widget; nothing knows what to place it against
+  again, in the scene or in a window. Section 2.8's rule holds for every popup placed against a
+  widget.
+- **2026-10-18. What follows the rotation, checked.** The hit test, the conversions, the damage
+  (the children's painted bounds through the old and the new matrix), the scene's cull and the
+  canvas's cull inside the picture, `isShowing`, `revealInView`, the accessible bounds and the input
+  method's caret rectangle were routed through the matrix by stages 0 and 1 for any homography;
+  stage 2 changed none of them and holds each under a real rotation (10.3).
+- **2026-10-18. A frame of a turning form allocates 264 bytes** (`FullFrameAllocationTest`), a
+  sliding one's 136 and the rotation's turn and the matrix taken as a value for the picture; a
+  turned container repainted while still allocates nothing for its matrix.
+
+### 10.3 Section 6's stage 2 tests, and where they are
+
+- **A rotated scroll view shows nothing in its corners:** `TransformRotationPixelTest` (a scroll
+  view turned 30 degrees, every pixel of its bounding box past the turned viewport the page; 5739
+  such pixels drawn straight) and `GlTurnedLayerTest`'s clip case against the canvas's straight
+  rotation; and it still skips the rows scrolled out of its view (14 painted, 208 drawn straight).
+- **A rotated text field's caret and selection land where the pointer is:**
+  `TransformRotationPixelTest` (a field turned -24 degrees: the caret drawn within half a glyph of
+  the click along the field, the selection band from where the drag started to where it ended, each
+  changed pixel turned back into the field's coordinates), and `TurnedPointerTest`, whose eight
+  components now run inside the real `Transform` rotated 33 degrees and skewed 20 as well.
+- **A partial pass through a rotated Transform equals the whole frame:** `TransformPassSeamTest`'s
+  rotation step, skew step, a repaint inside a turned card, and a fading rotation in either order.
+- **Edges antialiased within a pixel:** `GlTurnedLayerTest` (the same area covered as the straight
+  draw, the ramp across an edge within a pixel of the straight draw's), and the cleared ring.
+- **A glass in a slightly rotated card equal, within a few steps, to the same glass upright under
+  the inverse rotation:** `GlTurnedLayerTest`, within 8 (10.2).
+- **The picture freed the frame after a rotation ends:** `GlTurnedLayerTest` and
+  `TransformRotationPixelTest`.
+- Besides: the enclosing rectangular and rounded clips against a straight draw, a move and a scale
+  making no picture, a picture past the window (`GlTurnedLayerTest`); the values, refusals, product,
+  right-to-left rule, picture, damage, motion, less motion, settling, pointer, readers, `isShowing`,
+  `revealInView` and the caret rectangle (`TransformRotationTest`, 13 cases); the popup window
+  (`PopupWindowUnderATransformTest`); the canvas's default (`SaveLayerThroughATransformTest`);
+  `Mat4.affine2D` (`MathTest`); the budget, one command per picture
+  (`WorkBudgetTest.aStillFormInTurnedTransformsCostsItsPicturesAndNothingMore`); the guide's arrow
+  (`AnimationExampleTest`).
+- **Proved both ways**, each piece backed out and the tests run: without the warp the glass is 125
+  off; without the variant program both enclosing clips fail; with no picture the clip, the corners,
+  the culling, the caret and the freeing fail; without the ring a reused picture is 106 off; without
+  the 2x2 grid the repaint inside a turned card is 5 off; with the matrix left out of the product
+  the table's resize and the tree's triangle fail skewed; with the picture replaced by a save the
+  picture case fails; with the scene not asking the popup's owner the popup case fails; with
+  `Opacity.fadeTo` accepting infinity its case fails.
+- **The whole suite:** `./gradlew check --continue` at `b8e983ba`, 7377 tests, 92 skipped (the two
+  probes among them), none failed.
+
+### 10.4 What stage 3 must still do
+
+- `setRotation3D`, `setPerspective`, `setBackfaceVisible` and a `flipTo` drawn with perspective;
+  lifting `setMatrix`'s restriction; a public perspective factory or the composition in `limn.math`
+  (section 8.2); the backface flag on the hook.
+- In the canvas: the near plane for a picture's visible part and its corners (the composite already
+  takes homogeneous positions and the GPU cuts `w < 0`, but `clipSeenFrom` gives up on a clip
+  corner behind the eye and the picture then covers the whole rectangle), the magnification under
+  perspective (computed at the visible part's corners already), the skipped composite of a backface,
+  and the backdrop root, which `captureInSpace` already applies to a layer whose way out is not
+  affine.
+- The oblique-text decision and `glGenerateMipmap` measured (question 11); section 7's projected
+  composite, which the probe's 30-degree mode measures flat, at 75 degrees in perspective.
+- The guests' runs of section 7, after stage 3, in one round: the glyph probe, the pixel tests, and
+  `TransformLayerProbe` on Windows, Fedora and the macOS guest.
+- The fold of an adjacent `Opacity` into a turned Transform's composite stays declined (question 12).
