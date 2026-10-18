@@ -2,6 +2,8 @@ package limn.scene.layout;
 
 import limn.concurrent.Ui;
 import limn.math.Mat4;
+import limn.math.Quat;
+import limn.math.Vec3;
 import limn.scene.Change;
 import limn.scene.Constraints;
 import limn.scene.Size;
@@ -13,8 +15,8 @@ import org.jspecify.annotations.Nullable;
 import java.util.Objects;
 
 /**
- * Draws one child moved, scaled, rotated, skewed or flipped, without changing where layout put
- * anything: a render transform. The child is drawn, hit by the pointer and published to a screen reader where the
+ * Draws one child moved, scaled, rotated, skewed, flipped or turned in depth, without changing
+ * where layout put anything: a render transform. The child is drawn, hit by the pointer and published to a screen reader where the
  * transform puts it, and its box, the container's box and every sibling's place stay what they are
  * at rest. A child scaled to twice its size overlaps its neighbours; it does not push them.
  *
@@ -33,15 +35,27 @@ import java.util.Objects;
  *   <li>a scale, {@link #setScale(float, float)}: a negative factor mirrors, and a factor of 0
  *       collapses the child to a line or a point, which then draws nothing and takes no pointer;
  *       {@code (1, 1)};</li>
- *   <li>a general matrix, {@link #setMatrix}, for a skew or any other affine map of the plane;
- *       the identity;</li>
- *   <li>an origin, {@link #setOrigin}: the point a rotation, a scale, the matrix and a flip keep
- *       still, as fractions of the box measured from its start edge and its top, so that a scale
- *       that grows from the start grows toward the end in either direction; {@code (0.5, 0.5)}.</li>
+ *   <li>a general matrix, {@link #setMatrix}, for a skew or any other map the other values do not
+ *       name; the identity;</li>
+ *   <li>an origin, {@link #setOrigin}: the point a rotation, a scale, the matrix, a turn in depth
+ *       and a flip keep still, as fractions of the box measured from its start edge and its top, so
+ *       that a scale that grows from the start grows toward the end in either direction;
+ *       {@code (0.5, 0.5)}.</li>
  * </ul>
- * In this order, for a point of the child: the matrix, the scale and the rotation, each about the
- * origin, then the translation of the result, so that a translation moves the turned child as it
- * is and a rotation turns the scaled one. Another order is two containers nested.
+ * And, for turning the child's plane out of the screen:
+ * <ul>
+ *   <li>a turn in depth, {@link #setRotation3D(Vec3, float)}, about an axis through the origin;
+ *       none;</li>
+ *   <li>a perspective, {@link #setPerspective}: how far in front of the origin the eye is, so that
+ *       the near edge of a turned child is drawn larger than the far one; none, infinitely far, by
+ *       default, which draws a turn about the vertical axis as a narrowing;</li>
+ *   <li>whether the child is drawn while its back is turned to the viewer,
+ *       {@link #setBackfaceVisible}; it is.</li>
+ * </ul>
+ * In this order, for a point of the child: the matrix, the scale, the rotation and the turn in
+ * depth, each about the origin, then the perspective, seen from in front of the origin, then the
+ * translation of what is seen, so that a translation moves the turned child as it is and a
+ * rotation turns the scaled one. Another order is two containers nested.
  *
  * <p><b>Transparent to everything but where its child is drawn.</b> It measures, lays out and
  * aligns on a baseline as its child alone does, the child given its whole box; it paints nothing of
@@ -61,7 +75,11 @@ import java.util.Objects;
  * text reads slightly softer, as text at an angle does. A frosted glass inside reads the window
  * behind as it would upright. The picture costs what an {@link Opacity} container's fade costs a
  * frame of the same size; it is made again whenever something inside repaints while the child is
- * turned, and given back the frame after the child comes to rest upright.
+ * turned, and given back the frame after the child comes to rest upright. Turned in depth, the
+ * picture is laid in perspective and drawn at the size of its nearest edge, so it stays sharp
+ * there; text far from the eye reads softer, and a page turned far back shimmers a little while it
+ * turns. What part of a child passes behind the eye is not drawn, and the rest is. A frosted glass
+ * inside a child seen in perspective reads only what the child draws beneath it, not the window.
  *
  * <p><b>A watcher hears it</b> as {@link Change.Aspect#TRANSFORM} with origin {@code CODE} on this
  * container: every time a set changes a value, once for {@link #reset()}, and twice for a motion,
@@ -231,21 +249,19 @@ public final class Transform extends Widget<Transform> {
 
     /**
      * Sets a general matrix the child is drawn through, about the {@link #setOrigin origin}, before
-     * the scale and the rotation: a skew, or any affine map of the plane the other values do not
-     * name. The child lies in the plane {@code z = 0}, so a point {@code (x, y)} of it, taken from
-     * the origin, is drawn at the matrix's x and y of {@code (x, y, 0, 1)}; the z row and column
-     * matter only through a perspective, which this container does not apply. Physical, as the
-     * rotation is. The identity is no matrix. {@link limn.math.Mat4#affine2D} makes one from the
-     * six numbers of a 2D affine map.
-     *
-     * <p>The matrix must keep the plane affine: its bottom row is {@code (0, 0, any, w)} with
-     * {@code w} positive, the last dividing the rest, since a tilt toward the eye is a perspective.
+     * the scale and the turns: a skew, or any map the other values do not name. The child lies in
+     * the plane {@code z = 0}, so a point {@code (x, y)} of it, taken from the origin, goes through
+     * the matrix as {@code (x, y, 0, 1)} and is drawn at its x and y divided by its w; the z row
+     * matters through a turn in depth and the {@link #setPerspective perspective}, which see the
+     * depth it gives, and a bottom row that changes w draws the child in a perspective of the
+     * matrix's own. Physical, as the rotation is. The identity is no matrix.
+     * {@link limn.math.Mat4#affine2D} makes one from the six numbers of a 2D affine map, and
+     * {@link limn.math.Mat4#perspectiveAt} a perspective.
      *
      * @param matrix the matrix
      * @return this
      * @throws NullPointerException     if it is null
-     * @throws IllegalArgumentException if an entry is {@code NaN} or infinite, or its bottom row
-     *                                  tilts the plane
+     * @throws IllegalArgumentException if an entry is {@code NaN} or infinite
      * @throws IllegalStateException    off the UI thread, or from inside a paint
      */
     public Transform setMatrix(Mat4 matrix) {
@@ -257,6 +273,118 @@ public final class Transform extends Widget<Transform> {
     /** @return the general matrix, {@link Mat4#IDENTITY} when none is set */
     public Mat4 matrix() {
         return values.matrix();
+    }
+
+    // ------------------------------------------------------------- in depth
+
+    /**
+     * Turns the child's plane by {@code degrees} about {@code axis}, through the
+     * {@link #setOrigin origin}, at once: out of the screen, so that one edge comes toward the
+     * viewer and the opposite one goes away. The axes are the canvas's: x to the right, y down, z
+     * out of the screen toward the viewer. A positive angle about z turns as
+     * {@link #setRotation} does, clockwise; about y the right edge goes away from the viewer and the
+     * left comes toward it; about x the bottom edge comes toward the viewer and the top goes away.
+     * Physical, as the rotation is: a right-to-left subtree turns the same way.
+     *
+     * <p>With no {@link #setPerspective perspective} a turn about y narrows the child, and one past
+     * ninety degrees shows its back, mirrored. A turn of exactly ninety degrees out of the screen
+     * leaves the child edge-on: it draws nothing and takes no pointer. A whole turn is no turn.
+     *
+     * @param axis    the axis, of any length but 0
+     * @param degrees the angle, in degrees, the way the paragraph above says for each axis; about
+     *                any other axis, as a quaternion of that axis and angle turns
+     * @return this
+     * @throws NullPointerException     if {@code axis} is null
+     * @throws IllegalArgumentException if a component or the angle is {@code NaN} or infinite, or
+     *                                  the axis has no length
+     * @throws IllegalStateException    off the UI thread, or from inside a paint
+     */
+    public Transform setRotation3D(Vec3 axis, float degrees) {
+        Ui.checkUiThread();
+        Objects.requireNonNull(axis, "axis");
+        if (!Float.isFinite(axis.x()) || !Float.isFinite(axis.y()) || !Float.isFinite(axis.z())
+                || !Float.isFinite(degrees)) {
+            throw new IllegalArgumentException("a turn's axis and angle are finite numbers: " + axis
+                    + ", " + degrees);
+        }
+        if (!(axis.lengthSquared() > 0)) {
+            throw new IllegalArgumentException("a turn's axis has a length: " + axis);
+        }
+        return setRotation3D(Quat.fromAxisAngle(axis, (float) Math.toRadians(degrees)));
+    }
+
+    /**
+     * Turns the child's plane by {@code turn}, through the {@link #setOrigin origin}, at once, in
+     * the canvas's axes as {@link #setRotation3D(Vec3, float)} names them: for a turn composed of
+     * several, or one kept from another rotation. Normalized, so a quaternion of any length but 0
+     * names its turn; of the two quaternions that name one turn, {@link #rotation3D()} answers the
+     * one whose {@code w} is not below 0. {@link Quat#IDENTITY} is no turn.
+     *
+     * @param turn the turn
+     * @return this
+     * @throws NullPointerException     if it is null
+     * @throws IllegalArgumentException if a component is {@code NaN} or infinite, or all are 0
+     * @throws IllegalStateException    off the UI thread, or from inside a paint
+     */
+    public Transform setRotation3D(Quat turn) {
+        Ui.checkUiThread();
+        values.setRotation3D(turn);
+        return this;
+    }
+
+    /** @return the turn in depth, a unit quaternion, {@link Quat#IDENTITY} when there is none */
+    public Quat rotation3D() {
+        return values.rotation3D();
+    }
+
+    /**
+     * Looks at the child from {@code distance} points in front of the {@link #setOrigin origin}, at
+     * once: a turned child's near edge is drawn larger than its far one, as a card held up and
+     * turned is seen. Two to four times the larger side of the box is the usual look; nearer is
+     * more dramatic, farther flatter. The vanishing point is the origin, and the
+     * {@link #setTranslation translation} moves it with what it sees. The perspective changes
+     * nothing of a child whose plane faces the viewer squarely: only a turn in depth, a flip or a
+     * matrix that gives the plane depth is seen through it.
+     *
+     * <p>{@link Float#POSITIVE_INFINITY}, the default, is no perspective. A part of the child that a
+     * turn brings past the eye is not drawn, and the rest is.
+     *
+     * @param distance how far the eye is, in points, above 0; infinite for none
+     * @return this
+     * @throws IllegalArgumentException if it is not above 0, or is {@code NaN}
+     * @throws IllegalStateException    off the UI thread, or from inside a paint
+     */
+    public Transform setPerspective(float distance) {
+        Ui.checkUiThread();
+        values.setPerspective(distance);
+        return this;
+    }
+
+    /** @return how far the eye is in front of the origin, in points; infinite for no perspective */
+    public float perspective() {
+        return values.perspective();
+    }
+
+    /**
+     * Sets whether the child is drawn, and hit, while its plane shows the viewer its back: turned
+     * past ninety degrees out of the screen. Drawn by default, mirrored as the back of a pane of
+     * glass is; hidden, a turned-over child draws nothing and takes no pointer, which is how two
+     * faces stacked back to back in one container show one at a time without a swap. A child
+     * mirrored by a negative {@link #setScale scale} still faces the viewer and is drawn either way.
+     *
+     * @param visible whether a back face is drawn and hit
+     * @return this
+     * @throws IllegalStateException off the UI thread, or from inside a paint
+     */
+    public Transform setBackfaceVisible(boolean visible) {
+        Ui.checkUiThread();
+        values.setBackfaceVisible(visible);
+        return this;
+    }
+
+    /** @return whether the child is drawn and hit while its back is turned to the viewer */
+    public boolean isBackfaceVisible() {
+        return values.isBackfaceVisible();
     }
 
     /**
@@ -416,9 +544,12 @@ public final class Transform extends Widget<Transform> {
      * to hide one face and show the other: a card's front and back are two children of a
      * {@link Stack} inside this container, and {@code atEdge} swaps which is visible.
      *
-     * <p>Drawn flat: the child narrows to a line about the {@link #setOrigin origin} and widens
-     * back, with no perspective, which is cheap and needs nothing but a scale; text is softer while
-     * it turns and crisp again at the end. It leaves every value as it found it.
+     * <p>Drawn flat while no {@link #setPerspective perspective} is set: the child narrows to a line
+     * about the {@link #setOrigin origin} and widens back, which is cheap and needs nothing but a
+     * scale; text is softer while it turns and crisp again at the end. With a perspective it turns
+     * in depth, the edge coming over growing toward the viewer, through a picture while it turns.
+     * Either way it turns the child as it appears, after its own turn in depth and rotation, and
+     * leaves every value as it found it.
      *
      * <p>By the rules of {@link #slideTo(float, float, double, Runnable) slideTo}: eased over the
      * whole turn, fastest edge-on; on the one ticker beside a slide and a scale; superseded by a newer

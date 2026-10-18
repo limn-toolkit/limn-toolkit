@@ -12,20 +12,22 @@ import java.util.Objects;
 
 /**
  * The values one {@link limn.scene.layout.Transform} container draws its child with, the motions
- * that move them, and the one ticker that steps every motion: the translation, the rotation, the
- * scale, the general matrix, the origin they are taken about, and the turn of a flip, composed
- * into the matrix the container draws its child through.
+ * that move them, and the one ticker that steps every motion: the translation, the perspective,
+ * the turn in depth, the rotation, the scale, the general matrix, the origin they are taken about,
+ * the turn of a flip, and whether a back face is drawn, composed into the matrix the container
+ * draws its child through.
  *
  * <p>Here, beside {@link Widget}, and not in the container, for the reasons {@link OpacityGroup}
  * is: the matrix is read by the widget's paint, hit test and conversions, a change damages through
  * the scene's own paths, and a motion settles as the container leaves its scene, which only the
  * widget's own walk of the tree sees. A widget holds one only when it is such a container.
  *
- * <p>The matrix is composed in a fixed order about the origin, {@code O · translation · flip ·
- * rotation · scale · matrix · O⁻¹}, with the translation's x and the origin's fraction read from
- * the start edge, so that a right-to-left subtree moves and grows toward its own end; the rotation
- * and the matrix are physical, as a clock turns the same way in either direction. The turns in
- * depth of the design take their place in the same product, between the flip and the rotation.
+ * <p>The matrix is composed in a fixed order about the origin, {@code O · translation ·
+ * perspective · flip · turn in depth · rotation · scale · matrix · O⁻¹}, with the translation's x
+ * and the origin's fraction read from the start edge, so that a right-to-left subtree moves and
+ * grows toward its own end; the turns and the matrix are physical, as a clock turns the same way in
+ * either direction. The perspective looks at the turned child from in front of the origin, and the
+ * translation moves what it sees, its vanishing point with it.
  */
 final class TransformGroup implements TransformAccess.Values {
 
@@ -37,6 +39,8 @@ final class TransformGroup implements TransformAccess.Values {
     private final MutMat4 matrix = new MutMat4();
     /** The move back from the origin, the last factor of the product. */
     private final MutMat4 toOrigin = new MutMat4();
+    /** The turns and the scale, composed apart when a perspective comes between them and the move. */
+    private final MutMat4 turned = new MutMat4();
 
     private float translationX;
     private float translationY;
@@ -48,6 +52,17 @@ final class TransformGroup implements TransformAccess.Values {
     private float rotation;
     /** The general matrix, applied first, or null for the identity. */
     private @Nullable Mat4 general;
+    /**
+     * The turn in depth, a unit quaternion with its {@code w} not below 0 (of the two that name a
+     * turn, the one compared), or null for none.
+     */
+    private @Nullable Quat depthTurn;
+    /** How far the eye is in front of the origin, in points; infinite for no perspective. */
+    private float perspective = Float.POSITIVE_INFINITY;
+    /** The perspective as a matrix, made when it is set; null for none. */
+    private @Nullable Mat4 lens;
+    /** Whether the child is drawn and hit while its back is turned to the viewer. */
+    private boolean backfaceVisible = true;
     /**
      * The turn of a flip in flight, in degrees, physical (the direction already resolved): 0 at
      * rest, toward 90 on one side of the edge and from −90 on the other. Only a flip moves it.
@@ -195,6 +210,81 @@ final class TransformGroup implements TransformAccess.Values {
     }
 
     @Override
+    public Quat rotation3D() {
+        return depthTurn != null ? depthTurn : Quat.IDENTITY;
+    }
+
+    @Override
+    public float perspective() {
+        return perspective;
+    }
+
+    @Override
+    public boolean isBackfaceVisible() {
+        return backfaceVisible;
+    }
+
+    @Override
+    public void setRotation3D(Quat turn) {
+        checkSettable();
+        Objects.requireNonNull(turn, "turn");
+        finite(turn.x(), "turn's component");
+        finite(turn.y(), "turn's component");
+        finite(turn.z(), "turn's component");
+        finite(turn.w(), "turn's component");
+        double length = Math.sqrt((double) turn.x() * turn.x() + (double) turn.y() * turn.y()
+                + (double) turn.z() * turn.z() + (double) turn.w() * turn.w());
+        if (!(length > 0)) {
+            throw new IllegalArgumentException("a turn is a quaternion of some length: " + turn);
+        }
+        // Of q and -q, which name one turn, the one with w not below 0, and -0 read as 0, so that
+        // the same turn set twice is the same value and is not announced.
+        float sign = turn.w() < 0 || (turn.w() == 0 && (turn.x() < 0 || (turn.x() == 0
+                && (turn.y() < 0 || (turn.y() == 0 && turn.z() < 0))))) ? -1 : 1;
+        Quat unit = new Quat((float) (sign * turn.x() / length) + 0f, (float) (sign * turn.y() / length) + 0f,
+                (float) (sign * turn.z() / length) + 0f, (float) (sign * turn.w() / length) + 0f);
+        Quat kept = unit.x() == 0 && unit.y() == 0 && unit.z() == 0 ? null : unit;
+        if (!sameTurn(kept, depthTurn)) {
+            depthTurn = kept;
+            moved(true);
+            announce();
+        }
+    }
+
+    /** Whether two turns, null as none, have the same components. */
+    private static boolean sameTurn(@Nullable Quat a, @Nullable Quat b) {
+        if (a == null || b == null) {
+            return a == b;
+        }
+        return a.x() == b.x() && a.y() == b.y() && a.z() == b.z() && a.w() == b.w();
+    }
+
+    @Override
+    public void setPerspective(float distance) {
+        checkSettable();
+        if (!(distance > 0)) {
+            throw new IllegalArgumentException("an eye in front of the child is at a distance above 0, "
+                    + "or infinitely far for no perspective: " + distance);
+        }
+        if (distance != perspective) {
+            perspective = distance;
+            lens = distance == Float.POSITIVE_INFINITY ? null : Mat4.perspectiveAt(distance);
+            moved(true);
+            announce();
+        }
+    }
+
+    @Override
+    public void setBackfaceVisible(boolean visible) {
+        checkSettable();
+        if (visible != backfaceVisible) {
+            backfaceVisible = visible;
+            moved(true);
+            announce();
+        }
+    }
+
+    @Override
     public void setTranslation(float x, float y) {
         checkSettable();
         finite(x, "translation");
@@ -243,13 +333,6 @@ final class TransformGroup implements TransformAccess.Values {
                 finite(next.get(row, col), "matrix's entry");
             }
         }
-        if (next.get(3, 0) != 0 || next.get(3, 1) != 0 || !(next.get(3, 3) > 0)) {
-            // A plane the matrix tilts toward the eye is a perspective, which the turns in depth
-            // bring with the near plane and the backface; until then w stays the plane's own.
-            throw new IllegalArgumentException("a transform's matrix keeps the plane affine: its "
-                    + "bottom row is (0, 0, any, a positive w), not (" + next.get(3, 0) + ", "
-                    + next.get(3, 1) + ", " + next.get(3, 2) + ", " + next.get(3, 3) + ")");
-        }
         Mat4 kept = ChildTransform.isIdentity(next) ? null : next;
         if (!sameMatrix(kept, general)) {
             general = kept;
@@ -297,7 +380,7 @@ final class TransformGroup implements TransformAccess.Values {
         flip = supersede(flip);
         boolean atRest = translationX == 0 && translationY == 0 && scaleX == 1 && scaleY == 1
                 && originX == 0.5f && originY == 0.5f && flipDegrees == 0 && rotation == 0
-                && general == null;
+                && general == null && depthTurn == null && lens == null && backfaceVisible;
         if (!atRest) {
             translationX = 0;
             translationY = 0;
@@ -308,6 +391,10 @@ final class TransformGroup implements TransformAccess.Values {
             flipDegrees = 0;
             rotation = 0;
             general = null;
+            depthTurn = null;
+            perspective = Float.POSITIVE_INFINITY;
+            lens = null;
+            backfaceVisible = true;
             moved(true);
             announce();
         }
@@ -623,18 +710,22 @@ final class TransformGroup implements TransformAccess.Values {
 
     // ------------------------------------------------------------------ matrix
 
-    /** Whether every value is at rest, so the container draws its child where layout put it. */
+    /**
+     * Whether every value is at rest, so the container draws its child where layout put it. A
+     * perspective and the back face's flag alone move nothing: the child's plane lies at the
+     * perspective's own depth until something turns it, and shows its front.
+     */
     private boolean atRest() {
         return translationX == 0 && translationY == 0 && scaleX == 1 && scaleY == 1 && flipDegrees == 0
-                && rotation == 0 && general == null;
+                && rotation == 0 && general == null && depthTurn == null;
     }
 
     /**
      * The matrix the values make, composed into the one this container holds, or null at rest:
-     * {@code O · translation · flip · rotation · scale · matrix · O⁻¹}, with the origin's x and the
-     * translation's x read from the start edge. In place, into one matrix held for the life of the
-     * container: a frame of a motion allocates only the vectors and the turn handed to
-     * {@link MutMat4#setTrs}, where a new matrix a frame cost several times that.
+     * {@code O · translation · perspective · flip · turn in depth · rotation · scale · matrix · O⁻¹},
+     * with the origin's x and the translation's x read from the start edge. In place, into one
+     * matrix held for the life of the container: a frame of a motion allocates only the vectors and
+     * the turn handed to {@link MutMat4#setTrs}, where a new matrix a frame cost several times that.
      */
     private @Nullable MutMat4 composed() {
         if (atRest()) {
@@ -652,14 +743,26 @@ final class TransformGroup implements TransformAccess.Values {
             float cos = (float) Math.cos(half);
             turn = flipAboutVertical ? new Quat(0, sin, 0, cos) : new Quat(sin, 0, 0, cos);
         }
+        if (depthTurn != null) {
+            // The turn in depth after the rotation and before the flip: the flip turns the child as
+            // it appears, turned or not.
+            turn = turn == Quat.IDENTITY ? depthTurn : turn.multiply(depthTurn);
+        }
         if (rotation != 0) {
-            // About z, clockwise on the screen since y runs down, after the flip's turn: the flip
-            // turns the child as it appears, rotated or not.
+            // About z, clockwise on the screen since y runs down, first of the turns.
             double half = Math.toRadians(rotation) / 2;
             Quat clockwise = new Quat(0, 0, (float) Math.sin(half), (float) Math.cos(half));
             turn = turn == Quat.IDENTITY ? clockwise : turn.multiply(clockwise);
         }
-        matrix.setTrs(new Vec3(ox + tx, oy + translationY, 0), turn, new Vec3(scaleX, scaleY, 1));
+        Mat4 eye = lens;
+        if (eye == null) {
+            matrix.setTrs(new Vec3(ox + tx, oy + translationY, 0), turn, new Vec3(scaleX, scaleY, 1));
+        } else {
+            // The eye looks at the turned child from in front of the origin, and the translation
+            // moves what it sees: the perspective between the move and the turns.
+            matrix.setTrs(new Vec3(ox + tx, oy + translationY, 0), Quat.IDENTITY, ONE).mul(eye)
+                    .mul(turned.setTrs(Vec3.ZERO, turn, new Vec3(scaleX, scaleY, 1)));
+        }
         if (general != null) {
             matrix.mul(general);
         }
@@ -677,6 +780,7 @@ final class TransformGroup implements TransformAccess.Values {
         if (scene != null) {
             scene.damageMovedPicture(owner, settled);
         }
+        owner.setChildBackfaceVisible(backfaceVisible);
         owner.setChildMatrix(composed());
         if (scene != null) {
             scene.damageMovedPicture(owner, settled);

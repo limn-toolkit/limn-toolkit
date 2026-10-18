@@ -157,7 +157,7 @@ class TransformRotationTest extends SceneTestBase {
     // ------------------------------------------------------------------ the values
 
     @Test
-    void theRotationAndTheMatrixStartAtRestAreFluentAndRefuseWhatIsNotFiniteOrNotFlat() {
+    void theRotationAndTheMatrixStartAtRestAreFluentAndRefuseWhatIsNotFinite() {
         Transform t = new Transform(new TransformTest.Leaf("w", painted));
         assertEquals(0f, t.rotation());
         assertSame(Mat4.IDENTITY, t.matrix());
@@ -177,10 +177,13 @@ class TransformRotationTest extends SceneTestBase {
             assertThrows(IllegalArgumentException.class, () -> t.rotateTo(10, bad, null));
         }
         assertThrows(NullPointerException.class, () -> t.setMatrix(null));
-        // A matrix that tilts the plane toward the eye is a perspective, not a flat map.
+        // A matrix that tilts the plane toward the eye is a perspective of its own, and is taken
+        // since the turns in depth came.
         Mat4 tilted = Mat4.perspectiveAt(800)
                 .multiply(Mat4.rotation(limn.math.Quat.fromAxisAngle(new limn.math.Vec3(0, 1, 0), 0.5f)));
-        assertThrows(IllegalArgumentException.class, () -> t.setMatrix(tilted));
+        t.setMatrix(tilted);
+        assertSame(tilted, t.matrix());
+        t.setMatrix(skew);
         assertEquals(30f, t.rotation(), "a refused call changes nothing");
 
         t.reset();

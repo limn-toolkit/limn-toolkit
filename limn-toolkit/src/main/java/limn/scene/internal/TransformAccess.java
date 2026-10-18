@@ -98,10 +98,28 @@ public final class TransformAccess {
         /** @return the general matrix, the identity when there is none */
         Mat4 matrix();
 
+        /** @return the turn in depth, a unit quaternion, the identity when there is none */
+        limn.math.Quat rotation3D();
+
+        /** @return how far the eye is in front of the origin, infinite for no perspective */
+        float perspective();
+
+        /** @return whether the child is drawn and hit while its back is turned to the viewer */
+        boolean isBackfaceVisible();
+
+        /** @param turn the turn in depth, of any length but 0, which is normalized */
+        void setRotation3D(limn.math.Quat turn);
+
+        /** @param distance above 0, or infinite for none */
+        void setPerspective(float distance);
+
+        /** @param visible whether a back face is drawn and hit */
+        void setBackfaceVisible(boolean visible);
+
         /** @param degrees clockwise on the screen */
         void setRotation(float degrees);
 
-        /** @param matrix the general matrix, applied first, affine on the plane */
+        /** @param matrix the general matrix, applied first, any finite one */
         void setMatrix(Mat4 matrix);
 
         /**
