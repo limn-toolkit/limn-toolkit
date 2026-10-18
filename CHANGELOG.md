@@ -351,6 +351,14 @@ Maven Central say which number that was.
   so a change just outside a frosted panel left it showing the old blur, and a partial repaint let
   the blur read that margin as the last frame had finished it, with whatever was drawn over it: a
   scroll bar over the end of a frosted toolbar came out blurred into the glass.
+- A child is not hit where its parent cuts it away: content running on under a `ScrollView`'s
+  reserved scroll-bar gutter took the press, the hover and the cursor meant for the gutter
+  whenever the bar had faded. A widget that clips its children now cuts their hit test where it
+  cuts their paint.
+- `hitTest` at a point that is not a number answers `null`; a `ListView`, a `Tree`, a `Table`, a
+  `SplitPane` and a `ScrollBar` answered themselves.
+- A press over an `Expander`'s content while it slides shut lands on what is beneath it, as over
+  a hidden widget; it always landed on the content's parent.
 
 ### New
 
@@ -912,6 +920,10 @@ Maven Central say which number that was.
   and moves with the owner, `atInOwner(x, y)` to place either in the owner's logical points, and
   `title(String)` to name a popup for assistive technologies. The backend registers the owner when
   it creates the window and forgets it when the window closes.
+- `Widget.localToSceneBounds(x, y, width, height)`: a rectangle of a widget's space as its
+  bounds in the scene, what a popup's anchor, a drag picture or a caret rectangle needs.
+- `Change.Aspect` says that a minor release may add a constant: a `switch` that names every
+  aspect keeps a `default`.
 
 ### Changed
 
@@ -1163,6 +1175,21 @@ Maven Central say which number that was.
 - `ComboBox`, `DatePicker`, `PopupMenu` and the native `Dialog` register as their window's popups
   through `WindowConfig`; code that called `registerChildPopup` or `unregisterChildPopup` for its
   own windows passes the owner to `WindowConfig.popup` or `ownedBy` instead.
+- `Widget.sceneToLocalX(float)`, `sceneToLocalY(float)`, `localToSceneX()` and `localToSceneY()`
+  are gone: a widget converts whole points, since a local x can depend on the scene's x and y
+  both. `sceneToLocal(x, y)` and `localToScene(x, y)` answer a `limn.math.Vec2`, and
+  `localToSceneBounds(x, y, width, height)` a `limn.graphics.Rect`. `w.sceneToLocalX(e.x())` and
+  `w.sceneToLocalY(e.y())` become one `Vec2 p = w.sceneToLocal(e.x(), e.y())` read as `p.x()` and
+  `p.y()`; `w.localToSceneX() + a` and `w.localToSceneY() + b` become `w.localToScene(a, b)`; a
+  widget's box in the scene is `w.localToSceneBounds(0, 0, w.width(), w.height())`. Where no point
+  of the widget is drawn the answer is NaN, which the usual `p.x() >= 0 && p.x() < w.width()` test
+  already counts as outside.
+- `Widget.hitTest` is final, and checks for every widget that it is visible, enabled and in reach
+  and that the point is inside it. A class that overrode it renames the override `onHitTest`,
+  which is protected, deletes those checks, and asks a child with `hitTestChild(child, x, y)`
+  where it wrote `child.hitTest(x - child.x(), y - child.y())`; `hitTestChild` refuses a widget
+  that is not a child. A call of `hitTest` compiles and answers as before, but for the three
+  fixes under "Fixed" (a point that is not a number, an inert widget, a point a parent clips away).
 
 ### Known, and left for later
 
