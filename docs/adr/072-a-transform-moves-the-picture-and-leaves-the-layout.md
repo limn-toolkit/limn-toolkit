@@ -9,8 +9,11 @@
   section 7 are owed on the lab's guests before the status moves to Accepted; a number that
   contradicts a decision comes back to the owner. **Stage 0 built, 2026-10-18** (section 8): the
   two seams, the internal hook and the test-only container that prove them at rotated and turned
-  points, the sentence on `Change.Aspect`, and the hit test cut at a clipping parent's clip; the
-  container itself, stages 1 to 3, is not built.
+  points, the sentence on `Change.Aspect`, and the hit test cut at a clipping parent's clip.
+  **Stage 1 built, 2026-10-18** (section 9): the `Transform` container with its translation,
+  scale and origin, `slideTo`, `scaleTo` and a flat `flipTo`, `Change.Aspect.TRANSFORM`, every path
+  stage 0 left summing offsets routed through the matrix, the dialog's slide, and section 7's glyph
+  measurement on this Mac; stages 2 and 3 are not built.
 - **Date:** 2026-10-17
 - **Scope:**
   - a container that draws its child moved, scaled, rotated or turned in 3D, without changing
@@ -142,7 +145,9 @@ All setters are fluent, UI thread only, and throw when called from inside a pain
   `O · translation · perspective · rotation3D · rotation · scale · matrix · O⁻¹ · p`, then the
   Transform's own position in its parent. So a scale, a rotation and a turn share one pivot, a
   translation moves the result, and the perspective looks at it from in front of the origin. An
-  application that needs another order nests two Transforms or writes the `Mat4`.
+  application that needs another order nests two Transforms or writes the `Mat4`. (2026-10-18,
+  stage 1: a flip's turn, which is not a value, takes its place between the perspective and
+  `rotation3D`, so it turns the child as it appears, whatever turn it has; section 9.2.)
 - **`reset()`** puts every value back at rest, as one change.
 
 ### 2.3 Animations and announcements
@@ -169,13 +174,17 @@ All setters are fluent, UI thread only, and throw when called from inside a pain
   the other way. `Flip.UP` and `Flip.DOWN` turn about the horizontal axis and are physical. A flip
   uses the Transform's perspective; with none it narrows the child to a line and widens it back,
   which is a flip drawn flat and needs no 3D (section 6, stage 1). It leaves `rotation3D()` as it
-  found it.
+  found it. (2026-10-18, as built: one eased motion over the whole turn, fastest edge-on; a newer
+  `flipTo` turns on from where the one it supersedes stopped and runs its own `atEdge`; section
+  9.2.)
 - **Less motion.** While the system asks for less motion, `slideTo`, `scaleTo` and `rotateTo` go
   straight to the target and `onArrive` runs at once, as `fadeTo` does. `flipTo` runs `atEdge`
   and then `onArrive` at once, swapping the content with no turn (question 8).
 - **A watcher hears a transform change by the owner's rule of ADR 071** (decision 2 there),
   through a new aspect `Change.Aspect.TRANSFORM`, origin `CODE`:
-  - a direct set that changes a value announces it, every time; `reset()` announces once;
+  - a direct set that changes a value announces it, every time; `reset()` announces once
+    (2026-10-18: besides the end of each motion it supersedes, as any set's supersession
+    announces);
   - an animation announces when it starts and when it arrives or is superseded, and its frames in
     between set the value and damage the picture without announcing;
   - an animation that goes straight to its target is a direct set;
@@ -192,7 +201,9 @@ There are three cases, and only the third makes a picture.
   at rest; while it is zero, every path below is today's.
 - **A translation and a scale are drawn straight into the canvas.** The Transform's
   `paintChildren` applies them with `Canvas.translate` and `Canvas.scale` about the origin before
-  the child's `paintWidget`. Every clip inside stays exact (an axis-aligned transform keeps a
+  the child's `paintWidget`. (2026-10-18, as built: `Widget.paintWidget` applies them, for any
+  widget whose matrix keeps the plane's axes, from the very matrix the hit test and the
+  conversions read; section 9.2.) Every clip inside stays exact (an axis-aligned transform keeps a
   rectangle a rectangle), glyphs stay snapped and crisp at a uniform scale, `clipBounds()` keeps
   answering, and the frame costs only the pixels the move repaints. A non-uniform scale (a flat
   flip) turns snapping off while it lasts, as `Canvas.scale` does today: soft for a transient,
@@ -286,10 +297,14 @@ the making of the picture again each time, 0.1 to 0.5 ms on this GPU (ADR 071 §
 - **A Transform declares its overhang as its outset.** `paintOutset()` answers the largest
   distance, on any side, by which the projection of the child's box grown by the child's own
   outset passes the Transform's box, computed when a value changes and held, so the hook stays
-  constant-time.
+  constant-time. (2026-10-18, as built: computed on asking, four corners through the matrix,
+  which is constant-time too and cannot go stale when the child's own outset changes; section
+  9.2.)
 - **A change damages the old and the new projected bounds**: the axis-aligned bounds of the
   child's box and outset through the old matrix and through the new one, each clipped at
   `w > ε`, in the scene, clamped by clipping ancestors as `invalidate()` damage is. No layout.
+  (2026-10-18, as built: the child's whole painted bounds, a descendant laid past its box
+  included, as an opacity's change damages; section 9.2.)
   Under perspective these may exceed any fixed outset (the 1.33 of section 2.4), which is why the
   projection, not a declared number, is what is damaged. An animation frame damages the bounds it
   leaves and the bounds it reaches.
@@ -343,7 +358,8 @@ Both depend on section 3, and with it they are short.
   projected bounds; they are not turned with it. They read those bounds when they open and when
   they are placed again: an in-scene popup's layer is laid out again, and a popup window is placed
   again, when a Transform above its anchor is set or arrives. They do not follow the frames of an
-  animation.
+  animation. (2026-10-18, stage 1: the in-scene layer is laid out again; a popup in a window of its
+  own is not placed again yet, section 9.4.)
 
 ### 2.9 Backdrop effects under and inside a transform
 
@@ -382,7 +398,8 @@ amendment of ADR 071 has it, and the slide is the Transform's translation, `(1 �
 points down, driven by the same fade. The per-frame `moveChild` and the per-frame
 `invalidateAccessible` in `paintChildren` go; a drag still moves the card for real, with
 `moveChild`, on the drag's events, because a dragged card is where the user put it and the tree
-must say so.
+must say so. (2026-10-18, as built: the veil's repaint on each frame of the fade went to a
+picture-only damage too, since it asked for a walk on every frame as well; section 9.2.)
 
 ## 3. Before 1.0: the two seams
 
@@ -715,10 +732,38 @@ the floor, on this Mac's GPU and software renderer and on the Windows, Fedora an
 - **The rounded enclosing clip in the composite program** on the software renderer, against the
   scissor alone.
 - **Glyphs under a scale animation:** rasterizations and atlas pages per frame of a `scaleTo` of a
-  text-heavy card, and the frame time it costs.
+  text-heavy card, and the frame time it costs. **Measured on this Mac, 2026-10-18** (the probe
+  `TransformGlyphProbe` in the backend's tests, run by setting `LIMN_PROBE_TRANSFORM_GLYPHS`; the
+  guests' run still owed): a card of 26 lines of text in four styles, 432 points wide, over a
+  striped page in a 1280 × 800 window at 2x, each frame repainting the card, the modes on canvases
+  of their own; a scale from 0.95 to 1 over twelve frames, eased as a motion is, run on a fresh
+  canvas each time (COLD, the first time an application runs it) and repeated on a warm one
+  (WARM), against the card at rest (STILL, STILL' the floor) and held at 0.975 (SCALED). Round 1 /
+  round 2, medians, milliseconds:
+
+  | Mode | CPU | GPU | Frame | Glyphs rasterized a frame | Atlas pages |
+  |---|---|---|---|---|---|
+  | STILL | 0.185 / 0.190 | 0.065 / 0.064 | 0.383 / 0.385 | 0 | 1 |
+  | STILL' | 0.184 / 0.190 | 0.067 / 0.063 | 0.383 / 0.386 | 0 | 1 |
+  | SCALED | 0.185 / 0.189 | 0.062 / 0.060 | 0.378 / 0.381 | 0 | 1 |
+  | WARM | 0.187 / 0.191 | 0.062 / 0.062 | 0.382 / 0.382 | 0 | 1 |
+  | COLD | 0.434 / 0.437 | 0.064 / 0.062 | 0.629 / 0.631 | 78.2 (at most 86) | 1 |
+
+  That is on this Mac's GPU (Apple M5 Max, OpenGL 4.1 over Metal). On Apple's software renderer,
+  40 frames after 5, the frame is the card's area and nothing else: STILL 325.41 / 325.43 ms,
+  STILL' 325.39 / 325.34, SCALED 308.28 / 308.22 and WARM 312.87 / 313.19 (smaller by the area the
+  scale takes away), COLD 313.52 / 313.23 with the same 79 glyphs a frame, +0.66 / +0.03 ms over
+  WARM, inside the floor's reach. What the numbers say: the first run of a scale over text
+  rasterizes every glyph on the card at every eighth of a pixel it passes, about +0.25 ms of CPU a
+  frame on this Mac, some 3 ms over the twelve frames, once; the GPU's time does not move, the run
+  fits in the one atlas page the card already uses (a 1024 × 1024 single-channel page, 1 MiB), and
+  a repeat of the same motion, or a scale held, costs what the card at rest costs. Nothing here asks
+  for a cap on the sizes rasterized or for a picture under a scale; the atlas's own eviction past
+  four pages covers a continuous zoom.
 - **`glGenerateMipmap` per frame** on the three guests, for question 11.
 - **A partial frame through a moved child** against a whole frame (stage 1's pixel test, run on
-  the guests), since the scene's set of Transforms changes what a pass paints.
+  the guests), since the scene's set of Transforms changes what a pass paints. (2026-10-18: green
+  on this Mac's GPU, `TransformPassSeamTest`; the guests' run owed.)
 
 ## 8. Stage 0, built 2026-10-18
 
@@ -843,3 +888,173 @@ the container is stage 1.
   `localToScene`, the allocation case (48 bytes).
 - **The whole suite unchanged, `FullFrameAllocationTest` and `WorkBudgetTest` green**:
   `./gradlew check --continue` at `a138f933`, 7306 tests, 90 skipped, none failed.
+
+## 9. Stage 1, built 2026-10-18
+
+Built on `claude/adr-072-stage1` from `8be2b86c` (stage 0 and its CHANGELOG entries), in seven
+commits before this section: the paths stage 0 left summing offsets routed through the matrix, the
+container and its motions, the pixel test, the dialog's slide, the matrix composed in place with the
+two budgets, the Showcase and the guide, and the glyph probe. Rotation, the general matrix, the
+layer and 3D are stages 2 and 3.
+
+### 9.1 What was built
+
+- **`limn.scene.layout.Transform`** (sections 2.1 and 2.2), final, one child: `setTranslation(x,
+  y)`, `setScale(s)`, `setScale(sx, sy)`, `setOrigin(fractionX, fractionY)`, `reset()`, and
+  `translationX()`, `translationY()`, `scaleX()`, `scaleY()`, `originX()`, `originY()`; fluent, UI
+  thread only, refused inside a paint, `NaN` and the infinities refused. It measures, lays out and
+  aligns on a baseline as its child, has no node of its own, does not clip, and its `onHitTest`
+  answers the child through `hitTestChild` or nothing, never itself.
+- **The motions** (section 2.3): `slideTo(x, y)` and `slideTo(x, y, seconds, onArrive)`,
+  `scaleTo(s)` and `scaleTo(sx, sy, seconds, onArrive)`, `flipTo(direction, atEdge)` and
+  `flipTo(direction, seconds, atEdge, onArrive)` with the nested enum `Transform.Flip` (`FORWARD`,
+  `BACKWARD`, `UP`, `DOWN`); one ticker per container on the scene's wall-time ticker, eased by the
+  fade's smoothstep, superseded by a newer motion of the same value or a set of it (whose
+  `onArrive` then never runs), settled at the target as the container leaves its scene, and
+  straight to the target under less motion, for no time, for the value it has, or with no scene or
+  window. `Change.Aspect.TRANSFORM` (with its sentence on the type) is announced on every set that
+  changes a value and twice per motion; the accessible tree is walked on a set and at an arrival
+  and on no frame between.
+- **The machinery behind it** stays in `limn.scene`, as the opacity's does: a package-private
+  `TransformGroup` holds the values, the motions and the ticker, composes the matrix and is reached
+  through `limn.scene.internal.TransformAccess`, which gained `makeContainer` and a `Values`
+  interface the group implements; a widget nobody moves pays one null reference.
+- **Every path section 8.2 left summing offsets** follows the matrix: the paint (`Widget.paintWidget`
+  through `Canvas.translate` and `Canvas.scale` for a matrix that keeps the axes), the damage clamp,
+  `isShowing`, `showingClip`, `revealInView`, `paintedBounds`, the canvas-clip cull and the scene's
+  cull, both of which let a pass through an ancestor's box to a widget drawn moved into it (section
+  2.6), with the stage 0 list as the scene's set. The accessible walk places synthetic children
+  where their owner is drawn, through two step-only methods on `Accessibility` (`syntheticBoxAt`,
+  `placeSyntheticAt`).
+- **The dialog's slide** (section 2.11): `Opacity(Transform(card))`, the slide a `slideTo` in step
+  with the fade, the per-frame `moveChild` and `invalidateAccessible` gone, a drag placing the card
+  with `moveChild` on its events.
+- **The Showcase and the guide:** the Motion page's "Two-sided card", a customer card that turns
+  over to its reminder; the Animations guide's "Moving part of a window", from
+  `AnimationExample`'s `guide:animation-transform` region (a drawer from the end edge and a card
+  that flips), held by `AnimationExampleTest`.
+
+### 9.2 What the build settles, and where it departs from the text above
+
+- **2026-10-18. The paint is `Widget`'s, not the container's.** Section 2.4 has the Transform's
+  `paintChildren` apply the translation and the scale. `Widget.paintWidget` applies the matrix it
+  holds instead, for any widget whose matrix keeps the plane's axes, around `paintChildren`; so the
+  paint, the hit test, the conversions, the damage and the cull read one matrix, and the container
+  has no paint code. A matrix that turns the axes is still drawn upright, which only the tests'
+  turned container sets; stage 2's layer replaces that branch.
+- **2026-10-18. The flip's place in the product, its easing, and a flip superseded.** The matrix is
+  `O · translation · flip · scale · O⁻¹` now; the flip's turn takes its place between the perspective
+  and `rotation3D` when stage 3 adds them, so it turns the child as it appears. Its side is resolved
+  physically as it starts: the end edge comes toward the reader (its z positive) for `FORWARD`, the
+  start edge for `BACKWARD`, the bottom edge for `UP` and the top edge for `DOWN`, which
+  `TransformTest` pins in both directions. One smoothstep over the whole turn, from flat to the
+  edge on its side and from the other side back to flat, puts the fastest frames edge-on, where the
+  swap is not seen. A newer `flipTo` turns on from wherever the one it supersedes stopped and runs
+  its own `atEdge`; `reset()` brings a half-turned child back flat.
+- **2026-10-18. A superseded motion still announces its end under `reset()`.** Section 2.3 says
+  `reset()` announces once; it does, besides the end of each motion it supersedes, which is the rule
+  of a set superseding a motion and is what a watcher counting starts and ends needs.
+- **2026-10-18. Seconds must be finite.** A motion refuses an infinite duration, which would never
+  arrive; `Opacity.fadeTo` accepts one, and the two should agree before 1.0 (the owner's to settle,
+  a one-line change either way).
+- **2026-10-18. The outset is computed on asking.** Section 2.6 holds it from the last change; the
+  child's own outset can change without the Transform hearing (a theme's focus ring), and four
+  corners through the matrix are constant-time, so it is computed each time the hook is asked. A
+  transform deeper down that moves its child past its own parent is not in this outset; the scene's
+  set carries a pass to it.
+- **2026-10-18. A change damages the child's painted bounds, not its box and outset.** The bounds
+  `paintedBounds` gives, through the old matrix and the new one, so a descendant laid past the
+  child's box, which the child's outset does not always declare, is repainted where it was and
+  where it is, as an opacity's change does.
+- **2026-10-18. An `Opacity` round a moving Transform makes a layer larger than the picture on the
+  side the child left.** Its layer is the union of the Transform's box grown on every side by its
+  overhang, which is symmetric because an outset is one number, and the exact rectangle the child is
+  drawn in; a drawer slid 300 points to the end makes a layer 300 points wider toward the start
+  too. Correct, and a cost only while both are in force; stage 2's layer in local space is where an
+  exact bound would come from.
+- **2026-10-18. The matrix is composed in place.** The group composes into a `MutMat4` it keeps and
+  loads it into the `ChildTransform` the widget keeps (its fields no longer final), so a frame of a
+  motion allocates no matrix: 136 bytes a frame for a sliding form against a fading one's 64, the
+  three vectors `MutMat4.setTrs` takes. The `Mat4` the internal hook's getter answers for a
+  container is a snapshot taken on asking.
+- **2026-10-18. The dialog's veil repaints as a picture too.** Section 2.11 names the per-frame
+  `moveChild` and `invalidateAccessible`; the veil's repaint on each frame of the fade asked for a
+  walk as well (`overlay.invalidate()`), and goes through a picture-only damage now,
+  `SceneAccess.repaintPicture`, the path an opacity's fade already took. The slide keeps pace with
+  the fade by a `slideTo` over the same time on the same wall-time frames from where it is, which
+  holds it at `(1 − fade) × 14` on every frame, the fade out from wherever the fade in got to
+  included.
+- **2026-10-18. Popups.** A popup drawn in the scene whose anchor lies under a Transform is laid
+  out again when the Transform is set or arrives (`Scene.anchorsMoved`), as section 2.8 has it; a
+  popup in a window of its own is placed where it opened and is not placed again, since the scene
+  knows nothing of the window's placement (section 9.4).
+- **2026-10-18. Text ranges.** Section 2.8 publishes a text range's projected bounds. No bridge
+  reads a text node's caret rectangle, the one range-like box the tree carries (in the node's own
+  coordinates), so nothing was routed there; the input method's caret rectangle was already
+  projected in stage 0 (`TextField.caretRect` through `localToSceneBounds`).
+
+### 9.3 Section 6's stage 1 tests, and where they are
+
+- **At rest the frame and its draws are today's, counted:** `TransformTest.atRestTheFrameAndItsDrawsAreTodays`
+  (the same fills at the same places with six rows wrapped, and after a move set back by
+  `reset()`, with no matrix and nothing in the scene's set) and
+  `WorkBudgetTest.aStillFormCostsTheSameInTransformsAtRestOrMoved` (the same commands at ten and
+  forty rows, at rest and moved and scaled).
+- **Damage is old and new projected bounds and no layout:**
+  `TransformTest.aSetDamagesWhereTheChildWasAndWhereItIsAndLaysNothingOut` (the two rectangles,
+  the scaled one, no whole frame, no layout pass, nothing for the value it has) and
+  `eachFrameOfASlideDamagesWhereItWasAndWhereItIsAndNoMore`.
+- **A partial frame equals the whole, past an unclipped parent's box:** `TransformPassSeamTest` on
+  the GPU (a slide step, a slide past the parent's box, something repainting where the slid card
+  lies, a scale step, a fading slide in either order), and
+  `TransformTest.aPassReachesAChildSlidPastAnUnclippedParentsBox`.
+- **Hit testing and readers' bounds at rest and after arrival:**
+  `TransformTest.thePointerFindsTheChildWhereItIsDrawnAtRestAndAfterArrival` and
+  `aReaderIsToldWhereTheChildIsOnASetAndAtArrivalAndNotOnTheFramesBetween` (a synthetic child
+  scaled with its owner, the published bounds and the walk count unchanged on the frames between).
+- **Announcements:** `aSetAnnouncesEveryChangeResetOnceAndTheSameValueNothing`,
+  `aMotionAnnouncesItsStartAndItsEndAndNoFrameBetween`,
+  `aNewerMotionOrASetSupersedesOneInFlightAndMotionsOfDifferentValuesRunTogether`,
+  `underLessMotionAMotionGoesStraightThereAsOneSetAndAFlipSwapsAtOnce`.
+- **Right-to-left origin, translation and `Flip.FORWARD`:**
+  `inARightToLeftSubtreeTheTranslationAndTheOriginFollowTheDirection` and
+  `aFlipTurnsTheChildFlatToEdgeOnAndBackAndSwapsAtTheEdge` (each of the four directions in both
+  layout directions: the named edge toward the reader, drawn narrowed flat, `atEdge` once, at rest
+  after).
+- **The dialog with no per-frame layout and no per-frame accessible walk:** `DialogSlideTest` (the
+  slide in step with the fade on every frame, no layout pass, no walk, the arrival published; a drag
+  still placing the card for real); `InSceneFadeEndsTest` reaches the fade through the slide.
+- **The work budget unchanged for a still form, and `FullFrameAllocationTest` green:** the budget
+  case above, and `FullFrameAllocationTest.aFrameOfASlidingFormAllocatesAlmostNothing` beside the
+  two it had.
+- Besides: the values and refusals, the thread and paint rules, layout and the tree untouched,
+  where a moved and scaled child is drawn, Opacity on either side covering the moved child, one
+  ticker for thirty thousand motions, every motion settled as the container leaves its scene,
+  showing past a clip, and the flipped card arriving the right way round, all in `TransformTest`
+  (22 cases).
+- **Proved both ways**, each piece backed out and the tests run: without either cull's way through
+  an ancestor's box, the two seam cases past the parent's box and `TransformTest`'s pass and damage
+  cases fail; with only the canvas clip's way removed, the two seam cases still fail on the GPU;
+  without the damage of the place a child left, the slide step, the slide past the box and the
+  fading slide fail, and the damage case; with the dialog's veil back on `invalidate()`, the
+  dialog's walk case fails on its first frame.
+- **The whole suite:** `./gradlew check --continue` at `53229d97`, 7340 tests, 91 skipped (the probe
+  among them), none failed.
+
+### 9.4 What stage 2 must still do
+
+- **The layer in local space** for every matrix that turns the axes, replacing the upright branch
+  of `Widget.paintChildrenThrough`: re-based, the composite with `vec4` positions, the scissor and
+  the rounded-clip variant, the cleared ring, as section 2.4 has them; `setRotation`, `rotation()`,
+  `rotateTo` and `setMatrix` on the container, composed into the same product
+  (`O · translation · flip · rotation · scale · matrix · O⁻¹`, the flip's place kept for 3D).
+- **The warped glass** of section 2.9 and question 10.
+- **An exact layer for an `Opacity` round a moving Transform**, if the symmetric overhang above is
+  measured to matter.
+- **A popup window placed again** when a Transform above its anchor is set or arrives: the scene
+  needs a way to ask the popup's owner, which places the window, to do it.
+- **The guests' runs** of section 7: the glyph probe and the pixel test on Windows, Fedora and the
+  macOS guest, and stage 2's own composite measurements.
+- **`Opacity.fadeTo` and the motions agreeing on an infinite duration** (section 9.2).
+- What section 8.2 left for stage 3 stands: a public perspective factory or the composition in
+  `limn.math`, and a backface flag on the hook.
