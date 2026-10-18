@@ -146,6 +146,23 @@ public final class SceneAccess {
          * @return whether the keyboard can reach it; see {@link SceneAccess#inReach}
          */
         boolean inReach(Widget<?> widget);
+
+        /**
+         * @param widget   a widget; see {@link SceneAccess#observeHoverWithin}
+         * @param observer told as the hover enters and leaves its subtree, or {@code null} to stop
+         */
+        void observeHoverWithin(Widget<?> widget, @org.jspecify.annotations.Nullable HoverWithin observer);
+    }
+
+    /**
+     * Told when the widget the pointer is over enters or leaves a subtree: see
+     * {@link SceneAccess#observeHoverWithin}.
+     */
+    public interface HoverWithin {
+        /**
+         * @param inside whether the hovered widget is now the subtree's root or inside it
+         */
+        void hoverChanged(boolean inside);
     }
 
     /**
@@ -304,6 +321,23 @@ public final class SceneAccess {
      */
     public static boolean inReach(Widget<?> widget) {
         return hook().inReach(java.util.Objects.requireNonNull(widget, "widget"));
+    }
+
+    /**
+     * Tells {@code observer} when the widget the pointer is over enters {@code widget}'s subtree
+     * and when it leaves it. The scene sends a hover's enter and exit to the deepest widget alone
+     * and does not bubble them, which is right for a control and wrong for a surface that is
+     * pressed as a whole while it holds labels and pictures: the pointer over one of them is over
+     * the surface. Told on the UI thread, after the hovered widget's own enter and exit, each time
+     * the answer changes and only then; a subtree leaving the scene or going inert while the
+     * pointer is in it is told it has left. One observer per widget: another replaces it, and
+     * {@code null} stops it.
+     *
+     * @param widget   the root of the subtree
+     * @param observer what is told, or {@code null}
+     */
+    public static void observeHoverWithin(Widget<?> widget, @org.jspecify.annotations.Nullable HoverWithin observer) {
+        hook().observeHoverWithin(java.util.Objects.requireNonNull(widget, "widget"), observer);
     }
 
     /**

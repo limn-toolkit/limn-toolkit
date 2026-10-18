@@ -160,6 +160,11 @@ public abstract class Widget<W extends Widget<W>> {
      * lands in it and no focus moves into it. See {@link limn.scene.internal.SceneAccess#setInert}.
      */
     boolean inert;
+    /**
+     * Told when the hovered widget enters or leaves this subtree, or null for the widgets that do
+     * not ask, which is nearly all of them. See {@link limn.scene.internal.SceneAccess#observeHoverWithin}.
+     */
+    limn.scene.internal.SceneAccess.@Nullable HoverWithin hoverWithin;
 
     /**
      * The matrix this widget draws its children through, or null while it draws them where layout
