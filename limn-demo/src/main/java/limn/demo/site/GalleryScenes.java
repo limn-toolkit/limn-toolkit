@@ -11,6 +11,7 @@ import limn.components.RadioButton;
 import limn.components.SearchField;
 import limn.components.SegmentedControl;
 import limn.components.RangeSlider;
+import limn.components.Card;
 import limn.components.Expander;
 import limn.components.ExpanderGroup;
 import limn.components.Slider;
@@ -195,6 +196,7 @@ final class GalleryScenes {
                         GalleryScenes::rangeSlider),
                 new GalleryEntry("expander", "Expander", "gallery:expander",
                         GalleryScenes::expander),
+                new GalleryEntry("card", "Card", "gallery:card", GalleryScenes::card),
                 new GalleryEntry("spinner", "Spinner", "gallery:spinner", GalleryScenes::spinner),
                 new GalleryEntry("date-field", "DateField", "gallery:date-field",
                         GalleryScenes::dateField),
@@ -374,6 +376,26 @@ final class GalleryScenes {
         }
         group.setExpandedIndex(0);
         return scene(new SizedBox(320, SizedBox.UNSET, sections));
+    }
+    // #endregion
+
+    // #region gallery:card
+    static Built card() {
+        // A customer's record, and an invoice clicked anywhere above the actions under it.
+        Card customer = new Card(new Label("Office furniture, delivered every Monday.").setWrap(true))
+                .setTitle("Harbor Lane Supplies")
+                .setSubtitle("Customer since 2019")
+                .setHeaderSuffix(new Label("$48,200").setStrong(true));
+        Card invoice = new Card(new Label("Three items, due on Friday.").setWrap(true))
+                .setTitle("Invoice 1042")
+                .setSubtitle("Harbor Lane Supplies")
+                .setFooter(new Button("Hold").setSecondary(true), new Button("Approve"));
+        invoice.onActivate(() -> { }); // a click above the footer opens the invoice
+        Column cards = new Column();
+        cards.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
+        cards.add(customer);
+        cards.add(invoice);
+        return scene(new SizedBox(340, SizedBox.UNSET, cards));
     }
     // #endregion
 
