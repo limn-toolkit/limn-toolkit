@@ -760,7 +760,7 @@ the floor, on this Mac's GPU and software renderer and on the Windows, Fedora an
   unknown.
 
   **Measured on this Mac, 2026-10-18** (the probe `TransformDepthProbe` in the backend's tests, run
-  by setting `LIMN_PROBE_TRANSFORM_DEPTH`; the guests' run still owed): the window, the page and
+  by setting `LIMN_PROBE_TRANSFORM_DEPTH`; the guests' run is section 7.1): the window, the page and
   the popup of the layer probe, the modes interleaved and rotated, each on a canvas of its own. The
   card in partial frames, each its own damage: OPAQUE and OPAQUE' the card drawn straight, the
   floor; FLAT the card in an `Opacity` at one half, ADR 071's flat composite; ROT_3 the card rotated
@@ -818,14 +818,14 @@ the floor, on this Mac's GPU and software renderer and on the Windows, Fedora an
   +0.047 / +0.063 and +0.066 / +0.067 at 75 (frames 0.468 / 0.498 and 0.453 / 0.481 against 0.416 /
   0.446 and 0.405 / 0.428); on the software renderer +4.0 / +3.3 ms at 30 degrees and +4.0 / +3.3 at
   75 (335.2 / 335.2 and 316.9 / 315.8 against 331.2 / 332.0 and 312.9 / 312.5), about 1% of the
-  frame. Cheap enough not to rule mipmaps out; answer 11 waits on the guests' numbers.
+  frame. Cheap enough not to rule mipmaps out; the guests' numbers are in section 7.1.
 - **The re-basing** a transform's picture needs and an opacity's does not: a rotated card's frame
   against the same card in an opacity group.
 - **The rounded enclosing clip in the composite program** on the software renderer, against the
   scissor alone.
 
   **Both measured on this Mac, 2026-10-18** (the probe `TransformLayerProbe` in the backend's
-  tests, run by setting `LIMN_PROBE_TRANSFORM_LAYER`; the guests' run still owed): ADR 071 section
+  tests, run by setting `LIMN_PROBE_TRANSFORM_LAYER`; the guests' run is section 7.1): ADR 071 section
   0's popup, 300 by 400 points with two shadows, a bordered panel and sixteen rows, over a striped
   page in a 1280 × 800 window at 2x, each frame repainting the card, the modes interleaved and
   rotated, each on a canvas of its own; partial frames (the card's own damage, which a turned card
@@ -890,7 +890,7 @@ the floor, on this Mac's GPU and software renderer and on the Windows, Fedora an
 - **Glyphs under a scale animation:** rasterizations and atlas pages per frame of a `scaleTo` of a
   text-heavy card, and the frame time it costs. **Measured on this Mac, 2026-10-18** (the probe
   `TransformGlyphProbe` in the backend's tests, run by setting `LIMN_PROBE_TRANSFORM_GLYPHS`; the
-  guests' run still owed): a card of 26 lines of text in four styles, 432 points wide, over a
+  guests' run is section 7.1): a card of 26 lines of text in four styles, 432 points wide, over a
   striped page in a 1280 × 800 window at 2x, each frame repainting the card, the modes on canvases
   of their own; a scale from 0.95 to 1 over twelve frames, eased as a motion is, run on a fresh
   canvas each time (COLD, the first time an application runs it) and repeated on a warm one
@@ -917,10 +917,240 @@ the floor, on this Mac's GPU and software renderer and on the Windows, Fedora an
   for a cap on the sizes rasterized or for a picture under a scale; the atlas's own eviction past
   four pages covers a continuous zoom.
 - **`glGenerateMipmap` per frame** on the three guests, for question 11 (measured on this Mac
-  above, 2026-10-18).
+  above, 2026-10-18, and on the guests in section 7.1).
 - **A partial frame through a moved child** against a whole frame (stage 1's pixel test, run on
   the guests), since the scene's set of Transforms changes what a pass paints. (2026-10-18: green
-  on this Mac's GPU, `TransformPassSeamTest`; the guests' run owed.)
+  on this Mac's GPU, `TransformPassSeamTest`; green on the three guests, section 7.1.)
+
+### 7.1 On the lab's guests (2026-10-18)
+
+The three probes and the five device tests, run on the three guests after stage 3, as section 11.4
+asked. A guest's OpenGL is Parallels' own, translated to this Mac's GPU (Windows and Fedora), or
+Apple's software renderer (the macOS guest has no GPU), so these numbers are about each driver's
+path, not about other hardware.
+
+**How they ran.** Not by `./gradlew` on the guests, which would have had to download the build's
+dependencies there: as ADR 071's guests' round did, the backend's test runtime classpath was built
+on this Mac at `56629156` and copied to each guest, its jars checked against the host's by sha256,
+and each probe and test class run by the JUnit Platform launcher on the guest's own JDK, in one
+process per run, with the test task's own settings (`limn.backend.errorDialog=false`,
+`ALSOFT_DRIVERS=null`, and on macOS `-XstartOnFirstThread` and `LIMN_MACOS_AGENT`). The variable
+of each probe was set in that process's environment, so no cached configuration stood between
+it and the probe. Each probe prints the renderer it was given; every run below got the one asked
+for. Two rounds each, inside one run, the modes interleaved and rotated as on this Mac, medians
+of 300 frames after 60 on a GPU and of 40 after 5 on the software renderer; round 1 / round 2,
+milliseconds. The modes are section 7's, and the glyph probe's `FRESH`, added since the table
+above, is the card at rest on a fresh canvas, the control for `COLD`.
+
+**Windows 11 ARM64** (Parallels' driver over the M5 Max, OpenGL 4.1 Metal; a native ARM64 JDK
+21; the device tests' hidden window in the console session, started by a one-shot interactive
+task). As in ADR 071, its `glFinish` returns before the GPU is done, so the frame column equals
+the CPU column and is left out; the GPU's own time is the timer query's.
+
+| Frame | Mode | CPU | GPU |
+|---|---|---|---|
+| card, partial | OPAQUE | 0.054 / 0.053 | 0.093 / 0.093 |
+| | OPAQUE' | 0.052 / 0.054 | 0.093 / 0.093 |
+| | FLAT | 0.059 / 0.057 | 0.162 / 0.162 |
+| | ROT_3 | 0.058 / 0.057 | 0.169 / 0.167 |
+| | C_3 | 0.057 / 0.057 | 0.169 / 0.168 |
+| | 0 degrees | 0.052 / 0.054 | 0.093 / 0.093 |
+| | 30 degrees | 0.058 / 0.059 | 0.165 / 0.166 |
+| | 75 degrees | 0.060 / 0.061 | 0.170 / 0.171 |
+| page, whole | OPAQUE | 0.077 / 0.075 | 0.099 / 0.096 |
+| | OPAQUE' | 0.077 / 0.075 | 0.099 / 0.097 |
+| | FLAT | 0.081 / 0.078 | 0.160 / 0.158 |
+| | 0 degrees | 0.078 / 0.074 | 0.099 / 0.096 |
+| | 30 degrees | 0.082 / 0.076 | 0.164 / 0.160 |
+| | 75 degrees | 0.080 / 0.077 | 0.164 / 0.162 |
+| | P_30_MIP | 0.081 / 0.078 | 0.222 / 0.217 |
+| | P_75_MIP | 0.081 / 0.078 | 0.218 / 0.215 |
+
+| Frame | Mode | CPU | GPU |
+|---|---|---|---|
+| partial | OPAQUE | 0.052 / 0.053 | 0.095 / 0.097 |
+| | OPAQUE' | 0.051 / 0.054 | 0.096 / 0.097 |
+| | GROUP | 0.058 / 0.057 | 0.164 / 0.164 |
+| | TURNED | 0.056 / 0.057 | 0.169 / 0.171 |
+| | TURNED_30 | 0.060 / 0.060 | 0.168 / 0.169 |
+| | RECT_CLIP | 0.054 / 0.056 | 0.170 / 0.171 |
+| | ROUND_CLIP | 0.057 / 0.056 | 0.172 / 0.173 |
+| whole | OPAQUE | 0.078 / 0.075 | 0.103 / 0.101 |
+| | OPAQUE' | 0.078 / 0.076 | 0.102 / 0.101 |
+| | GROUP | 0.085 / 0.082 | 0.166 / 0.160 |
+| | TURNED | 0.084 / 0.080 | 0.172 / 0.170 |
+| | TURNED_30 | 0.083 / 0.079 | 0.173 / 0.170 |
+| | RECT_CLIP | 0.082 / 0.079 | 0.173 / 0.171 |
+| | ROUND_CLIP | 0.084 / 0.081 | 0.176 / 0.174 |
+
+| Mode | CPU | GPU | Glyphs rasterized a frame |
+|---|---|---|---|
+| STILL | 0.115 / 0.110 | 0.113 / 0.114 | 0 |
+| STILL' | 0.114 / 0.111 | 0.115 / 0.113 | 0 |
+| SCALED | 0.115 / 0.111 | 0.112 / 0.115 | 0 |
+| WARM | 0.118 / 0.114 | 0.114 / 0.116 | 0 |
+| COLD | 0.363 / 0.345 | 0.166 / 0.168 | 78.2 (at most 86) |
+| FRESH | 0.113 / 0.109 | 0.116 / 0.116 | 0 |
+
+The floor is at most 0.002 ms of CPU and 0.002 ms of GPU. A picture costs no CPU there (within
+0.008 ms) and 0.06 to 0.08 ms of GPU, the flat composite (0.061 to 0.069) and the turns (0.064
+to 0.078) alike; the perspective-correct composite costs nothing over the affine one (C_3 against
+ROT_3, within 0.001 ms); the re-basing 0.005 to 0.010 ms of GPU over the group, the rounded clip
+0.002 to 0.003 over the square one. The first run of a scale over text costs 0.23 to 0.25 ms of
+CPU and 0.05 of GPU a frame over a warm one; a scale held, or repeated, costs what the card at
+rest costs.
+
+**Fedora 44 KDE under Wayland** (virgl over the M5 Max, OpenGL 4.0 core, Mesa 26.2.3; JDK 25;
+the hidden window in the running session):
+
+| Frame | Mode | CPU | GPU | Frame |
+|---|---|---|---|---|
+| card, partial | OPAQUE | 0.060 / 0.059 | 0.368 / 0.369 | 0.177 / 0.175 |
+| | OPAQUE' | 0.060 / 0.060 | 0.369 / 0.367 | 0.177 / 0.178 |
+| | FLAT | 0.073 / 0.069 | 0.390 / 0.389 | 0.242 / 0.235 |
+| | ROT_3 | 0.071 / 0.069 | 0.399 / 0.398 | 0.240 / 0.236 |
+| | C_3 | 0.069 / 0.068 | 0.398 / 0.397 | 0.235 / 0.233 |
+| | 0 degrees | 0.060 / 0.060 | 0.369 / 0.368 | 0.176 / 0.176 |
+| | 30 degrees | 0.071 / 0.070 | 0.420 / 0.421 | 0.238 / 0.237 |
+| | 75 degrees | 0.073 / 0.072 | 0.415 / 0.415 | 0.240 / 0.238 |
+| page, whole | OPAQUE | 0.086 / 0.085 | 0.555 / 0.562 | 0.226 / 0.229 |
+| | OPAQUE' | 0.087 / 0.085 | 0.559 / 0.558 | 0.219 / 0.224 |
+| | FLAT | 0.093 / 0.092 | 0.711 / 0.706 | 0.273 / 0.277 |
+| | 0 degrees | 0.086 / 0.085 | 0.559 / 0.559 | 0.220 / 0.225 |
+| | 30 degrees | 0.094 / 0.091 | 0.681 / 0.683 | 0.269 / 0.274 |
+| | 75 degrees | 0.094 / 0.090 | 0.623 / 0.619 | 0.268 / 0.271 |
+| | P_30_MIP | 0.096 / 0.092 | 0.907 / 0.916 | 0.631 / 0.652 |
+| | P_75_MIP | 0.098 / 0.094 | 0.852 / 0.849 | 0.635 / 0.652 |
+
+| Frame | Mode | CPU | GPU | Frame |
+|---|---|---|---|---|
+| partial | OPAQUE | 0.060 / 0.059 | 0.367 / 0.369 | 0.180 / 0.179 |
+| | OPAQUE' | 0.060 / 0.059 | 0.367 / 0.367 | 0.179 / 0.178 |
+| | GROUP | 0.073 / 0.068 | 0.390 / 0.391 | 0.243 / 0.240 |
+| | TURNED | 0.071 / 0.068 | 0.398 / 0.400 | 0.241 / 0.239 |
+| | TURNED_30 | 0.074 / 0.072 | 0.463 / 0.462 | 0.245 / 0.242 |
+| | RECT_CLIP | 0.068 / 0.066 | 0.362 / 0.364 | 0.238 / 0.236 |
+| | ROUND_CLIP | 0.072 / 0.067 | 0.364 / 0.364 | 0.247 / 0.242 |
+| whole | OPAQUE | 0.084 / 0.083 | 0.558 / 0.562 | 0.225 / 0.226 |
+| | OPAQUE' | 0.083 / 0.083 | 0.558 / 0.558 | 0.220 / 0.220 |
+| | GROUP | 0.093 / 0.093 | 0.610 / 0.610 | 0.289 / 0.292 |
+| | TURNED | 0.091 / 0.090 | 0.615 / 0.608 | 0.292 / 0.292 |
+| | TURNED_30 | 0.090 / 0.090 | 0.612 / 0.611 | 0.293 / 0.298 |
+| | RECT_CLIP | 0.091 / 0.089 | 0.601 / 0.599 | 0.292 / 0.296 |
+| | ROUND_CLIP | 0.093 / 0.092 | 0.607 / 0.604 | 0.302 / 0.304 |
+
+| Mode | CPU | GPU | Frame | Glyphs rasterized a frame |
+|---|---|---|---|---|
+| STILL | 0.121 / 0.120 | 0.525 / 0.526 | 0.250 / 0.245 | 0 |
+| STILL' | 0.124 / 0.121 | 0.527 / 0.527 | 0.253 / 0.245 | 0 |
+| SCALED | 0.122 / 0.120 | 0.514 / 0.511 | 0.252 / 0.246 | 0 |
+| WARM | 0.127 / 0.123 | 0.514 / 0.514 | 0.254 / 0.251 | 0 |
+| COLD | 0.316 / 0.299 | 0.518 / 0.518 | 0.512 / 0.497 | 78.2 (at most 86) |
+| FRESH | 0.122 / 0.119 | 0.527 / 0.527 | 0.252 / 0.244 | 0 |
+
+The floor is at most 0.007 ms of frame, 0.004 of GPU and 0.003 of CPU. A picture costs some
+0.06 ms of a partial frame and 0.04 to 0.07 of a whole one, the flat composite and the turns
+alike, as ADR 071's layer did here (0.065); the perspective-correct composite costs nothing over
+the affine one (C_3 against ROT_3, −0.005 / −0.003 ms of frame); the re-basing nothing measurable
+in a whole frame (+0.003 / +0.000); a card turned 30 degrees 0.07 ms more of GPU in its partial
+frame, the larger pass, and the rounded clip 0.006 to 0.010 ms of frame. The first run of a scale
+over text costs 0.18 to 0.19 ms of CPU and 0.25 to 0.26 of frame over a warm one, no GPU.
+
+**macOS 27 without a GPU** (Apple Software Renderer, 4.1 APPLE-24.0.2, asked for by
+`LIMN_PROBE_RENDERER=software`: asked for the GPU, the probe found no accelerated pixel format,
+error 10002, and skipped; JDK 21; CGL with no window, over SSH), milliseconds per frame, which here
+is the CPU's:
+
+| Frame | OPAQUE | OPAQUE' | FLAT | ROT_3 | C_3 | 0 degrees | 30 degrees | 75 degrees |
+|---|---|---|---|---|---|---|---|---|
+| card, partial | 165.2 / 165.7 | 164.9 / 165.9 | 167.9 / 169.0 | 174.5 / 175.2 | 176.8 / 177.7 | 165.4 / 166.0 | 209.2 / 209.9 | 227.9 / 228.2 |
+| page, whole | 350.7 / 352.1 | 350.4 / 352.3 | 368.3 / 369.3 | | | 349.4 / 351.1 | 337.0 / 338.2 | 318.3 / 319.0 |
+
+and the page mipmapped, `P_30_MIP` 340.9 / 342.1 and `P_75_MIP` 323.2 / 324.0.
+
+| Frame | OPAQUE | OPAQUE' | GROUP | TURNED | TURNED_30 | RECT_CLIP | ROUND_CLIP |
+|---|---|---|---|---|---|---|---|
+| partial | 166.0 / 166.0 | 165.7 / 166.5 | 168.8 / 168.4 | 174.4 / 175.0 | 199.9 / 200.9 | 156.7 / 156.6 | 157.5 / 157.6 |
+| whole | 350.1 / 350.7 | 350.8 / 351.4 | 349.9 / 350.3 | 352.9 / 354.0 | 353.0 / 354.2 | 345.0 / 345.5 | 346.0 / 346.2 |
+
+| Mode | Frame | Glyphs rasterized a frame |
+|---|---|---|
+| STILL | 292.4 / 293.4 | 0 |
+| STILL' | 291.1 / 292.8 | 0 |
+| SCALED | 275.9 / 277.8 | 0 |
+| WARM | 280.8 / 280.6 | 0 |
+| COLD | 282.8 / 283.4 | 79.0 (at most 86) |
+| FRESH | 292.9 / 293.9 | 0 |
+
+The floor is 0.2 to 0.3 ms in the depth probe's frames, 0.3 to 0.7 in the layer probe's and 0.6 to
+1.3 in the glyph probe's. **The card turned 30 and 75 degrees in depth costs +44.0 / +44.2 and
++62.7 / +62.5 ms of a partial frame over the card drawn straight**, against this Mac's +43 / +62:
+the price section 7 read on the host's software renderer, the picture drawn at the near edge's
+magnification, holds on the Mac with no GPU, to a millisecond. The rest is the host's too: the
+flat composite +2.7 / +3.3 (host +2.3 / +2.2); the perspective-correct composite +2.3 / +2.5 over
+the affine one (host +1.8 / +2.7); the turned page −13.7 / −13.9 and −32.4 / −33.1 (host −14.0 /
+−14.2 and −32.3 / −33.7); the re-basing +3.0 / +3.7 over the group in a whole frame (host +3.1 /
++2.9); the turned card's partial frame +5.6 / +6.6 at 3 degrees and +31.1 / +32.5 at 30 over the
+group (host +6.7 / +6.1 and +31.5 / +31.8); the rounded clip +0.8 / +0.9 in a partial frame and
++1.0 / +0.7 in a whole one (host +0.9 / +0.4 and +1.3 / +0.3). The first run of a scale over text
+costs +2.0 / +2.8 ms over the warm one, a little above that probe's floor, where the host read
++0.7 / +0.0; the scale held and the warm run are smaller than the card at rest by the area the
+scale takes away, as on the host. Every guest rasterized the glyphs this Mac did, 78 to 79 a
+frame and at most 86, and fitted them in one atlas page. The absolute frame of the glyph probe
+is about a tenth shorter than the host's table above, which predates `FRESH`; each run is read
+only against itself.
+
+**`glGenerateMipmap` per frame, question 11.** Made again from the page's picture after every
+frame (`P_30_MIP`, `P_75_MIP` against `P_30`, `P_75`):
+
+| | 30 degrees | 75 degrees |
+|---|---|---|
+| this Mac's GPU (section 7) | +0.054 / +0.062 CPU, +0.066 / +0.068 GPU | +0.047 / +0.063 CPU, +0.066 / +0.067 GPU |
+| Windows | −0.001 / +0.002 CPU, +0.058 / +0.057 GPU | +0.001 / +0.001 CPU, +0.054 / +0.053 GPU |
+| Fedora | +0.362 / +0.378 frame, +0.226 / +0.233 GPU, +0.002 / +0.001 CPU | +0.367 / +0.381 frame, +0.229 / +0.230 GPU, +0.004 / +0.004 CPU |
+| this Mac's software renderer (section 7) | +4.0 / +3.3 ms | +4.0 / +3.3 ms |
+| the macOS guest | +3.9 / +3.9 ms, 1.2% of the frame | +4.9 / +5.1 ms, 1.6% |
+
+Nowhere does the cost rule mipmaps out: at most 0.06 ms of GPU where the driver is Parallels'
+Windows one, 0.37 ms of a frame and 0.23 of GPU on Fedora's virgl, the dearest GPU path, against
+the host GPU's 0.05 and 0.07, and 4 to 5 ms, under 2% of the frame, on the renderer with none.
+
+**The device tests**, each run at least twice on each guest:
+
+| Guest | Device | `TransformPassSeamTest` (13) | `GlTurnedLayerTest` (9) | `GlDepthLayerTest` (6) | `TransformRotationPixelTest` (4) | `FullFrameAllocationTest` (5) |
+|---|---|---|---|---|---|---|
+| Windows | Parallels, 4.1 Metal | green, 4 of 4 runs | green | green | green | green |
+| Fedora | virgl, Mesa 26.2.3 | green, 3 of 3 | green | green | the text field case red in 7 of 10 runs, then green 9 of 9 (below) | green |
+| macOS guest | Apple Software Renderer, through CGL (below) | green, 5 of 5 | green | green | the text field case red 2 of 2, then green 3 of 3 (below) | green |
+
+- **A test that read a focus fade as the caret.**
+  `TransformRotationPixelTest.aRotatedTextFieldDrawsItsCaretAndItsSelectionWhereThePointerIs`
+  failed on Fedora in 7 of 10 runs and on the macOS guest in both, with a "caret" pixel 253
+  points along the field, against the click's 156 ± 6 (once, the selection band starting at 0).
+  The click focuses the field and starts its 0.14-second focus fade, which the test's scenes
+  ticked on the wall clock; the frames compared before and after Home were a few milliseconds
+  apart on this Mac's GPU and tens of them on the guests, and the border thickened in between.
+  Read by varying one thing: the old test with 50 ms slept between the two frames failed 4 of 4
+  on this Mac's GPU, at the same 253.35 the macOS guest gave, and passed 4 of 4 without the sleep.
+  The test now runs its scenes on a clock it moves and lets the fade end after the click
+  (commit `36e6475e`); with the same 50 ms, and 300, it passes 6 of 6 here, and 8 of 8 on Fedora,
+  3 of 3 on the macOS guest and 2 of 2 on Windows. A defect of the test, not of the toolkit.
+- **The device tests do not run on a Mac without a GPU by themselves.** Their hidden window
+  comes from GLFW, whose Cocoa path asks for an accelerated pixel format (the reason
+  `MacSoftwareGl` exists for an application), so on the macOS guest `glfwCreateWindow` returned
+  NULL and the 32 tests that need a context skipped, as they do on a machine with no display.
+  They ran there with Apple's software renderer made current through CGL, as the probes' context
+  is, and handed to the tests' `HeadlessGl` before them, by the runner, not by the tests. Giving
+  `HeadlessGl` that fallback on macOS is a change to the test harness this round did not make.
+
+**Against this Mac.** Every cost read above is over its guest's floor, every "nothing" within
+it, and every number is in line with this Mac's but one: where there is a GPU a picture, a turn,
+the re-basing and the rounded clip cost hundredths of a millisecond, the perspective-correct
+composite nothing, and a scale over text a few tenths once; on the renderer with none every cost
+is the host's software run's within a millisecond or two, the turned card's +44 / +62 ms
+included. The one that is not is `glGenerateMipmap` on Fedora's virgl, 0.37 ms a frame against
+the host GPU's 0.05: some seven times larger, and still about 2% of a 60 Hz frame. None reopens a
+decision.
 
 ## 8. Stage 0, built 2026-10-18
 
@@ -1567,4 +1797,5 @@ section 7 are what is owed before Accepted.
   standard output in its result file; and the device tests `TransformPassSeamTest`,
   `GlTurnedLayerTest`, `GlDepthLayerTest`, `TransformRotationPixelTest` and
   `FullFrameAllocationTest`. Question 11's mipmaps are decided on the probe's `_MIP` rows there.
+  (2026-10-18: run, section 7.1, by a copied classpath rather than Gradle on the guests.)
 - The fold of an adjacent `Opacity` into a turned Transform's composite stays declined (question 12).
