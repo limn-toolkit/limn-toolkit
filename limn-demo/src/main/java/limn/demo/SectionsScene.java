@@ -21,8 +21,8 @@ import limn.scene.layout.SizedBox;
 import java.util.List;
 
 /**
- * Tabs the user opens, closes and moves, a preferences card with its tabs centred, and sections
- * that open and close: a page of the showcase.
+ * Tabs the user opens, closes and moves, a preferences card with its tabs centred, sections that
+ * open and close, and cards ({@link CardsScene}): a page of the showcase.
  */
 final class SectionsScene {
 
@@ -122,7 +122,7 @@ final class SectionsScene {
         documents(page);
         preferences(page);
         sections(page);
-
+        CardsScene.cards(page, false);
         return page;
     }
 
