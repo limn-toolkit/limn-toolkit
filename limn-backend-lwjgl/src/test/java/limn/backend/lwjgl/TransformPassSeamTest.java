@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * A partial frame through a moving {@link Transform} draws what the whole frame drew, against a real
- * device (ADR 072 §2.6, §6, stage 1): the change damages where the child was and where it is, a
+ * device (ADR 072 §2.6, §6, stages 1 to 3): the change damages where the child was and where it is, a
  * pass reaches the child wherever it is drawn, and nothing outside the passes is read or written.
  *
  * <p>Each case is a whole frame, then one change and a partial frame into the same target kept as a
@@ -208,6 +208,42 @@ class TransformPassSeamTest {
         Opacity fadingInside = new Opacity(new Card()).setOpacity(0.6f);
         Transform around = new Transform(fadingInside).setRotation(11);
         assertPartialIsWhole(layers(around), () -> around.setRotation(29.5f));
+    }
+
+    // ------------------------------------------------------------------ in depth (stage 3)
+
+    @Test
+    void aTurnInDepthStepDrawsWhatTheWholeFrameDrew() {
+        Transform t = new Transform(new Card()).setPerspective(140).setRotation3D(limn.math.Vec3.UNIT_Y, 25);
+        assertPartialIsWhole(layers(t), () -> t.setRotation3D(new limn.math.Vec3(0.3f, 1, 0), 52.5f)
+                .setTranslation(13.3f, -2.1f));
+    }
+
+    @Test
+    void aTurnInDepthAtTheEdgeOfTheEyeDrawsWhatTheWholeFrameDrew() {
+        // The eye 30 points in front of a card 50 wide: turned 70 degrees, its near part lies past
+        // the eye and the rest is drawn magnified; a step on, the cut moves.
+        Transform t = new Transform(new Card()).setPerspective(30).setRotation3D(limn.math.Vec3.UNIT_Y, 70);
+        assertPartialIsWhole(layers(t), () -> t.setRotation3D(limn.math.Vec3.UNIT_Y, 74.5f));
+    }
+
+    @Test
+    void somethingRepaintingInsideACardTurnedInDepthDrawsWhatTheWholeFrameDrew() {
+        Thumb thumb = new Thumb();
+        Stack card = new Stack();
+        card.add(new Card());
+        card.add(new Padding(new Insets(14, 0, 0, 22), thumb));
+        Transform t = new Transform(card).setPerspective(160).setRotation3D(new limn.math.Vec3(1, 1, 0), -38);
+        assertPartialIsWhole(layers(t), thumb::recolor);
+    }
+
+    @Test
+    void aBackFaceHiddenAndShownDrawsWhatTheWholeFrameDrew() {
+        Transform t = new Transform(new Card()).setPerspective(200).setRotation3D(limn.math.Vec3.UNIT_X, 150);
+        assertPartialIsWhole(layers(t), () -> t.setBackfaceVisible(false));
+        Transform shown = new Transform(new Card()).setPerspective(200).setRotation3D(limn.math.Vec3.UNIT_X, 150)
+                .setBackfaceVisible(false);
+        assertPartialIsWhole(layers(shown), () -> shown.setBackfaceVisible(true));
     }
 
     private void assertPartialIsWhole(Widget<?> root, Runnable change) {

@@ -419,7 +419,26 @@ class WorkBudgetTest {
         }
     }
 
+    /**
+     * A row turned in depth and seen in perspective (ADR 072, stage 3) is a picture too, laid in
+     * perspective: one command for each, as a turned row's, and the rows' own commands unchanged.
+     */
+    @Test
+    void aStillFormTurnedInDepthCostsItsPicturesAndNothingMore() {
+        for (int rows : new int[] {10, 40}) {
+            Work plain = aFormOf(rows, false, false, false);
+            Work inDepth = aFormOf(rows, true, false, false, true);
+            assertEquals(plain.commands() + rows, inDepth.commands(),
+                    rows + " rows turned in depth: the same commands, and one picture for each");
+            assertEquals(plain.painted() + rows, inDepth.painted(), rows + " rows turned in depth: the same widgets");
+        }
+    }
+
     private static Work aFormOf(int rows, boolean wrapped, boolean moved, boolean turned) {
+        return aFormOf(rows, wrapped, moved, turned, false);
+    }
+
+    private static Work aFormOf(int rows, boolean wrapped, boolean moved, boolean turned, boolean inDepth) {
         limn.scene.layout.Column column = new limn.scene.layout.Column();
         for (int i = 0; i < rows; i++) {
             Label row = new Label("Row " + i);
@@ -430,6 +449,9 @@ class WorkBudgetTest {
                 }
                 if (turned) {
                     t.setRotation(3);
+                }
+                if (inDepth) {
+                    t.setPerspective(400).setRotation3D(limn.math.Vec3.UNIT_X, 25);
                 }
                 column.add(t);
             } else {

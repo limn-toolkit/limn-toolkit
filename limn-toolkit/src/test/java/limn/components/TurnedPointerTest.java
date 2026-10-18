@@ -33,10 +33,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * resize, a tree's triangle, the menu bar's titles, a list's rows, a split pane's divider and a
  * range slider's thumbs.
  *
- * <p>Each runs five times on the same scene: upright, rotated in the plane, and turned about its
+ * <p>Each runs six times on the same scene: upright, rotated in the plane, and turned about its
  * vertical axis in perspective, through {@link Turned}, which hands the scene the matrix and draws
- * nothing turned; and inside the real {@link Transform}, rotated and skewed, which draws the
- * component through a picture as an application's would be. The pointer is put where the matrix
+ * nothing turned; and inside the real {@link Transform}, rotated, skewed, and turned in depth in
+ * perspective, which draws the component through a picture as an application's would be. The pointer is put where the matrix
  * draws the local point the upright run presses, computed here from the matrix and the layout's
  * own offsets rather than by the conversions under test; for the container, from the matrix its
  * values must make about its middle, written out here. A component that still sums its offsets up
@@ -76,8 +76,9 @@ class TurnedPointerTest extends ComponentTestBase {
     private static final Mat4 SKEW = Mat4.affine2D(1, 0, (float) Math.tan(Math.toRadians(20)), 1, 0, 0);
 
     /**
-     * The five ways each case runs: upright, rotated in the plane and turned in perspective by the
-     * test container; rotated and skewed by the real one, about its middle, its origin's default.
+     * The six ways each case runs: upright, rotated in the plane and turned in perspective by the
+     * test container; rotated, skewed and turned in perspective by the real one, about its middle,
+     * its origin's default.
      */
     private static List<Mount> angles() {
         List<Mount> angles = new ArrayList<>();
@@ -90,6 +91,8 @@ class TurnedPointerTest extends ComponentTestBase {
                 rotation));
         Mat4 skew = Turned.translation(W / 2, H / 2).multiply(SKEW).multiply(Turned.translation(-W / 2, -H / 2));
         angles.add(new Mount("skewed by a Transform", padded -> new Transform(padded).setMatrix(SKEW), skew));
+        angles.add(new Mount("turned in perspective by a Transform", padded -> new Transform(padded)
+                .setPerspective(1200).setRotation3D(limn.math.Vec3.UNIT_Y, 38), turn));
         return angles;
     }
 

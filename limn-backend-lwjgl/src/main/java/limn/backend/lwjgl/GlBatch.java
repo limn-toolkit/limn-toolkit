@@ -128,7 +128,15 @@ final class GlBatch implements AutoCloseable {
     private final int smoothSampler;
     private final int compositeVao;
     private final int compositeVbo;
-    private final FloatBuffer compositeVertices = MemoryUtil.memAllocFloat(6 * COMPOSITE_VERTEX_FLOATS);
+    private final FloatBuffer compositeVertices = MemoryUtil.memAllocFloat(
+            3 * (MAX_COMPOSITE_CORNERS - 2) * COMPOSITE_VERTEX_FLOATS);
+    /**
+     * The most corners a composite's polygon has: a quad cut by the near plane and the four edges
+     * of the clip, each cut adding at most one corner.
+     */
+    static final int MAX_COMPOSITE_CORNERS = 9;
+    /** How many vertices the composite queued now draws: two triangles for a quad, more for a cut one. */
+    private int compositeCount;
 
     private FloatBuffer vertices = MemoryUtil.memAllocFloat(INITIAL_VERTICES * VERTEX_FLOATS);
     private IntBuffer indices = MemoryUtil.memAllocInt(INITIAL_INDICES);
@@ -503,37 +511,44 @@ final class GlBatch implements AutoCloseable {
         compositeVertex(x0, y0, 1, u0, v0);
         compositeVertex(x1, y1, 1, u1, v1);
         compositeVertex(x0, y1, 1, u0, v1);
+        compositeCount = 6;
         drawComposite(texture, alpha, false, null);
     }
 
     /**
-     * Draws a picture drawn in a space of its own into the current target now, as one quad through
-     * the picture's transform: its four corners, in order round the quad, each given as the
+     * Draws a picture drawn in a space of its own into the current target now, as one polygon
+     * through the picture's transform: its corners, in order round it, each given as the
      * homogeneous device position {@code (x, y)} times {@code w} and its {@code w}, with the
      * picture's texture coordinates at each, sampled bilinearly, so that a turned edge ramps over
-     * about a pixel. The picture was drawn under a clip of its own, so the enclosing clip is
+     * about a pixel and a picture in perspective is interpolated perspective-correctly. Four corners
+     * for a quad; more for one a perspective cut at the near plane, drawn as a fan of triangles from
+     * the first, which a convex polygon is. The picture was drawn under a clip of its own, so the enclosing clip is
      * applied here: a rectangle on whole pixels as a scissor, inside the damage scissor while the
      * window is the target, which costs nothing per pixel; a rounded clip, or a rectangle with an
      * edge between pixels, by the variant program, which computes the coverage at each fragment as
      * the canvas program does, inside a scissor at the clip's bounds.
      *
      * @param texture the picture
-     * @param corners {@code x, y, w} of each corner, x and y already times w: twelve numbers
-     * @param uvs     {@code u, v} of each corner, eight numbers
+     * @param corners {@code x, y, w} of each corner, x and y already times w
+     * @param uvs     {@code u, v} of each corner
+     * @param count   how many corners, 3 to {@link #MAX_COMPOSITE_CORNERS}
      * @param alpha   the opacity
      * @param clip    the enclosing clip, in the device pixels of the target's space
      */
-    void compositeThrough(int texture, float[] corners, float[] uvs, float alpha, DeviceClip clip) {
+    void compositeThrough(int texture, float[] corners, float[] uvs, int count, float alpha, DeviceClip clip) {
+        if (count < 3) {
+            return; // nothing of it in front of the eye
+        }
         flush();
         compositeVertices.clear();
-        for (int i : QUAD_CORNERS) {
-            compositeVertex(corners[i * 3], corners[i * 3 + 1], corners[i * 3 + 2], uvs[i * 2], uvs[i * 2 + 1]);
+        for (int t = 1; t < count - 1; t++) {
+            cornerVertex(corners, uvs, 0);
+            cornerVertex(corners, uvs, t);
+            cornerVertex(corners, uvs, t + 1);
         }
+        compositeCount = 3 * (count - 2);
         drawComposite(texture, alpha, true, clip);
     }
-
-    /** The two triangles of a quad whose corners are given in order round it. */
-    private static final int[] QUAD_CORNERS = {0, 1, 2, 0, 2, 3};
 
     private void drawComposite(int texture, float alpha, boolean smooth, DeviceClip clip) {
         compositeVertices.flip();
@@ -548,7 +563,7 @@ final class GlBatch implements AutoCloseable {
         applyRasterState();
         if (clip == null) {
             usePlainComposite(alpha);
-            glDrawArrays(GL_TRIANGLES, 0, 6);
+            glDrawArrays(GL_TRIANGLES, 0, compositeCount);
             drawCalls++;
         } else if (!(clip.radius > 0) && !offTheGrid(clip)) {
             usePlainComposite(alpha);
@@ -652,8 +667,12 @@ final class GlBatch implements AutoCloseable {
         }
         glEnable(GL_SCISSOR_TEST);
         glScissor(left, bottom, right - left, top - bottom);
-        glDrawArrays(GL_TRIANGLES, 0, 6);
+        glDrawArrays(GL_TRIANGLES, 0, compositeCount);
         drawCalls++;
+    }
+
+    private void cornerVertex(float[] corners, float[] uvs, int i) {
+        compositeVertex(corners[i * 3], corners[i * 3 + 1], corners[i * 3 + 2], uvs[i * 2], uvs[i * 2 + 1]);
     }
 
     private void compositeVertex(float x, float y, float w, float u, float v) {

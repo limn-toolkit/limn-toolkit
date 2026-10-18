@@ -140,13 +140,23 @@ final class GlCanvas implements Canvas {
     private GlLayerPool layers;  // lazy: only a window that opens a layer pays for the pool
     /** How many layers are open now, nested: the states between here and the root that hold one. */
     private int openLayers;
+    /** The scale the last re-based layer was drawn at; see {@link #lastSpaceScale()}. */
+    private double lastSpaceScale;
     /** A layer's homography as it opens, before its state holds it; reused, as every scratch is. */
     private final double[] spaceScratch = new double[9];
-    /** The visible part of a re-based layer, in its own coordinates: x0, y0, x1, y1. */
-    private final double[] visibleScratch = new double[4];
+    /**
+     * A polygon being cut, {@code x, y} per corner, and the one each cut writes into: the visible
+     * part of a re-based layer, and a composite's quad cut at the near plane.
+     */
+    private final double[] polygonScratch = new double[2 * GlBatch.MAX_COMPOSITE_CORNERS];
+    private final double[] polygonSpare = new double[2 * GlBatch.MAX_COMPOSITE_CORNERS];
+    /** The part of a re-based layer the window lets be seen, which its magnification is taken over. */
+    private final double[] polygonReach = new double[2 * GlBatch.MAX_COMPOSITE_CORNERS];
+    /** The window's own rectangle, in the device pixels of any space, as a clip. */
+    private final DeviceClip windowScratch = new DeviceClip();
     /** A composite's corners, {@code x, y, w} each, and their texture coordinates. */
-    private final float[] cornerScratch = new float[12];
-    private final float[] uvScratch = new float[8];
+    private final float[] cornerScratch = new float[3 * GlBatch.MAX_COMPOSITE_CORNERS];
+    private final float[] uvScratch = new float[2 * GlBatch.MAX_COMPOSITE_CORNERS];
     /** The region a glass reads, as the clip the composites into its copy are cut to. */
     private final DeviceClip readRegion = new DeviceClip();
     /** Maps from a glass's space to each space outward, by state index; see {@link #captureInSpace}. */
@@ -598,12 +608,14 @@ final class GlCanvas implements Canvas {
      * layer is then the plain one of {@link #saveLayer(float, float, float, float, float)}, which at
      * an opacity of 1 under normal blending is no layer at all.
      *
-     * <p><b>Any other is drawn re-based.</b> The picture covers what of the rectangle the enclosing
-     * clip lets be seen: the clip's corners mapped back into the layer's space, their bounds grown
-     * by two of the picture's pixels so that a filtered sample at the clip's edge reads what was
-     * drawn, cut to the rectangle. It is drawn at the largest magnification the transform gives any
-     * point of that part, so that text and shapes are rasterized at the size they are seen at, and
-     * smaller when that would not fit the framebuffer. Inside, the state's transform is the layer's
+     * <p><b>Any other is drawn re-based.</b> The picture covers what of the rectangle can be seen:
+     * the rectangle cut by the near plane, where a perspective puts the eye, and by the enclosing
+     * clip's four edges seen back in the layer's space, its bounds grown by two of the picture's
+     * pixels so that a filtered sample at the clip's edge reads what was drawn. It is drawn at the
+     * largest magnification the transform gives any corner of that part, the one nearest the eye
+     * under a perspective, so that text and shapes are rasterized at the size they are seen at, and
+     * smaller when that would not fit the framebuffer. A plane seen edge-on, which covers no pixel,
+     * opens no picture. Inside, the state's transform is the layer's
      * space times that one scale, and its clip the picture's own rectangle, so that every clip
      * inside is an exact rectangle again, rounded clips included, and {@link #clipBounds()} answers.
      *
@@ -681,18 +693,37 @@ final class GlCanvas implements Canvas {
             return;
         }
         // What of the rectangle the enclosing clip lets be seen, in the layer's own coordinates: a
-        // large panel turned inside a small viewport draws only its visible part.
-        double[] seen = visibleScratch;
-        boolean bounded = clipSeenFrom(h, parent.clip, seen);
-        double vx0 = bounded ? Math.max(rx0, seen[0]) : rx0;
-        double vy0 = bounded ? Math.max(ry0, seen[1]) : ry0;
-        double vx1 = bounded ? Math.min(rx1, seen[2]) : rx1;
-        double vy1 = bounded ? Math.min(ry1, seen[3]) : ry1;
-        if (!(vx1 > vx0 && vy1 > vy0)) {
-            s.clip.intersectRect(0, 0, 0, 0); // turned out of sight
+        // large panel turned inside a small viewport draws only its visible part, and a plane
+        // turned partly past the eye only the part in front of it.
+        double[] seen = polygonScratch;
+        int corners = visiblePart(h, parent.clip, rx0, ry0, rx1, ry1, seen, polygonSpare);
+        if (corners < 3) {
+            s.clip.intersectRect(0, 0, 0, 0); // turned out of sight, or behind the eye
             return;
         }
-        double k = magnification(h, vx0, vy0, vx1, vy1);
+        double vx0 = Double.POSITIVE_INFINITY;
+        double vy0 = Double.POSITIVE_INFINITY;
+        double vx1 = Double.NEGATIVE_INFINITY;
+        double vy1 = Double.NEGATIVE_INFINITY;
+        for (int i = 0; i < corners; i++) {
+            vx0 = Math.min(vx0, seen[i * 2]);
+            vy0 = Math.min(vy0, seen[i * 2 + 1]);
+            vx1 = Math.max(vx1, seen[i * 2]);
+            vy1 = Math.max(vy1, seen[i * 2 + 1]);
+        }
+        if (!(vx1 > vx0 && vy1 > vy0) || edgeOn(h, seen, corners)) {
+            s.clip.intersectRect(0, 0, 0, 0); // seen edge-on: a line, nothing to draw
+            return;
+        }
+        // The magnification over what the window, and not the clip, lets be seen: under a
+        // perspective it changes from point to point, and a pass, whose clip is a part of the
+        // window, must draw the picture at the scale the whole frame drew it at, or the part it
+        // repaints is rasterized at another size and lies beside the rest off by a share of a pixel.
+        DeviceClip window = windowScratch;
+        window.resetTo(0, 0, fbWidth, fbHeight);
+        double[] reach = polygonReach;
+        int reachCorners = visiblePart(h, window, rx0, ry0, rx1, ry1, reach, polygonSpare);
+        double k = magnification(h, reach, reachCorners);
         if (!(k > 1e-4) || Double.isInfinite(k)) {
             s.clip.intersectRect(0, 0, 0, 0); // collapsed to a line, or nearly: nothing to draw
             return;
@@ -705,10 +736,10 @@ final class GlCanvas implements Canvas {
             // Two of the picture's pixels past what can be seen, so that a filtered sample at the
             // clip's edge reads texels that were drawn; then a ring of one more, cleared.
             double margin = 2 / k;
-            double ax0 = bounded ? Math.max(rx0, vx0 - margin) : rx0;
-            double ay0 = bounded ? Math.max(ry0, vy0 - margin) : ry0;
-            double ax1 = bounded ? Math.min(rx1, vx1 + margin) : rx1;
-            double ay1 = bounded ? Math.min(ry1, vy1 + margin) : ry1;
+            double ax0 = Math.max(rx0, vx0 - margin);
+            double ay0 = Math.max(ry0, vy0 - margin);
+            double ax1 = Math.min(rx1, vx1 + margin);
+            double ay1 = Math.min(ry1, vy1 + margin);
             kx0 = Math.floorDiv((long) Math.floor(k * ax0) - 1, 2) * 2;
             ky0 = (long) Math.floor(k * ay0) - 1;
             kx1 = (long) Math.ceil(k * ax1) + 1;
@@ -719,6 +750,7 @@ final class GlCanvas implements Canvas {
             // Larger than the window: drawn smaller, and composited softer.
             k *= Math.min((fbWidth - 4.0) / (kx1 - kx0), (fbHeight - 4.0) / (ky1 - ky0));
         }
+        lastSpaceScale = k;
         int lw = (int) Math.min(kx1 - kx0, fbWidth);
         int lh = (int) Math.min(ky1 - ky0, fbHeight);
         if (lw <= 0 || lh <= 0) {
@@ -791,64 +823,108 @@ final class GlCanvas implements Canvas {
     }
 
     /**
-     * The bounds, in a layer's own coordinates, of what the clip rectangle covers: its four corners
-     * mapped back through the homography {@code h}, into {@code out} as x0, y0, x1, y1.
-     *
-     * @return false where a corner maps to no point in front of the eye, whose bounds would not
-     *         hold the part seen, so nothing is cut
+     * How far in front of the eye a point of a layer's plane must lie to be drawn: its {@code w},
+     * which is 1 on the plane through the transform's origin and shrinks toward the eye. Above 0
+     * by a margin, as the scene's own conversions take it, so that no corner of a composite is
+     * divided by nothing.
      */
-    private static boolean clipSeenFrom(double[] h, DeviceClip clip, double[] out) {
-        // The adjugate: the inverse up to a factor, which the division by w cancels.
-        double a00 = h[4] * h[8] - h[5] * h[7];
-        double a01 = h[2] * h[7] - h[1] * h[8];
-        double a02 = h[1] * h[5] - h[2] * h[4];
-        double a10 = h[5] * h[6] - h[3] * h[8];
-        double a11 = h[0] * h[8] - h[2] * h[6];
-        double a12 = h[2] * h[3] - h[0] * h[5];
-        double a20 = h[3] * h[7] - h[4] * h[6];
-        double a21 = h[1] * h[6] - h[0] * h[7];
-        double a22 = h[0] * h[4] - h[1] * h[3];
-        double minX = Double.POSITIVE_INFINITY;
-        double minY = Double.POSITIVE_INFINITY;
-        double maxX = Double.NEGATIVE_INFINITY;
-        double maxY = Double.NEGATIVE_INFINITY;
-        for (int i = 0; i < 4; i++) {
-            double dx = i == 1 || i == 2 ? clip.x1 : clip.x0;
-            double dy = i >= 2 ? clip.y1 : clip.y0;
-            double q = a20 * dx + a21 * dy + a22;
-            double px = (a00 * dx + a01 * dy + a02) / q;
-            double py = (a10 * dx + a11 * dy + a12) / q;
-            double w = h[6] * px + h[7] * py + h[8];
-            if (!(w > 1e-6) || Double.isNaN(px) || Double.isNaN(py)) {
+    private static final double NEAR = 1e-6;
+
+    /**
+     * The part of a layer's rectangle, in its own coordinates, that can be seen: the rectangle cut
+     * by the near plane and by the four edges of the clip rectangle seen back through the
+     * homography {@code h}, as a convex polygon into {@code out}, {@code x, y} per corner. In front
+     * of the eye each cut is a straight line of the plane, {@code x' >= x0} being
+     * {@code X - x0 W >= 0} for the homogeneous {@code (X, Y, W)} the homography gives, so the part
+     * is exact wherever the plane passes, behind the eye included, where mapping the clip's corners
+     * back would land them on the wrong side.
+     *
+     * @return how many corners the part has: fewer than 3 when nothing of it can be seen
+     */
+    private static int visiblePart(double[] h, DeviceClip clip, double x0, double y0, double x1, double y1,
+                                   double[] out, double[] spare) {
+        out[0] = x0;
+        out[1] = y0;
+        out[2] = x1;
+        out[3] = y0;
+        out[4] = x1;
+        out[5] = y1;
+        out[6] = x0;
+        out[7] = y1;
+        int n = cut(out, 4, h[6], h[7], h[8] - NEAR, spare);
+        n = cut(spare, n, h[0] - clip.x0 * h[6], h[1] - clip.x0 * h[7], h[2] - clip.x0 * h[8], out);
+        n = cut(out, n, clip.x1 * h[6] - h[0], clip.x1 * h[7] - h[1], clip.x1 * h[8] - h[2], spare);
+        n = cut(spare, n, h[3] - clip.y0 * h[6], h[4] - clip.y0 * h[7], h[5] - clip.y0 * h[8], out);
+        n = cut(out, n, clip.y1 * h[6] - h[3], clip.y1 * h[7] - h[4], clip.y1 * h[8] - h[5], spare);
+        System.arraycopy(spare, 0, out, 0, n * 2);
+        return n;
+    }
+
+    /**
+     * One plane of Sutherland and Hodgman's clipping: the corners of the convex polygon
+     * {@code in} where {@code a x + b y + c} is not below 0, and where its edges cross that line,
+     * into {@code out}. A convex polygon cut by a line gains at most one corner.
+     *
+     * @return how many corners {@code out} holds
+     */
+    private static int cut(double[] in, int n, double a, double b, double c, double[] out) {
+        int kept = 0;
+        for (int i = 0; i < n; i++) {
+            double px = in[i * 2];
+            double py = in[i * 2 + 1];
+            int j = (i + 1) % n;
+            double qx = in[j * 2];
+            double qy = in[j * 2 + 1];
+            double dp = a * px + b * py + c;
+            double dq = a * qx + b * qy + c;
+            if (dp >= 0) {
+                out[kept * 2] = px;
+                out[kept * 2 + 1] = py;
+                kept++;
+            }
+            if ((dp >= 0) != (dq >= 0)) {
+                double t = dp / (dp - dq);
+                out[kept * 2] = px + t * (qx - px);
+                out[kept * 2 + 1] = py + t * (qy - py);
+                kept++;
+            }
+        }
+        return kept;
+    }
+
+    /**
+     * Whether the homography {@code h} leaves the polygon {@code p} less than a millionth of its
+     * area at every corner: a plane seen edge-on, turned exactly a quarter out of the screen, whose
+     * picture would cost a frame and cover no pixel. The area a small patch keeps at a point is
+     * {@code det / w³}, the same for {@code h} times any factor.
+     */
+    private static boolean edgeOn(double[] h, double[] p, int n) {
+        double det = h[0] * (h[4] * h[8] - h[5] * h[7]) - h[1] * (h[3] * h[8] - h[5] * h[6])
+                + h[2] * (h[3] * h[7] - h[4] * h[6]);
+        for (int i = 0; i < n; i++) {
+            double w = h[6] * p[i * 2] + h[7] * p[i * 2 + 1] + h[8];
+            if (Math.abs(det / (w * w * w)) > 1e-6) {
                 return false;
             }
-            minX = Math.min(minX, px);
-            minY = Math.min(minY, py);
-            maxX = Math.max(maxX, px);
-            maxY = Math.max(maxY, py);
         }
-        out[0] = minX;
-        out[1] = minY;
-        out[2] = maxX;
-        out[3] = maxY;
         return true;
     }
 
     /**
-     * The largest magnification the homography {@code h} gives a point of the rectangle: the
-     * largest singular value of its derivative, which for an affine map is one number everywhere
-     * and under a perspective is largest at a corner, the near edge.
+     * The largest magnification the homography {@code h} gives a point of the polygon {@code p}:
+     * the largest singular value of its derivative, which for an affine map is one number everywhere
+     * and under a perspective is largest at a corner, the one nearest the eye.
      */
-    private static double magnification(double[] h, double x0, double y0, double x1, double y1) {
+    private static double magnification(double[] h, double[] p, int n) {
         if (h[6] == 0 && h[7] == 0) {
             return largestStretch(h[0] / h[8], h[1] / h[8], h[3] / h[8], h[4] / h[8]);
         }
         double most = 0;
-        for (int i = 0; i < 4; i++) {
-            double px = i == 1 || i == 2 ? x1 : x0;
-            double py = i >= 2 ? y1 : y0;
+        for (int i = 0; i < n; i++) {
+            double px = p[i * 2];
+            double py = p[i * 2 + 1];
             double w = h[6] * px + h[7] * py + h[8];
-            if (!(w > 1e-6)) {
+            if (!(w > NEAR / 2)) {
                 continue;
             }
             double sx = (h[0] * px + h[1] * py + h[2]) / w;
@@ -899,11 +975,51 @@ final class GlCanvas implements Canvas {
      * Lays a re-based layer's picture through its homography into the current target, cut by
      * {@code clip}: the picture's four corners, top-left first round the quad, each as the
      * homogeneous position the homography gives it, so that the rasterizer interpolates the texture
-     * perspective-correctly whatever the transform.
+     * perspective-correctly whatever the transform. In perspective the quad is first cut at the near
+     * plane and a little past the clip, as a polygon of up to nine corners.
      */
     private void compositeThrough(GlLayerPool.Picture picture, State layer, DeviceClip clip, float alpha) {
-        throughCorners(picture, layer, layer.toParent, cornerScratch, uvScratch);
-        batch.compositeThrough(picture.texture, cornerScratch, uvScratch, alpha, clip);
+        double[] map = layer.toParent;
+        if (map[6] == 0 && map[7] == 0) {
+            throughCorners(picture, layer, map, cornerScratch, uvScratch);
+            batch.compositeThrough(picture.texture, cornerScratch, uvScratch, 4, alpha, clip);
+            return;
+        }
+        // In perspective: the quad cut at the near plane, so that no corner lies behind the eye or
+        // at it, where its position would be divided by nothing; and at the clip grown by two
+        // pixels, so that no corner lies far past what is drawn, where its device position runs to
+        // millions of pixels near the eye. The scissor or the clip's program still cuts at the clip.
+        double[] poly = polygonScratch;
+        double[] spare = polygonSpare;
+        poly[0] = layer.layerX;
+        poly[1] = layer.layerY;
+        poly[2] = layer.layerX + layer.layerWidth;
+        poly[3] = layer.layerY;
+        poly[4] = layer.layerX + layer.layerWidth;
+        poly[5] = layer.layerY + layer.layerHeight;
+        poly[6] = layer.layerX;
+        poly[7] = layer.layerY + layer.layerHeight;
+        double gx0 = clip.x0 - 2;
+        double gy0 = clip.y0 - 2;
+        double gx1 = clip.x1 + 2;
+        double gy1 = clip.y1 + 2;
+        int n = cut(poly, 4, map[6], map[7], map[8] - NEAR, spare);
+        n = cut(spare, n, map[0] - gx0 * map[6], map[1] - gx0 * map[7], map[2] - gx0 * map[8], poly);
+        n = cut(poly, n, gx1 * map[6] - map[0], gx1 * map[7] - map[1], gx1 * map[8] - map[2], spare);
+        n = cut(spare, n, map[3] - gy0 * map[6], map[4] - gy0 * map[7], map[5] - gy0 * map[8], poly);
+        n = cut(poly, n, gy1 * map[6] - map[3], gy1 * map[7] - map[4], gy1 * map[8] - map[5], spare);
+        float[] corners = cornerScratch;
+        float[] uvs = uvScratch;
+        for (int i = 0; i < n; i++) {
+            double vx = spare[i * 2];
+            double vy = spare[i * 2 + 1];
+            corners[i * 3] = (float) (map[0] * vx + map[1] * vy + map[2]);
+            corners[i * 3 + 1] = (float) (map[3] * vx + map[4] * vy + map[5]);
+            corners[i * 3 + 2] = (float) (map[6] * vx + map[7] * vy + map[8]);
+            uvs[i * 2] = (float) ((vx - layer.layerX) / picture.width);
+            uvs[i * 2 + 1] = (float) ((layer.layerY + layer.layerHeight - vy) / picture.height);
+        }
+        batch.compositeThrough(picture.texture, corners, uvs, n, alpha, clip);
     }
 
     /**
@@ -964,6 +1080,14 @@ final class GlCanvas implements Canvas {
             org.lwjgl.opengl.GL33C.glViewport(0, 0, fbWidth, fbHeight);
             batch.setTarget(false, 0, 0, fbWidth, fbHeight);
         }
+    }
+
+    /**
+     * @return the scale the last re-based layer was drawn at, in its picture's pixels per point of
+     *         its own space: the magnification it was drawn for; for tests
+     */
+    double lastSpaceScale() {
+        return lastSpaceScale;
     }
 
     /** @return how many layers are open now; for tests */
@@ -1450,7 +1574,7 @@ final class GlCanvas implements Canvas {
                 uvs[i * 2] = (float) (wx / fbWidth);
                 uvs[i * 2 + 1] = (float) ((fbHeight - wy) / fbHeight); // the copy's rows count up
             }
-            batch.compositeThrough(backdrop.texture(), corners, uvs, 1f, readRegion);
+            batch.compositeThrough(backdrop.texture(), corners, uvs, 4, 1f, readRegion);
         }
         double[] back = spaceScratch;
         for (int i = Math.max(1, root); i <= depth; i++) {
@@ -1466,7 +1590,7 @@ final class GlCanvas implements Canvas {
                 }
             }
             throughCorners(layer.layer, layer, back, corners, uvs);
-            batch.compositeThrough(layer.layer.texture, corners, uvs, 1f, readRegion);
+            batch.compositeThrough(layer.layer.texture, corners, uvs, 4, 1f, readRegion);
         }
         batch.flush();
         bindTarget(innermostLayer());

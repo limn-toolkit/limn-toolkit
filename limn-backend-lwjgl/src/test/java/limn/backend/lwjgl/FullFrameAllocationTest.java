@@ -116,6 +116,31 @@ class FullFrameAllocationTest {
         }
     }
 
+    /**
+     * The same form flipping over in depth in a Transform container seen in perspective (ADR 072,
+     * stage 3), with its status line turned in depth, still, in a container of its own: the step of
+     * the flip, the perspective composed into the matrix in place, the picture laid in perspective
+     * and cut at the near plane, and the damage of the projected bounds allocate almost nothing.
+     */
+    @Test
+    void aFrameOfAFormFlippingInDepthAllocatesAlmostNothing() {
+        Assumptions.assumeTrue(AllocationProbe.isSupported(), "no per-thread allocation counter");
+        try (HeadlessUi ui = new HeadlessUi(); FontStore store = new FontStore()) {
+            Column page = form();
+            Widget<?> status = page.children().get(1);
+            page.remove(status);
+            page.add(new Transform(status).setPerspective(600).setRotation3D(limn.math.Vec3.UNIT_Y, 20));
+            Transform flipping = new Transform(page).setPerspective(1200);
+            Scene scene = new Scene(new Padding(Insets.all(8), flipping));
+            scene.bind(new StubWindow()); // a window, so the flip has frames to step it
+            int[] edges = new int[1];
+            flipping.flipTo(Transform.Flip.FORWARD, 40, () -> edges[0]++, null); // in flight throughout
+            assertFrameUnderCeiling(scene, store, "a frame of a form flipping in depth");
+            assertTrue(limn.scene.internal.TransformAccess.childMatrix(flipping) != null && edges[0] == 0,
+                    "the flip moved and has not reached its edge");
+        }
+    }
+
     /** Forty rows of a label, a field, a check box, a bar and a button, in a scroll view. */
     private static Column form() {
         Column list = new Column();

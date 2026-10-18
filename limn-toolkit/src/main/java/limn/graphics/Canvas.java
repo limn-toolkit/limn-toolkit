@@ -195,16 +195,19 @@ public interface Canvas {
      * matching {@link #restore()}, current coordinates are the layer's, upright, and its picture is
      * laid where the canvas as it stood draws {@code transform} times each of its points. The
      * layer's space is the plane {@code z = 0}: a point {@code (x, y)} of it is drawn at the
-     * matrix's x and y of {@code (x, y, 0, 1)}, each divided by its w. This is how a rotated or
-     * skewed subtree keeps every clip inside it an exact rectangle (a scroll view turned a few
-     * degrees shows nothing in its corners), and {@link #clipBounds()} answering inside it, so that
-     * what scrolled away is still skipped.
+     * matrix's x and y of {@code (x, y, 0, 1)}, each divided by its w, and a point whose w is not
+     * above 0 lies behind the eye and is not drawn. This is how a rotated, skewed or turned subtree
+     * keeps every clip inside it an exact rectangle (a scroll view turned a few degrees shows
+     * nothing in its corners), and {@link #clipBounds()} answering inside it, so that what scrolled
+     * away is still skipped.
      *
      * <p>The rectangle, in the layer's own coordinates, is what the picture keeps. A canvas sizes
      * the picture to the part of the rectangle that the clip in force lets be seen once it is
-     * turned, at the largest magnification the transform gives any point of it, so text and
-     * shapes are drawn into it at the size they are seen at; past the window's size the picture is
-     * drawn smaller and composited softer. Its edges are antialiased by a clear ring of one pixel
+     * turned, in front of the eye, at the largest magnification the transform gives any point of
+     * it, the nearest under a perspective, so text and shapes are drawn into it at the size they are
+     * seen at; past the window's size the picture is drawn smaller and composited softer. Seen in
+     * perspective, the picture is laid perspective-correctly, and a glass drawn inside reads only
+     * what the subtree drew beneath it. Its edges are antialiased by a clear ring of one pixel
      * round what is drawn, which the composite's filtering ramps over about a pixel. The clip in
      * force when it is opened, rounded or not, cuts the composite. Otherwise as
      * {@link #saveLayer(float, float, float, float, float)}: the opacity and the blend mode in
