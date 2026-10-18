@@ -1,20 +1,27 @@
 # ADR 073: A card is a surface of optional parts, and its click stops at its footer
 
-- **Status:** Proposed, 2026-10-18. The owner chose on 2026-10-18 that a card enters before 1.0,
+- **Status:** Accepted and implemented, 2026-10-18. Proposed the same day. The owner chose on
+  2026-10-18 that a card enters before 1.0,
   with every part optional, an icon accepted as media, three styles with `ELEVATED` the default,
   the footer at the trailing edge, both orientations and all three media fits in the first
   version, and an optional activation that combines with footer actions. The same day he settled
   how the two combine (section 2.6): the click is the card's everywhere outside the footer, the
-  footer is a bar of buttons of its own, and a card with no footer is one click as a whole.
-  Section 4 holds what is still open.
+  footer is a bar of buttons of its own, and a card with no footer is one click as a whole, and
+  he took the recommendation of every question of section 4. **Built the same day** (section 8):
+  both stages and the Showcase's, with the dated notes there where the build differs from the
+  text. Section 7.1 has the two measurements; a filled card's muted text under the hover is the
+  one number left to the owner, and one listen per reader is owed if he wants the wording.
 - **Date:** 2026-10-18
 - **Scope:** a container with media, a header (a leading part, a title over a subtitle, a trailing
   part), content and a footer of actions; its layout in two orientations, its three looks on
   ADR 057's elevation, its media fits, its activation, its keyboard and focus, what each platform's
   reader is given, right to left, and what a partial frame repaints.
-- **New public API (proposed):** `limn.components.Card` with `Card.Style`, `Card.Orientation` and
-  `Card.MediaFit`; one `SizeTokens` column (question 6).
-- **Compatibility:** additive. The Showcase's `Page.card` helper goes (section 3).
+- **New public API:** `limn.components.Card` with `Card.Style`, `Card.Orientation` and
+  `Card.MediaFit`; one `SizeTokens` column, `cardPad` (question 6); `Wrap.gapsSilently`, a
+  protected form of its two gutters for a wrap that pushes them from its measure (section 8).
+- **Compatibility:** additive. The Showcase's `Page.card` helper goes (section 3). A name, a
+  description or a tooltip written on a composite whose label target is a part inside it now lands
+  on that part (section 8), which a date picker and an editable combo box share with the card.
 
 ---
 
@@ -73,7 +80,7 @@ same trailing group, and each time silent to a reader. Web component libraries g
 one component with optional slots, and that shape is the right one here too; what they do not
 offer is a card that is itself clicked, which the owner wants and which section 2.6 designs.
 
-## 2. Decision (proposed)
+## 2. Decision
 
 ### 2.1 The parts
 
@@ -383,6 +390,9 @@ None. The card adds no text of its own in any language.
 
 ## 4. Questions for the owner
 
+Answered by the owner on 2026-10-18. Each question keeps its recommendation and cost as put; the
+answer follows it. Every question took the recommendation.
+
 1. **A focusable widget in the area of an activatable card?**
    - *Recommended:* refused where it can be seen (the setter, or `onActivate` over an area that
      holds one, throws naming the class); one that arrives later is logged once and made inert.
@@ -395,12 +405,16 @@ None. The card adds no text of its own in any language.
      not have, with a contract, three bridge tests and a reader round on three platforms.
    - *Or:* throw always, which a content the application changes later cannot honour without a
      check on every layout that throws in the middle of a frame.
+   - **Answer:** as recommended: the setter, and `onActivate` over an area that holds one, throw
+     `IllegalArgumentException` naming the class; one that arrives later is logged once per class
+     and made inert.
 2. **The focus ring of a card with a footer.**
    - *Recommended:* around the activatable area, inside the card's edge, ending on the divider.
    - *Why:* the ring shows what Enter will press, and the footer is not pressed by it.
    - *Cost:* a ring with square bottom corners, unlike every other ring in the toolkit.
    - *The alternative:* around the whole card, outside it, as on a card with no footer: one look
      for both, which says the footer is part of what Enter presses.
+   - **Answer:** as recommended.
 3. **Hover and press visuals.**
    - *Recommended:* a state layer over the area only (the fill toward `surfaceRaised` on hover, a
      step further while pressed), the same for the three styles; no change of shadow.
@@ -409,44 +423,55 @@ None. The card adds no text of its own in any language.
    - *The alternative:* the whole card lifts on hover (a stronger shadow for `ELEVATED`), which
      reads as one object, at the cost of a lift shown over the footer band where a click does
      nothing.
+   - **Answer:** as recommended: a state layer over the area only (built as the text colour laid
+     over the fill, section 8.3).
 4. **A divider above the footer of an activatable card?**
    - *Recommended:* yes, a hairline of `outline` across the card.
    - *Why:* the boundary of the click is then visible before anyone clicks.
    - *The alternative:* none, the gap alone; a card not activatable has no divider either way.
+   - **Answer:** as recommended.
 5. **The subtitle of a card that is not activatable, to a reader.**
    - *Recommended:* plain text after the heading.
    - *Why:* a reader walking the card reads it once, in order.
    - *The alternative:* the group's description too, so a reader entering the group from a control
      inside hears it, at the price of hearing it twice when walking. (An activatable card's
      subtitle is its description in any case, since its texts are not read otherwise.)
+   - **Answer:** as recommended.
 6. **The padding.**
    - *Recommended:* a new `SizeTokens` column, `cardPad`, 16 at `MEDIUM`, what the Showcase uses.
    - *Cost:* one column; no theme file changes.
    - *The alternative:* `spacingLarge` (20 at `MEDIUM`) or `spacingMedium` (12), no new column.
+   - **Answer:** as recommended: `cardPad`, `{10, 12, 16, 20, 24}`.
 7. **The corner radius.**
    - *Recommended:* `radiusMedium` (8 at `MEDIUM`), as `Surface` and `Page.card` draw.
    - *The alternative:* `radiusLarge` (14), which some libraries give cards to set them apart from
      the controls inside.
+   - **Answer:** as recommended.
 8. **The title's size.**
    - *Recommended:* the body font, strong, as the Showcase's cards are.
    - *The alternative:* the title token, a step larger, as some libraries draw it.
+   - **Answer:** as recommended.
 9. **A header that replaces title and subtitle with a widget?**
    - *Recommended:* no: a header that is not text is content.
    - *Cost of adding it:* a fourth header setter, and a card whose name has to come from somewhere
      else.
+   - **Answer:** as recommended: no.
 10. **The footer of a horizontal card.**
     - *Recommended:* the card's whole width, under the media and the text.
     - *Why:* the activatable area stays a rectangle.
     - *The alternative:* the footer in the text column only, the media down the card's full
       height; the area is then an L, its published bounds overlap the footer, and the hit test
       needs a rule for the corner.
+    - **Answer:** as recommended.
 11. **The colour of a tintable icon used as media.**
     - *Recommended:* the accent (`primary`).
     - *The alternative:* `textMuted`, quieter; an application wanting another colour passes an
       `ImageView` of the icon with its own tint.
+    - **Answer:** as recommended.
 12. **`Page.card`.**
     - *Recommended:* gone, its 18 calls on `Card`.
     - *The alternative:* kept as a one-line wrapper over `Card`, which saves nothing.
+    - **Answer:** as recommended: gone, its 18 calls on `Card`.
 
 ## 5. Not in this record
 
@@ -502,3 +527,111 @@ surface forwarding its clicks (the title read as a button, the group around it d
   a hovered secondary button, before the colours are fixed.
 - **The hover hook's cost:** the scene's work per pointer move with and without an activatable
   card under the pointer, counted by the work budget, not timed.
+
+### 7.1 Measured, 2026-10-18
+
+- **Contrast of the state layer** (`CardStateLayerContrastTest`, the fifteen built-in palettes).
+  The layer is the text colour laid over the fill, six hundredths on hover and eleven while
+  pressed (section 8.3). The hover moves the card 3.5 to 6.9 L* off its fill, where a hovered
+  secondary button moves 5.0 to 7.8; the press a further 2.5 at least. Text over the pressed
+  layer keeps 5.96:1 at the least (Darkling, filled). Muted text over the hovered layer keeps
+  4.5:1 on a raised or an outlined card in every palette, 4.51:1 at the least (Dark). **On a
+  filled card it does not:** muted text over `surfaceRaised` already sits a hair above 4.5:1 at
+  rest in most palettes, and the hover takes it to 3.78 to 4.10:1 in twelve of the fifteen
+  (Monoko Pro the lowest; Light, Limn Light and High Contrast keep it). The test pins those floors
+  so a change that lowers them fails. This is a number that contradicts nothing decided but is
+  below the body-text bar while the pointer rests on a filled card; whether a filled card gets a
+  quieter hover, or its subtitle a stronger tone, is the owner's.
+- **The hover hook's cost** (`WorkBudgetTest`). With the pointer going between the title and the
+  content of the first of ten clicked cards and of a hundred, the hovered widget changes on every
+  move and the card's hover does not: the frame after a move draws nothing (0 commands), and the
+  step costs the same over ten cards and over a hundred, allocation included. While no widget in
+  the process observes the hover, a change of the hovered widget costs one comparison more. A
+  still clicked card asks for no frame.
+- **Readers:** not heard. The listen of section 7 is still owed if the owner wants the wording
+  of the first stop of a clicked card with a footer.
+
+## 8. Built, 2026-10-18
+
+Branch `claude/adr-073-card`. Where the build differs from the text above, or the text left a
+choice open, it is said here.
+
+### 8.1 What landed
+
+- **`Card`**, as section 2.2 has it, with `media()`, `mediaIcon()`, `headerPrefix()`, `title()`,
+  `subtitle()`, `headerSuffix()`, `content()`, `footer()`, `style()`, `orientation()`,
+  `mediaFit()` and `mediaAspectRatio()` as the getters. The area of section 2.6 is a private
+  widget, `Card$Area`; the footer a private `Wrap`, `Card$Footer`, its gutters `gapButtonRow` and
+  `spacingMedium` at the card's step through `Wrap.gapsSilently`, the measure-path form `Flex`
+  already had (`TokenRow`).
+- **`SizeTokens.cardPad`**, `{10, 12, 16, 20, 24}`.
+- **The hover hook:** `SceneAccess.observeHoverWithin(widget, observer)`, internal. The scene keeps
+  the observing widgets it told "inside" and works out who left from them, since a removal has
+  cut the old leaf's ancestry by the time the scene hears of it; when the widget under the pointer
+  goes, the subtree hears it has left and is entered again at the next move. The area observes
+  only while it is in a scene and the card is clicked.
+- **The walk's one change** (section 2.7, stage 2), built generally: a name, a description **and a
+  tooltip** written on a composite whose `accessibleLabelTarget()` is a part inside it land on that
+  part and not on the composite, the part's own winning, as a caption already did. The tooltip
+  was not in the text: left on a card that is otherwise transparent, it published a named group
+  around the button. A date picker's field and an editable combo's text are named the same way
+  now; no test of theirs moved.
+- **`SceneAccess.namedByApplication`**, internal: what the area asks before it logs that a clicked
+  card has no title and no name. Logged once per process, not once per card.
+- **The Showcase:** `Page.card` gone and its 18 calls on `Card` (section 3); the "Tabs and
+  sections" page holds every family under a "Cards" heading, translated into the 21 languages; the
+  lab's `cards`, `cards-2`, `cards-states` and `cards-states-2` scenes print them. The pictures are
+  painted by the demo (`Pictures`), so it carries no photograph and no licence.
+- **The guides:** a "Cards" section in the layout guide, with two snippets from `CardExample`, which
+  a test clicks and reads; a sentence in the theming guide's elevation; a paragraph in the
+  accessibility guide.
+
+### 8.2 Layout, where the text left room
+
+- **After a covering picture** the next part starts at the card's padding, not at its gap: the
+  picture stands in for the card's edge, and the parts sit inside the card as they do under the
+  edge. A card that holds a covering picture alone has no padding under it.
+- **A horizontal card's media column** is the media's measured width at its natural fit, at most
+  half the inner width; when it stretches or covers, **at most a third of the card**, not half,
+  which left the text too little on the Showcase's widths; an icon that stretches takes four of
+  the step's icon size, also at most a third. A picture keeps at least its own proportions at the
+  column's width, and grows with the text beside it.
+- **A hidden part takes no room and no gap**, and a footer whose actions are all hidden is no
+  footer: no band, no divider, the card a button again. The text said only "absent".
+- **The area measures the height its parts need** at the width it is given, so that a part changing
+  its size inside it, which lays out in place, climbs to the card; the card lays the area out
+  taller when it is given more.
+
+### 8.3 The click, where the text left room
+
+- **The activation is the release over the area**, not the scene's click: the scene sends a click
+  only when the release lands in the subtree of the widget pressed, and the widget pressed is the
+  deepest, a label, so a press on the title released on the content would not have been a click.
+  The area arms on a press nothing took and activates on the release of that button inside its
+  own box; released outside, nothing.
+- **The state layer** is the text colour over the area, the parts included, six hundredths while
+  hovered and eleven while pressed: "the fill toward `surfaceRaised`" of question 3 is no change on
+  a filled card, whose fill is `surfaceRaised`, and the record asks for the same layer on the three
+  styles. Section 7.1 has what it costs.
+- **The ring of a card with a footer** is inset by a border and half its pen, so an outlined
+  card's edge, drawn over the area, never covers it; the edge and the divider are the card's
+  overlay, drawn over a covering picture too.
+- **A control found at a layout** is made inert where it is, and given back to the application,
+  inert no more, when it leaves the card or the card stops being clicked. A card that stops being
+  clicked with its area holding the keyboard lets the keyboard go as a removed widget does.
+- **The group of a clicked card with a footer** is named by the title. An application that names a
+  card with no title names its button; the group around it stays unnamed, the card having no way
+  to read the name the application wrote.
+
+### 8.4 Tests, and what each was proved against
+
+`CardTest`, `CardActivationTest`, `CardAccessibilityTest`, `CardLeafActionContractTest` (the leaf
+contract over the area, without a footer and with one), `CardDamageTest`, the card's rows in the
+damage and notification contracts, `HoverWithinTest`, `AccessibleCarriedOverridesTest`,
+`CardStateLayerContrastTest`, two `WorkBudgetTest` scenarios, `CardPixelTest` on a real device (a
+covering picture rounded at the card's outer corners only, and a partial frame of the ring outside
+a card and of the hover over its area matching the whole frame), `CardExampleTest`, and the
+gallery entry. Each key behaviour was run against its reversal and failed: the area reaching into
+the footer's band, the setter's refusal taken out, the leaf's children published, the hidden part
+kept, the hover hook told on every move, the walk's carry taken out, the clip and the declared
+reach taken out.
