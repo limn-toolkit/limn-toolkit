@@ -21,14 +21,9 @@ import limn.scene.layout.Transform;
 import limn.testing.HeadlessUi;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
-import org.lwjgl.PointerBuffer;
-import org.lwjgl.opengl.CGL;
-import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GL33C;
-import org.lwjgl.system.MemoryStack;
 
 import java.nio.ByteBuffer;
-import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -42,8 +37,8 @@ import java.util.List;
  *
  * <p>By the method the opacity's record measured with: a context of its own with no window, on
  * this machine's GPU or, with {@code LIMN_PROBE_RENDERER=software}, on Apple's software renderer
- * (macOS only, through CGL); the modes interleaved frame by frame and their order rotated each
- * step, so a clock change lands on every mode alike; medians of 300 frames after 60 warm ones on a
+ * (macOS only, through CGL), and elsewhere on the system's own driver ({@link ProbeGl}); the
+ * modes interleaved frame by frame and their order rotated each step, so a clock change lands on every mode alike; medians of 300 frames after 60 warm ones on a
  * GPU and of 40 after 5 on the software renderer, two rounds; and a second still mode as the floor
  * every other is read against. A frame is timed from its first command to the canvas's end
  * (CPU), and to a {@code glFinish} (frame), with the GPU's own time from a
@@ -152,8 +147,8 @@ class TransformGlyphProbe {
     void measure() throws ReflectiveOperationException {
         Assumptions.assumeTrue(System.getenv("LIMN_PROBE_TRANSFORM_GLYPHS") != null,
                 "a probe: set LIMN_PROBE_TRANSFORM_GLYPHS to run it");
-        boolean software = "software".equals(System.getenv("LIMN_PROBE_RENDERER"));
-        long context = openContext(software);
+        boolean software = ProbeGl.software();
+        long context = ProbeGl.open(software);
         try (HeadlessUi ui = new HeadlessUi(); FontStore fonts = new FontStore()) {
             Theme.setCurrent(Theme.light());
             System.out.println("renderer: " + GL33C.glGetString(GL33C.GL_RENDERER) + " / "
@@ -164,8 +159,7 @@ class TransformGlyphProbe {
                 run(fonts, round, warm, measured);
             }
         } finally {
-            CGL.CGLSetCurrentContext(0L);
-            CGL.CGLDestroyContext(context);
+            ProbeGl.close(context);
         }
     }
 
@@ -301,28 +295,6 @@ class TransformGlyphProbe {
     }
 
     // ------------------------------------------------------------------ the context and target
-
-    /** A CGL context with no window: this Mac's GPU, or Apple's software renderer by its id. */
-    private static long openContext(boolean software) {
-        try (MemoryStack stack = MemoryStack.stackPush()) {
-            IntBuffer attributes = software
-                    ? stack.ints(CGL.kCGLPFAOpenGLProfile, CGL.kCGLOGLPVersion_3_2_Core,
-                            CGL.kCGLPFARendererID, 0x00020400, 0)
-                    : stack.ints(CGL.kCGLPFAOpenGLProfile, CGL.kCGLOGLPVersion_3_2_Core,
-                            CGL.kCGLPFAAccelerated, 0);
-            PointerBuffer format = stack.mallocPointer(1);
-            IntBuffer count = stack.mallocInt(1);
-            int error = CGL.CGLChoosePixelFormat(attributes, format, count);
-            Assumptions.assumeTrue(error == 0 && format.get(0) != 0L, "no pixel format: " + error);
-            PointerBuffer context = stack.mallocPointer(1);
-            error = CGL.CGLCreateContext(format.get(0), 0L, context);
-            CGL.CGLDestroyPixelFormat(format.get(0));
-            Assumptions.assumeTrue(error == 0, "no context: " + error);
-            CGL.CGLSetCurrentContext(context.get(0));
-            GL.createCapabilities();
-            return context.get(0);
-        }
-    }
 
     private static void bindTarget(int texture, int fbo) {
         GL33C.glActiveTexture(GL33C.GL_TEXTURE0);
