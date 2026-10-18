@@ -536,12 +536,12 @@ class ScrollBarAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(bridge.events.isEmpty(), bridge.events.toString());
 
         // The bar's own flag left alone, inside a container that is not enabled: the widget's
-        // own guard passes and the scene's ancestor gate is what refuses, as the keyboard does.
+        // own guard and the scene's gate both refuse, as the keyboard does.
         bindBar(ScrollBar.Orientation.VERTICAL, ScrollBar.Policy.ALWAYS);
         root.setEnabled(false);
         frame();
 
-        assertTrue(bar.isEnabled(), "the fixture has to leave the bar's own flag alone");
+        assertFalse(bar.isEnabled(), "inside a disabled container the bar answers disabled itself");
         assertFalse(barNode().has(Accessible.State.ENABLED),
                 "the bit is inherited down the walk" + describe(tree()));
         assertNull(barNode().actions(), "and so is the withdrawal of its verbs" + describe(tree()));

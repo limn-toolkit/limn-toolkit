@@ -248,7 +248,7 @@ class AccessibleModalTest extends AccessibleTestBase {
         assertFalse(node("notes").has(Accessible.State.READ_ONLY),
                 "and never READ_ONLY from disabled" + describe(tree()));
         assertSettersRefused(slider, field);
-        assertTrue(row.isEnabled(), "the fixture leaves the row's own flag alone");
+        assertFalse(row.isEnabled(), "inside a disabled container the row answers disabled itself");
         assertNull(node("row").actions(),
                 "an ancestor's flag: no verb, no claim, no key binding" + describe(tree()));
         assertNull(node("open day").actions(), "a child of a disabled owner" + describe(tree()));

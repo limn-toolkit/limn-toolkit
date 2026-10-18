@@ -344,11 +344,15 @@ public final class ButtonGroup {
      * next Tab reaches the group through its new holder.
      */
     private void applyRovingFocus() {
-        RadioButton holder = lent != null && lent.isEnabled() ? lent
-                : current != null && current.isEnabled() ? current : null;
+        // Each member's own flag and not its effective state: a group inside a disabled form is
+        // passed by Tab with the form, and hears nothing when the form is enabled again, so a
+        // holder chosen by the effective state while the form was disabled would be nobody, and
+        // the group would come back with no tab stop at all.
+        RadioButton holder = lent != null && enabledByItsOwnFlag(lent) ? lent
+                : current != null && enabledByItsOwnFlag(current) ? current : null;
         if (holder == null) {
             for (RadioButton member : members) {
-                if (member.isEnabled()) {
+                if (enabledByItsOwnFlag(member)) {
                     holder = member;
                     break;
                 }
@@ -362,5 +366,9 @@ public final class ButtonGroup {
                 member.setFocusable(false);
             }
         }
+    }
+
+    private static boolean enabledByItsOwnFlag(RadioButton member) {
+        return limn.scene.internal.SceneAccess.enabledByItsOwnFlag(member);
     }
 }

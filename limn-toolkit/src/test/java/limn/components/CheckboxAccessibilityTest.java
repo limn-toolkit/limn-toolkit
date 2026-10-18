@@ -345,12 +345,12 @@ class CheckboxAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(List.of(), checkedEvents(), bridge.events.toString());
 
         // The same checkbox with its own flag true, inside a container that is not: the widget's
-        // own guard passes and the scene's ancestor gate is what refuses, as the keyboard does.
+        // own guard and the scene's gate both refuse, as the keyboard does.
         bindCheckbox(new Checkbox(Checkbox.Variant.BOX, "Wrap lines"));
         root.setEnabled(false);
         frame();
 
-        assertTrue(checkbox.isEnabled(), "the fixture has to leave the checkbox's own flag alone");
+        assertFalse(checkbox.isEnabled(), "inside a disabled container the checkbox answers disabled itself");
         assertFalse(node(Accessible.Role.CHECK_BOX).has(Accessible.State.ENABLED),
                 "the bit is inherited down the walk" + describe(tree()));
         bridge.events.clear();

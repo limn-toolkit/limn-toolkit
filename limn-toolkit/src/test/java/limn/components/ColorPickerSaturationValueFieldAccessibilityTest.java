@@ -56,10 +56,9 @@ import static limn.testing.SceneDriver.drive;
  * with a described value" is right about the role and unbuildable as written, because a value text
  * handed over with no number beside it is dropped by the builder without a word.
  *
- * <p>Two more the row is silent on, each with a case below. <b>The guard is the picker's enabled
- * flag and not the plane's</b>: a widget's own flag is all {@code isEnabled()} answers and
- * {@code setEnabled} propagates to nothing, so the obvious guard written on this private inner
- * class would hold nothing back. And <b>the plane does not turn round</b>, in the one widget whose
+ * <p>Two more the row is silent on, each with a case below. <b>A disabled picker refuses every
+ * verb</b>, and its plane answers disabled with it, since {@code isEnabled()} answers for the
+ * whole ancestry. And <b>the plane does not turn round</b>, in the one widget whose
  * documentation is about mirroring: saturation runs left to right in every language, its hook
  * reads no layout direction, and an increment raises the channel in both.
  *
@@ -656,7 +655,7 @@ class ColorPickerSaturationValueFieldAccessibilityTest extends AccessibleCompone
     // ------------------------------------------------------------------------------- the guards
 
     @Test
-    void aDisabledPickerRefusesEveryVerbThoughThePlanesOwnFlagStandsTrue() throws Exception {
+    void aDisabledPickerRefusesEveryVerbAndItsPlaneAnswersDisabled() throws Exception {
         bindPicker();
         picker.setInitialColor(Color.hsv(200, 0.4f, 0.6f, 1f));
         frame();
@@ -668,10 +667,9 @@ class ColorPickerSaturationValueFieldAccessibilityTest extends AccessibleCompone
         picker.setEnabled(false);
         frame();
 
-        assertTrue(picker.saturationValueField().isEnabled(),
-                "the flag a guard written on this inner class would read is still true: "
-                        + "Widget#isEnabled answers a widget's own flag and setEnabled propagates "
-                        + "to nothing, which is why the hook asks the picker");
+        assertFalse(picker.saturationValueField().isEnabled(),
+                "the plane answers for its ancestry: a guard on this inner class or on the "
+                        + "picker reads the same fact");
         assertEquals(saturation, saturationAxis().id(),
                 "a disabled picker is not a rebuild" + describe(tree()));
         assertFalse(saturationAxis().has(Accessible.State.ENABLED),

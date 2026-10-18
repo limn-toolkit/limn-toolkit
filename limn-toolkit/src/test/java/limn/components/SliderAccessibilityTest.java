@@ -473,12 +473,12 @@ class SliderAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(bridge.events.isEmpty(), bridge.events.toString());
 
         // The same slider with its own flag true, inside a container that is not: the widget's
-        // own guard passes and the scene's ancestor gate is what refuses, as the keyboard does.
+        // own guard and the scene's gate both refuse, as the keyboard does.
         bindSlider(new Slider(0, 100).setStep(5).setValue(30));
         root.setEnabled(false);
         frame();
 
-        assertTrue(slider.isEnabled(), "the fixture has to leave the slider's own flag alone");
+        assertFalse(slider.isEnabled(), "inside a disabled container the slider answers disabled itself");
         assertFalse(sliderNode().has(Accessible.State.ENABLED),
                 "the bit is inherited down the walk" + describe(tree()));
         assertNull(sliderNode().actions(),

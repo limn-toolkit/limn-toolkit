@@ -1865,12 +1865,11 @@ public final class ColorPicker extends Widget<ColorPicker> {
          * is deliberately more than the pointer does here, where the drag changes and only the
          * release commits.
          *
-         * <p><b>The guard is the picker's enabled flag and not this widget's</b>, which is the one
-         * trap waiting for whoever gave this plane a verb. {@code Widget#isEnabled()}
-         * answers a widget's own flag and {@code setEnabled} propagates to nothing, so a guard
-         * written on this private inner class would read like the rails' and hold nothing back:
-         * what a caller disables is the picker, and that is also what stops the pointer, by
-         * failing the hit test before it reaches this box. The scene has already walked the
+         * <p><b>The guard is the picker's enabled state</b>, because what a caller disables is
+         * the picker, and that is also what stops the pointer, by failing the hit test before it
+         * reaches this box. {@code Widget#isEnabled()} answers for the whole ancestry, so this
+         * plane's own answer is the same one; the guard names the picker to say whose flag it
+         * is. The scene has already walked the
          * ancestor chain, the showing bit and modality before the call arrives; this is the guard
          * the widget keeps for itself.
          *

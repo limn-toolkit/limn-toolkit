@@ -971,9 +971,16 @@ public final class MenuBar extends Widget<MenuBar> {
         if (scene == null) {
             return;
         }
-        boolean usable = back != null && back.scene() == scene && back.isFocusable()
-                && back.isVisible() && back.isEnabled();
-        scene.requestFocus(usable ? back : null);
+        // The scene's funnel is what says whether it can take the keyboard: a field hidden or
+        // disabled while the bar held the keyboard, itself or with its form, is refused there, and
+        // the bar then lets go of the keyboard to nothing.
+        if (back != null && back.scene() == scene) {
+            scene.requestFocus(back);
+            if (scene.focusedWidget() == back) {
+                return;
+            }
+        }
+        scene.requestFocus(null);
     }
 
     /**

@@ -193,7 +193,7 @@ class ButtonAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(0, bridge.countOf(AccessibleEvent.Type.INVOKED), bridge.events.toString());
 
         // The same button with its own flag true, inside a container that is not: the widget's
-        // own guard passes and the scene's ancestor gate is what refuses, as the keyboard does.
+        // own guard and the scene's gate both refuse, as the keyboard does.
         Column around = new Column();
         button = new Button("OK");
         button.onAction(pressed::incrementAndGet);
@@ -202,7 +202,7 @@ class ButtonAccessibilityTest extends AccessibleComponentTestBase {
         around.setEnabled(false);
         frame();
 
-        assertTrue(button.isEnabled(), "the fixture has to leave the button's own flag alone");
+        assertFalse(button.isEnabled(), "inside a disabled container the button answers disabled itself");
         perform(control().id(), Accessible.Action.PRESS, Accessible.Argument.NONE);
 
         assertEquals(0, pressed.get(),

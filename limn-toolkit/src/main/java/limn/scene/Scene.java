@@ -820,8 +820,7 @@ public final class Scene {
         Objects.requireNonNull(overlay, "overlay");
         Objects.requireNonNull(movedFrom, "movedFrom");
         Widget<?> keyboard = movedFrom == this ? null : movedFrom.focused;
-        if (keyboard == null || !isInSubtree(keyboard, overlay) || !keyboard.isFocusable()
-                || !keyboard.isVisible() || !keyboard.isEnabled()) {
+        if (keyboard == null || !isInSubtree(keyboard, overlay) || !canTakeFocus(keyboard)) {
             pushOverlay(overlay);
             return;
         }
@@ -1005,8 +1004,7 @@ public final class Scene {
         // Return focus to the widget that had it before this overlay opened
         // (the button that triggered the dialog), if it is still usable.
         if (restore != null && restore != overlay && isInSubtree(restore, keyboardRoot())
-                && restore.isFocusable() && restore.isVisible() && restore.isEnabled()
-                && !restore.inertInTree()) {
+                && canTakeFocus(restore)) {
             // The overlay closing is what moved the focus, not whoever closed it.
             setFocus(restore, Change.Origin.ADJUSTMENT);
         } else {
@@ -1550,16 +1548,13 @@ public final class Scene {
         // the snapshot carries as a missing ENABLED, which is all a bridge reads to refuse a
         // setter synchronously (AccessibleNode#accepts; semantics 5, amended 2026-09-15 in fix
         // round 2e): the node keeps its true writability, and this gate is its refusal.
-        for (Widget<?> at = owner; at != null; at = at.parent()) {
-            if (!at.isEnabled()) {
-                return; // a control inside a disabled container is one the keyboard refuses too
-            }
-            if (at.inert) {
-                // A section's content sliding shut: the pointer and the keyboard pass it by, and
-                // the walk publishes no verb there, so a verb a reader took off an older snapshot
-                // is refused as well (ADR 067 §3, amended 2026-10-16).
-                return;
-            }
+        // Enabled is the effective state, so a control inside a disabled container, one the
+        // keyboard refuses too, stops here without a walk of its own.
+        if (!owner.isEnabled() || owner.inertInTree()) {
+            // Inert: a section's content sliding shut. The pointer and the keyboard pass it by,
+            // and the walk publishes no verb there, so a verb a reader took off an older snapshot
+            // is refused as well (ADR 067 §3, amended 2026-10-16).
+            return;
         }
         // Not past the top of an overlay's subtree to its inheritance host (ADR 039 §1.9, amended
         // 2026-09-15): the keyboard and the pointer do not climb there either, and the walk
@@ -2890,8 +2885,10 @@ public final class Scene {
 
     /**
      * Moves keyboard focus to {@code widget}, or clears it when {@code null}. Ignored
-     * for a widget that is not focusable, visible and enabled, and for one outside the
-     * topmost modal overlay. UI thread only.
+     * for a widget that is not focusable, for one that is hidden or disabled itself or through
+     * any ancestor (a control inside a hidden tab or a disabled form), for one inside a subtree
+     * sliding shut, and for one outside the topmost modal overlay. One merely scrolled out of
+     * its viewport is not refused: arriving reveals it. UI thread only.
      *
      * <p>An application calling this is code moving the focus, so the two {@code FOCUS} changes
      * it announces carry {@code CODE}. A gesture that moves focus does not come through here: a
@@ -2908,8 +2905,7 @@ public final class Scene {
     /** The funnel the origin travels through; see {@link #requestFocus(Widget)}. */
     void requestFocus(Widget<?> widget, Change.Origin origin) {
         Ui.checkUiThread();
-        if (widget != null && (!widget.isFocusable() || !widget.isVisible() || !widget.isEnabled()
-                || widget.inertInTree())) {
+        if (widget != null && !canTakeFocus(widget)) {
             return;
         }
         // Focus is confined to the input root (the top modal overlay): every
@@ -2920,6 +2916,18 @@ public final class Scene {
             return;
         }
         setFocus(widget, origin);
+    }
+
+    /**
+     * Whether the keyboard can land on {@code widget}: focusable, and visible and enabled through
+     * its whole ancestry with nothing inert on the way. The one test every path that moves the
+     * focus applies -- this funnel, the focus an overlay gives back as it closes, the focus that
+     * comes along into an overlay -- and the one Tab applies as it collects its stops. When these
+     * paths read the widget's own flags alone, code and a closing dialog put the focus on a button
+     * inside a disabled form, and Enter then ran its action.
+     */
+    private static boolean canTakeFocus(Widget<?> widget) {
+        return widget.isFocusable() && widget.inReach();
     }
 
     /**
@@ -3411,6 +3419,16 @@ public final class Scene {
             }
 
             @Override
+            public boolean enabledByItsOwnFlag(Widget<?> widget) {
+                return widget.isEnabledByItsOwnFlag();
+            }
+
+            @Override
+            public boolean inReach(Widget<?> widget) {
+                return widget.inReach();
+            }
+
+            @Override
             public void setInert(Widget<?> widget, boolean inert) {
                 if (widget.inert == inert) {
                     return;
@@ -3721,8 +3739,7 @@ public final class Scene {
         closingOverlays.add(overlay);
         Widget<?> restore = overlayFocusReturn.get(index);
         if (restore != null && restore != overlay && isInSubtree(restore, keyboardRoot())
-                && restore.isFocusable() && restore.isVisible() && restore.isEnabled()
-                && !restore.inertInTree()) {
+                && canTakeFocus(restore)) {
             setFocus(restore, Change.Origin.ADJUSTMENT);
         } else {
             setFocus(null, Change.Origin.ADJUSTMENT);

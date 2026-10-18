@@ -574,7 +574,8 @@ public final class ScrollBar extends Widget<ScrollBar> {
 
     /**
      * The bar's mechanisms as the value shape drives them. "Enabled" here is the
-     * bar's own flag and its two absences: the policy hidden, or the content fitting, because an
+     * bar's enabled state, its ancestors' included, and its two absences: the policy hidden, or
+     * the content fitting, because an
      * identifier can arrive after the node left and the scene's gate re-checks the ancestors and
      * not those.
      */

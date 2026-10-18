@@ -880,7 +880,7 @@ class LineChartAccessibilityTest extends AccessibleComponentTestBase {
         root.setEnabled(false);
         frame();
 
-        assertTrue(chart.isEnabled(), "the fixture has to leave the chart's own flag alone");
+        assertFalse(chart.isEnabled(), "inside a disabled container the chart answers disabled itself");
         assertFalse(seriesNodes().get(1).has(Accessible.State.ENABLED),
                 "the owner's bits ride on every node it drew" + describe(tree()));
         perform(tailId, Accessible.Action.TOGGLE, Accessible.Argument.NONE);

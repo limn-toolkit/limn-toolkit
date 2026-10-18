@@ -349,15 +349,11 @@ public final class Label extends Widget<Label> {
 
     /**
      * Whether Alt and the letter reach this label: it and every widget above it visible and
-     * enabled, the rule the scene applies when it looks for the owner of a letter.
+     * enabled, read through the scene's own test so that the rule it applies when it looks for
+     * the owner of a letter and the one this label publishes by cannot drift apart.
      */
     private boolean answersItsLetter() {
-        for (Widget<?> at = this; at != null; at = at.parent()) {
-            if (!at.isVisible() || !at.isEnabled()) {
-                return false;
-            }
-        }
-        return true;
+        return limn.scene.internal.SceneAccess.inReach(this);
     }
 
     /**

@@ -60,10 +60,11 @@ final class EditTarget {
             return false;
         }
         boolean done = over.edit(command, widget);
-        if (over.focusedWidget() instanceof MenuBar && widget.isFocusable() && widget.isVisible()
-                && widget.isEnabled()) {
+        if (over.focusedWidget() instanceof MenuBar) {
             // The command was done in the widget the bar took the keyboard from: it has it back,
-            // so that what was done is seen and typing goes on where it was.
+            // so that what was done is seen and typing goes on where it was. Unless the command
+            // hid or disabled it, or its form: the scene's funnel refuses it then, and the bar
+            // keeps the keyboard.
             over.requestFocus(widget);
         }
         return done;

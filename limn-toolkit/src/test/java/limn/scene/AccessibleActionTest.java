@@ -104,8 +104,8 @@ class AccessibleActionTest extends AccessibleTestBase {
     }
 
     /**
-     * And a control inside a disabled container, which its own flag would not catch: a widget's
-     * own enabled predicate answers for itself and consults no ancestor.
+     * And a control inside a disabled container, whose own flag says yes: the gate refuses it by
+     * the effective state, which answers for every ancestor.
      */
     @Test
     void aControlInsideADisabledContainerDoesNothingEither() throws Exception {
@@ -122,7 +122,7 @@ class AccessibleActionTest extends AccessibleTestBase {
         form.setEnabled(false);
         performOffThread(id, Accessible.Action.PRESS, Accessible.Argument.NONE);
 
-        assertTrue(probe.isEnabled(), "its own flag still says yes");
+        assertFalse(probe.isEnabled(), "its own flag says yes, and the effective state no");
         assertTrue(probe.performed.isEmpty(), "and the action is refused anyway");
     }
 

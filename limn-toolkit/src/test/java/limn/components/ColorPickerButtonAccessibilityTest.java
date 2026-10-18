@@ -564,7 +564,7 @@ class ColorPickerButtonAccessibilityTest extends AccessibleComponentTestBase {
         well.parent().setEnabled(false);
         frame();
 
-        assertTrue(well.isEnabled(), "the fixture has to leave the widget's own flag alone");
+        assertFalse(well.isEnabled(), "inside a disabled container the widget answers disabled itself");
         perform(control().id(), Accessible.Action.PRESS, Accessible.Argument.NONE);
 
         assertFalse(well.isPickerOpen(),

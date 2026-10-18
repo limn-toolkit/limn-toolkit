@@ -309,7 +309,7 @@ final class AccessibleWalk {
             Widget<?> overlay = overlays.get(i);
             // An overlay's enabled axis is its own subtree's, exactly as the input path reads it:
             // the keyboard's traversal and the pointer start at the layer that owns input and read
-            // each widget's own flag from there down, and never climb an overlay's inheritance
+            // the flags of that subtree from there down, and never climb an overlay's inheritance
             // host, so a dialog shown from a control disabled since is still answered by Tab,
             // Return and a click. Until 2026-09-15 (fix round 2d's review) the walk climbed the
             // host parent-then-host and published that dialog's buttons neither ENABLED nor

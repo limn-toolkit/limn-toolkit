@@ -1156,15 +1156,54 @@ public abstract class Widget<W extends Widget<W>> {
         }
     }
 
-    /** Whether this widget accepts input; a disabled widget still occupies its box. */
+    /**
+     * Whether this widget accepts input: it and every ancestor are enabled. A disabled widget
+     * still occupies its box.
+     *
+     * <p>The effective state, as {@link #isShowing()} is to {@link #isVisible()}, and not the flag
+     * {@link #setEnabled} sets: disabling a form disables every control in it, so each of them
+     * paints its disabled look, refuses the focus and is published to assistive technologies as
+     * not enabled, from this one reading. When it answered with the widget's own flag alone, a
+     * button inside a disabled section looked enabled, took the focus from code or from a dialog
+     * closing, and ran its action on Enter, while the pointer and Tab already passed it by.
+     *
+     * @return whether this widget and all its ancestors are enabled
+     */
     public final boolean isEnabled() {
+        for (Widget<?> w = this; w != null; w = w.parent) {
+            if (!w.enabled) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** @return what {@link #setEnabled} was last told, whatever an ancestor says */
+    final boolean isEnabledByItsOwnFlag() {
         return enabled;
     }
 
     /**
-     * Enables or disables input. Repaints without re-laying-out, since the box does not
-     * change; disabling revokes focus, hover and any press inside the subtree.
-     * UI thread only.
+     * Whether the keyboard and an access letter can reach this widget: it and every ancestor
+     * visible by their own flags and enabled, and nothing on the way inert. Unlike
+     * {@link #isShowing()} it does not ask about clips, because a control scrolled out of its
+     * viewport is still one the focus can be moved to, and arriving there reveals it.
+     */
+    final boolean inReach() {
+        for (Widget<?> w = this; w != null; w = w.parent) {
+            if (!w.visible || w.elsewhere || !w.enabled || w.inert) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Enables or disables input for this widget and its subtree: while it is disabled,
+     * {@link #isEnabled()} answers {@code false} here and on every descendant, whatever their
+     * own flags say, and each takes its own flag back when this one is enabled again. Repaints
+     * without re-laying-out, since the box does not change; disabling revokes focus, hover and
+     * any press inside the subtree. UI thread only.
      *
      * <p>Announces {@code ENABLED}/{@code CODE}, after the revocation's {@code FOCUS} when
      * disabling took the focus away. {@code final} for the reason {@link #setVisible} is.

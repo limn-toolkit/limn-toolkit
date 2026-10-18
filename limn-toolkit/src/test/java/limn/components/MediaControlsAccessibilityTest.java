@@ -60,7 +60,7 @@ import static limn.testing.SceneDriver.drive;
  * <p>The play button has cases of its own below, because it is the one control of the family that
  * an application is certain to ship: that it is a plain button with no facet, that its box is
  * the square it measured and not the ring it paints around it, that a container's disabled flag
- * refuses a press its own flag would allow, that it is a tab stop exactly once, and that a click
+ * refuses a press though its own flag is left true, that it is a tab stop exactly once, and that a click
  * from a pointer is never acknowledged and never publishes the armed visual. The button is a
  * private class reached through the public child lists, so nothing here depends on its name.
  *
@@ -487,7 +487,7 @@ class MediaControlsAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     @Test
-    void aPressInsideADisabledContainerIsRefusedWhileTheButtonsOwnFlagStaysTrue()
+    void aPressInsideADisabledContainerIsRefused()
             throws Exception {
         view = new VideoView().setSource(new FakeVideo());
         controls = new MediaControls(view);
@@ -499,7 +499,7 @@ class MediaControlsAccessibilityTest extends AccessibleComponentTestBase {
         Widget<?> widget = playButton();
         AccessibleNode play = node("Play");
 
-        assertTrue(widget.isEnabled(), "the fixture has to leave the button's own flag alone");
+        assertFalse(widget.isEnabled(), "inside a disabled container the button answers disabled itself");
         assertFalse(play.has(Accessible.State.ENABLED),
                 "the walk carries the container's flag down" + describe(tree()));
         assertFalse(play.has(Accessible.State.FOCUSABLE), describe(tree()));

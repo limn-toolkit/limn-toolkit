@@ -251,7 +251,6 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         this.rows = everyRow();
         setFocusable(true);
         setCursor(Cursor.POINTER);
-        followOwnEnabled();
     }
 
     /**
@@ -278,21 +277,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         this.selectedIndex = -1;
         setFocusable(true);
         setCursor(Cursor.POINTER);
-        followOwnEnabled();
         setEditable(true);
-    }
-
-    /**
-     * Carries this combo's enabled flag to the text field inside it, which paints and publishes
-     * from its own: a disabled editable combo drew its text and its fill as an enabled field's,
-     * while the pointer and the keyboard already could not reach it.
-     */
-    private void followOwnEnabled() {
-        observeChanges((source, change) -> {
-            if (source == this && change.aspect() == Change.Aspect.ENABLED && editor != null) {
-                editor.setEnabled(isEnabled());
-            }
-        });
     }
 
     private static <V> List<I18nString> labelsOf(List<V> values, Function<? super V, ?> text) {
@@ -825,7 +810,6 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         editable = value;
         if (value) {
             editor = new Editor(this);
-            editor.setEnabled(isEnabled());
             editor.setPlaceholder(placeholder);
             add(editor);
             syncEditor(); // the selected item's text, or holding many, none

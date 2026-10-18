@@ -387,7 +387,7 @@ class MediaControlsMuteButtonAccessibilityTest extends AccessibleComponentTestBa
                 "the bar's flag reaches it down the walk" + describe(tree()));
         assertFalse(disabled.has(Accessible.State.FOCUSABLE),
                 "and a disabled control is not a tab stop" + describe(tree()));
-        assertTrue(muteWidget().isEnabled(), "the fixture left the button's own flag alone");
+        assertFalse(muteWidget().isEnabled(), "inside a disabled container the button answers disabled itself");
 
         perform(muteId, Accessible.Action.PRESS, Accessible.Argument.NONE);
         frame();

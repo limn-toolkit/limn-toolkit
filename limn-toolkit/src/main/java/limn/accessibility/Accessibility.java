@@ -606,8 +606,9 @@ public final class Accessibility {
      * a facet expresses — checked, mixed, expanded, expandable, selected, selectable, read-only —
      * are derived from that facet, so one fact keeps one home: declare the facet. The five the
      * publish step owns — enabled, visible, showing, focusable and focused — belong to the walk,
-     * because a widget's own flag answers only for itself while the tree has to agree with a
-     * keyboard whose traversal stops at the first ancestor that is hidden or disabled; a synthetic
+     * because the tree has to agree with a keyboard whose traversal stops at the first ancestor
+     * that is hidden or disabled and at the layer that owns input, which a widget describing itself
+     * cannot see; a synthetic
      * child narrows two of them through {@link #offScreen()} and {@link #disabled()}. Until
      * 2026-09-14 such a call was dropped in silence, and a widget carried a dead line for months
      * that no reader ever heard.
@@ -1266,7 +1267,7 @@ public final class Accessibility {
      * that it publishes without {@code SHOWING} while its owner still shows.
      *
      * <p>A widget cannot set that state itself — {@link #state(Accessible.State, boolean)} refuses
-     * the five the publish step owns, because a widget's own flag answers only for itself — and
+     * the five the publish step owns, because the walk works them out across the ancestry — and
      * the publish step cannot work it out either, since a row clipped away inside a scrolled list
      * is a fact only the owner's own row formula knows. So this is the one bit of the inherited
      * set a widget contributes to, and it contributes it the way it can be checked: by handing
@@ -1655,9 +1656,10 @@ public final class Accessibility {
      * Applies the four states a widget's own flags cannot answer for. The publish step calls this
      * after the widget has described itself, carrying each flag down the walk.
      *
-     * <p>Enabled and visible are inherited and focusable is pruned by both, because the toolkit's
-     * own predicates answer only for the widget they are asked of while the keyboard's traversal
-     * stops at the first ancestor that is hidden or disabled. A tree that read the predicates
+     * <p>Enabled and visible are inherited and focusable is pruned by both, because
+     * {@code isVisible()} answers only for the widget it is asked of, and neither predicate knows
+     * of the modal layer, while the keyboard's traversal stops at the first ancestor that is
+     * hidden or disabled and at the layer that owns input. A tree that read the predicates
      * directly would offer a whole disabled form as operable and have every invocation refused with
      * nothing said about why.
      *

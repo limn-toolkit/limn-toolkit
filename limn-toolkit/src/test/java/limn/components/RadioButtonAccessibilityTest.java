@@ -592,12 +592,12 @@ class RadioButtonAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(List.of(), selectedEvents(), bridge.events.toString());
 
         // The same member with its own flag true, inside a container that is not: the widget's
-        // own guard passes and the scene's ancestor gate is what refuses, as the keyboard does.
+        // own guard and the scene's gate both refuse, as the keyboard does.
         bindGroup("Small", "Medium", "Large");
         root.setEnabled(false);
         frame();
 
-        assertTrue(radios.get(1).isEnabled(), "the fixture has to leave the radio's own flag alone");
+        assertFalse(radios.get(1).isEnabled(), "inside a disabled container the radio answers disabled itself");
         assertFalse(node("Medium").has(Accessible.State.ENABLED),
                 "the bit is inherited down the walk" + describe(tree()));
         bridge.events.clear();

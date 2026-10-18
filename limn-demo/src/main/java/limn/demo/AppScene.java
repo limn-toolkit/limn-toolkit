@@ -1226,6 +1226,9 @@ final class AppScene {
             Button save = new Button(ShowcaseStrings.ACTION_SAVE);
             save.setId("order-save");
             Button revert = new Button(ShowcaseStrings.ORDERS_REVERT).setSecondary(true);
+            // The fields and their buttons, disabled as one while no order is chosen; the head
+            // above them, with its close button, is not.
+            limn.scene.layout.Column fields = new limn.scene.layout.Column();
             Order[] editing = {null};
             Runnable headed = () -> heading.setText(editing[0] == null ? ShowcaseStrings.ORDERS_NONE.get()
                     : ShowcaseStrings.ORDERS_HEADING.format(String.valueOf(editing[0].number)));
@@ -1244,10 +1247,7 @@ final class AppScene {
                 placedField.setDate(has ? order.placed : null);
                 dueField.setDate(has ? order.due : null);
                 notes.setText(has ? order.notes : "");
-                for (Widget<?> field : List.of(customerField, statusField, placedField, dueField, notes, save,
-                        revert)) {
-                    field.setEnabled(has);
-                }
+                fields.setEnabled(has);
             };
             table.observeChanges((widget, change) -> {
                 if (change.aspect() == Change.Aspect.SELECTION) {
@@ -1291,16 +1291,18 @@ final class AppScene {
             head.add(close);
             form.add(head);
             form.add(Separator.horizontal());
-            form.add(Labelled.above(ShowcaseStrings.ORDERS_CUSTOMER, customerField));
-            form.add(Labelled.above(ShowcaseStrings.ORDERS_STATUS, statusField));
-            form.add(Labelled.above(ShowcaseStrings.ORDERS_PLACED, placedField));
-            form.add(Labelled.above(ShowcaseStrings.ORDERS_DUE, dueField));
-            form.add(Labelled.above(ShowcaseStrings.ORDERS_NOTES, notes, new SizedBox(SizedBox.UNSET, 84, notes)));
+            fields.gap(10).crossAlignment(Flex.CrossAlignment.STRETCH);
+            fields.add(Labelled.above(ShowcaseStrings.ORDERS_CUSTOMER, customerField));
+            fields.add(Labelled.above(ShowcaseStrings.ORDERS_STATUS, statusField));
+            fields.add(Labelled.above(ShowcaseStrings.ORDERS_PLACED, placedField));
+            fields.add(Labelled.above(ShowcaseStrings.ORDERS_DUE, dueField));
+            fields.add(Labelled.above(ShowcaseStrings.ORDERS_NOTES, notes, new SizedBox(SizedBox.UNSET, 84, notes)));
             Row buttons = new Row();
             buttons.gap(8).mainAlignment(Flex.MainAlignment.END);
             buttons.add(revert);
             buttons.add(save);
-            form.add(buttons);
+            fields.add(buttons);
+            form.add(fields);
 
             // The order is opened on demand: Enter, a double click or a row's button brings its
             // form in over the table's trailing edge, and the arrows go on walking the rows

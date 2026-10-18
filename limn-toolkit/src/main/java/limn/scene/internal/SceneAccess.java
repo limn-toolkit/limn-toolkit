@@ -133,6 +133,19 @@ public final class SceneAccess {
          * @param widget a widget; see {@link SceneAccess#repaintPicture}
          */
         void repaintPicture(Widget<?> widget);
+
+        /**
+         * @param widget a widget
+         * @return what its {@code setEnabled} was last told; see
+         *         {@link SceneAccess#enabledByItsOwnFlag}
+         */
+        boolean enabledByItsOwnFlag(Widget<?> widget);
+
+        /**
+         * @param widget a widget
+         * @return whether the keyboard can reach it; see {@link SceneAccess#inReach}
+         */
+        boolean inReach(Widget<?> widget);
     }
 
     /**
@@ -263,6 +276,34 @@ public final class SceneAccess {
      */
     public static void repaintPicture(Widget<?> widget) {
         hook().repaintPicture(java.util.Objects.requireNonNull(widget, "widget"));
+    }
+
+    /**
+     * What {@code widget}'s {@code setEnabled} was last told, whatever its ancestors say, where
+     * {@link Widget#isEnabled()} answers for the whole ancestry. For a component that keeps
+     * something across a container being disabled and enabled again, and hears of the widget's
+     * own flag alone: a radio group choosing which member holds its tab stop, which would
+     * otherwise give it to nobody while the form around it is disabled and never hear that the
+     * form came back.
+     *
+     * @param widget a widget
+     * @return its own flag
+     */
+    public static boolean enabledByItsOwnFlag(Widget<?> widget) {
+        return hook().enabledByItsOwnFlag(java.util.Objects.requireNonNull(widget, "widget"));
+    }
+
+    /**
+     * Whether the keyboard and an access letter can reach {@code widget}: it and every ancestor
+     * visible and enabled, and nothing on the way sliding shut. The reading the scene applies
+     * when it looks for the owner of a letter, for a label that publishes its letter only while
+     * the letter would answer.
+     *
+     * @param widget a widget
+     * @return whether it is in reach
+     */
+    public static boolean inReach(Widget<?> widget) {
+        return hook().inReach(java.util.Objects.requireNonNull(widget, "widget"));
     }
 
     /**
