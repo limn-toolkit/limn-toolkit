@@ -1,13 +1,18 @@
 # ADR 072: A transform moves the picture and leaves the layout
 
-- **Status:** Proposed, 2026-10-17; decided the same day. The owner decided on 2026-10-17 that
+- **Status:** Accepted and implemented, 2026-10-18. Proposed 2026-10-17 and decided the same day.
+  The owner decided on 2026-10-17 that
   opacity and transforms are containers, as `Padding` is for insets, and not methods of `Widget`;
   opacity moved from `Widget` into an `Opacity` container by an amendment of ADR 071 (its section
   7), and this record designs the transform container beside it. The owner answered every
   question of section 4 the same day, and one more the answers raised (section 4.1): the two seams, the
   2D tier and the 3D tier all ship before 1.0, in one final `Transform`. The measurements of
-  section 7 are owed on the lab's guests before the status moves to Accepted; a number that
-  contradicts a decision comes back to the owner. **Stage 0 built, 2026-10-18** (section 8): the
+  section 7 were owed on the lab's guests before the status moved to Accepted, a number that
+  contradicted a decision to come back to the owner; they were taken on 2026-10-18 (section 7.1),
+  and the owner took three decisions on their numbers the same day, built in section 12: a picture
+  in perspective drawn at its natural size on a renderer without a GPU, a mipmap chain for a picture
+  minified past two to one (answer 11 revised), and the device tests' fallback to Apple's software
+  renderer on a Mac without a GPU. **Stage 0 built, 2026-10-18** (section 8): the
   two seams, the internal hook and the test-only container that prove them at rotated and turned
   points, the sentence on `Change.Aspect`, and the hit test cut at a clipping parent's clip.
   **Stage 1 built, 2026-10-18** (section 9): the `Transform` container with its translation,
@@ -21,8 +26,9 @@
   perspective and the back face on the container, `setMatrix` taking any finite matrix and
   `Mat4.perspectiveAt`, a `flipTo` that turns in depth once a perspective is set, the near plane, the
   magnification and the edge-on test in the canvas, the backdrop root verified, and section 7's
-  projected composite and `glGenerateMipmap` measured on this Mac. All four stages are built; the
-  guests' measurements of section 7 are what is still owed before Accepted.
+  projected composite and `glGenerateMipmap` measured on this Mac. All four stages are built, the
+  guests measured them (section 7.1), and the owner's three decisions on those numbers are built
+  (section 12); section 12.5 lists what those leave open.
 - **Date:** 2026-10-17
 - **Scope:**
   - a container that draws its child moved, scaled, rotated or turned in 3D, without changing
@@ -244,7 +250,9 @@ There are three cases, and only the third makes a picture.
     point of the picture: for a rotation, the scale already in force; under perspective, the
     near edge's (a 400 pt card turned 90 degrees about its vertical axis at a distance of 800 pt
     shows its near edge at 1.33 times). Capped, per side, at the window's framebuffer; past that it
-    is rasterized smaller and composited softer.
+    is rasterized smaller and composited softer. (2026-10-18, the owner's decision on the guests'
+    numbers: on a renderer without a GPU a picture seen in perspective is drawn at no more than its
+    natural size, the device's scale times any scale above it; section 12.1.)
 - **The composite becomes a projected quad.** `canvas_composite.vert` takes `vec4` positions: the
   picture's four corners through the canvas's current transform and the Transform's matrix, in
   homogeneous coordinates, so the GPU interpolates the texture perspective-correctly and clips the
@@ -272,7 +280,8 @@ There are three cases, and only the third makes a picture.
 - **Text at an angle** is bilinear in both paths: drawn straight, the glyph quads are sampled at
   an angle; through the layer, the picture is. At an oblique 3D angle the picture is also
   minified, which aliases at rest and shimmers while it turns. Whether mipmaps are made for that
-  is question 11.
+  is question 11. (2026-10-18: they are, for a picture minified past two to one anywhere, answer 11
+  revised; section 12.2.)
 - **The backface.** With `setBackfaceVisible(false)`, a composite whose projected quad winds the
   other way is skipped. Edge-on (exactly 90 degrees) the quad has no area and draws nothing.
   (2026-10-18, as built: the plane's facing, not the quad's winding, which a mirror shares; the
@@ -671,6 +680,9 @@ to question 4 raised.
       at a cost per frame unknown on the software renderer.
     - **Answer:** not in the first 3D build, as recommended; the measurement of section 7 decides
       after.
+    - **Revised, 2026-10-18,** on the guests' numbers (section 7.1): mipmaps made while the picture
+      is minified past two to one anywhere, bilinear otherwise, the alternative above; built in
+      section 12.2.
 12. **Fold an adjacent `Opacity` into a turned Transform's composite?**
     - *Recommended:* not in the first build; two pictures cost ADR 071's NESTED rows (+0.03 ms on
       this GPU, +1.1 to 1.8 ms on the software renderer), and the fold can be added later
@@ -812,6 +824,21 @@ the floor, on this Mac's GPU and software renderer and on the Windows, Fedora an
     and 75 degrees, against the flat composite's +14.5): its near edge would want a picture larger
     than the window, which is drawn smaller (section 2.4's cap), and covers fewer pixels.
   - Neither reopens a decision.
+
+  **2026-10-18, after the owner's decisions of section 12**, the same probe on this Mac's software
+  renderer, round 1 / round 2, milliseconds, each run read against its own floor (OPAQUE against
+  OPAQUE': 0.7 / 0.05 before, 0.2 / 0.4 with the cap alone, 0.3 / 0.7 as built). The card turned in
+  depth, over the card drawn straight:
+
+  | Card, partial | C_3 | 30 degrees | 75 degrees |
+  |---|---|---|---|
+  | before, the near edge's magnification | +11.8 / +11.1 | +45.1 / +44.5 | +61.9 / +62.4 |
+  | the picture at its natural size (12.1) | +6.2 / +6.5 | +3.5 / +3.3 | −9.9 / −10.2 |
+  | as built, the cap and the chain past two to one (12.2) | +5.3 / +4.5 | +3.9 / +2.9 | −5.1 / −6.8 |
+
+  The card at 75 degrees is minified past two to one and gets its chain, some 4 to 5 ms; at 3 and 30
+  degrees it does not. The page is unchanged by the cap, its picture already drawn smaller than its
+  near edge by the framebuffer's; its chain is section 12.2's.
 - **`glGenerateMipmap` per frame** for question 11, measured with the same probe (`P_30_MIP`,
   `P_75_MIP`: the mipmap chain made again from the page's picture after each frame). **On this Mac,
   2026-10-18:** on the GPU +0.054 / +0.062 ms of CPU and +0.066 / +0.068 ms of GPU at 30 degrees,
@@ -819,6 +846,13 @@ the floor, on this Mac's GPU and software renderer and on the Windows, Fedora an
   0.446 and 0.405 / 0.428); on the software renderer +4.0 / +3.3 ms at 30 degrees and +4.0 / +3.3 at
   75 (335.2 / 335.2 and 316.9 / 315.8 against 331.2 / 332.0 and 312.9 / 312.5), about 1% of the
   frame. Cheap enough not to rule mipmaps out; the guests' numbers are in section 7.1.
+  (2026-10-18, as built, section 12.2: the probe's `_MIP` modes now draw as the canvas does, and its
+  plain modes with the canvas's chain turned off. The page at 30 degrees is not minified past two to
+  one and makes no chain, `P_30_MIP` within the floor of `P_30`; at 75 degrees it makes one a frame,
+  +0.042 / +0.047 ms of CPU, +0.022 / +0.020 of GPU and +0.026 / +0.023 of frame on this Mac's GPU,
+  and +8.7 / +9.6 ms, 3% of the frame, on its software renderer, more than the chain made by hand
+  above: by inference, the composite's trilinear reads, eight texels a pixel where a bilinear one
+  reads four, which that renderer pays per pixel, and the clear of the whole picture.)
 - **The re-basing** a transform's picture needs and an opacity's does not: a rotated card's frame
   against the same card in an opacity group.
 - **The rounded enclosing clip in the composite program** on the software renderer, against the
@@ -1142,6 +1176,7 @@ the host GPU's 0.05 and 0.07, and 4 to 5 ms, under 2% of the frame, on the rende
   They ran there with Apple's software renderer made current through CGL, as the probes' context
   is, and handed to the tests' `HeadlessGl` before them, by the runner, not by the tests. Giving
   `HeadlessGl` that fallback on macOS is a change to the test harness this round did not make.
+  (2026-10-18: made, the owner's third decision; section 12.3.)
 
 **Against this Mac.** Every cost read above is over its guest's floor, every "nothing" within
 it, and every number is in line with this Mac's but one: where there is a GPU a picture, a turn,
@@ -1730,7 +1765,7 @@ section 7 are what is owed before Accepted.
 - **2026-10-18. Text at an oblique angle is bilinear only** (answer 11). `glGenerateMipmap` was
   measured per frame for a page turned 30 and 75 degrees (section 7): it adds some 0.07 ms on this
   Mac's GPU and 3 to 4 ms, about 1% of the frame, on its software renderer; the decision stays with
-  the guests' numbers.
+  the guests' numbers. (2026-10-18: decided on them, mipmaps past two to one; section 12.2.)
 - **2026-10-18. The probes ran only on macOS.** Section 7 and 10.4 owe `TransformLayerProbe` and the
   glyph probe on the Windows and Fedora guests; both opened their context through CGL, which exists
   only on macOS. They and the new probe now share `ProbeGl`: CGL on macOS, Apple's software
@@ -1799,3 +1834,169 @@ section 7 are what is owed before Accepted.
   `FullFrameAllocationTest`. Question 11's mipmaps are decided on the probe's `_MIP` rows there.
   (2026-10-18: run, section 7.1, by a copied classpath rather than Gradle on the guests.)
 - The fold of an adjacent `Opacity` into a turned Transform's composite stays declined (question 12).
+
+## 12. The owner's three decisions on the guests' numbers, built 2026-10-18
+
+The guests' round (section 7.1) reopened no decision, but two of its numbers were worth a choice,
+and its one workaround was worth removing. The owner took three decisions on 2026-10-18, built on
+`claude/adr-072-close` from `54e547ae` in four commits: the device tests' fallback, the picture at
+its natural size, the mipmap chain, and this section with the documentation.
+
+### 12.1 A picture in perspective at its natural size on a renderer without a GPU
+
+- **Motive.** A card turned 30 or 75 degrees in depth cost Apple's software renderer +44 and +62 ms
+  of a partial frame over the card drawn straight, on this Mac and, to a millisecond, on the Mac
+  without a GPU (section 7.1), against +2.3 for a flat fade of the same card. Section 7 read it as
+  the picture drawn at the near edge's magnification, some 1.3 and 1.5 times the upright card's
+  pixels; every one of them is CPU time there. On a GPU the same turns cost hundredths of a
+  millisecond.
+- **Decision.** On such a renderer, a picture seen in perspective is drawn at its natural size, the
+  magnification capped at 1 times the device's scale; with a GPU nothing changes.
+- **Cost.** The near edge is rasterized at the size the card has upright and laid magnified, so it
+  reads a little softer for as long as the card is turned; a flip passes through it in a third of a
+  second.
+- **Built.** `GlCanvas.pictureScale(magnification, natural, perspective, cpuRasterizer)`, a
+  package-private static rule so that a unit test holds it alone, applied in the re-based layer
+  after the magnification is taken: the smaller of the two when the homography has a perspective
+  row and the renderer runs fragments on the CPU, the magnification otherwise. `cpuRasterizer` is
+  the canvas's `depthAtNaturalSize`, read once from `GL_RENDERER` by
+  `GraphicsProbe.isSoftwareRenderer`, the rule that already chooses `flatInteriors`: no second
+  detection. The scale is still taken over what the window lets be seen, so a pass draws the
+  picture at the size the whole frame does, and `TransformPassSeamTest` is green on the software
+  renderer (12.3).
+- **2026-10-18. What "natural" means, as built.** The scale the canvas is at where the layer opens,
+  the largest singular value of its transform there: the device's scale, times any scale an
+  ancestor applies straight (a `Transform` scaled up above the turned one) or the picture of a turned
+  ancestor. A scale inside the same `Transform`'s own matrix is part of what is capped: a card both
+  scaled 1.5 times and turned in depth is drawn at the device's scale on the software renderer and
+  laid magnified. An affine picture, a rotation or a skew, is not capped: its magnification is the
+  scale already in force but for a skew's stretch, and the decision was about depth.
+- **Numbers** (section 7, dated 2026-10-18): the card's partial frame over the card drawn straight
+  went from +45.1 / +44.5 ms at 30 degrees and +61.9 / +62.4 at 75 to +3.5 / +3.3 and −9.9 / −10.2
+  with the cap alone, against a floor of 0.2 / 0.4: a card turned 75 degrees now costs less than one
+  drawn straight, its picture covering fewer pixels than the card upright. At 3 degrees the cap took
+  +11.8 / +11.1 to +6.2 / +6.5. The page is unchanged, its picture already smaller than its near edge
+  by the framebuffer's cap. On this Mac's GPU nothing changed, by construction and by test.
+
+### 12.2 Mipmaps only past two to one (answer 11 revised)
+
+- **Motive.** Answer 11 left mipmaps to the guests' numbers. `glGenerateMipmap` on a turned page
+  cost at most 0.06 ms of GPU on the Windows guest, 0.37 ms of a frame on Fedora's virgl, the
+  dearest GPU path, and 4 to 5 ms, under 2% of the frame, without a GPU (section 7.1), while a page
+  turned far from the viewer aliases at rest and shimmers as it turns.
+- **Decision.** A transformed picture minified past two to one anywhere, the minification taken at
+  the corners as the magnification is, gets a mipmap chain (`glGenerateMipmap`, trilinear sampling)
+  for that composite; otherwise bilinear, as before. Pool textures keep working, their levels
+  allocated only when needed and freed with the picture.
+- **Built.** In the re-based layer, `GlCanvas.leastMagnification` takes the smallest singular value
+  of the homography's derivative at the corners of what the window lets be seen, the polygon the
+  largest is taken over; the picture's scale over it is the minification, and
+  `GlCanvas.mipLevels(minification)` gives 0 up to 2 and `ceil(log2)` past it, at most 6. Such a
+  layer clears its whole picture (every level averages what lies past the part drawn), and its
+  restore binds the texture, sets `GL_TEXTURE_MAX_LEVEL` to the levels and runs `glGenerateMipmap`
+  before `GlBatch.compositeThrough(…, mipmapped)` lays it through a sampler object with
+  `GL_LINEAR_MIPMAP_LINEAR`. `GlLayerPool.Picture.levels` counts the levels a texture holds, which
+  the performance monitor's bytes include (a third more); the driver allocates them the first time
+  a composite needs them and frees them with the texture, which the pool deletes as before. A
+  picture taken again for a composite that needs none never reads them. `GlCanvas.mipmapPictures`
+  turns the chain off for tests and the probe; `mipmapsMade()` counts the chains.
+- **2026-10-18. A chain spreads a change, so the scene damages the whole picture.** Not in the
+  record, and found by the seam test: trilinear sampling picks its level by the footprint's longer
+  side, so a card turned about its vertical axis and minified five to one across is read at a level
+  whose texels are eight of the picture's tall as well, though nothing is minified up and down. A
+  thumb recoloured inside such a card changed the composite some eight pixels above and below its
+  own projected bounds, which its damage did not reach: the partial frame was 16 steps off the whole
+  one. The scene now damages, for a change under a transform container whose matrix minifies its
+  children's upright painted rectangle past two to one at its corners
+  (`Widget.spreadsChildChanges`, `ChildTransform.minification`), the whole picture where it is drawn,
+  in `Scene.clippedSceneRect`, the path every widget's damage takes. Over the whole painted
+  rectangle, the minification is at least what the canvas measures over the part it sees, so the
+  scene widens wherever the canvas makes a chain. A turned container's own set and motion already
+  damaged the whole picture.
+- **2026-10-18. A pass over the picture reaches as far as the chain reads.** A pass that cuts a
+  mipmapped picture (something repainting over the turned card) draws only its part; the part's
+  reach past what the pass sees grows from two of the picture's pixels to two plus `2^(levels+1)`,
+  the footprint of a trilinear read at the coarsest level, and its corner sits on the scaled
+  space's grid of `2^levels` pixels, so that each texel of each level averages the pixels the whole
+  frame's did; the level count is also held to what both sides of the pooled texture keep even,
+  which multiples of 64 do up to six. Without the wider reach the repaint over a card turned far is
+  6 steps off; without the grid, with the reach, it passes, so the grid is kept on that reasoning
+  alone, not proved.
+- **2026-10-18. What trilinear sampling costs the look.** Isotropic: where a picture is minified in
+  one direction only, it is also averaged in the other, so a page turned far back reads soft up and
+  down as well as across. Anisotropic filtering would not, but it is an extension, not core, in the
+  OpenGL 3.3 this toolkit targets and the decision named trilinear sampling. `GlDepthLayerTest`'s two
+  geometric cases (where the projection puts each pixel, and the near plane) read the picture's own
+  level for that reason, since their edges are held within a pixel; `GlMipmapLayerTest` holds the
+  chain.
+- **Numbers** (section 7, dated 2026-10-18; the probe's `_MIP` modes now draw as built and its plain
+  modes with the chain turned off). The page at 30 degrees from 3200 points is not minified past two
+  to one and makes no chain. At 75 degrees it makes one a frame: +0.042 / +0.047 ms of CPU, +0.022 /
+  +0.020 of GPU and +0.026 / +0.023 of frame on this Mac's GPU (floor 0.005 / 0.001, 0.001 / 0.000,
+  0.003 / 0.001), and +8.7 / +9.6 ms, 3% of the frame, on its software renderer (floor 1.0 / 0.2),
+  about twice the chain made by hand in section 7. The card at 75 degrees from 1000 points is
+  minified past two to one too: its chain costs it some 3 to 5 ms of a software partial frame on
+  top of the natural size's saving, and +0.05 ms of CPU and +0.03 of GPU on the GPU. The aliasing:
+  a page of one-point stripes turned 75 degrees from 600 points is 71 steps, on average over the
+  pixels wholly on it, from the stripes averaged over each pixel by hand without the chain, and 25
+  with it, on this Mac's GPU (`GlMipmapLayerTest`).
+
+### 12.3 The device tests on a Mac without a GPU
+
+- **Motive.** On the macOS guest `glfwCreateWindow` gave no window, since GLFW's Cocoa path asks for
+  an accelerated pixel format, and the 32 device tests skipped; the guests' round ran them by
+  handing `HeadlessGl` a CGL context from its own runner (section 7.1).
+- **Decision.** `HeadlessGl` falls back to Apple's software renderer through CGL on macOS when GLFW
+  cannot create the accelerated hidden window; the GPU path stays first and unchanged.
+- **Built.** `HeadlessGl.open()` asks GLFW as before; a `glfwInit` that fails or a NULL window on
+  macOS (an exception never) makes a CGL context with no window on the software renderer by its id
+  (`kCGLRendererGenericFloatID`) and keeps it for the process as the window is kept. One helper,
+  `HeadlessGl.cglContext(software)`, makes that context and the probes' (`ProbeGl` now calls it). A
+  test that needs the GLFW window itself rather than a context asks `HeadlessGl.assumeWindow()` and
+  skips on the fallback: `GraphicsProbeTest`'s three cases, `LwjglDisplayTest`'s monitor,
+  `MacFullscreenTest`'s two and `MacInputContextGateTest`. `HeadlessGl.onSoftwareRenderer(Runnable)`
+  runs a test on a second, software context on a Mac that has a GPU, and is how 12.1's device test
+  reaches the software renderer here. The test-only switch is `-Dlimn.test.softwareGl=true`, which
+  the build forwards to the test process: it asks GLFW for a context no Mac has, so that GLFW gives
+  no window and the very fallback a Mac without a GPU takes runs on this one.
+- **Proved on this Mac**, forced: `GlDepthLayerTest` (6 run, the GPU's magnification case skipped
+  as it should) and `TransformPassSeamTest` (15) green on Apple Software Renderer, and
+  `GlMipmapLayerTest` (3) too; with the fallback taken out, all 20 cases of the first two skip. The
+  guests were not run again.
+
+### 12.4 Tests, and where they are
+
+- **12.1:** `PictureScaleTest` (the rule: capped in perspective on a software renderer, kept on a GPU
+  and for an affine picture, never raised); `GlDepthLayerTest.thePictureIsDrawnAtTheMagnificationOfItsNearestCorner`,
+  now on a GPU only, unchanged (1.37 times the device's scale), and
+  `onARendererWithoutAGpuAPictureInPerspectiveIsDrawnAtItsNaturalSize` (on Apple's software renderer
+  through CGL: the same card at the device's scale, a card in perspective lying where the projection
+  puts each pixel at that size, and an affine picture under a scale above it uncapped).
+- **12.2:** `GlMipmapLayerTest` (the stripes before and after; no chain for a turn of 20 degrees or a
+  rotation, counted, and no level allocated; one chain a frame for the turn far back; the levels
+  allocated, counted, unread when the picture is taken again, and freed with it);
+  `TransformPassSeamTest`'s repaint inside and repaint over a card turned 72 degrees from 160 points,
+  each asserting the chains were made; `TransformDepthTest.aChangeInsideACardTurnedFarRepaintsAllOfItAndInsideOneTurnedLittleOnlyItself`.
+- **12.3:** the forced run above.
+- **Proved both ways**, each piece backed out and the tests run: without the cap, the rule's case and
+  the software device case fail (2.74 and 2.736 against 2.0); without the chain, every count fails;
+  without the scene's widening, the repaint inside is 16 steps off and the depth case's passes miss
+  the card; without the wider reach, the repaint over the card is 6 steps off; without the
+  fallback, the forced run skips. The grid alone is not proved (12.2).
+- `FullFrameAllocationTest` and `WorkBudgetTest` green, with the rest of the suite (12.5).
+
+### 12.5 What is left
+
+- **The guests were not run again.** The macOS guest can now run the device tests with the build's
+  own harness; the chain's cost as built on Fedora's virgl, where `glGenerateMipmap` alone was the
+  dearest GPU path, is read only from the chain made by hand there.
+- **A pass that culls a neighbour inside a mipmapped picture.** A pass over part of a turned card
+  draws into its picture only the widgets whose projected bounds meet the pass grown by a point; a
+  widget inside the card just past that, within the coarsest level's footprint, is left out of the
+  pass's picture and averaged into it in the whole frame's. Not seen in the tests, whose cards are one
+  widget or wholly inside the pass; a faint seam at the pass's edge would be its sign.
+- **A non-uniform scale applied straight above a turned picture** stretches the picture the canvas
+  sees, and with it the minification, where the scene's estimate reads only the container's own
+  matrix: the canvas could make a chain the scene does not widen for. A rare composition, not tested.
+- **The full suite:** `./gradlew check --continue` with this section written, on `e240b73e`, 7419
+  tests, 93 skipped (the three probes among them), none failed.

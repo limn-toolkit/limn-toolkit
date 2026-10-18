@@ -120,8 +120,11 @@ depth instead of flat:
 A turn in depth has no motion of its own besides the flip, and is set at once. Turned past a
 quarter, the part shows its back, mirrored, unless `setBackfaceVisible(false)` hides it; turned
 exactly a quarter it is edge-on, draws nothing and takes no click. Its picture is drawn at the size
-of the edge nearest the reader, so text far from it reads softer, and what a turn brings past the
-eye is not drawn. A frosted glass inside a part seen in perspective shows its own tint and none of
+of the edge nearest the reader, so text far from it reads softer; on a computer with no graphics
+processor it is drawn at the part's own size, which costs that computer less and softens the near
+edge a little too. Where the part is seen at less than half its size, a page laid far back, its
+fine detail is averaged instead of flickering as it turns. What a turn brings past the eye is not
+drawn. A frosted glass inside a part seen in perspective shows its own tint and none of
 the window behind it.
 
 As with a fade, moving something out of sight does not take it away: hide it when the motion

@@ -389,6 +389,10 @@ whether Limn should do the same, and for input too, and the owner kept the web p
   (section 0), and holds nothing in between. There is no knob (decision 8).
 - **A closed window keeps nothing**, as ADR 064 requires of everything a window holds, and a
   framebuffer resize lets go of textures that no longer fit.
+- (2026-10-18, ADR 072 section 12.2: a transform's picture that its composite minifies past two to
+  one holds its mipmap chain besides, a third more, made when a composite first needs it and freed
+  with the texture; the pool counts it in `stats()`. An opacity's picture, laid back on the pixels
+  it was drawn on, never makes one, so the bound above holds for a fade.)
 
 ### 2.6 Backdrop effects and groups
 

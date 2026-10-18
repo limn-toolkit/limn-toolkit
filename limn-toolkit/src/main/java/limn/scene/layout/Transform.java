@@ -77,9 +77,12 @@ import java.util.Objects;
  * frame of the same size; it is made again whenever something inside repaints while the child is
  * turned, and given back the frame after the child comes to rest upright. Turned in depth, the
  * picture is laid in perspective and drawn at the size of its nearest edge, so it stays sharp
- * there; text far from the eye reads softer, and a page turned far back shimmers a little while it
- * turns. What part of a child passes behind the eye is not drawn, and the rest is. A frosted glass
- * inside a child seen in perspective reads only what the child draws beneath it, not the window.
+ * there, and text far from the eye reads softer; on a computer with no graphics processor, where
+ * every pixel of a picture costs processor time, it is drawn at the child's own size instead, and
+ * the near edge reads a little softer too. Where the picture is seen at less than half its size,
+ * a page turned far back, its detail is averaged rather than left to flicker while it turns. What
+ * part of a child passes behind the eye is not drawn, and the rest is. A frosted glass inside a
+ * child seen in perspective reads only what the child draws beneath it, not the window.
  *
  * <p><b>A watcher hears it</b> as {@link Change.Aspect#TRANSFORM} with origin {@code CODE} on this
  * container: every time a set changes a value, once for {@link #reset()}, and twice for a motion,
