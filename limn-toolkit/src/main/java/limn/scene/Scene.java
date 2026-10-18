@@ -1099,6 +1099,13 @@ public final class Scene {
      * joins and leaves a scene through, so it cannot drift from the tree.
      */
     private final List<Widget<?>> backdropDependants = new ArrayList<>();
+    /**
+     * Widgets in this scene that draw their children through a matrix, kept as a list for the
+     * reason the backdrop's are: the hit test asks it whenever a point falls outside a box, and it
+     * is empty in almost every application. Maintained on the same funnel, and as a widget's
+     * matrix comes and goes.
+     */
+    private final List<Widget<?>> transformed = new ArrayList<>();
     // The frame's damage, as fixed-capacity float lists rather than lists of Rect: every
     // invalidate() lands in pendingDamage, and with partial rendering on by default an object per
     // call there was the toolkit's busiest allocation. See DamageRects. A list that starts whole
@@ -2537,6 +2544,23 @@ public final class Scene {
     /** @return how many backdrop-dependent widgets this scene holds; for tests */
     int backdropDependantCount() {
         return backdropDependants.size();
+    }
+
+    /** A widget in this scene that now draws its children through a matrix. */
+    void addTransformed(Widget<?> widget) {
+        if (!transformed.contains(widget)) {
+            transformed.add(widget);
+        }
+    }
+
+    /** A widget that left this scene, or draws its children where layout put them again. */
+    void removeTransformed(Widget<?> widget) {
+        transformed.remove(widget);
+    }
+
+    /** @return the widgets in this scene that draw their children through a matrix; read only */
+    List<Widget<?>> transformed() {
+        return transformed;
     }
 
     /** Whether a widget left the tree since the accessibility walk last listed who answers for a node. */

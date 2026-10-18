@@ -100,6 +100,19 @@ public abstract class Widget<W extends Widget<W>> {
                 return group;
             }
         });
+        // And a container that moves its child's picture sets the matrix it draws it through.
+        limn.scene.internal.TransformAccess.install(new limn.scene.internal.TransformAccess.Hook() {
+            @Override
+            public void setChildMatrix(Widget<?> widget, limn.math.@Nullable Mat4 matrix) {
+                widget.setChildMatrix(matrix);
+            }
+
+            @Override
+            public limn.math.@Nullable Mat4 childMatrix(Widget<?> widget) {
+                ChildTransform transform = widget.childTransform;
+                return transform != null ? transform.matrix : null;
+            }
+        });
     }
 
     private Widget<?> parent;
@@ -126,6 +139,29 @@ public abstract class Widget<W extends Widget<W>> {
      * lands in it and no focus moves into it. See {@link limn.scene.internal.SceneAccess#setInert}.
      */
     boolean inert;
+
+    /**
+     * The matrix this widget draws its children through, or null while it draws them where layout
+     * put them, which is every widget but a transform container away from rest. Set only through
+     * {@link limn.scene.internal.TransformAccess}.
+     */
+    @Nullable ChildTransform childTransform;
+
+    /** Sets {@link #childTransform}; the identity, like null, is none. UI thread only. */
+    private void setChildMatrix(limn.math.@Nullable Mat4 matrix) {
+        Ui.checkUiThread();
+        ChildTransform next = matrix == null || ChildTransform.isIdentity(matrix) ? null
+                : new ChildTransform(matrix);
+        boolean was = childTransform != null;
+        childTransform = next;
+        if (scene != null && was != (next != null)) {
+            if (next != null) {
+                scene.addTransformed(this);
+            } else {
+                scene.removeTransformed(this);
+            }
+        }
+    }
 
     /** @return whether this widget or an ancestor is {@linkplain #inert inert} */
     final boolean inertInTree() {
@@ -452,6 +488,16 @@ public abstract class Widget<W extends Widget<W>> {
         if (old != null && newScene != old && opacityGroup != null) {
             opacityGroup.settleOnLeaving(); // while scene() still answers the one it is leaving
         }
+        if (childTransform != null && newScene != old) {
+            // The scene keeps the widgets that draw their children moved, for the hit test's
+            // rule on letting the pointer through an ancestor's box to them.
+            if (old != null) {
+                old.removeTransformed(this);
+            }
+            if (newScene != null) {
+                newScene.addTransformed(this);
+            }
+        }
         if (!detaching) {
             this.scene = newScene;
         }
@@ -657,37 +703,52 @@ public abstract class Widget<W extends Widget<W>> {
      * @param out two floats to fill with the point in the scene
      */
     final void localToScene(float x, float y, float[] out) {
-        float px = x;
-        float py = y;
+        out[0] = x;
+        out[1] = y;
         for (Widget<?> w = this; w != null; w = w.parent) {
-            px += w.x;
-            py += w.y;
+            out[0] += w.x;
+            out[1] += w.y;
+            // Into the parent's drawing: through the matrix it draws its children with, if any.
+            Widget<?> parent = w.parent;
+            if (parent != null && parent.childTransform != null) {
+                parent.childTransform.map(out[0], out[1], out);
+            }
         }
-        out[0] = px;
-        out[1] = py;
     }
 
     /**
      * {@link #sceneToLocal(float, float)} into {@code out[0..1]}, allocating nothing.
+     *
+     * <p>From the root down, since a parent's matrix is undone on a point in its own space: the
+     * walk recurses to the root first, which is as deep as the tree and allocates nothing.
      *
      * @param sceneX a point's x in the scene
      * @param sceneY a point's y in the scene
      * @param out    two floats to fill with the point in this widget's space
      */
     final void sceneToLocal(float sceneX, float sceneY, float[] out) {
-        float px = sceneX;
-        float py = sceneY;
-        for (Widget<?> w = this; w != null; w = w.parent) {
-            px -= w.x;
-            py -= w.y;
+        Widget<?> parent = this.parent;
+        if (parent == null) {
+            out[0] = sceneX;
+            out[1] = sceneY;
+        } else {
+            parent.sceneToLocal(sceneX, sceneY, out);
+            if (parent.childTransform != null) {
+                parent.childTransform.unmap(out[0], out[1], out);
+            }
         }
-        out[0] = px;
-        out[1] = py;
+        out[0] -= x;
+        out[1] -= y;
     }
 
     /**
      * The bounds in the scene of the rectangle {@code (x0, y0)} to {@code (x1, y1)} of this
-     * widget's space, into {@code out} as {@code x0, y0, x1, y1}, allocating nothing.
+     * widget's space, into {@code out} as {@code x0, y0, x1, y1}, allocating nothing; all four
+     * {@code NaN} when no part of it is in front of the eye.
+     *
+     * <p>Under a matrix the bounds of the projected rectangle are taken at each level, so a
+     * rectangle under two rotations is answered by the bounds of its bounds: never smaller than
+     * what is drawn, which is what a popup's anchor, a damage or a cull needs.
      *
      * @param x0  the rectangle's left, in this widget's space
      * @param y0  its top
@@ -696,16 +757,23 @@ public abstract class Widget<W extends Widget<W>> {
      * @param out four floats to fill
      */
     final void localToSceneBounds(float x0, float y0, float x1, float y1, float[] out) {
-        float dx = 0;
-        float dy = 0;
+        out[0] = Math.min(x0, x1);
+        out[1] = Math.min(y0, y1);
+        out[2] = Math.max(x0, x1);
+        out[3] = Math.max(y0, y1);
         for (Widget<?> w = this; w != null; w = w.parent) {
-            dx += w.x;
-            dy += w.y;
+            out[0] += w.x;
+            out[1] += w.y;
+            out[2] += w.x;
+            out[3] += w.y;
+            Widget<?> parent = w.parent;
+            if (parent != null && parent.childTransform != null) {
+                parent.childTransform.bounds(out[0], out[1], out[2], out[3], out);
+                if (Float.isNaN(out[0])) {
+                    return; // nothing of it in front of the eye, at any level above either
+                }
+            }
         }
-        out[0] = Math.min(x0, x1) + dx;
-        out[1] = Math.min(y0, y1) + dy;
-        out[2] = Math.max(x0, x1) + dx;
-        out[3] = Math.max(y0, y1) + dy;
     }
 
     /**
@@ -2345,8 +2413,11 @@ public abstract class Widget<W extends Widget<W>> {
      * <p>{@code null} for a widget that is not {@linkplain #isVisible() visible} or not
      * {@linkplain #isEnabled() enabled}, for one whose subtree is passing out of reach, and for a
      * point outside its box, a point of {@code NaN} included; otherwise what {@link #onHitTest}
-     * answers. Final, so that these hold for every widget and no container's own answer can skip
-     * them: a widget decides only where, inside itself, a point that reached it lands.
+     * answers. One exception to the box: a widget that does not {@linkplain #clipsChildren() clip}
+     * its children lets a point outside it through to a descendant drawn moved there, and answers
+     * that descendant or {@code null}, never itself. Final, so that these hold for every widget and
+     * no container's own answer can skip them: a widget decides only where, inside itself, a point
+     * that reached it lands.
      *
      * @param localX the point's x in this widget's space
      * @param localY the point's y in this widget's space
@@ -2359,17 +2430,99 @@ public abstract class Widget<W extends Widget<W>> {
         // Asked as "inside" rather than as "outside", so that NaN, a point no plane of this
         // widget holds, fails every comparison and counts as outside.
         boolean inside = localX >= 0 && localY >= 0 && localX < width && localY < height;
-        if (!inside) {
+        if (!inside && !drawsMovedChildAt(localX, localY)) {
             return null;
         }
-        return onHitTest(localX, localY);
+        Widget<?> hit = onHitTest(localX, localY);
+        // Outside its box a widget only lets the point through to what it draws there; it is
+        // not hit there itself.
+        return inside || hit != this ? hit : null;
+    }
+
+    /**
+     * Whether this widget draws, at a point outside its own box, a child that a widget at or
+     * under it moves there with its matrix: a drawer slid past its parent's edge is drawn there by
+     * every parent that does not clip it, and must be hit there too. A widget that clips its
+     * children draws nothing outside, and with no matrix in the scene, which is the usual case,
+     * this costs one test of an empty list.
+     *
+     * <p>The test is against the bounds of what each moved widget draws, its children's boxes
+     * through its matrix and up to here; the exact answer, a point on the drawn child or beside
+     * it, is the child's own hit test, reached through the inverse matrix.
+     */
+    private boolean drawsMovedChildAt(float localX, float localY) {
+        if (scene == null || clipsChildren() || Float.isNaN(localX) || Float.isNaN(localY)) {
+            return false;
+        }
+        List<Widget<?>> moved = scene.transformed();
+        for (int i = 0; i < moved.size(); i++) {
+            Widget<?> mover = moved.get(i);
+            if (mover.isAtOrUnder(this) && mover.drawsChildrenAt(this, localX, localY)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** @return whether this widget is {@code ancestor} or lies under it */
+    private boolean isAtOrUnder(Widget<?> ancestor) {
+        for (Widget<?> w = this; w != null; w = w.parent) {
+            if (w == ancestor) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The rectangle {@link #drawsChildrenAt} works in; one, since hit testing runs on the UI thread. */
+    private static final float[] MOVED_BOUNDS = new float[4];
+
+    /**
+     * Whether the bounds of where this widget draws its visible children, carried up to
+     * {@code ancestor}'s space, hold the point given in it.
+     */
+    private boolean drawsChildrenAt(Widget<?> ancestor, float x, float y) {
+        ChildTransform transform = childTransform;
+        if (transform == null) {
+            return false;
+        }
+        float x0 = Float.POSITIVE_INFINITY;
+        float y0 = Float.POSITIVE_INFINITY;
+        float x1 = Float.NEGATIVE_INFINITY;
+        float y1 = Float.NEGATIVE_INFINITY;
+        for (int i = 0; i < children.size(); i++) {
+            Widget<?> child = children.get(i);
+            if (child.isVisible()) {
+                x0 = Math.min(x0, child.x);
+                y0 = Math.min(y0, child.y);
+                x1 = Math.max(x1, child.x + child.width);
+                y1 = Math.max(y1, child.y + child.height);
+            }
+        }
+        if (!(x1 > x0 && y1 > y0)) {
+            return false;
+        }
+        float[] b = MOVED_BOUNDS;
+        transform.bounds(x0, y0, x1, y1, b);
+        for (Widget<?> w = this; w != ancestor && !Float.isNaN(b[0]); w = w.parent) {
+            b[0] += w.x;
+            b[1] += w.y;
+            b[2] += w.x;
+            b[3] += w.y;
+            ChildTransform above = w.parent.childTransform;
+            if (above != null) {
+                above.bounds(b[0], b[1], b[2], b[3], b);
+            }
+        }
+        return x >= b[0] && x < b[2] && y >= b[1] && y < b[3];
     }
 
     /**
      * What this widget answers for a point that reached it: one of its children's answers,
      * itself, or {@code null} to let the point through to what is beneath it. Called by
      * {@link #hitTest} only for a widget that is visible, enabled and in reach, with the point
-     * inside its box, so an override checks none of that again.
+     * inside its box or where it draws a descendant moved past it, so an override checks none of
+     * that again.
      *
      * <p>The default asks each child through {@link #hitTestChild}, the last first because it is
      * painted on top, and answers the first that is hit, or this widget when none is. A widget
@@ -2406,7 +2559,16 @@ public abstract class Widget<W extends Widget<W>> {
         if (child.parent != this) {
             throw new IllegalArgumentException("not a child of this widget: " + child);
         }
-        return child.hitTest(localX - child.x, localY - child.y);
+        float x = localX;
+        float y = localY;
+        ChildTransform transform = childTransform;
+        if (transform != null) {
+            // Back through the matrix the child is drawn with: NaN where no point of its plane
+            // is drawn here, which the child's entry counts as outside.
+            x = transform.unmapX(localX, localY);
+            y = transform.unmapY(localX, localY);
+        }
+        return child.hitTest(x - child.x, y - child.y);
     }
 
     /**
