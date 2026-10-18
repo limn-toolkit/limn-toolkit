@@ -228,6 +228,11 @@ Maven Central say which number that was.
   inside a rounded field or ramp wherever a repaint region crossed it.
 - A focus ring or the `ColorPicker`'s cursor at the side edge of a dialog's body, or at its bottom
   when the body fits, is drawn whole; the body clipped it although nothing scrolled there.
+- An in-scene `Dialog` answered while it is still fading in closes. Its fade in went on
+  stepping up beside the fade out stepping down, the two cancelled each other, and the dialog
+  stayed on screen with its veil half drawn, its result never completed and the window locked
+  behind it. The card's fade is now the dialog's: the veil and the slide follow it, and the
+  fade out runs from where the fade in had got to.
 - An in-scene `Dialog` stops repainting once it has settled; it redrew the strip where its scroll
   bar lives on every frame, so the loop never idled while one was open.
 - `DateField` and `SearchField` leave every key to the input method while a composition is under

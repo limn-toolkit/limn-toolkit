@@ -671,8 +671,13 @@ build.
   shadows reach, and not through the surface's widget opacity: in the scene that surface covers
   the scene, for the same reason. A step of its fade now repaints the cascade, where it repainted
   the window.
-- **`Dialog`'s card** fades through its own `fadeTo` beside the dialog's own fade, which the veil's
-  alpha and the card's slide follow and which ends the dialog; the veil stays one fill.
+- **`Dialog`'s card** fades through its own `fadeTo`, and that fade is the dialog's: the veil's
+  alpha and the card's slide read the card's opacity as they paint, and the fade out's arrival
+  ends the dialog, run from where the fade in had got to; the veil stays one fill. (2026-10-17,
+  after review: the card faded beside a fade of the dialog's own, linear where the card's is
+  eased, which ended the dialog with the card still partly drawn, and a dialog answered while it
+  faded in never closed, its own fade in and fade out cancelling each other, which 0.9.0
+  already did.)
 - **`fadeTo` runs on the scene's wall-time ticker** (`addRealTimeTicker`), as the window fades do:
   an `onArrive` often hides or removes something, and a paused scene must still be able to. "No
   scene to tick" is a widget in no scene or in a scene with no window, as `Scene.fadeWindow` has

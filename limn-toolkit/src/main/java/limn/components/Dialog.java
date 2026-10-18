@@ -172,7 +172,14 @@ public final class Dialog {
     private boolean hasDefaultButton;
     private boolean alwaysOnTop = true;
     private boolean dismissOnScrim; // default false: modal (ignore + beep), like a native modal
+    /** How far the dialog has faded in where nothing fades its card: 1 in a window of its own. */
     private float fade;
+    /** In the scene the card's own opacity is the dialog's fade, which the veil and the slide read. */
+    private boolean cardFades;
+    /** Whether the card's fade is moving, so the veil has to be repainted with it. */
+    private boolean cardMoving;
+    /** Whether the ticker that repaints the veil while the card fades is registered. */
+    private boolean veilFollowing;
     private boolean presented; // single-use: any show* after the first throws
     private boolean closing;
     private boolean modal = true;
@@ -521,7 +528,7 @@ public final class Dialog {
 
     /** @return the current fade level in [0..1] (tests/screenshots) */
     public float fadeLevel() {
-        return fade;
+        return cardFades ? panel.opacity() : fade;
     }
 
     /**
@@ -836,7 +843,6 @@ public final class Dialog {
         SceneAccess.pushMovedOverlay(owner, overlay, leaving);
         sceneModal = BackendPeer.of(host.backend()).pushSceneModal(host, toolkitScope);
         observeUnanswered(owner);
-        fade = 0;
         startFadeInScene();
         new LeftWindow(left, leaving).goOnceFocused(owner, host);
     }
@@ -1053,31 +1059,54 @@ public final class Dialog {
     }
 
     /**
-     * Fades the card in, in the scene. Two things move together over the window animation: the
-     * card's own opacity, which draws it, its shadow and its buttons as one picture, and this
-     * dialog's {@code fade}, which the veil's alpha and the card's slide follow and which the
-     * fade-out ends on. The veil is one fill and fades by its alpha, as one fill cannot show
-     * through itself.
+     * Fades the card in, in the scene, through its own opacity, which draws it, its shadow and its
+     * buttons as one picture. That opacity is the dialog's fade: the veil's alpha and the card's
+     * slide read it as they paint, and the fade out that ends the dialog is the card's too. One
+     * fade and not two side by side: two kept apart, the dialog's linear one and the card's eased
+     * one, met only at their ends, so a dialog closed while it faded in took its veil away with its
+     * card still partly drawn, and while the dialog's fade in went on stepping up beside the fade
+     * out stepping down, the two cancelled each other and the dialog never closed. The veil is one
+     * fill and fades by its alpha, as one fill cannot show through itself.
      */
     private void startFadeInScene() {
+        cardFades = true;
         if (limn.animation.Motion.reduced()) {
-            fade = 1; // no fade for a user who asked for less motion: the card is there at once
-            panel.setOpacity(1f);
+            panel.setOpacity(1f); // no fade for a user who asked for less motion: the card is there at once
             if (overlay != null) {
                 overlay.invalidate();
             }
             return;
         }
         panel.setOpacity(0f);
-        panel.fadeTo(1f, Theme.current().animWindow, null);
-        // Wall time: a dialog is shell, and its twin fade-out completes the result future.
-        hostScene.addRealTimeTicker(dt -> {
-            fade = (float) Math.min(1, fade + limn.animation.Motion.progress(dt, Theme.current().animWindow));
+        fadeCard(1f, Theme.current().animWindow, null);
+    }
+
+    /**
+     * Moves the card's opacity, and the veil and the slide with it, to {@code target}: the card's
+     * {@code fadeTo}, on wall time (a dialog is shell, and its fade out completes the result
+     * future), and while it moves a ticker that repaints the veil, one however many fades follow.
+     */
+    private void fadeCard(float target, double seconds, @Nullable Runnable onArrive) {
+        cardMoving = true;
+        panel.fadeTo(target, seconds, () -> {
+            cardMoving = false;
             if (overlay != null) {
-                overlay.invalidate();
+                overlay.invalidate(); // the veil's last step
             }
-            return fade < 1;
+            if (onArrive != null) {
+                onArrive.run();
+            }
         });
+        if (cardMoving && !veilFollowing && hostScene != null) {
+            veilFollowing = true;
+            hostScene.addRealTimeTicker(dt -> {
+                if (overlay != null) {
+                    overlay.invalidate();
+                }
+                veilFollowing = cardMoving;
+                return veilFollowing;
+            });
+        }
     }
 
     private void closeOverlay() {
@@ -1198,22 +1227,15 @@ public final class Dialog {
                 closeOverlay();
                 result.complete(value);
             });
-            // The card's picture fades with the veil; the ticker below is what ends the dialog.
-            panel.fadeTo(0f, Theme.current().animWindow, null);
-            // Wall time, and load-bearing: this ticker's last frame is what removes the overlay
-            // and completes `result`. On scene time a paused app could never close a dialog.
-            hostScene.addRealTimeTicker(dt -> {
-                fade = (float) Math.max(0, fade - limn.animation.Motion.progress(dt, Theme.current().animWindow));
-                if (overlay != null) {
-                    overlay.invalidate();
-                }
-                if (fade > 0) {
-                    return true;
-                }
+            // The card's fade out, the veil and the slide with it, from wherever its fade in had got
+            // to, over the share of the window animation that brings it back to nothing; it
+            // supersedes a fade in still running. Its arrival is what removes the overlay and
+            // completes `result`, on wall time, and load-bearing: on scene time a paused app
+            // could never close a dialog.
+            fadeCard(0f, Theme.current().animWindow * panel.opacity(), () -> {
                 unhook.cancel();
                 closeOverlay();
                 result.complete(value);
-                return false;
             });
         } else {
             result.complete(value); // headless: no animation/window
@@ -1688,7 +1710,7 @@ public final class Dialog {
 
         /** Where its top goes: centred, lowered by what is left of the fade's slide, dragged. */
         private float cardY(float cardHeight) {
-            return (height() - cardHeight) / 2 + (1 - fade) * SLIDE_DISTANCE + dragOffsetY;
+            return (height() - cardHeight) / 2 + (1 - fadeLevel()) * SLIDE_DISTANCE + dragOffsetY;
         }
 
         @Override
@@ -1697,7 +1719,7 @@ public final class Dialog {
             // scales the token's own alpha rather than replacing it, so a palette that asks
             // for a lighter veil gets a lighter one all the way through the fade.
             Color veil = Theme.of(this).scrim();
-            canvas.fillRect(0, 0, width(), height(), veil.withAlpha(veil.a() * fade));
+            canvas.fillRect(0, 0, width(), height(), veil.withAlpha(veil.a() * fadeLevel()));
         }
 
         /**

@@ -307,6 +307,9 @@ class DialogTest extends ComponentTestBase {
                 .setCancelResult("cancel");
         Scene host = new Scene(new Label("fundo"), clock::get);
         host.setTextRuler(RULER);
+        // A window, which a fade needs: the card's fade is the dialog's, and with no window to step
+        // it a fade goes straight to its end, and the dialog with it.
+        host.bind(new limn.testing.HeadlessBackend(runtime).open("Owner", 400, 300));
         FakeCanvas canvas = new FakeCanvas(400, 300);
         host.renderFrame(canvas);
 
