@@ -238,6 +238,34 @@ class TransformPassSeamTest {
     }
 
     @Test
+    void somethingRepaintingInsideACardTurnedFarDrawsWhatTheWholeFrameDrewThroughItsMipmaps() {
+        // Turned 72 degrees, the card's far edge is seen at a fifth of its picture's size, and each
+        // frame's composite reads a mipmap chain: the pass's smaller picture must average the same
+        // pixels into each level as the whole frame's (ADR 072 section 12).
+        Thumb thumb = new Thumb();
+        Stack card = new Stack();
+        card.add(new Card());
+        card.add(new Padding(new Insets(14, 0, 0, 22), thumb));
+        Transform t = new Transform(card).setPerspective(160).setRotation3D(limn.math.Vec3.UNIT_Y, 72);
+        assertPartialIsWhole(layers(t), thumb::recolor);
+        assertTrue(canvas.mipmapsMade() >= 3, "each frame made the chain: " + canvas.mipmapsMade());
+    }
+
+    @Test
+    void somethingRepaintingOverACardTurnedFarDrawsWhatTheWholeFrameDrewThroughItsMipmaps() {
+        // The pass is a thumb's box laid over the turned card, not inside it: the card's picture is
+        // drawn for that part alone, and its chain must average into each texel of each level the
+        // pixels the whole frame's did, the part's corner on the grid of the coarsest level and its
+        // reach past the pass that level's footprint.
+        Transform t = new Transform(new Card()).setPerspective(160).setRotation3D(limn.math.Vec3.UNIT_Y, 72);
+        Thumb thumb = new Thumb();
+        Stack root = layers(t);
+        root.add(new Padding(new Insets(30.35f + 15.3f, 0, 0, 20.1f + 21.7f), thumb));
+        assertPartialIsWhole(root, thumb::recolor);
+        assertTrue(canvas.mipmapsMade() >= 3, "each frame made the chain: " + canvas.mipmapsMade());
+    }
+
+    @Test
     void aBackFaceHiddenAndShownDrawsWhatTheWholeFrameDrew() {
         Transform t = new Transform(new Card()).setPerspective(200).setRotation3D(limn.math.Vec3.UNIT_X, 150);
         assertPartialIsWhole(layers(t), () -> t.setBackfaceVisible(false));

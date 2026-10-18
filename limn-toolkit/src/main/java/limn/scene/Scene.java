@@ -2108,7 +2108,18 @@ public final class Scene {
             // Where the parent draws it, through the matrix a transform container draws its
             // children with: the damage lands where the pixels are.
             Widget<?> up = node.parent();
-            if (up != null && up.childTransform != null) {
+            if (up != null && up.childTransform != null && up.spreadsChildChanges()) {
+                // Laid through a mipmap chain, a change is seen past its own bounds: the whole
+                // picture, where the parent draws it.
+                float[] whole = up.childrenPaintedBounds();
+                if (Float.isNaN(whole[0])) {
+                    return false;
+                }
+                x0 = whole[0];
+                y0 = whole[1];
+                x1 = whole[2];
+                y1 = whole[3];
+            } else if (up != null && up.childTransform != null) {
                 float[] b = projectScratch;
                 up.childTransform.bounds(x0, y0, x1, y1, b);
                 if (Float.isNaN(b[0])) {

@@ -104,6 +104,11 @@ final class GlCanvas implements Canvas {
          * {@code (vx, vy, 1)}.
          */
         final double[] toParent = new double[9];
+        /**
+         * For a re-based layer minified past two to one somewhere, how many mipmap levels its
+         * composite reads past the picture's own; 0 for every other state.
+         */
+        int mipLevels;
 
         void copyFrom(State other) {
             transform.copyFrom(other.transform);
@@ -114,6 +119,7 @@ final class GlCanvas implements Canvas {
             pixelSnap = other.pixelSnap;
             layer = null; // a save is never a layer of its own; saveLayer makes it one
             rebased = false;
+            mipLevels = 0;
         }
     }
 
@@ -194,6 +200,14 @@ final class GlCanvas implements Canvas {
      * {@link #flatInteriors}. Tests set it to take either path on whatever device they run on.
      */
     boolean depthAtNaturalSize;
+    /**
+     * Whether a re-based layer's picture minified past two to one somewhere gets a mipmap chain for
+     * its composite (see {@link #mipLevels}). On by default, on every renderer; tests turn it off to
+     * draw what the composite was before it.
+     */
+    boolean mipmapPictures = true;
+    /** How many mipmap chains the canvas has made; see {@link #mipmapsMade()}. */
+    private int mipmapsMade;
     /**
      * The current shape's pieces (see {@link #emitRoundRectPieces}): each boundary's device
      * coordinate and local coordinate, in local order, and the cut to the clip in device pixels.
@@ -742,22 +756,32 @@ final class GlCanvas implements Canvas {
         Transform2D above = parent.transform;
         k = pictureScale(k, largestStretch(above.m00, above.m01, above.m10, above.m11),
                 h[6] != 0 || h[7] != 0, depthAtNaturalSize);
+        // The least magnification over the same part, at its corners as the largest is taken: how
+        // far the composite minifies the picture somewhere, which decides its mipmaps.
+        double least = mipmapPictures ? leastMagnification(h, reach, reachCorners) : 0;
+        int levels = 0;
         long kx0 = 0;
         long ky0 = 0;
         long kx1 = 0;
         long ky1 = 0;
         for (int attempt = 0; attempt < 4; attempt++) {
+            levels = least > 0 ? mipLevels(k / least) : 0;
             // Two of the picture's pixels past what can be seen, so that a filtered sample at the
-            // clip's edge reads texels that were drawn; then a ring of one more, cleared.
-            double margin = 2 / k;
+            // clip's edge reads texels that were drawn; then a ring of one more, cleared. A mipmapped
+            // composite reads a level's two texels, each the mean of 2^levels of the picture's, so
+            // its reach is that much farther, and its grid that much coarser: the picture's corner
+            // on the scaled space's grid of 2^levels pixels, so that a pass's smaller picture
+            // averages the same pixels into each texel of each level as the whole frame's did.
+            double margin = (2 + (levels > 0 ? 2 << levels : 0)) / k;
+            long grid = Math.max(2, 1L << levels);
             double ax0 = Math.max(rx0, vx0 - margin);
             double ay0 = Math.max(ry0, vy0 - margin);
             double ax1 = Math.min(rx1, vx1 + margin);
             double ay1 = Math.min(ry1, vy1 + margin);
-            kx0 = Math.floorDiv((long) Math.floor(k * ax0) - 1, 2) * 2;
+            kx0 = Math.floorDiv((long) Math.floor(k * ax0) - 1, grid) * grid;
             ky0 = (long) Math.floor(k * ay0) - 1;
             kx1 = (long) Math.ceil(k * ax1) + 1;
-            ky1 = -Math.floorDiv(-((long) Math.ceil(k * ay1) + 1), 2) * 2;
+            ky1 = -Math.floorDiv(-((long) Math.ceil(k * ay1) + 1), grid) * grid;
             if (kx1 - kx0 <= fbWidth && ky1 - ky0 <= fbHeight) {
                 break;
             }
@@ -801,6 +825,11 @@ final class GlCanvas implements Canvas {
         float originY = fbHeight - ky1;
         s.layer = picture;
         s.rebased = true;
+        // A level's texel is the mean of the same 2^level texels of the picture, counted from its
+        // corner, only while every level before it has an even size, which the pool's sizes,
+        // multiples of 64 short of the window's own, give up to six levels.
+        s.mipLevels = Math.min(levels, Math.min(Integer.numberOfTrailingZeros(picture.width),
+                Integer.numberOfTrailingZeros(picture.height)));
         s.layerX = 0;
         s.layerY = fbHeight - lh;
         s.layerWidth = lw;
@@ -828,9 +857,14 @@ final class GlCanvas implements Canvas {
         openLayers++;
         bindTarget(s);
         // The part drawn and a ring of one texel past it on the sides the picture goes on: the
-        // composite filters, and those texels hold an earlier frame's content otherwise.
+        // composite filters, and those texels hold an earlier frame's content otherwise. A mipmapped
+        // one clears the whole picture, since every level averages what lies past the part too.
         org.lwjgl.opengl.GL33C.glEnable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
-        org.lwjgl.opengl.GL33C.glScissor(0, 0, Math.min(picture.width, lw + 1), Math.min(picture.height, lh + 1));
+        if (s.mipLevels > 0) {
+            org.lwjgl.opengl.GL33C.glScissor(0, 0, picture.width, picture.height);
+        } else {
+            org.lwjgl.opengl.GL33C.glScissor(0, 0, Math.min(picture.width, lw + 1), Math.min(picture.height, lh + 1));
+        }
         org.lwjgl.opengl.GL33C.glClearColor(0f, 0f, 0f, 0f);
         glClear(GL_COLOR_BUFFER_BIT);
         org.lwjgl.opengl.GL33C.glDisable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
@@ -1019,9 +1053,13 @@ final class GlCanvas implements Canvas {
      */
     private void compositeThrough(GlLayerPool.Picture picture, State layer, DeviceClip clip, float alpha) {
         double[] map = layer.toParent;
+        boolean mipmapped = layer.mipLevels > 0;
+        if (mipmapped) {
+            makeMipmaps(picture, layer.mipLevels);
+        }
         if (map[6] == 0 && map[7] == 0) {
             throughCorners(picture, layer, map, cornerScratch, uvScratch);
-            batch.compositeThrough(picture.texture, cornerScratch, uvScratch, 4, alpha, clip);
+            batch.compositeThrough(picture.texture, cornerScratch, uvScratch, 4, alpha, clip, mipmapped);
             return;
         }
         // In perspective: the quad cut at the near plane, so that no corner lies behind the eye or
@@ -1058,7 +1096,80 @@ final class GlCanvas implements Canvas {
             uvs[i * 2] = (float) ((vx - layer.layerX) / picture.width);
             uvs[i * 2 + 1] = (float) ((layer.layerY + layer.layerHeight - vy) / picture.height);
         }
-        batch.compositeThrough(picture.texture, corners, uvs, n, alpha, clip);
+        batch.compositeThrough(picture.texture, corners, uvs, n, alpha, clip, mipmapped);
+    }
+
+    /**
+     * Makes the mipmap chain of a picture drawn in full, its first {@code levels} levels past its
+     * own, for the composite about to read it trilinearly. The driver allocates the levels the first
+     * time and keeps them with the texture, which the pool deletes with the picture; the picture
+     * counts them, so that the performance monitor sees the third more they hold.
+     */
+    private void makeMipmaps(GlLayerPool.Picture picture, int levels) {
+        org.lwjgl.opengl.GL33C.glActiveTexture(org.lwjgl.opengl.GL33C.GL_TEXTURE0);
+        org.lwjgl.opengl.GL33C.glBindTexture(org.lwjgl.opengl.GL33C.GL_TEXTURE_2D, picture.texture);
+        org.lwjgl.opengl.GL33C.glTexParameteri(org.lwjgl.opengl.GL33C.GL_TEXTURE_2D,
+                org.lwjgl.opengl.GL33C.GL_TEXTURE_MAX_LEVEL, levels);
+        org.lwjgl.opengl.GL33C.glGenerateMipmap(org.lwjgl.opengl.GL33C.GL_TEXTURE_2D);
+        picture.levels = Math.max(picture.levels, levels);
+        mipmapsMade++;
+    }
+
+    /**
+     * How many mipmap levels a composite that minifies its picture by {@code minification} at most
+     * reads: none up to two to one, where a bilinear read of each pixel's nearest texels still
+     * reaches every texel the pixel covers, and past it the level whose texels are as large as the
+     * pixel's footprint, which trilinear sampling blends with the one before, at most six.
+     */
+    static int mipLevels(double minification) {
+        if (!(minification > 2)) {
+            return 0;
+        }
+        return (int) Math.min(MAX_MIP_LEVELS, Math.ceil(Math.log(minification) / Math.log(2) - 1e-9));
+    }
+
+    /**
+     * The most mipmap levels a picture's composite reads: a picture minified 64 to 1 is seen at a
+     * sixty-fourth of its size, a few pixels of a window, and six levels are also what the pool's
+     * sizes, multiples of 64, keep even.
+     */
+    private static final int MAX_MIP_LEVELS = 6;
+
+    /**
+     * The smallest magnification the homography {@code h} gives a point of the polygon {@code p}:
+     * the smallest singular value of its derivative, taken at the corners, where under a perspective
+     * the one farthest from the eye has it, and everywhere one number for an affine map.
+     */
+    private static double leastMagnification(double[] h, double[] p, int n) {
+        if (h[6] == 0 && h[7] == 0) {
+            return leastStretch(h[0] / h[8], h[1] / h[8], h[3] / h[8], h[4] / h[8]);
+        }
+        double least = Double.POSITIVE_INFINITY;
+        for (int i = 0; i < n; i++) {
+            double px = p[i * 2];
+            double py = p[i * 2 + 1];
+            double w = h[6] * px + h[7] * py + h[8];
+            if (!(w > NEAR / 2)) {
+                continue;
+            }
+            double sx = (h[0] * px + h[1] * py + h[2]) / w;
+            double sy = (h[3] * px + h[4] * py + h[5]) / w;
+            least = Math.min(least, leastStretch((h[0] - sx * h[6]) / w, (h[1] - sx * h[7]) / w,
+                    (h[3] - sy * h[6]) / w, (h[4] - sy * h[7]) / w));
+        }
+        return Double.isInfinite(least) ? 0 : least;
+    }
+
+    /** The smallest singular value of the 2 by 2 matrix {@code [[a, b], [c, d]]}. */
+    private static double leastStretch(double a, double b, double c, double d) {
+        double sum = a * a + b * b + c * c + d * d;
+        double det = a * d - b * c;
+        return Math.sqrt(Math.max(0, (sum - Math.sqrt(Math.max(0, sum * sum - 4 * det * det))) / 2));
+    }
+
+    /** @return how many mipmap chains this canvas has made for its composites; for tests */
+    int mipmapsMade() {
+        return mipmapsMade;
     }
 
     /**

@@ -378,4 +378,37 @@ final class ChildTransform {
         out[2] = (float) maxX;
         out[3] = (float) maxY;
     }
+
+    /**
+     * How much more the matrix magnifies the rectangle {@code (x0, y0)} to {@code (x1, y1)} of the
+     * widget's space somewhere than it does elsewhere, or in another direction: the largest
+     * singular value of its derivative over the smallest, each taken at the four corners, where
+     * under a perspective the nearest and the farthest lie. A canvas draws a picture at the largest
+     * and minifies it by this much where the smallest is; past two to one it reads the picture
+     * through a mipmap chain. Infinite where a corner lies behind the eye, whose neighbourhood is
+     * magnified without bound, or where the plane collapses.
+     */
+    double minification(float x0, float y0, float x1, float y1) {
+        double most = 0;
+        double least = Double.POSITIVE_INFINITY;
+        for (int i = 0; i < 4; i++) {
+            double px = i == 1 || i == 2 ? x1 : x0;
+            double py = i >= 2 ? y1 : y0;
+            double w = h20 * px + h21 * py + h22;
+            if (!(w > NEAR)) {
+                return Double.POSITIVE_INFINITY;
+            }
+            double sx = (h00 * px + h01 * py + h02) / w;
+            double sy = (h10 * px + h11 * py + h12) / w;
+            double a = (h00 - sx * h20) / w;
+            double b = (h01 - sx * h21) / w;
+            double c = (h10 - sy * h20) / w;
+            double d = (h11 - sy * h21) / w;
+            double sum = a * a + b * b + c * c + d * d;
+            double root = Math.sqrt(Math.max(0, sum * sum - 4 * (a * d - b * c) * (a * d - b * c)));
+            most = Math.max(most, Math.sqrt((sum + root) / 2));
+            least = Math.min(least, Math.sqrt(Math.max(0, (sum - root) / 2)));
+        }
+        return least > 0 ? most / least : Double.POSITIVE_INFINITY;
+    }
 }

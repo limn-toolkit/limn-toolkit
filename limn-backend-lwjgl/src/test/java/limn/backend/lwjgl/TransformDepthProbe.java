@@ -58,12 +58,19 @@ import java.util.List;
  *       vertical axis.</li>
  *   <li><b>The page</b>, stripes and card, all in one container, in whole frames: {@code P_OPAQUE},
  *       {@code P_OPAQUE'}, {@code P_FLAT}, and {@code P_0}, {@code P_30} and {@code P_75} seen from
- *       3200 points; and {@code P_30_MIP} and {@code P_75_MIP}, the same with
- *       {@code glGenerateMipmap} run on the page's picture after each frame, what a mipmapped
- *       composite would add.</li>
+ *       3200 points with the canvas's mipmaps turned off, bilinear only, as the composite was
+ *       before a picture minified past two to one got them; and {@code P_30_MIP} and
+ *       {@code P_75_MIP}, the same as the canvas draws them, with the mipmap chain it makes where
+ *       it decides to.</li>
  * </ul>
- * A turn of 0 degrees is at rest and draws with no picture, as the container promises. With
- * {@code LIMN_PROBE_DEPTH_SET} set to {@code card} or {@code page}, only that set runs.
+ * Every other mode is drawn as the canvas draws it. A turn of 0 degrees is at rest and draws with
+ * no picture, as the container promises. Each line says how many pictures and how many mipmap
+ * chains a frame made. With {@code LIMN_PROBE_DEPTH_SET} set to {@code card} or {@code page}, only
+ * that set runs.
+ *
+ * <p>Until 2026-10-18 the {@code _MIP} modes ran {@code glGenerateMipmap} on the page's picture
+ * after each frame by hand, what a mipmapped composite would add, which is how question 11 was
+ * measured before the canvas made the chain itself.
  */
 class TransformDepthProbe {
 
@@ -77,10 +84,6 @@ class TransformDepthProbe {
 
         boolean page() {
             return name().startsWith("P_");
-        }
-
-        boolean mipmapped() {
-            return name().endsWith("_MIP");
         }
 
         String label() {
@@ -154,6 +157,8 @@ class TransformDepthProbe {
             scene.setTextRuler(new ShapingRuler(fonts));
             scene.setPartialRendering(true);
             canvas = new GlCanvas(fonts);
+            // The page turned with no mipmaps, the bilinear composite they are measured against.
+            canvas.mipmapPictures = !(mode == Mode.P_30 || mode == Mode.P_75);
             repainted = mode.page() ? page : card;
         }
 
@@ -236,20 +241,12 @@ class TransformDepthProbe {
     }
 
     private static void frame(Subject s, int bufferAge, int query, boolean record) {
+        int chainsBefore = s.canvas.mipmapsMade();
         GL33C.glBeginQuery(GL33C.GL_TIME_ELAPSED, query);
         long start = System.nanoTime();
         s.canvas.beginFrame(WIDTH, HEIGHT, SCALE);
         s.scene.renderFrame(s.canvas, false, Float.NaN, bufferAge);
         s.canvas.endFrame();
-        if (s.mode.mipmapped()) {
-            // What a mipmapped composite would add: the chain made again from the picture the
-            // frame drew, which the pool still holds until the frame after its last use.
-            for (int picture : s.canvas.layerTextures()) {
-                GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, picture);
-                GL33C.glGenerateMipmap(GL33C.GL_TEXTURE_2D);
-            }
-            GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, 0);
-        }
         long issued = System.nanoTime();
         GL33C.glEndQuery(GL33C.GL_TIME_ELAPSED);
         GL33C.glFinish();
@@ -257,15 +254,16 @@ class TransformDepthProbe {
         long gpu = GL33C.glGetQueryObjecti64(query, GL33C.GL_QUERY_RESULT);
         if (record) {
             s.samples.add(new double[] {(issued - start) / 1e6, gpu / 1e6, (finished - start) / 1e6,
-                    s.canvas.layerTextures().length});
+                    s.canvas.layerTextures().length, s.canvas.mipmapsMade() - chainsBefore});
         }
     }
 
     private static void report(int round, Subject s) {
         System.out.printf(java.util.Locale.ROOT,
-                "round %d %-7s %-10s frames %4d  CPU %.3f  GPU %.3f  frame %.3f ms  pictures %.0f%n",
+                "round %d %-7s %-10s frames %4d  CPU %.3f  GPU %.3f  frame %.3f ms  pictures %.0f  mipmaps %.0f%n",
                 round, s.mode.page() ? "whole" : "partial", s.mode.label(), s.samples.size(),
-                median(s.samples, 0), median(s.samples, 1), median(s.samples, 2), median(s.samples, 3));
+                median(s.samples, 0), median(s.samples, 1), median(s.samples, 2), median(s.samples, 3),
+                median(s.samples, 4));
     }
 
     private static double median(List<double[]> samples, int column) {

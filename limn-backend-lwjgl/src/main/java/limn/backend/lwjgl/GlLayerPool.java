@@ -24,7 +24,9 @@ import java.util.List;
  * shrinks lets go of the pictures it no longer fits, and a closed window frees them all, as it frees
  * everything else it held.
  * There is no budget and no knob: the most a window holds is bounded by its own size and the depth
- * of its nesting, and nothing is held once the frames stop using it.
+ * of its nesting, and nothing is held once the frames stop using it. A picture that a composite
+ * minified past two to one also holds its mipmap chain, a third more, made when that composite
+ * first needed it and freed with the picture.
  *
  * <p>Single-threaded: the canvas that owns it, with its context current.
  */
@@ -39,6 +41,12 @@ final class GlLayerPool {
         final int framebuffer;
         final int width;
         final int height;
+        /**
+         * How many mipmap levels past its own the texture holds: none until a composite first needs
+         * them, which the canvas makes then and counts here. The driver keeps them until the picture
+         * is deleted, whichever layer takes it after.
+         */
+        int levels;
         private long usedInFrame;
         private boolean taken;
 
@@ -50,7 +58,11 @@ final class GlLayerPool {
         }
 
         long bytes() {
-            return (long) width * height * 4;
+            long bytes = 0;
+            for (int level = 0; level <= levels; level++) {
+                bytes += (long) Math.max(1, width >> level) * Math.max(1, height >> level) * 4;
+            }
+            return bytes;
         }
     }
 

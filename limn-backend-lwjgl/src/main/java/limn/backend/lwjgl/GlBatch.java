@@ -41,6 +41,7 @@ import static org.lwjgl.opengl.GL33C.glUniform2f;
 import static org.lwjgl.opengl.GL33C.glVertexAttribPointer;
 import static org.lwjgl.opengl.GL33C.GL_CLAMP_TO_EDGE;
 import static org.lwjgl.opengl.GL33C.GL_LINEAR;
+import static org.lwjgl.opengl.GL33C.GL_LINEAR_MIPMAP_LINEAR;
 import static org.lwjgl.opengl.GL33C.GL_TEXTURE_MAG_FILTER;
 import static org.lwjgl.opengl.GL33C.GL_TEXTURE_MIN_FILTER;
 import static org.lwjgl.opengl.GL33C.GL_TEXTURE_WRAP_S;
@@ -126,6 +127,13 @@ final class GlBatch implements AutoCloseable {
      * not be filtered.
      */
     private final int smoothSampler;
+    /**
+     * Trilinear sampling, for a picture minified past two to one somewhere, whose mipmap chain the
+     * canvas made for that composite: between the two levels nearest each pixel's footprint, each
+     * read bilinearly, so that a pattern finer than the pixels it lands on averages instead of
+     * aliasing.
+     */
+    private final int mipmapSampler;
     private final int compositeVao;
     private final int compositeVbo;
     private final FloatBuffer compositeVertices = MemoryUtil.memAllocFloat(
@@ -235,6 +243,11 @@ final class GlBatch implements AutoCloseable {
         glSamplerParameteri(smoothSampler, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glSamplerParameteri(smoothSampler, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glSamplerParameteri(smoothSampler, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        mipmapSampler = glGenSamplers();
+        glSamplerParameteri(mipmapSampler, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glSamplerParameteri(mipmapSampler, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glSamplerParameteri(mipmapSampler, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glSamplerParameteri(mipmapSampler, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     }
 
     private static void attribute(int location, int size, int strideBytes, int floatOffset) {
@@ -512,7 +525,7 @@ final class GlBatch implements AutoCloseable {
         compositeVertex(x1, y1, 1, u1, v1);
         compositeVertex(x0, y1, 1, u0, v1);
         compositeCount = 6;
-        drawComposite(texture, alpha, false, null);
+        drawComposite(texture, alpha, 0, null);
     }
 
     /**
@@ -536,6 +549,15 @@ final class GlBatch implements AutoCloseable {
      * @param clip    the enclosing clip, in the device pixels of the target's space
      */
     void compositeThrough(int texture, float[] corners, float[] uvs, int count, float alpha, DeviceClip clip) {
+        compositeThrough(texture, corners, uvs, count, alpha, clip, false);
+    }
+
+    /**
+     * {@link #compositeThrough(int, float[], float[], int, float, DeviceClip)}, sampled trilinearly
+     * when {@code mipmapped}: the picture's mipmap chain has been made for this composite.
+     */
+    void compositeThrough(int texture, float[] corners, float[] uvs, int count, float alpha, DeviceClip clip,
+                          boolean mipmapped) {
         if (count < 3) {
             return; // nothing of it in front of the eye
         }
@@ -547,18 +569,20 @@ final class GlBatch implements AutoCloseable {
             cornerVertex(corners, uvs, t + 1);
         }
         compositeCount = 3 * (count - 2);
-        drawComposite(texture, alpha, true, clip);
+        drawComposite(texture, alpha, mipmapped ? mipmapSampler : smoothSampler, clip);
     }
 
-    private void drawComposite(int texture, float alpha, boolean smooth, DeviceClip clip) {
+    /** @param sampler the sampler bound over the picture's own nearest sampling, or 0 for none */
+    private void drawComposite(int texture, float alpha, int sampler, DeviceClip clip) {
         compositeVertices.flip();
         glBindVertexArray(compositeVao);
         glBindBuffer(GL_ARRAY_BUFFER, compositeVbo);
         glBufferData(GL_ARRAY_BUFFER, compositeVertices, GL_STREAM_DRAW);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture);
+        boolean smooth = sampler != 0;
         if (smooth) {
-            glBindSampler(0, smoothSampler);
+            glBindSampler(0, sampler);
         }
         applyRasterState();
         if (clip == null) {
@@ -771,6 +795,7 @@ final class GlBatch implements AutoCloseable {
         compositeProgram.close();
         clippedCompositeProgram.close();
         glDeleteSamplers(smoothSampler);
+        glDeleteSamplers(mipmapSampler);
         MemoryUtil.memFree(compositeVertices);
         MemoryUtil.memFree(vertices);
         MemoryUtil.memFree(indices);

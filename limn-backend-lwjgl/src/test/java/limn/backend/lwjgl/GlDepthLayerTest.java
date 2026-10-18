@@ -148,7 +148,11 @@ class GlDepthLayerTest {
     @Test
     void aCardTurnedInPerspectiveLiesWhereTheProjectionPutsEachPointInterpolatedPerspectiveCorrectly() {
         // A card whose last quarter is red: an affine interpolation over the quad's two triangles
-        // would put that line pixels away from where the projection puts it.
+        // would put that line pixels away from where the projection puts it. Read on the picture's
+        // own level: its far part is minified past two to one, and a mipmap chain's coarser levels
+        // would widen every edge past the pixel this test leaves to the antialiasing
+        // (GlMipmapLayerTest holds the chain).
+        canvas.mipmapPictures = false;
         float degrees = 55;
         float distance = 420;
         byte[] image = render(c -> {
@@ -208,6 +212,7 @@ class GlDepthLayerTest {
         // magnification there, a scale above the layer included.
         HeadlessGl.onSoftwareRenderer(() -> {
             GlCanvas software = new GlCanvas(fonts);
+            software.mipmapPictures = false; // the geometry on the picture's own level, as above
             try {
                 assertTrue(software.depthAtNaturalSize, "read from the context: " + HeadlessGl.describe());
                 render(software, c -> {
@@ -255,7 +260,8 @@ class GlDepthLayerTest {
     void aCardTurnedPartlyPastTheEyeDrawsThePartInFrontAndNothingElse() {
         // A 360 point card turned 70 degrees with the eye 100 points away: the part of it more than
         // 106 points left of the pivot lies behind the eye, and the part just in front of that is
-        // magnified past the window's left edge.
+        // magnified past the window's left edge. On the picture's own level, as the first case.
+        canvas.mipmapPictures = false;
         float degrees = 70;
         float distance = 100;
         int[] open = new int[1];

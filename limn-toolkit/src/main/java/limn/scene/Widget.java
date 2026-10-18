@@ -2333,6 +2333,29 @@ public abstract class Widget<W extends Widget<W>> {
         }
     }
 
+    /**
+     * Whether a change anywhere among the children is seen past where it is drawn: the picture they
+     * are drawn into is minified past two to one somewhere, and the canvas then lays it through a
+     * mipmap chain, whose coarser levels average each texel with its neighbours across the picture,
+     * in every direction, however little the picture is minified in that one. A pixel changed in
+     * the picture moves the levels around it, and what the composite shows several pixels away; a
+     * pass cut to the change's own bounds would leave those pixels as the frame before drew them.
+     * Taken over what the children paint upright, the picture's own rectangle, at its corners, as
+     * the canvas takes the minification over the part it can see, which is no larger: so this
+     * answers yes wherever the canvas makes a chain, and the damage of {@link #invalidate()} under
+     * it is the whole picture.
+     */
+    final boolean spreadsChildChanges() {
+        ChildTransform through = childTransform;
+        if (through == null || through.axisAligned || through.drawsNothing) {
+            return false;
+        }
+        float[] b = PAINTED_BOUNDS;
+        paintedRect(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY,
+                Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY, false, b);
+        return b[2] > b[0] && b[3] > b[1] && through.minification(b[0], b[1], b[2], b[3]) > 2;
+    }
+
     /** The rectangle {@link #paintedBounds()} answers in; one, since the paint runs on the UI thread. */
     private static final float[] PAINTED_BOUNDS = new float[4];
 

@@ -395,6 +395,35 @@ class TransformDepthTest extends SceneTestBase {
         assertNull(TransformAccess.childMatrix(t), "flat again at the end");
     }
 
+    @Test
+    void aChangeInsideACardTurnedFarRepaintsAllOfItAndInsideOneTurnedLittleOnlyItself() {
+        // ADR 072 section 12: turned 75 degrees from 800 points, the card's far edge is seen at an
+        // eighth of its near edge's size across, the canvas lays its picture through a mipmap chain,
+        // and a dot changing in its middle moves the chain's coarser levels across the card; turned
+        // 20 degrees, a third more at most, the chain is not made, and the dot repaints only itself.
+        for (float degrees : new float[] {75, 20}) {
+            TransformTest.Leaf dot = new Card("dot", painted, 10, 10);
+            Stack card = new Stack();
+            card.add(new Card("w", painted, 400, 300));
+            card.add(new Padding(new Insets(140, 0, 0, 195), dot));
+            Transform t = new Transform(card).setPerspective(800).setRotation3D(Vec3.UNIT_Y, degrees);
+            Scene scene = sceneOf(at(t, 250, 300));
+            dot.invalidate();
+            frame(scene);
+            Rect whole = card.localToSceneBounds(0, 0, 400, 300);
+            Rect own = dot.localToSceneBounds(0, 0, 10, 10);
+            assertCovered(own, degrees + " degrees: the dot");
+            if (degrees == 75) {
+                assertCovered(whole, "turned far, the whole card");
+            } else {
+                for (Rect pass : canvas.passes) {
+                    assertTrue(pass.width() < own.width() + 4 && pass.height() < own.height() + 4,
+                            "turned little, a pass the dot's size: " + pass + " for " + own);
+                }
+            }
+        }
+    }
+
     /** Fails unless the passes of the last frame together cover {@code r}, within a hundredth. */
     private void assertCovered(Rect r, String what) {
         // Each corner and the middle inside some pass is enough for the rectangles a scene merges.
