@@ -257,10 +257,13 @@ subprojects {
             // and the tests run in a JVM of their own, so a documented escape hatch that nobody
             // forwarded is a test that can never run, which is what limn.video.test.clips was.
             // Forwarded only when set, so an absent one stays absent rather than becoming "".
-            for (property in listOf("limn.video.test.clips")) {
+            // limn.test.softwareGl puts the device tests on a Mac's software renderer through CGL, the
+            // context they fall back to on a Mac without a GPU (HeadlessGl), so that the fallback can
+            // be run on a Mac that has one.
+            for (property in listOf("limn.video.test.clips", "limn.test.softwareGl")) {
                 System.getProperty(property)?.let { systemProperty(property, it) }
             }
-            // …and that one has a default now: the committed corpus in media/. Decoding a real
+            // …and limn.video.test.clips has a default now: the committed corpus in media/. Decoding a real
             // H.264 file is the only end-to-end evidence for the codec this repository ships and
             // cannot encode (ADR 027), so it runs by default rather than waiting for somebody to
             // remember a flag. A -D above still wins, for a developer with a larger corpus.

@@ -58,7 +58,7 @@ class LwjglDisplayTest {
 
     @Test
     void anUnpluggedMonitorAnswersWhatItLastRead() {
-        HeadlessGl.assumeAvailable(); // a real GLFW, and so a real monitor to read
+        HeadlessGl.assumeWindow(); // a real GLFW, and so a real monitor to read
         long primary = GLFW.glfwGetPrimaryMonitor();
         // Not only on a machine with no screen: macOS leaves a sleeping display out of the list.
         assumeTrue(primary != 0L, "GLFW lists no monitor here");

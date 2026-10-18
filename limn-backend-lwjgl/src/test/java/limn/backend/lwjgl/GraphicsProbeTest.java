@@ -28,7 +28,7 @@ class GraphicsProbeTest {
 
     @Test
     void reportsTheContextItIsGiven() {
-        HeadlessGl.assumeAvailable();
+        HeadlessGl.assumeWindow();
         GraphicsInfo info = GraphicsProbe.read(HeadlessGl.window(), HeadlessGl.capabilities());
 
         assertNull(info.failure(), "a live context is not a failure");
@@ -50,7 +50,7 @@ class GraphicsProbeTest {
      */
     @Test
     void namesTheGrantedProfileAndNotTheRequestedOne() {
-        HeadlessGl.assumeAvailable();
+        HeadlessGl.assumeWindow();
         GraphicsInfo info = GraphicsProbe.read(HeadlessGl.window(), HeadlessGl.capabilities());
 
         assertTrue(info.api().startsWith("OpenGL "), "client API: " + info.api());
@@ -68,7 +68,7 @@ class GraphicsProbeTest {
      */
     @Test
     void anInstalledErrorCallbackDoesNotSwallowTheError() {
-        HeadlessGl.assumeAvailable();
+        HeadlessGl.assumeWindow();
         org.lwjgl.glfw.GLFWErrorCallback silent =
                 org.lwjgl.glfw.GLFWErrorCallback.create((code, description) -> {
                 });

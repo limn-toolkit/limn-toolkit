@@ -30,7 +30,7 @@ class MacInputContextGateTest {
     @Test
     void aGatedViewHasNoInputContextWhileOffAndGlfwsClassIsLeftAsItWas() {
         assumeTrue(Platform.current().isMacOs(), "an AppKit view");
-        HeadlessGl.assumeAvailable();
+        HeadlessGl.assumeWindow();
         long window = HeadlessGl.window();
         long view = GLFWNativeCocoa.glfwGetCocoaView(window);
         long glfwClass = ObjCRuntime.object_getClass(view);

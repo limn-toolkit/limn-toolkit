@@ -40,7 +40,7 @@ class MacFullscreenTest {
     @Test
     void aNotificationReachesTheWindowItNamesAndNoOther() {
         assumeTrue(Platform.current().isMacOs(), "AppKit's notification centre");
-        HeadlessGl.assumeAvailable();
+        HeadlessGl.assumeWindow();
         long object = ObjC.msg(ObjC.msg(ObjC.cls("NSObject"), "alloc"), "init");
         long other = ObjC.msg(ObjC.msg(ObjC.cls("NSObject"), "alloc"), "init");
         long name;
@@ -74,7 +74,7 @@ class MacFullscreenTest {
     @Test
     void aWindowIsLentTheBehaviourAndGivenItsOwnBackWithoutGoingFullscreen() {
         assumeTrue(Platform.current().isMacOs(), "an NSWindow");
-        HeadlessGl.assumeAvailable();
+        HeadlessGl.assumeWindow();
         long nsWindow = GLFWNativeCocoa.glfwGetCocoaWindow(HeadlessGl.window());
         long own = ObjC.msg(nsWindow, "collectionBehavior");
         assertFalse(MacFullscreen.isFullscreen(nsWindow), "the hidden test window is windowed");

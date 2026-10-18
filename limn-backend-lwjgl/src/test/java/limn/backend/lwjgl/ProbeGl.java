@@ -1,12 +1,9 @@
 package limn.backend.lwjgl;
 
 import org.junit.jupiter.api.Assumptions;
-import org.lwjgl.PointerBuffer;
 import org.lwjgl.opengl.CGL;
 import org.lwjgl.opengl.GL;
-import org.lwjgl.system.MemoryStack;
 
-import java.nio.IntBuffer;
 import java.util.Locale;
 
 /**
@@ -43,24 +40,10 @@ final class ProbeGl {
             HeadlessGl.assumeAvailable();
             return 0L;
         }
-        try (MemoryStack stack = MemoryStack.stackPush()) {
-            IntBuffer attributes = software
-                    ? stack.ints(CGL.kCGLPFAOpenGLProfile, CGL.kCGLOGLPVersion_3_2_Core,
-                            CGL.kCGLPFARendererID, 0x00020400, 0)
-                    : stack.ints(CGL.kCGLPFAOpenGLProfile, CGL.kCGLOGLPVersion_3_2_Core,
-                            CGL.kCGLPFAAccelerated, 0);
-            PointerBuffer format = stack.mallocPointer(1);
-            IntBuffer count = stack.mallocInt(1);
-            int error = CGL.CGLChoosePixelFormat(attributes, format, count);
-            Assumptions.assumeTrue(error == 0 && format.get(0) != 0L, "no pixel format: " + error);
-            PointerBuffer context = stack.mallocPointer(1);
-            error = CGL.CGLCreateContext(format.get(0), 0L, context);
-            CGL.CGLDestroyPixelFormat(format.get(0));
-            Assumptions.assumeTrue(error == 0, "no context: " + error);
-            CGL.CGLSetCurrentContext(context.get(0));
-            GL.createCapabilities();
-            return context.get(0);
-        }
+        long context = HeadlessGl.cglContext(software);
+        Assumptions.assumeTrue(context != 0L, "no pixel format or no context through CGL");
+        GL.createCapabilities();
+        return context;
     }
 
     /** @param context what {@link #open} answered */
