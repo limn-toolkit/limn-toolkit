@@ -10,6 +10,7 @@ import limn.components.ScrollView;
 import limn.components.SelectionMode;
 import limn.components.Separator;
 import limn.components.TextField;
+import limn.components.Validation;
 import limn.components.Theme;
 import limn.concurrent.Ui;
 import limn.graphics.Icon;
@@ -106,7 +107,7 @@ public final class FormExample {
         message.setDescriptionFor(email);
         email.onChange(text -> {
             boolean ok = text.matches("[^@\\s]+@[^@\\s]+\\.[^@\\s]+");
-            email.setValidation(ok ? TextField.Validation.SUCCESS : TextField.Validation.ERROR);
+            email.setValidation(ok ? Validation.SUCCESS : Validation.ERROR);
             message.setText(ok ? "" : "Enter an address like ada@example.com");
         });
     }
@@ -125,7 +126,7 @@ public final class FormExample {
         validate(email, emailMessage);
         // setText above was the application's write, and a handler runs for the user alone, so
         // the rule in validate did not run: the starting state is set here, explicitly.
-        email.setValidation(TextField.Validation.ERROR);
+        email.setValidation(Validation.ERROR);
 
         PasswordField password = new PasswordField();
         password.setText("correct horse battery");

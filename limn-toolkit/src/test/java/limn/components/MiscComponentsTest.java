@@ -138,12 +138,12 @@ class MiscComponentsTest extends ComponentTestBase {
     @Test
     void textFieldValidationState() {
         TextField field = new TextField();
-        assertEquals(TextField.Validation.NONE, field.validation());
+        assertEquals(Validation.NONE, field.validation());
         field.setError(true);
-        assertEquals(TextField.Validation.ERROR, field.validation());
-        field.setValidation(TextField.Validation.SUCCESS);
-        assertEquals(TextField.Validation.SUCCESS, field.validation());
+        assertEquals(Validation.ERROR, field.validation());
+        field.setValidation(Validation.SUCCESS);
+        assertEquals(Validation.SUCCESS, field.validation());
         field.setError(false);
-        assertEquals(TextField.Validation.NONE, field.validation());
+        assertEquals(Validation.NONE, field.validation());
     }
 }

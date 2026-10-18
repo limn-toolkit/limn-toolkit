@@ -59,9 +59,6 @@ import java.util.function.Consumer;
  */
 public sealed class TextField extends Widget<TextField> permits PasswordField, SearchField, ComboBox.Editor {
 
-    /** Validation state; colors the border (and a caller-supplied message). */
-    public enum Validation { NONE, ERROR, WARNING, SUCCESS, INFO }
-
     private static final double BLINK_SECONDS = 0.5;
 
     /**

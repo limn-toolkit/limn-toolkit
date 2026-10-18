@@ -142,7 +142,7 @@ public final class TextArea extends Widget<TextArea> {
                     // Without this a Tab landing in a text area repainted every line of it eleven
                     // times over -- see Transition.damages.
                     .damages(this::damageBorder);
-    private TextField.Validation validation = TextField.Validation.NONE;
+    private Validation validation = Validation.NONE;
     /** Whether long lines wrap at the text column's edge instead of scrolling; see {@link #setSoftWrap}. */
     private boolean softWrap;
     /**
@@ -345,7 +345,7 @@ public final class TextArea extends Widget<TextArea> {
     }
 
     /** Sets the validation state; colors the border danger/warning/success. */
-    public TextArea setValidation(TextField.Validation state) {
+    public TextArea setValidation(Validation state) {
         Ui.checkUiThread();
         this.validation = Objects.requireNonNull(state, "state");
         invalidate();
@@ -354,7 +354,7 @@ public final class TextArea extends Widget<TextArea> {
 
     /** Convenience: {@code ERROR} when true, {@code NONE} when false. */
     public TextArea setError(boolean error) {
-        return setValidation(error ? TextField.Validation.ERROR : TextField.Validation.NONE);
+        return setValidation(error ? Validation.ERROR : Validation.NONE);
     }
 
     /**
@@ -2673,7 +2673,7 @@ public final class TextArea extends Widget<TextArea> {
         // publishing INVALID there would announce an area that just passed as failing. WARNING and
         // INFO carry no bit either -- the platform flag is a boolean, so folding this widget's
         // five-way vocabulary into it loses the distinction the vocabulary exists to draw.
-        a.state(Accessible.State.INVALID, validation == TextField.Validation.ERROR);
+        a.state(Accessible.State.INVALID, validation == Validation.ERROR);
         // The area raises the Cut/Copy/Paste/Select All menu from the pointer and from the
         // keyboard, and without the verb a reader has no route to any of those four operations at
         // all. The verb alone, and not HAS_POPUP, for the reason TextField's hook gives: the state

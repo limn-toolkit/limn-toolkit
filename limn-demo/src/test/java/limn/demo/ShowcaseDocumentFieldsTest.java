@@ -2,6 +2,7 @@ package limn.demo;
 
 import limn.components.Label;
 import limn.components.TextField;
+import limn.components.Validation;
 import limn.components.Theme;
 import limn.graphics.TextRulers;
 import limn.i18n.I18n;
@@ -51,16 +52,16 @@ class ShowcaseDocumentFieldsTest {
     @Test
     void theCpfIsCheckedOnceItsElevenDigitsAreIn() {
         TextField cpf = field("000.000.000-00");
-        assertEquals(TextField.Validation.SUCCESS, cpf.validation(), "the page opens on a valid CPF");
+        assertEquals(Validation.SUCCESS, cpf.validation(), "the page opens on a valid CPF");
         assertEquals(BasicsScene.Text.CHECK_DIGITS_MATCH.get(), line(cpf).text());
 
         focusAtEnd(cpf).press(Keys.BACKSPACE);
         assertEquals("123.456.789-0", cpf.text());
-        assertEquals(TextField.Validation.NONE, cpf.validation(), "a digit still to type");
+        assertEquals(Validation.NONE, cpf.validation(), "a digit still to type");
         assertEquals("", line(cpf).text());
 
         drive(scene).type("8");
-        assertEquals(TextField.Validation.ERROR, cpf.validation(), "123.456.789-08's last check digit is 9");
+        assertEquals(Validation.ERROR, cpf.validation(), "123.456.789-08's last check digit is 9");
         assertEquals(BasicsScene.Text.CPF_INVALID.get(), line(cpf).text());
     }
 
@@ -72,23 +73,23 @@ class ShowcaseDocumentFieldsTest {
             drive(scene).press(Keys.BACKSPACE);
         }
         assertEquals("", iban.text());
-        assertEquals(TextField.Validation.NONE, iban.validation());
+        assertEquals(Validation.NONE, iban.validation());
 
         drive(scene).type("89370400440532013000");
         assertEquals("DE89 3704 0044 0532 0130 00", iban.text(), "the country is the mask's");
-        assertEquals(TextField.Validation.SUCCESS, iban.validation());
+        assertEquals(Validation.SUCCESS, iban.validation());
         assertEquals(BasicsScene.Text.CHECK_DIGITS_MATCH.get(), line(iban).text());
     }
 
     @Test
     void theCardsWrongLastDigitIsCaughtAndItsRightOnePasses() {
         TextField card = field("0000 0000 0000 0000");
-        assertEquals(TextField.Validation.ERROR, card.validation(), "the page opens on 4111 1111 1111 1112");
+        assertEquals(Validation.ERROR, card.validation(), "the page opens on 4111 1111 1111 1112");
         assertEquals(BasicsScene.Text.CARD_INVALID.get(), line(card).text());
 
         focusAtEnd(card).press(Keys.BACKSPACE).type("1");
         assertEquals("4111 1111 1111 1111", card.text());
-        assertEquals(TextField.Validation.SUCCESS, card.validation());
+        assertEquals(Validation.SUCCESS, card.validation());
         assertEquals(BasicsScene.Text.CARD_VALID.get(), line(card).text());
     }
 

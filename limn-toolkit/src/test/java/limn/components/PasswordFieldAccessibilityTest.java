@@ -439,11 +439,11 @@ class PasswordFieldAccessibilityTest extends AccessibleComponentTestBase {
                         + "the field's own clipboard rule and not by hiding the menu"
                         + describe(tree()));
 
-        field.setValidation(TextField.Validation.SUCCESS);
+        field.setValidation(Validation.SUCCESS);
         frame();
         assertFalse(fieldNode().has(Accessible.State.INVALID), describe(tree()));
 
-        field.setValidation(TextField.Validation.ERROR);
+        field.setValidation(Validation.ERROR);
         frame();
         assertTrue(fieldNode().has(Accessible.State.INVALID), describe(tree()));
     }

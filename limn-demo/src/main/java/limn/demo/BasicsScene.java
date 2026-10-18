@@ -11,6 +11,7 @@ import limn.components.SearchField;
 import limn.components.SegmentedControl;
 import limn.components.TextArea;
 import limn.components.TextField;
+import limn.components.Validation;
 import limn.components.Theme;
 import limn.components.ToolBar;
 import limn.concurrent.Ui;
@@ -105,14 +106,14 @@ final class BasicsScene {
         // from code keeps every digit, a 1 included, and is never read as the literal.
         TextField phone = new TextField().setMask("+1 (000) 000-0000")
                 .setPlaceholder("+1 (415) 555-0123").setLeadingIcon(Tabler.outline("phone"));
-        phone.setValidation(TextField.Validation.INFO);
+        phone.setValidation(Validation.INFO);
         Label phoneLine = Page.message(Text.PHONE_HINT, Theme::info, Tabler.outline("info-circle"), phone);
 
         TextField user = new TextField().setText("hal").setLeadingIcon(Tabler.outline("user"));
         Label userLine = Page.message(I18nString.EMPTY, Theme::warning, null, user);
         Runnable checkUser = () -> {
             boolean shortName = user.text().strip().length() < 4;
-            user.setValidation(shortName ? TextField.Validation.WARNING : TextField.Validation.NONE);
+            user.setValidation(shortName ? Validation.WARNING : Validation.NONE);
             say(userLine, shortName ? Text.USERNAME_SHORT : null, "alert-triangle");
         };
         checkUser.run();
@@ -122,13 +123,13 @@ final class BasicsScene {
         Label couponLine = Page.message(I18nString.EMPTY, Theme::success, null, coupon);
         coupon.setTrailingButton(Tabler.outline("rosette-discount-check"), Text.APPLY_COUPON, () -> {
             boolean known = coupon.text().strip().equalsIgnoreCase("SPRING10");
-            coupon.setValidation(known ? TextField.Validation.SUCCESS : TextField.Validation.ERROR);
+            coupon.setValidation(known ? Validation.SUCCESS : Validation.ERROR);
             Page.tint(couponLine, known ? Theme::success : Theme::danger);
             say(couponLine, known ? Text.COUPON_APPLIED : Text.COUPON_UNKNOWN,
                     known ? "circle-check" : "alert-circle");
         });
         coupon.onChange(text -> {
-            coupon.setValidation(TextField.Validation.NONE);
+            coupon.setValidation(Validation.NONE);
             say(couponLine, null, null);
         });
 
@@ -226,12 +227,12 @@ final class BasicsScene {
         Label line = Page.message(I18nString.EMPTY, Theme::success, null, field);
         Runnable check = () -> {
             if (!field.isMaskComplete()) {
-                field.setValidation(TextField.Validation.NONE);
+                field.setValidation(Validation.NONE);
                 say(line, null, null);
                 return;
             }
             boolean passes = valid.test(field.text());
-            field.setValidation(passes ? TextField.Validation.SUCCESS : TextField.Validation.ERROR);
+            field.setValidation(passes ? Validation.SUCCESS : Validation.ERROR);
             Page.tint(line, passes ? Theme::success : Theme::danger);
             say(line, passes ? ok : wrong, passes ? "circle-check" : "alert-circle");
         };

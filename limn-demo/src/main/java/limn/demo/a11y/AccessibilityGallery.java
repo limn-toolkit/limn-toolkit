@@ -46,6 +46,7 @@ import limn.components.date.DayMark;
 import limn.components.table.Table;
 import limn.components.TextArea;
 import limn.components.TextField;
+import limn.components.Validation;
 import limn.components.Theme;
 import limn.components.ToolBar;
 import limn.components.VideoView;
@@ -941,7 +942,7 @@ public final class AccessibilityGallery {
         TextField city = new TextField().setText("Lisbon");
         city.setTrailingButton(BLANK_ICON, I18nString.literal("Clear city"), () -> city.setText(""));
         page.add(Labelled.above("City", city));
-        TextField code = new TextField().setText("12345").setValidation(TextField.Validation.ERROR);
+        TextField code = new TextField().setText("12345").setValidation(Validation.ERROR);
         page.add(Labelled.above("Postal code", code));
         return new Built(page);
     }

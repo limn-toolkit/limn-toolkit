@@ -321,12 +321,12 @@ class TextFieldAccessibilityTest extends AccessibleComponentTestBase {
     void onlyErrorIsInvalidAndTheOtherFourAreNot() {
         bindField();
 
-        for (TextField.Validation state : TextField.Validation.values()) {
+        for (Validation state : Validation.values()) {
             field.setValidation(state);
             frame();
-            assertEquals(state == TextField.Validation.ERROR,
+            assertEquals(state == Validation.ERROR,
                     fieldNode().has(Accessible.State.INVALID),
-                    state + " must " + (state == TextField.Validation.ERROR ? "" : "not ")
+                    state + " must " + (state == Validation.ERROR ? "" : "not ")
                             + "publish INVALID: the platform flag is a boolean, and SUCCESS is the "
                             + "state a field that just passed is put into" + describe(tree()));
         }
