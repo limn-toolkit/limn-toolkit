@@ -56,6 +56,12 @@ class TransformRotationPixelTest {
     private int fbo;
     private int previousFbo;
     private final int[] previousViewport = new int[4];
+    /**
+     * The scenes' clock, which moves only when a test says so. On the wall clock the field's focus
+     * fade ran between two frames compared pixel for pixel: on the lab's slower devices (Fedora's
+     * virgl, a Mac's software renderer) the border thickened between them and was read as the caret.
+     */
+    private long sceneNanos;
 
     @BeforeEach
     void openContext() {
@@ -197,6 +203,7 @@ class TransformRotationPixelTest {
         float midY = field.height() / 2;
         press(scene, field, clickX, midY, true);
         press(scene, field, clickX, midY, false);
+        settle(scene); // the click focused the field: its focus fade ends before the frames compared
         byte[] atClick = frame(scene, 0);
         drive(scene).press(Keys.HOME);
         drive(scene).inputBatchEnded();
@@ -255,10 +262,18 @@ class TransformRotationPixelTest {
     // ------------------------------------------------------------------ plumbing
 
     private Scene scene(Widget<?> root) {
-        Scene scene = new Scene(root);
+        Scene scene = new Scene(root, () -> sceneNanos);
         scene.setTextRuler(new ShapingRuler(fonts));
         scene.setPartialRendering(true);
         return scene;
+    }
+
+    /** Moves the scenes' clock a second at a time, a frame each, so every transition running ends. */
+    private void settle(Scene scene) {
+        for (int i = 0; i < 2; i++) {
+            sceneNanos += 1_000_000_000L;
+            frame(scene, 0);
+        }
     }
 
     private byte[] frame(Scene scene, int bufferAge) {
