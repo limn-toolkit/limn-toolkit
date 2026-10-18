@@ -550,6 +550,10 @@ surface forwarding its clicks (the title read as a button, the group around it d
   still clicked card asks for no frame.
 - **Readers:** not heard. The listen of section 7 is still owed if the owner wants the wording
   of the first stop of a clicked card with a footer.
+- **Seen in the prints, not measured:** a filled card on the Light palette's page all but
+  vanishes, `surfaceRaised` being the page's own tone there (#EDF0F6 on #EEF0F4, the same pair the
+  0.9.0 slider rail fell into). The style draws what section 2.5 says; whether `FILLED` should take
+  a line on a palette whose raised tone is its canvas is the owner's.
 
 ## 8. Built, 2026-10-18
 
