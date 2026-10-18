@@ -3589,7 +3589,16 @@ public abstract class Widget<W extends Widget<W>> {
         limn.i18n.I18nString description;
         limn.accessibility.Accessible.Role role;
         boolean ignored;
+        /** What a field around this widget says of it, {@code FIELD_*} bits; see SceneAccess. */
+        int field;
     }
+
+    /** A field holds this widget: a node of its own, a group where it declares no role. */
+    static final int FIELD_CONTROL = 1;
+    /** The field around this widget is required. */
+    static final int FIELD_REQUIRED = 1 << 1;
+    /** The field around this widget holds an error. */
+    static final int FIELD_INVALID = 1 << 2;
 
     private AccessibleOverrides overrides() {
         if (accessibleOverrides == null) {
@@ -3713,6 +3722,21 @@ public abstract class Widget<W extends Widget<W>> {
     /** The widget whose text describes this one, or {@code null}. Read by the publish step. */
     final Widget<?> accessibleDescribedBy() {
         return accessibleOverrides == null ? null : accessibleOverrides.describedBy;
+    }
+
+    /** What a field around this widget says of it, {@code FIELD_*} bits. Read by the publish step. */
+    final int accessibleFieldBits() {
+        return accessibleOverrides == null ? 0 : accessibleOverrides.field;
+    }
+
+    /** Sets what a field around this widget says of it; see {@link limn.scene.internal.SceneAccess#fieldControl}. */
+    final void setAccessibleFieldBits(int bits) {
+        Ui.checkUiThread();
+        if (accessibleFieldBits() == bits) {
+            return;
+        }
+        overrides().field = bits;
+        invalidateAccessible();
     }
 
     /**

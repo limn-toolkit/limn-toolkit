@@ -3438,6 +3438,13 @@ public final class Scene {
             }
 
             @Override
+            public void fieldControl(Widget<?> widget, boolean held, boolean required, boolean invalid) {
+                widget.setAccessibleFieldBits(!held ? 0 : Widget.FIELD_CONTROL
+                        | (required ? Widget.FIELD_REQUIRED : 0)
+                        | (invalid ? Widget.FIELD_INVALID : 0));
+            }
+
+            @Override
             public void repaintPicture(Widget<?> widget) {
                 Scene scene = widget.scene();
                 if (scene != null) {

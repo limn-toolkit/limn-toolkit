@@ -109,6 +109,14 @@ public final class SceneAccess {
         void pressFocus(Widget<?> widget, PressFocus filter);
 
         /**
+         * @param widget   the control a field holds; see {@link SceneAccess#fieldControl}
+         * @param held     whether a field holds it
+         * @param required whether that field is required
+         * @param invalid  whether that field holds an error
+         */
+        void fieldControl(Widget<?> widget, boolean held, boolean required, boolean invalid);
+
+        /**
          * @param widget the root of the subtree; see {@link SceneAccess#setInert}
          * @param inert  whether it is out of reach
          */
@@ -234,6 +242,22 @@ public final class SceneAccess {
      */
     public static void pressFocus(Widget<?> widget, PressFocus filter) {
         hook().pressFocus(widget, filter);
+    }
+
+    /**
+     * Says what a field around {@code control} says of it to an assistive technology, published on
+     * the node a caption bound to the control would name (the control, or the inner part a
+     * composite sends its caption to): a node of its own, a group where the control declares no
+     * role; {@code REQUIRED} while the field is required; {@code INVALID} while it holds an error.
+     * A field that lets the control go says {@code held} false, which takes all three away.
+     *
+     * @param control  the control
+     * @param held     whether a field holds it
+     * @param required whether that field is required
+     * @param invalid  whether that field holds an error
+     */
+    public static void fieldControl(Widget<?> control, boolean held, boolean required, boolean invalid) {
+        hook().fieldControl(java.util.Objects.requireNonNull(control, "control"), held, required, invalid);
     }
 
     /**

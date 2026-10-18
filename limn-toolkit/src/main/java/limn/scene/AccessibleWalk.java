@@ -55,7 +55,8 @@ final class AccessibleWalk {
      * ends, so the descendant finds its caption when the walk reaches it. Grown once, reused.
      */
     private Widget<?>[] redirectTargets = new Widget<?>[4];
-    private Widget<?>[] redirectLabels = new Widget<?>[4];
+    /** The composite each redirect came from, whose caption, describer and form states it carries. */
+    private Widget<?>[] redirectSources = new Widget<?>[4];
     private int redirectCount;
 
     /** Per published node: the widget that owns it. Grown once, reused. */
@@ -199,7 +200,7 @@ final class AccessibleWalk {
             forget(delegates, count, nodes);
             forget(popupOpeners, popupCount, popups);
             forget(redirectTargets, redirectCount, redirects);
-            forget(redirectLabels, redirectCount, redirects);
+            forget(redirectSources, redirectCount, redirects);
         }
     }
 
@@ -493,7 +494,7 @@ final class AccessibleWalk {
         forget(delegates, 0, count);
         forget(popupOpeners, 0, popupCount);
         forget(redirectTargets, 0, redirectCount);
-        forget(redirectLabels, 0, redirectCount);
+        forget(redirectSources, 0, redirectCount);
         popupCount = 0;
         redirectCount = 0;
         count = 0;
@@ -633,17 +634,37 @@ final class AccessibleWalk {
         // caption is sent down the walk and found when that descendant is reached; a widget with
         // a binding of its own keeps its own over one an ancestor sent. Pushed before the
         // subtree is walked and popped at every exit below.
+        //
+        // The bound describer and the states a field around the widget says of it travel the same
+        // way (ADR 074 section 2.6): a message bound to a date picker describes the field a reader
+        // is on, where it used to describe a group that publishes no node, and a required picker
+        // is required on that field. Each of the three is the widget's own where it has one, and
+        // what the composite above it sent where it has none.
         Widget<?> label = widget.accessibleLabelledBy();
+        Widget<?> describer = widget.accessibleDescribedBy();
+        int field = widget.accessibleFieldBits();
         boolean redirected = false;
-        if (label != null) {
+        if (label != null || describer != null || field != 0) {
             Widget<?> carrier = labelTargetOf(widget);
             if (carrier != widget) {
-                pushRedirect(carrier, label);
+                pushRedirect(carrier, widget);
                 redirected = true;
                 label = null;
+                describer = null;
+                field = 0;
             }
-        } else {
-            label = redirectedLabelFor(widget);
+        }
+        if (!redirected) {
+            Widget<?> source = redirectedSourceFor(widget);
+            if (source != null) {
+                if (label == null) {
+                    label = source.accessibleLabelledBy();
+                }
+                if (describer == null) {
+                    describer = source.accessibleDescribedBy();
+                }
+                field |= source.accessibleFieldBits();
+            }
         }
         if (label == null && widget.parent() == null && widget.inheritanceHost() != null
                 && (scene.isPopup(widget) || scene.isGraftedPopupRoot(widget))) {
@@ -661,7 +682,7 @@ final class AccessibleWalk {
         // in a subtree declaring another language records that language and speaks the process's.
         Locale enclosing = limn.i18n.I18n.pushScope(widget.locale());
         try {
-            applyOverrides(widget, label);
+            applyOverrides(widget, label, describer, field);
             if (!builder.hasName() && widget.tooltipSource() != null) {
                 builder.name(widget.tooltipSource(), Accessible.NameFrom.TOOLTIP);
             } else if (!builder.hasDescription() && widget.tooltipSource() != null) {
@@ -827,7 +848,7 @@ final class AccessibleWalk {
     private void popRedirect() {
         redirectCount--;
         redirectTargets[redirectCount] = null;
-        redirectLabels[redirectCount] = null;
+        redirectSources[redirectCount] = null;
     }
 
     /**
@@ -910,18 +931,17 @@ final class AccessibleWalk {
         return false;
     }
 
-    private void pushRedirect(Widget<?> carrier, Widget<?> label) {
+    private void pushRedirect(Widget<?> carrier, Widget<?> source) {
         if (redirectCount == redirectTargets.length) {
             int grown = redirectTargets.length * 2;
             redirectTargets = java.util.Arrays.copyOf(redirectTargets, grown);
-            redirectLabels = java.util.Arrays.copyOf(redirectLabels, grown);
+            redirectSources = java.util.Arrays.copyOf(redirectSources, grown);
         }
         redirectTargets[redirectCount] = carrier;
-        redirectLabels[redirectCount] = label;
+        redirectSources[redirectCount] = source;
         redirectCount++;
     }
 
-    /** The caption an ancestor sent down to {@code widget}, or {@code null}; nearest sender wins. */
     /**
      * The caption that names {@code widget}: its own binding, or one a composite above it redirects
      * to it (a date picker's caption names the field inside it), read off the widget tree and not
@@ -944,10 +964,10 @@ final class AccessibleWalk {
         return null;
     }
 
-    private Widget<?> redirectedLabelFor(Widget<?> widget) {
+    private Widget<?> redirectedSourceFor(Widget<?> widget) {
         for (int i = redirectCount - 1; i >= 0; i--) {
             if (redirectTargets[i] == widget) {
-                return redirectLabels[i];
+                return redirectSources[i];
             }
         }
         return null;
@@ -993,11 +1013,14 @@ final class AccessibleWalk {
     }
 
     /**
-     * @param widget the widget whose node is open
-     * @param label  the caption that names it, or {@code null}: its own binding, or one a
-     *               composite above it redirected here, decided by the caller
+     * @param widget    the widget whose node is open
+     * @param label     the caption that names it, or {@code null}: its own binding, or one a
+     *                  composite above it redirected here, decided by the caller
+     * @param describer the widget whose text describes it, or {@code null}, decided the same way
+     * @param field     what a field around it says of it, {@code Widget.FIELD_*} bits, decided the
+     *                  same way
      */
-    private void applyOverrides(Widget<?> widget, Widget<?> label) {
+    private void applyOverrides(Widget<?> widget, Widget<?> label, Widget<?> describer, int field) {
         limn.accessibility.Accessible.Role role = widget.accessibleRole();
         if (role != null) {
             builder.role(role);
@@ -1023,13 +1046,29 @@ final class AccessibleWalk {
         // The same shape for the description: a bound message's text, read at publish, then the
         // explicit description below if the application wrote one, and the tooltip default after
         // this method only when neither said anything.
-        Widget<?> describer = widget.accessibleDescribedBy();
         if (describer != null) {
             limn.i18n.I18nString message = describer.accessibleLabelText();
             if (message != null) {
                 builder.description(message);
             }
             builder.relation(Accessible.Relation.DESCRIBED_BY, describer);
+        }
+        if (field != 0) {
+            // A control a field holds is a node: one that says nothing of itself -- a row of an
+            // amount and its currency, a column of radio buttons -- becomes a group, so the caption,
+            // the line and the states land on a node, as a section's content does under its header.
+            // The two states are a form's: REQUIRED while the field says so, which no widget of the
+            // toolkit publishes on its own, and INVALID while its state is an error, added to what a
+            // text field already publishes and never taken from it.
+            if (!builder.hasRole()) {
+                builder.role(Accessible.Role.GROUP);
+            }
+            if ((field & Widget.FIELD_REQUIRED) != 0) {
+                builder.state(Accessible.State.REQUIRED);
+            }
+            if ((field & Widget.FIELD_INVALID) != 0) {
+                builder.state(Accessible.State.INVALID);
+            }
         }
         limn.i18n.I18nString name = widget.accessibleName();
         if (name != null) {

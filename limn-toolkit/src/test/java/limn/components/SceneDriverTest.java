@@ -109,6 +109,10 @@ class SceneDriverTest extends ComponentTestBase {
             }
 
             @Override
+            public void fieldControl(Widget<?> widget, boolean held, boolean required, boolean invalid) {
+            }
+
+            @Override
             public void setInert(Widget<?> widget, boolean inert) {
             }
 
