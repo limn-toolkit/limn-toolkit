@@ -500,11 +500,13 @@ public final class AnchoredPopup {
         if (refocus != null) {
             refocus.requestFocus();
         }
-        // From wherever the fade in had got to, on wall time: this fade's arrival removes the layer
-        // that holds the pointer, and a paused application must still get its field beneath back.
-        // Nothing else fades this panel, a fresh one for each presentation, so nothing supersedes
-        // the fade that removes it.
-        closing.content.fadeTo(0f, Theme.of(host.anchor()).animWindow, () -> {
+        // From wherever the fade in had got to, over the share of the window animation that brings
+        // it back to nothing, so a list closed as it opened goes as fast as it came; on wall time:
+        // this fade's arrival removes the layer that holds the pointer, and a paused application
+        // must still get its field beneath back. Nothing else fades this panel, a fresh one for
+        // each presentation, so nothing supersedes the fade that removes it.
+        Widget<?> card = closing.content;
+        card.fadeTo(0f, Theme.of(host.anchor()).animWindow * card.opacity(), () -> {
             owner.removeOverlay(closing);
             host.released();
         });

@@ -1,9 +1,13 @@
 package limn.components;
 
+import limn.components.internal.AnchoredPopup;
 import limn.scene.Scene;
 import limn.scene.Widget;
+import limn.scene.layout.Padding;
+import limn.scene.Insets;
 import limn.testing.HeadlessUi;
 import limn.testing.NoopCanvas;
+import limn.testing.StubWindow;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,7 +24,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * (ADR 071 §2.7): what is on screen when the surface goes, and how long the way out takes.
  *
  * <p>A dialog's card and its veil end together, on the same frame and at the same value all the
- * way, so that the overlay is never taken away from under a card still partly drawn.
+ * way, so that the overlay is never taken away from under a card still partly drawn; and a popup
+ * closed halfway through its fade in fades out from where it had got to, over the part of the
+ * window animation that brings it back to nothing, and not over the whole of it.
  */
 class InSceneFadeEndsTest {
 
@@ -88,5 +94,35 @@ class InSceneFadeEndsTest {
         assertEquals(0f, cardWhenItWent[0], "the card is gone when the overlay goes, not drawn for a frame "
                 + "more over what the veil uncovered");
         assertEquals(List.of(), apart, "the card and the veil fade as one, frame by frame");
+    }
+
+    @Test
+    void aPopupClosedWhileItFadesInFadesOutFromWhereItHadGot() throws ReflectiveOperationException {
+        ComboBox<String> combo = new ComboBox<>(List.of("one", "two", "three"));
+        combo.setDisplayMode(DisplayMode.IN_SCENE);
+        bind(new Padding(Insets.all(10), combo), new StubWindow(true));
+        combo.open();
+        frame(); // the fade's first frame is its start
+        advance(2 * FRAME);
+        java.lang.reflect.Field popup = ComboBox.class.getDeclaredField("popup");
+        popup.setAccessible(true);
+        Widget<?> list = ((AnchoredPopup) popup.get(combo)).panel();
+        assertTrue(list != null && list.scene() == scene, "the list is in the scene");
+        float shown = list.opacity();
+        assertTrue(shown > 0f && shown < 0.5f, "a moment after it opened, hardly shown yet: " + shown);
+
+        combo.close();
+        int frames = 0;
+        while (list.scene() != null && frames < 40) {
+            advance(FRAME);
+            frames++;
+        }
+        double animWindow = Theme.current().animWindow;
+        // From where the fade in had got to: its share of the window animation, and a frame for the
+        // fade's start, and not all ten frames of the whole of it.
+        double took = frames * FRAME / 1000.0;
+        assertTrue(took <= shown * animWindow + 2 * FRAME / 1000.0,
+                "the fade out took " + frames + " frames of " + FRAME + " ms from " + shown
+                        + "; the whole window animation is " + animWindow + " s");
     }
 }
