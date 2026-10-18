@@ -383,6 +383,48 @@ class WorkBudgetTest {
         return Work.of(scene, canvas, scene::requestRender, WIDTH, HEIGHT, () -> 0);
     }
 
+    /**
+     * A still form costs what it cost before there were transforms (ADR 072, stage 1): each row in
+     * a Transform container at rest paints the same widgets with the same commands, and so does each
+     * row moved and scaled, which is drawn straight through the canvas's own translation and scale
+     * with nothing drawn for the move.
+     */
+    @Test
+    void aStillFormCostsTheSameInTransformsAtRestOrMoved() {
+        for (int rows : new int[] {10, 40}) {
+            Work plain = aFormOf(rows, false, false);
+            Work atRest = aFormOf(rows, true, false);
+            Work moved = aFormOf(rows, true, true);
+            assertEquals(plain.commands(), atRest.commands(), rows + " rows at rest: the same commands");
+            assertEquals(plain.painted() + rows, atRest.painted(),
+                    rows + " rows at rest: the same widgets, and each container, which paints nothing");
+            assertEquals(plain.commands(), moved.commands(), rows + " rows moved: the same commands");
+            assertEquals(atRest.painted(), moved.painted(), rows + " rows moved: the same widgets");
+        }
+    }
+
+    private static Work aFormOf(int rows, boolean wrapped, boolean moved) {
+        limn.scene.layout.Column column = new limn.scene.layout.Column();
+        for (int i = 0; i < rows; i++) {
+            Label row = new Label("Row " + i);
+            if (wrapped) {
+                limn.scene.layout.Transform t = new limn.scene.layout.Transform(row);
+                if (moved) {
+                    t.setTranslation(6, 0).setScale(1.25f);
+                }
+                column.add(t);
+            } else {
+                column.add(row);
+            }
+        }
+        Scene scene = new Scene(column);
+        scene.setTextRuler(TestRulers.FIXED);
+        Work.Counting canvas = new Work.Counting(WIDTH, HEIGHT);
+        scene.layoutPass(WIDTH, HEIGHT);
+        scene.renderFrame(canvas.canvas);
+        return Work.of(scene, canvas, scene::requestRender, WIDTH, HEIGHT, () -> 0);
+    }
+
     @Test
     void aScreenNobodyTouchesAsksForNoFrame() {
         HeadlessWindow window = new HeadlessBackend(ui.runtime()).open("At rest", WIDTH, HEIGHT);

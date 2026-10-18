@@ -2,6 +2,7 @@ package limn.scene;
 
 import limn.concurrent.Ui;
 import limn.math.Mat4;
+import limn.math.MutMat4;
 import limn.math.Quat;
 import limn.math.Vec3;
 import limn.scene.internal.TransformAccess;
@@ -27,11 +28,14 @@ import java.util.Objects;
  */
 final class TransformGroup implements TransformAccess.Values {
 
-    private static final Vec3 VERTICAL = new Vec3(0, 1, 0);
-    private static final Vec3 HORIZONTAL = new Vec3(1, 0, 0);
+    private static final Vec3 ONE = new Vec3(1, 1, 1);
 
     /** The container these are the values of, and the widget that announces their changes. */
     private final Widget<?> owner;
+    /** The matrix the values compose into, loaded into the one the container draws through. */
+    private final MutMat4 matrix = new MutMat4();
+    /** The move back from the origin, the last factor of the product. */
+    private final MutMat4 toOrigin = new MutMat4();
 
     private float translationX;
     private float translationY;
@@ -498,6 +502,11 @@ final class TransformGroup implements TransformAccess.Values {
         }
     }
 
+    /** The matrix the container draws its child through now, as a value: for the internal hook. */
+    Mat4 snapshot() {
+        return matrix.toMat4();
+    }
+
     // ------------------------------------------------------------------ matrix
 
     /** Whether every value is at rest, so the container draws its child where layout put it. */
@@ -506,10 +515,13 @@ final class TransformGroup implements TransformAccess.Values {
     }
 
     /**
-     * The matrix the values make, or null at rest: {@code O · translation · flip · scale · O⁻¹},
-     * with the origin's x and the translation's x read from the start edge.
+     * The matrix the values make, composed into the one this container holds, or null at rest:
+     * {@code O · translation · flip · scale · O⁻¹}, with the origin's x and the translation's x read
+     * from the start edge. In place, into one matrix held for the life of the container: a frame of
+     * a motion allocates only the vectors handed to {@link MutMat4#setTrs}, 72 bytes measured, where
+     * a new matrix a frame cost several times that.
      */
-    private @Nullable Mat4 composed() {
+    private @Nullable MutMat4 composed() {
         if (atRest()) {
             return null;
         }
@@ -517,15 +529,16 @@ final class TransformGroup implements TransformAccess.Values {
         float ox = (rtl ? 1 - originX : originX) * owner.width();
         float oy = originY * owner.height();
         float tx = rtl ? -translationX : translationX;
-        Mat4 m = Mat4.translation(new Vec3(ox + tx, oy + translationY, 0));
+        Quat turn = Quat.IDENTITY;
         if (flipDegrees != 0) {
-            m = m.multiply(Mat4.rotation(Quat.fromAxisAngle(flipAboutVertical ? VERTICAL : HORIZONTAL,
-                    (float) Math.toRadians(flipDegrees))));
+            // A unit turn about one axis, written out: sin and cos of half the angle.
+            double half = Math.toRadians(flipDegrees) / 2;
+            float sin = (float) Math.sin(half);
+            float cos = (float) Math.cos(half);
+            turn = flipAboutVertical ? new Quat(0, sin, 0, cos) : new Quat(sin, 0, 0, cos);
         }
-        if (scaleX != 1 || scaleY != 1) {
-            m = m.multiply(Mat4.scale(new Vec3(scaleX, scaleY, 1)));
-        }
-        return m.multiply(Mat4.translation(new Vec3(-ox, -oy, 0)));
+        matrix.setTrs(new Vec3(ox + tx, oy + translationY, 0), turn, new Vec3(scaleX, scaleY, 1));
+        return matrix.mul(toOrigin.setTrs(new Vec3(-ox, -oy, 0), Quat.IDENTITY, ONE));
     }
 
     /**

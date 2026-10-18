@@ -1,6 +1,8 @@
 package limn.scene;
 
 import limn.math.Mat4;
+import limn.math.MutMat4;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The matrix a widget draws its children through, as what it does to their plane: a point at
@@ -16,7 +18,9 @@ import limn.math.Mat4;
  * {@link #NEAR}); and, going back from the drawing to the plane, a plane seen edge-on or collapsed,
  * which covers less than {@link #COLLAPSED} of the area it had at the point asked about.
  *
- * <p>Immutable; the widget replaces it when the matrix changes.
+ * <p>Replaced when a matrix is set as a {@link Mat4}, as the tests' turned container sets one; a
+ * transform container's values are loaded into the one it holds instead, in place, so that a
+ * frame of a motion allocates no matrix.
  */
 final class ChildTransform {
 
@@ -35,7 +39,8 @@ final class ChildTransform {
      */
     static final double COLLAPSED = 1e-6;
 
-    final Mat4 matrix;
+    /** The matrix this was made from, or null for one a transform container loads in place. */
+    final @Nullable Mat4 matrix;
 
     /**
      * Whether the matrix keeps the plane's axes where they are: a translation and a scale, each
@@ -44,52 +49,71 @@ final class ChildTransform {
      * {@link #paintY}, {@link #paintScaleX} and {@link #paintScaleY}, every clip inside staying
      * exact; any other is drawn through a picture of its own.
      */
-    final boolean axisAligned;
+    boolean axisAligned;
     /** Where the axis-aligned matrix puts the widget's origin, and how much it scales each axis. */
-    final float paintX;
-    final float paintY;
-    final float paintScaleX;
-    final float paintScaleY;
+    float paintX;
+    float paintY;
+    float paintScaleX;
+    float paintScaleY;
     /**
      * Whether the matrix, with no perspective, leaves the plane less than {@link #COLLAPSED} of its
      * area everywhere: a scale of 0 on either axis, or a flip seen exactly edge-on. Such children
      * draw nothing, and {@link #unmap} already answers {@code NaN} for every point of them. A
      * perspective's area changes from point to point and is never counted here.
      */
-    final boolean collapsed;
+    boolean collapsed;
 
-    private final double h00;
-    private final double h01;
-    private final double h02;
-    private final double h10;
-    private final double h11;
-    private final double h12;
-    private final double h20;
-    private final double h21;
-    private final double h22;
+    private double h00;
+    private double h01;
+    private double h02;
+    private double h10;
+    private double h11;
+    private double h12;
+    private double h20;
+    private double h21;
+    private double h22;
     /** The adjugate of the homography: its inverse up to a factor, which a projection ignores. */
-    private final double a00;
-    private final double a01;
-    private final double a02;
-    private final double a10;
-    private final double a11;
-    private final double a12;
-    private final double a20;
-    private final double a21;
-    private final double a22;
-    private final double det;
+    private double a00;
+    private double a01;
+    private double a02;
+    private double a10;
+    private double a11;
+    private double a12;
+    private double a20;
+    private double a21;
+    private double a22;
+    private double det;
 
     ChildTransform(Mat4 matrix) {
         this.matrix = matrix;
-        h00 = matrix.get(0, 0);
-        h01 = matrix.get(0, 1);
-        h02 = matrix.get(0, 3);
-        h10 = matrix.get(1, 0);
-        h11 = matrix.get(1, 1);
-        h12 = matrix.get(1, 3);
-        h20 = matrix.get(3, 0);
-        h21 = matrix.get(3, 1);
-        h22 = matrix.get(3, 3);
+        load(matrix.get(0, 0), matrix.get(0, 1), matrix.get(0, 3),
+                matrix.get(1, 0), matrix.get(1, 1), matrix.get(1, 3),
+                matrix.get(3, 0), matrix.get(3, 1), matrix.get(3, 3));
+    }
+
+    /** One a transform container loads its values into, with {@link #set}. */
+    ChildTransform() {
+        this.matrix = null;
+    }
+
+    /** Loads {@code m} in place, for a container that holds this one; allocates nothing. */
+    void set(MutMat4 m) {
+        load(m.get(0, 0), m.get(0, 1), m.get(0, 3), m.get(1, 0), m.get(1, 1), m.get(1, 3),
+                m.get(3, 0), m.get(3, 1), m.get(3, 3));
+    }
+
+    /** The plane's homography, its adjugate, and what the paint and the collapse test read of it. */
+    private void load(double m00, double m01, double m03, double m10, double m11, double m13,
+                      double m30, double m31, double m33) {
+        h00 = m00;
+        h01 = m01;
+        h02 = m03;
+        h10 = m10;
+        h11 = m11;
+        h12 = m13;
+        h20 = m30;
+        h21 = m31;
+        h22 = m33;
         a00 = h11 * h22 - h12 * h21;
         a01 = h02 * h21 - h01 * h22;
         a02 = h01 * h12 - h02 * h11;

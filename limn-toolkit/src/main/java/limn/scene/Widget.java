@@ -110,7 +110,10 @@ public abstract class Widget<W extends Widget<W>> {
             @Override
             public limn.math.@Nullable Mat4 childMatrix(Widget<?> widget) {
                 ChildTransform transform = widget.childTransform;
-                return transform != null ? transform.matrix : null;
+                if (transform == null) {
+                    return null;
+                }
+                return transform.matrix != null ? transform.matrix : widget.transformGroup.snapshot();
             }
 
             @Override
@@ -167,10 +170,33 @@ public abstract class Widget<W extends Widget<W>> {
     private @Nullable TransformGroup transformGroup;
 
     /** Sets {@link #childTransform}; the identity, like null, is none. UI thread only. */
-    final void setChildMatrix(limn.math.@Nullable Mat4 matrix) {
+    private void setChildMatrix(limn.math.@Nullable Mat4 matrix) {
         Ui.checkUiThread();
-        ChildTransform next = matrix == null || ChildTransform.isIdentity(matrix) ? null
-                : new ChildTransform(matrix);
+        install(matrix == null || ChildTransform.isIdentity(matrix) ? null : new ChildTransform(matrix));
+    }
+
+    /**
+     * Loads a transform container's matrix into the one it draws its children through, in place,
+     * or takes it away at rest: one object for the life of a motion, so that its frames allocate no
+     * matrix. UI thread only.
+     *
+     * @param matrix the matrix, or null at rest
+     */
+    final void setChildMatrix(limn.math.@Nullable MutMat4 matrix) {
+        if (matrix == null) {
+            install(null);
+            return;
+        }
+        ChildTransform held = childTransform;
+        if (held == null || held.matrix != null) {
+            held = new ChildTransform();
+        }
+        held.set(matrix);
+        install(held);
+    }
+
+    /** Makes {@code next} the matrix the children are drawn through, keeping the scene's list. */
+    private void install(@Nullable ChildTransform next) {
         boolean was = childTransform != null;
         childTransform = next;
         if (scene != null && was != (next != null)) {

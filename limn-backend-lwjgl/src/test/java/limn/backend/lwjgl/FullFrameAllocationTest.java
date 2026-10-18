@@ -15,6 +15,7 @@ import limn.scene.layout.Flex;
 import limn.scene.layout.Opacity;
 import limn.scene.layout.Padding;
 import limn.scene.layout.Row;
+import limn.scene.layout.Transform;
 import limn.testing.AllocationProbe;
 import limn.testing.HeadlessUi;
 import limn.testing.NoopCanvas;
@@ -63,6 +64,30 @@ class FullFrameAllocationTest {
             fading.fadeTo(0.2f, 20, null); // in flight for every frame measured, and moving
             assertFrameUnderCeiling(scene, store, "a frame of a fading form");
             assertTrue(fading.opacity() < 1f && fading.opacity() > 0.2f, "the fade moved and is still moving");
+        }
+    }
+
+    /**
+     * The same form sliding and scaled in Transform containers (ADR 072, stage 1), with its status
+     * line in a scaled container of its own: the matrix loaded in place on every step of the slide,
+     * the damage of where the form was and where it is, a pass reaching the moved form past its
+     * parent's box, and the paint through the matrix allocate nothing of their own.
+     */
+    @Test
+    void aFrameOfASlidingFormAllocatesAlmostNothing() {
+        Assumptions.assumeTrue(AllocationProbe.isSupported(), "no per-thread allocation counter");
+        try (HeadlessUi ui = new HeadlessUi(); FontStore store = new FontStore()) {
+            Column page = form();
+            Widget<?> status = page.children().get(1);
+            page.remove(status);
+            page.add(new Transform(status).setOrigin(0, 0).setScale(1.25f));
+            Transform sliding = new Transform(page).setScale(0.9f);
+            Scene scene = new Scene(new Padding(Insets.all(8), sliding));
+            scene.bind(new StubWindow()); // a window, so the slide has frames to step it
+            sliding.slideTo(300, 40, 20, null); // in flight for every frame measured, and moving
+            assertFrameUnderCeiling(scene, store, "a frame of a sliding form");
+            assertTrue(sliding.translationX() > 0f && sliding.translationX() < 300f,
+                    "the slide moved and is still moving");
         }
     }
 
