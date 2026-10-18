@@ -147,6 +147,34 @@ class AnimationExampleTest {
     }
 
     @Test
+    void aSectionsArrowTurnsDownAsItOpensClockwiseOrNotByTheDirection() {
+        Lamp shape = new Lamp();
+        limn.scene.layout.Transform arrow = new limn.scene.layout.Transform(shape);
+        show(arrow);
+        scene.bind(new limn.testing.StubWindow());
+        AnimationExample.showOpen(arrow, true);
+        frame(0);
+        frame(60);
+        float part = arrow.rotation();
+        assertTrue(part > 0 && part < 90, "part of the way round: " + part);
+        frame(300);
+        assertEquals(90f, arrow.rotation(), "a quarter turn clockwise, from the right to down");
+        AnimationExample.showOpen(arrow, false);
+        frame(0);
+        frame(300);
+        assertEquals(0f, arrow.rotation(), "and back as it closes");
+
+        limn.scene.layout.Transform mirrored = new limn.scene.layout.Transform(new Lamp());
+        mirrored.setLayoutDirection(limn.scene.LayoutDirection.RTL);
+        show(mirrored);
+        scene.bind(new limn.testing.StubWindow());
+        AnimationExample.showOpen(mirrored, true);
+        frame(0);
+        frame(300);
+        assertEquals(-90f, mirrored.rotation(), "from the left to down is a quarter turn the other way");
+    }
+
+    @Test
     void theGuidesOwnTestOfALampFindsItPartOfTheWay() {
         assertTrue(AnimationExample.isPartWayAfter90Millis(new Lamp()));
     }

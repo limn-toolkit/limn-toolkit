@@ -79,27 +79,34 @@ half inside something fading at one half draws at a quarter.
 
 ## Moving part of a window
 
-A part of a window moves, scales or turns over in a `Transform` container, which wraps one widget
-as `Opacity` does and changes where it is drawn without changing where layout put anything: its
-box, its neighbours and the space it takes stay what they are, and a child scaled up overlaps what
-is beside it rather than pushing it. `setTranslation` moves it by points, at once, `setScale`
-scales it about its origin, the middle by default and anywhere `setOrigin` puts it, and `reset()`
-puts everything back. `slideTo` and `scaleTo` move there over a duration, the theme's
-`animWindow` when none is given, and `flipTo` turns the child over, running what it is handed when
-the child is edge-on, which is where to swap what it shows:
+A part of a window moves, scales, rotates or turns over in a `Transform` container, which wraps
+one widget as `Opacity` does and changes where it is drawn without changing where layout put
+anything: its box, its neighbours and the space it takes stay what they are, and a child scaled up
+overlaps what is beside it rather than pushing it. `setTranslation` moves it by points, at once,
+`setScale` scales it and `setRotation` turns it by degrees, clockwise, both about its origin, the
+middle by default and anywhere `setOrigin` puts it, and `reset()` puts everything back. `slideTo`,
+`scaleTo` and `rotateTo` move there over a duration, the theme's `animWindow` when none is given,
+and `flipTo` turns the child over, running what it is handed when the child is edge-on, which is
+where to swap what it shows:
 
 {% snippet guide:animation-transform %}
 
 The translation's `x` runs toward the end of the reading direction, and the origin is measured
 from the start edge, so the drawer above comes in from the right in an English window and from
 the left in an Arabic one with the same lines, and `Flip.FORWARD` turns the way a page turns
-forward in either. `Flip.UP` and `Flip.DOWN` turn about the horizontal axis.
+forward in either. `Flip.UP` and `Flip.DOWN` turn about the horizontal axis. A rotation turns as a
+clock does, the same way in either direction, which is why the section's arrow above asks which
+way is down from the end edge. A skew, or any other flat map, is `setMatrix`, with a matrix
+`Mat4.affine2D` makes from the six numbers a 2D canvas's matrix has.
 
 The child is drawn moved, and it is found there: a click lands on it where it is drawn, and a
 screen reader is told where it is when a value is set and when a motion arrives, not on every
 frame between. A move or a scale is drawn straight into the window, with every clip inside the
 child kept exact and text crisp at a uniform scale, and a frame of it repaints where the child was
-and where it is and lays nothing out. At rest the container costs nothing at all.
+and where it is and lays nothing out. A rotated or skewed child is drawn upright into a picture of
+its own and the picture is laid at the angle: a scroll view inside still shows only what is in its
+view, the edges are smooth, text reads a little softer, and the picture costs what a fade of the
+same size costs, for as long as the child is turned. At rest the container costs nothing at all.
 
 As with a fade, moving something out of sight does not take it away: hide it when the motion
 arrives, as the drawer does. A newer motion of the same value, or a set of it, stops one in flight

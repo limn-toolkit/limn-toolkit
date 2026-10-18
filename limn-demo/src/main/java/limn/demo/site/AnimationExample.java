@@ -239,6 +239,14 @@ public final class AnimationExample {
             back.setVisible(!back.isVisible());
         });
     }
+
+    /** A section's arrow points to the end while it is closed, and turns to point down as it opens. */
+    static void showOpen(Transform arrow, boolean open) {
+        // A rotation turns as a clock does, the same way in either direction: from the end edge
+        // down is a quarter turn clockwise from the right, and counterclockwise from the left.
+        float down = arrow.isRightToLeft() ? -90 : 90;
+        arrow.rotateTo(open ? down : 0);
+    }
     // #endregion
 
     // #region guide:animation-time
