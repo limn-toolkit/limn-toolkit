@@ -122,7 +122,8 @@ public final class Label extends Widget<Label> {
     private limn.graphics.Icon.Mirroring iconMirroring = limn.graphics.Icon.Mirroring.NEVER;
     private Font font;   // null → the role's token at the resolved step
     private Role role = Role.BODY;
-    private Color color; // null → theme (text, or textMuted when muted)
+    private Color color; // null → theme (the tone, else text, or textMuted when muted)
+    private Tone tone;   // null → none: text, or textMuted when muted
     private boolean muted;
     private boolean strong; // bold weight applied on top of the effective font
     private boolean emphasis; // italic style applied on top of the effective font
@@ -521,7 +522,11 @@ public final class Label extends Widget<Label> {
         return this;
     }
 
-    /** Pins the text colour; {@code null} restores the theme's, resolved at paint time. */
+    /**
+     * Pins the text colour; {@code null} restores the theme's, resolved at paint time. A pinned
+     * colour is the palette of the moment it was read and stays when the palette changes; a text
+     * that should follow it says what it means with {@link #setTone} instead.
+     */
     public Label setColor(@Nullable Color newColor) {
         Ui.checkUiThread();
         this.color = newColor;
@@ -530,8 +535,36 @@ public final class Label extends Widget<Label> {
     }
 
     /**
+     * Draws the text in one of the palette's colours, said by what it means: {@link Tone#DANGER}
+     * for a line that reports a failure, {@link Tone#SUCCESS} for one that confirms. The colour is
+     * asked of the theme on every paint, so a change of palette re-colours the text with no code of
+     * the application's, which a colour read once and passed to {@link #setColor} does not do. An
+     * explicit {@link #setColor} still wins over the tone, and a disabled label is drawn disabled
+     * whatever its tone. UI thread only.
+     *
+     * @param newTone the tone, or {@code null} for none: the theme's text colour, or its muted one
+     *                while {@link #setMuted} says so
+     * @return this label
+     */
+    public Label setTone(@Nullable Tone newTone) {
+        Ui.checkUiThread();
+        if (tone == newTone) {
+            return this;
+        }
+        this.tone = newTone;
+        invalidate();
+        return this;
+    }
+
+    /** The tone this label draws its text in, or {@code null}; see {@link #setTone}. */
+    public @Nullable Tone tone() {
+        return tone;
+    }
+
+    /**
      * Uses the theme's muted text color, resolved at paint time; unlike an
-     * explicit {@link #setColor}, it follows runtime theme switches.
+     * explicit {@link #setColor}, it follows runtime theme switches. A {@link #setTone tone} wins
+     * over it.
      */
     public Label setMuted(boolean newMuted) {
         Ui.checkUiThread();
@@ -759,6 +792,7 @@ public final class Label extends Widget<Label> {
         Font f = effectiveFont(t);
         Color ink = !isEnabled() ? theme.disabledText()
                 : color != null ? color
+                : tone != null ? tone.colorIn(theme)
                 : muted ? theme.textMuted() : theme.text();
         TextRuler ruler = textRuler();
         TextMetrics metrics = ruler.measure("Hg", f);

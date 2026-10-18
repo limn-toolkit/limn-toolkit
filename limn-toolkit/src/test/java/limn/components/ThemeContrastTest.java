@@ -128,6 +128,20 @@ class ThemeContrastTest {
         atLeast(4.5, theme.info(), theme.surfaceRaised(), "informational text on a dialog");
     }
 
+    /**
+     * The four state tones are text too: a field's line under its control is drawn in them, in the
+     * label font, on whatever the form sits on, which is the canvas or a card far more often than a
+     * dialog. The bar is body text's, since the line is read and not glanced at.
+     */
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("palettes")
+    void theStateTonesReadAsTextOnTheCanvasAndOnACard(Theme theme) {
+        for (Tone tone : new Tone[] {Tone.DANGER, Tone.WARNING, Tone.SUCCESS, Tone.INFO}) {
+            atLeast(4.5, tone.colorIn(theme), theme.background(), tone + " text on the canvas");
+            atLeast(4.5, tone.colorIn(theme), theme.surface(), tone + " text on a card");
+        }
+    }
+
     /** Disabled text must read as unavailable and still be legible. */
     @ParameterizedTest(name = "{0}")
     @MethodSource("palettes")
