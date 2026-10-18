@@ -61,6 +61,43 @@ public abstract class Widget<W extends Widget<W>> {
     static {
         // Every widget is a painter an animated icon asks for its frame of the moment.
         limn.graphics.internal.IconPlayer.install(IconClocks::frameOf);
+        // And the Opacity container, a layout in another package, reaches its group through here.
+        limn.scene.internal.OpacityAccess.install(new limn.scene.internal.OpacityAccess.Hook() {
+            @Override
+            public void makeGroup(Widget<?> widget) {
+                if (widget.opacityGroup == null) {
+                    widget.opacityGroup = new OpacityGroup(widget);
+                }
+            }
+
+            @Override
+            public float opacity(Widget<?> widget) {
+                return widget.groupOpacity();
+            }
+
+            @Override
+            public void set(Widget<?> widget, float opacity) {
+                group(widget).set(opacity);
+            }
+
+            @Override
+            public void fadeTo(Widget<?> widget, float target, double seconds, @Nullable Runnable onArrive) {
+                group(widget).fadeTo(target, seconds, onArrive);
+            }
+
+            @Override
+            public float paintOutsetOf(Widget<?> child) {
+                return child.paintOutset();
+            }
+
+            private OpacityGroup group(Widget<?> widget) {
+                OpacityGroup group = widget.opacityGroup;
+                if (group == null) {
+                    throw new IllegalStateException("not an opacity group: " + widget);
+                }
+                return group;
+            }
+        });
     }
 
     private Widget<?> parent;
@@ -410,8 +447,8 @@ public abstract class Widget<W extends Widget<W>> {
         // sees itself in a scene; detach fires bottom-up (children before this).
         boolean attaching = old == null && newScene != null;
         boolean detaching = old != null && newScene == null;
-        if (old != null && newScene != old) {
-            settleFadeOnLeaving(); // while scene() still answers the one it is leaving
+        if (old != null && newScene != old && opacityGroup != null) {
+            opacityGroup.settleOnLeaving(); // while scene() still answers the one it is leaving
         }
         if (!detaching) {
             this.scene = newScene;
@@ -837,277 +874,19 @@ public abstract class Widget<W extends Widget<W>> {
 
     // --------------------------------------------------------------- opacity
 
-    /** This widget's own opacity, 0 to 1; its ancestors' multiply it as pictures do. See setOpacity. */
-    private float opacity = 1;
-    /** The fade moving {@link #opacity} now, or null. See fadeTo. */
-    private @Nullable Fade fade;
     /**
-     * The one ticker stepping this widget's fades, while it is registered, or null. One per widget
-     * and not one per fade, as {@code Transition} keeps one: a superseded fade's ticker went only at
-     * its next tick, and a covered or minimized window renders no frames, so a fade asked for there
-     * on every update of some data added a ticker each time that nothing took away.
+     * The opacity this widget's paint draws it and its subtree with as one picture, and the fade
+     * that moves it, when this widget is a {@link limn.scene.layout.Opacity} container; null for
+     * every other widget, which is drawn as it always was. On the container and not on every
+     * widget, so that the cost of the feature, its state, its fade and its layer, is only where it
+     * is asked for.
      */
-    private @Nullable FadeTicker fadeTicker;
+    private @Nullable OpacityGroup opacityGroup;
 
-    /** One fade in flight: where it started, where it goes, how long it takes, what it runs at the end. */
-    private static final class Fade {
-        final float from;
-        final float target;
-        final double seconds;
-        final @Nullable Runnable onArrive;
-        double elapsed;
-        /** Whether a frame has stepped it: its first frame is its start and moves nothing. */
-        boolean started;
-
-        Fade(float from, float target, double seconds, @Nullable Runnable onArrive) {
-            this.from = from;
-            this.target = target;
-            this.seconds = seconds;
-            this.onArrive = onArrive;
-        }
-    }
-
-    /** The ticker on one scene's wall-time frames that steps whichever fade is current. */
-    private final class FadeTicker implements Scene.Ticker {
-        final Scene scene;
-
-        FadeTicker(Scene scene) {
-            this.scene = scene;
-        }
-
-        @Override
-        public boolean tick(double dt) {
-            return stepFade(this, dt);
-        }
-    }
-
-    /**
-     * How opaque this widget and everything under it is drawn, as one picture: 1, the default, is
-     * drawn as it always was; 0 draws nothing; between, the widget and its subtree are drawn into an
-     * offscreen layer and laid over what is beneath with this opacity once, so the parts of it that
-     * overlap do not show through each other (a row's highlight through its icon, a panel's shadow
-     * through the panel). A child's opacity multiplies its ancestors': a widget at one half inside
-     * one at one half shows at a quarter, the inner picture composited into the outer one.
-     *
-     * <p><b>A picture, not a presence.</b> At every value, 0 included, the widget is laid out, takes
-     * the pointer, takes focus and is read by a screen reader, as on a web page. To take something
-     * away, hide it: {@link #setVisible setVisible(false)} wins over any opacity, and the opacity is
-     * kept for when the widget is shown again. A fade that ends at 0 hides the widget in its
-     * {@code onArrive}, or leaves something nobody can see that a click or a Tab still reaches.
-     *
-     * <p><b>What it costs</b>, as measured: nothing at 1, nothing drawn at 0, and between the two a layer
-     * the size of the widget's box and {@link #paintOutset()}, and of any child's laid out past
-     * them, as far as it can be seen, on every frame that repaints it: on a GPU a few hundredths
-     * of a millisecond for a popup-sized widget, on a software renderer a percent or two of the
-     * frame. A change damages the same rectangle and lays nothing out.
-     *
-     * <p><b>A watcher hears it</b> as {@link Change.Aspect#OPACITY} with origin {@code CODE}, every
-     * time this changes the value and never when it does not. A {@link #fadeTo fade} in flight is
-     * superseded, and announces its end first.
-     *
-     * <p>UI thread only; refused from inside a paint, which is re-run per pass and must not move what
-     * it paints.
-     *
-     * @param opacity the opacity; clamped to 0..1
-     * @return this
-     * @throws IllegalArgumentException if {@code opacity} is NaN
-     * @throws IllegalStateException    if called from inside a paint
-     */
-    public final W setOpacity(float opacity) {
-        Ui.checkUiThread();
-        checkNotPainting(Change.Aspect.OPACITY);
-        float value = checkedOpacity(opacity);
-        supersedeFade();
-        if (value != this.opacity) {
-            moveOpacity(value);
-            notifyChange(Change.of(Change.Aspect.OPACITY, Change.Origin.CODE));
-        }
-        return self();
-    }
-
-    /**
-     * This widget's own opacity, as {@link #setOpacity} or a {@link #fadeTo fade} last left it, and
-     * not the product with its ancestors': nothing needs that number.
-     *
-     * @return the opacity, 0 to 1
-     */
-    public final float opacity() {
-        return opacity;
-    }
-
-    /**
-     * {@link #fadeTo(float, double, Runnable)} over the theme's window animation, the time the
-     * toolkit's own popups and dialogs fade in, with nothing run at the end.
-     *
-     * @param target the opacity to arrive at; clamped to 0..1
-     * @return this
-     * @throws IllegalArgumentException if {@code target} is NaN
-     * @throws IllegalStateException    if called from inside a paint
-     */
-    public final W fadeTo(float target) {
-        return fadeTo(target, limn.scene.internal.WindowAnimation.of(this), null);
-    }
-
-    /**
-     * Moves this widget's {@link #opacity()} to {@code target} over {@code seconds}, eased as the
-     * toolkit eases a window's fade, one step a frame on the scene's wall-time ticker, which ticks
-     * only while the fade moves and which pausing the scene does not freeze (an {@code onArrive}
-     * often hides or removes something, and a paused application must still be able to).
-     *
-     * <p><b>Straight to the target</b>, as one {@link #setOpacity} (one announcement if the value
-     * changed, none if not) with {@code onArrive} run at once, while the system asks for less
-     * motion, for no time, for the value the widget already has, or with no frames to step it: a
-     * widget in no scene, or in a scene with no window.
-     *
-     * <p><b>A newer {@code fadeTo} or a {@link #setOpacity} supersedes one in flight</b>: it stops
-     * where it is, and its {@code onArrive} never runs. A fade on a widget that leaves its scene
-     * (removed from the tree, or its window closed) settles at its target as it leaves, announcing
-     * its end and running its {@code onArrive} then.
-     *
-     * <p><b>A watcher hears a fade twice</b>, as {@link Change.Aspect#OPACITY} with origin
-     * {@code CODE}: when it starts, and when it arrives or is superseded. The steps between set the
-     * value and damage the widget without announcing, so a fade of any length wakes a watcher twice
-     * and never once a frame.
-     *
-     * <p>A fade out does not hide: the widget at 0 still takes the pointer and the keyboard, so a
-     * fade meant to take it away hides it in {@code onArrive}.
-     *
-     * <p>UI thread only; refused from inside a paint.
-     *
-     * @param target   the opacity to arrive at; clamped to 0..1
-     * @param seconds  how long the fade takes, when the system does not ask for less motion
-     * @param onArrive run once when the fade arrives, or at once when it goes straight there; never
-     *                 when it is superseded; may be null
-     * @return this
-     * @throws IllegalArgumentException if {@code target} is NaN, or {@code seconds} is negative or NaN
-     * @throws IllegalStateException    if called from inside a paint
-     */
-    public final W fadeTo(float target, double seconds, @Nullable Runnable onArrive) {
-        Ui.checkUiThread();
-        checkNotPainting(Change.Aspect.OPACITY);
-        float value = checkedOpacity(target);
-        if (!(seconds >= 0)) {
-            throw new IllegalArgumentException("a fade takes zero seconds or more: " + seconds);
-        }
-        supersedeFade();
-        Scene ticking = scene;
-        double length = SystemPreferences.current().reduceMotion() ? 0 : seconds;
-        if (length <= 0 || ticking == null || ticking.window() == null || value == opacity) {
-            if (value != opacity) {
-                moveOpacity(value);
-                notifyChange(Change.of(Change.Aspect.OPACITY, Change.Origin.CODE));
-            }
-            if (onArrive != null) {
-                onArrive.run();
-            }
-            return self();
-        }
-        fade = new Fade(opacity, value, length, onArrive);
-        notifyChange(Change.of(Change.Aspect.OPACITY, Change.Origin.CODE));
-        FadeTicker ticker = fadeTicker;
-        if (ticker == null || ticker.scene != ticking) {
-            // The one this widget has steps the new fade as it would have stepped the old one.
-            ticker = new FadeTicker(ticking);
-            fadeTicker = ticker;
-            ticking.addRealTimeTicker(ticker);
-        }
-        return self();
-    }
-
-    /**
-     * One frame of whichever fade is current: eased toward its target, quietly, and settled at the
-     * end. The ticker stops when no fade is left for it, a superseded one having announced its end.
-     */
-    private boolean stepFade(FadeTicker ticker, double dt) {
-        if (fadeTicker != ticker) {
-            return false; // on a scene this widget has left, whose leaving settled its fade
-        }
-        Fade stepping = fade;
-        if (stepping == null) {
-            fadeTicker = null;
-            return false;
-        }
-        if (stepping.started) {
-            stepping.elapsed += dt;
-        } else {
-            stepping.started = true; // its first frame is its start, as a fresh ticker's is
-        }
-        float t = (float) Math.min(1.0, stepping.elapsed / stepping.seconds);
-        if (t < 1f) {
-            moveOpacity(stepping.from + (stepping.target - stepping.from) * limn.math.Scalars.smoothstep(t));
-            return true;
-        }
-        settleFade(stepping);
-        if (fadeTicker != ticker) {
-            return false; // its onArrive took the widget out of this scene
-        }
-        if (fade != null) {
-            return true; // its onArrive started another fade, which this ticker steps
-        }
-        fadeTicker = null;
-        return false;
-    }
-
-    /**
-     * The widget leaves the scene whose frames step its fade: the fade settles at its target now,
-     * announcing its end and running its {@code onArrive}, as it would have at its last frame, and
-     * the widget lets go of the ticker, and through it of that scene. Not at that scene's next
-     * frame, as it once did, which a closed, covered or minimized window never renders: the widget
-     * moved to another window kept a value between the two for good and the scene it left alive.
-     *
-     * <p>Settled and not dropped, because the design of fades says a widget that leaves its scene
-     * settles at its target and runs its {@code onArrive}, and that is the one end that
-     * keeps its two announcements and what an {@code onArrive} is for: it hides or removes
-     * something, and a widget taken away mid-fade has asked for that end, not stopped short of it.
-     * Only a newer fade or a set supersedes one, which is the caller choosing another end.
-     */
-    private void settleFadeOnLeaving() {
-        fadeTicker = null; // the ticker left behind finds itself replaced, if that scene ticks again
-        Fade leaving = fade;
-        if (leaving != null) {
-            settleFade(leaving);
-        }
-    }
-
-    /** A fade arrives: the target, its one announcement of the end, and what it runs. */
-    private void settleFade(Fade arriving) {
-        fade = null;
-        moveOpacity(arriving.target);
-        notifyChange(Change.of(Change.Aspect.OPACITY, Change.Origin.CODE));
-        if (arriving.onArrive != null) {
-            arriving.onArrive.run();
-        }
-    }
-
-    /** A fade in flight stops where it is, announces its end, and never runs its onArrive. */
-    private void supersedeFade() {
-        if (fade != null) {
-            fade = null;
-            notifyChange(Change.of(Change.Aspect.OPACITY, Change.Origin.CODE));
-        }
-    }
-
-    /**
-     * Sets the opacity and damages what it draws, with no announcement and no layout: what the
-     * subtree paints ({@link #paintedBounds()}), the widget's box and {@link #paintOutset()} and any
-     * child's past them, as a picture-only damage that does not ask the accessible tree to be
-     * walked, since nothing in it reads an opacity.
-     */
-    private void moveOpacity(float value) {
-        if (value == opacity) {
-            return;
-        }
-        opacity = value;
-        if (scene != null) {
-            scene.damageWidgetPicture(this);
-        }
-    }
-
-    private static float checkedOpacity(float opacity) {
-        if (Float.isNaN(opacity)) {
-            throw new IllegalArgumentException("an opacity is a number from 0 to 1: " + opacity);
-        }
-        return Math.max(0f, Math.min(1f, opacity));
+    /** What a group's paint and painted bounds read: its opacity, and 1 for a widget that is none. */
+    private float groupOpacity() {
+        OpacityGroup group = opacityGroup;
+        return group == null ? 1f : group.value;
     }
 
     /** Whether keyboard focus can land here: false for containers and static chrome. */
@@ -2124,20 +1903,21 @@ public abstract class Widget<W extends Widget<W>> {
      * reported: the throw is already being handled, and a second message about its side effect
      * would only bury it.
      *
-     * <p><b>An {@linkplain #setOpacity opacity} below 1 draws the subtree as one picture</b>: the
-     * canvas's {@link Canvas#saveLayer layer} is opened around the three paints over what the
-     * subtree paints as partial rendering reckons it, each widget's box grown by a pixel and its
-     * {@link #paintOutset()}, a child's past this one's edge included ({@link #paintedBounds()}),
-     * and the trim that closes every save closes it too. At 0 nothing is painted, as for a widget that
-     * misses the clip; at 1 no layer is opened, unless an ancestor's paint left a
-     * {@link limn.graphics.BlendMode} other than normal in force, under which the subtree is one
-     * picture blended once at every opacity, as {@link Canvas#saveLayer} draws it.
+     * <p><b>An {@link limn.scene.layout.Opacity} container below 1 draws its subtree as one
+     * picture</b>: the canvas's {@link Canvas#saveLayer layer} is opened around the three paints
+     * over what the subtree paints as partial rendering reckons it, each widget's box grown by a
+     * pixel and its {@link #paintOutset()}, a child's past this one's edge included
+     * ({@link #paintedBounds()}), and the trim that closes every save closes it too. At 0 nothing
+     * is painted, as for a widget that misses the clip; at 1 no layer is opened, unless an
+     * ancestor's paint left a {@link limn.graphics.BlendMode} other than normal in force, under
+     * which the container's subtree is one picture blended once at every opacity, as
+     * {@link Canvas#saveLayer} draws it. Every other widget opens nothing here.
      */
     public final void paintWidget(Canvas canvas) {
         if (!isVisible()) {
             return;
         }
-        float alpha = opacity;
+        float alpha = groupOpacity();
         if (alpha <= 0f) {
             return; // fully transparent: nothing to draw, though it is there for everything else
         }
@@ -2162,10 +1942,12 @@ public abstract class Widget<W extends Widget<W>> {
         Object enclosingPainter = limn.graphics.internal.IconPlayer.enter(this);
         int inside = depth;
         try {
-            if (alpha < 1f || canvas.blendMode() != limn.graphics.BlendMode.NORMAL) {
-                // A picture at 1 too where an ancestor's paint left a blend mode in force: the
-                // picture is blended once at every opacity, and a fade arriving at 1 does not jump
-                // to each of its draws blending on its own.
+            if (opacityGroup != null
+                    && (alpha < 1f || canvas.blendMode() != limn.graphics.BlendMode.NORMAL)) {
+                // A group's picture at 1 too where an ancestor's paint left a blend mode in force:
+                // the picture is blended once at every opacity, and a fade arriving at 1 does not
+                // jump to each of its draws blending on its own. A group's only: a widget nobody
+                // fades draws under that mode as it always did, each draw blending on its own.
                 // The layer keeps what the subtree may paint, as far as partial rendering believes
                 // it does: each widget's box and outset, a child laid out past an unclipped
                 // parent's edge included. A widget that paints past its own outset was already
@@ -2198,8 +1980,9 @@ public abstract class Widget<W extends Widget<W>> {
      * What this widget and its subtree may paint, in this widget's coordinates, as partial
      * rendering reckons each widget's paint: its box grown by the pixel the antialiasing reaches
      * and its {@link #paintOutset()}, for this widget and every visible descendant, each cut where
-     * an ancestor below this one clips its children, and none for a descendant whose opacity is 0.
-     * The picture a fade draws into, and what a change of its opacity repaints: the widget's own
+     * an ancestor below this one clips its children, and none for a descendant {@link
+     * limn.scene.layout.Opacity} container at 0. The picture a fade draws into, and what a change
+     * of an opacity repaints: the widget's own
      * box and outset left out a child laid out past the edge of a parent that does not clip, a
      * badge or a focus ring flush with the edge, which the layer cut while the parent faded and
      * which a partial frame did not repaint.
@@ -2237,7 +2020,7 @@ public abstract class Widget<W extends Widget<W>> {
      * past it, as the damage clamp does.
      */
     private void unionPainted(float[] b, float ox, float oy, float cx0, float cy0, float cx1, float cy1) {
-        if (!isVisible() || opacity <= 0f) {
+        if (!isVisible() || groupOpacity() <= 0f) {
             return; // paints nothing, and nothing under it either
         }
         float outset = 1 + paintOutset();
@@ -2823,7 +2606,7 @@ public abstract class Widget<W extends Widget<W>> {
      * thing to trip it is a screen reader attaching to a shipped application. What it costs the
      * quiet path is one field read and one branch.
      */
-    private static void checkNotPainting(Change.Aspect aspect) {
+    static void checkNotPainting(Change.Aspect aspect) {
         if (paintDepth > 0) {
             throw new IllegalStateException(
                     "a paint may not announce a change (" + aspect + "): move the mutation out of onPaint");

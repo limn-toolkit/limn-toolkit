@@ -56,8 +56,11 @@ public final class GlassExample {
     // #endregion
 
     // #region guide:glass-floating
-    /** A panel floating over {@code behind}, at its bottom, set in from the edges. */
-    public static Widget<?> floatingOver(Widget<?> behind, BackdropPanel panel) {
+    /**
+     * A panel floating over {@code behind}, at its bottom, set in from the edges: the glass, or a
+     * container round it, as the one that fades it.
+     */
+    public static Widget<?> floatingOver(Widget<?> behind, Widget<?> panel) {
         // What is behind takes the whole box: a stack gives each layer the size it asks for,
         // and a column that stretches its one child asks for all of it.
         Column filling = new Column();

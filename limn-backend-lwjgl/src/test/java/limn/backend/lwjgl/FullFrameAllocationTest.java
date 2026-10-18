@@ -8,9 +8,11 @@ import limn.components.ScrollView;
 import limn.components.TextField;
 import limn.scene.Insets;
 import limn.scene.Scene;
+import limn.scene.Widget;
 import limn.scene.layout.Column;
 import limn.scene.layout.Expanded;
 import limn.scene.layout.Flex;
+import limn.scene.layout.Opacity;
 import limn.scene.layout.Padding;
 import limn.scene.layout.Row;
 import limn.testing.AllocationProbe;
@@ -41,23 +43,26 @@ class FullFrameAllocationTest {
     }
 
     /**
-     * The same form fading as one picture (ADR 071), with one of its rows at a half of its own: the
-     * layer a group opens, the fade's step on every frame and the damage it adds allocate nothing
-     * of their own, so a fade costs the paint path no garbage. The canvas is the measuring one, whose
-     * layer is a save and a multiplied opacity, which is the widget's side of the path; the
-     * backend's layer is measured in pixels and time, not here.
+     * The same form fading as one picture in an Opacity container (ADR 071), with its status line in
+     * a container at a half of its own: the layer a group opens, the fade's step on every frame and
+     * the damage it adds allocate nothing of their own, so a fade costs the paint path no garbage.
+     * The canvas is the measuring one, whose layer is a save and a multiplied opacity, which is the
+     * widget's side of the path; the backend's layer is measured in pixels and time, not here.
      */
     @Test
     void aFrameOfAFadingFormAllocatesAlmostNothing() {
         Assumptions.assumeTrue(AllocationProbe.isSupported(), "no per-thread allocation counter");
         try (HeadlessUi ui = new HeadlessUi(); FontStore store = new FontStore()) {
             Column page = form();
-            page.children().get(1).setOpacity(0.5f);
-            Scene scene = new Scene(new Padding(Insets.all(8), page));
+            Widget<?> status = page.children().get(1);
+            page.remove(status);
+            page.add(new Opacity(status).setOpacity(0.5f));
+            Opacity fading = new Opacity(page);
+            Scene scene = new Scene(new Padding(Insets.all(8), fading));
             scene.bind(new StubWindow()); // a window, so the fade has frames to step it
-            page.fadeTo(0.2f, 20, null); // in flight for every frame measured, and moving
+            fading.fadeTo(0.2f, 20, null); // in flight for every frame measured, and moving
             assertFrameUnderCeiling(scene, store, "a frame of a fading form");
-            assertTrue(page.opacity() < 1f && page.opacity() > 0.2f, "the fade moved and is still moving");
+            assertTrue(fading.opacity() < 1f && fading.opacity() > 0.2f, "the fade moved and is still moving");
         }
     }
 

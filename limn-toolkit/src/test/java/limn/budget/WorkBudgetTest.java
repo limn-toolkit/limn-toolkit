@@ -375,8 +375,7 @@ class WorkBudgetTest {
         for (int i = 0; i < rows; i++) {
             column.add(new Label("Row " + i));
         }
-        column.setOpacity(opacity);
-        Scene scene = new Scene(column);
+        Scene scene = new Scene(new limn.scene.layout.Opacity(column).setOpacity(opacity));
         scene.setTextRuler(TestRulers.FIXED);
         Work.Counting canvas = new Work.Counting(WIDTH, HEIGHT);
         scene.layoutPass(WIDTH, HEIGHT);

@@ -12,6 +12,7 @@ import limn.scene.Scene;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.MouseEvent;
+import limn.scene.layout.Opacity;
 
 /**
  * The worked examples the animations guide shows: a value that eases to where it is sent, a
@@ -189,13 +190,19 @@ public final class AnimationExample {
     // #endregion
 
     // #region guide:animation-fade
-    /** A notice that fades in where it was hidden, and fades out and is hidden when dismissed. */
-    static void showNotice(Widget<?> notice) {
-        notice.setOpacity(0).setVisible(true);
-        notice.fadeTo(1);       // over the theme's window animation, the notice and all it holds as one picture
+    /** A notice, in the container that fades it and all it holds as one picture; hidden to start with. */
+    static Opacity noticeOf(Widget<?> content) {
+        return new Opacity(content).setVisible(false);
     }
 
-    static void dismissNotice(Widget<?> notice) {
+    /** Fades the notice in where it was hidden. */
+    static void showNotice(Opacity notice) {
+        notice.setOpacity(0).setVisible(true);
+        notice.fadeTo(1);       // over the theme's window animation
+    }
+
+    /** Fades it out, and hides it when the fade arrives. */
+    static void dismissNotice(Opacity notice) {
         // At 0 it would still take a click, a Tab and a reader's attention: hidden when the fade arrives.
         notice.fadeTo(0, 0.25, () -> notice.setVisible(false));
     }

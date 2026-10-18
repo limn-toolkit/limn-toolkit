@@ -9,6 +9,7 @@ import limn.scene.Insets;
 import limn.scene.Scene;
 import limn.scene.Size;
 import limn.scene.Widget;
+import limn.scene.layout.Opacity;
 import limn.scene.layout.Padding;
 import limn.scene.layout.Stack;
 import limn.testing.HeadlessUi;
@@ -127,10 +128,10 @@ class OpacityPassSeamTest {
         Stack panel = new Stack();
         panel.add(new Card());
         panel.add(new Padding(new Insets(24, 0, 0, 20), thumb));
-        panel.setOpacity(0.55f);
+        Opacity faded = new Opacity(panel).setOpacity(0.55f);
         Stack layers = new Stack();
         layers.add(new Picture());
-        layers.add(new Padding(new Insets(30.35f, 0, 0, 20.1f), panel));
+        layers.add(new Padding(new Insets(30.35f, 0, 0, 20.1f), faded));
 
         assertPartialIsWhole(layers, thumb::invalidate);
     }
@@ -140,22 +141,22 @@ class OpacityPassSeamTest {
         Stack panel = new Stack();
         panel.add(new Card());
         panel.add(new Padding(new Insets(24, 0, 0, 20), new Thumb()));
-        panel.setOpacity(0.55f);
+        Opacity faded = new Opacity(panel).setOpacity(0.55f);
         Stack layers = new Stack();
         layers.add(new Picture());
-        layers.add(new Padding(new Insets(30.35f, 0, 0, 20.1f), panel));
+        layers.add(new Padding(new Insets(30.35f, 0, 0, 20.1f), faded));
 
-        assertPartialIsWhole(layers, () -> panel.setOpacity(0.3f));
+        assertPartialIsWhole(layers, () -> faded.setOpacity(0.3f));
     }
 
     @Test
     void aGlassInsideAFadingPanelDrawsWhatTheWholeFrameDrew() {
         Thumb thumb = new Thumb();
         BackdropPanel glass = BackdropPanel.frosted(Insets.all(10), thumb);
-        glass.setOpacity(0.7f);
+        Opacity faded = new Opacity(glass).setOpacity(0.7f);
         Stack layers = new Stack();
         layers.add(new Picture());
-        layers.add(new Padding(new Insets(30.35f, 0, 0, 20.1f), glass));
+        layers.add(new Padding(new Insets(30.35f, 0, 0, 20.1f), faded));
 
         assertPartialIsWhole(layers, thumb::invalidate);
     }
@@ -204,7 +205,7 @@ class OpacityPassSeamTest {
 
     @Test
     void aChildPastTheEdgeOfAnUnclippedFadingParentFadesWithItWholeAndPartial() {
-        Overhang panel = new Overhang();
+        Opacity panel = new Opacity(new Overhang());
         Stack layers = new Stack();
         layers.add(new Picture());
         layers.add(new Padding(new Insets(30.35f, 0, 0, 20.1f), panel));

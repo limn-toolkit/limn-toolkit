@@ -6,7 +6,7 @@ import limn.scene.Widget;
  * Not API. How long a fade takes when the caller names no length: the theme's window animation,
  * the one its popups, menus and dialogs fade in and out with, for the widget that asks.
  *
- * <p>The number is the theme's and {@code Widget.fadeTo(float)} is this layer's, and
+ * <p>The number is the theme's and {@code Opacity.fadeTo(float)} is this layer's, and
  * {@code limn.scene} names no type of the layer the theme lives in. So the theme installs a
  * resolver here as it loads, as it does for {@link LayoutOverflow}, and a widget asks this class,
  * handing itself over so that a theme resolved per subtree is followed the day there is one.

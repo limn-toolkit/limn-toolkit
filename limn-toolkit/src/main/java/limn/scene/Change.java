@@ -66,8 +66,9 @@ public sealed interface Change {
         /** Which widgets the tree holds under this one. */
         CHILDREN,
         /**
-         * How opaque the widget is drawn, {@code Widget.opacity()}: a picture and nothing else, which
-         * no accessibility bridge reads. A {@code setOpacity} that changes the value announces it every
+         * How opaque an {@link limn.scene.layout.Opacity} container draws its child,
+         * {@code Opacity.opacity()}, announced on the container: a picture and nothing else, which no
+         * accessibility bridge reads. A {@code setOpacity} that changes the value announces it every
          * time; a {@code fadeTo} announces only its start and its end.
          */
         OPACITY,

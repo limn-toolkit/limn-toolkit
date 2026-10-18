@@ -391,6 +391,15 @@ class AccessibleCoverageTest {
             // wrapped control describing itself rather than on the owner annotating or keying it.
             // Pinned by limn.scene.ExpandedAccessibilityTest.
             "limn.scene.layout.Expanded",
+            // Declares no role, name, description, action or state and no onPaint (what it draws is
+            // its child, into a layer its paintWidget opens), is never focusable of its own accord,
+            // and holds one child, so §1.6's predicate deletes it and hoists the child into its
+            // place. The deletion is lossless as Expanded's is: onLayout hands the child the whole
+            // box at the origin. Its opacity is a picture and nothing else, which the tree does not
+            // read at any value, 0 included, and a change of it walks no tree. It is final, so the
+            // naming hatch is per instance only. Pinned by
+            // limn.scene.OpacityTest.theContainerIsNothingToLayoutAndNothingToTheAccessibleTree.
+            "limn.scene.layout.Opacity",
             // Declares no role, name, description, action or state and no onPaint, is never
             // focusable of its own accord and carries no tooltip, so §1.6's predicate deletes it in
             // silence and hoists its one child. What the deletion leaves behind is an extent and no

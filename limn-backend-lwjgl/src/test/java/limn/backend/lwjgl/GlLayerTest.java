@@ -359,7 +359,7 @@ class GlLayerTest {
     }
 
     @Test
-    void aWidgetUnderAnotherBlendModeDrawsTheSamePictureAtOneAsJustBelowIt() {
+    void anOpacityContainerUnderAnotherBlendModeDrawsTheSamePictureAtOneAsJustBelowIt() {
         class Squares extends limn.scene.Widget<Squares> {
             @Override
             protected limn.scene.Size onMeasure(limn.scene.Constraints c) {
@@ -372,7 +372,7 @@ class GlLayerTest {
             }
         }
         class Multiplying extends limn.scene.Widget<Multiplying> {
-            Multiplying(Squares child) {
+            Multiplying(limn.scene.Widget<?> child) {
                 add(child);
             }
 
@@ -392,7 +392,7 @@ class GlLayerTest {
                 canvas.setBlendMode(limn.graphics.BlendMode.MULTIPLY); // what its children paint under
             }
         }
-        Squares child = new Squares();
+        limn.scene.layout.Opacity child = new limn.scene.layout.Opacity(new Squares());
         Multiplying parent = new Multiplying(child);
         parent.measure(limn.scene.Constraints.loose(W_PT, H_PT));
         parent.layoutBox(0, 0, 140, 140);
@@ -405,7 +405,7 @@ class GlLayerTest {
         byte[] fading = render(paint);
         child.setOpacity(1f);
         byte[] arrived = render(paint);
-        assertAtMost(2, fading, arrived, "a child under its parent's MULTIPLY, arriving at 1");
+        assertAtMost(2, fading, arrived, "a container under its parent's MULTIPLY, arriving at 1");
     }
 
     // ------------------------------------------------------------------ memory

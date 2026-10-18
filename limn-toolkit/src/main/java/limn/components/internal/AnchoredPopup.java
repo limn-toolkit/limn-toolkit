@@ -23,6 +23,7 @@ import limn.scene.event.CharEvent;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
 import limn.scene.internal.SceneAccess;
+import limn.scene.layout.Opacity;
 import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
@@ -370,23 +371,25 @@ public final class AnchoredPopup {
 
     /**
      * Draws the panel in the owner's scene, on a layer that takes every press beside it, and fades
-     * the panel in through its own opacity: the panel and its shadow, rows, highlight and icons as
-     * one picture, so nothing in it shows through what covers it halfway through the fade. The
-     * panel's and not the layer's, which covers the whole scene: a picture the size of the panel
-     * and a repaint of the panel's box each frame, not of the window.
+     * the panel in through an {@link Opacity} container round it: the panel and its shadow, rows,
+     * highlight and icons as one picture, so nothing in it shows through what covers it halfway
+     * through the fade. Round the panel and not the layer, which covers the whole scene: a picture
+     * the size of the panel and a repaint of the panel's box each frame, not of the window. The
+     * container is no node of the accessible tree, so the panel is read where it was.
      */
     private void presentInScene(Scene owner) {
         Widget<?> card = host.createPanel(false);
         panel = card;
         // Before the layer is pushed, for the reason a window's root takes it before binding.
         card.setInheritanceHost(host.opener());
-        layer = new Layer(card);
+        Opacity fading = new Opacity(card);
+        layer = new Layer(fading);
         // On the layer as well, and it is the layer's that works: a host link on a widget with a
-        // parent loses to the tree, and the panel's parent is the layer.
+        // parent loses to the tree, and the panel has a parent inside the layer.
         layer.setInheritanceHost(host.opener());
         boolean animate = owner.window() != null && !Motion.reduced();
         if (animate) {
-            card.setOpacity(0f); // before the push, so nothing in the scene hears a fresh panel start
+            fading.setOpacity(0f); // before the push, so nothing in the scene hears a fresh panel start
         }
         if (host.keepsKeyboard()) {
             SceneAccess.pushPopupLeavingKeyboard(owner, layer);
@@ -394,7 +397,7 @@ public final class AnchoredPopup {
             owner.pushPopup(layer);
         }
         if (animate) {
-            card.fadeTo(1f, Theme.of(host.anchor()).animWindow, null); // a close supersedes it
+            fading.fadeTo(1f, Theme.of(host.anchor()).animWindow, null); // a close supersedes it
         }
     }
 
@@ -505,7 +508,7 @@ public final class AnchoredPopup {
         // this fade's arrival removes the layer that holds the pointer, and a paused application
         // must still get its field beneath back. Nothing else fades this panel, a fresh one for
         // each presentation, so nothing supersedes the fade that removes it.
-        Widget<?> card = closing.content;
+        Opacity card = closing.content;
         card.fadeTo(0f, Theme.of(host.anchor()).animWindow * card.opacity(), () -> {
             owner.removeOverlay(closing);
             host.released();
@@ -519,9 +522,10 @@ public final class AnchoredPopup {
      */
     private final class Layer extends Widget<Layer> {
 
-        private final Widget<?> content;
+        /** The panel, in the container that fades it. */
+        private final Opacity content;
 
-        Layer(Widget<?> content) {
+        Layer(Opacity content) {
             this.content = content;
             setFocusable(true);
             add(content);

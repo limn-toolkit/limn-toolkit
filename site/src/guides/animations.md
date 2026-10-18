@@ -46,26 +46,30 @@ closing, `animWindow` for a popup or a dialog, and `animEasing` for the curve.
 
 ## Fading part of a window
 
-Any widget can be faded, with everything inside it, through its opacity. `setOpacity` sets it at
-once, from 0 to 1; `fadeTo` moves it there over a duration, the theme's `animWindow` when none is
-given, eased as the toolkit's own popups fade, and runs what it is handed when it arrives:
+A part of a window fades, with everything inside it, in an `Opacity` container, which wraps one
+widget as `Padding` does. `setOpacity` sets how opaque it is drawn, at once, from 0 to 1; `fadeTo`
+moves it there over a duration, the theme's `animWindow` when none is given, eased as the
+toolkit's own popups fade, and runs what it is handed when it arrives:
 
 {% snippet guide:animation-fade %}
 
-Between 0 and 1 the widget and its subtree are drawn as one picture, and the picture is laid over
-the window with the opacity, so the parts of a panel do not show through each other halfway: a
-row's highlight stays under its icon and a card's border under its buttons. A child's opacity
-multiplies its parents'. At 1 nothing extra is drawn and at 0 nothing is drawn at all; in between,
-the picture costs a few hundredths of a millisecond a frame on a graphics card for something the
-size of a popup, and a percent or two of the frame where the system draws without one.
+Between 0 and 1 the container's child and its subtree are drawn as one picture, and the picture is
+laid over the window with the opacity, so the parts of a panel do not show through each other
+halfway: a row's highlight stays under its icon and a card's border under its buttons. One
+container inside another multiplies its opacity. At 1 nothing extra is drawn and at 0 nothing is
+drawn at all; in between, the picture costs a few hundredths of a millisecond a frame on a graphics
+card for something the size of a popup, and a percent or two of the frame where the system draws
+without one. Only what is in a container pays for it, and the container changes nothing else: it
+measures and lays out as its child alone, and a screen reader does not see it.
 
-An opacity is a picture and nothing else. At 0 a widget is still laid out, still takes a click and
-the keyboard, and a screen reader still reads it; to take it away, hide it, which the example does
-when its fade out arrives. A newer `fadeTo` or a `setOpacity` stops a fade where it is, and that
-fade's `onArrive` never runs; a widget taken out of its window mid-fade arrives as it leaves, and
-runs its `onArrive` then. While the user asked for less motion, `fadeTo` goes straight to its
-target and runs `onArrive` at once. Something watching the widget hears `Change.Aspect.OPACITY`
-each time `setOpacity` changes the value, and twice for a fade, as it starts and as it ends.
+An opacity is a picture and nothing else. At 0 the child is still laid out, still takes a click
+and the keyboard, and a screen reader still reads it; to take it away, hide it, which the example
+does when its fade out arrives. A newer `fadeTo` or a `setOpacity` stops a fade where it is, and
+that fade's `onArrive` never runs; a container taken out of its window mid-fade arrives as it
+leaves, and runs its `onArrive` then. While the user asked for less motion, `fadeTo` goes straight
+to its target and runs `onArrive` at once. Something watching the container hears
+`Change.Aspect.OPACITY` each time `setOpacity` changes the value, and twice for a fade, as it
+starts and as it ends.
 
 A widget that paints overlapping parts of its own and fades them, as a chart fades its tooltip,
 draws them as the same kind of picture with `Canvas.saveLayer(x, y, width, height, opacity)`,

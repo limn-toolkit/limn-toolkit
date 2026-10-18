@@ -154,7 +154,7 @@ public interface Canvas {
      * picture, and the restore composites that picture over what is beneath it with
      * {@code opacity}, once. Overlapping draws inside it therefore fade as one picture: a row's
      * highlight does not show through the row's icon, and a panel's shadow does not darken the
-     * panel. This is what {@code Widget.setOpacity} draws through, and what a widget that paints
+     * panel. This is what an {@code Opacity} container draws through, and what a widget that paints
      * overlapping parts of its own uses to fade them together.
      *
      * <p>The rectangle, in current coordinates, is what the picture keeps: whatever is drawn outside

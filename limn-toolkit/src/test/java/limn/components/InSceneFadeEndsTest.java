@@ -3,6 +3,7 @@ package limn.components;
 import limn.components.internal.AnchoredPopup;
 import limn.scene.Scene;
 import limn.scene.Widget;
+import limn.scene.layout.Opacity;
 import limn.scene.layout.Padding;
 import limn.scene.Insets;
 import limn.testing.HeadlessUi;
@@ -74,9 +75,10 @@ class InSceneFadeEndsTest {
         Dialog dialog = new Dialog("Confirm", "Proceed?")
                 .addPrimaryButton("OK", "ok")
                 .setDisplayMode(DisplayMode.IN_SCENE);
-        Widget<?> card = dialog.contentRoot();
         float[] cardWhenItWent = {-1};
-        dialog.show(scene).thenAccept(r -> cardWhenItWent[0] = card.opacity());
+        java.util.concurrent.CompletionStage<String> answered = dialog.show(scene);
+        Opacity card = (Opacity) dialog.contentRoot().parent(); // the container that fades the card
+        answered.thenAccept(r -> cardWhenItWent[0] = card.opacity());
         frame(); // the fade's first frame is its start
         advance(3 * FRAME);
         float opened = card.opacity();
@@ -106,8 +108,9 @@ class InSceneFadeEndsTest {
         advance(2 * FRAME);
         java.lang.reflect.Field popup = ComboBox.class.getDeclaredField("popup");
         popup.setAccessible(true);
-        Widget<?> list = ((AnchoredPopup) popup.get(combo)).panel();
-        assertTrue(list != null && list.scene() == scene, "the list is in the scene");
+        Widget<?> panel = ((AnchoredPopup) popup.get(combo)).panel();
+        assertTrue(panel != null && panel.scene() == scene, "the list is in the scene");
+        Opacity list = (Opacity) panel.parent(); // the container that fades the list
         float shown = list.opacity();
         assertTrue(shown > 0f && shown < 0.5f, "a moment after it opened, hardly shown yet: " + shown);
 

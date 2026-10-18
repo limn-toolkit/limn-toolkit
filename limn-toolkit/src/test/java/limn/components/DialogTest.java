@@ -682,7 +682,7 @@ class DialogTest extends ComponentTestBase {
         assertTrue(inScene.contentRoot().height() <= budget + 0.001f,
                 "an in-scene card must fit its host window less the margin: "
                         + inScene.contentRoot().height() + " > " + budget);
-        assertTrue(inScene.contentRoot().y() >= SizeTokens.MEDIUM.spacingLarge() - 0.001f,
+        assertTrue(inScene.contentRoot().localToSceneY() >= SizeTokens.MEDIUM.spacingLarge() - 0.001f,
                 "the card should sit inside the margin, not against the top edge");
     }
 
@@ -731,8 +731,10 @@ class DialogTest extends ComponentTestBase {
         pump(clock, host, canvas); // settle fade-in + layout
 
         Widget<?> card = inScene.contentRoot();
-        float x0 = card.x();
-        float y0 = card.y();
+        // Where the card is in the window: it sits in the container that fades it, which the
+        // overlay places.
+        float x0 = card.localToSceneX();
+        float y0 = card.localToSceneY();
         // Grab half the page padding in from the card's top-left: bare card at every step,
         // never a child: the literal +10 this replaces sat on the title Label, not the card.
         float grab = SizeTokens.MEDIUM.spacingLarge() / 2;
@@ -746,8 +748,8 @@ class DialogTest extends ComponentTestBase {
         drive(host).inputBatchEnded();
         host.renderFrame(canvas); // re-layout applies the drag offset
 
-        assertEquals(x0 + 40, card.x(), 0.5f, "card follows the drag on x");
-        assertEquals(y0 + 25, card.y(), 0.5f, "card follows the drag on y");
+        assertEquals(x0 + 40, card.localToSceneX(), 0.5f, "card follows the drag on x");
+        assertEquals(y0 + 25, card.localToSceneY(), 0.5f, "card follows the drag on y");
     }
 
     @Test

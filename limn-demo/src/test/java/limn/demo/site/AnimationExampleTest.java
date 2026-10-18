@@ -75,8 +75,8 @@ class AnimationExampleTest {
 
     @Test
     void aNoticeFadesInAsOnePictureAndIsHiddenWhenItsFadeOutArrives() {
-        Lamp notice = new Lamp();
-        notice.setVisible(false);
+        limn.scene.layout.Opacity notice = AnimationExample.noticeOf(new Lamp());
+        assertTrue(!notice.isVisible(), "hidden to start with");
         show(notice);
         scene.bind(new limn.testing.StubWindow()); // a window: frames to fade over
         AnimationExample.showNotice(notice);

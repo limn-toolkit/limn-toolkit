@@ -1955,9 +1955,10 @@ public final class Scene {
     }
 
     /**
-     * Widget.setOpacity and the steps of a fade: the damage {@link #damageWidget} adds, grown to
-     * what the subtree paints, and no walk of the accessible tree, because nothing it publishes reads an opacity. A fade of
-     * twelve frames would otherwise walk and compare the tree twelve times to find it unchanged.
+     * An opacity container's set and the steps of its fade: the damage {@link #damageWidget} adds,
+     * grown to what the subtree paints, and no walk of the accessible tree, because nothing it
+     * publishes reads an opacity. A fade of twelve frames would otherwise walk and compare the tree
+     * twelve times to find it unchanged.
      */
     void damageWidgetPicture(Widget<?> widget) {
         if (partialRendering || damageDebug) {

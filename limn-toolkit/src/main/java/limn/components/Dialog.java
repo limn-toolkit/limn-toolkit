@@ -25,6 +25,7 @@ import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
 import limn.scene.internal.SceneAccess;
 import limn.scene.layout.Flex;
+import limn.scene.layout.Opacity;
 import limn.scene.layout.Row;
 import org.jspecify.annotations.Nullable;
 
@@ -174,8 +175,13 @@ public final class Dialog {
     private boolean dismissOnScrim; // default false: modal (ignore + beep), like a native modal
     /** How far the dialog has faded in where nothing fades its card: 1 in a window of its own. */
     private float fade;
-    /** In the scene the card's own opacity is the dialog's fade, which the veil and the slide read. */
+    /** In the scene the card's opacity is the dialog's fade, which the veil and the slide read. */
     private boolean cardFades;
+    /**
+     * The container the card is faded through in the scene, made as the card moves into it; its
+     * opacity is the dialog's fade there.
+     */
+    private @Nullable Opacity cardFade;
     /** Whether the card's fade is moving, so the veil has to be repainted with it. */
     private boolean cardMoving;
     /** Whether the ticker that repaints the veil while the card fades is registered. */
@@ -528,7 +534,8 @@ public final class Dialog {
 
     /** @return the current fade level in [0..1] (tests/screenshots) */
     public float fadeLevel() {
-        return cardFades ? panel.opacity() : fade;
+        Opacity fading = cardFade;
+        return cardFades && fading != null ? fading.opacity() : fade;
     }
 
     /**
@@ -833,9 +840,10 @@ public final class Dialog {
         modalScene = null;
         displayMode = DisplayMode.IN_SCENE;
         hostScene = owner;
-        // The card is the root of the scene being left, parentless, so the overlay can adopt it,
-        // and adopting it takes it out of that scene before pushOverlay puts it in this one.
-        overlay = new SceneOverlay(panel);
+        // The card is the root of the scene being left, parentless, so the container that fades it
+        // can adopt it, and adopting it takes it out of that scene before pushOverlay puts it in
+        // this one.
+        overlay = new SceneOverlay(fadingCard());
         overlay.setInheritanceHost(inheritanceHostFor(owner));
         // With the keyboard, taken from the scene being left before its close could run the
         // widget's focus-lost path, and never put on the first stop as if by Tab: the one would
@@ -1037,7 +1045,7 @@ public final class Dialog {
         // window: the card paints from this field, and displayMode() answers from it.
         displayMode = DisplayMode.IN_SCENE;
         this.hostScene = owner;
-        overlay = new SceneOverlay(panel);
+        overlay = new SceneOverlay(fadingCard());
         // The host link goes on the OVERLAY, not on the panel: the panel's parent is the
         // overlay here, and a host link on a widget that has a parent is ignored (the tree
         // wins). The overlay is the parentless one (pushOverlay sets the scene but never a
@@ -1059,8 +1067,23 @@ public final class Dialog {
     }
 
     /**
-     * Fades the card in, in the scene, through its own opacity, which draws it, its shadow and its
-     * buttons as one picture. That opacity is the dialog's fade: the veil's alpha and the card's
+     * The card in the {@link Opacity} container that fades it in the scene, made the first time: it
+     * adopts the card, which takes the card out of the scene it was the root of when it moves in
+     * from a window of its own. The container is no node of the accessible tree, so the card is
+     * read under the overlay where it was.
+     */
+    private Opacity fadingCard() {
+        Opacity fading = cardFade;
+        if (fading == null) {
+            fading = new Opacity(panel);
+            cardFade = fading;
+        }
+        return fading;
+    }
+
+    /**
+     * Fades the card in, in the scene, through the container round it, which draws it, its shadow
+     * and its buttons as one picture. That opacity is the dialog's fade: the veil's alpha and the card's
      * slide read it as they paint, and the fade out that ends the dialog is the card's too. One
      * fade and not two side by side: two kept apart, the dialog's linear one and the card's eased
      * one, met only at their ends, so a dialog closed while it faded in took its veil away with its
@@ -1070,25 +1093,26 @@ public final class Dialog {
      */
     private void startFadeInScene() {
         cardFades = true;
+        Opacity fading = fadingCard();
         if (limn.animation.Motion.reduced()) {
-            panel.setOpacity(1f); // no fade for a user who asked for less motion: the card is there at once
+            fading.setOpacity(1f); // no fade for a user who asked for less motion: the card is there at once
             if (overlay != null) {
                 overlay.invalidate();
             }
             return;
         }
-        panel.setOpacity(0f);
+        fading.setOpacity(0f);
         fadeCard(1f, Theme.current().animWindow, null);
     }
 
     /**
-     * Moves the card's opacity, and the veil and the slide with it, to {@code target}: the card's
-     * {@code fadeTo}, on wall time (a dialog is shell, and its fade out completes the result
+     * Moves the card's opacity, and the veil and the slide with it, to {@code target}: its
+     * container's {@code fadeTo}, on wall time (a dialog is shell, and its fade out completes the result
      * future), and while it moves a ticker that repaints the veil, one however many fades follow.
      */
     private void fadeCard(float target, double seconds, @Nullable Runnable onArrive) {
         cardMoving = true;
-        panel.fadeTo(target, seconds, () -> {
+        fadingCard().fadeTo(target, seconds, () -> {
             cardMoving = false;
             if (overlay != null) {
                 overlay.invalidate(); // the veil's last step
@@ -1232,7 +1256,7 @@ public final class Dialog {
             // supersedes a fade in still running. Its arrival is what removes the overlay and
             // completes `result`, on wall time, and load-bearing: on scene time a paused app
             // could never close a dialog.
-            fadeCard(0f, Theme.current().animWindow * panel.opacity(), () -> {
+            fadeCard(0f, Theme.current().animWindow * fadingCard().opacity(), () -> {
                 unhook.cancel();
                 closeOverlay();
                 result.complete(value);
@@ -1688,10 +1712,11 @@ public final class Dialog {
 
         @Override
         protected void onLayout() {
-            // Resolved on the CARD, not on this overlay: the cap and the scene margin are
-            // properties of the dialog, so an explicitly-stepped Dialog keeps its own width
-            // budget even though the overlay itself inherits the host scene's step.
-            SizeTokens t = Theme.of(this).tokensFor(card);
+            // Resolved on the CARD, not on this overlay nor on the container that fades the card,
+            // which inherits the overlay's: the cap and the scene margin are properties of the
+            // dialog, so an explicitly-stepped Dialog keeps its own width budget even though the
+            // overlay itself inherits the host scene's step.
+            SizeTokens t = Theme.of(this).tokensFor(panel);
             float maxW = Math.min(t.dialogMaxWidth(), width() - 2 * t.spacingLarge());
             // The same margin down the other axis, which the height had never been given: an
             // in-scene card cannot leave the window that owns it, so the window IS the bound,

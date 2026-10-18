@@ -23,6 +23,7 @@ import limn.scene.Widget;
 import limn.scene.layout.Column;
 import limn.scene.layout.Expanded;
 import limn.scene.layout.Flex;
+import limn.scene.layout.Opacity;
 import limn.scene.layout.Padding;
 import limn.scene.layout.Row;
 import limn.scene.layout.SizedBox;
@@ -160,25 +161,27 @@ final class GlassScene {
                 new SizedBox(160, SizedBox.UNSET, cover), coverPercent);
         coverRow.add(Expanded.spacer(1));
         column.add(coverRow);
-        // Opacity is the whole panel's, the widget's own: the glass, its tone and the controls on it
-        // fade as one picture over the picture behind, and the glass still reads that picture as if
-        // the panel were opaque. The button fades it out and back to where the slider stands.
+        // Opacity is the whole panel's, through a container round it: the glass, its tone and the
+        // controls on it fade as one picture over the picture behind, and the glass still reads that
+        // picture as if the panel were opaque. The button fades it out and back to where the slider
+        // stands.
+        Opacity faded = new Opacity(floating);
         Slider opacity = new Slider(0, 100).setStep(5).setValue(100);
         opacity.setAccessibleName(Text.OPACITY);
         Label opacityPercent = Page.label(() -> NumberFormats.percent(0).apply(opacity.value() / 100.0))
                 .setMuted(true);
         opacity.onChange(value -> {
             opacityPercent.setText(NumberFormats.percent(0).apply(value / 100.0));
-            floating.setOpacity(value / 100f);
+            faded.setOpacity(value / 100f);
         });
-        Button fade = new Button(Text.FADE).setSecondary(true).onAction(() -> floating.fadeTo(0f, 0.6,
-                () -> floating.fadeTo(opacity.value() / 100f, 0.6, null)));
+        Button fade = new Button(Text.FADE).setSecondary(true).onAction(() -> faded.fadeTo(0f, 0.6,
+                () -> faded.fadeTo(opacity.value() / 100f, 0.6, null)));
         Row opacityRow = Page.row(12, new Label(Text.OPACITY).setMuted(true).setLabelFor(opacity),
                 new SizedBox(160, SizedBox.UNSET, opacity), opacityPercent, fade);
         opacityRow.add(Expanded.spacer(1));
         column.add(opacityRow);
         column.add(new SizedBox(SizedBox.UNSET, 240, limn.demo.site.GlassExample.floatingOver(
-                new ImageView(dusk()).setFit(ImageView.Fit.COVER), floating)));
+                new ImageView(dusk()).setFit(ImageView.Fit.COVER), faded)));
 
         // ---- the effects themselves, one beside the other
         column.add(Page.section(Text.EFFECTS));
