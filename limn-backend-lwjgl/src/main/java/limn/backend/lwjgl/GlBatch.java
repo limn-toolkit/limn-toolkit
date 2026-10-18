@@ -540,35 +540,80 @@ final class GlBatch implements AutoCloseable {
         glBindVertexArray(compositeVao);
         glBindBuffer(GL_ARRAY_BUFFER, compositeVbo);
         glBufferData(GL_ARRAY_BUFFER, compositeVertices, GL_STREAM_DRAW);
-        boolean computed = clip != null && (clip.radius > 0 || offTheGrid(clip));
-        if (computed) {
-            clippedCompositeProgram.use();
-            glUniform2f(clippedUniformViewport, targetWidth, targetHeight);
-            glUniform2f(clippedUniformOrigin, targetX, targetY);
-            glUniform1f(clippedUniformAlpha, alpha);
-            glUniform4f(clippedUniformClip, clip.x0, clip.y0, clip.x1, clip.y1);
-            glUniform4f(clippedUniformRoundClip, clip.roundX0, clip.roundY0, clip.roundX1, clip.roundY1);
-            glUniform1f(clippedUniformClipRadius, clip.radius);
-        } else {
-            compositeProgram.use();
-            glUniform2f(compositeUniformViewport, targetWidth, targetHeight);
-            glUniform2f(compositeUniformOrigin, targetX, targetY);
-            glUniform1f(compositeUniformAlpha, alpha);
-        }
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture);
         if (smooth) {
             glBindSampler(0, smoothSampler);
         }
         applyRasterState();
-        if (clip == null || scissorTo(clip, computed)) {
+        if (clip == null) {
+            usePlainComposite(alpha);
             glDrawArrays(GL_TRIANGLES, 0, 6);
             drawCalls++;
+        } else if (!(clip.radius > 0) && !offTheGrid(clip)) {
+            usePlainComposite(alpha);
+            drawIn(Math.round(clip.x0), Math.round(clip.y0), Math.round(clip.x1), Math.round(clip.y1));
+        } else {
+            drawUnderComputedClip(alpha, clip);
         }
+        glDisable(GL_SCISSOR_TEST);
         if (smooth) {
             glBindSampler(0, 0);
         }
         glBindVertexArray(0);
+    }
+
+    /**
+     * The composite under a clip only the variant program makes, which computes the clip's coverage
+     * at each fragment, and so costs a renderer without a GPU per pixel: run only where a pixel can
+     * be covered in part. The band between the rounded clip's corners and inside every edge by half
+     * a pixel is covered wholly, and takes the plain program under a scissor; the variant takes the
+     * strips above, below and beside it, at most the corners' height and a pixel wide at the sides.
+     */
+    private void drawUnderComputedClip(float alpha, DeviceClip clip) {
+        int bx0 = (int) Math.floor(clip.x0);
+        int by0 = (int) Math.floor(clip.y0);
+        int bx1 = (int) Math.ceil(clip.x1);
+        int by1 = (int) Math.ceil(clip.y1);
+        float radius = 0;
+        if (clip.radius > 0) {
+            // The radius the program rounds by: no more than half the rounded rectangle's sides.
+            float half = Math.min(clip.roundX1 - clip.roundX0, clip.roundY1 - clip.roundY0) / 2;
+            radius = Math.min(clip.radius, Math.max(0, half));
+        }
+        int ix0 = (int) Math.ceil(Math.max(clip.x0, clip.roundX0));
+        int ix1 = (int) Math.floor(Math.min(clip.x1, clip.roundX1));
+        int iy0 = (int) Math.ceil(Math.max(clip.y0, clip.roundY0 + radius));
+        int iy1 = (int) Math.floor(Math.min(clip.y1, clip.roundY1 - radius));
+        if (ix1 <= ix0 || iy1 <= iy0) {
+            useComputedComposite(alpha, clip);
+            drawIn(bx0, by0, bx1, by1);
+            return;
+        }
+        usePlainComposite(alpha);
+        drawIn(ix0, iy0, ix1, iy1);
+        useComputedComposite(alpha, clip);
+        drawIn(bx0, by0, bx1, iy0);
+        drawIn(bx0, iy1, bx1, by1);
+        drawIn(bx0, iy0, ix0, iy1);
+        drawIn(ix1, iy0, bx1, iy1);
+    }
+
+    private void usePlainComposite(float alpha) {
+        compositeProgram.use();
+        glUniform2f(compositeUniformViewport, targetWidth, targetHeight);
+        glUniform2f(compositeUniformOrigin, targetX, targetY);
+        glUniform1f(compositeUniformAlpha, alpha);
+    }
+
+    private void useComputedComposite(float alpha, DeviceClip clip) {
+        clippedCompositeProgram.use();
+        glUniform2f(clippedUniformViewport, targetWidth, targetHeight);
+        glUniform2f(clippedUniformOrigin, targetX, targetY);
+        glUniform1f(clippedUniformAlpha, alpha);
+        glUniform4f(clippedUniformClip, clip.x0, clip.y0, clip.x1, clip.y1);
+        glUniform4f(clippedUniformRoundClip, clip.roundX0, clip.roundY0, clip.roundX1, clip.roundY1);
+        glUniform1f(clippedUniformClipRadius, clip.radius);
     }
 
     /**
@@ -586,35 +631,29 @@ final class GlBatch implements AutoCloseable {
     }
 
     /**
-     * Arms the scissor at the clip's rectangle, in the target's pixels: at its edges when they lie
-     * on whole pixels, where the canvas program's own coverage of a rectangle turns from none to
-     * all, or outward when the variant program computes the coverage itself; and inside the damage
-     * scissor while the window is the target.
-     *
-     * @return whether anything is left to draw
+     * Draws the composite's quad under a scissor at the pixels {@code (x0, y0)} to {@code (x1, y1)}
+     * of the target's space, top-down, cut to the target and, while the window is the target, to
+     * the damage scissor; nothing when nothing is left.
      */
-    private boolean scissorTo(DeviceClip clip, boolean outward) {
-        int x0 = (outward ? (int) Math.floor(clip.x0) : Math.round(clip.x0)) - targetX;
-        int x1 = (outward ? (int) Math.ceil(clip.x1) : Math.round(clip.x1)) - targetX;
-        int top = (outward ? (int) Math.floor(clip.y0) : Math.round(clip.y0)) - targetY;
-        int bottom = (outward ? (int) Math.ceil(clip.y1) : Math.round(clip.y1)) - targetY;
+    private void drawIn(int x0, int y0, int x1, int y1) {
+        int left = Math.max(x0 - targetX, 0);
+        int right = Math.min(x1 - targetX, targetWidth);
         // GL counts rows up from the target's bottom edge.
-        int y0 = Math.max(targetHeight - bottom, 0);
-        int y1 = Math.min(targetHeight - top, targetHeight);
-        x0 = Math.max(x0, 0);
-        x1 = Math.min(x1, targetWidth);
+        int bottom = Math.max(targetHeight - (y1 - targetY), 0);
+        int top = Math.min(targetHeight - (y0 - targetY), targetHeight);
         if (scissorEnabled && !inLayer) {
-            x0 = Math.max(x0, scissorX);
-            y0 = Math.max(y0, scissorY);
-            x1 = Math.min(x1, scissorX + scissorW);
-            y1 = Math.min(y1, scissorY + scissorH);
+            left = Math.max(left, scissorX);
+            bottom = Math.max(bottom, scissorY);
+            right = Math.min(right, scissorX + scissorW);
+            top = Math.min(top, scissorY + scissorH);
         }
-        if (x1 <= x0 || y1 <= y0) {
-            return false;
+        if (right <= left || top <= bottom) {
+            return;
         }
         glEnable(GL_SCISSOR_TEST);
-        glScissor(x0, y0, x1 - x0, y1 - y0);
-        return true;
+        glScissor(left, bottom, right - left, top - bottom);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+        drawCalls++;
     }
 
     private void compositeVertex(float x, float y, float w, float u, float v) {
