@@ -628,9 +628,11 @@ public abstract class Widget<W extends Widget<W>> {
 
     // The conversions take and give whole points, never one axis: once an ancestor may draw its
     // children turned, a local x depends on the scene's x and y both, and a per-axis signature
-    // could not answer it whatever its body did (ADR 072 §3.3). The public forms allocate the one
-    // record they return; the scene's own paths use the package-private forms below, which write
-    // into the caller's array, because an idle window must not allocate.
+    // could not answer it whatever its body did (ADR 072 §3.3). The public forms allocate the
+    // record they return (sceneToLocal and localToSceneBounds a small array besides, which the
+    // walk from the root and the clipped bounds need); the scene's own paths use the
+    // package-private forms below, which write into the caller's array, because an idle window
+    // must not allocate.
 
     /**
      * Where a point of this widget's space lies in the scene: the widget's own offsets and each
@@ -646,9 +648,21 @@ public abstract class Widget<W extends Widget<W>> {
      * @return the point in the scene's space
      */
     public final Vec2 localToScene(float x, float y) {
-        float[] out = new float[2];
-        localToScene(x, y, out);
-        return new Vec2(out[0], out[1]);
+        // The walk of the array form below, kept in two locals so that the record is the one
+        // allocation: a widget's paint asks this to put a mark on the pixel grid.
+        float px = x;
+        float py = y;
+        for (Widget<?> w = this; w != null; w = w.parent) {
+            px += w.x;
+            py += w.y;
+            Widget<?> parent = w.parent;
+            if (parent != null && parent.childTransform != null) {
+                float mx = parent.childTransform.mapX(px, py);
+                py = parent.childTransform.mapY(px, py);
+                px = mx;
+            }
+        }
+        return new Vec2(px, py);
     }
 
     /**

@@ -111,6 +111,18 @@ final class ChildTransform {
         out[1] = (float) ((h10 * x + h11 * y + h12) / w);
     }
 
+    /** The x of {@link #map}, for a caller with no array to hand; {@code NaN} behind the eye. */
+    float mapX(float x, float y) {
+        double w = h20 * x + h21 * y + h22;
+        return w > NEAR ? (float) ((h00 * x + h01 * y + h02) / w) : Float.NaN;
+    }
+
+    /** The y of {@link #map}; see {@link #mapX}. */
+    float mapY(float x, float y) {
+        double w = h20 * x + h21 * y + h22;
+        return w > NEAR ? (float) ((h10 * x + h11 * y + h12) / w) : Float.NaN;
+    }
+
     /**
      * Which point of the widget's space is drawn at {@code (x, y)}: the ray from the eye through
      * it met with the plane, into {@code out[0..1]}, or {@code NaN} where it meets the plane

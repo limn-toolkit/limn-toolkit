@@ -217,6 +217,27 @@ class PointConversionTest extends SceneTestBase {
         assertTrue(!Float.isNaN(cut.x()) && cut.width() > 0, "a rectangle partly in front keeps that part");
     }
 
+    /**
+     * localToScene is asked from a paint, to put a mark on the pixel grid, and allocates the point
+     * it returns and nothing else, under a matrix too; the package form the scene's own walks use
+     * allocates nothing.
+     */
+    @Test
+    void theConversionsAllocateNoMoreThanTheirAnswer() {
+        org.junit.jupiter.api.Assumptions.assumeTrue(limn.testing.AllocationProbe.isSupported(),
+                "no per-thread allocation counter");
+        build(Turned.rotation(CX, CY, 30));
+        long point = limn.testing.AllocationProbe.leastAllocatedBy(() -> leaf.localToScene(3, 4), 20);
+        assertTrue(point <= 32, "one record of two floats, not an array besides: " + point + " bytes");
+        float[] out = new float[4];
+        long none = limn.testing.AllocationProbe.leastAllocatedBy(() -> {
+            leaf.localToScene(3, 4, out);
+            leaf.sceneToLocal(30, 40, out);
+            leaf.localToSceneBounds(0, 0, 50, 50, out);
+        }, 20);
+        assertEquals(0, none, "the scene's forms allocate nothing");
+    }
+
     @Test
     void atRestThereIsNoMatrixAndTheAnswerIsTheSumOfOffsets() {
         build(Mat4.IDENTITY);
