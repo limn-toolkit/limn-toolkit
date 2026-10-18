@@ -209,7 +209,8 @@ class InSceneFadesAsOnePictureTest {
 
     @Test
     void theDatePickerCalendarFadesAsOnePicture() {
-        DatePicker picker = new DatePicker();
+        DatePicker picker = new DatePicker().setClock(java.time.Clock.fixed(
+                java.time.Instant.parse("2026-09-09T12:00:00Z"), java.time.ZoneOffset.UTC));
         picker.setDisplayMode(DisplayMode.IN_SCENE);
         bind(new Padding(Insets.all(10), picker), true);
         assertOnePictureHalfway("the date picker's calendar", picker::open);

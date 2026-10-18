@@ -51,6 +51,9 @@ class InScenePopupFadePixelTest {
     private HeadlessUi ui;
     private int texture;
     private int fbo;
+    /** What the context had bound before, put back after: the next class's frames draw there. */
+    private int previousFbo;
+    private final int[] previousViewport = new int[4];
 
     @BeforeEach
     void openContext() {
@@ -59,6 +62,8 @@ class InScenePopupFadePixelTest {
         fonts = new FontStore();
         canvas = new GlCanvas(fonts);
         Theme.setCurrent(Theme.dark());
+        previousFbo = GL33C.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
+        GL33C.glGetIntegerv(GL33C.GL_VIEWPORT, previousViewport);
         texture = GL33C.glGenTextures();
         fbo = GL33C.glGenFramebuffers();
         GL33C.glActiveTexture(GL33C.GL_TEXTURE0);
@@ -74,7 +79,8 @@ class InScenePopupFadePixelTest {
     @AfterEach
     void closeContext() {
         if (canvas != null) {
-            GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, 0);
+            GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, previousFbo);
+            GL33C.glViewport(previousViewport[0], previousViewport[1], previousViewport[2], previousViewport[3]);
             GL33C.glDeleteFramebuffers(fbo);
             GL33C.glDeleteTextures(texture);
             canvas.dispose();
