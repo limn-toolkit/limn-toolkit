@@ -2339,12 +2339,21 @@ public abstract class Widget<W extends Widget<W>> {
      * stack and allocates nothing.
      *
      * <p>From the children up, because a matrix at any level moves everything under it: the walk
-     * that carried offsets down could not carry a scale. Under a transform container its own
-     * outset, the projected overhang of its child, is the bound partial rendering reads, and the
-     * walk here gives the exact rectangle the child is drawn in besides; an {@code Opacity}
-     * container round a moving child takes the union of both as its layer.
+     * that carried offsets down could not carry a scale. A transform container away from rest and
+     * an opacity container paint nothing of their own, so what each paints is exactly what its
+     * child paints where it draws it, and not its box grown by its outset, the reach partial
+     * rendering reads, which is one number for every side and, round a moved child, its overhang:
+     * an {@code Opacity} container round a drawer slid to the end would otherwise make a layer as
+     * much wider toward the start.
      */
     private void paintedRect(float[] out) {
+        if (opacityGroup != null || (transformGroup != null && childTransform != null)) {
+            paintedRect(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY,
+                    Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY, true, out);
+            if (out[2] > out[0] && out[3] > out[1]) {
+                return;
+            }
+        }
         float outset = 1 + paintOutset();
         paintedRect(-outset, -outset, width + outset, height + outset, true, out);
     }

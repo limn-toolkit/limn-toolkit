@@ -551,6 +551,12 @@ class TransformTest extends SceneTestBase {
             assertTrue(layer.x() <= drawn.x() && layer.y() <= drawn.y()
                     && layer.right() >= drawn.right() && layer.bottom() >= drawn.bottom(),
                     order + ": the layer " + layer + " holds the moved child " + drawn);
+            // And no more than the child's antialiased point past it, scaled by 1.5 with it: not as
+            // much wider toward the start as the child slid toward the end (stage 2, 2026-10-18).
+            float ring = 1.5f + EPS;
+            assertTrue(layer.x() >= drawn.x() - ring && layer.y() >= drawn.y() - ring
+                    && layer.right() <= drawn.right() + ring && layer.bottom() <= drawn.bottom() + ring,
+                    order + ": the layer " + layer + " is the moved child " + drawn + " and its point");
         }
     }
 
