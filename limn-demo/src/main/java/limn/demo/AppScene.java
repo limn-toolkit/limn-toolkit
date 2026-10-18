@@ -253,7 +253,7 @@ final class AppScene {
                         .keywords("SplitPane, split pane, divider, splitter, panes, resize"),
                 new Place(ShowcaseStrings.NAV_SECTIONS, "docs/lists-and-scrolling/#tabs",
                         () -> scrolling(SectionsScene.content())).icon("layout-navbar-expand")
-                        .keywords("TabbedPane, tabs, tab, Expander, ExpanderGroup, accordion, collapsible, section"),
+                        .keywords("TabbedPane, tabs, tab, Expander, ExpanderGroup, accordion, collapsible, section, Card, card, tile, record"),
                 new Place(ShowcaseStrings.NAV_MOTION, "docs/animations/",
                         () -> scrolling(AnimationsScene.content())).icon("player-play")
                         .keywords("Animation, animate, Tween, easing, transition, ColorTransition, motion, fade")).icon("components");

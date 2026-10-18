@@ -342,6 +342,69 @@ class WorkBudgetTest {
     }
 
     @Test
+    void aStillCardThatIsClickedAsksForNoFrame() {
+        limn.scene.layout.Column column = new limn.scene.layout.Column();
+        limn.components.Card card = new limn.components.Card(new Label("Three items, due on Friday."))
+                .setTitle("Invoice 1042").setFooter(new Button("Approve"));
+        card.onActivate(() -> { });
+        column.add(card);
+        long[] asked = framesAfter(column, () -> { });
+        assertEquals(0, asked[0], "a card at rest asks for no frame");
+        assertEquals(0, asked[1]);
+    }
+
+    /**
+     * {@code count} cards that are clicked, one under the other, with the pointer going back and
+     * forth between the title and the content of the first (ADR 073 §7): the hovered widget
+     * changes on every move, and the hover within the card's area does not.
+     */
+    private static Work movingWithinACardAmong(int count) {
+        limn.scene.layout.Column column = new limn.scene.layout.Column();
+        for (int i = 0; i < count; i++) {
+            limn.components.Card card = new limn.components.Card(new Label("Due on Friday"))
+                    .setTitle("Invoice " + i);
+            card.onActivate(() -> { });
+            column.add(card);
+        }
+        java.util.concurrent.atomic.AtomicLong nanos = new java.util.concurrent.atomic.AtomicLong();
+        Scene scene = new Scene(column, nanos::get);
+        scene.setTextRuler(TestRulers.FIXED);
+        Work.Counting canvas = new Work.Counting(WIDTH, HEIGHT);
+        scene.layoutPass(WIDTH, HEIGHT);
+        scene.renderFrame(canvas.canvas);
+        limn.components.Card first = (limn.components.Card) column.children().get(0);
+        Widget<?> content = first.content();
+        Widget<?> title = content.parent().children().get(0);
+        float[][] points = {
+                {title.localToScene(0, 0).x() + 2, title.localToScene(0, 0).y() + 2},
+                {content.localToScene(0, 0).x() + 2, content.localToScene(0, 0).y() + 2}};
+        // The pointer arrives and the card's hover fades in to the end, before anything is counted.
+        drive(scene).mouseMoved(points[1][0], points[1][1]);
+        drive(scene).inputBatchEnded();
+        for (int frame = 0; frame < 40; frame++) {
+            nanos.addAndGet(50_000_000L);
+            scene.renderFrame(canvas.canvas);
+        }
+        boolean[] onTitle = {false};
+        return Work.of(scene, canvas, () -> {
+            onTitle[0] = !onTitle[0];
+            float[] at = points[onTitle[0] ? 0 : 1];
+            drive(scene).mouseMoved(at[0], at[1]);
+            drive(scene).inputBatchEnded();
+        }, WIDTH, HEIGHT, () -> 0);
+    }
+
+    @Test
+    void thePointerMovingInsideACardRepaintsNothingWhateverTheCardsAroundIt() {
+        Work few = movingWithinACardAmong(10);
+        Work many = movingWithinACardAmong(100);
+        Work.sameAtAnySize("the pointer moving between the title and the content of a card", few, many);
+        // 0 counted: the card's area is hovered all along, and a label answers nothing to it, so
+        // the frame after a move draws nothing (the painted count is the last frame that drew).
+        assertEquals(0, many.commands(), "drawing commands as the pointer moves inside the card");
+    }
+
+    @Test
     void aTabMovingAsksForTheFramesOfItsSlideAndThenNone() {
         limn.components.TabbedPane tabs = new limn.components.TabbedPane();
         for (String title : List.of("Alpha", "Beta", "Gamma")) {

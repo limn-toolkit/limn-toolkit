@@ -39,7 +39,7 @@ public record SizeTokens(
         float controlHeight, float listRowSeed, float menuRowHeight,
         float popupItemHeight,
         // ---- paddings ---------------------------------------------------
-        float areaPad, float fieldPadH, float menuBarPadH, float menuPadV,
+        float areaPad, float cardPad, float fieldPadH, float menuBarPadH, float menuPadV,
         float padH, float padV, float popupPadV, float popupRowInsetX,
         float segPadH, float spinnerFieldPadX, float tabPadH, float tabPadV,
         float toolBarPad, float tooltipPadH, float tooltipPadV,
@@ -69,7 +69,7 @@ public record SizeTokens(
         float listWidth, float menuMinWidth, float spinnerWidth) {
 
     // =================================================================
-    //  THE FIVE ROWS, written as 88 columns.
+    //  THE FIVE ROWS, written as 89 columns.
     //  Column order is ALWAYS  { XSMALL, SMALL, MEDIUM, LARGE, XLARGE }.
     // =================================================================
 
@@ -94,6 +94,7 @@ public record SizeTokens(
     private static final float[] POPUP_ITEM_HEIGHT     = {   24,    26,       30,    36,    42 };
     // paddings ---------------------------------------------------------
     private static final float[] AREA_PAD              = {    6,     7,        8,    10,    12 };
+    private static final float[] CARD_PAD              = {   10,    12,       16,    20,    24 }; // Card: round the parts, and what the Showcase drew by hand
     private static final float[] FIELD_PAD_H           = {    8,    10,       12,    15,    18 };
     private static final float[] MENU_BAR_PAD_H        = {    6,     9,       12,    15,    18 };
     private static final float[] MENU_PAD_V            = {    4,     5,        6,     7,     8 };
@@ -226,7 +227,7 @@ public record SizeTokens(
                     INDICATOR_RADIUS[i] * cornerScale,
                     CONTROL_HEIGHT[i], LIST_ROW_SEED[i], MENU_ROW_HEIGHT[i],
                     POPUP_ITEM_HEIGHT[i],
-                    AREA_PAD[i], FIELD_PAD_H[i], MENU_BAR_PAD_H[i], MENU_PAD_V[i],
+                    AREA_PAD[i], CARD_PAD[i], FIELD_PAD_H[i], MENU_BAR_PAD_H[i], MENU_PAD_V[i],
                     PAD_H[i], PAD_V[i], POPUP_PAD_V[i], POPUP_ROW_INSET_X[i],
                     SEG_PAD_H[i], SPINNER_FIELD_PAD_X[i], TAB_PAD_H[i], TAB_PAD_V[i],
                     TOOL_BAR_PAD[i], TOOLTIP_PAD_H[i], TOOLTIP_PAD_V[i],

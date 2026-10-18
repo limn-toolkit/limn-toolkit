@@ -3,6 +3,7 @@ package limn.demo;
 import limn.components.SelectionMode;
 
 import limn.components.Button;
+import limn.components.Card;
 import limn.components.Label;
 import limn.components.Theme;
 import limn.components.tree.Tree;
@@ -711,7 +712,7 @@ final class TreeScene {
             // The card as tall as what it says, at the top of its side.
             Column side = new Column();
             side.crossAlignment(Flex.CrossAlignment.STRETCH);
-            side.add(Page.card(details));
+            side.add(new Card(details));
             panes.add(limn.scene.layout.Expanded.of(side, 1));
 
             Column page = Page.column();

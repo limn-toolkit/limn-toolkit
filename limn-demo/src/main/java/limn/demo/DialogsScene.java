@@ -4,6 +4,7 @@ import limn.backend.NativeWindow;
 import limn.backend.WindowStyle;
 import limn.components.Accelerator;
 import limn.components.Button;
+import limn.components.Card;
 import limn.components.Checkbox;
 import limn.components.ComboBox;
 import limn.components.ContextMenus;
@@ -608,7 +609,7 @@ final class DialogsScene {
         Column page = Page.column();
         page.add(Page.firstSection(Text.FILES));
         page.add(wrapRow(actions, modal));
-        page.add(Page.narrow(640, Page.card(new SizedBox(SizedBox.UNSET, 7 * 34 + 8, folder))));
+        page.add(Page.narrow(640, new Card(new SizedBox(SizedBox.UNSET, 7 * 34 + 8, folder))));
         page.add(Page.hint(Text.FILES_HINT));
         return page;
     }

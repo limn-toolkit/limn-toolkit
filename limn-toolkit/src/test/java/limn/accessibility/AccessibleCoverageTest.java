@@ -157,6 +157,11 @@ class AccessibleCoverageTest {
             // The same case: a fill and a shadow behind one child, declared decoration, so the
             // surface is deleted and its child stands in its place.
             "limn.components.Surface",
+            // A card's footer (ADR 073 §2.7): a Wrap whose one override pushes the card's gutters
+            // from its measure, so the walk deletes it and the footer's actions are the card's
+            // group's children after its clicked area, with no tool bar claimed between them.
+            // Pinned by limn.components.CardAccessibilityTest.
+            "limn.components.Card$Footer",
             // The transparent margin a popup window keeps for its shadow: it lays its one child
             // out inset and paints nothing, so it is deleted and the panel stands in its place.
             "limn.components.internal.PopupFrame",

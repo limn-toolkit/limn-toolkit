@@ -130,6 +130,15 @@ add to or remove from the selection, expand or collapse, move the cursor; a tabl
 without expand or collapse, which only a tree row has — so a reader addresses a particular row
 rather than the container.
 
+A card is read by what it is. One with a title is a group named by that title, the title a
+heading, and its parts are read inside it in order; one with no title adds nothing, so a chart
+in a card is heard as the chart. A card that is clicked (`onActivate`) is a button named by its
+title and described by its subtitle, and what else it shows is not read, because a reader
+presses a button and does not walk into it: say what the listener needs from the content with
+`setAccessibleDescription` on the card, which lands on that button, as `setAccessibleName` and a
+caption bound to the card do. With a footer, the button and the footer's actions are held in a
+group named by the title, so a reader that reaches an action by Tab is told whose action it is.
+
 A control that is merely scrolled out of view keeps everything it offers: the scene reveals it
 and performs. A control nobody can see — in an unselected tab, in a collapsed panel, behind a
 modal — publishes no verb at all, which is how a reader is told "not now" instead of being told

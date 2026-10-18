@@ -39,7 +39,7 @@ public final class Main {
             "dates-era", "dates-era-light",
             "normalmap", "bloom", "surface", "testcard", "text", "files", "files-light",
             "export", "export-light", "charts", "charts-light", "theme-editor",
-            "theme-editor-light", "glass", "glass-light", "bidi", "bidi-light");
+            "theme-editor-light", "glass", "glass-light", "bidi", "bidi-light", "cards", "cards-2", "cards-states", "cards-states-2");
 
     /** A scene of the lab, alone in its window. */
     private static final int LAB_WIDTH = 800;
@@ -382,6 +382,10 @@ public final class Main {
                 widgetScene = Viewport3DScene.normalMapScene(false);
             } else if (scene.equals("bloom")) {
                 widgetScene = Viewport3DScene.bloomScene(false);
+            } else if (scene.equals("cards") || scene.equals("cards-2")) {
+                widgetScene = CardsScene.create(scene.equals("cards-2"));
+            } else if (scene.startsWith("cards-states")) {
+                widgetScene = CardsScene.states();
             } else if (scene.equals("surface")) {
                 widgetScene = Viewport3DScene.customSurfaceScene(false);
             } else if (scene.equals("video")) {
@@ -508,6 +512,8 @@ public final class Main {
             // Controls: inject focus + a spinner-button hover so the capture shows
             // the interaction states (slider focus ring, spinner hover/focus border).
             boolean controlsCapture = scene.equals("controls") && screenshotMode;
+            // Cards: the focus ring, the hover and the press, on the wall clock their fades run on.
+            boolean cardsCapture = scene.startsWith("cards-states") && screenshotMode;
             // Menu: right-click to open the in-scene context menu, then hover the
             // "Export" item so the capture shows the cascade + checked items.
             boolean menuCapture = scene.startsWith("menu") && screenshotMode;
@@ -533,7 +539,7 @@ public final class Main {
             // would photograph the first frame of the fade. Deferred for that reason alone.
             boolean datesCapture = screenshotMode && datesPicker != null;
             boolean deferredCapture = datesCapture || popupCapture || dialogCapture
-                    || perfCapture || controlsCapture || menuCapture
+                    || perfCapture || controlsCapture || cardsCapture || menuCapture
                     || tabsOverflowCapture || splitCapture
                     || chartsCapture || treeScrollCapture;
             AtomicInteger frames = new AtomicInteger();
@@ -630,6 +636,17 @@ public final class Main {
                     System.out.println("Controls screenshot: " + options.screenshotFile().toAbsolutePath());
                 }, 450);
                 Ui.postDelayed(window::requestClose, 650);
+            }
+
+            if (cardsCapture && boundScene != null) {
+                limn.scene.Scene cs = boundScene;
+                boolean second = scene.equals("cards-states-2");
+                Ui.postDelayed(() -> CardsScene.pose(cs, second), 150);
+                Ui.postDelayed(() -> {
+                    window.captureNextFrame(options.screenshotFile());
+                    System.out.println("Cards screenshot: " + options.screenshotFile().toAbsolutePath());
+                }, 600);
+                Ui.postDelayed(window::requestClose, 800);
             }
 
             if (chartsCapture && boundScene != null) {

@@ -2704,6 +2704,7 @@ public final class Scene {
             Widget<?> oldHover = hovered;
             hovered = null;
             timedDispatch(oldHover, new MouseEvent(MouseEvent.Type.EXIT, mouseX, mouseY, -1, 0, 0, 0));
+            tellHoverWithin(null);
             applyCursor(); // hovered widget gone: fall back to the arrow
             // The tooltip owner is an ancestor-or-self of the hover: cancel its
             // pending/visible tooltip too, or the delayed show still fires for
@@ -3460,6 +3461,23 @@ public final class Scene {
             @Override
             public boolean inReach(Widget<?> widget) {
                 return widget.inReach();
+            }
+
+            @Override
+            public boolean namedByApplication(Widget<?> widget) {
+                return widget.accessibleName() != null || widget.accessibleLabelledBy() != null
+                        || widget.tooltipSource() != null;
+            }
+
+            @Override
+            public void observeHoverWithin(Widget<?> widget,
+                                           limn.scene.internal.SceneAccess.@Nullable HoverWithin observer) {
+                if (widget.hoverWithin == null && observer != null) {
+                    hoverWatchers++;
+                } else if (widget.hoverWithin != null && observer == null) {
+                    hoverWatchers--;
+                }
+                widget.hoverWithin = observer;
             }
 
             @Override
@@ -4490,9 +4508,50 @@ public final class Scene {
             timedDispatch(hovered,
                     new MouseEvent(MouseEvent.Type.ENTER, mouseX, mouseY, -1, 0, 0, modifiers));
         }
+        tellHoverWithin(hovered);
         applyCursor();
         updateTooltip();
         return true;
+    }
+
+    /**
+     * How many widgets, in any scene, ask to be told of the hover entering and leaving their
+     * subtree: while none does, a change of the hovered widget costs a comparison and no walk.
+     */
+    private static int hoverWatchers;
+
+    /**
+     * The observing widgets told the hover is within them and not yet told it left: the
+     * ancestors of the hovered widget that observe, at most a few. Kept rather than worked out
+     * again from the widget left, whose ancestry a removal has already cut by the time the scene
+     * hears of it.
+     */
+    private final List<Widget<?>> hoverHeld = new ArrayList<>(2);
+
+    /**
+     * Tells each observing widget whether the hover, now on {@code entered}, has left its subtree
+     * or come into it: those it has left first, then those it entered, the ones it is still in
+     * told nothing.
+     */
+    private void tellHoverWithin(@Nullable Widget<?> entered) {
+        for (int i = hoverHeld.size() - 1; i >= 0; i--) {
+            Widget<?> w = hoverHeld.get(i);
+            if (!isInSubtree(entered, w)) {
+                hoverHeld.remove(i);
+                if (w.hoverWithin != null) {
+                    w.hoverWithin.hoverChanged(false);
+                }
+            }
+        }
+        if (hoverWatchers == 0) {
+            return;
+        }
+        for (Widget<?> w = entered; w != null; w = w.parent()) {
+            if (w.hoverWithin != null && !hoverHeld.contains(w)) {
+                hoverHeld.add(w);
+                w.hoverWithin.hoverChanged(true);
+            }
+        }
     }
 
     /**

@@ -160,6 +160,11 @@ public abstract class Widget<W extends Widget<W>> {
      * lands in it and no focus moves into it. See {@link limn.scene.internal.SceneAccess#setInert}.
      */
     boolean inert;
+    /**
+     * Told when the hovered widget enters or leaves this subtree, or null for the widgets that do
+     * not ask, which is nearly all of them. See {@link limn.scene.internal.SceneAccess#observeHoverWithin}.
+     */
+    limn.scene.internal.SceneAccess.@Nullable HoverWithin hoverWithin;
 
     /**
      * The matrix this widget draws its children through, or null while it draws them where layout
@@ -3684,10 +3689,15 @@ public abstract class Widget<W extends Widget<W>> {
      * anything else is refused by the walk, loudly, because a caption that lands on a stranger is
      * exactly the confidently wrong name the toolkit refuses to infer.
      *
-     * <p>Called on the UI thread by the publish step, only while a label is bound to this
-     * widget. An explicit {@link #setAccessibleName(limn.i18n.I18nString)} on this widget is
-     * unaffected: it names this node, as it always did. A widget that answers {@code null}
-     * keeps the label itself.
+     * <p>A name and a description written on this widget with
+     * {@link #setAccessibleName(limn.i18n.I18nString)} and
+     * {@link #setAccessibleDescription(limn.i18n.I18nString)} go to the same widget, for the same
+     * reason: they are meant for the node a reader reaches. What that widget was given itself
+     * wins over them, as its own caption wins over one sent down to it.
+     *
+     * <p>Called on the UI thread by the publish step, while a label is bound to this widget or a
+     * name or a description is written on it. A widget that answers {@code null} keeps them
+     * itself.
      *
      * @return the widget that carries a label bound to this one; {@code this} by default
      * @see limn.components.Label#setLabelFor(Widget)
@@ -3771,7 +3781,9 @@ public abstract class Widget<W extends Widget<W>> {
      * itself. UI thread only.
      *
      * <p>An application-set name always wins, so renaming a component never requires subclassing
-     * it. It is resolved under this widget's own locale, like every other name in the tree.
+     * it. It is resolved under this widget's own locale, like every other name in the tree. On a
+     * composite whose keyboard lands on a part inside it, it names that part; see
+     * {@link #accessibleLabelTarget()}.
      *
      * @param name the name, or {@code null} to let the widget name itself again
      */
@@ -3800,7 +3812,8 @@ public abstract class Widget<W extends Widget<W>> {
 
     /**
      * Describes this widget at more length than its name does, for an assistive technology.
-     * UI thread only.
+     * UI thread only. On a composite whose keyboard lands on a part inside it, it describes that
+     * part, as {@link #setAccessibleName(limn.i18n.I18nString)} names it.
      *
      * @param text the description, or {@code null} to let the widget describe itself again
      */

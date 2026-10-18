@@ -34,6 +34,7 @@ import limn.components.SearchField;
 import limn.components.SegmentedControl;
 import limn.components.Separator;
 import limn.components.RangeSlider;
+import limn.components.Card;
 import limn.components.Expander;
 import limn.components.ExpanderGroup;
 import limn.components.Slider;
@@ -550,6 +551,9 @@ public final class AccessibilityGallery {
                 new Entry("Expanders", List.of(Expander.class),
                         List.of(Role.BUTTON, Role.GROUP),
                         AccessibilityGallery::expanders),
+                new Entry("Cards", List.of(Card.class),
+                        List.of(Role.GROUP, Role.HEADING, Role.LABEL, Role.BUTTON),
+                        AccessibilityGallery::cards),
                 new Entry("Range sliders", List.of(RangeSlider.class),
                         List.of(Role.SLIDER),
                         AccessibilityGallery::rangeSliders),
@@ -877,6 +881,25 @@ public final class AccessibilityGallery {
         Expander locked = new Expander("Locked", new Label("Not reachable"));
         locked.setEnabled(false);
         page.add(locked);
+        return new Built(page);
+    }
+
+    private static Built cards() {
+        Column page = page();
+        // A titled card, a group named by its heading; one with no title, which is transparent; a
+        // card clicked as a whole, a button; and one clicked above its footer, a group of its
+        // button and the footer's actions.
+        page.add(new Card(new Label("Office furniture, delivered every Monday."))
+                .setTitle("Harbor Lane Supplies").setSubtitle("Customer since 2019"));
+        page.add(new Card(new Label("Twelve open orders")));
+        Card template = new Card().setTitle("Invoice").setSubtitle("From a customer's order");
+        template.onActivate(() -> { });
+        page.add(template);
+        Card invoice = new Card(new Label("Three items, due on Friday.")).setTitle("Invoice 1042")
+                .setSubtitle("Harbor Lane Supplies").setFooter(new Button("Hold"), new Button("Approve"));
+        invoice.setAccessibleDescription("$1,240.00, due on Friday");
+        invoice.onActivate(() -> { });
+        page.add(invoice);
         return new Built(page);
     }
 

@@ -11,6 +11,7 @@ import limn.components.Button;
 import limn.components.Checkbox;
 import limn.components.ComboBox;
 import limn.components.ImageView;
+import limn.components.Card;
 import limn.components.Label;
 import limn.components.SegmentedControl;
 import limn.components.Theme;
@@ -258,7 +259,7 @@ final class AnimationsScene {
         Button archive = new Button(Text.ARCHIVE).setSecondary(true).setIcon(TablerDocument.ARCHIVE.icon());
         archive.setControlSize(limn.scene.ControlSize.SMALL);
         line.add(archive);
-        Unfold row = new Unfold(Page.card(line), open);
+        Unfold row = new Unfold(new Card(line), open);
         archive.onAction(() -> {
             archive.setEnabled(false);
             row.animateTo(0, () -> rows.remove(row));
@@ -292,7 +293,7 @@ final class AnimationsScene {
         lines.add(Page.row(12, Expanded.of(new Label(Text.TOTAL).setStrong(true), 1),
                 new SizedBox(110, SizedBox.UNSET, Page.label(() -> DOLLARS.apply(sum)).setStrong(true)
                         .setAlign(Label.HAlign.END, Label.VAlign.CENTER))));
-        Unfold body = new Unfold(new Padding(new Insets(12, 0, 0, 0), lines), false);
+        Unfold body = new Unfold(lines, false);
 
         Button toggle = new Button(Text.DETAILS).setSecondary(true);
         toggle.setControlSize(limn.scene.ControlSize.SMALL);
@@ -301,20 +302,13 @@ final class AnimationsScene {
             body.animateTo(opening ? 1 : 0, null);
             toggle.setText(opening ? Text.HIDE_DETAILS : Text.DETAILS);
         });
-        Column head = new Column();
-        head.gap(2);
-        head.add(Page.label(() -> Text.INVOICE_NUMBER.format("INV-2041")).setStrong(true));
-        head.add(new Label("Harbor Lane Supplies").setMuted(true));
-        Row top = Page.row(12, head);
-        top.add(Expanded.spacer(1));
-        top.add(Page.label(() -> DOLLARS.apply(sum)));
-        top.add(toggle);
-
-        Column card = new Column();
-        card.crossAlignment(Flex.CrossAlignment.STRETCH);
-        card.add(top);
-        card.add(body);
-        return Page.card(card);
+        // The number is the card's title, which names it to a reader; the lines unfold as its
+        // content, between the head and the footer that holds the toggle.
+        Card card = new Card(body).setSubtitle("Harbor Lane Supplies")
+                .setHeaderSuffix(Page.label(() -> DOLLARS.apply(sum)))
+                .setFooter(toggle);
+        Page.followLanguage(() -> card.setTitle(Text.INVOICE_NUMBER.format("INV-2041")));
+        return card;
     }
 
     // ------------------------------------------------------------------ the two-sided card
@@ -340,7 +334,7 @@ final class AnimationsScene {
         Stack faces = new Stack();
         faces.add(front);
         faces.add(back);
-        Transform card = new Transform(Page.card(new Padding(Insets.symmetric(12, 16), faces)))
+        Transform card = new Transform(new Card(faces))
                 .setPerspective(1200);
         Button turn = new Button(Text.TURN_OVER).setSecondary(true);
         turn.onAction(() -> card.flipTo(Transform.Flip.FORWARD, 0.45, () -> {

@@ -4,6 +4,7 @@ import limn.backend.Clipboard;
 import limn.components.Button;
 import limn.components.Field;
 import limn.components.ImageView;
+import limn.components.Card;
 import limn.components.Label;
 import limn.components.TextField;
 import limn.graphics.Image;
@@ -178,7 +179,7 @@ final class TransferScene {
         form.add(buttons);
         page.add(Page.narrow(640, form));
         page.add(Page.section(Text.RECEIVED));
-        page.add(Page.narrow(640, Page.card(received)));
+        page.add(Page.narrow(640, new Card(received)));
         return page;
     }
 

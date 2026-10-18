@@ -2,6 +2,7 @@ package limn.demo;
 
 import limn.components.Checkbox;
 import limn.components.ImageView;
+import limn.components.Card;
 import limn.components.Label;
 import limn.components.SegmentedControl;
 import limn.components.Theme;
@@ -73,7 +74,7 @@ final class SpritesScene {
     }
 
     /** Every panel on the page is this tall, so the page reads as one set of them. */
-    private static final float TILE = 150;
+    private static final float TILE = 164;
 
     private SpritesScene() {
     }
@@ -186,13 +187,9 @@ final class SpritesScene {
                 .setAccessibleName(Text.PICTURE);
     }
 
-    /** A picture on a panel of the page's tile height, its caption under it. */
+    /** A picture on a card of the page's tile height, its caption under it. */
     private static Widget<?> tile(Widget<?> picture, I18nString caption) {
-        Column column = new Column();
-        column.gap(8).crossAlignment(Flex.CrossAlignment.CENTER).mainAlignment(Flex.MainAlignment.CENTER);
-        column.add(picture);
-        column.add(new Label(caption).setMuted(true));
-        return new SizedBox(160, TILE, Page.card(column));
+        return new SizedBox(160, TILE, new Card().setMedia(picture).setSubtitle(caption));
     }
 
     /** A speed as the segment reads it: the multiplier in the language's digits, then "×". */

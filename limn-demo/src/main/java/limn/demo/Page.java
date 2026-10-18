@@ -1,10 +1,7 @@
 package limn.demo;
 
 import limn.components.Label;
-import limn.components.Surface;
-import limn.components.Theme;
-import limn.graphics.Color;
-import limn.graphics.Icon;
+
 import limn.i18n.I18n;
 import limn.i18n.I18nString;
 import limn.scene.Insets;
@@ -18,7 +15,6 @@ import limn.scene.layout.SizedBox;
 
 import java.util.Map;
 import java.util.WeakHashMap;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -156,10 +152,6 @@ final class Page {
         return new Label(text).setMuted(true).setWrap(true);
     }
 
-    /** A card: content set a little above the page, with room inside. */
-    static Surface card(Widget<?> content) {
-        return new Surface(new Padding(Insets.all(16), content));
-    }
 
     /**
      * A caption above a bar, the bar's value at the end of the caption's line, so that the bar

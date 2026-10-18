@@ -92,6 +92,22 @@ public class Wrap extends Container<Wrap> {
     }
 
     /**
+     * Sets both gutters <b>without</b> requesting a layout pass: the measure-path form, for a
+     * wrap whose gutters follow resolved size tokens and are pushed from its own
+     * {@code onMeasure}, as {@link Flex}'s silent gap is. Safe there and only there: the caller is
+     * already inside the pass that consumes them. Everything else uses {@link #gap(float)} and
+     * {@link #runGap(float)}, and this refuses and clamps what they do.
+     *
+     * @param newGap    the gutter along a run
+     * @param newRunGap the gutter between runs
+     * @throws IllegalArgumentException when either is {@code NaN} or infinite
+     */
+    protected final void gapsSilently(float newGap, float newRunGap) {
+        this.gap = Math.max(0, Checks.finite(newGap, "gap"));
+        this.runGap = Math.max(0, Checks.finite(newRunGap, "run gap"));
+    }
+
+    /**
      * Where the children of each run sit along it when the run is narrower than the wrap, run by
      * run, on the two vocabularies {@link Flex.MainAlignment} describes: {@code START},
      * {@code END} and {@code SPACE_BETWEEN} follow the reading direction, and {@code LEFT} and

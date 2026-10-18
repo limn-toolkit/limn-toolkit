@@ -261,7 +261,8 @@ what the surface is, not on a number each widget picks. There are four levels:
 | `OVERLAY` | what covers the page for a while: a menu, a list, a calendar, a panel that slides in |
 | `MODAL` | what covers the window until answered: a dialog |
 
-The toolkit's own menus, lists, calendars, tooltips and dialogs already cast theirs. For a
+The toolkit's own menus, lists, calendars, tooltips and dialogs already cast theirs, and so does
+a `Card`, raised unless its style says otherwise (see [Cards](/docs/layout/#cards)). For a
 surface of your own, `Surface` draws the fill and the shadow of its level around one child,
 and a palette changes what a level looks like:
 

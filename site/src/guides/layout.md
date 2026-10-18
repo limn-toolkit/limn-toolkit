@@ -128,6 +128,45 @@ Each tile on a line gets flex 1, so the line splits its width evenly however man
 there are. The second loop is the part worth copying: padding the last line with spacers is
 what stops two leftover tiles from stretching to half the pane each.
 
+## Cards
+
+A `Card` holds one record: a customer, an invoice, a report to open. It is made of parts, and
+every part is optional: a picture across the top (the *media*), a header of a title over a
+subtitle with a part before them and a part after them, the content, and a footer of actions
+at the trailing edge. A part that is not set, or is hidden, takes no room and leaves no gap.
+
+{% snippet guide:card %}
+
+The card pads its parts by the step's own padding and puts the step's gap between them, so a
+card at a smaller control size is a smaller card. Given more height than it needs, as cards
+side by side in a row with `CrossAlignment.STRETCH` are, it gives the extra to its content and
+keeps its footer at the bottom, so the footers of a row of cards are on one line.
+
+- **Media** is laid out at its own size (`MediaFit.NATURAL`, the default), stretched across the
+  card inside its padding (`STRETCH`), or out to the card's edges with the card's own corners
+  (`COVER`); `setMediaAspectRatio` says how tall a stretched picture is, 16 to 9 unless told. An
+  `Icon` given as media is drawn by the card, on a tint of the accent when it stretches.
+- **`Orientation.HORIZONTAL`** puts the media in a column at the leading side, beside the header
+  and the content, with the footer across the whole card under both.
+- **`Style.ELEVATED`** lifts the card by the theme's raised shadow (with a hairline round it in a
+  dark palette, where a shadow does not show), `OUTLINED` draws a line round it, and `FILLED`
+  sets it apart by tone.
+
+A card can also be clicked. With `onActivate`, a click anywhere above its footer opens what the
+card stands for, and so do Enter and Space while it holds the keyboard; the footer's actions are
+clicked as the buttons they are, and a press between them does nothing. A card with no footer
+is one click as a whole.
+
+{% snippet guide:card-clicked %}
+
+A card that is clicked holds no control above its footer: a button, a field or a check box put
+in its media, its header or its content is refused with an `IllegalArgumentException`, since a
+control inside a control is two clicks in one place, and one that arrives later is logged and
+answers nothing. Actions go in the footer. A screen reader hears a clicked card as a button
+named by its title and described by its subtitle, and nothing else inside it, so whatever else
+the card shows that a listener needs, the amount and the date in that invoice, is said with
+`setAccessibleDescription` on the card; [Accessibility](/docs/accessibility/) has the rest.
+
 ## Putting it together
 
 Here is a real window: a toolbar that keeps its own height, a pair of panes that take

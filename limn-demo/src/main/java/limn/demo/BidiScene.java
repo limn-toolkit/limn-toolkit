@@ -1,8 +1,9 @@
 package limn.demo;
 
+import limn.components.Card;
 import limn.components.Label;
 import limn.components.ScrollView;
-import limn.components.Surface;
+
 import limn.components.TextField;
 import limn.components.Theme;
 import limn.graphics.Font;
@@ -308,24 +309,22 @@ final class BidiScene {
 
     /**
      * A customer's card, in the customer's locale and, for a script that reads right to left, in
-     * its direction: the caption above the note is the showcase's own string for "Notes", read in
-     * the card's language. The Showcase ships no Thai, so the Thai card carries its one word with
-     * its data, as it carries its note; through the string it read the English "Notes" in every
-     * language and logged the key as untranslated each time it was drawn.
+     * its direction: the name is its title and names it to a reader, the city its subtitle, and the
+     * caption above the note is the showcase's own string for "Notes", read in the card's
+     * language. The Showcase ships no Thai, so the Thai card carries its one word with its data,
+     * as it carries its note; through the string it read the English "Notes" in every language
+     * and logged the key as untranslated each time it was drawn.
      */
     private static Widget<?> card(Customer customer) {
-        Column card = new Column();
-        card.gap(4).crossAlignment(Flex.CrossAlignment.STRETCH);
-        card.add(new Label(customer.name()).setStrong(true).setOverflow(Label.Overflow.ELLIPSIS));
-        card.add(new Label(customer.city()).setMuted(true).setOverflow(Label.Overflow.ELLIPSIS));
-        card.add(new SizedBox(SizedBox.UNSET, 6, new Column()));
-        card.add(new Label(customer.locale().equals("th") ? I18nString.literal(THAI_NOTES)
+        Column notes = new Column();
+        notes.gap(4).crossAlignment(Flex.CrossAlignment.STRETCH);
+        notes.add(new Label(customer.locale().equals("th") ? I18nString.literal(THAI_NOTES)
                 : ShowcaseStrings.ORDERS_NOTES).setMuted(true));
-        card.add(new Label(customer.note()).setFont(PARAGRAPH).setWrap(true));
-        Surface surface = Page.card(card);
+        notes.add(new Label(customer.note()).setFont(PARAGRAPH).setWrap(true));
+        Card card = new Card(notes).setTitle(customer.name()).setSubtitle(customer.city());
         Locale locale = customer.locale().equals("ar-EG") ? ARABIC_EGYPT : Locale.forLanguageTag(customer.locale());
-        surface.setLocale(locale);
-        surface.setLayoutDirection(LayoutDirection.forLocale(locale));
-        return surface;
+        card.setLocale(locale);
+        card.setLayoutDirection(LayoutDirection.forLocale(locale));
+        return card;
     }
 }
