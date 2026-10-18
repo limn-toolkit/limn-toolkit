@@ -227,6 +227,41 @@ class GlLayerTest {
         assertFalse(java.util.Arrays.equals(perDraw, layer), "the layer is faded");
     }
 
+    @Test
+    void aBorderedPanelThroughALayerIsThePanelAtAnyFractionalPosition() {
+        // The chart's tooltip panel, wherever the pointer puts it: a picture whose corner sat an odd
+        // pixel off the window's grouped its pixels into other two-by-two quads, took its
+        // derivatives across them, and antialiased the rounded corners up to 8 levels off at 2x.
+        // At 0.999 the picture is the panel's but for a thousandth of the page.
+        Color page = Color.rgb(0x101010);
+        int worst = 0;
+        String where = "";
+        for (int i = 0; i < 12; i++) {
+            float px = 20 + i * 0.13f;
+            float py = 15 + i * 0.29f;
+            Consumer<GlCanvas> panel = c -> c.fillRoundRectWithBorder(px, py, 80.3f, 40.6f, 4,
+                    Color.rgb(0x303540), 1, Color.rgb(0xF0F0F0));
+            byte[] opaque = render(c -> {
+                c.fillRect(0, 0, W_PT, H_PT, page);
+                panel.accept(c);
+            });
+            byte[] faded = render(c -> {
+                c.fillRect(0, 0, W_PT, H_PT, page);
+                c.saveLayer(px - 1, py - 1, 82.3f, 42.6f, 0.999f);
+                panel.accept(c);
+                c.restore();
+            });
+            for (int k = 0; k < opaque.length; k++) {
+                int d = k % 4 == 3 ? 0 : Math.abs((opaque[k] & 0xFF) - (faded[k] & 0xFF));
+                if (d > worst) {
+                    worst = d;
+                    where = "at " + (k / 4 % WIDTH) + "," + (k / 4 / WIDTH) + " for the panel at " + px + "," + py;
+                }
+            }
+        }
+        assertTrue(worst <= 2, "a bordered panel at 0.999 against the panel: off by " + worst + " " + where);
+    }
+
     // ------------------------------------------------------------------ the two ends
 
     @Test

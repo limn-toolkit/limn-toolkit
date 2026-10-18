@@ -514,6 +514,18 @@ final class GlCanvas implements Canvas {
             baseFramebuffer = org.lwjgl.opengl.GL33C.glGetInteger(
                     org.lwjgl.opengl.GL33C.GL_DRAW_FRAMEBUFFER_BINDING);
         }
+        // And on the window's grid of two by two pixels: a fragment's derivatives are taken across
+        // such a quad, counted from the target's bottom-left corner, and the distance field of a
+        // curve (a rounded corner, a circle) bends inside one, so a picture whose corner sat an odd
+        // pixel off the window's grouped its pixels differently and antialiased every curve
+        // differently from the same draw made straight into the window: up to 12 levels at a
+        // bordered panel's rounded corners while it faded, measured on this Mac's GPU, where the
+        // grid kept puts them within one. A column and a row more, at most, both cleared and both
+        // inside the clip's cut of the layer, which is what it was before.
+        lx0 &= ~1;
+        if (((fbHeight - ly1) & 1) != 0) {
+            ly1++; // the picture's bottom edge, its rows' origin, an even number of rows above the window's
+        }
         int lw = lx1 - lx0;
         int lh = ly1 - ly0;
         GlLayerPool.Picture picture = layers.take(lw, lh, fbWidth, fbHeight);

@@ -659,6 +659,16 @@ build.
 - **The composite is a program of its own (section 2.3, "as an ordinary batched draw"):** section
   6.1 says why. It draws under no clip, since the picture was drawn under the clip already and a
   second pass of it would square the antialiased edge.
+- **A picture's corner sits on the window's grid of two by two pixels** (2026-10-17, after
+  review): a fragment's derivatives are taken across such quads, counted from the target's
+  bottom-left corner, and a picture an odd pixel off the window's grouped its pixels into other
+  quads and antialiased every curve differently from the same draw made into the window, up to 8
+  levels at a bordered panel's rounded corners at 2x and 12 at 1x on this Mac's GPU, where the
+  grid kept puts them within one. It costs a column and a row more at most, cleared and outside
+  the clip. The review had read the edge of the chart's tooltip losing a sliver while it fades as
+  the layer being too small; the layer, the panel plus a point, holds every pixel the panel
+  paints at every fractional position measured from 1x to 2x, and what did differ at the panel's
+  edge while it faded was this.
 - **Pictures are rounded up to 64 pixels**, capped at the framebuffer, so a fade one pixel larger
   takes the same one; at the end of a frame every picture that frame did not take goes back to
   the driver, which keeps decision 8's rule ("kept only while consecutive frames use it") per
