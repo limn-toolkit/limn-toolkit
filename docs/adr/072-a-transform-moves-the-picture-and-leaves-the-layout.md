@@ -17,7 +17,12 @@
   a flat `setMatrix` on the container, drawn through a picture in local space that the canvas's new
   `saveLayer` with a matrix composites as a projected quad under the enclosing clip, the warped
   glass, popup windows placed again, `Opacity.fadeTo`'s finite seconds, and section 7's two layer
-  measurements on this Mac; stage 3 is not built.
+  measurements on this Mac. **Stage 3 built, 2026-10-18** (section 11): the turn in depth, the
+  perspective and the back face on the container, `setMatrix` taking any finite matrix and
+  `Mat4.perspectiveAt`, a `flipTo` that turns in depth once a perspective is set, the near plane, the
+  magnification and the edge-on test in the canvas, the backdrop root verified, and section 7's
+  projected composite and `glGenerateMipmap` measured on this Mac. All four stages are built; the
+  guests' measurements of section 7 are what is still owed before Accepted.
 - **Date:** 2026-10-17
 - **Scope:**
   - a container that draws its child moved, scaled, rotated or turned in 3D, without changing
@@ -139,7 +144,8 @@ All setters are fluent, UI thread only, and throw when called from inside a pain
   to four times the box's larger side is the usual look, and the Javadoc says so. The vanishing
   point is the origin.
 - **`setBackfaceVisible(boolean)`**, `isBackfaceVisible()`: whether the child is drawn and hit
-  while its plane faces away from the viewer. `true` by default.
+  while its plane faces away from the viewer. `true` by default. (2026-10-18, as built: a plane
+  turned over and not one mirrored, read from the whole matrix as a web page reads it; section 11.2.)
 - **`setMatrix(Mat4)`**, `matrix()`: a general matrix, identity by default, applied about the
   origin after the scale. A 2D affine, a skew included, is a `Mat4` whose z row and column are
   the identity's; no separate 2D affine type is added, because `Mat3` is a 3D normal matrix
@@ -147,14 +153,17 @@ All setters are fluent, UI thread only, and throw when called from inside a pain
   matrix that moves points in z only matters through the perspective. (2026-10-18, stage 2:
   built with a matrix that keeps the plane flat, its bottom row `(0, 0, any, w > 0)`, and refused
   otherwise until stage 3 brings the perspective; `Mat4.affine2D` makes one from a 2D affine map's
-  six numbers, the factory a skew needed; section 10.2.)
+  six numbers, the factory a skew needed; section 10.2. Stage 3, the same day: any finite matrix is
+  taken, and `Mat4.perspectiveAt(distance)` makes a perspective; section 11.)
 - **The order is fixed.** For a point `p` of the child, with `O` the translation to the origin:
   `O · translation · perspective · rotation3D · rotation · scale · matrix · O⁻¹ · p`, then the
   Transform's own position in its parent. So a scale, a rotation and a turn share one pivot, a
   translation moves the result, and the perspective looks at it from in front of the origin. An
   application that needs another order nests two Transforms or writes the `Mat4`. (2026-10-18,
   stage 1: a flip's turn, which is not a value, takes its place between the perspective and
-  `rotation3D`, so it turns the child as it appears, whatever turn it has; section 9.2.)
+  `rotation3D`, so it turns the child as it appears, whatever turn it has; section 9.2. Stage 3
+  built it so: `O · translation · perspective · flip · rotation3D · rotation · scale · matrix · O⁻¹`;
+  section 11.)
 - **`reset()`** puts every value back at rest, as one change.
 
 ### 2.3 Animations and announcements
@@ -240,7 +249,9 @@ There are three cases, and only the third makes a picture.
   picture's four corners through the canvas's current transform and the Transform's matrix, in
   homogeneous coordinates, so the GPU interpolates the texture perspective-correctly and clips the
   part of a plane that falls behind the eye (`w < 0`) by itself. A 2D transform has `w = 1`, and
-  so does ADR 071's opacity composite, which keeps one program for both.
+  so does ADR 071's opacity composite, which keeps one program for both. (2026-10-18, stage 3: the
+  quad is cut at the near plane before the GPU sees it, and the scale is taken over what the
+  window, not a pass, lets be seen; section 11.2.)
 - **The enclosing clip is applied at the composite.** ADR 071's composite draws under no clip
   because its picture was drawn under the clip already; a picture drawn in local space was not.
   The enclosing device rectangle and the repaint pass are applied as a scissor, which costs
@@ -264,6 +275,9 @@ There are three cases, and only the third makes a picture.
   is question 11.
 - **The backface.** With `setBackfaceVisible(false)`, a composite whose projected quad winds the
   other way is skipped. Edge-on (exactly 90 degrees) the quad has no area and draws nothing.
+  (2026-10-18, as built: the plane's facing, not the quad's winding, which a mirror shares; the
+  widget opens no picture for it, so nothing is composited; edge-on is a threshold, since single
+  precision leaves a quarter turn a cosine of 4e-8; section 11.2.)
 - **What is not rasterized twice.** A Transform at rest makes no picture; a translation or a
   scale makes none; ADR 071's group under a Transform's translation or scale is ADR 071's group.
   Only a rotation, a skew or a turn costs a picture.
@@ -391,6 +405,8 @@ Both depend on section 3, and with it they are short.
   backdrop root, as a web page's isolated groups are. Warping the window through an inverse
   projection is possible with the same program, but what a blur reads through a plane seen at an
   angle has no answer a user could check, and a flip lasts a third of a second (question 10).
+  (2026-10-18, as built: a picture seen in perspective; a turn out of the plane with none is the
+  affine map it draws, and its glass is warped as a skew's is; section 11.2.)
 
 ### 2.10 Several turns at once
 
@@ -742,6 +758,67 @@ the floor, on this Mac's GPU and software renderer and on the Windows, Fedora an
 - **The projected composite** against ADR 071's flat one, for a card and for a page, at 0, 30
   and 75 degrees: the perspective-correct interpolation per pixel on the software renderer is the
   unknown.
+
+  **Measured on this Mac, 2026-10-18** (the probe `TransformDepthProbe` in the backend's tests, run
+  by setting `LIMN_PROBE_TRANSFORM_DEPTH`; the guests' run still owed): the window, the page and
+  the popup of the layer probe, the modes interleaved and rotated, each on a canvas of its own. The
+  card in partial frames, each its own damage: OPAQUE and OPAQUE' the card drawn straight, the
+  floor; FLAT the card in an `Opacity` at one half, ADR 071's flat composite; ROT_3 the card rotated
+  3 degrees in the plane (stage 2's affine picture) and C_3 turned 3 degrees in depth, a picture in
+  perspective of nearly the same size over nearly the same pass; C_0, C_30 and C_75 turned about
+  its vertical axis, the eye 1000 points away, two and a half times its larger side. The page,
+  stripes and card in one container, in whole frames, the eye 3200 points away. Round 1 / round 2,
+  medians, milliseconds.
+
+  On Apple's software renderer (4.1 APPLE-24.0.2), 40 frames after 5, one number per frame:
+
+  | Frame | OPAQUE | OPAQUE' | FLAT | ROT_3 | C_3 | 0 degrees | 30 degrees | 75 degrees |
+  |---|---|---|---|---|---|---|---|---|
+  | card, partial | 163.0 / 163.6 | 162.6 / 162.8 | 165.3 / 165.8 | 172.3 / 172.3 | 174.1 / 175.1 | 162.8 / 162.8 | 206.2 / 206.6 | 224.4 / 225.5 |
+  | page, whole | 345.2 / 346.2 | 345.5 / 345.5 | 360.0 / 360.5 | | | 343.5 / 343.5 | 331.2 / 332.0 | 312.9 / 312.5 |
+
+  On this Mac's GPU (Apple M5 Max, OpenGL 4.1 over Metal), 300 frames after 60, CPU / GPU / frame:
+
+  | Frame | Mode | Round 1 | Round 2 |
+  |---|---|---|---|
+  | card, partial | OPAQUE | 0.158 / 0.214 / 0.562 | 0.085 / 0.021 / 0.229 |
+  | | OPAQUE' | 0.154 / 0.215 / 0.564 | 0.081 / 0.022 / 0.229 |
+  | | FLAT | 0.185 / 0.299 / 0.604 | 0.099 / 0.068 / 0.245 |
+  | | ROT_3 | 0.185 / 0.305 / 0.614 | 0.102 / 0.067 / 0.247 |
+  | | C_3 | 0.185 / 0.304 / 0.614 | 0.102 / 0.069 / 0.250 |
+  | | 0 degrees | 0.155 / 0.214 / 0.564 | 0.085 / 0.021 / 0.226 |
+  | | 30 degrees | 0.188 / 0.327 / 0.635 | 0.101 / 0.075 / 0.252 |
+  | | 75 degrees | 0.191 / 0.408 / 0.688 | 0.105 / 0.082 / 0.265 |
+  | page, whole | OPAQUE | 0.112 / 0.090 / 0.345 | 0.131 / 0.089 / 0.373 |
+  | | OPAQUE' | 0.110 / 0.092 / 0.342 | 0.129 / 0.092 / 0.372 |
+  | | FLAT | 0.135 / 0.140 / 0.418 | 0.157 / 0.132 / 0.446 |
+  | | 0 degrees | 0.110 / 0.091 / 0.344 | 0.128 / 0.090 / 0.373 |
+  | | 30 degrees | 0.135 / 0.143 / 0.416 | 0.157 / 0.137 / 0.446 |
+  | | 75 degrees | 0.138 / 0.129 / 0.405 | 0.157 / 0.121 / 0.428 |
+
+  What the numbers say:
+
+  - **The perspective-correct composite itself costs 2 to 3 ms of a software frame** over the affine
+    one at the same size (C_3 against ROT_3: +1.8 / +2.7, floor 0.4 / 0.8), about 1.5%, and nothing
+    a GPU shows (inside the floor). At 0 degrees the container is at rest and costs nothing.
+  - **A card turned 30 or 75 degrees costs +43 / +62 ms of a software partial frame** over the card
+    drawn straight, against the flat composite's +2.3: not the composite, by the line above, and not
+    the pass, which a turn about the vertical axis makes no larger, but, by inference, the picture
+    drawn at the near edge's magnification, about 1.27 and 1.47 times the upright card's pixels at
+    30 and 75 degrees, its two shadows included. That is section 2.4's price of a sharp near edge,
+    paid while a card is turned; a flip passes through it for a third of a second. On the GPU the
+    same turns cost a few hundredths of a millisecond.
+  - **A turned page costs less than an opaque one on the software renderer** (−14 and −33 ms at 30
+    and 75 degrees, against the flat composite's +14.5): its near edge would want a picture larger
+    than the window, which is drawn smaller (section 2.4's cap), and covers fewer pixels.
+  - Neither reopens a decision.
+- **`glGenerateMipmap` per frame** for question 11, measured with the same probe (`P_30_MIP`,
+  `P_75_MIP`: the mipmap chain made again from the page's picture after each frame). **On this Mac,
+  2026-10-18:** on the GPU +0.054 / +0.062 ms of CPU and +0.066 / +0.068 ms of GPU at 30 degrees,
+  +0.047 / +0.063 and +0.066 / +0.067 at 75 (frames 0.468 / 0.498 and 0.453 / 0.481 against 0.416 /
+  0.446 and 0.405 / 0.428); on the software renderer +4.0 / +3.3 ms at 30 degrees and +4.0 / +3.3 at
+  75 (335.2 / 335.2 and 316.9 / 315.8 against 331.2 / 332.0 and 312.9 / 312.5), about 1% of the
+  frame. Cheap enough not to rule mipmaps out; answer 11 waits on the guests' numbers.
 - **The re-basing** a transform's picture needs and an opacity's does not: a rotated card's frame
   against the same card in an opacity group.
 - **The rounded enclosing clip in the composite program** on the software renderer, against the
@@ -839,7 +916,8 @@ the floor, on this Mac's GPU and software renderer and on the Windows, Fedora an
   a repeat of the same motion, or a scale held, costs what the card at rest costs. Nothing here asks
   for a cap on the sizes rasterized or for a picture under a scale; the atlas's own eviction past
   four pages covers a continuous zoom.
-- **`glGenerateMipmap` per frame** on the three guests, for question 11.
+- **`glGenerateMipmap` per frame** on the three guests, for question 11 (measured on this Mac
+  above, 2026-10-18).
 - **A partial frame through a moved child** against a whole frame (stage 1's pixel test, run on
   the guests), since the scene's set of Transforms changes what a pass paints. (2026-10-18: green
   on this Mac's GPU, `TransformPassSeamTest`; the guests' run owed.)
@@ -1296,6 +1374,8 @@ in depth, the perspective, the backface and the near plane are stage 3.
 
 ### 10.4 What stage 3 must still do
 
+(2026-10-18: done in stage 3, section 11, but for the guests' runs.)
+
 - `setRotation3D`, `setPerspective`, `setBackfaceVisible` and a `flipTo` drawn with perspective;
   lifting `setMatrix`'s restriction; a public perspective factory or the composition in `limn.math`
   (section 8.2); the backface flag on the hook.
@@ -1309,4 +1389,182 @@ in depth, the perspective, the backface and the near plane are stage 3.
   composite, which the probe's 30-degree mode measures flat, at 75 degrees in perspective.
 - The guests' runs of section 7, after stage 3, in one round: the glyph probe, the pixel tests, and
   `TransformLayerProbe` on Windows, Fedora and the macOS guest.
+- The fold of an adjacent `Opacity` into a turned Transform's composite stays declined (question 12).
+
+## 11. Stage 3, built 2026-10-18
+
+Built on `claude/adr-072-stage3` from `e252abfa` (stage 2 and its CHANGELOG entries), in commits
+before this section: `Mat4.perspectiveAt`, the face a matrix turns and the hook's backface flag,
+the container's turn in depth, perspective and back face with the restriction on `setMatrix`
+lifted, the canvas's near plane and magnification, the depth probe with the probes made runnable
+off macOS, and the Showcase and the guide. All four stages are built; the guests' measurements of
+section 7 are what is owed before Accepted.
+
+### 11.1 What was built
+
+- **`Mat4.perspectiveAt(float distance)`** (section 8.2's owed factory): a perspective seen from an
+  eye `distance` in front of the plane `z = 0`, a point divided by `1 − z / distance`, in the
+  plane's own units; infinity is the identity, a distance not above 0 is refused. The tests'
+  `PerspectiveForTest` is gone.
+- **The face a matrix turns, and the hook's flag.** `ChildTransform` reads from the whole matrix
+  which face the children's plane shows the viewer, and how far it is from edge-on (11.2), and
+  holds `drawsNothing`: collapsed, edge-on, or a back face while back faces are hidden. The paint,
+  `isShowing`, the painted and drawn bounds, and the hit test (through `unmap`, which answers `NaN`)
+  all read it. `TransformAccess.setBackfaceVisible(Widget, boolean)` is the flag on the internal
+  hook; it lives on the widget and is handed to each matrix it installs.
+- **`Transform`'s 3D tier** (section 2.2): `setRotation3D(Vec3 axis, float degrees)`,
+  `setRotation3D(Quat)`, `rotation3D()`; `setPerspective(float distance)`, `perspective()`,
+  infinite by default; `setBackfaceVisible(boolean)`, `isBackfaceVisible()`, `true` by default;
+  each fluent, UI thread only, refused in a paint, announced as `TRANSFORM` when it changes a value,
+  and put back by `reset()`. `setMatrix` takes any finite matrix. `TransformGroup` composes
+  `O · translation · perspective · flip · rotation3D · rotation · scale · matrix · O⁻¹`, the order
+  of section 2.2 as amended in 9.2 and 10.2.
+- **`flipTo` with a perspective**: the flip's turn is the same factor in the product, so with no
+  perspective it is stage 1's flat narrowing, drawn straight, and with one it turns in depth through
+  a picture, the edge coming over growing toward the reader. Less motion still swaps at once
+  (answer 8). No `turnTo` motion was added for `setRotation3D`: section 2.3 lists none.
+- **In the canvas** (section 2.4, 10.4's list): the part of a re-based layer that can be seen is its
+  rectangle cut by the near plane and by the enclosing clip's four edges seen back through the
+  homography; the picture is its bounds. The magnification is taken at the corners of what the
+  window lets be seen, the corner nearest the eye under a perspective (11.2). A plane seen edge-on
+  opens no picture. In perspective the composite's quad is cut at the near plane and two pixels past
+  the clip into a polygon of up to nine corners, drawn as a fan with homogeneous positions; a plain
+  layer and an affine one keep their quad.
+- **The backdrop root** (answer 10): verified as stage 2 built it, a layer whose way out is not
+  affine; a glass inside a picture seen in perspective reads only what the subtree drew (11.2).
+- **The Showcase and the guide:** the Motion page's two-sided card is seen from 1200 points and
+  turns over in depth; its strings are unchanged. The Animations guide's "Moving part of a window"
+  gains a paragraph and `AnimationExample`'s `guide:animation-depth` region (a card whose flip turns
+  in depth, a panel laid back about its bottom edge), held by `AnimationExampleTest`.
+- **The probe** `TransformDepthProbe` (section 7's two stage 3 items), and `ProbeGl`, the context
+  the three transform probes now share: CGL on macOS as before, the device tests' hidden window
+  elsewhere, so that the guests can run them (11.2).
+
+### 11.2 What the build settles, and where it departs from the text above
+
+- **2026-10-18. A back face is a plane turned over, not a quad wound the other way.** Section 2.4
+  skips "a composite whose projected quad winds the other way". The winding cannot tell a plane
+  turned over from one mirrored: `setScale(-1, 1)` and a half turn about the vertical axis draw the
+  same quad. Section 2.2 says what is meant, a plane that "faces away from the viewer", and the
+  build reads that from the whole matrix as a web page's `backface-visibility` does: the plane's
+  image is the third row of the inverse, whose z coefficient's sign says which side the viewer is
+  on, `det(H) · det(M)` in the cofactors already at hand. A mirror is drawn with back faces hidden;
+  the half turn is not. `PointConversionTest` and `TransformDepthTest` hold both.
+- **2026-10-18. The skip is the widget's, before any picture.** A hidden back face, a plane edge-on
+  and a collapsed one draw nothing: `Widget.paintChildrenThrough` opens no layer for them, so no
+  picture is made, and the hit test, `isShowing`, the damage and the culls treat them as drawing
+  nothing. `Canvas.saveLayer(…, Mat4)` keeps its signature; a canvas is never asked to skip a back
+  face, and skips a plane seen edge-on by itself.
+- **2026-10-18. Edge-on is a threshold.** Section 2.4 says a quarter turn's quad "has no area".
+  In single precision a quarter turn leaves a cosine of about `4e-8`, so the build counts a plane
+  edge-on when the cosine between its image's normal and the line of sight is not above `1e-6`
+  (some six hundred-thousandths of a degree); the canvas, which sees only the homography, when its
+  area at every corner of the visible part is not above a millionth. Both pass at 89 degrees.
+- **2026-10-18. A perspective and the back face's flag alone are at rest.** The child's plane lies
+  at the perspective's own depth until something turns it, and shows its front, so neither puts the
+  container in the scene's set or makes a matrix; a turn, a flip or a matrix with depth does.
+- **2026-10-18. A turn in depth is kept as a quaternion of `w` not below 0.** Of `q` and `−q`, which
+  name one turn, the one compared, so the same turn set twice is not heard twice. So a whole turn in
+  depth is no turn, where `setRotation(360)` stays a value drawn through a picture; the two differ
+  because a quaternion cannot count turns.
+- **2026-10-18. The perspective's infinity.** Section 2.2 refuses the infinities for every setter;
+  `setPerspective` takes `Float.POSITIVE_INFINITY` as no perspective, its default, as the same
+  section says. Zero, negative distances and `NaN` are refused.
+- **2026-10-18. The backdrop root is a perspective, not any turn out of the plane.** Section 2.9
+  makes "a 3D picture" a backdrop root, and section 4.1 lists the root among what applies "while the
+  matrix has a perspective or a turn out of the plane". As built (and as stage 2 left it), the root
+  is a layer whose way out is not affine. A turn out of the plane with no perspective is an affine
+  map of the plane, exactly what a scale and a skew draw: about x or y alone it is drawn straight, as
+  stage 1's flat flip is, and about a slanted axis through a picture whose glass reads the window
+  warped exactly. The canvas cannot tell such a turn from a skew, and the warp has an answer a user
+  can check; the case question 10 had in mind, a plane seen at an angle in perspective, is the root.
+  `GlDepthLayerTest` holds the glass in perspective reading nothing of the window (105 steps off with
+  the root taken away) beside a flat turn's that reads it.
+- **2026-10-18. The near plane, and what this Mac's GPU did without it.** Section 2.4 relies on the
+  GPU clipping `w < 0` by itself, and 10.4 found the canvas's visible part giving up on a clip corner
+  behind the eye. The visible part is now exact; the composite's quad is cut at `w ≥ 1e-6` and two
+  pixels past the clip. With the cut taken out, this Mac's GPU still drew `GlDepthLayerTest`'s card
+  partly past the eye right, by its own clipping in homogeneous coordinates: the cut is a guard for
+  the renderers the guests run, which run the same test, and keeps every corner's device position
+  bounded where a point near the eye would put it millions of pixels away.
+- **2026-10-18. The magnification is the window's, not the pass's.** Section 2.4 takes the scale at
+  the largest magnification of the visible part. Under a perspective that changes with the part: a
+  pass, whose clip is a piece of the window, drew a thumb repainting inside a card turned in depth
+  at another scale than the whole frame and 53 steps off it (`TransformPassSeamTest`). The scale is
+  taken over what the window lets be seen, so every pass draws the picture at one size. The 1.33 of
+  section 2.4 is the near edge's height; at its corners, where the edge also leans, the
+  magnification is 1.37, and the picture is drawn at that (`GlDepthLayerTest`).
+- **2026-10-18. Each Transform's back face is its own.** Section 2.10 flattens each 3D Transform
+  into its parent's plane; the back face follows: a Transform hides its child's back by its own
+  matrix, not by the matrices above it, as a web page's accumulated `preserve-3d` would.
+- **2026-10-18. Text at an oblique angle is bilinear only** (answer 11). `glGenerateMipmap` was
+  measured per frame for a page turned 30 and 75 degrees (section 7): it adds some 0.07 ms on this
+  Mac's GPU and 3 to 4 ms, about 1% of the frame, on its software renderer; the decision stays with
+  the guests' numbers.
+- **2026-10-18. The probes ran only on macOS.** Section 7 and 10.4 owe `TransformLayerProbe` and the
+  glyph probe on the Windows and Fedora guests; both opened their context through CGL, which exists
+  only on macOS. They and the new probe now share `ProbeGl`: CGL on macOS, Apple's software
+  renderer by `LIMN_PROBE_RENDERER=software`, and the device tests' hidden window elsewhere, on the
+  system's driver (Mesa's software renderer by `LIBGL_ALWAYS_SOFTWARE=1` on Linux). And a probe must
+  run with `--rerun --no-configuration-cache`: the configuration cache keeps the test process's
+  environment from the configuration it was made with, and a software run here measured the GPU
+  until it was turned off.
+- **2026-10-18. A frame of a form flipping in depth allocates 264 bytes**
+  (`FullFrameAllocationTest`), what a turning one does; the canvas's cut polygons use its scratch.
+
+### 11.3 Section 6's stage 3 tests, and where they are
+
+- **The flipped card's projected bounds (the 1.33 case) damaged and repainted:**
+  `TransformDepthTest.theProjectedBoundsOfACardTurnedNearEdgeOnInPerspectiveAreDamagedAndRepainted`
+  (the 400 by 300 card turned 80 degrees from 800 points, its bounds worked out by hand, 1.33 times
+  tall, inside the passes, repainted, and the bounds it publishes) and
+  `eachFrameOfAFlipInPerspectiveDamagesTheBoundsItLeavesAndReaches` (every frame of the flip, the
+  near edge past 1.25 times); on the GPU, `TransformPassSeamTest`'s turn in depth, turn at the edge of
+  the eye, repaint inside a card turned in depth, and back face hidden and shown.
+- **Hit testing by inverse projection, a miss behind the eye and on a hidden backface:**
+  `TransformDepthTest.thePointerFindsATurnedChildByInverseProjectionAndMissesBehindTheEye` and
+  `aBackFaceIsDrawnAndHitUnlessHiddenAndAMirrorIsNoBackFace`; through the hook,
+  `PointConversionTest.aPlaneEdgeOnInPerspectiveHoldsNoPointAndAHiddenBackFaceNone`.
+- **The handedness of the three axes pinned:** `TransformDepthTest.theHandednessOfTheThreeAxesIsPinned`
+  (about y a positive angle takes the right edge away, about x it brings the bottom edge toward the
+  viewer, about z it is `setRotation`, clockwise), and the product by hand in
+  `aPointIsDrawnThroughTheTranslationThePerspectiveTheTurnTheRotationAndTheScaleInOrder`.
+- **A turn of exactly 90 degrees draws nothing and takes nothing:**
+  `TransformDepthTest.aTurnOfExactlyNinetyDegreesDrawsNothingAndTakesNothing` (about x and y, with a
+  perspective and without, either way; 89 draws a sliver) and
+  `GlDepthLayerTest.aQuarterTurnDrawsNothingAndMakesNoPicture`.
+- **On a real device:** a partial pass through a turned Transform equals the whole frame
+  (`TransformPassSeamTest`, above); the near plane (`GlDepthLayerTest`: a card partly past the eye
+  drawn pixel for pixel as the projection says, its near part reaching the window's corners, one
+  picture no larger than the window, and a card wholly past the eye drawing nothing); the picture
+  laid perspective-correctly (a red quarter of a card where an affine interpolation would misplace
+  it) and drawn at its near corner's magnification; `TurnedPointerTest`'s eight components inside
+  the real `Transform` turned 38 degrees from 1200 points; `FullFrameAllocationTest` and
+  `WorkBudgetTest.aStillFormTurnedInDepthCostsItsPicturesAndNothingMore` green.
+- Besides: the values, refusals and announcements, a turn in perspective drawn through a picture
+  and one with none about an axis straight, the flip flat and in depth, less motion, the reader's
+  bounds and showing in a clipping parent (`TransformDepthTest`, 14 cases); `Mat4.perspectiveAt`
+  (`MathTest`); the guide's card and panel (`AnimationExampleTest`).
+- **Proved both ways**, each piece backed out and the tests run: with the perspective left out of the
+  product, four of `TurnedPointerTest`'s components and eight `TransformDepthTest` cases fail; without
+  the canvas's edge-on test the quarter turn opens a picture; without the backdrop root the glass in
+  perspective is 105 off; with the magnification taken over the pass's part, the repaint inside a
+  card turned in depth is 53 off; with the back face read from the winding, the two mirror cases
+  fail; without the hidden back face in the hit test, the two miss cases fail. The near plane's cut
+  in the composite is not proved so: this Mac's GPU drew the card partly past the eye right without
+  it (11.2).
+- **The whole suite:** `./gradlew check --continue` at `0dc93ba4` with this section written, 7408
+  tests, 93 skipped (the three probes among them), none failed.
+
+### 11.4 What is still owed
+
+- **The guests' round of section 7**, after this stage, in one round: on the Windows, Fedora and
+  macOS guests, `TransformLayerProbe` (`LIMN_PROBE_TRANSFORM_LAYER`), `TransformGlyphProbe`
+  (`LIMN_PROBE_TRANSFORM_GLYPHS`) and `TransformDepthProbe` (`LIMN_PROBE_TRANSFORM_DEPTH`), each by
+  `./gradlew :limn-backend-lwjgl:test --tests limn.backend.lwjgl.<Probe> --rerun
+  --no-configuration-cache` with its variable set (and `LIMN_PROBE_RENDERER=software` on the macOS
+  guest if its context is not already the software renderer), the tables read from the test's
+  standard output in its result file; and the device tests `TransformPassSeamTest`,
+  `GlTurnedLayerTest`, `GlDepthLayerTest`, `TransformRotationPixelTest` and
+  `FullFrameAllocationTest`. Question 11's mipmaps are decided on the probe's `_MIP` rows there.
 - The fold of an adjacent `Opacity` into a turned Transform's composite stays declined (question 12).
