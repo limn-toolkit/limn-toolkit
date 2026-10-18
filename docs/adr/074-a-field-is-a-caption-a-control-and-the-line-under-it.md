@@ -1,17 +1,21 @@
 # ADR 074: A field is a caption, a control and the line under it
 
-- **Status:** Proposed, 2026-10-18. The owner chose on 2026-10-18 that the anatomy around a form's
-  control enters before 1.0: a caption, a line of help, a validation message and a mark for a
-  required field. This record decides its shape and how each part reaches a reader; section 4
-  holds what is still open.
+- **Status:** Accepted and implemented, 2026-10-18. Proposed the same day: the owner chose on
+  2026-10-18 that the anatomy around a form's control enters before 1.0 (a caption, a line of
+  help, a validation message and a mark for a required field), and answered every question of
+  section 4 with its recommendation the same day. Built the same day in its three stages (section
+  8), with the dated notes there where the build departs from the text. What is still owed is the
+  live reader run of section 7, over a gallery entry and a script built for it (section 8.5).
 - **Date:** 2026-10-18
 - **Scope:** the caption above a control, the helper line and the validation message under it, the
   required mark; how the validation state reaches the control's border and the three platforms'
   readers; what it does with the toolkit's inputs (a masked text field, a combo box, a date
   field, a compound control); the colour of a line of text that follows the palette; and what it
   replaces in the Showcase and the guides.
-- **New public API (proposed):** `limn.components.Field`; `limn.components.Validation` in place of
-  `TextField.Validation` (question 2); `limn.components.Tone` and `Label.setTone` (question 9).
+- **New public API:** `limn.components.Field`; `limn.components.Validation` in place of
+  `TextField.Validation` (question 2); `limn.components.Tone` and `Label.setTone` (question 9);
+  and, from the build (section 8.2), `Label.tone()`, `Tone.colorIn(Theme)` and
+  `TextArea.validation()`.
 - **Compatibility:** `TextField.Validation` moves; every other change is additive. Two bridges
   gain the translation of two states the model already has (section 2.6).
 
@@ -89,7 +93,8 @@ any of them, and what each platform's reader is told.
 ### 2.1 A container around any control
 
 **`Field` is a final container** in `limn.components`, holding one control, or one widget that
-holds the control:
+holds the control (*2026-10-18: built as written; `setValidation(state)` alone is the state with
+no message, section 8.2*):
 
 ```java
 public final class Field extends Widget<Field> {
@@ -115,7 +120,8 @@ public final class Field extends Widget<Field> {
   is laid out, when the control sits in a wrapper (a field beside a switch, a `SizedBox`). The
   two-argument form places the control itself. `placed` must hold `control`; anything else throws.
 - **Why a container and not setters on each input** (question 1): one class serves the thirteen
-  inputs of the forms guide's table, `TokenBox` besides, and any widget of an application's own; a compound control (an amount beside its
+  inputs of the forms guide's table, `TokenBox` besides (*2026-10-18: `TokenBox` is a layout box
+  sized by a size token, not an input; the record mistook its name, section 8.2*), and any widget of an application's own; a compound control (an amount beside its
   currency, a row of radio buttons) gets the same caption, line and states, which setters on an
   input could not give it; and an input's box stays the input's, so a `Grid(2)` of captions and
   controls, or a row of fields of one width, keeps aligning on the controls.
@@ -156,7 +162,9 @@ public final class Field extends Widget<Field> {
 - **`Field.setValidation` sets the control's border** where the control draws one, through an
   internal interface in `limn.components.internal` that the bordered inputs implement (question
   3): `TextField` and its subclasses and `TextArea` (through their own `setValidation`, so the
-  two cannot disagree), `ComboBox`, `TokenBox`, `Spinner`, `DateField` and `DatePicker`. Each
+  two cannot disagree), `ComboBox`, `TokenBox`, `Spinner`, `DateField` and `DatePicker`
+  (*2026-10-18: without `TokenBox`, which draws nothing; and a registry by class rather than an
+  interface, section 8.2*). Each
   draws the larger of its own state and the field's, `ERROR` above `WARNING` above the rest, so a
   `DateField` holding a refused day stays red whatever the field says. A control with no border (a
   check box, a slider, a row of radio buttons) is left as it is; the line under it carries the
@@ -189,7 +197,9 @@ and ADR 075's `Badge` takes the same enum.
 - **A date field and a date picker** take the caption on the field the keyboard lands on, as
   today, and the description and the states follow it there (section 2.6).
 - **A spinner, a slider, a range slider:** the caption, the line and the states on the control;
-  the range slider's two thumbs are each named by their own words and carry the states each.
+  the range slider's two thumbs are each named by their own words and carry the states each
+  (*2026-10-18: the states land on the range slider's group, where its caption lands, and not on
+  each thumb; section 8.2*).
 - **A check box** keeps its own caption: a `Field` with a `null` label gives it a helper line, a
   message and the required state (a box that must be ticked to go on).
 - **A compound control** (a `Row` of an amount and a currency, a `Column` of radio buttons) has no
@@ -259,6 +269,9 @@ system's word.
 
 ## 4. Questions for the owner
 
+Answered by the owner on 2026-10-18: every question took its recommendation. Each keeps its
+recommendation and cost as put; the answer follows it.
+
 1. **A container, or setters on each input?**
    - *Recommended:* the `Field` container (section 2.1).
    - *Why:* one class for thirteen inputs and any of an application's own, a compound control
@@ -269,23 +282,28 @@ system's word.
      about fifty setters over thirteen classes, each input measuring its caption and its line, a
      compound control left without them, and a `Grid(2)` that can no longer align controls whose
      boxes include their captions.
+   - **Answer:** the `Field` container, as recommended.
 2. **`Validation` a type of its own?**
    - *Recommended:* yes, `limn.components.Validation`, `TextField.Validation` removed.
    - *Cost:* every `TextField.Validation` in the repository renamed, mechanical; no consumers
      outside it.
    - *The alternative:* `Field` takes `TextField.Validation`, which reads as if a combo box's
      state belonged to the text field.
+   - **Answer:** yes, `limn.components.Validation`, `TextField.Validation` removed.
 3. **The border of the inputs that have no validation today.**
    - *Recommended:* through an internal interface only `Field` reaches.
    - *Why:* the API grows by one class and not by a setter on six.
    - *The alternative:* a public `setValidation` on `ComboBox`, `TokenBox`, `Spinner`, `DateField`
      and `DatePicker`, as on `TextField`, for an application that colours a border without a
      `Field`: five public setters, each with its tests.
+   - **Answer:** through an internal hook only `Field` reaches, as recommended (built as a
+     registry by class rather than an interface the inputs implement: section 8.2).
 4. **The message and the helper together?**
    - *Recommended:* the message replaces the helper while it shows, on screen and for a reader.
    - *Why:* one line, so the form's height is stable, and one description.
    - *The alternative:* both lines while there is a message, the helper under it: the form grows
      by a line on the first error, and the reader is given the message alone or the two joined.
+   - **Answer:** the message replaces the helper while it shows, on screen and for a reader.
 5. **A glyph before the message?**
    - *Recommended:* yes, drawn by the toolkit for each state (a circle with a bar for an error, a
      triangle for a warning, a check for success, an "i" for information), as it draws the
@@ -294,30 +312,38 @@ system's word.
    - *Cost:* four small paths and their right-to-left placement.
    - *The alternative:* no glyph, or an icon the application passes with each message, as the
      Showcase does from its own icon pack.
+   - **Answer:** yes, a glyph drawn by the toolkit for each state.
 6. **The required mark.**
    - *Recommended:* an asterisk after the caption, in `danger`.
    - *The alternative:* the asterisk in the caption's own muted colour; or no mark on required
      fields and "(optional)" on the others, which needs a string in 21 languages.
+   - **Answer:** an asterisk after the caption, in `danger`.
 7. **Does the line keep its height?**
    - *Recommended:* yes, once a field has helper text or has shown a message.
    - *The alternative:* the line collapses when empty, and the form moves on each error.
+   - **Answer:** yes, once a field has helper text or has shown a message.
 8. **A caption beside the control?**
    - *Recommended:* not in this record: `Grid(2)` of a bound `Label` and a captionless `Field`.
    - *Cost of adding it:* a position setter and a caption width every field of a form would have to
      share, which is a grid's job, not a field's.
+   - **Answer:** not in this record: a `Grid(2)` of a bound `Label` and a captionless `Field`.
 9. **`Tone` and `Label.setTone` public?**
    - *Recommended:* yes, shared with `Badge` (ADR 075).
    - *Why:* any line of coloured text in an application has `Page.tint`'s defect today.
    - *The alternative:* the tone stays inside `Field` and `Badge`, and an application colours other
      text by hand.
+   - **Answer:** yes, both public, and `Tone` shared unchanged with ADR 075's `Badge`.
 10. **Invalid on macOS, if AppKit has no attribute VoiceOver reads.**
     - *Recommended:* nothing more than the message in the description, which says what is wrong.
     - *The alternative:* the toolkit writes the word "invalid" before the message on macOS alone, a
       string in 21 languages and a sentence composed by the toolkit.
+    - **Answer:** nothing more than the message in the description (section 8.3 for what was
+      read on the guest, and what is still to be heard).
 11. **A date field's own message shown by its `Field`?**
     - *Recommended:* yes, in the error tone, until the application sets one of its own.
     - *Why:* the reason is already written and translated; the Showcase copies it by hand today.
     - *The alternative:* the application shows it, as now.
+    - **Answer:** yes, in the error tone, until the application sets one of its own.
 
 ## 5. Not in this record
 
@@ -363,3 +389,133 @@ system's word.
 - **Contrast:** each built-in palette's four tones as text in the label font on `surface` and
   `background`, against 4.5 to 1, by the theme's tests, before the tones are used for text; the
   Showcase draws its messages in them today without that check.
+
+## 8. Built, 2026-10-18
+
+All three stages of section 6, on branch `claude/adr-074-field`, in six commits: `Validation`
+moved; the walk's describer and form states; the two bridges; `Tone` and `Label.setTone`;
+`Field`; the Showcase, the site's examples and the guides.
+
+### 8.1 What was built
+
+- **Stage 1.** `limn.components.Validation` (the five constants, unchanged), every use renamed.
+  The walk's redirect remembers the composite it came from and, at the carrier the composite
+  names, reads three things off it: the caption, the bound describer and the form states, each
+  the carrier's own where it has one. The states reach the model through an internal hook,
+  `SceneAccess.fieldControl(control, held, required, invalid)`, stored with the widget's other
+  accessible overrides and applied by the walk with them: `REQUIRED`, `INVALID` (only ever added,
+  so a text field's own error stands), and a `GROUP` role for a control that declares none.
+  Windows answers `IsRequiredForForm` (30025) and `IsDataValidForForm` (30103, the inverse of
+  `INVALID`) on the getter and raises both as property changes; macOS answers
+  `isAccessibilityRequired`, offered by the gate only where the node is required. Linux was
+  already mapped and is unchanged.
+- **Stage 2.** `Tone { NEUTRAL, ACCENT, INFO, SUCCESS, WARNING, DANGER }` with
+  `Tone.colorIn(Theme)` (muted text, primary, info, success, warning, danger), the one resolution
+  `Label.setTone` paints with and ADR 075's `Badge` will ask; an explicit `setColor` wins, a tone
+  wins over `setMuted`, a disabled label is drawn disabled. `Field` as section 2.1 writes it; its
+  parts are four children (the caption, the asterisk, what is placed, the line), all `Label`s but
+  the placed one, laid out by the field itself. The glyphs are four stroked drawings in an
+  `Icon` of the field's own. The bordered inputs show the state through
+  `limn.components.internal.FieldControls`, which also carries a date's own message.
+- **Stage 3.** Section 3, with the counts it gave; and a reader entry for section 7 (8.5).
+
+### 8.2 Where the build departs from the text above
+
+- **`TokenBox` is not an input** (sections 2.1 and 2.3, question 3). It is a layout box that sizes
+  its child by a size token and draws nothing; the record took its name for a control. The
+  bordered inputs are `TextField` and its subclasses, `TextArea`, `ComboBox` (an editable one
+  through its editor, which draws its frame), `Spinner`, `DateField` and `DatePicker`.
+- **A registry by class, not an interface the inputs implement** (section 2.3). A public class
+  that implements an interface puts its method on the class's public face, and a package that is
+  not exported does not hide it there. Each bordered class registers, from its static
+  initializer, how it shows a field's state (`FieldControls.ownBorder`), and the two date classes
+  what they say when they refuse a value (`ownMessage`); a subclass inherits its parent's entry.
+  Nothing is held per instance. A text field and a text area register their own `setValidation`,
+  as the record asked.
+- **The range slider's states are on its group**, where its caption lands, and not on each thumb
+  (section 2.5). The walk carries what a field says to the one node a caption names; carrying it
+  to two would need a second kind of redirect for one widget. Each thumb keeps its own name.
+- **A compound control was already a group when a caption named it.** A widget with no role that a
+  bound caption names is published as a named group by the walk as it stood; the field's own
+  rule (a control with no role becomes a `GROUP`) is what serves a field with no caption.
+- **`setValidation(state)` alone is the state with no message**, so the line shows the helper;
+  `clearValidation()` is `setValidation(NONE)`. The record listed the signatures and not this.
+- **An empty line is not a node** and describes nothing: while the reserved line is empty the
+  label is ignored by the walk and unbound, so no empty static node and no empty description
+  are published.
+- **`Label.setIcon` now lays out in place**, as `setText` does. The damage contract's row for a
+  field (a message arriving with its glyph) repainted the window through the full layout the
+  icon asked for; in place it repaints the line and the border, with a layout reaching further
+  only when the line's height changes (section 2.2's own promise).
+- **`TextArea.validation()`** was added beside `TextField.validation()`; the area had a setter and
+  no getter.
+- **macOS, invalid** (question 10, section 7). The selector `isAccessibilityRequired` was read on
+  the guest before it was installed, as the constants test requires: the whole AppKit dump
+  regenerated on the macOS guest, now at macOS 27.0 (26A428), and nothing already in it moved. The
+  same dump asked for `NSAccessibilityInvalidAttribute` and AppKit does not export it: AppKit has
+  no attribute of its own for an invalid value. Whether VoiceOver reads the `AXInvalid` string
+  some web engines publish was not heard (8.5); as answered, the message in the description is
+  what macOS gets.
+- **Windows' second id was already read.** `IsDataValidForForm` is 30103 in the guest's type
+  library and interop dumps of 2026-09-13 (readings/windows-dump-uia-typelib.txt); it had not been
+  taken into `UiaIds` because nothing asked.
+- **Contrast** (section 7). The four state tones clear 4.5 to 1 as text on `surface` and on
+  `background` in every built-in palette, now held by `ThemeContrastTest`; nothing had to move.
+- **The caption is the label font, muted, as written**, which is a change on every Showcase page:
+  `Labelled.above` drew the body font, not muted, four points above the control; a field draws
+  the label font, muted, `gapLabel` (6) above. `Labelled.aboveWithValue`, which stays, now draws
+  its caption the same way, and the buttons-and-inputs page's other captions (customer type,
+  billing cycle, invoices, access) too, so a page reads as one form.
+- **Found and not fixed:** `DayMark` takes a `Color`, so a calendar's day marks hold the palette of
+  the moment they were made, the defect `Tone` removes from labels; the Showcase's and the
+  guide's marks are built from `Theme.current()`. A `DayMark` of a `Tone` is a change of that
+  class's public face and was left out of this record.
+
+### 8.3 Section 6's tests, and where they are
+
+- Stage 1: `FormStatesAccessibilityTest` (a message bound to a `DatePicker` describes its field;
+  the states land where the caption lands; a text field keeps its own `INVALID`; a role-less
+  control becomes a group): four of its five cases fail against the walk before the change.
+  `UiaShapesTest`, `AxShapesTest` and `AtspiShapesTest` each gain a required and invalid `TEXT`
+  node; the Windows and macOS cases fail against the bridges before the change.
+- Stage 2: `LabelToneTest` (two of three fail without the paint change); `ThemeContrastTest`'s
+  state tones; `FieldTest` (layout in both directions, the line reserved and kept, the asterisk
+  after the caption's end, a captionless check box, the placed control, each bordered input's
+  border, a refused day staying red, a date's own message shown and replaced, a palette change
+  re-colouring the line; the border and date-message cases fail with the registry emptied);
+  `FieldAccessibilityTest` (the thirteen inputs of the forms guide's table, an editable combo, a
+  combo of many, a column of radio buttons and an amount with its currency, each carrying the
+  caption, the line and the states on the node a reader lands on; the asterisk outside the name;
+  the access letter); `FieldContractsTest` (the text, value, popup-owner and toggle contracts
+  over controls in a required field with a message); and rows in `DamageContractTest` (failed
+  with a full window repaint before `setIcon` went in place), `NotificationContractTest` and
+  `AccessibleCoverageTest`.
+- Stage 3: the demo's suite, `ShowcaseDocumentFieldsTest` reading the field's message, and
+  `ReaderStepsTest` running the new script headlessly.
+
+### 8.4 What it replaced
+
+`Page.field` (both), `Page.message`, `Page.withMessage`, `Page.tint` and its weak map, and the
+four `Labelled.above`; every caller in the Showcase, the accessibility gallery and the site's
+three examples is a `Field`. `Labelled` keeps `caption` (which now carries the snippet the
+accessibility guide quotes), `aboveWithValue` and `below`. The forms guide's two sections, the
+accessibility guide's naming and description paragraphs and the theming guide are rewritten as
+section 3 says. Five Showcase strings, in all 21 bundles, for the variations the
+buttons-and-inputs page did not have: a masked field's helper, a credit limit that is an amount
+and its currency, and a required check box with its helper.
+
+### 8.5 What is still owed
+
+- **The reader run of section 7**, on the guests. The gallery has an entry for it, "Fields,
+  required and invalid", and a script, `field-states`, which `ReaderStepsTest` already runs
+  headlessly: the run starts on the empty required email, described by its helper; Tab to the
+  postal code, required and invalid, described by its message; End; the fifth digit typed, after
+  which the postal code is required, not invalid, and described by its helper again. On each
+  guest, with its reader on (NVDA on Windows, VoiceOver on macOS, Orca on Fedora and Ubuntu), run
+  `limn-demo --reader field-states` (pt-BR by default; `--real-keys` to send the keys through the
+  system), with the recipes of the earlier runs. Heard, per section 7: the caption, "required"
+  (or the system's word), "invalid" on the postal code, the message once, and the invalid state
+  gone after the fix. The guest recipes owe a section for the new id.
+- **On macOS, in the same run:** whether VoiceOver says anything of the postal code's invalidity
+  beyond the message, which with no attribute published it should not; if a native reading of
+  `AXInvalid` is wanted, it is a probe over a native field first, as question 10 put it.
