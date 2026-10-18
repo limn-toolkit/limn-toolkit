@@ -9,72 +9,18 @@ import limn.scene.layout.Flex;
 import limn.scene.layout.Row;
 
 /**
- * A caption beside a control, with the caption declared as the control's label.
+ * A caption beside a control that is not a form's field, with the caption declared as the
+ * control's label: a caption on a line of its own above a line of controls, a bar with its value
+ * on the caption's line, a muted caption under a specimen. A form's field is a
+ * {@link limn.components.Field}, which binds its caption itself.
  *
- * <p>This is the one idiom the accessibility gallery exists to show, because a caption that merely
- * sits above or below a field names nothing: a reader reaching the field hears
- * "text field" and nothing else. Four scenes of this demo had a caption helper of their own, and
- * none of the four declared the relation, which is exactly the defect the gallery describes.
- * Every caption in the demo now goes through here, and every one names what it captions.
+ * <p>A caption that merely sits above or below a control names nothing: a reader reaching it hears
+ * "text field" and nothing else. So every caption here names what it captions.
  */
 public final class Labelled {
 
     private Labelled() {
     }
-
-    /**
-     * A caption above a control.
-     *
-     * @param caption the text, never translated
-     * @param control what it names
-     * @return the column holding both
-     */
-    public static Widget<?> above(String caption, Widget<?> control) {
-        return above(I18nString.literal(caption), control, control);
-    }
-
-    /**
-     * A caption above a control that sits inside a wrapper &mdash; a sized box, a row with a
-     * switch &mdash; where the label must point at the control and not at the box around it.
-     *
-     * @param caption the text, never translated
-     * @param control what it names
-     * @param placed  what is laid out under the caption; holds {@code control}
-     * @return the column holding both
-     */
-    public static Widget<?> above(String caption, Widget<?> control, Widget<?> placed) {
-        return above(I18nString.literal(caption), control, placed);
-    }
-
-    /**
-     * A caption above a control, in the language the scene is built in: what the accessibility
-     * gallery's reader entries caption themselves with.
-     *
-     * @param caption the text
-     * @param control what it names, and what is placed
-     * @return the column holding both
-     */
-    public static Widget<?> above(I18nString caption, Widget<?> control) {
-        return above(caption, control, control);
-    }
-
-    /**
-     * The same, for a caption that follows the language.
-     *
-     * @param caption the text
-     * @param control what it names
-     * @param placed  what is laid out under the caption; holds {@code control}
-     * @return the column holding both
-     */
-    // #region guide:a11y-labelled
-    public static Widget<?> above(I18nString caption, Widget<?> control, Widget<?> placed) {
-        Column column = new Column();
-        column.gap(4).crossAlignment(Flex.CrossAlignment.STRETCH);
-        column.add(new Label(caption).setLabelFor(control));
-        column.add(placed);
-        return column;
-    }
-    // #endregion
 
     /**
      * A caption on its own, naming {@code control}: for a form whose captions stand on a line of
@@ -84,9 +30,11 @@ public final class Labelled {
      * @param control what it names
      * @return the caption
      */
+    // #region guide:a11y-labelled
     public static Label caption(I18nString caption, Widget<?> control) {
         return new Label(caption).setLabelFor(control);
     }
+    // #endregion
 
     /**
      * A caption above a control with the control's value at the end of the caption's line: for a
@@ -102,10 +50,14 @@ public final class Labelled {
     public static Widget<?> aboveWithValue(I18nString caption, Widget<?> control, Widget<?> value) {
         Row head = new Row();
         head.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
-        head.add(Expanded.of(new Label(caption).setLabelFor(control), 1));
+        // Drawn as a field's caption is, in the label font, muted, and as far above its control,
+        // so a bar beside a field sits on the field's line: give the value the label font too.
+        head.add(Expanded.of(new Label(caption).setRole(Label.Role.LABEL).setMuted(true)
+                .setLabelFor(control), 1));
         head.add(value);
         Column column = new Column();
-        column.gap(4).crossAlignment(Flex.CrossAlignment.STRETCH);
+        // A field's label gap at the medium step, which is the step the Showcase is drawn at.
+        column.gap(6).crossAlignment(Flex.CrossAlignment.STRETCH);
         column.add(head);
         column.add(control);
         return column;

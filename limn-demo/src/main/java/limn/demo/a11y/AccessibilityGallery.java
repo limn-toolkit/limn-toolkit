@@ -17,6 +17,7 @@ import limn.components.ComboBox;
 import limn.components.ContextMenus;
 import limn.components.Dialog;
 import limn.components.DisplayMode;
+import limn.components.Field;
 import limn.components.ImageView;
 import limn.components.Label;
 import limn.components.ListView;
@@ -56,7 +57,6 @@ import limn.components.chart.ChartSeries;
 import limn.components.chart.DonutChart;
 import limn.components.chart.LineChart;
 import limn.concurrent.Ui;
-import limn.demo.Labelled;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Icon;
@@ -568,6 +568,12 @@ public final class AccessibilityGallery {
                 new Entry("Text field with a mask", List.of(TextField.class),
                         List.of(Role.TEXT_FIELD),
                         AccessibilityGallery::textFieldWithMask),
+                // A form's two states (ADR 074): a required field still empty, one that holds an
+                // error with its message, and the error fixed. The states are the ones no reader
+                // had heard from this toolkit before the field published them.
+                new Entry("Fields, required and invalid", List.of(TextField.class),
+                        List.of(Role.TEXT_FIELD),
+                        AccessibilityGallery::fieldStates, ReaderScripts.FIELD_STATES),
                 new Entry("Password field", List.of(PasswordField.class),
                         List.of(Role.PASSWORD_FIELD, Role.SWITCH),
                         AccessibilityGallery::passwordField),
@@ -822,13 +828,13 @@ public final class AccessibilityGallery {
         group.add(medium);
         group.add(large);
         group.setAccessibleRole(Role.RADIO_GROUP);
-        page.add(Labelled.above("Size", group));
+        page.add(new Field("Size", group));
         return new Built(page);
     }
 
     private static Built segmented() {
         Column page = page();
-        page.add(Labelled.above("Period",
+        page.add(new Field("Period",
                 new SegmentedControl(List.of("Day", "Week", "Month")).setSelectedIndex(0)));
         // Narrow enough to overflow, so the two chevrons and a scrolled-away segment are on show.
         // The slot sits in a row of its own, because the page column would stretch it to the
@@ -837,17 +843,17 @@ public final class AccessibilityGallery {
                 "January", "February", "March", "April", "May", "June"));
         Row slot = new Row();
         slot.add(new SizedBox(160, SizedBox.UNSET, wide));
-        page.add(Labelled.above("Month, overflowing its slot", wide, slot));
+        page.add(new Field(I18nString.literal("Month, overflowing its slot"), wide, slot));
         return new Built(page);
     }
 
     private static Built sliders() {
         Column page = page();
-        page.add(Labelled.above("Volume", new Slider(0, 100).setValue(30)));
-        page.add(Labelled.above("Brightness, in steps", new Slider(0, 10).setStep(1).setValue(5)));
+        page.add(new Field("Volume", new Slider(0, 100).setValue(30)));
+        page.add(new Field("Brightness, in steps", new Slider(0, 10).setStep(1).setValue(5)));
         Slider locked = new Slider(0, 100).setValue(40);
         locked.setEnabled(false);
-        page.add(Labelled.above("Contrast, locked", locked));
+        page.add(new Field("Contrast, locked", locked));
         return new Built(page);
     }
 
@@ -876,20 +882,20 @@ public final class AccessibilityGallery {
 
     private static Built rangeSliders() {
         Column page = page();
-        page.add(Labelled.above("Price", new RangeSlider(0, 1000).setStep(10).setValues(200, 600)));
-        page.add(Labelled.above("Nights, at least two", new RangeSlider(1, 30).setStep(1).setMinimumGap(2)
+        page.add(new Field("Price", new RangeSlider(0, 1000).setStep(10).setValues(200, 600)));
+        page.add(new Field("Nights, at least two", new RangeSlider(1, 30).setStep(1).setMinimumGap(2)
                 .setValues(3, 7)));
         RangeSlider locked = new RangeSlider(0, 100).setValues(20, 80);
         locked.setEnabled(false);
-        page.add(Labelled.above("Age, locked", locked));
+        page.add(new Field("Age, locked", locked));
         return new Built(page);
     }
 
     private static Built spinners() {
         Column page = page();
-        page.add(Labelled.above("Quantity", new Spinner(0, 99, 1).setValue(1)));
-        page.add(Labelled.above("Opacity", new Spinner(0, 1, 0.25).setValue(0.5)));
-        page.add(Labelled.above("Departure", Spinner.time().setValue(7 * 60 + 30)));
+        page.add(new Field("Quantity", new Spinner(0, 99, 1).setValue(1)));
+        page.add(new Field("Opacity", new Spinner(0, 1, 0.25).setValue(0.5)));
+        page.add(new Field("Departure", Spinner.time().setValue(7 * 60 + 30)));
         // Parked at its maximum, so the gallery carries a spinner whose upper arrow cannot move
         // the value and is published without ENABLED and with no PRESS (decision 69), beside three
         // whose arrows are both live. Until this one there was no spinner at a bound anywhere in
@@ -898,53 +904,78 @@ public final class AccessibilityGallery {
         // would have noticed had the narrowing been written the wrong way round. It is the
         // "Contrast, locked" slider's role on the sliders page: a state variant, not a fourth
         // widget.
-        page.add(Labelled.above("Servings, at the maximum", new Spinner(1, 8, 1).setValue(8)));
+        page.add(new Field("Servings, at the maximum", new Spinner(1, 8, 1).setValue(8)));
         // And one at its minimum, because a fixture at max ratchets one predicate and the other
         // three spinners here sit strictly inside their ranges: with the narrowing of the LOWER
         // arrow backed out the ratchet stayed BUILD SUCCESSFUL while the same sabotage on the
         // upper one cost six of its tests. A fresh spinner is at min by the constructor, which is
         // exactly what this entry relies on and why it takes no setValue.
-        page.add(Labelled.above("Servings, at the minimum", new Spinner(1, 8, 1)));
+        page.add(new Field("Servings, at the minimum", new Spinner(1, 8, 1)));
         return new Built(page);
     }
 
     private static Built progress() {
         Column page = page();
-        page.add(Labelled.above("Upload", new ProgressBar().setProgress(0.4f)));
-        page.add(Labelled.above("Connecting", new ProgressBar().setIndeterminate(true)));
+        page.add(new Field("Upload", new ProgressBar().setProgress(0.4f)));
+        page.add(new Field("Connecting", new ProgressBar().setIndeterminate(true)));
         return new Built(page);
     }
 
     private static Built textFieldWithPlaceholder() {
         Column page = page();
         TextField name = new TextField().setPlaceholder("First and last name");
-        page.add(Labelled.above("Name", name));
+        page.add(new Field("Name", name));
         return new Built(page);
     }
 
     private static Built textFieldWithMask() {
         Column page = page();
         // The literals write themselves and are read as part of the text. The pattern is syntax a
-        // reader cannot word, so the application says what each field expects in its own words.
-        page.add(Labelled.above("Serial number", new TextField().setMask("AAA-0000-**")
-                .setText("KLM42")
-                .setAccessibleDescription("Three letters, four digits and two characters")));
-        page.add(Labelled.above("Reference", new TextField().setMask("00.000.000/0000")
-                .setAccessibleDescription("Fourteen digits")));
+        // reader cannot word, so the application says what each field expects in its own words:
+        // the field's helper line, which a reader hears as the field's description.
+        page.add(new Field("Serial number", new TextField().setMask("AAA-0000-**").setText("KLM42"))
+                .setHelperText("Three letters, four digits and two characters"));
+        page.add(new Field("Reference", new TextField().setMask("00.000.000/0000"))
+                .setHelperText("Fourteen digits"));
         return new Built(page);
     }
 
     private static Built textFieldWithValue() {
         Column page = page();
         TextField email = new TextField().setText("ada@example.com");
-        page.add(Labelled.above("Email", email));
+        page.add(new Field("Email", email));
         // A trailing button is an operable control, so it is given a name of its own.
         TextField city = new TextField().setText("Lisbon");
         city.setTrailingButton(BLANK_ICON, I18nString.literal("Clear city"), () -> city.setText(""));
-        page.add(Labelled.above("City", city));
+        page.add(new Field("City", city));
         TextField code = new TextField().setText("12345").setValidation(Validation.ERROR);
-        page.add(Labelled.above("Postal code", code));
+        page.add(new Field("Postal code", code));
         return new Built(page);
+    }
+
+    /**
+     * Two required fields of an address: the email still empty under its helper, the postal code
+     * holding four digits and the error that says five. Typing the fifth digit fixes it, and the
+     * line goes back to the helper.
+     */
+    private static Built fieldStates() {
+        Column page = page();
+        TextField email = new TextField();
+        page.add(new Field(GalleryStrings.EMAIL, email).setRequired(true)
+                .setHelperText(GalleryStrings.EMAIL_HELP));
+        TextField code = new TextField().setText("1234");
+        Field postal = new Field(GalleryStrings.POSTAL_CODE, code).setRequired(true)
+                .setHelperText(GalleryStrings.POSTAL_CODE_HELP);
+        postal.setValidation(Validation.ERROR, GalleryStrings.POSTAL_CODE_SHORT.format(4));
+        code.onChange(text -> {
+            if (text.matches("\\d{5}")) {
+                postal.clearValidation();
+            } else {
+                postal.setValidation(Validation.ERROR, GalleryStrings.POSTAL_CODE_SHORT.format(text.length()));
+            }
+        });
+        page.add(postal);
+        return Built.focusing(page, email);
     }
 
     private static Built passwordField() {
@@ -957,7 +988,7 @@ public final class AccessibilityGallery {
         row.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
         row.add(Expanded.of(password, 1));
         row.add(reveal);
-        page.add(Labelled.above("Password", password, row));
+        page.add(new Field(I18nString.literal("Password"), password, row));
         return new Built(page);
     }
 
@@ -965,7 +996,7 @@ public final class AccessibilityGallery {
         Column page = page();
         SearchField search = new SearchField();
         search.setText("invoices");
-        page.add(Labelled.above("Search", search));
+        page.add(new Field("Search", search));
         return new Built(page);
     }
 
@@ -982,7 +1013,7 @@ public final class AccessibilityGallery {
                 Line six.
                 Line seven.
                 Line eight.""");
-        page.add(Labelled.above("Notes", notes, new SizedBox(SizedBox.UNSET, 120, notes)));
+        page.add(new Field(I18nString.literal("Notes"), notes, new SizedBox(SizedBox.UNSET, 120, notes)));
         return new Built(page);
     }
 
@@ -990,7 +1021,7 @@ public final class AccessibilityGallery {
         Column page = page();
         ComboBox<String> combo = new ComboBox<>(List.of("Portuguese", "English", "French", "German"));
         combo.setSelectedIndex(1);
-        page.add(Labelled.above("Language", combo));
+        page.add(new Field("Language", combo));
         return new Built(page, open ? combo::open : () -> { });
     }
 
@@ -1004,7 +1035,7 @@ public final class AccessibilityGallery {
         ComboBox<String> combo = new ComboBox<>(List.of(
                 "Alps", "Andes", "Atlas", "Carpathians", "Caucasus", "Himalayas"));
         combo.setSelectedIndex(1);
-        page.add(Labelled.above(GalleryStrings.MOUNTAIN_RANGES, combo));
+        page.add(new Field(GalleryStrings.MOUNTAIN_RANGES, combo));
         return Built.focusing(page, combo);
     }
 
@@ -1013,7 +1044,7 @@ public final class AccessibilityGallery {
         ComboBox<String> combo = new ComboBox<>(List.of(
                 "Alps", "Andes", "Atlas", "Carpathians", "Caucasus", "Himalayas")).setEditable(true);
         combo.setSelectedIndex(1);
-        page.add(Labelled.above(GalleryStrings.MOUNTAIN_RANGES, combo));
+        page.add(new Field(GalleryStrings.MOUNTAIN_RANGES, combo));
         return Built.focusing(page, combo.children().get(0));
     }
 
@@ -1022,7 +1053,7 @@ public final class AccessibilityGallery {
         ComboBox<String> combo = new ComboBox<>(List.of(
                 "Alps", "Andes", "Atlas", "Carpathians", "Caucasus", "Himalayas"))
                 .setSelectionMode(SelectionMode.MULTI).setSelectedIndices(1, 3);
-        page.add(Labelled.above(GalleryStrings.MOUNTAIN_RANGES, combo));
+        page.add(new Field(GalleryStrings.MOUNTAIN_RANGES, combo));
         return Built.focusing(page, combo);
     }
 
@@ -1031,7 +1062,7 @@ public final class AccessibilityGallery {
         ComboBox<String> combo = new ComboBox<>(List.of(
                 "Alps", "Andes", "Atlas", "Carpathians", "Caucasus", "Himalayas"))
                 .setSelectionMode(SelectionMode.MULTI).setEditable(true);
-        page.add(Labelled.above(GalleryStrings.MOUNTAIN_RANGES, combo));
+        page.add(new Field(GalleryStrings.MOUNTAIN_RANGES, combo));
         return Built.focusing(page, combo.children().get(0));
     }
 
@@ -1041,7 +1072,7 @@ public final class AccessibilityGallery {
                 "Alps", "Andes", "Atlas", "Carpathians", "Caucasus", "Himalayas", "Pyrenees",
                 "Rockies", "Urals", "Zagros");
         list.setSelectedIndex(2);
-        page.add(Labelled.above("Mountain ranges", list, new SizedBox(SizedBox.UNSET, 160, list)));
+        page.add(new Field(I18nString.literal("Mountain ranges"), list, new SizedBox(SizedBox.UNSET, 160, list)));
         return new Built(page);
     }
 
@@ -1058,7 +1089,7 @@ public final class AccessibilityGallery {
                 "Rockies", "Urals", "Zagros");
         list.setSelectionMode(SelectionMode.MULTI);
         list.setSelectedIndex(2);
-        page.add(Labelled.above(GalleryStrings.MOUNTAIN_RANGES, list,
+        page.add(new Field(GalleryStrings.MOUNTAIN_RANGES, list,
                 new SizedBox(SizedBox.UNSET, 300, list)));
         return Built.focusing(page, list);
     }
@@ -1095,7 +1126,7 @@ public final class AccessibilityGallery {
                 });
         tree.expand(roots.get(0));
         tree.setSelected(roots.get(0).kids().get(0));
-        page.add(Labelled.above("Mountains by region", tree,
+        page.add(new Field(I18nString.literal("Mountains by region"), tree,
                 new SizedBox(SizedBox.UNSET, 180, tree)));
         return new Built(page);
     }
@@ -1183,7 +1214,7 @@ public final class AccessibilityGallery {
         tree.setSelectionMode(SelectionMode.MULTI);
         tree.expand(documents);
         tree.expand(documents.kids().get(0));
-        page.add(Labelled.above(GalleryStrings.FILES, tree,
+        page.add(new Field(GalleryStrings.FILES, tree,
                 new SizedBox(SizedBox.UNSET, 320, tree)));
         return Built.focusing(page, tree);
     }
@@ -1221,7 +1252,7 @@ public final class AccessibilityGallery {
                 new Range("Zagros", "Asia", 4409, false)));
         table.setSelectionMode(SelectionMode.MULTI);
         table.setSelectedRows(0, 2, 3); // the lead in view, so nothing scrolls before it is read
-        page.add(Labelled.above(GalleryStrings.MOUNTAIN_RANGES, table,
+        page.add(new Field(GalleryStrings.MOUNTAIN_RANGES, table,
                 new SizedBox(SizedBox.UNSET, 240, table)));
         return Built.focusing(page, table);
     }
@@ -1277,7 +1308,7 @@ public final class AccessibilityGallery {
         calendar.setDayMarks(day -> day.getDayOfMonth() == 21
                 ? DayMark.of(Theme.current().danger(), GalleryStrings.HOLIDAY)
                 : null);
-        page.add(Labelled.above(GalleryStrings.DELIVERY_DATE, calendar));
+        page.add(new Field(GalleryStrings.DELIVERY_DATE, calendar));
         return Built.focusing(pinnedForReaders(page), calendar);
     }
 
@@ -1290,11 +1321,11 @@ public final class AccessibilityGallery {
         Column page = page();
         DateField date = new DateField();
         date.setDate(java.time.LocalDate.of(2026, 9, 9));
-        page.add(Labelled.above(GalleryStrings.INVOICE_DATE, date));
+        page.add(new Field(GalleryStrings.INVOICE_DATE, date));
         DateField moment = new DateField().setGranularity(DateField.Granularity.MINUTE);
         moment.setDateTime(java.time.LocalDateTime.of(2026, 9, 9, 14, 30));
-        page.add(Labelled.above(GalleryStrings.APPOINTMENT, moment));
-        page.add(Labelled.above(GalleryStrings.DUE_DATE, new DateField()));
+        page.add(new Field(GalleryStrings.APPOINTMENT, moment));
+        page.add(new Field(GalleryStrings.DUE_DATE, new DateField()));
         return Built.focusing(pinnedForReaders(page), date);
     }
 
@@ -1304,7 +1335,7 @@ public final class AccessibilityGallery {
         DatePicker picker = new DatePicker();
         picker.setDate(java.time.LocalDate.of(2026, 9, 9));
         picker.setDisplayMode(limn.components.DisplayMode.IN_SCENE);
-        page.add(Labelled.above("Start date", picker));
+        page.add(new Field("Start date", picker));
         // Opened after the first layout, for the reason every open-popup entry here is: the overlay
         // hangs from the picker's place in the scene, and a picker that has not been laid out has
         // none yet.
@@ -1319,11 +1350,11 @@ public final class AccessibilityGallery {
         Column page = page();
         DatePicker picker = new DatePicker();
         picker.setDate(java.time.LocalDate.of(2026, 9, 9));
-        page.add(Labelled.above(GalleryStrings.DELIVERY_DATE, picker));
+        page.add(new Field(GalleryStrings.DELIVERY_DATE, picker));
         DatePicker stay = DatePicker.ofRange();
         stay.setRange(new limn.components.date.DateRange(
                 java.time.LocalDate.of(2026, 9, 14), java.time.LocalDate.of(2026, 9, 25)));
-        page.add(Labelled.above(GalleryStrings.STAY, stay));
+        page.add(new Field(GalleryStrings.STAY, stay));
         return Built.focusing(pinnedForReaders(page), picker.field());
     }
 
@@ -1431,7 +1462,7 @@ public final class AccessibilityGallery {
         bar.addMenu(viewTitle, viewTitle.charAt(0), view);
         TextField notes = new TextField();
         page.add(bar);
-        page.add(Labelled.above(GalleryStrings.NOTES, notes));
+        page.add(new Field(GalleryStrings.NOTES, notes));
         return Built.focusing(page, notes);
     }
 

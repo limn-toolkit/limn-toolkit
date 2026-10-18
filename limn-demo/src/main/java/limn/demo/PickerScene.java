@@ -132,9 +132,9 @@ final class PickerScene {
         ListView<Field> availableList = list(available, Text.AVAILABLE);
         ListView<Field> chosenList = list(chosen, Text.SHOWN);
         Tree<Entry> folders = outline();
-        report.add(Expanded.of(Page.field(Text.AVAILABLE, availableList, framed(availableList)), 1));
-        report.add(Expanded.of(Page.field(Text.SHOWN, chosenList, framed(chosenList)), 1));
-        report.add(Expanded.of(Page.field(Text.FOLDERS, folders, framed(folders)), 1));
+        report.add(Expanded.of(new limn.components.Field(Text.AVAILABLE, availableList, framed(availableList)), 1));
+        report.add(Expanded.of(new limn.components.Field(Text.SHOWN, chosenList, framed(chosenList)), 1));
+        report.add(Expanded.of(new limn.components.Field(Text.FOLDERS, folders, framed(folders)), 1));
         page.add(Page.firstSection(Text.REPORT));
         page.add(report);
 

@@ -2,6 +2,7 @@ package limn.demo;
 
 import limn.backend.Clipboard;
 import limn.components.Button;
+import limn.components.Field;
 import limn.components.ImageView;
 import limn.components.Label;
 import limn.components.TextField;
@@ -86,10 +87,10 @@ final class TransferScene {
 
         Row line = new Row();
         line.gap(12).crossAlignment(Flex.CrossAlignment.END);
-        line.add(new SizedBox(90, SizedBox.UNSET, Page.field(Text.INVOICE, invoice)));
-        line.add(Expanded.of(Page.field(Text.CUSTOMER, customer), 1));
-        line.add(new SizedBox(120, SizedBox.UNSET, Page.field(Text.AMOUNT, amount)));
-        line.add(new SizedBox(120, SizedBox.UNSET, Page.field(Text.DUE, due)));
+        line.add(new SizedBox(90, SizedBox.UNSET, new Field(Text.INVOICE, invoice)));
+        line.add(Expanded.of(new Field(Text.CUSTOMER, customer), 1));
+        line.add(new SizedBox(120, SizedBox.UNSET, new Field(Text.AMOUNT, amount)));
+        line.add(new SizedBox(120, SizedBox.UNSET, new Field(Text.DUE, due)));
 
         Column formats = new Column();
         formats.gap(6).crossAlignment(Flex.CrossAlignment.START);

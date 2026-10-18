@@ -1,6 +1,7 @@
 package limn.demo;
 
 import limn.components.ComboBox;
+import limn.components.Field;
 import limn.components.SelectionMode;
 import limn.graphics.Icon;
 import limn.i18n.I18n;
@@ -122,11 +123,11 @@ final class CombosScene {
 
         Column page = Page.column();
         page.add(Page.firstSection(Text.ORDER));
-        page.add(Page.columns(Page.field(Text.CUSTOMER, customer), Page.field(Text.STATUS, status)));
-        page.add(Page.columns(Page.field(Text.OWNER, owner), Page.field(Text.TAGS, tags)));
+        page.add(Page.columns(new Field(Text.CUSTOMER, customer), new Field(Text.STATUS, status)));
+        page.add(Page.columns(new Field(Text.OWNER, owner), new Field(Text.TAGS, tags)));
         page.add(Page.section(Text.DELIVERY));
-        page.add(Page.columns(Page.field(Text.COUNTRY, country), Page.field(Text.CITY, city)));
-        page.add(Page.columns(Page.field(Text.CHANNELS, channels), new SizedBox(0, 0)));
+        page.add(Page.columns(new Field(Text.COUNTRY, country), new Field(Text.CITY, city)));
+        page.add(Page.columns(new Field(Text.CHANNELS, channels), new SizedBox(0, 0)));
         page.add(Page.hint(Text.JUMP_HINT));
         return Page.narrow(720, page);
     }

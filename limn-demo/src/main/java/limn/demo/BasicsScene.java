@@ -3,17 +3,20 @@ package limn.demo;
 import limn.components.Button;
 import limn.components.ButtonGroup;
 import limn.components.Checkbox;
+import limn.components.ComboBox;
+import limn.components.Field;
 import limn.components.Label;
 import limn.components.PasswordField;
 import limn.components.ProgressBar;
 import limn.components.RadioButton;
 import limn.components.SearchField;
 import limn.components.SegmentedControl;
+import limn.components.Spinner;
 import limn.components.TextArea;
 import limn.components.TextField;
-import limn.components.Validation;
 import limn.components.Theme;
 import limn.components.ToolBar;
+import limn.components.Validation;
 import limn.concurrent.Ui;
 import limn.graphics.Icon;
 import limn.i18n.I18nString;
@@ -26,6 +29,7 @@ import limn.scene.layout.Expanded;
 import limn.scene.layout.Flex;
 import limn.scene.layout.Row;
 import limn.scene.layout.SizedBox;
+import java.util.List;
 import java.util.function.Predicate;
 
 /**
@@ -91,13 +95,16 @@ final class BasicsScene {
         number.setEnabled(false);
 
         TextField email = new TextField().setText("billing@halcyon").setLeadingIcon(Tabler.outline("mail"));
-        Label emailLine = Page.message(I18nString.EMPTY, Theme::danger, null, email);
+        Field emailField = new Field(Text.EMAIL, email).setRequired(true);
         Runnable checkEmail = () -> {
             String text = email.text().strip();
             int at = text.indexOf('@');
             boolean ok = text.isEmpty() || at > 0 && text.indexOf('.', at) > at + 1 && !text.endsWith(".");
-            email.setError(!ok);
-            say(emailLine, ok ? null : Text.EMAIL_INVALID, "alert-circle");
+            if (ok) {
+                emailField.clearValidation();
+            } else {
+                emailField.setValidation(Validation.ERROR, Text.EMAIL_INVALID);
+            }
         };
         checkEmail.run();
         email.onChange(text -> checkEmail.run());
@@ -106,33 +113,30 @@ final class BasicsScene {
         // from code keeps every digit, a 1 included, and is never read as the literal.
         TextField phone = new TextField().setMask("+1 (000) 000-0000")
                 .setPlaceholder("+1 (415) 555-0123").setLeadingIcon(Tabler.outline("phone"));
-        phone.setValidation(Validation.INFO);
-        Label phoneLine = Page.message(Text.PHONE_HINT, Theme::info, Tabler.outline("info-circle"), phone);
+        Field phoneField = new Field(Text.PHONE, phone).setValidation(Validation.INFO, Text.PHONE_HINT);
 
         TextField user = new TextField().setText("hal").setLeadingIcon(Tabler.outline("user"));
-        Label userLine = Page.message(I18nString.EMPTY, Theme::warning, null, user);
+        Field userField = new Field(Text.USERNAME, user);
         Runnable checkUser = () -> {
-            boolean shortName = user.text().strip().length() < 4;
-            user.setValidation(shortName ? Validation.WARNING : Validation.NONE);
-            say(userLine, shortName ? Text.USERNAME_SHORT : null, "alert-triangle");
+            if (user.text().strip().length() < 4) {
+                userField.setValidation(Validation.WARNING, Text.USERNAME_SHORT);
+            } else {
+                userField.clearValidation();
+            }
         };
         checkUser.run();
         user.onChange(text -> checkUser.run());
 
         TextField coupon = new TextField().setText("SPRING10");
-        Label couponLine = Page.message(I18nString.EMPTY, Theme::success, null, coupon);
+        Field couponField = new Field(Text.COUPON, coupon);
         coupon.setTrailingButton(Tabler.outline("rosette-discount-check"), Text.APPLY_COUPON, () -> {
             boolean known = coupon.text().strip().equalsIgnoreCase("SPRING10");
-            coupon.setValidation(known ? Validation.SUCCESS : Validation.ERROR);
-            Page.tint(couponLine, known ? Theme::success : Theme::danger);
-            say(couponLine, known ? Text.COUPON_APPLIED : Text.COUPON_UNKNOWN,
-                    known ? "circle-check" : "alert-circle");
+            couponField.setValidation(known ? Validation.SUCCESS : Validation.ERROR,
+                    known ? Text.COUPON_APPLIED : Text.COUPON_UNKNOWN);
         });
-        coupon.onChange(text -> {
-            coupon.setValidation(Validation.NONE);
-            say(couponLine, null, null);
-        });
+        coupon.onChange(text -> couponField.clearValidation());
 
+        // The mask's pattern is syntax a reader cannot word, so the field's helper says it.
         TextField serial = new TextField().setPlaceholder("AAA-0000-**").setMask("AAA-0000-**");
         serial.onChange(text -> {
             if (serial.isMaskComplete()) {
@@ -162,28 +166,27 @@ final class BasicsScene {
         TextArea instructions = new TextArea().setSoftWrap(true);
         instructions.setText("Leave the boxes with the security desk if the loading dock is closed, "
                 + "and call the number on the order so somebody comes down to sign for them.");
-        Label instructionsLine = Page.message(I18nString.EMPTY, Theme::danger, null, instructions);
+        Field instructionsField = new Field(Text.INSTRUCTIONS, instructions,
+                new SizedBox(SizedBox.UNSET, 104, instructions));
         Runnable checkInstructions = () -> {
-            boolean tooLong = instructions.text().length() > INSTRUCTIONS_LIMIT;
-            instructions.setError(tooLong);
-            instructionsLine.setText(tooLong ? Text.INSTRUCTIONS_LONG.format(INSTRUCTIONS_LIMIT) : "");
-            instructionsLine.setIcon(tooLong ? Tabler.outline("alert-circle") : null);
+            if (instructions.text().length() > INSTRUCTIONS_LIMIT) {
+                instructionsField.setValidation(Validation.ERROR,
+                        Text.INSTRUCTIONS_LONG.format(INSTRUCTIONS_LIMIT));
+            } else {
+                instructionsField.clearValidation();
+            }
         };
         Page.followLanguage(checkInstructions);
         instructions.onChange(text -> checkInstructions.run());
 
         Column form = new Column();
         form.gap(16).crossAlignment(Flex.CrossAlignment.STRETCH);
-        form.add(Page.columns(Page.field(Text.NAME, name), Page.field(Text.NUMBER, number)));
-        form.add(Page.columns(Page.field(Text.EMAIL, email, Page.withMessage(email, emailLine)),
-                Page.field(Text.PHONE, phone, Page.withMessage(phone, phoneLine))));
-        form.add(Page.columns(Page.field(Text.USERNAME, user, Page.withMessage(user, userLine)),
-                Page.field(Text.COUPON, coupon, Page.withMessage(coupon, couponLine))));
-        form.add(Page.columns(Page.field(Text.SERIAL, serial),
-                Page.field(Text.PASSWORD, password, passwordRow)));
-        form.add(Page.columns(Page.field(Text.NOTES, notes, notesBox),
-                Page.field(Text.INSTRUCTIONS, instructions, Page.withMessage(
-                        new SizedBox(SizedBox.UNSET, 104, instructions), instructionsLine))));
+        form.add(Page.columns(new Field(Text.NAME, name).setRequired(true), new Field(Text.NUMBER, number)));
+        form.add(Page.columns(emailField, phoneField));
+        form.add(Page.columns(userField, couponField));
+        form.add(Page.columns(new Field(Text.SERIAL, serial).setHelperText(Text.SERIAL_HELP),
+                new Field(Text.PASSWORD, password, passwordRow)));
+        form.add(Page.columns(new Field(Text.NOTES, notes, notesBox), instructionsField));
         return form;
     }
 
@@ -197,54 +200,55 @@ final class BasicsScene {
         TextField cpf = new TextField().setMask("000.000.000-00").setPlaceholder("000.000.000-00")
                 .setLeadingIcon(Tabler.outline("id"));
         cpf.setText("123.456.789-09");
-        Label cpfLine = checked(cpf, Documents::cpfValid, Text.CHECK_DIGITS_MATCH, Text.CPF_INVALID);
+        Field cpfField = checked(new Field(Text.CPF, cpf), cpf, Documents::cpfValid, Text.CHECK_DIGITS_MATCH,
+                Text.CPF_INVALID);
 
         TextField iban = new TextField().setMask("'DE'00 0000 0000 0000 0000 00")
                 .setPlaceholder("DE00 0000 0000 0000 0000 00").setLeadingIcon(Tabler.outline("building-bank"));
         iban.setText("DE89 3704 0044 0532 0130 00");
-        Label ibanLine = checked(iban, Documents::ibanValid, Text.CHECK_DIGITS_MATCH, Text.IBAN_INVALID);
+        Field ibanField = checked(new Field(Text.IBAN, iban), iban, Documents::ibanValid,
+                Text.CHECK_DIGITS_MATCH, Text.IBAN_INVALID);
 
         TextField card = new TextField().setMask("0000 0000 0000 0000").setPlaceholder("0000 0000 0000 0000")
                 .setLeadingIcon(Tabler.outline("credit-card"));
         card.setText("4111 1111 1111 1112");
-        Label cardLine = checked(card, Documents::luhnValid, Text.CARD_VALID, Text.CARD_INVALID);
+        Field cardField = checked(new Field(Text.CARD, card), card, Documents::luhnValid, Text.CARD_VALID,
+                Text.CARD_INVALID);
+
+        // A limit is an amount in a currency: two controls under one caption, which the field
+        // publishes as a group named by it, each part keeping its own name.
+        Spinner amount = new Spinner(0, 1_000_000, 500).setValue(25_000);
+        amount.setAccessibleName(TransferScene.Text.AMOUNT);
+        ComboBox<String> currency = new ComboBox<>(List.of("BRL", "EUR", "USD")).setSelectedIndex(1);
+        currency.setAccessibleName(DialogsScene.Text.CURRENCY);
+        Row limit = Page.row(8, Expanded.of(amount, 1), new SizedBox(96, SizedBox.UNSET, currency));
 
         Column form = new Column();
         form.gap(16).crossAlignment(Flex.CrossAlignment.STRETCH);
-        form.add(Page.columns(Page.field(Text.CPF, cpf, Page.withMessage(cpf, cpfLine)),
-                Page.field(Text.IBAN, iban, Page.withMessage(iban, ibanLine))));
-        form.add(Page.columns(Page.field(Text.CARD, card, Page.withMessage(card, cardLine)),
-                new SizedBox(0, 0)));
+        form.add(Page.columns(cpfField, ibanField));
+        form.add(Page.columns(cardField, new Field(Text.CREDIT_LIMIT, limit)
+                .setHelperText(Text.CREDIT_LIMIT_HELP)));
         return form;
     }
 
     /**
-     * The line under a masked {@code field} that says what {@code valid} makes of its text: nothing
-     * while a position is still to fill, then {@code ok} in the success state or {@code wrong} in
-     * the error state, after every edit.
+     * Checks a masked {@code text} with {@code valid} after every edit and says the verdict on its
+     * {@code field}: nothing while a position is still to fill, then {@code ok} in the success state
+     * or {@code wrong} in the error state.
      */
-    private static Label checked(TextField field, Predicate<String> valid, I18nString ok, I18nString wrong) {
-        Label line = Page.message(I18nString.EMPTY, Theme::success, null, field);
+    private static Field checked(Field field, TextField text, Predicate<String> valid, I18nString ok,
+                                 I18nString wrong) {
         Runnable check = () -> {
-            if (!field.isMaskComplete()) {
-                field.setValidation(Validation.NONE);
-                say(line, null, null);
+            if (!text.isMaskComplete()) {
+                field.clearValidation();
                 return;
             }
-            boolean passes = valid.test(field.text());
-            field.setValidation(passes ? Validation.SUCCESS : Validation.ERROR);
-            Page.tint(line, passes ? Theme::success : Theme::danger);
-            say(line, passes ? ok : wrong, passes ? "circle-check" : "alert-circle");
+            boolean passes = valid.test(text.text());
+            field.setValidation(passes ? Validation.SUCCESS : Validation.ERROR, passes ? ok : wrong);
         };
         check.run();
-        field.onChange(text -> check.run());
-        return line;
-    }
-
-    /** Puts a message on its line with its glyph, or empties the line, glyph and all. */
-    private static void say(Label line, I18nString text, String icon) {
-        line.setText(text == null ? I18nString.EMPTY : text);
-        line.setIcon(text == null ? null : Tabler.outline(icon));
+        text.onChange(typed -> check.run());
+        return field;
     }
 
     private static Widget<?> account() {
@@ -286,21 +290,34 @@ final class BasicsScene {
         // check box further above its switch, 2, 6 and then 10 pt, measured.
         Column choices = new Column();
         choices.gap(4).crossAlignment(Flex.CrossAlignment.STRETCH);
-        choices.add(Page.columns(new Label(Text.TYPE), Labelled.caption(Text.CYCLE, cycle)));
+        // Captions drawn as a field's are, in the label font and muted, so the choices read as the same
+        // form as the fields above them.
+        choices.add(Page.columns(caption(new Label(Text.TYPE)), caption(Labelled.caption(Text.CYCLE, cycle))));
         choices.add(Page.lines(types, Page.row(0, cycle)));
         Column options = new Column();
         options.gap(8).crossAlignment(Flex.CrossAlignment.STRETCH);
-        options.add(Page.columns(new Label(Text.BILLING), new Label(Text.ACCESS)));
+        options.add(Page.columns(caption(new Label(Text.BILLING)), caption(new Label(Text.ACCESS))));
         for (int i = 0; i < billing.length; i++) {
             options.add(Page.lines(Page.row(0, billing[i]), Page.row(0, access[i])));
         }
+
+        // A box the account cannot be opened without: it keeps its own words, and the field
+        // around it adds the line and says it is required.
+        Checkbox terms = new Checkbox(Text.TERMS);
+        Field termsField = new Field(null, terms, Page.row(0, terms)).setRequired(true)
+                .setHelperText(Text.TERMS_HELP);
 
         Column form = new Column();
         form.gap(16).crossAlignment(Flex.CrossAlignment.STRETCH);
         form.add(choices);
         form.add(options);
-        form.add(Page.columns(Page.field(Text.PRICES, prices, Page.row(0, prices)), new SizedBox(0, 0)));
+        form.add(Page.columns(new Field(Text.PRICES, prices, Page.row(0, prices)), termsField));
         return form;
+    }
+
+    /** A caption in a field caption's style: the label font, muted. */
+    private static Label caption(Label label) {
+        return label.setRole(Label.Role.LABEL).setMuted(true);
     }
 
     private static Checkbox disabled(Checkbox box) {
@@ -311,7 +328,7 @@ final class BasicsScene {
     private static Widget<?> onboarding() {
         float done = 0.4f;
         ProgressBar profile = new ProgressBar().setProgress(done);
-        Label percent = new Label(NumberFormats.percent(0).apply(done)).setMuted(true);
+        Label percent = new Label(NumberFormats.percent(0).apply(done)).setRole(Label.Role.LABEL).setMuted(true);
         ProgressBar credit = new ProgressBar();
         // Once the page is in a scene: the bar runs on the scene's clock, and has none before.
         Ui.postDelayed(() -> credit.setIndeterminate(true), 0);
@@ -320,7 +337,7 @@ final class BasicsScene {
         // shorter than the column, measured.
         return Page.columns(
                 Page.fieldWithValue(Text.PROFILE, profile, percent),
-                Page.field(Text.CREDIT, credit));
+                new Field(Text.CREDIT, credit));
     }
 
     private static Widget<?> actions(TextField name) {
@@ -365,6 +382,8 @@ final class BasicsScene {
         static final I18nString COUPON_UNKNOWN =
                 new I18nString("showcase.inputs.couponUnknown", "This code does not exist.");
         static final I18nString SERIAL = new I18nString("showcase.inputs.serial", "Device &serial number");
+        static final I18nString SERIAL_HELP = new I18nString("showcase.inputs.serialHelp",
+                "Three letters, four digits and two more, as on the device's label.");
         static final I18nString SERIAL_COMPLETE =
                 new I18nString("showcase.inputs.serialComplete", "Serial number {0} complete");
         static final I18nString PASSWORD = new I18nString("showcase.inputs.password", "Portal pass&word");
@@ -390,6 +409,9 @@ final class BasicsScene {
                 new I18nString("showcase.inputs.cardValid", "Passes the card number check.");
         static final I18nString CARD_INVALID = new I18nString("showcase.inputs.cardInvalid",
                 "Fails the card number check. Look for a mistyped digit.");
+        static final I18nString CREDIT_LIMIT = new I18nString("showcase.inputs.creditLimit", "Credit limit");
+        static final I18nString CREDIT_LIMIT_HELP = new I18nString("showcase.inputs.creditLimitHelp",
+                "Orders past it wait for the back office.");
 
         static final I18nString ACCOUNT = new I18nString("showcase.inputs.account", "Account");
         static final I18nString TYPE = new I18nString("showcase.inputs.type", "Customer type");
@@ -411,6 +433,10 @@ final class BasicsScene {
         static final I18nString ACTIVE = new I18nString("showcase.inputs.active", "Active");
         static final I18nString PORTAL = new I18nString("showcase.inputs.portal", "Customer portal");
         static final I18nString CREDIT_HOLD = new I18nString("showcase.inputs.creditHold", "Credit hold");
+        static final I18nString TERMS = new I18nString("showcase.inputs.terms",
+                "The customer accepted the credit terms");
+        static final I18nString TERMS_HELP = new I18nString("showcase.inputs.termsHelp",
+                "Needed before the first order on credit.");
         static final I18nString CHOSEN = new I18nString("showcase.inputs.chosen", "{0}: {1}");
 
         static final I18nString ONBOARDING = new I18nString("showcase.inputs.onboarding", "Onboarding");

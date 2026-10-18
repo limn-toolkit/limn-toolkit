@@ -3,6 +3,7 @@ package limn.demo;
 import limn.components.Button;
 import limn.components.ComboBox;
 import limn.components.Dialog;
+import limn.components.Field;
 import limn.components.Label;
 import limn.components.Menu;
 import limn.components.MenuItem;
@@ -1290,11 +1291,11 @@ final class AppScene {
             form.add(head);
             form.add(Separator.horizontal());
             fields.gap(10).crossAlignment(Flex.CrossAlignment.STRETCH);
-            fields.add(Labelled.above(ShowcaseStrings.ORDERS_CUSTOMER, customerField));
-            fields.add(Labelled.above(ShowcaseStrings.ORDERS_STATUS, statusField));
-            fields.add(Labelled.above(ShowcaseStrings.ORDERS_PLACED, placedField));
-            fields.add(Labelled.above(ShowcaseStrings.ORDERS_DUE, dueField));
-            fields.add(Labelled.above(ShowcaseStrings.ORDERS_NOTES, notes, new SizedBox(SizedBox.UNSET, 84, notes)));
+            fields.add(new Field(ShowcaseStrings.ORDERS_CUSTOMER, customerField));
+            fields.add(new Field(ShowcaseStrings.ORDERS_STATUS, statusField));
+            fields.add(new Field(ShowcaseStrings.ORDERS_PLACED, placedField));
+            fields.add(new Field(ShowcaseStrings.ORDERS_DUE, dueField));
+            fields.add(new Field(ShowcaseStrings.ORDERS_NOTES, notes, new SizedBox(SizedBox.UNSET, 84, notes)));
             Row buttons = new Row();
             buttons.gap(8).mainAlignment(Flex.MainAlignment.END);
             buttons.add(revert);
@@ -1336,8 +1337,8 @@ final class AppScene {
             state.setSelectedIndex(Status.OPEN.ordinal());
             limn.scene.layout.Column fields = new limn.scene.layout.Column();
             fields.gap(10).crossAlignment(Flex.CrossAlignment.STRETCH);
-            fields.add(Labelled.above(ShowcaseStrings.ORDERS_CUSTOMER, customer));
-            fields.add(Labelled.above(ShowcaseStrings.ORDERS_STATUS, state));
+            fields.add(new Field(ShowcaseStrings.ORDERS_CUSTOMER, customer));
+            fields.add(new Field(ShowcaseStrings.ORDERS_STATUS, state));
             Dialog dialog = new Dialog(ShowcaseStrings.NEW_ORDER_TITLE, I18nString.EMPTY)
                     .setContent(new SizedBox(320, SizedBox.UNSET, fields))
                     .addButton(ShowcaseStrings.ACTION_CANCEL, "cancel")

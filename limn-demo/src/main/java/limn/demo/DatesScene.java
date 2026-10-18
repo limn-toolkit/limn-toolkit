@@ -1,17 +1,16 @@
 package limn.demo;
 
 import limn.components.DisplayMode;
+import limn.components.Field;
 import limn.components.Label;
 import limn.components.Theme;
+import limn.components.Tone;
 import limn.components.date.CalendarView;
 import limn.components.date.DateField;
 import limn.components.date.DatePicker;
 import limn.components.date.DateRange;
 import limn.components.date.DayMark;
-import limn.graphics.Color;
 import limn.i18n.I18nString;
-import limn.icons.tabler.Tabler;
-import limn.scene.Change;
 import limn.scene.Insets;
 import limn.scene.Scene;
 import limn.scene.Widget;
@@ -26,7 +25,6 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.chrono.JapaneseChronology;
 import java.util.Set;
-import java.util.function.Function;
 
 /**
  * The date widgets as an invoicing and scheduling form uses them: a date typed or picked, a month,
@@ -124,7 +122,7 @@ final class DatesScene {
         picker.setDisplayMode(DisplayMode.IN_SCENE);
         Column column = new Column();
         column.gap(14).crossAlignment(Flex.CrossAlignment.START);
-        column.add(Labelled.above(caption, picker));
+        column.add(new Field(caption, picker));
         Scene scene = new Scene(new Padding(Insets.all(20), column));
         return new Built(scene, picker, null);
     }
@@ -153,16 +151,16 @@ final class DatesScene {
         DateField japanese = new DateField();
         japanese.setLocale(java.util.Locale.forLanguageTag("ja-JP-u-ca-japanese"));
         japanese.setDate(ANCHOR);
-        column.add(Labelled.above("ja-JP, Japanese calendar: 9 September 2026", japanese));
+        column.add(new Field("ja-JP, Japanese calendar: 9 September 2026", japanese));
         DateField chosen = new DateField();
         chosen.setChronology(java.time.chrono.JapaneseChronology.INSTANCE);
         chosen.setDate(ANCHOR);
-        column.add(Labelled.above("English, Japanese calendar chosen: 9 September 2026", chosen));
+        column.add(new Field("English, Japanese calendar chosen: 9 September 2026", chosen));
         DatePicker picker = new DatePicker();
         picker.setLocale(java.util.Locale.forLanguageTag("ja-JP-u-ca-japanese"));
         picker.setDate(LocalDate.of(2019, 5, 1));
         picker.setDisplayMode(DisplayMode.IN_SCENE);
-        column.add(Labelled.above("ja-JP picker: 1 May 2019, the first day of Reiwa", picker));
+        column.add(new Field("ja-JP picker: 1 May 2019, the first day of Reiwa", picker));
         Scene scene = new Scene(new Padding(Insets.all(20), column));
         return scene;
     }
@@ -194,14 +192,14 @@ final class DatesScene {
         page.add(Page.firstSection(Text.INVOICE));
         DateField issued = new DateField();
         issued.setDate(LocalDate.of(2026, 8, 10));
-        page.add(Page.columns(Page.field(Text.INVOICE_DATE, issued), Page.field(Text.DUE_DATE, due)));
+        page.add(Page.columns(new Field(Text.INVOICE_DATE, issued), new Field(Text.DUE_DATE, due)));
 
         DatePicker month = new DatePicker().setGranularity(DateField.Granularity.MONTH);
         month.setDate(ANCHOR);
         report(month, Text.BILLING_MONTH);
         DateField year = new DateField().setGranularity(DateField.Granularity.YEAR);
         year.setDate(ANCHOR);
-        page.add(Page.columns(Page.field(Text.BILLING_MONTH, month), Page.field(Text.FISCAL_YEAR, year)));
+        page.add(Page.columns(new Field(Text.BILLING_MONTH, month), new Field(Text.FISCAL_YEAR, year)));
 
         DateField created = new DateField();
         created.setDate(LocalDate.of(2026, 8, 3));
@@ -209,7 +207,7 @@ final class DatesScene {
         DateField contract = new DateField();
         contract.setChronology(JapaneseChronology.INSTANCE);
         contract.setDate(ANCHOR);
-        page.add(Page.columns(Page.field(Text.CREATED, created), Page.field(Text.CONTRACT, contract)));
+        page.add(Page.columns(new Field(Text.CREATED, created), new Field(Text.CONTRACT, contract)));
 
         page.add(Page.section(Text.SCHEDULE));
         DatePicker slot = new DatePicker().setGranularity(DateField.Granularity.MINUTE);
@@ -218,35 +216,24 @@ final class DatesScene {
         report(slot, Text.SLOT);
         DateField meeting = new DateField().setGranularity(DateField.Granularity.MINUTE);
         meeting.setDateTime(LocalDateTime.of(ANCHOR, LocalTime.of(9, 5)));
-        page.add(Page.columns(Page.field(Text.SLOT, slot), Page.field(Text.MEETING, meeting)));
+        page.add(Page.columns(new Field(Text.SLOT, slot), new Field(Text.MEETING, meeting)));
 
         DateField delivery = new DateField();
         delivery.setMinDate(LocalDate.of(2026, 9, 1));
         delivery.setMaxDate(LocalDate.of(2026, 9, 30));
         // Held rather than snapped: the field keeps the date somebody typed and marks itself
-        // invalid, instead of quietly moving it to the 30th; the line under it says why.
+        // invalid, instead of quietly moving it to the 30th; the field's line says why, in the
+        // date's own words, and follows it as it is corrected.
         delivery.setDate(LocalDate.of(2026, 10, 6));
-        Label deliveryLine = Page.message(I18nString.EMPTY, Theme::danger, null, delivery);
-        Runnable explain = () -> {
-            I18nString why = delivery.validationMessage();
-            deliveryLine.setText(why == null ? I18nString.EMPTY : why);
-            deliveryLine.setIcon(why == null ? null : Tabler.outline("alert-circle"));
-        };
-        explain.run();
-        delivery.observeChanges((source, change) -> {
-            if (change.aspect() == Change.Aspect.VALIDITY) {
-                explain.run();
-            }
-        });
         DateField received = new DateField().setGranularity(DateField.Granularity.SECOND);
         received.setDateTime(LocalDateTime.of(ANCHOR, LocalTime.of(14, 30, 12)));
         page.add(Page.columns(
-                Page.field(Text.DELIVERY_DATE, delivery, Page.withMessage(delivery, deliveryLine)),
-                Page.field(Text.RECEIVED, received)));
+                new Field(Text.DELIVERY_DATE, delivery).setRequired(true),
+                new Field(Text.RECEIVED, received)));
 
         DateField checkIn = DateField.ofTime();
         checkIn.setTime(LocalTime.of(14, 30));
-        page.add(Page.columns(Page.field(Text.CHECK_IN, checkIn), new SizedBox(0, 0)));
+        page.add(Page.columns(new Field(Text.CHECK_IN, checkIn), new SizedBox(0, 0)));
 
         page.add(Page.section(Text.PERIODS));
         DatePicker holiday = DatePicker.ofRange();
@@ -255,7 +242,7 @@ final class DatesScene {
         DatePicker quarter = DatePicker.ofRange().setGranularity(DateField.Granularity.MONTH);
         quarter.setRange(new DateRange(LocalDate.of(2026, 7, 1), LocalDate.of(2026, 9, 30)));
         report(quarter, Text.REPORTING);
-        page.add(Page.columns(Page.field(Text.HOLIDAY_PERIOD, holiday), Page.field(Text.REPORTING, quarter)));
+        page.add(Page.columns(new Field(Text.HOLIDAY_PERIOD, holiday), new Field(Text.REPORTING, quarter)));
 
         page.add(Page.section(Text.CALENDARS));
         page.add(Page.columns(calendar(Text.TEAM, team, legend()), calendar(Text.ON_CALL, onCall(), null)));
@@ -287,16 +274,16 @@ final class DatesScene {
         if (legend != null) {
             column.add(legend);
         }
-        return Page.field(caption, calendar, column);
+        return new Field(caption, calendar, column);
     }
 
     /** What the dots under the days mean. */
     private static Widget<?> legend() {
-        return Page.row(16, mark(Theme::danger, Text.HOLIDAY), mark(Theme::warning, Text.DEADLINE));
+        return Page.row(16, mark(Tone.DANGER, Text.HOLIDAY), mark(Tone.WARNING, Text.DEADLINE));
     }
 
-    private static Widget<?> mark(Function<Theme, Color> ink, I18nString meaning) {
-        return Page.row(6, Page.tint(new Label("●").setRole(Label.Role.LABEL), ink),
+    private static Widget<?> mark(Tone tone, I18nString meaning) {
+        return Page.row(6, new Label("●").setRole(Label.Role.LABEL).setTone(tone),
                 new Label(meaning).setRole(Label.Role.LABEL).setMuted(true));
     }
 

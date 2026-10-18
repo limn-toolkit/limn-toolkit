@@ -1,5 +1,6 @@
 package limn.demo.site;
 
+import limn.components.Field;
 import limn.components.Label;
 import limn.components.date.DateField;
 import limn.components.date.DatePicker;
@@ -88,14 +89,8 @@ public final class DataExample {
         return scene;
     }
 
-    /** A caption over a control, as a form lays one out. */
+    /** A field at the width a date wants, as a form lays one out. */
     private static Widget<?> field(String caption, Widget<?> control) {
-        Column column = new Column();
-        column.gap(6).crossAlignment(Flex.CrossAlignment.STRETCH);
-        Label label = new Label(caption);
-        label.setLabelFor(control);
-        column.add(label);
-        column.add(control);
-        return new SizedBox(220, SizedBox.UNSET, column);
+        return new SizedBox(220, SizedBox.UNSET, new Field(caption, control));
     }
 }

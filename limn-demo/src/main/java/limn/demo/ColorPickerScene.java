@@ -5,6 +5,7 @@ import limn.components.ColorPicker;
 import limn.components.ColorPickerButton;
 import limn.components.DisplayMode;
 import limn.components.Elevation;
+import limn.components.Field;
 import limn.components.Label;
 import limn.components.ScrollView;
 import limn.components.Separator;
@@ -101,15 +102,15 @@ final class ColorPickerScene {
 
         Column form = new Column();
         form.gap(Page.GAP).crossAlignment(Flex.CrossAlignment.START);
-        form.add(Page.field(Text.PRIMARY, primary));
-        form.add(Page.field(Text.ACCENT, accent));
+        form.add(new Field(Text.PRIMARY, primary));
+        form.add(new Field(Text.ACCENT, accent));
         form.add(systemAccent);
-        form.add(Page.field(Text.BACKGROUND, background));
+        form.add(new Field(Text.BACKGROUND, background));
         form.add(inWindow);
 
         Row brand = new Row();
         brand.gap(24).crossAlignment(Flex.CrossAlignment.STRETCH);
-        brand.add(Page.field(Text.TAG, tag, new SizedBox(PICKER_WIDTH, SizedBox.UNSET, tag)));
+        brand.add(new Field(Text.TAG, tag, new SizedBox(PICKER_WIDTH, SizedBox.UNSET, tag)));
         brand.add(Separator.vertical());
         brand.add(form);
         page.add(Page.narrow(PICKER_WIDTH + 24 + 1 + 24 + 280, brand));
@@ -121,7 +122,7 @@ final class ColorPickerScene {
                 level(Text.MENU, Elevation.OVERLAY),
                 level(Text.DIALOG, Elevation.MODAL));
         page.add(new Padding(new Insets(4, 0, 16, 0), levels));
-        page.add(Page.field(Text.PREVIEW, preview, Page.narrow(BrandPreview.WIDTH, preview)));
+        page.add(new Field(Text.PREVIEW, preview, Page.narrow(BrandPreview.WIDTH, preview)));
         return page;
     }
 

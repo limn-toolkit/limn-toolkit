@@ -1,6 +1,6 @@
 package limn.demo.site;
 
-import limn.components.Label;
+import limn.components.Field;
 import limn.components.Theme;
 import limn.components.date.CalendarView;
 import limn.components.date.DateField;
@@ -68,10 +68,10 @@ public final class DatesExample {
                 .setGranularity(DateField.Granularity.MINUTE);
         moment.setDateTime(LocalDateTime.of(2026, 9, 9, 18, 0));
 
-        column.add(field("Invoice date", typed));
-        column.add(field("Reminder", clock));
-        column.add(field("Delivery", picker));
-        column.add(field("Appointment", moment));
+        column.add(new Field("Invoice date", typed));
+        column.add(new Field("Reminder", clock));
+        column.add(new Field("Delivery", picker));
+        column.add(new Field("Appointment", moment));
         return column;
     }
     // #endregion
@@ -85,7 +85,7 @@ public final class DatesExample {
         DatePicker period = DatePicker.ofRange();
         period.setRange(new DateRange(LocalDate.of(2026, 9, 14), LocalDate.of(2026, 9, 25)));
         period.onSelect(() -> System.out.println("period now " + period.range()));
-        return field("Reporting period", period);
+        return new Field("Reporting period", period);
     }
     // #endregion
 
@@ -114,21 +114,6 @@ public final class DatesExample {
     // #endregion
 
     /**
-     * A caption over a control, with the caption declared as that control's name: the one line
-     * that is not layout, and the reason a screen reader says "Delivery, group" rather than
-     * "group".
-     */
-    private static Widget<?> field(String caption, Widget<?> control) {
-        Column column = new Column();
-        column.gap(6).crossAlignment(Flex.CrossAlignment.STRETCH);
-        Label label = new Label(caption);
-        label.setLabelFor(control);
-        column.add(label);
-        column.add(control);
-        return column;
-    }
-
-    /**
      * The scene the guide's picture is taken from: centred in the window rather than pinned to a
      * corner, for {@code FormExample}'s reason -- a capture is a picture of a screen, and content
      * huddled against one edge of it reads as a layout that went wrong.
@@ -141,7 +126,7 @@ public final class DatesExample {
         left.add(shapes());
         left.add(period());
         row.add(new SizedBox(300, SizedBox.UNSET, left));
-        row.add(field("Available days", rules()));
+        row.add(new Field("Available days", rules()));
         Row centred = new Row();
         centred.mainAlignment(Flex.MainAlignment.CENTER)
                 .crossAlignment(Flex.CrossAlignment.CENTER);

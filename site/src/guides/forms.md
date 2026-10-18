@@ -11,18 +11,31 @@ This page builds the form in the picture, one piece at a time.
 
 {% shot form "The form below, rendered by Limn in its light palette." %}
 
-## A field is a caption and a control
+## A field is a caption, a control and the line under it
 
-Every field on that form has the same shape, so it is worth one helper. `STRETCH` is what
-makes the control fill the column instead of shrinking to fit its own text.
+Every field on that form has the same shape: a caption above the control, the control at the
+column's width, and a line under it that says how to fill the field or what is wrong with it.
+That shape is `Field`:
 
 {% snippet guide:form-field %}
 
-Use it for every control that takes a value: text fields, password fields, combo boxes and
-spinners all behave the same way here. The `setLabelFor` call is the one line that is not
-layout: it makes the caption the control's *name*, so a screen reader says "Email, text field"
-rather than "text field". A caption that merely sits above a field names nothing, and
-[Accessibility](/docs/accessibility/) says why.
+`Field` takes any control: a text field, a combo box, a date picker, a spinner, a slider, a
+check box, or a row of two controls that make one value, an amount and its currency. The
+caption is drawn in the label font, muted, and it is the control's *name*: a screen reader says
+"Email, text field, required" rather than "text field". A caption that merely sits above a
+control names nothing, and [Accessibility](/docs/accessibility/) says why.
+
+`setRequired(true)` puts an asterisk after the caption, in the palette's danger colour, and
+tells each system's screen reader that the field is required, in that system's own words. It
+validates nothing: whether an empty required field is an error, and when to say so, is yours.
+
+The helper text is the line under the control until a message takes its place. It is shown
+whether or not the field has the keyboard, which a placeholder is not, and a screen reader hears
+it as the field's description. A field whose control sits inside something else, a field beside
+a switch or in a sized box, names the control and lays out the wrapper:
+`new Field(caption, control, wrapper)`. With a `null` caption a check box keeps its own words and
+gains the line and the states. A caption *beside* its control is a `Grid(2)` of a `Label` bound
+with `setLabelFor` and a field built with no caption.
 
 ## The controls
 
@@ -55,8 +68,8 @@ origin. The count under the name field is one:
 
 {% snippet guide:form-counter %}
 
-The label is written once from the field and then follows it: the `setText` that fills the
-form, and every keystroke after it, both reach the watcher. `observeChanges` hands back a
+The helper line is written once from the text field and then follows it: the `setText` that
+fills the form, and every keystroke after it, both reach the watcher. `observeChanges` hands back a
 `Subscription`, and cancelling it is the one way to stop watching; a widget's watchers
 otherwise live as long as the widget does.
 
@@ -84,7 +97,9 @@ the `DE` of an empty `'DE'00 0000`; without it, an empty field shows its placeho
 the positions, and `isMaskComplete()` whether every one is filled, which is the check a form makes
 before it accepts the value. A screen reader hears the text with its literals, but not the
 pattern: `AAA-0000-**` is syntax, not words, so say what the field expects in your user's
-language with a tooltip or `setAccessibleDescription`.
+language, as the helper text of the field around it: "Three letters, four digits and two more".
+It is shown with or without the keyboard, where the guide shows only with it, and a reader
+hears it as the field's description.
 
 Text between single quotes is literal, so a pattern can hold a `0`, an `A` or a `*` the field
 writes rather than fills: `+'0' 000` shows `+0 123`. Two single quotes are one apostrophe, inside
@@ -311,19 +326,29 @@ right-to-left line; what moves there is which side of the box the run sits again
 
 ## Validation
 
-A field carries a validation state (`NONE`, `ERROR`, `WARNING`, `SUCCESS`, `INFO`) which
-recolours its border. Setting it is your decision, made whenever you like: on change, on
-blur, or only when the user presses the submit button.
+A field carries a validation state, a `Validation` of `NONE`, `ERROR`, `WARNING`, `SUCCESS` or
+`INFO`, and a message to go with it. Setting them is your decision, made whenever you like: on
+change, on blur, or only when the user presses the submit button.
 
 {% snippet guide:form-validation %}
 
-Three details in there earn their place. The message label exists whether or not it has text,
-so the form does not jump by a line the first time a field fails. It is bound to the field as
-its *description*, the way the caption is bound as its name, so a screen reader says "Email,
-text field, invalid, enter an address like…" instead of leaving the reason as a sentence
-somewhere else on the screen. And the rule runs on change, which means the error clears itself
-as soon as the user fixes it. A form that only revalidates on submit makes people press the
-button to find out whether they are done.
+The state colours the control's border where the control draws one (a text field, a text area,
+a combo box, a spinner, a date field or picker) and the message takes the line under the
+control, in the state's colour, with a mark before it so the state never rests on colour alone.
+`clearValidation()` gives the border and the line back.
+
+Three details earn their place. The line is reserved from the first helper text or the first
+state on, so the form does not jump by a line the first time a field fails, or back when it is
+fixed. The message is the field's *description*, the way the caption is its name, so a screen
+reader says "Email, text field, invalid, enter an address like…" instead of leaving the reason
+as a sentence somewhere else on the screen; only `ERROR` is invalid to a reader, since a field
+that passed must not be announced as failing. And the rule runs on change, which means the error
+clears itself as soon as the user fixes it. A form that only revalidates on submit makes people
+press the button to find out whether they are done.
+
+A date field and a date picker check what they hold themselves, a day out of range or one your
+filter refuses. Around one, a field shows the date's own reason in the error colour while you
+have set no message of your own, and a refused day keeps the border red whatever state you set.
 
 :::tip[Validate late, clear early]
 Showing an error before someone has finished typing reads as nagging. A good default is to

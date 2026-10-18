@@ -1,7 +1,9 @@
 package limn.demo.site;
 
 import limn.components.ComboBox;
+import limn.components.Label;
 import limn.components.Theme;
+import limn.components.Tone;
 import limn.i18n.I18nString;
 
 /**
@@ -24,6 +26,13 @@ public final class ThemingExample {
         // on the palette's background, and applies the palette's own face.
         picker.onSelect(() -> Theme.builtins().get(picker.selectedIndex()).apply());
         return picker;
+    }
+    // #endregion
+
+    // #region guide:theme-tone
+    /** A status line in the success colour of whichever palette is current, now and after a switch. */
+    static Label savedLine() {
+        return new Label("Saved two minutes ago").setTone(Tone.SUCCESS);
     }
     // #endregion
 

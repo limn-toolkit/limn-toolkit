@@ -1,11 +1,12 @@
 package limn.demo;
 
-import limn.components.Label;
+import limn.components.Field;
 import limn.components.TextField;
-import limn.components.Validation;
 import limn.components.Theme;
+import limn.components.Validation;
 import limn.graphics.TextRulers;
 import limn.i18n.I18n;
+import limn.i18n.I18nString;
 import limn.input.Keys;
 import limn.scene.Scene;
 import limn.scene.Widget;
@@ -53,16 +54,16 @@ class ShowcaseDocumentFieldsTest {
     void theCpfIsCheckedOnceItsElevenDigitsAreIn() {
         TextField cpf = field("000.000.000-00");
         assertEquals(Validation.SUCCESS, cpf.validation(), "the page opens on a valid CPF");
-        assertEquals(BasicsScene.Text.CHECK_DIGITS_MATCH.get(), line(cpf).text());
+        assertEquals(BasicsScene.Text.CHECK_DIGITS_MATCH.get(), line(cpf));
 
         focusAtEnd(cpf).press(Keys.BACKSPACE);
         assertEquals("123.456.789-0", cpf.text());
         assertEquals(Validation.NONE, cpf.validation(), "a digit still to type");
-        assertEquals("", line(cpf).text());
+        assertEquals("", line(cpf));
 
         drive(scene).type("8");
         assertEquals(Validation.ERROR, cpf.validation(), "123.456.789-08's last check digit is 9");
-        assertEquals(BasicsScene.Text.CPF_INVALID.get(), line(cpf).text());
+        assertEquals(BasicsScene.Text.CPF_INVALID.get(), line(cpf));
     }
 
     @Test
@@ -78,19 +79,19 @@ class ShowcaseDocumentFieldsTest {
         drive(scene).type("89370400440532013000");
         assertEquals("DE89 3704 0044 0532 0130 00", iban.text(), "the country is the mask's");
         assertEquals(Validation.SUCCESS, iban.validation());
-        assertEquals(BasicsScene.Text.CHECK_DIGITS_MATCH.get(), line(iban).text());
+        assertEquals(BasicsScene.Text.CHECK_DIGITS_MATCH.get(), line(iban));
     }
 
     @Test
     void theCardsWrongLastDigitIsCaughtAndItsRightOnePasses() {
         TextField card = field("0000 0000 0000 0000");
         assertEquals(Validation.ERROR, card.validation(), "the page opens on 4111 1111 1111 1112");
-        assertEquals(BasicsScene.Text.CARD_INVALID.get(), line(card).text());
+        assertEquals(BasicsScene.Text.CARD_INVALID.get(), line(card));
 
         focusAtEnd(card).press(Keys.BACKSPACE).type("1");
         assertEquals("4111 1111 1111 1111", card.text());
         assertEquals(Validation.SUCCESS, card.validation());
-        assertEquals(BasicsScene.Text.CARD_VALID.get(), line(card).text());
+        assertEquals(BasicsScene.Text.CARD_VALID.get(), line(card));
     }
 
     private limn.testing.SceneDriver focusAtEnd(TextField field) {
@@ -120,8 +121,13 @@ class ShowcaseDocumentFieldsTest {
         return null;
     }
 
-    /** The message line under {@code field}: the second of the column the field and it share. */
-    private static Label line(TextField field) {
-        return (Label) field.parent().children().get(1);
+    /**
+     * What the field around {@code text} says under it: the message while its state is not none,
+     * and nothing otherwise, since these fields have no helper.
+     */
+    private static String line(TextField text) {
+        Field field = (Field) text.parent();
+        I18nString message = field.validationMessage();
+        return field.validation() == Validation.NONE || message == null ? "" : message.get();
     }
 }

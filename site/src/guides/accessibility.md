@@ -40,19 +40,20 @@ from, the states a reader would mention, the value, and the verbs it offers.
 ## Name every control
 
 A caption above a field is a layout fact. It names nothing, because proximity is an accident
-of layout and a tree built from it says confident wrong things. One call makes the caption the
-control's name:
-
-{% snippet guide:a11y-labelled %}
+of layout and a tree built from it says confident wrong things. A form's field is a `Field`,
+whose caption names its control:
 
 ```java
-form.add(above(new I18nString("account.email", "Email"), email, email));
+form.add(new Field(new I18nString("account.email", "Email"), email));
 ```
 
-That is the whole idiom, and the form above uses it for every field: a screen reader says
-"Email, text field" and not "text field". The caption is an `I18nString`, like every text a
-component takes, and the name is read at publish: when the language changes, the caption and
-the name it gives change together.
+The form above is built that way: a screen reader says "Email, text field" and not "text
+field". The caption is an `I18nString`, like every text a component takes, and the name is read
+at publish: when the language changes, the caption and the name it gives change together. A
+caption that is not a form's, a heading over a row of choices or a word under a picture, names
+its control with one call:
+
+{% snippet guide:a11y-labelled %}
 
 A control with no caption takes a name directly:
 
@@ -74,17 +75,24 @@ carry.
 
 {% snippet guide:a11y-image %}
 
-The message beneath a field is a description too, and it is bound the way a caption is,
-because a sentence that merely sits under a field explains nothing to a reader that cannot
-see where it sits:
+The line under a field is a description too, because a sentence that merely sits under a
+field explains nothing to a reader that cannot see where it sits. A `Field` binds its line,
+the helper text or the message, as its control's description, which is why the transcript shows
+the email as *described by* its message: a reader hears "Email, text field, invalid, enter an
+address like…" and not an invalid field with the reason somewhere else on the screen. A message
+of your own, outside a field, is bound the same way:
 
 ```java
 message.setDescriptionFor(email);
 ```
 
-The form above does that for its email error, which is why the transcript shows the field as
-*described by* the message: a reader hears "Email, text field, invalid, enter an address
-like…" and not an invalid field with the reason somewhere else on the screen.
+A field's two states reach every system in its own words: required is UI Automation's
+`IsRequiredForForm` on Windows, `AXRequired` on macOS and the `REQUIRED` state on Linux; invalid,
+which is a field's `ERROR` state, is `IsDataValidForForm` false on Windows and `INVALID_ENTRY`
+on Linux. macOS has no attribute of its own for an invalid value, so there the message in the
+description says what is wrong. The asterisk after a required field's caption is drawn and never
+read: the state says it. A caption, a description or a state given to a date picker lands on the
+field inside it, where the keyboard is.
 
 A picture that the text beside it already describes is decoration. Mark it ignored, and it
 leaves the tree entirely; leave it unmarked and it is published as an image with no name, on

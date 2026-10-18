@@ -85,6 +85,9 @@ public final class GalleryStrings {
     /** "List view, several selected". */
     public static final I18nString ENTRY_LIST_MULTI =
             new I18nString("gallery.entry.listMulti", "List view, several selected");
+    /** "Fields, required and invalid". */
+    public static final I18nString ENTRY_FIELDS =
+            new I18nString("gallery.entry.fields", "Fields, required and invalid");
     /** "Tab list". */
     public static final I18nString ENTRY_TAB_LIST = new I18nString("gallery.entry.tabList", "Tab list");
 
@@ -163,10 +166,25 @@ public final class GalleryStrings {
     /** The submenu's items. */
     public static final I18nString LOWER_CASE = new I18nString("gallery.menu.lowerCase", "Lower case");
 
+    /** The two fields of an address, their helpers and the error the postal code holds. */
+    public static final I18nString EMAIL = new I18nString("gallery.field.email", "Email");
+    /** The two fields of an address, their helpers and the error the postal code holds. */
+    public static final I18nString EMAIL_HELP =
+            new I18nString("gallery.field.emailHelp", "The receipt goes here");
+    /** The two fields of an address, their helpers and the error the postal code holds. */
+    public static final I18nString POSTAL_CODE = new I18nString("gallery.field.postalCode", "Postal code");
+    /** The two fields of an address, their helpers and the error the postal code holds. */
+    public static final I18nString POSTAL_CODE_HELP =
+            new I18nString("gallery.field.postalCodeHelp", "Five digits");
+    /** The two fields of an address, their helpers and the error the postal code holds. */
+    public static final I18nString POSTAL_CODE_SHORT = new I18nString("gallery.field.postalCodeShort",
+            "Five digits are needed, and {0} are typed");
+
     /** Every constant above, for a test that holds the catalogue to both languages. */
     public static final List<I18nString> ALL = List.of(
             ENTRY_TABLE, ENTRY_TREE_LOADING, ENTRY_ANNOUNCEMENTS, ENTRY_CALENDAR, ENTRY_DATE_FIELD,
             ENTRY_DATE_PICKER_CLOSED, ENTRY_LIST_MULTI, ENTRY_COMBO, ENTRY_COMBO_EDITABLE, ENTRY_COMBO_MANY, ENTRY_COMBO_MANY_EDITABLE, ENTRY_MENU_BAR, ENTRY_CONTEXT_MENU, ENTRY_TAB_LIST,
+            ENTRY_FIELDS, EMAIL, EMAIL_HELP, POSTAL_CODE, POSTAL_CODE_HELP, POSTAL_CODE_SHORT,
             MOUNTAIN_RANGES, RANGE, CONTINENT, SUMMIT,
             VISITED, FILES, OPEN, SAVE, SAVED, STOP, STOPPED, DELIVERY_DATE, HOLIDAY, INVOICE_DATE, APPOINTMENT,
             DUE_DATE, STAY, NOTES, FILE, NEW, OPEN_FILE, QUIT, VIEW, STATUS_BAR, DRAFT, CUT, COPY,
@@ -193,7 +211,8 @@ public final class GalleryStrings {
             Map.entry(ENTRY_CONTEXT_MENU.english(), ENTRY_CONTEXT_MENU),
             Map.entry(ENTRY_COMBO_EDITABLE.english(), ENTRY_COMBO_EDITABLE),
             Map.entry(ENTRY_COMBO_MANY.english(), ENTRY_COMBO_MANY),
-            Map.entry(ENTRY_COMBO_MANY_EDITABLE.english(), ENTRY_COMBO_MANY_EDITABLE));
+            Map.entry(ENTRY_COMBO_MANY_EDITABLE.english(), ENTRY_COMBO_MANY_EDITABLE),
+            Map.entry(ENTRY_FIELDS.english(), ENTRY_FIELDS));
 
     /**
      * @param name an entry's name, the English one it is identified by

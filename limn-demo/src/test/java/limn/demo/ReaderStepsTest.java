@@ -83,7 +83,10 @@ class ReaderStepsTest {
             // Added 2026-09-30: the combo holding many, and its editable form (ADR 052).
             "combo-many", "combo-many-editable",
             // Added 2026-10-16: the list of every tab (ADR 068 §4), opened with Alt+Down.
-            "tab-list");
+            "tab-list",
+            // Added 2026-10-18: a field's two states (ADR 074 §7), required and invalid, which no
+            // reader had heard from this toolkit. The guest recipes owe a section for it.
+            "field-states");
 
     /** The widgets H2 (with DT8, B9 and T7) found no reader run could be pointed at. */
     private static final List<Class<?>> WIDGETS_A_READER_MUST_HEAR = List.of(

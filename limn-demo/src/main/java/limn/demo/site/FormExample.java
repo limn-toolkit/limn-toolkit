@@ -3,6 +3,7 @@ package limn.demo.site;
 import limn.components.Button;
 import limn.components.Checkbox;
 import limn.components.ComboBox;
+import limn.components.Field;
 import limn.components.Label;
 import limn.components.PasswordField;
 import limn.components.ScrollGutters;
@@ -11,7 +12,6 @@ import limn.components.SelectionMode;
 import limn.components.Separator;
 import limn.components.TextField;
 import limn.components.Validation;
-import limn.components.Theme;
 import limn.concurrent.Ui;
 import limn.graphics.Icon;
 import limn.scene.Change;
@@ -46,69 +46,53 @@ public final class FormExample {
     }
 
     /**
-     * A caption over a control, the shape every field on this form uses. STRETCH is what
-     * makes the control fill the column's width instead of shrinking to its own text.
+     * A field: a caption over a control, and a line under it. The caption names the control to a
+     * screen reader, the helper text is the line until a message takes its place, and the asterisk
+     * of a required field is the field's to draw.
      */
     // #region guide:form-field
-    static Widget<?> field(String caption, Widget<?> control) {
-        return field(caption, control, control);
-    }
-
-    /**
-     * The same, where the control sits inside a wrapper (a field with a message beneath it):
-     * the caption names the control, and the wrapper is what is placed.
-     */
-    static Widget<?> field(String caption, Widget<?> control, Widget<?> placed) {
-        Column group = new Column();
-        group.gap(6).crossAlignment(Flex.CrossAlignment.STRETCH);
-        // The caption is the control's name: a screen reader says "Email, text field" and not
-        // "text field" alone. Sitting above it is a layout fact and names nothing.
-        group.add(new Label(caption).setMuted(true).setLabelFor(control));
-        group.add(placed);
-        return group;
+    static Field emailField(TextField email) {
+        return new Field("Email", email)
+                .setHelperText("The receipt goes here")
+                .setRequired(true);
     }
     // #endregion
 
     /**
-     * A field with a character count beneath it: the guide's example of the second channel.
+     * A field whose helper line counts the characters typed: the guide's example of the second
+     * channel.
      *
      * <p>The count must be right after {@code setText} from the application as well as after a
      * keystroke, so it is a <em>watcher</em> and not a handler: {@code observeChanges} hears every
-     * change with its origin, where {@code onChange} runs for the user's typing alone. The label
-     * is written once from the field and then follows it, whoever moves it.
+     * change with its origin, where {@code onChange} runs for the user's typing alone. The line is
+     * written once from the text field and then follows it, whoever moves it.
      */
     // #region guide:form-counter
-    static Widget<?> counted(TextField field, int limit) {
-        Label counter = new Label(field.text().length() + " / " + limit).setMuted(true);
-        field.observeChanges((widget, change) -> {
+    static Field counted(Field field, TextField text, int limit) {
+        field.setHelperText(text.text().length() + " / " + limit);
+        text.observeChanges((widget, change) -> {
             if (change.aspect() == Change.Aspect.TEXT) {
-                counter.setText(field.text().length() + " / " + limit);
+                field.setHelperText(text.text().length() + " / " + limit);
             }
         });
-        Column group = new Column();
-        group.gap(6).crossAlignment(Flex.CrossAlignment.STRETCH);
-        group.add(field);
-        group.add(counter);
-        return group;
+        return field;
     }
     // #endregion
 
     /**
-     * Validation is a handler and two writes: the field's own state, which recolours its
-     * border, and a message beneath it. The message label is created whether or not it has
-     * text, so the form does not jump by a line the first time it fails, and it is bound to the
-     * field as its description, so a screen reader speaks it after "Email, invalid" rather than
-     * leaving it as a sentence somewhere else on the screen.
+     * Validation is a handler and one write: the field's state and what to say about it. The line
+     * under the control already exists and keeps its height, so the form does not jump the first
+     * time the address fails, and a screen reader hears the message as the field's description,
+     * after "Email, invalid", rather than as a sentence somewhere else on the screen.
      */
     // #region guide:form-validation
-    static void validate(TextField email, Label message) {
-        // The message is the field's description, the way the caption is its name: declared,
-        // never inferred from the message sitting beneath the field.
-        message.setDescriptionFor(email);
+    static void validate(TextField email, Field field) {
         email.onChange(text -> {
-            boolean ok = text.matches("[^@\\s]+@[^@\\s]+\\.[^@\\s]+");
-            email.setValidation(ok ? Validation.SUCCESS : Validation.ERROR);
-            message.setText(ok ? "" : "Enter an address like ada@example.com");
+            if (text.matches("[^@\\s]+@[^@\\s]+\\.[^@\\s]+")) {
+                field.setValidation(Validation.SUCCESS);
+            } else {
+                field.setValidation(Validation.ERROR, "Enter an address like ada@example.com");
+            }
         });
     }
     // #endregion
@@ -121,12 +105,11 @@ public final class FormExample {
 
         TextField email = new TextField();
         email.setText("ada@example");
-        Label emailMessage = new Label("Enter an address like ada@example.com");
-        emailMessage.setColor(Theme.current().danger());
-        validate(email, emailMessage);
+        Field emailField = emailField(email);
+        validate(email, emailField);
         // setText above was the application's write, and a handler runs for the user alone, so
         // the rule in validate did not run: the starting state is set here, explicitly.
-        email.setValidation(Validation.ERROR);
+        emailField.setValidation(Validation.ERROR, "Enter an address like ada@example.com");
 
         PasswordField password = new PasswordField();
         password.setText("correct horse battery");
@@ -137,18 +120,13 @@ public final class FormExample {
         Checkbox updates = new Checkbox(Checkbox.Variant.SWITCH, "Email me release notes");
         updates.setChecked(true);
 
-        Column emailGroup = new Column();
-        emailGroup.gap(6).crossAlignment(Flex.CrossAlignment.STRETCH);
-        emailGroup.add(email);
-        emailGroup.add(emailMessage);
-
         Column form = new Column();
         form.gap(18).crossAlignment(Flex.CrossAlignment.STRETCH);
         form.add(new Label("Create your account").setRole(Label.Role.TITLE));
-        form.add(field("Full name", name, counted(name, 40)));
-        form.add(field("Email", email, emailGroup));
-        form.add(field("Password", password));
-        form.add(field("Plan", plan));
+        form.add(counted(new Field("Full name", name).setRequired(true), name, 40));
+        form.add(emailField);
+        form.add(new Field("Password", password).setHelperText("At least 12 characters"));
+        form.add(new Field("Plan", plan));
         form.add(updates);
         form.add(Separator.horizontal());
         form.add(actions());

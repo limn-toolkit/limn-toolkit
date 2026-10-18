@@ -2,6 +2,7 @@ package limn.demo;
 
 import limn.backend.FileDialogs;
 import limn.components.Button;
+import limn.components.Field;
 import limn.components.ScrollView;
 import limn.components.TextField;
 import limn.components.Theme;
@@ -161,7 +162,7 @@ final class FilesScene {
         row.add(Expanded.of(field, 1));
         // One width for every button, so the fields end in one line.
         row.add(new SizedBox(140, SizedBox.UNSET, button));
-        return Page.field(caption, field, row);
+        return new Field(caption, field, row);
     }
 
     /** Writes the chosen path into its field, or says nothing was chosen. */

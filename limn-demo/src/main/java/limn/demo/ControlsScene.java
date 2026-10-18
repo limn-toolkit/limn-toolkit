@@ -1,5 +1,6 @@
 package limn.demo;
 
+import limn.components.Field;
 import limn.components.Label;
 import limn.components.RangeSlider;
 import limn.components.Slider;
@@ -94,7 +95,7 @@ final class ControlsScene {
                 readout.setText(value.get());
             }
         });
-        return Page.field(caption, slider,
+        return new Field(caption, slider,
                 Page.row(16, Expanded.of(slider, 1), new SizedBox(READOUT, SizedBox.UNSET, readout)));
     }
 
@@ -107,13 +108,13 @@ final class ControlsScene {
                 readout.setText(value.get());
             }
         });
-        return Page.field(caption, slider,
+        return new Field(caption, slider,
                 Page.row(16, Expanded.of(slider, 1), new SizedBox(READOUT, SizedBox.UNSET, readout)));
     }
 
     /** A spinner at its own width under its caption. */
     private static Widget<?> spinner(I18nString caption, Spinner spinner) {
-        return Page.field(caption, spinner, Page.row(0, spinner));
+        return new Field(caption, spinner, Page.row(0, spinner));
     }
 
     /** What this page says, ready for translation. */

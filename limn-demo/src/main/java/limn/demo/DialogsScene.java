@@ -9,6 +9,7 @@ import limn.components.ComboBox;
 import limn.components.ContextMenus;
 import limn.components.Dialog;
 import limn.components.DisplayMode;
+import limn.components.Field;
 import limn.components.Label;
 import limn.components.ListView;
 import limn.components.Menu;
@@ -246,7 +247,7 @@ final class DialogsScene {
             Checkbox reopen = new Checkbox(Text.REOPEN);
             Column form = new Column();
             form.gap(Page.GAP).crossAlignment(Flex.CrossAlignment.START);
-            form.add(Page.field(Text.CURRENCY, currency));
+            form.add(new Field(Text.CURRENCY, currency));
             form.add(tax);
             form.add(reopen);
             Dialog dialog = new Dialog(Text.PREFERENCES_TITLE, I18nString.EMPTY)
@@ -270,8 +271,8 @@ final class DialogsScene {
             String name = "Harbor Supply";
             Column form = new Column();
             form.gap(Page.GAP).crossAlignment(Flex.CrossAlignment.STRETCH);
-            form.add(Page.field(Text.NAME, new TextField().setText(name)));
-            form.add(Page.field(Text.EMAIL, new TextField().setText("orders@harborsupply.example")));
+            form.add(new Field(Text.NAME, new TextField().setText(name)));
+            form.add(new Field(Text.EMAIL, new TextField().setText("orders@harborsupply.example")));
             Dialog lower = look.dress(new Dialog(Text.CUSTOMER_TITLE, I18nString.EMPTY))
                     .setContent(new SizedBox(320, SizedBox.UNSET, form))
                     .addButton(ShowcaseStrings.ACTION_CANCEL, "cancel")

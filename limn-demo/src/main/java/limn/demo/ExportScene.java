@@ -1,6 +1,7 @@
 package limn.demo;
 
 import limn.components.Button;
+import limn.components.Field;
 import limn.components.ImageView;
 import limn.components.Label;
 import limn.components.ScrollView;
@@ -9,6 +10,7 @@ import limn.components.Viewport3D;
 import limn.graphics.Image;
 import limn.graphics.ImageFormat;
 import limn.graphics.Images;
+import limn.i18n.I18nString;
 import limn.render3d.Graphics3D;
 import limn.scene.Insets;
 import limn.scene.Scene;
@@ -59,8 +61,8 @@ final class ExportScene {
 
         Row pair = new Row();
         pair.gap(16).crossAlignment(Flex.CrossAlignment.START);
-        pair.add(Labelled.above("Source Image", source, new SizedBox(220, 150, source)));
-        pair.add(Labelled.above("Encoded → decoded", decoded, new SizedBox(220, 150, decoded)));
+        pair.add(new Field(I18nString.literal("Source Image"), source, new SizedBox(220, 150, source)));
+        pair.add(new Field(I18nString.literal("Encoded → decoded"), decoded, new SizedBox(220, 150, decoded)));
         column.add(pair);
         column.add(status);
 

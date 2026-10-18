@@ -44,14 +44,9 @@ final class Page {
     private static Label status; // null until a frame sets it
 
     /**
-     * The labels drawn in one of the palette's colours, and which one: a label holds a colour and
-     * not a token, so each is coloured again when the palette changes. Weak, so a page that is
-     * gone takes its labels with it.
+     * The labels {@link #label(Supplier)} made, and what each shows. Weak, so a page that is gone
+     * takes its labels with it.
      */
-    private static final Map<Label, Function<Theme, Color>> TINTED = new WeakHashMap<>();
-    private static boolean tintFollowsPalette;
-
-    /** The labels {@link #label(Supplier)} made, and what each shows: weak, as {@link #TINTED} is. */
     private static final Map<Label, Supplier<String>> WORDED = new WeakHashMap<>();
     private static boolean wordsFollowLanguage;
 
@@ -166,16 +161,6 @@ final class Page {
         return new Surface(new Padding(Insets.all(16), content));
     }
 
-    /** A caption above a control, the caption naming it to a reader. */
-    static Widget<?> field(I18nString caption, Widget<?> control) {
-        return Labelled.above(caption, control);
-    }
-
-    /** A caption above a control placed inside a wrapper, the caption naming the control. */
-    static Widget<?> field(I18nString caption, Widget<?> control, Widget<?> placed) {
-        return Labelled.above(caption, control, placed);
-    }
-
     /**
      * A caption above a bar, the bar's value at the end of the caption's line, so that the bar
      * is as long as the column and as far under its caption as any control is under its own.
@@ -278,53 +263,6 @@ final class Page {
                 content.layoutBox(0, 0, width(), height());
             }
         }
-    }
-
-    /**
-     * The line under a field that says what is wrong with it, or right: in the state's ink, a
-     * step smaller than the field's text, and declared the field's description so a reader
-     * hears it after the field's name and state.
-     *
-     * @param text  what to say
-     * @param ink   the state's colour: {@code Theme::danger}, {@code warning}, {@code success} or
-     *              {@code info}
-     * @param icon  the state's glyph, or {@code null}
-     * @param field what the line describes
-     */
-    static Label message(I18nString text, Function<Theme, Color> ink, Icon icon, Widget<?> field) {
-        Label line = tint(new Label(text).setRole(Label.Role.LABEL).setWrap(true), ink);
-        if (icon != null) {
-            line.setIcon(icon);
-        }
-        return line.setDescriptionFor(field);
-    }
-
-    /**
-     * Draws {@code label} in one of the palette's colours, {@code Theme::danger} say, now and
-     * after every change of palette. A colour read once, when the page is built, is the palette
-     * of that moment: the one before the frame applied the system's appearance, measured
-     * rgb(247,118,142) for a light page's danger of rgb(198,40,40).
-     *
-     * @param label the label
-     * @param ink   which of the palette's colours
-     * @return the label
-     */
-    static Label tint(Label label, Function<Theme, Color> ink) {
-        if (!tintFollowsPalette) {
-            tintFollowsPalette = true;
-            Theme.observeChanges(() -> TINTED.forEach((each, tone) -> each.setColor(tone.apply(Theme.current()))));
-        }
-        TINTED.put(label, ink);
-        return label.setColor(ink.apply(Theme.current()));
-    }
-
-    /** A control with its {@link #message} close under it: what a {@link #field} places. */
-    static Column withMessage(Widget<?> control, Widget<?> message) {
-        Column column = new Column();
-        column.gap(4).crossAlignment(Flex.CrossAlignment.STRETCH);
-        column.add(control);
-        column.add(message);
-        return column;
     }
 
     /**

@@ -174,6 +174,18 @@ protected void onPaint(Canvas canvas) {
 }
 ```
 
+A line of text in one of those colours is the same rule from the other side. `Label.setColor`
+pins the colour it is given, and a colour read while the screen is built is the palette of that
+moment, so it stays behind when the palette changes. Say what the text means instead, and the
+label asks the palette each time it paints:
+
+{% snippet guide:theme-tone %}
+
+`Tone` names six: `NEUTRAL` (the muted text), `ACCENT` (the primary), and the four states,
+`INFO`, `SUCCESS`, `WARNING` and `DANGER`. `Tone.colorIn(theme)` answers the colour, for a
+widget of your own that draws in one. A [field](/docs/forms/) draws the line under its control
+in the tone of its state, so a form's messages follow the palette with nothing written for it.
+
 Every tone in the two Limn palettes was solved against the tone beneath it for a contrast
 target, and those targets are asserted by the toolkit's own tests. If you build a palette of
 your own, hold it to the same bars: body text against all three surfaces, the accent's label

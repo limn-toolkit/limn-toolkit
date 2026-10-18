@@ -3,6 +3,7 @@ package limn.demo;
 import limn.backend.Backend;
 import limn.backend.NativeWindow;
 import limn.components.Checkbox;
+import limn.components.Field;
 import limn.components.Label;
 import limn.components.Menu;
 import limn.components.MenuItem;
@@ -286,7 +287,7 @@ final class TrayScene {
         switches.add(attention);
         switches.add(activates);
         page.add(switches);
-        page.add(Page.narrow(320, Page.field(Text.TOOLTIP, tooltip)));
+        page.add(Page.narrow(320, new Field(Text.TOOLTIP, tooltip)));
         page.add(available);
         return page;
     }

@@ -23,6 +23,8 @@ import static limn.accessibility.Accessible.State.CHECKED;
 import static limn.accessibility.Accessible.State.ENABLED;
 import static limn.accessibility.Accessible.State.EXPANDABLE;
 import static limn.accessibility.Accessible.State.EXPANDED;
+import static limn.accessibility.Accessible.State.INVALID;
+import static limn.accessibility.Accessible.State.REQUIRED;
 import static limn.accessibility.Accessible.State.SELECTED;
 import static limn.demo.a11y.AccessibilityGallery.Fact.cursor;
 import static limn.demo.a11y.AccessibilityGallery.Fact.focused;
@@ -191,6 +193,21 @@ public final class ReaderScripts {
             Step.press(Keys.ESCAPE, "closes the list and keeps Atlas")
                     .expecting(cursor(COMBO_BOX, "Mountain ranges").valued("Atlas")
                             .without(EXPANDED))));
+
+    /**
+     * "Fields, required and invalid": the run starts on the empty email, which is required and
+     * described by its helper; Tab moves to the postal code, required and invalid, described by
+     * its message; the fifth digit typed fixes it, and the description is the helper again.
+     */
+    public static final ReaderScript FIELD_STATES = new ReaderScript("field-states", List.of(
+            Step.press(Keys.TAB, "moves to the postal code, which holds an error")
+                    .expecting(focused(TEXT_FIELD, "Postal code").with(REQUIRED, INVALID)
+                            .described("Five digits are needed, and 4 are typed")),
+            Step.press(Keys.END, "puts the caret after the four digits")
+                    .expecting(focused(TEXT_FIELD, "Postal code").with(INVALID)),
+            Step.type('5', "types the fifth digit, and the error is gone")
+                    .expecting(focused(TEXT_FIELD, "Postal code").with(REQUIRED).without(INVALID)
+                            .described("Five digits"))));
 
     /**
      * "Combo box, editable": the field's text selected whole and typed over, the list filtering
