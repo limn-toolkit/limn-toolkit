@@ -8,6 +8,9 @@ package limn.backend;
  * {@link NativeWindow#setCloseRequestHandler handler}'s, so a window can both ask and hide. A
  * program's {@link NativeWindow#requestClose()} is not a user's close: it disposes the window
  * whatever the policy says.
+ *
+ * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+ * {@code default} branch.
  */
 public enum ClosePolicy {
 

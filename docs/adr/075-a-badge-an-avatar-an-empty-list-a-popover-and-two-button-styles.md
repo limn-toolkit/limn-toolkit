@@ -81,7 +81,7 @@ the toolkit, so an application builds them too.
 public final class Badge extends Widget<Badge> {
     public Badge(I18nString text);            // and String
     public Badge(Icon icon, I18nString text); // the icon leads; the text names it
-    public static Badge count(int n);         // the number in the language's digits; "99+" past 99
+    public static Badge ofCount(int n);       // the number in the language's digits; "99+" past 99
     public static Badge dot(I18nString name); // a dot alone; the name is for a reader
 
     public Badge setText(I18nString text);    // and String
@@ -568,6 +568,13 @@ that the text above does not say, dated where it departs from it.
   `Tree` now read a badge's text as they read a label's; `BadgeTest` holds it.
 - A text change of the same width repaints the badge alone; a wider one lays it out in place.
   `ComboBox`'s private count is renamed `MoreBadge`.
+- **The count's factory is `Badge.ofCount(int)`** (2026-10-19, the owner's decision after the
+  audit of that day): section 2.1 named it `count(int)`, and the build added the getter
+  `count()` beside `setCount(int)`. With a static `count(int)` and an instance `count()` in one
+  class, `inbox.count(7)`, what a reader of `setCount` and `count()` writes for "show 7",
+  compiles, calls the factory through the instance, builds a badge nobody keeps and leaves the
+  shown one unchanged, with no warning outside `-Xlint:static`. The factory took the new name;
+  `setCount`, `count()` and `dot` keep theirs, and section 2.1 shows the new one.
 
 ### 12.3 Avatar and group
 

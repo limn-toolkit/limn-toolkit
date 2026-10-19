@@ -69,7 +69,12 @@ import java.util.function.ToDoubleFunction;
  */
 public final class Column<T> {
 
-    /** Where a cell's text sits across its column. */
+    /**
+     * Where a cell's text sits across its column.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
+     */
     public enum Alignment {
         /** The reading start: the left edge left to right, the right edge right to left. */
         START,

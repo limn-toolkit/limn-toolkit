@@ -134,7 +134,12 @@ import java.util.Objects;
  */
 public final class VideoView extends Widget<VideoView> {
 
-    /** How a picture whose aspect ratio differs from the box's is mapped into it. */
+    /**
+     * How a picture whose aspect ratio differs from the box's is mapped into it.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
+     */
     public enum Fit {
 
         /** Scale to fit inside the box, keeping the aspect ratio; the remainder is letterboxed. */

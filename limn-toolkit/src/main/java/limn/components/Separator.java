@@ -28,6 +28,12 @@ import limn.scene.Widget;
  */
 public final class Separator extends Widget<Separator> {
 
+    /**
+     * Which way the line runs.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
+     */
     public enum Orientation { HORIZONTAL, VERTICAL }
 
     /**

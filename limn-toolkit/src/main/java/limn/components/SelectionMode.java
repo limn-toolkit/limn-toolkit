@@ -8,6 +8,9 @@ package limn.components;
  * command modifier (Ctrl, or Cmd on macOS) toggles one, Shift extends a range from the last row
  * clicked, and Ctrl+A or Cmd+A takes every row. The date widgets choose days, not rows, and keep
  * their own {@code CalendarView.SelectionMode}.
+ *
+ * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+ * {@code default} branch.
  */
 public enum SelectionMode {
     /** Nothing is ever selected; the keyboard cursor still moves. */

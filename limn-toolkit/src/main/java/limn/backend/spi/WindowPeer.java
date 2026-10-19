@@ -72,6 +72,9 @@ public non-sealed interface WindowPeer extends NativeWindow {
      * Without this distinction that exemption reaches anything the host registered, and a
      * non-modal dialog stayed clickable underneath a modal, where a native modal would have
      * frozen it, and where the application had every reason to expect it frozen.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
      */
     enum PopupKind {
         /**

@@ -8,6 +8,9 @@ package limn.scene;
  * {@link Scene#edit} ask the focused widget and then its ancestors. A menu's item made for one,
  * {@code MenuItem.of(MenuItem.Role.COPY)}, is enabled and acts by them, so a Copy in a menu bar,
  * in a tool bar and on the keyboard are the same copy.
+ *
+ * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+ * {@code default} branch.
  */
 public enum EditCommand {
     /** Takes back the last edit. */

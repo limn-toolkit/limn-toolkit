@@ -1435,6 +1435,9 @@ public final class ShapedText {
      * <p>A widget that stores this alongside the index is a widget whose caret survives a click on
      * either side of a direction boundary and two arrow presses in a row. One that does not should
      * draw {@linkplain Caret#split() both} positions rather than pick one.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
      */
     public enum Affinity {
 
@@ -1561,6 +1564,9 @@ public final class ShapedText {
      * anchoring &mdash; is a separate decision that has not been taken, and pre-empting it with a
      * type in the drawing package would put a text-shaping concern in every layout signature it
      * touches.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
      */
     public enum Direction {
 

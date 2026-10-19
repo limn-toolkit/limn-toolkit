@@ -40,6 +40,9 @@ import java.util.Objects;
  * The role enum stays closed and nothing here adds to it. Nothing here reads a widget: the
  * classification is over the published node alone, so the same function serves the toolkit's
  * tests, the demo's gallery ratchet and every bridge.
+ *
+ * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+ * {@code default} branch.
  */
 public enum Shape {
 

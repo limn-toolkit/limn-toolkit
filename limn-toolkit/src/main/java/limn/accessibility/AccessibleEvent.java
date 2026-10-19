@@ -23,6 +23,9 @@ public final class AccessibleEvent {
      * What happened. Every constant here has a truthful mapping on at least one platform, and
      * nothing is invented to fill a gap: two of them are deliberately answered by silence on
      * platforms whose vocabulary has no equivalent.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
      */
     public enum Type {
         /** The keyboard focus moved to this node. */

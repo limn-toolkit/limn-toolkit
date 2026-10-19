@@ -14,6 +14,9 @@ package limn.render3d;
  * <p>There is no third "stream" level. The distinction between "rewritten
  * occasionally" and "rewritten every frame" has no portable meaning, and a hint
  * nobody can reason about is a hint nobody should have to choose.
+ *
+ * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+ * {@code default} branch.
  */
 public enum MeshUsage {
 

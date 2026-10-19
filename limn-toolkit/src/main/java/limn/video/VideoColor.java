@@ -40,7 +40,12 @@ import limn.internal.lang.Checks;
  */
 public final class VideoColor {
 
-    /** The luma/chroma matrix a stream was encoded with. */
+    /**
+     * The luma/chroma matrix a stream was encoded with.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
+     */
     public enum Matrix {
 
         /** Rec. ITU-R BT.601: Kr 0.299, Kb 0.114. Standard-definition and motion-JPEG content. */
@@ -81,6 +86,9 @@ public final class VideoColor {
      * other depth a studio level is that level shifted left by {@code bitDepth - 8}, so studio white
      * is 235 at eight bits and 940 at ten, while <em>full</em> range always occupies the whole code
      * space, which is why the two do not scale by the same factor.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
      */
     public enum Range {
 
@@ -104,6 +112,9 @@ public final class VideoColor {
      * the same question as bit depth. A 10-bit BT.709 recording is ordinary display-referred video
      * that happens to carry more codes; a BT.2020 PQ one holds absolute luminance behind a curve
      * and is not viewable at all until that curve is inverted.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
      */
     public enum Transfer {
 

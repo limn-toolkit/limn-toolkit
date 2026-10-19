@@ -10,6 +10,9 @@ package limn.components;
  * failed validation and none for the other three, and a field that passed announced as failing
  * would be the wrong fact. The message a {@link Field} shows says the rest, as the control's
  * description.
+ *
+ * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+ * {@code default} branch.
  */
 public enum Validation {
     /** Nothing has been decided, or the decision was taken back: the control draws as it rests. */

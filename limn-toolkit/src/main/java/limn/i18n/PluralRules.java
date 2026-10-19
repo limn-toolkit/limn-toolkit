@@ -53,6 +53,9 @@ public final class PluralRules {
      * CLDR's six cardinal categories. A language uses a subset; every language uses
      * {@link #OTHER} for at least something, except where an integer can never reach it
      * (Polish and Russian, whose {@code other} is a fraction's).
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
      */
     public enum Category {
         /** Arabic's zero. Not "no items": a form a language uses <em>for</em> the number 0. */

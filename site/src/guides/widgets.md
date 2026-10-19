@@ -79,7 +79,7 @@ palette's danger colour. The box is the same at every style, so a row of them li
 
 A `Badge` says a status in a few letters: a pill tinted in a `Tone`, a dot or an icon in the
 tone at its leading end, and the word in the palette's text colour, so it reads whatever the
-tone. `Badge.count(n)` shows a number, "99+" past 99, in the digits of the language shown;
+tone. `Badge.ofCount(n)` shows a number, "99+" past 99, in the digits of the language shown;
 `Badge.dot(name)` is a dot alone, with a name a screen reader says in its place.
 
 {% snippet guide:badge %}

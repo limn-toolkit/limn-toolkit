@@ -37,6 +37,9 @@ public class Stack extends Container<Stack> {
      *
      * <p>The nine are not renamed. Renaming them would be a source-breaking change to a published
      * enum in order to fix the handful of places that name one, and adding is free.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
      */
     public enum Alignment {
         TOP_LEFT, TOP_CENTER, TOP_RIGHT,

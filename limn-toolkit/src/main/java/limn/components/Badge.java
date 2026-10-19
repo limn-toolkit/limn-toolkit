@@ -35,7 +35,7 @@ import java.util.Objects;
  * <p>Three kinds, by how the badge is made:
  * <ul>
  *   <li>a <b>text</b> badge, {@link #Badge(I18nString)}, with a dot or an icon before the word;</li>
- *   <li>a <b>count</b>, {@link #count(int)}: the number alone in the pill, in the digits the
+ *   <li>a <b>count</b>, {@link #ofCount(int)}: the number alone in the pill, in the digits the
  *       language is shown in, and "99+" past 99 so a badge does not grow with its count;</li>
  *   <li>a <b>dot</b>, {@link #dot(I18nString)}: the dot alone, twice as wide as a text badge's, and
  *       a name a reader hears in its place.</li>
@@ -49,7 +49,7 @@ import java.util.Objects;
  *
  * <pre>{@code
  * new Badge("Overdue").setTone(Tone.DANGER);
- * Badge.count(unread).setTone(Tone.ACCENT).setAccessibleName(unread + " unread");
+ * Badge.ofCount(unread).setTone(Tone.ACCENT).setAccessibleName(unread + " unread");
  * }</pre>
  */
 public final class Badge extends Widget<Badge> {
@@ -117,7 +117,7 @@ public final class Badge extends Widget<Badge> {
      * @return the badge
      * @throws IllegalArgumentException if {@code n} is negative
      */
-    public static Badge count(int n) {
+    public static Badge ofCount(int n) {
         Badge badge = new Badge(Kind.COUNT, I18nString.literal(""));
         badge.count = requireCount(n);
         return badge;
@@ -233,12 +233,12 @@ public final class Badge extends Widget<Badge> {
      * @param n the count; at least zero
      * @return this badge
      * @throws IllegalArgumentException if {@code n} is negative
-     * @throws IllegalStateException    on a badge that is not a {@link #count(int) count}
+     * @throws IllegalStateException    on a badge that is not a {@link #ofCount(int) count}
      */
     public Badge setCount(int n) {
         Ui.checkUiThread();
         if (kind != Kind.COUNT) {
-            throw new IllegalStateException("only a badge made by Badge.count shows a count");
+            throw new IllegalStateException("only a badge made by Badge.ofCount shows a count");
         }
         requireCount(n);
         if (count == n) {

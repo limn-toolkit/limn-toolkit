@@ -54,10 +54,20 @@ import java.util.Objects;
  */
 public final class ScrollBar extends Widget<ScrollBar> {
 
-    /** Which axis the bar controls. */
+    /**
+     * Which axis the bar controls.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
+     */
     public enum Orientation { VERTICAL, HORIZONTAL }
 
-    /** When the bar is shown. */
+    /**
+     * When the bar is shown.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
+     */
     public enum Policy {
         /** Never shown. */
         HIDDEN,

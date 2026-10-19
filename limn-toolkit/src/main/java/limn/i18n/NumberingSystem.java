@@ -31,6 +31,9 @@ import java.util.Locale;
  * Nepali, Sanskrit, Bhojpuri, Haryanvi and Rajasthani — and not for Hindi, which CLDR writes in
  * Latin digits. Until 2026-09-21 it was reachable only through {@link I18n#setNumberingSystem},
  * on the belief that no language defaulted to it.
+ *
+ * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+ * {@code default} branch.
  */
 public enum NumberingSystem {
 

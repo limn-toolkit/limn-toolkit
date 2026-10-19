@@ -27,6 +27,9 @@ import limn.internal.lang.Checks;
  * it wraps at the end of the code space, so the same picture size shows several ramps at eight bits
  * and fewer at ten. That is the only way to make four times as many codes visible on a screen that
  * has eight bits of its own.
+ *
+ * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+ * {@code default} branch.
  */
 public enum SyntheticPattern {
 

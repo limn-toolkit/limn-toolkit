@@ -22,7 +22,12 @@ import java.util.List;
  */
 public interface RowsSubject {
 
-    /** How the widget reaches a row outside its box. */
+    /**
+     * How the widget reaches a row outside its box.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
+     */
     enum Scrolling {
         /** Every row always fits; there is nothing to reveal. */
         NONE,

@@ -11,6 +11,9 @@ package limn.backend;
  * fallback when nothing under the pointer requests otherwise.
  *
  * <p>A shape unsupported by the platform falls back to {@link #DEFAULT}.
+ *
+ * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+ * {@code default} branch.
  */
 public enum Cursor {
 

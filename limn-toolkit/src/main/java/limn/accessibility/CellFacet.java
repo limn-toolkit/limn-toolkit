@@ -37,6 +37,9 @@ public record CellFacet(int row, int column, Sort sort) {
      * sorted by something the three words cannot describe; nothing in the toolkit sorts that way,
      * and a value no widget can produce is a value no bridge could be tested against, so it is
      * left out until a widget needs it.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
      */
     public enum Sort {
 

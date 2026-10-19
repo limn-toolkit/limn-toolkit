@@ -76,6 +76,12 @@ public final class Label extends Widget<Label> {
                 this::accessLetter, this::accessLetterFocus, this::accessLetterPressed));
     }
 
+    /**
+     * What happens to text that does not fit: cut at the box's edge, or ended with an ellipsis.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
+     */
     public enum Overflow { CLIP, ELLIPSIS }
 
     /**
@@ -91,6 +97,9 @@ public final class Label extends Widget<Label> {
      * flush with the column beside it, a caption pinned under one corner of a picture.
      *
      * <p>{@link #CENTER} is the same number in both vocabularies and in both directions.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
      */
     public enum HAlign {
         /** Against the edge reading starts from. */
@@ -105,6 +114,12 @@ public final class Label extends Widget<Label> {
         RIGHT
     }
 
+    /**
+     * Where the lines sit vertically in the text region.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
+     */
     public enum VAlign { TOP, CENTER, BOTTOM }
 
     /**
@@ -112,6 +127,9 @@ public final class Label extends Widget<Label> {
      * which decides how big that token is. The pair is a 3 × 5 grid, not a precedence
      * fight: {@code new Label(title).setRole(TITLE)} inside a LARGE dialog gets the
      * LARGE title, where {@code setFont(theme.title)} would pin a MEDIUM one forever.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
      */
     public enum Role { BODY, LABEL, TITLE }
 

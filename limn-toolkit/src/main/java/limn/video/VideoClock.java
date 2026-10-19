@@ -86,6 +86,9 @@ public final class VideoClock {
      *     break;
      * }
      * }</pre>
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
      */
     public enum Decision {
 

@@ -92,7 +92,12 @@ public record MenuRow(int id, Kind kind, String label, boolean enabled, boolean 
         return out.append(shortcutKey).toString();
     }
 
-    /** What a row is. */
+    /**
+     * What a row is.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
+     */
     public enum Kind {
         /** Chosen, it runs an action. */
         COMMAND,

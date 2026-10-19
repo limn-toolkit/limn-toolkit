@@ -113,6 +113,9 @@ public final class TabbedPane extends Widget<TabbedPane> {
      * starts from and {@link #RIGHT} the edge it ends on: right to left they land on the right and
      * the left respectively, and the default strip of a right-to-left pane sits on the right where
      * its first tab is. {@link #CENTER} is a centre in both.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
      */
     public enum TabAlignment { LEFT, CENTER, RIGHT }
 

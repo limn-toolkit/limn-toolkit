@@ -1,6 +1,11 @@
 package limn.components.table;
 
-/** How a {@link Table} is ordered on one of its columns. */
+/**
+ * How a {@link Table} is ordered on one of its columns.
+ *
+ * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+ * {@code default} branch.
+ */
 public enum SortOrder {
     /** The model's own order. */
     NONE,

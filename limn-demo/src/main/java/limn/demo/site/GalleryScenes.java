@@ -397,9 +397,9 @@ final class GalleryScenes {
         Row counts = new Row();
         counts.gap(8).crossAlignment(Flex.CrossAlignment.CENTER);
         counts.add(new Label("Inbox"));
-        counts.add(limn.components.Badge.count(3).setTone(limn.components.Tone.ACCENT));
+        counts.add(limn.components.Badge.ofCount(3).setTone(limn.components.Tone.ACCENT));
         counts.add(new Label("Alerts"));
-        counts.add(limn.components.Badge.count(128).setTone(limn.components.Tone.DANGER));
+        counts.add(limn.components.Badge.ofCount(128).setTone(limn.components.Tone.DANGER));
         counts.add(new Label("Ana Lima"));
         counts.add(limn.components.Badge.dot(limn.i18n.I18nString.literal("Unread"))
                 .setTone(limn.components.Tone.ACCENT));

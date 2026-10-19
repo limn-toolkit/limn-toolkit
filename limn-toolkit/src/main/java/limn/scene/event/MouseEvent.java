@@ -26,6 +26,12 @@ package limn.scene.event;
  */
 public final class MouseEvent extends InputEvent {
 
+    /**
+     * What the pointer did.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
+     */
     public enum Type { ENTER, EXIT, MOVE, DRAG, PRESS, RELEASE, CLICK, WHEEL, MOTION }
 
     private final Type type;

@@ -55,7 +55,12 @@ import java.util.function.Consumer;
  */
 public final class Popover {
 
-    /** Which edge of the anchor the panel lines up with. */
+    /**
+     * Which edge of the anchor the panel lines up with.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
+     */
     public enum Alignment {
         /** The anchor's leading edge: its left reading left to right, its right reading right to left. */
         START,

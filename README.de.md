@@ -344,9 +344,10 @@ Ab 1.0 bricht nichts, was eine Anwendung benutzt, vor 2.0: Mit jedem 1.x-Release
 Code, der für ein beliebiges früheres 1.x geschrieben wurde, bauen und ausführen, ein Update
 innerhalb von 1.x ist also immer sicher, und Korrekturen kommen in das nächste 1.x statt in ältere
 Linien. Eine mit `@Deprecated` markierte Methode funktioniert bis 2.0 weiter, und Java 17 bleibt bis
-2.0 das Minimum. Die einzige Ausnahme ist das Paket `limn.backend.spi`, das nur benutzt, wer ein
-eigenes Backend schreibt: Es ist im Inkubationsstadium und kann sich in einem 1.x-Minor-Release
-ändern, immer mit der Migration im Changelog.
+2.0 das Minimum. Jeder Enum-Typ von Limn kann in einem 1.x-Minor-Release neue Konstanten bekommen,
+ein `switch` über einen davon braucht also einen `default`-Zweig. Die einzige Ausnahme ist das Paket
+`limn.backend.spi`, das nur benutzt, wer ein eigenes Backend schreibt: Es ist im Inkubationsstadium
+und kann sich in einem 1.x-Minor-Release ändern, immer mit der Migration im Changelog.
 
 ## Dokumentation
 

@@ -12,7 +12,12 @@ import java.util.List;
  */
 public interface MenuSubject {
 
-    /** What a row is, which decides the verbs the contract expects on it. */
+    /**
+     * What a row is, which decides the verbs the contract expects on it.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
+     */
     enum Row {
         /** A bar's title over a menu with rows: opens a dropdown, never chooses. */
         TITLE,

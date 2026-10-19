@@ -794,7 +794,7 @@ public final class Theme {
     // ---------------------------------------------------------- size tokens
 
     /**
-     * Metric tokens for a size step. The returned record (and the {@link Font}s inside it)
+     * Metric tokens for a size step. The returned row (and the {@link Font}s inside it)
      * are stable for the life of this palette, so {@code ==} holds and the backend's
      * identity-keyed font memo keeps hitting. Never build tokens per call, and never call
      * {@code Font.withSize} to derive a step's font.
@@ -948,6 +948,9 @@ public final class Theme {
      * <p>The order is the one a palette is reasoned about in: the surfaces it is built
      * on, then the accent, then the ink, then the states, then the semantic four. It is
      * stable, and a serialized palette's key order follows it.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
      */
     public enum Token {
         /** {@link Theme#background}: the canvas a window clears to. */

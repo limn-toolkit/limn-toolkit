@@ -6,6 +6,9 @@ package limn.components;
  *
  * <p>Four, named for what the surface is and not numbered: a level that cannot be told from its
  * neighbour on a screen is a level to get wrong.
+ *
+ * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+ * {@code default} branch.
  */
 public enum Elevation {
 

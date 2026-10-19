@@ -32,7 +32,12 @@ import java.util.Objects;
  */
 public record Platform(Os os, String arch) {
 
-    /** The operating system families the toolkit tells apart. */
+    /**
+     * The operating system families the toolkit tells apart.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
+     */
     public enum Os {
         /** macOS, which some JVMs still report as {@code Darwin}. */
         MACOS,

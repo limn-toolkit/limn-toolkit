@@ -78,6 +78,9 @@ public final class ColorPicker extends Widget<ColorPicker> {
      * cylindrical model, and it is the one this picker's own field is built on and
      * the one every graphics and game tool speaks: HSV, spelled HSB by Photoshop
      * and the macOS picker (Brightness and Value are the same axis).
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
      */
     public enum Format {
         /** Red, green, blue in 0–255. */

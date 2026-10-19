@@ -83,7 +83,12 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class Card extends Widget<Card> {
 
-    /** How the card is set apart from what is around it. */
+    /**
+     * How the card is set apart from what is around it.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
+     */
     public enum Style {
         /** Lifted by the theme's raised shadow: the default. */
         ELEVATED,
@@ -102,7 +107,12 @@ public final class Card extends Widget<Card> {
         PLAIN
     }
 
-    /** Where the media goes. */
+    /**
+     * Where the media goes.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
+     */
     public enum Orientation {
         /** Media, header, content and footer from the top: the default. */
         VERTICAL,
@@ -110,7 +120,12 @@ public final class Card extends Widget<Card> {
         HORIZONTAL
     }
 
-    /** How the media is laid out. */
+    /**
+     * How the media is laid out.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
+     */
     public enum MediaFit {
         /**
          * At its own measured size, inside the padding, at the leading edge (vertical) or the top of

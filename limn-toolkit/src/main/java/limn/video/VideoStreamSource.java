@@ -42,6 +42,9 @@ public interface VideoStreamSource extends AutoCloseable {
      * thumb is being dragged, so that dragging costs one cheap seek per update rather than a decode
      * per pixel, and {@link #EXACT} when it is let go, because that is where the viewer says the
      * video should be.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
      */
     enum SeekMode {
 
@@ -65,7 +68,12 @@ public interface VideoStreamSource extends AutoCloseable {
         EXACT
     }
 
-    /** The outcome of a {@link #readFrame()} call. */
+    /**
+     * The outcome of a {@link #readFrame()} call.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
+     */
     enum Read {
 
         /** A new picture is ready in {@link #frame()} and is held by the caller until released. */

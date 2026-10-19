@@ -62,6 +62,9 @@ import limn.backend.NativeWindow;
  * a native popup as absent. An application that documents itself with screenshots, or one whose
  * window is deliberately the whole of its presentation, wants {@code IN_SCENE} on purpose and on
  * every platform, not only where the platform forces it.
+ *
+ * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+ * {@code default} branch.
  */
 public enum DisplayMode {
 

@@ -10,6 +10,9 @@ import limn.backend.spi.WindowInput;
  * (a color picker hiding the cursor, a 3D viewport capturing it while
  * orbiting) sets the mode on ENTER/press and restores {@link #NORMAL} on
  * EXIT/release; see the cursors demo scene for the pattern.
+ *
+ * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+ * {@code default} branch.
  */
 public enum PointerMode {
 

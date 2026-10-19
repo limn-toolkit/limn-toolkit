@@ -972,6 +972,17 @@ public Button withControlSize(ControlSize s) { setControlSize(s); return this; }
 
 on `Button`, `Label`, `Checkbox`, `RadioButton`, `ProgressBar`, `TextField`. §10.3(a)'s capture scene needs none of them: it calls `row.setControlSize(step);` as a statement.
 
+*Amended 2026-10-19:* the owner chose a final class with no public constructor over the
+`SizeTokens` record, before 1.0, as `SystemPreferences` became one on 2026-10-16: the record's
+canonical constructor and its deconstruction pattern took every token in order, so the column a
+widget needs in a 1.x minor (as `cardPad` was added for the card) would have broken every caller
+that built or deconstructed a row. The reading methods keep their names, so every
+`tokens.body()` compiles as it did, and `equals`, `hashCode` and `toString` are the record's, kept
+by a private record that holds the tokens. `TABLE`, package-private above and built as a public
+array, is now private: as a public array any caller could store into it and change every widget's
+rows in the process. `of(ControlSize)` and `MEDIUM` are the ways in, and `Theme` reaches the rows
+through a package-private method.
+
 ### 6.5 Usage
 
 ```java

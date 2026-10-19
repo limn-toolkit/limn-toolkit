@@ -910,8 +910,8 @@ public final class AccessibilityGallery {
         page.add(tones);
         Row counts = new Row();
         counts.gap(8);
-        counts.add(Badge.count(128).setTone(Tone.DANGER));
-        counts.add(Badge.count(3).setTone(Tone.ACCENT).setAccessibleName("3 unread"));
+        counts.add(Badge.ofCount(128).setTone(Tone.DANGER));
+        counts.add(Badge.ofCount(3).setTone(Tone.ACCENT).setAccessibleName("3 unread"));
         counts.add(Badge.dot(I18nString.literal("Unread")).setTone(Tone.ACCENT));
         page.add(counts);
         return new Built(page);
