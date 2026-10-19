@@ -135,6 +135,27 @@ public final class AnchoredPopup {
             return false;
         }
 
+        /**
+         * @return whether the panel holds controls that take the keyboard themselves, as a
+         *         popover's do: in the scene the focus moves into the layer's content, and in a
+         *         window of its own the owner keeps the desktop's keyboard and its keys,
+         *         characters and input-method composition are delivered into the popup's scene,
+         *         whose own focus, Tab order and Escape then answer them
+         */
+        default boolean holdsFocus() {
+            return false;
+        }
+
+        /**
+         * The panel is up: in the scene, or in its window with that window's scene. Where the host
+         * moves the keyboard into it.
+         *
+         * @param panel      the panel presented
+         * @param popupScene the scene of its window, or {@code null} in the owner's scene
+         */
+        default void presented(Widget<?> panel, @Nullable Scene popupScene) {
+        }
+
         /** The surface is gone for good, its fade over: what it borrowed can be taken back. */
         default void released() {
         }
@@ -237,7 +258,52 @@ public final class AnchoredPopup {
         // the anchor was, and at a named mode a popup's window would minimize it at its first
         // click: it goes, as a platform's own does. One in the scene is laid out again instead.
         fullscreen = scene.observeWindowFullscreen(state -> host.dismiss(Change.Origin.ADJUSTMENT));
-        if (host.routesKeyboard()) {
+        if (host.holdsFocus()) {
+            // The popup's window never takes the desktop's keyboard, as none of its siblings'
+            // does: the owner's keys, characters and composition are its scene's input instead,
+            // so its own focus, Tab order and Escape answer them and a field in it types as any
+            // field does, an input method's composition included. Each is a batch of its own, so
+            // a key that moves the focus is settled before the character after it arrives.
+            route = SceneAccess.routeKeyboard(scene, new SceneAccess.KeyRoute() {
+                @Override
+                public void key(int key, int layoutCodePoint, boolean pressed, boolean repeat,
+                                int modifiers) {
+                    Scene into = popupScene;
+                    if (into != null) {
+                        SceneAccess.input(into).keyEvent(key, layoutCodePoint, pressed, repeat, modifiers);
+                        SceneAccess.input(into).inputBatchEnded();
+                    }
+                }
+
+                @Override
+                public void character(int codepoint) {
+                    Scene into = popupScene;
+                    if (into != null) {
+                        SceneAccess.input(into).charTyped(codepoint);
+                        SceneAccess.input(into).inputBatchEnded();
+                    }
+                }
+
+                @Override
+                public void preedit(String text, int caret, int targetStart, int targetLength) {
+                    Scene into = popupScene;
+                    if (into != null) {
+                        SceneAccess.input(into).preeditChanged(text, caret, targetStart, targetLength);
+                        SceneAccess.input(into).inputBatchEnded();
+                    }
+                }
+
+                @Override
+                public boolean popupHoldsFocus() {
+                    return true;
+                }
+
+                @Override
+                public @Nullable Scene popup() {
+                    return popupScene;
+                }
+            });
+        } else if (host.routesKeyboard()) {
             // From the open on, before the window exists: a key pressed meanwhile is the popup's
             // and not the focused widget's.
             route = SceneAccess.routeKeyboard(scene, new SceneAccess.KeyRoute() {
@@ -279,12 +345,8 @@ public final class AnchoredPopup {
             host.dismiss(Change.Origin.ADJUSTMENT);
             return;
         }
-        float[] box = windowBox(parent);
         margin = PopupFrame.marginFor(parent, Theme.of(anchor), Elevation.OVERLAY);
         int m = margin;
-        window = parent.backend().createWindow(WindowConfig.popup(parent,
-                Math.max(1, Math.round(box[2])) + 2 * m, Math.max(1, Math.round(box[3])) + 2 * m)
-                .atInOwner(box[0] - m, box[1] - m));
         panel = host.createPanel(true);
         // Where the compositor casts no shadow for such a window, the window is larger than the
         // card by the shadow's reach and the card is laid out inset in it; a press beside the card
@@ -296,7 +358,15 @@ public final class AnchoredPopup {
         root.setInheritanceHost(host.opener());
         // On the owner's clock, so the fade-out that destroys the window advances with it.
         popupScene = new Scene(root, scene.clock());
+        // Measured as the owner measures, and before the window exists: a host whose size is its
+        // panel's own measure (a popover's content) is asked for it by the placement below, which
+        // sizes the window, and a panel with no scene has no ruler to measure text with.
+        popupScene.setTextRuler(scene.textRuler());
         popupScene.inheritRenderingFlags(scene);
+        float[] box = windowBox(parent);
+        window = parent.backend().createWindow(WindowConfig.popup(parent,
+                Math.max(1, Math.round(box[2])) + 2 * m, Math.max(1, Math.round(box[3])) + 2 * m)
+                .atInOwner(box[0] - m, box[1] - m));
         // Published by the owner's tree, under the opener, as a platform's own popup is a child of
         // its field: a reader never leaves the owner while it is open.
         scene.graftPopup(popupScene);
@@ -319,6 +389,7 @@ public final class AnchoredPopup {
             window.show();
         }
         window.requestFrame();
+        host.presented(panel, popupScene);
     }
 
     /**
@@ -409,6 +480,7 @@ public final class AnchoredPopup {
         if (animate) {
             fading.fadeTo(1f, Theme.of(host.anchor()).animWindow, null); // a close supersedes it
         }
+        host.presented(card, null);
     }
 
     /**

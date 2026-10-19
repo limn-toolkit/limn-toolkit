@@ -49,9 +49,9 @@ public final class ThemeEditorFiles {
         Objects.requireNonNull(editor, "editor");
         TokenRow row = new TokenRow(Tokens.Role.SMALL);
         row.crossAlignment(Flex.CrossAlignment.CENTER);
-        row.add(new Button(ThemeEditorStrings.OPEN).setSecondary(true)
+        row.add(new Button(ThemeEditorStrings.OPEN).setStyle(Button.Style.SECONDARY)
                 .onAction(() -> open(editor)));
-        row.add(new Button(ThemeEditorStrings.SAVE).setSecondary(true)
+        row.add(new Button(ThemeEditorStrings.SAVE).setStyle(Button.Style.SECONDARY)
                 .onAction(() -> saveAs(editor)));
         return row;
     }

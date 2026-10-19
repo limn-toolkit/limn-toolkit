@@ -39,7 +39,7 @@ public final class Main {
             "dates-era", "dates-era-light",
             "normalmap", "bloom", "surface", "testcard", "text", "files", "files-light",
             "export", "export-light", "charts", "charts-light", "theme-editor",
-            "theme-editor-light", "glass", "glass-light", "bidi", "bidi-light", "cards", "cards-2", "cards-3", "cards-states", "cards-states-2");
+            "theme-editor-light", "glass", "glass-light", "bidi", "bidi-light", "cards", "cards-2", "cards-3", "cards-states", "cards-states-2", "popover");
 
     /** A scene of the lab, alone in its window. */
     private static final int LAB_WIDTH = 800;
@@ -314,6 +314,9 @@ public final class Main {
                 widgetScene = datesBuilt.scene();
                 datesPicker = scene.equals("dates-popup") ? datesBuilt.picker() : null;
                 DatesScene.pinForCapture(screenshotMode, widgetScene);
+            } else if (scene.equals("popover")) {
+                // A popover with a field, to type into its window of its own (ADR 075 §5).
+                widgetScene = PopoverLabScene.create();
             } else if (scene.equals("combos")) {
                 // Every kind of combo box, enabled and disabled (ADR 051 and 052), to try by hand.
                 widgetScene = CombosScene.create();

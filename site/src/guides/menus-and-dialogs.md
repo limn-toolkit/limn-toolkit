@@ -184,6 +184,21 @@ which a hand-rolled right-click check does not.
 Text fields and text areas already have one, with cut, copy, paste and select-all in the
 reader's own language. You get it by using the widget; there is nothing to switch on.
 
+## Popovers
+
+A `Popover` is a panel of controls that hangs from a button and closes when the user is done with
+it: a filter, a column chooser, a short form. It is not modal; a press outside or Escape closes
+it. It takes the keyboard while it is open, its first field focused and Tab cycling inside, and
+gives it back to the button when it closes. Where the platform can place a window of its own it
+opens in one, so it can pass the window's edge, and a field in it types as any field does, an
+input method's composition included.
+
+{% snippet guide:popover %}
+
+`attachTo(button)` makes the button open and close it, and tells a screen reader that the button
+opens a popup and whether it is open; `showFor(widget)` opens it from anything else. Nothing opens
+a popover on hover: a surface that opens as the pointer passes is a tooltip.
+
 ## Dialogs
 
 A `Dialog` is a title, a message, some buttons, and optionally a widget of your own. It
@@ -191,8 +206,8 @@ resolves as a `CompletionStage` rather than blocking:
 
 ```java
 new Dialog("Discard changes?", "Your edits will be lost.")
-        .addButton("Cancel", "cancel")
-        .addPrimaryButton("Discard", "discard")
+        .addPrimaryButton("Keep editing", "cancel")
+        .addDestructiveButton("Discard", "discard")
         .setCancelResult("cancel")
         .show(scene)
         .thenAccept(result -> {
@@ -207,6 +222,12 @@ define. `setCancelResult` is what Escape and the close button resolve to.
 
 `setContent(widget)` replaces the message with anything you like: a form, a list, a
 picture. The buttons stay.
+
+A button that deletes or discards goes in with `addDestructiveButton`: drawn in the palette's
+danger colour, and never the dialog's default, so Return gives the safe answer and a person
+pressing it out of habit loses nothing.
+
+{% snippet guide:dialog-destructive %}
 
 ### Which kind of modal
 

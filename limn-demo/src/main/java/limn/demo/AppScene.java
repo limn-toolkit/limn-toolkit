@@ -671,7 +671,7 @@ final class AppScene {
         if (place.documentation == null) {
             return content;
         }
-        Button link = new Button(ShowcaseStrings.HEAD_DOCUMENTATION).setSecondary(true);
+        Button link = new Button(ShowcaseStrings.HEAD_DOCUMENTATION).setStyle(Button.Style.SECONDARY);
         link.setControlSize(ControlSize.SMALL);
         link.setTooltip(SITE + place.documentation);
         link.onAction(() -> openDocumentation(link, place.documentation, status));
@@ -1101,7 +1101,7 @@ final class AppScene {
             // A pill per row, coloured by where the order stands; it sorts in the order an order
             // moves through, not by the word, which changes with the language.
             Column<Order> state = Column.<Order>widget(ShowcaseStrings.ORDERS_STATUS,
-                    order -> new StatusBadge(order.status))
+                    order -> statusBadge(order.status))
                     .comparator(java.util.Comparator.comparingInt(order -> order.status.ordinal())).width(128);
             Column<Order> total = Column.<Order>currency(ShowcaseStrings.ORDERS_TOTAL, order -> order.total,
                     Currency.getInstance("USD")).width(150).footerSum();
@@ -1109,7 +1109,7 @@ final class AppScene {
             // end of each row, named by its order for whoever hears the row instead of seeing it.
             Drawer[] panel = new Drawer[1];
             Column<Order> open = Column.<Order>widget(I18nString.EMPTY, order -> {
-                Button edit = new Button("").setSecondary(true)
+                Button edit = new Button("").setStyle(Button.Style.SECONDARY)
                         .setIcon(limn.icons.tabler.TablerDesign.PENCIL.icon());
                 edit.setControlSize(ControlSize.SMALL);
                 edit.setAccessibleName(ShowcaseStrings.ORDERS_HEADING.format(String.valueOf(order.number)));
@@ -1145,13 +1145,16 @@ final class AppScene {
                     String.valueOf(shown.size()), String.valueOf(all.size())));
 
             // What the rows area says when the filter leaves nothing, and the way back.
-            Button clearFilter = new Button(Text.CLEAR_FILTER).setSecondary(true);
+            Button clearFilter = new Button(Text.CLEAR_FILTER).setStyle(Button.Style.SECONDARY);
             limn.scene.layout.Column nothing = new limn.scene.layout.Column();
             nothing.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
-            nothing.add(new Label(Text.NO_MATCH).setStrong(true)
-                    .setIcon(limn.icons.tabler.TablerSystem.SEARCH.icon()));
+            Label noMatch = new Label(Text.NO_MATCH).setStrong(true)
+                    .setIcon(limn.icons.tabler.TablerSystem.SEARCH.icon());
+            nothing.add(noMatch);
             nothing.add(clearFilter);
-            EmptyState rows = new EmptyState(table, nothing);
+            // Shown by the table itself whenever the filter leaves no row, between its header and
+            // its footer, and the message is what a reader hears the empty table described by.
+            table.setEmptyContent(nothing, noMatch);
             filter = () -> {
                 String text = search.text().strip().toLowerCase(Locale.ROOT);
                 List<Status> wanted = new ArrayList<>();
@@ -1168,7 +1171,6 @@ final class AppScene {
                 }
                 table.refresh();
                 counted.run();
-                rows.setEmpty(shown.isEmpty());
             };
             search.onChange(text -> filter.run());
             statuses.onSelect(filter);
@@ -1181,7 +1183,7 @@ final class AppScene {
 
             // What is done to every selected order at once. Enabled while one of them is not
             // paid yet; the rows stay where they are, so the user sees each badge turn green.
-            Button markPaid = new Button(Text.MARK_PAID).setSecondary(true)
+            Button markPaid = new Button(Text.MARK_PAID).setStyle(Button.Style.SECONDARY)
                     .setIcon(limn.icons.tabler.TablerSystem.CHECKS.icon());
             markPaid.setId("orders-mark-paid");
             Runnable markable = () -> {
@@ -1210,7 +1212,22 @@ final class AppScene {
             tools.add(Expanded.spacer(1));
             tools.add(count);
             tools.add(new SizedBox(196, SizedBox.UNSET, search));
-            tools.add(new SizedBox(170, SizedBox.UNSET, statuses));
+            // The statuses in a popover from a Filter button: a panel of choices that opens from
+            // the tool bar, takes the keyboard, and closes when the user is done with it.
+            Button filterButton = new Button(Text.FILTER).setStyle(Button.Style.SECONDARY)
+                    .setIcon(limn.icons.tabler.TablerSystem.FILTER.icon());
+            Button clearStatuses = new Button(Text.CLEAR_FILTER).setStyle(Button.Style.TERTIARY);
+            clearStatuses.onAction(() -> {
+                statuses.clearSelection();
+                filter.run();
+            });
+            limn.scene.layout.Column filterPanel = new limn.scene.layout.Column();
+            filterPanel.gap(12).crossAlignment(Flex.CrossAlignment.START);
+            filterPanel.add(new SizedBox(220, SizedBox.UNSET,
+                    new limn.components.Field(ShowcaseStrings.ORDERS_STATUS, statuses)));
+            filterPanel.add(clearStatuses);
+            new limn.components.Popover(filterPanel).setAccessibleName(Text.FILTER).attachTo(filterButton);
+            tools.add(filterButton);
             tools.add(markPaid);
             tools.add(new Button(ShowcaseStrings.MENU_NEW_ORDER).onAction(this::openNewOrder));
 
@@ -1224,7 +1241,7 @@ final class AppScene {
             TextArea notes = new TextArea().setSoftWrap(true);
             Button save = new Button(ShowcaseStrings.ACTION_SAVE);
             save.setId("order-save");
-            Button revert = new Button(ShowcaseStrings.ORDERS_REVERT).setSecondary(true);
+            Button revert = new Button(ShowcaseStrings.ORDERS_REVERT).setStyle(Button.Style.SECONDARY);
             // The fields and their buttons, disabled as one while no order is chosen; the head
             // above them, with its close button, is not.
             limn.scene.layout.Column fields = new limn.scene.layout.Column();
@@ -1280,7 +1297,7 @@ final class AppScene {
 
             limn.scene.layout.Column form = new limn.scene.layout.Column();
             form.gap(10).crossAlignment(Flex.CrossAlignment.STRETCH);
-            Button close = new Button("").setSecondary(true).setIcon(limn.icons.tabler.TablerSystem.X.icon());
+            Button close = new Button("").setStyle(Button.Style.SECONDARY).setIcon(limn.icons.tabler.TablerSystem.X.icon());
             close.setControlSize(ControlSize.SMALL);
             close.setAccessibleName(ShowcaseStrings.ACTION_CLOSE);
             close.setTooltip(ShowcaseStrings.ACTION_CLOSE);
@@ -1306,7 +1323,7 @@ final class AppScene {
             // The order is opened on demand: Enter, a double click or a row's button brings its
             // form in over the table's trailing edge, and the arrows go on walking the rows
             // with it open.
-            Drawer drawer = new Drawer(rows, new ScrollView(new Padding(Insets.all(12), form)));
+            Drawer drawer = new Drawer(table, new ScrollView(new Padding(Insets.all(12), form)));
             drawer.focusHome(table);
             table.onActivate(row -> drawer.setOpen(true));
             close.onAction(() -> {
@@ -1400,6 +1417,7 @@ final class AppScene {
                     new I18nString("showcase.orders.noMatch", "No orders match the filter");
             static final I18nString CLEAR_FILTER =
                     new I18nString("showcase.orders.clearFilter", "Clear filter");
+            static final I18nString FILTER = new I18nString("showcase.orders.filter", "Filter");
             static final I18nString MARK_PAID =
                     new I18nString("showcase.orders.markPaid", "Mark as paid");
             static final limn.i18n.PluralString MARKED_PAID = limn.i18n.PluralString.of(
@@ -1411,61 +1429,16 @@ final class AppScene {
     }
 
     /**
-     * Where an order stands, as a pill tinted by it: the colour says it at a glance, the word
+     * Where an order stands, as a badge tinted by it: the colour says it at a glance, the word
      * says it to everyone, a reader and a person who does not tell green from red included.
      */
-    static final class StatusBadge extends Widget<StatusBadge> {
-        private static final float PAD = 8;
-        private static final float DOT = 6;
-        private final Status status;
-        private final Label label;
-
-        StatusBadge(Status status) {
-            this.status = status;
-            this.label = new Label(status.label);
-            label.setRole(Label.Role.LABEL);
-            // Read as the word it shows: the pill is the label, and the word inside it is not
-            // said a second time.
-            label.setAccessibleIgnored(true);
-            setAccessibleRole(limn.accessibility.Accessible.Role.LABEL);
-            setAccessibleName(status.label);
-            add(label);
-        }
-
-        private limn.graphics.Color tone(Theme theme) {
-            return switch (status) {
-                case OPEN -> theme.info();
-                case SHIPPED -> theme.primary();
-                case PAID -> theme.success();
-                case OVERDUE -> theme.danger();
-                case CANCELLED -> theme.textMuted();
-            };
-        }
-
-        @Override
-        protected limn.scene.Size onMeasure(limn.scene.Constraints constraints) {
-            float room = Math.max(0, constraints.maxWidth() - 2 * PAD - DOT - PAD / 2);
-            limn.scene.Size text = label.measure(limn.scene.Constraints.loose(room, constraints.maxHeight()));
-            return constraints.constrain(text.width() + 2 * PAD + DOT + PAD / 2, text.height() + 4);
-        }
-
-        @Override
-        protected void onLayout() {
-            limn.scene.Size text = label.measure(limn.scene.Constraints.loose(
-                    Math.max(0, width() - 2 * PAD - DOT - PAD / 2), height()));
-            float start = PAD + DOT + PAD / 2;
-            float x = isRightToLeft() ? width() - start - text.width() : start;
-            label.layoutBox(x, (height() - text.height()) / 2, text.width(), text.height());
-        }
-
-        @Override
-        protected void onPaint(limn.graphics.Canvas canvas) {
-            Theme theme = Theme.of(this);
-            limn.graphics.Color tone = tone(theme);
-            canvas.fillRoundRect(0, 0, width(), height(), height() / 2,
-                    tone.withAlpha(theme.isDark() ? 0.26f : 0.16f));
-            float dotX = isRightToLeft() ? width() - PAD - DOT : PAD;
-            canvas.fillRoundRect(dotX, (height() - DOT) / 2, DOT, DOT, DOT / 2, tone);
-        }
+    static limn.components.Badge statusBadge(Status status) {
+        return new limn.components.Badge(status.label).setTone(switch (status) {
+            case OPEN -> limn.components.Tone.INFO;
+            case SHIPPED -> limn.components.Tone.ACCENT;
+            case PAID -> limn.components.Tone.SUCCESS;
+            case OVERDUE -> limn.components.Tone.DANGER;
+            case CANCELLED -> limn.components.Tone.NEUTRAL;
+        });
     }
 }

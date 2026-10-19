@@ -7,6 +7,7 @@ import limn.components.internal.RowDragPicture;
 import limn.components.internal.RowSlides;
 import limn.components.internal.Rows;
 import limn.components.internal.a11y.RowsAccessibility;
+import limn.components.internal.RowsPlaceholder;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.i18n.I18nString;
@@ -1051,6 +1052,155 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         return true;
     }
 
+    // ---------------------------------------------------------------- empty and loading
+
+    /**
+     * What shows in the rows' viewport while there are no rows (a list with no items), and while the
+     * list loads with none: the application's content, centred, at most the viewport's width less
+     * {@code spacingLarge} on each side.
+     */
+    private final RowsPlaceholder placeholder = new RowsPlaceholder(new RowsPlaceholder.Host() {
+        @Override
+        public Widget<?> widget() {
+            return ListView.this;
+        }
+
+        @Override
+        public void attach(Widget<?> content) {
+            add(content); // last: after the rows, for a reader and for the Tab key
+        }
+
+        @Override
+        public void detach(Widget<?> content) {
+            remove(content);
+        }
+
+        @Override
+        public int rowCount() {
+            return items.size();
+        }
+    });
+
+    /**
+     * Shows {@code content} in the rows' viewport whenever the list has no rows (a list with no items), and
+     * takes it away when one arrives: the list knows its count, so the application never says
+     * when. It gives the words, "No orders" or "No orders match", which only it knows.
+     *
+     * <p>The content is the list's last child while it shows, so its own controls (a "Clear
+     * filter" button) follow the list in the Tab order and a reader finds them after its (no)
+     * rows; they belong to no selection. A content passed this way describes nothing to a reader:
+     * pass its message with {@link #setEmptyContent(Widget, Label)}.
+     *
+     * @param content the content, or {@code null} for none
+     * @return this list
+     */
+    public ListView<T> setEmptyContent(@Nullable Widget<?> content) {
+        Ui.checkUiThread();
+        return setEmptyContent(content, null);
+    }
+
+    /**
+     * Shows {@code content} while there are no rows, as {@link #setEmptyContent(Widget)} does, and
+     * describes the list by {@code message} while it shows, so a reader landing on it hears
+     * "list, 0 rows" and then the message.
+     *
+     * @param content the content, or {@code null} for none
+     * @param message the label inside it that says why there are no rows, or {@code null}
+     * @return this list
+     */
+    public ListView<T> setEmptyContent(@Nullable Widget<?> content, @Nullable Label message) {
+        Ui.checkUiThread();
+        placeholder.setEmpty(content, message);
+        return this;
+    }
+
+    /**
+     * Shows one muted, wrapped, centred line while there are no rows, which also describes the
+     * list to a reader: the empty content for words alone.
+     *
+     * @param message the words, or {@code null} for no empty content
+     * @return this list
+     */
+    public ListView<T> setEmptyMessage(@Nullable I18nString message) {
+        Ui.checkUiThread();
+        placeholder.setEmptyMessage(message);
+        return this;
+    }
+
+    /**
+     * Shows one fixed line while there are no rows; see {@link #setEmptyMessage(I18nString)}.
+     *
+     * @param message the words, or {@code null} for no empty content
+     * @return this list
+     */
+    public ListView<T> setEmptyMessage(@Nullable String message) {
+        Ui.checkUiThread();
+        return setEmptyMessage(message == null ? null : I18nString.literal(message));
+    }
+
+    /** @return the content shown while there are no rows, or {@code null} */
+    public @Nullable Widget<?> emptyContent() {
+        return placeholder.emptyContent();
+    }
+
+    /** @return whether the empty content shows now: there is one, no rows and no load running */
+    public boolean isShowingEmptyContent() {
+        return placeholder.isShowingEmpty();
+    }
+
+    /**
+     * Says the list is loading its rows, or has finished. While it loads with no rows, the
+     * loading content shows in the viewport in place of the empty one; over rows already shown,
+     * they stay. Either way the list is published busy, and a reader is told both ends: "Loading
+     * Orders" at the start, with the name given by {@code setAccessibleName}, and at the end how
+     * many rows arrived, or the empty message when none did. Set the rows first, then say the load
+     * ended, so the count said is the count shown.
+     *
+     * @param loading whether a load is running
+     * @return this list
+     */
+    public ListView<T> setLoading(boolean loading) {
+        Ui.checkUiThread();
+        placeholder.setLoading(loading);
+        return this;
+    }
+
+    /** @return whether a load is running, as {@link #setLoading} last said */
+    public boolean isLoading() {
+        return placeholder.isLoading();
+    }
+
+    /**
+     * Replaces what shows while the list loads with no rows; {@code null} brings back the
+     * default, a moving bar over a muted "Loading…" in the list's language.
+     *
+     * @param content the content, or {@code null} for the default
+     * @return this list
+     */
+    public ListView<T> setLoadingContent(@Nullable Widget<?> content) {
+        Ui.checkUiThread();
+        return setLoadingContent(content, null);
+    }
+
+    /**
+     * Replaces what shows while the list loads with no rows, and describes the list by
+     * {@code message} while it shows.
+     *
+     * @param content the content, or {@code null} for the default
+     * @param message the label inside it that says what is loading, or {@code null}
+     * @return this list
+     */
+    public ListView<T> setLoadingContent(@Nullable Widget<?> content, @Nullable Label message) {
+        Ui.checkUiThread();
+        placeholder.setLoadingContent(content, message);
+        return this;
+    }
+
+    /** @return whether a loading content, the application's or the default, shows now */
+    public boolean isShowingLoadingContent() {
+        return placeholder.isShowingLoading();
+    }
+
     // ---------------------------------------------------------------- items
 
     /**
@@ -1072,7 +1222,10 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         cursor = -1;
         rangeAnchor = -1;
         engine.reset();
-        markNeedsLayout();
+        // Contained: the rows change inside a box whose measure does not read them (the seed
+        // and the columns size it), so a filter that empties and refills the rows repaints
+        // the widget and never the window, its empty content coming and going included.
+        markNeedsContainedLayout();
         invalidate();
         if (had) {
             notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.ADJUSTMENT));
@@ -1229,7 +1382,10 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         // exactly what never refreshes. The one holding the keyboard too: it is bound to an item
         // that may no longer exist, and the keyboard falls back to the list.
         engine.refresh(null, -1);
-        markNeedsLayout();
+        // Contained: the rows change inside a box whose measure does not read them (the seed
+        // and the columns size it), so a filter that empties and refills the rows repaints
+        // the widget and never the window, its empty content coming and going included.
+        markNeedsContainedLayout();
         invalidate();
         if (selectionMode == SelectionMode.SINGLE && lead >= count) {
             // Without a reveal: a watcher runs on a list whose rows are already unmounted, and
@@ -1614,6 +1770,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         engine.setOverscan(liftedHeight);
         engine.layout();
         vBar.refresh();
+        placeholder.layout(rowX, 0, w, h, tokens().spacingLarge());
         slides.newRowsSlideToo();
         slides.slideToLayout();
     }
@@ -1741,6 +1898,8 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
                     canvas.restore();
                 }
             }
+            // The empty or loading content, in the viewport the rows would be in.
+            placeholder.paint(canvas);
             Theme theme = Theme.of(this);
             SizeTokens t = theme.tokensFor(this);
             float inset = Strokes.FOCUS_RING_THIN;
@@ -2117,6 +2276,9 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
                 a.description(name);
             }
         }
+        // Busy while a load runs, and described by the empty or the loading message while one
+        // shows: there are no rows then, so no lead to describe the list by above.
+        placeholder.describe(a);
     }
 
     /**

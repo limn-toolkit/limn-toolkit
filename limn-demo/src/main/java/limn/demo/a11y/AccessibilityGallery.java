@@ -8,6 +8,9 @@ import limn.backend.WindowConfig;
 import limn.backend.lwjgl.LwjglBackend;
 import limn.accessibility.Accessible;
 import limn.accessibility.Accessible.Role;
+import limn.components.Avatar;
+import limn.components.AvatarGroup;
+import limn.components.Badge;
 import limn.components.Button;
 import limn.components.ButtonGroup;
 import limn.components.Checkbox;
@@ -25,7 +28,9 @@ import limn.components.MediaControls;
 import limn.components.Menu;
 import limn.components.MenuBar;
 import limn.components.PasswordField;
+import limn.components.Popover;
 import limn.components.PopupMenu;
+import limn.components.Tone;
 import limn.components.ProgressBar;
 import limn.components.RadioButton;
 import limn.components.ScrollBar;
@@ -551,6 +556,12 @@ public final class AccessibilityGallery {
                 new Entry("Expanders", List.of(Expander.class),
                         List.of(Role.BUTTON, Role.GROUP),
                         AccessibilityGallery::expanders),
+                new Entry("Badges", List.of(Badge.class),
+                        List.of(Role.LABEL),
+                        AccessibilityGallery::badges),
+                new Entry("Avatars and a group", List.of(Avatar.class, AvatarGroup.class),
+                        List.of(Role.IMAGE, Role.GROUP),
+                        AccessibilityGallery::avatars),
                 new Entry("Cards", List.of(Card.class),
                         List.of(Role.GROUP, Role.HEADING, Role.LABEL, Role.BUTTON),
                         AccessibilityGallery::cards),
@@ -679,6 +690,9 @@ public final class AccessibilityGallery {
                 new Entry("Popup menu, open", List.of(PopupMenu.class),
                         List.of(Role.MENU, Role.MENU_ITEM),
                         AccessibilityGallery::popupMenu),
+                new Entry("Popover, open", List.of(Popover.class, Button.class),
+                        List.of(Role.BUTTON, Role.GROUP, Role.TEXT_FIELD),
+                        AccessibilityGallery::popover),
                 new Entry("Dialog, in its own window", List.of(Dialog.class),
                         List.of(Role.DIALOG),
                         () -> dialog(false)),
@@ -794,7 +808,7 @@ public final class AccessibilityGallery {
     private static Built buttons() {
         Column page = page();
         page.add(new Button("Save"));
-        page.add(new Button("Discard").setSecondary(true));
+        page.add(new Button("Discard").setStyle(Button.Style.SECONDARY));
         // Icon only: the tooltip is what a reader hears, so an icon-only button always has one.
         Button iconOnly = new Button("").setIcon(BLANK_ICON);
         iconOnly.setTooltip("Refresh");
@@ -882,6 +896,56 @@ public final class AccessibilityGallery {
         locked.setEnabled(false);
         page.add(locked);
         return new Built(page);
+    }
+
+    private static Built badges() {
+        Column page = page();
+        // A word in each tone, a count past what it shows, a count named by the application, and
+        // a dot with the name a reader hears in its place: static texts, none focusable.
+        Row tones = new Row();
+        tones.gap(8);
+        tones.add(new Badge("Paid").setTone(Tone.SUCCESS));
+        tones.add(new Badge("Overdue").setTone(Tone.DANGER));
+        tones.add(new Badge(BLANK_ICON, I18nString.literal("Synced")).setTone(Tone.INFO));
+        page.add(tones);
+        Row counts = new Row();
+        counts.gap(8);
+        counts.add(Badge.count(128).setTone(Tone.DANGER));
+        counts.add(Badge.count(3).setTone(Tone.ACCENT).setAccessibleName("3 unread"));
+        counts.add(Badge.dot(I18nString.literal("Unread")).setTone(Tone.ACCENT));
+        page.add(counts);
+        return new Built(page);
+    }
+
+    private static Built avatars() {
+        Column page = page();
+        // One standing alone, an image named by the person; one beside the name it repeats, out
+        // of the tree; and a group past its limit, one node described by every name.
+        page.add(new Avatar("Ana Lima"));
+        Row contact = new Row();
+        contact.gap(8);
+        contact.add(new Avatar("Rui Costa").setImage(BLANK_PICTURE).setAccessibleIgnored(true));
+        contact.add(new Label("Rui Costa"));
+        page.add(contact);
+        AvatarGroup approvers = new AvatarGroup(new Avatar("Ana Lima"), new Avatar("Rui Costa"),
+                new Avatar("Mei Chen"), new Avatar("Omar Haddad"), new Avatar("Lena Vogel"));
+        approvers.setMaxShown(3).setAccessibleName("Approvers");
+        page.add(approvers);
+        return new Built(page);
+    }
+
+    private static Built popover() {
+        Column page = page();
+        // A tool bar's Filter button and the popover it opens: a named group holding a field and a
+        // check box, the keyboard in the field, the button saying it opened a popup.
+        Button filter = new Button("Filter");
+        Column panel = new Column();
+        panel.gap(8);
+        panel.add(new Field("Customer contains", new TextField().setText("Kestrel")));
+        panel.add(new Checkbox(Checkbox.Variant.BOX, "Overdue only"));
+        Popover popover = new Popover(panel).setAccessibleName("Filter orders").attachTo(filter);
+        page.add(filter);
+        return new Built(page, () -> popover.showFor(filter));
     }
 
     private static Built cards() {
@@ -1229,7 +1293,7 @@ public final class AccessibilityGallery {
                         if (!file.kids().isEmpty()) {
                             row.add(new Label(String.valueOf(file.kids().size())).setMuted(true));
                         } else if (file.name().endsWith(".pdf")) {
-                            row.add(new Button(GalleryStrings.OPEN).setSecondary(true));
+                            row.add(new Button(GalleryStrings.OPEN).setStyle(Button.Style.SECONDARY));
                         }
                         return row;
                     }
@@ -1707,7 +1771,7 @@ public final class AccessibilityGallery {
 
     /** An icon-only button, named by its tooltip, which is what an icon-only button always has. */
     private static Button iconButton(String name) {
-        Button button = new Button("").setIcon(BLANK_ICON).setSecondary(true);
+        Button button = new Button("").setIcon(BLANK_ICON).setStyle(Button.Style.SECONDARY);
         button.setTooltip(name);
         return button;
     }

@@ -53,7 +53,7 @@ final class ShowcaseScene {
         // Icon buttons (icon tinted to the label color) + a labeled icon.
         Button save = new Button("Save").setIcon(check);
         save.onAction(() -> status.setText("Saved!"));
-        Button dl = new Button("Download").setSecondary(true).setIcon(download);
+        Button dl = new Button("Download").setStyle(Button.Style.SECONDARY).setIcon(download);
         dl.onAction(() -> status.setText("Downloading…"));
         Row iconButtons = new Row();
         iconButtons.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);

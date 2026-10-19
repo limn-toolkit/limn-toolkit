@@ -43,6 +43,7 @@ class TreeRowsContractTest extends ComponentTestBase {
         private static final float ROW_H = 12;
 
         private Tree<Node> tree;
+        private Outline outline;
         private List<Node> visible;
         private List<String> names;
         private int activated = -1;
@@ -59,7 +60,8 @@ class TreeRowsContractTest extends ComponentTestBase {
                 out.add(node.name().english());
             }
             names = List.copyOf(out);
-            tree = new Tree<>(new Outline(roots));
+            outline = new Outline(roots);
+            tree = new Tree<>(outline);
             tree.setAccessibleName("Outline");
             tree.expand(a);
             activated = -1;
@@ -67,6 +69,14 @@ class TreeRowsContractTest extends ComponentTestBase {
             Column root = new Column();
             root.add(new SizedBox(300, 50, tree));
             return root;
+        }
+
+        @Override
+        public boolean empty(Widget<?> content, Label message) {
+            tree.setEmptyContent(content, message);
+            outline.roots = List.of();
+            tree.refresh();
+            return true;
         }
 
         @Override
@@ -135,7 +145,7 @@ class TreeRowsContractTest extends ComponentTestBase {
         }
 
         private static final class Outline implements Tree.Model<Node> {
-            private final List<Node> roots;
+            private List<Node> roots;
 
             Outline(List<Node> roots) {
                 this.roots = roots;

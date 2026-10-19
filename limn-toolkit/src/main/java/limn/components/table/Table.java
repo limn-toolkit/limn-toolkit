@@ -15,12 +15,15 @@ import limn.components.ScrollGutters;
 import limn.components.SizeTokens;
 import limn.components.Strokes;
 import limn.components.Theme;
+import limn.components.Label;
+import limn.components.internal.RowsPlaceholder;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Font;
 import limn.graphics.ShapedText;
 import limn.graphics.TextRuler;
 import limn.i18n.I18n;
+import limn.i18n.I18nString;
 import limn.i18n.LanguageWitness;
 import limn.input.Keys;
 import limn.internal.lang.Checks;
@@ -1074,7 +1077,10 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         resort();
         engine.reset(); // back to the start, and a reveal still waiting was asked of the old rows
         recomputeFooter();
-        markNeedsLayout();
+        // Contained: the rows change inside a box whose measure does not read them (the seed
+        // and the columns size it), so a filter that empties and refills the rows repaints
+        // the widget and never the window, its empty content coming and going included.
+        markNeedsContainedLayout();
         invalidate();
         if (had) {
             // The selection went with the rows it named: a consequence, announced first.
@@ -1568,7 +1574,10 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         unmountAllKeeping(keepModel >= 0 ? keep : null, keepModel);
         textEpoch++;
         recomputeFooter();
-        markNeedsLayout();
+        // Contained: the rows change inside a box whose measure does not read them (the seed
+        // and the columns size it), so a filter that empties and refills the rows repaints
+        // the widget and never the window, its empty content coming and going included.
+        markNeedsContainedLayout();
         invalidate();
         if (answeringSortRequest && focusRow >= 0 && focusRow != wasFocusRow) {
             // A refresh that answers a sort request is the application's sort, and reveals the
@@ -2617,6 +2626,156 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         return rtl ? rowX + viewW - (x + colW[s]) + offset : rowX + x - offset;
     }
 
+    // ---------------------------------------------------------------- empty and loading
+
+    /**
+     * What shows in the rows' viewport while there are no rows (a table with no data rows), and while the
+     * table loads with none: the application's content, centred, at most the viewport's width less
+     * {@code spacingLarge} on each side. The header and the footer row stay, as
+     * they are.
+     */
+    private final RowsPlaceholder placeholder = new RowsPlaceholder(new RowsPlaceholder.Host() {
+        @Override
+        public Widget<?> widget() {
+            return Table.this;
+        }
+
+        @Override
+        public void attach(Widget<?> content) {
+            add(content); // last: after the rows, for a reader and for the Tab key
+        }
+
+        @Override
+        public void detach(Widget<?> content) {
+            remove(content);
+        }
+
+        @Override
+        public int rowCount() {
+            return rows.size();
+        }
+    });
+
+    /**
+     * Shows {@code content} in the rows' viewport whenever the table has no rows (a table with no data rows), and
+     * takes it away when one arrives: the table knows its count, so the application never says
+     * when. It gives the words, "No orders" or "No orders match", which only it knows.
+     *
+     * <p>The content is the table's last child while it shows, so its own controls (a "Clear
+     * filter" button) follow the table in the Tab order and a reader finds them after its (no)
+     * rows; they belong to no selection. A content passed this way describes nothing to a reader:
+     * pass its message with {@link #setEmptyContent(Widget, Label)}.
+     *
+     * @param content the content, or {@code null} for none
+     * @return this table
+     */
+    public Table<T> setEmptyContent(@Nullable Widget<?> content) {
+        Ui.checkUiThread();
+        return setEmptyContent(content, null);
+    }
+
+    /**
+     * Shows {@code content} while there are no rows, as {@link #setEmptyContent(Widget)} does, and
+     * describes the table by {@code message} while it shows, so a reader landing on it hears
+     * "table, 0 rows" and then the message.
+     *
+     * @param content the content, or {@code null} for none
+     * @param message the label inside it that says why there are no rows, or {@code null}
+     * @return this table
+     */
+    public Table<T> setEmptyContent(@Nullable Widget<?> content, @Nullable Label message) {
+        Ui.checkUiThread();
+        placeholder.setEmpty(content, message);
+        return this;
+    }
+
+    /**
+     * Shows one muted, wrapped, centred line while there are no rows, which also describes the
+     * table to a reader: the empty content for words alone.
+     *
+     * @param message the words, or {@code null} for no empty content
+     * @return this table
+     */
+    public Table<T> setEmptyMessage(@Nullable I18nString message) {
+        Ui.checkUiThread();
+        placeholder.setEmptyMessage(message);
+        return this;
+    }
+
+    /**
+     * Shows one fixed line while there are no rows; see {@link #setEmptyMessage(I18nString)}.
+     *
+     * @param message the words, or {@code null} for no empty content
+     * @return this table
+     */
+    public Table<T> setEmptyMessage(@Nullable String message) {
+        Ui.checkUiThread();
+        return setEmptyMessage(message == null ? null : I18nString.literal(message));
+    }
+
+    /** @return the content shown while there are no rows, or {@code null} */
+    public @Nullable Widget<?> emptyContent() {
+        return placeholder.emptyContent();
+    }
+
+    /** @return whether the empty content shows now: there is one, no rows and no load running */
+    public boolean isShowingEmptyContent() {
+        return placeholder.isShowingEmpty();
+    }
+
+    /**
+     * Says the table is loading its rows, or has finished. While it loads with no rows, the
+     * loading content shows in the viewport in place of the empty one; over rows already shown,
+     * they stay. Either way the table is published busy, and a reader is told both ends: "Loading
+     * Orders" at the start, with the name given by {@code setAccessibleName}, and at the end how
+     * many rows arrived, or the empty message when none did. Set the rows first, then say the load
+     * ended, so the count said is the count shown.
+     *
+     * @param loading whether a load is running
+     * @return this table
+     */
+    public Table<T> setLoading(boolean loading) {
+        Ui.checkUiThread();
+        placeholder.setLoading(loading);
+        return this;
+    }
+
+    /** @return whether a load is running, as {@link #setLoading} last said */
+    public boolean isLoading() {
+        return placeholder.isLoading();
+    }
+
+    /**
+     * Replaces what shows while the table loads with no rows; {@code null} brings back the
+     * default, a moving bar over a muted "Loading…" in the table's language.
+     *
+     * @param content the content, or {@code null} for the default
+     * @return this table
+     */
+    public Table<T> setLoadingContent(@Nullable Widget<?> content) {
+        Ui.checkUiThread();
+        return setLoadingContent(content, null);
+    }
+
+    /**
+     * Replaces what shows while the table loads with no rows, and describes the table by
+     * {@code message} while it shows.
+     *
+     * @param content the content, or {@code null} for the default
+     * @param message the label inside it that says what is loading, or {@code null}
+     * @return this table
+     */
+    public Table<T> setLoadingContent(@Nullable Widget<?> content, @Nullable Label message) {
+        Ui.checkUiThread();
+        placeholder.setLoadingContent(content, message);
+        return this;
+    }
+
+    /** @return whether a loading content, the application's or the default, shows now */
+    public boolean isShowingLoadingContent() {
+        return placeholder.isShowingLoading();
+    }
+
     @Override
     protected void onLayout() {
         float box = width();
@@ -2672,6 +2831,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         engine.layout();
         vBar.refresh();
         hBar.refresh();
+        placeholder.layout(rowX, headerH, w, viewH, t.spacingLarge());
     }
 
     /** Lays out a row's widget cells into their column boxes; a value cell has no layout. */
@@ -3343,6 +3503,8 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
                     }
                 }
             }
+            // The empty or loading content, between the header and the footer.
+            placeholder.paint(canvas);
         } finally {
             canvas.restore();
         }
@@ -4135,6 +4297,10 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         RowsAccessibility.describeContainer(a, rowsSelection(), false, hasCursorRow());
         a.scrollFrom(offsetX, Math.max(0, contentWidth - w), w, contentWidth,
                 estimatedOffset(t), Math.max(0, contentH - viewH), viewH, contentH);
+        // Busy while a load runs, and described by the empty or the loading message while one
+        // shows: "table, 0 rows, no orders match". On the table's own node, before its
+        // synthetic children open.
+        placeholder.describe(a);
 
         if (showHeader) {
             a.child(HEADER_KEY);
@@ -4334,6 +4500,12 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         }
         if (widget instanceof limn.components.Label label) {
             appendText(label.text());
+            return;
+        }
+        if (widget instanceof limn.components.Badge badge) {
+            // A status in a cell says its word, or its count as shown, in the row's name: the
+            // badge is read through the row, as anything inside it is.
+            appendText(badge.text());
             return;
         }
         List<Widget<?>> children = widget.children();

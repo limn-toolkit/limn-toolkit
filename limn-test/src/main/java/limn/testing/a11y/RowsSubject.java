@@ -1,5 +1,6 @@
 package limn.testing.a11y;
 
+import limn.components.Label;
 import limn.scene.Change;
 import limn.scene.Widget;
 
@@ -90,6 +91,20 @@ public interface RowsSubject {
      *     the selection change on the members that moved rather than on a container
      */
     default boolean containerless() {
+        return false;
+    }
+
+    /**
+     * Takes every row away through the widget's API and gives it {@code content} as what it shows
+     * while it holds none, with {@code message}, a label inside the content, as what describes it
+     * then. Called on a bound widget; the contract publishes a frame after it.
+     *
+     * @param content what shows while there are no rows
+     * @param message the label inside it that says why
+     * @return false where the widget has no empty content (a segmented control, a tab strip, a
+     *     radio group, a calendar), in which case nothing changed
+     */
+    default boolean empty(Widget<?> content, Label message) {
         return false;
     }
 

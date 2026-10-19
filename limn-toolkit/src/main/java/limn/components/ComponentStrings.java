@@ -153,6 +153,12 @@ final class ComponentStrings {
     static final I18nString COMBO_MORE =
             new I18nString("limn.comboBox.more", "+{0}");
 
+    // What a count badge shows past the most it counts: "99+", so the badge does not grow with its
+    // count. A string for the reason COMBO_MORE is one: the number is written in the digits the
+    // toolkit shows, and a language places the sign where it reads it.
+    static final I18nString BADGE_AT_LEAST =
+            new I18nString("limn.badge.atLeast", "{0}+");
+
     // What a reader hears for a combo's empty option when the application's text function gave it
     // no words: an option a reader lands on must say something, and a blank row says nothing.
     static final I18nString COMBO_NONE =

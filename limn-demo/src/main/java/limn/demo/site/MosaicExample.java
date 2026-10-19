@@ -109,7 +109,7 @@ public final class MosaicExample {
             new Cell(true, SearchField::new),
             new Cell(false, MosaicExample::automatic),
             new Cell(true, MosaicExample::progress),
-            new Cell(false, () -> new Button("Duplicate").setSecondary(true)),
+            new Cell(false, () -> new Button("Duplicate").setStyle(Button.Style.SECONDARY)),
             new Cell(false, () -> new Spinner(0, 100, 1)),
             new Cell(false, () -> new Checkbox(Checkbox.Variant.BOX, "Include drafts")
                     .setChecked(true)),

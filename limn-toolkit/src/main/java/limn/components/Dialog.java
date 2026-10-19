@@ -126,8 +126,8 @@ import limn.backend.spi.BackendPeer;
  *
  * <pre>{@code
  * new Dialog("Delete?", "This action cannot be undone.")
- *     .addButton("Cancel", "cancel")
- *     .addPrimaryButton("Delete", "delete")
+ *     .addPrimaryButton("Keep", "cancel")
+ *     .addDestructiveButton("Delete", "delete")
  *     .show(scene)
  *     .thenAccept(result -> { if ("delete".equals(result)) ...; });
  * }</pre>
@@ -365,9 +365,49 @@ public final class Dialog {
         return addButton(text, resultValue, true);
     }
 
-    private Dialog addButton(I18nString text, String resultValue, boolean primary) {
+    /**
+     * Adds a button that destroys something ("Delete", "Discard") and resolves the dialog with
+     * {@code resultValue}: a {@linkplain Button.Style#SECONDARY secondary} button with its caption
+     * in the palette's danger colour.
+     *
+     * <p>It is <b>never the default button</b>, whatever was added before it: Return does not
+     * press it, so a person typing into the dialog and pressing Return out of habit does not
+     * delete. Give the dialog a primary button for the safe answer, which Return then gives.
+     *
+     * @param text        the caption; never null
+     * @param resultValue what the dialog resolves with when this button is pressed; may be null
+     * @return this dialog
+     */
+    public Dialog addDestructiveButton(String text, @Nullable String resultValue) {
         Ui.checkUiThread();
-        Button button = new Button(text).setSecondary(!primary);
+        return addDestructiveButton(I18nString.literal(text), resultValue);
+    }
+
+    /**
+     * A destructive button whose caption follows the UI language; see
+     * {@link #addDestructiveButton(String, String)}.
+     *
+     * @param text        the caption; never null
+     * @param resultValue what the dialog resolves with when this button is pressed; may be null
+     * @return this dialog
+     */
+    public Dialog addDestructiveButton(I18nString text, @Nullable String resultValue) {
+        Ui.checkUiThread();
+        // Added as a secondary button, and only a primary one can become the default: so this
+        // one never answers Return, whatever the order the buttons were added in.
+        return addButton(text, resultValue, false, true);
+    }
+
+    private Dialog addButton(I18nString text, String resultValue, boolean primary) {
+        return addButton(text, resultValue, primary, false);
+    }
+
+    private Dialog addButton(I18nString text, String resultValue, boolean primary,
+            boolean destructive) {
+        Ui.checkUiThread();
+        Button button = new Button(text)
+                .setStyle(primary ? Button.Style.PRIMARY : Button.Style.SECONDARY)
+                .setDestructive(destructive);
         button.onAction(() -> resolve(resultValue));
         // Its press resolves the dialog, and once an answer is on its way out resolve() drops
         // it: so a reader is offered the press, and the press is performed, on the condition

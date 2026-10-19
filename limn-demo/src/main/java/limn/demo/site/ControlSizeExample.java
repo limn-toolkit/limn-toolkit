@@ -49,7 +49,7 @@ public final class ControlSizeExample {
         controls.setControlSize(step);
 
         controls.add(new Button("Save"));
-        controls.add(new Button("Cancel").setSecondary(true));
+        controls.add(new Button("Cancel").setStyle(Button.Style.SECONDARY));
         controls.add(new SizedBox(120, SizedBox.UNSET, new TextField().setText("Ada")));
         controls.add(new ComboBox<>(List.of("Everyone", "My team", "Only me")));
         controls.add(new Checkbox(Checkbox.Variant.SWITCH, "Notify").setChecked(true));

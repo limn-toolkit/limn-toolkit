@@ -70,6 +70,13 @@ class ListViewRowsContractTest extends ComponentTestBase {
         }
 
         @Override
+        public boolean empty(Widget<?> content, Label message) {
+            list.setEmptyContent(content, message);
+            list.setItems(List.of());
+            return true;
+        }
+
+        @Override
         public Widget<?> widget() {
             return list;
         }

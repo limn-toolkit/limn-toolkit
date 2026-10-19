@@ -176,7 +176,7 @@ final class AnimationsScene {
         timing.setSelectedIndex(1);
         timing.onSelect(() -> track.setDuration(durations[timing.selectedIndex()]));
 
-        Button animate = new Button(Text.ANIMATE).setSecondary(true).onAction(track::play);
+        Button animate = new Button(Text.ANIMATE).setStyle(Button.Style.SECONDARY).onAction(track::play);
         // On from the start: a dot that keeps crossing the rail shows the curve without a press.
         Checkbox repeat = new Checkbox(Checkbox.Variant.SWITCH, Text.REPEAT).setChecked(true);
         repeat.onChange(track::setRepeat);
@@ -212,7 +212,7 @@ final class AnimationsScene {
 
         // --- A window that fades in and out --------------------------------------------------
         column.add(Page.section(Text.WINDOW));
-        Button openWindow = new Button(Text.OPEN_WINDOW).setSecondary(true);
+        Button openWindow = new Button(Text.OPEN_WINDOW).setStyle(Button.Style.SECONDARY);
         openWindow.onAction(() -> openFloatingWindow(openWindow));
         column.add(Page.row(0, openWindow));
 
@@ -235,7 +235,7 @@ final class AnimationsScene {
         for (int i = FIRST_SHOWN - 1; i >= 0; i--) {
             rows.add(orderRow(rows, ORDERS.get(i), true));
         }
-        Button add = new Button(Text.NEW_ORDER).setSecondary(true).setIcon(TablerMath.PLUS.icon());
+        Button add = new Button(Text.NEW_ORDER).setStyle(Button.Style.SECONDARY).setIcon(TablerMath.PLUS.icon());
         add.onAction(() -> {
             Order order = ORDERS.get(next[0] % ORDERS.size());
             next[0]++;
@@ -256,7 +256,7 @@ final class AnimationsScene {
                 new SizedBox(84, SizedBox.UNSET, new Label(order.number()).setStrong(true)),
                 Expanded.of(new Label(order.customer()), 1),
                 Page.label(() -> DOLLARS.apply(order.amount())));
-        Button archive = new Button(Text.ARCHIVE).setSecondary(true).setIcon(TablerDocument.ARCHIVE.icon());
+        Button archive = new Button(Text.ARCHIVE).setStyle(Button.Style.SECONDARY).setIcon(TablerDocument.ARCHIVE.icon());
         archive.setControlSize(limn.scene.ControlSize.SMALL);
         line.add(archive);
         Unfold row = new Unfold(new Card(line), open);
@@ -295,7 +295,7 @@ final class AnimationsScene {
                         .setAlign(Label.HAlign.END, Label.VAlign.CENTER))));
         Unfold body = new Unfold(lines, false);
 
-        Button toggle = new Button(Text.DETAILS).setSecondary(true);
+        Button toggle = new Button(Text.DETAILS).setStyle(Button.Style.SECONDARY);
         toggle.setControlSize(limn.scene.ControlSize.SMALL);
         toggle.onAction(() -> {
             boolean opening = body.target() < 0.5f;
@@ -336,7 +336,7 @@ final class AnimationsScene {
         faces.add(back);
         Transform card = new Transform(new Card(faces))
                 .setPerspective(1200);
-        Button turn = new Button(Text.TURN_OVER).setSecondary(true);
+        Button turn = new Button(Text.TURN_OVER).setStyle(Button.Style.SECONDARY);
         turn.onAction(() -> card.flipTo(Transform.Flip.FORWARD, 0.45, () -> {
             front.setVisible(!front.isVisible());
             back.setVisible(!back.isVisible());
@@ -363,8 +363,8 @@ final class AnimationsScene {
     /** An SVG spinner animated in SMIL, a WebP as a button's icon, an SVG animated in CSS. */
     private static Widget<?> animatedIcons() {
         Row row = Page.row(16,
-                new Button(Text.SYNCING).setSecondary(true).setIcon(limn.graphics.SvgIcon.of(SPINNER)),
-                new Button(Text.CONNECTING).setSecondary(true)
+                new Button(Text.SYNCING).setStyle(Button.Style.SECONDARY).setIcon(limn.graphics.SvgIcon.of(SPINNER)),
+                new Button(Text.CONNECTING).setStyle(Button.Style.SECONDARY)
                         .setIcon(limn.graphics.BitmapIcon.picture(
                                 limn.graphics.Images.fromResource("/limn/demo/images/orbit.webp"))),
                 new ImageView(limn.graphics.SvgIcon.of(HEART)).setPreferredSize(40, 40)

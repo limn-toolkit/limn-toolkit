@@ -3,6 +3,7 @@ package limn.components;
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.components.internal.a11y.LeafActionAccessibility;
+import limn.components.internal.a11y.PopupOwnerAccessibility;
 import limn.animation.Transition;
 import limn.backend.Cursor;
 import limn.concurrent.Ui;
@@ -67,7 +68,8 @@ public final class Button extends Widget<Button> {
     // through ShapedText.matches, whose identity fast path on the string costs nothing here
     // because I18nString memoizes it.
     private ShapedText caption;
-    private boolean secondary;
+    private Style style = Style.PRIMARY;
+    private boolean destructive;
     private Runnable action;
     // The one condition, beside the enabled bit the walk and the scene own, under which PRESS is
     // published and performed; null for always. Package-private: a Dialog withdraws its buttons'
@@ -127,12 +129,92 @@ public final class Button extends Widget<Button> {
         return this;
     }
 
-    /** Secondary style: a surface-filled, outlined button instead of the filled primary. */
-    public Button setSecondary(boolean value) {
+    /**
+     * How much a button asks to be pressed, of the three looks a row of buttons is drawn in. The
+     * box is the same at every style: padding, height, radius and focus ring are the step's, so a
+     * {@link #TERTIARY} button lines up with the others and keeps a full target.
+     */
+    public enum Style {
+        /** The one action a view or a dialog is for: filled in the palette's accent. */
+        PRIMARY,
+        /** Any other action beside it: the surface's own fill, an outline, the text colour. */
+        SECONDARY,
+        /**
+         * A quiet action that should not compete (a tool bar's, a "Cancel" beside a "Delete"): no
+         * fill and no border at rest, the caption in colour, and a tint of it under the pointer.
+         */
+        TERTIARY
+    }
+
+    /**
+     * Which of the three looks this button is drawn in; {@link Style#PRIMARY} by default.
+     *
+     * @param newStyle the look; never null
+     * @return this button
+     */
+    public Button setStyle(Style newStyle) {
         Ui.checkUiThread();
-        this.secondary = value;
+        Objects.requireNonNull(newStyle, "style");
+        if (style == newStyle) {
+            return this;
+        }
+        this.style = newStyle;
+        // Paint only: the box is the same at every style, which is the point of the three.
         invalidate();
         return this;
+    }
+
+    /** @return the look this button is drawn in */
+    public Style style() {
+        return style;
+    }
+
+    /**
+     * Marks the button as one that destroys something ("Delete order"), drawn in the palette's
+     * danger colour at whichever {@link Style} it has: a primary one is filled in it, a secondary
+     * and a tertiary one write their caption in it.
+     *
+     * <p>Nothing is published for it: no platform carries the notion to a reader, and the caption
+     * is what says what the button does. A dialog's destructive button is never its default one;
+     * see {@link Dialog#addDestructiveButton(I18nString, String)}.
+     *
+     * @param value whether the button destroys something
+     * @return this button
+     */
+    public Button setDestructive(boolean value) {
+        Ui.checkUiThread();
+        if (destructive == value) {
+            return this;
+        }
+        this.destructive = value;
+        invalidate();
+        return this;
+    }
+
+    /** @return whether the button is drawn as one that destroys something */
+    public boolean isDestructive() {
+        return destructive;
+    }
+
+    /** How far a hovered button's state moves: toward the text colour, or a tint's alpha. */
+    private static final float STATE_HOVER = 0.08f;
+    /** How far a pressed button's state moves, twice the hover's. */
+    private static final float STATE_PRESSED = 0.16f;
+
+    /**
+     * The caption's colour while enabled, by style and by whether the button destroys something.
+     * One method, because the tertiary look's tint is the same colour as its caption.
+     */
+    private Color ink(Theme theme) {
+        return switch (style) {
+            case PRIMARY -> theme.onPrimary();
+            case SECONDARY -> destructive ? theme.danger() : theme.text();
+            // The accent as text, the one place the colour that says "this is an action" is kept
+            // once the fill is gone: primary itself where it reads as text on every surface, and
+            // moved toward the text colour where it does not (11 of the 15 built-in palettes,
+            // whose primary is solved for a fill and falls under 4.5:1 on a raised surface).
+            case TERTIARY -> destructive ? theme.danger() : theme.primaryText();
+        };
     }
 
     /**
@@ -168,12 +250,38 @@ public final class Button extends Widget<Button> {
     @Override
     protected void handleUserChange(Change.Aspect aspect) {
         if (aspect == Change.Aspect.INVOKED) {
+            if (popover != null) {
+                // The press opens the popover attached to this button, or closes it while open,
+                // before the application's own handler hears the press.
+                if (popover.isOpen()) {
+                    popover.close();
+                } else {
+                    popover.open();
+                }
+            }
             if (action != null) {
                 action.run();
             }
             return;
         }
         super.handleUserChange(aspect);
+    }
+
+    /**
+     * The popover {@link Popover#attachTo} gave this button, as the owner shape drives it, or
+     * {@code null}: the button then says it opens a popup and whether it is open, and offers
+     * expand and collapse in place of press.
+     */
+    private PopupOwnerAccessibility.@Nullable Host popover;
+
+    void attachPopover(PopupOwnerAccessibility.@Nullable Host host) {
+        this.popover = host;
+        invalidateAccessible();
+    }
+
+    /** The attached popover opened or closed: said to a watcher as the expanded state moving. */
+    void notifyExpanded() {
+        notifyChange(Change.of(Change.Aspect.EXPANDED, Change.Origin.CODE));
     }
 
     /** The user pressed: the watchers hear {@code INVOKED} and then the handler runs. */
@@ -325,24 +433,46 @@ public final class Button extends Widget<Button> {
         Theme theme = Theme.of(this);
         SizeTokens t = theme.tokensFor(this);
         float h = hover.value();
-        Color fill;
-        Color ink;
-        if (secondary) {
-            fill = !isEnabled() ? theme.disabledFill()
-                    : isArmed() ? theme.outline()
-                    : theme.surface().lerp(theme.surfaceRaised(), h);
-            ink = isEnabled() ? theme.text() : theme.disabledText();
-        } else {
-            fill = !isEnabled() ? theme.disabledFill()
-                    : isArmed() ? theme.primaryPressed()
-                    : theme.primary().lerp(theme.primaryHover(), h);
-            ink = isEnabled() ? theme.onPrimary() : theme.disabledText();
-        }
-        if (secondary) {
-            canvas.fillRoundRectWithBorder(0, 0, width(), height(), t.radiusMedium(), fill,
-                    Strokes.BORDER, theme.outline());
-        } else {
-            canvas.fillRoundRect(0, 0, width(), height(), t.radiusMedium(), fill);
+        Color ink = isEnabled() ? ink(theme) : theme.disabledText();
+        switch (style) {
+            case PRIMARY -> {
+                Color fill;
+                if (!isEnabled()) {
+                    fill = theme.disabledFill();
+                } else if (destructive) {
+                    // The palette has no hover or pressed danger, so both are danger moved toward
+                    // the text colour: darker in a light palette and lighter in a dark one, as the
+                    // accent's own hover and pressed tones move. The ink is onPrimary, whose
+                    // contrast on danger every built-in palette is tested for.
+                    fill = isArmed() ? theme.danger().lerp(theme.text(), STATE_PRESSED)
+                            : theme.danger().lerp(theme.text(), STATE_HOVER * h);
+                } else {
+                    fill = isArmed() ? theme.primaryPressed()
+                            : theme.primary().lerp(theme.primaryHover(), h);
+                }
+                canvas.fillRoundRect(0, 0, width(), height(), t.radiusMedium(), fill);
+            }
+            case SECONDARY -> {
+                Color fill = !isEnabled() ? theme.disabledFill()
+                        : isArmed() ? theme.outline()
+                        : theme.surface().lerp(theme.surfaceRaised(), h);
+                canvas.fillRoundRectWithBorder(0, 0, width(), height(), t.radiusMedium(), fill,
+                        Strokes.BORDER, theme.outline());
+            }
+            case TERTIARY -> {
+                // No fill at rest and none disabled: the state is a tint of the caption's own
+                // colour, so it reads as the same button under the pointer rather than as a
+                // second look. Nothing is drawn while the tint is zero, so a resting tool bar of
+                // these costs no fill.
+                if (isEnabled()) {
+                    float alpha = isArmed() ? STATE_PRESSED : STATE_HOVER * h;
+                    if (alpha > 0) {
+                        Color tint = ink(theme);
+                        canvas.fillRoundRect(0, 0, width(), height(), t.radiusMedium(),
+                                tint.withAlpha(tint.a() * alpha));
+                    }
+                }
+            }
         }
         float focus = focusFade.value();
         if (focus > 0.001f) {
@@ -422,6 +552,13 @@ public final class Button extends Widget<Button> {
         limn.i18n.internal.AccessMarks.Parsed caption = shown();
         a.name(caption.text(), marked.witness(), Accessible.NameFrom.CONTENT);
         a.accessKey(marked.binding());
+        if (popover != null) {
+            // A button that opens a popover is a POPUP_OWNER ahead of a leaf (ADR 045 §3), the
+            // shape a tab strip's list button has: HAS_POPUP, the expand facet, and EXPAND or
+            // COLLAPSE by state in place of PRESS.
+            PopupOwnerAccessibility.describe(a, popover.isOpen());
+            return;
+        }
         // The LEAF_ACTION shape, written once (ADR 045 §3): PRESS exactly while accepted.
         LeafActionAccessibility.describe(a, pressAccepted());
     }
@@ -444,6 +581,9 @@ public final class Button extends Widget<Button> {
      */
     @Override
     protected boolean onAccessibilityAction(Accessible.Action verb, Accessible.Argument arg) {
+        if (popover != null) {
+            return isEnabled() && PopupOwnerAccessibility.perform(popover, verb);
+        }
         return LeafActionAccessibility.perform(leafHost, verb);
     }
 

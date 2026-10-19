@@ -615,6 +615,59 @@ public final class Theme {
         return primary;
     }
 
+    /**
+     * The accent as body-size text: {@link #primary()} where it already reads as text on every
+     * surface, and otherwise primary moved toward {@link #text()} in steps of one hundredth only
+     * until it clears 4.5:1 on {@link #background()}, {@link #surface()} and
+     * {@link #surfaceRaised()}. Derived, not a token of the theme file, so a palette of your own
+     * gets it without a key to set, and a primary that passes is returned as it is.
+     *
+     * <p>It is the colour a {@linkplain Button.Style#TERTIARY tertiary} button writes its caption
+     * in and {@link Tone#ACCENT} draws text in. A fill keeps {@link #primary()}: the bar there is
+     * 3:1 for a filled shape, which primary is solved for, and text on a fill is
+     * {@link #onPrimary()}. Moving toward the text colour keeps the accent's hue and gives up some
+     * of its saturation: lighter in a dark palette and darker in a light one.
+     *
+     * @return the accent, adjusted only as far as text needs
+     */
+    public Color primaryText() {
+        Color made = primaryText;
+        if (made == null) {
+            // Made once per palette, for the reason track() is: a frame of text in the accent
+            // must not allocate. A race makes the same value twice.
+            made = readableToward(primary, text, background, surface, surfaceRaised);
+            primaryText = made;
+        }
+        return made;
+    }
+
+    /** {@link #primaryText()}, made on first use. */
+    private Color primaryText;
+
+    /** Body text's bar, WCAG 2.1's 4.5:1, which {@link #primaryText()} is moved until it clears. */
+    private static final double TEXT_CONTRAST = 4.5;
+
+    /**
+     * {@code colour} moved toward {@code target} in steps of one hundredth until it clears body
+     * text's bar on each of {@code grounds}; {@code target} itself if no step does.
+     */
+    private static Color readableToward(Color colour, Color target, Color... grounds) {
+        for (int step = 0; step <= 100; step++) {
+            Color candidate = colour.lerp(target, step / 100f);
+            boolean clears = true;
+            for (Color ground : grounds) {
+                if (Color.contrastRatio(candidate, ground) < TEXT_CONTRAST) {
+                    clears = false;
+                    break;
+                }
+            }
+            if (clears) {
+                return candidate;
+            }
+        }
+        return target;
+    }
+
     /** @return this palette's {@code primaryHover} */
     public Color primaryHover() {
         return primaryHover;

@@ -431,20 +431,20 @@ final class IconsScene {
         private final Label call = new Label("").setOverflow(Label.Overflow.ELLIPSIS);
         private final IconView twin = new IconView();
         private final Label noTwin = new Label(Text.NO_FILLED).setMuted(true);
-        private final Button inButton = new Button("").setSecondary(true);
+        private final Button inButton = new Button("").setStyle(Button.Style.SECONDARY);
 
         Detail(Catalogue catalogue) {
             this.catalogue = catalogue;
             panel.gap(Page.GAP).crossAlignment(Flex.CrossAlignment.START);
 
-            Button copy = new Button(Text.COPY).setSecondary(true);
+            Button copy = new Button(Text.COPY).setStyle(Button.Style.SECONDARY);
             copy.setIcon(Tabler.outline("copy"));
             copy.onAction(() -> {
                 copy.scene().clipboard().set(Transfer.of(DataFormat.TEXT, call.text()));
                 Page.report(Text.COPIED.format(call.text()));
             });
 
-            Button actions = new Button(Text.ACTIONS).setSecondary(true);
+            Button actions = new Button(Text.ACTIONS).setStyle(Button.Style.SECONDARY);
             // Built as it opens, so its first item carries the icon chosen now.
             actions.onAction(() -> openBelow(actions, new Menu()
                     .add(MenuItem.of(inButton.text(), () -> Page.report(inButton.text()))

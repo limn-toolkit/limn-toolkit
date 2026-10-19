@@ -150,7 +150,7 @@ final class FilesScene {
 
     /** The button beside a field that opens the chooser: secondary, there being several. */
     private static Button chooser(I18nString text, String icon) {
-        Button button = new Button(text).setSecondary(true);
+        Button button = new Button(text).setStyle(Button.Style.SECONDARY);
         button.setIcon(Tabler.outline(icon));
         return button;
     }

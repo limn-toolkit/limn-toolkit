@@ -197,6 +197,10 @@ final class GalleryScenes {
                 new GalleryEntry("expander", "Expander", "gallery:expander",
                         GalleryScenes::expander),
                 new GalleryEntry("card", "Card", "gallery:card", GalleryScenes::card),
+                new GalleryEntry("badge", "Badge", "gallery:badge", GalleryScenes::badge),
+                new GalleryEntry("avatar", "Avatar and AvatarGroup", "gallery:avatar",
+                        GalleryScenes::avatar),
+                new GalleryEntry("popover", "Popover", "gallery:popover", GalleryScenes::popover),
                 new GalleryEntry("spinner", "Spinner", "gallery:spinner", GalleryScenes::spinner),
                 new GalleryEntry("date-field", "DateField", "gallery:date-field",
                         GalleryScenes::dateField),
@@ -239,7 +243,9 @@ final class GalleryScenes {
         Button disabled = new Button("Disabled");
         disabled.setEnabled(false);
         row.add(new Button("Primary"));
-        row.add(new Button("Secondary").setSecondary(true));
+        row.add(new Button("Secondary").setStyle(Button.Style.SECONDARY));
+        row.add(new Button("Tertiary").setStyle(Button.Style.TERTIARY));
+        row.add(new Button("Delete").setStyle(Button.Style.SECONDARY).setDestructive(true));
         row.add(disabled);
         return scene(row);
     }
@@ -379,6 +385,72 @@ final class GalleryScenes {
     }
     // #endregion
 
+    // #region gallery:badge
+    static Built badge() {
+        // A status in each tone, a count past what it shows, and a dot beside a name.
+        Row tones = new Row();
+        tones.gap(8).crossAlignment(Flex.CrossAlignment.CENTER);
+        tones.add(new limn.components.Badge("Open").setTone(limn.components.Tone.INFO));
+        tones.add(new limn.components.Badge("Paid").setTone(limn.components.Tone.SUCCESS));
+        tones.add(new limn.components.Badge("Due soon").setTone(limn.components.Tone.WARNING));
+        tones.add(new limn.components.Badge("Overdue").setTone(limn.components.Tone.DANGER));
+        Row counts = new Row();
+        counts.gap(8).crossAlignment(Flex.CrossAlignment.CENTER);
+        counts.add(new Label("Inbox"));
+        counts.add(limn.components.Badge.count(3).setTone(limn.components.Tone.ACCENT));
+        counts.add(new Label("Alerts"));
+        counts.add(limn.components.Badge.count(128).setTone(limn.components.Tone.DANGER));
+        counts.add(new Label("Ana Lima"));
+        counts.add(limn.components.Badge.dot(limn.i18n.I18nString.literal("Unread"))
+                .setTone(limn.components.Tone.ACCENT));
+        Column column = new Column();
+        column.gap(12);
+        column.add(tones);
+        column.add(counts);
+        return scene(column);
+    }
+    // #endregion
+
+    // #region gallery:avatar
+    static Built avatar() {
+        // People as initials over a colour of their own, and approvers past the four drawn.
+        Row people = new Row();
+        people.gap(10).crossAlignment(Flex.CrossAlignment.CENTER);
+        for (String name : List.of("Ana Lima", "Rui Costa", "Mei Chen")) {
+            people.add(new limn.components.Avatar(name));
+        }
+        limn.components.AvatarGroup approvers = new limn.components.AvatarGroup();
+        for (String name : List.of("Ana Lima", "Rui Costa", "Mei Chen", "Omar Haddad",
+                "Lena Vogel", "Kofi Mensah")) {
+            approvers.add(new limn.components.Avatar(name));
+        }
+        approvers.setAccessibleName("Approvers");
+        people.add(new SizedBox(16, 1));
+        people.add(approvers);
+        return scene(people);
+    }
+    // #endregion
+
+    // #region gallery:popover
+    static Built popover() {
+        // IN_SCENE, as the dialog's: a popover in a window of its own is not in this window's
+        // picture. The box leaves room under the button for the panel it opens.
+        Button filter = new Button("Filter").setStyle(Button.Style.SECONDARY);
+        Column panel = new Column();
+        panel.gap(10);
+        panel.add(new limn.components.Field("Customer contains", new TextField().setText("Kestrel")));
+        panel.add(new Checkbox(Checkbox.Variant.BOX, "Overdue only"));
+        limn.components.Popover popover = new limn.components.Popover(panel)
+                .setDisplayMode(DisplayMode.IN_SCENE).setAccessibleName("Filter orders")
+                .attachTo(filter);
+        Column owner = new Column();
+        owner.add(filter);
+        Built built = scene(new SizedBox(300, 220, owner));
+        popover.showFor(filter);
+        return built;
+    }
+    // #endregion
+
     // #region gallery:card
     static Built card() {
         // A customer's record, and an invoice clicked anywhere above the actions under it.
@@ -389,7 +461,7 @@ final class GalleryScenes {
         Card invoice = new Card(new Label("Three items, due on Friday.").setWrap(true))
                 .setTitle("Invoice 1042")
                 .setSubtitle("Harbor Lane Supplies")
-                .setFooter(new Button("Hold").setSecondary(true), new Button("Approve"));
+                .setFooter(new Button("Hold").setStyle(Button.Style.SECONDARY), new Button("Approve"));
         invoice.onActivate(() -> { }); // a click above the footer opens the invoice
         Column cards = new Column();
         cards.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
@@ -519,7 +591,7 @@ final class GalleryScenes {
 
         Row row = new Row();
         row.gap(8).crossAlignment(Flex.CrossAlignment.CENTER);
-        row.add(new Button("Pause").setSecondary(true));
+        row.add(new Button("Pause").setStyle(Button.Style.SECONDARY));
         row.add(limn.scene.layout.Expanded.of(scrub));
         row.add(new Label("0:24 / 1:03").setMuted(true));
         row.add(new SizedBox(52, SizedBox.UNSET, volume));
@@ -592,9 +664,9 @@ final class GalleryScenes {
     static Built toolBar() {
         ToolBar bar = new ToolBar();
         bar.addItem(new Button("New"));
-        bar.addItem(new Button("Open").setSecondary(true));
+        bar.addItem(new Button("Open").setStyle(Button.Style.SECONDARY));
         bar.addSeparator();
-        bar.addItem(new Button("Save").setSecondary(true));
+        bar.addItem(new Button("Save").setStyle(Button.Style.SECONDARY));
         return scene(bar);
     }
     // #endregion
@@ -767,8 +839,8 @@ final class GalleryScenes {
         Built built = scene(new SizedBox(340, 140, owner));
         new Dialog("Discard changes?", "Your edits will be lost.")
                 .setDisplayMode(DisplayMode.IN_SCENE)
-                .addButton("Cancel", "cancel")
-                .addPrimaryButton("Discard", "discard")
+                .addPrimaryButton("Keep editing", "cancel")
+                .addDestructiveButton("Discard", "discard")
                 .show(built.scene());
         return built;
     }

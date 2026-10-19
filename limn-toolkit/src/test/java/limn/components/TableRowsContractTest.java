@@ -80,6 +80,13 @@ class TableRowsContractTest extends ComponentTestBase {
         }
 
         @Override
+        public boolean empty(Widget<?> content, Label message) {
+            table.setEmptyContent(content, message);
+            table.setRows(List.of());
+            return true;
+        }
+
+        @Override
         public Widget<?> widget() {
             return table;
         }

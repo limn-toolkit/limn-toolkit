@@ -89,7 +89,58 @@ public final class RowsContract {
                 () -> idsAreStable(subject, runtime)));
         cases.add(new ContractCase("the cursor is published while the widget has the keyboard "
                 + "and not before", () -> theCursorIsPublishedWithTheKeyboard(subject, runtime)));
+        cases.add(new ContractCase("an empty widget's content is published after its rows in no "
+                + "selection, and its message describes the container",
+                () -> anEmptyContentIsNoMember(subject, runtime)));
         return cases;
+    }
+
+    /**
+     * The case the empty content adds to the shape: with no rows, the content's nodes are published
+     * under the container and after everything else in it, none is a member of the selection, and
+     * the container is described by the message and related to it. Skipped by a subject that has
+     * no empty content.
+     */
+    private static void anEmptyContentIsNoMember(RowsSubject subject, UiRuntime rt) {
+        Bound b = Bound.of(subject, rt);
+        long containerId = b.container.id();
+        limn.components.Label message = new limn.components.Label("Nothing matches");
+        limn.components.Button clear = new limn.components.Button("Clear filter");
+        limn.components.TokenColumn content = new limn.components.TokenColumn();
+        content.add(message);
+        content.add(clear);
+        if (!subject.empty(content, message)) {
+            return;
+        }
+        b.harness.frame();
+        AccessibleTree tree = b.harness.tree();
+        AccessibleNode container = b.harness.node(containerId);
+        for (int i = 0; i < tree.nodeCount(); i++) {
+            check(tree.node(i).selectionItem() == null, b, "no node is a member while there are no "
+                    + "rows: \"" + tree.node(i).name() + "\"");
+        }
+        check(container.selection() != null, b, "the container still carries the selection facet");
+        check("Nothing matches".equals(container.description()), b, "the container is described "
+                + "by the message: \"" + container.description() + "\"");
+        AccessibleNode said = b.harness.node("Nothing matches");
+        boolean related = false;
+        for (limn.accessibility.AccessibleRelation relation : container.relations()) {
+            related |= relation.kind() == Accessible.Relation.DESCRIBED_BY
+                    && relation.target() == said.id();
+        }
+        check(related, b, "and DESCRIBED_BY the message's node");
+        AccessibleNode button = b.harness.node("Clear filter");
+        int top = AccessibleNode.NONE;
+        for (int at = tree.indexOf(button.id()); at != AccessibleNode.NONE; at = tree.node(at).parent()) {
+            if (tree.node(at).parent() != AccessibleNode.NONE
+                    && tree.node(tree.node(at).parent()).id() == containerId) {
+                top = at;
+                break;
+            }
+        }
+        check(top != AccessibleNode.NONE, b, "the content is published under the container");
+        check(tree.node(top).nextSibling() == AccessibleNode.NONE, b, "and after everything else "
+                + "in it, as the Tab key reaches it after the container");
     }
 
     // ------------------------------------------------------------------------------ the cases

@@ -192,7 +192,7 @@ final class SplitPaneScene {
         SplitPane outer = SplitPane.horizontal(new Pane(new Padding(Insets.all(6), folderList)), inner);
         outer.setRatio(FOLDERS_RATIO).setMinimums(140, 500).setDividerFocusable(true);
 
-        Button reset = new Button(Text.RESET).setSecondary(true);
+        Button reset = new Button(Text.RESET).setStyle(Button.Style.SECONDARY);
         reset.setIcon(Tabler.outline("layout-columns"));
         reset.onAction(() -> {
             outer.setRatio(FOLDERS_RATIO);

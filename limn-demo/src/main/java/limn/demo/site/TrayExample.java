@@ -64,8 +64,8 @@ public final class TrayExample {
      * chosen, it minimizes again.
      */
     static Widget<?> standIn(Tray tray, NativeWindow small, Runnable preferences, Runnable quit) {
-        Button open = new Button("Preferences").setSecondary(true);
-        Button end = new Button("Quit").setSecondary(true);
+        Button open = new Button("Preferences").setStyle(Button.Style.SECONDARY);
+        Button end = new Button("Quit").setStyle(Button.Style.SECONDARY);
         open.onAction(() -> {
             preferences.run();
             small.minimize();

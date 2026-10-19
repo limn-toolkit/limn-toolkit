@@ -307,7 +307,7 @@ final class TreeScene {
                     // the button takes its own press, and the tree selects only what the cell
                     // lets through.
                     limn.components.Button open =
-                            new limn.components.Button("Open").setSecondary(true);
+                            new limn.components.Button("Open").setStyle(Button.Style.SECONDARY);
                     // Not chained: setControlSize is Widget's and returns void, so a chain
                     // would hand `add` a void expression.
                     open.setControlSize(limn.scene.ControlSize.SMALL);
@@ -640,7 +640,7 @@ final class TreeScene {
             Label names = new Label("").setMuted(true).setWrap(true);
 
             Button open = new Button(Text.OPEN);
-            Button share = new Button(Text.SHARE).setSecondary(true);
+            Button share = new Button(Text.SHARE).setStyle(Button.Style.SECONDARY);
 
             Runnable describe = () -> {
                 List<Entry> chosen = tree.selectedNodes();

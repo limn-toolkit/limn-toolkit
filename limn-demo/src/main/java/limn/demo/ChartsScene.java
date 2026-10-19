@@ -129,7 +129,7 @@ final class ChartsScene {
         Page.followLanguage(writeTotal);
         channels.setCenter(donutCentre(total));
 
-        Button refresh = new Button(Text.REFRESH).setSecondary(true);
+        Button refresh = new Button(Text.REFRESH).setStyle(Button.Style.SECONDARY);
         refresh.setIcon(Tabler.outline("refresh"));
         refresh.onAction(() -> {
             revenue.series().get(0).setValues(random(4, 150_000, 240_000));

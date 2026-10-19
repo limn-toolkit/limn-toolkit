@@ -102,11 +102,11 @@ final class AudioScene {
         // Pan is physical space, not reading order: -100 is the LEFT speaker in any language,
         // so the slider's axis does not mirror (docs/design/direction-axis.md).
         pan.setLayoutDirection(limn.scene.LayoutDirection.LTR);
-        Button playChime = new Button(Text.CHIME).setSecondary(true);
+        Button playChime = new Button(Text.CHIME).setStyle(Button.Style.SECONDARY);
         playChime.onAction(() -> Sounds.play(chime, PlayOptions.DEFAULTS
                 .withPitch(0.8f + (float) Math.random() * 0.5f)
                 .withPan(pan.value() / 100f)));
-        Button playThud = new Button(Text.THUD).setSecondary(true);
+        Button playThud = new Button(Text.THUD).setStyle(Button.Style.SECONDARY);
         playThud.onAction(() -> Sounds.play(thud, PlayOptions.DEFAULTS
                 .withPitch(0.9f + (float) Math.random() * 0.2f)
                 .withPan(pan.value() / 100f)));
@@ -121,7 +121,7 @@ final class AudioScene {
 
         // --- Music streamed from a file, with its place in the track ----------------------
         column.add(Page.section(Text.MUSIC));
-        Button burst = new Button(Text.BURST).setSecondary(true);
+        Button burst = new Button(Text.BURST).setStyle(Button.Style.SECONDARY);
         burst.setTooltip(Text.BURST_TIP);
         burst.onAction(() -> {
             for (int i = 0; i < 30; i++) {
@@ -185,8 +185,8 @@ final class AudioScene {
     /** Play, pause, stop and a burst on one row; the place in the track on the next. */
     private static final class MusicPanel extends Widget<MusicPanel> {
         private final Button play = new Button(Text.PLAY);
-        private final Button pause = new Button(Text.PAUSE).setSecondary(true);
-        private final Button stop = new Button(Text.STOP).setSecondary(true);
+        private final Button pause = new Button(Text.PAUSE).setStyle(Button.Style.SECONDARY);
+        private final Button stop = new Button(Text.STOP).setStyle(Button.Style.SECONDARY);
         private final Slider position = new Slider(0, TRACK_SECONDS);
         private final Label clock = new Label(clock(0)).setMuted(true);
         private final Column rows = new Column();

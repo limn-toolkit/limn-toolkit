@@ -226,7 +226,7 @@ class ButtonTest extends ComponentTestBase {
         List<Float> restingMedium = null;
         List<Float> focusedMedium = null;
         for (ControlSize step : ControlSize.values()) {
-            Button b = new Button("OK").setSecondary(true).setControlSize(step);
+            Button b = new Button("OK").setStyle(Button.Style.SECONDARY).setControlSize(step);
             Scene host = new Scene(b, strokeClock::get);
             host.setTextRuler(SCALED_RULER);
             Size box = b.measure(Constraints.loose(1000, 1000));

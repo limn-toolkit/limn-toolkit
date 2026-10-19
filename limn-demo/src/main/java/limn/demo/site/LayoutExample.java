@@ -132,7 +132,7 @@ public final class LayoutExample {
         tags.gap(8).runGap(8);
         tags.setControlSize(ControlSize.SMALL);
         for (String name : names) {
-            tags.add(new Button(name).setSecondary(true));
+            tags.add(new Button(name).setStyle(Button.Style.SECONDARY));
         }
         return tags;
     }
@@ -205,8 +205,8 @@ public final class LayoutExample {
         ToolBar bar = new ToolBar();
         bar.addItem(new Button("Import"));
         bar.addSeparator();
-        bar.addItem(new Button("New collection").setSecondary(true));
-        bar.addItem(new Button("Share").setSecondary(true));
+        bar.addItem(new Button("New collection").setStyle(Button.Style.SECONDARY));
+        bar.addItem(new Button("Share").setStyle(Button.Style.SECONDARY));
 
         SplitPane panes = SplitPane.horizontal(sidebar(), library());
         panes.setRatio(0.24f).setMinimums(150, 320);

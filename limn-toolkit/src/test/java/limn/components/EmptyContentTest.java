@@ -1,0 +1,373 @@
+package limn.components;
+
+import limn.accessibility.Accessible;
+import limn.accessibility.AccessibleEvent;
+import limn.accessibility.AccessibleNode;
+import limn.accessibility.AccessibleRelation;
+import limn.components.table.Column;
+import limn.components.table.Table;
+import limn.components.tree.Tree;
+import limn.input.Keys;
+import limn.scene.Insets;
+import limn.scene.Scene;
+import limn.scene.Widget;
+import limn.scene.layout.Padding;
+import limn.scene.layout.SizedBox;
+import org.junit.jupiter.api.Test;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import static limn.testing.SceneDriver.drive;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * What a list, a table and a tree show while they hold no rows, and while they load: shown by
+ * itself at zero rows and gone at one, in the rows' viewport with a table's header and footer kept,
+ * after the widget in the Tab order, describing the widget to a reader and belonging to no
+ * selection, busy and announced while loading, and repainting the widget and not the window.
+ */
+class EmptyContentTest extends AccessibleComponentTestBase {
+
+    private final List<String> names = new ArrayList<>();
+
+    @org.junit.jupiter.api.BeforeEach
+    void inEnglish() {
+        limn.i18n.I18n.setLocale(java.util.Locale.ENGLISH);
+    }
+
+    private ListView<String> list() {
+        ListView<String> list = new ListView<>(Label::new);
+        list.setItems(names);
+        list.setAccessibleName("Contacts");
+        return list;
+    }
+
+    private Table<String> table() {
+        Column<String> name = Column.text("Customer", s -> s);
+        name.footer("Total");
+        Table<String> table = new Table<>(List.of(name));
+        table.setRows(names);
+        table.setAccessibleName("Orders");
+        return table;
+    }
+
+    private Tree<String> folders() {
+        Tree<String> tree = new Tree<>(new Tree.Model<>() {
+            @Override
+            public List<String> roots() {
+                return names;
+            }
+
+            @Override
+            public List<String> children(String node) {
+                return List.of();
+            }
+
+            @Override
+            public Widget<?> cellFor(String node) {
+                return new Label(node);
+            }
+        });
+        tree.setAccessibleName("Folders");
+        return tree;
+    }
+
+    /** The empty content: a message and a button that clears the filter, as the Showcase has. */
+    private record Empty(TokenColumn content, Label message, Button clear) {
+        static Empty make() {
+            Label message = new Label("No orders match");
+            Button clear = new Button("Clear filter").setStyle(Button.Style.SECONDARY);
+            TokenColumn content = new TokenColumn(Tokens.Role.SMALL);
+            content.add(message);
+            content.add(clear);
+            return new Empty(content, message, clear);
+        }
+    }
+
+    private void mount(Widget<?> rows) {
+        bind(new Padding(Insets.all(20), new SizedBox(300, 200, rows)));
+    }
+
+    @Test
+    void eachShowsItsContentAtZeroRowsAndLetsItGoAtOne() {
+        for (int kind = 0; kind < 3; kind++) {
+            names.clear();
+            Widget<?> rows = kind == 0 ? list() : kind == 1 ? table() : folders();
+            Empty empty = Empty.make();
+            setEmpty(rows, empty);
+            mount(rows);
+            assertSame(rows, empty.content().parent(), kind + ": the content is the widget's child");
+            assertSame(empty.content(), rows.children().get(rows.children().size() - 1),
+                    kind + ": and its last");
+            assertTrue(showingEmpty(rows), kind + ": showing at zero rows");
+            assertTrue(empty.content().width() > 0, kind + ": laid out");
+
+            names.add("Ana Lima");
+            refresh(rows);
+            frame();
+            assertNull(empty.content().parent(), kind + ": gone at one row");
+            assertFalse(showingEmpty(rows));
+
+            names.clear();
+            refresh(rows);
+            frame();
+            assertSame(rows, empty.content().parent(), kind + ": back when the rows go");
+        }
+    }
+
+    @Test
+    void eachPaintsItsContent() {
+        // The three paint their children themselves, the rows they mounted: the content is painted
+        // by them too, or it is laid out and published and never seen (the first prints).
+        for (int kind = 0; kind < 3; kind++) {
+            names.clear();
+            Widget<?> rows = kind == 0 ? list() : kind == 1 ? table() : folders();
+            Empty empty = Empty.make();
+            setEmpty(rows, empty);
+            Scene s = new Scene(new limn.scene.layout.SizedBox(300, 200, rows));
+            s.setTextRuler(RULER);
+            s.layoutPass(300, 200);
+            List<String> drawn = new ArrayList<>();
+            s.renderFrame(new FakeCanvas(300, 200) {
+                @Override
+                public void drawText(String text, float x, float y, limn.graphics.Font font,
+                        limn.graphics.Paint paint) {
+                    drawn.add(text);
+                }
+            });
+            assertTrue(drawn.contains("No orders match"), kind + " painted its message: " + drawn);
+            assertTrue(drawn.contains("Clear filter"), kind + " and its button: " + drawn);
+        }
+    }
+
+    private static void setEmpty(Widget<?> rows, Empty empty) {
+        if (rows instanceof ListView<?> l) {
+            l.setEmptyContent(empty.content(), empty.message());
+        } else if (rows instanceof Table<?> t) {
+            t.setEmptyContent(empty.content(), empty.message());
+        } else {
+            ((Tree<?>) rows).setEmptyContent(empty.content(), empty.message());
+        }
+    }
+
+    private static boolean showingEmpty(Widget<?> rows) {
+        if (rows instanceof ListView<?> l) {
+            return l.isShowingEmptyContent();
+        } else if (rows instanceof Table<?> t) {
+            return t.isShowingEmptyContent();
+        }
+        return ((Tree<?>) rows).isShowingEmptyContent();
+    }
+
+    private static void refresh(Widget<?> rows) {
+        if (rows instanceof ListView<?> l) {
+            l.refresh();
+        } else if (rows instanceof Table<?> t) {
+            t.refresh();
+        } else {
+            ((Tree<?>) rows).refresh();
+        }
+    }
+
+    @Test
+    void aTableKeepsItsHeaderAndFooterAndCentresTheContentInTheRowsBetween() {
+        Table<String> table = table();
+        Empty empty = Empty.make();
+        table.setEmptyContent(empty.content(), empty.message());
+        mount(table);
+        Widget<?> content = empty.content();
+        float header = Theme.current().tokensFor(table).controlHeight() / 2;
+        assertTrue(content.y() > header, "below the header: " + content.y());
+        assertTrue(content.y() + content.height() < table.height() - header, "above the footer");
+        float viewportLeft = 0;
+        assertEquals(table.width() / 2, content.x() + content.width() / 2, 1f, "centred across");
+        assertTrue(content.x() >= viewportLeft + Theme.current().tokensFor(table).spacingLarge() - 0.01f,
+                "spacingLarge kept from the edge");
+    }
+
+    @Test
+    void theContentsControlsFollowTheWidgetInTheTabOrder() {
+        ListView<String> list = list();
+        Empty empty = Empty.make();
+        list.setEmptyContent(empty.content(), empty.message());
+        mount(list);
+        scene.requestFocus(list);
+        drive(scene).keyEvent(Keys.TAB, true, false, 0);
+        drive(scene).keyEvent(Keys.TAB, false, false, 0);
+        drive(scene).inputBatchEnded();
+        assertSame(empty.clear(), scene.focusedWidget(), "Tab from the empty list reaches Clear filter");
+    }
+
+    @Test
+    void theRowsComingBackUnderAFocusedButtonGiveTheKeyboardToTheWidget() {
+        ListView<String> list = list();
+        Empty empty = Empty.make();
+        empty.clear().onAction(() -> {
+            names.add("Ana Lima");
+            list.refresh();
+        });
+        list.setEmptyContent(empty.content(), empty.message());
+        mount(list);
+        scene.requestFocus(empty.clear());
+        drive(scene).keyEvent(Keys.SPACE, true, false, 0);
+        drive(scene).keyEvent(Keys.SPACE, false, false, 0);
+        drive(scene).inputBatchEnded();
+        frame();
+        assertNull(empty.content().parent(), "the content left with the empty state");
+        assertSame(list, scene.focusedWidget(), "the keyboard is where the rows came back");
+    }
+
+    @Test
+    void aReaderFindsTheWidgetDescribedByTheMessageAndTheContentAfterItsRowsInNoSelection() {
+        Table<String> table = table();
+        Empty empty = Empty.make();
+        table.setEmptyContent(empty.content(), empty.message());
+        mount(table);
+        AccessibleNode node = node("Orders");
+        assertEquals("No orders match", node.description(), "table, 0 rows, no orders match");
+        AccessibleNode message = node("No orders match");
+        boolean related = false;
+        for (AccessibleRelation r : node.relations()) {
+            related |= r.kind() == Accessible.Relation.DESCRIBED_BY && r.target() == message.id();
+        }
+        assertTrue(related, "DESCRIBED_BY the message: " + node.relations());
+        AccessibleNode clear = node("Clear filter");
+        assertEquals(Accessible.Role.BUTTON, clear.role());
+        assertTrue(isUnder(clear, node), "published under the table");
+        List<AccessibleNode> kids = childrenOf(node);
+        assertTrue(isUnder(clear, kids.get(kids.size() - 1)) || kids.get(kids.size() - 1).id() == clear.id(),
+                "after the rows, last: " + kids);
+        assertFalse(clear.states().contains(Accessible.State.SELECTABLE), "no member of the selection");
+
+        names.add("Ana Lima");
+        table.refresh();
+        frame();
+        assertEquals("", node("Orders").description(), "a table with rows is described by nothing");
+    }
+
+    @Test
+    void aContentWithNoMessageDescribesNothingAndAMessageAloneIsItsOwnContent() {
+        ListView<String> list = list();
+        list.setEmptyContent(new Button("Add a contact"));
+        mount(list);
+        assertEquals("", node("Contacts").description(), "no message given: no description");
+        list.setEmptyMessage("No contacts yet");
+        frame();
+        assertTrue(list.isShowingEmptyContent());
+        assertEquals("No contacts yet", node("Contacts").description());
+        assertEquals(Accessible.Role.LABEL, node("No contacts yet").role());
+        list.setEmptyMessage((String) null);
+        frame();
+        assertNull(list.emptyContent());
+        assertFalse(list.isShowingEmptyContent());
+    }
+
+    private boolean isUnder(AccessibleNode node, AccessibleNode ancestor) {
+        for (int at = node.parent(); at != AccessibleNode.NONE; at = tree().node(at).parent()) {
+            if (tree().node(at).id() == ancestor.id()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private List<String> announced() {
+        List<String> said = new ArrayList<>();
+        for (AccessibleEvent event : bridge.events) {
+            if (event.type() == AccessibleEvent.Type.ANNOUNCEMENT) {
+                said.add(String.valueOf(event.newValue()));
+            }
+        }
+        return said;
+    }
+
+    @Test
+    void aLoadShowsItsContentMarksTheWidgetBusyAndIsAnnouncedAtBothEnds() {
+        Table<String> table = table();
+        Empty empty = Empty.make();
+        table.setEmptyContent(empty.content(), empty.message());
+        mount(table);
+        table.setLoading(true);
+        frame();
+        assertTrue(table.isShowingLoadingContent(), "the default loading content");
+        assertFalse(table.isShowingEmptyContent(), "in place of the empty one");
+        assertNull(empty.content().parent());
+        AccessibleNode node = node("Orders");
+        assertTrue(node.states().contains(Accessible.State.BUSY), "busy while it loads");
+        assertEquals("Loading…", node.description(), "described by the loading line");
+        assertEquals(List.of("Loading Orders"), announced());
+
+        names.add("Ana Lima");
+        names.add("Rui Costa");
+        table.refresh();
+        table.setLoading(false);
+        frame();
+        assertFalse(table.isShowingLoadingContent());
+        assertFalse(node("Orders").states().contains(Accessible.State.BUSY));
+        assertEquals(List.of("Loading Orders", "Orders, 2 items"), announced());
+    }
+
+    @Test
+    void aLoadThatFindsNothingSaysTheEmptyMessage() {
+        ListView<String> list = list();
+        list.setEmptyMessage("No contacts match");
+        mount(list);
+        list.setLoading(true);
+        frame();
+        Label own = new Label("Fetching contacts");
+        list.setLoadingContent(own, own);
+        frame();
+        assertSame(list, own.parent(), "the application's loading content replaces the default");
+        assertEquals("Fetching contacts", node("Contacts").description());
+        list.setLoading(false);
+        frame();
+        assertTrue(list.isShowingEmptyContent());
+        assertEquals(List.of("Loading Contacts", "No contacts match"), announced());
+    }
+
+    @Test
+    void aLoadOverRowsKeepsThemAndIsStillBusy() {
+        names.add("Ana Lima");
+        Tree<String> tree = folders();
+        mount(tree);
+        tree.setLoading(true);
+        frame();
+        assertFalse(tree.isShowingLoadingContent(), "the rows stay");
+        assertTrue(node("Folders").states().contains(Accessible.State.BUSY));
+    }
+
+    @Test
+    void emptyingAndRefillingRepaintsTheWidgetAndNotTheWindow() {
+        ListView<String> list = list();
+        list.setEmptyMessage("No contacts match");
+        Label beside = new Label("Beside");
+        TokenRow row = new TokenRow();
+        row.add(new SizedBox(240, 160, list));
+        row.add(beside);
+        Scene s = new Scene(new Padding(Insets.all(40), row));
+        s.setTextRuler(RULER);
+        s.setPartialRendering(true);
+        s.layoutPass(640, 480);
+        for (int i = 0; i < 10; i++) {
+            s.renderFrame(new RecordingTestCanvas(640, 480));
+        }
+        names.add("Ana Lima");
+        list.refresh();
+        RecordingTestCanvas filled = new RecordingTestCanvas(640, 480);
+        s.renderFrame(filled);
+        assertFalse(filled.cleared, "a row arriving is not a full frame");
+        names.clear();
+        list.refresh();
+        RecordingTestCanvas emptied = new RecordingTestCanvas(640, 480);
+        s.renderFrame(emptied);
+        assertFalse(emptied.cleared, "the message coming back is not a full frame");
+        assertTrue(list.isShowingEmptyContent());
+        assertNotNull(beside.parent());
+    }
+}

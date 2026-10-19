@@ -14,6 +14,8 @@ import limn.components.ScrollGutters;
 import limn.components.SizeTokens;
 import limn.components.Strokes;
 import limn.components.Theme;
+import limn.components.Label;
+import limn.components.internal.RowsPlaceholder;
 import limn.concurrent.Job;
 import limn.concurrent.Ui;
 import limn.concurrent.Work;
@@ -741,7 +743,10 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         forgetRevealedPaths();
         verifyHidden();
         releaseIdentifiers();
-        markNeedsLayout();
+        // Contained: the rows change inside a box whose measure does not read them (the seed
+        // and the columns size it), so a filter that empties and refills the rows repaints
+        // the widget and never the window, its empty content coming and going included.
+        markNeedsContainedLayout();
         invalidate();
         notifyChange(Change.of(Change.Aspect.CHILDREN, Change.Origin.CODE));
     }
@@ -2079,6 +2084,156 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         return constraints.constrain(w, h);
     }
 
+    // ---------------------------------------------------------------- empty and loading
+
+    /**
+     * What shows in the rows' viewport while there are no rows (a tree with no root rows), and while the
+     * tree loads with none: the application's content, centred, at most the viewport's width less
+     * {@code spacingLarge} on each side. The "Empty" line under an open row
+     * that holds nothing is the tree's own and stays.
+     */
+    private final RowsPlaceholder placeholder = new RowsPlaceholder(new RowsPlaceholder.Host() {
+        @Override
+        public Widget<?> widget() {
+            return Tree.this;
+        }
+
+        @Override
+        public void attach(Widget<?> content) {
+            add(content); // last: after the rows, for a reader and for the Tab key
+        }
+
+        @Override
+        public void detach(Widget<?> content) {
+            remove(content);
+        }
+
+        @Override
+        public int rowCount() {
+            return rows.size();
+        }
+    });
+
+    /**
+     * Shows {@code content} in the rows' viewport whenever the tree has no rows (a tree with no root rows), and
+     * takes it away when one arrives: the tree knows its count, so the application never says
+     * when. It gives the words, "No orders" or "No orders match", which only it knows.
+     *
+     * <p>The content is the tree's last child while it shows, so its own controls (a "Clear
+     * filter" button) follow the tree in the Tab order and a reader finds them after its (no)
+     * rows; they belong to no selection. A content passed this way describes nothing to a reader:
+     * pass its message with {@link #setEmptyContent(Widget, Label)}.
+     *
+     * @param content the content, or {@code null} for none
+     * @return this tree
+     */
+    public Tree<T> setEmptyContent(@Nullable Widget<?> content) {
+        Ui.checkUiThread();
+        return setEmptyContent(content, null);
+    }
+
+    /**
+     * Shows {@code content} while there are no rows, as {@link #setEmptyContent(Widget)} does, and
+     * describes the tree by {@code message} while it shows, so a reader landing on it hears
+     * "tree, 0 rows" and then the message.
+     *
+     * @param content the content, or {@code null} for none
+     * @param message the label inside it that says why there are no rows, or {@code null}
+     * @return this tree
+     */
+    public Tree<T> setEmptyContent(@Nullable Widget<?> content, @Nullable Label message) {
+        Ui.checkUiThread();
+        placeholder.setEmpty(content, message);
+        return this;
+    }
+
+    /**
+     * Shows one muted, wrapped, centred line while there are no rows, which also describes the
+     * tree to a reader: the empty content for words alone.
+     *
+     * @param message the words, or {@code null} for no empty content
+     * @return this tree
+     */
+    public Tree<T> setEmptyMessage(@Nullable I18nString message) {
+        Ui.checkUiThread();
+        placeholder.setEmptyMessage(message);
+        return this;
+    }
+
+    /**
+     * Shows one fixed line while there are no rows; see {@link #setEmptyMessage(I18nString)}.
+     *
+     * @param message the words, or {@code null} for no empty content
+     * @return this tree
+     */
+    public Tree<T> setEmptyMessage(@Nullable String message) {
+        Ui.checkUiThread();
+        return setEmptyMessage(message == null ? null : I18nString.literal(message));
+    }
+
+    /** @return the content shown while there are no rows, or {@code null} */
+    public @Nullable Widget<?> emptyContent() {
+        return placeholder.emptyContent();
+    }
+
+    /** @return whether the empty content shows now: there is one, no rows and no load running */
+    public boolean isShowingEmptyContent() {
+        return placeholder.isShowingEmpty();
+    }
+
+    /**
+     * Says the tree is loading its rows, or has finished. While it loads with no rows, the
+     * loading content shows in the viewport in place of the empty one; over rows already shown,
+     * they stay. Either way the tree is published busy, and a reader is told both ends: "Loading
+     * Orders" at the start, with the name given by {@code setAccessibleName}, and at the end how
+     * many rows arrived, or the empty message when none did. Set the rows first, then say the load
+     * ended, so the count said is the count shown.
+     *
+     * @param loading whether a load is running
+     * @return this tree
+     */
+    public Tree<T> setLoading(boolean loading) {
+        Ui.checkUiThread();
+        placeholder.setLoading(loading);
+        return this;
+    }
+
+    /** @return whether a load is running, as {@link #setLoading} last said */
+    public boolean isLoading() {
+        return placeholder.isLoading();
+    }
+
+    /**
+     * Replaces what shows while the tree loads with no rows; {@code null} brings back the
+     * default, a moving bar over a muted "Loading…" in the tree's language.
+     *
+     * @param content the content, or {@code null} for the default
+     * @return this tree
+     */
+    public Tree<T> setLoadingContent(@Nullable Widget<?> content) {
+        Ui.checkUiThread();
+        return setLoadingContent(content, null);
+    }
+
+    /**
+     * Replaces what shows while the tree loads with no rows, and describes the tree by
+     * {@code message} while it shows.
+     *
+     * @param content the content, or {@code null} for the default
+     * @param message the label inside it that says what is loading, or {@code null}
+     * @return this tree
+     */
+    public Tree<T> setLoadingContent(@Nullable Widget<?> content, @Nullable Label message) {
+        Ui.checkUiThread();
+        placeholder.setLoadingContent(content, message);
+        return this;
+    }
+
+    /** @return whether a loading content, the application's or the default, shows now */
+    public boolean isShowingLoadingContent() {
+        return placeholder.isShowingLoading();
+    }
+
     @Override
     protected void onLayout() {
         float box = width();
@@ -2117,6 +2272,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         vBar.refresh();
         hBar.refresh();
         slides.newRowsSlideToo();
+        placeholder.layout(rowX, 0, w, viewH, t.spacingLarge());
         slides.slideToLayout();
     }
 
@@ -3530,8 +3686,11 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
             return this; // the triangle is the tree's, not the cell's
         }
         for (Widget<?> child : children()) {
-            if (child == vBar || child == hBar || slotOfCell(child) < 0) {
-                continue; // the bars were asked above; a cell awaiting release is nobody's row
+            if (child == vBar || child == hBar
+                    || slotOfCell(child) < 0 && !placeholder.isContent(child)) {
+                // The bars were asked above; a cell awaiting release is nobody's row. The empty
+                // or loading content is no row and takes its own presses.
+                continue;
             }
             Widget<?> hit = hitTestChild(child, localX, localY);
             if (hit != null) {
@@ -3598,6 +3757,8 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
                 }
             }
             paintDropPlace(canvas, theme, t, viewH);
+            // The empty or loading content, in place of the roots.
+            placeholder.paint(canvas);
         } finally {
             canvas.restore();
         }
@@ -3856,6 +4017,9 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         float viewW = gutters.viewportWidth(width());
         a.scrollFrom(offsetX, Math.max(0, contentWidth - viewW), viewW, contentWidth,
                 estimatedOffset(t), Math.max(0, content - viewport), viewport, content);
+        // Busy while the whole tree loads, and described by the empty or the loading message
+        // while one shows in place of the roots.
+        placeholder.describe(a);
     }
 
     /** The tree's selection mode as the rows shape names it. */
@@ -3924,8 +4088,10 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         if (!widget.isVisible()) {
             return;
         }
-        if (widget instanceof limn.components.Label label) {
-            String text = label.text();
+        if (widget instanceof limn.components.Label || widget instanceof limn.components.Badge) {
+            // A badge beside a row's name (an unread dot, a count) is read through the row.
+            String text = widget instanceof limn.components.Label label ? label.text()
+                    : ((limn.components.Badge) widget).text();
             if (!text.isEmpty()) {
                 if (nameBuilder.length() > 0) {
                     nameBuilder.append(' ');

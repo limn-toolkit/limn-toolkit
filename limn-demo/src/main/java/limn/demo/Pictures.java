@@ -21,7 +21,43 @@ final class Pictures {
     /** An oak desk top, for a desk on sale. */
     static final Image DESK = desk();
 
+    /** A portrait for a person's avatar: dark hair, a teal backdrop, a navy jacket. */
+    static final Image PORTRAIT_RUI = portrait(0x2E7D7A, 0xD9A27A, 0x2B1D16, 0x26365C);
+    /** Another: black hair, an amber backdrop, a burgundy top. */
+    static final Image PORTRAIT_MEI = portrait(0xC98A2E, 0xEFC9A8, 0x141110, 0x7A2638);
+
     private Pictures() {
+    }
+
+    /**
+     * A head and shoulders on a backdrop that darkens toward the foot, drawn on a square of 128
+     * pixels: what an avatar's picture is cut from, without a photograph of anyone.
+     */
+    private static Image portrait(int backdrop, int skin, int hair, int clothes) {
+        int size = 128;
+        byte[] rgba = new byte[size * size * 4];
+        for (int y = 0; y < size; y++) {
+            for (int x = 0; x < size; x++) {
+                int colour = mix(backdrop, 0x000000, y / (double) size * 0.35);
+                double shoulders = Math.pow((x - 64) / 52.0, 2) + Math.pow((y - 136) / 46.0, 2);
+                double neck = Math.abs(x - 64) < 12 && y > 70 && y < 100 ? 0 : 2;
+                double head = Math.pow((x - 64) / 25.0, 2) + Math.pow((y - 56) / 31.0, 2);
+                double hairCap = Math.pow((x - 64) / 28.0, 2) + Math.pow((y - 46) / 26.0, 2);
+                if (shoulders < 1) {
+                    colour = mix(clothes, 0x000000, (y - 96) / 96.0);
+                } else if (head < 1 && y > 42 || neck < 1) {
+                    colour = mix(skin, 0x000000, Math.max(0, (x - 64) / 160.0));
+                } else if (hairCap < 1 && y < 58) {
+                    colour = hair;
+                }
+                int o = (y * size + x) * 4;
+                rgba[o] = (byte) (colour >> 16);
+                rgba[o + 1] = (byte) (colour >> 8);
+                rgba[o + 2] = (byte) colour;
+                rgba[o + 3] = (byte) 0xFF;
+            }
+        }
+        return new Image(size, size, rgba);
     }
 
     private static void put(byte[] rgba, int x, int y, int rgb) {

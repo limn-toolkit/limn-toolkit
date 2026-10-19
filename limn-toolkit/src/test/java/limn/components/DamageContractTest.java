@@ -249,6 +249,13 @@ class DamageContractTest extends ComponentTestBase {
             natural("BackdropPanel", () -> new BackdropPanel(
                     new BackdropEffect.Wash(Color.BLACK, 0.4f, -0.2f), Insets.NONE,
                     new Button("inside")), pointer()),
+            inert("Avatar", () -> new Avatar("Ana Lima"), "a picture: nothing to press, focus or hover"),
+            // The count's circle carries a tooltip, which the scene shows over the group: the
+            // hover gesture is what the tooltip machinery repaints, inside the circle.
+            natural("AvatarGroup", () -> new AvatarGroup(new Avatar("Ana Lima"), new Avatar("Rui Costa"),
+                    new Avatar("Eva Melo")).setMaxShown(2), pointer()),
+            inert("Badge", () -> new Badge("Paid").setTone(Tone.SUCCESS),
+                    "a status: nothing to press, focus or hover"),
             natural("Button", () -> new Button("Go"), both()),
             // An activated card with a footer (ADR 073 §2.10): the hover, the press and the focus
             // repaint the clicked area and its ring; that the pointer in the footer's band repaints

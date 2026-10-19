@@ -1938,7 +1938,7 @@ final class VideoScene {
 
         private final Playing open;
         private final VideoView view;
-        private final Button button = new Button(Text.GENERATED_SOUNDTRACK).setSecondary(true);
+        private final Button button = new Button(Text.GENERATED_SOUNDTRACK).setStyle(Button.Style.SECONDARY);
         private final Row row = new Row();
         private boolean ticking;
         private boolean refreshPosted;
@@ -2339,7 +2339,7 @@ final class VideoScene {
         // file. The dialog is the platform's, the open is the same worker every entry above uses,
         // and what comes back is a Source like any other, so Restart, the fits and the soundtrack
         // switch work on it with no special case anywhere.
-        Button openFile = new Button(Text.OPEN_FILE).setSecondary(true);
+        Button openFile = new Button(Text.OPEN_FILE).setStyle(Button.Style.SECONDARY);
         openFile.setTooltip(Text.OPEN_FILE_TIP);
         openFile.onAction(() -> pick(openFile, say).thenAccept(picked -> picked.ifPresent(file -> {
             current[0] = ownFile(file);
@@ -2354,7 +2354,7 @@ final class VideoScene {
         // The same file, in a window of its own with nothing else in it, which is the shape a
         // player actually is, and the one thing a page cannot show: a resizable window whose
         // whole content is the picture.
-        Button openWindow = new Button(Text.OPEN_WINDOW).setSecondary(true);
+        Button openWindow = new Button(Text.OPEN_WINDOW).setStyle(Button.Style.SECONDARY);
         openWindow.setTooltip(Text.OPEN_WINDOW_TIP);
         openWindow.onAction(() -> pick(openWindow, say).thenAccept(picked -> picked.ifPresent(file ->
                 openInOwnWindow(openWindow.scene().window(), file, sound[0], say, openWindow))));
