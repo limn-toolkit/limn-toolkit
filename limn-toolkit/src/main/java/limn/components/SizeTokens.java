@@ -3,6 +3,7 @@ package limn.components;
 import java.util.Objects;
 import limn.graphics.Font;
 import limn.scene.ControlSize;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The numeric size table: one immutable row per {@link ControlSize} step.
@@ -18,7 +19,7 @@ import limn.scene.ControlSize;
  * its gap, hairline, check-mark pen, caret, AA bleed, damage margin, wheel step,
  * and the WCAG hit floor) live in {@link Strokes} and are identical at every
  * step <em>by construction</em>: there is no five-column row for any of them.
- * This record therefore declares <b>no {@code double} of any kind</b>, so an
+ * This class therefore holds <b>no {@code double} of any kind</b>, so an
  * animation duration cannot be smuggled in.
  *
  * <p>{@code padV} is a <b>measure-only</b> floor input to
@@ -26,47 +27,62 @@ import limn.scene.ControlSize;
  * so this number must never appear as a paint or hit-test coordinate; what a
  * control centres against is the effective padV {@code (height - lineHeight)/2}
  * = 5.554688 / 6.968750 / 7.796875 / 10.625000 / 13.867188.
+ *
+ * <p><b>A class and not a record</b>, with no public constructor: only this class builds its
+ * five rows. A record's constructor and its deconstruction pattern would have made today's tokens
+ * a contract, so that the size a new widget needs could not join the table in a later 1.x release
+ * without breaking every caller that builds or deconstructs a row. An application reads the
+ * accessors, reaches a row with {@link #of} or {@link Theme#tokensFor(limn.scene.Widget)}, and
+ * compares two rows with {@link #equals}.
  */
-public record SizeTokens(
-        // ---- fonts (3.1, 3.2) -------------------------------------------
-        Font body, Font label, Font title,
-        // ---- spacing ramp (3.4) -----------------------------------------
-        float spacingSmall, float spacingMedium, float spacingLarge,
-        // ---- radii (3.5) ------------------------------------------------
-        float radiusSmall, float radiusMedium, float radiusLarge,
-        float indicatorRadius,
-        // ---- heights (3.3) ----------------------------------------------
-        float controlHeight, float listRowSeed, float menuRowHeight,
-        float popupItemHeight,
-        // ---- paddings ---------------------------------------------------
-        float areaPad, float cardPad, float fieldPadH, float menuBarPadH, float menuPadV,
-        float padH, float padV, float popupPadV, float popupRowInsetX,
-        float segPadH, float spinnerFieldPadX, float tabPadH, float tabPadV,
-        float toolBarPad, float tooltipPadH, float tooltipPadV,
-        // ---- gaps (3.4: em-tuned, off the spacing curve) -----------------
-        float colorGap, float gapButtonRow, float gapIcon, float gapLabel, float newlineHint,
-        float popupGap, float tabIconGap, float tabRevealMargin,
-        float toggleColumnGap, float toolBarGap,
-        // ---- insets -----------------------------------------------------
-        float comboCaretCenterX, float fieldDividerInset, float indicatorInset,
-        float menuArrowNudge, float menuBarChipInset, float menuCheckInset,
-        float menuHiliteInsetX, float menuHiliteInsetY, float menuSepInsetX,
-        float popupBarInsetX, float popupDotCol, float popupMarkerCol,
-        float segInset, float spinnerFieldInset, float stripBtnHoverInset,
-        float switchThumbInset, float tabHoverInset, float toolBarSepInset,
-        // ---- extents ----------------------------------------------------
-        float areaHeight, float areaWidth, float arrowHalf, float checkGlyphW,
-        float chevronHalfW, float colorDialogW, float colorFieldH, float colorRailH, float colorRampW,
-        float colorThumbH, float colorThumbW, float comboCaretGutter, float comboTextClip,
-        float dialogMaxWidth, float fieldIcon, float fieldTrailing,
-        float fieldWidth, float iconBox, float indicator, float menuArrowGutter,
-        float menuArrowH, float menuArrowW, float menuCheckGutter,
-        float popupDotRadius, float progressThickness, float scrollChevronHalf,
-        float separatorBox, float sliderKnob, float sliderKnobHover,
-        float sliderRail, float spinnerButtonW, float switchTrackH,
-        float switchTrackW, float tabChevron, float tabIconSize,
-        // ---- free-axis floors the parent normally overrides --------------
-        float listWidth, float menuMinWidth, float spinnerWidth) {
+public final class SizeTokens {
+
+    /**
+     * The tokens of one row, held by a record that is private so that the row can gain a token in
+     * a 1.x minor: {@code equals}, {@code hashCode} and {@code toString} come from it, and so cannot
+     * leave out a token added later.
+     */
+    private record Values(
+            // ---- fonts (3.1, 3.2) -------------------------------------------
+            Font body, Font label, Font title,
+            // ---- spacing ramp (3.4) -----------------------------------------
+            float spacingSmall, float spacingMedium, float spacingLarge,
+            // ---- radii (3.5) ------------------------------------------------
+            float radiusSmall, float radiusMedium, float radiusLarge,
+            float indicatorRadius,
+            // ---- heights (3.3) ----------------------------------------------
+            float controlHeight, float listRowSeed, float menuRowHeight,
+            float popupItemHeight,
+            // ---- paddings ---------------------------------------------------
+            float areaPad, float cardPad, float fieldPadH, float menuBarPadH, float menuPadV,
+            float padH, float padV, float popupPadV, float popupRowInsetX,
+            float segPadH, float spinnerFieldPadX, float tabPadH, float tabPadV,
+            float toolBarPad, float tooltipPadH, float tooltipPadV,
+            // ---- gaps (3.4: em-tuned, off the spacing curve) -----------------
+            float colorGap, float gapButtonRow, float gapIcon, float gapLabel, float newlineHint,
+            float popupGap, float tabIconGap, float tabRevealMargin,
+            float toggleColumnGap, float toolBarGap,
+            // ---- insets -----------------------------------------------------
+            float comboCaretCenterX, float fieldDividerInset, float indicatorInset,
+            float menuArrowNudge, float menuBarChipInset, float menuCheckInset,
+            float menuHiliteInsetX, float menuHiliteInsetY, float menuSepInsetX,
+            float popupBarInsetX, float popupDotCol, float popupMarkerCol,
+            float segInset, float spinnerFieldInset, float stripBtnHoverInset,
+            float switchThumbInset, float tabHoverInset, float toolBarSepInset,
+            // ---- extents ----------------------------------------------------
+            float areaHeight, float areaWidth, float arrowHalf, float checkGlyphW,
+            float chevronHalfW, float colorDialogW, float colorFieldH, float colorRailH, float colorRampW,
+            float colorThumbH, float colorThumbW, float comboCaretGutter, float comboTextClip,
+            float dialogMaxWidth, float fieldIcon, float fieldTrailing,
+            float fieldWidth, float iconBox, float indicator, float menuArrowGutter,
+            float menuArrowH, float menuArrowW, float menuCheckGutter,
+            float popupDotRadius, float progressThickness, float scrollChevronHalf,
+            float separatorBox, float sliderKnob, float sliderKnobHover,
+            float sliderRail, float spinnerButtonW, float switchTrackH,
+            float switchTrackW, float tabChevron, float tabIconSize,
+            // ---- free-axis floors the parent normally overrides --------------
+            float listWidth, float menuMinWidth, float spinnerWidth) {
+    }
 
     // =================================================================
     //  THE FIVE ROWS, written as 89 columns.
@@ -192,11 +208,20 @@ public record SizeTokens(
     private static final float[] LIST_WIDTH            = {  160,   200,      240,   288,   340 };
     private static final float[] MENU_MIN_WIDTH        = {  112,   140,      168,   196,   224 };
     private static final float[] SPINNER_WIDTH         = {   96,   116,      140,   168,   200 };
-    /** Indexed by {@link ControlSize#ordinal()}. Static, palette-independent (7.30). */
-    public static final SizeTokens[] TABLE = build();
+    /**
+     * Indexed by {@link ControlSize#ordinal()}. Static, palette-independent (7.30). Private: a
+     * caller that could store into it would change every widget's rows for the whole process.
+     */
+    private static final SizeTokens[] TABLE = build();
 
     /** The default step's row. {@code Theme}'s nine tokens are initialized from this. */
     public static final SizeTokens MEDIUM = TABLE[ControlSize.MEDIUM.ordinal()];
+
+    private final Values values;
+
+    private SizeTokens(Values values) {
+        this.values = values;
+    }
 
     /**
      * The whole table with every corner radius multiplied by {@code scale}, the one metric a
@@ -219,7 +244,7 @@ public record SizeTokens(
     private static SizeTokens[] build(float cornerScale) {
         SizeTokens[] rows = new SizeTokens[ControlSize.values().length];
         for (int i = 0; i < rows.length; i++) {
-            rows[i] = new SizeTokens(
+            rows[i] = new SizeTokens(new Values(
                     BODY[i], LABEL[i], TITLE[i],
                     SPACING_SMALL[i], SPACING_MEDIUM[i], SPACING_LARGE[i],
                     RADIUS_SMALL[i] * cornerScale, RADIUS_MEDIUM[i] * cornerScale,
@@ -252,7 +277,7 @@ public record SizeTokens(
                     SEPARATOR_BOX[i], SLIDER_KNOB[i], SLIDER_KNOB_HOVER[i],
                     SLIDER_RAIL[i], SPINNER_BUTTON_W[i], SWITCH_TRACK_H[i],
                     SWITCH_TRACK_W[i], TAB_CHEVRON[i], TAB_ICON_SIZE[i],
-                    LIST_WIDTH[i], MENU_MIN_WIDTH[i], SPINNER_WIDTH[i]);
+                    LIST_WIDTH[i], MENU_MIN_WIDTH[i], SPINNER_WIDTH[i]));
         }
         return rows;
     }
@@ -262,13 +287,522 @@ public record SizeTokens(
         return TABLE[Objects.requireNonNull(step, "step").ordinal()];
     }
 
+    // ---- fonts (3.1, 3.2) ------------------------------------------------
+
+    /** @return the font of body text at this step */
+    public Font body() {
+        return values.body();
+    }
+
+    /** @return the font of the label role at this step, a little smaller than the body */
+    public Font label() {
+        return values.label();
+    }
+
+    /** @return the font of the title role at this step */
+    public Font title() {
+        return values.title();
+    }
+
+    // ---- spacing ramp (3.4) ----------------------------------------------
+
+    /** @return the small step of the spacing ramp */
+    public float spacingSmall() {
+        return values.spacingSmall();
+    }
+
+    /** @return the medium step of the spacing ramp */
+    public float spacingMedium() {
+        return values.spacingMedium();
+    }
+
+    /** @return the large step of the spacing ramp */
+    public float spacingLarge() {
+        return values.spacingLarge();
+    }
+
+    // ---- radii (3.5) -----------------------------------------------------
+
+    /** @return the small corner radius, multiplied by the palette's corner scale */
+    public float radiusSmall() {
+        return values.radiusSmall();
+    }
+
+    /** @return the medium corner radius, multiplied by the palette's corner scale */
+    public float radiusMedium() {
+        return values.radiusMedium();
+    }
+
+    /** @return the large corner radius, multiplied by the palette's corner scale */
+    public float radiusLarge() {
+        return values.radiusLarge();
+    }
+
+    /** @return the corner of a check box's box, multiplied by the palette's corner scale */
+    public float indicatorRadius() {
+        return values.indicatorRadius();
+    }
+
+    // ---- heights (3.3) ---------------------------------------------------
+
+    /**
+     * @return the height of a single-line control, the floor {@link #resolvedHeight} starts from
+     */
+    public float controlHeight() {
+        return values.controlHeight();
+    }
+
+    /** @return the row height a list, a table or a tree assumes before it has measured a row */
+    public float listRowSeed() {
+        return values.listRowSeed();
+    }
+
+    /** @return the height of a menu's row */
+    public float menuRowHeight() {
+        return values.menuRowHeight();
+    }
+
+    /** @return the height of a row in a popup list, as a combo box's */
+    public float popupItemHeight() {
+        return values.popupItemHeight();
+    }
+
+    // ---- paddings --------------------------------------------------------
+
+    /** @return a text area's padding above and below its text */
+    public float areaPad() {
+        return values.areaPad();
+    }
+
+    /** @return the padding round a card's parts */
+    public float cardPad() {
+        return values.cardPad();
+    }
+
+    /** @return a text field's padding on either side of its text */
+    public float fieldPadH() {
+        return values.fieldPadH();
+    }
+
+    /** @return the padding on either side of a menu bar's title */
+    public float menuBarPadH() {
+        return values.menuBarPadH();
+    }
+
+    /** @return a menu's padding above its first row and below its last */
+    public float menuPadV() {
+        return values.menuPadV();
+    }
+
+    /** @return a button's padding on either side of its content */
+    public float padH() {
+        return values.padH();
+    }
+
+    /**
+     * @return the vertical padding {@link #resolvedHeight} measures with: a floor for measuring only,
+     *         never a paint or hit-test coordinate; {@link #effectivePadV} is what a control
+     *         centres against
+     */
+    public float padV() {
+        return values.padV();
+    }
+
+    /** @return a popup list's padding above its first row and below its last */
+    public float popupPadV() {
+        return values.popupPadV();
+    }
+
+    /** @return how far a popup list's rows sit in from its sides */
+    public float popupRowInsetX() {
+        return values.popupRowInsetX();
+    }
+
+    /** @return the padding on either side of a segmented control's label */
+    public float segPadH() {
+        return values.segPadH();
+    }
+
+    /** @return the padding on either side of a spinner's text */
+    public float spinnerFieldPadX() {
+        return values.spinnerFieldPadX();
+    }
+
+    /** @return the padding on either side of a tab's title */
+    public float tabPadH() {
+        return values.tabPadH();
+    }
+
+    /** @return the padding above and below a tab's title */
+    public float tabPadV() {
+        return values.tabPadV();
+    }
+
+    /** @return a tool bar's padding round its items */
+    public float toolBarPad() {
+        return values.toolBarPad();
+    }
+
+    /** @return a tooltip's padding on either side of its text */
+    public float tooltipPadH() {
+        return values.tooltipPadH();
+    }
+
+    /** @return a tooltip's padding above and below its text */
+    public float tooltipPadV() {
+        return values.tooltipPadV();
+    }
+
+    // ---- gaps (3.4: em-tuned, off the spacing curve) ---------------------
+
+    /** @return the gap between a colour picker's blocks and between its rows */
+    public float colorGap() {
+        return values.colorGap();
+    }
+
+    /** @return the gap between the buttons of a row, as a dialog's */
+    public float gapButtonRow() {
+        return values.gapButtonRow();
+    }
+
+    /** @return the gap between an icon and the text beside it */
+    public float gapIcon() {
+        return values.gapIcon();
+    }
+
+    /** @return the gap between a control and its label */
+    public float gapLabel() {
+        return values.gapLabel();
+    }
+
+    /** @return the width of the mark a text area paints where a selected line ends */
+    public float newlineHint() {
+        return values.newlineHint();
+    }
+
+    /** @return the gap between an anchored popup and its anchor */
+    public float popupGap() {
+        return values.popupGap();
+    }
+
+    /** @return the gap between a tab's icon and its title */
+    public float tabIconGap() {
+        return values.tabIconGap();
+    }
+
+    /** @return how much room a tab strip leaves past a tab it scrolls into view */
+    public float tabRevealMargin() {
+        return values.tabRevealMargin();
+    }
+
+    /** @return the gap between a check box's or a radio button's indicator and its label */
+    public float toggleColumnGap() {
+        return values.toggleColumnGap();
+    }
+
+    /** @return the gap between a tool bar's items, unless the bar was given one */
+    public float toolBarGap() {
+        return values.toolBarGap();
+    }
+
+    // ---- insets ----------------------------------------------------------
+
+    /** @return how far the centre of a combo box's caret sits from its trailing edge */
+    public float comboCaretCenterX() {
+        return values.comboCaretCenterX();
+    }
+
+    /** @return how far a text field's divider stops short of its top and bottom edges */
+    public float fieldDividerInset() {
+        return values.fieldDividerInset();
+    }
+
+    /** @return the gap between a radio button's ring and its dot */
+    public float indicatorInset() {
+        return values.indicatorInset();
+    }
+
+    /** @return how far a submenu's arrow is moved toward the row's trailing edge */
+    public float menuArrowNudge() {
+        return values.menuArrowNudge();
+    }
+
+    /** @return how far the highlight of a menu bar's title sits inside the bar */
+    public float menuBarChipInset() {
+        return values.menuBarChipInset();
+    }
+
+    /** @return how far a menu row's check mark sits from the row's leading edge */
+    public float menuCheckInset() {
+        return values.menuCheckInset();
+    }
+
+    /** @return how far a menu row's highlight sits in from the menu's sides */
+    public float menuHiliteInsetX() {
+        return values.menuHiliteInsetX();
+    }
+
+    /** @return how far a menu row's highlight sits in from the row's top and bottom */
+    public float menuHiliteInsetY() {
+        return values.menuHiliteInsetY();
+    }
+
+    /** @return how far a menu's separator stops short of the menu's sides */
+    public float menuSepInsetX() {
+        return values.menuSepInsetX();
+    }
+
+    /** @return how far a popup list's scroll bar sits from the list's trailing side */
+    public float popupBarInsetX() {
+        return values.popupBarInsetX();
+    }
+
+    /**
+     * @return how far the dot that marks a popup list's chosen row sits from the row's leading edge
+     */
+    public float popupDotCol() {
+        return values.popupDotCol();
+    }
+
+    /** @return how far a popup list row's text starts from the row's leading edge */
+    public float popupMarkerCol() {
+        return values.popupMarkerCol();
+    }
+
+    /** @return how far a segmented control's selected pill sits inside the track */
+    public float segInset() {
+        return values.segInset();
+    }
+
+    /** @return how far a spinner's text sits inside its border */
+    public float spinnerFieldInset() {
+        return values.spinnerFieldInset();
+    }
+
+    /** @return how far the hover fill of a tab strip's buttons sits inside them */
+    public float stripBtnHoverInset() {
+        return values.stripBtnHoverInset();
+    }
+
+    /** @return how far a switch's knob sits inside its track */
+    public float switchThumbInset() {
+        return values.switchThumbInset();
+    }
+
+    /** @return how far a tab's hover fill sits inside the tab */
+    public float tabHoverInset() {
+        return values.tabHoverInset();
+    }
+
+    /** @return how far a tool bar's separator stops short of the bar's edges */
+    public float toolBarSepInset() {
+        return values.toolBarSepInset();
+    }
+
+    // ---- extents ---------------------------------------------------------
+
+    /** @return a text area's height when its parent does not decide */
+    public float areaHeight() {
+        return values.areaHeight();
+    }
+
+    /** @return a text area's width when its parent does not decide */
+    public float areaWidth() {
+        return values.areaWidth();
+    }
+
+    /** @return half the width of a spinner's arrow */
+    public float arrowHalf() {
+        return values.arrowHalf();
+    }
+
+    /** @return the width of the check mark in a menu or a popup list */
+    public float checkGlyphW() {
+        return values.checkGlyphW();
+    }
+
+    /** @return half the width of a disclosure chevron */
+    public float chevronHalfW() {
+        return values.chevronHalfW();
+    }
+
+    /** @return the width of a colour picker inside a dialog */
+    public float colorDialogW() {
+        return values.colorDialogW();
+    }
+
+    /** @return the height of a colour picker's two-axis field */
+    public float colorFieldH() {
+        return values.colorFieldH();
+    }
+
+    /** @return the height of a colour picker's channel rail; even, so that it centres in its box */
+    public float colorRailH() {
+        return values.colorRailH();
+    }
+
+    /** @return the width of a colour picker's hue ramp */
+    public float colorRampW() {
+        return values.colorRampW();
+    }
+
+    /** @return the height of the thumb on a colour picker's rail */
+    public float colorThumbH() {
+        return values.colorThumbH();
+    }
+
+    /** @return the width of the thumb on a colour picker's rail */
+    public float colorThumbW() {
+        return values.colorThumbW();
+    }
+
+    /** @return the room a combo box keeps at its trailing end for the caret */
+    public float comboCaretGutter() {
+        return values.comboCaretGutter();
+    }
+
+    /** @return the strip at a combo box's trailing end that its text is kept out of */
+    public float comboTextClip() {
+        return values.comboTextClip();
+    }
+
+    /** @return the widest a dialog's panel is measured */
+    public float dialogMaxWidth() {
+        return values.dialogMaxWidth();
+    }
+
+    /** @return the size of an icon inside a field */
+    public float fieldIcon() {
+        return values.fieldIcon();
+    }
+
+    /** @return the room a field keeps at its trailing end for a button or an icon */
+    public float fieldTrailing() {
+        return values.fieldTrailing();
+    }
+
+    /** @return a text field's width when its parent does not decide */
+    public float fieldWidth() {
+        return values.fieldWidth();
+    }
+
+    /** @return the square an icon is drawn in beside text */
+    public float iconBox() {
+        return values.iconBox();
+    }
+
+    /** @return the size of a check box's box and of a radio button's ring */
+    public float indicator() {
+        return values.indicator();
+    }
+
+    /** @return the room a menu row keeps at its trailing end for a submenu's arrow */
+    public float menuArrowGutter() {
+        return values.menuArrowGutter();
+    }
+
+    /** @return the height of a submenu's arrow */
+    public float menuArrowH() {
+        return values.menuArrowH();
+    }
+
+    /** @return the width of a submenu's arrow */
+    public float menuArrowW() {
+        return values.menuArrowW();
+    }
+
+    /** @return the room a menu row keeps at its leading end for a check mark */
+    public float menuCheckGutter() {
+        return values.menuCheckGutter();
+    }
+
+    /** @return the radius of the dot that marks a popup list's chosen row */
+    public float popupDotRadius() {
+        return values.popupDotRadius();
+    }
+
+    /** @return the thickness of a progress bar */
+    public float progressThickness() {
+        return values.progressThickness();
+    }
+
+    /** @return half the width of the chevron that scrolls a long menu */
+    public float scrollChevronHalf() {
+        return values.scrollChevronHalf();
+    }
+
+    /**
+     * @return the box a separator's line is centred in; odd, so that a one-point line sits
+     *         exactly in its middle
+     */
+    public float separatorBox() {
+        return values.separatorBox();
+    }
+
+    /** @return the radius of a slider's knob */
+    public float sliderKnob() {
+        return values.sliderKnob();
+    }
+
+    /** @return the radius of a slider's knob under the pointer */
+    public float sliderKnobHover() {
+        return values.sliderKnobHover();
+    }
+
+    /** @return the thickness of a slider's rail */
+    public float sliderRail() {
+        return values.sliderRail();
+    }
+
+    /** @return the width of a spinner's buttons */
+    public float spinnerButtonW() {
+        return values.spinnerButtonW();
+    }
+
+    /** @return the height of a switch's track */
+    public float switchTrackH() {
+        return values.switchTrackH();
+    }
+
+    /** @return the width of a switch's track */
+    public float switchTrackW() {
+        return values.switchTrackW();
+    }
+
+    /** @return the size of the chevrons that scroll a tab strip or a segmented control */
+    public float tabChevron() {
+        return values.tabChevron();
+    }
+
+    /** @return the size of a tab's icon */
+    public float tabIconSize() {
+        return values.tabIconSize();
+    }
+
+    // ---- free-axis floors the parent normally overrides ------------------
+
+    /** @return the width a list or a tree asks for when its parent does not decide */
+    public float listWidth() {
+        return values.listWidth();
+    }
+
+    /** @return the narrowest a menu is */
+    public float menuMinWidth() {
+        return values.menuMinWidth();
+    }
+
+    /** @return a spinner's width when its parent does not decide */
+    public float spinnerWidth() {
+        return values.spinnerWidth();
+    }
+
     // ---- derived, deliberately NOT table rows ---------------------------
     // Each is a function of the row above; giving any of them a five-column
     // row would create a second, silently divergent path to the same pixels.
 
     /** The one height formula for every text-bearing control (3.3). */
     public float resolvedHeight(float lineHeight) {
-        return Math.max(controlHeight, lineHeight + 2 * padV);
+        return Math.max(values.controlHeight(), lineHeight + 2 * values.padV());
     }
 
     /** What a control actually centres against: (h - lineHeight)/2. Fractional by design (3.6). */
@@ -280,7 +814,7 @@ public record SizeTokens(
     public float segPillRadius() {
         // fudge that is 2pt off the concentric answer; the inset pill now curves parallel to the
         // track it sits in, like the other four steps already did.
-        return Math.max(0, radiusMedium - segInset);
+        return Math.max(0, values.radiusMedium() - values.segInset());
     }
 
     /**
@@ -288,13 +822,13 @@ public record SizeTokens(
      * clear gap and the ring's pen, which is what keeps the ring concentric with the box.
      */
     public float indicatorFocusRadius() {
-        return indicatorRadius + Strokes.FOCUS_GAP_INDICATOR + Strokes.FOCUS_RING_THIN;
+        return values.indicatorRadius() + Strokes.FOCUS_GAP_INDICATOR + Strokes.FOCUS_RING_THIN;
     }
 
     /** Slider's half-height: knobHover + the ring's gap + the ring's own stroke, at every step. */
     public float sliderPad() {
         // MEDIUM slider's ring was clipped by half its own width at the ends of the track.
-        return sliderKnobHover + Strokes.FOCUS_GAP_SLIDER + Strokes.BORDER;
+        return values.sliderKnobHover() + Strokes.FOCUS_GAP_SLIDER + Strokes.BORDER;
     }
 
     /** Slider's measured height: 24 / 24 / 28 / 33 / 38. */
@@ -316,7 +850,7 @@ public record SizeTokens(
      * height ever dropped: a day is pointed at, and the ramp's dense end is where that gets tight.
      */
     public float calendarCell() {
-        return Math.max(Strokes.MIN_HIT_TARGET, controlHeight);
+        return Math.max(Strokes.MIN_HIT_TARGET, values.controlHeight());
     }
 
     /**
@@ -325,5 +859,25 @@ public record SizeTokens(
      */
     public float calendarWeekColumn() {
         return calendarCell() * 0.75f;
+    }
+
+    /**
+     * Equal when every token is, as a record's components would be: a palette's own rows built twice
+     * compare equal row by row.
+     */
+    @Override
+    public boolean equals(@Nullable Object o) {
+        return this == o || o instanceof SizeTokens other && values.equals(other.values);
+    }
+
+    @Override
+    public int hashCode() {
+        return values.hashCode();
+    }
+
+    /** Every token by name, as a record prints its components, for a log line. */
+    @Override
+    public String toString() {
+        return "SizeTokens" + values.toString().substring("Values".length());
     }
 }

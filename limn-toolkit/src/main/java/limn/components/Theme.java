@@ -794,7 +794,7 @@ public final class Theme {
     // ---------------------------------------------------------- size tokens
 
     /**
-     * Metric tokens for a size step. The returned record (and the {@link Font}s inside it)
+     * Metric tokens for a size step. The returned row (and the {@link Font}s inside it)
      * are stable for the life of this palette, so {@code ==} holds and the backend's
      * identity-keyed font memo keeps hitting. Never build tokens per call, and never call
      * {@code Font.withSize} to derive a step's font.

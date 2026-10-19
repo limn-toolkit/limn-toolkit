@@ -50,7 +50,9 @@ class UiThreadContractTest {
     /** Class#method, and why it need not check. */
     private static final Map<String, String> ALLOWED = Map.of(
             "TextArea#scrollXOffset", "a getter whose name starts with a verb",
-            "TextArea#scrollYOffset", "a getter whose name starts with a verb");
+            "TextArea#scrollYOffset", "a getter whose name starts with a verb",
+            "SizeTokens#scrollChevronHalf", "a getter whose name starts with a verb",
+            "SizeTokens#toggleColumnGap", "a getter whose name starts with a verb");
 
     /**
      * The return type, then the name. The type may carry a type annotation, as a nullable one's
