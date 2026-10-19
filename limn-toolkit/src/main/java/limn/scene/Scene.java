@@ -194,6 +194,10 @@ public final class Scene {
     private float capturedY;
     private float capturedLocalX;
     private float capturedLocalY;
+    // Where the press landed in the pressed widget's own space: one of the points a release falls
+    // back to when the plane has moved (settleReleasePoint).
+    private float pressLocalX;
+    private float pressLocalY;
     private final float[] captureScratch = new float[2];
     private float mouseX;
     private float mouseY;
@@ -4162,24 +4166,49 @@ public final class Scene {
 
     /**
      * Settles where a RELEASE to {@code captured} arrives, into {@code capturedX}/{@code capturedY}:
-     * at {@code (x, y)} when that is on the widget's plane; otherwise where the last point the widget
-     * was handed lies now. The plane may have moved since with the pointer held still (a panel
-     * turned on, a flip under way), and the scene point kept from then may have gone past the new
-     * horizon, so the widget's own point is carried through the matrices as they are now and
-     * checked again. Only where that point cannot be reached at all, the plane edge-on to the
-     * viewer or the point behind the eye, does the release keep the last scene point, which maps
-     * to nothing; MouseEvent says so.
+     * at {@code (x, y)} when that is on the widget's plane; otherwise at a point of the widget as
+     * the matrices are now. The plane may have moved since the last drag with the pointer held
+     * still (a panel turned on, a flip under way, a card turned past edge-on to show its back), and
+     * the scene point kept from then may have gone past the new horizon; so the widget's own points
+     * are carried through the matrices and checked again, nearest first: the last point it was
+     * handed, that point brought into its box, the press point, its middle, its corners. A box with
+     * any part in front of the eye has a corner there, so only a widget of which nothing can be
+     * seen, its plane edge-on to the viewer or the whole box behind the eye, keeps the last scene
+     * point, which maps to nothing; MouseEvent says so.
      */
     private void settleReleasePoint(Widget<?> captured, float x, float y) {
         if (onCapturedPlane(captured, x, y)) {
             return;
         }
-        captured.localToScene(capturedLocalX, capturedLocalY, captureScratch);
+        float keptX = capturedLocalX;
+        float keptY = capturedLocalY;
+        float w = captured.width();
+        float h = captured.height();
+        boolean reached = reachLocal(captured, keptX, keptY)
+                || reachLocal(captured, Math.max(0, Math.min(w, keptX)), Math.max(0, Math.min(h, keptY)))
+                || reachLocal(captured, pressLocalX, pressLocalY)
+                || reachLocal(captured, w / 2, h / 2)
+                || reachLocal(captured, 0, 0) || reachLocal(captured, w, 0)
+                || reachLocal(captured, 0, h) || reachLocal(captured, w, h);
+        if (!reached) {
+            // Nothing of it can be seen: the last scene point stands, as documented.
+            capturedLocalX = keptX;
+            capturedLocalY = keptY;
+        }
+    }
+
+    /**
+     * Whether the point {@code (localX, localY)} of {@code captured} lies somewhere in the scene that
+     * maps back onto its plane; when it does, that scene point becomes the last one handed to it.
+     */
+    private boolean reachLocal(Widget<?> captured, float localX, float localY) {
+        if (!Float.isFinite(localX) || !Float.isFinite(localY)) {
+            return false;
+        }
+        captured.localToScene(localX, localY, captureScratch);
         float sceneX = captureScratch[0];
         float sceneY = captureScratch[1];
-        if (Float.isFinite(sceneX) && Float.isFinite(sceneY)) {
-            onCapturedPlane(captured, sceneX, sceneY);
-        }
+        return Float.isFinite(sceneX) && Float.isFinite(sceneY) && onCapturedPlane(captured, sceneX, sceneY);
     }
 
     private void handleButton(RawButton button) {
@@ -4216,6 +4245,8 @@ public final class Scene {
             if (hit != null) {
                 onCapturedPlane(hit, button.x, button.y); // and its own point there
             }
+            pressLocalX = capturedLocalX;
+            pressLocalY = capturedLocalY;
             dragAsked = false;
             // Click-to-focus: nearest focusable ancestor of the press target.
             Widget<?> focusTarget = hit;

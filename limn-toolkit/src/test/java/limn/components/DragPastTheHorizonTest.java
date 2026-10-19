@@ -355,4 +355,69 @@ class DragPastTheHorizonTest extends ComponentTestBase {
                 DragPastTheHorizonTest::letGoInPlace);
         assertEquals(1, recorder.events.stream().filter("RELEASE"::equals).count(), recorder.events.toString());
     }
+
+    /** Presses a recorder tilted back 20 degrees, drags it by {@code dy}, turns the plane to {@code degrees}, lets go. */
+    private Recorder releaseAfterTurningTo(float perspective, float dy, float degrees) {
+        Recorder recorder = new Recorder();
+        Transform panel = new Transform(recorder).setPerspective(perspective).setRotation3D(Vec3.UNIT_X, 20);
+        Scene scene = new Scene(new Padding(new Insets(130, 0, 0, 100), panel), () -> nanos[0]);
+        scene.bind(new limn.testing.StubWindow());
+        scene.setTextRuler(RULER);
+        frame(scene);
+        Vec2 mid = recorder.localToScene(100, 20);
+        move(scene, mid.x(), mid.y());
+        button(scene, true, mid.x(), mid.y());
+        move(scene, mid.x() + 30, mid.y() + dy);
+        panel.setRotation3D(Vec3.UNIT_X, degrees);
+        frame(scene);
+        button(scene, false, mid.x() + 30, mid.y() + dy);
+        return recorder;
+    }
+
+    /** Whether any point of a grid over the widget's box, its corners and middle among them, can be reached now. */
+    private static boolean anyOfItsBoxCanBeReached(Widget<?> w) {
+        for (int i = 0; i <= 8; i++) {
+            for (int j = 0; j <= 4; j++) {
+                Vec2 at = w.localToScene(w.width() * i / 8, w.height() * j / 4);
+                if (Float.isFinite(at.x()) && Float.isFinite(at.y()) && onPlane(w, at.x(), at.y())) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    @Test
+    void aReleaseAfterTheCardTurnedPastEdgeOnArrivesOnTheCard() {
+        // The review's case: a drag above the widget, then the plane turned to -110 degrees, past
+        // edge-on, with its back to the viewer. The last point is behind the eye, the box is not.
+        Recorder recorder = releaseAfterTurningTo(150, -60, -110);
+        assertTrue(anyOfItsBoxCanBeReached(recorder), "part of the card can be seen");
+        recorder.assertCapturedFinite();
+    }
+
+    @Test
+    void noReleaseIsANumberlessPointWhileAnyOfTheWidgetCanBeSeen() {
+        int edgeOn = 0;
+        int total = 0;
+        for (float perspective : new float[] {40, 80, 150}) {
+            for (float dy : new float[] {-60, -150, 60}) {
+                for (int degrees = -175; degrees <= 180; degrees += 5) {
+                    Recorder recorder = releaseAfterTurningTo(perspective, dy, degrees);
+                    total++;
+                    assertEquals(1, recorder.events.stream().filter("RELEASE"::equals).count());
+                    Vec2 released = recorder.last("RELEASE");
+                    if (Float.isFinite(released.x()) && Float.isFinite(released.y())) {
+                        continue;
+                    }
+                    edgeOn++;
+                    assertFalse(anyOfItsBoxCanBeReached(recorder), "perspective " + perspective + ", drag "
+                            + dy + ", turned to " + degrees + ": released at " + released
+                            + " though part of the widget can be seen");
+                }
+            }
+        }
+        assertEquals(648, total);
+        assertTrue(edgeOn <= 18, "only the plane edge-on, at plus and minus 90 degrees, has nothing to reach: " + edgeOn);
+    }
 }

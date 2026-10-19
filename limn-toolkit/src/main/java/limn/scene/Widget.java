@@ -772,8 +772,9 @@ public abstract class Widget<W extends Widget<W>> {
      * The point of a {@code DRAG} or a {@code RELEASE} the widget receives while it holds the
      * pointer is not one of these: the scene withholds a drag that has left the widget's plane
      * and releases it at the last point it had there, so a drag handler computes with finite
-     * numbers and needs no guard of its own, but for a release on a plane turned edge-on, which
-     * has no point to give (see {@link limn.scene.event.MouseEvent}).
+     * numbers and needs no guard of its own, but for a release on a widget of which nothing can be
+     * seen, its plane exactly edge-on or its whole box behind the eye, which has no point to give
+     * (see {@link limn.scene.event.MouseEvent}).
      *
      * @param sceneX a point's x in the scene
      * @param sceneY a point's y in the scene
