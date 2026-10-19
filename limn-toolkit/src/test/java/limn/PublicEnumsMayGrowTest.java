@@ -104,6 +104,10 @@ class PublicEnumsMayGrowTest {
                     /** Doc. */
                     public enum WithBodies { A { void f() { } }, B; void f() { } }
                     public enum AfterBodies { ONE }
+                    protected enum ProtectedMember { ONE }
+                    private final String endsInABackslash = \"""
+                            x\\\\\""";
+                    public enum AfterEscapedBackslash { ONE }
                 }
                 """;
         List<String> found = new ArrayList<>();
@@ -118,8 +122,10 @@ class PublicEnumsMayGrowTest {
                 "Holder.java:24: enum ImplicitlyPublic",
                 "Holder.java:25: enum InRecord",
                 "Holder.java:29: enum WithBodies",
-                "Holder.java:30: enum AfterBodies"), found);
-        assertEquals(11, enums, "First and Fine pass; Hidden, Member and Local are not public");
+                "Holder.java:30: enum AfterBodies",
+                "Holder.java:31: enum ProtectedMember",
+                "Holder.java:34: enum AfterEscapedBackslash"), found);
+        assertEquals(13, enums, "First and Fine pass; Hidden, Member and Local are not public");
     }
 
     /** A token: a word, a doc comment's text, or one character of punctuation. */
@@ -191,8 +197,11 @@ class PublicEnumsMayGrowTest {
                 } else if (outer.kind().equals("block")) {
                     reachable = false;
                 } else {
-                    reachable = outer.reachable() && (modifiers.contains("public")
-                            || (outer.isInterface() && !modifiers.contains("private")));
+                    // A protected member of a public type is public API too: a subclass, or the
+                    // class's own published page, reaches it.
+                    boolean declared = modifiers.contains("public") || modifiers.contains("protected");
+                    reachable = outer.reachable()
+                            && (declared || (outer.isInterface() && !modifiers.contains("private")));
                 }
                 opening = new Frame(kind, reachable);
                 Token typeName = tokens.get(i + 1);
@@ -271,11 +280,13 @@ class PublicEnumsMayGrowTest {
                 }
                 i = end;
             } else if (s.startsWith("\"\"\"", i)) {
-                int end = s.indexOf("\"\"\"", i + 3);
-                while (end > 0 && s.charAt(end - 1) == '\\') {
-                    end = s.indexOf("\"\"\"", end + 1);
+                // An escape takes the character after it whatever it is, so an escaped backslash
+                // right before the closing quotes does not escape them.
+                i += 3;
+                while (i < s.length() && !s.startsWith("\"\"\"", i)) {
+                    i += s.charAt(i) == '\\' ? 2 : 1;
                 }
-                i = end < 0 ? s.length() : end + 3;
+                i = Math.min(s.length(), i + 3);
             } else if (c == '"' || c == '\'') {
                 i++;
                 while (i < s.length() && s.charAt(i) != c) {
