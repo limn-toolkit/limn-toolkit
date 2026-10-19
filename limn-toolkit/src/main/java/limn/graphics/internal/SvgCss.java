@@ -32,20 +32,28 @@ import org.jspecify.annotations.Nullable;
  * byte, and {@link #MIN_MATCH_STEPS} at least) is refused. A step is a compound tried, an id or
  * class tested, a type or attribute compared (and one more for every sixteen characters), or a
  * character read to look an element's names up: what a try costs is counted, not only that it
- * was made. What matching works out about the elements is held by this object, and goes with
- * the reading.
+ * was made. What matching works out about the elements (their names, the answers a selector
+ * remembers) is held by this object, and goes with the reading; and a file whose sheets hold more
+ * than {@value #MAX_SELECTORS} selectors is refused before they are read.
  */
 final class SvgCss {
 
     /** The most compounds one selector may chain: a file with a longer one is refused. */
     static final int MAX_COMPOUNDS = 32;
     /**
+     * The most selectors a file's sheets may hold: a file with more is refused before they are
+     * read. Each is some six hundred bytes once read, so a sheet of a million (7 MB) ran a 512 MB
+     * heap out before matching counted a step; the largest sheets the toolkit's tests read, a
+     * sprite sheet of 3,000 symbols and an export of 1,296 classes, hold under a thirtieth of it.
+     */
+    static final int MAX_SELECTORS = 100_000;
+    /**
      * The steps a file may take to match its sheets, for each of its bytes. An element is tried
      * only against the selectors filed under its id, its classes, its type and its attributes,
-     * so an export of fifty thousand paths under four hundred class rules takes about 600,000
-     * steps (the class words read once, a try of a few conditions each), a third of a step for
-     * each byte of it; a chart of 200 series over 50,000 points and a sprite sheet of 3,000
-     * symbols take under half a step a byte.
+     * so an export of fifty thousand paths under four hundred class rules takes about 540,000
+     * steps (the class words read once, a try of a few conditions each), under a third of a step
+     * for each byte of it; a chart of 200 series over 50,000 points, written either way, and a
+     * sprite sheet of 3,000 symbols take under half a step a byte.
      */
     static final int MATCH_STEPS_PER_BYTE = 4;
     /**
@@ -56,8 +64,6 @@ final class SvgCss {
     static final long MIN_MATCH_STEPS = 4_000_000L;
 
     private static final int[] NONE = new int[0];
-    /** Names each match that remembers its answers on the elements, across every document and thread. */
-    private static final java.util.concurrent.atomic.AtomicLong STAMPS = new java.util.concurrent.atomic.AtomicLong();
 
     /** One declaration: a property, its value, and whether it is important. */
     record Declaration(String property, String value, boolean important) {
@@ -75,6 +81,8 @@ final class SvgCss {
     final Map<String, List<Keyframe>> keyframes = new HashMap<>();
 
     private long steps;
+    /** The selectors read so far: see {@link #MAX_SELECTORS}. */
+    private int selectorCount;
     /** The tries this file may make: see {@link #MATCH_STEPS_PER_BYTE}. */
     private final long maxSteps;
     /**
@@ -98,16 +106,30 @@ final class SvgCss {
     private final List<@Nullable List<Filed>> byId = new ArrayList<>();
     private final List<@Nullable List<Filed>> byClass = new ArrayList<>();
     /**
-     * The selectors whose last compound names no id or class but an earlier one does, filed under
-     * the number of the id (or the rarest class) of the nearest such compound and then under the
-     * last compound's type, or {@code *}: {@code #s12 path} is tried on the paths that have an
-     * ancestor {@code #s12}. Filed under {@code path} alone, a sprite sheet's four hundred such
-     * rules were each tried on every path of the sheet, and an ordinary file of 112 KB was refused.
+     * The selectors filed under an ancestor: under the number of the id (or the rarest class) of
+     * the nearest compound before the last that names one, then under what the last compound
+     * needs. A last compound that names no id or class is filed by its type, or {@code *}:
+     * {@code #s12 path} is tried on the paths that have an ancestor {@code #s12}; filed under
+     * {@code path} alone, a sprite sheet's four hundred such rules were each tried on every path
+     * of the sheet, and an ordinary file of 112 KB was refused. A last compound whose classes are
+     * all commoner than the ancestor's is filed by its rarest class: {@code .series-7 .dot} is
+     * tried on the dots under {@code .series-7}, where filed under {@code dot} every point of a
+     * chart was tried against every series.
      */
-    private final List<@Nullable Map<String, List<Filed>>> underId = new ArrayList<>();
-    private final List<@Nullable Map<String, List<Filed>>> underClass = new ArrayList<>();
+    private final List<@Nullable Under> underId = new ArrayList<>();
+    private final List<@Nullable Under> underClass = new ArrayList<>();
     /** The types (and {@code *}) an element must have for a walk up its ancestors to find it a selector. */
     private final Set<String> typesUnder = new java.util.HashSet<>();
+    /** For each name: whether a selector filed under an ancestor needs it as a class of the element itself. */
+    private boolean[] classesUnder = new boolean[0];
+    /**
+     * The answers a selector of several descendant combinators works out in one match, for each
+     * element it asked about: held here, so they go with the reading, where kept on the elements
+     * they stayed with the picture, 80 bytes an element.
+     */
+    private final Map<SvgXml.Element, Memo> memos = new IdentityHashMap<>();
+    /** Names each match that remembers its answers, in this reading. */
+    private long stamps;
     /** Whether a selector is filed under an attribute, so an element's attributes are worth looking up. */
     private boolean filedByAttribute;
     /**
@@ -121,6 +143,18 @@ final class SvgCss {
 
     /** One selector of one rule, as the index holds it. */
     private record Filed(int rule, Selector selector) {
+    }
+
+    /** The selectors filed under one ancestor's id or class: by the type, and by the class, the element itself needs. */
+    private static final class Under {
+        final Map<String, List<Filed>> byType = new HashMap<>();
+        final Map<Integer, List<Filed>> byClass = new HashMap<>();
+    }
+
+    /** The answers of one match on one element: at a compound's index, and past the compounds for an ancestor walk's. */
+    private static final class Memo {
+        final byte[] answers = new byte[2 * MAX_COMPOUNDS];
+        long stamp;
     }
 
     /**
@@ -207,8 +241,13 @@ final class SvgCss {
                 }
                 // @font-face, @import, @supports and the rest: not this reader's
             } else if (!prelude.isEmpty()) {
-                List<Selector> selectors = new ArrayList<>();
-                for (String one : splitTopLevel(prelude, ',')) {
+                List<String> written = splitTopLevel(prelude, ',');
+                selectorCount += written.size();
+                if (selectorCount > MAX_SELECTORS) {
+                    throw SvgXml.refused("style sheets of more than " + MAX_SELECTORS + " selectors");
+                }
+                List<Selector> selectors = new ArrayList<>(written.size());
+                for (String one : written) {
                     selectors.add(Selector.parse(one.trim()));
                 }
                 rules.add(new Rule(selectors, declarations(body), rules.size()));
@@ -423,8 +462,12 @@ final class SvgCss {
                 tryFiled("[" + element.attributeName(i), element, touched);
             }
         }
-        if (typesUnder.contains("*") || typesUnder.contains(type)) {
-            tryUnderAncestors(element, type, touched);
+        boolean under = typesUnder.contains("*") || typesUnder.contains(type);
+        for (int i = 0; !under && i < facts.classes.length; i++) {
+            under = classesUnder[facts.classes[i]];
+        }
+        if (under) {
+            tryUnderAncestors(element, type, facts, touched);
         }
         if (touched.isEmpty()) {
             matching.put(element, NONE);
@@ -452,22 +495,22 @@ final class SvgCss {
      * once however many ancestors carry its key: a walk up, a step for each ancestor and each of
      * the named classes it has, each a lookup by number.
      */
-    private void tryUnderAncestors(SvgXml.Element element, String type, List<Integer> touched) {
-        Set<Map<String, List<Filed>>> tried = null;
+    private void tryUnderAncestors(SvgXml.Element element, String type, Facts own, List<Integer> touched) {
+        Set<Under> tried = null;
         for (SvgXml.Element up = element.parent(); up != null; up = up.parent()) {
             Facts known = facts(up);
             step(1 + known.classes.length);
             if (known.id >= 0) {
-                tried = tryUnder(underId.get(known.id), tried, type, element, touched);
+                tried = tryUnder(underId.get(known.id), tried, type, own, element, touched);
             }
             for (int name : known.classes) {
-                tried = tryUnder(underClass.get(name), tried, type, element, touched);
+                tried = tryUnder(underClass.get(name), tried, type, own, element, touched);
             }
         }
     }
 
-    private @Nullable Set<Map<String, List<Filed>>> tryUnder(@Nullable Map<String, List<Filed>> under,
-            @Nullable Set<Map<String, List<Filed>>> tried, String type, SvgXml.Element element, List<Integer> touched) {
+    private @Nullable Set<Under> tryUnder(@Nullable Under under, @Nullable Set<Under> tried, String type, Facts own,
+            SvgXml.Element element, List<Integer> touched) {
         if (under == null) {
             return tried;
         }
@@ -475,9 +518,17 @@ final class SvgCss {
             tried = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
         }
         if (tried.add(under)) {
-            step(2 + type.length() / 16);
-            tryAll(under.get("*"), element, touched);
-            tryAll(under.get(type), element, touched);
+            if (!under.byType.isEmpty()) {
+                step(2 + type.length() / 16);
+                tryAll(under.byType.get("*"), element, touched);
+                tryAll(under.byType.get(type), element, touched);
+            }
+            if (!under.byClass.isEmpty()) {
+                step(own.classes.length);
+                for (int name : own.classes) {
+                    tryAll(under.byClass.get(name), element, touched);
+                }
+            }
         }
         return tried;
     }
@@ -516,6 +567,7 @@ final class SvgCss {
             underId.add(null);
             underClass.add(null);
         }
+        classesUnder = new boolean[names.size()];
         Map<String, List<Filed>> index = new HashMap<>();
         for (int r = 0; r < rules.size(); r++) {
             for (Selector selector : rules.get(r).selectors) {
@@ -528,22 +580,22 @@ final class SvgCss {
                     add(byId, rarest(last.idCodes, uses), one);
                     continue;
                 }
+                Compound anchor = selector.anchor();
+                boolean anchorId = anchor != null && anchor.idCodes.length > 0;
+                int anchorCode = anchor == null ? -1 : rarest(anchorId ? anchor.idCodes : anchor.classCodes, uses);
                 if (last.classCodes.length > 0) {
-                    add(byClass, rarest(last.classCodes, uses), one);
+                    int own = rarest(last.classCodes, uses);
+                    if (anchor == null || uses.get(anchorCode) >= uses.get(own)) {
+                        add(byClass, own, one);
+                    } else {
+                        under(anchorId, anchorCode).byClass.computeIfAbsent(own, k -> new ArrayList<>(2)).add(one);
+                        classesUnder[own] = true;
+                    }
                     continue;
                 }
-                String lastType = last.type == null ? "*" : last.type;
-                Compound anchor = selector.anchor();
                 if (anchor != null) {
-                    boolean id = anchor.idCodes.length > 0;
-                    int code = rarest(id ? anchor.idCodes : anchor.classCodes, uses);
-                    List<@Nullable Map<String, List<Filed>>> under = id ? underId : underClass;
-                    Map<String, List<Filed>> byType = under.get(code);
-                    if (byType == null) {
-                        byType = new HashMap<>();
-                        under.set(code, byType);
-                    }
-                    byType.computeIfAbsent(lastType, k -> new ArrayList<>()).add(one);
+                    String lastType = last.type == null ? "*" : last.type;
+                    under(anchorId, anchorCode).byType.computeIfAbsent(lastType, k -> new ArrayList<>(2)).add(one);
                     typesUnder.add(lastType);
                     continue;
                 }
@@ -555,6 +607,16 @@ final class SvgCss {
         best = new long[rules.size()];
         java.util.Arrays.fill(best, -1);
         filed = index;
+    }
+
+    private Under under(boolean id, int code) {
+        List<@Nullable Under> index = id ? underId : underClass;
+        Under under = index.get(code);
+        if (under == null) {
+            under = new Under();
+            index.set(code, under);
+        }
+        return under;
     }
 
     private static void add(List<@Nullable List<Filed>> index, int code, Filed one) {
@@ -789,21 +851,21 @@ final class SvgCss {
             if (compounds.isEmpty()) {
                 return false;
             }
-            return matchFrom(compounds.size() - 1, element, css, backtracks ? STAMPS.incrementAndGet() : 0);
+            return matchFrom(compounds.size() - 1, element, css, backtracks ? ++css.stamps : 0);
         }
 
-        /** The answers this match keeps on {@code element}, cleared when they are another match's. */
-        private byte[] memo(SvgXml.Element element, long stamp) {
-            byte[] memo = element.matchMemo;
+        /** The answers this match keeps for {@code element}, cleared when they are another match's. */
+        private byte[] memo(SvgXml.Element element, long stamp, SvgCss css) {
+            Memo memo = css.memos.get(element);
             if (memo == null) {
-                memo = new byte[2 * MAX_COMPOUNDS];
-                element.matchMemo = memo;
-                element.matchStamp = stamp;
-            } else if (element.matchStamp != stamp) {
-                java.util.Arrays.fill(memo, 0, 2 * compounds.size(), (byte) 0);
-                element.matchStamp = stamp;
+                memo = new Memo();
+                memo.stamp = stamp;
+                css.memos.put(element, memo);
+            } else if (memo.stamp != stamp) {
+                java.util.Arrays.fill(memo.answers, 0, 2 * compounds.size(), (byte) 0);
+                memo.stamp = stamp;
             }
-            return memo;
+            return memo.answers;
         }
 
         /**
@@ -811,12 +873,12 @@ final class SvgCss {
          * With two descendant combinators or more, a try that fails is made again from each
          * ancestor further down, which grows as the depth to the power of the combinators: a
          * selector of eleven compounds over forty nested groups took 24 seconds. A match that can
-         * backtrack ({@code stamp} not 0) keeps each answer on the element, at {@code index} for
+         * backtrack ({@code stamp} not 0) keeps each answer for the element, at {@code index} for
          * this question and past the compounds for {@link #selfOrAncestor}'s, so that each is
          * worked out once in a match.
          */
         private boolean matchFrom(int index, SvgXml.Element element, SvgCss css, long stamp) {
-            byte[] memo = stamp == 0 ? null : memo(element, stamp);
+            byte[] memo = stamp == 0 ? null : memo(element, stamp, css);
             if (memo != null && memo[index] != 0) {
                 return memo[index] == 1;
             }
@@ -844,7 +906,7 @@ final class SvgCss {
             boolean found = false;
             for (SvgXml.Element up = first; up != null; up = up.parent()) {
                 if (stamp != 0) {
-                    byte[] memo = memo(up, stamp);
+                    byte[] memo = memo(up, stamp, css);
                     if (memo[slot] != 0) {
                         found = memo[slot] == 1;
                         break;
@@ -858,7 +920,7 @@ final class SvgCss {
             }
             if (stamp != 0) {
                 for (SvgXml.Element element : walked) {
-                    memo(element, stamp)[slot] = (byte) (found ? 1 : 2);
+                    memo(element, stamp, css)[slot] = (byte) (found ? 1 : 2);
                 }
             }
             return found;
@@ -1006,8 +1068,8 @@ final class SvgCss {
          * Whether the element meets every condition, each tested until one fails and each
          * charged: an id or a class is a step, a number compared; a type or an attribute a step
          * and one for every sixteen characters it compares; a pseudo-class a step for each
-         * character, which it parses. A compound of ten thousand classes costs ten thousand
-         * steps, and a chart's `.dot.series-3` costs two.
+         * character, which it parses; the first step is the try's own. A compound of ten
+         * thousand classes costs ten thousand steps, and a chart's `.dot.series-3` costs two.
          */
         boolean matches(SvgXml.Element element, SvgCss css) {
             long work = 0;
@@ -1035,7 +1097,8 @@ final class SvgCss {
                 work += 1 + pseudos.get(i).length();
                 met = pseudo(pseudos.get(i), element, css);
             }
-            css.step(work);
+            // The try that brought the element here was a step, and covers its first condition.
+            css.step(Math.max(0, work - 1));
             return met;
         }
 

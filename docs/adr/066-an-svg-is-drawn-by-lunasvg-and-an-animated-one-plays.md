@@ -239,7 +239,21 @@ As ADR 061 asks of everything the toolkit reads itself:
   every sixteen characters it compares; and the walk up is made only for an element of a type
   some ancestor-filed selector names. That id file reads in 370 ms, one of the same hash that
   differs only at its end (27 seconds before either change) in 350 ms, the 16 MB file in 190 ms
-  keeping twice its size, as before, and charts of 20 to 200 series in 77 to 314 ms.
+  keeping twice its size, as before, and charts of 20 to 200 series written `.dot.series-N` in 77
+  to 314 ms (the same charts written `.series-N .dot` were still refused: see the next note).
+  **Amended 2026-10-19, after the second review:** three more holes. A chart that styles its series
+  through their groups, `.series-N .dot` or `.chart-color-N .chart-point`, still had every rule filed
+  under the points' class, so every point was tried against every series, and charged a step for
+  the try and one for the class it tested: 28 series over 20,000 points (0.9 MB) were refused,
+  which 41558da6 read. Such a selector is now filed under the ancestor's class when that is rarer
+  than the point's, then under the point's class, so a point is tried only against its own
+  series; and the try's step covers its first condition, as before these notes. The answers a
+  selector of several descendant combinators remembers had stayed on the elements, 80 bytes each
+  for the picture's life; they are the matcher's now, as what it learns of each element is. And a
+  sheet of a million short selectors (7 MB) ran a 512 MB heap out while it was read, before
+  matching counted a step: a file whose sheets hold more than 100,000 selectors is refused before
+  they are built, thirty times the largest sheet the tests read. Charts of 24 to 200 series over
+  20,000 to 100,000 points, either spelling, read in 91 to 310 ms.
 - **A picture beside a file read from disk is read by the toolkit,** as the owner chose: an
   image's `href` relative to the SVG's own folder, resolved there, refused if it leads out of
   that folder, read within the same ceilings as any picture and handed to lunasvg inside the

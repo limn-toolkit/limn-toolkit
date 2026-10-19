@@ -202,22 +202,28 @@ class SvgHostileCorpusTest {
     }
 
     /**
-     * What matching worked out about each element dies with the reading: kept on the elements, it
-     * stayed with the picture for its life at some thirty times the file, and a 16 MB file of
-     * class words ran a 512 MB heap out. Here a file of 16 MB, every element carrying the same
-     * thousand class words (none of which the sheet names), is read, and what the source keeps of
-     * a 4 MB one is held to a few times its size.
+     * What matching works out about each element dies with the reading: kept on the elements, it
+     * stayed with the picture for its life, at some thirty times the file for class words, and
+     * 80 bytes an element for the answers a selector of several descendant combinators remembers.
+     * A file of 16 MB, every element carrying the same thousand class words, each of which the
+     * sheet names, is read within the test's heap; and two files of a hundred thousand elements,
+     * one whose sheet names nothing they have and one whose sheet names their class and
+     * backtracks through them, keep the same memory once read, within a megabyte: either kept on
+     * the elements adds 2 to 10 MB here.
      */
     @org.junit.jupiter.api.Test
     void whatMatchingWorkedOutAboutElementsDiesWithTheReading() throws InterruptedException {
         SvgSource.read(classWordsOnEveryElement(4100), null);
-        byte[] svg = classWordsOnEveryElement(1000);
         Runtime runtime = Runtime.getRuntime();
         long before = usedAfterCollection(runtime);
-        SvgSource source = SvgSource.read(svg, null);
-        long kept = usedAfterCollection(runtime) - before;
-        assertNotNull(source.root());
-        assertTrue(kept < 8L * svg.length, "a file of " + svg.length + " bytes keeps " + kept + " bytes");
+        SvgSource plain = SvgSource.read(smallGroups(".zz{fill:red}"), null);
+        long plainKept = usedAfterCollection(runtime) - before;
+        SvgSource matched = SvgSource.read(smallGroups(".k{fill:red} g g g{stroke:blue}"), null);
+        long matchedKept = usedAfterCollection(runtime) - before - plainKept;
+        assertNotNull(plain.root());
+        assertNotNull(matched.root());
+        assertTrue(matchedKept - plainKept < 1_000_000L, "matching keeps " + (matchedKept - plainKept) + " bytes more ("
+                + matchedKept + " against " + plainKept + ")");
     }
 
     private static long usedAfterCollection(Runtime runtime) throws InterruptedException {
@@ -228,20 +234,53 @@ class SvgHostileCorpusTest {
         return runtime.totalMemory() - runtime.freeMemory();
     }
 
-    /** {@code elements} groups, each with every two-character word of letters and digits as a class: 3.9 KB each. */
+    /** {@code elements} groups, each with every two-character word of letters and digits as a class, all named by the sheet: 3.9 KB each. */
     private static byte[] classWordsOnEveryElement(int elements) {
         StringBuilder words = new StringBuilder();
+        StringBuilder sheet = new StringBuilder();
         String alphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
         for (char a : alphabet.toCharArray()) {
             for (char b : alphabet.toCharArray()) {
                 words.append(a).append(b).append(' ');
+                sheet.append(sheet.length() == 0 ? "." : ",.").append(a).append(b);
             }
         }
-        StringBuilder svg = new StringBuilder("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'><style>.zz9{fill:red}</style>");
+        StringBuilder svg = new StringBuilder("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'><style>")
+                .append(sheet).append("{fill:red}</style>");
         for (int i = 0; i < elements; i++) {
             svg.append("<g class='").append(words).append("'/>");
         }
         return svg.append("</svg>").toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    /** A hundred thousand groups of class {@code k} in one group, under {@code sheet}. */
+    private static byte[] smallGroups(String sheet) {
+        StringBuilder svg = new StringBuilder("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'><style>")
+                .append(sheet).append("</style><g>");
+        for (int i = 0; i < 100_000; i++) {
+            svg.append("<g class='k'/>");
+        }
+        return svg.append("</g></svg>").toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    /**
+     * A sheet of a million short selectors (7 MB) ran a 512 MB heap out while it was parsed,
+     * before matching was charged a step: each selector is some six hundred bytes once read. A
+     * sheet of more selectors than any drawing needs is refused before they are built.
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {"oneRule", "ruleEach"})
+    void aSheetOfAMillionSelectorsIsRefused(String shape) {
+        StringBuilder svg = new StringBuilder("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'><style>");
+        for (int i = 0; i < 1_000_000; i++) {
+            if (shape.equals("oneRule")) {
+                svg.append(i == 0 ? "." : ",.").append(Integer.toString(i, 36)).append('x');
+            } else {
+                svg.append('.').append(Integer.toString(i, 36)).append("x{}");
+            }
+        }
+        svg.append(shape.equals("oneRule") ? "{fill:red}" : "").append("</style><g class='x'/></svg>");
+        refusedQuickly(svg.toString().getBytes(StandardCharsets.UTF_8), shape);
     }
 
     private static String repeat(char c, int n) {
