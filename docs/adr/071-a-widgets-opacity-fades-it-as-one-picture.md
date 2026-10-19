@@ -898,7 +898,12 @@ goes on, and no longer out of the `fadeTo` that asked for it.
 drops an arrival that waits for the next turn, which then never runs, as section 2.1 has it for a
 superseded fade. A container that leaves its scene does not: its value has already arrived, so the
 arrival runs on the next turn as asked; only a fade still in flight settles as the container
-leaves (section 7.2), which is unchanged.
+leaves (section 7.2), which is unchanged. (2026-10-19, after the second review: once section 8.1
+made the wait the fade's length, a container that left its scene ran the same code's `onArrive` at
+the leave with motion and up to the fade's seconds later under less motion, where a window's fade
+flushes its waiting callback as the window closes. A waiting arrival now runs as the container
+leaves, as one in flight does, its timer withdrawn: `OpacityTest
+.aStraightThereFadeWaitingForItsSecondsArrivesAsItsContainerLeaves`.)
 
 **The toolkit's own fades.** `Scene.fadeWindow`, `fadeWindowIn` and `fadeWindowOut` follow the
 same rule for their callback: with no window, for zero seconds or for the value the window has, it

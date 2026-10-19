@@ -673,6 +673,35 @@ final class TransformGroup implements TransformAccess.Values {
      */
     void settleOnLeaving() {
         ticker = null; // the ticker left behind finds itself replaced, if that scene ticks again
+        // Motions that went straight there and still wait for their seconds end here too, after
+        // those in flight (never of the same kind), so that the same code ends at the same moment
+        // with motion and under less motion. Taken first: one an arrival asks for waits its time.
+        Arrival[] waiting = arrivals.clone();
+        for (int kind = 0; kind < arrivals.length; kind++) {
+            Arrival dropped = arrivals[kind];
+            if (dropped != null) {
+                arrivals[kind] = null;
+                Subscription timer = dropped.timer;
+                if (timer != null) {
+                    timer.cancel();
+                }
+            }
+        }
+        settleInFlight();
+        for (Arrival arrival : waiting) {
+            if (arrival != null) {
+                Runnable swap = arrival.atEdge;
+                if (swap != null && !arrival.swapped) {
+                    arrival.swapped = true;
+                    swap.run();
+                }
+                runIfAny(arrival.onArrive);
+            }
+        }
+    }
+
+    /** Settles every motion in flight as the container leaves: see {@link #settleOnLeaving}. */
+    private void settleInFlight() {
         Motion sliding = slide;
         Motion scaling = scale;
         Motion turning = rotating;

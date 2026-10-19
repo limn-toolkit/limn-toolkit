@@ -133,7 +133,8 @@ public final class Opacity extends Widget<Opacity> {
      * gone straight there whose {@code onArrive} still waits: it stops where it is,
      * and its {@code onArrive} never runs. A fade on a container that leaves its scene
      * (removed from the tree, moved into another window, or its window closed) settles at its target
-     * as it leaves, announcing its end and running its {@code onArrive} then.
+     * as it leaves, announcing its end and running its {@code onArrive} then; one that went
+     * straight there and still waits for its seconds runs its {@code onArrive} then too.
      *
      * <p><b>A watcher hears a fade twice</b>, as {@link Change.Aspect#OPACITY} with origin
      * {@code CODE}: when it starts, and when it arrives or is superseded. The steps between set the

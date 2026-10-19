@@ -167,12 +167,21 @@ final class OpacityGroup {
      * its two announcements and what an {@code onArrive} is for: it hides or removes something, and
      * a container taken away mid-fade has asked for that end, not stopped short of it. Only a newer
      * fade or a set supersedes one, which is the caller choosing another end.
+     *
+     * <p>A fade that went straight there and still waits for its seconds ends here too, its
+     * {@code onArrive} run now and its timer withdrawn: the same code then ends at the same moment
+     * with motion and under less motion, as a window's fade ends as its window closes.
      */
     void settleOnLeaving() {
         ticker = null; // the ticker left behind finds itself replaced, if that scene ticks again
+        Runnable waiting = waitingArrival; // taken first: one its onArrive asks for waits its time
+        dropWaiting();
         Fade leaving = fade;
         if (leaving != null) {
             settle(leaving);
+        }
+        if (waiting != null) {
+            waiting.run();
         }
     }
 
@@ -212,15 +221,20 @@ final class OpacityGroup {
      * went straight there and waits to arrive is dropped, its value already set.
      */
     private void supersede() {
+        dropWaiting();
+        if (fade != null) {
+            fade = null;
+            owner.notifyChange(Change.of(Change.Aspect.OPACITY, Change.Origin.CODE));
+        }
+    }
+
+    /** Forgets a straight-there arrival that waits, withdrawing its timer, if there is one. */
+    private void dropWaiting() {
         waitingArrival = null;
         Subscription timer = waitingTimer;
         if (timer != null) {
             waitingTimer = null;
             timer.cancel(); // lets go of what it captures now, not when it falls due
-        }
-        if (fade != null) {
-            fade = null;
-            owner.notifyChange(Change.of(Change.Aspect.OPACITY, Change.Origin.CODE));
         }
     }
 

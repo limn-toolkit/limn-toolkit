@@ -1192,6 +1192,37 @@ class TransformTest extends SceneTestBase {
         assertEquals(before[0], scene.tickerCounts()[0], "and the ticker is gone with the motions");
     }
 
+    /**
+     * A container that leaves its scene runs what its motions that went straight there still wait
+     * to run, as it settles one in flight: a slide's arrival, and a flip's swap if it has not run
+     * yet and then its arrival.
+     */
+    @Test
+    void straightThereMotionsWaitingForTheirSecondsArriveAsTheirContainerLeaves() {
+        queueOnTestClock();
+        try (TestPreferences system = new TestPreferences()) {
+            system.reduceMotion(true);
+            Transform swapped = new Transform(new Leaf("swapped", painted));
+            Transform waiting = new Transform(new Leaf("waiting", painted));
+            Stack holder = new Stack();
+            holder.add(swapped);
+            holder.add(waiting);
+            sceneOf(holder);
+            List<String> ran = new ArrayList<>();
+            swapped.slideTo(40, 0, 2.0, () -> ran.add("slid"));
+            swapped.flipTo(Transform.Flip.FORWARD, 2.0, () -> ran.add("swapped edge"), () -> ran.add("swapped flip"));
+            turnAfter(500); // the swap has run on the next turn; the arrivals wait
+            waiting.flipTo(Transform.Flip.FORWARD, 2.0, () -> ran.add("waiting edge"), () -> ran.add("waiting flip"));
+            assertEquals(List.of("swapped edge"), ran);
+            holder.remove(swapped);
+            holder.remove(waiting);
+            assertEquals(List.of("swapped edge", "slid", "swapped flip", "waiting edge", "waiting flip"), ran,
+                    "each run as its container leaves, a swap not yet made first, once");
+            turnAfter(3000);
+            assertEquals(5, ran.size(), "and not again when their time comes");
+        }
+    }
+
     @Test
     void aContainerThatLeavesItsSceneSettlesEveryMotionThere() {
         Transform t = new Transform(new Leaf("w", painted));

@@ -2038,7 +2038,10 @@ the set of its value, or `reset()`, drops the arrival waiting for the next turn,
 the flip's `atEdge` with it. A flip whose own `atEdge` supersedes it, by a `reset()` or a newer
 flip, does not arrive, as one that turns would not after its edge. A container that leaves its scene
 does not drop it: the value has already arrived; settling as it leaves (section 2.3) still applies
-only to motions in flight.
+only to motions in flight. (2026-10-19, after the second review: a waiting arrival now runs as the
+container leaves, a flip's swap first if it has not run, after the motions in flight, as ADR 071
+section 8 has it for the fade: `TransformTest
+.straightThereMotionsWaitingForTheirSecondsArriveAsTheirContainerLeaves`.)
 
 **Tests** (as section 13.1 left them).
 `TransformTest.aMotionChainedInOnArriveSleepsBetweenStepsWhereverItGoesStraightThere` chains all

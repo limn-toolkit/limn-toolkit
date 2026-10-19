@@ -445,7 +445,8 @@ public final class Transform extends Widget<Transform> {
      * <p><b>A newer slide or a {@link #setTranslation} supersedes one in flight</b>, or one gone
      * straight there whose {@code onArrive} still waits: it stops where it is, and its
      * {@code onArrive} never runs. A slide on a container that leaves its scene settles
-     * at its target as it leaves and runs its {@code onArrive} then.
+     * at its target as it leaves and runs its {@code onArrive} then, as does one that went straight
+     * there and still waits for its seconds (a flip's swap first, if it has not run).
      *
      * <p><b>A watcher hears it twice</b>, as {@link Change.Aspect#TRANSFORM}: when it starts, and when
      * it arrives or is superseded. The frames between repaint without announcing and without telling

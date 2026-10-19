@@ -778,10 +778,35 @@ class OpacityTest extends SceneTestBase {
         AtomicInteger leaving = new AtomicInteger();
         w.fadeTo(0.1f, 0, leaving::incrementAndGet);
         holder.remove(w);
-        assertEquals(0, leaving.get(), "leaving the scene settles a fade in flight, and this one had arrived");
+        assertEquals(1, leaving.get(), "leaving the scene runs an arrival waiting for the next turn, as one in flight");
         runtime.drain();
         runtime.drain();
-        assertEquals(1, leaving.get(), "an arrival left for the next turn runs there once, whatever the tree did");
+        assertEquals(1, leaving.get(), "and the next turn does not run it again");
+    }
+
+    /**
+     * A container that leaves its scene runs the {@code onArrive} of its fade then, whether the
+     * fade was moving or had gone straight there and waited for its seconds: the same code ends at
+     * the same moment with motion and under less motion, as a window's fade ends as it closes.
+     */
+    @Test
+    void aStraightThereFadeWaitingForItsSecondsArrivesAsItsContainerLeaves() {
+        queueOnTestClock();
+        try (TestPreferences system = new TestPreferences()) {
+            system.reduceMotion(true);
+            Opacity w = faded("w");
+            Stack holder = new Stack();
+            holder.add(w);
+            sceneOf(holder);
+            AtomicInteger arrived = new AtomicInteger();
+            w.fadeTo(0f, 2.0, arrived::incrementAndGet);
+            turnAfter(500);
+            assertEquals(0, arrived.get(), "waiting its two seconds");
+            holder.remove(w);
+            assertEquals(1, arrived.get(), "run as the container leaves, as a fade in flight's is");
+            turnAfter(2000);
+            assertEquals(1, arrived.get(), "and not again when its time comes");
+        }
     }
 
     @Test
