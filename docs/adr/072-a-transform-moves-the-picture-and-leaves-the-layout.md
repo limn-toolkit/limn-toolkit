@@ -30,7 +30,9 @@
   guests measured them (section 7.1), and the owner's three decisions on those numbers are built
   (section 12); section 12.5 lists what those leave open. Amended 2026-10-19, before 1.0
   (section 13): no motion's `onArrive`, nor a flip's `atEdge`, runs inside the call that asked for
-  it; one that goes straight to its target runs them on the next turn of the UI queue.
+  it; one that goes straight to its target runs them on the next turn of the UI queue, and, the
+  same day (section 13.1, the owner's decision 7), after the seconds the call asked for when it
+  asked for any.
 - **Date:** 2026-10-17
 - **Scope:**
   - a container that draws its child moved, scaled, rotated or turned in 3D, without changing
@@ -188,8 +190,8 @@ All setters are fluent, UI thread only, and throw when called from inside a pain
   supersedes the one in flight and its `onArrive` does not run; motions of different values run
   together (a slide while a scale); a Transform that leaves its scene settles every motion at its
   target as it leaves and runs their `onArrive` then; with no scene to tick, or for zero seconds,
-  it goes straight to the target. (2026-10-19, section 13: and its `onArrive` runs on the next
-  turn of the UI queue, never inside the call.)
+  it goes straight to the target. (2026-10-19, sections 13 and 13.1: and its `onArrive` runs after the
+  seconds asked for, or on the next turn of the UI queue for none, never inside the call.)
 - **`flipTo` turns the child over and back.** It turns the plane from flat to edge-on about the
   axis `direction` names, runs `atEdge` there (where the application swaps what the child shows:
   hides one face, shows the other), and turns it from edge-on the other side back to flat, so the
@@ -205,7 +207,7 @@ All setters are fluent, UI thread only, and throw when called from inside a pain
 - **Less motion.** While the system asks for less motion, `slideTo`, `scaleTo` and `rotateTo` go
   straight to the target and `onArrive` runs at once, as `fadeTo` does. `flipTo` runs `atEdge`
   and then `onArrive` at once, swapping the content with no turn (question 8). (2026-10-19,
-  section 13: on the next turn of the UI queue, `atEdge` first, never inside the call.)
+  sections 13 and 13.1: after its seconds, `atEdge` first, never inside the call.)
 - **A watcher hears a transform change by the owner's rule of ADR 071** (decision 2 there),
   through a new aspect `Change.Aspect.TRANSFORM`, origin `CODE`:
   - a direct set that changes a value announces it, every time; `reset()` announces once
@@ -2022,9 +2024,12 @@ queue, exactly once.
 together on the next turn, `atEdge` first, so that no callback of the application runs inside any
 of the four calls and a flip asked for again in its own `atEdge` cannot recurse either. Running the
 swap at once and only the arrival later was the alternative; it was not taken because it left one
-callback re-entrant, and the swap a turn later is not seen when the flip is asked for from an event
-or a task: the backend's loop takes the input, then drains the queue, then draws, so the swap lands
-before the next frame. Asked for from a ticker, inside a frame, it lands one frame later.
+callback re-entrant. (2026-10-19, corrected after review: the swap of a zero-second flip asked for
+from an input event lands before the next frame, since the backend's loop takes the input, then
+drains the queue, then draws, and the drain runs what the input posted. Asked for from a posted
+task, a continuation of `Ui.async`, a screen reader's action or a ticker, it lands one frame later:
+the drain runs only the tasks queued when it began. Nothing is drawn wrong meanwhile, the old face
+flat for one more frame. A flip that asked for seconds swaps after them, section 13.1.)
 
 **What supersedes it.** Each kind of motion keeps its own waiting arrival, so a slide does not drop
 a scale's. Whatever supersedes a motion of that kind in flight, a newer motion of the same kind,
@@ -2034,13 +2039,33 @@ flip, does not arrive, as one that turns would not after its edge. A container t
 does not drop it: the value has already arrived; settling as it leaves (section 2.3) still applies
 only to motions in flight.
 
-**Tests.** `TransformTest.aMotionChainedInOnArriveRunsOneArrivalATurnWhereverItGoesStraightThere`
-chains all four motions on themselves under less motion in a window, in no scene, in a scene with
-no window and for zero seconds, five thousand turns each, four arrivals a turn and none inside a
-call (each threw `StackOverflowError` before);
-`underLessMotionAMotionGoesStraightThereAsOneSetAndAFlipSwapsOnTheNextTurn` (was
+**Tests** (as section 13.1 left them).
+`TransformTest.aMotionChainedInOnArriveSleepsBetweenStepsWhereverItGoesStraightThere` chains all
+four motions on themselves; for zero seconds, five thousand turns, four arrivals a turn and none
+inside a call (it threw `StackOverflowError` before);
+`underLessMotionAMotionGoesStraightThereAsOneSetAndAFlipSwapsAfterItsSeconds` (was
 `...AndAFlipSwapsAtOnce`, which asserted both at once) and
 `aStraightThereMotionSupersededBeforeTheNextTurnRunsNothing` hold the turn, the order, the once and
 each supersession; `TransformRotationTest.underLessMotionARotationGoesStraightThereAsOneSet` and
-`TransformDepthTest.underLessMotionAFlipInPerspectiveSwapsOnTheNextTurn` (was `...SwapsAtOnce`)
+`TransformDepthTest.underLessMotionAFlipInPerspectiveSwapsAfterItsSeconds` (was `...SwapsAtOnce`)
 were changed to the new contract.
+
+### 13.1 After the seconds asked for: the owner's decision 7, 2026-10-19
+
+The review of section 13's branch found that "the next turn" turned the recursion into a chain that
+ran one arrival a turn for ever: under less motion a slide chained on itself in a shown window moved
+on every frame, and where nothing was drawn the loop never slept (ADR 071 section 8.1 has the
+numbers, measured on the fade). The owner's decision 7, the same as ADR 071 section 8.1's: a motion
+that goes straight to its target although its call asked for `seconds > 0` runs its `onArrive`, and
+a flip its `atEdge` then its `onArrive`, after those seconds, posted on the UI queue; for zero
+seconds on the next turn; never inside the call; and whatever supersedes a motion of that kind
+before then (a newer motion of the kind, the set of its value, `reset()`, or the flip's own
+`atEdge`) drops it, its timer withdrawn as it is dropped. Motion that repeats for as long as
+something lasts is a `Transition` with `repeat(true)`, which the Javadoc and the Animations guide now
+point to instead of a chain of motions.
+
+**Tests.** `TransformTest.aMotionChainedInOnArriveSleepsBetweenStepsWhereverItGoesStraightThere`
+chains all four motions under less motion in a window, in no scene and in a scene with no window:
+two hundred periods each, nothing however often the loop turns within one, the loop free to sleep
+until the next step, four arrivals a period; `aStraightThereMotionWaitingForItsSecondsIsSupersededAsOneInFlightIs`
+drops waiting arrivals by a newer slide, each set and a reset, and leaves another kind's.

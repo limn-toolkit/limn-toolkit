@@ -1,5 +1,6 @@
 package limn.scene;
 
+import limn.concurrent.Subscription;
 import limn.concurrent.Ui;
 import org.jspecify.annotations.Nullable;
 
@@ -31,14 +32,13 @@ final class OpacityGroup {
      */
     private @Nullable FadeTicker ticker;
     /**
-     * The {@code onArrive} of a fade that went straight to its target, waiting for the next turn of
-     * the UI queue, or null. Never run inside the {@code fadeTo} that asked for it: the next fade
-     * of a pulse is asked for in that {@code onArrive}, and where every fade goes straight there,
-     * less motion asked for or no window to step it, each arrival run inside the call started the
-     * next on the same stack until it ran out. Whatever supersedes a fade drops it, as it drops a
-     * fade in flight.
+     * The {@code onArrive} of a fade that went straight to its target, waiting on the UI queue for
+     * the seconds its call asked for, or for the next turn ({@link StraightArrival}), or null.
+     * Whatever supersedes a fade drops it, as it drops a fade in flight.
      */
-    private @Nullable Runnable arrivalNextTurn;
+    private @Nullable Runnable waitingArrival;
+    /** What withdraws {@link #waitingArrival} from the queue, while one waits. */
+    private @Nullable Subscription waitingTimer;
 
     OpacityGroup(Widget<?> owner) {
         this.owner = owner;
@@ -107,7 +107,7 @@ final class OpacityGroup {
                 move(clamped);
                 owner.notifyChange(Change.of(Change.Aspect.OPACITY, Change.Origin.CODE));
             }
-            arriveNextTurn(onArrive);
+            arriveLater(seconds, onArrive);
             return;
         }
         fade = new Fade(value, clamped, length, onArrive);
@@ -187,31 +187,37 @@ final class OpacityGroup {
     }
 
     /**
-     * A fade that went straight there arrives on the next turn of the UI queue, as one stepped by
-     * frames arrives on a later frame: its {@code onArrive} runs then, once, unless something
-     * supersedes the fade first.
+     * A fade that went straight there arrives later, as one stepped by frames arrives on a later
+     * frame: its {@code onArrive} runs once, after the seconds the call asked for or on the next
+     * turn when it asked for none, unless something supersedes the fade first.
      */
-    private void arriveNextTurn(@Nullable Runnable onArrive) {
+    private void arriveLater(double seconds, @Nullable Runnable onArrive) {
         if (onArrive == null) {
             return;
         }
         Runnable arrival = onArrive::run; // its own identity: the same Runnable may be asked for twice
-        arrivalNextTurn = arrival;
-        Ui.post(() -> {
-            if (arrivalNextTurn != arrival) {
-                return; // superseded before this turn
+        waitingArrival = arrival;
+        waitingTimer = StraightArrival.post(seconds, () -> {
+            if (waitingArrival != arrival) {
+                return; // superseded before its time
             }
-            arrivalNextTurn = null;
+            waitingArrival = null;
+            waitingTimer = null;
             arrival.run();
         });
     }
 
     /**
      * A fade in flight stops where it is, announces its end, and never runs its onArrive; one that
-     * went straight there and waits for the next turn to arrive is dropped, its value already set.
+     * went straight there and waits to arrive is dropped, its value already set.
      */
     private void supersede() {
-        arrivalNextTurn = null;
+        waitingArrival = null;
+        Subscription timer = waitingTimer;
+        if (timer != null) {
+            waitingTimer = null;
+            timer.cancel(); // lets go of what it captures now, not when it falls due
+        }
         if (fade != null) {
             fade = null;
             owner.notifyChange(Change.of(Change.Aspect.OPACITY, Change.Origin.CODE));

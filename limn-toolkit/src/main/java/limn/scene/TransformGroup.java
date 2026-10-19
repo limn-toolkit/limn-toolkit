@@ -1,5 +1,6 @@
 package limn.scene;
 
+import limn.concurrent.Subscription;
 import limn.concurrent.Ui;
 import limn.math.Mat4;
 import limn.math.MutMat4;
@@ -90,16 +91,25 @@ final class TransformGroup implements TransformAccess.Values {
     private static final int ROTATION = 2;
     private static final int FLIP = 3;
     /**
-     * Per motion, what a motion that went straight to its target runs on the next turn of the UI
-     * queue, or null. Never inside the call that asked for it: the next motion of a repeating one
-     * is asked for in its {@code onArrive}, and where every motion goes straight there, less
-     * motion asked for or no window to step it, each arrival run inside the call started the next
-     * on the same stack until it ran out. Whatever supersedes a motion of that kind drops it.
+     * Per motion, what a motion that went straight to its target runs later, waiting on the UI
+     * queue for the seconds its call asked for or for the next turn ({@link StraightArrival}), or
+     * null. Whatever supersedes a motion of that kind drops it.
      */
     private final @Nullable Arrival[] arrivals = new Arrival[4];
 
-    /** A straight-there motion's callbacks: a flip's swap and its arrival, a slide's arrival. */
-    private record Arrival(@Nullable Runnable atEdge, @Nullable Runnable onArrive) {
+    /**
+     * A straight-there motion's callbacks, a flip's swap and its arrival or another motion's
+     * arrival, and what withdraws them from the queue.
+     */
+    private static final class Arrival {
+        final @Nullable Runnable atEdge;
+        final @Nullable Runnable onArrive;
+        @Nullable Subscription timer;
+
+        Arrival(@Nullable Runnable atEdge, @Nullable Runnable onArrive) {
+            this.atEdge = atEdge;
+            this.onArrive = onArrive;
+        }
     }
 
     TransformGroup(Widget<?> owner) {
@@ -435,7 +445,7 @@ final class TransformGroup implements TransformAccess.Values {
                 moved(true);
                 announce();
             }
-            arriveNextTurn(SLIDE, null, onArrive);
+            arriveLater(SLIDE, seconds, null, onArrive);
             return;
         }
         slide = new Motion(translationX, translationY, x, y, motionSeconds(seconds), onArrive);
@@ -457,7 +467,7 @@ final class TransformGroup implements TransformAccess.Values {
                 moved(true);
                 announce();
             }
-            arriveNextTurn(SCALE, null, onArrive);
+            arriveLater(SCALE, seconds, null, onArrive);
             return;
         }
         scale = new Motion(scaleX, scaleY, sx, sy, motionSeconds(seconds), onArrive);
@@ -477,7 +487,7 @@ final class TransformGroup implements TransformAccess.Values {
                 moved(true);
                 announce();
             }
-            arriveNextTurn(ROTATION, null, onArrive);
+            arriveLater(ROTATION, seconds, null, onArrive);
             return;
         }
         rotating = new Motion(rotation, 0, degrees, 0, motionSeconds(seconds), onArrive);
@@ -494,14 +504,14 @@ final class TransformGroup implements TransformAccess.Values {
         Scene ticking = tickingScene(seconds);
         if (ticking == null) {
             // Less motion, no time, or no frames: the content swaps with no turn at all, and a
-            // flip left half-way by one superseded comes back flat. The swap waits for the next
-            // turn with the arrival, so that no callback of the application runs inside the call.
+            // flip left half-way by one superseded comes back flat. The swap waits with the
+            // arrival, so that no callback of the application runs inside the call.
             if (flipDegrees != 0) {
                 flipDegrees = 0;
                 moved(true);
                 announce();
             }
-            arriveNextTurn(FLIP, atEdge, onArrive);
+            arriveLater(FLIP, seconds, atEdge, onArrive);
             return;
         }
         // Which way the first half turns, physically: forward, the end edge comes up toward the
@@ -706,11 +716,17 @@ final class TransformGroup implements TransformAccess.Values {
 
     /**
      * A motion in flight stops where it is and announces its end; its onArrive never runs. One of
-     * the same kind that went straight there and waits for the next turn is dropped, its value
-     * already set.
+     * the same kind that went straight there and waits to arrive is dropped, its value already set.
      */
     private <T> @Nullable T supersede(@Nullable T motion, int kind) {
-        arrivals[kind] = null;
+        Arrival waiting = arrivals[kind];
+        if (waiting != null) {
+            arrivals[kind] = null;
+            Subscription timer = waiting.timer;
+            if (timer != null) {
+                timer.cancel(); // lets go of what it captures now, not when it falls due
+            }
+        }
         if (motion != null) {
             announce();
         }
@@ -718,22 +734,24 @@ final class TransformGroup implements TransformAccess.Values {
     }
 
     /**
-     * A motion that went straight there arrives on the next turn of the UI queue, as one stepped
-     * by frames arrives on a later frame: a flip's {@code atEdge} and then its {@code onArrive}
-     * run then, once, unless something supersedes the motion first, the swap included: a flip
-     * its own {@code atEdge} supersedes does not arrive, as one that turns would not.
+     * A motion that went straight there arrives later, as one stepped by frames arrives on a later
+     * frame: a flip's {@code atEdge} and then its {@code onArrive} run once, after the seconds the
+     * call asked for or on the next turn when it asked for none, unless something supersedes the
+     * motion first, the swap included: a flip its own {@code atEdge} supersedes does not arrive, as
+     * one that turns would not.
      */
-    private void arriveNextTurn(int kind, @Nullable Runnable atEdge, @Nullable Runnable onArrive) {
+    private void arriveLater(int kind, double seconds, @Nullable Runnable atEdge,
+                             @Nullable Runnable onArrive) {
         if (atEdge == null && onArrive == null) {
             return;
         }
         Arrival arrival = new Arrival(atEdge, onArrive);
         arrivals[kind] = arrival;
-        Ui.post(() -> {
+        arrival.timer = StraightArrival.post(seconds, () -> {
             if (arrivals[kind] != arrival) {
-                return; // superseded before this turn
+                return; // superseded before its time
             }
-            Runnable swap = arrival.atEdge();
+            Runnable swap = arrival.atEdge;
             if (swap != null) {
                 swap.run();
                 if (arrivals[kind] != arrival) {
@@ -741,7 +759,7 @@ final class TransformGroup implements TransformAccess.Values {
                 }
             }
             arrivals[kind] = null;
-            runIfAny(arrival.onArrive());
+            runIfAny(arrival.onArrive);
         });
     }
 

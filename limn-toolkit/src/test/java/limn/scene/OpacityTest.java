@@ -581,8 +581,23 @@ class OpacityTest extends SceneTestBase {
         assertEquals(before[0], scene.tickerCounts()[0]);
     }
 
+    /** What delayed tasks on the UI queue read as now: moved only by {@link #turnAfter}. */
+    private final long[] queueNow = {0};
+
+    /** Puts the UI queue's delayed tasks on {@link #queueNow}, which this test moves. */
+    private void queueOnTestClock() {
+        runtime.setDelayClock(() -> queueNow[0]);
+    }
+
+    /** One turn of the loop, {@code millis} after the last on the queue's clock. */
+    private void turnAfter(long millis) {
+        queueNow[0] += TimeUnit.MILLISECONDS.toNanos(millis);
+        runtime.drain();
+    }
+
     @Test
-    void aFadeThatGoesStraightThereIsOneSetAndArrivesOnTheNextTurn() {
+    void aFadeThatGoesStraightThereIsOneSetAndArrivesAfterItsSecondsOrOnTheNextTurn() {
+        queueOnTestClock();
         Opacity w = faded("w");
         AccessibleHarness harness = new AccessibleHarness(runtime, w);
         AtomicInteger arrived = new AtomicInteger();
@@ -593,15 +608,19 @@ class OpacityTest extends SceneTestBase {
             assertEquals(0, arrived.get(), "onArrive never inside the call");
             assertEquals(List.of(OPACITY), opacityChanges(harness), "one announcement, as one set");
             runtime.drain();
-            assertEquals(1, arrived.get(), "but on the next turn");
-            runtime.drain();
+            turnAfter(499);
+            assertEquals(0, arrived.get(), "not on the next turn: after the half second asked for");
+            turnAfter(1);
+            assertEquals(1, arrived.get(), "then");
+            turnAfter(1000);
             assertEquals(1, arrived.get(), "and once");
 
             harness.clearObservations();
             w.fadeTo(0.3f, 0.5, arrived::incrementAndGet);
             assertTrue(opacityChanges(harness).isEmpty(), "none when the value does not change");
-            assertEquals(1, arrived.get(), "the same value: not inside the call either");
-            runtime.drain();
+            turnAfter(499);
+            assertEquals(1, arrived.get(), "the same value: after its seconds too");
+            turnAfter(1);
             assertEquals(2, arrived.get());
         }
         w.fadeTo(0.6f, 0, arrived::incrementAndGet);
@@ -609,10 +628,11 @@ class OpacityTest extends SceneTestBase {
         assertEquals(List.of(OPACITY), opacityChanges(harness));
         assertEquals(2, arrived.get(), "no time: not inside the call");
         runtime.drain();
-        assertEquals(3, arrived.get());
+        assertEquals(3, arrived.get(), "but on the next turn");
         w.fadeTo(0.6f, 0.5, arrived::incrementAndGet);
-        assertEquals(3, arrived.get(), "the value it has, motion allowed: not inside the call");
         runtime.drain();
+        assertEquals(3, arrived.get(), "the value it has, motion allowed: after its seconds");
+        turnAfter(500);
         assertEquals(4, arrived.get());
         Opacity loose = faded("loose");
         loose.fadeTo(0.2f, 0.5, arrived::incrementAndGet);
@@ -621,69 +641,104 @@ class OpacityTest extends SceneTestBase {
         new Scene(windowless);
         windowless.fadeTo(0.7f, 0.5, arrived::incrementAndGet);
         assertEquals(0.7f, windowless.opacity(), "a scene with no window: straight there");
-        assertEquals(4, arrived.get(), "neither inside its call");
         runtime.drain();
-        assertEquals(6, arrived.get(), "both on the next turn");
-        runtime.drain();
+        assertEquals(4, arrived.get(), "neither inside its call nor on the next turn");
+        turnAfter(500);
+        assertEquals(6, arrived.get(), "both after their seconds");
+        turnAfter(500);
         assertEquals(6, arrived.get(), "each once");
     }
 
     /**
-     * The idiom a repeating fade is made with, a pulse or a breathing hint: the next {@code fadeTo}
-     * in the last one's {@code onArrive}. Wherever the fade goes straight there, an {@code onArrive}
-     * run inside {@code fadeTo} started the next fade on the same stack, which ran the next
-     * {@code onArrive}, until a {@link StackOverflowError} came out of the first call; on the next
-     * turn, one arrival runs a turn and the UI thread is free between them.
+     * The chain an application may write, the next {@code fadeTo} in the last one's
+     * {@code onArrive}, wherever the fade goes straight there. Run inside {@code fadeTo}, it
+     * recursed until a {@link StackOverflowError} came out of the first call; run on the next
+     * turn, it flipped the value on every frame and kept the loop from ever sleeping. After the
+     * seconds asked for, it steps at the pace the application wrote and the loop sleeps between.
      */
     @Test
-    void aPulseChainedInOnArriveRunsOneArrivalATurnWhereverItGoesStraightThere() {
+    void aPulseChainedInOnArriveSleepsBetweenStepsWhereverItGoesStraightThere() {
+        queueOnTestClock();
         try (TestPreferences system = new TestPreferences()) {
             system.reduceMotion(true);
             Opacity reduced = faded("reduced");
             Stack holder = new Stack();
             holder.add(reduced);
             sceneOf(holder);
-            pulseOneArrivalATurn("less motion, in a window", reduced, 0.6, false);
+            pulseOneArrivalAPeriod("less motion, in a window", reduced, 1.0, false);
         }
-        pulseOneArrivalATurn("in no scene", faded("loose"), 0.6, false);
+        pulseOneArrivalAPeriod("in no scene", faded("loose"), 1.0, false);
         Opacity windowless = faded("windowless");
         new Scene(windowless);
         assertNotNull(windowless.scene());
-        pulseOneArrivalATurn("in a scene with no window", windowless, 0.6, false);
-        Opacity instant = faded("instant");
-        Stack holder = new Stack();
-        holder.add(instant);
-        sceneOf(holder);
-        pulseOneArrivalATurn("zero seconds, in a window", instant, 0, false);
+        pulseOneArrivalAPeriod("in a scene with no window", windowless, 1.0, false);
         Opacity still = faded("still");
         Stack other = new Stack();
         other.add(still);
         sceneOf(other);
-        pulseOneArrivalATurn("the value it has, in a window", still, 0.6, true);
+        pulseOneArrivalAPeriod("the value it has, in a window", still, 0.6, true);
     }
 
-    /** Runs the pulse for many turns: one arrival a turn, none inside a call; then a set ends it. */
-    private void pulseOneArrivalATurn(String where, Opacity w, double seconds, boolean sameValue) {
+    /** A chain of zero-second fades: that one asked for no time, so it runs one arrival a turn. */
+    @Test
+    void aChainOfZeroSecondFadesRunsOneArrivalATurn() {
+        Opacity instant = faded("instant");
+        Stack holder = new Stack();
+        holder.add(instant);
+        sceneOf(holder);
         AtomicInteger arrivals = new AtomicInteger();
         Runnable[] pulse = new Runnable[1];
         pulse[0] = () -> {
             arrivals.incrementAndGet();
-            float next = sameValue ? w.opacity() : w.opacity() < 0.5f ? 1f : 0f;
-            w.fadeTo(next, seconds, pulse[0]);
+            instant.fadeTo(instant.opacity() < 0.5f ? 1f : 0f, 0, pulse[0]);
         };
-        float first = sameValue ? 1f : 0f;
-        w.fadeTo(first, seconds, pulse[0]);
-        assertEquals(0, arrivals.get(), where + ": no onArrive inside fadeTo");
-        assertEquals(first, w.opacity(), where + ": though the value is there at once");
+        instant.fadeTo(0f, 0, pulse[0]);
+        assertEquals(0, arrivals.get(), "no onArrive inside fadeTo");
         int turns = 20_000; // past the depth at which the stack ran out, about eight thousand
         for (int turn = 1; turn <= turns; turn++) {
             runtime.drain();
-            assertEquals(turn, arrivals.get(), where + ": one arrival a turn, the next left to the next");
+            assertEquals(turn, arrivals.get(), "one arrival a turn, the next left to the next");
+        }
+        instant.setOpacity(0.5f);
+        runtime.drain();
+        assertEquals(turns, arrivals.get(), "a set supersedes the arrival left for the next turn");
+    }
+
+    /**
+     * Runs the pulse for many periods: none inside a call, nothing however often the loop turns
+     * within a period, the loop free to sleep until the next step, one arrival a period; then a set
+     * ends it.
+     */
+    private void pulseOneArrivalAPeriod(String where, Opacity w, double seconds, boolean sameValue) {
+        long period = Math.round(seconds * 1000);
+        AtomicInteger arrivals = new AtomicInteger();
+        Runnable[] pulse = new Runnable[1];
+        pulse[0] = () -> {
+            arrivals.incrementAndGet();
+            float next = sameValue ? w.opacity() : w.opacity() < 0.5f ? 1f : 0.2f;
+            w.fadeTo(next, seconds, pulse[0]);
+        };
+        float first = sameValue ? 1f : 0.2f;
+        w.fadeTo(first, seconds, pulse[0]);
+        assertEquals(0, arrivals.get(), where + ": no onArrive inside fadeTo");
+        assertEquals(first, w.opacity(), where + ": though the value is there at once");
+        int steps = 200;
+        for (int step = 1; step <= steps; step++) {
+            for (int spin = 0; spin < 50; spin++) {
+                runtime.drain(); // the loop woken by something else, as often as it likes
+            }
+            assertEquals(step - 1, arrivals.get(), where + ": nothing before the period is over");
+            assertEquals(TimeUnit.MILLISECONDS.toNanos(period), runtime.nanosUntilNextDeadline(),
+                    where + ": the loop may sleep until the next step");
+            turnAfter(period - 1);
+            assertEquals(step - 1, arrivals.get(), where + ": not a millisecond early");
+            turnAfter(1);
+            assertEquals(step, arrivals.get(), where + ": one arrival a period");
         }
         assertEquals(first, w.opacity(), where + ": an even number of arrivals, back where it started");
         w.setOpacity(0.5f);
-        runtime.drain();
-        assertEquals(turns, arrivals.get(), where + ": a set supersedes the arrival left for the next turn");
+        turnAfter(period);
+        assertEquals(steps, arrivals.get(), where + ": a set supersedes the arrival waiting for its seconds");
     }
 
     @Test
@@ -727,6 +782,37 @@ class OpacityTest extends SceneTestBase {
         runtime.drain();
         runtime.drain();
         assertEquals(1, leaving.get(), "an arrival left for the next turn runs there once, whatever the tree did");
+    }
+
+    @Test
+    void aStraightThereFadeWaitingForItsSecondsIsSupersededAsOneInFlightIs() {
+        queueOnTestClock();
+        Opacity w = faded("w");
+        AtomicInteger first = new AtomicInteger();
+        AtomicInteger second = new AtomicInteger();
+        try (TestPreferences system = new TestPreferences()) {
+            system.reduceMotion(true);
+            w.fadeTo(0.2f, 0.5, first::incrementAndGet);
+            turnAfter(300);
+            w.fadeTo(0.8f, 0.5, second::incrementAndGet); // a newer one, waiting its own half second
+            turnAfter(300);
+            assertEquals(0, first.get(), "the first's time came, but it was superseded");
+            assertEquals(0, second.get(), "the newer one waits its own seconds, from its own call");
+            turnAfter(200);
+            assertEquals(1, second.get());
+
+            w.fadeTo(0.1f, 0.5, first::incrementAndGet);
+            turnAfter(100);
+            w.setOpacity(0.9f);
+            turnAfter(1000);
+            assertEquals(0, first.get(), "a set supersedes it too");
+        }
+        w.fadeTo(0.4f, 0.5, first::incrementAndGet); // no scene: straight there, waiting
+        w.fadeTo(0.6f, 0, second::incrementAndGet);  // a zero-second one, the next turn
+        runtime.drain();
+        assertEquals(2, second.get(), "the newer arrives on the next turn");
+        turnAfter(1000);
+        assertEquals(0, first.get(), "and the one it superseded never does");
     }
 
     @Test

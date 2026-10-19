@@ -13,7 +13,8 @@
   space, and not a method of `Widget`; everything else this record decides holds, carried by the
   container. Amended 2026-10-19, before 1.0 (section 8): the owner decided that `onArrive` never
   runs inside `fadeTo`; a fade that goes straight to its target runs it on the next turn of the UI
-  queue.
+  queue, and, the same day (section 8.1, his decision 7), after the seconds the call asked for
+  when it asked for any.
 - **Date:** 2026-10-17
 - **Scope:**
   - an opacity on every widget (on an `Opacity` container round any widget since section 7), how
@@ -275,8 +276,8 @@ widget it fades, and not `Widget`'s; every rule here holds for the container.)
   A newer `fadeTo` or a `setOpacity` supersedes one in flight. While the system asks for less
   motion, or with no scene to tick, or for zero seconds, it goes straight to the target and
   `onArrive` runs at once. `onArrive` runs once, when the fade arrives, and not when it is
-  superseded. (2026-10-19, section 8: not at once, on the next turn of the UI queue, and never
-  inside the call.)
+  superseded. (2026-10-19, sections 8 and 8.1: not at once, never inside the call; after the
+  seconds asked for, or on the next turn of the UI queue for none.)
 - **A watcher hears an opacity change by the owner's rule** (decision 2), through a new aspect,
   `Change.Aspect.OPACITY`, origin `CODE`:
   - a `setOpacity` that changes the value announces it, every time;
@@ -788,8 +789,8 @@ Everything sections 2.1 to 2.8 decide about the opacity holds, carried by the co
 hit, focused and read, and `setVisible(false)` wins and keeps the opacity; one container inside
 another multiplies; `fadeTo` goes straight to its target and counts as one set while the system asks
 for less motion, for zero seconds, for the value it has, or with no scene or no window to tick it
-(2026-10-19, section 8: its `onArrive` then runs on the next turn of the UI queue, never inside
-`fadeTo`); a newer `fadeTo` or a `setOpacity` supersedes one in flight, whose `onArrive` does not
+(2026-10-19, sections 8 and 8.1: its `onArrive` then runs after the seconds asked for, or on the
+next turn of the UI queue for none, never inside `fadeTo`); a newer `fadeTo` or a `setOpacity` supersedes one in flight, whose `onArrive` does not
 run; one ticker per container however many fades are asked for between two frames; a container
 leaving its scene mid-fade settles at its target and runs `onArrive` then; and the owner's rule of
 decision 2, a direct set that changes the value announcing `Change.Aspect.OPACITY` each time and a
@@ -885,9 +886,9 @@ same shape (ADR 072 section 13).
 **The owner's decision.** `onArrive` never runs inside `fadeTo`. A fade that goes straight to its
 target sets the value and announces it at once, as one `setOpacity`, and runs its `onArrive` on the
 next turn of the UI queue, as a task `Ui.post` hands it runs, exactly once: as a fade that moves
-already runs it on a later frame. A chain therefore runs one arrival a turn, and the UI thread
-handles its events between them; the queue's drain takes only the tasks queued when it starts, so
-an arrival that asks for the next one never holds a turn. The other choice, keeping it synchronous
+already runs it on a later frame. The queue's drain takes only the tasks queued when it starts, so
+an arrival that asks for the next one never holds a turn; but a chain then ran one arrival a turn
+for as long as it lived, which section 8.1 corrects. The other choice, keeping it synchronous
 and trampolining chained calls inside the outermost `fadeTo`, was refused: it kept the call
 re-entrant into application code, and a chain that never ends would still hold the UI thread inside
 one call. An `onArrive` that throws now throws on its own turn, where the UI queue logs it and
@@ -906,13 +907,56 @@ it as it closes, as it runs the callback of a fade in flight. A dialog or an in-
 while the system asks for less motion is therefore removed, and its result completed, on the next
 turn rather than inside the call that closed it.
 
-**Tests.** `OpacityTest.aPulseChainedInOnArriveRunsOneArrivalATurnWhereverItGoesStraightThere`
-runs the pulse under less motion in a window, in no scene, in a scene with no window, for zero
-seconds and to the value it has, twenty thousand turns each, one arrival a turn and none inside a
-call (each threw `StackOverflowError` before); `aFadeThatGoesStraightThereIsOneSetAndArrivesOnTheNextTurn`
-(was `aFadeThatGoesStraightThereIsOneSet`, which asserted the arrival at once) and
+**Tests** (as section 8.1 left them). `OpacityTest.aChainOfZeroSecondFadesRunsOneArrivalATurn`
+runs twenty thousand turns of a zero-second chain, one arrival a turn and none inside a call (it
+threw `StackOverflowError` before), and section 8.1's tests hold the chains that asked for seconds;
+`aFadeThatGoesStraightThereIsOneSetAndArrivesAfterItsSecondsOrOnTheNextTurn` (was
+`aFadeThatGoesStraightThereIsOneSet`, which asserted the arrival at once) and
 `aStraightThereFadeSupersededBeforeTheNextTurnNeverRunsItsOnArrive` hold the turn, the once and
 the supersession; `WindowFadeTest` holds the same for the window's fade, the close that runs it
 first included. The component tests whose loops rendered frames without draining the UI queue,
 which no backend does, now drain it each turn (`DialogTest`, `ScrollAxisClipTest`, and
 `AccessibleComponentTestBase.advanceTime`).
+
+### 8.1 After the seconds asked for: the owner's decision 7, 2026-10-19
+
+The review of the branch that built section 8 found what "the next turn" did to the obvious pulse,
+`fadeTo(0.2, 1.0, next)` and back in `next`: it no longer overflowed the stack, but ran one arrival
+a turn for ever. In a window, under less motion, the value flipped between 0.2 and 1 on every frame,
+a flicker at half the display's rate shown to the user who asked for less motion; where nothing was
+drawn (no scene, no window, a covered or minimized window under less motion) every turn left a task
+queued, so the loop never slept and the UI thread held a core (about 1.8 million turns in 200 ms in
+the review's probe). Section 8 itself had presented that chain as the way to make a pulse.
+
+**The owner's decision 7.** A fade that goes straight to its target although its call asked for
+`seconds > 0` (less motion, no scene, no window, or the value it already has) runs its `onArrive`
+after those seconds, posted on the UI queue as `Ui.postDelayed` posts; for zero seconds it runs on
+the next turn, as section 8 has it. Still never inside the call, and still dropped by whatever
+supersedes the fade before then (a newer `fadeTo`, a `setOpacity`): the value jumps at once, the
+sequence keeps the pace the application wrote, and the loop sleeps between two steps. A dropped
+arrival's timer is withdrawn as it is dropped, so it holds nothing until it would have fallen due.
+`Scene.fadeWindow`, `fadeWindowIn` and `fadeWindowOut` follow the same rule, and a window that
+closes first still runs the callback as it closes, once.
+
+**The toolkit's own closers ask for no time where none is seen**, so that what they run when the
+surface has gone still comes on the next turn: a dialog's in-scene fade asks for
+`Motion.duration(...)` of its length, and none in a scene with no window; an in-scene popup's
+fade out asks for `Motion.duration(...)`; the window fades of dialogs, popups and menus already did.
+Before this, two of those paths passed the theme's length unreduced, and with this rule they would
+have held a closed dialog's result and a closed list's layer for 0.16 s under less motion.
+
+**A pulse is a `Transition` with `repeat(true)`**, which steps on frames and stops by itself when
+it is not shown. The Javadoc of `fadeTo` and the Animations guide say so and no longer present a
+chain of fades as a pulse: a chain asked for in `onArrive` goes on stepping, shown or not, for as
+long as the code asks.
+
+**Tests.** `OpacityTest.aPulseChainedInOnArriveSleepsBetweenStepsWhereverItGoesStraightThere`
+runs the review's scenarios, less motion in a window, no scene, a scene with no window, and the
+value it has: two hundred periods each, nothing however often the loop turns within a period, the
+loop free to sleep until the next step (`nanosUntilNextDeadline` is the period), one arrival a
+period; `aStraightThereFadeWaitingForItsSecondsIsSupersededAsOneInFlightIs` drops a waiting
+arrival by a newer fade, a set and a zero-second fade. `WindowFadeTest` holds the same for the
+window fade, a closed window flushing one that waits included. `InSceneFadeEndsTest
+.underLessMotionADialogAndAPopupInAWindowCloseOnTheNextTurn` and
+`aDialogInASceneWithNoWindowResolvesOnTheNextTurn` hold the closers to the next turn (each fails
+with the closers' lengths unreduced).

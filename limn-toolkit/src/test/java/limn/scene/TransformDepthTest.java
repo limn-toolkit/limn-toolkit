@@ -572,7 +572,9 @@ class TransformDepthTest extends SceneTestBase {
     }
 
     @Test
-    void underLessMotionAFlipInPerspectiveSwapsOnTheNextTurn() {
+    void underLessMotionAFlipInPerspectiveSwapsAfterItsSeconds() {
+        long[] queueNow = {0};
+        runtime.setDelayClock(() -> queueNow[0]);
         TransformTest.Leaf leaf = new Card("w", painted, 300, 200);
         Transform t = new Transform(leaf).setPerspective(900);
         Scene scene = sceneOf(at(t, 100, 100));
@@ -585,7 +587,10 @@ class TransformDepthTest extends SceneTestBase {
         assertEquals(0, edges.get(), "no swap inside the call");
         assertEquals(0, arrivals.get());
         runtime.drain();
-        assertEquals(1, edges.get(), "swapped on the next turn");
+        assertEquals(0, edges.get(), "nor on the next turn");
+        queueNow[0] += java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(400);
+        runtime.drain();
+        assertEquals(1, edges.get(), "swapped after the seconds asked for");
         assertEquals(1, arrivals.get());
         advance(scene, 16);
         assertTrue(canvas.matrices.isEmpty(), "with no turn and no picture");

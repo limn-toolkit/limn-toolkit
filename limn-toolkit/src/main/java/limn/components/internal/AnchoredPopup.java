@@ -593,7 +593,9 @@ public final class AnchoredPopup {
         // must still get its field beneath back. Nothing else fades this panel, a fresh one for
         // each presentation, so nothing supersedes the fade that removes it.
         Opacity card = closing.content;
-        card.fadeTo(0f, Theme.of(host.anchor()).animWindow * card.opacity(), () -> {
+        // No time while the user asks for less motion: a fade that goes straight there keeps its
+        // arrival for the seconds it asked for, and this arrival is what gives the field back.
+        card.fadeTo(0f, Motion.duration(Theme.of(host.anchor()).animWindow) * card.opacity(), () -> {
             owner.removeOverlay(closing);
             host.released();
         });

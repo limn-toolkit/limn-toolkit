@@ -67,10 +67,13 @@ and the keyboard, and a screen reader still reads it; to take it away, hide it, 
 does when its fade out arrives. A newer `fadeTo` or a `setOpacity` stops a fade where it is, and
 that fade's `onArrive` never runs; a container taken out of its window mid-fade arrives as it
 leaves, and runs its `onArrive` then. While the user asked for less motion, `fadeTo` goes straight
-to its target, as it does in a window that is not shown yet or for no time, and runs `onArrive` on
-the next turn of the UI thread, as a task `Ui.post` hands it runs. `onArrive` never runs inside the
-`fadeTo` call, so the next fade of a sequence can be asked for in it: where each one goes straight
-there, the chain runs one step a turn and the window stays responsive. Something watching the
+to its target, as it does in a window that is not shown yet, and runs `onArrive` after the seconds
+it was asked to take, as `Ui.postDelayed` would, or on the next turn of the UI thread for a fade of
+no time. `onArrive` never runs inside the `fadeTo` call, so the next step of a short sequence, fade
+out, change the content, fade back in, can be asked for in it, and keeps its pace when the fades
+go straight there. Something that should pulse for as long as it lasts is a transition with
+`repeat(true)` (below), which stops by itself when it is not shown: fades that ask for the next one
+in their `onArrive` go on, shown or not, until the code stops asking. Something watching the
 container hears `Change.Aspect.OPACITY` each time `setOpacity` changes the value, and twice for a
 fade, as it starts and as it ends.
 
@@ -134,8 +137,8 @@ As with a fade, moving something out of sight does not take it away: hide it whe
 arrives, as the drawer does. A newer motion of the same value, or a set of it, stops one in flight
 where it is, and its `onArrive` never runs; a slide and a scale run together. While the user asked
 for less motion, every motion goes straight to its target, and a flip swaps the faces with no
-turn; what the motion runs, the flip's swap included, runs on the next turn of the UI thread, and
-never inside the call, as with a fade. Something watching the container hears
+turn; what the motion runs, the flip's swap included, runs after the seconds it was asked to take,
+and never inside the call, as with a fade. Something watching the container hears
 `Change.Aspect.TRANSFORM` each time a set changes a value, and twice for a motion. To fade a
 moving part as well, put the `Opacity` outside: `new Opacity(new Transform(child))`.
 

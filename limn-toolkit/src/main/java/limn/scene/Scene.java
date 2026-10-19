@@ -6253,9 +6253,8 @@ public final class Scene {
     // The fade primitive for native dialogs, popups and floating windows: drives
     // NativeWindow.setOpacity off the scene ticker. Retarget-safe (a newer call
     // supersedes the older via a generation gate) and headless-safe (no window →
-    // jump, and run the callback on the next turn of the UI queue, never inside
-    // the call: a fade chained in its own callback recursed there until the stack
-    // ran out).
+    // jump, and run the callback after the seconds asked for, or on the next turn
+    // of the UI queue for none, never inside the call: see StraightArrival).
 
     private double winFadeSeconds;
     private float winFadeFrom;
@@ -6264,6 +6263,8 @@ public final class Scene {
     private double winFadeElapsed;
     private int winFadeGeneration;
     private Runnable winFadeOnArrive;
+    /** What withdraws a straight-there window fade's waiting callback from the UI queue. */
+    private @Nullable Subscription winFadeTimer;
 
     /**
      * Snaps the window opacity to {@code 0} immediately, then eases it to
@@ -6278,8 +6279,8 @@ public final class Scene {
 
     /**
      * Eases the window opacity to {@code 0}, then runs {@code onGone} (typically a close), by the
-     * rules of {@link #fadeWindow}: never inside this call, on the next turn of the UI queue when
-     * the fade goes straight there.
+     * rules of {@link #fadeWindow}: never inside this call, and after {@code seconds} (or on the
+     * next turn of the UI queue for none) when the fade goes straight there.
      */
     public void fadeWindowOut(double seconds, @Nullable Runnable onGone) {
         fadeWindow(0f, seconds, onGone);
@@ -6291,20 +6292,23 @@ public final class Scene {
      * settles. A newer call supersedes an in-flight fade without stacking
      * tickers, and its {@code onArrive} never runs. Zero duration, an
      * already-current value, or a headless scene (no window) jumps straight to
-     * {@code target}, and {@code onArrive} runs on the next turn of the UI
-     * queue, once, unless a newer call supersedes it first: never inside this
-     * call, so a fade asked for again in its own {@code onArrive} runs one
-     * arrival a turn and does not recurse. A window closed before then runs it
-     * as it closes, as it runs a fade's in flight. UI thread only.
+     * {@code target}, and {@code onArrive} runs once, after {@code seconds}
+     * when it is more than zero and on the next turn of the UI queue when it is
+     * not, unless a newer call supersedes it first. Never inside this call: a
+     * fade asked for again in its own {@code onArrive} does not recurse, and
+     * one that asked for seconds keeps its pace while the loop sleeps between
+     * steps. A window closed before then runs it as it closes, as it runs a
+     * fade's in flight. UI thread only.
      */
     public void fadeWindow(float target, double seconds, @Nullable Runnable onArrive) {
         float clamped = Math.max(0f, Math.min(1f, target));
         int generation = ++winFadeGeneration; // supersede any in-flight fade
+        withdrawWindowFadeTimer();
         NativeWindow w = window;
         if (w == null) {
             // Headless: remember the value (a later real window starts here), and arrive.
             winFadeCurrent = clamped;
-            windowFadeArrivesNextTurn(generation, onArrive);
+            windowFadeArrivesLater(generation, seconds, onArrive);
             return;
         }
         winFadeFrom = winFadeCurrent;
@@ -6315,7 +6319,7 @@ public final class Scene {
         if (seconds <= 0 || winFadeCurrent == clamped) {
             winFadeCurrent = clamped;
             w.setOpacity(clamped);
-            windowFadeArrivesNextTurn(generation, onArrive);
+            windowFadeArrivesLater(generation, seconds, onArrive);
             return;
         }
         winFadeOnArrive = onArrive;
@@ -6324,25 +6328,35 @@ public final class Scene {
     }
 
     /**
-     * A window fade that went straight there arrives on the next turn: its callback is held where
-     * {@link #windowClosed} finds it, and runs once, from whichever of the two comes first; a
-     * newer {@link #fadeWindow} moves the generation on and drops it.
+     * A window fade that went straight there arrives later ({@link StraightArrival}): its callback
+     * is held where {@link #windowClosed} finds it, and runs once, from whichever of the two comes
+     * first; a newer {@link #fadeWindow} moves the generation on and drops it.
      */
-    private void windowFadeArrivesNextTurn(int generation, @Nullable Runnable onArrive) {
+    private void windowFadeArrivesLater(int generation, double seconds, @Nullable Runnable onArrive) {
         winFadeOnArrive = onArrive;
         if (onArrive == null) {
             return;
         }
-        Ui.post(() -> {
+        winFadeTimer = StraightArrival.post(seconds, () -> {
             if (generation != winFadeGeneration) {
                 return; // superseded, or the window's close ran it
             }
+            winFadeTimer = null;
             Runnable cb = winFadeOnArrive;
             winFadeOnArrive = null;
             if (cb != null) {
                 cb.run();
             }
         });
+    }
+
+    /** Withdraws a straight-there window fade's waiting callback, letting go of what it captures. */
+    private void withdrawWindowFadeTimer() {
+        Subscription timer = winFadeTimer;
+        if (timer != null) {
+            winFadeTimer = null;
+            timer.cancel();
+        }
     }
 
     private boolean tickWindowFade(double dt, int generation) {
@@ -6428,6 +6442,7 @@ public final class Scene {
         Runnable cb = winFadeOnArrive;
         winFadeOnArrive = null;
         winFadeGeneration++;
+        withdrawWindowFadeTimer();
         if (cb != null) {
             try {
                 cb.run();
