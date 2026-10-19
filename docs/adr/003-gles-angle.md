@@ -157,6 +157,20 @@ same one, and that commit's own CMake project version is 3.5.1 — which is char
 the version string the backend logs. Nothing in the paths this record depends on differs between
 the two; the pixel-format code quoted throughout §3 is identical in both trees.
 
+*Amended 2026-10-19:* the floors the shipped natives set are now read from the binaries and
+checked by the build (`OsFloorsTest`, against `OsFloors` in limn-backend-lwjgl's test sources,
+which the install guide's "Supported systems" table cites), and on two platforms they sit above
+what the tables below give, which name the JDK's floor and the toolchain era rather than what the
+libraries record. **macOS is 11.0 on both architectures**, not 10.13: LWJGL 3.4.3's arm64
+libraries and the SVG renderer ADR 066 added, on both architectures, say 11.0, while LWJGL's own
+x86_64 libraries say 10.11 (OpenAL 10.15). **Linux is glibc 2.28 on x86_64 and 2.35 on
+aarch64**, not 2.17: LWJGL's core and OpenAL, the SVG renderer and FFmpeg's libavutil need 2.28 on
+x86_64, and LWJGL's HarfBuzz 2.35 on aarch64 (its core, GLFW and OpenAL 2.34). **Windows is
+unchanged**: the DLLs ask for 6.0 (x64) and 6.2 (ARM64), so JDK 17's Windows 10 is the floor that
+binds. One payload is excused for one version: limn-ffmpeg-natives 9.0.2.0's macOS libraries say
+26.0, built so by mistake, and 9.0.2.1 is built for 11.0. The tables are left as written; this
+note is what has changed under them.
+
 ### 2.1 Windows
 
 | Layer | Floor | Note |
