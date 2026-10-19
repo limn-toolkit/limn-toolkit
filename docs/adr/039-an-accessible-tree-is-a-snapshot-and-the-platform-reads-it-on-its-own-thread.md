@@ -2353,7 +2353,14 @@ the popover is a layer of the owner's scene and its combo's list is grafted ther
 and published once. The opener lays a nested graft out before walking it, as it lays out its own:
 the first build published the list 0 by 0 with options -12 points wide and not `SHOWING` whenever
 the owner framed before the list's window had, and the next comparison threw on the negative box,
-leaving that tree published. Pinned by `PopoverNestedPopupAccessibilityTest`.)*
+leaving that tree published. And a graft's own overlays are walked after its root, under the same
+opener, as a window's overlays are walked beside its root, with the popup scene's own layers deciding
+what is operable: a combo asked for its list in the scene (`setDisplayMode(IN_SCENE)`) and a dialog
+kept in the scene, shown from inside a windowed popover, are layers of the popover's scene and were
+in no tree. The other cure, sending such a layer to the owner's scene, would also undo its clipping
+to the popover's window, which the scene layer suffers on screen today; it moves drawing, input and
+modality across windows and is left to its own decision, the walk staying right either way. Pinned
+by `PopoverNestedPopupAccessibilityTest`.)*
 
 ### 1.12 The role enum is closed, and a role may not be added without a truthful mapping in all three tables
 
