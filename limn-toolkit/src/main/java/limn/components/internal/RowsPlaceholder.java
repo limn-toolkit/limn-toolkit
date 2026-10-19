@@ -308,6 +308,27 @@ public final class RowsPlaceholder {
     }
 
     /**
+     * Paints the content shown, if any, where the layout put it. The three widgets paint their
+     * children themselves, the rows they mounted and nothing else, so the content is painted by
+     * this call, from inside the clip they paint their rows in.
+     *
+     * @param canvas the widget's canvas, in its own coordinates
+     */
+    public void paint(limn.graphics.Canvas canvas) {
+        Widget<?> shown = attached;
+        if (shown == null || !shown.isVisible()) {
+            return;
+        }
+        canvas.save();
+        try {
+            canvas.translate(shown.x(), shown.y());
+            shown.paintWidget(canvas);
+        } finally {
+            canvas.restore();
+        }
+    }
+
+    /**
      * @param child one of the widget's children
      * @return whether it is the content shown, which belongs to no selection
      */

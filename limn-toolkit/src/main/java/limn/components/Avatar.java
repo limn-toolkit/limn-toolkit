@@ -33,7 +33,7 @@ import java.util.regex.Pattern;
  * larger one, and the circle fills the smaller side of the box it is given.
  *
  * <p><b>The colour</b> is one of the chart palette's categorical colours
- * ({@link ChartPalette#defaultFor(Theme)}), chosen by the name's {@link String#hashCode()} unless
+ * ({@link ChartPalette#defaultFor(Theme)}), chosen by the name's {@link String#hashCode()}, mixed, unless
  * {@link #setColorIndex} says which, so the same name has the same colour on every run and every
  * machine. Categorical, and never a state's tone: a person drawn in the danger colour reads as an
  * error. It is drawn as a tint, at 22 % (34 % in a dark palette), with the initials in the
@@ -204,7 +204,29 @@ public final class Avatar extends Widget<Avatar> {
         if (colorIndex >= 0) {
             return colorIndex;
         }
-        return Math.floorMod(name.get().hashCode(), ChartPalette.defaultFor(Theme.of(this)).size());
+        return colorIndexOf(name.get(), ChartPalette.defaultFor(Theme.of(this)).size());
+    }
+
+    /**
+     * The palette index a name falls on: its {@link String#hashCode()}, mixed, scaled to the
+     * palette's size. Mixed, because the hash alone spreads names badly over eight colours: its multiplier,
+     * 31, is minus one modulo eight, so a name's index was little more than an alternating sum of
+     * its letters, and five of seven names in the Showcase's approvers fell on the same green. The
+     * same name falls on the same colour on every run and every machine all the same.
+     *
+     * @param name a person's name
+     * @param size the palette's size
+     * @return the index, in {@code [0, size)}
+     */
+    static int colorIndexOf(String name, int size) {
+        int h = name.hashCode();
+        h ^= h >>> 16;
+        h *= 0x7feb352d;
+        h ^= h >>> 15;
+        h *= 0x846ca68b;
+        h ^= h >>> 16;
+        // Scaled from the top bits, which the mixing spreads best, rather than taken modulo.
+        return (int) (((h & 0xFFFFFFFFL) * size) >>> 32);
     }
 
     void setRinged(boolean value) {

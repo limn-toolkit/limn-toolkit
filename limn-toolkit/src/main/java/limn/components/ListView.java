@@ -1898,6 +1898,8 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
                     canvas.restore();
                 }
             }
+            // The empty or loading content, in the viewport the rows would be in.
+            placeholder.paint(canvas);
             Theme theme = Theme.of(this);
             SizeTokens t = theme.tokensFor(this);
             float inset = Strokes.FOCUS_RING_THIN;

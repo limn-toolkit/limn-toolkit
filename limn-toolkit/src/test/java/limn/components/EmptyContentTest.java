@@ -121,6 +121,31 @@ class EmptyContentTest extends AccessibleComponentTestBase {
         }
     }
 
+    @Test
+    void eachPaintsItsContent() {
+        // The three paint their children themselves, the rows they mounted: the content is painted
+        // by them too, or it is laid out and published and never seen (the first prints).
+        for (int kind = 0; kind < 3; kind++) {
+            names.clear();
+            Widget<?> rows = kind == 0 ? list() : kind == 1 ? table() : folders();
+            Empty empty = Empty.make();
+            setEmpty(rows, empty);
+            Scene s = new Scene(new limn.scene.layout.SizedBox(300, 200, rows));
+            s.setTextRuler(RULER);
+            s.layoutPass(300, 200);
+            List<String> drawn = new ArrayList<>();
+            s.renderFrame(new FakeCanvas(300, 200) {
+                @Override
+                public void drawText(String text, float x, float y, limn.graphics.Font font,
+                        limn.graphics.Paint paint) {
+                    drawn.add(text);
+                }
+            });
+            assertTrue(drawn.contains("No orders match"), kind + " painted its message: " + drawn);
+            assertTrue(drawn.contains("Clear filter"), kind + " and its button: " + drawn);
+        }
+    }
+
     private static void setEmpty(Widget<?> rows, Empty empty) {
         if (rows instanceof ListView<?> l) {
             l.setEmptyContent(empty.content(), empty.message());

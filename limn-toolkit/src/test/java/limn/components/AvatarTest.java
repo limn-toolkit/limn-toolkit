@@ -79,8 +79,14 @@ class AvatarTest extends AccessibleComponentTestBase {
     void theColourIsTheChartPalettesByTheNamesHashAndCanBeChosen() {
         Avatar avatar = new Avatar("Ana Lima");
         int size = ChartPalette.defaultFor(Theme.current()).size();
-        assertEquals(Math.floorMod("Ana Lima".hashCode(), size), avatar.colorIndex(),
+        assertEquals(Avatar.colorIndexOf("Ana Lima", size), avatar.colorIndex(),
                 "the same name has the same colour on every run");
+        java.util.Set<Integer> used = new java.util.HashSet<>();
+        for (String person : List.of("Ana Lima", "Rui Costa", "Mei Chen", "Omar Haddad", "Lena Vogel",
+                "Kofi Mensah", "Ines Duarte")) {
+            used.add(Avatar.colorIndexOf(person, size));
+        }
+        assertTrue(used.size() >= 5, "seven names spread over the palette, not one colour: " + used);
         avatar.setColorIndex(3);
         assertEquals(3, avatar.colorIndex());
         assertThrows(IllegalArgumentException.class, () -> avatar.setColorIndex(-1));

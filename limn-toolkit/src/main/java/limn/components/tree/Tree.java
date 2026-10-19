@@ -3757,6 +3757,8 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
                 }
             }
             paintDropPlace(canvas, theme, t, viewH);
+            // The empty or loading content, in place of the roots.
+            placeholder.paint(canvas);
         } finally {
             canvas.restore();
         }

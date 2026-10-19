@@ -3503,6 +3503,8 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
                     }
                 }
             }
+            // The empty or loading content, between the header and the footer.
+            placeholder.paint(canvas);
         } finally {
             canvas.restore();
         }
