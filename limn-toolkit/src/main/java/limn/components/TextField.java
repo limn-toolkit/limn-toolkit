@@ -88,6 +88,14 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * read as it stands, since reading it afresh could take one of its literals for a value.
      */
     private boolean restoringHistory;
+    /**
+     * The caret and the selection as the edit being announced found them, so that an edit the
+     * mask turns into nothing leaves them as they were, or reports only how they moved; {@code
+     * null} for a caller's {@link #setText}, which places the caret itself.
+     */
+    private ShapedText.@Nullable Position caretBeforeEdit;
+    private int selectionStartBeforeEdit;
+    private int selectionEndBeforeEdit;
     /** The guide's unfilled tail as last shaped, kept while it reads the same. */
     private @Nullable String guideTailText;
     private @Nullable ShapedText guideTailLine;
@@ -270,7 +278,11 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * them is ever read as a character typed into a position. An edit never pushes characters
      * already typed off the end: typing or pasting into a field with no position free changes
      * nothing, as typing at the end of a full field does, and what finds no free position of a
-     * longer paste is dropped. To replace characters, select them and type over them.
+     * longer paste is dropped. To replace characters, select them and type over them. On a
+     * pattern whose positions are all of one kind, that is all an edit changes. On one that
+     * mixes them ({@code "AAA-0000-**"}), the characters after the edit close up, and one that
+     * lands in a position that does not take it is passed over: {@code ABC-1234-X} with a
+     * {@code Q} typed after the {@code B} reads {@code ABQ-1234-X}, its {@code C} gone.
      *
      * <p>The text already in the field is fitted at once. {@code null} takes the mask away and
      * leaves the text as it is.
@@ -334,6 +346,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         int offset = model.damageOffset();
         int removed = model.damageRemoved();
         int inserted = model.damageInserted();
+        String before = maskedText;
         limn.components.internal.text.InputMask.Conformed fit =
                 restoringHistory ? mask.written(text, caret) : null;
         if (fit != null) {
@@ -353,8 +366,16 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         }
         maskedText = fit.text();
         maskedRaw = fit.raw();
-        if (!fit.text().equals(text) || fit.caret() != caret) {
+        // An edit that came to nothing is folded away too, so it leaves no undo step behind,
+        // even when the characters it typed were the very ones it replaced.
+        boolean nothing = !restoringHistory && fit.text().equals(before);
+        if (nothing || !fit.text().equals(text) || fit.caret() != caret) {
             model.amendLastEdit(fit.text(), fit.caret());
+            // A literal stepped over may carry a combining mark the next position took.
+            int aligned = model.alignToGraphemeForward(model.cursor());
+            if (aligned != model.cursor()) {
+                model.setCursor(aligned, false);
+            }
         }
     }
 
@@ -419,6 +440,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         if (text == null || text.isEmpty()) {
             return this;
         }
+        noteCaretBeforeEdit();
         model.insert(text);
         announceTextEdit(Change.Origin.CODE);
         ensureCursorVisible();
@@ -1643,6 +1665,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         }
         clipboard().setText(model.selectedText());
         if (cut) {
+            noteCaretBeforeEdit();
             model.deleteSelection();
             announceTextEdit(Change.Origin.USER);
         }
@@ -1655,6 +1678,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         if (cp < 0x20 || cp == 0x7F) {
             return;
         }
+        noteCaretBeforeEdit();
         model.insertCodePoint(cp);
         announceTextEdit(Change.Origin.USER);
         ensureCursorVisible();
@@ -1859,11 +1883,29 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * {@code USER}.
      */
     private void announceTextEdit(Change.Origin origin) {
+        ShapedText.Position caretBefore = caretBeforeEdit;
+        caretBeforeEdit = null;
         if (!model.hasCharDamage()) {
             return;
         }
         if (mask != null) {
+            String before = maskedText;
             fitToMask();
+            if (!restoringHistory && model.text().equals(before)) {
+                // The mask refused the edit, or put back all it took: the text did not change,
+                // so no handler runs and no watcher hears of it. Only a caret that moved, past
+                // a literal typed over or off a selection, is reported.
+                model.clearCharDamage();
+                if (caretBefore != null) {
+                    if (selectionStartBeforeEdit == selectionEndBeforeEdit
+                            && model.cursor() == caretBefore.charIndex()) {
+                        model.setCaret(caretBefore, false);
+                    } else {
+                        notifyChange(Change.of(Change.Aspect.SELECTION, origin));
+                    }
+                }
+                return;
+            }
         }
         int offset = model.damageOffset();
         int removed = model.damageRemoved();
@@ -1879,8 +1921,16 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      */
     private void editFromUser(Runnable edit) {
         model.clearCharDamage();
+        noteCaretBeforeEdit();
         edit.run();
         announceTextEdit(Change.Origin.USER);
+    }
+
+    /** Keeps the caret and the selection an edit is about to change; see {@link #caretBeforeEdit}. */
+    private void noteCaretBeforeEdit() {
+        caretBeforeEdit = model.caret();
+        selectionStartBeforeEdit = model.selectionStart();
+        selectionEndBeforeEdit = model.selectionEnd();
     }
 
     // -------------------------------------------------------- accessibility
