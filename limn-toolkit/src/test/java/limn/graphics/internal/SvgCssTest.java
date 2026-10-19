@@ -147,6 +147,76 @@ class SvgCssTest {
         assertTrue(!text.contains("animate"), "the animations leave the document once read: " + text);
     }
 
+    /**
+     * A selector whose last compound names no id or class is filed under the nearest earlier one
+     * that does, and tried only under an ancestor that has it: what it matches is what it
+     * matched when it was tried on every element of its type.
+     */
+    @Test
+    void aRuleFiledUnderAnAncestorMatchesWhatItNames() {
+        SvgXml.Element root = parse("<svg xmlns='http://www.w3.org/2000/svg' class='dark'><style>"
+                + "#s1 path { fill: red } #s1 > path { stroke: blue } .dark path { opacity: .5 }"
+                + " .t .u rect, #s2 * { stroke-width: 3 } #s1 [data-x] { fill-opacity: .2 } svg.dark #s1 g circle { color: green }"
+                + " .t circle.c { stroke-opacity: .7 } #s1 .t path { fill: orange }</style>"
+                + "<symbol id='s1'><path id='p1'/><g class='t'><path id='p2' data-x='1'/><circle id='c1' class='c'/></g></symbol>"
+                + "<g id='s2'><path id='p3' class='t' data-x='1'/><g class='u'><rect id='r1'/></g></g>"
+                + "<g class='t'><g class='u'><rect id='r2'/></g></g></svg>");
+        SvgCss css = SvgCss.of(root);
+        assertEquals("red", css.cascaded(byId(root, "p1"), "fill", false));
+        assertEquals("orange", css.cascaded(byId(root, "p2"), "fill", false), "under .t under #s1, more specific");
+        assertNull(css.cascaded(byId(root, "p3"), "fill", false), "not under #s1");
+        assertEquals("blue", css.cascaded(byId(root, "p1"), "stroke", false));
+        assertNull(css.cascaded(byId(root, "p2"), "stroke", false), "#s1 is not its parent");
+        assertEquals(".5", css.cascaded(byId(root, "p3"), "opacity", false), "the root's class");
+        assertNull(css.cascaded(byId(root, "s1"), "opacity", false), "a symbol is not a path");
+        assertEquals("3", css.cascaded(byId(root, "r1"), "stroke-width", false), "#s2 *");
+        assertEquals("3", css.cascaded(byId(root, "r2"), "stroke-width", false), ".t .u rect");
+        assertEquals("3", css.cascaded(byId(root, "p3"), "stroke-width", false), "#s2 * on a path too");
+        assertEquals(".2", css.cascaded(byId(root, "p2"), "fill-opacity", false), "an attribute under #s1");
+        assertNull(css.cascaded(byId(root, "p3"), "fill-opacity", false));
+        assertEquals("green", css.cascaded(byId(root, "c1"), "color", false));
+        assertEquals(".7", css.cascaded(byId(root, "c1"), "stroke-opacity", false), "filed under its own class");
+        assertNull(css.cascaded(byId(root, "p3"), "color", false), "nothing green outside #s1");
+    }
+
+    /**
+     * A condition written twice is tested once but weighs twice, as in a browser: {@code .a.a}
+     * outranks a later {@code .a}, and {@code [x][x]} a later {@code [x]}.
+     */
+    @Test
+    void aRepeatedConditionStillCountsTowardsSpecificity() {
+        SvgXml.Element root = parse("<svg xmlns='http://www.w3.org/2000/svg'><style>"
+                + ".a.a { fill: red } .a { fill: blue } [data-x][data-x] { stroke: red } [data-x] { stroke: blue }"
+                + " #i#i { opacity: .5 } #i { opacity: .25 }</style><rect id='i' class='a' data-x='1'/></svg>");
+        SvgCss css = SvgCss.of(root);
+        SvgXml.Element rect = byId(root, "i");
+        assertEquals("red", css.cascaded(rect, "fill", false));
+        assertEquals("red", css.cascaded(rect, "stroke", false));
+        assertEquals(".5", css.cascaded(rect, "opacity", false));
+    }
+
+    /**
+     * An element's class words and attributes are looked up once and kept, but not past a change:
+     * the animation reading gives an element an id or a transform while the sheets are matched,
+     * and a later match sees what the element holds then.
+     */
+    @Test
+    void whatAnElementHoldsIsReadAgainOnceItChanges() {
+        SvgXml.Element root = parse("<svg xmlns='http://www.w3.org/2000/svg'><style>"
+                + ".b rect { fill: red } #late rect { stroke: blue } [data-k='2'] rect { opacity: .5 }</style>"
+                + "<g id='g' class='a' data-k='1'><rect id='r'/></g></svg>");
+        SvgCss css = SvgCss.of(root);
+        SvgXml.Element g = byId(root, "g");
+        assertNull(css.cascaded(g, "fill", false), "g asked about first, with its words looked up");
+        g.setAttribute("class", "a b");
+        g.setAttribute("id", "late");
+        g.setAttribute("data-k", "2");
+        SvgXml.Element rect = g.elements().get(0);
+        assertEquals("red", css.cascaded(rect, "fill", false));
+        assertEquals("blue", css.cascaded(rect, "stroke", false));
+        assertEquals(".5", css.cascaded(rect, "opacity", false));
+    }
+
     /** Thirty-two compounds are matched, thirty-three refused. */
     @Test
     void aSelectorOfTooManyCompoundsIsRefused() {

@@ -204,6 +204,28 @@ As ADR 061 asks of everything the toolkit reads itself:
   animations beside a short chain are read again. And the animation elements leave the document
   only once the style sheets are matched, so an `animate` counts among its siblings for
   `:last-child` and `:nth-child`, as in a browser, whichever element was asked about first.
+  **Amended 2026-10-19, after that day's audit:** the count was of tries, one for each compound
+  tried whatever the try compared, and two parts of class matching cost the square of what one
+  element carries: its class words were made unique through a list, and a class was looked for in
+  the attribute text, starting again one character on after each near miss. One element of
+  200,000 classes (1.5 MB) held the UI thread 20 seconds; `.k.aaa…` against `k aaa…` (2.4 MB),
+  minutes; a rule of 10,000 classes (2.4 MB) 6 seconds and one of 200,000 attribute conditions
+  (2.8 MB) 19 seconds, none of them refused. An element's id, class words and attributes are now
+  looked up in sets made once for it (made again if the reading changes them), a condition
+  written twice in a compound is tested once (and still weighs twice), and what is counted is
+  steps: a compound tried, each condition tested, each character a condition compares or a
+  lookup reads. The budget stays four steps a byte, four million at least; the export of 50,000
+  paths takes half a step a byte. The four files read in under 300 ms.
+  **Amended 2026-10-19, the same audit:** filing a selector by its last compound alone left the
+  common sprite-sheet and theme forms, `#icon-12 path` and `.dark path`, filed under `path` and
+  tried on every path, and the budget of 2026-10-17 refused an ordinary sheet of 400 symbols
+  (112 KB) that had been read in 127 ms. A selector whose last compound names no id or class is
+  now filed under the nearest earlier compound's id or class and the last compound's type, and tried
+  only on elements of the type under an ancestor that has it, the walk up counted a step for each
+  ancestor. Sheets of 400 to 3,000 symbols keyed by id or class (112 to 850 KB) read in 34 to 174
+  ms at under a step a byte, and 1,000 theme rules over 50,000 paths in 181 ms; a file that piles
+  thousands of rules under one ancestor, or hangs tens of thousands of leaves 250 groups down
+  under such rules, is still refused, in under 600 ms.
 - **A picture beside a file read from disk is read by the toolkit,** as the owner chose: an
   image's `href` relative to the SVG's own folder, resolved there, refused if it leads out of
   that folder, read within the same ceilings as any picture and handed to lunasvg inside the
