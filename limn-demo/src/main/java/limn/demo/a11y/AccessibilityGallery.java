@@ -794,7 +794,7 @@ public final class AccessibilityGallery {
     private static Built buttons() {
         Column page = page();
         page.add(new Button("Save"));
-        page.add(new Button("Discard").setSecondary(true));
+        page.add(new Button("Discard").setStyle(Button.Style.SECONDARY));
         // Icon only: the tooltip is what a reader hears, so an icon-only button always has one.
         Button iconOnly = new Button("").setIcon(BLANK_ICON);
         iconOnly.setTooltip("Refresh");
@@ -1229,7 +1229,7 @@ public final class AccessibilityGallery {
                         if (!file.kids().isEmpty()) {
                             row.add(new Label(String.valueOf(file.kids().size())).setMuted(true));
                         } else if (file.name().endsWith(".pdf")) {
-                            row.add(new Button(GalleryStrings.OPEN).setSecondary(true));
+                            row.add(new Button(GalleryStrings.OPEN).setStyle(Button.Style.SECONDARY));
                         }
                         return row;
                     }
@@ -1707,7 +1707,7 @@ public final class AccessibilityGallery {
 
     /** An icon-only button, named by its tooltip, which is what an icon-only button always has. */
     private static Button iconButton(String name) {
-        Button button = new Button("").setIcon(BLANK_ICON).setSecondary(true);
+        Button button = new Button("").setIcon(BLANK_ICON).setStyle(Button.Style.SECONDARY);
         button.setTooltip(name);
         return button;
     }

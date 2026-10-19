@@ -671,7 +671,7 @@ final class AppScene {
         if (place.documentation == null) {
             return content;
         }
-        Button link = new Button(ShowcaseStrings.HEAD_DOCUMENTATION).setSecondary(true);
+        Button link = new Button(ShowcaseStrings.HEAD_DOCUMENTATION).setStyle(Button.Style.SECONDARY);
         link.setControlSize(ControlSize.SMALL);
         link.setTooltip(SITE + place.documentation);
         link.onAction(() -> openDocumentation(link, place.documentation, status));
@@ -1109,7 +1109,7 @@ final class AppScene {
             // end of each row, named by its order for whoever hears the row instead of seeing it.
             Drawer[] panel = new Drawer[1];
             Column<Order> open = Column.<Order>widget(I18nString.EMPTY, order -> {
-                Button edit = new Button("").setSecondary(true)
+                Button edit = new Button("").setStyle(Button.Style.SECONDARY)
                         .setIcon(limn.icons.tabler.TablerDesign.PENCIL.icon());
                 edit.setControlSize(ControlSize.SMALL);
                 edit.setAccessibleName(ShowcaseStrings.ORDERS_HEADING.format(String.valueOf(order.number)));
@@ -1145,7 +1145,7 @@ final class AppScene {
                     String.valueOf(shown.size()), String.valueOf(all.size())));
 
             // What the rows area says when the filter leaves nothing, and the way back.
-            Button clearFilter = new Button(Text.CLEAR_FILTER).setSecondary(true);
+            Button clearFilter = new Button(Text.CLEAR_FILTER).setStyle(Button.Style.SECONDARY);
             limn.scene.layout.Column nothing = new limn.scene.layout.Column();
             nothing.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
             nothing.add(new Label(Text.NO_MATCH).setStrong(true)
@@ -1181,7 +1181,7 @@ final class AppScene {
 
             // What is done to every selected order at once. Enabled while one of them is not
             // paid yet; the rows stay where they are, so the user sees each badge turn green.
-            Button markPaid = new Button(Text.MARK_PAID).setSecondary(true)
+            Button markPaid = new Button(Text.MARK_PAID).setStyle(Button.Style.SECONDARY)
                     .setIcon(limn.icons.tabler.TablerSystem.CHECKS.icon());
             markPaid.setId("orders-mark-paid");
             Runnable markable = () -> {
@@ -1224,7 +1224,7 @@ final class AppScene {
             TextArea notes = new TextArea().setSoftWrap(true);
             Button save = new Button(ShowcaseStrings.ACTION_SAVE);
             save.setId("order-save");
-            Button revert = new Button(ShowcaseStrings.ORDERS_REVERT).setSecondary(true);
+            Button revert = new Button(ShowcaseStrings.ORDERS_REVERT).setStyle(Button.Style.SECONDARY);
             // The fields and their buttons, disabled as one while no order is chosen; the head
             // above them, with its close button, is not.
             limn.scene.layout.Column fields = new limn.scene.layout.Column();
@@ -1280,7 +1280,7 @@ final class AppScene {
 
             limn.scene.layout.Column form = new limn.scene.layout.Column();
             form.gap(10).crossAlignment(Flex.CrossAlignment.STRETCH);
-            Button close = new Button("").setSecondary(true).setIcon(limn.icons.tabler.TablerSystem.X.icon());
+            Button close = new Button("").setStyle(Button.Style.SECONDARY).setIcon(limn.icons.tabler.TablerSystem.X.icon());
             close.setControlSize(ControlSize.SMALL);
             close.setAccessibleName(ShowcaseStrings.ACTION_CLOSE);
             close.setTooltip(ShowcaseStrings.ACTION_CLOSE);

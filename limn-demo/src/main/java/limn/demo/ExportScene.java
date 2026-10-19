@@ -74,7 +74,7 @@ final class ExportScene {
         again.onAction(() -> roundTrip(chart, source, decoded, status, "the generated chart"));
         buttons.add(again);
 
-        Button captureWindow = new Button("Capture this window").setSecondary(true);
+        Button captureWindow = new Button("Capture this window").setStyle(Button.Style.SECONDARY);
         captureWindow.onAction(() -> {
             Scene scene = captureWindow.scene();
             if (scene == null || scene.window() == null) {
@@ -105,7 +105,7 @@ final class ExportScene {
             viewportRow.crossAlignment(Flex.CrossAlignment.START);
             viewportRow.add(new SizedBox(260, 170, viewport));
             column.add(viewportRow);
-            Button capture = new Button("Capture the viewport").setSecondary(true);
+            Button capture = new Button("Capture the viewport").setStyle(Button.Style.SECONDARY);
             capture.onAction(() -> viewport.captureNext(
                     captured -> roundTrip(captured, source, decoded, status, "the 3D viewport")));
             column.add(capture);

@@ -317,7 +317,7 @@ class ButtonAccessibilityTest extends AccessibleComponentTestBase {
                 "this virtual machine does not count per-thread allocation");
         bindButton(new Button("OK"));
 
-        button.setSecondary(true);
+        button.setStyle(Button.Style.SECONDARY);
         frame();
         button.setIcon(BLANK);
         frame();

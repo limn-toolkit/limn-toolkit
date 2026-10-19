@@ -143,7 +143,7 @@ public final class FormExample {
         Row actions = new Row();
         actions.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
         actions.add(Expanded.spacer(1));
-        actions.add(new Button("Cancel").setSecondary(true));
+        actions.add(new Button("Cancel").setStyle(Button.Style.SECONDARY));
         actions.add(new Button("Create account"));
         return actions;
     }

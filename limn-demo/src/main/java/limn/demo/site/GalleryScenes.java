@@ -239,7 +239,7 @@ final class GalleryScenes {
         Button disabled = new Button("Disabled");
         disabled.setEnabled(false);
         row.add(new Button("Primary"));
-        row.add(new Button("Secondary").setSecondary(true));
+        row.add(new Button("Secondary").setStyle(Button.Style.SECONDARY));
         row.add(disabled);
         return scene(row);
     }
@@ -389,7 +389,7 @@ final class GalleryScenes {
         Card invoice = new Card(new Label("Three items, due on Friday.").setWrap(true))
                 .setTitle("Invoice 1042")
                 .setSubtitle("Harbor Lane Supplies")
-                .setFooter(new Button("Hold").setSecondary(true), new Button("Approve"));
+                .setFooter(new Button("Hold").setStyle(Button.Style.SECONDARY), new Button("Approve"));
         invoice.onActivate(() -> { }); // a click above the footer opens the invoice
         Column cards = new Column();
         cards.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
@@ -519,7 +519,7 @@ final class GalleryScenes {
 
         Row row = new Row();
         row.gap(8).crossAlignment(Flex.CrossAlignment.CENTER);
-        row.add(new Button("Pause").setSecondary(true));
+        row.add(new Button("Pause").setStyle(Button.Style.SECONDARY));
         row.add(limn.scene.layout.Expanded.of(scrub));
         row.add(new Label("0:24 / 1:03").setMuted(true));
         row.add(new SizedBox(52, SizedBox.UNSET, volume));
@@ -592,9 +592,9 @@ final class GalleryScenes {
     static Built toolBar() {
         ToolBar bar = new ToolBar();
         bar.addItem(new Button("New"));
-        bar.addItem(new Button("Open").setSecondary(true));
+        bar.addItem(new Button("Open").setStyle(Button.Style.SECONDARY));
         bar.addSeparator();
-        bar.addItem(new Button("Save").setSecondary(true));
+        bar.addItem(new Button("Save").setStyle(Button.Style.SECONDARY));
         return scene(bar);
     }
     // #endregion

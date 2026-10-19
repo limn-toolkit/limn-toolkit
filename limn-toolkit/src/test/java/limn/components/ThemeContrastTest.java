@@ -83,6 +83,22 @@ class ThemeContrastTest {
         atLeast(4.5, theme.onPrimary(), theme.primaryPressed(), "label on the pressed accent");
     }
 
+    /**
+     * A destructive primary button is filled in danger and keeps the accent's ink, so that ink has
+     * to read on danger in each of its states: at rest, hovered and pressed, which are danger moved
+     * toward the text colour by 8 and 16 %. Measured in every palette before the ink was chosen,
+     * the lowest is above 5.6:1, so no palette needed an ink of its own for danger.
+     */
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("palettes")
+    void theAccentsInkReadsOnADestructiveButtonInEveryState(Theme theme) {
+        atLeast(4.5, theme.onPrimary(), theme.danger(), "label on a destructive button");
+        atLeast(4.5, theme.onPrimary(), theme.danger().lerp(theme.text(), 0.08f),
+                "label on a hovered destructive button");
+        atLeast(4.5, theme.onPrimary(), theme.danger().lerp(theme.text(), 0.16f),
+                "label on a pressed destructive button");
+    }
+
     @ParameterizedTest(name = "{0}")
     @MethodSource("palettes")
     void theAccentReadsOnEverySurface(Theme theme) {

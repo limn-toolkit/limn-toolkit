@@ -37,7 +37,7 @@ class ThemeShapeTest extends ComponentTestBase {
         Column column = new Column();
         column.gap(8).crossAlignment(Flex.CrossAlignment.START);
         column.add(new Button("Action"));
-        column.add(new Button("Secondary").setSecondary(true));
+        column.add(new Button("Secondary").setStyle(Button.Style.SECONDARY));
         column.add(new Checkbox(Checkbox.Variant.BOX, "Box"));
         column.add(new Checkbox(Checkbox.Variant.SWITCH, "Switch"));
         column.add(new RadioButton("Radio"));

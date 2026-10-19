@@ -23,8 +23,8 @@ public final class LauncherExample {
     /** What an export screen offers once the report is written: open it, or show where it is. */
     static Widget<?> afterExport(Path report, Label status) {
         Button open = new Button("Open");
-        Button show = new Button("Show in folder").setSecondary(true);
-        Button help = new Button("How exports work").setSecondary(true);
+        Button show = new Button("Show in folder").setStyle(Button.Style.SECONDARY);
+        Button help = new Button("How exports work").setStyle(Button.Style.SECONDARY);
         open.onAction(() -> launcherOf(open).openFile(report)
                 .thenAccept(taken -> status.setText(taken ? "" : "No program opens this file.")));
         show.onAction(() -> launcherOf(show).showInFolder(report));

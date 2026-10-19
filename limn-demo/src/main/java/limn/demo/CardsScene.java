@@ -203,7 +203,7 @@ final class CardsScene {
     /** A card with its picture beside the text, and cards clicked as a whole or above their actions. */
     private static void besideAndClicked(Column page) {
         page.add(Page.hint(Text.BESIDE));
-        Button add = new Button(Text.ADD_TO_ORDER).setSecondary(true);
+        Button add = new Button(Text.ADD_TO_ORDER).setStyle(Button.Style.SECONDARY);
         add.onAction(() -> Page.report(Text.ADDED.format(Text.DESK.get())));
         Card desk = new Card(text(Text.DESK_STOCK))
                 .setOrientation(Card.Orientation.HORIZONTAL)
@@ -277,7 +277,7 @@ final class CardsScene {
     private static Card invoice(String number, String customer, double amount, I18nString due) {
         Button approve = new Button(Text.APPROVE);
         approve.onAction(() -> Page.report(Text.APPROVED.format(Text.INVOICE_NUMBER.format(number))));
-        Button hold = new Button(Text.HOLD).setSecondary(true);
+        Button hold = new Button(Text.HOLD).setStyle(Button.Style.SECONDARY);
         hold.onAction(() -> Page.report(Text.HELD.format(Text.INVOICE_NUMBER.format(number))));
         Card card = new Card(text(due))
                 .setSubtitle(customer)

@@ -214,13 +214,13 @@ final class DialogsScene {
         Column page = new WindowWiring(askBeforeClosing);
         page.gap(Page.GAP).crossAlignment(Flex.CrossAlignment.STRETCH);
 
-        Button delete = new Button(Text.DELETE_ORDER).setSecondary(true);
+        Button delete = new Button(Text.DELETE_ORDER).setStyle(Button.Style.SECONDARY);
         delete.setIcon(Tabler.outline("trash"));
-        Button preferences = new Button(Text.PREFERENCES).setSecondary(true);
+        Button preferences = new Button(Text.PREFERENCES).setStyle(Button.Style.SECONDARY);
         preferences.setIcon(Tabler.outline("settings"));
-        Button customer = new Button(Text.EDIT_CUSTOMER).setSecondary(true);
+        Button customer = new Button(Text.EDIT_CUSTOMER).setStyle(Button.Style.SECONDARY);
         customer.setIcon(Tabler.outline("user"));
-        Button restore = new Button(Text.RESTORE).setSecondary(true);
+        Button restore = new Button(Text.RESTORE).setStyle(Button.Style.SECONDARY);
         restore.setIcon(Tabler.outline("database-import"));
 
         Presentation look = new Presentation(
@@ -317,11 +317,11 @@ final class DialogsScene {
         page.add(wrapRow(look.inWindow(), look.onTop(), look.systemFrame(), look.compact()));
 
         // Alerts: in the window, and a click on the dimmed window around one closes it.
-        Button info = new Button(Text.INFORMATION).setSecondary(true);
+        Button info = new Button(Text.INFORMATION).setStyle(Button.Style.SECONDARY);
         info.setIcon(Tabler.outline("info-circle"));
-        Button warning = new Button(Text.WARNING).setSecondary(true);
+        Button warning = new Button(Text.WARNING).setStyle(Button.Style.SECONDARY);
         warning.setIcon(Tabler.outline("alert-triangle"));
-        Button error = new Button(Text.ERROR).setSecondary(true);
+        Button error = new Button(Text.ERROR).setStyle(Button.Style.SECONDARY);
         error.setIcon(Tabler.outline("alert-circle"));
         info.onAction(() -> showAlert(info, look, Text.INFO_TITLE, Text.INFO_BODY, "info-circle",
                 Theme.current().info()));
@@ -534,7 +534,7 @@ final class DialogsScene {
             return menu;
         };
 
-        Button actions = new Button(Text.ACTIONS_MENU).setSecondary(true);
+        Button actions = new Button(Text.ACTIONS_MENU).setStyle(Button.Style.SECONDARY);
         actions.setIcon(Tabler.outline("dots"));
         Checkbox modal = new Checkbox(Checkbox.Variant.SWITCH, Text.MODAL);
         actions.onAction(() -> {

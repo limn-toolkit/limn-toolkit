@@ -33,7 +33,7 @@ public final class CardExample {
                 .setTitle("Harbor Lane Supplies")
                 .setSubtitle("Lisbon")
                 .setHeaderSuffix(new Label("$48,200").setStrong(true))
-                .setFooter(new Button("Call").setSecondary(true), new Button("New order"));
+                .setFooter(new Button("Call").setStyle(Button.Style.SECONDARY), new Button("New order"));
         // #endregion
         return card;
     }

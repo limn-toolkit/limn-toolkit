@@ -174,7 +174,7 @@ final class SectionsScene {
         documents.onTabMove((from, to) -> Page.report(Text.MOVED.format(documents.tabTitle(to), to + 1)));
 
         int[] opened = {0};
-        Button add = new Button(Text.NEW_DOCUMENT).setSecondary(true);
+        Button add = new Button(Text.NEW_DOCUMENT).setStyle(Button.Style.SECONDARY);
         add.setIcon(Tabler.outline("file-plus"));
         add.onAction(() -> {
             int next = opened[0]++;

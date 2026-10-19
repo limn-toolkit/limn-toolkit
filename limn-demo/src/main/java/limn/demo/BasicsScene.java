@@ -83,7 +83,7 @@ final class BasicsScene {
     }
 
     private static Button tool(String icon, I18nString name) {
-        Button button = new Button("").setSecondary(true).setIcon(Tabler.outline(icon));
+        Button button = new Button("").setStyle(Button.Style.SECONDARY).setIcon(Tabler.outline(icon));
         button.setAccessibleName(name);
         button.setTooltip(name);
         button.onAction(() -> Page.report(name.get()));
@@ -344,9 +344,9 @@ final class BasicsScene {
         Icon check = Tabler.outline("check");
         Button save = new Button(Text.SAVE).setIcon(check);
         save.onAction(() -> Page.report(Text.SAVED.format(name.text().strip())));
-        Button saveNew = new Button(Text.SAVE_NEW).setSecondary(true);
+        Button saveNew = new Button(Text.SAVE_NEW).setStyle(Button.Style.SECONDARY);
         saveNew.onAction(() -> Page.report(Text.SAVED.format(name.text().strip())));
-        Button delete = new Button(Text.DELETE).setSecondary(true).setIcon(Tabler.outline("trash"));
+        Button delete = new Button(Text.DELETE).setStyle(Button.Style.SECONDARY).setIcon(Tabler.outline("trash"));
         delete.setEnabled(false); // nothing to delete before the first save
         return Page.row(12, save, saveNew, delete);
     }

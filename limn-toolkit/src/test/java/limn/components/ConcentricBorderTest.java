@@ -73,7 +73,7 @@ class ConcentricBorderTest extends ComponentTestBase {
 
     @Test
     void aSecondaryButtonsBorderIsConcentricWithItsFace() {
-        Button button = new Button("Save").setSecondary(true);
+        Button button = new Button("Save").setStyle(Button.Style.SECONDARY);
         BorderCanvas canvas = paint(button, 120, 32);
         assertFilled(canvas, "secondary button", 0, 0, 120, 32, tokens(button).radiusMedium());
     }

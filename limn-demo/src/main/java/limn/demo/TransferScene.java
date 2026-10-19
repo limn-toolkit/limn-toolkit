@@ -99,11 +99,11 @@ final class TransferScene {
         ImageView pasted = new ImageView((Image) null).setPreferredSize(160, 80);
         pasted.setVisible(false);
 
-        Button copy = new Button(Text.COPY).setSecondary(true);
+        Button copy = new Button(Text.COPY).setStyle(Button.Style.SECONDARY);
         copy.setIcon(Tabler.outline("copy"));
-        Button cut = new Button(Text.CUT).setSecondary(true);
+        Button cut = new Button(Text.CUT).setStyle(Button.Style.SECONDARY);
         cut.setIcon(Tabler.outline("scissors"));
-        Button paste = new Button(Text.PASTE).setSecondary(true);
+        Button paste = new Button(Text.PASTE).setStyle(Button.Style.SECONDARY);
         paste.setIcon(Tabler.outline("clipboard"));
 
         copy.onAction(() -> {

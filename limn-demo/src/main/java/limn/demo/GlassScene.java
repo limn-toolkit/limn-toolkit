@@ -98,7 +98,7 @@ final class GlassScene {
         column.add(Page.firstSection(Text.TOOLBAR));
         Row tools = Page.row(8, new Label(Text.LIBRARY).setRole(Label.Role.TITLE));
         tools.add(Expanded.spacer(1));
-        tools.add(new Button(Text.IMPORT).setSecondary(true));
+        tools.add(new Button(Text.IMPORT).setStyle(Button.Style.SECONDARY));
         tools.add(new Button(Text.NEW_ALBUM));
         BackdropPanel bar = BackdropPanel.frosted(Insets.symmetric(8, 12), tools);
         Widget<?> library = limn.demo.site.GlassExample.barOver(shelf(), bar);
@@ -117,7 +117,7 @@ final class GlassScene {
         Slider position = new Slider(0, 100).setValue(35);
         position.setAccessibleName(Text.POSITION);
         Row playing = Page.row(12, titles, new SizedBox(180, SizedBox.UNSET, position),
-                new Button(Text.OPEN).setSecondary(true));
+                new Button(Text.OPEN).setStyle(Button.Style.SECONDARY));
         // Leaning toward a colour of the application's by a fifth, and covering less than glass
         // does by itself, since it is over a picture chosen for it; the bar above is the theme's
         // alone. The bottom inset evens out the room a line's descent already leaves under the
@@ -173,7 +173,7 @@ final class GlassScene {
             opacityPercent.setText(NumberFormats.percent(0).apply(value / 100.0));
             faded.setOpacity(value / 100f);
         });
-        Button fade = new Button(Text.FADE).setSecondary(true).onAction(() -> faded.fadeTo(0f, 0.6,
+        Button fade = new Button(Text.FADE).setStyle(Button.Style.SECONDARY).onAction(() -> faded.fadeTo(0f, 0.6,
                 () -> faded.fadeTo(opacity.value() / 100f, 0.6, null)));
         Row opacityRow = Page.row(12, new Label(Text.OPACITY).setMuted(true).setLabelFor(opacity),
                 new SizedBox(160, SizedBox.UNSET, opacity), opacityPercent, fade);

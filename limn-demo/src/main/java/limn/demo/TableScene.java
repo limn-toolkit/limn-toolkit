@@ -206,7 +206,7 @@ final class TableScene {
         table.onActivate(index -> Page.report(Text.OPENED.format(rows.get(index).product())));
 
         // ---- what shows: the columns, the stripes, the header
-        Button columns = new Button(Text.COLUMNS).setSecondary(true).setIcon(TablerText.COLUMNS.icon());
+        Button columns = new Button(Text.COLUMNS).setStyle(Button.Style.SECONDARY).setIcon(TablerText.COLUMNS.icon());
         columns.onAction(() -> {
             Menu menu = new Menu();
             for (Column<Item> column : List.of(category, warehouse, reserved, reorder, cost, counted)) {

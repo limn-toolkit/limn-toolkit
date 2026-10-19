@@ -196,7 +196,7 @@ final class ListScene {
             }
         });
 
-        Button clear = new Button(Text.CLEAR_SEARCH).setSecondary(true);
+        Button clear = new Button(Text.CLEAR_SEARCH).setStyle(Button.Style.SECONDARY);
         Column nothing = new Column();
         nothing.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
         nothing.add(new Label(Text.NO_MATCH).setStrong(true).setIcon(TablerSystem.SEARCH.icon()));
@@ -298,7 +298,7 @@ final class ListScene {
         private final Label name = new Label("");
         private final Label works = new Label("").setMuted(true);
         private final Label phone = new Label("").setMuted(true);
-        private final Button star = new Button("").setSecondary(true);
+        private final Button star = new Button("").setStyle(Button.Style.SECONDARY);
         private final Widget<?> content;
         private Contact contact;
 

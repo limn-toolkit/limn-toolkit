@@ -363,8 +363,11 @@ edge whatever the form's width turns out to be.
 
 {% snippet guide:form-actions %}
 
-The primary action is the plain `Button`; `setSecondary(true)` gives the quieter one. Keep
-one primary per form; if two buttons are both primary, neither is.
+The primary action is the plain `Button`; `setStyle(Button.Style.SECONDARY)` gives the quieter
+one, and `TERTIARY` a quieter one still, with no fill until the pointer is over it. Keep one
+primary per form; if two buttons are both primary, neither is. A button that deletes or discards
+takes `setDestructive(true)` at whichever style it has, which draws it in the palette's danger
+colour.
 
 ## The whole form
 

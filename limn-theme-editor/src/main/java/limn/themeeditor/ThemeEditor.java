@@ -872,7 +872,7 @@ public final class ThemeEditor extends Widget<ThemeEditor> {
             case DISABLED -> ThemeEditorStrings.DERIVE_DISABLED;
             case SEMANTIC -> ThemeEditorStrings.DERIVE_SEMANTIC;
         };
-        Button button = new Button(caption).setSecondary(true);
+        Button button = new Button(caption).setStyle(Button.Style.SECONDARY);
         button.setControlSize(ControlSize.SMALL);
         button.onAction(() -> {
             derive(derivation);
@@ -911,8 +911,8 @@ public final class ThemeEditor extends Widget<ThemeEditor> {
         row.crossAlignment(Flex.CrossAlignment.CENTER);
         row.add(liveToggle);
         row.add(Expanded.of(status.setMuted(true).setOverflow(Label.Overflow.ELLIPSIS), 1));
-        row.add(new Button(ThemeEditorStrings.REVERT).setSecondary(true).onAction(this::revert));
-        row.add(new Button(ThemeEditorStrings.PASTE).setSecondary(true)
+        row.add(new Button(ThemeEditorStrings.REVERT).setStyle(Button.Style.SECONDARY).onAction(this::revert));
+        row.add(new Button(ThemeEditorStrings.PASTE).setStyle(Button.Style.SECONDARY)
                 .onAction(this::pasteFromClipboard));
         row.add(new Button(ThemeEditorStrings.COPY).onAction(this::copyToClipboard));
         return row;
