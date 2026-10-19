@@ -1024,7 +1024,8 @@ Maven Central say which number that was.
   `setHeaderPrefix` before them and `setHeaderSuffix` after, `setContent`, and `setFooter(actions...)`
   at the trailing edge. A part not set, or hidden, takes no room and no gap. `setStyle` is
   `ELEVATED` (the default, the theme's raised shadow, with a hairline round it in a dark palette),
-  `OUTLINED` or `FILLED`; `setOrientation(HORIZONTAL)` puts the media in a column at the leading side
+  `OUTLINED`, `FILLED` (the palette's surface, set off from the page by its tone alone) or `PLAIN`
+  (nothing drawn of its own, the parts standing on the page); `setOrientation(HORIZONTAL)` puts the media in a column at the leading side
   with the footer across the whole card; `setMediaFit` is `NATURAL`, `STRETCH` or `COVER`, the last out
   to the card's edges with its own corners, and `setMediaAspectRatio` says how tall a stretched
   picture is. Given more height than it needs, a card gives it to its content, so the footers of a
@@ -1033,11 +1034,20 @@ Maven Central say which number that was.
   Space while it holds the keyboard, open what it stands for, while the footer's buttons are clicked
   as themselves and a press between them does nothing; a card with no footer is one click as a
   whole. It is one Tab stop, shows its hover and press over that part alone, draws a line above the
-  footer and a focus ring that never crosses it. A screen reader hears it as a button named by the
+  footer and a focus ring that never crosses it, and pads the footer's actions alike on all four
+  sides. Muted text under the hover keeps 4.5:1 in every built-in palette, in all four looks. A screen reader hears it as a button named by the
   title and described by the subtitle (in a group with the footer's actions when there is one);
   what else it shows is said with `setAccessibleDescription` on the card. A control placed in the
   part that is clicked is refused with `IllegalArgumentException`; one that arrives later is logged
   and answers nothing. Actions go in the footer.
+- `Card.setTitleLines(int)` and `Card.setSubtitleLines(int)` (1 by default) let a card's title and
+  subtitle break across more lines, the last ending with an ellipsis, so a long name reads whole on
+  a narrow card; a screen reader hears the whole title either way.
+- `Label.setMaxLines(int)` (1 by default) breaks a label's text across up to that many lines, at the
+  opportunities wrapping uses in the UI language, and ends the last with a measured ellipsis when
+  more text remains (or lets it run to the edge under `Overflow.CLIP`). Above 1 it holds whether or
+  not `setWrap` is on; at 1, `setWrap(true)` still means as many lines as the text needs, so no label
+  changes unless you ask. The lines are counted, not fitted: a label given less height clips.
 - `SizeTokens.cardPad`, the card's padding at each step: 10, 12, 16, 20, 24.
 - `Wrap.gapsSilently(gap, runGap)`, for a `Wrap` subclass that sets its gutters from its own measure,
   as `Flex` already allowed for its gap.
