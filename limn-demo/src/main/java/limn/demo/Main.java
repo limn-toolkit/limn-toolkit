@@ -39,7 +39,7 @@ public final class Main {
             "dates-era", "dates-era-light",
             "normalmap", "bloom", "surface", "testcard", "text", "files", "files-light",
             "export", "export-light", "charts", "charts-light", "theme-editor",
-            "theme-editor-light", "glass", "glass-light", "bidi", "bidi-light", "cards", "cards-2", "cards-states", "cards-states-2");
+            "theme-editor-light", "glass", "glass-light", "bidi", "bidi-light", "cards", "cards-2", "cards-3", "cards-states", "cards-states-2");
 
     /** A scene of the lab, alone in its window. */
     private static final int LAB_WIDTH = 800;
@@ -382,8 +382,8 @@ public final class Main {
                 widgetScene = Viewport3DScene.normalMapScene(false);
             } else if (scene.equals("bloom")) {
                 widgetScene = Viewport3DScene.bloomScene(false);
-            } else if (scene.equals("cards") || scene.equals("cards-2")) {
-                widgetScene = CardsScene.create(scene.equals("cards-2"));
+            } else if (scene.equals("cards") || scene.equals("cards-2") || scene.equals("cards-3")) {
+                widgetScene = CardsScene.create(scene.equals("cards") ? 0 : scene.equals("cards-2") ? 1 : 2);
             } else if (scene.startsWith("cards-states")) {
                 widgetScene = CardsScene.states();
             } else if (scene.equals("surface")) {

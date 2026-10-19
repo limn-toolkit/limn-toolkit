@@ -23,7 +23,7 @@ import limn.scene.layout.Padding;
 import limn.scene.layout.Row;
 
 /**
- * Cards: the three looks, a picture and an icon at their own size, stretched and out to the
+ * Cards: the four looks, a picture and an icon at their own size, stretched and out to the
  * edges, a card with its picture beside the text, and cards clicked as a whole or above their
  * actions. A part of the "Tabs and sections" page, and a scene of the lab on its own.
  */
@@ -32,7 +32,7 @@ final class CardsScene {
     /** The strings of these cards, ready for translation; customers' names and amounts are data. */
     static final class Text {
         static final I18nString CARDS = new I18nString("showcase.cards.cards", "Cards");
-        static final I18nString LOOKS = new I18nString("showcase.cards.looks", "Raised, outlined and filled");
+        static final I18nString LOOKS = new I18nString("showcase.cards.looks", "Raised, outlined, filled and plain");
         static final I18nString FITS = new I18nString("showcase.cards.fits",
                 "A picture at its own size, stretched, and out to the edges");
         static final I18nString ICONS = new I18nString("showcase.cards.icons",
@@ -47,6 +47,8 @@ final class CardsScene {
         static final I18nString PAPER = new I18nString("showcase.cards.paper", "Paper and toner, paid in thirty days.");
         static final I18nString CLEANING = new I18nString("showcase.cards.cleaning",
                 "Cleaning supplies, on hold since March.");
+        static final I18nString CATERING = new I18nString("showcase.cards.catering",
+                "Coffee and lunches, invoiced every month.");
 
         static final I18nString STOCK_COUNT = new I18nString("showcase.cards.stockCount", "Stock count");
         static final I18nString SALES_BY_REGION = new I18nString("showcase.cards.salesByRegion", "Sales by region");
@@ -102,18 +104,25 @@ final class CardsScene {
     }
 
     /**
-     * The lab's scenes: the cards alone, the looks and the media in the first, the cards beside
-     * their picture and the cards that are clicked in the second, each fitting the lab's window.
+     * The lab's scenes, each fitting the lab's window: the looks and the pictures in the first, the
+     * icons and the cards beside their picture in the second, and the cards that are clicked in the
+     * third.
      *
-     * @param second whether to show the second half
+     * @param part 0, 1 or 2
      */
-    static Scene create(boolean second) {
+    static Scene create(int part) {
         Column page = Page.column();
-        if (second) {
-            besideAndClicked(page);
-        } else {
-            page.add(Page.firstSection(Text.CARDS));
-            looksAndMedia(page);
+        switch (part) {
+            case 0 -> {
+                page.add(Page.firstSection(Text.CARDS));
+                looks(page);
+                pictures(page);
+            }
+            case 1 -> {
+                icons(page);
+                beside(page);
+            }
+            default -> clicked(page);
         }
         return new Scene(new ScrollView(new Padding(Insets.all(20), page)));
     }
@@ -129,7 +138,8 @@ final class CardsScene {
         page.add(band(
                 template(Text.INVOICE, Text.FROM_ORDER, "file-invoice"),
                 invoice("1042", "Harbor Lane Supplies", 1240, Text.DUE_FRIDAY),
-                template(Text.DELIVERY_NOTE, Text.SIGNED, "truck-delivery")));
+                // Plain, so the press the second pose holds shows its layer over the page itself.
+                template(Text.DELIVERY_NOTE, Text.SIGNED, "truck-delivery").setStyle(Card.Style.PLAIN)));
         return new Scene(new Padding(Insets.all(20), page));
     }
 
@@ -170,25 +180,35 @@ final class CardsScene {
      */
     static void cards(Column page, boolean first) {
         page.add(first ? Page.firstSection(Text.CARDS) : Page.section(Text.CARDS));
-        looksAndMedia(page);
-        besideAndClicked(page);
+        looks(page);
+        pictures(page);
+        icons(page);
+        beside(page);
+        clicked(page);
     }
 
-    /** The three looks, and a picture and an icon at each of the three fits. */
-    private static void looksAndMedia(Column page) {
+    /** The four looks, side by side. */
+    private static void looks(Column page) {
         page.add(Page.hint(Text.LOOKS));
         page.add(band(
                 customer("Harbor Lane Supplies", 2019, Text.FURNITURE, 48200, Card.Style.ELEVATED),
                 customer("Northgate Stationers", 2021, Text.PAPER, 12950, Card.Style.OUTLINED),
-                customer("Riverside Facilities", 2016, Text.CLEANING, 7310, Card.Style.FILLED)));
+                customer("Riverside Facilities", 2016, Text.CLEANING, 7310, Card.Style.FILLED),
+                customer("Westbrook Catering", 2022, Text.CATERING, 5480, Card.Style.PLAIN)));
+    }
 
+    /** A picture at each of the three fits. */
+    private static void pictures(Column page) {
         page.add(Page.hint(Text.FITS));
         page.add(band(
                 report(Text.STOCK_COUNT, Text.DAILY, new ImageView(Pictures.STOCK).setPreferredSize(64, 40),
                         Card.MediaFit.NATURAL),
                 report(Text.SALES_BY_REGION, Text.WEEKLY, cover(Pictures.SALES), Card.MediaFit.STRETCH),
                 report(Text.DELIVERY_ROUTES, Text.HOURLY, cover(Pictures.ROUTES), Card.MediaFit.COVER)));
+    }
 
+    /** An icon at each of the three fits. */
+    private static void icons(Column page) {
         page.add(Page.hint(Text.ICONS));
         page.add(band(
                 new Card().setMedia(Tabler.outline("calendar-stats")).setTitle(Text.MONTH_END)
@@ -197,11 +217,10 @@ final class CardsScene {
                         .setMediaAspectRatio(3).setTitle(Text.PAYROLL).setSubtitle(Text.RUNS_25TH),
                 new Card().setMedia(Tabler.outline("shield-check")).setMediaFit(Card.MediaFit.COVER)
                         .setMediaAspectRatio(3).setTitle(Text.AUDIT).setSubtitle(Text.SEVEN_YEARS)));
-
     }
 
-    /** A card with its picture beside the text, and cards clicked as a whole or above their actions. */
-    private static void besideAndClicked(Column page) {
+    /** A card with its picture beside the text. */
+    private static void beside(Column page) {
         page.add(Page.hint(Text.BESIDE));
         Button add = new Button(Text.ADD_TO_ORDER).setSecondary(true);
         add.onAction(() -> Page.report(Text.ADDED.format(Text.DESK.get())));
@@ -216,7 +235,10 @@ final class CardsScene {
                 .setMedia(Tabler.outline("headset")).setMediaFit(Card.MediaFit.STRETCH)
                 .setTitle(Text.SUPPORT).setStyle(Card.Style.OUTLINED);
         page.add(band(desk, support));
+    }
 
+    /** Cards clicked as a whole or above their actions. */
+    private static void clicked(Column page) {
         page.add(Page.hint(Text.CLICKED));
         page.add(band(
                 template(Text.INVOICE, Text.FROM_ORDER, "file-invoice"),
@@ -237,13 +259,22 @@ final class CardsScene {
         return row;
     }
 
-    /** A customer: their initials before the name, the year to date after it, a line on what they buy. */
+    /**
+     * A customer: their initials before the name, which takes two lines so that a long one reads
+     * whole on a card a quarter of the page wide, as the year it has been a customer does; a line on
+     * what they buy, and the year to date under it.
+     */
     private static Card customer(String name, int since, I18nString about, double amount, Card.Style style) {
-        Card card = new Card(text(about))
+        Column body = new Column();
+        body.gap(Page.GAP / 2).crossAlignment(Flex.CrossAlignment.STRETCH);
+        body.add(text(about));
+        body.add(money(amount));
+        Card card = new Card(body)
                 .setStyle(style)
                 .setHeaderPrefix(new Initials(name))
                 .setTitle(name)
-                .setHeaderSuffix(money(amount));
+                .setTitleLines(2)
+                .setSubtitleLines(2);
         // The year as written, not as a number of thousands.
         Page.followLanguage(() -> card.setSubtitle(Text.CUSTOMER_SINCE.format(String.valueOf(since))));
         return card;
