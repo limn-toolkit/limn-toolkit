@@ -147,6 +147,44 @@ class SvgCssTest {
         assertTrue(!text.contains("animate"), "the animations leave the document once read: " + text);
     }
 
+    /**
+     * A condition written twice is tested once but weighs twice, as in a browser: {@code .a.a}
+     * outranks a later {@code .a}, and {@code [x][x]} a later {@code [x]}.
+     */
+    @Test
+    void aRepeatedConditionStillCountsTowardsSpecificity() {
+        SvgXml.Element root = parse("<svg xmlns='http://www.w3.org/2000/svg'><style>"
+                + ".a.a { fill: red } .a { fill: blue } [data-x][data-x] { stroke: red } [data-x] { stroke: blue }"
+                + " #i#i { opacity: .5 } #i { opacity: .25 }</style><rect id='i' class='a' data-x='1'/></svg>");
+        SvgCss css = SvgCss.of(root);
+        SvgXml.Element rect = byId(root, "i");
+        assertEquals("red", css.cascaded(rect, "fill", false));
+        assertEquals("red", css.cascaded(rect, "stroke", false));
+        assertEquals(".5", css.cascaded(rect, "opacity", false));
+    }
+
+    /**
+     * An element's class words and attributes are looked up once and kept, but not past a change:
+     * the animation reading gives an element an id or a transform while the sheets are matched,
+     * and a later match sees what the element holds then.
+     */
+    @Test
+    void whatAnElementHoldsIsReadAgainOnceItChanges() {
+        SvgXml.Element root = parse("<svg xmlns='http://www.w3.org/2000/svg'><style>"
+                + ".b rect { fill: red } #late rect { stroke: blue } [data-k='2'] rect { opacity: .5 }</style>"
+                + "<g id='g' class='a' data-k='1'><rect id='r'/></g></svg>");
+        SvgCss css = SvgCss.of(root);
+        SvgXml.Element g = byId(root, "g");
+        assertNull(css.cascaded(g, "fill", false), "g asked about first, with its words looked up");
+        g.setAttribute("class", "a b");
+        g.setAttribute("id", "late");
+        g.setAttribute("data-k", "2");
+        SvgXml.Element rect = g.elements().get(0);
+        assertEquals("red", css.cascaded(rect, "fill", false));
+        assertEquals("blue", css.cascaded(rect, "stroke", false));
+        assertEquals(".5", css.cascaded(rect, "opacity", false));
+    }
+
     /** Thirty-two compounds are matched, thirty-three refused. */
     @Test
     void aSelectorOfTooManyCompoundsIsRefused() {

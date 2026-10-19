@@ -59,6 +59,13 @@ public final class SvgXml {
          */
         byte @Nullable [] matchMemo;
         long matchStamp;
+        /**
+         * Scratch of the same matcher: this element's id, class words and attributes as it looks
+         * them up, worked out once and valid while {@link #attributesChanged} is what it was then.
+         */
+        SvgCss.@Nullable Facts matchFacts;
+        /** How many times an attribute was set or taken away since parsing, so that what was worked out from them is known stale. */
+        int attributesChanged;
 
         /** @param name the element's name as written */
         public Element(String name) {
@@ -104,6 +111,7 @@ public final class SvgXml {
 
         /** Sets an attribute, in place when it is there and last when it is not. */
         public void setAttribute(String attribute, String value) {
+            attributesChanged++;
             int at = names.indexOf(attribute);
             if (at < 0) {
                 names.add(attribute);
@@ -117,6 +125,7 @@ public final class SvgXml {
         public void removeAttribute(String attribute) {
             int at = names.indexOf(attribute);
             if (at >= 0) {
+                attributesChanged++;
                 names.remove(at);
                 values.remove(at);
             }
@@ -124,6 +133,7 @@ public final class SvgXml {
 
         /** Takes away attribute {@code index}. */
         public void removeAttribute(int index) {
+            attributesChanged++;
             names.remove(index);
             values.remove(index);
         }

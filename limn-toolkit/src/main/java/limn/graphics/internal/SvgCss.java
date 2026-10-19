@@ -3,9 +3,11 @@ package limn.graphics.internal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -22,25 +24,28 @@ import org.jspecify.annotations.Nullable;
  * <p><b>Matching is bounded work</b>: a selector is tried only on the elements its last compound
  * could name (by id, class, type or attribute, as a browser files its rules), a selector chains at
  * most {@value #MAX_COMPOUNDS} compounds, each compound is tried once against each element in one
- * match however many descendant combinators could send it back there, and a file whose sheets
- * take more tries than its size can back ({@link #MATCH_STEPS_PER_BYTE} a byte, and
- * {@link #MIN_MATCH_STEPS} at least) is refused.
+ * match however many descendant combinators could send it back there, an element's id, class
+ * words and attributes are looked up in sets made once for it, and a file whose sheets take more
+ * steps than its size can back ({@link #MATCH_STEPS_PER_BYTE} a byte, and {@link #MIN_MATCH_STEPS}
+ * at least) is refused. A step is a compound tried, a condition tested, or a character a
+ * condition compares or a lookup reads: what a try costs is counted, not only that it was made.
  */
 final class SvgCss {
 
     /** The most compounds one selector may chain: a file with a longer one is refused. */
     static final int MAX_COMPOUNDS = 32;
     /**
-     * The compounds a file may have tried against its elements, for each of its bytes. An element
-     * is tried only against the selectors filed under its id, its classes, its type and its
-     * attributes, so an export of fifty thousand paths under four hundred class rules tries about
-     * a hundred thousand: a fraction of a try for each byte of it.
+     * The steps a file may take to match its sheets, for each of its bytes. An element is tried
+     * only against the selectors filed under its id, its classes, its type and its attributes,
+     * so an export of fifty thousand paths under four hundred class rules takes about a million
+     * steps (the class words read once, a try of a few conditions each): half a step for each
+     * byte of it.
      */
     static final int MATCH_STEPS_PER_BYTE = 4;
     /**
-     * The tries any file may make, however small: four million, which a file that needs them all
+     * The steps any file may take, however small: four million, which a file that needs them all
      * reaches in a fraction of a second, and which a file of a hundred kilobytes, a few thousand
-     * elements, does not reach under a thousand rules filed under nothing.
+     * elements, does not reach under a few hundred rules filed under nothing.
      */
     static final long MIN_MATCH_STEPS = 4_000_000L;
 
@@ -79,6 +84,25 @@ final class SvgCss {
 
     /** One selector of one rule, as the index holds it. */
     private record Filed(int rule, Selector selector) {
+    }
+
+    /**
+     * What a selector asks of an element, looked up once for it: its id, the words of its
+     * {@code class} (each once, in order) and, the first time a condition names one, its
+     * attributes by name. Kept on the element ({@link SvgXml.Element#matchFacts}) while its
+     * attributes are what they were.
+     */
+    static final class Facts {
+        final int attributesChanged;
+        final @Nullable String id;
+        final Set<String> classes;
+        @Nullable Map<String, String> attributes;
+
+        Facts(int attributesChanged, @Nullable String id, Set<String> classes) {
+            this.attributesChanged = attributesChanged;
+            this.id = id;
+            this.classes = classes;
+        }
     }
 
     private SvgCss(long maxSteps) {
@@ -350,15 +374,12 @@ final class SvgCss {
         List<Integer> touched = new ArrayList<>();
         tryFiled("*", element, touched);
         tryFiled(element.localName(), element, touched);
-        String id = element.attribute("id");
-        if (id != null) {
-            tryFiled("#" + id, element, touched);
+        Facts facts = facts(element);
+        if (facts.id != null) {
+            tryFiled("#" + facts.id, element, touched);
         }
-        String classes = element.attribute("class");
-        if (classes != null) {
-            for (String name : words(classes)) {
-                tryFiled("." + name, element, touched);
-            }
+        for (String name : facts.classes) {
+            tryFiled("." + name, element, touched);
         }
         if (filedByAttribute) {
             for (int i = 0; i < element.attributeCount(); i++) {
@@ -414,9 +435,43 @@ final class SvgCss {
         filed = index;
     }
 
-    /** The words of a {@code class} attribute, each once. */
-    private static List<String> words(String attribute) {
-        List<String> out = new ArrayList<>(2);
+    /**
+     * What selectors ask of an element, worked out once for it and kept while its attributes
+     * stay: the id, and the class words as a set. Looking a class up in the attribute itself
+     * cost a scan of it for each class tried, a scan that started again one character on after
+     * each near miss, and a list of the words cost each word's look through those before it:
+     * a single element of 200,000 classes held the reader 20 seconds.
+     */
+    Facts facts(SvgXml.Element element) {
+        Facts known = element.matchFacts;
+        if (known != null && known.attributesChanged == element.attributesChanged) {
+            return known;
+        }
+        String classes = element.attribute("class");
+        step(1 + element.attributeCount() + (classes == null ? 0 : classes.length()));
+        known = new Facts(element.attributesChanged, element.attribute("id"), classes == null ? Set.of() : words(classes));
+        element.matchFacts = known;
+        return known;
+    }
+
+    /** The value of an attribute a condition names, from a map made the first time one is asked of the element. */
+    private @Nullable String attribute(Facts facts, SvgXml.Element element, String name) {
+        Map<String, String> attributes = facts.attributes;
+        if (attributes == null) {
+            int count = element.attributeCount();
+            step(count);
+            attributes = new HashMap<>(count * 2);
+            for (int i = 0; i < count; i++) {
+                attributes.putIfAbsent(element.attributeName(i), element.attributeValue(i));
+            }
+            facts.attributes = attributes;
+        }
+        return attributes.get(name);
+    }
+
+    /** The words of a {@code class} attribute, each once, in order. */
+    private static Set<String> words(String attribute) {
+        Set<String> out = new LinkedHashSet<>();
         int at = 0;
         int length = attribute.length();
         while (at < length) {
@@ -428,18 +483,15 @@ final class SvgCss {
                 at++;
             }
             if (at > start) {
-                String word = attribute.substring(start, at);
-                if (!out.contains(word)) {
-                    out.add(word);
-                }
+                out.add(attribute.substring(start, at));
             }
         }
         return out;
     }
 
-    /** Counts compounds tried against elements, and refuses the file past what its size can back. */
-    private void step(int tries) {
-        steps += tries;
+    /** Counts the steps of matching (see {@link #MATCH_STEPS_PER_BYTE}), and refuses the file past what its size can back. */
+    private void step(long work) {
+        steps += work;
         if (steps > maxSteps) {
             throw SvgXml.refused("matching the style sheets takes more than " + maxSteps + " steps");
         }
@@ -665,6 +717,9 @@ final class SvgCss {
     private static final class Compound {
 
         private @Nullable String type;
+        // Each condition once, as written first: `.a.a` asks no more than `.a` (it weighs more, which
+        // the specificity counts apart), and a compound that repeats one condition thousands of times
+        // costs one test of it.
         private final List<String> classes = new ArrayList<>();
         private final List<String> idsList = new ArrayList<>();
         private final List<String[]> attributes = new ArrayList<>();
@@ -676,6 +731,7 @@ final class SvgCss {
 
         static @Nullable Compound parse(String text) {
             Compound c = new Compound();
+            Set<String> written = new java.util.HashSet<>();
             int at = 0;
             if (at < text.length() && (Character.isLetter(text.charAt(at)) || text.charAt(at) == '*'
                     || text.charAt(at) == '_')) {
@@ -704,10 +760,14 @@ final class SvgCss {
                         return null;
                     }
                     if (ch == '.') {
-                        c.classes.add(name);
+                        if (written.add("." + name)) {
+                            c.classes.add(name);
+                        }
                         c.classesSpec++;
                     } else {
-                        c.idsList.add(name);
+                        if (written.add("#" + name)) {
+                            c.idsList.add(name);
+                        }
                         c.ids++;
                     }
                 } else if (ch == '[') {
@@ -717,12 +777,16 @@ final class SvgCss {
                     }
                     String inside = text.substring(at + 1, end).trim();
                     int eq = inside.indexOf('=');
+                    String[] condition;
                     if (eq < 0) {
-                        c.attributes.add(new String[] {inside, null});
+                        condition = new String[] {inside, null};
                     } else if (eq > 0 && "~|^$*".indexOf(inside.charAt(eq - 1)) >= 0) {
                         return null;
                     } else {
-                        c.attributes.add(new String[] {inside.substring(0, eq).trim(), unquote(inside.substring(eq + 1).trim())});
+                        condition = new String[] {inside.substring(0, eq).trim(), unquote(inside.substring(eq + 1).trim())};
+                    }
+                    if (written.add(condition[1] == null ? "[" + condition[0] : "[" + condition[0] + "=" + condition[1])) {
+                        c.attributes.add(condition);
                     }
                     c.classesSpec++;
                     at = end + 1;
@@ -748,7 +812,9 @@ final class SvgCss {
                             && !pseudo.equals("first-of-type") && !pseudo.equals("last-of-type")) {
                         return null;
                     }
-                    c.pseudos.add(pseudo);
+                    if (written.add(":" + pseudo)) {
+                        c.pseudos.add(pseudo);
+                    }
                     c.classesSpec++;
                 } else {
                     return null;
@@ -758,53 +824,44 @@ final class SvgCss {
             return c;
         }
 
+        /**
+         * Whether the element meets every condition, each tested until one fails and charged as
+         * a step and a step for each character it compares: a compound of ten thousand classes
+         * costs ten thousand lookups, and is counted so.
+         */
         boolean matches(SvgXml.Element element, SvgCss css) {
-            if (type != null && !type.equals(element.localName())) {
-                return false;
+            long work = 0;
+            boolean met = true;
+            if (type != null) {
+                work += weight(type);
+                met = type.equals(element.localName());
             }
-            if (!idsList.isEmpty() && !idsList.contains(element.attribute("id"))) {
-                return false;
+            Facts facts = met && (!idsList.isEmpty() || !classes.isEmpty() || !attributes.isEmpty()) ? css.facts(element) : null;
+            for (int i = 0; met && i < idsList.size(); i++) {
+                work += weight(idsList.get(i));
+                met = idsList.get(i).equals(facts.id);
             }
-            if (!classes.isEmpty()) {
-                String attribute = element.attribute("class");
-                if (attribute == null) {
-                    return false;
-                }
-                for (String wanted : classes) {
-                    if (!hasClass(attribute, wanted)) {
-                        return false;
-                    }
-                }
+            for (int i = 0; met && i < classes.size(); i++) {
+                work += weight(classes.get(i));
+                met = facts.classes.contains(classes.get(i));
             }
-            for (String[] a : attributes) {
-                String value = element.attribute(a[0]);
-                if (value == null || a[1] != null && !a[1].equals(value)) {
-                    return false;
-                }
+            for (int i = 0; met && i < attributes.size(); i++) {
+                String[] a = attributes.get(i);
+                work += weight(a[0]) + (a[1] == null ? 0 : a[1].length());
+                String value = css.attribute(facts, element, a[0]);
+                met = value != null && (a[1] == null || a[1].equals(value));
             }
-            for (String pseudo : pseudos) {
-                if (!pseudo(pseudo, element, css)) {
-                    return false;
-                }
+            for (int i = 0; met && i < pseudos.size(); i++) {
+                work += weight(pseudos.get(i));
+                met = pseudo(pseudos.get(i), element, css);
             }
-            return true;
+            css.step(work);
+            return met;
         }
 
-        /** Whether a {@code class} attribute names {@code wanted} among its words. */
-        private static boolean hasClass(String attribute, String wanted) {
-            int at = 0;
-            while (true) {
-                int found = attribute.indexOf(wanted, at);
-                if (found < 0) {
-                    return false;
-                }
-                int end = found + wanted.length();
-                if ((found == 0 || Character.isWhitespace(attribute.charAt(found - 1)))
-                        && (end == attribute.length() || Character.isWhitespace(attribute.charAt(end)))) {
-                    return true;
-                }
-                at = found + 1;
-            }
+        /** A condition's steps: one, and one for each character of what it compares. */
+        private static int weight(String compared) {
+            return 1 + compared.length();
         }
 
         private static boolean pseudo(String pseudo, SvgXml.Element element, SvgCss css) {

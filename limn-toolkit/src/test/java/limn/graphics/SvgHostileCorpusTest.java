@@ -4,12 +4,14 @@ import limn.graphics.internal.SvgAnimation;
 import limn.graphics.internal.SvgSource;
 import limn.io.MalformedContentException;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
@@ -102,6 +104,86 @@ class SvgHostileCorpusTest {
         SvgSource.read(svg, null);
         long took = System.nanoTime() - start;
         assertTrue(took < QUICKLY_NANOS, name + " took " + took / 1_000_000 + " ms");
+    }
+
+    /**
+     * Longer than any crafted class or attribute list below takes to be read or refused (a few
+     * hundred milliseconds); each took from 6 seconds to minutes when a try was counted as one
+     * step whatever it compared.
+     */
+    private static final long ENDED_NANOS = 3_000_000_000L;
+
+    /**
+     * Files of the 2026-10-19 audit whose matching cost more than the tries it was charged, built
+     * here since they are megabytes: one element whose class lists {@code n} words, all different
+     * (1.5 MB, 20 seconds); a rule {@code .k.aaa…} against a class {@code k aaa…} twice as long,
+     * each word end a near miss (600 KB, 10 seconds; 2.4 MB, minutes); one rule of {@code n}
+     * classes over forty elements that carry all of them (2.4 MB, 7 seconds); and one rule of
+     * {@code n} attribute conditions over two hundred elements of a thousand attributes (2.8 MB,
+     * 19 seconds). Each is read or refused, quickly.
+     */
+    @ParameterizedTest
+    @CsvSource({"distinctClassWords, 200000", "classWordNearMisses, 400000", "classWordNearMisses, 1600000",
+            "compoundOfManyClasses, 10000", "compoundOfManyAttributes, 200000"})
+    void aCraftedClassOrAttributeListIsReadOrRefusedQuickly(String shape, int n) {
+        byte[] svg = crafted(shape, n);
+        long start = System.nanoTime();
+        try {
+            SvgSource.read(svg, null);
+        } catch (MalformedContentException refused) {
+            // as good an answer as a reading, if it comes quickly
+        }
+        long took = System.nanoTime() - start;
+        assertTrue(took < ENDED_NANOS, shape + " " + n + " (" + svg.length + " bytes) took " + took / 1_000_000 + " ms");
+    }
+
+    static byte[] crafted(String shape, int n) {
+        StringBuilder svg = new StringBuilder("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>");
+        switch (shape) {
+            case "distinctClassWords" -> {
+                svg.append("<style>.zz{fill:red}</style><rect width='1' height='1' class='");
+                for (int i = 0; i < n; i++) {
+                    svg.append('w').append(i).append(' ');
+                }
+                svg.append("'/>");
+            }
+            case "classWordNearMisses" -> svg.append("<style>.k.").append(repeat('a', n / 2))
+                    .append("{fill:red}</style><rect class='k ").append(repeat('a', n)).append("' width='1' height='1'/>");
+            case "compoundOfManyClasses" -> {
+                StringBuilder classes = new StringBuilder();
+                StringBuilder selector = new StringBuilder();
+                for (int i = 0; i < n; i++) {
+                    classes.append('c').append(i).append(' ');
+                    selector.append(".c").append(i);
+                }
+                svg.append("<style>").append(selector).append("{fill:red}</style>");
+                for (int e = 0; e < 40; e++) {
+                    svg.append("<rect width='1' height='1' class='").append(classes).append("'/>");
+                }
+            }
+            case "compoundOfManyAttributes" -> {
+                StringBuilder selector = new StringBuilder();
+                StringBuilder attributes = new StringBuilder();
+                for (int i = 0; i < 1000; i++) {
+                    attributes.append(" d").append(i).append("=''");
+                }
+                for (int i = 0; i < n; i++) {
+                    selector.append("[d").append(i % 1000).append(']');
+                }
+                svg.append("<style>").append(selector).append("{fill:red}</style>");
+                for (int e = 0; e < 200; e++) {
+                    svg.append("<rect").append(attributes).append("/>");
+                }
+            }
+            default -> throw new IllegalArgumentException(shape);
+        }
+        return svg.append("</svg>").toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    private static String repeat(char c, int n) {
+        char[] chars = new char[n];
+        Arrays.fill(chars, c);
+        return new String(chars);
     }
 
     static void refusedQuickly(byte[] svg, String name) {
