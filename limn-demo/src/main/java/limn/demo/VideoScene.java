@@ -1942,7 +1942,8 @@ final class VideoScene {
         private final Row row = new Row();
         private boolean ticking;
         private boolean refreshPosted;
-        private String shown = "";
+        /** What the button was last given: one of the texts, or a track's line as formatted. */
+        private Object shown = "";
 
         AudioTracks(Playing open, VideoView view) {
             this.open = open;
@@ -2006,20 +2007,28 @@ final class VideoScene {
             // A button that can only ever say what is playing is not a control: with one track or
             // none it is out of the row, and the row with it.
             button.setVisible(tracks.size() > 1);
-            String text;
+            // The two fixed texts go to the button as translated text, so the button follows a
+            // language chosen later; only a track's line is formatted here.
             if (media == null) {
                 // A synthetic source has no container and therefore no track list; what it is
                 // playing is the generated click track, which is not one of anything.
-                text = Text.GENERATED_SOUNDTRACK.get();
+                show(Text.GENERATED_SOUNDTRACK);
             } else if (tracks.isEmpty()) {
-                text = Text.NO_SOUNDTRACK.get();
+                show(Text.NO_SOUNDTRACK);
             } else {
                 int selected = Math.max(0, media.selectedAudioTrack());
                 String language = tracks.get(selected).language();
-                text = Text.AUDIO_TRACK.format(selected + 1, tracks.size(),
+                String line = Text.AUDIO_TRACK.format(selected + 1, tracks.size(),
                         language != null ? language : Text.NO_LANGUAGE.get());
+                if (!line.equals(shown)) {
+                    shown = line;
+                    button.setText(line);
+                }
             }
-            if (!text.equals(shown)) {
+        }
+
+        private void show(I18nString text) {
+            if (text != shown) {
                 shown = text;
                 button.setText(text);
             }
