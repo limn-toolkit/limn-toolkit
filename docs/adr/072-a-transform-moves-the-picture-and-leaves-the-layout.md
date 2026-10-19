@@ -385,7 +385,14 @@ Both depend on section 3, and with it they are short.
   of the horizon. One rule in `Scene`'s dispatch, instead of a guard in each of the thirty-odd
   handlers that convert a drag's point and in every application's; `Slider` and `RangeSlider`
   keep none. Hover events and the wheel follow the pointer and are not held; a hover past the
-  horizon hits nothing on the plane, as before. Tests: `DragPastTheHorizonTest`.
+  horizon hits nothing on the plane, as before. Tests: `DragPastTheHorizonTest`. (2026-10-19,
+  after review: the plane can also move under a still pointer, a flip under way or a panel the
+  application turns while the button is held, and the scene point kept from the last drag can then
+  lie past the new horizon. The scene keeps the widget's own last point too, and a release that
+  cannot arrive where the pointer is arrives where that point lies now, carried through the
+  matrices as they are. The one case left is a plane with nothing to reach, edge-on or with that
+  point behind the eye: the release still arrives, to end the press, at the last scene point, which
+  maps to `NaN`, and `MouseEvent` says so.)
 
 ### 2.8 Focus, reveal, readers, the input method and popups
 

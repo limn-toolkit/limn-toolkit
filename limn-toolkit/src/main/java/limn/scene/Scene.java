@@ -186,12 +186,14 @@ public final class Scene {
     private Widget<?> pressed;
     private boolean pointerInside; // last CursorEnter/move state, for hover resync
     private int pressedButton = -1;
-    // The last point the pressed widget was handed, which lies on its plane: where it stays while
-    // the pointer is somewhere a turned ancestor puts no point of it (past the horizon of a
-    // perspective), and where its release arrives if the pointer is let go of there. See
-    // onCapturedPlane.
+    // The last point the pressed widget was handed, which lay on its plane, in the scene and in the
+    // widget's own space: where it stays while the pointer is somewhere a turned ancestor puts no
+    // point of it (past the horizon of a perspective), and where its release arrives if the
+    // pointer is let go of there. See onCapturedPlane and settleReleasePoint.
     private float capturedX;
     private float capturedY;
+    private float capturedLocalX;
+    private float capturedLocalY;
     private final float[] captureScratch = new float[2];
     private float mouseX;
     private float mouseY;
@@ -2723,7 +2725,7 @@ public final class Scene {
             int oldButton = pressedButton;
             pressed = null;
             pressedButton = -1;
-            onCapturedPlane(oldPressed, mouseX, mouseY); // else the last point on it
+            settleReleasePoint(oldPressed, mouseX, mouseY);
             timedDispatch(oldPressed, new MouseEvent(MouseEvent.Type.RELEASE, capturedX, capturedY,
                     oldButton, 0, 0, 0));
         }
@@ -2824,7 +2826,7 @@ public final class Scene {
             int oldButton = pressedButton;
             pressed = null;
             pressedButton = -1;
-            onCapturedPlane(oldPressed, mouseX, mouseY); // else the last point on it
+            settleReleasePoint(oldPressed, mouseX, mouseY);
             timedDispatch(oldPressed, new MouseEvent(MouseEvent.Type.RELEASE, capturedX, capturedY,
                     oldButton, 0, 0, 0));
         }
@@ -4105,7 +4107,31 @@ public final class Scene {
         }
         capturedX = x;
         capturedY = y;
+        capturedLocalX = captureScratch[0];
+        capturedLocalY = captureScratch[1];
         return true;
+    }
+
+    /**
+     * Settles where a RELEASE to {@code captured} arrives, into {@code capturedX}/{@code capturedY}:
+     * at {@code (x, y)} when that is on the widget's plane; otherwise where the last point the widget
+     * was handed lies now. The plane may have moved since with the pointer held still (a panel
+     * turned on, a flip under way), and the scene point kept from then may have gone past the new
+     * horizon, so the widget's own point is carried through the matrices as they are now and
+     * checked again. Only where that point cannot be reached at all, the plane edge-on to the
+     * viewer or the point behind the eye, does the release keep the last scene point, which maps
+     * to nothing; MouseEvent says so.
+     */
+    private void settleReleasePoint(Widget<?> captured, float x, float y) {
+        if (onCapturedPlane(captured, x, y)) {
+            return;
+        }
+        captured.localToScene(capturedLocalX, capturedLocalY, captureScratch);
+        float sceneX = captureScratch[0];
+        float sceneY = captureScratch[1];
+        if (Float.isFinite(sceneX) && Float.isFinite(sceneY)) {
+            onCapturedPlane(captured, sceneX, sceneY);
+        }
     }
 
     private void handleButton(RawButton button) {
@@ -4137,6 +4163,11 @@ public final class Scene {
             pressY = button.y;
             capturedX = button.x; // hit-tested, so on the plane of what it hit
             capturedY = button.y;
+            capturedLocalX = Float.NaN;
+            capturedLocalY = Float.NaN;
+            if (hit != null) {
+                onCapturedPlane(hit, button.x, button.y); // and its own point there
+            }
             dragAsked = false;
             // Click-to-focus: nearest focusable ancestor of the press target.
             Widget<?> focusTarget = hit;
@@ -4157,7 +4188,7 @@ public final class Scene {
             float releaseY = button.y;
             if (pressed != null) {
                 // Let go of past the horizon: the release arrives where the widget was left.
-                onCapturedPlane(pressed, button.x, button.y);
+                settleReleasePoint(pressed, button.x, button.y);
                 releaseX = capturedX;
                 releaseY = capturedY;
             }
@@ -4849,7 +4880,7 @@ public final class Scene {
                 int oldButton = pressedButton;
                 pressed = null;
                 pressedButton = -1;
-                onCapturedPlane(oldPressed, mouseX, mouseY); // else the last point on it
+                settleReleasePoint(oldPressed, mouseX, mouseY);
                 timedDispatch(oldPressed, new MouseEvent(MouseEvent.Type.RELEASE, capturedX, capturedY,
                         oldButton, 0, 0, modifiers));
             }

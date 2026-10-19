@@ -42,8 +42,11 @@ class DragPastTheHorizonTest extends ComponentTestBase {
         return new Transform(content).setPerspective(150).setRotation3D(Vec3.UNIT_X, 60);
     }
 
+    /** The scene's clock, which a test moves to step a motion. */
+    private final long[] nanos = {1_000_000_000L};
+
     private Scene sceneOf(Widget<?> laidBack) {
-        Scene scene = new Scene(new Padding(new Insets(200, 0, 0, 100), laidBack));
+        Scene scene = new Scene(new Padding(new Insets(200, 0, 0, 100), laidBack), () -> nanos[0]);
         scene.bind(new limn.testing.StubWindow());
         scene.setTextRuler(RULER);
         frame(scene);
@@ -157,6 +160,7 @@ class DragPastTheHorizonTest extends ComponentTestBase {
     private static final class Recorder extends Widget<Recorder> {
         final List<String> events = new ArrayList<>();
         final List<Vec2> points = new ArrayList<>();
+        final List<Vec2> scenePoints = new ArrayList<>();
 
         @Override
         protected Size onMeasure(Constraints constraints) {
@@ -167,9 +171,19 @@ class DragPastTheHorizonTest extends ComponentTestBase {
         protected void onMouseEvent(MouseEvent event) {
             events.add(event.type().name());
             points.add(sceneToLocal(event.x(), event.y()));
+            scenePoints.add(new Vec2(event.x(), event.y()));
             if (event.type() == MouseEvent.Type.PRESS) {
                 event.consume();
             }
+        }
+
+        Vec2 lastScene(String type) {
+            for (int i = events.size() - 1; i >= 0; i--) {
+                if (events.get(i).equals(type)) {
+                    return scenePoints.get(i);
+                }
+            }
+            throw new AssertionError("no " + type + " in " + events);
         }
 
         Vec2 last(String type) {
@@ -247,5 +261,98 @@ class DragPastTheHorizonTest extends ComponentTestBase {
         move(scene, mid.x() + 40, mid.y() - 260);
         assertEquals("EXIT", recorder.events.get(seen - 1), "leaving for past the horizon is an exit");
         assertEquals(seen, recorder.events.size(), "no MOVE reaches the widget past the horizon: " + recorder.events);
+    }
+
+    // ---------------------------------------------------------- a plane that moves under a press
+
+    /**
+     * Presses a recorder on a panel tilted back 30 degrees and drags it a little; {@code turn} then
+     * moves the plane with the pointer held still, and {@code letGo} ends the press. Answers the
+     * recorder, whose last DRAG is where the press was left.
+     */
+    private Recorder pressThenMoveThePlane(java.util.function.Consumer<Transform> turn,
+                                           java.util.function.BiConsumer<Scene, Recorder> letGo) {
+        Recorder recorder = new Recorder();
+        limn.scene.layout.Column holder = new limn.scene.layout.Column();
+        holder.add(recorder);
+        Transform panel = new Transform(holder).setPerspective(150).setRotation3D(Vec3.UNIT_X, 30);
+        Scene scene = sceneOf(panel);
+        Vec2 mid = recorder.localToScene(100, 20);
+        move(scene, mid.x(), mid.y());
+        button(scene, true, mid.x(), mid.y());
+        float x = mid.x() + 40;
+        float y = mid.y() - 60;
+        assertTrue(onPlane(recorder, x, y), "the drag point is on the plane at 30 degrees");
+        move(scene, x, y);
+        turn.accept(panel);
+        frame(scene);
+        letGo.accept(scene, recorder);
+        frame(scene);
+        return recorder;
+    }
+
+    private static void letGoInPlace(Scene scene, Recorder recorder) {
+        // Where the pointer is: the last point it was moved to.
+        Vec2 at = recorder.lastScene("DRAG");
+        button(scene, false, at.x(), at.y());
+    }
+
+    @Test
+    void aReleaseAfterThePlaneTurnedOnUnderAStillPointerArrivesWhereTheWidgetWasLeft() {
+        java.util.function.Consumer<Transform> turnOn = panel -> panel.setRotation3D(Vec3.UNIT_X, 75);
+        java.util.Map<String, java.util.function.BiConsumer<Scene, Recorder>> endings = new java.util.LinkedHashMap<>();
+        endings.put("let go of", DragPastTheHorizonTest::letGoInPlace);
+        endings.put("window blurred", (scene, r) -> drive(scene).windowFocusChanged(false));
+        endings.put("widget disabled", (scene, r) -> r.setEnabled(false));
+        endings.put("widget removed", (scene, r) -> ((limn.scene.layout.Column) r.parent()).remove(r));
+        for (var ending : endings.entrySet()) {
+            Recorder recorder = pressThenMoveThePlane(turnOn, (scene, r) -> {
+                Vec2 at = r.lastScene("DRAG");
+                assertFalse(onPlane(r, at.x(), at.y()), "the point the drag was left at is past the new horizon");
+                ending.getValue().accept(scene, r);
+                drive(scene).inputBatchEnded();
+            });
+            recorder.assertCapturedFinite();
+            if (recorder.parent() == null) {
+                continue; // released as it left: no plane of the scene to compare against any more
+            }
+            Vec2 dragged = recorder.last("DRAG");
+            Vec2 released = recorder.last("RELEASE");
+            assertEquals(dragged.x(), released.x(), 0.01f, ending.getKey() + ": " + recorder.events);
+            assertEquals(dragged.y(), released.y(), 0.01f, ending.getKey());
+        }
+    }
+
+    @Test
+    void aReleaseWhileAFlipTurnsThePlaneArrivesOnIt() {
+        Recorder recorder = pressThenMoveThePlane(
+                panel -> {
+                    panel.flipTo(Transform.Flip.UP, 1.0, () -> { }, null);
+                    // A third of the way over, frame by frame: under way and not yet edge-on.
+                    for (int ms = 0; ms < 350; ms += 10) {
+                        frame(panel.scene());
+                        nanos[0] += 10_000_000L;
+                    }
+                },
+                (scene, r) -> {
+                    Vec2 at = r.lastScene("DRAG");
+                    assertFalse(onPlane(r, at.x(), at.y()), "the flip took the drag's point past the horizon");
+                    letGoInPlace(scene, r);
+                });
+        assertEquals(1, recorder.events.stream().filter("RELEASE"::equals).count(), recorder.events.toString());
+        recorder.assertCapturedFinite();
+        Vec2 dragged = recorder.last("DRAG");
+        Vec2 released = recorder.last("RELEASE");
+        assertEquals(dragged.x(), released.x(), 0.05f, "the release arrives where the widget was left");
+        assertEquals(dragged.y(), released.y(), 0.05f);
+    }
+
+    @Test
+    void aPlaneTurnedEdgeOnStillHearsItsRelease() {
+        // No point of an edge-on plane can be reached: the release still ends the press, at the
+        // last scene point, which MouseEvent documents as the one exception.
+        Recorder recorder = pressThenMoveThePlane(panel -> panel.setRotation3D(Vec3.UNIT_X, 90),
+                DragPastTheHorizonTest::letGoInPlace);
+        assertEquals(1, recorder.events.stream().filter("RELEASE"::equals).count(), recorder.events.toString());
     }
 }
