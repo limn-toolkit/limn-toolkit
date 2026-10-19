@@ -64,8 +64,13 @@ class ScrollAxisClipTest extends ComponentTestBase {
         settle();
     }
 
+    /**
+     * Turns of a backend's loop until a frame paints nothing: the UI queue drained, where a fade
+     * that went straight there arrives, and a frame rendered.
+     */
     private void settle() {
         for (int i = 0; i < 300; i++) {
+            runtime.drain();
             nanos.addAndGet(200_000_000L);
             canvas.reset();
             scene.renderFrame(canvas);

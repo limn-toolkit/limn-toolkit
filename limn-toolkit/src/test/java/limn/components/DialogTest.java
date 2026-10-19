@@ -1041,8 +1041,14 @@ class DialogTest extends ComponentTestBase {
     }
 
     /** Advances the clock past the fade duration over several frames. */
-    private static void pump(AtomicLong clock, Scene scene, FakeCanvas canvas) {
+    /**
+     * Six turns of a backend's loop: the UI queue drained and a frame rendered. A host with no
+     * window fades the card straight there, and the arrival that resolves the dialog runs on the
+     * next turn of the queue, never inside the call that faded it.
+     */
+    private void pump(AtomicLong clock, Scene scene, FakeCanvas canvas) {
         for (int i = 0; i < 6; i++) {
+            runtime.drain();
             clock.addAndGet(TimeUnit.MILLISECONDS.toNanos(50));
             scene.renderFrame(canvas);
         }

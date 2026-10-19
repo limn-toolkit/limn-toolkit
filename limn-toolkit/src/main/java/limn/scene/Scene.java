@@ -6253,7 +6253,9 @@ public final class Scene {
     // The fade primitive for native dialogs, popups and floating windows: drives
     // NativeWindow.setOpacity off the scene ticker. Retarget-safe (a newer call
     // supersedes the older via a generation gate) and headless-safe (no window →
-    // jump + run the callback at once).
+    // jump, and run the callback on the next turn of the UI queue, never inside
+    // the call: a fade chained in its own callback recursed there until the stack
+    // ran out).
 
     private double winFadeSeconds;
     private float winFadeFrom;
@@ -6274,7 +6276,11 @@ public final class Scene {
         fadeWindow(1f, seconds, null);
     }
 
-    /** Eases the window opacity to {@code 0}, then runs {@code onGone} (typically a close). */
+    /**
+     * Eases the window opacity to {@code 0}, then runs {@code onGone} (typically a close), by the
+     * rules of {@link #fadeWindow}: never inside this call, on the next turn of the UI queue when
+     * the fade goes straight there.
+     */
     public void fadeWindowOut(double seconds, @Nullable Runnable onGone) {
         fadeWindow(0f, seconds, onGone);
     }
@@ -6283,20 +6289,22 @@ public final class Scene {
      * Animates this scene's native-window opacity toward {@code target}
      * ({@code [0..1]}) over {@code seconds}, running {@code onArrive} once it
      * settles. A newer call supersedes an in-flight fade without stacking
-     * tickers. Zero duration, an already-current value, or a headless scene (no
-     * window) jumps straight to {@code target} and runs {@code onArrive} now.
-     * UI thread only.
+     * tickers, and its {@code onArrive} never runs. Zero duration, an
+     * already-current value, or a headless scene (no window) jumps straight to
+     * {@code target}, and {@code onArrive} runs on the next turn of the UI
+     * queue, once, unless a newer call supersedes it first: never inside this
+     * call, so a fade asked for again in its own {@code onArrive} runs one
+     * arrival a turn and does not recurse. A window closed before then runs it
+     * as it closes, as it runs a fade's in flight. UI thread only.
      */
     public void fadeWindow(float target, double seconds, @Nullable Runnable onArrive) {
         float clamped = Math.max(0f, Math.min(1f, target));
         int generation = ++winFadeGeneration; // supersede any in-flight fade
         NativeWindow w = window;
         if (w == null) {
-            // Headless: remember the value (a later real window starts here) and fire.
+            // Headless: remember the value (a later real window starts here), and arrive.
             winFadeCurrent = clamped;
-            if (onArrive != null) {
-                onArrive.run();
-            }
+            windowFadeArrivesNextTurn(generation, onArrive);
             return;
         }
         winFadeFrom = winFadeCurrent;
@@ -6307,15 +6315,34 @@ public final class Scene {
         if (seconds <= 0 || winFadeCurrent == clamped) {
             winFadeCurrent = clamped;
             w.setOpacity(clamped);
-            winFadeOnArrive = null;
-            if (onArrive != null) {
-                onArrive.run();
-            }
+            windowFadeArrivesNextTurn(generation, onArrive);
             return;
         }
         winFadeOnArrive = onArrive;
         // Wall time: onArrive is what destroys the window and completes the caller's future.
         addRealTimeTicker(dt -> tickWindowFade(dt, generation));
+    }
+
+    /**
+     * A window fade that went straight there arrives on the next turn: its callback is held where
+     * {@link #windowClosed} finds it, and runs once, from whichever of the two comes first; a
+     * newer {@link #fadeWindow} moves the generation on and drops it.
+     */
+    private void windowFadeArrivesNextTurn(int generation, @Nullable Runnable onArrive) {
+        winFadeOnArrive = onArrive;
+        if (onArrive == null) {
+            return;
+        }
+        Ui.post(() -> {
+            if (generation != winFadeGeneration) {
+                return; // superseded, or the window's close ran it
+            }
+            Runnable cb = winFadeOnArrive;
+            winFadeOnArrive = null;
+            if (cb != null) {
+                cb.run();
+            }
+        });
     }
 
     private boolean tickWindowFade(double dt, int generation) {
