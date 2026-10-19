@@ -249,6 +249,8 @@ class DamageContractTest extends ComponentTestBase {
             natural("BackdropPanel", () -> new BackdropPanel(
                     new BackdropEffect.Wash(Color.BLACK, 0.4f, -0.2f), Insets.NONE,
                     new Button("inside")), pointer()),
+            inert("Badge", () -> new Badge("Paid").setTone(Tone.SUCCESS),
+                    "a status: nothing to press, focus or hover"),
             natural("Button", () -> new Button("Go"), both()),
             // An activated card with a footer (ADR 073 §2.10): the hover, the press and the focus
             // repaint the clicked area and its ring; that the pointer in the footer's band repaints

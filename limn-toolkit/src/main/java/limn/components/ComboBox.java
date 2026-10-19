@@ -2514,7 +2514,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
 
         /** The chip made for each item, kept while the renderer stands, so it is asked once. */
         private final java.util.Map<Integer, Widget<?>> made = new java.util.HashMap<>();
-        private final Badge badge = new Badge();
+        private final MoreBadge badge = new MoreBadge();
         /** The items shown, in order, as the last rebuild found them. */
         private int[] shown = new int[0];
 
@@ -2697,7 +2697,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     }
 
     /** The count of the chips that did not fit: "+2", in the language's digits. */
-    private final class Badge extends Widget<Badge> {
+    private final class MoreBadge extends Widget<MoreBadge> {
 
         private int count;
 
