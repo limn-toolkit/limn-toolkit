@@ -343,8 +343,10 @@ sempre seguro, e as correções vão para o próximo release 1.x, e não para li
 método marcado com `@Deprecated` continua funcionando até a 2.0, e o Java 17 continua sendo o
 mínimo até a 2.0. A única exceção é o pacote `limn.backend.spi`, que só quem escreve um backend
 próprio usa: ele está em incubação e pode mudar num release minor da linha 1.x, sempre com a
-migração no changelog. Qualquer enum do Limn pode ganhar constantes num release minor da linha
-1.x, então um `switch` sobre um deles precisa de um ramo `default`.
+migração no changelog.
+
+Qualquer enum do Limn pode ganhar constantes num release minor da linha 1.x, então um `switch`
+sobre um deles precisa de um ramo `default`.
 
 ## Documentação
 

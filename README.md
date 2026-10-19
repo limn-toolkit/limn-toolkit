@@ -335,8 +335,10 @@ the code written for any earlier 1.x, so upgrading within 1.x is always safe, an
 the next 1.x rather than into older lines. A method marked `@Deprecated` keeps working until
 2.0, and Java 17 stays the minimum until 2.0. The one exception is the package
 `limn.backend.spi`, which only someone writing a backend of their own uses: it is incubating
-and may change in a 1.x minor, always with the migration in the changelog. Any of Limn's enums
-may gain constants in a 1.x minor, so a `switch` over one needs a `default` branch.
+and may change in a 1.x minor, always with the migration in the changelog.
+
+Any of Limn's enums may gain constants in a 1.x minor, so a `switch` over one needs a `default`
+branch.
 
 ## Documentation
 

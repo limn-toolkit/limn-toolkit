@@ -349,8 +349,10 @@ dans les lignes plus anciennes. Une méthode marquée `@Deprecated` continue de 
 la 2.0, et Java 17 reste le minimum jusqu’à la 2.0. La seule exception est le paquet
 `limn.backend.spi`, que seul utilise celui qui écrit son propre backend : il est en incubation et
 peut changer dans une version mineure 1.x, toujours avec la migration dans le journal des
-modifications. Toute énumération de Limn peut gagner des constantes dans une version mineure 1.x,
-donc un `switch` sur l’une d’elles a besoin d’une branche `default`.
+modifications.
+
+Toute énumération de Limn peut gagner des constantes dans une version mineure 1.x, donc un `switch`
+sur l’une d’elles a besoin d’une branche `default`.
 
 ## Documentation
 
