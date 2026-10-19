@@ -4500,6 +4500,12 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
             appendText(label.text());
             return;
         }
+        if (widget instanceof limn.components.Badge badge) {
+            // A status in a cell says its word, or its count as shown, in the row's name: the
+            // badge is read through the row, as anything inside it is.
+            appendText(badge.text());
+            return;
+        }
         List<Widget<?>> children = widget.children();
         for (int i = 0; i < children.size(); i++) { // indexed: an iterator is an allocation
             appendLabelText(children.get(i));

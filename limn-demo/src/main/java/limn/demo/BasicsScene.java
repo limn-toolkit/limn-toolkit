@@ -1,5 +1,8 @@
 package limn.demo;
 
+import limn.components.Avatar;
+import limn.components.AvatarGroup;
+import limn.components.Badge;
 import limn.components.Button;
 import limn.components.ButtonGroup;
 import limn.components.Checkbox;
@@ -16,6 +19,7 @@ import limn.components.TextArea;
 import limn.components.TextField;
 import limn.components.Theme;
 import limn.components.ToolBar;
+import limn.components.Tone;
 import limn.components.Validation;
 import limn.concurrent.Ui;
 import limn.graphics.Icon;
@@ -59,6 +63,10 @@ final class BasicsScene {
         page.add(onboarding());
         page.add(new SizedBox(SizedBox.UNSET, 8));
         page.add(actions(name));
+        page.add(Page.section(Text.BUTTON_STYLES));
+        page.add(buttonStyles());
+        page.add(Page.section(Text.STATUS_PEOPLE));
+        page.add(statusAndPeople());
         return Page.narrow(760, page);
     }
 
@@ -340,6 +348,67 @@ final class BasicsScene {
                 new Field(Text.CREDIT, credit));
     }
 
+    /**
+     * The three looks a button is drawn in, plain and destructive: the one action a view is for,
+     * the others beside it, the quiet one that should not compete; and each in danger for what
+     * deletes or discards.
+     */
+    private static Widget<?> buttonStyles() {
+        Column rows = new Column();
+        rows.gap(12);
+        rows.add(Page.row(12, styled(Text.APPROVE, Button.Style.PRIMARY, false),
+                styled(Text.SAVE_DRAFT, Button.Style.SECONDARY, false),
+                styled(Text.SKIP, Button.Style.TERTIARY, false)));
+        rows.add(Page.row(12, styled(Text.DELETE_ORDER, Button.Style.PRIMARY, true),
+                styled(Text.DISCARD_DRAFT, Button.Style.SECONDARY, true),
+                styled(Text.REMOVE_LINE, Button.Style.TERTIARY, true)));
+        return rows;
+    }
+
+    private static Button styled(I18nString caption, Button.Style style, boolean destructive) {
+        Button button = new Button(caption).setStyle(style).setDestructive(destructive);
+        button.onAction(() -> Page.report(Page.plain(caption)));
+        return button;
+    }
+
+    /**
+     * Badges of every tone, a count past what it shows, a dot and an icon; people as avatars, two
+     * with pictures, and a group of approvers past the four it draws.
+     */
+    private static Widget<?> statusAndPeople() {
+        Column rows = new Column();
+        rows.gap(16);
+        rows.add(Page.row(8,
+                new Badge(ShowcaseStrings.ORDERS_CANCELLED).setTone(Tone.NEUTRAL),
+                new Badge(ShowcaseStrings.ORDERS_SHIPPED).setTone(Tone.ACCENT),
+                new Badge(ShowcaseStrings.ORDERS_OPEN).setTone(Tone.INFO),
+                new Badge(ShowcaseStrings.ORDERS_PAID).setTone(Tone.SUCCESS),
+                new Badge(Text.DUE_SOON).setTone(Tone.WARNING),
+                new Badge(ShowcaseStrings.ORDERS_OVERDUE).setTone(Tone.DANGER)));
+        Badge alerts = Badge.count(128).setTone(Tone.DANGER);
+        rows.add(Page.row(8,
+                new Label(Text.INBOX), Badge.count(3).setTone(Tone.ACCENT),
+                new SizedBox(12, 1),
+                new Label(Text.ALERTS), alerts,
+                new SizedBox(12, 1),
+                new Label("Ana Lima"), Badge.dot(Text.UNREAD).setTone(Tone.ACCENT),
+                new SizedBox(12, 1),
+                new Badge(Tabler.outline("circle-check"), Text.SYNCED).setTone(Tone.SUCCESS)));
+        AvatarGroup approvers = new AvatarGroup(new Avatar("Ana Lima"),
+                new Avatar("Rui Costa").setImage(Pictures.PORTRAIT_RUI),
+                new Avatar("Mei Chen").setImage(Pictures.PORTRAIT_MEI), new Avatar("Omar Haddad"),
+                new Avatar("Lena Vogel"), new Avatar("Kofi Mensah"), new Avatar("Ines Duarte"));
+        approvers.setAccessibleName(Text.APPROVERS);
+        rows.add(Page.row(12,
+                new Avatar("Ana Lima"),
+                new Avatar("Rui Costa").setImage(Pictures.PORTRAIT_RUI),
+                new Avatar("Mei Chen").setImage(Pictures.PORTRAIT_MEI),
+                new Avatar("Omar Haddad"),
+                new SizedBox(24, 1),
+                new Label(Text.APPROVERS).setMuted(true), approvers));
+        return rows;
+    }
+
     private static Widget<?> actions(TextField name) {
         Icon check = Tabler.outline("check");
         Button save = new Button(Text.SAVE).setIcon(check);
@@ -448,5 +517,21 @@ final class BasicsScene {
         static final I18nString SAVE_NEW = new I18nString("showcase.inputs.saveNew", "Save and &add another");
         static final I18nString DELETE = new I18nString("showcase.inputs.delete", "Delete");
         static final I18nString SAVED = new I18nString("showcase.inputs.saved", "Saved {0}");
+
+        static final I18nString BUTTON_STYLES = new I18nString("showcase.inputs.buttonStyles", "Button styles");
+        static final I18nString APPROVE = new I18nString("showcase.inputs.approve", "Approve");
+        static final I18nString SAVE_DRAFT = new I18nString("showcase.inputs.saveDraft", "Save draft");
+        static final I18nString SKIP = new I18nString("showcase.inputs.skip", "Skip");
+        static final I18nString DELETE_ORDER = new I18nString("showcase.inputs.deleteOrder", "Delete order");
+        static final I18nString DISCARD_DRAFT = new I18nString("showcase.inputs.discardDraft", "Discard draft");
+        static final I18nString REMOVE_LINE = new I18nString("showcase.inputs.removeLine", "Remove line");
+
+        static final I18nString STATUS_PEOPLE = new I18nString("showcase.inputs.statusPeople", "Status and people");
+        static final I18nString DUE_SOON = new I18nString("showcase.inputs.dueSoon", "Due soon");
+        static final I18nString INBOX = new I18nString("showcase.inputs.inbox", "Inbox");
+        static final I18nString ALERTS = new I18nString("showcase.inputs.alerts", "Alerts");
+        static final I18nString UNREAD = new I18nString("showcase.inputs.unread", "Unread");
+        static final I18nString SYNCED = new I18nString("showcase.inputs.synced", "Synced");
+        static final I18nString APPROVERS = new I18nString("showcase.inputs.approvers", "Approvers");
     }
 }

@@ -4086,8 +4086,10 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         if (!widget.isVisible()) {
             return;
         }
-        if (widget instanceof limn.components.Label label) {
-            String text = label.text();
+        if (widget instanceof limn.components.Label || widget instanceof limn.components.Badge) {
+            // A badge beside a row's name (an unread dot, a count) is read through the row.
+            String text = widget instanceof limn.components.Label label ? label.text()
+                    : ((limn.components.Badge) widget).text();
             if (!text.isEmpty()) {
                 if (nameBuilder.length() > 0) {
                     nameBuilder.append(' ');

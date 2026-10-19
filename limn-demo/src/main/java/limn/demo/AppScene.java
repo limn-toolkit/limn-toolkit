@@ -1212,7 +1212,22 @@ final class AppScene {
             tools.add(Expanded.spacer(1));
             tools.add(count);
             tools.add(new SizedBox(196, SizedBox.UNSET, search));
-            tools.add(new SizedBox(170, SizedBox.UNSET, statuses));
+            // The statuses in a popover from a Filter button: a panel of choices that opens from
+            // the tool bar, takes the keyboard, and closes when the user is done with it.
+            Button filterButton = new Button(Text.FILTER).setStyle(Button.Style.SECONDARY)
+                    .setIcon(limn.icons.tabler.TablerSystem.FILTER.icon());
+            Button clearStatuses = new Button(Text.CLEAR_FILTER).setStyle(Button.Style.TERTIARY);
+            clearStatuses.onAction(() -> {
+                statuses.clearSelection();
+                filter.run();
+            });
+            limn.scene.layout.Column filterPanel = new limn.scene.layout.Column();
+            filterPanel.gap(12).crossAlignment(Flex.CrossAlignment.START);
+            filterPanel.add(new SizedBox(220, SizedBox.UNSET,
+                    new limn.components.Field(ShowcaseStrings.ORDERS_STATUS, statuses)));
+            filterPanel.add(clearStatuses);
+            new limn.components.Popover(filterPanel).setAccessibleName(Text.FILTER).attachTo(filterButton);
+            tools.add(filterButton);
             tools.add(markPaid);
             tools.add(new Button(ShowcaseStrings.MENU_NEW_ORDER).onAction(this::openNewOrder));
 
@@ -1402,6 +1417,7 @@ final class AppScene {
                     new I18nString("showcase.orders.noMatch", "No orders match the filter");
             static final I18nString CLEAR_FILTER =
                     new I18nString("showcase.orders.clearFilter", "Clear filter");
+            static final I18nString FILTER = new I18nString("showcase.orders.filter", "Filter");
             static final I18nString MARK_PAID =
                     new I18nString("showcase.orders.markPaid", "Mark as paid");
             static final limn.i18n.PluralString MARKED_PAID = limn.i18n.PluralString.of(

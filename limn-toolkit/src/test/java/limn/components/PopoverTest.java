@@ -181,6 +181,28 @@ class PopoverTest extends ComponentTestBase {
     }
 
     @Test
+    void aFieldInsideOpensItsContextMenuOverThePopover() {
+        // A text field's menu, asked for from inside the popover, opens over it and leaves it up.
+        Button button = new Button("Filter");
+        Column root = new Column();
+        root.add(button);
+        root.add(new limn.scene.layout.SizedBox(300, 200, new Label("Orders")));
+        TextField field = new TextField().setText("Kestrel").setAccessibleName("Customer contains");
+        Popover p = new Popover(field).setDisplayMode(DisplayMode.IN_SCENE);
+        limn.testing.AccessibleHarness harness =
+                new limn.testing.AccessibleHarness(runtime, root, new limn.testing.StubWindow(false));
+        p.showFor(button);
+        harness.frame();
+        AccessibleNode node = harness.node("Customer contains");
+        assertTrue(node.actions().has(Accessible.Action.SHOW_MENU), "the field offers its menu");
+        assertTrue(harness.perform(node.id(), Accessible.Action.SHOW_MENU, Accessible.Argument.NONE));
+        harness.frame();
+        assertTrue(p.isOpen(), "the popover stayed open under its field's menu");
+        assertNotNull(limn.testing.AccessibleTrees.withRole(harness.tree(), Accessible.Role.MENU),
+                "and the menu is up: " + harness.describe());
+    }
+
+    @Test
     void aPopoverWithNoControlsTakesTheKeyboardOnItsPanel() {
         inScene(40, 20);
         popover = new Popover(new Label("Last synced 10:42")).setDisplayMode(DisplayMode.IN_SCENE);

@@ -186,6 +186,19 @@ class BadgeTest extends AccessibleComponentTestBase {
         assertEquals(Accessible.Role.LABEL, node("120 unread").role(), "the application's name wins");
     }
 
+    @Test
+    void aBadgeInATableRowIsReadThroughTheRowsName() {
+        limn.components.table.Column<String> customer = limn.components.table.Column.text("Customer", s -> s);
+        limn.components.table.Column<String> state = limn.components.table.Column.<String>widget(
+                "Status", s -> new Badge("Overdue").setTone(Tone.DANGER));
+        limn.components.table.Table<String> table =
+                new limn.components.table.Table<>(List.of(customer, state));
+        table.setRows(List.of("Kestrel Outdoor"));
+        bind(new limn.scene.layout.SizedBox(300, 120, table));
+        AccessibleNode row = limn.testing.AccessibleTrees.withRole(tree(), Accessible.Role.ROW);
+        assertEquals("Kestrel Outdoor Overdue", row.name(), "the status is in the row's name");
+    }
+
     /** One frame of {@code s} after a change: the passes it repainted, and whether it cleared all. */
     private static RecordingTestCanvas frameAfter(Scene s, Runnable change) {
         change.run();
