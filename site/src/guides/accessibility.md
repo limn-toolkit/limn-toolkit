@@ -144,6 +144,16 @@ and performs. A control nobody can see — in an unselected tab, in a collapsed 
 modal — publishes no verb at all, which is how a reader is told "not now" instead of being told
 yes and hearing nothing happen.
 
+### Statuses, people and empty lists
+
+A `Badge` is static text, named by its word or its count as shown; name a count by its sentence
+with `setAccessibleName("3 unread")`. An `Avatar` is an image named by the person; beside the name
+it repeats, take it out with `setAccessibleIgnored(true)`. An `AvatarGroup` is one group, named
+by you and described by every member's name. A list, a table or a tree with no rows is described
+by its empty message, and its empty content's buttons come after it; while it loads it is busy,
+and the start and the end of the load are said. A `Popover` is a named group, with Escape as its
+cancel, and the button attached to it says it opens a popup and whether it is open.
+
 ## Check a screen before anyone hears it
 
 Four rules hold for any published tree, whatever is in it: no node has an unknown role, no

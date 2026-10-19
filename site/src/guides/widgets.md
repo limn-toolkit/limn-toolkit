@@ -67,6 +67,31 @@ scene.setControlSize(ControlSize.SMALL);
 Use it for a compact mode, a dense inspector panel, or a touch-friendly kiosk build. You
 almost never set a pixel size on a component yourself; the step decides.
 
+## Statuses, people and button styles
+
+Three looks for a button, and a tone for what destroys something. The filled `PRIMARY` button is
+the one action a view is for; `SECONDARY` is outlined, for the others beside it; `TERTIARY` has no
+fill or border until the pointer is over it, for a quiet action that should not compete. Any of
+them takes `setDestructive(true)` for a button that deletes or discards, which draws it in the
+palette's danger colour. The box is the same at every style, so a row of them lines up.
+
+{% snippet guide:button-styles %}
+
+A `Badge` says a status in a few letters: a pill tinted in a `Tone`, a dot or an icon in the
+tone at its leading end, and the word in the palette's text colour, so it reads whatever the
+tone. `Badge.count(n)` shows a number, "99+" past 99, in the digits of the language shown;
+`Badge.dot(name)` is a dot alone, with a name a screen reader says in its place.
+
+{% snippet guide:badge %}
+
+An `Avatar` is a person as a circle: their picture with `setImage`, or their initials over a
+colour of their own, both from the name. An `AvatarGroup` overlaps them and ends in "+k" past the
+most it shows, with the hidden names in its tooltip. To a reader an avatar is an image named by
+the person (take it out with `setAccessibleIgnored(true)` beside the name it repeats), and a
+group is one group described by every name, the hidden ones included.
+
+{% snippet guide:avatars %}
+
 ## Where null is allowed
 
 Every public signature says whether it takes or answers `null`, in

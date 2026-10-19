@@ -225,6 +225,22 @@ layout: `columns()` answers the order as it stands, hidden columns included, and
 its width. Putting a saved layout back is `moveColumn(column, index)` and the widths you saved,
 and neither is reported back to you.
 
+### When there is nothing to show
+
+A list, a table and a tree each show an empty content of yours whenever they hold no rows, and
+take it away when one arrives: they know their count, so you only say what to show, "No orders
+yet" or "No orders match the filter", which only you know. It sits in the middle of the rows'
+viewport, between a table's header and its footer, and its buttons follow the table in the Tab
+order. The label you pass with it is what a screen reader hears the empty table described by.
+`setEmptyMessage("…")` is the short form, one muted line.
+
+While your rows are on their way, `setLoading(true)` shows a loading content in the same place
+(a moving bar over "Loading…", or your own with `setLoadingContent`), marks the widget busy, and
+tells a reader "Loading Orders"; `setLoading(false)` after the rows are set tells them how many
+arrived, or the empty message when none did.
+
+{% snippet guide:table-empty %}
+
 ### Editing a record
 
 There is no cell editing, and there will not be. Editing in place is a spreadsheet's
