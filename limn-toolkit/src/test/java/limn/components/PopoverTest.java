@@ -309,6 +309,38 @@ class PopoverTest extends ComponentTestBase {
     }
 
     @Test
+    void inAWindowThePanelIsAsWideAsItsControlsAskAndNotAsTheWindow() {
+        // Seen on the macOS guest: a field and a combo box measured against a bounded width take
+        // all of it, and the first panel was as wide as the owner's window.
+        HeadlessBackend backend = new HeadlessBackend(runtime);
+        owner = backend.open("Orders", 600, 300);
+        anchor = new Button("Filter");
+        Column root = new Column();
+        root.add(anchor);
+        scene = new Scene(root, () -> now[0]);
+        scene.setTextRuler(RULER);
+        scene.bind(owner);
+        owner.frame();
+        ComboBox<String> alone = new ComboBox<>(java.util.List.of("Open", "Paid"));
+        // A column that stretches its controls across, as a form's does, is as wide as it is let.
+        Column form = new Column();
+        form.crossAlignment(limn.scene.layout.Flex.CrossAlignment.STRETCH);
+        form.add(alone);
+        popover = new Popover(form);
+        popover.showFor(anchor);
+        runtime.drain();
+        Widget<?> panel = popover.content().parent();
+        assertNotNull(panel);
+        float pad = Theme.current().tokensFor(anchor).spacingMedium();
+        float natural = alone.measure(limn.scene.Constraints.loose(Float.POSITIVE_INFINITY,
+                Float.POSITIVE_INFINITY)).width();
+        assertEquals(natural + 2 * pad, panel.measure(limn.scene.Constraints.loose(Float.POSITIVE_INFINITY,
+                Float.POSITIVE_INFINITY)).width(), 0.5f);
+        HeadlessWindow window = (HeadlessWindow) panel.scene().window();
+        assertTrue(window.logicalWidth() < 600 - 16, "narrower than the owner: " + window.logicalWidth());
+    }
+
+    @Test
     void inAWindowTheOwnerLosingTheKeyboardIsAnAdjustment() {
         inWindow();
         assertInstanceOf(HeadlessWindow.class, popupScene().window());

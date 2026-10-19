@@ -3070,7 +3070,7 @@ public final class Scene {
     /** The widget this window's input method composes into: a focus-holding popup's, else this scene's. */
     private @Nullable Widget<?> imeTarget() {
         Scene popup = focusPopup();
-        return popup != null ? popup.focused : focused;
+        return popup != null && !popup.windowFocused ? popup.focused : focused;
     }
 
     /**
@@ -3092,7 +3092,7 @@ public final class Scene {
             return;
         }
         Scene popup = focusPopup();
-        if (popup != null && popup.window != null) {
+        if (popup != null && popup.window != null && !popup.windowFocused) {
             float factor = window.logicalToScreenFactor();
             rect = new limn.graphics.Rect(
                     rect.x() + (popup.window.screenX() - window.screenX()) / factor,
@@ -3799,7 +3799,10 @@ public final class Scene {
 
     /** Whether this is a grafted popup whose focus its owner's keys drive; see {@link #focusPopup}. */
     private boolean drivenByOwner() {
-        return graftedInto != null && graftedInto.focusPopup() == this;
+        // Not while its own window holds the desktop's keyboard, which a click inside it can give
+        // it, or a platform that made it key: the keys and the composition then reach this window
+        // first-hand, and it is this window's input method that has to be asked to compose.
+        return graftedInto != null && graftedInto.focusPopup() == this && !windowFocused;
     }
 
     /** @return the grafted popup this window's keys drive, whose cursor is this tree's; or {@code null} */
@@ -3982,6 +3985,13 @@ public final class Scene {
                     }
                 } else if (raw instanceof RawFocus focus) {
                     windowFocused = focus.focused;
+                    if (graftedInto != null && graftedInto.focusPopup() == this) {
+                        // A popup whose owner's keys drive it: a click can give its own window the
+                        // desktop's keyboard, and then its own input method is the one composing,
+                        // so whose it is moves with the focus (see drivenByOwner).
+                        updateImeState();
+                        graftedInto.updateImeState();
+                    }
                     if (!focus.focused) {
                         showAccessLetters(false); // the Alt release goes to the window it moved to
                     }

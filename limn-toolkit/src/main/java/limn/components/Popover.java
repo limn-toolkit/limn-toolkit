@@ -462,7 +462,13 @@ public final class Popover {
                 Scene scene = anchor().scene();
                 float maxW = scene != null ? scene.root().width() - 2 * AnchoredPopup.EDGE_MARGIN
                         : Float.POSITIVE_INFINITY;
-                Size size = p.measure(Constraints.loose(Math.max(1, maxW), Float.POSITIVE_INFINITY));
+                // Its own width first, unbounded, as a control in a row of them measures to its
+                // step's width: a field or a combo box given a bounded width takes all of it, and
+                // a panel measured against the window would be as wide as the window.
+                Size size = p.measure(Constraints.loose(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY));
+                if (size.width() > maxW) {
+                    size = p.measure(Constraints.loose(Math.max(1, maxW), Float.POSITIVE_INFINITY));
+                }
                 w = size.width();
                 h = size.height();
                 lastWidth = w;

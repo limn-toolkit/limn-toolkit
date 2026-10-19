@@ -214,7 +214,7 @@ final class DialogsScene {
         Column page = new WindowWiring(askBeforeClosing);
         page.gap(Page.GAP).crossAlignment(Flex.CrossAlignment.STRETCH);
 
-        Button delete = new Button(Text.DELETE_ORDER).setStyle(Button.Style.SECONDARY);
+        Button delete = new Button(Text.DELETE_ORDER).setStyle(Button.Style.SECONDARY).setDestructive(true);
         delete.setIcon(Tabler.outline("trash"));
         Button preferences = new Button(Text.PREFERENCES).setStyle(Button.Style.SECONDARY);
         preferences.setIcon(Tabler.outline("settings"));
@@ -232,8 +232,10 @@ final class DialogsScene {
         // Window-modal: a destructive question about one order, which locks this window only.
         delete.onAction(() -> look.dress(alert(Text.DELETE_TITLE, Text.DELETE_BODY, "alert-triangle",
                         Theme.current().danger()))
-                .addButton(ShowcaseStrings.ACTION_CANCEL, "cancel")
-                .addPrimaryButton(Text.DELETE, "delete")
+                // The safe answer is the default, so Return keeps the order; Delete is the
+                // destructive button, which never answers Return.
+                .addPrimaryButton(ShowcaseStrings.ACTION_CANCEL, "cancel")
+                .addDestructiveButton(Text.DELETE, "delete")
                 .setCancelResult("cancel")
                 .show(delete)
                 .thenAccept(r -> Page.report("delete".equals(r) ? Text.DELETED.get() : Text.KEPT.get())));

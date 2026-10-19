@@ -1,5 +1,6 @@
 package limn.demo;
 
+import limn.components.Avatar;
 import limn.components.Button;
 import limn.components.Label;
 import limn.components.ListView;
@@ -10,7 +11,6 @@ import limn.components.SegmentedControl;
 import limn.components.SelectionMode;
 import limn.components.Theme;
 import limn.graphics.Canvas;
-import limn.graphics.Color;
 import limn.i18n.I18nString;
 import limn.icons.tabler.TablerDevices;
 import limn.icons.tabler.TablerSystem;
@@ -199,17 +199,18 @@ final class ListScene {
         Button clear = new Button(Text.CLEAR_SEARCH).setStyle(Button.Style.SECONDARY);
         Column nothing = new Column();
         nothing.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
-        nothing.add(new Label(Text.NO_MATCH).setStrong(true).setIcon(TablerSystem.SEARCH.icon()));
+        Label noMatch = new Label(Text.NO_MATCH).setStrong(true).setIcon(TablerSystem.SEARCH.icon());
+        nothing.add(noMatch);
         nothing.add(clear);
-        EmptyState shown = new EmptyState(book, nothing);
+        // Shown by the list itself whenever the search leaves no contact, and what a reader hears
+        // the empty list described by.
+        book.setEmptyContent(nothing, noMatch);
 
         SearchField search = new SearchField();
         search.setPlaceholder(Text.SEARCH);
         search.setAccessibleName(Text.SEARCH);
         search.onChange(text -> {
-            List<Entry> rows = entries(contacts, text);
-            book.setItems(rows);
-            shown.setEmpty(rows.isEmpty());
+            book.setItems(entries(contacts, text));
         });
         clear.onAction(() -> {
             search.clear();
@@ -246,7 +247,7 @@ final class ListScene {
         Column page = Page.column();
         page.add(Page.firstSection(Text.CONTACTS));
         page.add(tools);
-        page.add(Page.narrow(720, framed(shown)));
+        page.add(Page.narrow(720, framed(book)));
         page.add(multiHint);
         page.add(Page.section(Text.CALLS));
         page.add(Page.narrow(720, framed(log)));
@@ -294,7 +295,9 @@ final class ListScene {
 
     /** A contact: who, where they work, a number to call, and a star to keep them near the top of mind. */
     private static final class ContactCell extends Widget<ContactCell> {
-        private final Avatar avatar = new Avatar();
+        // Taken out of the tree: the row beside it says the name, and an image named by it would
+        // say it twice.
+        private final Avatar avatar = new Avatar("").setAccessibleIgnored(true);
         private final Label name = new Label("");
         private final Label works = new Label("").setMuted(true);
         private final Label phone = new Label("").setMuted(true);
@@ -336,7 +339,7 @@ final class ListScene {
 
         void bind(Contact contact) {
             this.contact = contact;
-            avatar.bind(contact);
+            avatar.setName(contact.name());
             name.setText(contact.name());
             works.setText(contact.company() + " · " + contact.role());
             phone.setText(contact.phone());
@@ -403,49 +406,6 @@ final class ListScene {
         protected void onLayout() {
             content.measure(Constraints.tight(width(), height()));
             content.layoutBox(0, 0, width(), height());
-        }
-    }
-
-    /** A person's initials on a disc tinted by one of the theme's tones, the same tone for the same name. */
-    private static final class Avatar extends Widget<Avatar> {
-        private static final float SIZE = 36;
-        private final Label initials = new Label("").setStrong(true);
-        private int tone;
-
-        Avatar() {
-            initials.setRole(Label.Role.LABEL);
-            setAccessibleIgnored(true); // the row says the name
-            add(initials);
-        }
-
-        void bind(Contact contact) {
-            initials.setText(contact.initials());
-            tone = Math.floorMod(contact.name().hashCode(), 5);
-        }
-
-        @Override
-        protected Size onMeasure(Constraints constraints) {
-            initials.measure(Constraints.loose(SIZE, SIZE));
-            return constraints.constrain(SIZE, SIZE);
-        }
-
-        @Override
-        protected void onLayout() {
-            Size size = initials.measure(Constraints.loose(SIZE, SIZE));
-            initials.layoutBox((SIZE - size.width()) / 2, (SIZE - size.height()) / 2, size.width(), size.height());
-        }
-
-        @Override
-        protected void onPaint(Canvas canvas) {
-            Theme theme = Theme.of(this);
-            Color color = switch (tone) {
-                case 0 -> theme.primary();
-                case 1 -> theme.success();
-                case 2 -> theme.warning();
-                case 3 -> theme.info();
-                default -> theme.danger();
-            };
-            canvas.fillRoundRect(0, 0, SIZE, SIZE, SIZE / 2, color.withAlpha(theme.isDark() ? 0.34f : 0.22f));
         }
     }
 }

@@ -346,7 +346,8 @@ final class BasicsScene {
         save.onAction(() -> Page.report(Text.SAVED.format(name.text().strip())));
         Button saveNew = new Button(Text.SAVE_NEW).setStyle(Button.Style.SECONDARY);
         saveNew.onAction(() -> Page.report(Text.SAVED.format(name.text().strip())));
-        Button delete = new Button(Text.DELETE).setStyle(Button.Style.SECONDARY).setIcon(Tabler.outline("trash"));
+        Button delete = new Button(Text.DELETE).setStyle(Button.Style.SECONDARY).setDestructive(true)
+                .setIcon(Tabler.outline("trash"));
         delete.setEnabled(false); // nothing to delete before the first save
         return Page.row(12, save, saveNew, delete);
     }
