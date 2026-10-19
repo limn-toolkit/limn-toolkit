@@ -177,12 +177,16 @@ public final class HeadlessWindow implements WindowPeer {
     }
 
     /**
-     * One turn of a backend's loop for this window: the UI queue drained, then one frame rendered
-     * through the callback the bound scene installed. A desktop backend's loop takes the input,
-     * drains the queue and draws, so what the toolkit leaves for the next turn (the end of a fade
-     * that goes straight there, a dialog's result under less motion) reaches a test that renders
-     * frames as it reaches a user. Input sent with {@link #key} is dispatched as it is sent, as the
-     * loop's input step would.
+     * A turn of the UI queue and a frame of this window: the queue drained, then one frame rendered
+     * through the callback the bound scene installed, so that what the toolkit leaves for the next
+     * turn (the end of a fade that goes straight there, a dialog's result under less motion)
+     * reaches a test that renders frames, as it reaches a user. Input sent with {@link #key} is
+     * dispatched as it is sent, as the loop's input step would.
+     *
+     * <p>Not exactly a turn of a desktop backend's loop, which drains the queue once and then draws
+     * every window, a window that drain opened included: framing several windows one after another
+     * here drains once for each, so a task posted by a task runs between two windows' frames, and a
+     * window opened while the test frames the others is framed when the test frames it.
      */
     public void frame() {
         if (callback == null) {

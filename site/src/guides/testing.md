@@ -89,8 +89,9 @@ there is nowhere for it to open. `HeadlessBackend` supplies one: every window it
 and `scene()` answering the scene bound to each. `frame()` on a window runs one frame, and
 `key(...)` presses a key in that window.
 
-A frame is a turn of the loop, as on a desktop: `frame()` first runs what is waiting on the UI
-queue, then draws. That is where the toolkit finishes what it leaves for the next turn. A test that
+A frame takes a turn of the loop, as on a desktop: `frame()` first runs what is waiting on the UI
+queue, then draws. A desktop drains the queue once and then draws every window; framing several
+`HeadlessWindow`s drains once for each, so count frames, not turns, when several windows are open. That is where the toolkit finishes what it leaves for the next turn. A test that
 pins less motion with `TestPreferences.reduceMotion(true)`, the way to make the toolkit's dialogs
 and popups open and close without a fade, presses Escape and frames the windows, and the dialog's
 result is there: it was completed on the turn after the key. A fade of your own that goes straight
