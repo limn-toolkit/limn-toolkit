@@ -528,7 +528,7 @@ golden line, as ADR 067's were:
 
 ## 12. Built, 2026-10-18 and 2026-10-19
 
-Built on `claude/adr-075` in ten commits, from `9ec7847c`. What follows is what the build found
+Built on `claude/adr-075`, from `9ec7847c`. What follows is what the build found
 that the text above does not say, dated where it departs from it.
 
 ### 12.1 Button styles, and the accent as text

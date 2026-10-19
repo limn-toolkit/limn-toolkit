@@ -23,7 +23,7 @@ import java.util.concurrent.CompletionStage;
 import java.util.function.Supplier;
 
 /**
- * The guides' examples for ADR 075's five additions: button styles, a status badge, people as
+ * The guides' examples for the button styles, a status badge, people as
  * avatars, a table that says it has nothing to show or is loading, a filter popover, and a dialog
  * whose destructive answer is not the default. Each region is pasted into a guide as it stands,
  * and {@code StatusExampleTest} runs it.
