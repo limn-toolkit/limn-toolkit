@@ -519,3 +519,11 @@ and its currency, and a required check box with its helper.
 - **On macOS, in the same run:** whether VoiceOver says anything of the postal code's invalidity
   beyond the message, which with no attribute published it should not; if a native reading of
   `AXInvalid` is wanted, it is a probe over a native field first, as question 10 put it.
+
+## Note, 2026-10-18: `Tone.ACCENT` is the accent as text
+
+ADR 075 (section 12.1) found that `primary`, solved for a fill at 3:1, falls under body text's
+4.5:1 on a raised surface in eleven of the fifteen built-in palettes. The owner chose a derived
+`Theme.primaryText()`, primary moved toward the text colour only until it clears 4.5:1 on the
+canvas, a card and a popover, and `Tone.ACCENT` resolves to it, so a label in the accent tone reads
+in every palette. `ThemeContrastTest` now holds ACCENT among the state tones.

@@ -1,17 +1,22 @@
 # ADR 075: A badge, an avatar, an empty list, a popover, and two button styles
 
-- **Status:** Proposed, 2026-10-18. The owner chose on 2026-10-18 that five small things enter
-  before 1.0: a badge, an avatar with a group that ends in "+k", what a table, a list and a tree
-  show when they hold no rows, a public popover on the toolkit's anchored popup, and a quieter and
-  a destructive button. This record designs each; section 8 holds what is still open.
+- **Status:** Accepted and implemented, 2026-10-18. The owner chose on 2026-10-18 that five
+  small things enter before 1.0: a badge, an avatar with a group that ends in "+k", what a table,
+  a list and a tree show when they hold no rows, a public popover on the toolkit's anchored popup,
+  and a quieter and a destructive button. He answered section 8 the same day: every question took
+  its recommendation except question 11, where the loading state comes in now, and he decided the
+  tertiary button's ink after a print of the palettes it failed in (section 12.1). Built
+  2026-10-18 and 2026-10-19 (section 12), with dated notes where the build departs from the
+  text; the input method in a popover's window measured on the macOS guest (section 12.6). Owed:
+  the reader runs of section 11 and the input method on Windows, GNOME and KDE (section 12.8).
 - **Date:** 2026-10-18
 - **Scope:** five additions of the same size, each written as ADR 067 wrote its four: what it is,
   its API, layout and paint, tokens, right to left, what a frame repaints, what each platform's
   reader is given, focus and keys, and strings.
-- **New public API (proposed):** `Badge`, `Avatar`, `AvatarGroup` and `Popover` in
-  `limn.components`; `setEmptyContent` and `setEmptyMessage` on `ListView`, `Table` and `Tree`;
-  `Button.Style`, `Button.setStyle` and `Button.setDestructive`, and `Dialog.addDestructiveButton`.
-  `Badge` takes ADR 074's `Tone`.
+- **New public API:** `Badge`, `Avatar`, `AvatarGroup` and `Popover` in `limn.components`;
+  `setEmptyContent`, `setEmptyMessage`, `setLoading` and `setLoadingContent` on `ListView`,
+  `Table` and `Tree`; `Button.Style`, `Button.setStyle` and `Button.setDestructive`;
+  `Dialog.addDestructiveButton`; `Theme.primaryText`. `Badge` takes ADR 074's `Tone`.
 - **Compatibility:** `Button.setSecondary` is replaced (question 17); everything else is additive.
 
 ---
@@ -361,42 +366,55 @@ None.
 
 ## 8. Questions for the owner
 
+Answered by the owner on 2026-10-18. Each question keeps its recommendation and cost as put; the
+answer follows it. Every question took its recommendation but question 11, where the loading state
+comes in now; question 13 added that the composition is routed and measured first.
+
 1. **The badge's look.**
    - *Recommended:* one look: the tone's tint, a dot or icon in the tone, the word in `text`.
    - *Why:* the contrast is the palette's, already held, at every tone.
    - *The alternative:* also a solid badge, filled with the tone and its text in an ink on it,
      which needs an ink token per tone (`onDanger`, `onWarning`…) and a contrast check for each
      in every palette.
+   - **Answer:** the recommendation: one look, the tint, a dot or icon in the tone, the word in `text`. No solid badge.
 2. **A count past 99.**
    - *Recommended:* "99+", one new string (`limn.badge.atLeast`, "{0}+") in 21 languages.
    - *The alternative:* the whole number, a badge as wide as its digits.
+   - **Answer:** the recommendation: "99+", `limn.badge.atLeast` in 21 languages.
 3. **The badge's corners.**
    - *Recommended:* a pill (half the height), as the Showcase draws.
    - *The alternative:* `radiusSmall`, a tag.
+   - **Answer:** the recommendation: a pill.
 4. **The avatar's shape.**
    - *Recommended:* a circle.
    - *The alternative:* a rounded square at `radiusMedium`, which some desktops use for
      organisations rather than people; a setter could add it later.
+   - **Answer:** the recommendation: a circle.
 5. **The avatar's colour.**
    - *Recommended:* the chart palette by the name's hash.
    - *Why:* eight or more categorical colours that carry no meaning.
    - *The alternative:* the Showcase's five semantic tones, which put people in "error" red.
+   - **Answer:** the recommendation: the chart palette by the name's hash (mixed; section 12.3).
 6. **An avatar to a reader, by default.**
    - *Recommended:* an image named by the person; ignored by one call where the name is beside it.
    - *The alternative:* ignored by default, named by one call: quieter in rows, silent where it
      stands alone until the application remembers.
+   - **Answer:** the recommendation: an image named by the person, ignored by one call beside the name.
 7. **The initials.**
    - *Recommended:* first and last word's first graphemes, overridable with `setInitials`.
    - *The alternative:* the application always gives them; no derivation in the toolkit.
+   - **Answer:** the recommendation: first and last word's first graphemes, overridable.
 8. **The "+k" of a group.**
    - *Recommended:* drawn, with a tooltip of the hidden names; every name in the group's
      description.
    - *The alternative:* a button that opens a popover listing everyone: a focus stop, a popover per
      group, and a reader round for the button inside a group of images.
+   - **Answer:** the recommendation: drawn, with a tooltip of the hidden names, every name in the group's description; no click.
 9. **When the empty content shows.**
    - *Recommended:* by itself, whenever there are no rows.
    - *The alternative:* `setShowingEmptyContent(boolean)` from the application, as the Showcase's
      `setEmpty` does: one more call in every filter, and a table that can say "no match" over rows.
+   - **Answer:** the recommendation: by itself, whenever there are no rows.
 10. **Where a reader finds the empty content.**
     - *Recommended:* under the container, after its rows, with the container described by the
       message.
@@ -404,12 +422,14 @@ None.
       heard on (section 11).
     - *The alternative:* published beside the container, after it, which the walk cannot do
       today (a widget's child is published under its node): a walk feature for one case.
+    - **Answer:** the recommendation: under the container, after its rows, described by the message.
 11. **A loading state too?**
     - *Recommended:* not in this record. `Tree` has its row-level loading line; a whole widget
       that is loading is an application's progress bar or busy content today.
     - *Cost of adding it now:* `setLoadingContent` beside `setEmptyContent`, a `BUSY` state on the
       container, which NVDA was measured not to speak (ADR 044), so an announcement besides: a
       day's work with a reader check.
+    - **Answer:** **the fuller option, against the recommendation**: a loading content beside the empty one, the busy state and an announcement at both ends, with the reader check it needs (section 12.4).
 12. **Does the popover take the keyboard?**
     - *Recommended:* yes: the first focusable widget inside, Tab cycling inside, focus back to the
       anchor on close.
@@ -417,6 +437,7 @@ None.
     - *The alternative:* the anchor keeps the keyboard and the popover is reached by the pointer
       alone, as a list's popup: no Tab chain to build, and a panel of controls nobody without a
       pointer can use.
+    - **Answer:** the recommendation: the popover takes the keyboard.
 13. **A popover in a window of its own, with a text field inside.**
     - *Recommended:* a window where the platform allows, as its siblings, the input method's
       composition routed with the keys and characters; measured on the four systems with a
@@ -425,29 +446,36 @@ None.
       has today.
     - *The alternative:* a popover always in the scene, where the input method already works: it
       cannot pass the window's edge, and a screenshot of the window holds it.
+    - **Answer:** the recommendation, with the composition routed **first**: a window where the platform allows, the input method's composition routed with the keys and characters, measured with a Japanese input method on this Mac's lab guest before the rest (section 12.6), the other systems owed (section 12.8).
 14. **The popover's layer to a reader.**
     - *Recommended:* a named `GROUP`, as the calendar's layer.
     - *The alternative:* a `DIALOG`: Windows readers then treat it as a dialog (`IsDialog`), which
       a transient panel is not.
+    - **Answer:** the recommendation: a named `GROUP`.
 15. **Hover and focus triggers.**
     - *Recommended:* none; `showFor` and `attachTo` only.
     - *The alternative:* a trigger setter as some libraries offer, which on a desktop duplicates the
       tooltip and opens surfaces nobody asked for.
+    - **Answer:** the recommendation: none; `showFor` and `attachTo` only.
 16. **A modal popover?**
     - *Recommended:* no: a modal question is a `Dialog`.
+    - **Answer:** the recommendation: not modal.
 17. **`Button.setSecondary`.**
     - *Recommended:* replaced by `setStyle`, its 81 calls in the repository moved.
     - *Why:* three looks are one choice; two booleans for it would allow a "secondary tertiary".
     - *The alternative:* keep `setSecondary` and add `setTertiary`, with a rule for both set.
+    - **Answer:** the recommendation: `setSecondary` replaced by `setStyle(PRIMARY | SECONDARY | TERTIARY)`, every call in the repository moved.
 18. **Ink on a destructive primary button.**
     - *Recommended:* `onPrimary`, measured against `danger` in every built-in palette (section 11);
       a palette that fails gains an `onDanger` colour, a key of the theme file with a default.
     - *The alternative:* `onDanger` now, a theme key and an editor field for every palette.
+    - **Answer:** the recommendation: `onPrimary`, measured against `danger` in every palette; no palette failed, so no `onDanger` (section 12.1).
 19. **A dialog's destructive button.**
     - *Recommended:* never the default: Return does not press it, and it looks `SECONDARY` with
       `danger` ink.
     - *The alternative:* the destructive button as the dialog's primary, filled in `danger`: one
       Return away from deleting.
+    - **Answer:** the recommendation: never the default, `SECONDARY` with `danger` ink.
 
 ## 9. Not in this record
 
@@ -457,7 +485,8 @@ None.
   its own decision.
 - **An avatar's presence mark** (online, away): a dot badge beside it.
 - **A popover opened at a point**, a popover with an arrow, a popover menu: `PopupMenu` is the menu.
-- **A loading state** (question 11), and **an editable dashboard**.
+- **An editable dashboard.** (A loading state was here until the owner's answer to question 11
+  brought it in; section 12.4.)
 - **Refused earlier and not proposed here:** toasts and notifications, a link widget, rich text, a
   switch class, a grid with tracks and spans, persistence.
 
@@ -496,3 +525,144 @@ golden line, as ADR 067's were:
   place, and the committed text, with a Japanese input method on Windows, macOS, GNOME and KDE.
 - **Contrast:** `onPrimary` on `danger` and `primary` as text on `surface`, in every built-in
   palette, by the theme's tests, before the destructive and tertiary colours are fixed.
+
+## 12. Built, 2026-10-18 and 2026-10-19
+
+Built on `claude/adr-075` in ten commits, from `9ec7847c`. What follows is what the build found
+that the text above does not say, dated where it departs from it.
+
+### 12.1 Button styles, and the accent as text
+
+- **The contrast.** `onPrimary` on `danger` clears 4.5:1 at rest, hovered and pressed (`danger`
+  moved toward `text` by 8 % and 16 %) in all fifteen built-in palettes, the lowest 5.62:1, so no
+  `onDanger` was added; `ThemeContrastTest` holds it. `danger` as text clears 4.5:1 on `surface`
+  everywhere (lowest 5.17:1).
+- **`primary` as text does not** (2026-10-18). Solved for a fill at 3:1, it falls under 4.5:1 on
+  `surface` in four palettes (Arch Dark 3.67, Solaris Dark 3.90, Darkling 4.06, Limn 4.40) and on
+  `surfaceRaised` in eleven, down to 3.01 (Arch Dark). After a print of the four worst against one
+  that passes, **the owner chose a derived accent for text**: `Theme.primaryText()`, primary moved
+  toward the text colour in steps of a hundredth only until it clears 4.5:1 on `background`,
+  `surface` and `surfaceRaised`; no key of the theme file, cached per palette, primary itself
+  where it already passes (Light, Limn Light, Monoko Pro, High Contrast). Arch Dark goes from
+  `#5898E3` to `#93BBEB` (4.54:1 on its raised surface), Solaris Dark `#3D98D7` to `#7DB7DE`
+  (4.51), Darkling `#8AA1CB` to `#B4C3DE` (4.50), Limn `#AF7AFF` to `#C39BFE` (4.53). A tertiary
+  button's caption is drawn in it, and so is `Tone.ACCENT`, which ADR 074's labels and this
+  record's badges use (a dated note in ADR 074). Tests hold every palette at 4.5:1 on the three
+  surfaces, each moved one a single step past the last that failed, and the hue within 12 degrees.
+- **The calls.** 85 `setSecondary(true)` were moved, not 81: the demo, the site's examples, the
+  theme editor, four toolkit tests, `Dialog` and the forms guide. ADR 002 keeps its historical
+  spelling.
+- `Dialog.addDestructiveButton` adds a `SECONDARY` destructive button through the same path as
+  `addButton`, so only a primary can become the default, whatever the order the buttons were added
+  in; a dialog whose only answer is destructive ignores Return.
+
+### 12.2 Badge
+
+- **A count has no dot** (2026-10-18): the number alone, centred, at least as wide as tall, so
+  one digit is a circle. A text badge's mark is 9 points from the pill's end at `MEDIUM`
+  (a small spacing and a half), 4 points from the word (two thirds of one); an icon's square is
+  the label font's size, integral. A dot badge's box is the dot, twice a small spacing.
+- **A badge in a table's or a tree's row is read through the row's name** (2026-10-19): the rows'
+  name derivation read `Label`s only, and the Showcase's orders lost the status from every row's
+  name the moment the hand-drawn pill, which was named by hand, became a `Badge`. `Table` and
+  `Tree` now read a badge's text as they read a label's; `BadgeTest` holds it.
+- A text change of the same width repaints the badge alone; a wider one lays it out in place.
+  `ComboBox`'s private count is renamed `MoreBadge`.
+
+### 12.3 Avatar and group
+
+- **Graphemes by `\X`, not `BreakIterator`** (2026-10-18): the text model's own pattern, which on
+  Java 17 keeps a joined emoji whole where the character instance splits it. Upper-casing goes
+  through `LocaleServices`, so Turkish gives a dotted capital I.
+- **The colour index is the hash mixed** (2026-10-19): `String.hashCode` modulo eight is little
+  more than an alternating sum of the letters (31 is minus one modulo eight), and five of the seven
+  approvers the Showcase shows fell on one green in the first print. `Avatar.colorIndexOf` mixes
+  the hash and scales from its top bits; the same name still has the same colour everywhere.
+- The name is published with the provenance `EXPLICIT`, text about the picture, which macOS puts
+  in `AXDescription` as section 3.3 says. Initials grow with a `SizedBox`. A group's hidden members
+  are not its children (they have no box); the "+k" circle is a private child with the tooltip,
+  and the group's child hook ignores every circle.
+
+### 12.4 Empty and loading content
+
+- **Written once in `RowsPlaceholder`, beside the rows engine and not in it** (2026-10-18): the
+  engine realizes rows and knows nothing of the viewport's geometry, which each widget computes;
+  the placeholder takes the viewport from the widget's layout, attaches the content as its last
+  child while it shows, describes the widget and says the load.
+- **The three paint their content** (2026-10-19): each paints the rows it mounted and no other
+  child, so the first prints showed a content laid out and published and never drawn;
+  `RowsPlaceholder.paint` is called inside each widget's row clip, and a test reads the frame.
+- **Loading, question 11's fuller option:** `setLoading(boolean)`, `isLoading`,
+  `setLoadingContent(content[, message])` and `isShowingLoadingContent`. While loading with no
+  rows the loading content shows in place of the empty one (a moving bar over "Loading…" by
+  default); over rows they stay. The widget is published `BUSY` throughout, and a reader is told
+  "Loading Orders" at the start and "Orders, 12 items" (or the empty message) at the end, the name
+  being the application's; the strings are the tree's own, copied into a `rows` bundle family in
+  21 languages. `SceneAccess.applicationName` gives the announcement its name.
+- **The repaint** (2026-10-18): `refresh()` and a new set of rows asked for a full layout; the
+  three measures read no rows, so they ask for a contained one, and a widget that clips its
+  children now lays out alone when a child joins or leaves (`Widget.childrenChanged`), as
+  `moveChild` already did, the scene falling back to a full pass when the size moved. The full
+  toolkit suite stayed green with the change.
+- The rows contract gains the case of section 4.3, run by the list, the table and the tree.
+
+### 12.5 Popover
+
+- **The route** (2026-10-18): `SceneAccess.KeyRoute` gains `popupHoldsFocus()` and `preedit(…)`;
+  the window's composition is queued in order with the keys while such a route stands, and
+  `AnchoredPopup` (`Host.holdsFocus`) feeds the three into the popup scene's own input, whose
+  focus, Tab order and Escape answer them. The owner's input method composes for the popup's
+  focused field and places the candidate window at its caret, moved by where the two windows
+  stand; **the walk then publishes the popup's focused widget, not the owner's, as the one
+  `FOCUSED` node**.
+- **Built before it is sized** (2026-10-18): the popup scene and its panel are made before the
+  window, with the owner's ruler, so a host sized by its panel's measure is measured; the panel is
+  measured unbounded first (2026-10-19, after the guest drew one as wide as the window: a form's
+  stretching column takes all the width it is let).
+- An attached button is a `POPUP_OWNER` and runs `PopupOwnerContract`; its press opens or closes
+  the popover before the application's own handler hears it.
+
+### 12.6 The input method in a popover's window, measured
+
+On the macOS guest, 2026-10-19, with the system's Japanese romaji input method,
+the lab's `--scene popover` opening its popover by itself, and "nihon", Space, Space, Return
+posted by the guest's presser; the guest's input source read before and restored after each run.
+
+- **First run:** the popover's field received plain `n`, `i`, `h`, `o`, `n` and the panel was as
+  wide as the window. Both fixed: the popup's own window held the desktop's keyboard in that run's
+  timing, and a popup delegated its input method to the owner regardless (now only while its own
+  window does not hold the keyboard); and the width as section 12.5 says.
+- **After the fix:** the composition is underlined in the popover's field (にほn), the candidate
+  window opens right under its caret (にほん, 日本語, 日本), and the conversion to 日本語 shows.
+- **The commit on Return was not seen, in the popover nor in a field of the window itself** (the
+  control run, the same keys into the window's own search field): 日本語 stays underlined, with the
+  presser's Return and with a real key event alike. The guest's 2026-09-29 probe log shows the same
+  shape, its commit arriving only when the probe shut down. So the commit is the presser's or the
+  backend's and not the popover's; it is recorded here and left to its own look.
+
+### 12.7 Showcase, gallery and guides
+
+The Showcase's `StatusBadge`, `Avatar` and `EmptyState` are gone for `Badge`, `Avatar` and
+`setEmptyContent`; its delete buttons are destructive and the delete dialog's safe answer is the
+default; the orders screen's status filter is a popover from a Filter button; Buttons and inputs
+gains the button styles and a section of statuses and people (portraits drawn by `Pictures`, no
+photograph). Fifteen strings in 21 languages. The accessibility gallery gains three entries, the
+site's component gallery three, the guides their sections from `StatusExample`, tested.
+
+### 12.8 Owed
+
+- **Readers, as section 11 says.** The empty content: one script per reader (NVDA on the Windows
+  guest, VoiceOver on the macOS guest, Orca on Fedora) over the Showcase's orders with the filter
+  typed to nothing: reach the table and hear "table, 0 rows, No orders match the filter", Tab to
+  Clear filter and hear it, and reach the button by the reader's own navigation (NVDA browse mode
+  down arrow, VoiceOver VO+Right, Orca's flat review). The loading state: `table.setLoading(true)`
+  then rows and `setLoading(false)` from a lab key, hearing "Loading Orders" and "Orders, 48 items",
+  and whether `BUSY` alone is spoken anywhere. The popover in a window: the orders' Filter popover
+  (or `--scene popover`), Tab through its controls, type into its field, Escape, hearing the focus
+  move inside the group and come back to the button.
+- **The input method on Windows, GNOME and KDE**, as section 12.6 on each: `--scene popover` with
+  `-Dlimn.demo.popover.open=true`, the system's Japanese input method on Windows, a Japanese engine
+  under IBus on GNOME and under Fcitx5 on KDE, "nihon" Space Return, a print of the underline, the candidate
+  window's place and the committed text; the control run with `-Dlimn.demo.popover.search=true`.
+  On Wayland the popover is in the scene and the route is not taken.
+- **The commit on Return on macOS** (section 12.6), for every field.
