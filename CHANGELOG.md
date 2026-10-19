@@ -36,6 +36,7 @@ Maven Central say which number that was.
   full field, typing a literal the field steps over, or typing a selected literal over itself ran
   `onChange`, sent a text change to watchers and a caret move to screen readers, and left an undo
   step that did nothing. A caret that moved is reported as a selection change, and nothing else is.
+  A key the field refuses no longer clears Redo, nor drops the oldest undo step of a full history.
   Stepping over a literal never leaves the caret between a character and the mark drawn on it.
 - A widget laid back in perspective by a `Transform` and dragged past the horizon no longer takes
   NaN: a `Slider` or a `RangeSlider` dragged there took NaN as its value and committed it on
@@ -57,12 +58,16 @@ Maven Central say which number that was.
   id megabytes long 27 s, even when a near-identical id never matched. None was refused, because the
   reader's work limit counted each selector tried as one step whatever it compared. The reader now
   looks each element's names up once against the names the sheets use, then compares numbers, and
-  its work limit counts what each comparison costs: each of these files is read in under 400 ms.
-- An SVG sprite sheet, themed drawing or chart styled by rules such as `#icon-12 path`, `.dark path`
-  or `.dot.series-3` is read again: each such rule was tried on every path in the file, and an
-  ordinary 112 KB sheet of 400 symbols was refused as damaged and drew nothing. Such a rule is now
-  tried only inside the symbol or theme it names, or only on its own series: sheets of up to 3,000
-  symbols and charts of up to 200 series over 100,000 points read in under 350 ms.
+  its work limit counts what each comparison costs: each of these files is read in under a second.
+  What the reader works out while matching is dropped once reading ends, where it could stay with the
+  picture for its whole life at up to thirty times the file, and a style sheet of more than 100,000
+  selectors is refused before it is read: a sheet of a million (7 MB) exhausted a 512 MB heap.
+- An SVG sprite sheet, themed drawing or chart styled by rules such as `#icon-12 path`, `.dark path`,
+  `.dot.series-3` or `.series-3 .dot` is read again: each such rule was tried on every path in the
+  file, and an ordinary 112 KB sheet of 400 symbols was refused as damaged and drew nothing. Such a
+  rule is now tried only inside the symbol, theme or series it names: sheets of up to 3,000 symbols
+  and charts of up to 200 series over 100,000 points, in either spelling, read in well under a
+  second.
 - `ColorPicker`'s alpha line is spaced from the last channel line as the channel lines are spaced from one
   another; it stood 2 pt further down at the default size.
 - `MediaControls` and `ColorPicker` speak the interface's language. The transport's six names
