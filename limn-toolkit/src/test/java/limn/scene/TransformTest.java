@@ -814,9 +814,9 @@ class TransformTest extends SceneTestBase {
 
     @Test
     void underLessMotionAMotionGoesStraightThereAsOneSetAndAFlipSwapsOnTheNextTurn() {
-        queueOnTestClock();
         Transform t = new Transform(new Leaf("w", painted));
         AccessibleHarness harness = new AccessibleHarness(runtime, t);
+        queueOnTestClock(); // after the harness, which hands the runtime its own clock
         AtomicInteger arrived = new AtomicInteger();
         List<String> order = new ArrayList<>();
         try (TestPreferences system = new TestPreferences()) {

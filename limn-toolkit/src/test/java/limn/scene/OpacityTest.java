@@ -597,9 +597,9 @@ class OpacityTest extends SceneTestBase {
 
     @Test
     void aFadeThatGoesStraightThereIsOneSetAndArrivesAfterItsSecondsOrOnTheNextTurn() {
-        queueOnTestClock();
         Opacity w = faded("w");
         AccessibleHarness harness = new AccessibleHarness(runtime, w);
+        queueOnTestClock(); // after the harness, which hands the runtime its own clock
         AtomicInteger arrived = new AtomicInteger();
         try (TestPreferences system = new TestPreferences()) {
             system.reduceMotion(true);

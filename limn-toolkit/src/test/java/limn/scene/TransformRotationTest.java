@@ -341,9 +341,9 @@ class TransformRotationTest extends SceneTestBase {
     @Test
     void underLessMotionARotationGoesStraightThereAsOneSet() {
         long[] queueNow = {0};
-        runtime.setDelayClock(() -> queueNow[0]);
         Transform t = new Transform(new TransformTest.Leaf("w", painted));
         AccessibleHarness harness = new AccessibleHarness(runtime, t);
+        runtime.setDelayClock(() -> queueNow[0]); // after the harness, which hands it its own
         AtomicInteger arrived = new AtomicInteger();
         try (TestPreferences system = new TestPreferences()) {
             system.reduceMotion(true);

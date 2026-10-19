@@ -71,6 +71,40 @@ class HeadlessFixturesTakeATurnTest {
         }
     }
 
+    /**
+     * An application's fade that hides what it faded, tested in a harness: with motion it is
+     * stepped on the scene's clock, under less motion it goes straight there and its arrival waits
+     * on the queue's clock. The harness moves both with {@code advanceTime}, so the test passes the
+     * same way in both modes, and without waiting on the wall clock.
+     */
+    @Test
+    void anAccessibleHarnessMovesTheQueuesClockWithTheScenes() {
+        try (HeadlessUi ui = new HeadlessUi()) {
+            for (boolean reduced : new boolean[] {false, true}) {
+                try (TestPreferences system = new TestPreferences()) {
+                    system.reduceMotion(reduced);
+                    String what = reduced ? "less motion" : "with motion";
+                    limn.scene.layout.Opacity notice = new limn.scene.layout.Opacity(new Label("Saved"));
+                    limn.scene.layout.Stack root = new limn.scene.layout.Stack();
+                    root.add(notice);
+                    AccessibleHarness harness = new AccessibleHarness(ui.runtime(), root);
+                    notice.fadeTo(0f, 0.25, () -> notice.setVisible(false));
+                    harness.advanceTime(100, notice);
+                    assertEquals(true, notice.isVisible(), what + ": not before its quarter second");
+                    harness.advanceTime(900, notice);
+                    assertEquals(false, notice.isVisible(), what + ": hidden within the second moved");
+
+                    int[] ran = {0};
+                    limn.concurrent.Ui.postDelayed(() -> ran[0]++, 500);
+                    harness.advanceTime(400, null);
+                    assertEquals(0, ran[0], what + ": a timer waits on the harness's time");
+                    harness.advanceTime(100, null);
+                    assertEquals(1, ran[0], what + ": and runs when it has passed");
+                }
+            }
+        }
+    }
+
     private static void frameEveryWindow(HeadlessBackend backend, long[] now, int frames) {
         for (int i = 0; i < frames; i++) {
             now[0] += 20_000_000L;
