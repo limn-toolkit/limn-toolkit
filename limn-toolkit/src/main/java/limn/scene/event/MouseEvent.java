@@ -13,6 +13,16 @@ package limn.scene.event;
  * widget (like keys, since there is no meaningful cursor position to
  * hit-test); {@link #x()}/{@link #y()} hold the stale position where the
  * capture began.
+ *
+ * <p>The widget a press lands on holds the pointer until it is let go of: the {@code DRAG}s and
+ * the {@code RELEASE} go to it wherever the pointer is. Each of them carries a point of that
+ * widget's own plane, so {@code sceneToLocal(x, y)} gives it a finite point. Where an ancestor
+ * draws the widget in perspective and the pointer goes past the horizon, the scene point has no
+ * point on the widget's plane at all; the scene then hands it no {@code DRAG}, the widget stays
+ * where the pointer last was on its plane, and a {@code RELEASE} let go of there arrives at that
+ * last point, so a slider commits the value it was showing. The drag goes on when the pointer
+ * comes back in front of the horizon. Hover events ({@code ENTER}, {@code MOVE}, {@code EXIT})
+ * and {@code WHEEL} follow the pointer and are not held to this.
  */
 public final class MouseEvent extends InputEvent {
 

@@ -769,6 +769,10 @@ public abstract class Widget<W extends Widget<W>> {
      * plane: one an ancestor draws the widget turned edge-on at, or collapsed, or one that would
      * lie behind the eye. {@code NaN} fails every comparison, so the usual test
      * {@code p.x() >= 0 && p.x() < width()} already counts such a point outside the widget.
+     * The point of a {@code DRAG} or a {@code RELEASE} the widget receives while it holds the
+     * pointer is never one of these: the scene withholds a drag that has left the widget's plane
+     * and releases it at the last point it had there (see {@link limn.scene.event.MouseEvent}),
+     * so a drag handler computes with finite numbers and needs no guard of its own.
      *
      * @param sceneX a point's x in the scene
      * @param sceneY a point's y in the scene

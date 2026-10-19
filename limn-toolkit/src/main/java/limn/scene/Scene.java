@@ -186,6 +186,13 @@ public final class Scene {
     private Widget<?> pressed;
     private boolean pointerInside; // last CursorEnter/move state, for hover resync
     private int pressedButton = -1;
+    // The last point the pressed widget was handed, which lies on its plane: where it stays while
+    // the pointer is somewhere a turned ancestor puts no point of it (past the horizon of a
+    // perspective), and where its release arrives if the pointer is let go of there. See
+    // onCapturedPlane.
+    private float capturedX;
+    private float capturedY;
+    private final float[] captureScratch = new float[2];
     private float mouseX;
     private float mouseY;
     private Widget<?> focused;
@@ -2716,8 +2723,9 @@ public final class Scene {
             int oldButton = pressedButton;
             pressed = null;
             pressedButton = -1;
-            timedDispatch(oldPressed,
-                    new MouseEvent(MouseEvent.Type.RELEASE, mouseX, mouseY, oldButton, 0, 0, 0));
+            onCapturedPlane(oldPressed, mouseX, mouseY); // else the last point on it
+            timedDispatch(oldPressed, new MouseEvent(MouseEvent.Type.RELEASE, capturedX, capturedY,
+                    oldButton, 0, 0, 0));
         }
         DragSession dragging = dragSession;
         if (dragging != null) {
@@ -2816,8 +2824,9 @@ public final class Scene {
             int oldButton = pressedButton;
             pressed = null;
             pressedButton = -1;
-            timedDispatch(oldPressed,
-                    new MouseEvent(MouseEvent.Type.RELEASE, mouseX, mouseY, oldButton, 0, 0, 0));
+            onCapturedPlane(oldPressed, mouseX, mouseY); // else the last point on it
+            timedDispatch(oldPressed, new MouseEvent(MouseEvent.Type.RELEASE, capturedX, capturedY,
+                    oldButton, 0, 0, 0));
         }
         updateHover(null);
     }
@@ -4064,6 +4073,12 @@ public final class Scene {
             }
         }
         if (pressed != null) {
+            // A point the pressed widget's plane has no point for is not handed to it: the widget
+            // stays at the last one, and the drag goes on when the pointer comes back in front of
+            // the horizon. Its ancestors are not asked either, since the drag is the widget's.
+            if (!onCapturedPlane(pressed, x, y)) {
+                return false;
+            }
             MouseEvent drag = new MouseEvent(MouseEvent.Type.DRAG, x, y, pressedButton, 0, 0,
                     modifiers);
             dispatchBubbling(pressed, drag);
@@ -4079,6 +4094,23 @@ public final class Scene {
             }
         }
         return changed;
+    }
+
+    /**
+     * Whether the scene point {@code (x, y)} lies on the plane of {@code captured}, the widget that
+     * holds the pointer; when it does, it becomes the last point handed to it. A point a turned
+     * ancestor puts past the horizon of its perspective, or one it draws the widget edge-on at,
+     * has no point of the widget's own (sceneToLocal answers NaN there), and a widget given one
+     * would compute with NaN: a slider took it as its value and committed it.
+     */
+    private boolean onCapturedPlane(Widget<?> captured, float x, float y) {
+        captured.sceneToLocal(x, y, captureScratch);
+        if (!Float.isFinite(captureScratch[0]) || !Float.isFinite(captureScratch[1])) {
+            return false;
+        }
+        capturedX = x;
+        capturedY = y;
+        return true;
     }
 
     private void handleButton(RawButton button) {
@@ -4108,6 +4140,8 @@ public final class Scene {
             pressedButton = button.button;
             pressX = button.x;
             pressY = button.y;
+            capturedX = button.x; // hit-tested, so on the plane of what it hit
+            capturedY = button.y;
             dragAsked = false;
             // Click-to-focus: nearest focusable ancestor of the press target.
             Widget<?> focusTarget = hit;
@@ -4124,8 +4158,16 @@ public final class Scene {
             notifyPressObservers(hit);
         } else {
             Widget<?> target = pressed != null ? pressed : hitAt(button.x, button.y);
+            float releaseX = button.x;
+            float releaseY = button.y;
+            if (pressed != null) {
+                // Let go of past the horizon: the release arrives where the widget was left.
+                onCapturedPlane(pressed, button.x, button.y);
+                releaseX = capturedX;
+                releaseY = capturedY;
+            }
             dispatchBubbling(target, new MouseEvent(
-                    MouseEvent.Type.RELEASE, button.x, button.y, button.button, 0, 0, button.mods,
+                    MouseEvent.Type.RELEASE, releaseX, releaseY, button.button, 0, 0, button.mods,
                     lastClickCount));
             Widget<?> releaseHit = hitAt(button.x, button.y);
             if (pressed != null && isInSubtree(releaseHit, pressed)) {
@@ -4812,8 +4854,9 @@ public final class Scene {
                 int oldButton = pressedButton;
                 pressed = null;
                 pressedButton = -1;
-                timedDispatch(oldPressed,
-                        new MouseEvent(MouseEvent.Type.RELEASE, mouseX, mouseY, oldButton, 0, 0, modifiers));
+                onCapturedPlane(oldPressed, mouseX, mouseY); // else the last point on it
+                timedDispatch(oldPressed, new MouseEvent(MouseEvent.Type.RELEASE, capturedX, capturedY,
+                        oldButton, 0, 0, modifiers));
             }
             hideTooltip();
             updateHover(null);
