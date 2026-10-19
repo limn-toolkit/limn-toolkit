@@ -41,8 +41,26 @@ public final class HeadlessWindow implements WindowPeer {
     /** No chooser here: every dialog answers empty, as if cancelled. */
     @Override public limn.backend.FileDialogs fileDialogs() { return limn.backend.FileDialogs.NONE; }
     @Override public limn.backend.Launcher launcher() { return limn.backend.Launcher.NONE; }
-    @Override public void setTextInput(limn.backend.spi.TextInput input) { }
-    @Override public void setPreeditCaretRect(float x, float y, float width, float height) { }
+    @Override public void setTextInput(limn.backend.spi.TextInput input) {
+        textInput = input;
+    }
+
+    @Override public void setPreeditCaretRect(float x, float y, float width, float height) {
+        preeditCaret = new limn.graphics.Rect(x, y, width, height);
+    }
+
+    /**
+     * What the scene last asked of this window's input method: composition for a focused text
+     * widget, characters otherwise; {@code null} before it asked. A test of where a composition
+     * goes reads it, as a platform's input method would.
+     */
+    public limn.backend.spi.@Nullable TextInput textInput;
+
+    /**
+     * Where the scene last put the input method's candidate window, in this window's points, or
+     * {@code null} before it said.
+     */
+    public limn.graphics.@Nullable Rect preeditCaret;
     @Override public void resetPreedit() { }
 
     /**

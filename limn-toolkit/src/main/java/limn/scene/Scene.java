@@ -3047,10 +3047,18 @@ public final class Scene {
      * seeds the caret.
      */
     private void updateImeState() {
+        if (drivenByOwner()) {
+            // This popup's window never holds the desktop's keyboard: the owner's input method
+            // composes for it, so the owner is the one to ask for composition and place the
+            // candidate window.
+            graftedInto.updateImeState();
+            return;
+        }
         if (window == null) {
             return; // headless: no platform IME
         }
-        boolean textInput = focused != null && focused.acceptsTextInputInternal();
+        Widget<?> target = imeTarget();
+        boolean textInput = target != null && target.acceptsTextInputInternal();
         WindowPeer.of(window).setTextInput(
                 textInput ? limn.backend.spi.TextInput.COMPOSITION : limn.backend.spi.TextInput.CHARACTERS);
         lastCaretRect = null; // force the next sync to push afresh
@@ -3059,13 +3067,39 @@ public final class Scene {
         }
     }
 
-    /** Pushes the focused text widget's caret rect to the IME when it changes. */
+    /** The widget this window's input method composes into: a focus-holding popup's, else this scene's. */
+    private @Nullable Widget<?> imeTarget() {
+        Scene popup = focusPopup();
+        return popup != null ? popup.focused : focused;
+    }
+
+    /**
+     * Pushes the focused text widget's caret rect to the IME when it changes. For a popup that
+     * holds the focus, the rect is its field's, moved from the popup's window into this one by
+     * where the two windows stand on the desktop, which is where the candidate window is drawn.
+     */
     private void syncImeCaret() {
-        if (window == null || focused == null || !focused.acceptsTextInputInternal()) {
+        if (drivenByOwner()) {
+            graftedInto.syncImeCaret(); // the popup laid out: the owner places the candidates
             return;
         }
-        limn.graphics.Rect rect = focused.caretRectInternal();
-        if (rect == null || rect.equals(lastCaretRect)) {
+        Widget<?> target = imeTarget();
+        if (window == null || target == null || !target.acceptsTextInputInternal()) {
+            return;
+        }
+        limn.graphics.Rect rect = target.caretRectInternal();
+        if (rect == null) {
+            return;
+        }
+        Scene popup = focusPopup();
+        if (popup != null && popup.window != null) {
+            float factor = window.logicalToScreenFactor();
+            rect = new limn.graphics.Rect(
+                    rect.x() + (popup.window.screenX() - window.screenX()) / factor,
+                    rect.y() + (popup.window.screenY() - window.screenY()) / factor,
+                    rect.width(), rect.height());
+        }
+        if (rect.equals(lastCaretRect)) {
             return;
         }
         lastCaretRect = rect;
@@ -3380,6 +3414,11 @@ public final class Scene {
             Scene.this.charTyped(codepoint);
         }
         @Override public void preeditChanged(String text, int caret, int targetStart, int targetLength) {
+            if (keyRoute != null && keyRoute.popupHoldsFocus()) {
+                // In order with the keys around it: a composition is typed between them.
+                routed.add(new RawPreedit(text, caret, targetStart, targetLength));
+                return;
+            }
             Scene.this.preeditChanged(text, caret, targetStart, targetLength);
         }
         @Override public void pointerEntered(boolean entered) { Scene.this.pointerEntered(entered); }
@@ -3721,6 +3760,8 @@ public final class Scene {
                 route.key(k.key(), k.layoutCodePoint(), k.pressed(), k.repeat(), k.mods());
             } else if (raw instanceof RawChar c) {
                 route.character(c.codepoint());
+            } else if (raw instanceof RawPreedit p) {
+                route.preedit(p.text(), p.caret(), p.targetStart(), p.targetLength());
             }
         }
         if (ownQueued) {
@@ -3732,12 +3773,33 @@ public final class Scene {
         Ui.checkUiThread();
         keyRoute = route;
         invalidateAccessible();
+        updateImeState(); // a popup holding a focus may take the composition from here on
         return () -> {
             if (keyRoute == route) {
                 keyRoute = null;
                 invalidateAccessible();
+                updateImeState(); // the composition comes back to this scene's own focus
             }
         };
+    }
+
+    /**
+     * The grafted popup whose own focus this window's keys drive (see
+     * {@link limn.scene.internal.SceneAccess.KeyRoute#popupHoldsFocus}), or {@code null}: its
+     * focused widget is then the tree's focus and the target of this window's input method.
+     */
+    @Nullable Scene focusPopup() {
+        limn.scene.internal.SceneAccess.KeyRoute route = keyRoute;
+        if (route == null || !route.popupHoldsFocus()) {
+            return null;
+        }
+        Scene popup = route.popup();
+        return popup != null && popup.graftedInto == this ? popup : null;
+    }
+
+    /** Whether this is a grafted popup whose focus its owner's keys drive; see {@link #focusPopup}. */
+    private boolean drivenByOwner() {
+        return graftedInto != null && graftedInto.focusPopup() == this;
     }
 
     /** @return the grafted popup this window's keys drive, whose cursor is this tree's; or {@code null} */

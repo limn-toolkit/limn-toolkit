@@ -3,6 +3,7 @@ package limn.components;
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.components.internal.a11y.LeafActionAccessibility;
+import limn.components.internal.a11y.PopupOwnerAccessibility;
 import limn.animation.Transition;
 import limn.backend.Cursor;
 import limn.concurrent.Ui;
@@ -249,12 +250,38 @@ public final class Button extends Widget<Button> {
     @Override
     protected void handleUserChange(Change.Aspect aspect) {
         if (aspect == Change.Aspect.INVOKED) {
+            if (popover != null) {
+                // The press opens the popover attached to this button, or closes it while open,
+                // before the application's own handler hears the press.
+                if (popover.isOpen()) {
+                    popover.close();
+                } else {
+                    popover.open();
+                }
+            }
             if (action != null) {
                 action.run();
             }
             return;
         }
         super.handleUserChange(aspect);
+    }
+
+    /**
+     * The popover {@link Popover#attachTo} gave this button, as the owner shape drives it, or
+     * {@code null}: the button then says it opens a popup and whether it is open, and offers
+     * expand and collapse in place of press.
+     */
+    private PopupOwnerAccessibility.@Nullable Host popover;
+
+    void attachPopover(PopupOwnerAccessibility.@Nullable Host host) {
+        this.popover = host;
+        invalidateAccessible();
+    }
+
+    /** The attached popover opened or closed: said to a watcher as the expanded state moving. */
+    void notifyExpanded() {
+        notifyChange(Change.of(Change.Aspect.EXPANDED, Change.Origin.CODE));
     }
 
     /** The user pressed: the watchers hear {@code INVOKED} and then the handler runs. */
@@ -525,6 +552,13 @@ public final class Button extends Widget<Button> {
         limn.i18n.internal.AccessMarks.Parsed caption = shown();
         a.name(caption.text(), marked.witness(), Accessible.NameFrom.CONTENT);
         a.accessKey(marked.binding());
+        if (popover != null) {
+            // A button that opens a popover is a POPUP_OWNER ahead of a leaf (ADR 045 §3), the
+            // shape a tab strip's list button has: HAS_POPUP, the expand facet, and EXPAND or
+            // COLLAPSE by state in place of PRESS.
+            PopupOwnerAccessibility.describe(a, popover.isOpen());
+            return;
+        }
         // The LEAF_ACTION shape, written once (ADR 045 §3): PRESS exactly while accepted.
         LeafActionAccessibility.describe(a, pressAccepted());
     }
@@ -547,6 +581,9 @@ public final class Button extends Widget<Button> {
      */
     @Override
     protected boolean onAccessibilityAction(Accessible.Action verb, Accessible.Argument arg) {
+        if (popover != null) {
+            return isEnabled() && PopupOwnerAccessibility.perform(popover, verb);
+        }
         return LeafActionAccessibility.perform(leafHost, verb);
     }
 

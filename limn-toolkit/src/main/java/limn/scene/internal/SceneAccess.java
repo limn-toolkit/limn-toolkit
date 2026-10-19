@@ -211,6 +211,31 @@ public final class SceneAccess {
          *         {@code null} while it has no window yet
          */
         @org.jspecify.annotations.Nullable Scene popup();
+
+        /**
+         * Whether the popup holds a keyboard focus of its own that this window's keys drive, as a
+         * popover of controls does: its focused widget is then the one the tree publishes
+         * focused, and this window's input method composes into it. A menu's rows are a cursor
+         * and keep the default.
+         *
+         * @return true for a popup with a focus of its own
+         */
+        default boolean popupHoldsFocus() {
+            return false;
+        }
+
+        /**
+         * An input method's composition this window received, for a popup that
+         * {@linkplain #popupHoldsFocus() holds a focus}, delivered in order with the keys and the
+         * characters around it.
+         *
+         * @param text         the text being composed, empty when the composition ended
+         * @param caret        the caret inside it
+         * @param targetStart  where the clause being converted starts
+         * @param targetLength how long it is
+         */
+        default void preedit(String text, int caret, int targetStart, int targetLength) {
+        }
     }
 
     private static volatile Hook hook;

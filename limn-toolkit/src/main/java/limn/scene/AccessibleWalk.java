@@ -840,7 +840,14 @@ final class AccessibleWalk {
         }
         // A grafted popup's window never takes the keyboard (Scene#graftPopup): the field that
         // opened it keeps the focus, and one focused node per tree is the rule a reader relies on.
-        boolean focused = scene == this.scene && scene.focusedWidget() == widget;
+        // A popup that holds a focus of its own, which this window's keys drive (a popover of
+        // controls), is the one exception, and then it is its focused widget that is published
+        // focused and not this scene's: still one, and the one the keys land on.
+        Scene focusScene = this.scene.focusPopup();
+        if (focusScene == null) {
+            focusScene = this.scene;
+        }
+        boolean focused = scene == focusScene && scene.focusedWidget() == widget;
         if (focused) {
             focusedId = id;
         }
