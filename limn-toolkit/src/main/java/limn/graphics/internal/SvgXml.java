@@ -59,12 +59,7 @@ public final class SvgXml {
          */
         byte @Nullable [] matchMemo;
         long matchStamp;
-        /**
-         * Scratch of the same matcher: this element's id, class words and attributes as it looks
-         * them up, worked out once and valid while {@link #attributesChanged} is what it was then.
-         */
-        SvgCss.@Nullable Facts matchFacts;
-        /** How many times an attribute was set or taken away since parsing, so that what was worked out from them is known stale. */
+        /** How many times an attribute was set or taken away since parsing, so that what the matcher worked out from them is known stale. */
         int attributesChanged;
 
         /** @param name the element's name as written */

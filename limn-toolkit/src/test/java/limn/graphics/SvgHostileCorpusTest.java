@@ -120,11 +120,16 @@ class SvgHostileCorpusTest {
      * each word end a near miss (600 KB, 10 seconds; 2.4 MB, minutes); one rule of {@code n}
      * classes over forty elements that carry all of them (2.4 MB, 7 seconds); and one rule of
      * {@code n} attribute conditions over two hundred elements of a thousand attributes (2.8 MB,
-     * 19 seconds). Each is read or refused, quickly.
+     * 19 seconds). Each is read or refused, quickly. And the files of that fix's review: a rule
+     * {@code #qqq… circle} under a group of that id, a few megabytes long, over two hundred thousand
+     * rects, where each rect's walk up to the group compared the whole id again (27 seconds), the
+     * same with {@code .qqq… rect}, and {@code #qqq…BB rect} over a group {@code qqq…Aa}, of the same
+     * hash and told apart only at its end (as slow before that fix).
      */
     @ParameterizedTest
     @CsvSource({"distinctClassWords, 200000", "classWordNearMisses, 400000", "classWordNearMisses, 1600000",
-            "compoundOfManyClasses, 10000", "compoundOfManyAttributes, 200000"})
+            "compoundOfManyClasses, 10000", "compoundOfManyAttributes, 200000", "longIdAbove, 200000",
+            "longClassAbove, 200000", "longIdAboveThatCollides, 200000"})
     void aCraftedClassOrAttributeListIsReadOrRefusedQuickly(String shape, int n) {
         byte[] svg = crafted(shape, n);
         long start = System.nanoTime();
@@ -175,7 +180,66 @@ class SvgHostileCorpusTest {
                     svg.append("<rect").append(attributes).append("/>");
                 }
             }
+            case "longIdAbove", "longClassAbove", "longIdAboveThatCollides" -> {
+                String key = repeat('q', 4 << 20);
+                boolean id = !shape.equals("longClassAbove");
+                // "Aa" and "BB" have one hash: the sheet's key and the group's are never equal, and
+                // tell themselves apart only at their end.
+                boolean collides = shape.equals("longIdAboveThatCollides");
+                // The id's rule names a type no element has; the class's and the colliding id's name the
+                // rects, so that each rect walks up to the group.
+                String type = shape.equals("longIdAbove") ? " circle" : " rect";
+                svg.append("<style>").append(id ? '#' : '.').append(key).append(collides ? "BB" : "").append(type).append("{fill:red}</style><g ")
+                        .append(id ? "id='" : "class='").append(key).append(collides ? "Aa" : "").append("'>");
+                for (int i = 0; i < n; i++) {
+                    svg.append("<rect/>");
+                }
+                svg.append("</g>");
+            }
             default -> throw new IllegalArgumentException(shape);
+        }
+        return svg.append("</svg>").toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    /**
+     * What matching worked out about each element dies with the reading: kept on the elements, it
+     * stayed with the picture for its life at some thirty times the file, and a 16 MB file of
+     * class words ran a 512 MB heap out. Here a file of 16 MB, every element carrying the same
+     * thousand class words (none of which the sheet names), is read, and what the source keeps of
+     * a 4 MB one is held to a few times its size.
+     */
+    @org.junit.jupiter.api.Test
+    void whatMatchingWorkedOutAboutElementsDiesWithTheReading() throws InterruptedException {
+        SvgSource.read(classWordsOnEveryElement(4100), null);
+        byte[] svg = classWordsOnEveryElement(1000);
+        Runtime runtime = Runtime.getRuntime();
+        long before = usedAfterCollection(runtime);
+        SvgSource source = SvgSource.read(svg, null);
+        long kept = usedAfterCollection(runtime) - before;
+        assertNotNull(source.root());
+        assertTrue(kept < 8L * svg.length, "a file of " + svg.length + " bytes keeps " + kept + " bytes");
+    }
+
+    private static long usedAfterCollection(Runtime runtime) throws InterruptedException {
+        for (int i = 0; i < 3; i++) {
+            System.gc();
+            Thread.sleep(50);
+        }
+        return runtime.totalMemory() - runtime.freeMemory();
+    }
+
+    /** {@code elements} groups, each with every two-character word of letters and digits as a class: 3.9 KB each. */
+    private static byte[] classWordsOnEveryElement(int elements) {
+        StringBuilder words = new StringBuilder();
+        String alphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
+        for (char a : alphabet.toCharArray()) {
+            for (char b : alphabet.toCharArray()) {
+                words.append(a).append(b).append(' ');
+            }
+        }
+        StringBuilder svg = new StringBuilder("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'><style>.zz9{fill:red}</style>");
+        for (int i = 0; i < elements; i++) {
+            svg.append("<g class='").append(words).append("'/>");
         }
         return svg.append("</svg>").toString().getBytes(StandardCharsets.UTF_8);
     }

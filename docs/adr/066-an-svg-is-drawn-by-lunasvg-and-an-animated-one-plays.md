@@ -226,6 +226,20 @@ As ADR 061 asks of everything the toolkit reads itself:
   ms at under a step a byte, and 1,000 theme rules over 50,000 paths in 181 ms; a file that piles
   thousands of rules under one ancestor, or hangs tens of thousands of leaves 250 groups down
   under such rules, is still refused, in under 600 ms.
+  **Amended 2026-10-19, after the review of those two changes:** each brought back the failure it
+  fixed in another shape. The walk up to an ancestor's id compared that id whole once for every
+  element below it, uncharged (a 6 MB id over 240,000 rects, 48 seconds); what was worked out about
+  each element stayed on it with the picture, thirty times the file (a 16 MB file ran a 512 MB heap
+  out); and charging a condition for each of its characters refused an ordinary chart of 20 series
+  `.dot.series-N` over 20,000 points (1.1 MB). Now the ids and classes the sheets name are numbered
+  once, an element's id and class words are looked up among them once (a step a character), and
+  matching compares numbers; only the words a selector names are kept, by the matcher, which goes
+  with the reading; a selector is filed under its last compound's rarest class, so a series rule
+  waits for its series; an id or class tested is a step, a type or attribute a step and one for
+  every sixteen characters it compares; and the walk up is made only for an element of a type
+  some ancestor-filed selector names. That id file reads in 370 ms, one of the same hash that
+  differs only at its end (27 seconds before either change) in 350 ms, the 16 MB file in 190 ms
+  keeping twice its size, as before, and charts of 20 to 200 series in 77 to 314 ms.
 - **A picture beside a file read from disk is read by the toolkit,** as the owner chose: an
   image's `href` relative to the SVG's own folder, resolved there, refused if it leads out of
   that folder, read within the same ceilings as any picture and handed to lunasvg inside the

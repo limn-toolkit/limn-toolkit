@@ -85,6 +85,28 @@ class SvgLargeFileTest {
         readsInTime(svg.toString().getBytes(StandardCharsets.UTF_8), rules + " theme rules over 50000 paths");
     }
 
+    /**
+     * A scatter chart as a plotting program exports it: {@code series} rules {@code .dot.series-N}
+     * that share the class {@code dot}, over {@code points} circles of class {@code dot series-N}.
+     * Filed under its first class, every rule was tried on every point, and charged each class's
+     * characters each time a chart of 20 series and 20,000 points (1.1 MB) was refused.
+     */
+    @ParameterizedTest
+    @CsvSource({"20, 20000", "40, 20000", "20, 100000", "200, 50000"})
+    void aChartWhoseSeriesShareAClassIsRead(int series, int points) {
+        StringBuilder svg = new StringBuilder("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 1000'><style>.dot{stroke:none}");
+        for (int i = 0; i < series; i++) {
+            svg.append(".dot.series-").append(i).append("{fill:#").append(String.format("%06x", i * 7919 & 0xffffff)).append('}');
+        }
+        svg.append("</style><g class='plot'>");
+        for (int p = 0; p < points; p++) {
+            svg.append("<circle class='dot series-").append(p % series).append("' cx='").append(p % 1000).append("' cy='")
+                    .append(p * 7 % 1000).append("' r='2'/>");
+        }
+        svg.append("</g></svg>");
+        readsInTime(svg.toString().getBytes(StandardCharsets.UTF_8), series + " series of " + points + " points");
+    }
+
     /** Thousands of animations that begin at their own times, beside a chain of three: only the chain is worked out round by round. */
     @ParameterizedTest
     @CsvSource({"6000, 100"})
