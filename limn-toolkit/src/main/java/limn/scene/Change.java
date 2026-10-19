@@ -61,7 +61,13 @@ public sealed interface Change {
         DESCRIPTION,
         /** Whether what the widget holds is valid, and the message that says why not. */
         VALIDITY,
-        /** Whether the widget takes input. */
+        /**
+         * Whether the widget takes input: its own flag ({@code Widget.isSelfEnabled()}) or the
+         * state that flag and its ancestors' make ({@code Widget.isEnabled()}). Announced on the
+         * widget whose flag {@code setEnabled} changed, then on every descendant whose
+         * {@code isEnabled()} changed with it, in tree order; never on a descendant whose state
+         * did not move, as one disabled by its own flag or under another disabled container.
+         */
         ENABLED,
         /** Whether the widget is shown. */
         VISIBLE,

@@ -144,13 +144,6 @@ public final class SceneAccess {
 
         /**
          * @param widget a widget
-         * @return what its {@code setEnabled} was last told; see
-         *         {@link SceneAccess#enabledByItsOwnFlag}
-         */
-        boolean enabledByItsOwnFlag(Widget<?> widget);
-
-        /**
-         * @param widget a widget
          * @return whether the keyboard can reach it; see {@link SceneAccess#inReach}
          */
         boolean inReach(Widget<?> widget);
@@ -355,21 +348,6 @@ public final class SceneAccess {
      */
     public static void repaintPicture(Widget<?> widget) {
         hook().repaintPicture(java.util.Objects.requireNonNull(widget, "widget"));
-    }
-
-    /**
-     * What {@code widget}'s {@code setEnabled} was last told, whatever its ancestors say, where
-     * {@link Widget#isEnabled()} answers for the whole ancestry. For a component that keeps
-     * something across a container being disabled and enabled again, and hears of the widget's
-     * own flag alone: a radio group choosing which member holds its tab stop, which would
-     * otherwise give it to nobody while the form around it is disabled and never hear that the
-     * form came back.
-     *
-     * @param widget a widget
-     * @return its own flag
-     */
-    public static boolean enabledByItsOwnFlag(Widget<?> widget) {
-        return hook().enabledByItsOwnFlag(java.util.Objects.requireNonNull(widget, "widget"));
     }
 
     /**

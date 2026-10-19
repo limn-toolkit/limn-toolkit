@@ -883,6 +883,25 @@ and still the cheaper reading on the way down; what changed is that the widget's
 with them. `#isVisible()` stays the widget's own flag, because `#isShowing()` already answers for the
 chain, and `#isFocusable()` stays what it is.
 
+**Amendment, 2026-10-19: the own flag has a public getter, and `ENABLED` is announced on every
+descendant whose state moved.** The owner's decision on that day's audit, which found that the
+amendment above left no public way to read what `setEnabled` set: `w.setEnabled(!w.isEnabled())`
+inside a disabled form wrote `true` over a control the application had disabled, and it came back
+enabled with the form; and `Change.Aspect.ENABLED` fired on the container alone while every
+control in it changed its `isEnabled()`. Asked between keeping the effective getter and aligning
+the names with `isVisible`/`isShowing`, the owner kept `#isEnabled()` effective (most desktop
+toolkits propagate a container's state the same way) and added `#isSelfEnabled()`, the flag, named the other way
+round from the visibility pair on purpose: the effective state is what nearly every caller asks.
+`setEnabled` now announces `ENABLED`/`CODE` on the widget whose flag changed, then on every
+descendant whose `isEnabled()` moved with it, parent before child and siblings in order, after the
+revocation's `FOCUS` as before; a descendant disabled by its own flag, anything under it, and a
+whole subtree under another disabled ancestor hear nothing, because their state did not move. The
+published tree is untouched by this: the walk's carried flags and its diff raise one `STATE_CHANGED`
+per node that moved, and no bridge reads the change channel. The radio group, the one internal
+watcher of `ENABLED`, chooses its tab stop by the members' own flags and now asks to choose again
+only when a member's own flag moved; it reads `#isSelfEnabled()`, and the internal accessor it used
+before is gone. Pinned by `DisabledContainerTest`.
+
 **Amendment, 2026-09-14: a synthetic child may narrow `ENABLED`, and only narrow it.** The rule
 above carries the owner's enabled bit down onto every synthetic child, which is right for a menu row
 inside a disabled menu and wrong for a day the calendar's bounds refuse inside an enabled calendar,

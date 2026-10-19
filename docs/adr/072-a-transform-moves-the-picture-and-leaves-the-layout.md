@@ -374,6 +374,18 @@ Both depend on section 3, and with it they are short.
   `localToSceneBounds` of section 3.3. A widget inside a rotated panel that converts an event's
   scene point gets its own local point, exactly; a drag measured by differences of local points
   is right at any angle.
+- **A drag that leaves the plane is held by the scene.** (2026-10-19, the owner's decision on the
+  audit of that day, finding TR-1.) A pointer dragged past the horizon of a plane in perspective
+  has no point on it, and every handler that converted the drag's point computed with `NaN`: a
+  slider took `NaN` as its value and committed it on release. The scene now hands the widget that
+  holds the pointer only points of its own plane. A `DRAG` whose point does not map is withheld,
+  so the widget stays at the last point it had; a `RELEASE` let go of there, or one the scene
+  makes up (the window losing the focus, the widget leaving the scene, a drag and drop
+  beginning), arrives at that last point; the drag goes on when the pointer comes back in front
+  of the horizon. One rule in `Scene`'s dispatch, instead of a guard in each of the thirty-odd
+  handlers that convert a drag's point and in every application's; `Slider` and `RangeSlider`
+  keep none. Hover events and the wheel follow the pointer and are not held; a hover past the
+  horizon hits nothing on the plane, as before. Tests: `DragPastTheHorizonTest`.
 
 ### 2.8 Focus, reveal, readers, the input method and popups
 
@@ -530,7 +542,8 @@ public final Rect localToSceneBounds(float x, float y, float width, float height
 - **`sceneToLocal` answers `NaN`** for a scene point that maps to no point of the widget's plane:
   behind the eye, an edge-on plane, a collapsed scale. `NaN` fails every comparison, so a caller
   that tests `p.x() >= 0 && p.x() < width()` treats it as outside without a branch of its own;
-  a nullable return would put a null check on 113 call lines for a case only 3D has.
+  a nullable return would put a null check on 113 call lines for a case only 3D has. (2026-10-19:
+  a widget that holds the pointer is never handed such a point; section 2.7.)
 - **`localToSceneBounds`** clips the projected rectangle at `w > ε` before taking its bounds. It
   is what a popup, a drag, the input method and the accessible walk need, and what replaces the
   idiom `localToSceneX() + width() / 2` with `localToScene(width() / 2, height() / 2)`.

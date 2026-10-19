@@ -238,12 +238,18 @@ public final class RadioButton extends Widget<RadioButton> {
      * group, and a group whose members had all been disabled never regained a tab stop when one
      * came back. This used to be a {@code setEnabled} override; the change channel is what a
      * component uses to hear its own state move now that the inherited setters are final.
+     *
+     * <p>{@code ENABLED} is also announced on each member when a container around the group is
+     * disabled or enabled; the group chooses by the members' own flags, which that leaves as they
+     * were, so only a change of this member's own flag asks it to choose again.
      */
     void attachToGroup(ButtonGroup owner, int place) {
         this.group = owner;
         this.placeInGroup = place;
+        boolean[] heard = {isSelfEnabled()};
         observeChanges((source, change) -> {
-            if (change.aspect() == Change.Aspect.ENABLED && group == owner) {
+            if (change.aspect() == Change.Aspect.ENABLED && group == owner && heard[0] != isSelfEnabled()) {
+                heard[0] = isSelfEnabled();
                 owner.memberEnabledChanged(this);
             }
         });
