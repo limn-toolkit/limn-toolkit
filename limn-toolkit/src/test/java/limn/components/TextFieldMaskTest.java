@@ -417,6 +417,15 @@ class TextFieldMaskTest extends AccessibleComponentTestBase {
         assertEquals("123", field.text(), "one undo takes the typing back, not a step that did nothing");
     }
 
+    @Test
+    void steppingOverALiteralNeverLeavesTheCaretInsideACluster() {
+        holding("**-**", "ab\u0301c", 2); // the combining acute lands on the hyphen: "ab-\u0301c"
+        assertEquals("ab-\u0301c", field.text());
+        type("-");
+        assertEquals("ab-\u0301c", field.text());
+        assertEquals(4, field.caretPosition(), "past the hyphen and the mark drawn on it");
+    }
+
     // ------------------------------------------------- where the caret is drawn
 
     @Test

@@ -367,6 +367,11 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         boolean nothing = !restoringHistory && fit.text().equals(before);
         if (nothing || !fit.text().equals(text) || fit.caret() != caret) {
             model.amendLastEdit(fit.text(), fit.caret());
+            // A literal stepped over may carry a combining mark the next position took.
+            int aligned = model.alignToGraphemeForward(model.cursor());
+            if (aligned != model.cursor()) {
+                model.setCursor(aligned, false);
+            }
         }
     }
 
