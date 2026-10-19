@@ -345,14 +345,14 @@ public final class ButtonGroup {
      */
     private void applyRovingFocus() {
         // Each member's own flag and not its effective state: a group inside a disabled form is
-        // passed by Tab with the form, and hears nothing when the form is enabled again, so a
-        // holder chosen by the effective state while the form was disabled would be nobody, and
-        // the group would come back with no tab stop at all.
-        RadioButton holder = lent != null && enabledByItsOwnFlag(lent) ? lent
-                : current != null && enabledByItsOwnFlag(current) ? current : null;
+        // passed by Tab with the form anyway, and a holder chosen by the effective state while
+        // the form was disabled would be nobody; the stop kept where the flags put it is there
+        // the moment the form comes back, with nothing to choose again.
+        RadioButton holder = lent != null && lent.isSelfEnabled() ? lent
+                : current != null && current.isSelfEnabled() ? current : null;
         if (holder == null) {
             for (RadioButton member : members) {
-                if (enabledByItsOwnFlag(member)) {
+                if (member.isSelfEnabled()) {
                     holder = member;
                     break;
                 }
@@ -366,9 +366,5 @@ public final class ButtonGroup {
                 member.setFocusable(false);
             }
         }
-    }
-
-    private static boolean enabledByItsOwnFlag(RadioButton member) {
-        return limn.scene.internal.SceneAccess.enabledByItsOwnFlag(member);
     }
 }

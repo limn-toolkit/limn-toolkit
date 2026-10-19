@@ -1184,11 +1184,12 @@ public abstract class Widget<W extends Widget<W>> {
      * still occupies its box.
      *
      * <p>The effective state, as {@link #isShowing()} is to {@link #isVisible()}, and not the flag
-     * {@link #setEnabled} sets: disabling a form disables every control in it, so each of them
-     * paints its disabled look, refuses the focus and is published to assistive technologies as
-     * not enabled, from this one reading. When it answered with the widget's own flag alone, a
-     * button inside a disabled section looked enabled, took the focus from code or from a dialog
-     * closing, and ran its action on Enter, while the pointer and Tab already passed it by.
+     * {@link #setEnabled} sets, which {@link #isSelfEnabled()} reads: disabling a form disables
+     * every control in it, so each of them paints its disabled look, refuses the focus and is
+     * published to assistive technologies as not enabled, from this one reading. When it answered
+     * with the widget's own flag alone, a button inside a disabled section looked enabled, took the
+     * focus from code or from a dialog closing, and ran its action on Enter, while the pointer and
+     * Tab already passed it by.
      *
      * @return whether this widget and all its ancestors are enabled
      */
@@ -1201,8 +1202,22 @@ public abstract class Widget<W extends Widget<W>> {
         return true;
     }
 
-    /** @return what {@link #setEnabled} was last told, whatever an ancestor says */
-    final boolean isEnabledByItsOwnFlag() {
+    /**
+     * The flag {@link #setEnabled} sets on this widget, whatever its ancestors say: the widget's
+     * own half of {@link #isEnabled()}, which answers for the whole ancestry.
+     *
+     * <p>The pair is {@link #isVisible()} and {@link #isShowing()} the other way round: there the
+     * short name is the widget's own flag and the longer one the effective state, here
+     * {@code isEnabled()} is the effective state, because that is what nearly every caller asks
+     * (may this control take input now?), and this is the flag. Read it to change the flag
+     * relative to itself: {@code w.setEnabled(!w.isSelfEnabled())} toggles the control inside a
+     * disabled form as it does outside one, where {@code w.setEnabled(!w.isEnabled())} would
+     * write {@code true} over a control the application had disabled, and the control would come
+     * back enabled with the form.
+     *
+     * @return what {@link #setEnabled} was last told; {@code true} until it is told otherwise
+     */
+    public final boolean isSelfEnabled() {
         return enabled;
     }
 
@@ -1224,24 +1239,59 @@ public abstract class Widget<W extends Widget<W>> {
     /**
      * Enables or disables input for this widget and its subtree: while it is disabled,
      * {@link #isEnabled()} answers {@code false} here and on every descendant, whatever their
-     * own flags say, and each takes its own flag back when this one is enabled again. Repaints
-     * without re-laying-out, since the box does not change; disabling revokes focus, hover and
-     * any press inside the subtree. UI thread only.
+     * own flags say, and each takes its own flag back when this one is enabled again. The flag
+     * itself is {@link #isSelfEnabled()}. Repaints without re-laying-out, since the box does not
+     * change; disabling revokes focus, hover and any press inside the subtree. UI thread only.
      *
-     * <p>Announces {@code ENABLED}/{@code CODE}, after the revocation's {@code FOCUS} when
-     * disabling took the focus away. {@code final} for the reason {@link #setVisible} is.
+     * <p>Announces {@code ENABLED}/{@code CODE} on this widget whenever its flag changes, then on
+     * every descendant whose {@code isEnabled()} changed with it, in tree order (a parent before
+     * its children, siblings first to last): not on one disabled by its own flag or under another
+     * disabled container, whose state did not move, and on none at all when an ancestor of this
+     * widget is disabled. All of it after the revocation's {@code FOCUS} when disabling took the
+     * focus away. Moving a widget to another parent announces no {@code ENABLED}, though its
+     * {@code isEnabled()} may change with the move. {@code final} for the reason
+     * {@link #setVisible} is.
      */
     public final W setEnabled(boolean enabled) {
         Ui.checkUiThread();
         if (this.enabled != enabled) {
+            // The subtree's effective state moves with this flag only where every ancestor is
+            // enabled; it is taken before the flag changes, since a watcher may change the tree.
+            List<Widget<?>> moved = parent == null || parent.isEnabled() ? statesMovedBelow() : List.of();
             this.enabled = enabled;
             if (!enabled && scene != null) {
                 scene.onWidgetDetached(this); // revoke focus/hover/press in this subtree
             }
             invalidate();
             notifyChange(Change.of(Change.Aspect.ENABLED, Change.Origin.CODE));
+            for (Widget<?> descendant : moved) {
+                descendant.notifyChange(Change.of(Change.Aspect.ENABLED, Change.Origin.CODE));
+            }
         }
         return self();
+    }
+
+    /**
+     * The descendants whose {@link #isEnabled()} follows this widget's flag, in tree order: every
+     * one reached through enabled flags alone. A descendant disabled by its own flag is not among
+     * them, nor is anything under it, since it stays disabled either way.
+     */
+    private List<Widget<?>> statesMovedBelow() {
+        if (children.isEmpty()) {
+            return List.of();
+        }
+        List<Widget<?>> moved = new ArrayList<>();
+        collectEnabledBelow(this, moved);
+        return moved;
+    }
+
+    private static void collectEnabledBelow(Widget<?> from, List<Widget<?>> into) {
+        for (Widget<?> child : from.children) {
+            if (child.enabled) {
+                into.add(child);
+                collectEnabledBelow(child, into);
+            }
+        }
     }
 
     // --------------------------------------------------------------- opacity

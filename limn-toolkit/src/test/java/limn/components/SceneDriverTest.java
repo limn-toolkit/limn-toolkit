@@ -139,11 +139,6 @@ class SceneDriverTest extends ComponentTestBase {
             }
 
             @Override
-            public boolean enabledByItsOwnFlag(limn.scene.Widget<?> widget) {
-                return true;
-            }
-
-            @Override
             public boolean inReach(limn.scene.Widget<?> widget) {
                 return true;
             }

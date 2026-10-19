@@ -3502,11 +3502,6 @@ public final class Scene {
             }
 
             @Override
-            public boolean enabledByItsOwnFlag(Widget<?> widget) {
-                return widget.isEnabledByItsOwnFlag();
-            }
-
-            @Override
             public boolean inReach(Widget<?> widget) {
                 return widget.inReach();
             }
