@@ -187,4 +187,47 @@ class InSceneFadeEndsTest {
         ui.runtime().drain();
         assertEquals("closed", result[0], "resolved on the next turn, with the queue's clock where it was");
     }
+
+    /**
+     * A picker closed and opened again before its close has finished, in one handler or two clicks
+     * in one batch: the close's end hands the grid back, and it must not take it out of the panel
+     * the reopen built, which then stayed open and empty. Under less motion the close ends on the
+     * next turn; with motion, when its fade does.
+     */
+    @Test
+    void aDatePickerReopenedBeforeItsCloseEndsKeepsItsCalendar() {
+        for (boolean reduced : new boolean[] {false, true}) {
+            try (limn.testing.TestPreferences system = new limn.testing.TestPreferences()) {
+                system.reduceMotion(reduced);
+                limn.components.date.DatePicker picker = new limn.components.date.DatePicker()
+                        .setDisplayMode(DisplayMode.IN_SCENE);
+                bind(new Padding(Insets.all(10), picker), new StubWindow(true));
+                String what = reduced ? "less motion" : "with motion";
+                picker.open();
+                frame();
+                for (int i = 0; i < 30; i++) {
+                    advance(FRAME);
+                }
+                assertTrue(picker.calendar().isShowing(), what + ": open, the calendar shows");
+
+                picker.close();
+                if (!reduced) {
+                    advance(2 * FRAME); // the fade out under way
+                }
+                picker.open();
+                for (int i = 0; i < 30; i++) {
+                    advance(FRAME); // past the end of the close, whichever way it ends
+                }
+                assertTrue(picker.isOpen(), what + ": open again");
+                assertTrue(picker.calendar().parent() != null && picker.calendar().isShowing(),
+                        what + ": the reopened popup keeps its calendar");
+
+                picker.close();
+                for (int i = 0; i < 30; i++) {
+                    advance(FRAME);
+                }
+                assertEquals(null, picker.calendar().parent(), what + ": a close nobody reopens hands it back");
+            }
+        }
+    }
 }
