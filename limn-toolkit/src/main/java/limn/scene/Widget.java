@@ -770,9 +770,10 @@ public abstract class Widget<W extends Widget<W>> {
      * lie behind the eye. {@code NaN} fails every comparison, so the usual test
      * {@code p.x() >= 0 && p.x() < width()} already counts such a point outside the widget.
      * The point of a {@code DRAG} or a {@code RELEASE} the widget receives while it holds the
-     * pointer is never one of these: the scene withholds a drag that has left the widget's plane
-     * and releases it at the last point it had there (see {@link limn.scene.event.MouseEvent}),
-     * so a drag handler computes with finite numbers and needs no guard of its own.
+     * pointer is not one of these: the scene withholds a drag that has left the widget's plane
+     * and releases it at the last point it had there, so a drag handler computes with finite
+     * numbers and needs no guard of its own, but for a release on a plane turned edge-on, which
+     * has no point to give (see {@link limn.scene.event.MouseEvent}).
      *
      * @param sceneX a point's x in the scene
      * @param sceneY a point's y in the scene
@@ -1247,8 +1248,10 @@ public abstract class Widget<W extends Widget<W>> {
      * every descendant whose {@code isEnabled()} changed with it, in tree order (a parent before
      * its children, siblings first to last): not on one disabled by its own flag or under another
      * disabled container, whose state did not move, and on none at all when an ancestor of this
-     * widget is disabled. All of it after the revocation's {@code FOCUS} when disabling took the
-     * focus away. Moving a widget to another parent announces no {@code ENABLED}, though its
+     * widget is disabled. Each descendant is checked again on its turn, so one a watcher has
+     * since moved out of the subtree, or whose state a watcher undid, is not told of a state it
+     * does not have. All of it after the revocation's {@code FOCUS} when disabling took the focus
+     * away. Moving a widget to another parent announces no {@code ENABLED}, though its
      * {@code isEnabled()} may change with the move. {@code final} for the reason
      * {@link #setVisible} is.
      */
@@ -1265,7 +1268,11 @@ public abstract class Widget<W extends Widget<W>> {
             invalidate();
             notifyChange(Change.of(Change.Aspect.ENABLED, Change.Origin.CODE));
             for (Widget<?> descendant : moved) {
-                descendant.notifyChange(Change.of(Change.Aspect.ENABLED, Change.Origin.CODE));
+                // A watcher may have undone this flag, disabled another container on the way or
+                // moved the descendant out: only a state it still has from this call is announced.
+                if (descendant.isEnabled() == enabled && descendant.isInside(this)) {
+                    descendant.notifyChange(Change.of(Change.Aspect.ENABLED, Change.Origin.CODE));
+                }
             }
         }
         return self();
@@ -1283,6 +1290,16 @@ public abstract class Widget<W extends Widget<W>> {
         List<Widget<?>> moved = new ArrayList<>();
         collectEnabledBelow(this, moved);
         return moved;
+    }
+
+    /** Whether {@code ancestor} is this widget or one of its ancestors. */
+    private boolean isInside(Widget<?> ancestor) {
+        for (Widget<?> w = this; w != null; w = w.parent) {
+            if (w == ancestor) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void collectEnabledBelow(Widget<?> from, List<Widget<?>> into) {

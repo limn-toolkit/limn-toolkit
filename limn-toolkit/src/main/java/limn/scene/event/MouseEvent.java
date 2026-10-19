@@ -21,8 +21,13 @@ package limn.scene.event;
  * point on the widget's plane at all; the scene then hands it no {@code DRAG}, the widget stays
  * where the pointer last was on its plane, and a {@code RELEASE} let go of there arrives at that
  * last point, so a slider commits the value it was showing. The drag goes on when the pointer
- * comes back in front of the horizon. Hover events ({@code ENTER}, {@code MOVE}, {@code EXIT})
- * and {@code WHEEL} follow the pointer and are not held to this.
+ * comes back in front of the horizon. When the plane itself moves while the button is held (a
+ * flip under way, a panel turned by the application), the release arrives where that last point of
+ * the widget lies now. The one exception is a plane that leaves nothing to reach: turned edge-on
+ * to the viewer, or with that point gone behind the eye; the release still arrives, to end the
+ * press, at the last scene point, where {@code sceneToLocal} answers {@code NaN}. Hover events
+ * ({@code ENTER}, {@code MOVE}, {@code EXIT}) and {@code WHEEL} follow the pointer and are not
+ * held to this.
  */
 public final class MouseEvent extends InputEvent {
 
