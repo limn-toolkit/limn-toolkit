@@ -43,6 +43,48 @@ class SvgLargeFileTest {
         readsInTime(svg.toString().getBytes(StandardCharsets.UTF_8), paths + " paths under " + rules + " rules");
     }
 
+    /**
+     * A sprite sheet: {@code symbols} symbols of ten paths each, every symbol's paths styled by a
+     * rule that names the symbol, {@code #s12 path} or {@code .icon-12 path}. The rule's last
+     * compound is a type, so filed under it alone it was tried on every path of the sheet, and an
+     * ordinary 112 KB sheet of four hundred symbols was refused.
+     */
+    @ParameterizedTest
+    @CsvSource({"400, id", "1000, id", "1000, class", "3000, class"})
+    void aSpriteSheetStyledThroughItsSymbolsIsRead(int symbols, String key) {
+        StringBuilder svg = new StringBuilder("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><style>");
+        for (int i = 0; i < symbols; i++) {
+            svg.append(key.equals("id") ? "#s" : ".icon-").append(i).append(" path{fill:#")
+                    .append(String.format("%06x", i * 997 & 0xffffff)).append('}');
+        }
+        svg.append("</style><defs>");
+        for (int i = 0; i < symbols; i++) {
+            svg.append(key.equals("id") ? "<symbol id='s" : "<symbol class='icon-").append(i).append("' viewBox='0 0 24 24'>");
+            for (int p = 0; p < 10; p++) {
+                svg.append("<path d='M").append(p).append(" 0h1v1z'/>");
+            }
+            svg.append("</symbol>");
+        }
+        svg.append("</defs><use href='#s0'/></svg>");
+        readsInTime(svg.toString().getBytes(StandardCharsets.UTF_8), symbols + " symbols keyed by " + key);
+    }
+
+    /** {@code rules} theme rules {@code .tN path} over fifty thousand paths three groups down from the one that names its theme. */
+    @ParameterizedTest
+    @CsvSource({"100", "1000"})
+    void themeRulesOverAnAncestorClassAreRead(int rules) {
+        StringBuilder svg = new StringBuilder("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><style>");
+        for (int i = 0; i < rules; i++) {
+            svg.append(".t").append(i).append(" path{fill:#").append(String.format("%06x", i * 997 & 0xffffff)).append('}');
+        }
+        svg.append("</style><g class='t0'><g><g>");
+        for (int p = 0; p < 50000; p++) {
+            svg.append("<path d='M").append(p % 100).append(" 0h1v1z'/>");
+        }
+        svg.append("</g></g></g></svg>");
+        readsInTime(svg.toString().getBytes(StandardCharsets.UTF_8), rules + " theme rules over 50000 paths");
+    }
+
     /** Thousands of animations that begin at their own times, beside a chain of three: only the chain is worked out round by round. */
     @ParameterizedTest
     @CsvSource({"6000, 100"})

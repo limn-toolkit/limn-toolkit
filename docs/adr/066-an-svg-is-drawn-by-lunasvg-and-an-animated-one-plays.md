@@ -216,6 +216,16 @@ As ADR 061 asks of everything the toolkit reads itself:
   steps: a compound tried, each condition tested, each character a condition compares or a
   lookup reads. The budget stays four steps a byte, four million at least; the export of 50,000
   paths takes half a step a byte. The four files read in under 300 ms.
+  **Amended 2026-10-19, the same audit:** filing a selector by its last compound alone left the
+  common sprite-sheet and theme forms, `#icon-12 path` and `.dark path`, filed under `path` and
+  tried on every path, and the budget of 2026-10-17 refused an ordinary sheet of 400 symbols
+  (112 KB) that had been read in 127 ms. A selector whose last compound names no id or class is
+  now filed under the nearest earlier compound's id or class and the last compound's type, and tried
+  only on elements of the type under an ancestor that has it, the walk up counted a step for each
+  ancestor. Sheets of 400 to 3,000 symbols keyed by id or class (112 to 850 KB) read in 34 to 174
+  ms at under a step a byte, and 1,000 theme rules over 50,000 paths in 181 ms; a file that piles
+  thousands of rules under one ancestor, or hangs tens of thousands of leaves 250 groups down
+  under such rules, is still refused, in under 600 ms.
 - **A picture beside a file read from disk is read by the toolkit,** as the owner chose: an
   image's `href` relative to the SVG's own folder, resolved there, refused if it leads out of
   that folder, read within the same ceilings as any picture and handed to lunasvg inside the

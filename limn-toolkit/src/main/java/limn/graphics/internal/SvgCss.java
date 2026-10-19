@@ -22,7 +22,10 @@ import org.jspecify.annotations.Nullable;
  * combinators. A selector with anything else matches nothing.
  *
  * <p><b>Matching is bounded work</b>: a selector is tried only on the elements its last compound
- * could name (by id, class, type or attribute, as a browser files its rules), a selector chains at
+ * could name (by id, class, type or attribute, as a browser files its rules) or, when that
+ * compound names no id or class, on the elements of that type under an ancestor with the id or
+ * class an earlier compound names (as {@code #icon-12 path} is tried only inside
+ * {@code #icon-12}), a selector chains at
  * most {@value #MAX_COMPOUNDS} compounds, each compound is tried once against each element in one
  * match however many descendant combinators could send it back there, an element's id, class
  * words and attributes are looked up in sets made once for it, and a file whose sheets take more
@@ -77,6 +80,15 @@ final class SvgCss {
      * Made at the first match.
      */
     private @Nullable Map<String, List<Filed>> filed;
+    /**
+     * The selectors whose last compound names no id or class but an earlier one does, filed under
+     * the id (or class) of the nearest such compound and then under the last compound's type, or
+     * {@code *}: {@code #s12 path} is tried on the paths that have an ancestor {@code #s12}. Filed
+     * under {@code path} alone, a sprite sheet's four hundred such rules were each tried on every
+     * path of the sheet, and an ordinary file of 112 KB was refused.
+     */
+    private final Map<String, Map<String, List<Filed>>> underId = new HashMap<>();
+    private final Map<String, Map<String, List<Filed>>> underClass = new HashMap<>();
     /** Whether a selector is filed under an attribute, so an element's attributes are worth looking up. */
     private boolean filedByAttribute;
     /** The best specificity each rule has matched with in the match under way, -1 for none: reused. */
@@ -386,6 +398,9 @@ final class SvgCss {
                 tryFiled("[" + element.attributeName(i), element, touched);
             }
         }
+        if (!underId.isEmpty() || !underClass.isEmpty()) {
+            tryUnderAncestors(element, touched);
+        }
         if (touched.isEmpty()) {
             matching.put(element, NONE);
             return NONE;
@@ -404,7 +419,48 @@ final class SvgCss {
 
     /** Tries the selectors filed under {@code key} on an element, keeping each rule's best specificity. */
     private void tryFiled(String key, SvgXml.Element element, List<Integer> touched) {
-        List<Filed> candidates = filed.get(key);
+        tryAll(filed.get(key), element, touched);
+    }
+
+    /**
+     * Tries the selectors filed under the ids and classes of the element's ancestors, each set
+     * once however many ancestors carry its key: a walk up, a step for each ancestor and each of
+     * its classes.
+     */
+    private void tryUnderAncestors(SvgXml.Element element, List<Integer> touched) {
+        String type = element.localName();
+        Set<Map<String, List<Filed>>> tried = null;
+        for (SvgXml.Element up = element.parent(); up != null; up = up.parent()) {
+            Facts facts = facts(up);
+            step(1 + (underClass.isEmpty() ? 0 : facts.classes.size()));
+            Map<String, List<Filed>> under = facts.id == null ? null : underId.get(facts.id);
+            if (under != null) {
+                tried = tryUnder(under, tried, type, element, touched);
+            }
+            if (!underClass.isEmpty()) {
+                for (String name : facts.classes) {
+                    under = underClass.get(name);
+                    if (under != null) {
+                        tried = tryUnder(under, tried, type, element, touched);
+                    }
+                }
+            }
+        }
+    }
+
+    private Set<Map<String, List<Filed>>> tryUnder(Map<String, List<Filed>> under,
+            @Nullable Set<Map<String, List<Filed>>> tried, String type, SvgXml.Element element, List<Integer> touched) {
+        if (tried == null) {
+            tried = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
+        }
+        if (tried.add(under)) {
+            tryAll(under.get("*"), element, touched);
+            tryAll(under.get(type), element, touched);
+        }
+        return tried;
+    }
+
+    private void tryAll(@Nullable List<Filed> candidates, SvgXml.Element element, List<Integer> touched) {
         if (candidates == null) {
             return;
         }
@@ -418,13 +474,23 @@ final class SvgCss {
         }
     }
 
-    /** Files every selector under what its last compound needs of an element. */
+    /**
+     * Files every selector under what its last compound needs of an element, or under the
+     * ancestor it needs when that compound names no id or class and an earlier one does.
+     */
     private void file() {
         Map<String, List<Filed>> index = new HashMap<>();
         for (int r = 0; r < rules.size(); r++) {
             for (Selector selector : rules.get(r).selectors) {
                 String key = selector.key();
-                if (key != null) {
+                if (key == null) {
+                    continue;
+                }
+                String[] ancestor = key.startsWith("#") || key.startsWith(".") ? null : selector.ancestorKey();
+                if (ancestor != null) {
+                    (ancestor[0].equals("#") ? underId : underClass).computeIfAbsent(ancestor[1], k -> new HashMap<>())
+                            .computeIfAbsent(selector.lastType(), k -> new ArrayList<>()).add(new Filed(r, selector));
+                } else {
                     index.computeIfAbsent(key, k -> new ArrayList<>()).add(new Filed(r, selector));
                     filedByAttribute |= key.startsWith("[");
                 }
@@ -631,6 +697,30 @@ final class SvgCss {
                 return "[" + last.attributes.get(0)[0];
             }
             return "*";
+        }
+
+        /**
+         * @return the id ({@code #}, name) or else the first class ({@code .}, name) of the
+         *         nearest compound before the last that names one, which an ancestor of every
+         *         element this selector matches has; null when none does
+         */
+        String @Nullable [] ancestorKey() {
+            for (int i = compounds.size() - 2; i >= 0; i--) {
+                Compound compound = compounds.get(i);
+                if (!compound.idsList.isEmpty()) {
+                    return new String[] {"#", compound.idsList.get(0)};
+                }
+                if (!compound.classes.isEmpty()) {
+                    return new String[] {".", compound.classes.get(0)};
+                }
+            }
+            return null;
+        }
+
+        /** @return the type its last compound needs, or {@code *} */
+        String lastType() {
+            String type = compounds.get(compounds.size() - 1).type;
+            return type == null ? "*" : type;
         }
 
         boolean matches(SvgXml.Element element, SvgCss css) {
