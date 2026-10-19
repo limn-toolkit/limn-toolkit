@@ -89,6 +89,15 @@ there is nowhere for it to open. `HeadlessBackend` supplies one: every window it
 and `scene()` answering the scene bound to each. `frame()` on a window runs one frame, and
 `key(...)` presses a key in that window.
 
+A frame is a turn of the loop, as on a desktop: `frame()` first runs what is waiting on the UI
+queue, then draws. That is where the toolkit finishes what it leaves for the next turn. A test that
+pins less motion with `TestPreferences.reduceMotion(true)`, the way to make the toolkit's dialogs
+and popups open and close without a fade, presses Escape and frames the windows, and the dialog's
+result is there: it was completed on the turn after the key. `AccessibleHarness.frame()` and each
+step of its `advanceTime` take a turn the same way. A fade of your own that goes straight to its
+target, with no window or under less motion, runs its `onArrive` after the seconds it asked for, on
+the runtime's clock, which `new HeadlessUi(clock)` lets the test move.
+
 ## What a screen costs
 
 A test can hold a screen to what it costs without a stopwatch, in counts that are the same on

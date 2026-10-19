@@ -28,7 +28,12 @@ import limn.backend.spi.BackendPeer;
 public final class HeadlessBackend implements BackendPeer {
 
     private final UiRuntime runtime;
-    private final List<HeadlessWindow> windows = new ArrayList<>();
+    /**
+     * Copied on write, so that a test iterating {@link #windows()} to frame each window keeps
+     * going when a frame, which drains the UI queue, opens or closes one: the loop sees the windows
+     * there were when it began, and the next pass sees the new one.
+     */
+    private final List<HeadlessWindow> windows = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     /** The open windows, the front one first: a new window opens in front, a focused one moves there. */
     private final List<HeadlessWindow> frontToBack = new ArrayList<>();
@@ -86,7 +91,10 @@ public final class HeadlessBackend implements BackendPeer {
         return window;
     }
 
-    /** @return every window this backend created, in the order it created them */
+    /**
+     * @return every window this backend created, in the order it created them; a live view, whose
+     *         iteration walks the windows there were when it began
+     */
     public List<HeadlessWindow> windows() {
         return Collections.unmodifiableList(windows);
     }

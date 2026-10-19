@@ -83,14 +83,21 @@ public final class AccessibleHarness {
         clearObservations();
     }
 
-    /** Renders one frame at the current scene time. */
+    /**
+     * One turn of a backend's loop: the UI queue drained, then one frame rendered at the current
+     * scene time, so that what the toolkit leaves for the next turn (the end of a fade that goes
+     * straight there among it) is done before the frame shows the tree, as on a desktop.
+     */
     public void frame() {
+        runtime.drain();
         scene.renderFrame(canvas);
     }
 
     /**
      * Moves scene time forward in steps no longer than the scene's own tick, damaging
-     * {@code damage} before each frame so that an animation on it advances.
+     * {@code damage} before each frame so that an animation on it advances: one turn of the loop,
+     * the queue drained and a frame rendered ({@link #frame()}), for each step. Delayed tasks fall
+     * due on the runtime's own clock, which this does not move.
      *
      * @param millis how far to move
      * @param damage the widget to invalidate each frame, or null
