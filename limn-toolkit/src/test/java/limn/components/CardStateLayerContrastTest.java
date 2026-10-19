@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * The hover and the press of a clicked {@link Card} on every built-in palette and in each of the
  * four looks (ADR 073 §7), measured as {@link ThemeContrastTest} measures a lift, in L*: a hovered
  * secondary button steps 5.0 to 7.8 L* off its surface across the palettes, and the card's hover,
- * the text colour laid at six hundredths over the tone under it, steps 3.5 to 6.9. The layer goes
+ * the text colour laid at six hundredths over the tone under it, steps 3.8 to 6.9. The layer goes
  * over the fill of every style, and over the page itself under a plain card, which is why it is the
  * text colour and not a step toward a raised tone.
  *

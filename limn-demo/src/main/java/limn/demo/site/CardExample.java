@@ -11,7 +11,8 @@ import java.util.function.Consumer;
 /**
  * The layout guide's card examples, compiled: the page shows this file's marked regions, so what a
  * reader copies is code this repository builds. A customer's record made of the parts a card
- * takes, and an invoice that is clicked above the actions under it.
+ * takes, a supplier on a plain card with its long name on two lines, and an invoice that is clicked
+ * above the actions under it.
  */
 public final class CardExample {
 
@@ -34,6 +35,24 @@ public final class CardExample {
                 .setSubtitle("Lisbon")
                 .setHeaderSuffix(new Label("$48,200").setStrong(true))
                 .setFooter(new Button("Call").setSecondary(true), new Button("New order"));
+        // #endregion
+        return card;
+    }
+
+    /**
+     * A supplier on a card with no fill of its own, its long name on two lines, its note on two
+     * lines at most.
+     *
+     * @return the card
+     */
+    public static Card supplier() {
+        // #region guide:card-lines
+        Card card = new Card(new Label("Paper, toner and envelopes, paid in thirty days, delivered "
+                + "to the front desk every other Tuesday.").setMaxLines(2))
+                .setStyle(Card.Style.PLAIN)
+                .setTitle("Northgate Stationers and Office Supplies")
+                .setTitleLines(2)
+                .setSubtitle("Customer since 2021");
         // #endregion
         return card;
     }

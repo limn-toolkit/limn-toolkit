@@ -149,8 +149,21 @@ keeps its footer at the bottom, so the footers of a row of cards are on one line
 - **`Orientation.HORIZONTAL`** puts the media in a column at the leading side, beside the header
   and the content, with the footer across the whole card under both.
 - **`Style.ELEVATED`** lifts the card by the theme's raised shadow (with a hairline round it in a
-  dark palette, where a shadow does not show), `OUTLINED` draws a line round it, and `FILLED`
-  sets it apart by tone.
+  dark palette, where a shadow does not show), `OUTLINED` draws a line round it, `FILLED` sets
+  it apart from the page by tone alone, and `PLAIN` draws nothing of its own: its parts stand on
+  the page, padded and laid out as on any card, and a plain card that is clicked still shows its
+  hover, its press and its focus ring.
+
+The title and the subtitle take one line each and end with an ellipsis where they do not fit.
+`setTitleLines` and `setSubtitleLines` let them break across more lines, the ellipsis then at
+the end of the last, so a long name reads whole on a narrow card; a screen reader hears the
+whole title either way.
+
+{% snippet guide:card-lines %}
+
+A text content is a `Label` you make, and takes its own limit with `setMaxLines`: one line is
+what a label does unless told, and `setWrap(true)` with no limit still takes as many lines as
+the text needs.
 
 A card can also be clicked. With `onActivate`, a click anywhere above its footer opens what the
 card stands for, and so do Enter and Space while it holds the keyboard; the footer's actions are

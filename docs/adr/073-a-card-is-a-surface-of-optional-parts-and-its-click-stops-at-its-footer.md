@@ -11,6 +11,10 @@
   both stages and the Showcase's, with the dated notes there where the build differs from the
   text. Section 7.1 has the two measurements; a filled card's muted text under the hover is the
   one number left to the owner, and one listen per reader is owed if he wants the wording.
+  **Adjusted the same day** by the owner's answers to what the build left open (questions 13 to
+  15, section 9): a fourth style, `PLAIN`; the filled card's fill fixed, so it stands off the page
+  and keeps muted text readable under the hover; and the title and the subtitle given a number of
+  lines, through a new `Label.setMaxLines`.
 - **Date:** 2026-10-18
 - **Scope:** a container with media, a header (a leading part, a title over a subtitle, a trailing
   part), content and a footer of actions; its layout in two orientations, its three looks on
@@ -19,6 +23,8 @@
 - **New public API:** `limn.components.Card` with `Card.Style`, `Card.Orientation` and
   `Card.MediaFit`; one `SizeTokens` column, `cardPad` (question 6); `Wrap.gapsSilently`, a
   protected form of its two gutters for a wrap that pushes them from its measure (section 8).
+  Section 9 adds `Card.Style.PLAIN`, `Card.setTitleLines`, `Card.setSubtitleLines` with their
+  getters, and `Label.setMaxLines` with `Label.maxLines()`.
 - **Compatibility:** additive. The Showcase's `Page.card` helper goes (section 3). A name, a
   description or a tooltip written on a composite whose label target is a part inside it now lands
   on that part (section 8), which a date picker and an editable combo box share with the card.
@@ -98,6 +104,9 @@ Every part is optional and `null` (or `setFooter()` with nothing) removes it. A 
 absent takes no room and no gap. A subtitle without a title is drawn where the title would be,
 muted, and names nothing.
 
+*Note, 2026-10-18 (section 9):* the title and the subtitle take one line by default and as many as
+`setTitleLines` and `setSubtitleLines` allow.
+
 ### 2.2 The API
 
 ```java
@@ -117,7 +126,9 @@ public final class Card extends Widget<Card> {
     public Card setContent(@Nullable Widget<?> content);
     public Card setFooter(Widget<?>... actions);          // none clears it
 
-    public Card setStyle(Card.Style style);                // ELEVATED (default) | OUTLINED | FILLED
+    public Card setStyle(Card.Style style);                // ELEVATED (default) | OUTLINED | FILLED | PLAIN (section 9)
+    public Card setTitleLines(int lines);                  // 1 (default) or more (section 9)
+    public Card setSubtitleLines(int lines);               // 1 (default) or more (section 9)
     public Card setOrientation(Card.Orientation o);        // VERTICAL (default) | HORIZONTAL
     public Card setMediaFit(Card.MediaFit fit);            // NATURAL (default) | STRETCH | COVER
     public Card setMediaAspectRatio(float widthOverHeight); // STRETCH and COVER, vertical; 16/9
@@ -190,6 +201,9 @@ layout type, as ADR 049 and 050 ask of anything that places children.
 | `ELEVATED` (default) | `surface` | none in a light palette, a hairline of `outline` in a dark one | `Elevation.RAISED` | what `Page.card` draws today, and ADR 057's "a card" |
 | `OUTLINED` | `surface` | one point of `outline`, drawn with the concentric border helper | none | a card on a desktop that says depth by a line |
 | `FILLED` | `surfaceRaised` | none | none | a card set apart by tone alone |
+
+*Note, 2026-10-18 (section 9):* `FILLED` fills with `surface`, not `surfaceRaised`, and a fourth
+row, `PLAIN`, has no fill, no edge and no shadow.
 
 The corner radius is `radiusMedium` of the step (question 7), the radius `Surface` draws. A
 dark palette's hairline on `ELEVATED` is there because ADR 057 §1 found that black on near-black
@@ -473,6 +487,29 @@ answer follows it. Every question took the recommendation.
     - *The alternative:* kept as a one-line wrapper over `Card`, which saves nothing.
     - **Answer:** as recommended: gone, its 18 calls on `Card`.
 
+Asked after the build, from what section 7.1 measured and the prints showed, and answered by the
+owner on 2026-10-18; section 9 has what was built.
+
+13. **The filled card on the Light palette, where it all but vanished.**
+    - *Seen:* `surfaceRaised` is the Light page's own tone (#EDF0F6 on #EEF0F4).
+    - *The choices put:* a line on a palette whose raised tone is its canvas, or another fill.
+    - **Answer:** the look keep a name of its own: a fourth style, `PLAIN`, with no background, no
+      border and no shadow, keeping the layout, the padding, the click, the hover and press layer
+      and the focus ring; the hover layer and muted text keep 4.5:1 over the page in every
+      built-in palette.
+14. **A filled card's muted text under the hover** (3.78 to 4.10:1 in twelve palettes of fifteen).
+    - *The choices put:* a quieter hover on a filled card, or a stronger tone for its subtitle.
+    - **Answer:** neither: `FILLED` fixed to what it was meant to be, a fill visibly distinct from
+      the page in every built-in palette, a tone step from the page and not `surfaceRaised`, with
+      the hover and press layer over it keeping muted text at 4.5:1 everywhere, measured and pinned
+      in tests.
+15. **A title that wraps** (section 5 left it out).
+    - **Answer:** `setTitleLines(int)` and `setSubtitleLines(int)`, 1 by default, through a new
+      `Label.setMaxLines(int)` whose default 1 leaves every label as it is. No getter hands out the
+      card's labels, and there is no `setContentLines`: a text content is a `Label` the application
+      makes, with its own `setMaxLines`. Not fitted to the height: a label given less height than
+      its lines clips, as today.
+
 ## 5. Not in this record
 
 - **Master-detail.** Refused by the owner on 2026-10-18: a list beside a record is a `SplitPane`,
@@ -481,6 +518,8 @@ answer follows it. Every question took the recommendation.
 - **A heading level**, a role chosen per card (`setAccessibleRole` exists for that), a selected or
   checked card, a card dragged to reorder a grid of cards, an editable dashboard.
 - **A title that wraps.** One line with an ellipsis; a later `setTitleWrap` is additive.
+  *Note, 2026-10-18:* added as `setTitleLines` and `setSubtitleLines` (question 15, section 9),
+  a number of lines and not a flag.
 - **Refused earlier and not proposed here:** toasts and notifications, a link widget, rich text,
   a switch class, a grid with tracks and spans, persistence.
 
@@ -554,6 +593,7 @@ surface forwarding its clicks (the title read as a button, the group around it d
   vanishes, `surfaceRaised` being the page's own tone there (#EDF0F6 on #EEF0F4, the same pair the
   0.9.0 slider rail fell into). The style draws what section 2.5 says; whether `FILLED` should take
   a line on a palette whose raised tone is its canvas is the owner's.
+- *Note, 2026-10-18:* both answered (questions 13 and 14); section 9.2 has the numbers after.
 
 ## 8. Built, 2026-10-18
 
@@ -639,3 +679,90 @@ gallery entry. Each key behaviour was run against its reversal and failed: the a
 the footer's band, the setter's refusal taken out, the leaf's children published, the hidden part
 kept, the hover hook told on every move, the walk's carry taken out, the clip and the declared
 reach taken out.
+
+## 9. Adjusted, 2026-10-18: the owner's answers to questions 13 to 15
+
+Branch `claude/card-adjust`, on `claude/review-fixes` with this record built.
+
+### 9.1 What landed
+
+- **`Card.Style.PLAIN`.** No fill, no edge, no shadow, and no outset but the ring's on a clicked
+  card with no footer. It keeps the layout and the padding, the click, the divider above a footer,
+  the hover and press layer (the text colour over the page, as over any fill) and the focus ring.
+  `Card.fill(style, theme)`, package-private, answers the tone each look fills with, `null` for
+  plain, and is what the paint and the contrast test both read.
+- **`FILLED` fills with `surface`.** *Note: the answer to question 14 says "a tone step from the
+  page"; the build takes the palette's own step, `surface`, because a step computed from the page
+  cannot keep its promise on Light (section 9.2).* `surface` is the step every built-in palette is
+  held to by `ThemeContrastTest` (5 L* off its page at the least), and the hover over it keeps
+  muted text at 4.5:1. The cost: a filled card now differs from a raised one by the shadow alone
+  and from an outlined one by the line alone, and on a ground that is itself `surface`, a card in a
+  card or a panel, it does not stand out.
+- **`Label.setMaxLines(int)`, `maxLines()`,** 1 by default. Above 1 the text breaks across that
+  many lines at most by the walk `setWrap` uses (`BreakIterator` under the UI language, so CJK and
+  Thai break as they wrap), and the last line is the rest of the text cut as one line is: with the
+  measured ellipsis at its logical end under `Overflow.ELLIPSIS` (on the left of a right-to-left
+  line), run on to the box's edge under `CLIP`. A line break in the text after the last line is
+  more text and puts the ellipsis on a last line that fits. **How it combines with `setWrap`,**
+  chosen so that no caller changes: a limit above 1 holds whether wrap is on or off; at 1 `setWrap`
+  decides as before, one line without it and as many as the text needs with it. The lines are
+  counted, not fitted: a label given less height than its lines clips, as a wrapped one does. A
+  change lays out in place, as a change of text does. The reader's name stays the whole text.
+- **`Card.setTitleLines(int)`, `setSubtitleLines(int)`, `titleLines()`, `subtitleLines()`,** 1 by
+  default, applied to the card's own labels through `setMaxLines`, kept before the title or the
+  subtitle exists and applied when it comes. `title()` and `subtitle()` stay the text getters; no
+  getter returns a label. The header grows to the lines the text takes; beside a prefix or a suffix
+  taller than the text it grows only past them.
+- **The Showcase.** The looks row is four customers, raised, outlined, filled and plain, each name
+  and "Customer since" on two lines, the year to date moved from the header's end into the content
+  (at a quarter of the page the amount left the name a few letters; the desk card and the invoices
+  still show a suffix). One string is new (the fourth customer's line) and the row's hint names the
+  fourth look, in the 21 languages. The lab's card scenes are three so each fits its window, and
+  the states scene's last card is plain, so the press of its second pose shows the layer over the
+  page.
+- **The guides.** The layout guide's Cards section names the four looks and the lines, with a
+  third snippet from `CardExample` (a plain card whose long name takes two lines and whose note is
+  cut at two), which `CardExampleTest` measures; the text guide says a limited label breaks and is
+  cut as the language reads.
+
+### 9.2 Measured
+
+Over the fifteen built-in palettes, with the layer of section 8.3 unchanged (the text colour at six
+hundredths on hover, eleven pressed):
+
+| Under the layer | The hover's step | Muted text under the hover | Text over the press |
+| --- | --- | --- | --- |
+| `surface` (raised, outlined, filled) | 3.8 to 6.9 L* | 4.51:1 at the least (Dark) | 7.25:1 at the least (Nordic) |
+| the page (plain) | 4.1 to 6.3 L* | 4.57:1 at the least (Light) | 8.84:1 at the least (Nordic) |
+
+- **A filled card off the page:** 5.25 L* at the least (Light: #FFFFFF on #EEF0F4), 15.7 at the
+  most (Limn); it was 0.02 L* on Light.
+- **Why not a step from the page toward the text.** Light's muted text is 5.11:1 on its page to
+  begin with. A fill 2.9 L* darker keeps it at 4.74:1 at rest and takes it to 4.24:1 under the
+  hover; 4.3 L* darker, 4.57:1 and 4.09:1. Every step that shows takes it below 4.5:1 while the
+  pointer rests on the card, unless the hover is cut below what can be seen. The dark palettes have
+  room for such a step, Light does not, and one rule for all fifteen was wanted.
+- Palette values, for the record: Light page #EEF0F4 (L* 94.8), surface #FFFFFF (100), raised
+  #EDF0F6 (94.7); Dark page #14181F (8.1), surface #1D242F (14.0); Limn Light page #FFFFFF, surface
+  #F1ECFD (94.2); Octo Light page #FFFFFF, surface #ECEEF0 (94.0); Solaris Light page #FDF6E3
+  (97.0), surface #E9E3D1 (90.3); High Contrast page #000000, surface #121212 (5.5).
+
+### 9.3 Tests, and what each was proved against
+
+`CardStateLayerContrastTest` now measures all four looks against the tone under them at one bar,
+4.5:1 at rest and under the hover, and holds a filled card 5 L* off the page; against the old fills
+(the raised tone for `FILLED`, the surface for `PLAIN`) twelve palettes fail the hover bar and Light
+fails the step. `CardStyleTest` checks what each look paints (shadow, line, fill, nothing) and that
+a plain card that is clicked keeps its hover and its ring; against the old fills it fails twice.
+`LabelMaxLinesTest` (two and three lines, LTR and RTL ellipsis placement, CJK, Thai, `CLIP`, the
+interplay with `setWrap`, a new text re-broken, a change laid out in place) and
+`LabelMaxLinesAccessibilityTest`; against the limit taken out fifteen fail, against the trailing
+break rule and against a full layout in place of the in-place one, one each. The existing `Label`
+tests pass untouched. `CardLinesTest` (defaults, two and three lines, the limit set before the text,
+the subtitle, right to left, the refusal below 1, the whole title to a reader); against the limits
+not reaching the labels, five fail. `CardExampleTest` gains the guide's plain supplier.
+
+### 9.4 Owed
+
+Nothing a reader has to hear: the name of a card or a label is its whole text however many lines
+show, which the tests read off the published tree, and no node changes shape.

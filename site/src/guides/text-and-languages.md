@@ -126,7 +126,9 @@ to break at all and is cut where it stops fitting.
   rectangle over the text between them.
 - **Breaks lines with the reading rules of the UI language.** Wrapping asks the language for
   its break opportunities instead of looking for spaces, so Chinese and Japanese wrap where
-  they should and Thai, which writes without spaces at all, breaks between its words.
+  they should and Thai, which writes without spaces at all, breaks between its words. A
+  `Label` given `setMaxLines(2)` breaks the same way and ends its second line with the
+  ellipsis, at the end reading takes it to, whichever way the line reads.
 - **Supports IME composition.** Japanese, Chinese and Korean input methods show their
   in-progress composition inside the field, underlined, with the candidate window positioned
   against the caret.

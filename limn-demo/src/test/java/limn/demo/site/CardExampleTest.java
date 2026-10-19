@@ -89,6 +89,44 @@ class CardExampleTest {
         }
     }
 
+    /**
+     * On the ten-points-a-glyph ruler, a card 200 wide gives its text 168: the supplier's name
+     * takes its two lines, and the note under it two lines and no more, however long it is.
+     */
+    @Test
+    void theSuppliersNameTakesTwoLinesAndItsNoteNoMoreThanTwo() {
+        try (HeadlessUi ui = new HeadlessUi()) {
+            Card card = CardExample.supplier();
+            Column root = new Column();
+            root.add(new SizedBox(200, SizedBox.UNSET, card));
+            Scene scene = new Scene(root);
+            scene.setTextRuler(TestRulers.FIXED);
+            scene.layoutPass(400, 600);
+            assertEquals(Card.Style.PLAIN, card.style());
+            assertEquals(2, card.titleLines());
+            float line = 12;
+            assertEquals(2 * line, card.content().height(), 0.01f, "the note cut at two lines");
+            // The padding, two lines of title over one of subtitle, the gap, two lines of note.
+            assertEquals(16 + 3 * line + 12 + 2 * line + 16, card.height(), 0.01f);
+        }
+    }
+
+    @Test
+    void theSupplierIsHeardByItsWholeName() {
+        try (HeadlessUi ui = new HeadlessUi()) {
+            Column root = new Column();
+            root.add(new SizedBox(200, SizedBox.UNSET, CardExample.supplier()));
+            AccessibleHarness harness = new AccessibleHarness(ui.runtime(), root);
+            boolean named = false;
+            for (int i = 0; i < harness.tree().nodeCount(); i++) {
+                AccessibleNode node = harness.tree().node(i);
+                named |= node.role() == Accessible.Role.GROUP
+                        && "Northgate Stationers and Office Supplies".equals(node.name());
+            }
+            assertTrue(named, harness.describe());
+        }
+    }
+
     private static void click(Scene scene, float x, float y) {
         drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
         drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
