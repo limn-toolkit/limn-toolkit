@@ -1019,6 +1019,28 @@ Maven Central say which number that was.
   `SUCCESS`, `WARNING`, `DANGER`) and asked of the palette on every paint, so a change of palette
   re-colours it. `Tone.colorIn(theme)` answers the colour for a widget of your own.
 - `TextArea.validation()`.
+- `Card` holds one record (a customer, an invoice, a report to open) and every part of it is optional:
+  `setMedia` (a widget, or an `Icon` the card draws), a header of `setTitle` over `setSubtitle` with
+  `setHeaderPrefix` before them and `setHeaderSuffix` after, `setContent`, and `setFooter(actions...)`
+  at the trailing edge. A part not set, or hidden, takes no room and no gap. `setStyle` is
+  `ELEVATED` (the default, the theme's raised shadow, with a hairline round it in a dark palette),
+  `OUTLINED` or `FILLED`; `setOrientation(HORIZONTAL)` puts the media in a column at the leading side
+  with the footer across the whole card; `setMediaFit` is `NATURAL`, `STRETCH` or `COVER`, the last out
+  to the card's edges with its own corners, and `setMediaAspectRatio` says how tall a stretched
+  picture is. Given more height than it needs, a card gives it to its content, so the footers of a
+  row of cards line up. Right to left, everything turns round.
+- A card can be clicked: `onActivate(handler)` makes a click anywhere above its footer, and Enter or
+  Space while it holds the keyboard, open what it stands for, while the footer's buttons are clicked
+  as themselves and a press between them does nothing; a card with no footer is one click as a
+  whole. It is one Tab stop, shows its hover and press over that part alone, draws a line above the
+  footer and a focus ring that never crosses it. A screen reader hears it as a button named by the
+  title and described by the subtitle (in a group with the footer's actions when there is one);
+  what else it shows is said with `setAccessibleDescription` on the card. A control placed in the
+  part that is clicked is refused with `IllegalArgumentException`; one that arrives later is logged
+  and answers nothing. Actions go in the footer.
+- `SizeTokens.cardPad`, the card's padding at each step: 10, 12, 16, 20, 24.
+- `Wrap.gapsSilently(gap, runGap)`, for a `Wrap` subclass that sets its gutters from its own measure,
+  as `Flex` already allowed for its gap.
 
 ### Changed
 
@@ -1202,6 +1224,9 @@ Maven Central say which number that was.
   itself moves them to those versions.
 - The guides and the demo name `limn-icons-tabler` 3.48.0.0: 36 more icons, none removed or moved,
   so code that names a constant compiles unchanged.
+- A name, a description or a tooltip written on a composite whose caption already went to a part
+  inside it (a `DatePicker`'s field, an editable `ComboBox`'s text, a clicked `Card`'s button) now
+  goes to that part too, the node a reader reaches; what the part was given itself still wins.
 
 ### Breaking, and how to move
 
