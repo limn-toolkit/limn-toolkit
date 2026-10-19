@@ -200,6 +200,8 @@ class InSceneFadeEndsTest {
             try (limn.testing.TestPreferences system = new limn.testing.TestPreferences()) {
                 system.reduceMotion(reduced);
                 limn.components.date.DatePicker picker = new limn.components.date.DatePicker()
+                        .setClock(java.time.Clock.fixed(java.time.Instant.parse("2026-10-19T12:00:00Z"),
+                                java.time.ZoneOffset.UTC))
                         .setDisplayMode(DisplayMode.IN_SCENE);
                 bind(new Padding(Insets.all(10), picker), new StubWindow(true));
                 String what = reduced ? "less motion" : "with motion";
