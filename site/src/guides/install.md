@@ -16,6 +16,40 @@ description: "The JDK you need, the two dependencies, the one macOS flag, and a 
   so. An application opened from its icon has no console to show that error, so it first shows
   Windows' own error dialog, with buttons that open the pack in the Store or install it with
   winget; `-Dlimn.backend.errorDialog=false` turns the dialog off.
+- **On Linux, an X11 or a Wayland session.** The same binaries serve both.
+
+### Supported systems
+
+The oldest system each platform runs on is set by the native libraries Limn ships, or by the JDK
+where that is higher. The numbers are read from the libraries themselves, and the build checks
+every one of them, on all six platforms, against
+[`limn-backend-lwjgl/src/test/java/limn/backend/lwjgl/floors/OsFloors.java`](https://github.com/limn-toolkit/limn-toolkit/blob/main/limn-backend-lwjgl/src/test/java/limn/backend/lwjgl/floors/OsFloors.java),
+where they are kept: a dependency that would raise one fails the build first.
+
+| Platform | Oldest supported | What sets it | Run in the lab |
+|---|---|---|---|
+| Windows x64 | Windows 10 | JDK 17, which supports nothing older; the libraries themselves ask only for Windows Vista | an x64 JVM under emulation on Windows 11 ARM64, not Intel or AMD hardware |
+| Windows ARM64 | Windows 10 on ARM, or Windows 11 | the JDK: ARM64 builds exist only for those; the libraries ask for Windows 8 | Windows 11 |
+| macOS, Apple silicon | macOS 11 Big Sur | LWJGL's libraries and the SVG renderer, built for 11.0 | macOS 26 and 27 |
+| macOS, Intel | macOS 11 Big Sur | the SVG renderer, built for 11.0 (LWJGL's own ask for 10.11 to 10.15) | an x86_64 JVM under translation on Apple silicon |
+| Linux x86_64 | glibc 2.28: Debian 10, Ubuntu 20.04, RHEL 8 or newer | LWJGL's core and OpenAL, the SVG renderer and FFmpeg, all at glibc 2.28 | the build's own tests on an Ubuntu runner, under a virtual X server and software rendering; no desktop |
+| Linux ARM64 | glibc 2.35: Ubuntu 22.04, Debian 12 or newer; RHEL 9, at 2.34, is just below it | LWJGL's text shaping library (its core and GLFW need 2.34) | Fedora 44 (KDE) and Ubuntu 24.04 (GNOME) |
+
+MP4 and Matroska, through `limn-video-ffmpeg`, keep the same floors with one exception on macOS:
+they need macOS 11 from `limn-ffmpeg-natives` 9.0.2.1 on. The 9.0.2.0 payload was built for
+macOS 26 by mistake, so with it they are supported only on macOS 26 or newer; the toolkit moves to
+9.0.2.1 once it is published, and naming 9.0.2.1 yourself fixes it sooner.
+
+A few Windows features need a later build of Windows 10 than the first, and below it each gives
+way to something plainer rather than failing:
+
+- **Dark system menus** (the tray's menu among them) from version 1903, build 18362. Before it
+  they are light whatever the user chose.
+- **Headings a screen reader announces as headings, with their level** from version 1809, the
+  first to carry UI Automation's heading level. Before it a heading is read as plain text.
+- **A tray icon sized for the task bar's own monitor** from version 1607, build 14393. Before it
+  the icon is sized for the scale the application started at, which on a second monitor with a
+  different scale is the wrong one.
 
 ## Try it before you install anything
 

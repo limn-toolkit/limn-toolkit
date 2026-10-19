@@ -128,6 +128,41 @@ tasks.withType<Test>().configureEach {
     }
 }
 
+// The oldest systems Limn runs on are set by its natives, and OsFloorsTest reads every one of them
+// (limn-backend-lwjgl/src/test/java/limn/backend/lwjgl/floors/OsFloors.java keeps the floors). The
+// backend's runtime classpath already carries LWJGL's and the SVG renderer's for all six platforms;
+// the FFmpeg payload is limn-video-ffmpeg's, which this module never resolves, so it is resolved
+// here on its own, at the catalog's pin, and reaches nothing but this test. The check is a test in
+// this module rather than a task of its own because a test is already part of `check`, can be
+// proved to fail with fixtures beside it, and parses headers in Java rather than in the build
+// script.
+val osFloorPayloadsDeclared = configurations.dependencyScope("osFloorPayloadsDeclared")
+val osFloorPayloads = configurations.resolvable("osFloorPayloads") {
+    extendsFrom(osFloorPayloadsDeclared.get())
+    isTransitive = false
+    attributes {
+        attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage.JAVA_RUNTIME))
+    }
+}
+dependencies {
+    val payload = libs.limn.ffmpeg.natives.get()
+    val coordinate = "${payload.module}:${payload.versionConstraint.requiredVersion}"
+    add(osFloorPayloadsDeclared.name, coordinate)
+    listOf("linux-aarch64", "linux-x86_64", "macos-aarch64", "macos-x86_64",
+            "windows-aarch64", "windows-x86_64").forEach { platform ->
+        add(osFloorPayloadsDeclared.name, "$coordinate:natives-$platform")
+    }
+}
+tasks.test {
+    val nativeJars = files(configurations.named("runtimeClasspath"), osFloorPayloads)
+    inputs.files(nativeJars).withPropertyName("osFloorNatives").withNormalizer(ClasspathNormalizer::class)
+    jvmArgumentProviders.add(CommandLineArgumentProvider { listOf("-Dlimn.osFloors.jars=${nativeJars.asPath}") })
+    // OsFloorsTest checks that the install guide's table states the floors.
+    inputs.file(rootProject.file("site/src/guides/install.md"))
+            .withPropertyName("installGuide")
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+}
+
 // The one font still vendored here is a binary, and a sources jar is not where a binary belongs.
 //
 // It is three kilobytes now — the menu key symbols, authored by this project, the only face that
