@@ -123,16 +123,19 @@ Limn upgrades:
 
 {% tabs build Gradle Maven %}
 ```kotlin title="build.gradle.kts"
-implementation("io.github.limn-toolkit:limn-icons-tabler:3.48.0.0")
+implementation("io.github.limn-toolkit:limn-icons-tabler:3.48.0.1")
 ```
 ```xml title="pom.xml"
 <dependency>
   <groupId>io.github.limn-toolkit</groupId>
   <artifactId>limn-icons-tabler</artifactId>
-  <version>3.48.0.0</version>
+  <version>3.48.0.1</version>
 </dependency>
 ```
 {% endtabs %}
+
+On the module path it is the module `limn.icons.tabler`, which an application that is a module
+of its own requires beside the backend.
 
 ## Sound
 

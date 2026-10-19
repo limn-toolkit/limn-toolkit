@@ -1005,8 +1005,10 @@ Maven Central say which number that was.
   cover Unicode 18.0; of the four script families only Devanagari moved (2.006 to 2.007, the same
   glyphs, rehinted), and text lays out as before. An application that names the two artifacts
   itself moves them to those versions.
-- The guides and the demo name `limn-icons-tabler` 3.48.0.0: 36 more icons, none removed or moved,
-  so code that names a constant compiles unchanged.
+- The guides and the demo name `limn-icons-tabler` 3.48.0.1: 36 more icons than 3.46, none removed
+  or moved, so code that names a constant compiles unchanged; and the jar names itself as the
+  module `limn.icons.tabler`, so an application on the module path can require it, which with
+  3.48.0.0 it could not (the jar stayed on the class path).
 
 ### Breaking, and how to move
 
