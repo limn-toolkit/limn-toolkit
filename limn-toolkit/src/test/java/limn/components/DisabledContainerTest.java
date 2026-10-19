@@ -303,6 +303,57 @@ class DisabledContainerTest extends AccessibleComponentTestBase {
     }
 
     /**
+     * A watcher may answer the form's ENABLED by undoing it or by moving a control out: what the
+     * form then announces on its descendants is only a state each still has from this call, never
+     * one that did not move.
+     */
+    @Test
+    void aWatcherThatUndoesTheDisableLeavesNoDescendantHearingAStateItDoesNotHave() {
+        Button ok = new Button("ok").setId("ok");
+        Column form = named("form", ok);
+        bind(named("root", form));
+        boolean[] vetoed = {false};
+        form.observeChanges((source, change) -> {
+            if (change.aspect() == limn.scene.Change.Aspect.ENABLED && !form.isSelfEnabled() && !vetoed[0]) {
+                vetoed[0] = true;
+                form.setEnabled(true);
+            }
+        });
+        List<String> heard = new ArrayList<>();
+        scene.observeChanges((source, change) -> {
+            if (change.aspect() == limn.scene.Change.Aspect.ENABLED) {
+                heard.add(source.id() + "=" + source.isEnabled());
+            }
+        });
+
+        form.setEnabled(false);
+        assertTrue(ok.isEnabled());
+        // The form's own watcher runs before the scene's, so the veto's call is heard first, ok
+        // with it; then the scene hears the undone disable's form, and nothing more of ok.
+        assertEquals(List.of("form=true", "ok=true", "form=true"), heard,
+                "ok hears ENABLED once, enabled, as it is: never a disable that did not happen to it");
+    }
+
+    @Test
+    void aControlMovedOutOfTheFormDuringTheAnnouncementsIsNotToldOfTheForm() {
+        Button b = new Button("b").setId("b");
+        Button c = new Button("c").setId("c");
+        Column form = named("form", b, c);
+        Column outside = named("outside");
+        bind(named("root", form, outside));
+        b.observeChanges((source, change) -> {
+            if (change.aspect() == limn.scene.Change.Aspect.ENABLED && c.parent() == form) {
+                form.remove(c);
+                outside.add(c);
+            }
+        });
+
+        assertEquals(List.of("form", "b"), enabledHeard(() -> form.setEnabled(false)),
+                "c left the form before its turn and its state never moved");
+        assertTrue(c.isEnabled());
+    }
+
+    /**
      * The published tree has its own path to a node's ENABLED, the walk's diff, which hears no
      * change announcement: a disabled form still raises one state event per node that moved.
      */
