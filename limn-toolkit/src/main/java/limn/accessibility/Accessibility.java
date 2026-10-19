@@ -91,6 +91,34 @@ public final class Accessibility {
      */
     private static final int INTERN_CAPACITY = 4096;
 
+    private static final System.Logger LOG = System.getLogger(Accessibility.class.getName());
+
+    /** Whether a negative size was already reported; once per process is enough to find it. */
+    private static final java.util.concurrent.atomic.AtomicBoolean NEGATIVE_WARNED =
+            new java.util.concurrent.atomic.AtomicBoolean();
+
+    /**
+     * A size as a node may carry it: a negative one is published as none. A rectangle of negative
+     * size cannot be built, and the comparison builds one for every node that moved, so a single
+     * negative box in the tree last published made every later publish throw and left that tree
+     * in place for as long as the node lived (2026-10-19). A box arrives negative when its width
+     * is a difference taken before the layout it depends on has run, a list's width less its
+     * insets; the first one is logged so that the producer can be found. {@code NaN} is left as
+     * it is: it says something else, a box with no place on the glass.
+     */
+    private static float size(float value, Object what) {
+        if (!(value < 0)) {
+            return value;
+        }
+        if (NEGATIVE_WARNED.compareAndSet(false, true)) {
+            LOG.log(System.Logger.Level.WARNING,
+                    "an accessible node was given a negative size ({0}) by {1}; it is published as "
+                            + "an empty box. Further ones are not logged.",
+                    value, what);
+        }
+        return 0;
+    }
+
     /** One node, as the walk builds it. Mutable, reused, and never handed out. */
     private static final class Slot {
         long id;
@@ -213,8 +241,8 @@ public final class Accessibility {
             this.locale = locale;
             this.x = x;
             this.y = y;
-            this.width = width;
-            this.height = height;
+            this.width = size(width, "the walk");
+            this.height = size(height, "the walk");
             this.originX = x;
             this.originY = y;
             role = Accessible.Role.GROUP;
@@ -1432,6 +1460,9 @@ public final class Accessibility {
      *
      * @param x      the left edge, in the declaring widget's own coordinates
      * @param y      the top edge
+     * <p>A negative width or height is published as zero, and the first one is logged: a box
+     * computed as a difference before the layout it depends on has run.
+     *
      * @param width  the width
      * @param height the height
      */
@@ -1439,8 +1470,8 @@ public final class Accessibility {
         Slot s = slot();
         s.x = s.originX + x;
         s.y = s.originY + y;
-        s.width = width;
-        s.height = height;
+        s.width = size(width, "a synthetic child's bounds");
+        s.height = size(height, "a synthetic child's bounds");
     }
 
     // ------------------------------------------------------- publish-step driver
@@ -1793,8 +1824,8 @@ public final class Accessibility {
         }
         s.x = x;
         s.y = y;
-        s.width = width;
-        s.height = height;
+        s.width = size(width, "a synthetic child placed through a transform");
+        s.height = size(height, "a synthetic child placed through a transform");
     }
 
     /**

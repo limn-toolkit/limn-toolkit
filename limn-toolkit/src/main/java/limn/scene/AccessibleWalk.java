@@ -950,7 +950,7 @@ final class AccessibleWalk {
             try {
                 // Its own layer, in a window of its own: enabled, visible and reachable by its own
                 // widgets' flags, as an overlay is, and never shadowed by this scene's layers.
-                walkWidget(popup, root, null, into, ownSlot, ownId, scope, true, true, true);
+                walkLayersOf(popup, root, into, ownSlot, ownId, scope);
             } finally {
                 keyboardPopupRoot = outerRoot;
                 keyboardScene = outerKeys;
@@ -959,6 +959,53 @@ final class AccessibleWalk {
                 beneathOnlyPopups = beneath;
             }
         }
+    }
+
+    /**
+     * A grafted popup's root, then the overlays of its own scene, each under the opener as
+     * {@link #walk} hangs a scene's overlays beside its root under the window: a combo box's
+     * list drawn in the popover's scene ({@code setDisplayMode(IN_SCENE)}) or a dialog kept in
+     * it. The popup's own layers decide what is operable inside it, as a window's decide in
+     * {@link #walk}: beneath a modal layer nothing is, beneath popups alone the controls stay
+     * enabled and lose their verbs, and a popup that leaves the keyboard beneath it holds the
+     * cursor when the keys reach this popup. With no overlay the root is its own layer, as it
+     * always was; so is it while the popup's window reports a native modal over it, which a
+     * popup window leaves to the window that publishes it.
+     *
+     * <p>Until 2026-10-19 the root alone was walked, and a list or a dialog pushed as an overlay
+     * of a popover in a window of its own was in no tree: the combo said {@code EXPANDED} over
+     * nothing.
+     */
+    private void walkLayersOf(Scene popup, Widget<?> root, int into, int ownSlot, long ownId,
+            long scope) {
+        List<Widget<?>> overlays = popup.overlays();
+        Widget<?> layer = root;
+        Widget<?> keyboardLayer = root;
+        if (!overlays.isEmpty()) {
+            Widget<?> input = popup.accessibleInputLayer();
+            Widget<?> keys = popup.accessibleKeyboardLayer();
+            if (input != null && keys != null) {
+                layer = input;
+                keyboardLayer = keys;
+            }
+        }
+        beneathOnlyPopups = layer != root && keyboardLayer != root && popup.onlyPopupsAbove(-1);
+        walkWidget(popup, root, null, into, ownSlot, ownId, scope, true, true,
+                layer == root || keyboardLayer == root);
+        for (int i = 0; i < overlays.size(); i++) {
+            Widget<?> overlay = overlays.get(i);
+            if (popup.isClosingOverlay(overlay)) {
+                continue; // as in walk(): pixels on their way out, nothing a reader can be on
+            }
+            beneathOnlyPopups = overlay != layer && overlay != keyboardLayer
+                    && popup.onlyPopupsAbove(i);
+            if (keyboardScene == popup && popup.leavesKeyboardBelow(overlay)) {
+                keyboardPopupSlot = builder.nodeCount(); // its cursor is where the keyboard is
+            }
+            walkWidget(popup, overlay, null, into, ownSlot, ownId, scope, true, true,
+                    overlay == layer || overlay == keyboardLayer);
+        }
+        beneathOnlyPopups = false;
     }
 
     /**

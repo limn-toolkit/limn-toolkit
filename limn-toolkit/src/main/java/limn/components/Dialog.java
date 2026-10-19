@@ -374,9 +374,10 @@ public final class Dialog {
      * not press it, even while it holds the focus: so a person typing into the dialog and
      * pressing Return out of habit does not delete. Return then gives the default button's
      * answer, or none in a dialog without one. Nor does it take the dialog's first focus, which
-     * goes to the default button, or else to the first button that destroys nothing; only in a
-     * dialog whose every button is destructive does the first of them take it, Return still not
-     * pressing it and Escape still cancelling. Space, a click and an assistive technology's
+     * goes to the first control of the content that takes the keyboard (a field, say), or, when
+     * the content has none, to the default button, or else to the first button that destroys
+     * nothing; only in a dialog whose every button is destructive does the first of them take it,
+     * Return still not pressing it and Escape still cancelling. Space, a click and an assistive technology's
      * press do press it. Give the dialog a primary button for the safe answer, which Return then
      * gives.
      *

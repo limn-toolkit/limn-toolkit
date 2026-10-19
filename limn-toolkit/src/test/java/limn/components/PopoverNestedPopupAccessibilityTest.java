@@ -396,6 +396,125 @@ class PopoverNestedPopupAccessibilityTest extends ComponentTestBase {
                 "published inside the popover's group, under the picker" + describe());
     }
 
+    // ------------------------------------------- a layer of the popover's own scene
+
+    @Test
+    void anInSceneComboListInsideAWindowedPopoverIsPublishedWithItsCursor() {
+        // A combo asked to draw its list in its own scene (setDisplayMode(IN_SCENE)) pushes it as
+        // an overlay of the popover's scene, not as a graft: the owner's walk read the popover's
+        // root and none of its scene's overlays, and the combo said EXPANDED over nothing.
+        ComboBox<String> status = status().setDisplayMode(DisplayMode.IN_SCENE);
+        openPopover(column(status), DisplayMode.NATIVE_WINDOW);
+        key(Keys.DOWN, Keys.MOD_ALT);
+        assertTrue(status.isOpen());
+        assertSame(DisplayMode.IN_SCENE, status.displayMode(), "sanity: a layer, not a window");
+        assertInSceneListShape();
+        assertTrue(isAncestor(AccessibleTrees.named(tree(), "Filter"),
+                withRole(Accessible.Role.LIST).get(0)),
+                "inside what the popover's button opened" + describe());
+        onlyTheOwnerPublishes();
+        long before = tree().activeDescendant();
+        owner.bridge().events.clear();
+        key(Keys.DOWN, 0);
+        assertNotEquals(before, tree().activeDescendant(), "Down moved the cursor" + describe());
+        assertFalse(owner.bridge().eventsOf(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED).isEmpty());
+        assertInSceneListShape();
+
+        key(Keys.ESCAPE, 0);
+        settle();
+        assertFalse(status.isOpen());
+        assertTrue(withRole(Accessible.Role.LIST).isEmpty(), "the list left the tree" + describe());
+        assertTrue(popover.isOpen());
+    }
+
+    @Test
+    void anInSceneComboListDirectlyInAWindowHasTheShapeTheNestedOneIsHeldTo() {
+        backend = new HeadlessBackend(runtime);
+        owner = backend.open("Orders", 600, 400);
+        ComboBox<String> status = status().setDisplayMode(DisplayMode.IN_SCENE);
+        scene = new Scene(column(status), () -> now[0]);
+        scene.setTextRuler(RULER);
+        scene.bind(owner);
+        owner.frame();
+        scene.requestFocus(status);
+        frames();
+        key(Keys.DOWN, Keys.MOD_ALT);
+        assertInSceneListShape();
+    }
+
+    /**
+     * What an in-scene combo list publishes, in a window and in a popover alike: a modal layer
+     * holding the keyboard (the list's group, focused), the list in it with its three options,
+     * the cursor on one of them, and the combo beneath it still enabled, no longer a tab stop.
+     */
+    private void assertInSceneListShape() {
+        List<AccessibleNode> lists = withRole(Accessible.Role.LIST);
+        assertEquals(1, lists.size(), "the list is published, once" + describe());
+        AccessibleNode list = lists.get(0);
+        List<String> options = new ArrayList<>();
+        for (AccessibleNode item : withRole(Accessible.Role.LIST_ITEM)) {
+            options.add(item.name());
+            assertTrue(isAncestor(list, item), describe());
+            assertTrue(item.width() > 0 && item.height() > 0, item.name() + describe());
+        }
+        assertEquals(List.of("Open", "Paid", "Shipped"), options, describe());
+        AccessibleNode layer = tree().find(tree().focused());
+        assertNotNull(layer, "one focused node" + describe());
+        assertSame(Accessible.Role.GROUP, layer.role(), "the list's layer holds the keyboard" + describe());
+        assertTrue(layer.has(Accessible.State.MODAL), describe());
+        assertTrue(isAncestor(layer, list), describe());
+        assertEquals(1, AccessibleTrees.withState(tree(), Accessible.State.FOCUSED).size(), describe());
+        AccessibleNode cursor = tree().find(tree().activeDescendant());
+        assertNotNull(cursor, "the list's cursor is the active descendant" + describe());
+        assertSame(Accessible.Role.LIST_ITEM, cursor.role(), describe());
+        AccessibleNode combo = AccessibleTrees.withRole(tree(), Accessible.Role.COMBO_BOX);
+        assertTrue(combo.has(Accessible.State.ENABLED) && combo.has(Accessible.State.EXPANDED),
+                "beneath its own list the combo stays enabled" + describe());
+        assertFalse(combo.has(Accessible.State.FOCUSABLE), describe());
+    }
+
+    @Test
+    void anInSceneDialogShownFromInsideAWindowedPopoverIsPublishedAndModal() {
+        java.util.concurrent.atomic.AtomicReference<String> result =
+                new java.util.concurrent.atomic.AtomicReference<>("<open>");
+        Button clear = new Button("Clear all");
+        TextField customer = new TextField().setAccessibleName("Customer contains");
+        clear.onAction(() -> new Dialog("Clear every filter?", "")
+                .setDisplayMode(DisplayMode.IN_SCENE).keepInScene().setCancelResult("cancel")
+                .addDestructiveButton("Clear", "clear").addButton("Keep", "keep")
+                .show(clear).thenAccept(result::set));
+        Column fields = new Column();
+        fields.add(new SizedBox(160, 30, customer));
+        fields.add(new SizedBox(160, 30, clear));
+        openPopover(fields, DisplayMode.NATIVE_WINDOW);
+        clear.scene().requestFocus(clear);
+        frames();
+        key(Keys.SPACE, 0);
+        settle();
+        AccessibleNode dialogNode = AccessibleTrees.withRole(tree(), Accessible.Role.DIALOG);
+        assertNotNull(dialogNode, "the dialog is in the owner's tree" + describe());
+        // MODAL on the layer that holds it, as an in-scene dialog in a window publishes it.
+        assertTrue(parentOf(dialogNode).has(Accessible.State.MODAL), describe());
+        assertTrue(isAncestor(AccessibleTrees.named(tree(), "Filter"), dialogNode), describe());
+        AccessibleNode keep = AccessibleTrees.named(tree(), "Keep");
+        assertNotNull(keep, describe());
+        assertTrue(isAncestor(dialogNode, keep), describe());
+        assertEquals(keep.id(), tree().focused(), "the one focused node is the dialog's" + describe());
+        AccessibleNode field = AccessibleTrees.named(tree(), "Customer contains");
+        assertFalse(field.has(Accessible.State.FOCUSABLE) || field.has(Accessible.State.ENABLED),
+                "the popover's own controls lie beneath the modal layer" + describe());
+        onlyTheOwnerPublishes();
+
+        drive(scene).keyEvent(Keys.ENTER, true, false, 0);
+        drive(scene).keyEvent(Keys.ENTER, false, false, 0);
+        drive(scene).inputBatchEnded();
+        settle();
+        assertEquals("keep", result.get());
+        assertNull(AccessibleTrees.withRole(tree(), Accessible.Role.DIALOG), "it left" + describe());
+        assertTrue(AccessibleTrees.named(tree(), "Customer contains").has(Accessible.State.FOCUSABLE),
+                describe());
+    }
+
     // --------------------------------------------------------- a menu inside the popover
 
     @Test
