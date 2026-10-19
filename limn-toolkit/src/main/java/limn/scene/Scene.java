@@ -861,6 +861,35 @@ public final class Scene {
         requestRender();
     }
 
+    /**
+     * Pushes {@code overlay} as {@link #pushOverlay(Widget)} does, with the keyboard on
+     * {@code first} rather than on the overlay's first stop, arriving as that stop would: by
+     * traversal, announced as {@code CODE}. Nothing else is focused on the way, so no widget is
+     * told of a gain and a loss in the one turn, and the focus the overlay restores when it
+     * closes is the one it took. Not API; see
+     * {@link limn.scene.internal.SceneAccess#pushOverlayFocusing}.
+     *
+     * @param overlay the overlay's root
+     * @param first   the widget inside it that takes the keyboard
+     */
+    void pushOverlayFocusing(Widget<?> overlay, Widget<?> first) {
+        Ui.checkUiThread();
+        Objects.requireNonNull(overlay, "overlay");
+        Objects.requireNonNull(first, "first");
+        stackOverlay(overlay);
+        if (!canTakeFocus(first) || !isInSubtree(first, overlay)) {
+            focusTraverse(false);
+        } else {
+            focusByTraversal = true;
+            try {
+                setFocus(first, Change.Origin.CODE);
+            } finally {
+                focusByTraversal = false;
+            }
+        }
+        requestRender();
+    }
+
     /** Puts {@code overlay} on top, capturing input, and keeps the focus it takes to give back. */
     private void stackOverlay(Widget<?> overlay) {
         // A drag captured before this modal opened must not keep feeding the
@@ -938,6 +967,11 @@ public final class Scene {
      * window's coordinates, while its window is visible, and leave the tree when that window
      * closes. What a reader performs on them is performed in the popup's scene.
      *
+     * <p>This scene may itself be a grafted popup, a panel of controls in a window of its own: a
+     * popup grafted into it is then published by the tree this one is published in, under its
+     * opener there, to any depth, and leaves that tree when its own window closes or this one's
+     * does.
+     *
      * @param popup the popup's scene, not yet bound
      * @throws IllegalArgumentException if the popup's root names no opener
      * @throws IllegalStateException    if the popup is already bound, or grafted elsewhere
@@ -962,9 +996,18 @@ public final class Scene {
         return graftedPopups;
     }
 
-    /** @return whether {@code other} is a popup grafted into this scene's tree */
+    /**
+     * @return whether {@code other} is a popup grafted into this scene's tree, directly or into a
+     *         popup that is: a combo box's list opened from inside a popover in a window of its
+     *         own, whose nodes this tree publishes and whose verbs it performs
+     */
     boolean isGraftedPopup(Scene other) {
-        return other != null && other.graftedInto == this;
+        for (Scene at = other == null ? null : other.graftedInto; at != null; at = at.graftedInto) {
+            if (at == this) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** @return whether {@code widget} is the root of a popup scene grafted into another's tree */
@@ -3579,6 +3622,11 @@ public final class Scene {
             @Override
             public void pushMovedOverlay(Scene scene, Widget<?> overlay, Scene movedFrom) {
                 scene.pushOverlay(overlay, movedFrom);
+            }
+
+            @Override
+            public void pushOverlayFocusing(Scene scene, Widget<?> overlay, Widget<?> first) {
+                scene.pushOverlayFocusing(overlay, first);
             }
 
             @Override
@@ -6549,9 +6597,19 @@ public final class Scene {
         return once(() -> windowCloseObservers = Listeners.removed(windowCloseObservers, observer));
     }
 
+    /**
+     * Lays this grafted popup out, and every popup grafted into it, to any depth, before the
+     * scene that publishes them walks: a combo box's list opened inside a popover in a window of
+     * its own is the popover's graft, and the owner walked it unlaid when its window had not
+     * framed since it opened, 0 by 0 with options 12 points narrower than nothing, which the next
+     * comparison then refused (2026-10-19).
+     */
     private void layOutForTheSceneThatPublishesIt() {
         if (window != null) {
             layoutPass(window.logicalWidth(), window.logicalHeight());
+        }
+        for (int i = 0; i < graftedPopups.size(); i++) {
+            graftedPopups.get(i).layOutForTheSceneThatPublishesIt();
         }
     }
 

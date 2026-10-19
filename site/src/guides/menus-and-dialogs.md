@@ -225,7 +225,11 @@ picture. The buttons stay.
 
 A button that deletes or discards goes in with `addDestructiveButton`: drawn in the palette's
 danger colour, and never the dialog's default, so Return gives the safe answer and a person
-pressing it out of habit loses nothing.
+pressing it out of habit loses nothing. That holds whatever order the buttons go in and wherever
+the focus is: the dialog opens with the focus on its default button (or on a field of your
+content), Return on a focused destructive button still gives the default answer, and a dialog
+whose only button is destructive does nothing on Return. Space, a click and a screen reader's
+press are what press it.
 
 {% snippet guide:dialog-destructive %}
 

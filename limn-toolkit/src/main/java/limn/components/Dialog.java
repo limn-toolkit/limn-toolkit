@@ -370,9 +370,15 @@ public final class Dialog {
      * {@code resultValue}: a {@linkplain Button.Style#SECONDARY secondary} button with its caption
      * in the palette's danger colour.
      *
-     * <p>It is <b>never the default button</b>, whatever was added before it: Return does not
-     * press it, so a person typing into the dialog and pressing Return out of habit does not
-     * delete. Give the dialog a primary button for the safe answer, which Return then gives.
+     * <p>It is <b>never the default button</b>, whatever was added before it, and Return does
+     * not press it, even while it holds the focus: so a person typing into the dialog and
+     * pressing Return out of habit does not delete. Return then gives the default button's
+     * answer, or none in a dialog without one. Nor does it take the dialog's first focus, which
+     * goes to the default button, or else to the first button that destroys nothing; only in a
+     * dialog whose every button is destructive does the first of them take it, Return still not
+     * pressing it and Escape still cancelling. Space, a click and an assistive technology's
+     * press do press it. Give the dialog a primary button for the safe answer, which Return then
+     * gives.
      *
      * @param text        the caption; never null
      * @param resultValue what the dialog resolves with when this button is pressed; may be null
@@ -394,7 +400,8 @@ public final class Dialog {
     public Dialog addDestructiveButton(I18nString text, @Nullable String resultValue) {
         Ui.checkUiThread();
         // Added as a secondary button, and only a primary one can become the default: so this
-        // one never answers Return, whatever the order the buttons were added in.
+        // one never answers Return, whatever the order the buttons were added in. And it refuses
+        // Return while focused (addButton), so the dialog answers the key as one nothing wanted.
         return addButton(text, resultValue, false, true);
     }
 
@@ -408,6 +415,11 @@ public final class Dialog {
         Button button = new Button(text)
                 .setStyle(primary ? Button.Style.PRIMARY : Button.Style.SECONDARY)
                 .setDestructive(destructive);
+        if (destructive) {
+            // A focused Button presses itself on Return before the card hears the key, which made
+            // a focused "Delete" answer Return (2026-10-19): this one lets the key through.
+            button.refuseReturn();
+        }
         button.onAction(() -> resolve(resultValue));
         // Its press resolves the dialog, and once an answer is on its way out resolve() drops
         // it: so a reader is offered the press, and the press is performed, on the condition
@@ -832,7 +844,12 @@ public final class Dialog {
         if (modal) {
             BackendPeer.of(backend).pushModal(modalWindow, blockParent);
         }
-        modalScene.focusTraverse(false); // focus the first button
+        Button first = firstFocusedButton();
+        if (first != null) {
+            modalScene.requestFocus(first);
+        } else {
+            modalScene.focusTraverse(false); // the body's first stop, or nothing
+        }
         fade = 1; // content painted opaque; the window opacity does the fading
         observeUnanswered(modalScene); // the OS can close this window out from under us
         if (modal) {
@@ -1098,8 +1115,15 @@ public final class Dialog {
         // wins). The overlay is the parentless one (pushOverlay sets the scene but never a
         // parent), so it is where the chain has to be reattached, before anything measures.
         overlay.setInheritanceHost(inheritanceHostFor(owner));
-        // pushOverlay captures input, confines focus and focuses the first button.
-        owner.pushOverlay(overlay);
+        // pushOverlay captures input, confines focus and focuses the overlay's first stop; the
+        // dialog names that stop itself when it is one of its buttons, so that no destructive
+        // button is focused on the way.
+        Button first = firstFocusedButton();
+        if (first != null) {
+            SceneAccess.pushOverlayFocusing(owner, overlay, first);
+        } else {
+            owner.pushOverlay(overlay);
+        }
         // The overlay only blocks the owner's own scene; register a backend
         // scene-modal so the rest of the application is locked too, matching a
         // native modal: any dialog already open falls behind this one, and for
@@ -1221,8 +1245,9 @@ public final class Dialog {
      * reaches a widget's ancestors is one the focused widget did not consume. That ordering is
      * the whole design of the Return case: a focused {@link Button} consumes Return and fires
      * itself, a {@link TextArea} consumes it and inserts a newline, and what is left over is
-     * Return pressed in a text field, on a checkbox, or with nothing focused at all, which on
-     * every desktop platform means the default button.
+     * Return pressed in a text field, on a checkbox, on a destructive button (which lets it
+     * through, so that Return never deletes), or with nothing focused at all, which on every
+     * desktop platform means the default button.
      *
      * <p>Without this a dialog whose body holds a text field could not be answered from the
      * keyboard at all: initial focus lands on the field, the field ignores Return, and the card
@@ -1239,6 +1264,56 @@ public final class Dialog {
             event.consume();
             resolve(defaultResult);
         }
+    }
+
+    /**
+     * The button that takes the dialog's first focus, or {@code null} when that focus is the
+     * body's: a field, or any other stop the body holds ahead of the buttons, which the scene's
+     * traversal finds as it always did. Otherwise the default button, then the first button that
+     * destroys nothing, and only in a dialog whose every button is destructive the first of
+     * those, which refuses Return and leaves Escape to the card.
+     *
+     * <p>The scene's traversal alone took the row's first button, and a destructive one added
+     * ahead of the safe answer took the focus and, with it, Return (2026-10-19).
+     */
+    private @Nullable Button firstFocusedButton() {
+        if (firstStop(bodyScroll) != null) {
+            return null;
+        }
+        Button safe = null;
+        Button destructive = null;
+        for (Widget<?> child : buttonRow.children()) {
+            if (!(child instanceof Button button) || !button.isFocusable()
+                    || !SceneAccess.inReach(button)) {
+                continue;
+            }
+            if (button == buttonRow.defaultButton) {
+                return button;
+            }
+            if (!button.isDestructive()) {
+                safe = safe == null ? button : safe;
+            } else {
+                destructive = destructive == null ? button : destructive;
+            }
+        }
+        return safe != null ? safe : destructive;
+    }
+
+    /** The first widget of {@code root}'s subtree that Tab would stop at, or {@code null}. */
+    private static @Nullable Widget<?> firstStop(Widget<?> root) {
+        if (!root.isVisible() || !root.isEnabled()) {
+            return null;
+        }
+        if (root.isFocusable() && SceneAccess.inReach(root)) {
+            return root;
+        }
+        for (Widget<?> child : root.children()) {
+            Widget<?> found = firstStop(child);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
     }
 
     /**

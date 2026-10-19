@@ -555,6 +555,20 @@ that the text above does not say, dated where it departs from it.
 - `Dialog.addDestructiveButton` adds a `SECONDARY` destructive button through the same path as
   `addButton`, so only a primary can become the default, whatever the order the buttons were added
   in; a dialog whose only answer is destructive ignores Return.
+- **Return did delete when the destructive button held the focus** (2026-10-19, the audit of that
+  day): the default slot was right, but the dialog gave its first focus to its first button, and a
+  focused `Button` presses itself on Return before the card hears the key. "Delete" added ahead
+  of "Keep", or alone, took the focus and Return resolved "delete"; the tests had a text field in
+  the body, which took the focus instead. Now the first focus is the body's first stop when it
+  has one, else the default button, else the first button that destroys nothing, and only in a
+  dialog whose every button is destructive the first of those (the keyboard and a reader stay
+  on the answer, and the guard below keeps Return off it). A destructive dialog button lets
+  Return through, so the card answers it as a key nothing wanted: the default answer, or none.
+  Space, a click and a reader's press still press it; a destructive `Button` outside a dialog
+  keeps Return, having no default to defer to. Both display modes, without the first stop being
+  focused on the way in the scene (`SceneAccess.pushOverlayFocusing`).
+  `DialogDestructiveReturnTest` holds every order, the destructive button alone, with and
+  without a field, in both modes; one test that walked from Cancel to OK now starts on OK.
 
 ### 12.2 Badge
 
@@ -628,6 +642,11 @@ that the text above does not say, dated where it departs from it.
   stretching column takes all the width it is let).
 - An attached button is a `POPUP_OWNER` and runs `PopupOwnerContract`; its press opens or closes
   the popover before the application's own handler hears it.
+- **A popup opened from inside the popover's window reached no reader** (2026-10-19, the audit of
+  that day): a combo box's list, a date picker's calendar and a text field's menu are grafted into
+  the popover's scene, whose window publishes nothing, and the owner's walk read only its own
+  scene's grafts. The walk now follows a graft inside a graft; ADR 039 section 1.11 has the
+  amendment, `PopoverNestedPopupAccessibilityTest` the cases.
 
 ### 12.6 The input method in a popover's window, measured
 

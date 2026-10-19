@@ -62,6 +62,10 @@ class SceneDriverTest extends ComponentTestBase {
             }
 
             @Override
+            public void pushOverlayFocusing(Scene scene, Widget<?> overlay, Widget<?> first) {
+            }
+
+            @Override
             public void releaseOverlayKeyboard(Scene scene, Widget<?> overlay) {
             }
 

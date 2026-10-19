@@ -2355,6 +2355,25 @@ Orca was not heard: Wayland keeps these popups in the scene, and the demo under 
 Fedora KDE guest stalled after GLFW started. Pinned by `GraftedPopupTest`, `NativePopupCursorTest`,
 `NativePopupRelationTest` and `DatePickerNativePopupTest`.
 
+*(Amended 2026-10-19, the audit of that day: a graft inside a graft. A popover in a window of its
+own (ADR 075) is grafted into its owner's tree and holds ordinary controls, and a popup one of them
+opens -- a combo box's list, a date picker's calendar, a text field's menu -- is grafted into the
+scene its opener lives in, which is the popover's, whose window publishes nothing. The walk read
+the grafts of its own scene alone, so that popup reached no bridge: the combo said `EXPANDED` with
+no list and no cursor. The walk now reads, under each opener, the grafts of the scene the opener
+belongs to, to any depth, each in the owner window's coordinates (the popup window's screen offset
+from the owner's, as before). The cursor is the deepest keyboard popup's: a graft's popup drives the
+keys when the scene it is grafted into is itself driven by this window's keys. The one focused node
+follows a popup holding a focus of its own down the same chain, and a verb on a node of a nested
+graft is performed in its own scene, the action gate counting a popup grafted into a popup as this
+tree's. Closing the inner popup, or the popover with the inner popup open, takes the nodes out at
+the next walk, through the same removal as before. In the scene (Wayland, and a fullscreen owner)
+the popover is a layer of the owner's scene and its combo's list is grafted there already: unchanged,
+and published once. The opener lays a nested graft out before walking it, as it lays out its own:
+the first build published the list 0 by 0 with options -12 points wide and not `SHOWING` whenever
+the owner framed before the list's window had, and the next comparison threw on the negative box,
+leaving that tree published. Pinned by `PopoverNestedPopupAccessibilityTest`.)*
+
 ### 1.12 The role enum is closed, and a role may not be added without a truthful mapping in all three tables
 
 ```

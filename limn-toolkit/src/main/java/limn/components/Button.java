@@ -76,6 +76,10 @@ public final class Button extends Widget<Button> {
     // press while its answer fades out, where the press would run a handler whose own guard
     // drops it (2026-09-15, semantics 5).
     private java.util.function.BooleanSupplier pressAccepted;
+    // Whether Return presses the button while it has the focus. Package-private: a Dialog's
+    // destructive button lets Return through to the dialog, whose answer to it is the default
+    // button's or none, so that Return never deletes (2026-10-19). Space still presses it.
+    private boolean pressedByReturn = true;
     // Hover and focus-ring fades, animated through the shared Transition.
     private final Transition hover =
             new Transition(this).duration(Theme.of(this).animHover).easing(Theme.of(this).animEasing);
@@ -306,6 +310,16 @@ public final class Button extends Widget<Button> {
 
     private boolean pressAccepted() {
         return pressAccepted == null || pressAccepted.getAsBoolean();
+    }
+
+    /**
+     * Leaves Return to whatever holds this button: while focused it no longer consumes the key,
+     * which then bubbles to its ancestors as a key nothing wanted. Space, a click and an
+     * assistive technology's press are unchanged. For a dialog's destructive button, whose
+     * dialog answers Return with its default button or not at all.
+     */
+    void refuseReturn() {
+        this.pressedByReturn = false;
     }
 
     /**
@@ -640,6 +654,10 @@ public final class Button extends Widget<Button> {
     @Override
     protected void onKeyEvent(KeyEvent event) {
         if (event.key() != Keys.ENTER && event.key() != Keys.SPACE) {
+            return;
+        }
+        if (event.key() == Keys.ENTER && !pressedByReturn) {
+            // Not consumed, so it reaches the dialog as a key nothing focused wanted.
             return;
         }
         if (event.isPressed() && !event.isRepeat()) {
