@@ -2350,7 +2350,10 @@ graft is performed in its own scene, the action gate counting a popup grafted in
 tree's. Closing the inner popup, or the popover with the inner popup open, takes the nodes out at
 the next walk, through the same removal as before. In the scene (Wayland, and a fullscreen owner)
 the popover is a layer of the owner's scene and its combo's list is grafted there already: unchanged,
-and published once. Pinned by `PopoverNestedPopupAccessibilityTest`.)*
+and published once. The opener lays a nested graft out before walking it, as it lays out its own:
+the first build published the list 0 by 0 with options -12 points wide and not `SHOWING` whenever
+the owner framed before the list's window had, and the next comparison threw on the negative box,
+leaving that tree published. Pinned by `PopoverNestedPopupAccessibilityTest`.)*
 
 ### 1.12 The role enum is closed, and a role may not be added without a truthful mapping in all three tables
 

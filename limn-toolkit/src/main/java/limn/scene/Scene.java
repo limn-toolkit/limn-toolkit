@@ -6532,9 +6532,19 @@ public final class Scene {
         return once(() -> windowCloseObservers = Listeners.removed(windowCloseObservers, observer));
     }
 
+    /**
+     * Lays this grafted popup out, and every popup grafted into it, to any depth, before the
+     * scene that publishes them walks: a combo box's list opened inside a popover in a window of
+     * its own is the popover's graft, and the owner walked it unlaid when its window had not
+     * framed since it opened, 0 by 0 with options 12 points narrower than nothing, which the next
+     * comparison then refused (2026-10-19).
+     */
     private void layOutForTheSceneThatPublishesIt() {
         if (window != null) {
             layoutPass(window.logicalWidth(), window.logicalHeight());
+        }
+        for (int i = 0; i < graftedPopups.size(); i++) {
+            graftedPopups.get(i).layOutForTheSceneThatPublishesIt();
         }
     }
 

@@ -86,6 +86,20 @@ class PopoverNestedPopupAccessibilityTest extends ComponentTestBase {
         }
     }
 
+    /**
+     * The owner's frame alone, the popup windows not framed since they changed: a frame order a
+     * backend can deliver, since every window frames on its own schedule, and the one in which
+     * the owner has to lay out what it publishes itself.
+     */
+    private void ownerFrameOnly(int key, int modifiers) {
+        drive(scene).keyEvent(key, true, false, modifiers);
+        drive(scene).keyEvent(key, false, false, modifiers);
+        drive(scene).inputBatchEnded();
+        runtime.drain();
+        runtime.drain();
+        owner.frame();
+    }
+
     private void key(int key, int modifiers) {
         drive(scene).keyEvent(key, true, false, modifiers);
         drive(scene).keyEvent(key, false, false, modifiers);
@@ -158,7 +172,51 @@ class PopoverNestedPopupAccessibilityTest extends ComponentTestBase {
             options.add(item.name());
         }
         assertEquals(List.of("Open", "Paid", "Shipped"), options, "each option once" + describe());
+        assertListGeometry(list, combo);
         return list;
+    }
+
+    /**
+     * The list's box and its options' as the control case publishes them, a combo directly in a
+     * window: the list as wide as the combo and as tall as the window it draws in, each option
+     * 30 tall and 6 points in from the list's edges on both sides (148 wide under a 160 combo),
+     * 30 points apart, and an option the list's window shows published {@code SHOWING}. Read
+     * relative to the list, because a headless window stands at the screen's origin whatever its
+     * owner asked (HeadlessWindow#screenX) and has a display of its own size, so where the list
+     * lands against its opener, and how tall it, or a popover inside a popover, may grow, are the
+     * fixture's and not the walk's.
+     */
+    private void assertListGeometry(AccessibleNode list, AccessibleNode combo) {
+        HeadlessWindow listWindow = listWindow();
+        assertEquals(combo.width(), list.width(), "the list is as wide as its combo" + describe());
+        assertEquals(listWindow.logicalHeight(), list.height(),
+                "and as tall as the window it draws in" + describe());
+        float top = Float.NaN;
+        for (AccessibleNode item : withRole(Accessible.Role.LIST_ITEM)) {
+            assertEquals(list.width() - 12, item.width(), item.name() + describe());
+            assertEquals(30f, item.height(), item.name() + describe());
+            assertEquals(list.x() + 6, item.x(), item.name() + describe());
+            if (!Float.isNaN(top)) {
+                assertEquals(top + 30, item.y(), item.name() + describe());
+            }
+            top = item.y();
+            boolean inView = item.y() >= list.y() && item.y() + item.height() <= list.y() + list.height();
+            if (inView) {
+                assertTrue(item.has(Accessible.State.SHOWING), item.name() + " is drawn" + describe());
+            }
+        }
+        assertTrue(AccessibleTrees.named(tree(), "Open").has(Accessible.State.SHOWING), describe());
+    }
+
+    /** The window the combo's list draws in: the one showing a popup panel of options. */
+    private HeadlessWindow listWindow() {
+        for (HeadlessWindow w : backend.windows()) {
+            if (w != owner && !w.isClosed() && w.scene() != null
+                    && w.scene().root().getClass().getSimpleName().equals("PopupPanel")) {
+                return w;
+            }
+        }
+        throw new AssertionError("no list window among " + backend.windows());
     }
 
     // ------------------------------------------------------------- a combo inside the popover
@@ -199,6 +257,43 @@ class PopoverNestedPopupAccessibilityTest extends ComponentTestBase {
         assertTrue(withRole(Accessible.Role.LIST).isEmpty(), "the list left the tree" + describe());
         assertTrue(withRole(Accessible.Role.LIST_ITEM).isEmpty(), describe());
         assertNotNull(AccessibleTrees.named(tree(), "Filter orders"), describe());
+    }
+
+    @Test
+    void theNestedListIsLaidOutBeforeTheOwnerPublishesIt() {
+        // The audit's harness framed the owner before the popup windows: the owner walked a list
+        // whose scene had never laid out, and published it 0 by 0 with options -12 points wide
+        // and not SHOWING; the next diff then threw on the negative box and the tree stayed so.
+        // The owner lays out a popup grafted into it before it walks; it did not lay out one
+        // grafted into that popup.
+        ComboBox<String> status = status();
+        openPopover(column(status), DisplayMode.NATIVE_WINDOW);
+        ownerFrameOnly(Keys.DOWN, Keys.MOD_ALT);
+        assertTrue(status.isOpen());
+        assertListUnderTheCombo();
+        long before = tree().activeDescendant();
+        ownerFrameOnly(Keys.DOWN, 0);
+        assertNotEquals(before, tree().activeDescendant(), "a later walk still publishes"
+                + describe());
+        assertListUnderTheCombo();
+    }
+
+    @Test
+    void theControlListIsLaidOutBeforeTheOwnerPublishesItToo() {
+        // The same frame order for a combo directly in the window: the owner's own graft was
+        // always laid out before the walk, which is what the nested case is held to.
+        backend = new HeadlessBackend(runtime);
+        owner = backend.open("Orders", 600, 400);
+        ComboBox<String> status = status();
+        scene = new Scene(column(status), () -> now[0]);
+        scene.setTextRuler(RULER);
+        scene.bind(owner);
+        owner.frame();
+        scene.requestFocus(status);
+        owner.frame();
+        ownerFrameOnly(Keys.DOWN, Keys.MOD_ALT);
+        assertTrue(status.isOpen());
+        assertListUnderTheCombo();
     }
 
     @Test
