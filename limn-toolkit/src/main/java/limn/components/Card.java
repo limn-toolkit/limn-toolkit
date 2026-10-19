@@ -158,6 +158,8 @@ public final class Card extends Widget<Card> {
     private @Nullable I18nString subtitle;
     private @Nullable Label titleLabel;
     private @Nullable Label subtitleLabel;
+    private int titleLines = 1;
+    private int subtitleLines = 1;
 
     private Style style = Style.ELEVATED;
     private Orientation orientation = Orientation.VERTICAL;
@@ -274,7 +276,8 @@ public final class Card extends Widget<Card> {
     }
 
     /**
-     * Sets a fixed title: one line, strong, ending with an ellipsis where it does not fit.
+     * Sets a fixed title: one line, or as many as {@link #setTitleLines} allows, strong, ending
+     * with an ellipsis where it does not fit.
      *
      * @param newTitle the title, or {@code null} to take it away
      * @return this card
@@ -298,7 +301,7 @@ public final class Card extends Widget<Card> {
         if (newTitle == null) {
             titleLabel = (Label) replace(titleLabel, null, 2);
         } else if (titleLabel == null) {
-            titleLabel = (Label) replace(null, line(newTitle).setStrong(true), 2);
+            titleLabel = (Label) replace(null, line(newTitle, titleLines).setStrong(true), 2);
         } else {
             titleLabel.setText(newTitle);
         }
@@ -313,7 +316,8 @@ public final class Card extends Widget<Card> {
     }
 
     /**
-     * Sets a fixed subtitle: one line, muted, under the title.
+     * Sets a fixed subtitle: one line, or as many as {@link #setSubtitleLines} allows, muted, under
+     * the title.
      *
      * @param newSubtitle the subtitle, or {@code null} to take it away
      * @return this card
@@ -339,7 +343,7 @@ public final class Card extends Widget<Card> {
         if (newSubtitle == null) {
             subtitleLabel = (Label) replace(subtitleLabel, null, 3);
         } else if (subtitleLabel == null) {
-            subtitleLabel = (Label) replace(null, line(newSubtitle).setMuted(true), 3);
+            subtitleLabel = (Label) replace(null, line(newSubtitle, subtitleLines).setMuted(true), 3);
         } else {
             subtitleLabel.setText(newSubtitle);
         }
@@ -351,6 +355,60 @@ public final class Card extends Widget<Card> {
     /** @return the subtitle, resolved in this card's own language, or {@code null} */
     public @Nullable String subtitle() {
         return subtitle == null ? null : subtitle.get();
+    }
+
+    /**
+     * Lets the title break across up to {@code lines} lines, the last ending with an ellipsis when
+     * more of it remains; 1, the default, keeps it on one line. A long name then reads whole on a
+     * narrow card instead of being cut after a few letters. The header grows to the lines the title
+     * takes, and a reader still hears the whole title. UI thread only.
+     *
+     * @param lines the most lines, 1 or more
+     * @return this card
+     * @throws IllegalArgumentException when {@code lines} is below 1
+     */
+    public Card setTitleLines(int lines) {
+        Ui.checkUiThread();
+        titleLines = checkedLines(lines);
+        if (titleLabel != null) {
+            titleLabel.setMaxLines(lines);
+        }
+        return this;
+    }
+
+    /** @return the most lines the title breaks across; see {@link #setTitleLines(int)} */
+    public int titleLines() {
+        return titleLines;
+    }
+
+    /**
+     * Lets the subtitle break across up to {@code lines} lines, as {@link #setTitleLines(int)} does
+     * the title; 1, the default, keeps it on one line. UI thread only.
+     *
+     * @param lines the most lines, 1 or more
+     * @return this card
+     * @throws IllegalArgumentException when {@code lines} is below 1
+     */
+    public Card setSubtitleLines(int lines) {
+        Ui.checkUiThread();
+        subtitleLines = checkedLines(lines);
+        if (subtitleLabel != null) {
+            subtitleLabel.setMaxLines(lines);
+        }
+        return this;
+    }
+
+    /** @return the most lines the subtitle breaks across; see {@link #setSubtitleLines(int)} */
+    public int subtitleLines() {
+        return subtitleLines;
+    }
+
+    private static int checkedLines(int lines) {
+        if (lines < 1) {
+            throw new IllegalArgumentException("a card's title and subtitle show one line at the least, got "
+                    + lines);
+        }
+        return lines;
     }
 
     /**
@@ -447,9 +505,9 @@ public final class Card extends Widget<Card> {
         return part != null && part.isVisible();
     }
 
-    /** A one-line label of the header. */
-    private static Label line(I18nString text) {
-        return new Label(text).setWrap(false).setOverflow(Label.Overflow.ELLIPSIS);
+    /** A label of the header: one line, or as many as its setter allows, ending with an ellipsis. */
+    private static Label line(I18nString text, int lines) {
+        return new Label(text).setWrap(false).setOverflow(Label.Overflow.ELLIPSIS).setMaxLines(lines);
     }
 
     /**
