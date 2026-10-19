@@ -3,7 +3,6 @@ package limn.graphics.internal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -22,16 +21,19 @@ import org.jspecify.annotations.Nullable;
  * combinators. A selector with anything else matches nothing.
  *
  * <p><b>Matching is bounded work</b>: a selector is tried only on the elements its last compound
- * could name (by id, class, type or attribute, as a browser files its rules) or, when that
- * compound names no id or class, on the elements of that type under an ancestor with the id or
- * class an earlier compound names (as {@code #icon-12 path} is tried only inside
- * {@code #icon-12}), a selector chains at
- * most {@value #MAX_COMPOUNDS} compounds, each compound is tried once against each element in one
- * match however many descendant combinators could send it back there, an element's id, class
- * words and attributes are looked up in sets made once for it, and a file whose sheets take more
- * steps than its size can back ({@link #MATCH_STEPS_PER_BYTE} a byte, and {@link #MIN_MATCH_STEPS}
- * at least) is refused. A step is a compound tried, a condition tested, or a character a
- * condition compares or a lookup reads: what a try costs is counted, not only that it was made.
+ * could name (by id, its rarest class, type or attribute, as a browser files its rules) or, when
+ * that compound names no id or class, on the elements of that type under an ancestor with the id
+ * or class an earlier compound names (as {@code #icon-12 path} is tried only inside
+ * {@code #icon-12}); a selector chains at most {@value #MAX_COMPOUNDS} compounds; each compound is
+ * tried once against each element in one match however many descendant combinators could send it
+ * back there; the ids and classes the sheets name are numbered, and an element's id and class
+ * words looked up among them once, so that matching compares numbers and never a long name twice;
+ * and a file whose sheets take more steps than its size can back ({@link #MATCH_STEPS_PER_BYTE} a
+ * byte, and {@link #MIN_MATCH_STEPS} at least) is refused. A step is a compound tried, an id or
+ * class tested, a type or attribute compared (and one more for every sixteen characters), or a
+ * character read to look an element's names up: what a try costs is counted, not only that it
+ * was made. What matching works out about the elements is held by this object, and goes with
+ * the reading.
  */
 final class SvgCss {
 
@@ -40,9 +42,10 @@ final class SvgCss {
     /**
      * The steps a file may take to match its sheets, for each of its bytes. An element is tried
      * only against the selectors filed under its id, its classes, its type and its attributes,
-     * so an export of fifty thousand paths under four hundred class rules takes about a million
-     * steps (the class words read once, a try of a few conditions each): half a step for each
-     * byte of it.
+     * so an export of fifty thousand paths under four hundred class rules takes about 600,000
+     * steps (the class words read once, a try of a few conditions each), a third of a step for
+     * each byte of it; a chart of 200 series over 50,000 points and a sprite sheet of 3,000
+     * symbols take under half a step a byte.
      */
     static final int MATCH_STEPS_PER_BYTE = 4;
     /**
@@ -75,22 +78,44 @@ final class SvgCss {
     /** The tries this file may make: see {@link #MATCH_STEPS_PER_BYTE}. */
     private final long maxSteps;
     /**
-     * Every selector, filed under what its last compound needs of an element: {@code #id},
-     * {@code .class}, a type, {@code [attribute}, or {@code *} for one that needs none of them.
-     * Made at the first match.
+     * Every selector that names no id or class where the index looks (see {@link #byId}), filed
+     * under what its last compound needs of an element: a type, {@code [attribute}, or {@code *}
+     * for one that needs none of them. Made at the first match.
      */
     private @Nullable Map<String, List<Filed>> filed;
     /**
-     * The selectors whose last compound names no id or class but an earlier one does, filed under
-     * the id (or class) of the nearest such compound and then under the last compound's type, or
-     * {@code *}: {@code #s12 path} is tried on the paths that have an ancestor {@code #s12}. Filed
-     * under {@code path} alone, a sprite sheet's four hundred such rules were each tried on every
-     * path of the sheet, and an ordinary file of 112 KB was refused.
+     * Each id and class any selector names, numbered: an element's id and class words are looked
+     * up here once, and from then on matching compares numbers, so a long name is read once for
+     * each element that carries it and never again for each try or each descendant.
      */
-    private final Map<String, Map<String, List<Filed>>> underId = new HashMap<>();
-    private final Map<String, Map<String, List<Filed>>> underClass = new HashMap<>();
+    private final Map<String, Integer> names = new HashMap<>();
+    /**
+     * The selectors whose last compound names an id, filed under it by its number; and those
+     * whose last compound names a class and no id, filed under the one of its classes the fewest
+     * selectors name, so that `.dot.series-3` waits for the elements of `series-3` and not for
+     * every `dot` of a chart.
+     */
+    private final List<@Nullable List<Filed>> byId = new ArrayList<>();
+    private final List<@Nullable List<Filed>> byClass = new ArrayList<>();
+    /**
+     * The selectors whose last compound names no id or class but an earlier one does, filed under
+     * the number of the id (or the rarest class) of the nearest such compound and then under the
+     * last compound's type, or {@code *}: {@code #s12 path} is tried on the paths that have an
+     * ancestor {@code #s12}. Filed under {@code path} alone, a sprite sheet's four hundred such
+     * rules were each tried on every path of the sheet, and an ordinary file of 112 KB was refused.
+     */
+    private final List<@Nullable Map<String, List<Filed>>> underId = new ArrayList<>();
+    private final List<@Nullable Map<String, List<Filed>>> underClass = new ArrayList<>();
+    /** The types (and {@code *}) an element must have for a walk up its ancestors to find it a selector. */
+    private final Set<String> typesUnder = new java.util.HashSet<>();
     /** Whether a selector is filed under an attribute, so an element's attributes are worth looking up. */
     private boolean filedByAttribute;
+    /**
+     * What selectors ask of each element matched, worked out once for it while its attributes
+     * stay. Held here, so it goes with the reading: kept on the elements, it stayed with the
+     * picture for its life at thirty times the file's size.
+     */
+    private final Map<SvgXml.Element, Facts> facts = new IdentityHashMap<>();
     /** The best specificity each rule has matched with in the match under way, -1 for none: reused. */
     private long[] best = new long[0];
 
@@ -99,18 +124,17 @@ final class SvgCss {
     }
 
     /**
-     * What a selector asks of an element, looked up once for it: its id, the words of its
-     * {@code class} (each once, in order) and, the first time a condition names one, its
-     * attributes by name. Kept on the element ({@link SvgXml.Element#matchFacts}) while its
-     * attributes are what they were.
+     * What a selector asks of an element, looked up once for it: the number of its id and those
+     * of its class words that a selector names (sorted, each once), each -1 or left out when no
+     * selector names it, and, the first time a condition names one, its attributes by name.
      */
-    static final class Facts {
+    private static final class Facts {
         final int attributesChanged;
-        final @Nullable String id;
-        final Set<String> classes;
+        final int id;
+        final int[] classes;
         @Nullable Map<String, String> attributes;
 
-        Facts(int attributesChanged, @Nullable String id, Set<String> classes) {
+        Facts(int attributesChanged, int id, int[] classes) {
             this.attributesChanged = attributesChanged;
             this.id = id;
             this.classes = classes;
@@ -384,22 +408,23 @@ final class SvgCss {
         // never tried on an element without that class. Matching every element against every
         // selector refused an export of fifty thousand paths under four hundred class rules.
         List<Integer> touched = new ArrayList<>();
+        String type = element.localName();
         tryFiled("*", element, touched);
-        tryFiled(element.localName(), element, touched);
+        tryFiled(type, element, touched);
         Facts facts = facts(element);
-        if (facts.id != null) {
-            tryFiled("#" + facts.id, element, touched);
+        if (facts.id >= 0) {
+            tryAll(byId.get(facts.id), element, touched);
         }
-        for (String name : facts.classes) {
-            tryFiled("." + name, element, touched);
+        for (int name : facts.classes) {
+            tryAll(byClass.get(name), element, touched);
         }
         if (filedByAttribute) {
             for (int i = 0; i < element.attributeCount(); i++) {
                 tryFiled("[" + element.attributeName(i), element, touched);
             }
         }
-        if (!underId.isEmpty() || !underClass.isEmpty()) {
-            tryUnderAncestors(element, touched);
+        if (typesUnder.contains("*") || typesUnder.contains(type)) {
+            tryUnderAncestors(element, type, touched);
         }
         if (touched.isEmpty()) {
             matching.put(element, NONE);
@@ -425,35 +450,32 @@ final class SvgCss {
     /**
      * Tries the selectors filed under the ids and classes of the element's ancestors, each set
      * once however many ancestors carry its key: a walk up, a step for each ancestor and each of
-     * its classes.
+     * the named classes it has, each a lookup by number.
      */
-    private void tryUnderAncestors(SvgXml.Element element, List<Integer> touched) {
-        String type = element.localName();
+    private void tryUnderAncestors(SvgXml.Element element, String type, List<Integer> touched) {
         Set<Map<String, List<Filed>>> tried = null;
         for (SvgXml.Element up = element.parent(); up != null; up = up.parent()) {
-            Facts facts = facts(up);
-            step(1 + (underClass.isEmpty() ? 0 : facts.classes.size()));
-            Map<String, List<Filed>> under = facts.id == null ? null : underId.get(facts.id);
-            if (under != null) {
-                tried = tryUnder(under, tried, type, element, touched);
+            Facts known = facts(up);
+            step(1 + known.classes.length);
+            if (known.id >= 0) {
+                tried = tryUnder(underId.get(known.id), tried, type, element, touched);
             }
-            if (!underClass.isEmpty()) {
-                for (String name : facts.classes) {
-                    under = underClass.get(name);
-                    if (under != null) {
-                        tried = tryUnder(under, tried, type, element, touched);
-                    }
-                }
+            for (int name : known.classes) {
+                tried = tryUnder(underClass.get(name), tried, type, element, touched);
             }
         }
     }
 
-    private Set<Map<String, List<Filed>>> tryUnder(Map<String, List<Filed>> under,
+    private @Nullable Set<Map<String, List<Filed>>> tryUnder(@Nullable Map<String, List<Filed>> under,
             @Nullable Set<Map<String, List<Filed>>> tried, String type, SvgXml.Element element, List<Integer> touched) {
+        if (under == null) {
+            return tried;
+        }
         if (tried == null) {
             tried = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
         }
         if (tried.add(under)) {
+            step(2 + type.length() / 16);
             tryAll(under.get("*"), element, touched);
             tryAll(under.get(type), element, touched);
         }
@@ -475,25 +497,59 @@ final class SvgCss {
     }
 
     /**
-     * Files every selector under what its last compound needs of an element, or under the
-     * ancestor it needs when that compound names no id or class and an earlier one does.
+     * Numbers every id and class the selectors name, then files every selector under what its
+     * last compound needs of an element, or under the ancestor it needs when that compound names
+     * no id or class and an earlier one does.
      */
     private void file() {
+        List<Integer> uses = new ArrayList<>();
+        for (Rule rule : rules) {
+            for (Selector selector : rule.selectors) {
+                for (Compound compound : selector.compounds) {
+                    compound.number(names, uses);
+                }
+            }
+        }
+        for (int i = 0; i < names.size(); i++) {
+            byId.add(null);
+            byClass.add(null);
+            underId.add(null);
+            underClass.add(null);
+        }
         Map<String, List<Filed>> index = new HashMap<>();
         for (int r = 0; r < rules.size(); r++) {
             for (Selector selector : rules.get(r).selectors) {
-                String key = selector.key();
-                if (key == null) {
+                if (selector.compounds.isEmpty()) {
                     continue;
                 }
-                String[] ancestor = key.startsWith("#") || key.startsWith(".") ? null : selector.ancestorKey();
-                if (ancestor != null) {
-                    (ancestor[0].equals("#") ? underId : underClass).computeIfAbsent(ancestor[1], k -> new HashMap<>())
-                            .computeIfAbsent(selector.lastType(), k -> new ArrayList<>()).add(new Filed(r, selector));
-                } else {
-                    index.computeIfAbsent(key, k -> new ArrayList<>()).add(new Filed(r, selector));
-                    filedByAttribute |= key.startsWith("[");
+                Filed one = new Filed(r, selector);
+                Compound last = selector.compounds.get(selector.compounds.size() - 1);
+                if (last.idCodes.length > 0) {
+                    add(byId, rarest(last.idCodes, uses), one);
+                    continue;
                 }
+                if (last.classCodes.length > 0) {
+                    add(byClass, rarest(last.classCodes, uses), one);
+                    continue;
+                }
+                String lastType = last.type == null ? "*" : last.type;
+                Compound anchor = selector.anchor();
+                if (anchor != null) {
+                    boolean id = anchor.idCodes.length > 0;
+                    int code = rarest(id ? anchor.idCodes : anchor.classCodes, uses);
+                    List<@Nullable Map<String, List<Filed>>> under = id ? underId : underClass;
+                    Map<String, List<Filed>> byType = under.get(code);
+                    if (byType == null) {
+                        byType = new HashMap<>();
+                        under.set(code, byType);
+                    }
+                    byType.computeIfAbsent(lastType, k -> new ArrayList<>()).add(one);
+                    typesUnder.add(lastType);
+                    continue;
+                }
+                String key = last.type != null ? last.type : !last.attributes.isEmpty() ? "[" + last.attributes.get(0)[0] : "*";
+                index.computeIfAbsent(key, k -> new ArrayList<>()).add(one);
+                filedByAttribute |= key.startsWith("[");
             }
         }
         best = new long[rules.size()];
@@ -501,28 +557,51 @@ final class SvgCss {
         filed = index;
     }
 
+    private static void add(List<@Nullable List<Filed>> index, int code, Filed one) {
+        List<Filed> list = index.get(code);
+        if (list == null) {
+            list = new ArrayList<>(2);
+            index.set(code, list);
+        }
+        list.add(one);
+    }
+
+    /** The one of {@code codes} the fewest selectors name. */
+    private static int rarest(int[] codes, List<Integer> uses) {
+        int best = codes[0];
+        for (int code : codes) {
+            if (uses.get(code) < uses.get(best)) {
+                best = code;
+            }
+        }
+        return best;
+    }
+
     /**
      * What selectors ask of an element, worked out once for it and kept while its attributes
-     * stay: the id, and the class words as a set. Looking a class up in the attribute itself
-     * cost a scan of it for each class tried, a scan that started again one character on after
-     * each near miss, and a list of the words cost each word's look through those before it:
-     * a single element of 200,000 classes held the reader 20 seconds.
+     * stay: the number of its id and those of its class words, each looked up once and charged
+     * for each character read. Looking a class up in the attribute itself cost a scan of it for
+     * each class tried, and a list of the words cost each word's look through those before it: a
+     * single element of 200,000 classes held the reader 20 seconds. Only the words a selector
+     * names are kept, so an element of a thousand classes no rule names costs nothing to hold.
      */
-    Facts facts(SvgXml.Element element) {
-        Facts known = element.matchFacts;
+    private Facts facts(SvgXml.Element element) {
+        Facts known = facts.get(element);
         if (known != null && known.attributesChanged == element.attributesChanged) {
             return known;
         }
+        String id = element.attribute("id");
         String classes = element.attribute("class");
-        step(1 + element.attributeCount() + (classes == null ? 0 : classes.length()));
-        known = new Facts(element.attributesChanged, element.attribute("id"), classes == null ? Set.of() : words(classes));
-        element.matchFacts = known;
+        step(1 + element.attributeCount() + (id == null ? 0 : id.length()) + (classes == null ? 0 : classes.length()));
+        Integer idCode = id == null ? null : names.get(id);
+        known = new Facts(element.attributesChanged, idCode == null ? -1 : idCode, classes == null ? NONE : codes(classes));
+        facts.put(element, known);
         return known;
     }
 
     /** The value of an attribute a condition names, from a map made the first time one is asked of the element. */
-    private @Nullable String attribute(Facts facts, SvgXml.Element element, String name) {
-        Map<String, String> attributes = facts.attributes;
+    private @Nullable String attribute(Facts known, SvgXml.Element element, String name) {
+        Map<String, String> attributes = known.attributes;
         if (attributes == null) {
             int count = element.attributeCount();
             step(count);
@@ -530,14 +609,15 @@ final class SvgCss {
             for (int i = 0; i < count; i++) {
                 attributes.putIfAbsent(element.attributeName(i), element.attributeValue(i));
             }
-            facts.attributes = attributes;
+            known.attributes = attributes;
         }
         return attributes.get(name);
     }
 
-    /** The words of a {@code class} attribute, each once, in order. */
-    private static Set<String> words(String attribute) {
-        Set<String> out = new LinkedHashSet<>();
+    /** The numbers of the words of a {@code class} attribute that a selector names, sorted, each once. */
+    private int[] codes(String attribute) {
+        int[] out = NONE;
+        int count = 0;
         int at = 0;
         int length = attribute.length();
         while (at < length) {
@@ -549,10 +629,27 @@ final class SvgCss {
                 at++;
             }
             if (at > start) {
-                out.add(attribute.substring(start, at));
+                Integer code = names.get(attribute.substring(start, at));
+                if (code != null) {
+                    if (count == out.length) {
+                        out = java.util.Arrays.copyOf(out, Math.max(4, count * 2));
+                    }
+                    out[count++] = code;
+                }
             }
         }
-        return out;
+        if (count == 0) {
+            return NONE;
+        }
+        out = java.util.Arrays.copyOf(out, count);
+        java.util.Arrays.sort(out);
+        int unique = 1;
+        for (int i = 1; i < count; i++) {
+            if (out[i] != out[unique - 1]) {
+                out[unique++] = out[i];
+            }
+        }
+        return unique == count ? out : java.util.Arrays.copyOf(out, unique);
     }
 
     /** Counts the steps of matching (see {@link #MATCH_STEPS_PER_BYTE}), and refuses the file past what its size can back. */
@@ -675,52 +772,17 @@ final class SvgCss {
         }
 
         /**
-         * @return what its last compound needs of an element, as the index files it: {@code #id},
-         *         {@code .class}, a type, {@code [attribute}, or {@code *}; null for one that
-         *         matches nothing
+         * @return the nearest compound before the last that names an id or a class, which an
+         *         ancestor of every element this selector matches meets; null when none does
          */
-        @Nullable String key() {
-            if (compounds.isEmpty()) {
-                return null;
-            }
-            Compound last = compounds.get(compounds.size() - 1);
-            if (!last.idsList.isEmpty()) {
-                return "#" + last.idsList.get(0);
-            }
-            if (!last.classes.isEmpty()) {
-                return "." + last.classes.get(0);
-            }
-            if (last.type != null) {
-                return last.type;
-            }
-            if (!last.attributes.isEmpty()) {
-                return "[" + last.attributes.get(0)[0];
-            }
-            return "*";
-        }
-
-        /**
-         * @return the id ({@code #}, name) or else the first class ({@code .}, name) of the
-         *         nearest compound before the last that names one, which an ancestor of every
-         *         element this selector matches has; null when none does
-         */
-        String @Nullable [] ancestorKey() {
+        @Nullable Compound anchor() {
             for (int i = compounds.size() - 2; i >= 0; i--) {
                 Compound compound = compounds.get(i);
-                if (!compound.idsList.isEmpty()) {
-                    return new String[] {"#", compound.idsList.get(0)};
-                }
-                if (!compound.classes.isEmpty()) {
-                    return new String[] {".", compound.classes.get(0)};
+                if (compound.idCodes.length > 0 || compound.classCodes.length > 0) {
+                    return compound;
                 }
             }
             return null;
-        }
-
-        /** @return the type its last compound needs, or {@code *} */
-        String lastType() {
-            String type = compounds.get(compounds.size() - 1).type;
-            return type == null ? "*" : type;
         }
 
         boolean matches(SvgXml.Element element, SvgCss css) {
@@ -814,6 +876,9 @@ final class SvgCss {
         private final List<String> idsList = new ArrayList<>();
         private final List<String[]> attributes = new ArrayList<>();
         private final List<String> pseudos = new ArrayList<>();
+        /** The numbers of its ids and classes among the names the sheets use, given before the first match. */
+        private int[] idCodes = NONE;
+        private int[] classCodes = NONE;
         int ids;
         int classesCount;
         int types;
@@ -914,44 +979,69 @@ final class SvgCss {
             return c;
         }
 
+        /** Numbers its ids and classes among {@code names}, counting in {@code uses} how many compounds name each. */
+        void number(Map<String, Integer> names, List<Integer> uses) {
+            idCodes = new int[idsList.size()];
+            for (int i = 0; i < idCodes.length; i++) {
+                idCodes[i] = number(idsList.get(i), names, uses);
+            }
+            classCodes = new int[classes.size()];
+            for (int i = 0; i < classCodes.length; i++) {
+                classCodes[i] = number(classes.get(i), names, uses);
+            }
+        }
+
+        private static int number(String name, Map<String, Integer> names, List<Integer> uses) {
+            Integer code = names.get(name);
+            if (code == null) {
+                code = names.size();
+                names.put(name, code);
+                uses.add(0);
+            }
+            uses.set(code, uses.get(code) + 1);
+            return code;
+        }
+
         /**
-         * Whether the element meets every condition, each tested until one fails and charged as
-         * a step and a step for each character it compares: a compound of ten thousand classes
-         * costs ten thousand lookups, and is counted so.
+         * Whether the element meets every condition, each tested until one fails and each
+         * charged: an id or a class is a step, a number compared; a type or an attribute a step
+         * and one for every sixteen characters it compares; a pseudo-class a step for each
+         * character, which it parses. A compound of ten thousand classes costs ten thousand
+         * steps, and a chart's `.dot.series-3` costs two.
          */
         boolean matches(SvgXml.Element element, SvgCss css) {
             long work = 0;
             boolean met = true;
             if (type != null) {
-                work += weight(type);
+                work += compare(type.length());
                 met = type.equals(element.localName());
             }
-            Facts facts = met && (!idsList.isEmpty() || !classes.isEmpty() || !attributes.isEmpty()) ? css.facts(element) : null;
-            for (int i = 0; met && i < idsList.size(); i++) {
-                work += weight(idsList.get(i));
-                met = idsList.get(i).equals(facts.id);
+            Facts facts = met && (idCodes.length > 0 || classCodes.length > 0 || !attributes.isEmpty()) ? css.facts(element) : null;
+            for (int i = 0; met && i < idCodes.length; i++) {
+                work++;
+                met = idCodes[i] == facts.id;
             }
-            for (int i = 0; met && i < classes.size(); i++) {
-                work += weight(classes.get(i));
-                met = facts.classes.contains(classes.get(i));
+            for (int i = 0; met && i < classCodes.length; i++) {
+                work++;
+                met = java.util.Arrays.binarySearch(facts.classes, classCodes[i]) >= 0;
             }
             for (int i = 0; met && i < attributes.size(); i++) {
                 String[] a = attributes.get(i);
-                work += weight(a[0]) + (a[1] == null ? 0 : a[1].length());
+                work += compare(a[0].length() + (a[1] == null ? 0 : a[1].length()));
                 String value = css.attribute(facts, element, a[0]);
                 met = value != null && (a[1] == null || a[1].equals(value));
             }
             for (int i = 0; met && i < pseudos.size(); i++) {
-                work += weight(pseudos.get(i));
+                work += 1 + pseudos.get(i).length();
                 met = pseudo(pseudos.get(i), element, css);
             }
             css.step(work);
             return met;
         }
 
-        /** A condition's steps: one, and one for each character of what it compares. */
-        private static int weight(String compared) {
-            return 1 + compared.length();
+        /** The steps of comparing {@code characters} characters: one, and one for every sixteen. */
+        private static int compare(int characters) {
+            return 1 + characters / 16;
         }
 
         private static boolean pseudo(String pseudo, SvgXml.Element element, SvgCss css) {
