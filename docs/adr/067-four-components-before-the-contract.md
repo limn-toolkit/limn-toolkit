@@ -117,6 +117,29 @@ Markdown.
   `D`, `DE`, `DE8`; a lone digit that equals a literal still goes to the position. A literal the
   text ends in is therefore kept, and Backspace takes it back one character at a time instead
   of stepping over it, which it still does where the fitting would put the literal back.
+- *Amended 2026-10-19:* **an edit is made to the value, not to the text.** The 2026-10-19
+  audit found that an edit anywhere before the end still fitted the whole edited text afresh, so
+  a literal the edit shifted could stop matching where the pattern has it and be taken by the
+  next position: `+1 (555) 123-4567`, Home, `9` read `+1 (915) 551-2345`, the 1 of `+1` taken
+  as a digit and the 7 pushed off, with `isMaskComplete()` still true; `****-****` took its own
+  dash after a Backspace, and a quoted `9` became a value. An edit of part of the text now maps
+  the range it replaced to the value's characters, removes those, inserts the characters of
+  what was typed or pasted that a position takes (read from the entry where they land, so a
+  fragment pasted with its literals, or the literal under the caret typed over, is still
+  taken as literals), and writes the text again from the value; reading the whole text afresh
+  is kept for a whole new value (set from code, typed or pasted over everything, set by an
+  assistive technology), and an undo or a redo reads the text it puts back as the field wrote
+  it. **Inserting into a field with no position free changes nothing**: the inserted characters
+  give way, never the value's, which is what typing at the end of a full field already did and
+  what "what does not fit after the last position is dropped" meant for a paste; the other
+  reading, pushing the last character off, is the silent loss the audit reported. Typing the
+  literal under the caret mid-text now steps over it, as it does at the end. Unchanged, and
+  still the owner's to decide: on a pattern that mixes kinds of position (`AAA-0000-**`), the
+  characters after an edit close up, and one that lands in a position that refuses it is passed
+  over (`ABC-1234-XY`, Backspace after the 3, gives `ABC-124`: the X and the Y land in the
+  fourth digit's place). What an edit inserts on such a pattern is limited by the count of free
+  positions, so it can still close up a later character the same way; nothing an edit does
+  there turns a literal into a value.
 - *Amended 2026-10-16:* **the reader no longer hears the pattern.** Read aloud, `AA-0000` is
   "A A dash zero zero zero zero" where it means two letters and four digits, in every language,
   and as the field's description it pushed out the tooltip, which the walk gives only to a node

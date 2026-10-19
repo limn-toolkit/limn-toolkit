@@ -3,6 +3,8 @@ package limn.components.internal.text;
 import java.util.Arrays;
 import java.util.Objects;
 
+import org.jspecify.annotations.Nullable;
+
 /**
  * A pattern a text field types to: {@code 0} takes a digit, {@code A} a letter, {@code *} any
  * character, and every other character is a literal the field writes by itself. What it does is
@@ -17,6 +19,11 @@ import java.util.Objects;
  * itself ends in stays, when it shows the text was written with its literals: the user who types
  * the {@code D} of {@code 'DE'00} sees it, and Backspace takes such a run back one character at a
  * time, so {@code 123.4} loses the 4 and then the dot.
+ *
+ * <p>An edit of a text the pattern already wrote is not fitted that way: {@link #edit} works on
+ * the value, so a literal the edit shifts is never read again as a character a position takes,
+ * which a text read afresh cannot promise, and the value's characters are never pushed off the
+ * end to make room for what the edit inserts.
  *
  * <p>Text between single quotes is literal, so a {@code 0}, an {@code A} or a {@code *} can be one
  * ({@code +'0' 000}), and two single quotes are one apostrophe, inside quotes and out: the rule of
@@ -156,7 +163,161 @@ public final class InputMask {
         return conform(raw, caret, false);
     }
 
+    /**
+     * Applies an edit to a text this mask wrote, in terms of its value: the filled characters the
+     * edit removed go, the characters of {@code inserted} a position takes go in where it landed,
+     * and the text is written again from the value, so a literal the edit shifted is never read
+     * as a value character. {@code inserted} is read from the entry it lands on, literals
+     * included: a fragment pasted with its literals, or the literal under the caret typed over, is
+     * taken as those literals, and the caret steps past them. With no position free, the inserted
+     * characters that find none are dropped: an edit never pushes the value's own characters off
+     * the end. On a pattern that mixes kinds of position, the value's characters after the edit
+     * close up as {@link #conformRaw} fits them, and one that lands in a position refusing it is
+     * passed over.
+     *
+     * <p>A Backspace or Delete with nothing selected ({@code step} -1 or 1) that took only
+     * literals, which writing the text again puts back, takes the filled character beyond them
+     * instead, as the user meant; a literal the text ended in is not put back, so it goes alone.
+     *
+     * @param text     a text this mask wrote, such as {@link Conformed#text()}
+     * @param from     where the edit's range begins in {@code text}, in chars
+     * @param to       where it ends, in chars
+     * @param inserted what took its place
+     * @param step     -1 for a Backspace, 1 for a Delete, with nothing selected; 0 otherwise
+     * @return the text, the caret after what was inserted, and the filled characters
+     */
+    public Conformed edit(String text, int from, int to, String inserted, int step) {
+        int a = text.codePointCount(0, from);
+        int b = a + text.codePointCount(from, to);
+        StringBuilder before = new StringBuilder();
+        StringBuilder after = new StringBuilder();
+        boolean tookValue = false;
+        int entry = 0;
+        for (int k = 0; k < text.length(); entry++) {
+            int cp = text.codePointAt(k);
+            if (entry < codePoints.length && slotAt[entry]) {
+                if (entry < a) {
+                    before.appendCodePoint(cp);
+                } else if (entry >= b) {
+                    after.appendCodePoint(cp);
+                } else {
+                    tookValue = true;
+                }
+            }
+            k += Character.charCount(cp);
+        }
+        int kept = before.codePointCount(0, before.length());
+        Read typed = read(inserted, inserted.length(), true, a);
+        String added = typed.raw();
+        int reach = typed.entries();
+        int room = slots - kept - after.codePointCount(0, after.length());
+        if (added.codePointCount(0, added.length()) > room) {
+            // No position for the rest: what was inserted gives way, never the value.
+            room = Math.max(room, 0);
+            added = added.substring(0, added.offsetByCodePoints(0, room));
+            reach = room == 0 ? 0 : slotEntry(kept + room - 1) + 1 - a;
+        }
+        String raw = before + added + after;
+        Conformed fit = conformRaw(raw, before.length() + added.length());
+        String fitted = fit.text();
+        int written = fitted.codePointCount(0, fitted.length());
+        int caretEntry = Math.max(fitted.codePointCount(0, fit.caret()), a + reach);
+        if (after.isEmpty()) {
+            // No value follows the edit, so the text may end in literals written by hand: those
+            // before it and those it typed stay, and so do those after it, which are put back
+            // over a literal the edit took between them (the run is written in one piece). Only
+            // a literal the text ended in, taken from the end, goes.
+            int oldWritten = text.codePointCount(0, text.length());
+            int limit = Math.max(a + reach, b < oldWritten ? oldWritten : 0);
+            if (written < limit && written < codePoints.length && !slotAt[written]) {
+                StringBuilder out = new StringBuilder(fitted);
+                for (; written < limit && written < codePoints.length && !slotAt[written]; written++) {
+                    out.appendCodePoint(codePoints[written]);
+                }
+                fitted = out.toString();
+            }
+        }
+        if (step != 0 && !tookValue && inserted.isEmpty() && fitted.equals(text)) {
+            // Only literals went, and writing the text again put them back: the key came to
+            // nothing, so it takes the filled character beyond them.
+            String value = before + after.toString();
+            int gone = step < 0 ? kept - 1 : kept;
+            if (gone >= 0 && gone < value.codePointCount(0, value.length())) {
+                String left = removeRaw(value, gone);
+                return conformRaw(left, left.offsetByCodePoints(0, gone));
+            }
+        }
+        int caret = fitted.offsetByCodePoints(0, Math.min(caretEntry, written));
+        return new Conformed(fitted, caret, fit.raw());
+    }
+
+    /** @return the entry of the pattern that holds the {@code index}-th position to fill */
+    private int slotEntry(int index) {
+        for (int i = 0, n = 0; i < codePoints.length; i++) {
+            if (slotAt[i] && n++ == index) {
+                return i;
+            }
+        }
+        return codePoints.length;
+    }
+
+    /**
+     * Reads a text this mask wrote as it stands, without fitting it: what an undo or a redo puts
+     * back is such a text, and reading it afresh with {@link #conform} could take a literal as a
+     * value where the text cannot say, as {@code '55'00000} can't.
+     *
+     * @param text  any text
+     * @param caret a caret in {@code text}, in chars
+     * @return the text, the caret and its filled characters, or {@code null} when the mask would
+     *         not have written this text: a literal out of place, a character its position does
+     *         not take, a position left empty before the end, or a complete value without the
+     *         literals that end the pattern
+     */
+    public @Nullable Conformed written(String text, int caret) {
+        StringBuilder raw = new StringBuilder(slots);
+        int entry = 0;
+        int filled = 0;
+        for (int k = 0; k < text.length(); entry++) {
+            int cp = text.codePointAt(k);
+            if (entry >= codePoints.length) {
+                return null;
+            }
+            if (slotAt[entry]) {
+                if (!accepts(codePoints[entry], cp)) {
+                    return null;
+                }
+                raw.appendCodePoint(cp);
+                filled++;
+            } else if (cp != codePoints[entry]) {
+                return null;
+            }
+            k += Character.charCount(cp);
+        }
+        if (filled == slots && entry < codePoints.length) {
+            return null;
+        }
+        return new Conformed(text, caret, raw.toString());
+    }
+
     private Conformed conform(String text, int caret, boolean readsLiterals) {
+        Read read = read(text, caret, readsLiterals, 0);
+        return new Conformed(read.text(), read.caret(), read.raw());
+    }
+
+    /**
+     * What {@link #read} made of a text: the conformed text, written from entry {@code start} on,
+     * the caret, the filled characters, and how many entries of the pattern the text holds.
+     */
+    private record Read(String text, int caret, String raw, int entries) {
+    }
+
+    /**
+     * The fitting itself, of a text that begins at entry {@code start} of the pattern: zero for a
+     * whole value, the entry an edit lands on for what the edit inserts. A text that begins inside
+     * a run of literals is read as the rest of that run, the part before {@code start} being
+     * already in the text it lands in.
+     */
+    private Read read(String text, int caret, boolean readsLiterals, int start) {
         StringBuilder out = new StringBuilder(pattern.length());
         StringBuilder raw = new StringBuilder(slots);
         StringBuilder pending = new StringBuilder();
@@ -164,8 +325,9 @@ public final class InputMask {
         int filled = 0;
         int newCaret = 0;
         boolean caretAfterLiterals = false;
+        int entries = 0;
         int at = 0;
-        int p = 0;
+        int p = start;
         while (p < codePoints.length && at < text.length()) {
             int slot = codePoints[p];
             if (!slotAt[p]) {
@@ -177,12 +339,17 @@ public final class InputMask {
                 while (end < codePoints.length && !slotAt[end]) {
                     end++;
                 }
-                RunRead read = readsLiterals ? afterRun(text, at, p, end) : new RunRead(at, p);
+                int runStart = p;
+                while (p == start && runStart > 0 && !slotAt[runStart - 1]) {
+                    runStart--;
+                }
+                RunRead read = readsLiterals ? afterRun(text, at, runStart, p, end) : new RunRead(at, p);
                 if (read.at() > at && read.at() >= text.length()) {
                     // The text ends in the run, which it carries this far: the literals typed by
                     // hand are written now, a keystroke that shows, and the rest wait as ever.
                     for (int r = p; r < read.through(); r++) {
                         out.appendCodePoint(codePoints[r]);
+                        entries++;
                     }
                     for (int r = read.through(); r < end; r++) {
                         pending.appendCodePoint(codePoints[r]);
@@ -207,6 +374,7 @@ public final class InputMask {
             if (!accepts(slot, cp)) {
                 continue;
             }
+            entries += pending.codePointCount(0, pending.length()) + 1;
             out.append(pending);
             pending.setLength(0);
             out.appendCodePoint(cp);
@@ -218,10 +386,11 @@ public final class InputMask {
             }
             filled++;
         }
-        if (filled == slots) {
+        if (start == 0 && filled == slots) {
             // No position follows the literals that end the pattern, so they arrive with the last
             // one: a complete value is the pattern's text, "(12)" and not "(12". What the loop
             // already met is in pending; whatever it did not reach is literal too.
+            entries += pending.codePointCount(0, pending.length()) + codePoints.length - p;
             out.append(pending);
             for (; p < codePoints.length; p++) {
                 out.appendCodePoint(codePoints[p]);
@@ -234,7 +403,7 @@ public final class InputMask {
         if (rawBeforeCaret == 0 && !caretAfterLiterals) {
             newCaret = 0;
         }
-        return new Conformed(out.toString(), Math.min(newCaret, out.length()), raw.toString());
+        return new Read(out.toString(), Math.min(newCaret, out.length()), raw.toString(), entries);
     }
 
     /**
@@ -259,16 +428,25 @@ public final class InputMask {
      * holds shows it was written with its literals: {@code D} under {@code 'DE'00}, {@code +1}
      * under {@code +1 (000)}. A {@code 1} alone there shows nothing, and goes to the position.
      *
+     * <p>Read from inside the run ({@code runStart < from}), the literals before {@code from} are
+     * already written where the text lands, and they are shown: the {@code 1} typed after the
+     * {@code +} of {@code +1 (000)} is the literal's.
+     *
      * @return where the text goes on, and the end of the run's literals it carried, which is
      *         {@code from} when it carried none
      */
-    private RunRead afterRun(String text, int at, int from, int to) {
+    private RunRead afterRun(String text, int at, int runStart, int from, int to) {
         int next = to < codePoints.length ? codePoints[to] : -1;
         int t = at;
         int through = from;
         boolean refusable = false;
         boolean refusableShown = false;
         boolean whole = true;
+        for (int r = runStart; r < from; r++) {
+            boolean taken = next >= 0 && accepts(next, codePoints[r]);
+            refusable |= !taken;
+            refusableShown |= !taken;
+        }
         for (int r = from; r < to; r++) {
             if (t >= text.length()) {
                 // The text ends inside the run: what it holds so far decides.

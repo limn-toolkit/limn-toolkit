@@ -83,6 +83,11 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * exactly what it took, and stepping over there took a character the user never chose.
      */
     private int collapsedDelete;
+    /**
+     * Whether the edit being fitted is an undo or a redo, which puts back a text the mask wrote:
+     * read as it stands, since reading it afresh could take one of its literals for a value.
+     */
+    private boolean restoringHistory;
     /** The guide's unfilled tail as last shaped, kept while it reads the same. */
     private @Nullable String guideTailText;
     private @Nullable ShapedText guideTailLine;
@@ -235,7 +240,8 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * are passed over, and pasting a value with its literals or without them comes out the same.
      * A literal typed by hand shows as it is typed, when it is a character the next position
      * would refuse or follows one: the {@code D} and then the {@code E} of {@code "'DE'00"}, the
-     * {@code +1} of {@code "+1 (000)"}; Backspace takes such literals back one at a time.
+     * {@code +1} of {@code "+1 (000)"}; Backspace takes such literals back one at a time, and
+     * typing the literal under the caret, anywhere in the text, steps over it.
      * While the field has the keyboard, the positions still to fill show as a guide
      * ({@code ___.___.___-__}), and the caret at the end of the text is drawn where the next
      * character will appear, past the literals the guide shows before it (after {@code DE} in an
@@ -257,6 +263,14 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * space, a parenthesis) is what shows it does. A run of literals made only of characters its
      * position takes ({@code "'55'00000"}) is the one case the text cannot tell: a value that
      * begins with that run is read as carrying it, so set such a field from its formatted text.
+     *
+     * <p>An edit before the end of the text is made to the value: the characters it takes go,
+     * those typed or pasted go in where the caret is, and the text is written again, so the
+     * literals stay where the pattern has them however the edit shifts what follows, and none of
+     * them is ever read as a character typed into a position. An edit never pushes characters
+     * already typed off the end: typing or pasting into a field with no position free changes
+     * nothing, as typing at the end of a full field does, and what finds no free position of a
+     * longer paste is dropped. To replace characters, select them and type over them.
      *
      * <p>The text already in the field is fitted at once. {@code null} takes the mask away and
      * leaves the text as it is.
@@ -298,33 +312,44 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         return mask == null ? model.text() : maskedRaw;
     }
 
-    /** @return whether every position of the mask is filled; without a mask, {@code true} */
+    /**
+     * @return whether every position of the mask holds a character typed, pasted or set into
+     *         it, never a literal; without a mask, {@code true}
+     */
     public boolean isMaskComplete() {
         return mask == null || maskedRaw.codePointCount(0, maskedRaw.length()) == mask.slots();
     }
 
     /**
      * Fits the text the last edit left to the mask, folding the fitting into that edit so one undo
-     * takes both back. A Backspace or Delete with nothing selected that took only a literal the
-     * fitting puts back takes the character beyond it instead, as the user meant; any other edit that took only a
-     * literal (a selected one cut, or a selection holding one typed or pasted over with the same
-     * characters) is fitted as it stands, and the literal comes back.
+     * takes both back. An edit of part of the text is applied to the value
+     * ({@link limn.components.internal.text.InputMask#edit}), so the literals it shifts are never
+     * read again as characters a position takes; a whole new text (set from code, typed or pasted
+     * over everything, set by an assistive technology) is fitted as a value from scratch; an undo
+     * or a redo reads the text it puts back as the mask wrote it.
      */
     private void fitToMask() {
         String text = model.text();
         int caret = model.cursor();
-        limn.components.internal.text.InputMask.Conformed fit = mask.conform(text, caret);
-        if (collapsedDelete != 0 && fit.raw().equals(maskedRaw) && fit.text().equals(maskedText)) {
-            // Only literals went, and the fitting put them back: the key came to nothing. A
-            // literal the text ended in is not put back, so Backspace takes it alone.
-            String before = mask.conform(text.substring(0, Math.min(caret, text.length())), caret).raw();
-            int k = before.codePointCount(0, before.length());
-            int count = maskedRaw.codePointCount(0, maskedRaw.length());
-            int gone = collapsedDelete < 0 ? k - 1 : k;
-            if (gone >= 0 && gone < count) {
-                String raw = limn.components.internal.text.InputMask.removeRaw(maskedRaw, gone);
-                fit = mask.conformRaw(raw, raw.offsetByCodePoints(0, gone));
-            }
+        int offset = model.damageOffset();
+        int removed = model.damageRemoved();
+        int inserted = model.damageInserted();
+        limn.components.internal.text.InputMask.Conformed fit =
+                restoringHistory ? mask.written(text, caret) : null;
+        if (fit != null) {
+            // Put back as it was written.
+        } else if (offset == 0 && inserted == text.length()) {
+            fit = mask.conform(text, caret);
+        } else if (offset + removed <= maskedText.length()
+                && maskedText.length() - removed + inserted == text.length()
+                && text.regionMatches(0, maskedText, 0, offset)
+                && text.regionMatches(offset + inserted, maskedText, offset + removed,
+                        maskedText.length() - offset - removed)) {
+            fit = mask.edit(maskedText, offset, offset + removed,
+                    text.substring(offset, offset + inserted), collapsedDelete);
+        } else {
+            // The text moved by some other way than an edit of what the mask wrote.
+            fit = mask.conform(text, caret);
         }
         maskedText = fit.text();
         maskedRaw = fit.raw();
@@ -1580,14 +1605,14 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
             }
             case Keys.Z -> {
                 if (shortcut) {
-                    editFromUser(shift ? () -> model.redo() : () -> model.undo());
+                    editHistory(shift);
                 } else {
                     handled = false;
                 }
             }
             case Keys.Y -> {
                 if (shortcut) {
-                    editFromUser(() -> model.redo());
+                    editHistory(true);
                 } else {
                     handled = false;
                 }
@@ -1599,6 +1624,16 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
             resetBlink();
             invalidate();
             event.consume();
+        }
+    }
+
+    /** Undoes, or redoes, as the user's edit. */
+    private void editHistory(boolean redo) {
+        restoringHistory = true;
+        try {
+            editFromUser(redo ? () -> model.redo() : () -> model.undo());
+        } finally {
+            restoringHistory = false;
         }
     }
 

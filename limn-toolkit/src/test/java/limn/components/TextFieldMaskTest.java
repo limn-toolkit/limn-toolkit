@@ -206,6 +206,160 @@ class TextFieldMaskTest extends AccessibleComponentTestBase {
         assertEquals("123", field.unmaskedText());
     }
 
+    // ------------------------------------- edits before the end never read a literal as a value
+
+    /** A field under {@code pattern} holding {@code text}, with the keyboard, the caret at {@code caret}. */
+    private void holding(String pattern, String text, int caret) {
+        bindField(pattern);
+        field.setText(text);
+        field.requestFocus();
+        field.setCaretPosition(caret);
+    }
+
+    @Test
+    void typingAtHomeBeforeALiteralThePositionWouldTakeKeepsTheLiteralAndEveryDigit() {
+        holding("+1 (000) 000-0000", "+1 (555) 123-456", 0);
+        type("9");
+        assertEquals("+1 (955) 512-3456", field.text(), "the 1 of +1 stays a literal");
+        assertEquals("9555123456", field.unmaskedText());
+        assertTrue(field.isMaskComplete());
+        assertEquals(5, field.caretPosition(), "after the 9");
+
+        holding("+55 (00) 00000-0000", "+55 (51) 98765-432", 0);
+        type("9");
+        assertEquals("+55 (95) 19876-5432", field.text(), "the 55 of +55 stays a literal");
+        assertEquals("95198765432", field.unmaskedText());
+    }
+
+    @Test
+    void typingIntoAFullFieldBeforeItsEndIsRefusedAndNothingFallsOff() {
+        holding("+1 (000) 000-0000", "+1 (555) 123-4567", 0);
+        type("9");
+        assertEquals("+1 (555) 123-4567", field.text(), "not +1 (915) 551-2345: no position is free");
+        assertEquals("5551234567", field.unmaskedText(), "the 7 is still there");
+        assertTrue(field.isMaskComplete());
+
+        holding("+55 (00) 00000-0000", "+55 (51) 98765-4321", 0);
+        type("9");
+        assertEquals("+55 (51) 98765-4321", field.text());
+
+        holding("AAA-0000-**", "ABC-1234-XY", 7); // after the 3
+        type("5");
+        assertEquals("ABC-1234-XY", field.text(), "not ABC-1235-4-: the dash never becomes a value");
+        assertEquals("ABC1234XY", field.unmaskedText());
+
+        holding("000 '9' 000", "123 9 456", 1);
+        type("7");
+        assertEquals("123 9 456", field.text(), "not 172 9 394");
+        assertEquals("123456", field.unmaskedText());
+    }
+
+    @Test
+    void typingBeforeAQuotedDigitLiteralKeepsItALiteral() {
+        holding("000 '9' 000", "123 9 45", 1);
+        type("7");
+        assertEquals("172 9 345", field.text(), "the quoted 9 stays where the pattern has it");
+        assertEquals("172345", field.unmaskedText());
+        assertEquals(2, field.caretPosition());
+    }
+
+    @Test
+    void typingBeforeALiteralAnAnyPositionWouldTakeKeepsTheLiteral() {
+        holding("AAA-0000-**", "ABC-1234-X", 7); // after the 3
+        type("5");
+        assertEquals("ABC-1235-4X", field.text(), "the dash stays a literal; the X stays too");
+        assertEquals("ABC12354X", field.unmaskedText());
+        assertTrue(field.isMaskComplete());
+    }
+
+    @Test
+    void backspaceOnAValueBeforeALiteralAnAnyPositionWouldTakeClosesUpTheValuesAlone() {
+        holding("****-****", "ABCD-EFGH", 2); // after the B
+        drive(scene).press(Keys.BACKSPACE);
+        assertEquals("ACDE-FGH", field.text(), "not ACD--EFGH");
+        assertEquals("ACDEFGH", field.unmaskedText());
+        assertFalse(field.isMaskComplete(), "one position is free again");
+        assertEquals(1, field.caretPosition(), "where the B was");
+    }
+
+    @Test
+    void backspaceAndDeleteBeforeAQuotedDigitLiteralKeepItALiteral() {
+        holding("000 '9' 000", "123 9 456", 2); // after the 2
+        drive(scene).press(Keys.BACKSPACE);
+        assertEquals("134 9 56", field.text());
+        assertEquals("13456", field.unmaskedText());
+
+        holding("000 '9' 000", "123 9 456", 0);
+        drive(scene).press(Keys.DELETE);
+        assertEquals("234 9 56", field.text());
+        assertEquals("23456", field.unmaskedText());
+        assertEquals(0, field.caretPosition());
+    }
+
+    @Test
+    void typingOverASelectionBeforeALiteralAPositionWouldTakeKeepsTheLiteral() {
+        holding("****-****", "ABCD-EFG", 1);
+        field.select(1, 3); // "BC"
+        type("x");
+        assertEquals("AxDE-FG", field.text(), "not AxD--EFG");
+        assertEquals("AxDEFG", field.unmaskedText());
+
+        holding("+1 (000) 000-0000", "+1 (555) 123-4567", 0);
+        field.select(0, 2); // "+1", literals alone
+        type("9");
+        assertEquals("+1 (555) 123-4567", field.text(), "full: refused, and the literals come back");
+        assertEquals("5551234567", field.unmaskedText());
+    }
+
+    @Test
+    void pastingAFragmentBeforeALiteralThePositionWouldTakeKeepsTheLiteral() {
+        holding("000 '9' 000", "123 9 4", 1);
+        field.insertText("78");
+        assertEquals("178 9 234", field.text(), "not 178 2 394: the quoted 9 stays a literal");
+        assertEquals("178234", field.unmaskedText());
+        assertTrue(field.isMaskComplete());
+
+        holding("000 '9' 000", "1", 1);
+        field.insertText("23 9 4");
+        assertEquals("123 9 4", field.text(), "a fragment with its literals reads as one");
+        assertEquals("1234", field.unmaskedText());
+    }
+
+    @Test
+    void typingTheLiteralUnderTheCaretMidTextStepsOverIt() {
+        holding("000.000", "123.456", 3); // before the dot
+        type(".");
+        assertEquals("123.456", field.text());
+        assertEquals(4, field.caretPosition(), "past the dot, as typing it at the end does");
+        type("9");
+        assertEquals("123.456", field.text(), "the field is full: refused");
+
+        holding("+1 (000) 000-0000", "+1 (555) 123-4567", 1); // after the +
+        type("1 (");
+        assertEquals("+1 (555) 123-4567", field.text());
+        assertEquals(4, field.caretPosition(), "the literals typed over, one by one");
+    }
+
+    @Test
+    void undoAfterAnEditBeforeALiteralRunRestoresTheValueAsItWas() {
+        holding("+1 (000) 000-0000", "+1 (555) 123-456", 0);
+        type("9");
+        drive(scene).press(Keys.Z, COMMAND);
+        assertEquals("+1 (555) 123-456", field.text());
+        assertEquals("555123456", field.unmaskedText());
+        drive(scene).press(Keys.Z, COMMAND | Keys.MOD_SHIFT);
+        assertEquals("+1 (955) 512-3456", field.text());
+        assertEquals("9555123456", field.unmaskedText());
+
+        holding("'55'00000", "5555123", 2); // the run's 55, then 55123 the value's
+        drive(scene).press(Keys.DELETE);
+        assertEquals("555123", field.text());
+        assertEquals("5123", field.unmaskedText());
+        drive(scene).press(Keys.Z, COMMAND);
+        assertEquals("5555123", field.text());
+        assertEquals("55123", field.unmaskedText(), "an undo reads the text as the field wrote it");
+    }
+
     // ------------------------------------------------- where the caret is drawn
 
     @Test

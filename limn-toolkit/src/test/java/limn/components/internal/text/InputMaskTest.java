@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -203,5 +204,87 @@ class InputMaskTest {
     @Test
     void removingAFilledCharacterClosesUp() {
         assertEquals("1245", InputMask.removeRaw("12345", 2));
+    }
+
+    // ------------------------------------------------------- an edit made to the value
+
+    private static final InputMask US = InputMask.of("+1 (000) 000-0000");
+
+    @Test
+    void anEditBeforeARunThePositionWouldTakeNeverReadsTheRunAsValue() {
+        InputMask.Conformed home = US.edit("+1 (555) 123-456", 0, 0, "9", 0);
+        assertEquals("+1 (955) 512-3456", home.text());
+        assertEquals("9555123456", home.raw());
+        assertEquals(5, home.caret(), "after the 9");
+
+        InputMask.Conformed back = InputMask.of("****-****").edit("ABCD-EFGH", 1, 2, "", -1);
+        assertEquals("ACDE-FGH", back.text(), "the dash stays a literal");
+        assertEquals(1, back.caret());
+
+        InputMask.Conformed quoted = InputMask.of("000 '9' 000").edit("123 9 45", 1, 1, "7", 0);
+        assertEquals("172 9 345", quoted.text());
+        assertEquals("172345", quoted.raw());
+    }
+
+    @Test
+    void anEditIntoAFieldWithNoPositionFreeGivesWayAndKeepsTheValue() {
+        InputMask.Conformed full = US.edit("+1 (555) 123-4567", 0, 0, "9", 0);
+        assertEquals("+1 (555) 123-4567", full.text(), "nothing pushed off the end");
+        assertEquals("5551234567", full.raw());
+        assertEquals(0, full.caret());
+
+        InputMask.Conformed longer = US.edit("+1 (555) 123-45", 4, 4, "9876", 0);
+        assertEquals("+1 (985) 551-2345", longer.text(), "the room there was, and no more");
+        assertEquals(6, longer.caret(), "after the last character that found a position");
+    }
+
+    @Test
+    void anInsertedFragmentIsReadFromTheEntryItLandsOn() {
+        InputMask.Conformed literalUnderCaret = CODE.edit("123.456", 3, 3, ".", 0);
+        assertEquals("123.456", literalUnderCaret.text());
+        assertEquals(4, literalUnderCaret.caret(), "past the dot typed over");
+
+        InputMask.Conformed afterPlus = US.edit("+1 (555) 123-4567", 1, 1, "1", 0);
+        assertEquals(2, afterPlus.caret(), "after the +, the 1 is the literal's");
+        assertEquals("5551234567", afterPlus.raw());
+
+        InputMask.Conformed formatted = US.edit("+1 (5", 5, 5, "55) 123-4567", 0);
+        assertEquals("+1 (555) 123-4567", formatted.text());
+        assertEquals("5551234567", formatted.raw());
+    }
+
+    @Test
+    void aBackspaceOrDeleteThatTookOnlyALiteralTakesTheCharacterBeyondIt() {
+        assertEquals("124", CODE.edit("123.4", 3, 4, "", -1).text(), "Backspace after the dot");
+        assertEquals(2, CODE.edit("123.4", 3, 4, "", -1).caret());
+        assertEquals("123", CODE.edit("123.4", 3, 4, "", 1).text(), "Delete before the dot");
+        assertEquals("123.4", CODE.edit("123.4", 3, 4, "", 0).text(), "a selected dot cut: it comes back");
+        assertEquals("123", CODE.edit("123.", 3, 4, "", -1).text(), "a dot the text ended in goes alone");
+        assertEquals("(1", InputMask.of("(00)").edit("(12)", 3, 4, "", -1).text());
+        assertEquals("+1 ", US.edit("+1 (", 3, 4, "", -1).text(), "a run typed by hand, from its end");
+        assertEquals("+1 (", US.edit("+1 (", 0, 1, "", 1).text(),
+                "from its middle the run is put back: it is written in one piece");
+    }
+
+    @Test
+    void onAMixedPatternTheCharactersAfterAnEditCloseUpAndARefusedOneIsPassedOver() {
+        // As before the edit was made to the value: which of the owner's options replaces this is
+        // still open, so the test pins today's behaviour rather than endorsing it.
+        InputMask serial = InputMask.of("AAA-0000-**");
+        assertEquals("ABC-124", serial.edit("ABC-1234-XY", 6, 7, "", -1).text(),
+                "Backspace after the 3: the X and the Y land in the fourth digit's place and are passed over");
+        assertEquals("ABC-1235-4X", serial.edit("ABC-1234-X", 7, 7, "5", 0).text(),
+                "the 4 moves on into an any position, and the dash stays a literal");
+    }
+
+    @Test
+    void aTextTheMaskWroteReadsAsItStands() {
+        InputMask prefixed = InputMask.of("'55'00000");
+        assertEquals("5", prefixed.written("555", 3).raw(), "the run, then a 5 of the value's");
+        assertEquals("55123", prefixed.written("5555123", 0).raw());
+        assertEquals("123", CODE.written("123.", 4).raw(), "a literal written by hand");
+        assertNull(CODE.written("1234", 4), "a literal out of place");
+        assertNull(CODE.written("12a", 3), "a character its position does not take");
+        assertNull(InputMask.of("(00)").written("(12", 3), "complete without its closing literal");
     }
 }
