@@ -13,11 +13,24 @@
 export const THEME_STORAGE_KEY = "starlight-theme";
 
 /**
+ * A string as a JavaScript literal safe inside an inline `<script>`: JSON quotes it, and the
+ * characters JSON leaves alone that would end the script element or a line inside it (`<`, `>`,
+ * `/`, U+2028, U+2029) are written as escapes. The key is a constant today; the escaping keeps
+ * the script sound if it ever stops being one.
+ */
+function scriptLiteral(value) {
+  return JSON.stringify(value).replace(
+    /[<>/\u2028\u2029]/g,
+    (c) => "\\u" + c.charCodeAt(0).toString(16).padStart(4, "0"),
+  );
+}
+
+/**
  * Inlined into `<head>` ahead of any stylesheet, so it must stay tiny and self-contained:
  * it is stringified, never imported by the page. Stamps the RESOLVED value, so CSS reads
  * `:root[data-theme]` and the media query is only the no-JS fallback.
  */
-export const NO_FLASH_SCRIPT = `(function(){try{var k=localStorage.getItem(${JSON.stringify(
+export const NO_FLASH_SCRIPT = `(function(){try{var k=localStorage.getItem(${scriptLiteral(
   THEME_STORAGE_KEY,
 )});var d=k==="dark"||(k!=="light"&&matchMedia("(prefers-color-scheme:dark)").matches);document.documentElement.setAttribute("data-theme",d?"dark":"light")}catch(e){}})()`;
 

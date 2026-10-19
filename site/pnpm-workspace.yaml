@@ -12,13 +12,21 @@ allowBuilds:
 # version: the moment Astro's own tree resolves something newer, this stops having an effect
 # instead of holding it back.
 #
-#   sharp   < 0.35.0 inherits four libvips CVEs (GHSA-f88m-g3jw-g9cj). The site's own dependency
-#           is already 0.35.3; what the advisory finds is the copy Astro pulls in for image
-#           processing, which resolved to 0.34.5.
+#   sharp   < 0.35.0 inherits four libvips CVEs (GHSA-f88m-g3jw-g9cj), and < 0.35.5 a librsvg one
+#           (CVE-2026-96889, GHSA, found by pnpm audit on 2026-10-19). The floor covers the site's
+#           own dependency and the copy Astro pulls in for image processing.
 #   nanoid  < 3.3.18 loops forever when a custom generator is given size zero
 #           (GHSA-2v37-7h3g-55p8). It arrives under postcss, under vite, under astro, and the
 #           range stays inside 3.x on purpose: postcss is written against that API, and an open
 #           floor resolved it to 6.0.1.
+#   http-cache-semantics <= 4.2.0 hands a cached response zeroed for one user to another who
+#           asks with a large max-stale (GHSA advisory, Dependabot alert 16). It arrives under
+#           astro; 4.3.0 is past the advisory's range, and the floor stays inside 4.x.
+#   source-map-js < 1.2.2 can be stalled by indexed source-map section offsets (Dependabot
+#           alert 17). It arrives under postcss and vite; the floor stays inside 1.x.
+#   postcss-selector-parser < 7.1.6 parses a flat selector in quadratic time (GHSA-rj75-hqrm-
+#           r3gf). It arrives under postcss-nested 6, under the code highlighter; 7.x is what
+#           postcss-nested itself moved to, and the built CSS was compared byte for byte.
 #
 # An override also rewrites the site's OWN sharp: the lockfile records its specifier as the
 # override's '>=0.35.0', not package.json's range. `pnpm update sharp@^x` writes the range
@@ -26,5 +34,8 @@ allowBuilds:
 # --frozen-lockfile refuses the lockfile (the 0.9.0 site deploy failed on exactly that). After
 # touching either, run `pnpm install --frozen-lockfile` in a copy with no node_modules.
 overrides:
-  sharp: '>=0.35.0'
+  sharp: '>=0.35.5'
   nanoid: '^3.3.18'
+  http-cache-semantics: '^4.3.0'
+  source-map-js: '^1.2.2'
+  postcss-selector-parser: '^7.1.6'

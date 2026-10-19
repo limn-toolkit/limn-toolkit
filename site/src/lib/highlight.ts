@@ -98,7 +98,8 @@ export function highlight(code: string, language: Language): string {
  * A POM fragment: comments recede and tag names take the type colour, the way a declaration's
  * type does in the Java above it. Only the markup these pages write: no attributes, no CDATA.
  */
-const XML_PATTERN = /(?<comment><!--[\s\S]*?-->)|(?<tag><\/?[\w.-]+>?|\/?>)/g;
+// A comment ends at `-->` or at `--!>`, which HTML also accepts as the end of one.
+const XML_PATTERN = /(?<comment><!--[\s\S]*?--!?>)|(?<tag><\/?[\w.-]+>?|\/?>)/g;
 
 function highlightXml(code: string): string {
   let out = "";

@@ -273,7 +273,7 @@ final class StbFont implements AutoCloseable {
             }
             double colored = colorAdvance.applyAsDouble(cp);
             if (!Double.isNaN(colored)) { // a color-emoji glyph carries its own advance
-                width += colored;
+                width += (float) colored; // the line is measured in float, as every other advance
                 previousGlyph = -1;
                 previousFace = null;
                 continue;
