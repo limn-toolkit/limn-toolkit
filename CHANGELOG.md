@@ -1350,8 +1350,6 @@ Maven Central say which number that was.
 
 ### Breaking, and how to move
 
-- `Badge.count(int)` is `Badge.ofCount(int)`: write `Badge.ofCount(unread)`. `setCount(int)`,
-  `count()` and `Badge.dot` are as they were.
 - `SizeTokens` is a final class with no public constructor instead of a record, so a token a widget
   needs can join it in a 1.x minor. Every reading method (`tokens.body()`, `SizeTokens::fieldIcon`)
   and `equals`, `hashCode` and `toString` work as before, but nothing outside builds or deconstructs
