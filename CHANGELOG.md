@@ -1017,7 +1017,8 @@ Maven Central say which number that was.
   Windows and `INVALID_ENTRY` on Linux.
 - `Tone` and `Label.setTone`: a text colour said by what it means (`NEUTRAL`, `ACCENT`, `INFO`,
   `SUCCESS`, `WARNING`, `DANGER`) and asked of the palette on every paint, so a change of palette
-  re-colours it. `Tone.colorIn(theme)` answers the colour for a widget of your own.
+  re-colours it. `Tone.colorIn(theme)` answers the colour for a widget of your own. `ACCENT` is
+  `Theme.primaryText()`, so an accent label or badge reads at 4.5:1 in every built-in palette.
 - `TextArea.validation()`.
 - `Card` holds one record (a customer, an invoice, a report to open) and every part of it is optional:
   `setMedia` (a widget, or an `Icon` the card draws), a header of `setTitle` over `setSubtitle` with
@@ -1051,6 +1052,40 @@ Maven Central say which number that was.
 - `SizeTokens.cardPad`, the card's padding at each step: 10, 12, 16, 20, 24.
 - `Wrap.gapsSilently(gap, runGap)`, for a `Wrap` subclass that sets its gutters from its own measure,
   as `Flex` already allowed for its gap.
+- `Badge`, a short status beside or inside something else (ADR 075): a pill tinted in a `Tone`
+  with a dot or an icon in the tone before the word, the word in the palette's text colour so it
+  reads at every tone; `Badge.count(n)` shows a number in the language's digits and "99+" past
+  99, and `Badge.dot(name)` is a dot alone with a name a reader hears in its place. A reader
+  hears static text; a badge in a table's or a tree's row is read in the row's name.
+- `Avatar` and `AvatarGroup`: a person as a circle of their picture or their initials (the first
+  grapheme of the first and the last word, upper-cased in the avatar's locale) over a chart-palette
+  colour of their own, the same for the same name everywhere; a silhouette with neither. A group
+  overlaps them by a quarter and ends in "+k" past `setMaxShown` (four by default), the hidden
+  names in its tooltip. An avatar is an image named by the person; a group is one group,
+  described by every name, the hidden ones included.
+- `ListView`, `Table` and `Tree` show an empty content of yours whenever they hold no rows:
+  `setEmptyContent(content[, message])` or `setEmptyMessage("…")`, centred in the rows' viewport
+  (a table keeps its header and footer), its buttons after the widget in the Tab order, the
+  message describing the widget to a reader. `setLoading(true)` shows a loading content in the
+  same place (a moving bar over "Loading…", or yours with `setLoadingContent`), marks the widget
+  busy and tells a reader "Loading Orders", and `setLoading(false)` tells how many rows arrived.
+- `Popover`, a panel of controls hanging from a widget: `showFor(anchor)` or `attachTo(button)`,
+  below the anchor unless above has more room, lined up with its leading or trailing edge. It takes
+  the keyboard (its first focusable widget, Tab cycling inside, the focus back on close), closes
+  on a press outside, Escape, a lost keyboard or `close()`, heard by `onClose` with the origin, and
+  is not modal. In a window of its own the owner keeps the desktop's keyboard and its keys,
+  characters and input-method composition are delivered into the popover, so a field in it takes
+  a Japanese or a Chinese composition as any field does. An attached button says it opens a popup
+  and whether it is open.
+- `Button.Style` (`PRIMARY`, `SECONDARY`, `TERTIARY`) with `setStyle` and `style()`, and
+  `setDestructive(true)` for a button that deletes or discards, drawn in the palette's danger
+  colour at any style. A tertiary button has no fill or border until the pointer is over it, and
+  its caption is `Theme.primaryText()`. The box is the same at every style.
+- `Dialog.addDestructiveButton`, a secondary button in the danger colour that is never the
+  dialog's default: Return gives the safe answer.
+- `Theme.primaryText()`, the accent as text: `primary` where it reads at 4.5:1 on the canvas, a
+  card and a popover, and otherwise moved toward the text colour only until it does. Derived, not a
+  key of the theme file.
 
 ### Changed
 
@@ -1237,6 +1272,8 @@ Maven Central say which number that was.
 - A name, a description or a tooltip written on a composite whose caption already went to a part
   inside it (a `DatePicker`'s field, an editable `ComboBox`'s text, a clicked `Card`'s button) now
   goes to that part too, the node a reader reaches; what the part was given itself still wins.
+- A `ListView`'s, a `Table`'s or a `Tree`'s `refresh()` and a new set of rows repaint the widget
+  and not the window, and so does a child joining or leaving any widget that clips its children.
 
 ### Breaking, and how to move
 
@@ -1339,6 +1376,8 @@ Maven Central say which number that was.
   `new Field("Email", email)`, then `field.setValidation(Validation.ERROR, "Enter an address")`
   where you set the text field's state and the message label's text, and `field.clearValidation()`
   where you emptied them. A message coloured with `setColor(theme.danger())` is `setTone(Tone.DANGER)`.
+- `Button.setSecondary(boolean)` is gone: `setSecondary(true)` is `setStyle(Button.Style.SECONDARY)`,
+  and `setSecondary(false)` is the default, `Button.Style.PRIMARY`.
 
 ### Known, and left for later
 
