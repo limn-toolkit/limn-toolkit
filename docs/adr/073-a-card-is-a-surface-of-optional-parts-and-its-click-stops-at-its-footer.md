@@ -234,6 +234,10 @@ card".
 | Hover and press | a state layer over the whole card | a state layer over the area only (question 3) |
 | Divider | — | a hairline of `outline` between the area and the footer (question 4) |
 
+*Note, 2026-10-18 (section 9.1):* the band now runs from the divider, half a card gap under the last
+part as before, and holds the actions a card padding under it, so it is padded alike on all four
+sides; a card that is not clicked keeps its footer a gap under its last part.
+
 **How it is built.** The card holds one private widget, the *activator*, around the media, the
 header and the content, and the footer beside it. The activator's box is the activatable area,
 so the hit test, the focus, the ring, the hover and the reader's bounds all read one rectangle,
@@ -713,6 +717,16 @@ Branch `claude/card-adjust`, on `claude/review-fixes` with this record built.
   subtitle exists and applied when it comes. `title()` and `subtitle()` stay the text getters; no
   getter returns a label. The header grows to the lines the text takes; beside a prefix or a suffix
   taller than the text it grows only past them.
+- **The footer band padded alike on all four sides** (the owner, 2026-10-18, after the prints).
+  Under the divider of a clicked card with a footer the actions stood half a gap (6 points at
+  `MEDIUM`) below the line and a card padding (16) from the sides and the bottom. The band's top is
+  now `cardPad` too: the divider stays half a gap under the last part and is still where the part
+  that is clicked ends, and the actions sit a padding under it, centred in the band, their leading
+  edge in line with the text above. Such a card is `cardPad` less half a gap taller (10 points at
+  `MEDIUM`). A card with no divider (not clicked, or no footer) keeps its footer a gap under its
+  last part. `CardFooterBandTest` holds the four sides equal at every step, both ways round and in
+  a card given more height than it needs, and the divider half a gap under the content; against
+  the old band its fifteen cases of a clicked card fail and the five of a card not clicked pass.
 - **The Showcase.** The looks row is four customers, raised, outlined, filled and plain, each name
   and "Customer since" on two lines, the year to date moved from the header's end into the content
   (at a quarter of the page the amount left the name a few letters; the desk card and the invoices

@@ -957,9 +957,21 @@ public final class Card extends Widget<Card> {
         }
         float natural;
         float footerHeight = 0;
+        // Of a clicked card, the footer is a band of its own under the divider, padded as the card
+        // is on every side: the divider half a gap under the last part, as it always was, and the
+        // actions a whole padding under the divider. Of any other card it is the last part, a gap
+        // under the one before.
+        boolean band = action != null && hasFooter();
         if (hasFooter()) {
             footerHeight = footer.measure(loose(inner)).height();
-            float footerTop = areaBottom == 0 ? pad : areaBottom - pad + gap;
+            float footerTop;
+            if (areaBottom == 0) {
+                footerTop = pad;
+            } else if (band) {
+                footerTop = areaBottom - pad + gap / 2 + pad;
+            } else {
+                footerTop = areaBottom - pad + gap;
+            }
             natural = footerTop + footerHeight + pad;
         } else {
             natural = Math.max(areaBottom, 2 * pad);
@@ -973,7 +985,7 @@ public final class Card extends Widget<Card> {
         out.footerHeight = footerHeight;
         if (hasFooter()) {
             out.footerY = total - pad - footerHeight;
-            out.areaHeight = Math.max(0, out.footerY - gap / 2);
+            out.areaHeight = Math.max(0, out.footerY - (band ? pad : gap / 2));
         } else {
             out.footerY = total;
             out.areaHeight = total;
