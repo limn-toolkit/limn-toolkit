@@ -122,11 +122,12 @@ public final class Opacity extends Widget<Opacity> {
      * for no time, on the next turn of the UI thread's queue.
      *
      * <p><b>{@code onArrive} never runs inside this call</b>, whether the fade moves or goes
-     * straight there, so the next step of a short sequence (fade out, swap the content, fade back
-     * in) can be asked for in it. A pulse that lasts as long as something does is a
-     * {@link limn.animation.Transition} with {@code repeat(true)}, which stops when it is not
-     * shown; a chain of fades asked for in their own {@code onArrive} goes on stepping, a window
-     * shown or not, for as long as the chain does.
+     * straight there, so the next step can be asked for in it: a sequence (fade out, swap the
+     * content, fade back in), or a pulse, each fade asking for the next in its {@code onArrive}.
+     * Such a chain keeps the pace its calls ask for, where the fades go straight there too, and the
+     * UI thread sleeps between its steps. It goes on, one step a period whether the container is
+     * shown or not, for as long as the code keeps asking, so a pulse stops itself: when what it
+     * stands for is over, or when its container is no longer {@link #isShowing() showing}.
      *
      * <p><b>A newer {@code fadeTo} or a {@link #setOpacity} supersedes one in flight</b>, or one
      * gone straight there whose {@code onArrive} still waits: it stops where it is,

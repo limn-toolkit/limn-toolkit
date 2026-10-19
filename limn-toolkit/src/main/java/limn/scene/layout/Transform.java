@@ -435,10 +435,12 @@ public final class Transform extends Widget<Transform> {
      * queue.
      *
      * <p><b>{@code onArrive} never runs inside this call</b>, whether the slide moves or goes
-     * straight there, so the next step of a short sequence can be asked for in it. Motion that
-     * repeats for as long as something lasts is a {@link limn.animation.Transition} with
-     * {@code repeat(true)}, which stops when it is not shown; a chain of motions asked for in their
-     * own {@code onArrive} goes on stepping, a window shown or not, for as long as the chain does.
+     * straight there, so the next step of a sequence, or of motion that repeats, can be asked for in
+     * it. Such a chain keeps the pace its calls ask for, where the motions go straight there too,
+     * and the UI thread sleeps between its steps. It goes on, one step a period whether the
+     * container is shown or not, for as long as the code keeps asking, so repeating motion stops
+     * itself: when what it stands for is over, or when its container is no longer
+     * {@link #isShowing() showing}.
      *
      * <p><b>A newer slide or a {@link #setTranslation} supersedes one in flight</b>, or one gone
      * straight there whose {@code onArrive} still waits: it stops where it is, and its

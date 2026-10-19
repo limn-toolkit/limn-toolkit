@@ -69,11 +69,12 @@ that fade's `onArrive` never runs; a container taken out of its window mid-fade 
 leaves, and runs its `onArrive` then. While the user asked for less motion, `fadeTo` goes straight
 to its target, as it does in a window that is not shown yet, and runs `onArrive` after the seconds
 it was asked to take, as `Ui.postDelayed` would, or on the next turn of the UI thread for a fade of
-no time. `onArrive` never runs inside the `fadeTo` call, so the next step of a short sequence, fade
-out, change the content, fade back in, can be asked for in it, and keeps its pace when the fades
-go straight there. Something that should pulse for as long as it lasts is a transition with
-`repeat(true)` (below), which stops by itself when it is not shown: fades that ask for the next one
-in their `onArrive` go on, shown or not, until the code stops asking. Something watching the
+no time. `onArrive` never runs inside the `fadeTo` call, so the next step can be asked for in it: a
+sequence, fade out, change the content, fade back in, or a pulse, each fade asking for the next.
+The chain keeps the pace its fades ask for, also when they go straight there, and the window
+sleeps between its steps. It goes on, one step a period, shown or not, for as long as the code
+keeps asking, so a pulse stops itself: when what it stands for is over, or when its container is
+no longer showing (`isShowing()` in the `onArrive`). Something watching the
 container hears `Change.Aspect.OPACITY` each time `setOpacity` changes the value, and twice for a
 fade, as it starts and as it ends.
 

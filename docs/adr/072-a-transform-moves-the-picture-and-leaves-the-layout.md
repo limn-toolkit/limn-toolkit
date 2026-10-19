@@ -2062,9 +2062,11 @@ a flip its `atEdge` then its `onArrive` (the swap back on the next turn since se
 those seconds, posted on the UI queue; for zero
 seconds on the next turn; never inside the call; and whatever supersedes a motion of that kind
 before then (a newer motion of the kind, the set of its value, `reset()`, or the flip's own
-`atEdge`) drops it, its timer withdrawn as it is dropped. Motion that repeats for as long as
-something lasts is a `Transition` with `repeat(true)`, which the Javadoc and the Animations guide now
-point to instead of a chain of motions.
+`atEdge`) drops it, its timer withdrawn as it is dropped. Motion that repeats is the chain, which
+now keeps its pace and lets the loop sleep, and stops when the code stops asking; the Javadoc and the
+Animations guide say a repeating motion stops itself when its container is no longer showing.
+(2026-10-19, corrected after the second review: this paragraph first pointed to a `Transition` with
+`repeat(true)`, which has no per-frame callback to move a container with; see ADR 071 section 8.1.)
 
 **Tests.** `TransformTest.aMotionChainedInOnArriveSleepsBetweenStepsWhereverItGoesStraightThere`
 chains all four motions under less motion in a window, in no scene and in a scene with no window:

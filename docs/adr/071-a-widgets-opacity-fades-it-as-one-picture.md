@@ -945,10 +945,16 @@ fade out asks for `Motion.duration(...)`; the window fades of dialogs, popups an
 Before this, two of those paths passed the theme's length unreduced, and with this rule they would
 have held a closed dialog's result and a closed list's layer for 0.16 s under less motion.
 
-**A pulse is a `Transition` with `repeat(true)`**, which steps on frames and stops by itself when
-it is not shown. The Javadoc of `fadeTo` and the Animations guide say so and no longer present a
-chain of fades as a pulse: a chain asked for in `onArrive` goes on stepping, shown or not, for as
-long as the code asks.
+**A pulse is the chain, now that it keeps its pace.** (2026-10-19, corrected after the second
+review: this paragraph first pointed to a `Transition` with `repeat(true)`, which cannot pulse a
+container: a transition is a value a widget's own paint reads, with no per-frame callback, the very
+reason section 3 gives for `fadeTo`, and `setOpacity` is refused inside a paint.) The next `fadeTo`
+asked for in the last one's `onArrive` steps at the pace its calls ask for, also where the fades go
+straight there, and the loop sleeps between steps. It goes on, one step a period whether the
+container is shown or not, for as long as the code keeps asking, so the Javadoc of `fadeTo` and the
+Animations guide say that a pulse stops itself: when what it stands for is over, or when its
+container is no longer showing. A widget of the application's own that draws its pulse in its paint
+uses a `Transition` with `repeat(true)`, as the guide's "Something that repeats" shows.
 
 **Tests.** `OpacityTest.aPulseChainedInOnArriveSleepsBetweenStepsWhereverItGoesStraightThere`
 runs the review's scenarios, less motion in a window, no scene, a scene with no window, and the
