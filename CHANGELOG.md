@@ -10,6 +10,45 @@ Maven Central say which number that was.
 
 ### Fixed
 
+- An edit before the end of a masked `TextField` no longer corrupts its value. The field fitted
+  the whole edited text afresh, so a literal the edit shifted could be read as a digit or a letter
+  and value characters fell off the end while `isMaskComplete()` stayed true: under
+  `+1 (000) 000-0000`, Home then `9` on `+1 (555) 123-4567` gave `+1 (915) 551-2345`; `****-****`
+  took its own dash after a Backspace; a quoted `9` became a digit. An edit is now made to the
+  value: the characters it took go, what was typed or pasted goes in where it landed, and the
+  literals stay where the pattern has them. An undo or a redo puts back exactly the value it had.
+- A `Dialog` no longer deletes on Return when its destructive button comes first or stands alone.
+  It opens with the focus on its default button, or on a field of its content, and Return on a
+  focused destructive button gives the default answer; a dialog whose only buttons are destructive
+  does nothing on Return, and Escape still cancels. Space, a click and a screen reader's press
+  still press the button, in a window of its own and in the scene.
+- A popup opened from a control inside a `Popover` shown in a window of its own reaches screen
+  readers: a `ComboBox`'s list, a `DatePicker`'s calendar, a `TextField`'s edit menu, a combo in a
+  popover opened from a popover. Each is published in the owner window's tree under the control
+  that opened it, laid out, with its cursor moves and a reader's actions; it was in no tree, and
+  the combo said it was expanded over no list. This was the default on Windows, macOS and X11; an
+  in-scene popover, Wayland's, was not affected.
+- A widget laid back in perspective by a `Transform` and dragged past the horizon no longer takes
+  NaN: a `Slider` or a `RangeSlider` dragged there took NaN as its value and committed it on
+  release. The scene withholds a drag whose point is not on the widget's plane, so the widget stays
+  where the pointer last was on it, the release arrives there, and the drag goes on when the
+  pointer comes back; every drag handler, the toolkit's and an application's, has this without a
+  guard of its own.
+- A pulse made of `fadeTo` or `slideTo` calls chained in `onArrive` no longer throws
+  `StackOverflowError` out of the first call on the UI thread when every step goes straight to its
+  target: for a person who asked the system for less motion, before the container is in a shown
+  window, or for zero seconds.
+- An SVG whose style sheet or class lists are built to be slow no longer freezes the UI thread on
+  its first draw. One element listing 200,000 class names (1.5 MB) took 17 s to read; a rule
+  `.k.aaa…` against a class `k aaa…` took 10 s at 600 KB and nearly three minutes at 2.4 MB; a rule
+  naming 10,000 classes took 6 s and one naming 200,000 attribute conditions 20 s. None was refused,
+  because the reader's work limit counted each selector tried as one step whatever it compared.
+  Each element's id, classes and attributes are now looked up once, the limit counts every condition
+  and character compared, and each of these files is read in under 300 ms.
+- An SVG sprite sheet or a themed drawing styled by rules such as `#icon-12 path` or `.dark path` is
+  read again: each such rule was tried on every path in the file, and an ordinary 112 KB sheet of
+  400 symbols was refused as damaged and drew nothing. Such a rule is now tried only on the elements
+  inside the id or class it names, and sheets of 400 to 3,000 symbols read in under 200 ms.
 - `ColorPicker`'s alpha line is spaced from the last channel line as the channel lines are spaced from one
   another; it stood 2 pt further down at the default size.
 - `MediaControls` and `ColorPicker` speak the interface's language. The transport's six names
@@ -395,8 +434,9 @@ Maven Central say which number that was.
   in none pays nothing. It is a picture and not a presence: at 0 the child is still laid out, takes
   a click and the keyboard, and is read by a screen reader, and `setVisible(false)` is what takes
   it away, which a fade out does in its `onArrive`. While the system asks for less motion, or with
-  no window to fade in, a fade goes straight to its target; a newer `fadeTo` or a `setOpacity` stops
-  one in flight, whose `onArrive` never runs; a container taken out of its window mid-fade arrives
+  no window to fade in, a fade goes straight to its target and runs its `onArrive` on the next turn
+  of the UI thread, never inside `fadeTo`, so a pulse asks for its next fade there; a newer `fadeTo`
+  or a `setOpacity` stops one in flight, or drops an `onArrive` still waiting, which never runs; a container taken out of its window mid-fade arrives
   as it leaves, and runs its `onArrive` then. A watcher of the container hears
   `Change.Aspect.OPACITY` each time `setOpacity` changes the value and twice for a fade, as it
   starts and as it ends. Measured on an Apple M5 Max, a popup's fade frame costs 0.04 ms of CPU and
@@ -513,8 +553,9 @@ Maven Central say which number that was.
   `+55 (51) 98765-4321`, and under `+'0' 000` a 0 typed first is the first digit. A text is read
   with its literals when it carries one no position would take (`+`, a space); a pattern whose
   literals are all characters its positions take (`'55'00000`) reads a value that begins with
-  them as carrying them, so set it from its formatted text. An edit that spans a literal keeps
-  every digit; a Backspace or Delete with nothing selected steps over a literal to the character
+  them as carrying them, so set it from its formatted text. An edit anywhere is made to the
+  value, so no literal is ever taken as a value character, and a field whose positions are all
+  filled takes nothing more: select characters and type over them to replace them; a Backspace or Delete with nothing selected steps over a literal to the character
   beyond it, and one undo takes an edit and its literals back. Literals typed by hand show as
   they are typed: under `'DE'00 0000` the `D`, then the `E`, then the digits, and `DE89` and
   `89` give the same value; Backspace takes a run the text ends in back one character at a time
@@ -957,7 +998,8 @@ Maven Central say which number that was.
   every clip inside exact, a frame of it repaints where the child was and where it is and lays
   nothing out, and at rest the container costs nothing. A newer motion or a set stops one in flight,
   whose `onArrive` never runs; a container taken out of its window mid-motion arrives as it leaves;
-  under less motion every motion goes straight to its target and a flip swaps at once. A watcher
+  under less motion every motion goes straight to its target, and a flip swaps on the next turn of
+  the UI thread, where `atEdge` and then `onArrive` run; no callback ever runs inside the call. A watcher
   hears `Change.Aspect.TRANSFORM` on every set that changes a value and twice for a motion.
   Measured on an Apple M5 Max, the first scale of a card full of text rasterizes its glyphs at each
   size it passes, about 0.25 ms of CPU a frame, and a repeat costs what the still card costs.
@@ -1050,11 +1092,14 @@ Maven Central say which number that was.
   not `setWrap` is on; at 1, `setWrap(true)` still means as many lines as the text needs, so no label
   changes unless you ask. The lines are counted, not fitted: a label given less height clips.
 - `SizeTokens.cardPad`, the card's padding at each step: 10, 12, 16, 20, 24.
+- `Widget.isSelfEnabled()` reads the flag `setEnabled` sets, whatever the ancestors say, beside
+  `isEnabled()`, the state of the whole ancestry: `w.setEnabled(!w.isSelfEnabled())` toggles a
+  control, inside a disabled form too.
 - `Wrap.gapsSilently(gap, runGap)`, for a `Wrap` subclass that sets its gutters from its own measure,
   as `Flex` already allowed for its gap.
 - `Badge`, a short status beside or inside something else (ADR 075): a pill tinted in a `Tone`
   with a dot or an icon in the tone before the word, the word in the palette's text colour so it
-  reads at every tone; `Badge.count(n)` shows a number in the language's digits and "99+" past
+  reads at every tone; `Badge.ofCount(n)` shows a number in the language's digits and "99+" past
   99, and `Badge.dot(name)` is a dot alone with a name a reader hears in its place. A reader
   hears static text; a badge in a table's or a tree's row is read in the row's name.
 - `Avatar` and `AvatarGroup`: a person as a circle of their picture or their initials (the first
@@ -1099,6 +1144,24 @@ Maven Central say which number that was.
 
 ### Changed
 
+- Any of Limn's enums may gain constants in a 1.x minor. The promise in the README and the install
+  guide and the Javadoc of every public enum say so: a `switch` over one keeps a `default` branch.
+- `Change.Aspect.ENABLED` is announced on every descendant whose `isEnabled()` changed when a
+  container is disabled or enabled: the container first, then the descendants in tree order. One
+  disabled by its own flag, or under another disabled container, hears nothing, since its state did
+  not move. A watcher that should react to the control's own flag alone compares `isSelfEnabled()`
+  with what it last saw.
+- Every DRAG and RELEASE sent to the widget that holds the pointer carries a point of that widget's
+  own plane, and `MouseEvent` says so.
+- A `Dialog`'s first focus is its default button, even when a button such as Cancel was added
+  before it, so Return answers what the filled button says; a field in its content still takes the
+  first focus.
+- An in-scene `Dialog` or popup closed while the system asks for less motion, or in a scene with no
+  window, is removed and completes its result on the next turn of the UI thread, not inside the call
+  that closed it. An `onArrive` that throws is logged by the UI queue on its own turn instead of
+  being thrown out of `fadeTo`.
+- Typing the literal under the caret in the middle of a masked `TextField` steps over it, as it does
+  at the end.
 - The in-scene fades of a `ComboBox`'s list, a `DatePicker`'s calendar, a `TabbedPane`'s list of
   every tab, a `PopupMenu`'s cascade, an in-scene `Dialog`'s card, the hover tooltip and a chart's
   tooltip panel draw their surface as one picture: halfway through, a highlight no longer shows
@@ -1287,6 +1350,18 @@ Maven Central say which number that was.
 
 ### Breaking, and how to move
 
+- `Badge.count(int)` is `Badge.ofCount(int)`: write `Badge.ofCount(unread)`. `setCount(int)`,
+  `count()` and `Badge.dot` are as they were.
+- `SizeTokens` is a final class with no public constructor instead of a record, so a token a widget
+  needs can join it in a 1.x minor. Every reading method (`tokens.body()`, `SizeTokens::fieldIcon`)
+  and `equals`, `hashCode` and `toString` work as before, but nothing outside builds or deconstructs
+  one, and `SizeTokens.TABLE` is gone: use `SizeTokens.of(step)`, `SizeTokens.MEDIUM` or
+  `Theme.tokensFor(widget)`.
+- `Scene.fadeWindow`, `fadeWindowIn` and `fadeWindowOut` run their callback on the next turn of the
+  UI thread, not inside the call, when the fade goes straight there (no window, zero seconds, or the
+  opacity the window already has). A newer call before then drops it, and a window that closes
+  first runs it as it closes. Code that read a result right after the call reads it after the next
+  turn; in a test, drain the runtime once (`ui.runtime().drain()`).
 - `Canvas.setOpacity` multiplies the opacity in force instead of replacing it, so an opacity set
   inside a fading surface or a layer combines with it. Code that set it once on a fresh `save()`
   draws as before. Code that multiplied by hand, `setOpacity(canvas.opacity() * fade)`, drops the
@@ -1369,7 +1444,7 @@ Maven Central say which number that was.
   fixes under "Fixed" (a point that is not a number, an inert widget, a point a parent clips away).
 - `Widget.isEnabled()` answers for the widget and every ancestor, as `isShowing()` does for
   visibility; `setEnabled` still sets the widget's own flag. Code that read `isEnabled()` to save
-  and restore a flag reads its own bookkeeping instead; disable a form's container rather than
+  and restore a flag reads `isSelfEnabled()` instead; disable a form's container rather than
   each field.
 - `Theme.apply(Scene...)` is `Theme.apply()`: every window repaints by itself. Drop the arguments.
   `Theme.setCurrent` repaints every window too, and still leaves the font alone.
