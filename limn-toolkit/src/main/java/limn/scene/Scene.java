@@ -854,6 +854,35 @@ public final class Scene {
         requestRender();
     }
 
+    /**
+     * Pushes {@code overlay} as {@link #pushOverlay(Widget)} does, with the keyboard on
+     * {@code first} rather than on the overlay's first stop, arriving as that stop would: by
+     * traversal, announced as {@code CODE}. Nothing else is focused on the way, so no widget is
+     * told of a gain and a loss in the one turn, and the focus the overlay restores when it
+     * closes is the one it took. Not API; see
+     * {@link limn.scene.internal.SceneAccess#pushOverlayFocusing}.
+     *
+     * @param overlay the overlay's root
+     * @param first   the widget inside it that takes the keyboard
+     */
+    void pushOverlayFocusing(Widget<?> overlay, Widget<?> first) {
+        Ui.checkUiThread();
+        Objects.requireNonNull(overlay, "overlay");
+        Objects.requireNonNull(first, "first");
+        stackOverlay(overlay);
+        if (!canTakeFocus(first) || !isInSubtree(first, overlay)) {
+            focusTraverse(false);
+        } else {
+            focusByTraversal = true;
+            try {
+                setFocus(first, Change.Origin.CODE);
+            } finally {
+                focusByTraversal = false;
+            }
+        }
+        requestRender();
+    }
+
     /** Puts {@code overlay} on top, capturing input, and keeps the focus it takes to give back. */
     private void stackOverlay(Widget<?> overlay) {
         // A drag captured before this modal opened must not keep feeding the
@@ -3575,6 +3604,11 @@ public final class Scene {
             @Override
             public void pushMovedOverlay(Scene scene, Widget<?> overlay, Scene movedFrom) {
                 scene.pushOverlay(overlay, movedFrom);
+            }
+
+            @Override
+            public void pushOverlayFocusing(Scene scene, Widget<?> overlay, Widget<?> first) {
+                scene.pushOverlayFocusing(overlay, first);
             }
 
             @Override

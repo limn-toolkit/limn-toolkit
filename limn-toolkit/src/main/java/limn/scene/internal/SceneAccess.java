@@ -44,6 +44,16 @@ public final class SceneAccess {
         void pushMovedOverlay(Scene scene, Widget<?> overlay, Scene movedFrom);
 
         /**
+         * Pushes a modal overlay into {@code scene} with the keyboard on {@code first}; see
+         * {@link SceneAccess#pushOverlayFocusing}.
+         *
+         * @param scene   the scene the overlay goes into
+         * @param overlay the overlay's root
+         * @param first   the widget inside it that takes the keyboard
+         */
+        void pushOverlayFocusing(Scene scene, Widget<?> overlay, Widget<?> first);
+
+        /**
          * Gives the keyboard back from an overlay that has begun to close; see
          * {@link SceneAccess#releaseOverlayKeyboard}.
          *
@@ -496,6 +506,24 @@ public final class SceneAccess {
     public static void pushMovedOverlay(Scene scene, Widget<?> overlay, Scene movedFrom) {
         java.util.Objects.requireNonNull(scene, "scene");
         hook().pushMovedOverlay(scene, overlay, movedFrom);
+    }
+
+    /**
+     * Pushes {@code overlay} as {@link Scene#pushOverlay(Widget)} does, with the keyboard on
+     * {@code first} rather than on the overlay's first stop: arriving there as the first stop
+     * would, by traversal and announced as {@code CODE}, and without the first stop being focused
+     * and left on the way. For a dialog whose first stop is a button that must not hold the
+     * first focus, a destructive one. When {@code first} cannot take the keyboard, or is not
+     * inside {@code overlay}, the first stop is focused as {@code pushOverlay} focuses it.
+     *
+     * @param scene   the scene the overlay goes into
+     * @param overlay the overlay's root
+     * @param first   the widget inside it that takes the keyboard
+     */
+    public static void pushOverlayFocusing(Scene scene, Widget<?> overlay, Widget<?> first) {
+        hook().pushOverlayFocusing(java.util.Objects.requireNonNull(scene, "scene"),
+                java.util.Objects.requireNonNull(overlay, "overlay"),
+                java.util.Objects.requireNonNull(first, "first"));
     }
 
     /**

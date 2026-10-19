@@ -686,7 +686,8 @@ class DialogPanelAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(List.of("Cancel", "OK"),
                 nodesWith(Accessible.State.FOCUSABLE).stream().map(AccessibleNode::name).toList(),
                 "the published tab stops are the keyboard's" + describe(tree()));
-        // The keyboard: Tab lands on a published tab stop, Return answers.
+        // The keyboard: Tab lands on a published tab stop, Return answers. The dialog's first
+        // focus is its default button, OK, so Tab goes on to Cancel, which Return presses.
         drive(scene).keyEvent(Keys.TAB, true, false, 0);
         drive(scene).keyEvent(Keys.TAB, false, false, 0);
         drive(scene).inputBatchEnded();
@@ -700,7 +701,7 @@ class DialogPanelAccessibilityTest extends AccessibleComponentTestBase {
         for (int i = 0; i < 100 && dialogIsPublished(); i++) {
             tick();
         }
-        assertEquals("ok", resultNow(), "Return answers the dialog over a disabled owner");
+        assertEquals("cancel", resultNow(), "Return answers the dialog over a disabled owner");
 
         // A reader: the press it was offered is performed.
         showInSceneOverADisabledOwner(cancelAndOk());
