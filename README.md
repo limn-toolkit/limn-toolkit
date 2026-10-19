@@ -126,8 +126,7 @@ choose.
 
 The native libraries set these floors, and the build checks every one of them;
 [Supported systems](https://limn-toolkit.github.io/limn-toolkit/docs/install/#supported-systems)
-says what sets each. MP4 and Matroska on a Mac older than macOS 26 Tahoe need `limn-ffmpeg-natives`
-9.0.2.1 or later: 9.0.2.0 was built for macOS 26 by mistake.
+says what sets each.
 
 ### Playing video
 
@@ -138,7 +137,7 @@ it is the one piece of Limn with a native payload and a licence of its own.
 ```kotlin
 dependencies {
     implementation("io.github.limn-toolkit:limn-video-ffmpeg:x.y.z")
-    runtimeOnly("io.github.limn-toolkit:limn-ffmpeg-natives:9.0.2.0:natives-macos-aarch64")
+    runtimeOnly("io.github.limn-toolkit:limn-ffmpeg-natives:9.0.2.1:natives-macos-aarch64")
 }
 ```
 
@@ -154,7 +153,7 @@ dependencies {
 <dependency>
   <groupId>io.github.limn-toolkit</groupId>
   <artifactId>limn-ffmpeg-natives</artifactId>
-  <version>9.0.2.0</version>
+  <version>9.0.2.1</version>
   <classifier>natives-macos-aarch64</classifier>
   <scope>runtime</scope>
 </dependency>

@@ -1,6 +1,5 @@
 package limn.backend.lwjgl.floors;
 
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 
@@ -14,7 +13,7 @@ import java.util.Set;
  * and the subsystem version a Windows DLL asks the loader for. On Windows the JDK sets the real
  * floor higher than the DLLs do (JDK 17 supports Windows 10 and later, and the DLLs would accept
  * Vista), so the Windows rows are a sanity bound rather than the number a reader is told. Read on
- * 2026-10-19 from LWJGL 3.4.3, limn-lunasvg-natives 3.5.0.0 and limn-ffmpeg-natives 9.0.2.0:
+ * 2026-10-19 from LWJGL 3.4.3, limn-lunasvg-natives 3.5.0.0 and limn-ffmpeg-natives 9.0.2.1:
  *
  * <ul>
  *   <li>macOS 11.0 on both architectures: LWJGL's arm64 libraries and lunasvg's on both say 11.0;
@@ -102,12 +101,12 @@ public final class OsFloors {
         }
     }
 
-    /** The exceptions in force; each names the version that removes it. */
-    public static final List<KnownException> KNOWN_EXCEPTIONS = List.of(
-            new KnownException("limn-ffmpeg-natives", "9.0.2.0",
-                    EnumSet.of(Target.MACOS_X86_64, Target.MACOS_AARCH64), Version.parse("26.0"),
-                    "limn-ffmpeg-natives 9.0.2.0 was built for macOS 26.0 by mistake; 9.0.2.1 is built "
-                            + "for macOS 11.0 and fixes it"));
+    /**
+     * The exceptions in force; each names the version that removes it. None since 2026-10-19:
+     * limn-ffmpeg-natives 9.0.2.0, built for macOS 26.0 by mistake, was the one, and 9.0.2.1,
+     * built for macOS 11.0, retired it.
+     */
+    public static final List<KnownException> KNOWN_EXCEPTIONS = List.of();
 
     /** A dotted version, compared numerically: 2.2.5 is older than 2.28. */
     public record Version(int major, int minor, int patch) implements Comparable<Version> {

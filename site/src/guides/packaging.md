@@ -77,7 +77,7 @@ dependencies {
     }
     implementation("io.github.limn-toolkit:limn-backend-lwjgl:{{version}}")
     // The FFmpeg payload, if you play video, spells its classifier the same way.
-    // runtimeOnly("io.github.limn-toolkit:limn-ffmpeg-natives:9.0.2.0:natives-$limnTarget")
+    // runtimeOnly("io.github.limn-toolkit:limn-ffmpeg-natives:9.0.2.1:natives-$limnTarget")
 }
 ```
 ```xml title="pom.xml"
@@ -142,7 +142,7 @@ dependencies {
   <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-tinyfd</artifactId><version>${lwjgl.version}</version></dependency>
   <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-tinyfd</artifactId><version>${lwjgl.version}</version><classifier>${lwjgl.natives}</classifier></dependency>
   <!-- The FFmpeg payload, if you play video, spells its classifier like the SVG renderer's:
-  <dependency><groupId>io.github.limn-toolkit</groupId><artifactId>limn-ffmpeg-natives</artifactId><version>9.0.2.0</version><classifier>${limn.natives}</classifier><scope>runtime</scope></dependency>
+  <dependency><groupId>io.github.limn-toolkit</groupId><artifactId>limn-ffmpeg-natives</artifactId><version>9.0.2.1</version><classifier>${limn.natives}</classifier><scope>runtime</scope></dependency>
   -->
 </dependencies>
 ```

@@ -128,8 +128,7 @@ mit, es gibt also keinen Classifier zu wählen.
 
 Diese Untergrenzen setzen die nativen Bibliotheken, und der Build prüft jede einzelne davon;
 [Unterstützte Systeme](https://limn-toolkit.github.io/limn-toolkit/docs/install/#supported-systems)
-sagt, was welche Grenze setzt. MP4 und Matroska brauchen auf einem Mac vor macOS 26 Tahoe
-`limn-ffmpeg-natives` 9.0.2.1 oder neuer: 9.0.2.0 wurde versehentlich für macOS 26 gebaut.
+sagt, was welche Grenze setzt.
 
 ### Video abspielen
 
@@ -141,7 +140,7 @@ eigenen Lizenz ist.
 ```kotlin
 dependencies {
     implementation("io.github.limn-toolkit:limn-video-ffmpeg:x.y.z")
-    runtimeOnly("io.github.limn-toolkit:limn-ffmpeg-natives:9.0.2.0:natives-macos-aarch64")
+    runtimeOnly("io.github.limn-toolkit:limn-ffmpeg-natives:9.0.2.1:natives-macos-aarch64")
 }
 ```
 
@@ -157,7 +156,7 @@ dependencies {
 <dependency>
   <groupId>io.github.limn-toolkit</groupId>
   <artifactId>limn-ffmpeg-natives</artifactId>
-  <version>9.0.2.0</version>
+  <version>9.0.2.1</version>
   <classifier>natives-macos-aarch64</classifier>
   <scope>runtime</scope>
 </dependency>

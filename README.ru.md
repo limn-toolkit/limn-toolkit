@@ -129,8 +129,6 @@ dependencies {
 Эти нижние границы задают нативные библиотеки, и сборка проверяет каждую из них; что задаёт каждую,
 сказано в разделе
 [Поддерживаемые системы](https://limn-toolkit.github.io/limn-toolkit/docs/install/#supported-systems).
-MP4 и Matroska на Mac старше macOS 26 Tahoe требуют `limn-ffmpeg-natives` 9.0.2.1 или новее: 9.0.2.0 по
-ошибке собрана для macOS 26.
 
 ### Воспроизведение видео
 
@@ -141,7 +139,7 @@ Y4M и синтетический источник; для MP4 и Matroska ну�
 ```kotlin
 dependencies {
     implementation("io.github.limn-toolkit:limn-video-ffmpeg:x.y.z")
-    runtimeOnly("io.github.limn-toolkit:limn-ffmpeg-natives:9.0.2.0:natives-macos-aarch64")
+    runtimeOnly("io.github.limn-toolkit:limn-ffmpeg-natives:9.0.2.1:natives-macos-aarch64")
 }
 ```
 
@@ -157,7 +155,7 @@ dependencies {
 <dependency>
   <groupId>io.github.limn-toolkit</groupId>
   <artifactId>limn-ffmpeg-natives</artifactId>
-  <version>9.0.2.0</version>
+  <version>9.0.2.1</version>
   <classifier>natives-macos-aarch64</classifier>
   <scope>runtime</scope>
 </dependency>

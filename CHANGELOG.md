@@ -1416,10 +1416,6 @@ Maven Central say which number that was.
   setting off reads one day on every move.
 - Of a masked `TextField`. Right to left, the guide of the positions still to fill is drawn on
   the wrong side of the text, since the two are drawn as two runs and not shaped as one line.
-- `limn-ffmpeg-natives` 9.0.2.0, the payload this release names, was built for macOS 26 by
-  mistake, so MP4 and Matroska are supported only on macOS 26 or newer with it. 9.0.2.1, built
-  for macOS 11, replaces it; name it yourself to play video on older Macs before the toolkit
-  moves its pin.
 
 ## After 0.8.0
 
@@ -1446,13 +1442,15 @@ Maven Central say which number that was.
 
 ### Changed
 
-- Video plays on FFmpeg 9.0.2, up from 7.1.5: `limn-ffmpeg-natives` 9.0.2.0. An application that
-  names a `natives-<os>-<arch>` classifier itself changes its version to `9.0.2.0`;
+- Video plays on FFmpeg 9.0.2, up from 7.1.5: `limn-ffmpeg-natives` 9.0.2.1. An application that
+  names a `natives-<os>-<arch>` classifier itself changes its version to `9.0.2.1`;
   `limn-video-ffmpeg-natives-all` moves on its own. Nothing else changes, and nothing in the
   shim did: the same codecs and containers, no GPL component (FFmpeg 8.0 removed libpostproc),
   the same tests passing. On Linux the payload is about 0.5 MB bigger in the jar and software
   decoding about 4.5% faster, because FFmpeg now lets GCC vectorize; macOS and Windows grew by
-  a few percent at most.
+  a few percent at most. On macOS it plays from macOS 11 Big Sur: every payload before 9.0.2.1,
+  the 7.1.5 that 0.9.0 named among them, was built for macOS 26 Tahoe by mistake, and an older
+  Mac could not load it.
 - On a Windows machine with no OpenGL 3.3 driver (a virtual machine, a remote-desktop session, a GPU
   whose driver is Direct3D only), the error an application gets at its first window, and the
   demo's `--gl-info`, now say what to install: the GPU maker's driver, or Microsoft's free

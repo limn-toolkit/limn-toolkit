@@ -109,7 +109,7 @@ dependencies {
 | macOS | macOS 11 Big Sur，Apple 晶片與 Intel 皆可 |
 | Linux | x86_64 上為 glibc 2.28（Debian 10、Ubuntu 20.04、RHEL 8；glibc 為 2.27 的 Ubuntu 18.04 恰好低於此線）；ARM64 上為 glibc 2.35（Ubuntu 22.04、Debian 12）；X11 或 Wayland 皆可 |
 
-這些下限由原生函式庫決定，建置會逐一檢查每個函式庫；各自由什麼決定，請見[支援的系統](https://limn-toolkit.github.io/limn-toolkit/docs/install/#supported-systems)。在早於 macOS 26 Tahoe 的 Mac 上播放 MP4 和 Matroska，需要 `limn-ffmpeg-natives` 9.0.2.1 或更新版本：9.0.2.0 被誤以 macOS 26 為目標建置。
+這些下限由原生函式庫決定，建置會逐一檢查每個函式庫；各自由什麼決定，請見[支援的系統](https://limn-toolkit.github.io/limn-toolkit/docs/install/#supported-systems)。
 
 ### 播放影片
 
@@ -118,7 +118,7 @@ dependencies {
 ```kotlin
 dependencies {
     implementation("io.github.limn-toolkit:limn-video-ffmpeg:x.y.z")
-    runtimeOnly("io.github.limn-toolkit:limn-ffmpeg-natives:9.0.2.0:natives-macos-aarch64")
+    runtimeOnly("io.github.limn-toolkit:limn-ffmpeg-natives:9.0.2.1:natives-macos-aarch64")
 }
 ```
 
@@ -134,7 +134,7 @@ dependencies {
 <dependency>
   <groupId>io.github.limn-toolkit</groupId>
   <artifactId>limn-ffmpeg-natives</artifactId>
-  <version>9.0.2.0</version>
+  <version>9.0.2.1</version>
   <classifier>natives-macos-aarch64</classifier>
   <scope>runtime</scope>
 </dependency>

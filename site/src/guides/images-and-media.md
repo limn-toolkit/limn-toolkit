@@ -184,7 +184,7 @@ part in layout like a label does. The decoder behind it is a separate concern:
   ```kotlin title="build.gradle.kts"
   implementation("io.github.limn-toolkit:limn-video-ffmpeg:{{version}}")
   // A build for one known machine takes the payload's classifier for it:
-  runtimeOnly("io.github.limn-toolkit:limn-ffmpeg-natives:9.0.2.0:natives-macos-aarch64")
+  runtimeOnly("io.github.limn-toolkit:limn-ffmpeg-natives:9.0.2.1:natives-macos-aarch64")
   // A bundle that ships everywhere takes the POM that names all six:
   runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:{{version}}")
   ```
@@ -198,7 +198,7 @@ part in layout like a label does. The decoder behind it is a separate concern:
   <dependency>
     <groupId>io.github.limn-toolkit</groupId>
     <artifactId>limn-ffmpeg-natives</artifactId>
-    <version>9.0.2.0</version>
+    <version>9.0.2.1</version>
     <classifier>natives-macos-aarch64</classifier>
     <scope>runtime</scope>
   </dependency>

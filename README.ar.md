@@ -127,8 +127,7 @@ dependencies {
 
 المكتبات الأصلية هي التي تحدد هذه الحدود الدنيا، والبناء يفحص كل واحدة منها؛ ويبيّن قسم
 [الأنظمة المدعومة](https://limn-toolkit.github.io/limn-toolkit/docs/install/#supported-systems)
-ما الذي يحدد كلًّا منها. يحتاج MP4 وMatroska على جهاز Mac أقدم من macOS 26 Tahoe إلى `limn-ffmpeg-natives`
-9.0.2.1 أو أحدث: فقد بُني الإصدار 9.0.2.0 لـ macOS 26 خطأً.
+ما الذي يحدد كلًّا منها.
 
 ### تشغيل الفيديو
 
@@ -139,7 +138,7 @@ dependencies {
 ```kotlin
 dependencies {
     implementation("io.github.limn-toolkit:limn-video-ffmpeg:x.y.z")
-    runtimeOnly("io.github.limn-toolkit:limn-ffmpeg-natives:9.0.2.0:natives-macos-aarch64")
+    runtimeOnly("io.github.limn-toolkit:limn-ffmpeg-natives:9.0.2.1:natives-macos-aarch64")
 }
 ```
 
@@ -155,7 +154,7 @@ dependencies {
 <dependency>
   <groupId>io.github.limn-toolkit</groupId>
   <artifactId>limn-ffmpeg-natives</artifactId>
-  <version>9.0.2.0</version>
+  <version>9.0.2.1</version>
   <classifier>natives-macos-aarch64</classifier>
   <scope>runtime</scope>
 </dependency>

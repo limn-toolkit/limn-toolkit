@@ -79,7 +79,7 @@ class OsFloorsTest {
     }
 
     /**
-     * The FFmpeg exception holds while the catalog pins 9.0.2.0 and fails the build once it does
+     * An exception holds while the catalog pins its version and fails the build once it does
      * not: renamed to the next version, the same libraries fail their floor and the exception is
      * reported stale; renamed and rebuilt within the floor, only the stale exception is left.
      */
