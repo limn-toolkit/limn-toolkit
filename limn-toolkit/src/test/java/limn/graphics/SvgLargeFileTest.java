@@ -107,6 +107,38 @@ class SvgLargeFileTest {
         readsInTime(svg.toString().getBytes(StandardCharsets.UTF_8), series + " series of " + points + " points");
     }
 
+    /**
+     * The same chart with its points grouped by series and styled through the group, as charting
+     * programs also write it: {@code .series-N .dot}, or {@code .chart-color-N .chart-point} three
+     * groups down. Filed under the points' class, every rule was tried on every point, and 28
+     * series over 20,000 points (0.9 MB) were refused.
+     */
+    @ParameterizedTest
+    @CsvSource({"dot, 40, 20000", "dot, 30, 100000", "dot, 200, 100000", "point, 30, 50000", "point, 200, 100000"})
+    void aChartWhoseSeriesAreGroupsIsRead(String spelling, int series, int points) {
+        boolean dot = spelling.equals("dot");
+        StringBuilder svg = new StringBuilder("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 1000'><style>");
+        if (dot) {
+            svg.append(".dot{stroke:none}");
+        }
+        for (int i = 0; i < series; i++) {
+            svg.append(dot ? ".series-" : ".chart-color-").append(i).append(dot ? " .dot" : " .chart-point").append("{fill:#")
+                    .append(String.format("%06x", i * 7919 & 0xffffff)).append('}');
+        }
+        svg.append(dot ? "</style><g class='plot'>" : "</style><g class='chart-root'><g class='chart-series-group'>");
+        for (int i = 0; i < series; i++) {
+            svg.append(dot ? "<g class='series series-" : "<g class='chart-series chart-series-").append(i)
+                    .append(dot ? "" : " chart-color-" + i).append("'>");
+            for (int p = 0; p < points / series; p++) {
+                svg.append(dot ? "<circle class='dot' r='2' cx='" : "<path class='chart-point' d='M ").append(p % 1000)
+                        .append(dot ? "' cy='" : " ").append(p * 7 % 1000).append(dot ? "'/>" : " h2 v2 h-2 z'/>");
+            }
+            svg.append("</g>");
+        }
+        svg.append(dot ? "</g></svg>" : "</g></g></svg>");
+        readsInTime(svg.toString().getBytes(StandardCharsets.UTF_8), spelling + " " + series + " series of " + points + " points");
+    }
+
     /** Thousands of animations that begin at their own times, beside a chain of three: only the chain is worked out round by round. */
     @ParameterizedTest
     @CsvSource({"6000, 100"})

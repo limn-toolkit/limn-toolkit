@@ -180,6 +180,34 @@ class SvgCssTest {
     }
 
     /**
+     * A selector whose last compound's classes are commoner than an ancestor's is filed under the
+     * ancestor's class and its own rarest one: {@code .s1 .dot} is tried on dots under
+     * {@code .s1} only, and matches what it matched when it was tried on every dot.
+     */
+    @Test
+    void aSeriesRuleFiledUnderItsGroupMatchesWhatItNames() {
+        SvgXml.Element root = parse("<svg xmlns='http://www.w3.org/2000/svg'><style>"
+                + ".dot { stroke: none } .s1 .dot { fill: red } .s2 .dot { fill: blue } .s1 > .dot.big { opacity: .5 }"
+                + " .s2 g .dot { stroke-width: 3 } .dot .s1 .dot { color: green }</style>"
+                + "<g class='s1'><circle id='a' class='dot'/><circle id='b' class='dot big'/><g><circle id='c' class='dot big'/></g></g>"
+                + "<g class='s2'><circle id='d' class='dot'/><g><circle id='e' class='dot s1'/></g></g>"
+                + "<circle id='f' class='dot'/><g class='dot'><g class='s1'><circle id='h' class='dot'/></g></g></svg>");
+        SvgCss css = SvgCss.of(root);
+        assertEquals("red", css.cascaded(byId(root, "a"), "fill", false));
+        assertEquals("red", css.cascaded(byId(root, "c"), "fill", false));
+        assertEquals("blue", css.cascaded(byId(root, "d"), "fill", false));
+        assertEquals("blue", css.cascaded(byId(root, "e"), "fill", false), "s1 on the element itself is not an ancestor");
+        assertNull(css.cascaded(byId(root, "f"), "fill", false));
+        assertEquals("none", css.cascaded(byId(root, "f"), "stroke", false));
+        assertEquals(".5", css.cascaded(byId(root, "b"), "opacity", false));
+        assertNull(css.cascaded(byId(root, "c"), "opacity", false), "s1 is not its parent");
+        assertEquals("3", css.cascaded(byId(root, "e"), "stroke-width", false));
+        assertNull(css.cascaded(byId(root, "d"), "stroke-width", false));
+        assertEquals("green", css.cascaded(byId(root, "h"), "color", false));
+        assertNull(css.cascaded(byId(root, "a"), "color", false));
+    }
+
+    /**
      * A condition written twice is tested once but weighs twice, as in a browser: {@code .a.a}
      * outranks a later {@code .a}, and {@code [x][x]} a later {@code [x]}.
      */
