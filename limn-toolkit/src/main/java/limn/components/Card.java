@@ -48,7 +48,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p><b>Looks.</b> {@link Style#ELEVATED}, the default, lifts the card by the theme's
  * {@link Elevation#RAISED} shadow, with a hairline round it on a dark palette, where a shadow on a
  * dark ground does not show; {@link Style#OUTLINED} draws a line round it and no shadow;
- * {@link Style#FILLED} sets it apart by tone alone. {@link Orientation#HORIZONTAL} puts the media
+ * {@link Style#FILLED} sets it apart by tone alone; {@link Style#PLAIN} draws nothing of its own,
+ * and its parts stand on the page. {@link Orientation#HORIZONTAL} puts the media
  * in a column at the leading side, beside the header and the content, with the footer across the
  * whole card under both. The media is laid out as {@link MediaFit} says, and may be an
  * {@link Icon}, which the card draws itself, tinted with the accent when it is tintable.
@@ -88,8 +89,17 @@ public final class Card extends Widget<Card> {
         ELEVATED,
         /** A line round it and no shadow. */
         OUTLINED,
-        /** A raised tone and no line, no shadow. */
-        FILLED
+        /**
+         * A tone of its own and no line, no shadow: the palette's surface, which every built-in
+         * palette sets well apart from its page.
+         */
+        FILLED,
+        /**
+         * No fill, no line, no shadow: the parts on the page, laid out and padded as on any card. A
+         * card that is clicked keeps its hover, its press and its focus ring, which are then all
+         * that shows where it is.
+         */
+        PLAIN
     }
 
     /** Where the media goes. */
@@ -1040,15 +1050,35 @@ public final class Card extends Widget<Card> {
         Theme theme = Theme.of(this);
         SizeTokens t = theme.tokensFor(this);
         RoundRect shape = shape(t);
+        Color fill = fill(style, theme);
+        if (fill == null) {
+            return; // a plain card draws nothing of its own
+        }
         switch (style) {
             case ELEVATED -> {
                 theme.drawElevation(canvas, shape, Elevation.RAISED);
-                canvas.fillRoundRect(shape, theme.surface());
+                canvas.fillRoundRect(shape, fill);
             }
             case OUTLINED -> canvas.fillRoundRectInsideBorder(0, 0, width(), height(), t.radiusMedium(),
-                    Strokes.BORDER, theme.surface());
-            case FILLED -> canvas.fillRoundRect(shape, theme.surfaceRaised());
+                    Strokes.BORDER, fill);
+            case FILLED, PLAIN -> canvas.fillRoundRect(shape, fill);
         }
+    }
+
+    /**
+     * The tone a card of {@code style} fills itself with, or {@code null} for a plain card, which
+     * shows the page through it. The filled card takes the surface as the other two do, and not the
+     * raised surface it took at first: a light palette's raised tone is its page's own (#EDF0F6 on
+     * #EEF0F4), so the card vanished, and a step from the page toward the text that would show
+     * takes muted text under the hover below 4.5:1 on a page whose muted text is 5.11:1 to begin
+     * with. The surface is the step every palette is held to, 5 L* off its page at the least, and
+     * the hover over it keeps muted text readable everywhere ({@code CardStateLayerContrastTest}).
+     */
+    static @Nullable Color fill(Style style, Theme theme) {
+        return switch (style) {
+            case ELEVATED, OUTLINED, FILLED -> theme.surface();
+            case PLAIN -> null;
+        };
     }
 
     /** The edge, over a picture that covers the card, and the line above an activated card's footer. */
