@@ -392,7 +392,14 @@ Both depend on section 3, and with it they are short.
   cannot arrive where the pointer is arrives where that point lies now, carried through the
   matrices as they are. The one case left is a plane with nothing to reach, edge-on or with that
   point behind the eye: the release still arrives, to end the press, at the last scene point, which
-  maps to `NaN`, and `MouseEvent` says so.)
+  maps to `NaN`, and `MouseEvent` says so. Second review, same day: "that point behind the eye" was
+  wider than it read. A card turned past edge-on to show its back, -95 to -155 degrees under
+  perspective, is visible, yet the last point of a drag that left its box lies behind the eye, and
+  59 of a 648-release sweep came back `NaN` at such angles. The release now falls back through the
+  widget's own points, nearest first: that point brought into the box, the press point, the middle,
+  the corners. A box with any part in front of the eye has a corner there, so only a widget of
+  which nothing can be seen, exactly edge-on or wholly behind the eye, keeps the `NaN`; the sweep
+  in `DragPastTheHorizonTest` leaves 18, all at plus and minus 90 degrees.)
 
 ### 2.8 Focus, reveal, readers, the input method and popups
 
