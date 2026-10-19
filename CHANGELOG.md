@@ -1086,6 +1086,16 @@ Maven Central say which number that was.
 - `Theme.primaryText()`, the accent as text: `primary` where it reads at 4.5:1 on the canvas, a
   card and a popover, and otherwise moved toward the text colour only until it does. Derived, not a
   key of the theme file.
+- The systems Limn runs on are written down and checked. The install guide's "Supported systems"
+  table gives the oldest per platform: Windows 10 on x64, Windows 10 on ARM or Windows 11 on
+  ARM64, macOS 11 Big Sur on Apple silicon and Intel, and Linux with glibc 2.28 on x86_64 (Debian
+  10, Ubuntu 20.04, RHEL 8) or 2.35 on ARM64 (Ubuntu 22.04, Debian 12), under X11 or Wayland;
+  each README carries the short form. The numbers are what the shipped native libraries record
+  about themselves, and the build now reads every one of them, for all six platforms, so a
+  dependency that would raise a floor fails the build instead of dropping a system. The guide
+  also names the Windows features that need a later build of Windows 10 (dark system menus from
+  1903, headings with their level from 1809, a tray icon sized per monitor from 1607) and what
+  each falls back to.
 
 ### Changed
 
@@ -1406,6 +1416,10 @@ Maven Central say which number that was.
   setting off reads one day on every move.
 - Of a masked `TextField`. Right to left, the guide of the positions still to fill is drawn on
   the wrong side of the text, since the two are drawn as two runs and not shaped as one line.
+- `limn-ffmpeg-natives` 9.0.2.0, the payload this release names, was built for macOS 26 by
+  mistake, so MP4 and Matroska are supported only on macOS 26 or newer with it. 9.0.2.1, built
+  for macOS 11, replaces it; name it yourself to play video on older Macs before the toolkit
+  moves its pin.
 
 ## After 0.8.0
 
