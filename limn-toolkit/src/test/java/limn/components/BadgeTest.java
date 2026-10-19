@@ -124,7 +124,7 @@ class BadgeTest extends AccessibleComponentTestBase {
 
     @Test
     void aCountShowsItsNumberAndPast99ShowsNinetyNinePlus() {
-        Badge badge = Badge.count(7);
+        Badge badge = Badge.ofCount(7);
         assertEquals("7", badge.text());
         assertEquals(List.of("7"), paint(badge, LayoutDirection.LTR).texts);
         badge.setCount(99);
@@ -141,7 +141,7 @@ class BadgeTest extends AccessibleComponentTestBase {
     @Test
     void aCountIsWrittenInTheLanguagesDigits() {
         I18n.setLocale(Locale.forLanguageTag("ar-EG"));
-        Badge badge = Badge.count(7);
+        Badge badge = Badge.ofCount(7);
         assertEquals("٧", badge.text());
         badge.setCount(250);
         assertEquals("٩٩+", badge.text());
@@ -149,7 +149,7 @@ class BadgeTest extends AccessibleComponentTestBase {
 
     @Test
     void aOneDigitCountIsACircleAndADotHasNoPill() {
-        Badge one = Badge.count(3);
+        Badge one = Badge.ofCount(3);
         new Scene(one).setTextRuler(SCALED_RULER);
         Size box = one.measure(Constraints.loose(400, 100));
         assertEquals(box.height(), box.width(), 0.001f, "one digit: as wide as tall");
@@ -167,7 +167,7 @@ class BadgeTest extends AccessibleComponentTestBase {
     void aReaderHearsAStaticTextNamedByWhatItShows() {
         Row row = new Row();
         Badge word = new Badge("Overdue").setTone(Tone.DANGER);
-        Badge count = Badge.count(3);
+        Badge count = Badge.ofCount(3);
         Badge dot = Badge.dot(I18nString.literal("Unread"));
         row.add(word);
         row.add(count);

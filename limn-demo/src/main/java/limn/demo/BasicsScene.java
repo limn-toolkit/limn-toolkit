@@ -385,9 +385,9 @@ final class BasicsScene {
                 new Badge(ShowcaseStrings.ORDERS_PAID).setTone(Tone.SUCCESS),
                 new Badge(Text.DUE_SOON).setTone(Tone.WARNING),
                 new Badge(ShowcaseStrings.ORDERS_OVERDUE).setTone(Tone.DANGER)));
-        Badge alerts = Badge.count(128).setTone(Tone.DANGER);
+        Badge alerts = Badge.ofCount(128).setTone(Tone.DANGER);
         rows.add(Page.row(8,
-                new Label(Text.INBOX), Badge.count(3).setTone(Tone.ACCENT),
+                new Label(Text.INBOX), Badge.ofCount(3).setTone(Tone.ACCENT),
                 new SizedBox(12, 1),
                 new Label(Text.ALERTS), alerts,
                 new SizedBox(12, 1),

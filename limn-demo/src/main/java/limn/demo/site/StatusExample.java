@@ -61,7 +61,7 @@ final class StatusExample {
 
     static Badge unread(int count) {
         // "99+" past 99, in the digits of the language shown; named for a reader by the sentence.
-        return Badge.count(count).setTone(Tone.ACCENT).setAccessibleName(count + " unread");
+        return Badge.ofCount(count).setTone(Tone.ACCENT).setAccessibleName(count + " unread");
     }
     // #endregion
 
