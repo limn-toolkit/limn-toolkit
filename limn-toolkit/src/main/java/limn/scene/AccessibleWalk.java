@@ -315,6 +315,7 @@ final class AccessibleWalk {
             builder.foreignActiveDescendant(0);
             return;
         }
+        keyboardScene = scene;
         beneathOnlyPopups = layer != null && layer != root && keyboardLayer != root
                 && scene.onlyPopupsAbove(-1);
         walkWidget(scene, root, null, 0, -1, 0, 0, true, true, layer == root || keyboardLayer == root);
@@ -754,7 +755,7 @@ final class AccessibleWalk {
             // Hoisted under whatever this one hangs under; a keyed transparent container still
             // scopes what is inside it, because its identifier is what its key decided.
             walkChildren(scene, widget, under, -1, id, ownScope, ownEnabled, ownVisible, reachable);
-            walkGraftsOf(widget, under, -1, id, ownScope);
+            walkGraftsOf(scene, widget, under, -1, id, ownScope);
             if (redirected) {
                 popRedirect();
             }
@@ -842,10 +843,11 @@ final class AccessibleWalk {
         // opened it keeps the focus, and one focused node per tree is the rule a reader relies on.
         // A popup that holds a focus of its own, which this window's keys drive (a popover of
         // controls), is the one exception, and then it is its focused widget that is published
-        // focused and not this scene's: still one, and the one the keys land on.
-        Scene focusScene = this.scene.focusPopup();
-        if (focusScene == null) {
-            focusScene = this.scene;
+        // focused and not this scene's: still one, and the one the keys land on. Followed down,
+        // for a popup of that kind opened from inside another (2026-10-19).
+        Scene focusScene = this.scene;
+        for (Scene inner = focusScene.focusPopup(); inner != null; inner = inner.focusPopup()) {
+            focusScene = inner;
         }
         boolean focused = scene == focusScene && scene.focusedWidget() == widget;
         if (focused) {
@@ -861,7 +863,7 @@ final class AccessibleWalk {
         }
 
         walkChildren(scene, widget, slot, slot, id, ownScope, ownEnabled, ownVisible, reachable);
-        walkGraftsOf(widget, slot, slot, id, ownScope);
+        walkGraftsOf(scene, widget, slot, slot, id, ownScope);
         builder.end();
         if (redirected) {
             popRedirect();
@@ -902,13 +904,20 @@ final class AccessibleWalk {
     }
 
     /**
-     * The popups grafted into this walk's scene whose opener is {@code opener}, each walked as a
-     * last child of the opener's node, in this scene's coordinates (Scene#graftPopup), from the
-     * moment its scene is bound until its window closes: what its own tree published over the same
-     * span when it had one.
+     * The popups grafted into {@code scene}, the scene {@code opener} is a widget of, whose opener
+     * is {@code opener}, each walked as a last child of the opener's node, in this walk's scene's
+     * coordinates (Scene#graftPopup), from the moment its scene is bound until its window closes:
+     * what its own tree published over the same span when it had one.
+     *
+     * <p>{@code scene} is this walk's own scene or a popup grafted into it, and a popup grafted
+     * into a popup is walked the same way, under its opener inside the outer one, to any depth: a
+     * combo box's list opened from inside a popover in a window of its own is grafted into the
+     * popover's scene, whose window publishes nothing, so a walk that read this scene's grafts
+     * alone left it, and its cursor, out of every tree (2026-10-19).
      */
-    private void walkGraftsOf(Widget<?> opener, int into, int ownSlot, long ownId, long scope) {
-        List<Scene> grafts = this.scene.graftedPopups();
+    private void walkGraftsOf(Scene scene, Widget<?> opener, int into, int ownSlot, long ownId,
+            long scope) {
+        List<Scene> grafts = scene.graftedPopups();
         if (grafts.isEmpty()) {
             return;
         }
@@ -927,17 +936,24 @@ final class AccessibleWalk {
             graftDx = (window.screenX() - home.screenX()) / factor;
             graftDy = (window.screenY() - home.screenY()) / factor;
             beneathOnlyPopups = false;
-            boolean drivesKeys = popup == this.scene.keyboardPopup();
+            // The keys reach a popup grafted into a popup only through that one: its cursor is
+            // where the keyboard is when the scene it is grafted into is itself driven by this
+            // window's keys, and the deepest such popup, walked last, is the one that holds it.
+            boolean drivesKeys = scene == keyboardScene && popup == scene.keyboardPopup();
+            Widget<?> outerRoot = keyboardPopupRoot;
+            Scene outerKeys = keyboardScene;
             if (drivesKeys) {
                 keyboardPopupSlot = builder.nodeCount(); // the slot its root is about to take
                 keyboardPopupRoot = root;
+                keyboardScene = popup;
             }
             try {
                 // Its own layer, in a window of its own: enabled, visible and reachable by its own
                 // widgets' flags, as an overlay is, and never shadowed by this scene's layers.
                 walkWidget(popup, root, null, into, ownSlot, ownId, scope, true, true, true);
             } finally {
-                keyboardPopupRoot = null;
+                keyboardPopupRoot = outerRoot;
+                keyboardScene = outerKeys;
                 graftDx = dx;
                 graftDy = dy;
                 beneathOnlyPopups = beneath;
@@ -1066,6 +1082,11 @@ final class AccessibleWalk {
     private float graftDy;
     /** The slot the grafted popup the keyboard drives was published at in this walk, or -1. */
     private int keyboardPopupSlot = -1;
+    /**
+     * The scene whose keyboard popup is driven by this window's keys, for the graft being walked:
+     * this walk's own scene, or the grafted popup the keys reach through it.
+     */
+    private Scene keyboardScene;
     /** That popup's root widget, while it is being walked. */
     private Widget<?> keyboardPopupRoot;
 

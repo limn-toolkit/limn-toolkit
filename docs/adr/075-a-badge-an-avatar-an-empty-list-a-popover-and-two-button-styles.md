@@ -635,6 +635,11 @@ that the text above does not say, dated where it departs from it.
   stretching column takes all the width it is let).
 - An attached button is a `POPUP_OWNER` and runs `PopupOwnerContract`; its press opens or closes
   the popover before the application's own handler hears it.
+- **A popup opened from inside the popover's window reached no reader** (2026-10-19, the audit of
+  that day): a combo box's list, a date picker's calendar and a text field's menu are grafted into
+  the popover's scene, whose window publishes nothing, and the owner's walk read only its own
+  scene's grafts. The walk now follows a graft inside a graft; ADR 039 section 1.11 has the
+  amendment, `PopoverNestedPopupAccessibilityTest` the cases.
 
 ### 12.6 The input method in a popover's window, measured
 

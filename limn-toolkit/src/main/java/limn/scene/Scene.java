@@ -960,6 +960,11 @@ public final class Scene {
      * window's coordinates, while its window is visible, and leave the tree when that window
      * closes. What a reader performs on them is performed in the popup's scene.
      *
+     * <p>This scene may itself be a grafted popup, a panel of controls in a window of its own: a
+     * popup grafted into it is then published by the tree this one is published in, under its
+     * opener there, to any depth, and leaves that tree when its own window closes or this one's
+     * does.
+     *
      * @param popup the popup's scene, not yet bound
      * @throws IllegalArgumentException if the popup's root names no opener
      * @throws IllegalStateException    if the popup is already bound, or grafted elsewhere
@@ -984,9 +989,18 @@ public final class Scene {
         return graftedPopups;
     }
 
-    /** @return whether {@code other} is a popup grafted into this scene's tree */
+    /**
+     * @return whether {@code other} is a popup grafted into this scene's tree, directly or into a
+     *         popup that is: a combo box's list opened from inside a popover in a window of its
+     *         own, whose nodes this tree publishes and whose verbs it performs
+     */
     boolean isGraftedPopup(Scene other) {
-        return other != null && other.graftedInto == this;
+        for (Scene at = other == null ? null : other.graftedInto; at != null; at = at.graftedInto) {
+            if (at == this) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** @return whether {@code widget} is the root of a popup scene grafted into another's tree */
