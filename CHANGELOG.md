@@ -27,13 +27,24 @@ Maven Central say which number that was.
   popover opened from a popover. Each is published in the owner window's tree under the control
   that opened it, laid out, with its cursor moves and a reader's actions; it was in no tree, and
   the combo said it was expanded over no list. This was the default on Windows, macOS and X11; an
-  in-scene popover, Wayland's, was not affected.
+  in-scene popover, Wayland's, was not affected. A combo list drawn in the scene
+  (`setDisplayMode(IN_SCENE)`) and a dialog kept in the scene, shown from inside such a popover, are
+  published too; on screen they are still confined to the popover's window.
+- One element with a negative size no longer freezes the tree a screen reader sees: every later
+  change failed to publish. It is published with no size, and later changes are published.
+- A masked `TextField` no longer reports an edit that changed nothing: typing or pasting into a
+  full field, typing a literal the field steps over, or typing a selected literal over itself ran
+  `onChange`, sent a text change to watchers and a caret move to screen readers, and left an undo
+  step that did nothing. A caret that moved is reported as a selection change, and nothing else is.
+  Stepping over a literal never leaves the caret between a character and the mark drawn on it.
 - A widget laid back in perspective by a `Transform` and dragged past the horizon no longer takes
   NaN: a `Slider` or a `RangeSlider` dragged there took NaN as its value and committed it on
   release. The scene withholds a drag whose point is not on the widget's plane, so the widget stays
   where the pointer last was on it, the release arrives there, and the drag goes on when the
-  pointer comes back; every drag handler, the toolkit's and an application's, has this without a
-  guard of its own.
+  pointer comes back, and a release whose pointer is off the plane, or whose plane turned while the
+  button was held, lands at the last point the pointer had on it. Every drag handler, the toolkit's
+  and an application's, has this without a guard of its own; only a plane turned edge-on, where no
+  point exists, still gets its release at a point that is not a number.
 - A pulse made of `fadeTo` or `slideTo` calls chained in `onArrive` no longer throws
   `StackOverflowError` out of the first call on the UI thread when every step goes straight to its
   target: for a person who asked the system for less motion, before the container is in a shown
@@ -41,14 +52,16 @@ Maven Central say which number that was.
 - An SVG whose style sheet or class lists are built to be slow no longer freezes the UI thread on
   its first draw. One element listing 200,000 class names (1.5 MB) took 17 s to read; a rule
   `.k.aaa…` against a class `k aaa…` took 10 s at 600 KB and nearly three minutes at 2.4 MB; a rule
-  naming 10,000 classes took 6 s and one naming 200,000 attribute conditions 20 s. None was refused,
-  because the reader's work limit counted each selector tried as one step whatever it compared.
-  Each element's id, classes and attributes are now looked up once, the limit counts every condition
-  and character compared, and each of these files is read in under 300 ms.
-- An SVG sprite sheet or a themed drawing styled by rules such as `#icon-12 path` or `.dark path` is
-  read again: each such rule was tried on every path in the file, and an ordinary 112 KB sheet of
-  400 symbols was refused as damaged and drew nothing. Such a rule is now tried only on the elements
-  inside the id or class it names, and sheets of 400 to 3,000 symbols read in under 200 ms.
+  naming 10,000 classes took 6 s, one naming 200,000 attribute conditions 20 s, and a rule naming an
+  id megabytes long 27 s, even when a near-identical id never matched. None was refused, because the
+  reader's work limit counted each selector tried as one step whatever it compared. The reader now
+  looks each element's names up once against the names the sheets use, then compares numbers, and
+  its work limit counts what each comparison costs: each of these files is read in under 400 ms.
+- An SVG sprite sheet, themed drawing or chart styled by rules such as `#icon-12 path`, `.dark path`
+  or `.dot.series-3` is read again: each such rule was tried on every path in the file, and an
+  ordinary 112 KB sheet of 400 symbols was refused as damaged and drew nothing. Such a rule is now
+  tried only inside the symbol or theme it names, or only on its own series: sheets of up to 3,000
+  symbols and charts of up to 200 series over 100,000 points read in under 350 ms.
 - `ColorPicker`'s alpha line is spaced from the last channel line as the channel lines are spaced from one
   another; it stood 2 pt further down at the default size.
 - `MediaControls` and `ColorPicker` speak the interface's language. The transport's six names
