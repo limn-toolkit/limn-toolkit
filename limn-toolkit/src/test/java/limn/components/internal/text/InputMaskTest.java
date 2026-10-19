@@ -275,6 +275,8 @@ class InputMaskTest {
                 "Backspace after the 3: the X and the Y land in the fourth digit's place and are passed over");
         assertEquals("ABC-1235-4X", serial.edit("ABC-1234-X", 7, 7, "5", 0).text(),
                 "the 4 moves on into an any position, and the dash stays a literal");
+        assertEquals("ABQ-1234-X", serial.edit("ABC-1234-X", 2, 2, "Q", 0).text(),
+                "the example setMask's Javadoc and the forms guide give: the C lands on a digit and goes");
     }
 
     @Test

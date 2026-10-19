@@ -278,7 +278,11 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * them is ever read as a character typed into a position. An edit never pushes characters
      * already typed off the end: typing or pasting into a field with no position free changes
      * nothing, as typing at the end of a full field does, and what finds no free position of a
-     * longer paste is dropped. To replace characters, select them and type over them.
+     * longer paste is dropped. To replace characters, select them and type over them. On a
+     * pattern whose positions are all of one kind, that is all an edit changes. On one that
+     * mixes them ({@code "AAA-0000-**"}), the characters after the edit close up, and one that
+     * lands in a position that does not take it is passed over: {@code ABC-1234-X} with a
+     * {@code Q} typed after the {@code B} reads {@code ABQ-1234-X}, its {@code C} gone.
      *
      * <p>The text already in the field is fitted at once. {@code null} takes the mask away and
      * leaves the text as it is.
