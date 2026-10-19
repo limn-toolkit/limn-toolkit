@@ -30,6 +30,8 @@ import java.util.Objects;
  * character count. With wrap, lines break greedily at the opportunities
  * {@link BreakIterator} finds under the {@linkplain I18n#locale() UI language}, so
  * unspaced CJK and dictionary-segmented Thai wrap through the same walk as prose.
+ * Between the two, {@link #setMaxLines} breaks the text the same way across a set number of
+ * lines and puts the ellipsis at the end of the last.
  * Horizontal and vertical alignment supported.
  * Colors come from the {@link Theme}; typography comes from the resolved
  * {@link limn.scene.ControlSize} step, picked by {@link Role}.
@@ -131,6 +133,8 @@ public final class Label extends Widget<Label> {
     private HAlign hAlign = HAlign.START;
     private VAlign vAlign = VAlign.CENTER;
     private boolean wrap;
+    /** The most lines the text breaks across; 1 leaves the label as {@link #setWrap} has it. */
+    private int maxLines = 1;
 
     // Derived-font memo. Font.bold()/italic() allocate a fresh record every call and
     // FontStore.resolved is an IdentityHashMap, so a strong/italic Label re-derived per
@@ -413,7 +417,7 @@ public final class Label extends Widget<Label> {
         // width() > 0 because the fast path rebuilds the line against the CURRENT box:
         // before the first layout pass there is no box, and ellipsizing against zero
         // would cache a lone ellipsis for a label that is about to be measured properly.
-        if (!wrap && scene() != null && width() > 0) {
+        if (lineLimit() == 1 && scene() != null && width() > 0) {
             SizeTokens t = Theme.of(this).tokensFor(this);
             Font f = effectiveFont(t);
             TextRuler ruler = textRuler();
@@ -597,7 +601,12 @@ public final class Label extends Widget<Label> {
         return this;
     }
 
-    /** What happens to text wider than the box when {@linkplain #setWrap wrap} is off. */
+    /**
+     * What happens to text that does not fit: on the one line of a label that does not
+     * {@linkplain #setWrap wrap}, and on the last line of one given {@linkplain #setMaxLines more
+     * lines}, where {@link Overflow#ELLIPSIS} ends that line with an ellipsis when more text
+     * remains and {@link Overflow#CLIP} lets the rest run on and cuts it at the box's edge.
+     */
     public Label setOverflow(Overflow newOverflow) {
         Ui.checkUiThread();
         this.overflow = newOverflow;
@@ -618,13 +627,59 @@ public final class Label extends Widget<Label> {
      * Breaks text across lines at the opportunities {@link BreakIterator} reports for the
      * {@linkplain I18n#locale() UI language}, greedily; a run that offers no opportunity at all
      * — a word longer than the box, or a script this locale has no rule for — is cut at the last
-     * cluster that fits. The measured height then depends on the width constraint. UI thread only.
+     * cluster that fits. The measured height then depends on the width constraint. As many lines
+     * as the text needs, unless {@link #setMaxLines} sets a limit above one. UI thread only.
      */
     public Label setWrap(boolean newWrap) {
         Ui.checkUiThread();
         this.wrap = newWrap;
         markNeedsLayout();
         return this;
+    }
+
+    /**
+     * Lets the text break across up to {@code lines} lines, at the same opportunities and by the
+     * same walk as {@link #setWrap wrap}, and ends the last of them with a measured ellipsis when
+     * more text remains (or lets it run on to the box's edge, under {@link Overflow#CLIP}). 1, the
+     * default, leaves the label as {@code setWrap} has it: one line without wrap, as many as the
+     * text needs with it. Above 1 the limit holds whether or not wrap is on, so a title of two lines
+     * says {@code setMaxLines(2)} and nothing else. UI thread only.
+     *
+     * <p>The lines are counted, not fitted: a label given less height than its lines take is
+     * clipped, as a wrapped one is. A reader still hears the whole text, which is the label's name
+     * however it is cut.
+     *
+     * @param lines the most lines, 1 or more
+     * @return this label
+     * @throws IllegalArgumentException when {@code lines} is below 1
+     */
+    public Label setMaxLines(int lines) {
+        Ui.checkUiThread();
+        if (lines < 1) {
+            throw new IllegalArgumentException("a label shows one line at the least, got " + lines);
+        }
+        if (maxLines == lines) {
+            return this;
+        }
+        maxLines = lines;
+        // In place, as a change of text is: the label's height changes and nothing outside the
+        // nearest ancestor whose size survives it moves.
+        markNeedsLayoutInPlace();
+        return this;
+    }
+
+    /** @return the most lines the text breaks across; see {@link #setMaxLines(int)} */
+    public int maxLines() {
+        return maxLines;
+    }
+
+    /**
+     * The lines the text may take: the set limit above one, and otherwise one line, or as many as
+     * the text needs while {@link #setWrap wrap} is on, which is what a label did before it had a
+     * limit and what every label that never sets one still does.
+     */
+    private int lineLimit() {
+        return maxLines > 1 ? maxLines : wrap ? Integer.MAX_VALUE : 1;
     }
 
     /**
@@ -742,6 +797,11 @@ public final class Label extends Widget<Label> {
         return lines.stream().map(ShapedText::text).toList();
     }
 
+    /** @return the lines as shaped for the paint, for a test that asks where a glyph lands */
+    List<ShapedText> shapedLines() {
+        return List.copyOf(lines);
+    }
+
     /** Test seam: the font a pass would draw with, resolved exactly the way a pass does. */
     Font resolvedFont() {
         return effectiveFont(Theme.of(this).tokensFor(this));
@@ -757,13 +817,14 @@ public final class Label extends Widget<Label> {
         // The row is the line box whether or not there is an icon. The icon square is
         // deliberately larger and overhangs (class note); letting it drive the height here is
         // what made a mixed form column ragged.
-        if (!wrap) {
+        int limit = lineLimit();
+        if (limit == 1) {
             float width = paragraph(ruler, f).metrics().width() + iconSpace;
             return constraints.constrain(width, line.lineHeight());
         }
         List<ShapedText> wrapped = new ArrayList<>();
         float widest = wrapText(paragraph(ruler, f), constraints.maxWidth() - iconSpace,
-                ruler, wrapped);
+                ruler, wrapped, limit, overflow == Overflow.ELLIPSIS);
         // wrapText always emits at least one line (empty text included), so the line count is
         // the whole height: no floor, which is what kept the icon out of the wrap branch too.
         return constraints.constrain(widest + iconSpace, wrapped.size() * line.lineHeight());
@@ -780,9 +841,10 @@ public final class Label extends Widget<Label> {
         // clamped, since an outset is a distance and never shrinks the damage rect.
         iconOverhang = Math.max(0, (iconBox - height()) / 2);
         float textWidth = textWidth(t, f);
-        if (wrap) {
+        int limit = lineLimit();
+        if (limit > 1) {
             lines.clear();
-            wrapText(paragraph(ruler, f), textWidth, ruler, lines);
+            wrapText(paragraph(ruler, f), textWidth, ruler, lines, limit, overflow == Overflow.ELLIPSIS);
             return;
         }
         buildLine(ruler, f, textWidth);
@@ -939,32 +1001,63 @@ public final class Label extends Widget<Label> {
      */
     static float wrapText(ShapedText paragraph, float maxWidth, TextRuler ruler,
             List<ShapedText> out) {
+        return wrapText(paragraph, maxWidth, ruler, out, Integer.MAX_VALUE, false);
+    }
+
+    /**
+     * {@link #wrapText(ShapedText, float, TextRuler, List)} that stops at {@code maxLines} lines.
+     *
+     * <p><b>The last line is the rest of the text, not the next row of the walk.</b> It runs from
+     * where the walk stood to the end of its paragraph, unbroken, and is cut there as a line that
+     * does not wrap is: with an ellipsis measured into the width when {@code ellipsis} is set, and
+     * otherwise left whole for the paint's clip to cut at the box's edge. So one line under this
+     * rule is exactly the label that never wraps, and the limit is the same rule a line further
+     * down. A line break in the text after the last line is more text too, and puts an ellipsis on
+     * a last line that fits.
+     *
+     * @param maxLines the most lines to emit, 1 or more
+     * @param ellipsis whether a cut last line ends with an ellipsis
+     * @return the widest emitted line's width, in logical points
+     */
+    static float wrapText(ShapedText paragraph, float maxWidth, TextRuler ruler,
+            List<ShapedText> out, int maxLines, boolean ellipsis) {
         String text = paragraph.text();
         if (text.indexOf('\n') < 0 && text.indexOf('\r') < 0 && text.indexOf('\u2028') < 0
                 && text.indexOf('\u2029') < 0) {
-            return wrapParagraph(paragraph, maxWidth, ruler, out);
+            return wrapParagraph(paragraph, maxWidth, ruler, out, maxLines, false, ellipsis);
         }
         // A line break in the text is a line on screen: each piece between two is wrapped on its
         // own, at the whole text's base direction, and an empty one is a blank line. Wrapped as
         // one paragraph, a break that fitted the width was shaped as nothing and the two lines
         // ran together.
         float widest = 0;
-        for (String piece : text.split("\r\n|[\n\r\u2028\u2029]", -1)) {
-            ShapedText shaped = ruler.shape(piece, paragraph.font(), paragraph.baseDirection());
-            widest = Math.max(widest, wrapParagraph(shaped, maxWidth, ruler, out));
+        String[] pieces = text.split("\r\n|[\n\r\u2028\u2029]", -1);
+        int emitted = 0;
+        for (int i = 0; i < pieces.length && emitted < maxLines; i++) {
+            ShapedText shaped = ruler.shape(pieces[i], paragraph.font(), paragraph.baseDirection());
+            int before = out.size();
+            widest = Math.max(widest, wrapParagraph(shaped, maxWidth, ruler, out, maxLines - emitted,
+                    i < pieces.length - 1, ellipsis));
+            emitted += out.size() - before;
         }
         return widest;
     }
 
-    /** {@link #wrapText} for a paragraph with no line break in it. */
+    /**
+     * {@link #wrapText} for a paragraph with no line break in it, emitting {@code room} lines at
+     * most; {@code moreAfter} says that text follows this paragraph, so a last line that ends it
+     * still has more after it.
+     */
     private static float wrapParagraph(ShapedText paragraph, float maxWidth, TextRuler ruler,
-            List<ShapedText> out) {
+            List<ShapedText> out, int room, boolean moreAfter, boolean ellipsis) {
         String text = paragraph.text();
         ShapedText.Direction base = paragraph.baseDirection();
         int length = text.length();
         if (maxWidth == Constraints.UNBOUNDED_LIMIT || maxWidth <= 0) {
-            out.add(paragraph);
-            return paragraph.metrics().width();
+            ShapedText line = room == 1 && moreAfter && ellipsis
+                    ? ruler.ellipsize(paragraph, maxWidth) : paragraph;
+            out.add(line);
+            return line.metrics().width();
         }
         BreakIterator breaks = LocaleServices.lineBreaks(I18n.locale());
         breaks.setText(text);
@@ -974,6 +1067,23 @@ public final class Label extends Widget<Label> {
         // list with something already in it would otherwise lose the empty-line floor below.
         int emitted = 0;
         do {
+            if (emitted == room - 1) {
+                // The last line the limit allows: the rest of the paragraph, cut as one line is.
+                int cut = LineBreaks.trimEnd(text, start, length);
+                if (cut == start) {
+                    break; // nothing but whitespace is left, and the floor below speaks for it
+                }
+                ShapedText rest = start == 0 && cut == length
+                        ? paragraph
+                        : ruler.shape(text.substring(start, cut), paragraph.font(), base);
+                if (ellipsis && (moreAfter || rest.metrics().width() > maxWidth)) {
+                    rest = ruler.ellipsize(rest, maxWidth);
+                }
+                out.add(rest);
+                emitted++;
+                widest = Math.max(widest, Math.min(maxWidth, rest.metrics().width()));
+                break;
+            }
             // The break step itself — the hard cut, the last acceptable opportunity, the
             // trailing whitespace hanging past the margin, the cluster fallback for an
             // unbreakable word — is LineBreaks.rowEnd, shared with TextArea's soft wrap so the
@@ -1008,7 +1118,9 @@ public final class Label extends Widget<Label> {
             // depends on. Width 0, because an empty line has none — and still shaped at the
             // paragraph's base, because a held line's direction is asked about later even when
             // there is no ink in it to see.
-            out.add(ruler.shape("", paragraph.font(), base));
+            ShapedText empty = ruler.shape("", paragraph.font(), base);
+            // A blank line that is the last the limit allows, with text after it, is still a cut.
+            out.add(room == 1 && moreAfter && ellipsis ? ruler.ellipsize(empty, maxWidth) : empty);
         }
         return widest;
     }
