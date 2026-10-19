@@ -1,6 +1,7 @@
 package limn.components;
 
 import limn.input.Keys;
+import limn.scene.Change;
 import limn.scene.layout.Column;
 import org.junit.jupiter.api.Test;
 
@@ -69,6 +70,13 @@ class TextFieldMaskEditsTest extends AccessibleComponentTestBase {
         scene.setClipboard(clipboard);
         frame();
         field.requestFocus();
+        int[] announced = new int[2];
+        field.observeChanges((widget, change) -> {
+            if (change instanceof Change.TextEdit) {
+                announced[0]++;
+            }
+        });
+        field.onChange(text -> announced[1]++);
         Random random = new Random(seed);
         Set<String> seen = new HashSet<>();
         List<String> log = new ArrayList<>();
@@ -80,6 +88,8 @@ class TextFieldMaskEditsTest extends AccessibleComponentTestBase {
             int selEnd = field.selectionEnd();
             int caret = field.caretPosition();
             boolean selected = selStart != selEnd;
+            announced[0] = 0;
+            announced[1] = 0;
             int roll = random.nextInt(100);
             String typed = null;
             int from = selected ? selStart : caret;
@@ -143,6 +153,14 @@ class TextFieldMaskEditsTest extends AccessibleComponentTestBase {
                     + what + ") on \"" + oldText + "\" caret " + caret + " selection " + selStart
                     + ".." + selEnd + "\n  " + String.join("\n  ", log);
             model.checkWritten(field, context);
+            // An edit is heard once when it changed the text, and not at all when the mask
+            // refused it or put back what it took; a caller's setText reaches no handler.
+            boolean changed = !field.text().equals(oldText);
+            if (announced[0] != (changed ? 1 : 0)
+                    || announced[1] != (changed && !what.startsWith("setText") ? 1 : 0)) {
+                fail(announced[0] + " text changes and " + announced[1] + " handler runs for an edit that "
+                        + (changed ? "changed" : "did not change") + " the text: " + context);
+            }
             if (history) {
                 if (!seen.contains(state())) {
                     fail("an undo or redo reached a state no edit made: " + context);

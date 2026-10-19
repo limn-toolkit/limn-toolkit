@@ -1,9 +1,11 @@
 package limn.components;
 
 import limn.accessibility.Accessible;
+import limn.accessibility.AccessibleEvent;
 import limn.graphics.Paint;
 import limn.graphics.ShapedText;
 import limn.input.Keys;
+import limn.scene.Change;
 import limn.scene.layout.Column;
 import org.junit.jupiter.api.Test;
 
@@ -358,6 +360,61 @@ class TextFieldMaskTest extends AccessibleComponentTestBase {
         drive(scene).press(Keys.Z, COMMAND);
         assertEquals("5555123", field.text());
         assertEquals("55123", field.unmaskedText(), "an undo reads the text as the field wrote it");
+    }
+
+    // ------------------------------------------------- an edit that comes to nothing says nothing
+
+    @Test
+    void typingIntoAFullFieldAnnouncesNothingAtHomeMidTextAndAtTheEnd() {
+        holding("+1 (000) 000-0000", "+1 (555) 123-4567", 0);
+        List<String> edits = new ArrayList<>();
+        field.observeChanges((widget, change) -> edits.add(change.toString()));
+        for (int caret : new int[]{0, 5, 17}) {
+            field.setCaretPosition(caret);
+            frame();
+            heard.clear();
+            edits.clear();
+            bridge.events.clear();
+            type("9");
+            frame();
+            assertEquals("+1 (555) 123-4567", field.text());
+            assertEquals(caret, field.caretPosition(), "the caret did not move");
+            assertEquals(List.of(), heard, "caret " + caret + ": no handler runs for a refused key");
+            assertEquals(List.of(), edits, "caret " + caret + ": no change reaches a watcher");
+            assertEquals(List.of(), bridge.eventsOf(AccessibleEvent.Type.CARET_MOVED),
+                    "caret " + caret + ": " + bridge.events);
+        }
+    }
+
+    @Test
+    void steppingOverALiteralMovesOnlyTheCaret() {
+        holding("+1 (000) 000-0000", "+1 (555) 123-4567", 7); // before the )
+        List<Change> edits = new ArrayList<>();
+        field.observeChanges((widget, change) -> edits.add(change));
+        frame();
+        heard.clear();
+        bridge.events.clear();
+        type(")");
+        frame();
+        assertEquals("+1 (555) 123-4567", field.text());
+        assertEquals(8, field.caretPosition());
+        assertEquals(List.of(), heard, "the text did not change");
+        assertEquals(1, edits.size(), edits.toString());
+        assertEquals(Change.Aspect.SELECTION, edits.get(0).aspect(), "the caret's move, and only that");
+        assertEquals(1, bridge.eventsOf(AccessibleEvent.Type.CARET_MOVED).size(), bridge.events.toString());
+    }
+
+    @Test
+    void aLiteralTypedOverTheSameSelectedLiteralLeavesNoUndoStep() {
+        holding("000.000", "123", 3);
+        type("456");
+        field.select(3, 4); // the dot
+        heard.clear();
+        type(".");
+        assertEquals("123.456", field.text());
+        assertEquals(List.of(), heard);
+        drive(scene).press(Keys.Z, COMMAND);
+        assertEquals("123", field.text(), "one undo takes the typing back, not a step that did nothing");
     }
 
     // ------------------------------------------------- where the caret is drawn
