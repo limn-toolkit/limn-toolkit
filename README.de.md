@@ -347,9 +347,10 @@ innerhalb von 1.x ist also immer sicher, und Korrekturen kommen in das nächste 
 Linien. Eine mit `@Deprecated` markierte Methode funktioniert bis 2.0 weiter, und Java 17 bleibt bis
 2.0 das Minimum. Die einzige Ausnahme ist das Paket `limn.backend.spi`, das nur benutzt, wer ein
 eigenes Backend schreibt: Es ist im Inkubationsstadium und kann sich in einem 1.x-Minor-Release
-ändern, immer mit der Migration im Changelog. Jeder Enum-Typ von Limn kann in einem
-1.x-Minor-Release neue Konstanten bekommen, ein `switch` über einen davon braucht also einen
-`default`-Zweig.
+ändern, immer mit der Migration im Changelog.
+
+Jeder Enum-Typ von Limn kann in einem 1.x-Minor-Release neue Konstanten bekommen, ein `switch` über
+einen davon braucht also einen `default`-Zweig.
 
 ## Dokumentation
 
