@@ -344,10 +344,10 @@ A partir de la 1.0, nada de lo que usa una aplicación se rompe antes de la 2.0:
 1.x compila y ejecuta el código escrito para cualquier 1.x anterior, así que actualizar dentro de
 la 1.x siempre es seguro, y las correcciones van a la siguiente 1.x y no a líneas más antiguas. Un
 método marcado con `@Deprecated` sigue funcionando hasta la 2.0, y Java 17 sigue siendo el mínimo
-hasta la 2.0. Cualquier enum de Limn puede ganar constantes en una versión menor 1.x, así que un
-`switch` sobre uno de ellos necesita una rama `default`. La única excepción es el paquete
-`limn.backend.spi`, que solo usa quien escribe un backend propio: está en incubación y puede
-cambiar en una versión menor 1.x, siempre con la migración en el registro de cambios.
+hasta la 2.0. La única excepción es el paquete `limn.backend.spi`, que solo usa quien escribe un
+backend propio: está en incubación y puede cambiar en una versión menor 1.x, siempre con la
+migración en el registro de cambios. Cualquier enum de Limn puede ganar constantes en una versión
+menor 1.x, así que un `switch` sobre uno de ellos necesita una rama `default`.
 
 ## Documentación
 
