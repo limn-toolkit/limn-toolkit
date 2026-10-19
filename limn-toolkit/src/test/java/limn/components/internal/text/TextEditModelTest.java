@@ -1471,4 +1471,29 @@ class TextEditModelTest {
         assertEquals(covered[1] + 1 + 0, covered[2],
                 "net delta: +1 for the Q, and the 2-for-2 replacement moved nothing");
     }
+
+    @Test
+    void anEditAmendedToNothingGivesBackTheRedoAndTheOldestUndoItsRecordingTookAway() {
+        TextEditModel m = new TextEditModel(true);
+        // 200 steps, the most the history keeps: each insert is a step of its own (OTHER).
+        for (int i = 0; i < 200; i++) {
+            m.insert(Character.toString('a' + i % 26));
+        }
+        assertTrue(m.undo());
+        String undone = m.text();
+        // A field refuses the next keystroke: the edit is recorded, then folded back to the text
+        // it started from, which pops its step.
+        m.insertCodePoint('9');
+        m.amendLastEdit(undone, undone.length());
+        assertEquals(undone, m.text());
+        assertTrue(m.canRedo(), "the refused key cost no Redo");
+        assertTrue(m.redo());
+        assertEquals(200, m.text().length());
+        int undos = 0;
+        while (m.undo()) {
+            undos++;
+        }
+        assertEquals(200, undos, "and no old step was trimmed away for a step that is gone");
+        assertEquals("", m.text());
+    }
 }

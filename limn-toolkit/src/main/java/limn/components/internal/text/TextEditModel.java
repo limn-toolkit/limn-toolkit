@@ -9,6 +9,8 @@ import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.jspecify.annotations.Nullable;
+
 /**
  * Pure, headless text-editing model shared by TextField/PasswordField (single
  * line) and TextArea (multiline): cursor, anchor-based selection, line-aware
@@ -166,6 +168,15 @@ public final class TextEditModel {
     /** The sum of {@link Step#bytes()} over {@link #undoStack}, held against the budget. */
     private long undoBytes;
     private EditKind lastEdit = EditKind.OTHER;
+    /**
+     * The step the last edit pushed, with the redo history and the oldest undo steps pushing it
+     * cleared and trimmed: what {@link #amendLastEdit} puts back when it finds that edit came to
+     * nothing, so a keystroke a field refused costs the user neither Redo nor an old Undo.
+     * {@code null} once anything else has happened.
+     */
+    private @Nullable Step lastPushed;
+    private @Nullable ArrayDeque<Step> redoBeforeLastPush;
+    private @Nullable ArrayDeque<Step> trimmedByLastPush;
 
     /** A model for one line (newlines rejected on insert) or for many. */
     public TextEditModel(boolean singleLine) {
@@ -205,6 +216,7 @@ public final class TextEditModel {
         undoStack.clear();
         redoStack.clear();
         undoBytes = 0;
+        forgetLastPush();
         lastEdit = EditKind.OTHER;
     }
 
@@ -464,23 +476,40 @@ public final class TextEditModel {
      */
     private void record(EditKind kind, int start, int end, String value) {
         boolean coalesce = kind != EditKind.OTHER && kind == lastEdit && !undoStack.isEmpty();
+        Step pushed = null;
         if (!coalesce || !extend(undoStack.peek(), start, end, value)) {
-            Step step = new Step(start, new StringBuilder(end - start).append(buffer, start, end),
+            pushed = new Step(start, new StringBuilder(end - start).append(buffer, start, end),
                     new StringBuilder(value), cursor, cursorAffinity, anchor);
-            undoStack.push(step);
-            undoBytes += step.bytes();
+            undoStack.push(pushed);
+            undoBytes += pushed.bytes();
         } else {
             undoBytes += (end - start + value.length()) * 2L;
         }
         // Depth first, then bytes; and the newest step stays whatever it weighs, because a stack
         // trimmed to nothing by one large paste would leave that paste the one edit nobody can
         // take back.
+        ArrayDeque<Step> trimmed = null;
         while (undoStack.size() > MAX_UNDO
                 || (undoBytes > UNDO_BYTE_BUDGET && undoStack.size() > 1)) {
-            undoBytes -= undoStack.removeLast().bytes();
+            Step oldest = undoStack.removeLast();
+            undoBytes -= oldest.bytes();
+            if (trimmed == null) {
+                trimmed = new ArrayDeque<>();
+            }
+            trimmed.push(oldest); // the last trimmed first, which is the order they go back in
         }
+        lastPushed = pushed;
+        trimmedByLastPush = pushed == null ? null : trimmed;
+        redoBeforeLastPush = pushed == null || redoStack.isEmpty() ? null : new ArrayDeque<>(redoStack);
         redoStack.clear();
         lastEdit = kind;
+    }
+
+    /** Forgets what {@link #record} kept for {@link #amendLastEdit}: something else happened. */
+    private void forgetLastPush() {
+        lastPushed = null;
+        redoBeforeLastPush = null;
+        trimmedByLastPush = null;
     }
 
     /**
@@ -560,10 +589,26 @@ public final class TextEditModel {
             top.inserted.append(value, prefix, value.length() - suffix);
             undoBytes += top.bytes();
             if (top.removed.length() == 0 && top.inserted.length() == 0) {
-                // The edit came to nothing once fitted: there is nothing to take back.
-                undoBytes -= undoStack.pop().bytes();
+                // The edit came to nothing once fitted: there is nothing to take back, and what
+                // recording it cleared or trimmed goes back as it was. A typing run ends here, so
+                // the next key starts a step of its own rather than extending an older one.
+                Step popped = undoStack.pop();
+                undoBytes -= popped.bytes();
+                if (popped == lastPushed) {
+                    if (trimmedByLastPush != null) {
+                        for (Step oldest : trimmedByLastPush) {
+                            undoStack.addLast(oldest);
+                            undoBytes += oldest.bytes();
+                        }
+                    }
+                    if (redoBeforeLastPush != null) {
+                        redoStack.addAll(redoBeforeLastPush);
+                    }
+                }
+                lastEdit = EditKind.OTHER;
             }
         }
+        forgetLastPush();
     }
 
     /** @return whether there was anything to undo */
@@ -571,6 +616,7 @@ public final class TextEditModel {
         if (undoStack.isEmpty()) {
             return false;
         }
+        forgetLastPush();
         Step step = undoStack.pop();
         undoBytes -= step.bytes();
         redoStack.push(step.withCaret(cursor, cursorAffinity, anchor));
@@ -584,6 +630,7 @@ public final class TextEditModel {
         if (redoStack.isEmpty()) {
             return false;
         }
+        forgetLastPush();
         Step step = redoStack.pop();
         Step back = step.withCaret(cursor, cursorAffinity, anchor);
         undoStack.push(back);

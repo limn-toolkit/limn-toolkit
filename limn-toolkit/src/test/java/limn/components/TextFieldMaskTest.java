@@ -418,6 +418,28 @@ class TextFieldMaskTest extends AccessibleComponentTestBase {
     }
 
     @Test
+    void aKeystrokeTheMaskRefusesKeepsRedo() {
+        // A digit into a full field, a letter into a digit position, a literal stepped over, and
+        // two refused keys in a row: each leaves the redo history as the undo left it.
+        String[][] cases = {{"6", "1"}, {"6", "x"}, {"7", ")"}, {"6", "12"}};
+        for (String[] keys : cases) {
+            holding("+1 (000) 000-0000", "5551234567", 0);
+            field.select(0, field.text().length());
+            type("9");
+            assertEquals("+1 (9", field.text());
+            drive(scene).press(Keys.Z, COMMAND);
+            assertEquals("+1 (555) 123-4567", field.text());
+            field.setCaretPosition(Integer.parseInt(keys[0]));
+            type(keys[1]);
+            assertEquals("+1 (555) 123-4567", field.text(), keys[1] + " is refused");
+            drive(scene).press(Keys.Z, COMMAND | Keys.MOD_SHIFT);
+            assertEquals("+1 (9", field.text(), "redo after a refused " + keys[1]);
+            drive(scene).press(Keys.Z, COMMAND);
+            assertEquals("+1 (555) 123-4567", field.text(), "and undo again after " + keys[1]);
+        }
+    }
+
+    @Test
     void steppingOverALiteralNeverLeavesTheCaretInsideACluster() {
         holding("**-**", "ab\u0301c", 2); // the combining acute lands on the hyphen: "ab-\u0301c"
         assertEquals("ab-\u0301c", field.text());
