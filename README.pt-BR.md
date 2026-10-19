@@ -124,11 +124,11 @@ escolher.
 |---|---|
 | Windows | Windows 10 em x64; Windows 10 on ARM ou Windows 11 em ARM64 |
 | macOS | macOS 11 Big Sur, em Apple silicon e Intel |
-| Linux | glibc 2.28 em x86_64 (Debian 10, Ubuntu 20.04, RHEL 8); glibc 2.35 em ARM64 (Ubuntu 22.04, Debian 12); X11 ou Wayland |
+| Linux | glibc 2.28 em x86_64 (Debian 10, Ubuntu 20.04, RHEL 8; o Ubuntu 18.04, com 2.27, fica logo abaixo); glibc 2.35 em ARM64 (Ubuntu 22.04, Debian 12); X11 ou Wayland |
 
 São as bibliotecas nativas que fixam esses pisos, e o build confere cada uma delas;
 [Sistemas suportados](https://limn-toolkit.github.io/limn-toolkit/docs/install/#supported-systems)
-diz o que fixa cada um. MP4 e Matroska num Mac anterior ao macOS 26 precisam de
+diz o que fixa cada um. MP4 e Matroska num Mac anterior ao macOS 26 Tahoe precisam de
 `limn-ffmpeg-natives` 9.0.2.1 ou posterior: a 9.0.2.0 foi compilada para o macOS 26 por engano.
 
 ### Reproduzir vídeo

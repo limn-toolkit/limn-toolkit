@@ -107,9 +107,9 @@ dependencies {
 |---|---|
 | Windows | x64 上为 Windows 10；ARM64 上为 Windows 10 on ARM 或 Windows 11 |
 | macOS | macOS 11 Big Sur，Apple 芯片与 Intel 均可 |
-| Linux | x86_64 上为 glibc 2.28（Debian 10、Ubuntu 20.04、RHEL 8）；ARM64 上为 glibc 2.35（Ubuntu 22.04、Debian 12）；X11 或 Wayland 均可 |
+| Linux | x86_64 上为 glibc 2.28（Debian 10、Ubuntu 20.04、RHEL 8；glibc 为 2.27 的 Ubuntu 18.04 恰好低于此线）；ARM64 上为 glibc 2.35（Ubuntu 22.04、Debian 12）；X11 或 Wayland 均可 |
 
-这些下限由原生库决定，构建会逐一检查每个库；各自由什么决定，见[支持的系统](https://limn-toolkit.github.io/limn-toolkit/docs/install/#supported-systems)。在早于 macOS 26 的 Mac 上播放 MP4 和 Matroska，需要 `limn-ffmpeg-natives` 9.0.2.1 或更新版本：9.0.2.0 被误以 macOS 26 为目标构建。
+这些下限由原生库决定，构建会逐一检查每个库；各自由什么决定，见[支持的系统](https://limn-toolkit.github.io/limn-toolkit/docs/install/#supported-systems)。在早于 macOS 26 Tahoe 的 Mac 上播放 MP4 和 Matroska，需要 `limn-ffmpeg-natives` 9.0.2.1 或更新版本：9.0.2.0 被误以 macOS 26 为目标构建。
 
 ### 播放视频
 

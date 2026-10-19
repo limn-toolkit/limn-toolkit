@@ -119,11 +119,11 @@ dependencies {
 |---|---|
 | Windows | x64는 Windows 10, ARM64는 Windows 10 on ARM 또는 Windows 11 |
 | macOS | macOS 11 Big Sur, Apple 실리콘과 Intel 모두 |
-| Linux | x86_64는 glibc 2.28(Debian 10, Ubuntu 20.04, RHEL 8), ARM64는 glibc 2.35(Ubuntu 22.04, Debian 12). X11과 Wayland 모두 |
+| Linux | x86_64는 glibc 2.28(Debian 10, Ubuntu 20.04, RHEL 8. glibc 2.27인 Ubuntu 18.04는 바로 아래입니다), ARM64는 glibc 2.35(Ubuntu 22.04, Debian 12). X11과 Wayland 모두 |
 
 이 하한은 네이티브 라이브러리가 정하며, 빌드가 그 하나하나를 검사합니다. 각각을 무엇이
 정하는지는 [지원 시스템](https://limn-toolkit.github.io/limn-toolkit/docs/install/#supported-systems)에
-있습니다. macOS 26보다 오래된 Mac에서 MP4와 Matroska를 재생하려면 `limn-ffmpeg-natives`
+있습니다. macOS 26 Tahoe보다 오래된 Mac에서 MP4와 Matroska를 재생하려면 `limn-ffmpeg-natives`
 9.0.2.1 이상이 필요합니다. 9.0.2.0은 실수로 macOS 26용으로 빌드되었습니다.
 
 ### 영상 재생
