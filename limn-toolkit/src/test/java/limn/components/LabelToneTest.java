@@ -82,7 +82,7 @@ class LabelToneTest extends ComponentTestBase {
     void eachToneNamesTheTokenItReads() {
         Theme theme = Theme.limnLight();
         assertEquals(theme.textMuted(), Tone.NEUTRAL.colorIn(theme));
-        assertEquals(theme.primary(), Tone.ACCENT.colorIn(theme));
+        assertEquals(theme.primaryText(), Tone.ACCENT.colorIn(theme));
         assertEquals(theme.info(), Tone.INFO.colorIn(theme));
         assertEquals(theme.success(), Tone.SUCCESS.colorIn(theme));
         assertEquals(theme.warning(), Tone.WARNING.colorIn(theme));

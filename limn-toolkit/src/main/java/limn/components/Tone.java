@@ -19,7 +19,10 @@ import limn.graphics.Color;
 public enum Tone {
     /** Nothing to call attention to: the palette's {@link Theme#textMuted() muted text}. */
     NEUTRAL,
-    /** The application's own colour: the palette's {@link Theme#primary() accent}. */
+    /**
+     * The application's own colour: the palette's accent {@linkplain Theme#primaryText() as text},
+     * which is {@link Theme#primary()} where that already reads as text on every surface.
+     */
     ACCENT,
     /** A note: the palette's {@link Theme#info() info}. */
     INFO,
@@ -39,7 +42,7 @@ public enum Tone {
     public Color colorIn(Theme theme) {
         return switch (this) {
             case NEUTRAL -> theme.textMuted();
-            case ACCENT -> theme.primary();
+            case ACCENT -> theme.primaryText();
             case INFO -> theme.info();
             case SUCCESS -> theme.success();
             case WARNING -> theme.warning();

@@ -152,10 +152,65 @@ class ThemeContrastTest {
     @ParameterizedTest(name = "{0}")
     @MethodSource("palettes")
     void theStateTonesReadAsTextOnTheCanvasAndOnACard(Theme theme) {
-        for (Tone tone : new Tone[] {Tone.DANGER, Tone.WARNING, Tone.SUCCESS, Tone.INFO}) {
+        for (Tone tone : new Tone[] {Tone.DANGER, Tone.WARNING, Tone.SUCCESS, Tone.INFO, Tone.ACCENT}) {
             atLeast(4.5, tone.colorIn(theme), theme.background(), tone + " text on the canvas");
             atLeast(4.5, tone.colorIn(theme), theme.surface(), tone + " text on a card");
         }
+    }
+
+    /**
+     * The accent as text (a tertiary button's caption, a label in {@link Tone#ACCENT}) clears body
+     * text's bar on all three surfaces in every palette. Primary itself does not in eleven of the
+     * fifteen: it is solved for a fill, at 3:1, and on a raised surface it reaches as low as
+     * 3.01:1 (Arch Dark), so the theme moves it toward the text colour until it clears.
+     */
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("palettes")
+    void theAccentAsTextClearsEverySurface(Theme theme) {
+        atLeast(4.5, theme.primaryText(), theme.background(), "accent text on the canvas");
+        atLeast(4.5, theme.primaryText(), theme.surface(), "accent text on a card");
+        atLeast(4.5, theme.primaryText(), theme.surfaceRaised(), "accent text on a popover");
+    }
+
+    /**
+     * Moved only where it has to be, and only as far: a primary that already clears is returned
+     * as it is, and one that does not is one step of a hundredth past the last that failed.
+     */
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("palettes")
+    void theAccentAsTextMovesOnlyAsFarAsItMust(Theme theme) {
+        boolean primaryClears = Color.contrastRatio(theme.primary(), theme.background()) >= 4.5
+                && Color.contrastRatio(theme.primary(), theme.surface()) >= 4.5
+                && Color.contrastRatio(theme.primary(), theme.surfaceRaised()) >= 4.5;
+        if (primaryClears) {
+            assertTrue(theme.primary() == theme.primaryText(), "a primary that reads is kept as it is");
+            return;
+        }
+        int step = 1;
+        while (!theme.primary().lerp(theme.text(), step / 100f).equals(theme.primaryText())) {
+            step++;
+            assertTrue(step <= 100, "the accent as text is a step toward the text colour");
+        }
+        Color oneLess = theme.primary().lerp(theme.text(), (step - 1) / 100f);
+        double worst = Math.min(Color.contrastRatio(oneLess, theme.background()),
+                Math.min(Color.contrastRatio(oneLess, theme.surface()),
+                        Color.contrastRatio(oneLess, theme.surfaceRaised())));
+        assertTrue(worst < 4.5, "the step before it would have cleared already: " + worst);
+    }
+
+    /**
+     * Toward the text colour, which is near grey in every palette, the accent keeps its hue: a
+     * tertiary caption is the same blue or violet as the filled button beside it, paler or deeper.
+     */
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("palettes")
+    void theAccentAsTextKeepsTheAccentsHue(Theme theme) {
+        float before = theme.primary().hue();
+        float after = theme.primaryText().hue();
+        float apart = Math.abs(before - after);
+        apart = Math.min(apart, 360 - apart);
+        assertTrue(apart <= 12, theme.name() + ": hue moved " + apart + " degrees, from "
+                + before + " to " + after);
     }
 
     /** Disabled text must read as unavailable and still be legible. */

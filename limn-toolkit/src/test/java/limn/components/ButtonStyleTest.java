@@ -136,9 +136,9 @@ class ButtonStyleTest extends ComponentTestBase {
         Recorder rest = frame();
         assertTrue(rest.fills.isEmpty(), "nothing behind a resting tertiary button: " + rest.fills);
         assertTrue(rest.borders.isEmpty(), "and no outline");
-        assertEquals(theme().primary(), rest.ink(), "the caption carries the accent");
+        assertEquals(theme().primaryText(), rest.ink(), "the caption carries the accent as text");
         press();
-        Color ink = theme().primary();
+        Color ink = theme().primaryText();
         assertEquals(ink.withAlpha(ink.a() * 0.16f), frame().fill(), "pressed: the ink at 16 %");
 
         lone(Button.Style.TERTIARY, true);

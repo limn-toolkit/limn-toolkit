@@ -208,16 +208,12 @@ public final class Button extends Widget<Button> {
         return switch (style) {
             case PRIMARY -> theme.onPrimary();
             case SECONDARY -> destructive ? theme.danger() : theme.text();
-            case TERTIARY -> destructive ? theme.danger() : tertiaryInk(theme);
+            // The accent as text, the one place the colour that says "this is an action" is kept
+            // once the fill is gone: primary itself where it reads as text on every surface, and
+            // moved toward the text colour where it does not (11 of the 15 built-in palettes,
+            // whose primary is solved for a fill and falls under 4.5:1 on a raised surface).
+            case TERTIARY -> destructive ? theme.danger() : theme.primaryText();
         };
-    }
-
-    /**
-     * A tertiary button's caption when it is not destructive: the palette's accent, the one place
-     * the colour that says "this is an action" is kept once the fill is gone.
-     */
-    private static Color tertiaryInk(Theme theme) {
-        return theme.primary();
     }
 
     /**
