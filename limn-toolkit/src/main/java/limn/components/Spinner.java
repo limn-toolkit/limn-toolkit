@@ -126,7 +126,12 @@ import java.util.function.DoubleConsumer;
  */
 public final class Spinner extends Widget<Spinner> {
 
-    /** Numeric value vs. an {@code HH:MM} time-of-day (value in minutes). */
+    /**
+     * Numeric value vs. an {@code HH:MM} time-of-day (value in minutes).
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
+     */
     public enum Mode { NUMERIC, TIME }
 
     /** Press-and-hold auto-repeat: the pause before the first repeat, then its cadence. */

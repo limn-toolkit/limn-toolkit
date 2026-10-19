@@ -99,6 +99,9 @@ public final class Transform extends Widget<Transform> {
     /**
      * Which way {@link #flipTo flipTo} turns the child over: two about the vertical axis that
      * follow the reading direction, and two about the horizontal axis that do not.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
      */
     public enum Flip {
         /**

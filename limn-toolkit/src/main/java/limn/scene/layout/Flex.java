@@ -36,6 +36,9 @@ public abstract class Flex<W extends Flex<W>> extends Container<W> {
      *
      * <p>A {@link Wrap} places each of its runs with the same constants, and reads them as a row
      * does.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
      */
     public enum MainAlignment {
         /** Against the edge reading starts from. */
@@ -66,6 +69,9 @@ public abstract class Flex<W extends Flex<W>> extends Container<W> {
      * <p>A {@link Wrap} reads them as a row does, within the height of each of its runs. A
      * {@link Grid} reads them as a row does within the height of each of its rows, and as a
      * column does across the width of each of its columns.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
      */
     public enum CrossAlignment { START, CENTER, END, STRETCH, BASELINE }
 

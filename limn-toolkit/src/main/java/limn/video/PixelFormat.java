@@ -28,6 +28,9 @@ import limn.internal.lang.Checks;
  * methods is depth-correct and one that multiplies a width by a component count is not. The
  * decode matrix is depth-dependent too, which is why {@link VideoColor}'s coefficient accessors
  * take a bit depth rather than answering for eight bits and hoping.
+ *
+ * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+ * {@code default} branch.
  */
 public enum PixelFormat {
 

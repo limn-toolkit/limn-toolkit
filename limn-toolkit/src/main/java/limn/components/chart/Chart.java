@@ -84,7 +84,12 @@ import java.util.function.Function;
  */
 public abstract class Chart<W extends Chart<W>> extends Widget<W> {
 
-    /** Where the legend sits relative to the plot. */
+    /**
+     * Where the legend sits relative to the plot.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
+     */
     public enum LegendPosition {
         /** Below the plot when there are two or more entries to name, hidden otherwise. */
         AUTO,
@@ -93,7 +98,12 @@ public abstract class Chart<W extends Chart<W>> extends Widget<W> {
         TOP, BOTTOM, LEFT, RIGHT
     }
 
-    /** How much a hover reports. */
+    /**
+     * How much a hover reports.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
+     */
     public enum TooltipMode {
         /** Every visible series at the hovered category, the default for bars and lines. */
         INDEX,

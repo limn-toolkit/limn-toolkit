@@ -334,7 +334,8 @@ application.
 From 1.0 on, nothing an application uses breaks before 2.0: every 1.x release builds and runs
 the code written for any earlier 1.x, so upgrading within 1.x is always safe, and fixes go into
 the next 1.x rather than into older lines. A method marked `@Deprecated` keeps working until
-2.0, and Java 17 stays the minimum until 2.0. The one exception is the package
+2.0, and Java 17 stays the minimum until 2.0. Any of Limn's enums may gain constants in a 1.x
+minor, so a `switch` over one needs a `default` branch. The one exception is the package
 `limn.backend.spi`, which only someone writing a backend of their own uses: it is incubating
 and may change in a 1.x minor, always with the migration in the changelog.
 

@@ -15,6 +15,9 @@ import limn.graphics.Color;
  *
  * <p>Each tone is one of the palette's tokens, so its contrast is the palette's: the built-in
  * palettes are tested for each as text on the canvas, on a card and on a popover.
+ *
+ * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+ * {@code default} branch.
  */
 public enum Tone {
     /** Nothing to call attention to: the palette's {@link Theme#textMuted() muted text}. */

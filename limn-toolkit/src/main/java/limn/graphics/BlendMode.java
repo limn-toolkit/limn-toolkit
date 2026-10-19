@@ -9,6 +9,9 @@ package limn.graphics;
  * <p>The pipeline is premultiplied-alpha end to end; each mode maps to a
  * single fixed blend equation, and switching modes mid-frame is a batch
  * break (one extra draw call), so group same-mode painting where possible.
+ *
+ * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+ * {@code default} branch.
  */
 public enum BlendMode {
 

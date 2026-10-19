@@ -31,7 +31,12 @@ public final class Tokens {
     private Tokens() {
     }
 
-    /** Which of the three spacing tokens a container follows. */
+    /**
+     * Which of the three spacing tokens a container follows.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
+     */
     public enum Role {
         /** {@code spacingSmall}: 3 / 4 / 6 / 8 / 10. Tight groups, icon-to-label gaps. */
         SMALL,

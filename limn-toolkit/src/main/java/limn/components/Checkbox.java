@@ -66,6 +66,13 @@ public final class Checkbox extends Widget<Checkbox> {
                 this::accessLetter, this::accessLetterFocus, this::accessLetterPressed));
     }
 
+    /**
+     * How the flag is drawn and published: a box that takes a check mark, or a switch whose knob
+     * slides.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
+     */
     public enum Variant { BOX, SWITCH }
 
     /**

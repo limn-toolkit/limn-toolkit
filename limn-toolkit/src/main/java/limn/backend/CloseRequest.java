@@ -11,7 +11,12 @@ package limn.backend;
  */
 public interface CloseRequest {
 
-    /** Why the window is asked. */
+    /**
+     * Why the window is asked.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
+     */
     enum Reason {
 
         /** The user asked this window to close: its close button, Alt-F4, Cmd-W. */

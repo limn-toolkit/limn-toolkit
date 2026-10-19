@@ -42,6 +42,9 @@ public final class MenuItem {
      * <p><b>The editing roles</b> make the item the command: it has no action of its own, it is
      * enabled while the widget that has the keyboard can do the command, and choosing it does the
      * command there, on every system. See {@link #of(Role)}.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
      */
     public enum Role {
         /** An ordinary item. */

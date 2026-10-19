@@ -34,7 +34,12 @@ import org.jspecify.annotations.Nullable;
 public record PlayOptions(float gain, float pitch, float pan, boolean loop,
                           AudioBus bus, Priority priority, @Nullable Vec3 position) {
 
-    /** Voice-steal class; see {@link PlayOptions#priority}. */
+    /**
+     * Voice-steal class; see {@link PlayOptions#priority}.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
+     */
     public enum Priority { LOW, NORMAL, HIGH }
 
     /** Gain 1, pitch 1, centered, no loop, {@link AudioBus#SFX}, NORMAL priority, 2D. */

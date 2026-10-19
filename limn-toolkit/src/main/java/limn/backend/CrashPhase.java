@@ -1,6 +1,11 @@
 package limn.backend;
 
-/** Where application code was executing when a contained crash was caught. */
+/**
+ * Where application code was executing when a contained crash was caught.
+ *
+ * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+ * {@code default} branch.
+ */
 public enum CrashPhase {
     /** Scene frame production: pending disposals, tick, layout, paint. */
     FRAME,

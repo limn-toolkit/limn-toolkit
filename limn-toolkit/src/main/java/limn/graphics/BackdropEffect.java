@@ -207,7 +207,12 @@ public sealed interface BackdropEffect {
      */
     record Blur(Color tint, float radius, Axis axis) implements BackdropEffect {
 
-        /** Which way one blur pass runs. */
+        /**
+         * Which way one blur pass runs.
+         *
+         * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+         * {@code default} branch.
+         */
         public enum Axis {
             /** Across. */
             X,

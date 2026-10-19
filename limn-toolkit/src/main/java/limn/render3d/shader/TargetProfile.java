@@ -5,6 +5,9 @@ package limn.render3d.shader;
  * one body (the GLSL 330 ∩ ES 3.00 subset) and differ only in the
  * version/precision header, so a portable IR compiles to both unchanged. SPIR-V
  * and MSL are reserved for later.
+ *
+ * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+ * {@code default} branch.
  */
 public enum TargetProfile {
     GLSL_330("#version 330 core\n"),

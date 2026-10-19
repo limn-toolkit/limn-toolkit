@@ -347,10 +347,11 @@ jamais une dépendance de votre application.
 version 1.x, le code écrit pour n’importe quelle 1.x antérieure compile et s’exécute, donc mettre à
 jour au sein de la 1.x est toujours sûr, et les corrections vont dans la 1.x suivante plutôt que
 dans les lignes plus anciennes. Une méthode marquée `@Deprecated` continue de fonctionner jusqu’à
-la 2.0, et Java 17 reste le minimum jusqu’à la 2.0. La seule exception est le paquet
-`limn.backend.spi`, que seul utilise celui qui écrit son propre backend : il est en incubation et
-peut changer dans une version mineure 1.x, toujours avec la migration dans le journal des
-modifications.
+la 2.0, et Java 17 reste le minimum jusqu’à la 2.0. Toute énumération de Limn peut gagner des
+constantes dans une version mineure 1.x, donc un `switch` sur l’une d’elles a besoin d’une branche
+`default`. La seule exception est le paquet `limn.backend.spi`, que seul utilise celui qui écrit
+son propre backend : il est en incubation et peut changer dans une version mineure 1.x, toujours
+avec la migration dans le journal des modifications.
 
 ## Documentation
 

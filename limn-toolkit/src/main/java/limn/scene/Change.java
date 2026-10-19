@@ -35,10 +35,10 @@ public sealed interface Change {
      * is neither: it is one marker per layout pass, sourced at the scene's root, and what it says
      * is <i>re-read the bounds you hold</i>.
      *
-     * <p><b>A minor release may add a constant</b>, as {@link #OPACITY} was added for the
-     * {@link limn.scene.layout.Opacity} container and {@link #TRANSFORM} for the
+     * <p><b>A 1.x minor release may add constants to this enum</b>, as {@link #OPACITY} was
+     * added for the {@link limn.scene.layout.Opacity} container and {@link #TRANSFORM} for the
      * {@link limn.scene.layout.Transform} one: a {@code switch} over the aspects that names
-     * every one of them still carries a {@code default} branch, which is where an aspect added
+     * every one of them still needs a {@code default} branch, which is where an aspect added
      * later arrives.
      */
     enum Aspect {
@@ -114,6 +114,9 @@ public sealed interface Change {
      * widget's application handler, so there is nothing to guard against. And a poll that writes
      * a widget ten times a second — a transport bar following a film — is a caller's write, so it
      * moves the bar and scrubs nothing.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
      */
     enum Origin {
         /**

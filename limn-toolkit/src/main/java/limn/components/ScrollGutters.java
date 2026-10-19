@@ -35,7 +35,12 @@ import java.util.Objects;
  */
 public final class ScrollGutters {
 
-    /** Whether a bar floats over the content or takes a strip out of it. */
+    /**
+     * Whether a bar floats over the content or takes a strip out of it.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
+     */
     public enum Layout {
         /**
          * Over the content, which keeps the whole box for it. The default, and the

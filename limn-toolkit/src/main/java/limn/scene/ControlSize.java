@@ -61,6 +61,9 @@ import java.util.Objects;
  * 0.750 of MEDIUM, a <em>compact</em> step, not a miniature one. Where an axis would fall
  * below the floor it is clamped to {@code Strokes.MIN_HIT_TARGET}.
  *
+ *
+ * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+ * {@code default} branch.
  * @see Widget#controlSize()
  * @see Scene#setControlSize(ControlSize)
  */

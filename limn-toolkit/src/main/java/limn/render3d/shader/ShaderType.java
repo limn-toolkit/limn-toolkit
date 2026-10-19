@@ -4,6 +4,9 @@ package limn.render3d.shader;
  * The value types the neutral shader IR works with: the GLSL scalar/vector types
  * plus {@code sampler2D}. Backends map these onto their own type systems; the
  * {@link #glsl} name is what {@code GlslCodegen} emits.
+ *
+ * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+ * {@code default} branch.
  */
 public enum ShaderType {
     FLOAT("float", 1),

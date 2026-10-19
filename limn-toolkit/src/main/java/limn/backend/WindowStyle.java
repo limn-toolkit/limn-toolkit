@@ -13,6 +13,9 @@ package limn.backend;
  *       (rounded corners, translucent panels; e.g. a combo popup or a
  *       glassy dialog).</li>
  * </ul>
+ *
+ * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+ * {@code default} branch.
  */
 public enum WindowStyle {
     DECORATED,

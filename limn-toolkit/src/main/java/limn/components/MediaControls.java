@@ -86,7 +86,12 @@ public final class MediaControls extends Widget<MediaControls> {
     /** How often the clock and the thumb are re-read while the bar is on screen. */
     private static final int POLL_MILLIS = 100;
 
-    /** Whether the mute button and volume slider are offered. */
+    /**
+     * Whether the mute button and volume slider are offered.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
+     */
     public enum Sound {
         /** Always shown, sounding or not. */
         ON,

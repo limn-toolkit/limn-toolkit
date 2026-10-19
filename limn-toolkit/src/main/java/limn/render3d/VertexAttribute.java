@@ -5,6 +5,9 @@ package limn.render3d;
  * {@link #location} pairs each attribute with a shader input
  * ({@code layout(location = ...)}), so meshes and material shaders agree without
  * per-material wiring.
+ *
+ * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+ * {@code default} branch.
  */
 public enum VertexAttribute {
     POSITION(0, 3),

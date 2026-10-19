@@ -5,6 +5,9 @@ package limn.backend.spi;
  * that look like one: typed characters, which a list's type-ahead needs, and input-method
  * composition, which only a text field wants. The SDL3 spike measured the difference: a platform
  * that delivers no characters while composition is off broke every type-ahead.
+ *
+ * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+ * {@code default} branch.
  */
 public enum TextInput {
 

@@ -15,6 +15,9 @@ import limn.graphics.Color;
  * function the shaders implement (IEC 61966-2-1): the decode in the 3D pass, the
  * encode in the composite; they exist so the conversion can be unit-tested headless
  * and reused where a color must be linearized on the CPU.
+ *
+ * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+ * {@code default} branch.
  */
 public enum ColorSpace {
     /** Gamma-encoded (perceptual). Base-color textures and authored colors live here. */

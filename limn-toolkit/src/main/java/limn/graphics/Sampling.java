@@ -8,6 +8,9 @@ package limn.graphics;
  * <p>Sampling is realized per GPU texture: drawing the same Image with both
  * modes in one frame reconfigures its texture between draws (a batch break
  * each time it flips), so pick one mode per image where possible.
+ *
+ * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+ * {@code default} branch.
  */
 public enum Sampling {
 

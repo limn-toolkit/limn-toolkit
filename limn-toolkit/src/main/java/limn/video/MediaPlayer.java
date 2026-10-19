@@ -139,7 +139,12 @@ public final class MediaPlayer implements AutoCloseable {
 
     private static final AtomicInteger THREAD_SERIAL = new AtomicInteger();
 
-    /** Where a player is in its life. */
+    /**
+     * Where a player is in its life.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
+     */
     public enum State {
 
         /** Built, or stopped: nothing is decoding and nothing is sounding. */
@@ -161,7 +166,12 @@ public final class MediaPlayer implements AutoCloseable {
         CLOSED
     }
 
-    /** What one pass of the decode loop did: what a host driving it needs to know to pace itself. */
+    /**
+     * What one pass of the decode loop did: what a host driving it needs to know to pace itself.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
+     */
     public enum Step {
 
         /** A picture reached the ring. Call again straight away. */

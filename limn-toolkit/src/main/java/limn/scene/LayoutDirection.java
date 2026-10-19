@@ -69,6 +69,9 @@ import java.util.Set;
  * which is why {@link limn.graphics.ShapedText#matches} takes a direction and why
  * {@link Widget#measure} keys its cache on the resolved one.
  *
+ *
+ * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+ * {@code default} branch.
  * @see Widget#layoutDirection()
  * @see Scene#setLayoutDirection(LayoutDirection)
  */

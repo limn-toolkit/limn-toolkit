@@ -186,6 +186,9 @@ public final class MenuBar extends Widget<MenuBar> {
 
     /**
      * Where a bar is shown.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
      */
     public enum Placement {
         /**

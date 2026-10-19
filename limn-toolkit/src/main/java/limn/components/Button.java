@@ -133,6 +133,9 @@ public final class Button extends Widget<Button> {
      * How much a button asks to be pressed, of the three looks a row of buttons is drawn in. The
      * box is the same at every style: padding, height, radius and focus ring are the step's, so a
      * {@link #TERTIARY} button lines up with the others and keeps a full target.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
      */
     public enum Style {
         /** The one action a view or a dialog is for: filled in the palette's accent. */

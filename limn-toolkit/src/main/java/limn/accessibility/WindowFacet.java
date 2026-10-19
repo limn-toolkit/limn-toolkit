@@ -16,7 +16,12 @@ package limn.accessibility;
 public record WindowFacet(boolean modal, boolean canMaximize, boolean canMinimize,
                           WindowFacet.State state) {
 
-    /** How a window is currently presented. */
+    /**
+     * How a window is currently presented.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
+     */
     public enum State {
         /** Ordinary. */
         NORMAL,

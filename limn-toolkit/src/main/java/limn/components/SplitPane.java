@@ -64,7 +64,12 @@ import java.util.Objects;
  */
 public final class SplitPane extends Widget<SplitPane> {
 
-    /** Which axis the two panes are arranged along. */
+    /**
+     * Which axis the two panes are arranged along.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
+     */
     public enum Orientation {
         /** Side by side, divided by a vertical line. */
         HORIZONTAL,

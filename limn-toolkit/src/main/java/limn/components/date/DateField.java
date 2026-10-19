@@ -116,6 +116,9 @@ public final class DateField extends Widget<DateField> {
      * <p>A closed list on purpose. A week, a quarter or a decade would each be a real piece of
      * design &mdash; what the segment shows, what a range of them means &mdash; and a value in an
      * open set that nobody had designed for would be a field that draws nothing.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
      */
     public enum Granularity {
         /** The year alone. A range of years runs from 1 January to 31 December. */

@@ -8,8 +8,22 @@ package limn.render3d;
  */
 public record Sampler(Filter minFilter, Filter magFilter, Wrap wrapS, Wrap wrapT, boolean mipmaps) {
 
+    /**
+     * How texels are read when the texture is drawn larger or smaller: the nearest one, or a blend
+     * of its neighbours.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
+     */
     public enum Filter {NEAREST, LINEAR}
 
+    /**
+     * What a coordinate outside 0 to 1 reads: the texture repeated, its edge texel, or the texture
+     * mirrored at each repeat.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
+     */
     public enum Wrap {REPEAT, CLAMP_TO_EDGE, MIRRORED_REPEAT}
 
     /** Trilinear, repeating: the sensible default for tiling color maps. */

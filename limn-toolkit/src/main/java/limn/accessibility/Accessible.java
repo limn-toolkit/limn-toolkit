@@ -27,6 +27,9 @@ public final class Accessible {
      * label carrying a title's typographic role is a heading and every platform has one.
      * {@link #RADIO_MENU_ITEM} exists because a single-selection menu group built out of check
      * items reports independent checkboxes, which is a lie this constant retires.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
      */
     public enum Role {
         /** A top-level window. */
@@ -151,6 +154,9 @@ public final class Accessible {
      * list row is visible and not showing. And {@link #ENABLED} against {@link #FOCUSABLE}:
      * enabled is what may be operated, focusable is what the Tab key reaches, and a label is the
      * first and not the second.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
      */
     public enum State {
         /**
@@ -247,6 +253,9 @@ public final class Accessible {
      *
      * <p>Every one of the seventeen is dispatched the same way, through the one inbound call a
      * bridge makes.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
      */
     public enum Action {
         /** Activate this node, as a click would. */
@@ -374,7 +383,12 @@ public final class Accessible {
         }
     }
 
-    /** Whether an announcement waits for the assistive technology to finish, or interrupts it. */
+    /**
+     * Whether an announcement waits for the assistive technology to finish, or interrupts it.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
+     */
     public enum Politeness {
         /** Spoken when whatever is being read finishes. */
         POLITE,
@@ -388,6 +402,9 @@ public final class Accessible {
      * attributes, and a bridge that guesses publishes into the attribute a client walking the
      * tree does not read &mdash; which looks exactly like an empty application rather than an
      * error.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
      */
     public enum NameFrom {
         /** The widget's own painted text: a button's caption, a label's string. */
@@ -408,6 +425,9 @@ public final class Accessible {
      * <p>A relation is resolved to the nearest <em>published</em> ancestor of its target and is
      * dropped when there is none: a relation naming a node that was never published is worse than
      * no relation at all, because every platform answers it with an element that does not resolve.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
      */
     public enum Relation {
         /** This node's name comes from the target. */

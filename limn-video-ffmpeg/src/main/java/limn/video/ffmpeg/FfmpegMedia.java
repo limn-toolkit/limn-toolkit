@@ -127,6 +127,9 @@ public final class FfmpegMedia implements AutoCloseable {
      * binds without a copy and which every other consumer has to read back through
      * {@code VideoFrame.toPlanar()}. That is a real cost for a consumer that only wanted samples,
      * and a real saving for one that is going to draw them.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
      */
     public enum Hardware {
 
@@ -1022,6 +1025,9 @@ public final class FfmpegMedia implements AutoCloseable {
      * What a round trip through either one proves is therefore the seam (the demultiplexer, the
      * packet-to-picture path, the planar handoff, the pool, the release discipline and the
      * timestamp rescale) and not libavcodec's H.264 decoder, which is FFmpeg's to test.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
      */
     public enum ClipCodec {
 

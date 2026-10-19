@@ -97,7 +97,12 @@ import java.util.function.Predicate;
  */
 public final class CalendarView extends Widget<CalendarView> {
 
-    /** What a click does. */
+    /**
+     * What a click does.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
+     */
     public enum SelectionMode {
         /** Nothing: a calendar that displays a month and is not an input. */
         NONE,
@@ -115,6 +120,9 @@ public final class CalendarView extends Widget<CalendarView> {
      *
      * <p>An application can start at any level, which is the point of it being public:
      * {@code setView(View.YEARS)} on a birth-date picker opens where that user is going.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
      */
     public enum View {
         /** A month of days: the calendar proper. */

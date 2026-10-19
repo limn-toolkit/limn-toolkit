@@ -152,6 +152,9 @@ public interface Icon {
      * <p>{@link #NEVER} is the default, and the asymmetry is deliberate: a wrong {@code NEVER} is
      * one back-arrow pointing the wrong way in one place, and a wrong {@link #IN_RTL} is every
      * logo, brand mark, chart glyph and photograph in the application flipped.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
      */
     enum Mirroring {
         /** Drawn as authored, whichever way the interface reads. The default. */

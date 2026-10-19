@@ -44,6 +44,9 @@ public final class VideoFrame {
      * {@code ID3D11Texture2D*} or a dma-buf descriptor; what it carries is a {@code long} whose
      * meaning is this enum, so that a backend can bind the ones it knows how to bind and
      * <em>refuse</em> the rest by name rather than binding a handle it has misread.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
      */
     public enum Kind {
 
