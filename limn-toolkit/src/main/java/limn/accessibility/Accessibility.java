@@ -1458,11 +1458,11 @@ public final class Accessibility {
      * <p>A widget's own node takes its box from its layout and never calls this; a synthetic child
      * has no layout and must.
      *
-     * @param x      the left edge, in the declaring widget's own coordinates
-     * @param y      the top edge
      * <p>A negative width or height is published as zero, and the first one is logged: a box
      * computed as a difference before the layout it depends on has run.
      *
+     * @param x      the left edge, in the declaring widget's own coordinates
+     * @param y      the top edge
      * @param width  the width
      * @param height the height
      */
@@ -1496,6 +1496,7 @@ public final class Accessibility {
 
     /**
      * Begins one node and makes it the one the setters write to. The publish step calls this.
+     * A negative width or height is published as zero, as {@link #bounds} says.
      *
      * @param id     the node's identifier, minted over the widget tree
      * @param parent the index of the node's parent, or {@link AccessibleNode#NONE} at a root
@@ -1807,7 +1808,8 @@ public final class Accessibility {
      * Places a synthetic child's box in the scene where its owner is drawn, the bounds of the box
      * {@link #syntheticBoxAt} gave carried through the transforms above the owner. The publish step
      * calls this before it narrows the child's {@code SHOWING}, and only for an owner a transform
-     * moves; a widget never does.
+     * moves; a widget never does. A negative width or height is published as zero, as
+     * {@link #bounds} says.
      *
      * @param index  the node's index in this walk
      * @param x      the left edge, in the scene
