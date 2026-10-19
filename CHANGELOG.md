@@ -43,8 +43,9 @@ Maven Central say which number that was.
   where the pointer last was on it, the release arrives there, and the drag goes on when the
   pointer comes back, and a release whose pointer is off the plane, or whose plane turned while the
   button was held, lands at the last point the pointer had on it. Every drag handler, the toolkit's
-  and an application's, has this without a guard of its own; only a plane turned edge-on, where no
-  point exists, still gets its release at a point that is not a number.
+  and an application's, has this without a guard of its own; only a widget of which nothing can be
+  seen (its plane exactly edge-on, or its whole box behind the eye) still gets its release at a point
+  that is not a number.
 - A pulse made of `fadeTo` or `slideTo` calls chained in `onArrive` no longer throws
   `StackOverflowError` out of the first call on the UI thread when every step goes straight to its
   target: for a person who asked the system for less motion, before the container is in a shown
@@ -1165,7 +1166,8 @@ Maven Central say which number that was.
   not move. A watcher that should react to the control's own flag alone compares `isSelfEnabled()`
   with what it last saw.
 - Every DRAG and RELEASE sent to the widget that holds the pointer carries a point of that widget's
-  own plane, and `MouseEvent` says so.
+  own plane, except the release of a widget of which nothing can be seen (its plane exactly edge-on,
+  or its whole box behind the eye), and `MouseEvent` says so.
 - A `Dialog`'s first focus is its default button, even when a button such as Cancel was added
   before it, so Return answers what the filled button says; a field in its content still takes the
   first focus.
