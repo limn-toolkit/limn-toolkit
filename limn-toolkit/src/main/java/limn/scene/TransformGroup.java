@@ -104,6 +104,8 @@ final class TransformGroup implements TransformAccess.Values {
     private static final class Arrival {
         final @Nullable Runnable atEdge;
         final @Nullable Runnable onArrive;
+        /** Whether the flip's swap has run: on the next turn, before the arrival's seconds. */
+        boolean swapped;
         @Nullable Subscription timer;
 
         Arrival(@Nullable Runnable atEdge, @Nullable Runnable onArrive) {
@@ -735,10 +737,12 @@ final class TransformGroup implements TransformAccess.Values {
 
     /**
      * A motion that went straight there arrives later, as one stepped by frames arrives on a later
-     * frame: a flip's {@code atEdge} and then its {@code onArrive} run once, after the seconds the
-     * call asked for or on the next turn when it asked for none, unless something supersedes the
-     * motion first, the swap included: a flip its own {@code atEdge} supersedes does not arrive, as
-     * one that turns would not.
+     * frame: its {@code onArrive} runs once, after the seconds the call asked for or on the next
+     * turn when it asked for none, unless something supersedes the motion first. A flip's
+     * {@code atEdge}, the swap of what the child shows, runs on the next turn whatever the seconds,
+     * so that a press answers at once where there is no turn to watch; a newer flip or a
+     * {@code reset()} after the swap leaves it made and drops only the arrival, as it does for a
+     * flip that turns past its edge, and a flip its own {@code atEdge} supersedes does not arrive.
      */
     private void arriveLater(int kind, double seconds, @Nullable Runnable atEdge,
                              @Nullable Runnable onArrive) {
@@ -747,20 +751,33 @@ final class TransformGroup implements TransformAccess.Values {
         }
         Arrival arrival = new Arrival(atEdge, onArrive);
         arrivals[kind] = arrival;
+        if (atEdge != null && seconds > 0) {
+            StraightArrival.post(0, () -> swap(kind, arrival)); // nothing to withdraw: checked as it runs
+        }
         arrival.timer = StraightArrival.post(seconds, () -> {
-            if (arrivals[kind] != arrival) {
-                return; // superseded before its time
-            }
-            Runnable swap = arrival.atEdge;
-            if (swap != null) {
-                swap.run();
-                if (arrivals[kind] != arrival) {
-                    return; // the swap itself superseded the flip
-                }
+            if (!swap(kind, arrival)) {
+                return; // superseded before its time, or by its own swap
             }
             arrivals[kind] = null;
             runIfAny(arrival.onArrive);
         });
+    }
+
+    /**
+     * Runs a waiting flip's swap if it has not run, unless the flip was superseded.
+     *
+     * @return whether the arrival is still the current one of its kind afterwards
+     */
+    private boolean swap(int kind, Arrival arrival) {
+        if (arrivals[kind] != arrival) {
+            return false;
+        }
+        Runnable swap = arrival.atEdge;
+        if (swap != null && !arrival.swapped) {
+            arrival.swapped = true;
+            swap.run();
+        }
+        return arrivals[kind] == arrival;
     }
 
     @Override

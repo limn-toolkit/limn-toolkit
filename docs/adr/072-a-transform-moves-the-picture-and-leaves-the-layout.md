@@ -32,7 +32,7 @@
   (section 13): no motion's `onArrive`, nor a flip's `atEdge`, runs inside the call that asked for
   it; one that goes straight to its target runs them on the next turn of the UI queue, and, the
   same day (section 13.1, the owner's decision 7), after the seconds the call asked for when it
-  asked for any.
+  asked for any; a flip's `atEdge` stays on the next turn (section 13.2, decision 11).
 - **Date:** 2026-10-17
 - **Scope:**
   - a container that draws its child moved, scaled, rotated or turned in 3D, without changing
@@ -207,7 +207,8 @@ All setters are fluent, UI thread only, and throw when called from inside a pain
 - **Less motion.** While the system asks for less motion, `slideTo`, `scaleTo` and `rotateTo` go
   straight to the target and `onArrive` runs at once, as `fadeTo` does. `flipTo` runs `atEdge`
   and then `onArrive` at once, swapping the content with no turn (question 8). (2026-10-19,
-  sections 13 and 13.1: after its seconds, `atEdge` first, never inside the call.)
+  sections 13 to 13.2: `atEdge` on the next turn, `onArrive` after its seconds, never inside the
+  call.)
 - **A watcher hears a transform change by the owner's rule of ADR 071** (decision 2 there),
   through a new aspect `Change.Aspect.TRANSFORM`, origin `CODE`:
   - a direct set that changes a value announces it, every time; `reset()` announces once
@@ -2029,7 +2030,7 @@ from an input event lands before the next frame, since the backend's loop takes 
 drains the queue, then draws, and the drain runs what the input posted. Asked for from a posted
 task, a continuation of `Ui.async`, a screen reader's action or a ticker, it lands one frame later:
 the drain runs only the tasks queued when it began. Nothing is drawn wrong meanwhile, the old face
-flat for one more frame. A flip that asked for seconds swaps after them, section 13.1.)
+flat for one more frame. A flip that asked for seconds swaps the same way, section 13.2.)
 
 **What supersedes it.** Each kind of motion keeps its own waiting arrival, so a slide does not drop
 a scale's. Whatever supersedes a motion of that kind in flight, a newer motion of the same kind,
@@ -2057,7 +2058,8 @@ ran one arrival a turn for ever: under less motion a slide chained on itself in 
 on every frame, and where nothing was drawn the loop never slept (ADR 071 section 8.1 has the
 numbers, measured on the fade). The owner's decision 7, the same as ADR 071 section 8.1's: a motion
 that goes straight to its target although its call asked for `seconds > 0` runs its `onArrive`, and
-a flip its `atEdge` then its `onArrive`, after those seconds, posted on the UI queue; for zero
+a flip its `atEdge` then its `onArrive` (the swap back on the next turn since section 13.2), after
+those seconds, posted on the UI queue; for zero
 seconds on the next turn; never inside the call; and whatever supersedes a motion of that kind
 before then (a newer motion of the kind, the set of its value, `reset()`, or the flip's own
 `atEdge`) drops it, its timer withdrawn as it is dropped. Motion that repeats for as long as
@@ -2069,3 +2071,27 @@ chains all four motions under less motion in a window, in no scene and in a scen
 two hundred periods each, nothing however often the loop turns within one, the loop free to sleep
 until the next step, four arrivals a period; `aStraightThereMotionWaitingForItsSecondsIsSupersededAsOneInFlightIs`
 drops waiting arrivals by a newer slide, each set and a reset, and leaves another kind's.
+
+### 13.2 The swap on the next turn: the owner's decision 11, 2026-10-19
+
+The second review of the branch found that section 13.1 had moved a flip's `atEdge`, the swap of
+what the child shows, to after the seconds as well, though decision 7 was about the pace of a chain,
+which runs from `onArrive`. Under less motion a press then showed nothing for the whole length (no
+turn and no swap), and a second press within it dropped the first's swap: two presses 300 ms apart
+on a 0.45 s flip showed the front with motion (the first past its edge, two swaps) and the back
+under less motion (one swap). The demo's "Turn over" button and the guide's example have that
+shape.
+
+**The owner's decision 11.** A flip that goes straight there runs `atEdge` on the next turn of the
+UI queue, as section 13 had it, and only `onArrive` waits the seconds asked for. A newer flip or a
+`reset()` before the swap drops both; after the swap, the swap stays made (the content has changed,
+and the newer flip runs its own `atEdge`) and only the waiting `onArrive` is dropped, as for a flip
+that turns past its edge. A flip that its own `atEdge` supersedes does not arrive. With zero seconds
+both run on the next turn, the swap first.
+
+**Tests.** `TransformTest.twoFlipsHalfATurnApartShowTheSameFaceWithAndWithoutMotion` (two swaps and
+the front, with and without motion; one swap and the back under less motion before);
+`aNewerFlipDropsTheWaitingArrivalAndKeepsASwapAlreadyMade`;
+`underLessMotionAMotionGoesStraightThereAsOneSetAndAFlipSwapsOnTheNextTurn`, the chain test (the
+swap on the turn after each flip is asked for, the arrival a period later) and
+`TransformDepthTest.underLessMotionAFlipInPerspectiveSwapsOnTheNextTurn`.

@@ -813,7 +813,7 @@ class TransformTest extends SceneTestBase {
     }
 
     @Test
-    void underLessMotionAMotionGoesStraightThereAsOneSetAndAFlipSwapsAfterItsSeconds() {
+    void underLessMotionAMotionGoesStraightThereAsOneSetAndAFlipSwapsOnTheNextTurn() {
         queueOnTestClock();
         Transform t = new Transform(new Leaf("w", painted));
         AccessibleHarness harness = new AccessibleHarness(runtime, t);
@@ -835,10 +835,12 @@ class TransformTest extends SceneTestBase {
             t.flipTo(Transform.Flip.FORWARD, 0.5, () -> order.add("edge"), () -> order.add("arrive"));
             assertEquals(List.of(), order, "neither the swap nor the arrival inside the call");
             assertTrue(transformChanges(harness).isEmpty(), "with no turn, nothing moved to announce");
+            runtime.drain();
+            assertEquals(List.of("edge"), order, "the swap on the next turn: the press answers at once");
             turnAfter(499);
-            assertEquals(List.of(), order, "nor before its seconds");
+            assertEquals(List.of("edge"), order, "the arrival waits its seconds");
             turnAfter(1);
-            assertEquals(List.of("edge", "arrive"), order, "the swap and then the arrival, after them");
+            assertEquals(List.of("edge", "arrive"), order, "then");
             turnAfter(1000);
             assertEquals(List.of("edge", "arrive"), order, "each once");
 
@@ -903,6 +905,7 @@ class TransformTest extends SceneTestBase {
     private void chain(String where, Transform t, double seconds) {
         long period = Math.round(seconds * 1000);
         AtomicInteger arrivals = new AtomicInteger();
+        AtomicInteger edges = new AtomicInteger();
         Runnable[] slide = new Runnable[1];
         Runnable[] scale = new Runnable[1];
         Runnable[] turn = new Runnable[1];
@@ -919,19 +922,23 @@ class TransformTest extends SceneTestBase {
             arrivals.incrementAndGet();
             t.rotateTo(t.rotation() == 0 ? 90 : 0, seconds, turn[0]);
         };
-        flip[0] = () -> t.flipTo(Transform.Flip.FORWARD, seconds, arrivals::incrementAndGet, flip[0]);
+        flip[0] = () -> {
+            arrivals.incrementAndGet();
+            t.flipTo(Transform.Flip.FORWARD, seconds, edges::incrementAndGet, flip[0]);
+        };
         t.slideTo(40, 0, seconds, slide[0]);
         t.scaleTo(2, 1, seconds, scale[0]);
         t.rotateTo(90, seconds, turn[0]);
-        t.flipTo(Transform.Flip.FORWARD, seconds, arrivals::incrementAndGet, flip[0]);
-        assertEquals(0, arrivals.get(), where + ": nothing run inside a call");
+        t.flipTo(Transform.Flip.FORWARD, seconds, edges::incrementAndGet, flip[0]);
+        assertEquals(0, arrivals.get() + edges.get(), where + ": nothing run inside a call");
         int steps = period == 0 ? 5_000 : 200; // with no time: past the depth the stack ran out at
         for (int i = 1; i <= steps; i++) {
             if (period > 0) {
                 for (int spin = 0; spin < 20; spin++) {
                     runtime.drain();
                 }
-                assertEquals(4 * (i - 1), arrivals.get(), where + ": nothing before the period is over");
+                assertEquals(4 * (i - 1), arrivals.get(), where + ": no arrival before the period is over");
+                assertEquals(i, edges.get(), where + ": the flip's swap on the turn after it was asked for");
                 assertEquals(TimeUnit.MILLISECONDS.toNanos(period), runtime.nanosUntilNextDeadline(),
                         where + ": the loop may sleep until the next step");
                 turnAfter(period);
@@ -939,10 +946,68 @@ class TransformTest extends SceneTestBase {
                 runtime.drain();
             }
             assertEquals(4 * i, arrivals.get(), where + ": one arrival a motion a step");
+            if (period == 0) {
+                assertEquals(i, edges.get(), where + ": the swap with its arrival");
+            }
         }
         t.reset(); // supersedes every arrival still waiting
         turnAfter(period);
         assertEquals(4 * steps, arrivals.get(), where + ": a reset supersedes what waited");
+    }
+
+    /**
+     * Two presses on a card that turns over, a little more than half a flip apart: with motion the
+     * first is past its edge when the second comes, so each swaps and the front shows again; under
+     * less motion each swaps on the turn after its press, so the face is the same.
+     */
+    @Test
+    void twoFlipsHalfATurnApartShowTheSameFaceWithAndWithoutMotion() {
+        queueOnTestClock();
+        for (boolean reduced : new boolean[] {false, true}) {
+            try (TestPreferences system = new TestPreferences()) {
+                system.reduceMotion(reduced);
+                String what = reduced ? "less motion" : "with motion";
+                Transform card = new Transform(new Leaf("card", painted));
+                Scene scene = sceneOf(at(card, 0, 0));
+                int[] swaps = {0};
+                boolean[] back = {false};
+                Runnable press = () -> card.flipTo(Transform.Flip.FORWARD, 0.45, () -> {
+                    swaps[0]++;
+                    back[0] = !back[0];
+                }, null);
+                press.run();
+                if (reduced) {
+                    runtime.drain();
+                    assertEquals(1, swaps[0], what + ": the press swaps on the next turn");
+                }
+                for (int at = 10; at <= 1500; at += 10) {
+                    if (at == 300) {
+                        press.run();
+                    }
+                    turnAfter(10);
+                    advance(scene, 10);
+                }
+                assertEquals(2, swaps[0], what + ": each press swapped");
+                assertFalse(back[0], what + ": the front shows again");
+            }
+        }
+    }
+
+    /** A newer flip drops a waiting flip's arrival; a swap already made stays made. */
+    @Test
+    void aNewerFlipDropsTheWaitingArrivalAndKeepsASwapAlreadyMade() {
+        queueOnTestClock();
+        Transform t = new Transform(new Leaf("w", painted)); // in no scene: straight there
+        List<String> ran = new ArrayList<>();
+        t.flipTo(Transform.Flip.FORWARD, 0.5, () -> ran.add("first edge"), () -> ran.add("first flip"));
+        runtime.drain();
+        turnAfter(200);
+        t.flipTo(Transform.Flip.FORWARD, 0.5, () -> ran.add("second edge"), () -> ran.add("second flip"));
+        turnAfter(400);
+        assertEquals(List.of("first edge", "second edge"), ran,
+                "the first's swap was made and stays; its arrival is dropped");
+        turnAfter(100);
+        assertEquals(List.of("first edge", "second edge", "second flip"), ran);
     }
 
     @Test

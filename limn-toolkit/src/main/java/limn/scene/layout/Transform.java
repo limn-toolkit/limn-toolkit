@@ -575,18 +575,20 @@ public final class Transform extends Widget<Transform> {
      * flip, which turns on from wherever this one had got to and runs its own {@code atEdge}, or by
      * {@link #reset()}; settled as the container leaves its scene, {@code atEdge} first if the edge
      * was not reached; heard twice. <b>While the system asks for less motion</b>, for no time, or
-     * with no frames to step it, there is no turn at all: {@code atEdge} and then {@code onArrive}
-     * run after {@code seconds} (on the next turn of the UI thread's queue for none), and the
-     * content changes with no transition;
-     * a newer flip or a {@link #reset()} before then supersedes both, and a flip that its own
-     * {@code atEdge} supersedes does not arrive. <b>Neither runs inside this call</b>, in any case.
+     * with no frames to step it, there is no turn at all: {@code atEdge} runs on the next turn of
+     * the UI thread's queue, so the content changes at once and with no transition, and
+     * {@code onArrive} after {@code seconds} (with the swap, for none). Two flips asked for some way
+     * apart therefore swap twice, as they do when the first is past its edge as the second comes. A
+     * newer flip or a {@link #reset()} before the swap supersedes both; after it, the swap stays
+     * made and only the waiting {@code onArrive} is dropped; and a flip that its own {@code atEdge}
+     * supersedes does not arrive. <b>Neither runs inside this call</b>, in any case.
      *
      * @param direction which way the child turns over
      * @param seconds   how long the whole turn takes, when the system does not ask for less motion
-     * @param atEdge    run once, with the child edge-on, or after {@code seconds} with no turn at
-     *                  all; never inside this call
-     * @param onArrive  run once when the child is flat again, or right after {@code atEdge} with no
-     *                  turn at all; never inside this call, never when it is superseded; may be null
+     * @param atEdge    run once, with the child edge-on, or on the next turn with no turn at all;
+     *                  never inside this call
+     * @param onArrive  run once when the child is flat again, or after {@code seconds} with no turn
+     *                  at all; never inside this call, never when it is superseded; may be null
      * @return this
      * @throws NullPointerException     if {@code direction} or {@code atEdge} is null
      * @throws IllegalArgumentException if {@code seconds} is negative, {@code NaN} or infinite

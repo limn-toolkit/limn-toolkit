@@ -137,8 +137,8 @@ As with a fade, moving something out of sight does not take it away: hide it whe
 arrives, as the drawer does. A newer motion of the same value, or a set of it, stops one in flight
 where it is, and its `onArrive` never runs; a slide and a scale run together. While the user asked
 for less motion, every motion goes straight to its target, and a flip swaps the faces with no
-turn; what the motion runs, the flip's swap included, runs after the seconds it was asked to take,
-and never inside the call, as with a fade. Something watching the container hears
+turn: the swap comes on the next turn of the UI thread, so a press answers at once, and what the
+motion runs at its end after the seconds it was asked to take, never inside the call, as with a fade. Something watching the container hears
 `Change.Aspect.TRANSFORM` each time a set changes a value, and twice for a motion. To fade a
 moving part as well, put the `Opacity` outside: `new Opacity(new Transform(child))`.
 
