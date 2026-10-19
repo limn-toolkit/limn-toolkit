@@ -3470,6 +3470,16 @@ public final class Scene {
             }
 
             @Override
+            public @Nullable String applicationName(Widget<?> widget) {
+                limn.i18n.I18nString named = widget.accessibleName();
+                if (named == null) {
+                    named = widget.tooltipSource();
+                }
+                String text = named == null ? null : named.get();
+                return text == null || text.isEmpty() ? null : text;
+            }
+
+            @Override
             public void observeHoverWithin(Widget<?> widget,
                                            limn.scene.internal.SceneAccess.@Nullable HoverWithin observer) {
                 if (widget.hoverWithin == null && observer != null) {

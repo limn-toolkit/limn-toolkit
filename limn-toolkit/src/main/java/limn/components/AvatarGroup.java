@@ -58,7 +58,7 @@ public final class AvatarGroup extends Widget<AvatarGroup> {
     /**
      * A group of the avatars given, in order.
      *
-     * @param avatars the members; none null
+     * @param avatars the members, in the order drawn
      */
     public AvatarGroup(Avatar... avatars) {
         for (Avatar avatar : avatars) {
@@ -70,7 +70,7 @@ public final class AvatarGroup extends Widget<AvatarGroup> {
     /**
      * Adds a member at the end.
      *
-     * @param avatar the member; not already in a group
+     * @param avatar the member to add, which is in no other group
      * @return this group
      * @throws IllegalArgumentException if the avatar is already in a group
      */

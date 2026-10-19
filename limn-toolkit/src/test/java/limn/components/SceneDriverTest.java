@@ -157,6 +157,11 @@ class SceneDriverTest extends ComponentTestBase {
             public boolean namedByApplication(limn.scene.Widget<?> widget) {
                 return false;
             }
+
+            @Override
+            public String applicationName(limn.scene.Widget<?> widget) {
+                return null;
+            }
         }));
     }
 

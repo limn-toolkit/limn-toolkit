@@ -136,7 +136,12 @@ class AccessibleCoverageTest {
             // of the three is ever a node, and they repeat what the field's value already says,
             // the count and every name. Pinned by
             // limn.components.ComboBoxChipsTest.theChipsTakeNoPointerAndAreNotInTheTree.
-            "limn.components.ComboBox$Badge",
+            "limn.components.ComboBox$MoreBadge",
+            // An avatar group's "+k" circle (ADR 075 §3): the group's own hook ignores every
+            // circle inside it, the avatars and this one, because the group's description already
+            // says every name, the hidden ones included. Pinned by
+            // limn.components.AvatarTest.aReaderHearsOneGroupDescribedByEveryNameTheHiddenOnesIncluded.
+            "limn.components.AvatarGroup$More",
             "limn.components.ComboBox$Chip",
             "limn.components.ComboBox$ChipStrip",
             // Declares no role, name, description, action or state, is never focusable of its own

@@ -509,7 +509,7 @@ public abstract class Widget<W extends Widget<W>> {
         children.add(index, child);
         child.parent = this;
         child.setSceneRecursively(scene);
-        markNeedsLayout();
+        childrenChanged();
         // Structure is announced on the parent, from the one funnel every child joins through,
         // so a watcher of a tree hears a mount as it happens rather than by diffing child lists.
         notifyChange(Change.of(Change.Aspect.CHILDREN, Change.Origin.CODE));
@@ -536,8 +536,22 @@ public abstract class Widget<W extends Widget<W>> {
             if (scene != null) {
                 scene.onWidgetDetached(child);
             }
-            markNeedsLayout();
+            childrenChanged();
             notifyChange(Change.of(Change.Aspect.CHILDREN, origin));
+        }
+    }
+
+    /**
+     * A child joined or left: the layout this asks for. A widget that clips its children lays out
+     * alone, as {@link #moveChild(Widget, int, Change.Origin)} does, and the scene falls back to a
+     * full pass by itself when the widget's size came out different; a list whose filter unmounts
+     * every row and shows its empty content then repaints the list and not the window.
+     */
+    private void childrenChanged() {
+        if (clipsChildren()) {
+            markNeedsContainedLayout();
+        } else {
+            markNeedsLayout();
         }
     }
 

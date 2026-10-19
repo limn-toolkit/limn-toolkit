@@ -166,6 +166,13 @@ public final class SceneAccess {
          * @return whether the application named it; see {@link SceneAccess#namedByApplication}
          */
         boolean namedByApplication(Widget<?> widget);
+
+        /**
+         * @param widget a widget
+         * @return the name the application gave it, or its tooltip, or {@code null}; see
+         *         {@link SceneAccess#applicationName}
+         */
+        @org.jspecify.annotations.Nullable String applicationName(Widget<?> widget);
     }
 
     /**
@@ -381,6 +388,19 @@ public final class SceneAccess {
      */
     public static boolean namedByApplication(Widget<?> widget) {
         return hook().namedByApplication(java.util.Objects.requireNonNull(widget, "widget"));
+    }
+
+    /**
+     * What to call {@code widget} in an announcement: the name the application gave it with
+     * {@code setAccessibleName}, else its tooltip, in the language in effect; {@code null} when it
+     * has neither. A list that announces its own load says "Loading Orders" with it, since an
+     * announcement arrives with no context of its own.
+     *
+     * @param widget a widget
+     * @return the name, or {@code null}
+     */
+    public static @org.jspecify.annotations.Nullable String applicationName(Widget<?> widget) {
+        return hook().applicationName(java.util.Objects.requireNonNull(widget, "widget"));
     }
 
     /**

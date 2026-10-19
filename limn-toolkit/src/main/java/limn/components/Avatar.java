@@ -12,6 +12,7 @@ import limn.graphics.RoundRect;
 import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.i18n.I18nString;
+import limn.i18n.internal.LocaleServices;
 import limn.scene.Change;
 import limn.scene.Constraints;
 import limn.scene.Size;
@@ -228,11 +229,11 @@ public final class Avatar extends Widget<Avatar> {
             return "";
         }
         String[] words = trimmed.split("\\s+");
-        String first = firstGrapheme(words[0]).toUpperCase(locale);
+        String first = LocaleServices.upperCase(firstGrapheme(words[0]), locale);
         if (words.length == 1) {
             return first;
         }
-        return first + firstGrapheme(words[words.length - 1]).toUpperCase(locale);
+        return first + LocaleServices.upperCase(firstGrapheme(words[words.length - 1]), locale);
     }
 
     private static String firstGrapheme(String word) {

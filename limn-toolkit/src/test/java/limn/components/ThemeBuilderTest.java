@@ -56,11 +56,18 @@ class ThemeBuilderTest {
                 && !java.lang.reflect.Modifier.isStatic(method.getModifiers());
     }
 
+    /**
+     * The colours a palette derives from its tokens rather than holds: no key of the theme file,
+     * by decision (the accent as text, 2026-10-18), so a palette of one's own gets them without a
+     * key to set. Listed here by name, so a new public colour is either a token or a decision.
+     */
+    private static final Set<String> DERIVED = Set.of("primaryText");
+
     @Test
     void everyColourAccessorHasAToken() {
         Set<String> accessors = new LinkedHashSet<>();
         for (java.lang.reflect.Method method : Theme.class.getMethods()) {
-            if (isColourAccessor(method)) {
+            if (isColourAccessor(method) && !DERIVED.contains(method.getName())) {
                 accessors.add(method.getName());
             }
         }
