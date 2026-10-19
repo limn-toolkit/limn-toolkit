@@ -118,6 +118,19 @@ mit, es gibt also keinen Classifier zu wählen.
 > Ihnen am ersten Tag begegnet, und sie gilt nur für macOS — eine JVM anderswo startet mit diesem
 > Flag nicht.
 
+**Läuft auf**, mit JDK 17 oder neuer und OpenGL 3.3:
+
+| System | Älteste unterstützte Version |
+|---|---|
+| Windows | Windows 10 auf x64; Windows 10 on ARM oder Windows 11 auf ARM64 |
+| macOS | macOS 11 Big Sur, auf Apple Silicon und Intel |
+| Linux | glibc 2.28 auf x86_64 (Debian 10, Ubuntu 20.04, RHEL 8); glibc 2.35 auf ARM64 (Ubuntu 22.04, Debian 12); X11 oder Wayland |
+
+Diese Untergrenzen setzen die nativen Bibliotheken, und der Build prüft jede einzelne davon;
+[Unterstützte Systeme](https://limn-toolkit.github.io/limn-toolkit/docs/install/#supported-systems)
+sagt, was welche Grenze setzt. MP4 und Matroska brauchen auf einem Mac vor macOS 26
+`limn-ffmpeg-natives` 9.0.2.1 oder neuer: 9.0.2.0 wurde versehentlich für macOS 26 gebaut.
+
 ### Video abspielen
 
 `VideoView` steckt in der Zeile oben, und die reinen Java-Decoder dahinter ebenso. Was sich damit

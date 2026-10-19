@@ -119,6 +119,20 @@ plateformes de bureau : il n’y a donc aucun classifier à choisir.
 > que vous rencontrerez dès le premier jour, et elle est propre à macOS — une JVM lancée ailleurs
 > avec cette option ne démarrera pas.
 
+**Fonctionne sur**, avec un JDK 17 ou plus récent et OpenGL 3.3 :
+
+| Système | Version minimale |
+|---|---|
+| Windows | Windows 10 sur x64 ; Windows 10 on ARM ou Windows 11 sur ARM64 |
+| macOS | macOS 11 Big Sur, sur Apple silicon et Intel |
+| Linux | glibc 2.28 sur x86_64 (Debian 10, Ubuntu 20.04, RHEL 8) ; glibc 2.35 sur ARM64 (Ubuntu 22.04, Debian 12) ; X11 ou Wayland |
+
+Ce sont les bibliothèques natives qui fixent ces planchers, et le build les vérifie toutes,
+une à une ;
+[Systèmes pris en charge](https://limn-toolkit.github.io/limn-toolkit/docs/install/#supported-systems)
+dit ce qui fixe chacun. MP4 et Matroska sur un Mac antérieur à macOS 26 demandent
+`limn-ffmpeg-natives` 9.0.2.1 ou plus récent : la 9.0.2.0 a été compilée pour macOS 26 par erreur.
+
 ### Lire de la vidéo
 
 `VideoView` est dans la ligne ci-dessus, et les décodeurs en Java pur qui le font fonctionner

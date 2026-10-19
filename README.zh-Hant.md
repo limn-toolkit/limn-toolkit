@@ -101,6 +101,16 @@ dependencies {
 > [!IMPORTANT]
 > 在 macOS 上，JVM 需要 `-XstartOnFirstThread`。這是你第一天就會遇到的唯一平台怪癖，而且僅限 macOS——在其他平台上把這個旗標交給 JVM，它不會啟動。
 
+**執行環境**——需要 JDK 17 或更新版本，以及 OpenGL 3.3：
+
+| 系統 | 最低支援版本 |
+|---|---|
+| Windows | x64 上為 Windows 10；ARM64 上為 Windows 10 on ARM 或 Windows 11 |
+| macOS | macOS 11 Big Sur，Apple 晶片與 Intel 皆可 |
+| Linux | x86_64 上為 glibc 2.28（Debian 10、Ubuntu 20.04、RHEL 8）；ARM64 上為 glibc 2.35（Ubuntu 22.04、Debian 12）；X11 或 Wayland 皆可 |
+
+這些下限由原生函式庫決定，建置會逐一檢查每個函式庫；各自由什麼決定，請見[支援的系統](https://limn-toolkit.github.io/limn-toolkit/docs/install/#supported-systems)。在早於 macOS 26 的 Mac 上播放 MP4 和 Matroska，需要 `limn-ffmpeg-natives` 9.0.2.1 或更新版本：9.0.2.0 被誤以 macOS 26 為目標建置。
+
 ### 播放影片
 
 `VideoView` 就在上面那一行裡，它背後那些純 Java 的解碼器也是。那樣播得動的是 Y4M 與一個合成來源；MP4 與 Matroska 需要 FFmpeg，而它是一個獨立的相依套件，因為它是 Limn 裡唯一帶著原生負載、也帶著自己一份授權的部分。

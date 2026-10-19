@@ -116,6 +116,19 @@ choose.
 > On macOS the JVM needs `-XstartOnFirstThread`. It is the one platform quirk you meet on day
 > one, and it is macOS-only — a JVM elsewhere given that flag will not start.
 
+**Runs on**, with JDK 17 or newer and OpenGL 3.3:
+
+| System | Oldest supported |
+|---|---|
+| Windows | Windows 10 on x64; Windows 10 on ARM or Windows 11 on ARM64 |
+| macOS | macOS 11 Big Sur, on Apple silicon and Intel |
+| Linux | glibc 2.28 on x86_64 (Debian 10, Ubuntu 20.04, RHEL 8); glibc 2.35 on ARM64 (Ubuntu 22.04, Debian 12); X11 or Wayland |
+
+The native libraries set these floors, and the build checks every one of them;
+[Supported systems](https://limn-toolkit.github.io/limn-toolkit/docs/install/#supported-systems)
+says what sets each. MP4 and Matroska on a Mac older than macOS 26 need `limn-ffmpeg-natives`
+9.0.2.1 or later: 9.0.2.0 was built for macOS 26 by mistake.
+
 ### Playing video
 
 `VideoView` is in the line above, and so are the pure-Java decoders behind it. What that plays is

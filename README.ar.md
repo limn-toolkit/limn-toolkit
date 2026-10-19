@@ -117,6 +117,19 @@ dependencies {
 > على macOS تحتاج آلة JVM إلى `-XstartOnFirstThread`. هذه هي غرابة المنصة الوحيدة التي تقابلها
 > في يومك الأول، وهي خاصة بـ macOS وحده — آلة JVM في مكان آخر تُعطى ذلك الخيار لن تبدأ.
 
+**يعمل على** — مع JDK 17 أو أحدث وOpenGL 3.3:
+
+| النظام | أقدم إصدار مدعوم |
+|---|---|
+| Windows | Windows 10 على x64؛ وWindows 10 on ARM أو Windows 11 على ARM64 |
+| macOS | macOS 11 Big Sur، على معالجات Apple وIntel |
+| Linux | glibc 2.28 على x86_64 (Debian 10 وUbuntu 20.04 وRHEL 8)؛ وglibc 2.35 على ARM64 (Ubuntu 22.04 وDebian 12)؛ مع X11 أو Wayland |
+
+المكتبات الأصلية هي التي تحدد هذه الحدود الدنيا، والبناء يفحص كل واحدة منها؛ ويبيّن قسم
+[الأنظمة المدعومة](https://limn-toolkit.github.io/limn-toolkit/docs/install/#supported-systems)
+ما الذي يحدد كلًّا منها. يحتاج MP4 وMatroska على جهاز Mac أقدم من macOS 26 إلى `limn-ffmpeg-natives`
+9.0.2.1 أو أحدث: فقد بُني الإصدار 9.0.2.0 لـ macOS 26 خطأً.
+
 ### تشغيل الفيديو
 
 العنصر `VideoView` موجود في السطر أعلاه، وكذلك مفككات الترميز المكتوبة بـ Java وحدها التي تقف

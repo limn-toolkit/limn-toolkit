@@ -118,6 +118,20 @@ dependencies {
 > вы столкнётесь в первый же день, и она только для macOS — JVM на другой платформе с этим флагом
 > не запустится.
 
+**Работает на** — с JDK 17 или новее и OpenGL 3.3:
+
+| Система | Самая старая поддерживаемая версия |
+|---|---|
+| Windows | Windows 10 на x64; Windows 10 on ARM или Windows 11 на ARM64 |
+| macOS | macOS 11 Big Sur, на Apple silicon и Intel |
+| Linux | glibc 2.28 на x86_64 (Debian 10, Ubuntu 20.04, RHEL 8); glibc 2.35 на ARM64 (Ubuntu 22.04, Debian 12); X11 или Wayland |
+
+Эти нижние границы задают нативные библиотеки, и сборка проверяет каждую из них; что задаёт каждую,
+сказано в разделе
+[Поддерживаемые системы](https://limn-toolkit.github.io/limn-toolkit/docs/install/#supported-systems).
+MP4 и Matroska на Mac старше macOS 26 требуют `limn-ffmpeg-natives` 9.0.2.1 или новее: 9.0.2.0 по
+ошибке собрана для macOS 26.
+
 ### Воспроизведение видео
 
 `VideoView` входит в строку выше, как и стоящие за ним декодеры на чистой Java. Этого хватает на
