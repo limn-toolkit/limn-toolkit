@@ -582,7 +582,7 @@ class OpacityTest extends SceneTestBase {
     }
 
     @Test
-    void aFadeThatGoesStraightThereIsOneSet() {
+    void aFadeThatGoesStraightThereIsOneSetAndArrivesOnTheNextTurn() {
         Opacity w = faded("w");
         AccessibleHarness harness = new AccessibleHarness(runtime, w);
         AtomicInteger arrived = new AtomicInteger();
@@ -590,21 +590,143 @@ class OpacityTest extends SceneTestBase {
             system.reduceMotion(true);
             w.fadeTo(0.3f, 0.5, arrived::incrementAndGet);
             assertEquals(0.3f, w.opacity(), "less motion: straight to the target");
-            assertEquals(1, arrived.get(), "onArrive at once");
+            assertEquals(0, arrived.get(), "onArrive never inside the call");
             assertEquals(List.of(OPACITY), opacityChanges(harness), "one announcement, as one set");
+            runtime.drain();
+            assertEquals(1, arrived.get(), "but on the next turn");
+            runtime.drain();
+            assertEquals(1, arrived.get(), "and once");
 
             harness.clearObservations();
             w.fadeTo(0.3f, 0.5, arrived::incrementAndGet);
             assertTrue(opacityChanges(harness).isEmpty(), "none when the value does not change");
+            assertEquals(1, arrived.get(), "the same value: not inside the call either");
+            runtime.drain();
             assertEquals(2, arrived.get());
         }
         w.fadeTo(0.6f, 0, arrived::incrementAndGet);
         assertEquals(0.6f, w.opacity(), "no time: straight there");
         assertEquals(List.of(OPACITY), opacityChanges(harness));
+        assertEquals(2, arrived.get(), "no time: not inside the call");
+        runtime.drain();
+        assertEquals(3, arrived.get());
+        w.fadeTo(0.6f, 0.5, arrived::incrementAndGet);
+        assertEquals(3, arrived.get(), "the value it has, motion allowed: not inside the call");
+        runtime.drain();
+        assertEquals(4, arrived.get());
         Opacity loose = faded("loose");
         loose.fadeTo(0.2f, 0.5, arrived::incrementAndGet);
         assertEquals(0.2f, loose.opacity(), "no scene to tick: straight there");
-        assertEquals(4, arrived.get());
+        Opacity windowless = faded("windowless");
+        new Scene(windowless);
+        windowless.fadeTo(0.7f, 0.5, arrived::incrementAndGet);
+        assertEquals(0.7f, windowless.opacity(), "a scene with no window: straight there");
+        assertEquals(4, arrived.get(), "neither inside its call");
+        runtime.drain();
+        assertEquals(6, arrived.get(), "both on the next turn");
+        runtime.drain();
+        assertEquals(6, arrived.get(), "each once");
+    }
+
+    /**
+     * The idiom a repeating fade is made with, a pulse or a breathing hint: the next {@code fadeTo}
+     * in the last one's {@code onArrive}. Wherever the fade goes straight there, an {@code onArrive}
+     * run inside {@code fadeTo} started the next fade on the same stack, which ran the next
+     * {@code onArrive}, until a {@link StackOverflowError} came out of the first call; on the next
+     * turn, one arrival runs a turn and the UI thread is free between them.
+     */
+    @Test
+    void aPulseChainedInOnArriveRunsOneArrivalATurnWhereverItGoesStraightThere() {
+        try (TestPreferences system = new TestPreferences()) {
+            system.reduceMotion(true);
+            Opacity reduced = faded("reduced");
+            Stack holder = new Stack();
+            holder.add(reduced);
+            sceneOf(holder);
+            pulseOneArrivalATurn("less motion, in a window", reduced, 0.6, false);
+        }
+        pulseOneArrivalATurn("in no scene", faded("loose"), 0.6, false);
+        Opacity windowless = faded("windowless");
+        new Scene(windowless);
+        assertNotNull(windowless.scene());
+        pulseOneArrivalATurn("in a scene with no window", windowless, 0.6, false);
+        Opacity instant = faded("instant");
+        Stack holder = new Stack();
+        holder.add(instant);
+        sceneOf(holder);
+        pulseOneArrivalATurn("zero seconds, in a window", instant, 0, false);
+        Opacity still = faded("still");
+        Stack other = new Stack();
+        other.add(still);
+        sceneOf(other);
+        pulseOneArrivalATurn("the value it has, in a window", still, 0.6, true);
+    }
+
+    /** Runs the pulse for many turns: one arrival a turn, none inside a call; then a set ends it. */
+    private void pulseOneArrivalATurn(String where, Opacity w, double seconds, boolean sameValue) {
+        AtomicInteger arrivals = new AtomicInteger();
+        Runnable[] pulse = new Runnable[1];
+        pulse[0] = () -> {
+            arrivals.incrementAndGet();
+            float next = sameValue ? w.opacity() : w.opacity() < 0.5f ? 1f : 0f;
+            w.fadeTo(next, seconds, pulse[0]);
+        };
+        float first = sameValue ? 1f : 0f;
+        w.fadeTo(first, seconds, pulse[0]);
+        assertEquals(0, arrivals.get(), where + ": no onArrive inside fadeTo");
+        assertEquals(first, w.opacity(), where + ": though the value is there at once");
+        int turns = 20_000; // past the depth at which the stack ran out, about eight thousand
+        for (int turn = 1; turn <= turns; turn++) {
+            runtime.drain();
+            assertEquals(turn, arrivals.get(), where + ": one arrival a turn, the next left to the next");
+        }
+        assertEquals(first, w.opacity(), where + ": an even number of arrivals, back where it started");
+        w.setOpacity(0.5f);
+        runtime.drain();
+        assertEquals(turns, arrivals.get(), where + ": a set supersedes the arrival left for the next turn");
+    }
+
+    @Test
+    void aStraightThereFadeSupersededBeforeTheNextTurnNeverRunsItsOnArrive() {
+        Opacity w = faded("w");
+        Stack holder = new Stack();
+        holder.add(w);
+        Scene scene = sceneOf(holder);
+        AtomicInteger first = new AtomicInteger();
+        AtomicInteger second = new AtomicInteger();
+
+        w.fadeTo(0.4f, 0, first::incrementAndGet);
+        w.fadeTo(0.6f, 0, second::incrementAndGet);
+        runtime.drain();
+        runtime.drain();
+        assertEquals(0, first.get(), "a newer fade the same turn: the first's onArrive never runs");
+        assertEquals(1, second.get(), "the newer one's once");
+
+        w.fadeTo(0.2f, 0, first::incrementAndGet);
+        w.setOpacity(1f);
+        runtime.drain();
+        assertEquals(0, first.get(), "a set supersedes it too");
+        assertEquals(1f, w.opacity());
+
+        w.fadeTo(0f, 0, first::incrementAndGet);
+        w.fadeTo(0.5f, 0.3, second::incrementAndGet); // one that moves, on the scene's frames
+        runtime.drain();
+        assertEquals(0, first.get(), "a fade that moves supersedes it too");
+        advance(scene, 16);
+        advance(scene, 200);
+        advance(scene, 200);
+        assertEquals(0.5f, w.opacity());
+        assertEquals(2, second.get(), "and arrives as a fade does, once");
+        runtime.drain();
+        assertEquals(0, first.get());
+
+        AtomicInteger leaving = new AtomicInteger();
+        w.fadeTo(0.1f, 0, leaving::incrementAndGet);
+        holder.remove(w);
+        assertEquals(0, leaving.get(), "leaving the scene settles a fade in flight, and this one had arrived");
+        runtime.drain();
+        runtime.drain();
+        assertEquals(1, leaving.get(), "an arrival left for the next turn runs there once, whatever the tree did");
     }
 
     @Test

@@ -111,6 +111,7 @@ class StatusExampleTest {
             dialog.show(scene).thenAccept(result::set);
             scene.layoutPass(600, 400);
             drive(scene).press(Keys.ENTER);
+            ui.runtime().drain(); // a dialog's fade with no window to step it arrives on the next turn
             assertEquals("keep", result.get(), "Return gives the safe answer, never Delete");
         }
     }

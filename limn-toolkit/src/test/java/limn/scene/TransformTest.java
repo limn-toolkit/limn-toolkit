@@ -799,7 +799,7 @@ class TransformTest extends SceneTestBase {
     }
 
     @Test
-    void underLessMotionAMotionGoesStraightThereAsOneSetAndAFlipSwapsAtOnce() {
+    void underLessMotionAMotionGoesStraightThereAsOneSetAndAFlipSwapsOnTheNextTurn() {
         Transform t = new Transform(new Leaf("w", painted));
         AccessibleHarness harness = new AccessibleHarness(runtime, t);
         AtomicInteger arrived = new AtomicInteger();
@@ -808,20 +808,147 @@ class TransformTest extends SceneTestBase {
             system.reduceMotion(true);
             t.slideTo(40, 0, 0.5, arrived::incrementAndGet);
             assertEquals(40f, t.translationX(), "straight to the target");
-            assertEquals(1, arrived.get(), "onArrive at once");
+            assertEquals(0, arrived.get(), "onArrive never inside the call");
             assertEquals(List.of(TRANSFORM), transformChanges(harness), "one announcement, as one set");
+            runtime.drain();
+            assertEquals(1, arrived.get(), "but on the next turn");
 
             harness.clearObservations();
             t.flipTo(Transform.Flip.FORWARD, 0.5, () -> order.add("edge"), () -> order.add("arrive"));
-            assertEquals(List.of("edge", "arrive"), order, "the swap and the arrival at once");
+            assertEquals(List.of(), order, "neither the swap nor the arrival inside the call");
             assertTrue(transformChanges(harness).isEmpty(), "with no turn, nothing moved to announce");
+            runtime.drain();
+            assertEquals(List.of("edge", "arrive"), order, "the swap and then the arrival, on the next turn");
+            runtime.drain();
+            assertEquals(List.of("edge", "arrive"), order, "each once");
+
+            t.rotateTo(30, 0.5, arrived::incrementAndGet);
+            assertEquals(30f, t.rotation(), "a rotation straight there too");
         }
         t.scaleTo(3, 3, 0, arrived::incrementAndGet);
         assertEquals(3f, t.scaleX(), "no time: straight there");
+        assertEquals(1, arrived.get(), "no time: not inside the call");
+        runtime.drain();
+        assertEquals(3, arrived.get(), "the rotation's and the scale's, on the next turn");
+        t.scaleTo(3, 3, 0.5, arrived::incrementAndGet);
+        assertEquals(3, arrived.get(), "the value it has, motion allowed: not inside the call");
+        runtime.drain();
+        assertEquals(4, arrived.get());
         Transform loose = new Transform(new Leaf("loose", painted));
         loose.slideTo(7, 7, 0.5, arrived::incrementAndGet);
         assertEquals(7f, loose.translationX(), "no scene to tick: straight there");
-        assertEquals(3, arrived.get());
+        Transform windowless = new Transform(new Leaf("windowless", painted));
+        new Scene(windowless);
+        windowless.slideTo(9, 9, 0.5, arrived::incrementAndGet);
+        assertEquals(9f, windowless.translationX(), "a scene with no window: straight there");
+        assertEquals(4, arrived.get(), "neither inside its call");
+        runtime.drain();
+        runtime.drain();
+        assertEquals(6, arrived.get(), "both on the next turn, once");
+    }
+
+    /**
+     * The idiom a repeating motion is made with: the next motion in the last one's {@code onArrive}.
+     * Where it goes straight there, an {@code onArrive} run inside the call recursed until a
+     * {@link StackOverflowError} came out of the first; on the next turn, one arrival runs a turn.
+     */
+    @Test
+    void aMotionChainedInOnArriveRunsOneArrivalATurnWhereverItGoesStraightThere() {
+        try (TestPreferences system = new TestPreferences()) {
+            system.reduceMotion(true);
+            Transform reduced = new Transform(new Leaf("reduced", painted));
+            sceneOf(at(reduced, 0, 0));
+            chainOneArrivalATurn("less motion, in a window", reduced, 0.5);
+        }
+        chainOneArrivalATurn("in no scene", new Transform(new Leaf("loose", painted)), 0.5);
+        Transform windowless = new Transform(new Leaf("windowless", painted));
+        new Scene(windowless);
+        assertNotNull(windowless.scene());
+        chainOneArrivalATurn("in a scene with no window", windowless, 0.5);
+        Transform instant = new Transform(new Leaf("instant", painted));
+        sceneOf(at(instant, 0, 0));
+        chainOneArrivalATurn("zero seconds, in a window", instant, 0);
+    }
+
+    /** Each motion chained on itself for many turns: one arrival a turn, none inside a call. */
+    private void chainOneArrivalATurn(String where, Transform t, double seconds) {
+        AtomicInteger arrivals = new AtomicInteger();
+        Runnable[] slide = new Runnable[1];
+        Runnable[] scale = new Runnable[1];
+        Runnable[] turn = new Runnable[1];
+        Runnable[] flip = new Runnable[1];
+        slide[0] = () -> {
+            arrivals.incrementAndGet();
+            t.slideTo(t.translationX() == 0 ? 40 : 0, 0, seconds, slide[0]);
+        };
+        scale[0] = () -> {
+            arrivals.incrementAndGet();
+            t.scaleTo(t.scaleX() == 1 ? 2 : 1, 1, seconds, scale[0]);
+        };
+        turn[0] = () -> {
+            arrivals.incrementAndGet();
+            t.rotateTo(t.rotation() == 0 ? 90 : 0, seconds, turn[0]);
+        };
+        flip[0] = () -> t.flipTo(Transform.Flip.FORWARD, seconds, arrivals::incrementAndGet, flip[0]);
+        t.slideTo(40, 0, seconds, slide[0]);
+        t.scaleTo(2, 1, seconds, scale[0]);
+        t.rotateTo(90, seconds, turn[0]);
+        t.flipTo(Transform.Flip.FORWARD, seconds, arrivals::incrementAndGet, flip[0]);
+        assertEquals(0, arrivals.get(), where + ": nothing run inside a call");
+        int turns = 5_000; // four motions a turn: past the depth at which the stack ran out
+        for (int i = 1; i <= turns; i++) {
+            runtime.drain();
+            assertEquals(4 * i, arrivals.get(), where + ": one arrival a motion a turn");
+        }
+        t.reset(); // supersedes every arrival left for the next turn
+        runtime.drain();
+        assertEquals(4 * turns, arrivals.get(), where + ": a reset supersedes what waited for the next turn");
+    }
+
+    @Test
+    void aStraightThereMotionSupersededBeforeTheNextTurnRunsNothing() {
+        Transform t = new Transform(new Leaf("w", painted));
+        sceneOf(at(t, 0, 0));
+        List<String> ran = new ArrayList<>();
+
+        t.slideTo(10, 0, 0, () -> ran.add("first slide"));
+        t.slideTo(20, 0, 0, () -> ran.add("second slide"));
+        t.scaleTo(2, 2, 0, () -> ran.add("scale")); // another value: superseding no slide
+        runtime.drain();
+        assertEquals(List.of("second slide", "scale"), ran, "a newer slide the same turn supersedes the first");
+
+        ran.clear();
+        t.slideTo(30, 0, 0, () -> ran.add("slide"));
+        t.setTranslation(0, 0);
+        t.scaleTo(3, 3, 0, () -> ran.add("scale"));
+        t.setScale(1, 1);
+        t.rotateTo(45, 0, () -> ran.add("rotation"));
+        t.setRotation(0);
+        t.slideTo(5, 0, 0, () -> ran.add("slid then moving"));
+        t.slideTo(50, 0, 0.3, null); // one that moves supersedes it too
+        runtime.drain();
+        assertEquals(List.of(), ran, "a set, or a motion that moves, supersedes each");
+
+        t.flipTo(Transform.Flip.FORWARD, 0, () -> ran.add("first edge"), () -> ran.add("first flip"));
+        t.flipTo(Transform.Flip.UP, 0, () -> ran.add("second edge"), () -> ran.add("second flip"));
+        runtime.drain();
+        assertEquals(List.of("second edge", "second flip"), ran,
+                "a newer flip the same turn: the first neither swaps nor arrives");
+
+        ran.clear();
+        t.flipTo(Transform.Flip.FORWARD, 0, () -> ran.add("edge"), () -> ran.add("flip"));
+        t.reset();
+        runtime.drain();
+        assertEquals(List.of(), ran, "a reset supersedes a flip that waits for the next turn");
+
+        t.flipTo(Transform.Flip.FORWARD, 0, () -> {
+            ran.add("edge that resets");
+            t.reset();
+        }, () -> ran.add("flip"));
+        runtime.drain();
+        runtime.drain();
+        assertEquals(List.of("edge that resets"), ran,
+                "a flip its own atEdge superseded never arrives, as one that turns would not");
     }
 
     // ------------------------------------------------------------------ the flip

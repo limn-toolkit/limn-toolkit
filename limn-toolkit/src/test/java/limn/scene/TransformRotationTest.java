@@ -348,8 +348,10 @@ class TransformRotationTest extends SceneTestBase {
             t.rotateTo(30, 0.5, arrived::incrementAndGet);
         }
         assertEquals(30f, t.rotation(), "there at once");
-        assertEquals(1, arrived.get(), "and arrived");
+        assertEquals(0, arrived.get(), "onArrive never inside the call");
         assertEquals(List.of(TRANSFORM), transformChanges(harness), "heard as one set");
+        runtime.drain();
+        assertEquals(1, arrived.get(), "arrived on the next turn");
     }
 
     @Test

@@ -11,7 +11,9 @@
   the build departs from the text above and why. Amended the same day, before any release carried
   it (section 7): the owner decided that the opacity is a container, `Opacity`, as `Padding` is for
   space, and not a method of `Widget`; everything else this record decides holds, carried by the
-  container.
+  container. Amended 2026-10-19, before 1.0 (section 8): the owner decided that `onArrive` never
+  runs inside `fadeTo`; a fade that goes straight to its target runs it on the next turn of the UI
+  queue.
 - **Date:** 2026-10-17
 - **Scope:**
   - an opacity on every widget (on an `Opacity` container round any widget since section 7), how
@@ -273,7 +275,8 @@ widget it fades, and not `Widget`'s; every rule here holds for the container.)
   A newer `fadeTo` or a `setOpacity` supersedes one in flight. While the system asks for less
   motion, or with no scene to tick, or for zero seconds, it goes straight to the target and
   `onArrive` runs at once. `onArrive` runs once, when the fade arrives, and not when it is
-  superseded.
+  superseded. (2026-10-19, section 8: not at once, on the next turn of the UI queue, and never
+  inside the call.)
 - **A watcher hears an opacity change by the owner's rule** (decision 2), through a new aspect,
   `Change.Aspect.OPACITY`, origin `CODE`:
   - a `setOpacity` that changes the value announces it, every time;
@@ -784,12 +787,13 @@ Everything sections 2.1 to 2.8 decide about the opacity holds, carried by the co
 0..1 and NaN refused; UI thread only and refused inside a paint; at 0 the child is still laid out,
 hit, focused and read, and `setVisible(false)` wins and keeps the opacity; one container inside
 another multiplies; `fadeTo` goes straight to its target and counts as one set while the system asks
-for less motion, for zero seconds, for the value it has, or with no scene or no window to tick it; a
-newer `fadeTo` or a `setOpacity` supersedes one in flight, whose `onArrive` does not run; one ticker
-per container however many fades are asked for between two frames; a container leaving its scene
-mid-fade settles at its target and runs `onArrive` then; and the owner's rule of decision 2, a direct
-set that changes the value announcing `Change.Aspect.OPACITY` each time and a fade only at its start
-and at its arrival or supersession, now announced on the container. (2026-10-18, with stage 2 of
+for less motion, for zero seconds, for the value it has, or with no scene or no window to tick it
+(2026-10-19, section 8: its `onArrive` then runs on the next turn of the UI queue, never inside
+`fadeTo`); a newer `fadeTo` or a `setOpacity` supersedes one in flight, whose `onArrive` does not
+run; one ticker per container however many fades are asked for between two frames; a container
+leaving its scene mid-fade settles at its target and runs `onArrive` then; and the owner's rule of
+decision 2, a direct set that changes the value announcing `Change.Aspect.OPACITY` each time and a
+fade only at its start and at its arrival or supersession, now announced on the container. (2026-10-18, with stage 2 of
 ADR 072: `fadeTo` refuses an infinite number of seconds with `IllegalArgumentException`, as the
 `Transform` container's motions do, since a fade that never arrives never runs its `onArrive`; it
 accepted one before, which ADR 072 §9.2 left open for the two to agree on before 1.0.)
@@ -866,3 +870,49 @@ container, a child past an unclipped parent's edge), `InScenePopupFadePixelTest`
 `InSceneFadesAsOnePictureTest`, `InSceneFadeEndsTest`, `WorkBudgetTest` and
 `FullFrameAllocationTest`; the demo's Backdrop page and the Animations guide's example
 (`AnimationExampleTest`) use the container.
+
+## 8. `onArrive` never runs inside the call, 2026-10-19
+
+The audit of 2026-10-19 (OP-1) found that the one way an application has to make a repeating or a
+sequenced fade, the next `fadeTo` asked for in the last one's `onArrive`, recursed without end
+wherever the fade went straight to its target: under less motion, in a container not yet in a
+scene, in a scene with no window, or for zero seconds. Each `onArrive` ran inside the `fadeTo` that
+the one before had called, and a pulse that worked on the developer's machine threw a
+`StackOverflowError` out of `fadeTo` on the UI thread, after about eight thousand arrivals, for a
+user who asked the system for less motion. `Transform`'s motions and `Scene.fadeWindow` had the
+same shape (ADR 072 section 13).
+
+**The owner's decision.** `onArrive` never runs inside `fadeTo`. A fade that goes straight to its
+target sets the value and announces it at once, as one `setOpacity`, and runs its `onArrive` on the
+next turn of the UI queue, as a task `Ui.post` hands it runs, exactly once: as a fade that moves
+already runs it on a later frame. A chain therefore runs one arrival a turn, and the UI thread
+handles its events between them; the queue's drain takes only the tasks queued when it starts, so
+an arrival that asks for the next one never holds a turn. The other choice, keeping it synchronous
+and trampolining chained calls inside the outermost `fadeTo`, was refused: it kept the call
+re-entrant into application code, and a chain that never ends would still hold the UI thread inside
+one call. An `onArrive` that throws now throws on its own turn, where the UI queue logs it and
+goes on, and no longer out of the `fadeTo` that asked for it.
+
+**What supersedes it.** Whatever supersedes a fade in flight, a newer `fadeTo` or a `setOpacity`,
+drops an arrival that waits for the next turn, which then never runs, as section 2.1 has it for a
+superseded fade. A container that leaves its scene does not: its value has already arrived, so the
+arrival runs on the next turn as asked; only a fade still in flight settles as the container
+leaves (section 7.2), which is unchanged.
+
+**The toolkit's own fades.** `Scene.fadeWindow`, `fadeWindowIn` and `fadeWindowOut` follow the
+same rule for their callback: with no window, for zero seconds or for the value the window has, it
+runs on the next turn, once, unless a newer call supersedes it, and a window that closes first runs
+it as it closes, as it runs the callback of a fade in flight. A dialog or an in-scene popup closed
+while the system asks for less motion is therefore removed, and its result completed, on the next
+turn rather than inside the call that closed it.
+
+**Tests.** `OpacityTest.aPulseChainedInOnArriveRunsOneArrivalATurnWhereverItGoesStraightThere`
+runs the pulse under less motion in a window, in no scene, in a scene with no window, for zero
+seconds and to the value it has, twenty thousand turns each, one arrival a turn and none inside a
+call (each threw `StackOverflowError` before); `aFadeThatGoesStraightThereIsOneSetAndArrivesOnTheNextTurn`
+(was `aFadeThatGoesStraightThereIsOneSet`, which asserted the arrival at once) and
+`aStraightThereFadeSupersededBeforeTheNextTurnNeverRunsItsOnArrive` hold the turn, the once and
+the supersession; `WindowFadeTest` holds the same for the window's fade, the close that runs it
+first included. The component tests whose loops rendered frames without draining the UI queue,
+which no backend does, now drain it each turn (`DialogTest`, `ScrollAxisClipTest`, and
+`AccessibleComponentTestBase.advanceTime`).

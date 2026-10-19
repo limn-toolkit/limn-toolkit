@@ -102,7 +102,8 @@ abstract class AccessibleComponentTestBase extends ComponentTestBase {
     }
 
     /**
-     * Moves the scene's clock forward and renders a frame for each step of it.
+     * Moves the scene's clock forward and, for each step of it, takes a turn of a backend's loop:
+     * the UI queue drained, where a fade that went straight there arrives, and a frame rendered.
      *
      * <p>In steps no larger than the tick clamp, because a scene clamps how much time one frame
      * may account for: a single jump of a second would advance an animation by
@@ -115,6 +116,7 @@ abstract class AccessibleComponentTestBase extends ComponentTestBase {
     protected void advanceTime(long millis, Widget<?> damage) {
         long step = (long) (Scene.MAX_TICK_SECONDS * 1000);
         for (long left = millis; left > 0; left -= step) {
+            runtime.drain();
             nanos[0] += TimeUnit.MILLISECONDS.toNanos(Math.min(step, left));
             if (damage != null) {
                 damage.invalidate();

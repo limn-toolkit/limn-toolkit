@@ -572,7 +572,7 @@ class TransformDepthTest extends SceneTestBase {
     }
 
     @Test
-    void underLessMotionAFlipInPerspectiveSwapsAtOnce() {
+    void underLessMotionAFlipInPerspectiveSwapsOnTheNextTurn() {
         TransformTest.Leaf leaf = new Card("w", painted, 300, 200);
         Transform t = new Transform(leaf).setPerspective(900);
         Scene scene = sceneOf(at(t, 100, 100));
@@ -582,7 +582,10 @@ class TransformDepthTest extends SceneTestBase {
             system.reduceMotion(true);
             t.flipTo(Transform.Flip.UP, 0.4, edges::incrementAndGet, arrivals::incrementAndGet);
         }
-        assertEquals(1, edges.get(), "swapped at once");
+        assertEquals(0, edges.get(), "no swap inside the call");
+        assertEquals(0, arrivals.get());
+        runtime.drain();
+        assertEquals(1, edges.get(), "swapped on the next turn");
         assertEquals(1, arrivals.get());
         advance(scene, 16);
         assertTrue(canvas.matrices.isEmpty(), "with no turn and no picture");
