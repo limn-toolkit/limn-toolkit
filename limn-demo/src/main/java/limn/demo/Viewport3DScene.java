@@ -163,8 +163,9 @@ final class Viewport3DScene {
      * the cube field via {@code --gadget}), where they get a whole window, which is the size at
      * which a normal map or a bloom threshold can actually be judged. The page keeps the ones a
      * visitor reads at a glance: the lit forward pass with three light types, the shadow depth
-     * pass, the environment's reflections, a model loaded from a file, and a surface computed on
-     * the GPU ({@link GpuShaderScene}).
+     * pass, the environment's reflections, a model loaded from a file, a surface computed on the
+     * GPU ({@link GpuShaderScene}), and all of it at work in a business application's product
+     * page ({@link LampConfigurator}).
      *
      * <p>A toolbar over the view: the scene and the render scale, which is the page's and so
      * reaches every scene. The view below fills the page's width at 16:9, with the one hint it
@@ -213,7 +214,16 @@ final class Viewport3DScene {
         Widget<?> shader = GpuShaderScene.content(shaderViews::add);
         scenes.add(new Shown(GpuShaderScene.Text.SHADER, shader, shaderViews, Text.HINT_ORBIT, null));
 
-        return page(scenes, index -> modelShowing[0] = scenes.get(index).views().contains(gltf));
+        LampConfigurator.Built lamp = LampConfigurator.build();
+        scenes.add(new Shown(LampConfigurator.Text.CONFIGURATOR, lamp.widget, List.of(lamp.view),
+                LampConfigurator.Text.HINT, null));
+
+        return page(scenes, index -> {
+            modelShowing[0] = scenes.get(index).views().contains(gltf);
+            if (!scenes.get(index).views().contains(lamp.view)) {
+                lamp.popover.close(); // it points into a view that is no longer shown
+            }
+        });
     }
 
     /** The page over {@code scenes}: the toolbar, the scene in view, and its hint. */
