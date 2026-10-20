@@ -319,4 +319,16 @@ class GlslSharingAndLoopsTest {
         assertFalse(looped.contains("sampler2D ir_"), looped);
         assertTrue(firstLoop(looped).contains("texture((u_sheet), (v_uv + ir_s0.xy))"), looped);
     }
+
+    @Test
+    void aDiffuseResponseThatLoopsIsHeldToTheCapOnceForEachLightTheGeneratorShades() {
+        // 200 turns a light fit one light, and the light loop runs the response for eight: 1,600.
+        Expr.Ref f = new Expr.Ref("f", ShaderType.FLOAT);
+        Expr.Loop response = new Expr.Loop("f", Expr.Lit.of(0f), 200, add(f, Expr.Lit.of(0.001f)), null);
+        SurfaceOutputs surface = IrSurfaces.emitting(Expr.Lit.of(0f, 0f, 0f)).withDiffuseResponse(response);
+        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class, () -> fragment(surface));
+        assertTrue(refused.getMessage().contains("1600"), refused.getMessage());
+        Expr.Loop fits = new Expr.Loop("f", Expr.Lit.of(0f), 128, add(f, Expr.Lit.of(0.001f)), null);
+        assertDoesNotThrow(() -> fragment(IrSurfaces.emitting(Expr.Lit.of(0f, 0f, 0f)).withDiffuseResponse(fits)));
+    }
 }

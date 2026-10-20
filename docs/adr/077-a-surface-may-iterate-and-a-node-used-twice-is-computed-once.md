@@ -48,7 +48,7 @@ relies on, and the rule it takes from each:
 | User functions | yes | yes, declared at global scope before use; no recursion, not even static, in either | none generated (section 4) |
 | Derivatives (`dFdx`, `dFdy`, `fwidth`) and implicit-LOD `texture` | defined in uniform control flow | the same: undefined in non-uniform control flow | a loop that can end early may not sample, take a derivative, call a framework helper that does, or splice raw text (section 3.3) |
 | Identifiers | `gl_` and any `__` reserved | the same | generated names start with `ir_`, which an application's names and a loop's state may not |
-| Iteration limits | implementation-defined; a long draw is a driver timeout | the same; WebGL-class implementations lose the context | a cap of 1024 turns a fragment, nested loops counted together (section 3.2) |
+| Iteration limits | implementation-defined; a long draw is a driver timeout | the same; WebGL-class implementations lose the context | a cap of 1024 turns a fragment across the whole surface (section 3.2) |
 | Precision | not needed | float precision has no default in a fragment shader; `highp` required in 3.00 | the ES header gives both, as before |
 
 ## 2. Decision
@@ -98,13 +98,19 @@ A part of `next` or `until` that does not read the state is computed once, befor
 
 ### 3.2 The cap
 
-`MAX_ITERATIONS` is **1024**, and it bounds the product along a nesting: a loop of 32 turns may
-hold one of 32, not one of 64. The constructor refuses a count below 1 or above the cap, and a
-nesting whose product passes it. 1024 is four times what the Showcase's Mandelbrot uses and what
-a smooth-coloured escape-time fractal wants on screen at single precision, where the picture
-runs out of precision long before it runs out of turns. The cap bounds turns, not the cost of a
-turn: a surface with a large body still costs what it costs, as a surface without a loop does,
-but no surface can ask a fragment for an unbounded amount of work.
+`MAX_ITERATIONS` is **1024**, and it bounds every turn a pixel takes across a whole surface
+(amended 2026-10-20, section 7; it bounded the product along one nesting, and loops side by side
+were each counted alone). Loops side by side, and a loop in another's initial value, add their
+turns; a loop in another's turn multiplies by that loop's count, so a loop of 32 turns may hold
+one of 32, not one of 64 nor two of 32 side by side; a loop read twice, or two built alike, is
+computed once and counted once. The constructor refuses a count below 1 or above the cap and a
+loop that, with what it holds, passes it; `SurfaceOutputs` refuses a surface that passes it,
+counting its diffuse response for one light, and the generator, whose light loop runs the response
+for each of its eight lights, refuses one that passes it under eight. 1024 is four times what the
+Showcase's Mandelbrot uses and what a smooth-coloured escape-time fractal wants on screen at
+single precision, where the picture runs out of precision long before it runs out of turns. The
+cap bounds turns, not the cost of a turn: a surface with a large body still costs what it costs,
+as a surface without a loop does, but no surface asks a pixel for more than 1024 turns.
 
 ### 3.3 What an early-ending loop may not hold
 
@@ -240,3 +246,13 @@ two sibling loops may both call their state `z`.
   that visits a shared node once, because a record's own `hashCode` follows each child as a tree:
   forty squarings z ↦ z·z, 2^40 paths, never finished. Two such chains built apart compare and
   hash in milliseconds. `toString` is still a record's, a tree as long as every path.
+- **2026-10-20, the owner's decision 37: the cap is the whole surface's.** The review found the
+  cap bounded the product along one nesting while the Javadoc promised no surface could hang the
+  GPU: 64 loops of 1024 chained through their initial values were accepted (65,536 turns a
+  pixel), and so was a loop of 8 holding eight loops of 128 (8,192). The owner chose a budget for
+  the whole surface over rewording the promise. `Loops` counts it, sharing counted once by value,
+  and three places hold it: the loop's constructor (the loop with what it holds, the second of
+  those 64 is refused at 2,048), `SurfaceOutputs` at construction (every output, the diffuse
+  response for one light), and the generator (the response once for each of its eight lights).
+  `SurfaceOutputs.turnsPerPixel(lights)` is new and public, so a backend with its own light count
+  can hold a surface to it. The device test's two loops, 50 and 1024, became 50 and 974.

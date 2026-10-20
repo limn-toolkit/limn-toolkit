@@ -51,6 +51,21 @@ package limn.render3d.shader;
 public record SurfaceOutputs(Expr baseColor, Expr metallic, Expr roughness, Expr emissive,
                              Expr normal, Expr diffuseResponse) {
 
+    /**
+     * Holds the surface's loops to {@link Expr.Loop#MAX_ITERATIONS} turns a pixel, its diffuse
+     * response counted for one light.
+     *
+     * @throws IllegalArgumentException if the surface's loops take more turns a pixel than that
+     */
+    public SurfaceOutputs {
+        long turns = Loops.surfaceTurns(outputs(baseColor, metallic, roughness, emissive, normal),
+                diffuseResponse, 1);
+        if (turns > Expr.Loop.MAX_ITERATIONS) {
+            throw new IllegalArgumentException("this surface takes up to " + turns + " turns a pixel across"
+                    + " its loops, more than " + Expr.Loop.MAX_ITERATIONS);
+        }
+    }
+
     /** A surface shaded by the standard {@code N·L} diffuse response. */
     public SurfaceOutputs(Expr baseColor, Expr metallic, Expr roughness, Expr emissive,
                           Expr normal) {
@@ -74,5 +89,30 @@ public record SurfaceOutputs(Expr baseColor, Expr metallic, Expr roughness, Expr
      */
     public SurfaceOutputs withDiffuseResponse(Expr diffuseResponse) {
         return new SurfaceOutputs(baseColor, metallic, roughness, emissive, normal, diffuseResponse);
+    }
+
+    /**
+     * The most loop turns a pixel takes to shade this surface under {@code lights} lights: every
+     * loop it computes, loops side by side adding and a loop in another's turn multiplying by its
+     * count, a loop read twice or built twice alike counted once, and the diffuse response's
+     * loops once for each light. A backend holds a surface to {@link Expr.Loop#MAX_ITERATIONS}
+     * with the most lights it shades a pixel with.
+     *
+     * @param lights how many lights the diffuse response runs for, 0 or more
+     * @return the turns, {@link Long#MAX_VALUE} where they pass it
+     */
+    public long turnsPerPixel(int lights) {
+        return Loops.surfaceTurns(outputs(baseColor, metallic, roughness, emissive, normal),
+                diffuseResponse, lights);
+    }
+
+    private static java.util.List<Expr> outputs(Expr... outputs) {
+        java.util.List<Expr> present = new java.util.ArrayList<>();
+        for (Expr output : outputs) {
+            if (output != null) {
+                present.add(output);
+            }
+        }
+        return present;
     }
 }

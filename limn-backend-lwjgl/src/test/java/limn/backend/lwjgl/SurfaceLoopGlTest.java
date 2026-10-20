@@ -133,8 +133,9 @@ class SurfaceLoopGlTest {
     void aLoopsValueReachesThePixelWhetherItRunsOutOrEndsEarly() {
         Expr.Ref s = new Expr.Ref("s", ShaderType.FLOAT);
         Expr.Loop fifty = new Expr.Loop("s", Expr.Lit.of(0f), 50, IrSurfaces.add(s, Expr.Lit.of(0.01f)), null);
-        // Asked before each turn: 0, 0.1, 0.2, 0.3 are below 0.35 and step on; 0.4 is not.
-        Expr.Loop early = new Expr.Loop("s", Expr.Lit.of(0f), 1024, IrSurfaces.add(s, Expr.Lit.of(0.1f)),
+        // Asked before each turn: 0, 0.1, 0.2, 0.3 are below 0.35 and step on; 0.4 is not. Up to
+        // 974 turns, what the fifty leave of the surface's 1,024.
+        Expr.Loop early = new Expr.Loop("s", Expr.Lit.of(0f), 974, IrSurfaces.add(s, Expr.Lit.of(0.1f)),
                 IrSurfaces.sub(s, Expr.Lit.of(0.35f)));
         SurfaceOutputs both = IrSurfaces.emitting(new Expr.Construct(ShaderType.VEC3,
                 List.of(fifty, early, Expr.Lit.of(0f))));

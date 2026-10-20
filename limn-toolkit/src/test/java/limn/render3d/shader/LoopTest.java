@@ -11,8 +11,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 /**
- * A loop in the shader IR is bounded, and its bound is the product along a nesting: no surface may
- * ask a fragment for more than {@link Expr.Loop#MAX_ITERATIONS} turns, however it nests them. And a
+ * A loop in the shader IR is bounded: with the loops it holds it may not ask a fragment for more
+ * than {@link Expr.Loop#MAX_ITERATIONS} turns, however it nests them ({@link SurfaceBudgetTest}
+ * holds a whole surface to the same cap). And a
  * loop that can end early runs in non-uniform control flow, where neither GLSL 3.30 nor GLSL ES
  * 3.00 defines a derivative or an implicit-LOD texture lookup.
  */

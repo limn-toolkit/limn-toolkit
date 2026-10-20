@@ -205,11 +205,19 @@ public sealed interface Expr
      * Expr.Loop loop = new Expr.Loop("s", Expr.Lit.of(0, 0, 0, 0), 256, next, until);
      * }</pre>
      *
-     * <p><b>Bounded, so every profile accepts it and no surface can hang the GPU.</b> The count
-     * is a constant from 1 to {@link #MAX_ITERATIONS}, and along a nesting it is the product that
-     * is held to that cap: a loop of 32 turns may hold one of 32, not one of 64. The cap bounds
-     * turns, not what a turn costs. {@code until} is a float rather than a boolean, so a threshold
-     * is a subtraction away; an iteration count, when a surface wants one, is part of its state.
+     * <p><b>Bounded across a whole surface.</b> The count is a constant from 1 to
+     * {@link #MAX_ITERATIONS}, and so is every turn a pixel takes in all the loops of one surface.
+     * Loops side by side, and a loop in another's initial value, add their turns; a loop in
+     * another's turn multiplies by that loop's count: a loop of 32 turns may hold one of 32, not
+     * one of 64, nor two of 32 side by side. A loop read twice, or two built alike, is computed
+     * once and counted once. A loop holds itself and what it holds to the cap, and
+     * {@link SurfaceOutputs} holds the whole surface, counting the turns of its diffuse response
+     * once for each light a pass shades with (once when it is built; a generator, which knows how
+     * many lights it shades with, holds the surface to that count). So no surface asks a pixel for
+     * more than {@value #MAX_ITERATIONS} turns, in any profile. The cap bounds turns, not what a
+     * turn costs, which is the surface's as it is without a loop. {@code until} is a float rather
+     * than a boolean, so a threshold is a subtraction away; an iteration count, when a surface
+     * wants one, is part of its state.
      *
      * <p><b>An early end is non-uniform control flow.</b> A loop with an {@code until} ends at
      * different turns in neighbouring pixels, where the shading languages leave a derivative and
@@ -237,15 +245,15 @@ public sealed interface Expr
     record Loop(String state, Expr initial, int maxIterations, Expr next,
                 @org.jspecify.annotations.Nullable Expr until) implements Expr {
 
-        /** The most turns a pixel may take, across every loop nested in another. */
+        /** The most turns a pixel may take across every loop of a surface. */
         public static final int MAX_ITERATIONS = 1024;
 
         /**
          * Checks the loop as the class describes.
          *
-         * @throws IllegalArgumentException if the count, a nesting's product, a type or the name is
-         *                                  out of these bounds, or a loop that can end early
-         *                                  samples or takes a derivative
+         * @throws IllegalArgumentException if the count, the turns with the loops it holds, a type or
+         *                                  the name is out of these bounds, or a loop that can end
+         *                                  early samples or takes a derivative
          */
         public Loop {
             java.util.Objects.requireNonNull(state, "state");
@@ -270,10 +278,14 @@ public sealed interface Expr
                 throw new IllegalArgumentException("a loop takes 1 to " + MAX_ITERATIONS + " turns, not "
                         + maxIterations);
             }
-            long nested = Math.max(Loops.turns(next, state), until == null ? 1 : Loops.turns(until, state));
-            if (maxIterations * nested > MAX_ITERATIONS) {
-                throw new IllegalArgumentException(maxIterations + " turns of a loop of " + nested
-                        + " is more than " + MAX_ITERATIONS + " turns a pixel");
+            Loops.refuseReusedNames(next, state);
+            if (until != null) {
+                Loops.refuseReusedNames(until, state);
+            }
+            long turns = Loops.turns(initial, maxIterations, until == null ? List.of(next) : List.of(next, until));
+            if (turns > MAX_ITERATIONS) {
+                throw new IllegalArgumentException("this loop takes up to " + turns + " turns a pixel, with"
+                        + " the loops it holds, more than " + MAX_ITERATIONS);
             }
             if (until != null) {
                 String undefined = Loops.undefinedEarly(next);
