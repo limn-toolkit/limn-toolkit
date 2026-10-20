@@ -82,6 +82,17 @@ public final class SceneAccess {
          */
         Subscription observeAnchorMoved(Scene scene, Widget<?> anchor, Runnable placeAgain);
 
+        /**
+         * @param scene  the scene the anchor is in
+         * @param anchor the widget a popup hangs from
+         * @param gone   takes the popup down; see {@link SceneAccess#observeAnchorLeaving}
+         * @return a handle that unregisters
+         */
+        Subscription observeAnchorLeaving(Scene scene, Widget<?> anchor, Runnable gone);
+
+        /** @param panel a closing popup's panel; see {@link SceneAccess#closePopupsHungIn} */
+        void closePopupsHungIn(Widget<?> panel);
+
         @org.jspecify.annotations.Nullable Widget<?> focusedBefore(Scene scene);
 
         /**
@@ -474,6 +485,34 @@ public final class SceneAccess {
      */
     public static Subscription observeAnchorMoved(Scene scene, Widget<?> anchor, Runnable placeAgain) {
         return hook().observeAnchorMoved(java.util.Objects.requireNonNull(scene, "scene"), anchor, placeAgain);
+    }
+
+    /**
+     * Tells {@code gone} when {@code anchor} leaves {@code scene}: taken out of it by itself or
+     * with a container, an overlay such as a dialog, or the window it is in; or when the panel of a
+     * popup it lies in closes ({@link #closePopupsHungIn}). For a popup hung from the anchor, which
+     * would otherwise stay over the window hanging from nothing, holding its keyboard and every
+     * press. Told before the widgets leaving hear {@code onDetached}, while they still answer the
+     * scene being left.
+     *
+     * @param scene  the scene the anchor is in
+     * @param anchor the widget the popup hangs from
+     * @param gone   takes the popup down; UI thread
+     * @return a handle that unregisters; twice is a no-op
+     */
+    public static Subscription observeAnchorLeaving(Scene scene, Widget<?> anchor, Runnable gone) {
+        return hook().observeAnchorLeaving(java.util.Objects.requireNonNull(scene, "scene"), anchor, gone);
+    }
+
+    /**
+     * Takes down every popup hung from a widget inside {@code panel}, the panel of a popup that is
+     * closing: a popover opened from a button in another popover goes with it, at once, and not
+     * when the outer one's fade ends. Nothing happens for a panel in no scene.
+     *
+     * @param panel the closing popup's panel
+     */
+    public static void closePopupsHungIn(Widget<?> panel) {
+        hook().closePopupsHungIn(java.util.Objects.requireNonNull(panel, "panel"));
     }
 
     /** @return the widget that had the keyboard in {@code scene} before the one that has it now, or null */

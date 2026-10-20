@@ -37,9 +37,11 @@ import java.util.function.Consumer;
  * the owner's keys, characters and input-method composition are delivered into it, so a field
  * inside types as any field does, a Japanese or a Chinese input method included.
  *
- * <p><b>It closes</b> on a press outside it or Escape (the user's), on the application losing the
- * keyboard or the owner's fullscreen changing (an adjustment), and on {@link #close()} (the
- * code's), which {@link #onClose} hears with that origin. It is not modal: a press outside closes
+ * <p><b>It closes</b> on a press outside it or Escape (the user's); on the application losing the
+ * keyboard, the owner's fullscreen changing, or the anchor leaving the window (an adjustment):
+ * the anchor taken out by itself, with a container or a dialog it is in, or with the window, and
+ * the popover it lies in closing, so a popover opened from another goes with it; and on
+ * {@link #close()} (the code's). {@link #onClose} hears each with that origin. It is not modal: a press outside closes
  * it and reaches nothing else, as a combo box's list does. A question that must be answered is a
  * {@link Dialog}. It opens from {@link #showFor} or from the button {@link #attachTo} gave it, and
  * never on hover or focus: a surface that opens as the pointer passes is a tooltip.
@@ -223,8 +225,9 @@ public final class Popover {
 
     /**
      * Hears the panel close, with who closed it: {@code USER} for a press outside or Escape,
-     * {@code ADJUSTMENT} for the application losing the keyboard or the owner's fullscreen
-     * changing, {@code CODE} for {@link #close()}.
+     * {@code ADJUSTMENT} for the application losing the keyboard, the owner's fullscreen changing
+     * or the anchor leaving the window (with a dialog it was in, say, or a popover it was in
+     * closing), {@code CODE} for {@link #close()}.
      *
      * @param handler the handler, or {@code null} to clear the slot
      * @return this popover

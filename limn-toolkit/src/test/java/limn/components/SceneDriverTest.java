@@ -86,6 +86,16 @@ class SceneDriverTest extends ComponentTestBase {
             }
 
             @Override
+            public limn.concurrent.Subscription observeAnchorLeaving(Scene scene, limn.scene.Widget<?> anchor,
+                                                                     Runnable gone) {
+                return null;
+            }
+
+            @Override
+            public void closePopupsHungIn(limn.scene.Widget<?> panel) {
+            }
+
+            @Override
             public limn.scene.Widget<?> focusedBefore(Scene scene) {
                 return null;
             }

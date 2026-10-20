@@ -269,7 +269,8 @@ Not a widget, as `PopupMenu` and `Dialog` are not: it shows one.
   tooltip, which every widget has.
 - **Closed** by a press outside it or Escape (the user's), by the application losing the keyboard
   or the owner's fullscreen changing (an adjustment), by `close()` (code), which `onClose` hears
-  with the origin. Not modal (question 16): a press outside closes it and reaches nothing else, as
+  with the origin. Also by its anchor leaving the window, an adjustment (amended 2026-10-19,
+  section 12.5). Not modal (question 16): a press outside closes it and reaches nothing else, as
   a combo box's list does.
 - **Focus** (question 12): on open the keyboard goes to the content's first focusable widget, or to
   the panel when it has none; Tab and Shift+Tab cycle inside, as in a dialog; on close the focus
@@ -647,6 +648,20 @@ that the text above does not say, dated where it departs from it.
   the popover's scene, whose window publishes nothing, and the owner's walk read only its own
   scene's grafts. The walk now follows a graft inside a graft; ADR 039 section 1.11 has the
   amendment, `PopoverNestedPopupAccessibilityTest` the cases.
+- **A popover outlived its anchor** (2026-10-19, the audit of that day): the combo box, the
+  tab strip and the date picker close their popup in `onDetached`, and a popover, no widget, heard
+  nothing. A popover whose Apply dismissed the in-scene dialog it was opened from stayed over the
+  window hanging from nothing, holding the keyboard, and the next click only closed it; an anchor
+  taken out left it open, and an outer popover closed by code left the inner one saying it was
+  open. `AnchoredPopup` now closes itself, so no host can forget: on open it asks its owner scene
+  to be told when the anchor leaves (`SceneAccess.observeAnchorLeaving`; `Widget.setSceneRecursively`
+  tells the scene a subtree is leaving before any `onDetached`, which covers a container, an
+  overlay and the window closing), calls `Host.dismiss(ADJUSTMENT)` and then closes if the host
+  did not. Closing, it first takes down every popup hung from a widget in its own panel
+  (`SceneAccess.closePopupsHungIn`), at once and before it lets go of anything, so the inner
+  popover gives the keyboard back to its button and the outer one takes it home. A popup closed
+  because its anchor left puts the keyboard on nothing that is leaving; a window that has closed
+  gives it to nobody. `PopoverAnchorLeavesTest` has the cases.
 
 ### 12.6 The input method in a popover's window, measured
 

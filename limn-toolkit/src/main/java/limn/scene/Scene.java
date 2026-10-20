@@ -1077,8 +1077,10 @@ public final class Scene {
             return;
         }
         // Return focus to the widget that had it before this overlay opened
-        // (the button that triggered the dialog), if it is still usable.
-        if (restore != null && restore != overlay && isInSubtree(restore, keyboardRoot())
+        // (the button that triggered the dialog), if it is still usable. Never in a window that
+        // has closed, whose focus went to nobody first: a popup hung from a widget of it closes
+        // as the tree leaves, and a widget focused then would be focused in a dead scene.
+        if (restore != null && restore != overlay && !detachedByClose && isInSubtree(restore, keyboardRoot())
                 && canTakeFocus(restore)) {
             // The overlay closing is what moved the focus, not whoever closed it.
             setFocus(restore, Change.Origin.ADJUSTMENT);
@@ -2132,6 +2134,47 @@ public final class Scene {
                 Objects.requireNonNull(placeAgain, "placeAgain"));
         anchoredWindows.add(placed);
         return once(() -> anchoredWindows.remove(placed));
+    }
+
+    /** A popup hung from {@code anchor}, and what takes it down when the anchor goes. */
+    private record HungPopup(Widget<?> anchor, Runnable gone) {
+    }
+
+    /** The popups hung from a widget of this scene; see {@link #observeAnchorLeaving}. */
+    private final List<HungPopup> hungPopups = new ArrayList<>();
+
+    /**
+     * Not API: tells {@code gone} when {@code anchor} leaves this scene, by itself or with a
+     * container, an overlay or the window it is in, or when the panel of a popup it lies in closes,
+     * for a popup hung from it that would otherwise stay over the window hanging from nothing.
+     * Told before the widgets leaving hear {@code onDetached}, while they still answer this scene.
+     *
+     * @param anchor the widget the popup hangs from
+     * @param gone   takes the popup down
+     * @return a handle that unregisters
+     */
+    Subscription observeAnchorLeaving(Widget<?> anchor, Runnable gone) {
+        Ui.checkUiThread();
+        HungPopup hung = new HungPopup(Objects.requireNonNull(anchor, "anchor"),
+                Objects.requireNonNull(gone, "gone"));
+        hungPopups.add(hung);
+        return once(() -> hungPopups.remove(hung));
+    }
+
+    /**
+     * {@code subtree} is leaving this scene, or is the panel of a popup that is closing: every popup
+     * hung from a widget in it goes. A copy, since each that goes lets go of its entry, and one
+     * going may take another down with it (a popover holding the anchor of another).
+     */
+    void anchorsLeaving(Widget<?> subtree) {
+        if (hungPopups.isEmpty()) {
+            return;
+        }
+        for (HungPopup hung : List.copyOf(hungPopups)) {
+            if (hungPopups.contains(hung) && isInSubtree(hung.anchor(), subtree)) {
+                hung.gone().run();
+            }
+        }
     }
 
     /**
@@ -3656,6 +3699,19 @@ public final class Scene {
             }
 
             @Override
+            public Subscription observeAnchorLeaving(Scene scene, Widget<?> anchor, Runnable gone) {
+                return scene.observeAnchorLeaving(anchor, gone);
+            }
+
+            @Override
+            public void closePopupsHungIn(Widget<?> panel) {
+                Scene scene = panel.scene();
+                if (scene != null) {
+                    scene.anchorsLeaving(panel);
+                }
+            }
+
+            @Override
             public @Nullable Widget<?> focusedBefore(Scene scene) {
                 return scene.focusedBefore();
             }
@@ -3923,7 +3979,7 @@ public final class Scene {
         keyboardBelow.add(overlay);
         closingOverlays.add(overlay);
         Widget<?> restore = overlayFocusReturn.get(index);
-        if (restore != null && restore != overlay && isInSubtree(restore, keyboardRoot())
+        if (restore != null && restore != overlay && !detachedByClose && isInSubtree(restore, keyboardRoot())
                 && canTakeFocus(restore)) {
             setFocus(restore, Change.Origin.ADJUSTMENT);
         } else {

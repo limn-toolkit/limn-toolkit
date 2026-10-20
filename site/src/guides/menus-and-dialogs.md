@@ -188,7 +188,8 @@ reader's own language. You get it by using the widget; there is nothing to switc
 
 A `Popover` is a panel of controls that hangs from a button and closes when the user is done with
 it: a filter, a column chooser, a short form. It is not modal; a press outside or Escape closes
-it. It takes the keyboard while it is open, its first field focused and Tab cycling inside, and
+it, and so does its button leaving the window, with a dialog the button was in, say, or with a
+popover it was in. It takes the keyboard while it is open, its first field focused and Tab cycling inside, and
 gives it back to the button when it closes. Where the platform can place a window of its own it
 opens in one, so it can pass the window's edge, and a field in it types as any field does, an
 input method's composition included.

@@ -566,6 +566,13 @@ public abstract class Widget<W extends Widget<W>> {
      * is what makes the memo provably exact rather than hopefully exact.
      */
     final void setSceneRecursively(Scene newScene) {
+        Scene leaving = scene;
+        if (leaving != null && leaving != newScene) {
+            // A popup hung from a widget in this subtree goes first, while the subtree still
+            // answers the scene it is leaving: a popover's panel would otherwise stay over the
+            // window hanging from nothing, holding its keyboard and every press.
+            leaving.anchorsLeaving(this);
+        }
         bumpControlSizeEpoch();
         bumpLayoutDirectionEpoch();
         bumpLocaleEpoch();

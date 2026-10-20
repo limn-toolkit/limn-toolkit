@@ -34,8 +34,9 @@ import java.util.Objects;
  * calendar, the list of every tab a tab strip keeps out of sight. The work they share, done once:
  * a window of its own placed against the widget where the platform allows, the scene where it does
  * not (a window that cannot be positioned, as on Wayland, or a fullscreen owner), a fade in and
- * out, closing when the application loses the keyboard, a press lands elsewhere or the owner's
- * fullscreen changes, the window's tree grafted into the owner's so a reader never leaves it.
+ * out, closing when the application loses the keyboard, a press lands elsewhere, the owner's
+ * fullscreen changes or the widget leaves the window, the window's tree grafted into the owner's
+ * so a reader never leaves it.
  *
  * <p>What is the component's own stays with it, behind {@link Host}: what the surface shows and
  * how big it is, the keys it answers, what its layer is to a reader, and its own close, with the
@@ -81,8 +82,9 @@ public final class AnchoredPopup {
 
         /**
          * The component's own close, with what caused it: a press elsewhere or beside the card is
-         * the user's, the application losing the keyboard or the owner's fullscreen changing is an
-         * adjustment.
+         * the user's, the application losing the keyboard, the owner's fullscreen changing or the
+         * anchor leaving the window is an adjustment. The popup closes itself after this when the
+         * component did not.
          *
          * @param origin who closed it
          */
@@ -187,6 +189,10 @@ public final class AnchoredPopup {
     private @Nullable Subscription route;
     /** While its window is up: placing it again when a transform above the anchor comes to rest. */
     private @Nullable Subscription anchorMoved;
+    /** While open: closing it when the anchor leaves the window, or the popup it lies in closes. */
+    private @Nullable Subscription anchorLeaves;
+    /** Set while it closes because its anchor left: nothing is focused on a widget on its way out. */
+    private boolean anchorGone;
 
     public AnchoredPopup(Host host) {
         this.host = Objects.requireNonNull(host, "host");
@@ -238,6 +244,12 @@ public final class AnchoredPopup {
         }
         open = true;
         ownerScene = scene;
+        // Here and not in each component's onDetached, which a component that is no widget has no
+        // way to hear: the anchor taken out of the window, by itself or with a container or a
+        // dialog it is in, or the window closing, or the popup it lies in closing, takes this one
+        // down. Left up, it would hang over the window from nothing, holding its keyboard and
+        // every press, and its owner would think it open.
+        anchorLeaves = SceneAccess.observeAnchorLeaving(scene, anchor, this::anchorLeft);
         // A press in another application never reaches the owner: the application losing the
         // keyboard closes the popup instead, or it would float over whatever took it.
         blur = scene.observeWindowBlur(() -> Ui.post(this::closeUnlessRefocused));
@@ -500,9 +512,24 @@ public final class AnchoredPopup {
         }
     }
 
+    /** Its anchor left the window: the component closes it as an adjustment, or it closes itself. */
+    private void anchorLeft() {
+        if (!open) {
+            return;
+        }
+        anchorGone = true;
+        try {
+            host.dismiss(Change.Origin.ADJUSTMENT);
+            close();
+        } finally {
+            anchorGone = false;
+        }
+    }
+
     /**
      * Takes it down, fading it where there is a frame pump to fade it. What it holds is let go
-     * first, so one opened again while this fades builds afresh. A no-op while closed.
+     * first, so one opened again while this fades builds afresh; a popup hung from a widget in its
+     * panel goes first, at once. A no-op while closed.
      */
     public void close() {
         Ui.checkUiThread();
@@ -510,12 +537,18 @@ public final class AnchoredPopup {
             return;
         }
         open = false;
+        if (panel != null) {
+            // Before this one lets go of anything, as a stack unwinds: the inner popup gives the
+            // keyboard back to its button in this panel, and this one then takes it home.
+            SceneAccess.closePopupsHungIn(panel);
+        }
         for (Subscription each : new Subscription[] {cursor, route, presses, blur, popupBlur, fullscreen,
-                anchorMoved}) {
+                anchorMoved, anchorLeaves}) {
             if (each != null) {
                 each.cancel();
             }
         }
+        anchorLeaves = null;
         anchorMoved = null;
         cursor = null;
         route = null;
@@ -583,6 +616,9 @@ public final class AnchoredPopup {
         // of a card nobody is typing into any more, and the focus is never published on a layer
         // about to go.
         Widget<?> refocus = host.refocus();
+        if (anchorGone) {
+            refocus = null; // on its way out of the window: the overlay's own way back is the rule
+        }
         SceneAccess.releaseOverlayKeyboard(owner, closing);
         if (refocus != null) {
             refocus.requestFocus();
