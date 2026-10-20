@@ -226,6 +226,12 @@ Markdown.
   write. A group boundary inside a grapheme cluster moves to the cluster's end. One shape is left
   as the algorithm reads it: a quoted literal of letters written right to left beside a group of
   such letters is one run with it, since no level can keep two adjacent right-to-left runs apart.
+  (Added from the second review, 2026-10-20: under `AAA'ש'AAA` the second Hebrew group therefore
+  stands left of the first, and `'שם'AAA` draws its label right of the group where `'שם 'AAA`,
+  with a space before the group, draws it left; the setMask Javadoc and the forms guide now say
+  so and advise a space or punctuation between such a label and its group. A Cut of literals
+  alone, which the field writes back at once, copies nothing and leaves the caret where the
+  selection began.)
 - *Amended 2026-10-16:* **the reader no longer hears the pattern.** Read aloud, `AA-0000` is
   "A A dash zero zero zero zero" where it means two letters and four digits, in every language,
   and as the field's description it pushed out the tooltip, which the walk gives only to a node

@@ -295,32 +295,36 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * and nothing moves. With {@code 12} of {@code ABC-1234-XY} selected, a {@code 5} reads
      * {@code ABC-5234-XY} with the {@code 2} still selected, and a {@code 6} then
      * {@code ABC-5634-XY} with the caret after it; stopping midway leaves what is still selected
-     * as it was. A key goes to the first selected position even when the selection begins on a
-     * literal that is the same character: the {@code 1} typed over {@code 1 (4} of
-     * {@code +1 (415)} is the area code's. A character the next selected position does not take
-     * is refused, the selection
-     * unchanged; a paste fills the selected positions in order with the characters each takes,
-     * leaves those it does not reach as they were and still selected, and drops what is left of
-     * it where a typed character follows the selection; where none does, the selection ends the
-     * value and what is left fills the free positions after it, which moves nothing:
-     * {@code +1 (415) 5} with the {@code 5} selected and {@code 9990123} pasted reads
-     * {@code +1 (415) 999-0123}. Each keystroke is an undo step of its own. A selection that holds every position the
-     * text fills, with or without the literals around them ({@code Ctrl+A}, or the digits alone of
-     * {@code +1 (555) 123-4567}), is the whole value: typing or pasting over it starts a new value,
-     * as in any field, and one of which no position takes anything is refused. An edit that is
-     * not an overwrite (a
-     * Backspace, a Delete, a Cut, typing with nothing selected or over literals alone) moves the
-     * characters after it by as many positions as it inserts more, or fewer, than it
-     * takes. On a pattern whose positions are all of one kind each still lands in a position
-     * that takes it. On one that mixes them ({@code "AAA-0000-**"}), an edit that would move a
-     * character into a position that does not take it, where it would be lost, is refused:
-     * {@code ABC-1234-X} with a {@code Q} typed after the {@code B}, or {@code ABC-1234-XY} with
-     * Backspace among the digits, stays as it is. A digit moving within its run of digits with
-     * nothing of another kind after it, or on into an any position, still fits, and that edit is
-     * made: {@code ABC-1234-X} with a {@code 5} typed after the {@code 3} reads
-     * {@code ABC-1235-4X}. A refused edit, here or in a full field, does nothing: the text, the
-     * caret and the selection stay, no handler runs, no watcher hears of it, no undo step is
-     * left, and a refused Cut leaves the clipboard as it was.
+     * as it was, in the direction it was made. A key goes to the first selected position even
+     * when the selection begins on a literal that is the same character: the {@code 1} typed over
+     * {@code 1 (4} of {@code +1 (415)} is the area code's. A character the next selected position
+     * does not take is refused, the selection unchanged. A paste fills the selected positions in
+     * order with the characters each takes and leaves those it does not reach as they were and
+     * still selected; what is left of it is dropped where a character of the value follows the
+     * selection, and where none does, the selection ends the value and what is left fills the
+     * free positions after it, which moves nothing: {@code +1 (415) 5} with the {@code 5}
+     * selected and {@code 9990123} pasted reads {@code +1 (415) 999-0123}. Each keystroke is an
+     * undo step of its own. A selection that holds every position the text fills, with or
+     * without the literals around them ({@code Ctrl+A}, or the digits alone of
+     * {@code +1 (555) 123-4567}), is the whole value: typing or pasting over it starts a new
+     * value, as in any field, fitted afresh, so a literal typed by hand begins it as typing it
+     * into an empty field would ({@code Ctrl+A}, then {@code +}, leaves {@code +}); one from which
+     * no position takes anything and no literal is written is refused.
+     *
+     * <p>An edit that is not an overwrite (a Backspace, a Delete, a Cut, typing with nothing
+     * selected or over literals alone) moves the characters after it by as many positions as it
+     * inserts more, or fewer, than it takes. On a pattern whose positions are all of one kind
+     * each still lands in a position that takes it. On one that mixes them
+     * ({@code "AAA-0000-**"}), an edit that would move a character into a position that does not
+     * take it, where it would be lost, is refused: {@code ABC-1234-X} with a {@code Q} typed after
+     * the {@code B}, or {@code ABC-1234-XY} with Backspace among the digits, stays as it is. A
+     * digit moving within its run of digits with nothing of another kind after it, or on into an
+     * any position, still fits, and that edit is made: {@code ABC-1234-X} with a {@code 5} typed
+     * after the {@code 3} reads {@code ABC-1235-4X}. A refused edit, here or in a full field,
+     * does nothing: the text, the caret and the selection stay, no handler runs, no watcher
+     * hears of it, no undo step is left, and a refused Cut leaves the clipboard as it was. A Cut
+     * of literals alone, which the field writes back at once, copies nothing either, and leaves
+     * the caret where the selection began.
      *
      * <p>A masked field lays its text out left to right in every language, since what it holds
      * is a code or a number written in a fixed shape: its groups, the stretches between
@@ -329,7 +333,10 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * and in Arabic-Indic digits {@code ٤١١١ ١١١١ ١١١١ ١١١٢}, its first group on the left, and a
      * phone {@code +1 (415) 555-0123}, not their groups reversed. Inside a group each script
      * keeps its own direction: a group of Hebrew letters under {@code "AAA-AAA"} reads right to
-     * left within its box, and the second group follows it on the right. The text starts at the
+     * left within its box, and the second group follows it on the right. One shape is left to the
+     * bidirectional algorithm: a quoted literal of right-to-left letters that touches a group of
+     * them, with no space or punctuation between, is read with it as one right-to-left run, so
+     * under {@code "AAA'ש'AAA"} the second group stands on the left of the first. The text starts at the
      * left edge of the box, where the caret, the selection, a click, a double click and the
      * arrow keys follow it and the guide continues it to the right, so each position stays where
      * it is as it fills; a placeholder stands there too, laid out as the text when the pattern
@@ -2107,19 +2114,19 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * damage rather than by copying the document out twice and comparing, which was two full
      * copies per keystroke for a question the model already answers.
      */
+    private void editFromUser(Runnable edit) {
+        model.clearCharDamage();
+        noteCaretBeforeEdit();
+        edit.run();
+        announceTextEdit(Change.Origin.USER);
+    }
+
     /** Pastes {@code pasted} as the user's edit: over a selection of a masked field, an overwrite. */
     private void pasteFromUser(String pasted) {
         model.clearCharDamage();
         noteCaretBeforeEdit();
         model.insert(pasted);
         typingOver = true;
-        announceTextEdit(Change.Origin.USER);
-    }
-
-    private void editFromUser(Runnable edit) {
-        model.clearCharDamage();
-        noteCaretBeforeEdit();
-        edit.run();
         announceTextEdit(Change.Origin.USER);
     }
 

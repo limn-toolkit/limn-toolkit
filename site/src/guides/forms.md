@@ -105,7 +105,8 @@ letters, digits and any characters, like the one above, any other edit moves the
 and one that would land where it is not taken would be lost, so such an edit is refused and the
 field does nothing: typing `Q` after the `B` of `ABC-1234-X`, or Backspace in the digits of
 `ABC-1234-XY`, changes nothing, while Backspace in the digits of `ABC-1234` or a `5` typed after
-the `3` of `ABC-1234-X` (the `4` moving into an any position) is made. A user may also type the literals:
+the `3` of `ABC-1234-X` (the `4` moving into an any position) is made. A refused Cut copies
+nothing, and neither does a Cut of literals alone, which the field writes back at once. A user may also type the literals:
 under `'DE'00 0000` the `D` shows, then the `E`, then the digits, and typing `DE89` or `89`
 gives the same value. While the field has the keyboard the positions still to fill show after the
 text as a guide, `KLM-42__-__`, and the caret stands where the next character will appear, after
@@ -123,7 +124,11 @@ Arabic or a Hebrew form a card number reads `4111 1111 1111 1112`, or `٤١١١ 
 Arabic-Indic digits, and a phone `+1 (415) 555-0123`, starting at the left edge of the box, with
 the guide after it, while the field's icons and trailing button stay on the sides the layout
 puts them. Inside a group each script keeps its own direction, so a group of Hebrew letters
-reads right to left within its place.
+reads right to left within its place. One shape is left to the bidirectional algorithm: a
+quoted literal of right-to-left letters that touches a group of them, with no space or
+punctuation between, is read with it as one right-to-left run (under `AAA'ש'AAA` the second
+group stands left of the first), so keep a space or a mark of punctuation between such a label
+and its group.
 
 Text between single quotes is literal, so a pattern can hold a `0`, an `A` or a `*` the field
 writes rather than fills: `+'0' 000` shows `+0 123`. Two single quotes are one apostrophe, inside
