@@ -4,6 +4,8 @@ import limn.concurrent.Subscription;
 import limn.concurrent.Ui;
 import org.jspecify.annotations.Nullable;
 
+import java.util.List;
+
 /**
  * The opacity of one {@link limn.scene.layout.Opacity} container and the fade that moves it: the
  * value its paint opens a layer with, the fade in flight, and the one ticker that steps it.
@@ -171,28 +173,42 @@ final class OpacityGroup {
      * <p>A fade that went straight there and still waits for its seconds ends here too, its
      * {@code onArrive} run now and its timer withdrawn: the same code then ends at the same moment
      * with motion and under less motion, as a window's fade ends as its window closes.
+     *
+     * <p>The value and the announcement are made here, in the walk; the {@code onArrive} goes into
+     * {@code settled}, which the walk runs once it is over, the container then out of the scene it
+     * left, so that a fade it asks for follows the container and not that scene's frames.
+     *
+     * @param settled what the walk runs once it is over
      */
-    void settleOnLeaving() {
+    void settleOnLeaving(List<Runnable> settled) {
         ticker = null; // the ticker left behind finds itself replaced, if that scene ticks again
-        Runnable waiting = waitingArrival; // taken first: one its onArrive asks for waits its time
+        Runnable waiting = waitingArrival;
         dropWaiting();
         Fade leaving = fade;
         if (leaving != null) {
-            settle(leaving);
+            land(leaving);
+            if (leaving.onArrive != null) {
+                settled.add(leaving.onArrive);
+            }
         }
         if (waiting != null) {
-            waiting.run();
+            settled.add(waiting);
         }
     }
 
     /** A fade arrives: the target, its one announcement of the end, and what it runs. */
     private void settle(Fade arriving) {
-        fade = null;
-        move(arriving.target);
-        owner.notifyChange(Change.of(Change.Aspect.OPACITY, Change.Origin.CODE));
+        land(arriving);
         if (arriving.onArrive != null) {
             arriving.onArrive.run();
         }
+    }
+
+    /** A fade reaches its target and announces its end, before anything it runs. */
+    private void land(Fade arriving) {
+        fade = null;
+        move(arriving.target);
+        owner.notifyChange(Change.of(Change.Aspect.OPACITY, Change.Origin.CODE));
     }
 
     /**

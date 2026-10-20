@@ -1251,6 +1251,86 @@ class TransformTest extends SceneTestBase {
         assertEquals(4, ran.size(), "nothing runs again on that scene's frames");
     }
 
+    /**
+     * What a leaving runs, a flip's swap and every arrival, finds the container out of the scene it
+     * left, so a motion asked for there goes straight there. Run in the middle of the walk, they
+     * found the old scene, and a slide back asked for in the arrival was stepped by the frames of a
+     * window the container was no longer in.
+     */
+    @Test
+    void whatALeavingRunsSeesTheContainerOutAndAMotionItAsksForIsNotSteppedByTheSceneLeft() {
+        queueOnTestClock();
+        Transform t = new Transform(new Leaf("w", painted));
+        Stack holder = new Stack();
+        holder.add(t);
+        Scene a = sceneOf(holder);
+        int[] before = a.tickerCounts();
+        List<String> ran = new ArrayList<>();
+        t.slideTo(50, 0, 0.3, () -> {
+            ran.add("slid in " + t.scene());
+            t.slideTo(0, 0, 0.3, () -> ran.add("back"));
+        });
+        t.flipTo(Transform.Flip.FORWARD, 0.3, () -> ran.add("edge in " + t.scene()),
+                () -> ran.add("flipped in " + t.scene()));
+        advance(a, 16);
+        advance(a, 100);
+        holder.remove(t);
+        assertEquals(List.of("edge in null", "slid in null", "flipped in null"), ran);
+        assertEquals(0f, t.translationX(), "the slide back, with no scene to step it, went straight there");
+        advance(a, 16);
+        assertEquals(before[0], a.tickerCounts()[0], "and, past the frame that drops the one it left, the scene");
+        for (int i = 0; i < 20; i++) {
+            advance(a, 16);
+            assertEquals(0f, t.translationX(), "nothing of the scene left moves it");
+        }
+        turnAfter(300);
+        assertEquals("back", ran.get(ran.size() - 1), "the slide back arrives after its seconds");
+    }
+
+    /**
+     * A sway asked for in each arrival, on a container moved to another window mid-slide, goes on
+     * in that window: the step its leaving runs goes straight there, the next is stepped by the new
+     * window's frames. It was stepped by the old one's, and stood still in the new.
+     */
+    @Test
+    void aSwayWhoseContainerMovesToAnotherWindowMidSlideGoesOnInThatWindow() {
+        queueOnTestClock();
+        Transform t = new Transform(new Leaf("w", painted));
+        Stack inA = new Stack();
+        inA.add(t);
+        Scene a = sceneOf(inA);
+        int[] beforeA = a.tickerCounts();
+        AtomicInteger arrivals = new AtomicInteger();
+        Runnable[] sway = new Runnable[1];
+        sway[0] = () -> {
+            arrivals.incrementAndGet();
+            t.slideTo(t.translationX() < 20 ? 40 : 0, 0, 0.3, sway[0]);
+        };
+        t.slideTo(40, 0, 0.3, sway[0]);
+        advance(a, 16);
+        advance(a, 100);
+
+        inA.remove(t);
+        Stack inB = new Stack();
+        Scene b = sceneOf(inB);
+        inB.add(t);
+        assertEquals(1, arrivals.get(), "the slide settled as the container left");
+        assertEquals(0f, t.translationX(), "and the step back, asked for with no scene, went straight there");
+
+        turnAfter(300); // that step's seconds: the sway asks for the next, now in B
+        assertEquals(2, arrivals.get());
+        advance(b, 16);
+        advance(b, 150);
+        float mid = t.translationX();
+        assertTrue(mid > 0f && mid < 40f, "B's frames step it: " + mid);
+        advance(b, 200);
+        assertEquals(40f, t.translationX(), "and bring it to its target");
+        float inFlight = t.translationX();
+        advance(a, 16);
+        assertEquals(inFlight, t.translationX(), "the old window, drawing again, moves nothing of it");
+        assertEquals(beforeA[0], a.tickerCounts()[0], "and holds nothing of it after that frame");
+    }
+
     // ------------------------------------------------------------------ showing
 
     @Test

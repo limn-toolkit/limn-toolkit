@@ -897,6 +897,156 @@ class OpacityTest extends SceneTestBase {
         assertNotNull(a); // A is kept by this test, not by the container
     }
 
+    /** The ticker a container's group holds, or null: what ties it to a scene's frames. */
+    private static Object heldTicker(Widget<?> container) throws ReflectiveOperationException {
+        java.lang.reflect.Field held = Widget.class.getDeclaredField("opacityGroup");
+        held.setAccessible(true);
+        java.lang.reflect.Field ticker = OpacityGroup.class.getDeclaredField("ticker");
+        ticker.setAccessible(true);
+        return ticker.get(held.get(container));
+    }
+
+    /**
+     * The cross-fade "fade out, swap, fade back in" on a container removed mid-fade: the fade back,
+     * asked for in the onArrive its leaving runs, finds the container out of the scene it left and
+     * goes straight there, where it was stepped by that scene's frames, which kept rendering for a
+     * container no longer in them.
+     */
+    @Test
+    void aFadeAskedForInTheOnArriveOfAFadeSettledByLeavingIsNotSteppedByTheSceneLeft()
+            throws ReflectiveOperationException {
+        queueOnTestClock();
+        Opacity w = faded("w");
+        Stack holder = new Stack();
+        holder.add(w);
+        Scene a = sceneOf(holder);
+        int[] before = a.tickerCounts();
+        AtomicReference<Scene> seen = new AtomicReference<>(a);
+        AtomicInteger back = new AtomicInteger();
+        w.fadeTo(0f, 0.2, () -> {
+            seen.set(w.scene());
+            w.fadeTo(1f, 0.2, back::incrementAndGet);
+        });
+        advance(a, 16);
+        advance(a, 100);
+        holder.remove(w);
+        assertNull(seen.get(), "its onArrive sees the container out of the scene it leaves");
+        assertEquals(1f, w.opacity(), "the fade back, with no scene to step it, went straight there");
+        assertNull(heldTicker(w), "and the container holds no ticker");
+        advance(a, 16);
+        assertEquals(before[0], a.tickerCounts()[0], "nor, past the frame that drops the one it left, the scene");
+        for (int i = 0; i < 20; i++) {
+            advance(a, 16);
+            assertEquals(1f, w.opacity(), "nothing of the scene left moves it");
+        }
+        assertEquals(0, back.get());
+        turnAfter(200);
+        assertEquals(1, back.get(), "the fade back arrives after its seconds, as any fade straight there");
+    }
+
+    /**
+     * A pulse on a container moved to another window mid-fade goes on in that window: the step its
+     * leaving runs goes straight there, and the next, after that step's seconds, is stepped by the
+     * new window's frames. It was stepped by the old window's, so it stood still in the new one,
+     * invisible here, until the old drew again, and for good once that one closed.
+     */
+    @Test
+    void aPulseWhoseContainerMovesToAnotherWindowMidFadeGoesOnInThatWindow() {
+        queueOnTestClock();
+        Opacity w = faded("w");
+        Stack inA = new Stack();
+        inA.add(w);
+        Scene a = sceneOf(inA);
+        int[] beforeA = a.tickerCounts();
+        AtomicInteger arrivals = new AtomicInteger();
+        Runnable[] pulse = new Runnable[1];
+        pulse[0] = () -> {
+            arrivals.incrementAndGet();
+            w.fadeTo(w.opacity() < 0.5f ? 1f : 0f, 0.3, pulse[0]);
+        };
+        w.fadeTo(0f, 0.3, pulse[0]);
+        advance(a, 16);
+        advance(a, 100);
+
+        inA.remove(w);
+        Stack inB = new Stack();
+        Scene b = sceneOf(inB);
+        inB.add(w);
+        assertEquals(1, arrivals.get(), "the fade out settled as the container left");
+        assertEquals(1f, w.opacity(), "and the step back, asked for with no scene, went straight there");
+
+        turnAfter(300); // that step's seconds: the pulse asks for the next, now in B
+        assertEquals(2, arrivals.get());
+        advance(b, 16);
+        advance(b, 150);
+        float mid = w.opacity();
+        assertTrue(mid > 0f && mid < 1f, "B's frames step it: " + mid);
+        advance(b, 200);
+        assertEquals(0f, w.opacity(), "and bring it to its target");
+        assertEquals(3, arrivals.get());
+        float inFlight = w.opacity();
+        advance(a, 16);
+        assertEquals(inFlight, w.opacity(), "the old window, drawing again, moves nothing of it");
+        assertEquals(beforeA[0], a.tickerCounts()[0], "and holds nothing of it after that frame");
+    }
+
+    /**
+     * The onArrive a leaving runs may fade another container leaving with it, here the outer one of
+     * two: it runs once the whole subtree is out, so that fade too goes straight there. Run in the
+     * middle of the walk, it found the outer container still in the scene and left a ticker there.
+     */
+    @Test
+    void anOnArriveThatFadesAnotherContainerLeavingWithItSeesThatOneOutToo()
+            throws ReflectiveOperationException {
+        Opacity inner = faded("inner");
+        Opacity outer = new Opacity(inner);
+        Stack holder = new Stack();
+        holder.add(outer);
+        Scene a = sceneOf(holder);
+        int[] before = a.tickerCounts();
+        inner.fadeTo(0f, 0.3, () -> outer.fadeTo(0.5f, 0.3, null));
+        advance(a, 16);
+        advance(a, 100);
+        holder.remove(outer);
+        assertEquals(0f, inner.opacity());
+        assertEquals(0.5f, outer.opacity(), "the outer fade went straight there");
+        assertNull(heldTicker(outer));
+        advance(a, 16);
+        assertEquals(before[0], a.tickerCounts()[0], "and the scene left holds nothing of either");
+        assertEquals(0.5f, outer.opacity());
+    }
+
+    /**
+     * Two containers leave together and the first one's onArrive throws: the second's still runs,
+     * the throw reaches the caller of the removal, and the subtree is out of the scene whole. Run in
+     * the middle of the walk, the throw stopped it there, the second container still in the scene
+     * the removal took it out of.
+     */
+    @Test
+    void aThrowingOnArriveRunByALeavingStopsNeitherTheOtherArrivalsNorTheLeaving() {
+        Opacity first = faded("first");
+        Opacity second = faded("second");
+        Row both = new Row();
+        both.add(first);
+        both.add(second);
+        Stack holder = new Stack();
+        holder.add(both);
+        Scene a = sceneOf(holder);
+        AtomicInteger secondArrived = new AtomicInteger();
+        first.fadeTo(0f, 0.3, () -> {
+            throw new IllegalStateException("a fault of the application's");
+        });
+        second.fadeTo(0f, 0.3, secondArrived::incrementAndGet);
+        advance(a, 16);
+        advance(a, 100);
+        IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> holder.remove(both));
+        assertEquals("a fault of the application's", thrown.getMessage());
+        assertEquals(1, secondArrived.get(), "the other arrival ran");
+        assertNull(both.scene());
+        assertNull(first.scene());
+        assertNull(second.scene(), "and the whole subtree left");
+    }
+
     @Test
     void aWidgetNobodyFadesHoldsNoGroup() throws ReflectiveOperationException {
         java.lang.reflect.Field held = Widget.class.getDeclaredField("opacityGroup");

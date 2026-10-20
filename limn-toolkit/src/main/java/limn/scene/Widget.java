@@ -564,25 +564,60 @@ public abstract class Widget<W extends Widget<W>> {
      * memoized before being pushed into a scene with a different default would otherwise
      * keep a stale answer forever. Bumping here rather than in {@code add}/{@code remove}
      * is what makes the memo provably exact rather than hopefully exact.
+     *
+     * <p>A fade or a motion of a container that leaves its scene settles during the walk, while
+     * {@link #scene()} still answers the scene being left, and what it runs at its end, its
+     * {@code onArrive} and a flip's swap, runs once the walk is over, every widget of the subtree
+     * then in the scene it is going to. Run in the middle of the walk, a fade asked for there found
+     * the old scene and was stepped by its frames: a removed container kept that window rendering,
+     * and one moved to another window stood still there until the old one drew. One that throws
+     * stops neither the walk nor the others; the first throw reaches the caller once all have run.
      */
     final void setSceneRecursively(Scene newScene) {
         bumpControlSizeEpoch();
         bumpLayoutDirectionEpoch();
         bumpLocaleEpoch();
-        setSceneRecursivelyInternal(newScene);
+        List<Runnable> settled = new ArrayList<>(0); // no array until a leaving settles something
+        Throwable thrown = null;
+        try {
+            setSceneRecursivelyInternal(newScene, settled);
+        } catch (Throwable walk) {
+            thrown = walk; // what settled before it still runs: those fades have ended
+        }
+        for (int i = 0; i < settled.size(); i++) {
+            try {
+                settled.get(i).run();
+            } catch (Throwable error) {
+                if (thrown == null) {
+                    thrown = error;
+                } else {
+                    thrown.addSuppressed(error);
+                }
+            }
+        }
+        if (thrown instanceof RuntimeException runtime) {
+            throw runtime;
+        }
+        if (thrown instanceof Error error) {
+            throw error;
+        }
+        if (thrown != null) {
+            throw new IllegalStateException(thrown); // a Runnable that threw a checked exception by stealth
+        }
     }
 
-    private void setSceneRecursivelyInternal(Scene newScene) {
+    private void setSceneRecursivelyInternal(Scene newScene, List<Runnable> settled) {
         Scene old = this.scene;
         // Attach fires top-down (this before children) so a parent's onAttached
         // sees itself in a scene; detach fires bottom-up (children before this).
         boolean attaching = old == null && newScene != null;
         boolean detaching = old != null && newScene == null;
         if (old != null && newScene != old && opacityGroup != null) {
-            opacityGroup.settleOnLeaving(); // while scene() still answers the one it is leaving
+            // While scene() still answers the one it is leaving; what it runs, after the walk.
+            opacityGroup.settleOnLeaving(settled);
         }
         if (old != null && newScene != old && transformGroup != null) {
-            transformGroup.settleOnLeaving(); // likewise; its matrix may come to rest here
+            transformGroup.settleOnLeaving(settled); // likewise; its matrix may come to rest here
         }
         if (childTransform != null && newScene != old) {
             // The scene keeps the widgets that draw their children moved, for the hit test's
@@ -609,7 +644,7 @@ public abstract class Widget<W extends Widget<W>> {
         // removal at or before i would skip the sibling that shifted into slot i.
         for (int i = 0; i < children.size(); ) {
             Widget<?> child = children.get(i);
-            child.setSceneRecursivelyInternal(newScene);
+            child.setSceneRecursivelyInternal(newScene, settled);
             if (i < children.size() && children.get(i) == child) {
                 i++;
             }

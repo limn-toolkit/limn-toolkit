@@ -66,7 +66,8 @@ An opacity is a picture and nothing else. At 0 the child is still laid out, stil
 and the keyboard, and a screen reader still reads it; to take it away, hide it, which the example
 does when its fade out arrives. A newer `fadeTo` or a `setOpacity` stops a fade where it is, and
 that fade's `onArrive` never runs; a container taken out of its window mid-fade arrives as it
-leaves, and runs its `onArrive` then. While the user asked for less motion, `fadeTo` goes straight
+leaves, and runs its `onArrive` once it is out, so a fade asked for there goes with the container
+and not with the window it left. While the user asked for less motion, `fadeTo` goes straight
 to its target, as it does in a window that is not shown yet, and runs `onArrive` after the seconds
 it was asked to take, as `Ui.postDelayed` would, or on the next turn of the UI thread for a fade of
 no time. `onArrive` never runs inside the `fadeTo` call, so the next step can be asked for in it: a

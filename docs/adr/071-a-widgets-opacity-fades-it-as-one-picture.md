@@ -792,7 +792,8 @@ for less motion, for zero seconds, for the value it has, or with no scene or no 
 (2026-10-19, sections 8 and 8.1: its `onArrive` then runs after the seconds asked for, or on the
 next turn of the UI queue for none, never inside `fadeTo`); a newer `fadeTo` or a `setOpacity` supersedes one in flight, whose `onArrive` does not
 run; one ticker per container however many fades are asked for between two frames; a container
-leaving its scene mid-fade settles at its target and runs `onArrive` then; and the owner's rule of
+leaving its scene mid-fade settles at its target and runs `onArrive` then (2026-10-19, section 8.2:
+once the walk that takes it out is over); and the owner's rule of
 decision 2, a direct set that changes the value announcing `Change.Aspect.OPACITY` each time and a
 fade only at its start and at its arrival or supersession, now announced on the container. (2026-10-18, with stage 2 of
 ADR 072: `fadeTo` refuses an infinite number of seconds with `IllegalArgumentException`, as the
@@ -971,3 +972,33 @@ window fade, a closed window flushing one that waits included. `InSceneFadeEndsT
 .underLessMotionADialogAndAPopupInAWindowCloseOnTheNextTurn` and
 `aDialogInASceneWithNoWindowResolvesOnTheNextTurn` hold the closers to the next turn (each fails
 with the closers' lengths unreduced).
+
+### 8.2 What a leaving runs, runs once the container is out, 2026-10-19
+
+The audit's MEDIUM round (OP-2) found that a container leaving its scene mid-fade ran its
+`onArrive` in the middle of the walk that takes the subtree out, while `scene()` still answered the
+scene being left. A fade asked for there, the "fade out, swap the content, fade back in" of section
+8 or a pulse, found that scene with its window and was stepped by its frames: a removed container
+kept that window rendering frames for nothing and held the subtree through its ticker, and one
+moved to another window stood still there (at 0 in the audit's probe, invisible) until the old
+window drew again, for good once it was closed, covered or minimized. That is the defect section 7.2
+and `fadeTo`'s Javadoc say a leaving settles, come back through the callback.
+
+**The fix.** A leaving still settles the fade during the walk, value and announcement, while
+`scene()` answers the scene being left; what it runs at its end, the fade's `onArrive` and a
+straight-there arrival still waiting, goes into a list that the funnel every scene change passes
+through (`Widget.setSceneRecursively`) runs once the walk is over, every widget of the subtree then
+in the scene it is going to. A fade it asks for therefore goes straight there when the container is
+in no scene, a move to another window included (the container passes through no scene between the
+two), and is stepped by the new scene's frames when the walk took it straight into one; never by the
+old window's. An `onArrive` that throws there stops neither the walk nor the others; the first throw
+reaches the caller of the removal once all have run, where before it stopped the walk with part of
+the subtree still in the scene the removal took it out of. The `Transform` container's motions
+follow the same rule (ADR 072 section 13.3).
+
+**Tests.** `OpacityTest.aFadeAskedForInTheOnArriveOfAFadeSettledByLeavingIsNotSteppedByTheSceneLeft`
+(the onArrive saw the old scene and its fade back was stepped there),
+`aPulseWhoseContainerMovesToAnotherWindowMidFadeGoesOnInThatWindow` (the pulse stood still at 0 in
+the new window), `anOnArriveThatFadesAnotherContainerLeavingWithItSeesThatOneOutToo` (an inner
+container's onArrive fading the outer one, which the walk had not cleared yet) and
+`aThrowingOnArriveRunByALeavingStopsNeitherTheOtherArrivalsNorTheLeaving`; each failed before.

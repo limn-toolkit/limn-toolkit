@@ -2127,3 +2127,14 @@ the front, with and without motion; one swap and the back under less motion befo
 `underLessMotionAMotionGoesStraightThereAsOneSetAndAFlipSwapsOnTheNextTurn`, the chain test (the
 swap on the turn after each flip is asked for, the arrival a period later) and
 `TransformDepthTest.underLessMotionAFlipInPerspectiveSwapsOnTheNextTurn`.
+
+### 13.3 What a leaving runs, runs once the container is out, 2026-10-19
+
+ADR 071 section 8.2's fix, for the motions: a container that leaves its scene settles its motions
+during the walk, values and announcements, and what they run, a flip's swap not yet made and then
+every `onArrive`, in the order section 13 gives, runs once the walk is over, the container out of
+the scene it left. A motion asked for there goes straight there in no scene and is stepped by the
+new scene's frames in one, never by the old window's, which stepped a slide asked for in an
+`onArrive` while the container sat still in another window.
+`TransformTest.whatALeavingRunsSeesTheContainerOutAndAMotionItAsksForIsNotSteppedByTheSceneLeft`
+and `aSwayWhoseContainerMovesToAnotherWindowMidSlideGoesOnInThatWindow` failed before.

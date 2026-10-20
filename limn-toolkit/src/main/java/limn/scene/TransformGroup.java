@@ -9,6 +9,7 @@ import limn.math.Vec3;
 import limn.scene.internal.TransformAccess;
 import org.jspecify.annotations.Nullable;
 
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -670,12 +671,19 @@ final class TransformGroup implements TransformAccess.Values {
      * running its {@code atEdge} first, and the container lets go of the ticker and of that scene.
      * As the opacity's fade settles, and for its reasons: an {@code onArrive} often hides or removes
      * something, and a container taken away mid-motion has asked for that end.
+     *
+     * <p>The values and the announcements are made here, in the walk; what the motions run goes
+     * into {@code settled}, in the order they would run, which the walk runs once it is over, the
+     * container then out of the scene it left, so that a motion asked for there follows the
+     * container and not that scene's frames.
+     *
+     * @param settled what the walk runs once it is over
      */
-    void settleOnLeaving() {
+    void settleOnLeaving(List<Runnable> settled) {
         ticker = null; // the ticker left behind finds itself replaced, if that scene ticks again
         // Motions that went straight there and still wait for their seconds end here too, after
         // those in flight (never of the same kind), so that the same code ends at the same moment
-        // with motion and under less motion. Taken first: one an arrival asks for waits its time.
+        // with motion and under less motion.
         Arrival[] waiting = arrivals.clone();
         for (int kind = 0; kind < arrivals.length; kind++) {
             Arrival dropped = arrivals[kind];
@@ -687,21 +695,23 @@ final class TransformGroup implements TransformAccess.Values {
                 }
             }
         }
-        settleInFlight();
+        settleInFlight(settled);
         for (Arrival arrival : waiting) {
             if (arrival != null) {
                 Runnable swap = arrival.atEdge;
                 if (swap != null && !arrival.swapped) {
                     arrival.swapped = true;
-                    swap.run();
+                    settled.add(swap);
                 }
-                runIfAny(arrival.onArrive);
+                if (arrival.onArrive != null) {
+                    settled.add(arrival.onArrive);
+                }
             }
         }
     }
 
     /** Settles every motion in flight as the container leaves: see {@link #settleOnLeaving}. */
-    private void settleInFlight() {
+    private void settleInFlight(List<Runnable> settled) {
         Motion sliding = slide;
         Motion scaling = scale;
         Motion turning = rotating;
@@ -729,19 +739,27 @@ final class TransformGroup implements TransformAccess.Values {
         }
         moved(true);
         if (flipping != null && !flipping.swapped) {
-            flipping.atEdge.run();
+            settled.add(flipping.atEdge);
         }
         if (sliding != null) {
-            arrive(sliding.onArrive);
+            arriveAfterTheWalk(sliding.onArrive, settled);
         }
         if (scaling != null) {
-            arrive(scaling.onArrive);
+            arriveAfterTheWalk(scaling.onArrive, settled);
         }
         if (turning != null) {
-            arrive(turning.onArrive);
+            arriveAfterTheWalk(turning.onArrive, settled);
         }
         if (flipping != null) {
-            arrive(flipping.onArrive);
+            arriveAfterTheWalk(flipping.onArrive, settled);
+        }
+    }
+
+    /** A motion arrives as its container leaves: its one announcement now, what it runs after. */
+    private void arriveAfterTheWalk(@Nullable Runnable onArrive, List<Runnable> settled) {
+        announce();
+        if (onArrive != null) {
+            settled.add(onArrive);
         }
     }
 
