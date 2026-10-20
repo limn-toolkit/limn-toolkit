@@ -478,4 +478,115 @@ class PopoverReentrancyTest extends ComponentTestBase {
             runtime.drain();
         }
     }
+
+    /** A column counting what it is told as it joins and leaves a scene. */
+    private static final class Counted extends Column {
+        int attached;
+        int detached;
+
+        @Override
+        protected void onAttached() {
+            attached++;
+        }
+
+        @Override
+        protected void onDetached() {
+            detached++;
+        }
+    }
+
+    @Test
+    void anOnClosePuttingTheRemovedCardBackLeavesItInTheScene() {
+        // A card with a "Filter" button whose popover is open, removed from its column; the
+        // popover's onClose "puts the card back", into the same column or into another one of the
+        // window. The card ends where the handler put it and in the window's scene, told it joined
+        // again: a card left in the tree with no scene took clicks, but no popover ever opened from
+        // its buttons again and nothing it registered as it joined was registered.
+        for (boolean other : new boolean[] {false, true}) {
+            String where = other ? "put back into another column" : "put back into its own column";
+            Button filter = new Button("Filter");
+            int[] clicks = {0};
+            filter.onAction(() -> clicks[0]++);
+            Counted card = new Counted();
+            card.add(filter);
+            Column holder = new Column();
+            Column elsewhere = new Column();
+            Column root = new Column();
+            root.add(holder);
+            root.add(elsewhere);
+            root.add(new Button("Base"));
+            inWindow(root);
+            holder.add(card);
+            frames(2);
+            assertEquals(1, card.attached, "sanity");
+            boolean[] once = {false};
+            Popover popover = new Popover(new SizedBox(160, 30, new TextField())).setDisplayMode(DisplayMode.IN_SCENE)
+                    .onClose(origin -> {
+                        if (!once[0]) {
+                            once[0] = true;
+                            (other ? elsewhere : holder).add(card);
+                        }
+                    });
+            popover.showFor(filter);
+            frames(3);
+            assertTrue(popover.isOpen(), "sanity");
+
+            holder.remove(card);
+            frames(3);
+
+            assertFalse(popover.isOpen(), where);
+            assertSame(other ? elsewhere : holder, card.parent(), where);
+            assertSame(scene, card.scene(), where + ": in the window's scene, as its place in the tree says");
+            assertSame(scene, filter.scene(), where);
+            assertEquals(2, card.attached, where + ": told it joined again");
+            assertEquals(1, card.detached, where);
+            Popover again = new Popover(new SizedBox(160, 30, new TextField())).setDisplayMode(DisplayMode.IN_SCENE);
+            again.showFor(filter);
+            frames(3);
+            assertTrue(again.isOpen(), where + ": a popover opens from its button again");
+            again.close();
+            frames(40);
+            owner.requestClose();
+            runtime.drain();
+        }
+    }
+
+    @Test
+    void anOnCloseTakingAnAdoptedCardOutAgainLeavesItOutOfEveryScene() {
+        // The mirror case: a card that is another window's root, a popover open from its button, is
+        // adopted into this window's column; the popover's onClose, run as the card leaves the other
+        // scene, takes the card out of the column again. The card ends out of the tree and out of
+        // every scene, told it left as often as it was told it joined: it stayed attached to this
+        // scene, parentless, listed by it and never detached.
+        Button filter = new Button("Filter");
+        Counted card = new Counted();
+        card.add(filter);
+        Column holder = new Column();
+        Column root = new Column();
+        root.add(holder);
+        inWindow(root);
+        HeadlessWindow second = backend.open("Details", 300, 200);
+        Scene other = new Scene(card, () -> now[0]);
+        other.setTextRuler(RULER);
+        other.bind(second);
+        second.frame();
+        Popover popover = new Popover(new SizedBox(160, 30, new TextField())).setDisplayMode(DisplayMode.IN_SCENE)
+                .onClose(origin -> holder.remove(card));
+        popover.showFor(filter);
+        frames(3);
+        assertTrue(popover.isOpen(), "sanity");
+
+        holder.add(card);
+        frames(3);
+
+        assertFalse(popover.isOpen());
+        assertNull(card.parent(), "where the handler left it");
+        assertNull(card.scene(), "out of every scene, as its place in the tree says");
+        assertNull(filter.scene());
+        assertEquals(card.attached, card.detached,
+                "told it left as often as it joined: attached " + card.attached + ", detached " + card.detached);
+        owner.requestClose();
+        second.requestClose();
+        runtime.drain();
+    }
 }

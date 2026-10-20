@@ -2261,6 +2261,7 @@ public final class Scene {
         Throwable failed = null;
         for (HungPopup hung : List.copyOf(hungPopups)) {
             if (hungPopups.contains(hung) && isInSubtree(hung.anchor(), subtree)) {
+                popupsClosed++;
                 try {
                     hung.gone().run();
                 } catch (RuntimeException | Error error) {
@@ -2269,6 +2270,19 @@ public final class Scene {
             }
         }
         return failed;
+    }
+
+    /** How many popups {@link #anchorsLeaving} has closed, which tells a walk that their handlers ran. */
+    private int popupsClosed;
+
+    /** @return how many popups {@link #anchorsLeaving} has closed so far */
+    int popupsClosed() {
+        return popupsClosed;
+    }
+
+    /** @return whether {@code widget} is one of this scene's overlays, in a window that has not closed */
+    boolean holdsAsLayer(Widget<?> widget) {
+        return !detachedByClose && overlays.contains(widget);
     }
 
     /**

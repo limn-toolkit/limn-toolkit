@@ -809,6 +809,17 @@ that the text above does not say, dated where it departs from it.
   - A popover moved from the button it was open from tells that button alone it collapsed.
   `ClosingPopupDoubleClickTest` and new cases in `AnchoredPopupClosingLayerTest`,
   `AnchoredPopupHiddenAnchorTest`, `PopoverReentrancyTest` and `PopoverAttachTest` hold each.
+- **The third review** (2026-10-20, the integrated branch):
+  - **A handler that puts the leaving widget back:** the closes run after the caller has cut or
+    set the parent link and before the walk, and the walk went on with the scene the caller passed
+    in. A popover's `onClose` that put the card being removed back into a column (its own or
+    another) left it in the window's tree with no scene: it took clicks, but no popover opened from
+    its buttons again and what its `onAttached` registered never was. Adopting another window's
+    root whose popover's handler took it out again left it parentless and attached. Once the walk
+    is over, a subtree whose popups' handlers ran joins or leaves again to the scene its place in
+    the tree says (its parent's, or the scene it is the root or an overlay of); closing first and
+    moving after was the other way, and would have given the keyboard back to a button on its way
+    out, a focus and a loss announced in the one call. `PopoverReentrancyTest` has both cases.
 
 ### 12.6 The input method in a popover's window, measured
 

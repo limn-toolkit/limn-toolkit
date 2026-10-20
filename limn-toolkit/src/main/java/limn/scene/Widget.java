@@ -645,7 +645,10 @@ public abstract class Widget<W extends Widget<W>> {
      * <p>A popup hung from a widget of the subtree closes before the walk, and what its handlers
      * throw is thrown once the walk is complete, with what the walk threw added to it: the caller
      * still runs {@code settled}, in a {@code finally}, so a throwing {@code onClose} drops no
-     * fade's arrival, and finishes its own work before it rethrows.
+     * fade's arrival, and finishes its own work before it rethrows. A handler that moved the
+     * subtree again meanwhile (put back into a column it is being removed from, or taken out of the
+     * one adopting it) is followed: once the walk is over, the subtree joins or leaves again so that
+     * its scene is the one its place in the tree says.
      *
      * @param newScene the scene the subtree joins, or null when it leaves every scene
      * @param settled  where what the leavings settled is added, for {@link #runSettled}
@@ -653,12 +656,15 @@ public abstract class Widget<W extends Widget<W>> {
     final void setSceneRecursively(@Nullable Scene newScene, List<Runnable> settled) {
         Scene leaving = scene;
         Throwable failed = null;
+        int closed = 0;
         if (leaving != null && leaving != newScene) {
             // A popup hung from a widget in this subtree goes first, while the subtree still
             // answers the scene it is leaving: a popover's panel would otherwise stay over the
             // window hanging from nothing, holding its keyboard and every press. What its handlers
             // throw waits for the move to be complete.
+            closed = leaving.popupsClosed();
             failed = leaving.anchorsLeaving(this);
+            closed = leaving.popupsClosed() - closed;
         }
         bumpControlSizeEpoch();
         bumpLayoutDirectionEpoch();
@@ -668,7 +674,36 @@ public abstract class Widget<W extends Widget<W>> {
         } catch (RuntimeException | Error walk) {
             failed = addFailure(failed, walk); // what was settled before it stays in the list
         }
+        if (closed > 0) {
+            // A handler of those popups ran after the caller had already moved the subtree, and may
+            // have moved it again (put a card being removed back into a column, or taken one being
+            // adopted out again), while the walk went on with the scene the caller passed in. The
+            // subtree follows where it now is: left in a column with no scene, it took clicks but
+            // no popup ever opened from it again, and nothing it registered as it joined was.
+            Scene home = homeScene(leaving, newScene);
+            if (home != scene) {
+                try {
+                    setSceneRecursively(home, settled);
+                } catch (RuntimeException | Error again) {
+                    failed = addFailure(failed, again);
+                }
+            }
+        }
         rethrow(failed);
+    }
+
+    /**
+     * The scene this subtree belongs in by its place in the tree: its parent's, or, parentless,
+     * the scene it is the root or an overlay of, among the two a move went between.
+     */
+    private @Nullable Scene homeScene(Scene leaving, @Nullable Scene joining) {
+        if (parent != null) {
+            return parent.scene;
+        }
+        if (joining != null && (joining.root() == this || joining.holdsAsLayer(this))) {
+            return joining;
+        }
+        return leaving.holdsAsLayer(this) ? leaving : null;
     }
 
     /**
