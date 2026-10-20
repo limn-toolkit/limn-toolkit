@@ -646,6 +646,10 @@ that the text above does not say, dated where it departs from it.
   circle was painting; beside a member that declares another language, the letters, and so the
   size, changed from circle to circle, two sizes in one group every frame. A member now reads its
   name in its own language whoever asks. `AvatarTest.oneSizeHoldsWhenOneMemberDeclaresItsOwnLanguage`.)
+  (2026-10-20, the review's R7C-2: the "+k" circle's tooltip, the hidden names, was written once,
+  on a rebuild or a rename, and kept the old language's names after any language moved. It is
+  read in the group's language when asked, as the description is.
+  `AvatarTest.theCountsTooltipFollowsEveryWayTheLanguageChanges`.)
 
 ### 12.4 Empty and loading content
 

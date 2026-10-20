@@ -534,6 +534,47 @@ class AvatarTest extends AccessibleComponentTestBase {
     }
 
     @Test
+    void theCountsTooltipFollowsEveryWayTheLanguageChanges() {
+        // The "+k" circle's tooltip lists the hidden members' names, one of them a role. It was
+        // written once, on a rebuild or a rename, in whatever language was in effect then, so after
+        // a window's, a subtree's or the process's language changed it kept the old names while the
+        // group's description followed. It reads in the group's language each time it is asked.
+        Locale brazilian = Locale.forLanguageTag("pt-BR");
+        limn.i18n.StringBundle roles = (key, locale) ->
+                "avatar.deskTeam".equals(key) && brazilian.equals(locale) ? "Equipe de Suporte" : null;
+        Locale before = limn.i18n.I18n.locale();
+        limn.i18n.I18n.setLocale(Locale.ENGLISH);
+        limn.i18n.I18n.addBundle(roles);
+        try {
+            AvatarGroup g = new AvatarGroup(new Avatar("Ana Lima"), new Avatar("Rui Costa"), new Avatar("Mei Wong"),
+                    new Avatar("Dora Wu"), new Avatar(new limn.i18n.I18nString("avatar.deskTeam", "Support Team")));
+            Scene s = new Scene(g);
+            s.setTextRuler(SCALED_RULER);
+            s.layoutPass(400, 60);
+            Widget<?> more = g.children().get(3);
+            assertFalse(more instanceof Avatar, "sanity");
+            assertEquals("Dora Wu, Support Team", more.tooltip());
+
+            s.setLocale(brazilian);
+            assertEquals("Dora Wu, Equipe de Suporte", more.tooltip(), "the window's language");
+            s.setLocale(null);
+            assertEquals("Dora Wu, Support Team", more.tooltip(), "and back");
+
+            g.setLocale(brazilian);
+            assertEquals("Dora Wu, Equipe de Suporte", more.tooltip(), "the group's own language");
+            g.setLocale(null);
+            assertEquals("Dora Wu, Support Team", more.tooltip());
+
+            limn.i18n.I18n.setLocale(brazilian);
+            assertEquals("Dora Wu, Equipe de Suporte", more.tooltip(), "the process's language");
+            assertEquals("Dora Wu, Equipe de Suporte", more.tooltipSource().get(), "the source says the same");
+        } finally {
+            limn.i18n.I18n.removeBundle(roles);
+            limn.i18n.I18n.setLocale(before);
+        }
+    }
+
+    @Test
     void anAvatarAloneKeepsItsInitialsCentredAtTheirSize() {
         Avatar alone = new Avatar("Mei Wong");
         float d = Theme.current().tokensFor(alone).controlHeight();

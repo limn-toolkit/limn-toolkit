@@ -9,6 +9,7 @@ import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
 import limn.i18n.I18n;
+import limn.i18n.I18nString;
 import limn.scene.Constraints;
 import limn.scene.Size;
 import limn.scene.Widget;
@@ -371,23 +372,57 @@ public final class AvatarGroup extends Widget<AvatarGroup> {
             return ComponentStrings.COMBO_MORE.format(hiddenCount());
         }
 
-        /** The tooltip lists the hidden names, joined by the language's list comma. */
+        /** The hidden names as last listed, and the language and translations they were read in. */
+        private @Nullable String titled;
+        private boolean titleStale = true;
+        private long titledEpoch;
+        private @Nullable Locale titledIn;
+
+        /** A hidden member's name, or who is hidden, changed: the tooltip is listed again when read. */
         void retitle() {
+            titleStale = true;
+        }
+
+        /**
+         * The hidden names, joined by the language's list comma, read in the group's language when
+         * asked, as the group's description is: a window's, a subtree's or the process's language
+         * moving renames a member named by a role, and a list written once kept the old names.
+         */
+        @Override
+        public @Nullable String tooltip() {
             int hidden = hiddenCount();
             if (hidden == 0) {
-                setTooltip((String) null);
-                return;
+                return null;
             }
-            StringBuilder names = new StringBuilder();
-            String comma = ComponentStrings.COMBO_SEPARATOR.get();
-            for (int i = members.size() - hidden; i < members.size(); i++) {
-                if (names.length() > 0) {
-                    names.append(comma);
+            long epoch = I18n.epoch();
+            Locale in = locale();
+            if (titleStale || titledEpoch != epoch || !in.equals(titledIn)) {
+                StringBuilder names = new StringBuilder();
+                Locale enclosing = I18n.pushScope(in);
+                try {
+                    String comma = ComponentStrings.COMBO_SEPARATOR.get();
+                    for (int i = members.size() - hidden; i < members.size(); i++) {
+                        if (names.length() > 0) {
+                            names.append(comma);
+                        }
+                        names.append(members.get(i).name());
+                    }
+                } finally {
+                    I18n.popScope(enclosing);
                 }
-                names.append(members.get(i).name());
+                titled = names.toString();
+                titleStale = false;
+                titledEpoch = epoch;
+                titledIn = in;
             }
-            setTooltip(names.toString());
-            invalidate();
+            return titled;
+        }
+
+        /** {@link #tooltip()}, as the text it reads now. */
+        @Override
+        public @Nullable I18nString tooltipSource() {
+            String text = tooltip();
+            return text == null ? null : I18nString.literal(text);
         }
 
         @Override
