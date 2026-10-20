@@ -53,7 +53,7 @@ class GlBlendTest {
     }
 
     @Test
-    void inAGroupNormalIsTheWindowsAndAdditiveGrowsTheCoverageAsAnOverDoes() {
+    void inAGroupNormalIsTheWindowsAndAdditiveSumsColourAndCoverage() {
         GlBlend.InGroup normal = GlBlend.inGroup(BlendMode.NORMAL);
         assertSame(GlBlend.of(BlendMode.NORMAL), normal.first());
         assertNull(normal.then());
@@ -61,9 +61,10 @@ class GlBlendTest {
         assertEquals(GL33C.GL_ONE, additive.first().srcRgb());
         assertEquals(GL33C.GL_ONE, additive.first().dstRgb(), "light still adds");
         // In a group's picture the coverage is what the composite lays over the window: a glow
-        // drawn where the group drew nothing must cover as itself, or it adds to nothing.
+        // drawn where the group drew nothing must cover as itself, or it adds to nothing; and the
+        // coverage sums as the colour does, or a channel ends above it (plus-lighter).
         assertEquals(GL33C.GL_ONE, additive.first().srcAlpha());
-        assertEquals(GL33C.GL_ONE_MINUS_SRC_ALPHA, additive.first().dstAlpha());
+        assertEquals(GL33C.GL_ONE, additive.first().dstAlpha());
         assertNull(additive.then(), "one pass");
     }
 

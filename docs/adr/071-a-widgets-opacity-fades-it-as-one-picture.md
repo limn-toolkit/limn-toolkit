@@ -1062,10 +1062,18 @@ with the window.
 **How it is drawn.** The canvas keeps the window's factors (section 2.3's composite, a translucent
 window's coverage, the 3D pass) and uses another table, `GlBlend.inGroup`, while a layer is the
 target, the premultiplied form of the formula with the coverage of an over,
-`αo = αs + αb·(1 − αs)`:
+`αo = αs + αb·(1 − αs)`, for `MULTIPLY`:
 
-- `ADDITIVE`: `co = cs + cb`, one pass (`ONE, ONE` for colour, `ONE, ONE_MINUS_SRC_ALPHA` for
-  coverage). The separable formula with `B = Cb + Cs` comes to the same sum.
+- `ADDITIVE`: the web's plus-lighter, `co = cs + cb` and `αo = αs + αb`, each clamped, one pass
+  (`ONE, ONE` for colour and coverage). (2026-10-19, after the third review, R3S-10: it was built
+  first with an over's coverage, `ONE, ONE_MINUS_SRC_ALPHA`, which over translucent group content
+  left a colour above its coverage, white at one half over white at one half coming to a colour of 1
+  at a coverage of 0.75, no valid premultiplied pixel, and the composite laid more light than either
+  rule gives; the sum keeps every channel within the coverage, since `cs ≤ αs` and `cb ≤ αb`. Over a
+  transparent part of the group and over opaque content the two agree. Whether `ADDITIVE` is isolated
+  at all is still the owner's question; this only makes the isolated pixel valid.
+  `GlGroupBlendTest.additiveOverTranslucentGroupContentLeavesAValidPremultipliedPixel` failed
+  before, 128 of colour at 96 of coverage.)
 - `MULTIPLY`: `co = cs·(1 − αb) + cs·cb + cb·(1 − αs)`, which no single set of fixed factors gives
   (it would need a second output of the fragment, dual-source blending, which GLSL ES 3.00, the
   shaders' portability rule, has only as an extension). Two passes over the same geometry: the window's multiply first, `cs·cb +

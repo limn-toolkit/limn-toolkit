@@ -17,6 +17,7 @@ import java.nio.ByteBuffer;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * A blend mode inside a group, against a real device: inside a layer a draw in another mode blends
@@ -147,6 +148,36 @@ class GlGroupBlendTest {
     }
 
     /**
+     * Additive light over translucent content of the group, the group laid over nothing: every
+     * pixel it leaves is a valid premultiplied one, no channel above its coverage, and it is the
+     * sum of the two, colour and coverage, clamped, as a web page's plus-lighter has it. The colour
+     * was summed while the coverage grew as an over's, so white at one half over white at one half
+     * came to a colour of 1 at a coverage of 0.75, which the composite then laid as more light
+     * than either rule gives.
+     */
+    @Test
+    void additiveOverTranslucentGroupContentLeavesAValidPremultipliedPixel() {
+        GlCanvas canvas = new GlCanvas(fonts);
+        try {
+            int[] pixel = render(canvas, Color.TRANSPARENT, c -> {
+                c.saveLayer(0, 0, SIZE, SIZE, HALF);
+                c.fillRect(0, 0, SIZE, SIZE, Color.WHITE.withAlpha(0.5f));
+                inMode(c, BlendMode.ADDITIVE, Color.WHITE, 0.5f);
+                c.restore();
+            });
+            for (int i = 0; i < 3; i++) {
+                assertTrue(pixel[i] <= pixel[3] + 1, "channel " + i + " " + pixel[i] + " within the coverage "
+                        + pixel[3]);
+            }
+            // The group's pixel is white at a coverage of 1, laid at one half over nothing.
+            assertEquals(128, pixel[3], TOLERANCE, "coverage");
+            assertEquals(128, pixel[0], TOLERANCE, "red");
+        } finally {
+            canvas.dispose();
+        }
+    }
+
+    /**
      * The audit's scene: a widget that tints in MULTIPLY inside an {@code Opacity} container, over
      * the page drawn outside it. At one half it showed the page untouched (242, 166, 90), the tint
      * absent for the whole of a fade; it is the tint at one half over the page. At 1 the tint
@@ -220,8 +251,8 @@ class GlGroupBlendTest {
     /**
      * The group's pixel, premultiplied: {@code source} at {@code sourceAlpha} drawn in {@code mode}
      * over {@code backdrop} at {@code backdropAlpha} (none for null), by the separable blend of the
-     * web's compositing rules; MULTIPLY's {@code B} is {@code Cb·Cs}, ADDITIVE's {@code Cb + Cs},
-     * clamped.
+     * web's compositing rules, MULTIPLY's {@code B} being {@code Cb·Cs}; ADDITIVE is the web's
+     * plus-lighter, colour and coverage each summed and clamped.
      *
      * @return red, green, blue premultiplied, then alpha
      */
@@ -240,7 +271,7 @@ class GlGroupBlendTest {
                 default -> cs + cb * (1 - as);
             };
         }
-        out[3] = as + ab * (1 - as);
+        out[3] = mode == BlendMode.ADDITIVE ? Math.min(1, as + ab) : as + ab * (1 - as);
         return out;
     }
 
@@ -270,6 +301,11 @@ class GlGroupBlendTest {
 
     /** One frame over the page into a texture of its own; the pixel at the middle. */
     private static int[] render(GlCanvas canvas, Consumer<GlCanvas> paint) {
+        return render(canvas, PAGE, paint);
+    }
+
+    /** One frame over {@code page} into a texture of its own; the pixel at the middle, alpha last. */
+    private static int[] render(GlCanvas canvas, Color page, Consumer<GlCanvas> paint) {
         int texture = GL33C.glGenTextures();
         int fbo = GL33C.glGenFramebuffers();
         int previousFbo = GL33C.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
@@ -287,12 +323,12 @@ class GlGroupBlendTest {
             assertEquals(GL33C.GL_FRAMEBUFFER_COMPLETE, GL33C.glCheckFramebufferStatus(GL33C.GL_FRAMEBUFFER));
             GL33C.glViewport(0, 0, SIZE, SIZE);
             canvas.beginFrame(SIZE, SIZE, 1f);
-            canvas.clear(PAGE);
+            canvas.clear(page);
             paint.accept(canvas);
             canvas.endFrame();
             GL33C.glPixelStorei(GL33C.GL_PACK_ALIGNMENT, 1);
             GL33C.glReadPixels(SIZE / 2, SIZE / 2, 1, 1, GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, pixel);
-            return new int[] {pixel.get(0) & 0xFF, pixel.get(1) & 0xFF, pixel.get(2) & 0xFF};
+            return new int[] {pixel.get(0) & 0xFF, pixel.get(1) & 0xFF, pixel.get(2) & 0xFF, pixel.get(3) & 0xFF};
         } finally {
             MemoryUtil.memFree(pixel);
             GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, previousFbo);

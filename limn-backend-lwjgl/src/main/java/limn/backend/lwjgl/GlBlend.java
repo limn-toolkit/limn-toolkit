@@ -48,13 +48,17 @@ final class GlBlend {
 
     private static final InGroup NORMAL_IN_GROUP = new InGroup(NORMAL, null);
     /**
-     * Additive in a group: the colours add, as on the window, and the coverage grows as a draw's
-     * over: {@code co = cs + cb}, {@code αo = αs + αb·(1 − αs)}. Where the group drew nothing the
-     * source is then itself, which the web's separable formula gives for a sum: its terms
-     * {@code cs·(1 − αb) + cb·(1 − αs) + αs·αb·(Cb + Cs)} come to {@code cs + cb}.
+     * Additive in a group: the colours add, as on the window, and so does the coverage, both
+     * clamped, the web's plus-lighter: {@code co = cs + cb}, {@code αo = αs + αb}. Where the group
+     * drew nothing the source is itself, and over what it drew opaque the window's sum. The
+     * coverage of an over, {@code αs + αb·(1 − αs)}, fell short of the summed colour over
+     * translucent content (white at one half over white at one half: a colour of 1 at a coverage of
+     * 0.75), a pixel no premultiplied picture may hold, which the composite laid as more light than
+     * either rule gives; the sum keeps every channel within the coverage, as {@code cs ≤ αs} and
+     * {@code cb ≤ αb}.
      */
     private static final InGroup ADDITIVE_IN_GROUP = new InGroup(
-            new Factors(GL_ONE, GL_ONE, GL_ONE, GL_ONE_MINUS_SRC_ALPHA), null);
+            new Factors(GL_ONE, GL_ONE, GL_ONE, GL_ONE), null);
     /**
      * Multiply in a group, the web's {@code co = cs·(1 − αb) + cs·cb + cb·(1 − αs)} with
      * {@code αo = αs + αb·(1 − αs)}: no one pass of fixed factors gives the first term beside the
