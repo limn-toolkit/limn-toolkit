@@ -648,9 +648,11 @@ public abstract class Widget<W extends Widget<W>> {
      * holds it, finishes its own work and runs {@code settled}, so a throwing {@code onClose} drops
      * no fade's arrival, and rethrows it after. A {@link VirtualMachineError} is not held: it
      * leaves the caller at once, and nothing of {@code settled} runs after it. A handler that
-     * moved the subtree again meanwhile (put back into a column it is being removed from, or taken
-     * out of the one adopting it) is followed: once the walk is over, the subtree joins or leaves
-     * again so that its scene is the one its place in the tree says.
+     * moved the subtree again meanwhile (put back into a column it is being removed from, taken
+     * out of the one adopting it, pushed as another window's overlay or made a new scene's root) is
+     * followed: once the walk is over, the subtree joins or leaves again so that its scene is the
+     * one its place in the tree says, and a move the handler already walked into a third scene is
+     * not walked over.
      *
      * <p>A subtree that goes straight from one scene into another leaves the first, every
      * {@link #onDetached()} told while {@link #scene()} still answers it, and then joins the
@@ -702,7 +704,12 @@ public abstract class Widget<W extends Widget<W>> {
     private @Nullable Throwable walkAndFollow(@Nullable Scene leaving, @Nullable Scene newScene, int closed,
                                               @Nullable Throwable failed, List<Runnable> settled) {
         Scene from = scene;
-        if (from != null && newScene != null && from != newScene) {
+        if (closed > 0 && from != leaving) {
+            // A handler of those popups has already moved the subtree through a funnel of its own,
+            // pushed it as another window's overlay or made it a new scene's root, say: the scene
+            // the caller passed in is stale, and walking to it would undo that move, leaving the
+            // widget that scene's overlay or root with no scene. Only the check below runs.
+        } else if (from != null && newScene != null && from != newScene) {
             // Straight from one scene into another (a window's root adopted by another window, an
             // overlay pushed into a second one): a leave, then a join, as a removal and an add are.
             // Walked in one pass, no widget was told either, and what one registered in the first
@@ -713,10 +720,12 @@ public abstract class Widget<W extends Widget<W>> {
                 failed = HandlerFailures.add(failed, walk);
             }
         }
-        try {
-            setSceneRecursivelyInternal(newScene, settled);
-        } catch (RuntimeException | Error walk) {
-            failed = HandlerFailures.add(failed, walk); // what was settled before it stays in the list
+        if (closed == 0 || from == leaving) {
+            try {
+                setSceneRecursivelyInternal(newScene, settled);
+            } catch (RuntimeException | Error walk) {
+                failed = HandlerFailures.add(failed, walk); // what was settled before it stays in the list
+            }
         }
         if (closed > 0) {
             // A handler of those popups ran after the caller had already moved the subtree, and may
@@ -738,11 +747,15 @@ public abstract class Widget<W extends Widget<W>> {
 
     /**
      * The scene this subtree belongs in by its place in the tree: its parent's, or, parentless,
-     * the scene it is the root or an overlay of, among the two a move went between.
+     * the scene it is the root or an overlay of, among the one a handler moved it into and the two
+     * the move went between.
      */
     private @Nullable Scene homeScene(Scene leaving, @Nullable Scene joining) {
         if (parent != null) {
             return parent.scene;
+        }
+        if (scene != null && (scene.root() == this || scene.holdsAsLayer(this))) {
+            return scene;
         }
         if (joining != null && (joining.root() == this || joining.holdsAsLayer(this))) {
             return joining;

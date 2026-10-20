@@ -643,10 +643,8 @@ class PopoverReentrancyTest extends ComponentTestBase {
         assertSame(elsewhere, card.parent());
         assertSame(other, card.scene());
         assertSame(other, filter.scene());
-        assertTrue(card.left.contains(scene), "told it left the first window: " + card.left);
-        assertSame(other, card.joined.get(card.joined.size() - 1), "and that it joined the second");
-        assertEquals(card.joined.size(), card.left.size(), "told it joined as often as it left, after its first join: "
-                + card.joined + " " + card.left);
+        assertEquals(List.of(scene), card.left, "told it left the first window, once");
+        assertEquals(List.of(other), card.joined, "and that it joined the second, once");
         Popover again = new Popover(new SizedBox(160, 30, new TextField())).setDisplayMode(DisplayMode.IN_SCENE);
         again.showFor(filter);
         frames(3);
@@ -656,5 +654,77 @@ class PopoverReentrancyTest extends ComponentTestBase {
         owner.requestClose();
         second.requestClose();
         runtime.drain();
+    }
+
+    @Test
+    void anOnCloseTakingTheRemovedCardIntoAThirdSceneLeavesItThere() {
+        // The popover's onClose pushes the card being removed as another window's overlay, or opens
+        // it in a window of its own as a new scene's root (a tear-off). The removal's walk then went
+        // on to the scene it was passed, none, and took the card out of the scene the handler had
+        // put it in: that window's overlay, or root, in no scene, no popover ever opening from it
+        // again. The card stays where the handler put it, told it left this window and joined that
+        // one, once each. The hard case after them: the handler pushes it and takes it out again.
+        for (int what = 0; what < 3; what++) {
+            String how = what == 0 ? "pushed as another window's overlay"
+                    : what == 1 ? "made a new scene's root" : "pushed and taken out again";
+            Button filter = new Button("Filter");
+            Seen card = new Seen();
+            card.add(filter);
+            Column holder = new Column();
+            Column root = new Column();
+            root.add(holder);
+            root.add(new Button("Base"));
+            inWindow(root);
+            HeadlessWindow second = backend.open("Details", 300, 200);
+            Scene other = new Scene(new Column(), () -> now[0]);
+            other.setTextRuler(RULER);
+            other.bind(second);
+            second.frame();
+            holder.add(card);
+            frames(2);
+            card.joined.clear();
+            Scene[] torn = {null};
+            int kind = what;
+            Popover popover = new Popover(new SizedBox(160, 30, new TextField())).setDisplayMode(DisplayMode.IN_SCENE)
+                    .onClose(origin -> {
+                        if (kind == 1) {
+                            torn[0] = new Scene(card, () -> now[0]);
+                            torn[0].setTextRuler(RULER);
+                        } else {
+                            other.pushOverlay(card);
+                            if (kind == 2) {
+                                other.removeOverlay(card);
+                            }
+                        }
+                    });
+            popover.showFor(filter);
+            frames(3);
+            assertTrue(popover.isOpen(), how + ": sanity");
+
+            holder.remove(card);
+            frames(3);
+
+            assertNull(card.parent(), how);
+            Scene expected = what == 0 ? other : what == 1 ? torn[0] : null;
+            assertSame(expected, card.scene(), how);
+            assertSame(expected, filter.scene(), how);
+            if (what == 1) {
+                assertSame(card, torn[0].root(), how);
+            }
+            assertEquals(List.of(scene), card.left.subList(0, 1), how + ": told it left this window first: " + card.left);
+            assertEquals(what == 2 ? List.of(other) : List.of(expected), card.joined, how + ": joined once");
+            assertEquals(what == 2 ? 2 : 1, card.left.size(), how + ": " + card.left);
+            if (what == 0) {
+                Popover again = new Popover(new SizedBox(160, 30, new TextField())).setDisplayMode(DisplayMode.IN_SCENE);
+                again.showFor(filter);
+                frames(3);
+                assertTrue(again.isOpen(), how + ": a popover opens from its button in the other window");
+                again.close();
+                frames(40);
+            }
+            owner.requestClose();
+            second.requestClose();
+            runtime.drain();
+        }
     }
 }

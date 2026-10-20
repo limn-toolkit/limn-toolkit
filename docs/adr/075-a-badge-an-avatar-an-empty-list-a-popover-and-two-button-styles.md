@@ -879,6 +879,14 @@ that the text above does not say, dated where it departs from it.
     still answers the first, as a removal and an add would tell it. What stays open is the first
     scene's side: a scene whose root another window adopted still names it as its root (section
     12.8). `WidgetLifecycleTest` and `PopoverReentrancyTest` have the cases.
+  - **A handler that takes the leaving widget into a third scene:** the join or leave again knew
+    only the two scenes the move went between. An `onClose` that pushed the card being removed as
+    another window's overlay, or opened it in a window of its own as a new scene's root, had moved
+    it already, and the removal's walk then took it out of that scene: its overlay or root, in no
+    scene. When a handler has moved the subtree, the walk to the scene the caller passed in is not
+    made, and the check that follows asks the scene the subtree is now in too, so "the scene it is
+    the root or an overlay of" above holds for any scene. `PopoverReentrancyTest` has both, and a
+    handler that pushes the card and takes it out again.
 
 ### 12.6 The input method in a popover's window, measured
 
