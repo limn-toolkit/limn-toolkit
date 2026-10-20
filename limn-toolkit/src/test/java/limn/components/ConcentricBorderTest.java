@@ -168,7 +168,7 @@ class ConcentricBorderTest extends ComponentTestBase {
         SizeTokens t = tokens(button);
         assertFilled(canvas, "colour button face", 0, 0, 160, 32, t.radiusMedium());
         float chip = t.iconBox();
-        assertFilled(canvas, "colour button chip", t.padH(), (32 - chip) / 2, chip, chip,
+        assertFilled(canvas, "colour button chip", t.fieldPadH(), (32 - chip) / 2, chip, chip,
                 t.radiusSmall());
     }
 

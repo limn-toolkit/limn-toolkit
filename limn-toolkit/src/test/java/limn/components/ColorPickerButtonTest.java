@@ -222,9 +222,11 @@ class ColorPickerButtonTest extends ComponentTestBase {
         button.setText("");
         float bare = button.measure(Constraints.loose(400, 300)).width();
 
+        // And the chip alone is centred again: the field inset it keeps beside a caption becomes
+        // the button's own padding on both sides.
         SizeTokens t = SizeTokens.MEDIUM;
-        assertEquals(captioned - RULER.measure("#F59E0B", t.body()).width() - t.gapIcon(),
-                bare, 0.01f);
+        assertEquals(captioned - RULER.measure("#F59E0B", t.body()).width() - t.gapIcon()
+                - t.fieldPadH() + t.padH(), bare, 0.01f);
     }
 
     @Test

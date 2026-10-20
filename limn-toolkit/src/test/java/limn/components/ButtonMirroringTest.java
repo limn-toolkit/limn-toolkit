@@ -83,11 +83,13 @@ class ButtonMirroringTest extends ComponentTestBase {
     }
 
     /**
-     * The left edge of the centred block holding an icon and {@code "abc"}: the one coordinate
-     * both directions are measured from, and the one neither of them moves.
+     * Where the caption beside an icon starts, reading left to right: past the icon, which stands at
+     * the field inset from the edge, centred in what is left before the button's own padding.
      */
-    private float blockX() {
-        return (WIDTH - (iconAdvance() + ABC)) / 2;
+    private float captionX() {
+        SizeTokens t = Theme.current().tokensFor(button);
+        float lead = t.fieldPadH() + iconAdvance();
+        return lead + (WIDTH - lead - t.padH() - ABC) / 2;
     }
 
     // ------------------------------------------------------- the centred block
@@ -109,20 +111,26 @@ class ButtonMirroringTest extends ComponentTestBase {
 
     // -------------------------------------------------------------- the icon
 
+    /**
+     * An icon beside a caption stands from the button's edge as a field's or a combo's leading icon
+     * does, the field inset, wherever the button's width puts its other end; the caption is centred
+     * in what is left before the button's own padding.
+     */
     @Test
-    void theIconTakesTheBlocksLeftEndReadingLeftToRight() {
+    void theIconStandsAtTheFieldInsetFromTheLeftReadingLeftToRight() {
         build(LayoutDirection.LTR, "abc");
         RecordingIcon icon = new RecordingIcon();
         button.setIcon(icon);
         layout();
 
+        SizeTokens t = Theme.current().tokensFor(button);
         float textX = paintedTextX();
-        assertEquals(blockX(), icon.x, EPS, "the default is unchanged: the icon leads on the left");
-        assertEquals(blockX() + iconAdvance(), textX, EPS, "and the caption follows the gutter");
+        assertEquals(t.fieldPadH(), icon.x, EPS, "the icon leads on the left, a field inset in");
+        assertEquals(captionX(), textX, EPS, "and the caption is centred in the rest");
     }
 
     @Test
-    void theIconTakesTheBlocksRightEndReadingRightToLeft() {
+    void theIconStandsAtTheFieldInsetFromTheRightReadingRightToLeft() {
         build(LayoutDirection.RTL, "abc");
         RecordingIcon icon = new RecordingIcon();
         button.setIcon(icon);
@@ -130,19 +138,18 @@ class ButtonMirroringTest extends ComponentTestBase {
 
         SizeTokens t = Theme.current().tokensFor(button);
         float textX = paintedTextX();
-        // Leading is the end reading STARTS from, which is the block's right end; the square sits
-        // its own width back from it, and the caption takes everything to its left.
-        assertEquals(blockX() + iconAdvance() + ABC - t.iconBox(), icon.x, EPS);
-        assertEquals(blockX(), textX, EPS, "the caption begins at the block's own left edge");
+        // Leading is the end reading STARTS from, the right one; the square sits its own width
+        // back from the inset there, and the caption is the left-to-right placement mirrored.
+        assertEquals(WIDTH - t.fieldPadH() - t.iconBox(), icon.x, EPS);
+        assertEquals(WIDTH - captionX() - ABC, textX, EPS, "the caption mirrored about the middle");
     }
 
     /**
-     * The block itself is the same box in both directions: only the order of the two things
-     * inside it changed. Asserted as the span from the leftmost ink to the rightmost, because
-     * that is the number a centre promises and the one a swapped pair must not disturb.
+     * Right to left is left to right mirrored about the button's middle: the icon and the caption
+     * each stand where the other direction's stand, measured from the other edge.
      */
     @Test
-    void theBlockOccupiesTheSameSpanInBothDirections() {
+    void theContentIsMirroredAboutTheMiddle() {
         build(LayoutDirection.LTR, "abc");
         RecordingIcon ltrIcon = new RecordingIcon();
         button.setIcon(ltrIcon);
@@ -151,20 +158,15 @@ class ButtonMirroringTest extends ComponentTestBase {
         // nothing.
         float ltrTextX = paintedTextX();
         SizeTokens t = Theme.current().tokensFor(button);
-        float ltrLeft = Math.min(ltrIcon.x, ltrTextX);
-        float ltrRight = Math.max(ltrIcon.x + t.iconBox(), ltrTextX + ABC);
 
         build(LayoutDirection.RTL, "abc");
         RecordingIcon rtlIcon = new RecordingIcon();
         button.setIcon(rtlIcon);
         layout();
         float rtlTextX = paintedTextX();
-        float rtlLeft = Math.min(rtlIcon.x, rtlTextX);
-        float rtlRight = Math.max(rtlIcon.x + t.iconBox(), rtlTextX + ABC);
 
-        assertEquals(ltrLeft, rtlLeft, EPS, "the block did not move, its contents traded ends");
-        assertEquals(ltrRight, rtlRight, EPS);
-        assertEquals(blockX(), rtlLeft, EPS);
+        assertEquals(WIDTH - ltrIcon.x - t.iconBox(), rtlIcon.x, EPS, "the icon mirrored");
+        assertEquals(WIDTH - ltrTextX - ABC, rtlTextX, EPS, "and the caption");
     }
 
     /** With no caption the icon is alone in the block, and alone is the same place either way. */

@@ -385,6 +385,15 @@ public final class ColorPickerButton extends Widget<ColorPickerButton> {
     }
 
     /**
+     * The room before the chip: beside a caption the chip stands from the edge as a field's leading
+     * icon does, as a {@link Button}'s icon does, and the caption keeps the button padding on its
+     * own side; a chip alone keeps that padding on both sides, the square box it always had.
+     */
+    private float leadingPad(SizeTokens t) {
+        return text().isEmpty() ? t.padH() : t.fieldPadH();
+    }
+
+    /**
      * What the shaper should fall back to for a caption with nothing strong in it, given the
      * direction this pass already resolved.
      *
@@ -402,7 +411,7 @@ public final class ColorPickerButton extends Widget<ColorPickerButton> {
         SizeTokens t = Theme.of(this).tokensFor(this);
         TextMetrics metrics = textRuler().measure(text(), t.body());
         return constraints.constrain(
-                metrics.width() + chipAdvance(t) + 2 * t.padH(),
+                leadingPad(t) + chipAdvance(t) + metrics.width() + t.padH(),
                 t.resolvedHeight(metrics.lineHeight()));
     }
 
@@ -442,7 +451,7 @@ public final class ColorPickerButton extends Widget<ColorPickerButton> {
         float chip = t.iconBox();
         // The chip is the leading item of the pair, so its left edge is one pad in from the
         // left reading one way and one chip further than that from the right reading the other.
-        paintChip(canvas, t, theme, rtl ? w - t.padH() - chip : t.padH(),
+        paintChip(canvas, t, theme, rtl ? w - leadingPad(t) - chip : leadingPad(t),
                 (h - chip) / 2, chip, chip);
 
         String caption = text();
@@ -455,8 +464,8 @@ public final class ColorPickerButton extends Widget<ColorPickerButton> {
             // the caption's leading x is expressed as one: the chip's advance in from the
             // trailing pad, less the line's own width.
             float captionX = rtl
-                    ? w - t.padH() - chipAdvance(t) - metrics.width()
-                    : t.padH() + chipAdvance(t);
+                    ? w - leadingPad(t) - chipAdvance(t) - metrics.width()
+                    : leadingPad(t) + chipAdvance(t);
             canvas.drawText(line, captionX, textRuler().centredBaseline(font, h),
                     isEnabled() ? theme.text() : theme.disabledText());
         }

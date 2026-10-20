@@ -2272,3 +2272,14 @@ refused for text-adjacent gaps). A `TabbedPane` tab keeps `tabIconGap`, equal at
 pixel at every step, scale and direction (`ControlInkPixelTest`), the MEDIUM check mark standing
 8.8 to 9.9 pt from the text in all three, the spread being the pixel grid's. The tables above keep
 the old row as written; the search field's leading inset of §7.10 is now 24 / 29 / 34 / 41 / 50.
+
+**Amended the same day:** the gap was equal but the owner still saw the button's icon far from its
+edge: 23 px from the button's edge at 1x against 13.5 px from a combo's, because the button kept
+its caption padding `padH` (20 at MEDIUM) on the icon's side. An icon beside a caption now stands
+`fieldPadH` from the edge reading starts from (12 at MEDIUM), the inset a field's and a combo's
+leading icon keep, at the button's own width and stretched wider; the caption keeps `padH` on its
+own side and is centred in what is left, which at the button's own width is exactly `gapIcon`
+past the icon. A caption alone and an icon alone keep `padH` on both sides and stay centred.
+`ColorPickerButton`'s chip beside a caption follows the same rule. The button's measured width
+loses `padH − fieldPadH` (8 pt at MEDIUM); edge to icon ink now equals the combo's within a device
+pixel at every step, scale and direction (`ControlInkPixelTest`).

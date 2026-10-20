@@ -40,12 +40,14 @@ import java.util.Objects;
  * pass into a local and threaded down; resolving twice inside one pass is how measure and
  * paint end up disagreeing about where the label sits.
  *
- * <p>The icon-and-caption block is centred, so a text-only button draws the same coordinates
- * whichever way its subtree reads. What the direction decides is the <em>order</em> of the two
- * things inside that block: the icon is {@linkplain #setIcon(Icon) leading}, which is the block's
- * left end reading left to right and its right end reading right to left. Whether the glyph
- * drawn inside that square turns around as well is the caller's to say &mdash; see
- * {@link Icon.Mirroring}.
+ * <p>A caption alone, or an icon alone, is centred, so a text-only button draws the same
+ * coordinates whichever way its subtree reads. An icon beside a caption is
+ * {@linkplain #setIcon(Icon) leading}: it stands from the edge reading starts from by the inset a
+ * text field's or a combo box's leading icon keeps, so icons line up down a form, and the caption
+ * is centred in the rest of the button inside the button's own padding, which at the width the
+ * button asks for puts it the icon gap away. Reading right to left the whole of that is mirrored.
+ * Whether the glyph drawn inside the square turns around as well is the caller's to say &mdash;
+ * see {@link Icon.Mirroring}.
  */
 public final class Button extends Widget<Button> {
 
@@ -239,6 +241,22 @@ public final class Button extends Widget<Button> {
         return t.iconBox() + (shown().text().isEmpty() ? 0 : t.gapIcon());
     }
 
+    /** Whether the content is an icon and a caption, the one shape whose two sides differ. */
+    private boolean iconBesideCaption() {
+        return icon != null && !shown().text().isEmpty();
+    }
+
+    /**
+     * The room on the side reading starts from. Beside a caption the icon stands from the edge as
+     * a field's or a combo's leading icon does ({@code fieldPadH}), and the caption keeps the
+     * button's own padding on its side: the caption's wide padding on the icon's side too set the
+     * icon nearly twice as far in as the same icon in a combo beside it. A caption alone and an icon
+     * alone keep {@code padH} on both sides.
+     */
+    private float leadingPad(SizeTokens t) {
+        return iconBesideCaption() ? t.fieldPadH() : t.padH();
+    }
+
     /**
      * The application's response to the user pressing the button: a click, Space or Enter while
      * focused, an assistive technology's press. Not called while disabled. A press is announced
@@ -415,7 +433,7 @@ public final class Button extends Widget<Button> {
         // resolvedHeight is max(controlHeight, lineHeight + 2*padV): the box binds at every
         // step, which is what absorbed the undocumented +4 this used to carry.
         return constraints.constrain(
-                metrics.width() + iconAdvance(t) + 2 * t.padH(),
+                leadingPad(t) + iconAdvance(t) + metrics.width() + t.padH(),
                 t.resolvedHeight(metrics.lineHeight()));
     }
 
@@ -511,11 +529,25 @@ public final class Button extends Widget<Button> {
 
         float advance = iconAdvance(t);
         float block = advance + metrics.width();
-        // The block is CENTRED and stays exactly where it is under mirroring: a centre is the
-        // same number in both directions, which is what makes a text-only button — the
-        // overwhelming majority — render identically either way. Only the order of the two
-        // things inside the block changes, and that is the two placements below.
+        // A caption alone or an icon alone is CENTRED and stays exactly where it is under
+        // mirroring: a centre is the same number in both directions, which is what makes a
+        // text-only button — the overwhelming majority — render identically either way.
         float blockX = (width() - block) / 2;
+        float textX;
+        if (iconBesideCaption()) {
+            // An icon beside a caption stands at the field inset from the edge reading starts
+            // from, wherever the button's width puts its other end, so it lines up with the icon
+            // of a field or a combo above or below it; the caption is centred in what is left
+            // between the icon's gap and the button's own padding, which at the width the button
+            // asks for is exactly that gap. Mirrored as a whole reading right to left.
+            float lead = leadingPad(t) + advance;
+            float room = Math.max(0, width() - lead - t.padH() - metrics.width());
+            blockX = rtl ? width() - leadingPad(t) - block : leadingPad(t);
+            textX = rtl ? width() - lead - metrics.width() - room / 2 : lead + room / 2;
+        } else {
+            // The caption takes the rest of the block; with no icon the advance is zero.
+            textX = rtl ? blockX : blockX + advance;
+        }
         if (icon != null) {
             float iconSize = t.iconBox();
             // Leading, written as a coordinate: the block's own left edge reading left to right,
@@ -527,10 +559,6 @@ public final class Button extends Widget<Button> {
             icon.paint(canvas, iconX, (height() - iconSize) / 2, iconSize, ink, theme.isDark(),
                     rtl && iconMirroring == Icon.Mirroring.IN_RTL);
         }
-        // The caption takes the rest of the block: past the gutter reading left to right, and
-        // from the block's own left edge reading right to left, where the gutter is at the far
-        // end. With no icon the advance is zero and the two arms are the same number.
-        float textX = rtl ? blockX : blockX + advance;
         float baseline = textRuler().centredBaseline(font, height());
         canvas.drawText(line, textX, baseline, ink);
         if (AccessLetters.shownIn(this)) {

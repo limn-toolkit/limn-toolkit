@@ -254,8 +254,22 @@ class ControlInkPixelTest {
     /** Points of empty paper between the icon's ink and the text's ink, on the side between them. */
     private float iconGap(Supplier<Widget<?>> make, ControlSize size, float scale, LayoutDirection direction,
                           String name) {
+        return leading(make, size, scale, direction, name, NATURAL).gap();
+    }
+
+    /** Asks {@link #render} for the width the widget wants. */
+    private static final float NATURAL = 0;
+
+    /** Points from the box's leading edge to the icon's ink, and from the icon's ink to the text's. */
+    private record Leading(float edge, float gap) {
+    }
+
+    private Leading leading(Supplier<Widget<?>> make, ControlSize size, float scale, LayoutDirection direction,
+                            String name, float width) {
         Widget<?> widget = make.get().setControlSize(size);
-        Placed placed = render(widget, scale, 20, 20, 240, direction);
+        // A combo and a field take the width a form gives them; a button the width it asks for
+        // unless the caller stretches it.
+        Placed placed = render(widget, scale, 20, 20, widget instanceof Button ? width : 240, direction);
         Inner in = inner(widget, placed, scale);
         List<Span> runs = columnRuns(placed.image, in.x0, in.y0, in.x1, in.y1, 2);
         // The icon and the first letter are the two runs at the leading end; a combo's chevron and
@@ -264,12 +278,65 @@ class ControlInkPixelTest {
         Span icon = rtl ? runs.get(runs.size() - 1) : runs.get(0);
         Span text = rtl ? runs.get(runs.size() - 2) : runs.get(1);
         float gap = (rtl ? icon.from - text.to : text.from - icon.to) / scale;
+        float edge = rtl ? placed.left + widget.width() - icon.to / scale : icon.from / scale - placed.left;
         if (REPORT) {
-            report("gap %-16s %-7s %.0fx %s: icon ink %.2f..%.2f text from %.2f..%.2f gap %.2f pt"
-                            + " (runs %d)%n", name, size, scale, direction, icon.from, icon.to, text.from, text.to,
-                    gap, runs.size());
+            report("gap %-16s %-7s %.0fx %s w %.0f: edge to icon %.2f pt, icon ink %.2f..%.2f text %.2f..%.2f"
+                            + " gap %.2f pt (runs %d)%n", name, size, scale, direction, widget.width(), edge,
+                    icon.from, icon.to, text.from, text.to, gap, runs.size());
         }
-        return gap;
+        return new Leading(edge, gap);
+    }
+
+    /**
+     * The owner, after the gap was made one: a button's icon still stood far from the button's edge,
+     * 23 px against a combo's 13.5 px at 1x, because the button kept its wide caption padding on the
+     * icon's side too. An icon stands from the edge of a button as it does from the edge of a combo or
+     * a field, at the button's own width and stretched wider, and the caption keeps the button's
+     * padding on its own side.
+     */
+    @Test
+    void aButtonsIconStandsAsFarFromItsEdgeAsAComboIconDoes() {
+        List<String> failures = new ArrayList<>();
+        for (float scale : new float[] {1f, 2f}) {
+            float pixel = 1.05f / scale;
+            for (ControlSize size : ControlSize.values()) {
+                for (LayoutDirection direction : LayoutDirection.values()) {
+                    Leading combo = leading(() -> new ComboBox<>(List.of(CAPS)).setSelectedIndex(0)
+                            .setItemIcon(item -> SvgIcon.of(SQUARE)), size, scale, direction, "ComboBox", 240);
+                    Leading field = leading(() -> new TextField().setText(CAPS).setLeadingIcon(SvgIcon.of(SQUARE)),
+                            size, scale, direction, "TextField", 240);
+                    for (float width : new float[] {NATURAL, 240}) {
+                        Leading button = leading(() -> new Button(CAPS).setIcon(SvgIcon.of(SQUARE)),
+                                size, scale, direction, "Button", width);
+                        if (Math.abs(button.edge() - combo.edge()) > pixel || Math.abs(field.edge() - combo.edge()) > pixel) {
+                            failures.add(String.format(Locale.ROOT, "%s %.0fx %s %s: edge to icon combo %.2f, button %.2f,"
+                                            + " field %.2f pt", size, scale, direction, width > 0 ? "stretched" : "natural",
+                                    combo.edge(), button.edge(), field.edge()));
+                        }
+                    }
+                }
+            }
+        }
+        assertTrue(failures.isEmpty(), "a button's icon stands off from its edge: " + failures);
+    }
+
+    /** A button that is only an icon keeps the icon in the middle of its box, as it always has. */
+    @Test
+    void anIconOnlyButtonKeepsItsIconCentred() {
+        for (float scale : new float[] {1f, 2f}) {
+            for (ControlSize size : ControlSize.values()) {
+                for (LayoutDirection direction : LayoutDirection.values()) {
+                    Widget<?> button = new Button("").setIcon(SvgIcon.of(SQUARE)).setControlSize(size);
+                    Placed placed = render(button, scale, 20, 20, NATURAL, direction);
+                    Inner in = inner(button, placed, scale);
+                    List<Span> runs = columnRuns(placed.image, in.x0, in.y0, in.x1, in.y1, 2);
+                    assertEquals(1, runs.size(), "one icon: " + runs);
+                    float centre = (placed.left + button.width() / 2) * scale;
+                    assertEquals(centre, runs.get(0).centre(), 1.05f,
+                            size + " " + scale + "x " + direction + ": the icon in the middle of " + runs);
+                }
+            }
+        }
     }
 
     // ------------------------------------------------------------------ D7: a period packs
@@ -368,8 +435,9 @@ class ControlInkPixelTest {
     private Placed render(Widget<?> widget, float scale, float top, float left, float width,
                           LayoutDirection direction) {
         // A column, so the box is the width asked for and not the window's.
+        // A width of zero or less leaves the widget at the width it asks for.
         Column column = new Column();
-        column.add(new SizedBox(width, SizedBox.UNSET, widget));
+        column.add(width > 0 ? new SizedBox(width, SizedBox.UNSET, widget) : widget);
         Scene scene = new Scene(new Padding(new Insets(top, 0, 0, left), column));
         if (direction != null) {
             scene.setLayoutDirection(direction);
