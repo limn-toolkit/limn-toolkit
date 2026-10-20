@@ -1080,8 +1080,7 @@ public final class Scene {
         // (the button that triggered the dialog), if it is still usable.
         if (restore != null && restore != overlay && isInSubtree(restore, keyboardRoot())
                 && canTakeFocus(restore)) {
-            // The overlay closing is what moved the focus, not whoever closed it.
-            setFocus(restore, Change.Origin.ADJUSTMENT);
+            giveFocusBack(restore);
         } else {
             setFocus(null, Change.Origin.ADJUSTMENT);
         }
@@ -3556,6 +3555,12 @@ public final class Scene {
             }
 
             @Override
+            public boolean focusReturnedFromOverlay(Widget<?> widget) {
+                Scene scene = widget.scene();
+                return scene != null && scene.focusReturning == widget;
+            }
+
+            @Override
             public boolean namedByApplication(Widget<?> widget) {
                 return widget.accessibleName() != null || widget.accessibleLabelledBy() != null
                         || widget.tooltipSource() != null;
@@ -3925,13 +3930,30 @@ public final class Scene {
         Widget<?> restore = overlayFocusReturn.get(index);
         if (restore != null && restore != overlay && isInSubtree(restore, keyboardRoot())
                 && canTakeFocus(restore)) {
-            setFocus(restore, Change.Origin.ADJUSTMENT);
+            giveFocusBack(restore);
         } else {
             setFocus(null, Change.Origin.ADJUSTMENT);
         }
         invalidateAccessible();
         requestRender();
     }
+
+    /**
+     * Gives {@code restore} the focus an overlay took from it, as the overlay closes, telling it so
+     * while it gains it ({@link limn.scene.internal.SceneAccess#focusReturnedFromOverlay}): the
+     * overlay closing is what moved the focus, not whoever closed it.
+     */
+    private void giveFocusBack(Widget<?> restore) {
+        focusReturning = restore;
+        try {
+            setFocus(restore, Change.Origin.ADJUSTMENT);
+        } finally {
+            focusReturning = null;
+        }
+    }
+
+    /** The widget an overlay closing is giving the focus back to, while it is told; else {@code null}. */
+    private @Nullable Widget<?> focusReturning;
 
     /** @return whether {@code overlay} leaves the keyboard with the layer beneath it */
     boolean leavesKeyboardBelow(Widget<?> overlay) {

@@ -417,6 +417,63 @@ class DialogCancelRequestTest extends ComponentTestBase {
         assertOpen(mode.name());
     }
 
+    /**
+     * The question's Cancel gives the form back as it was left, the selection in its field
+     * included, in both modes: in the scene the question took the keyboard from the field, whose
+     * loss of it dropped its selection, and the keyboard came back to a bare caret, so the next key
+     * typed was inserted where it should have replaced what the user had selected. A selection made
+     * backwards comes back backwards, and a TextArea's as a TextField's.
+     */
+    @ParameterizedTest
+    @EnumSource(DisplayMode.class)
+    void theQuestionsCancelGivesTheFormBackWithItsSelection(DisplayMode mode) {
+        TextField name = new TextField().setText("Harbor Supply");
+        TextField email = new TextField().setText("orders@harborsupply.example");
+        TextArea notes = new TextArea().setText("Deliveries on Tuesdays");
+        limn.scene.layout.Column fields = new limn.scene.layout.Column();
+        fields.add(name);
+        fields.add(email);
+        fields.add(notes);
+        List<Dialog> opened = new ArrayList<>();
+        open(mode, new Dialog("Edit customer", "").setContent(fields)
+                .addButton("Cancel", "cancel").addPrimaryButton("Save", "save").setCancelResult("cancel"),
+                request -> question(mode, opened).show(host).thenAccept(answer -> {
+                    if ("cancel".equals(answer)) {
+                        request.refuse();
+                    } else {
+                        request.dialog().dismiss(answer);
+                    }
+                }));
+
+        keys.requestFocus(email);
+        email.select(9, 3); // backwards: the caret at 3
+        settle();
+        press(Keys.ESCAPE);
+        assertEquals(1, opened.size(), "the question is open");
+        Scene question = mode == DisplayMode.IN_SCENE ? host : opened.get(0).contentRoot().scene();
+        drive(question).press(Keys.ESCAPE);
+        settle();
+        assertOpen(mode + ", the question's Cancel");
+        assertSame(email, keys.focusedWidget(), mode + ": the keyboard is back in the field");
+        assertEquals(3, email.selectionStart(), mode + ": the selection is back");
+        assertEquals(9, email.selectionEnd(), mode + ": the selection is back");
+        assertEquals(3, email.caretPosition(), mode + ": with its caret where it was");
+        drive(keys).type("X");
+        settle();
+        assertEquals("ordXrborsupply.example", email.text(), mode + ": the next key replaces the selection");
+
+        keys.requestFocus(notes);
+        notes.select(4, 10);
+        settle();
+        press(Keys.ESCAPE);
+        question = mode == DisplayMode.IN_SCENE ? host : opened.get(1).contentRoot().scene();
+        drive(question).press(Keys.ESCAPE);
+        settle();
+        assertSame(notes, keys.focusedWidget(), mode + ": the keyboard is back in the notes");
+        assertEquals(4, notes.selectionStart(), mode + ": the notes' selection is back");
+        assertEquals(10, notes.selectionEnd(), mode + ": the notes' selection is back");
+    }
+
     // ------------------------------------------------------------- what is never asked
 
     @ParameterizedTest

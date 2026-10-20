@@ -122,7 +122,10 @@ Rules for the time a request is unanswered:
    every request. `isAnswered()` says whether `allow()` or `refuse()` has been called, as on a
    window's and a tab's request (amended 2026-10-20, section 5).
 4. **The keyboard is not moved by the request.** A dialog opened over the form takes it, and gives
-   it back to the form when it closes, which is what stacking already does.
+   it back to the form when it closes, which is what stacking already does: to the same field, with
+   the selection it had, in both display modes (amended 2026-10-20, section 5). What an input
+   method was composing in that field is not kept in the scene: the question taking the keyboard
+   ends the composition, as a window losing the focus ends one on most systems.
 
 ### 2.5 A handler that throws
 
@@ -195,3 +198,14 @@ and the tab's mean "`allow()` or `refuse()` has been called". It now means the l
 one word, one meaning. A settled request still takes its late answer silently, as rule 3 of 2.4
 says, and a second answer throws as everywhere; whether the dialog has closed is its `result()`'s
 to say, which `dialog()` now reaches.
+
+### 2026-10-20: the form comes back with its selection in the scene too
+
+"As it was left" held in a window of its own, where the question takes only the window's focus and
+the field keeps its selection, and not in the scene, where the question takes the keyboard from the
+field, whose loss of it drops its selection: the keyboard came back to a bare caret, and the next
+key typed was inserted where it should have replaced what was selected (R6G-4). A field or a text
+area given the focus back by an overlay that closes now takes back the selection it let go of,
+with its caret at the same end, when its text is unchanged; a menu that took the keyboard gives it
+back the same way.
+
