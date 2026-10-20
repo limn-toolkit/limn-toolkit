@@ -713,15 +713,43 @@ that the text above does not say, dated where it departs from it.
     from a plain button.
   - **A hidden anchor** (every host, not this record's alone): a popup now closes when its anchor
     is no longer shown, hidden itself or with a container, a tab strip's page or an expander, as
-    when it leaves. The tab strip keeps its list button while the list is open, so the list does
-    not go as soon as the tabs left fit. A child a transform stops drawing is the same case for
+    when it leaves. The tab strip keeps its list button visible while the list is open: the list
+    still goes on the next turn once the tabs fit, by the close its layout posts, and the button
+    kept visible keeps that close out of the layout pass, where hiding it would now close the list. A child a transform stops drawing is the same case for
     the branch that makes it so (`Scene.observeAnchorLeaving` says where it calls in).
   - **A closing layer took presses and the focus** (every in-scene popup, menus included): a
-    press during the fade now reaches what is beneath, and the closing layer takes no focus.
+    press beside the fading card now reaches what is beneath, and the closing layer takes no
+    focus (amended by the second review below: a press on the card stays the popup's).
   - **A handler's throw** during a removal aborted it half way; every close runs, the removal,
     hide or overlay removal completes, and the first throw is rethrown after.
   `PopoverReentrancyTest`, `AnchoredPopupHiddenAnchorTest`, `AnchoredPopupClosingLayerTest` and new
   cases in `PopoverAnchorLeavesTest` and `PopoverAttachTest` hold each.
+- **The second review** (2026-10-20):
+  - **A double click on an item of a fading popup:** passing every press through a closing layer
+    sent the second click of a double click on a list's item, a date or a menu item to the control
+    under the item, still drawn: a button pressed, a word selected. A press on the fading card is
+    the popup's again, swallowed without moving the keyboard; only one beside it passes. A menu,
+    which draws its columns itself, says where through `SceneAccess.overlayCard`. In a window of
+    its own nothing changed: the second click goes to that window.
+  - **A handler that throws inside a close:** a popup's close and a popover's run every step, the
+    inner popups' closes, the teardown, the button's notice and the popover's own `onClose`, and
+    rethrow the first throw after (`HandlerFailures`); a join (a scene's root adopted elsewhere)
+    completes as a removal does; a `VirtualMachineError` leaves at once.
+  - **A refused open:** the combo box, the date picker and the tab strip ask
+    `AnchoredPopup.canOpen` before they say they are open; a date picker asked to open while
+    hidden no longer drives an invisible calendar from its field.
+  - **An editable combo box's list** is marked closing as it fades, and an anchored popup's layer
+    is focusable only when it takes the keyboard, so a press beside an open editable list leaves
+    the keyboard in its field.
+  - **Drawn, not only visible:** a popup does not hang from a widget a transform draws as nothing
+    (`SceneAccess.isDrawn`, `isShowing()` without its clipping, so a widget scrolled out of view or
+    not laid out yet still can). Closing a popup when its anchor stops being drawn is the
+    transforms branch's half, at the integration.
+  - **Window shortcuts** are offered whenever no overlay holds the keyboard: during a closing
+    popup's fade, and while an editable combo box's list is open.
+  - A popover moved from the button it was open from tells that button alone it collapsed.
+  `ClosingPopupDoubleClickTest` and new cases in `AnchoredPopupClosingLayerTest`,
+  `AnchoredPopupHiddenAnchorTest`, `PopoverReentrancyTest` and `PopoverAttachTest` hold each.
 
 ### 12.6 The input method in a popover's window, measured
 

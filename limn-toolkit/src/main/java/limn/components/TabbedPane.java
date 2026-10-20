@@ -1745,9 +1745,11 @@ public final class TabbedPane extends Widget<TabbedPane> {
         // its chevron (guarded setters, safe inside layout).
         prevButton.setVisible(overflowing);
         nextButton.setVisible(overflowing);
-        // The list's button stays while its list is open, which takes the tabs' new number as they
-        // are closed from it: a list hung from a hidden button closes, and it closed as soon as
-        // the tabs left fitted the strip, under the user still closing them from the list.
+        // The list's button stays visible while its list is open. Not to keep the list: once the
+        // tabs fit, the close posted from onLayout takes it on the next turn. To keep that close
+        // out of this pass: a popup hung from a button hidden here would close at once, inside
+        // the layout placing the tree, which that posted close exists to avoid. It goes with the
+        // layout after the list closes; meanwhile it keeps the box it last had.
         listButton.setVisible(overflowing || tabList.isOpen());
         prevButton.setEnabled(scrollOffset > 0.5f);
         nextButton.setEnabled(scrollOffset < maxOffset - 0.5f);

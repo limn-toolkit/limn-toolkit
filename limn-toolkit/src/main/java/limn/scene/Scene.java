@@ -2168,7 +2168,8 @@ public final class Scene {
      *
      * <p>For the integration of a Transform that stops drawing a child (a back face, a scale of
      * 0): such a child no longer shown is the same case, and the place that decides it calls
-     * {@link #anchorsLeaving} for it as {@code Widget}'s visibility path does.
+     * {@link #anchorsLeaving} for it as {@code Widget}'s visibility path does. A popup already
+     * refuses to open from such a child ({@code SceneAccess.isDrawn}).
      *
      * @param anchor the widget the popup hangs from
      * @param gone   takes the popup down
