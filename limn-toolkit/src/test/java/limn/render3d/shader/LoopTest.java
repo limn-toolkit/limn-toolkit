@@ -326,4 +326,21 @@ class LoopTest {
         assertDoesNotThrow(() -> SurfaceOutputs.of(Expr.Lit.of(0f, 0f, 0f, 1f), new Expr.Ref("u_ir", ShaderType.FLOAT),
                 Expr.Lit.of(1f), Expr.Lit.of(0f, 0f, 0f)));
     }
+
+    @Test
+    void theFactoryTakesTheListsAndFunctionsACallerAlreadyHolds() {
+        // Lists and functions typed narrower than Expr, as a caller's own code types them.
+        List<Expr.Lit> start = List.of(Expr.Lit.of(0f, 0f, 0f, 0f), Expr.Lit.of(0f));
+        java.util.function.Function<List<Expr>, List<Expr.Binary>> step = s -> List.of(
+                new Expr.Binary(Expr.Op.ADD, s.get(0), Expr.Lit.of(0.1f, 0.1f, 0.1f, 0.1f)),
+                new Expr.Binary(Expr.Op.ADD, s.get(1), Expr.Lit.of(1f)));
+        java.util.function.Function<List<Expr>, Expr.Binary> opaque = s -> new Expr.Binary(Expr.Op.SUB,
+                new Expr.Swizzle(s.get(0), "w"), Expr.Lit.of(0.99f));
+        assertEquals(ShaderType.FLOAT, Expr.Loop.of(start, 8, step).value(1).type());
+        assertEquals(ShaderType.VEC4, Expr.Loop.of(start, 8, step, opaque).type());
+        java.util.function.Function<Expr, Expr.Binary> once = s -> new Expr.Binary(Expr.Op.ADD, s, Expr.Lit.of(1f));
+        java.util.function.Function<Object, Expr.Swizzle> anyX = s -> new Expr.Swizzle((Expr) s, "x");
+        assertEquals(ShaderType.FLOAT, Expr.Loop.of(Expr.Lit.of(0f), 8, once).type());
+        assertEquals(ShaderType.VEC2, Expr.Loop.of(ORIGIN, 8, LoopTest::step, anyX).type());
+    }
 }

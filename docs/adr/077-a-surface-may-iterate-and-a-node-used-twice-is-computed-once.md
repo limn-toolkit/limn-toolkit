@@ -350,3 +350,11 @@ names the variables itself (`ir_s…`).
   only a state name read outside its loop, so a reference to `ir_s0` beside a loop was written
   bare and read that loop's variable. It now refuses any name starting `ir_` that no loop binds:
   those are a loop's states or the generator's own variables, and inputs may not take them.
+- **2026-10-20, review 9: the factory's generic shapes, decided before 1.0.** `Loop.of` took
+  `List<Expr>` and `UnaryOperator<Expr>` / `UnaryOperator<List<Expr>>`, so a list a caller held as
+  `List<Expr.Lit>`, or a function typed to return `Expr.Binary`, did not compile, and a function
+  type is frozen with the method's descriptor. The forms are now `Expr initial` with
+  `Function<? super Expr, ? extends Expr>` for `next` and `until`, and `List<? extends Expr>
+  initial` with `Function<? super List<Expr>, ? extends List<? extends Expr>> next` and
+  `Function<? super List<Expr>, ? extends Expr> until`: the widest that still hands the turn a
+  `List<Expr>` of the state. A lambda reads as before.

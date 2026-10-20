@@ -303,7 +303,8 @@ public sealed interface Expr
          * @return the loop, whose value is the state after the last turn
          * @throws IllegalArgumentException as the constructor
          */
-        public static Loop of(Expr initial, int maxIterations, java.util.function.UnaryOperator<Expr> next) {
+        public static Loop of(Expr initial, int maxIterations,
+                              java.util.function.Function<? super Expr, ? extends Expr> next) {
             java.util.Objects.requireNonNull(next, "next");
             return build(List.of(initial), maxIterations, state -> List.of(next.apply(state.get(0))), null);
         }
@@ -319,8 +320,9 @@ public sealed interface Expr
          * @return the loop, whose value is the state when it ends
          * @throws IllegalArgumentException as the constructor
          */
-        public static Loop of(Expr initial, int maxIterations, java.util.function.UnaryOperator<Expr> next,
-                              java.util.function.UnaryOperator<Expr> until) {
+        public static Loop of(Expr initial, int maxIterations,
+                              java.util.function.Function<? super Expr, ? extends Expr> next,
+                              java.util.function.Function<? super Expr, ? extends Expr> until) {
             java.util.Objects.requireNonNull(next, "next");
             java.util.Objects.requireNonNull(until, "until");
             return build(List.of(initial), maxIterations, state -> List.of(next.apply(state.get(0))),
@@ -336,8 +338,8 @@ public sealed interface Expr
          * @return the loop, whose first value it is; {@link #value(int)} reads the others
          * @throws IllegalArgumentException as the constructor
          */
-        public static Loop of(List<Expr> initial, int maxIterations,
-                              java.util.function.UnaryOperator<List<Expr>> next) {
+        public static Loop of(List<? extends Expr> initial, int maxIterations,
+                              java.util.function.Function<? super List<Expr>, ? extends List<? extends Expr>> next) {
             return build(initial, maxIterations, next, null);
         }
 
@@ -352,9 +354,9 @@ public sealed interface Expr
          * @return the loop, whose first value it is; {@link #value(int)} reads the others
          * @throws IllegalArgumentException as the constructor
          */
-        public static Loop of(List<Expr> initial, int maxIterations,
-                              java.util.function.UnaryOperator<List<Expr>> next,
-                              java.util.function.Function<List<Expr>, Expr> until) {
+        public static Loop of(List<? extends Expr> initial, int maxIterations,
+                              java.util.function.Function<? super List<Expr>, ? extends List<? extends Expr>> next,
+                              java.util.function.Function<? super List<Expr>, ? extends Expr> until) {
             return build(initial, maxIterations, next, java.util.Objects.requireNonNull(until, "until"));
         }
 
@@ -365,9 +367,9 @@ public sealed interface Expr
          * and a method that builds a loop builds an equal one each time, which the generator then
          * computes once.
          */
-        private static Loop build(List<Expr> initial, int maxIterations,
-                                  java.util.function.UnaryOperator<List<Expr>> next,
-                                  java.util.function.@org.jspecify.annotations.Nullable Function<List<Expr>, Expr> until) {
+        private static Loop build(List<? extends Expr> initial, int maxIterations,
+                                  java.util.function.Function<? super List<Expr>, ? extends List<? extends Expr>> next,
+                                  java.util.function.@org.jspecify.annotations.Nullable Function<? super List<Expr>, ? extends Expr> until) {
             java.util.Objects.requireNonNull(next, "next");
             List<Expr> start = List.copyOf(initial);
             String building = Loops.BUILDING_PREFIX + BUILDING.getAndIncrement() + "_";
@@ -376,10 +378,11 @@ public sealed interface Expr
                 state.add(new Ref(building + i, start.get(i).type()));
             }
             List<Expr> handed = List.copyOf(state);
-            List<Expr> after = next.apply(handed);
-            if (after == null) {
+            List<? extends Expr> returned = next.apply(handed);
+            if (returned == null) {
                 throw new IllegalArgumentException("next gave no state");
             }
+            List<Expr> after = List.copyOf(returned);
             Expr end = until == null ? null : until.apply(handed);
             List<Expr> turn = new java.util.ArrayList<>(after);
             if (end != null) {
