@@ -252,13 +252,15 @@ public sealed interface Expr
      *
      * <p><b>Bounded across a whole surface.</b> The count is a constant from 1 to
      * {@link #MAX_ITERATIONS}, and so is every turn a pixel takes in all the loops of one surface.
-     * Loops side by side, and a loop in another's initial value, add their turns; a loop in
-     * another's turn that reads the other's state multiplies by that loop's count: a loop of 32
-     * turns may hold one of 32, not one of 64, nor two of 32 side by side. A loop in a turn that
-     * reads nothing of that loop's state is computed once, before it, and counted once, as is a
-     * loop read twice, for one value or several, or two built alike. A loop holds itself and what it holds to the
-     * cap, and {@link SurfaceOutputs} holds the whole surface, counting the turns of its diffuse
-     * response once for each of the eight lights a pass shades with at most. So no surface asks a
+     * The count is what the generated shader runs: a loop runs once for each turn of the innermost
+     * loop whose state it reads, however deep it was built, and once for the surface when it reads
+     * none; loops side by side, and a loop in another's initial value, add their turns; a loop
+     * read twice, for one value or several, or two built alike, is computed and counted once where
+     * it is first written. So a loop of 32 turns may hold one of 32 that reads its state, not one
+     * of 64 nor two of 32 side by side, and it may hold a loop of 512 that reads none. A loop holds
+     * itself and what it holds to the cap, and {@link SurfaceOutputs} holds the whole surface,
+     * counting the turns of its diffuse response once for each of the eight lights a pass shades
+     * with at most. So no surface asks a
      * pixel for more than {@value #MAX_ITERATIONS} turns, in any profile. The cap bounds turns,
      * not what a turn costs, which is the surface's as it is without a loop. {@code until} is a
      * float rather than a boolean, so a threshold is a subtraction away; an iteration count, when

@@ -169,4 +169,31 @@ class SurfaceBudgetTest {
         assertThrows(IllegalArgumentException.class, () -> Expr.Loop.of(Expr.Lit.of(0f), 4,
                 s -> add(s, Expr.Loop.of(Expr.Lit.of(0f), 2, t -> add(t, counting(s, 256, 1f))))));
     }
+
+    @Test
+    void theBudgetCountsALoopWhereTheGeneratorPlacesItAcrossSeveralLevels() {
+        Expr.Loop w = counting(Expr.Lit.of(0f), 512, 1f);
+        // W reads nothing of V or O: written once, before O; V runs 4 × 4. 512 + 16.
+        Expr.Loop d1 = assertDoesNotThrow(() -> Expr.Loop.of(Expr.Lit.of(0f), 4, s -> add(s,
+                Expr.Loop.of(Expr.Lit.of(0f), 4, v -> add(add(v, s), w)))));
+        assertEquals(528, Loops.surfaceTurns(List.of(d1), null, 8));
+        // W as V's initial value: the same.
+        Expr.Loop d2 = assertDoesNotThrow(() -> Expr.Loop.of(Expr.Lit.of(0f), 4, s -> add(s, Expr.Loop.of(w, 4, v -> add(v, s)))));
+        assertEquals(528, Loops.surfaceTurns(List.of(d2), null, 8));
+        // W an output, read again in a response loop: written once at the top, read by the light
+        // loop. 120 + 8 × 4.
+        Expr.Loop w120 = counting(Expr.Lit.of(0f), 120, 1f);
+        Expr.Loop response = Expr.Loop.of(Expr.Lit.of(0f), 4, s -> add(s, w120));
+        assertEquals(152, Loops.surfaceTurns(List.of(w120), response, 8));
+        assertDoesNotThrow(() -> emitting(w120).withDiffuseResponse(response));
+        // X read directly and as A's initial value: one loop of 600 and A's 2.
+        Expr.Loop x = counting(Expr.Lit.of(0f), 600, 1f);
+        Expr.Loop a = Expr.Loop.of(x, 2, s -> add(s, Expr.Lit.of(1f)));
+        assertEquals(602, Loops.surfaceTurns(List.of(add(x, a)), null, 8));
+        assertDoesNotThrow(() -> emitting(add(x, a)));
+        // A loop that reads the state of the loop around it still runs once a turn of it.
+        Expr.Loop d3 = Expr.Loop.of(Expr.Lit.of(0f), 4, s -> add(s, Expr.Loop.of(Expr.Lit.of(0f), 4,
+                v -> add(v, counting(s, 60, 1f)))));
+        assertEquals(4 * (60 + 4), Loops.surfaceTurns(List.of(d3), null, 8));
+    }
 }

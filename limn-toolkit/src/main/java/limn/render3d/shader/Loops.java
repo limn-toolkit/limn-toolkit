@@ -257,55 +257,162 @@ final class Loops {
     // ------------------------------------------------------------------ turns
 
     /**
-     * The most turns a pixel takes in a loop of {@code maxIterations} turns over {@code turn}
-     * (its next state and its exit test) after {@code initial}, binding {@code states}: the
-     * initial values' loops once, and the turn's loops that read none of the states once with
-     * them, since they are computed before the loop; then the turn's loops that read the state, at
-     * least one turn's worth, times the count.
+     * The turns a pixel takes in a loop of {@code maxIterations} turns binding {@code states}, over
+     * {@code turn} (its next state and its exit test) after {@code initial}, written as the
+     * generator writes it on its own: see {@link Placement}.
      */
     static long turns(List<Expr> initial, int maxIterations, List<Expr> turn, List<String> states) {
-        return new Counter().turns(initial, maxIterations, turn, states);
+        Placement placement = new Placement(new Counter());
+        Placement.Block top = placement.top();
+        for (Expr start : initial) {
+            placement.visit(start, top);
+        }
+        placement.write(states, maxIterations, turn, top);
+        return placement.total;
     }
 
     /**
-     * The most turns a pixel takes computing each of {@code roots} once: the loops reached without
-     * passing through another loop add, a loop reached twice, or two built alike, counted once.
-     */
-    static long turns(List<Expr> roots) {
-        Counter counter = new Counter();
-        return counter.work(counter.frontier(roots));
-    }
-
-    /**
-     * A surface's turns a pixel when its diffuse response runs once for each of {@code lights}:
-     * the response's loops that an output also computes are computed once, before the lights.
+     * A surface's turns a pixel: its outputs computed once, its diffuse response once for each of
+     * {@code lights}, a loop the outputs already computed read by the response where it is.
      */
     static long surfaceTurns(List<Expr> outputs, @Nullable Expr response, int lights) {
         if (lights < 0) {
             throw new IllegalArgumentException("a pass shades with no fewer than 0 lights, not " + lights);
         }
-        Counter counter = new Counter();
-        Map<Integer, Expr.Loop> once = counter.frontier(outputs);
-        long total = counter.work(once);
-        if (response != null) {
-            Map<Integer, Expr.Loop> perLight = counter.frontier(List.of(response));
-            perLight.keySet().removeAll(once.keySet());
-            total = saturatedSum(total, saturatedProduct(lights, counter.work(perLight)));
+        Placement placement = new Placement(new Counter());
+        Placement.Block top = placement.top();
+        for (Expr output : outputs) {
+            placement.visit(output, top);
         }
-        return total;
+        if (response != null) {
+            placement.visit(response, placement.floor(top, lights));
+        }
+        return placement.total;
     }
 
     /**
-     * Counts turns over the IR numbered by value as the generator numbers it, each node once: a
-     * loop is counted once however many of its values are read and however many times it was
-     * built alike, and a chain of loops is walked once, not once a loop.
+     * The generator's placement of loops, followed for the loops alone, so the count is what the
+     * generated shader runs. A loop is written in the innermost block binding a name it reads, or
+     * in the block of its group that no loop binds (the top of {@code main()}, or the light loop);
+     * a loop already written in a block around it, with nothing between binding a name it reads,
+     * is read there and not written again. Its initial values are computed where it is written,
+     * its turn in its own block. The count is the turns of the innermost loops: a loop whose block
+     * holds no loop counts its own turns, times the turns of the blocks around it.
+     */
+    private static final class Placement {
+        /** A block of {@code main()}: a loop's turn, the top, or the light loop. */
+        static final class Block {
+            final @Nullable Block parent;
+            final Set<String> binds;
+            /** How many times a pixel runs this block. */
+            final long runs;
+            final boolean floor;
+            final Set<Integer> written = new java.util.HashSet<>();
+            final Set<Expr> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+            boolean holdsLoop;
+
+            Block(@Nullable Block parent, Set<String> binds, long runs, boolean floor) {
+                this.parent = parent;
+                this.binds = binds;
+                this.runs = runs;
+                this.floor = floor;
+            }
+
+            boolean bindsAny(Set<String> names) {
+                return !Collections.disjoint(binds, names);
+            }
+        }
+
+        private final Counter counter;
+        private final Map<Expr, Boolean> holdsLoop = new IdentityHashMap<>();
+        long total;
+
+        Placement(Counter counter) {
+            this.counter = counter;
+        }
+
+        Block top() {
+            return new Block(null, Set.of(), 1, true);
+        }
+
+        /** The light loop's block: a floor of its own, run once a light. */
+        Block floor(Block top, int lights) {
+            return new Block(top, Set.of(), lights, true);
+        }
+
+        /** Whether a loop is anywhere under {@code node}. */
+        private boolean holdsLoop(Expr node) {
+            Boolean known = holdsLoop.get(node);
+            if (known == null) {
+                known = node instanceof Expr.Loop;
+                for (Expr child : children(node)) {
+                    if (known) {
+                        break;
+                    }
+                    known = holdsLoop(child);
+                }
+                holdsLoop.put(node, known);
+            }
+            return known;
+        }
+
+        void visit(Expr node, Block at) {
+            if (!holdsLoop(node) || !at.visited.add(node)) {
+                return;
+            }
+            if (!(node instanceof Expr.Loop loop)) {
+                for (Expr child : children(node)) {
+                    visit(child, at);
+                }
+                return;
+            }
+            int number = counter.loopNumber(loop);
+            Set<String> reads = counter.reads(loop);
+            for (Block around = at; around != null; around = around.parent) {
+                if (around.written.contains(number)) {
+                    return; // computed already where this block reads it
+                }
+                if (around.bindsAny(reads)) {
+                    break;
+                }
+            }
+            Block home = at;
+            for (Block around = at; around != null; around = around.parent) {
+                if (around.bindsAny(reads) || around.floor) {
+                    home = around;
+                    break;
+                }
+            }
+            for (Expr start : loop.initial()) {
+                visit(start, home);
+            }
+            home.written.add(number);
+            write(loop.states(), loop.maxIterations(), turnOf(loop), home);
+        }
+
+        /** A loop's turn written in {@code home}: its own block, and its turns if it holds no loop. */
+        void write(List<String> states, int maxIterations, List<Expr> turn, Block home) {
+            home.holdsLoop = true;
+            Block body = new Block(home, Set.copyOf(states), saturatedProduct(home.runs, maxIterations), false);
+            for (Expr part : turn) {
+                visit(part, body);
+            }
+            if (!body.holdsLoop) {
+                total = saturatedSum(total, body.runs);
+            }
+        }
+    }
+
+    /**
+     * The IR numbered by value as the generator numbers it, each node once, and the names each
+     * node reads: a loop is one number however many of its values are read and however many times
+     * it was built alike.
      */
     private static final class Counter {
         private final Map<Expr, Integer> ids = new IdentityHashMap<>();
         private final Map<List<Object>, Integer> byKey = new HashMap<>();
         private final Map<Expr, Integer> loopNumbers = new IdentityHashMap<>();
         private final Map<List<Object>, Integer> byLoopKey = new HashMap<>();
-        private final Map<Integer, Long> counted = new HashMap<>();
         private final Map<Expr, Set<String>> reads = new IdentityHashMap<>();
 
         /** The IR names a node reads, a loop's own states excepted, as the generator places it by. */
@@ -382,52 +489,6 @@ final class Loops {
             int number = byLoopKey.computeIfAbsent(key, k -> byLoopKey.size());
             loopNumbers.put(loop, number);
             return number;
-        }
-
-        long turns(List<Expr> initial, int maxIterations, List<Expr> turn, List<String> states) {
-            Map<Integer, Expr.Loop> before = frontier(initial);
-            Map<Integer, Expr.Loop> each = new java.util.LinkedHashMap<>();
-            frontier(turn).forEach((number, loop) -> {
-                if (java.util.Collections.disjoint(reads(loop), states)) {
-                    before.putIfAbsent(number, loop);
-                } else {
-                    each.put(number, loop);
-                }
-            });
-            return saturatedSum(work(before), saturatedProduct(maxIterations, Math.max(1, work(each))));
-        }
-
-        /** The loops reached from {@code roots} without passing through another loop, by number. */
-        Map<Integer, Expr.Loop> frontier(List<Expr> roots) {
-            Map<Integer, Expr.Loop> loops = new java.util.LinkedHashMap<>();
-            Set<Expr> seen = Collections.newSetFromMap(new IdentityHashMap<>());
-            java.util.ArrayDeque<Expr> pending = new java.util.ArrayDeque<>(roots);
-            while (!pending.isEmpty()) {
-                Expr node = pending.pop();
-                if (!seen.add(node)) {
-                    continue;
-                }
-                if (node instanceof Expr.Loop loop) {
-                    loops.putIfAbsent(loopNumber(loop), loop);
-                } else {
-                    pending.addAll(children(node));
-                }
-            }
-            return loops;
-        }
-
-        long work(Map<Integer, Expr.Loop> loops) {
-            long sum = 0;
-            for (Map.Entry<Integer, Expr.Loop> entry : loops.entrySet()) {
-                Long turns = counted.get(entry.getKey());
-                if (turns == null) {
-                    Expr.Loop loop = entry.getValue();
-                    turns = turns(loop.initial(), loop.maxIterations(), turnOf(loop), loop.states());
-                    counted.put(entry.getKey(), turns);
-                }
-                sum = saturatedSum(sum, turns);
-            }
-            return sum;
         }
     }
 

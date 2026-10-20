@@ -110,10 +110,11 @@ A part of `next` or `until` that does not read the state is computed once, befor
 `MAX_ITERATIONS` is **1024**, and it bounds every turn a pixel takes across a whole surface
 (amended 2026-10-20, section 7; it bounded the product along one nesting, and loops side by side
 were each counted alone). Loops side by side, and a loop in another's initial value, add their
-turns; a loop in another's turn that reads the other's state multiplies by that loop's count, so
-a loop of 32 turns may hold one of 32, not one of 64 nor two of 32 side by side; a loop in a turn
-that reads nothing of that loop's state is computed once, before it, and counted once (amended
-2026-10-20, review 9), as is a loop read twice, or two built alike. The constructor refuses a count below 1 or above the cap and a
+turns; a loop runs, and is counted, once for each turn of the innermost loop whose state it
+reads, and once for the surface when it reads none, so a loop of 32 turns may hold one of 32 that
+reads its state, not one of 64 nor two of 32 side by side; a loop read twice, or two built alike,
+is counted once where the generator first writes it (amended 2026-10-20, reviews 9 and 10: the
+count follows the generator's own placement, section 7). The constructor refuses a count below 1 or above the cap and a
 loop that, with what it holds, passes it; `SurfaceOutputs` refuses a surface that passes it,
 counting its diffuse response once for each of the eight lights a pass shades with at most
 (`RenderPass.addLight`: "up to 8; extras are ignored"). 1024 is four times what the
@@ -380,3 +381,20 @@ names the variables itself (`ir_s…`).
   with the reorder alone, 146 ms with both, the image unchanged to the last bit; on the GPU at
   640x360 and 1826x1026 every form measured 0.8 to 6 ms with readback, within the noise of that
   measurement.
+- **2026-10-20, review 10: the budget counts what the generator runs, exactly.** Review 9's fix
+  counted a turn's loop that reads nothing of the state once, but only one level deep: a loop
+  hoisted across two levels, or written once and read again from a nested loop's initial value or
+  from the light loop, was still summed into every loop that reached it. A loop of 4 holding a
+  loop of 4 that reads it and an invariant loop of 512 runs 528 turns and was refused at 2,064;
+  an output loop of 120 read again by a response loop of 4 runs 152 and was refused at 1,112; a
+  loop of 600 read directly and as another's initial value runs 602 and was refused at 1,202. The
+  count now follows the generator's placement rule for loops alone (the innermost block binding a
+  name a loop reads, or the floor of its group; a loop written in a block around, with nothing
+  between binding what it reads, is not written again; initial values where the loop is written),
+  and counts the turns of the innermost loops times the blocks around them, the light loop at
+  eight. The generator lives in a backend and the count in the toolkit, and sharing one placement
+  would make it public API frozen at 1.0, so a property test holds them together instead: three
+  hundred random surfaces (nested loops of one value and several, early ends, `value(i)`, shared
+  subtrees, loops built apart and on worker threads, looping responses) whose count must equal the
+  turns of the innermost loops of the generated `main()`, early ends ignored. It failed on the
+  first seed before this change.
