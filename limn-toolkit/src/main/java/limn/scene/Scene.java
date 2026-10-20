@@ -6298,8 +6298,10 @@ public final class Scene {
         }
         return more;
     };
-    /** A viewport's visible box, in its own coordinates. */
-    private final float[] autoScrollBox = new float[4];
+    /** The stretch of a viewport on screen along one of its axes, in its own coordinates: low, high. */
+    private final float[] autoScrollSpan = new float[2];
+    /** Scratch for {@link #seenAt}: a point carried between spaces. */
+    private final float[] seenPoint = new float[2];
 
     /** Starts the drag's auto-scroll, if it is not running: every move of a pointer drag does. */
     private void armAutoScroll() {
@@ -6357,30 +6359,37 @@ public final class Scene {
             return false;
         }
         // Past the window, what was under the pointer is what is at the window's edge nearest it.
-        Widget<?> under = hitAt(Math.max(0, Math.min(width - 0.5f, x)), Math.max(0, Math.min(height - 0.5f, y)));
+        float inX = Math.max(0, Math.min(width - 0.5f, x));
+        float inY = Math.max(0, Math.min(height - 0.5f, y));
+        Widget<?> under = hitAt(inX, inY);
         boolean verticalTaken = false;
         boolean horizontalTaken = false;
         boolean scrolled = false;
         for (Widget<?> w = under; w != null && !(verticalTaken && horizontalTaken); w = w.parent()) {
-            boolean boxed = false;
             Vec2 local = null;
+            Vec2 anchor = null;
             for (Widget<?> child : w.children()) {
                 limn.scene.internal.DragScrollAxis axis = child.dragScrollAxis;
                 if (axis == null || (axis.vertical() ? verticalTaken : horizontalTaken)) {
                     continue;
                 }
-                if (!boxed) {
-                    boxed = true;
-                    local = visibleBox(w, autoScrollBox) ? w.sceneToLocal(x, y) : null;
+                if (local == null) {
+                    local = w.sceneToLocal(x, y);
+                    // The point the span is measured through: the pointer, or past the window
+                    // the point at its edge that the pointer is over.
+                    anchor = outside ? w.sceneToLocal(inX, inY) : local;
                 }
-                if (local == null || Float.isNaN(local.x()) || Float.isNaN(local.y())) {
+                if (Float.isNaN(local.x()) || Float.isNaN(local.y())) {
                     continue;
                 }
-                float[] box = autoScrollBox;
                 boolean vertical = axis.vertical();
+                float[] span = autoScrollSpan;
+                if (!visibleSpan(w, anchor.x(), anchor.y(), vertical, span)) {
+                    continue;
+                }
                 float along = vertical ? local.y() : local.x();
-                float low = vertical ? box[1] : box[0];
-                float high = vertical ? box[3] : box[2];
+                float low = span[0];
+                float high = span[1];
                 // The band and the speed are the window's points: carried into the viewport's own,
                 // which a scale shown at a quarter of its size makes four times as many.
                 float perPoint = windowPointsPerPoint(w, local, vertical);
@@ -6460,67 +6469,80 @@ public final class Scene {
         }
     }
 
+    /** Halvings that close in on where a viewport stops being seen: its size to well under a point. */
+    private static final int SEEN_HALVINGS = 24;
+
     /**
-     * The part of {@code widget}'s box that is on screen, in its own coordinates: its box cut by
-     * every ancestor that clips it and by the window, each carried into the widget's coordinates
-     * through the conversions a transform takes part in.
+     * The stretch of {@code widget} that is on screen along one of its own axes, on the line of
+     * that axis through {@code (atX, atY)}: where that line leaves the widget's box, an ancestor
+     * that clips it, the window, or the part of the widget's plane drawn in front of the eye,
+     * whichever comes first each way. Taken on the line through the pointer rather than as one box
+     * round all that is seen, because under a perspective the window's edges run aslant in the
+     * widget's coordinates and its horizon is where the plane stops being drawn: a box round the
+     * window's corners carried in reached past the window's side edge, nearer the far end, so the
+     * pointer resting there was not near that box's edge; and with the window's top corners past
+     * the horizon, which carry in to nothing, the bottom two alone made it an empty strip, so a
+     * view steeply tilted and wholly on screen never scrolled under a drag. What is seen along the
+     * line is one stretch, every bound being convex, so it is found by halving from the point out.
      *
-     * @param out four floats to fill: left, top, right, bottom
-     * @return whether anything of it is on screen
+     * @param out two floats to fill: the stretch's low and high end along the axis
+     * @return whether the point itself is seen, so that the stretch exists
      */
-    private boolean visibleBox(Widget<?> widget, float[] out) {
-        out[0] = 0;
-        out[1] = 0;
-        out[2] = widget.width();
-        out[3] = widget.height();
+    private boolean visibleSpan(Widget<?> widget, float atX, float atY, boolean vertical, float[] out) {
+        if (!seenAt(widget, atX, atY)) {
+            return false;
+        }
+        out[0] = seenTo(widget, atX, atY, vertical, 0);
+        out[1] = seenTo(widget, atX, atY, vertical, vertical ? widget.height() : widget.width());
+        return out[1] > out[0];
+    }
+
+    /** How far the seen stretch reaches from {@code (atX, atY)} toward {@code end} along the axis. */
+    private float seenTo(Widget<?> widget, float atX, float atY, boolean vertical, float end) {
+        if (seenAt(widget, vertical ? atX : end, vertical ? end : atY)) {
+            return end;
+        }
+        float in = vertical ? atY : atX;
+        float out = end;
+        for (int i = 0; i < SEEN_HALVINGS; i++) {
+            float mid = (in + out) / 2;
+            if (seenAt(widget, vertical ? atX : mid, vertical ? mid : atY)) {
+                in = mid;
+            } else {
+                out = mid;
+            }
+        }
+        return in;
+    }
+
+    /**
+     * Whether a point of {@code widget}'s box is on screen: drawn in front of the eye, inside the
+     * window, and inside every ancestor that clips it, each checked in its own coordinates.
+     */
+    private boolean seenAt(Widget<?> widget, float x, float y) {
+        if (!(x >= 0 && x <= widget.width() && y >= 0 && y <= widget.height())) {
+            return false;
+        }
+        float[] p = seenPoint;
+        widget.localToScene(x, y, p);
+        float sceneX = p[0];
+        float sceneY = p[1];
+        if (!(sceneX >= 0 && sceneX <= width && sceneY >= 0 && sceneY <= height)) {
+            return false; // NaN, behind the eye, fails too
+        }
         Widget<?> below = widget;
         for (Widget<?> node = widget.parent(); node != null; below = node, node = node.parent()) {
             if (node.clipsChildren()) {
+                node.sceneToLocal(sceneX, sceneY, p);
                 float cx = node.clipX(below);
                 float cy = node.clipY(below);
-                Vec2 corner = node.localToScene(cx, cy);
-                Vec2 far = node.localToScene(cx + node.clipWidth(below), cy + node.clipHeight(below));
-                Vec2 a = node.localToScene(cx + node.clipWidth(below), cy);
-                Vec2 b = node.localToScene(cx, cy + node.clipHeight(below));
-                if (!cut(widget, out, corner.x(), corner.y(), far.x(), far.y(), a.x(), a.y(), b.x(), b.y())) {
+                if (!(p[0] >= cx && p[0] <= cx + node.clipWidth(below)
+                        && p[1] >= cy && p[1] <= cy + node.clipHeight(below))) {
                     return false;
                 }
             }
         }
-        return cut(widget, out, 0, 0, width, height, width, 0, 0, height);
-    }
-
-    /**
-     * Narrows {@code out} to the box, in {@code widget}'s coordinates, around four scene points.
-     *
-     * @return whether anything is left
-     */
-    private boolean cut(Widget<?> widget, float[] out, float x0, float y0, float x1, float y1, float x2, float y2,
-            float x3, float y3) {
-        float minX = Float.POSITIVE_INFINITY;
-        float minY = Float.POSITIVE_INFINITY;
-        float maxX = Float.NEGATIVE_INFINITY;
-        float maxY = Float.NEGATIVE_INFINITY;
-        float[] xs = {x0, x1, x2, x3};
-        float[] ys = {y0, y1, y2, y3};
-        for (int i = 0; i < 4; i++) {
-            Vec2 p = widget.sceneToLocal(xs[i], ys[i]);
-            if (Float.isNaN(p.x()) || Float.isNaN(p.y())) {
-                continue; // a corner behind the eye: the others bound what is seen
-            }
-            minX = Math.min(minX, p.x());
-            minY = Math.min(minY, p.y());
-            maxX = Math.max(maxX, p.x());
-            maxY = Math.max(maxY, p.y());
-        }
-        if (minX > maxX) {
-            return true; // nothing of it maps: it narrows nothing
-        }
-        out[0] = Math.max(out[0], minX);
-        out[1] = Math.max(out[1], minY);
-        out[2] = Math.min(out[2], maxX);
-        out[3] = Math.min(out[3], maxY);
-        return out[2] > out[0] && out[3] > out[1];
+        return true;
     }
 
     /** The largest part of a widget shown under the pointer when the source names none. */

@@ -415,6 +415,67 @@ class DragAutoScrollTest {
     }
 
     /**
+     * A view tilted away under a perspective scrolls at every edge of it that is on screen, however
+     * steep the tilt. The box of the view that is on screen was the window's corners carried into
+     * the view; under a tilt steep enough that the window's top corners lie past the plane's
+     * horizon, those two mapped to nothing and were skipped, the bottom two alone bounded the box,
+     * which came out empty, and a view wholly on screen never scrolled under a drag, at any edge.
+     * At 45 degrees with the eye 600 points away every corner maps; at 60 degrees with the eye 300
+     * points away the top two do not.
+     */
+    @Test
+    void aViewTiltedUnderAPerspectiveScrollsAtEachEdgeOnScreen() {
+        limn.transfer.Offer files = Transfer.of(DataFormat.FILES, List.of(java.nio.file.Path.of("a.txt"))).asOffer();
+        for (float[] tilt : new float[][] {{45, 600}, {60, 300}}) {
+            String what = tilt[0] + " degrees, eye at " + tilt[1];
+            ScrollView view = new ScrollView(new Sheet(3 * W, 100_000), true, true);
+            Transform tilted = new Transform(view).setPerspective(tilt[1]).setMatrix(limn.math.Mat4.rotation(
+                    limn.math.Quat.fromAxisAngle(new limn.math.Vec3(1, 0, 0), (float) Math.toRadians(tilt[0]))));
+            show(tilted);
+            if (tilt[0] == 60) {
+                assertTrue(Float.isNaN(view.sceneToLocal(0, 0).y()) && Float.isNaN(view.sceneToLocal(W, 0).y()),
+                        "sanity: the window's top corners lie past the horizon");
+            }
+            view.scrollTo(W, 50_000); // room both ways on both axes
+            frames(0.1, 60);
+            Rect seen = onScreen(view);
+            float top = Math.max(0, seen.y());
+            float bottom = Math.min(H, seen.bottom());
+            float middle = (top + bottom) / 2;
+            // A line of the view across is a line across the screen under a tilt about x: the
+            // view's left and right edges at the middle's height, or the window's where nearer.
+            limn.math.Vec2 centre = view.sceneToLocal(W / 2, middle);
+            float left = Math.max(0, view.localToScene(0, centre.y()).x());
+            float right = Math.min(W, view.localToScene(view.width(), centre.y()).x());
+            limn.backend.spi.WindowInput input = limn.scene.internal.SceneAccess.input(scene);
+            float[][] probes = {{W / 2, bottom - 12}, {W / 2, top + 12}, {left + 12, middle}, {right - 12, middle}};
+            String[] edges = {"bottom", "top", "left", "right"};
+            for (int i = 0; i < probes.length; i++) {
+                float[] at = probes[i];
+                limn.math.Vec2 local = view.sceneToLocal(at[0], at[1]);
+                assertTrue(local.x() >= 0 && local.x() <= view.width() && local.y() >= 0 && local.y() <= view.height(),
+                        what + ": sanity, the " + edges[i] + " probe is on the view: " + local);
+                input.dragOver(files, Set.of(DropAction.COPY), at[0], at[1]);
+                frames(0.1, 60);
+                float x0 = view.offsetX();
+                float y0 = view.offsetY();
+                frames(1, 60);
+                float dx = view.offsetX() - x0;
+                float dy = view.offsetY() - y0;
+                switch (edges[i]) {
+                    case "bottom" -> assertTrue(dy > 50, what + ": at the bottom edge it scrolls down, " + dy);
+                    case "top" -> assertTrue(dy < -50, what + ": at the top edge it scrolls up, " + dy);
+                    case "left" -> assertTrue(dx < -10, what + ": at the left edge it scrolls left, " + dx);
+                    default -> assertTrue(dx > 10, what + ": at the right edge it scrolls right, " + dx);
+                }
+                input.dragOver(files, Set.of(DropAction.COPY), W / 2, middle);
+                frames(0.1, 60);
+            }
+            input.dragLeft();
+        }
+    }
+
+    /**
      * The band and the speed are the screen's points, whatever scale a view is shown at. Until
      * 2026-10-20 they were the view's own: a view shown at a quarter of its size had a band six
      * points deep on screen, and one shown at twice its size scrolled at twice the speed on screen

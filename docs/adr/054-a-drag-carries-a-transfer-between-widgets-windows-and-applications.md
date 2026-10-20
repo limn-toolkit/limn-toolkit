@@ -570,3 +570,14 @@ Review of the auto-scroll (2026-10-20):
   in and the bound was 4800 a second. Each is now carried into the viewport's points through the
   scale along the axis at the pointer, so the edge feels the same at any scale, and the content
   passes the eye as fast; the quarter of the viewport that bounds the band stays the viewport's.
+- **What is on screen is measured on the line through the pointer** (2026-10-20, later). The
+  viewport's part on screen was one box: its own box cut by every clipping ancestor and the
+  window, each carried in by its four corners, a corner that carried to nothing (past the horizon
+  of a plane tilted under a perspective) skipped. With the window's top corners past the horizon,
+  at 60 degrees with the eye 300 points away, the bottom two alone made the box an empty strip,
+  and a tilted view wholly on screen never scrolled at any edge; and under such a tilt the
+  window's sides run aslant in the viewport's coordinates, so a box round them reached past the
+  side the pointer rested at. The edge the band is measured from is now where the viewport's axis
+  line through the pointer stops being seen, by its box, a clipping ancestor, the window or the
+  horizon, found by halving from the pointer out (R8D-2). `DragAutoScrollTest` holds each edge at
+  45 degrees with the eye at 600 and at 60 degrees with the eye at 300.

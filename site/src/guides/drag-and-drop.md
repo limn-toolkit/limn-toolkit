@@ -157,7 +157,7 @@ starts gently and goes faster the nearer the edge. A drag that keeps to its wind
 (`withinWindow()`) is followed past the window's edge too, faster the farther, up to a bound. A list inside a page scrolls first, and when it has reached its end the
 page around it takes over, if the pointer is near the page's edge too; a list the pointer has
 left for the page around it stays where it was. It works the same reading right to left, and
-for a view that is turned or scaled. Files dragged in from another program scroll the window in
+for a view that is turned, scaled or tilted under a perspective, at each of its edges on screen. Files dragged in from another program scroll the window in
 the same way.
 
 Nothing turns it on. A widget of your own that scrolls through a `ScrollBar` scrolls under a
