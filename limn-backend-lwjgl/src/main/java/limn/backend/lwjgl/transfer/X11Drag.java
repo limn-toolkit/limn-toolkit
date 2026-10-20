@@ -35,7 +35,9 @@ import static org.lwjgl.system.MemoryUtil.nmemFree;
  * alone, on a connection this class cannot read. Each window is therefore given an
  * {@code XdndProxy}: sources send what was meant for it to the clipboard's own hidden window,
  * where it is answered here for every kind of data and while the pointer hovers. The answer is
- * asked of the UI thread and sent when it comes; nothing waits on anything.
+ * asked of the UI thread and sent when it comes; nothing waits on anything. A source that goes
+ * round the proxy after its first position, to talk to GLFW's window itself, is followed by
+ * reading the pointer ({@code X11DragFollow}).
  *
  * <p><b>As a source.</b> X has no drag of its own to hand a session to: the source follows the
  * pointer itself. While a drag of ours lasts the thread asks the server where the pointer is
@@ -92,6 +94,10 @@ public final class X11Drag {
     private boolean finishAccepted;
     private @Nullable DropAction finishAction;
     private long finishDeadline;
+    /** The drag over a window of ours, followed by the pointer once its source went round the proxy. */
+    private final X11DragFollow follow = new X11DragFollow();
+    /** What this side last answered the source of the drag over a window of ours. */
+    private @Nullable DropAction answered;
 
     // A drag of ours.
     private @Nullable DragRequest outgoing;
@@ -292,6 +298,7 @@ public final class X11Drag {
         long l3 = memGetAddress(event + 80);
         long l4 = memGetAddress(event + 88);
         if (type == enter) {
+            follow.stop();
             incomingSource = l0;
             incomingTarget = windows.get(memGetAddress(event + 32));
             List<String> names = new ArrayList<>();
@@ -355,6 +362,11 @@ public final class X11Drag {
             });
         } else if (type == leave && l0 == incomingSource) {
             Entry over = incomingTarget;
+            if (over != null && incomingOffer != null && follow.keepsAfterLeave(sample(over),
+                    ClipboardTypes.canonical(incomingSpellings), incomingDropped)) {
+                followFrom(over);
+                return;
+            }
             forgetIncoming();
             if (over != null) {
                 ui.post(() -> left(over));
@@ -406,6 +418,7 @@ public final class X11Drag {
      * with an empty rectangle asks for a position at every move.
      */
     private void answer(long source, Entry over, @Nullable DropAction action) {
+        answered = action;
         send(source, source, status, over.xwindow, action == null ? 0 : 3, 0, 0, atomOf(action));
     }
 
@@ -442,6 +455,7 @@ public final class X11Drag {
     }
 
     private void forgetIncoming() {
+        follow.stop();
         incomingDropped = false;
         incomingSource = NULL;
         incomingTarget = null;
@@ -503,6 +517,86 @@ public final class X11Drag {
                     out + 28, out + 32);
             return new int[] {memGetInt(out + 16), memGetInt(out + 20), memGetInt(out + 32)};
         }
+    }
+
+    /**
+     * The source of the drag over a window of ours turned to the window itself, and the drag goes
+     * on, followed by the pointer: what it offers is narrowed to what GLFW's drop delivers, and the
+     * scene is told where the pointer is now. X thread.
+     */
+    private void followFrom(Entry over) {
+        List<String> spellings = incomingSpellings;
+        answered = null; // until the scene answers the narrowed offer: never a move GLFW would not make
+        incomingOffer = PlatformClipboard.offer(X11DragFollow.deliverable(ClipboardTypes.canonical(spellings)),
+                kind -> x.read(selection, kind, () -> spellings, incomingTime), ui);
+        x.pollMillis = 16;
+        if (TRACE) {
+            System.err.println("limn.drag(x11): the source left for the window itself; the pointer is followed");
+        }
+        followedOver(over);
+    }
+
+    /** Asks the scene about the point the drag followed is at, and answers the source. X thread. */
+    private void followedOver(Entry over) {
+        Offer offer = incomingOffer;
+        if (offer == null) {
+            return;
+        }
+        long source = incomingSource;
+        float[] at = local(over, follow.x(), follow.y());
+        ui.post(() -> {
+            WindowInput in = over.input.get();
+            DropAction action = in == null ? null : in.dragOver(offer, X11DragFollow.ALLOWED, at[0], at[1]);
+            if (TRACE && action != lastAnswered) {
+                System.err.println("limn.drag(x11): answers " + action + " at " + at[0] + "," + at[1]
+                        + ", the pointer followed");
+            }
+            lastAnswered = action;
+            x.post(() -> {
+                if (source == incomingSource && follow.active()) {
+                    answer(source, over, action);
+                }
+            });
+        });
+    }
+
+    /** One turn of following the drag over a window of ours. X thread. */
+    private void followTurn() {
+        Entry over = incomingTarget;
+        if (!follow.active() || over == null) {
+            return;
+        }
+        switch (follow.tick(sample(over))) {
+            case OVER -> followedOver(over);
+            case SEAL -> answer(incomingSource, over, answered);
+            case LEFT -> {
+                if (TRACE) {
+                    System.err.println("limn.drag(x11): the followed drag let go, called off or left the window");
+                }
+                forgetIncoming();
+                x.pollMillis = outgoing != null ? 16 : 250;
+                ui.post(() -> left(over));
+            }
+            case NOTHING -> {
+            }
+        }
+    }
+
+    /** The pointer as the follow reads it: where, what is held, and whether it is over the window. */
+    private X11DragFollow.Sample sample(Entry over) {
+        int[] pointer = pointer();
+        float[] in = pixelsIn(over, pointer[0], pointer[1]);
+        boolean inside = false;
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            long out = stack.ncalloc(8, 8, 8);
+            // root, x, y, width, height, border, depth
+            if (x.x("XGetGeometry", "ppppppppp>i", x.display(), over.xwindow, out, out + 8, out + 12, out + 16,
+                    out + 20, out + 24, out + 28) != 0) {
+                inside = in[0] >= 0 && in[1] >= 0 && in[0] < memGetInt(out + 16) && in[1] < memGetInt(out + 20);
+            }
+        }
+        return new X11DragFollow.Sample(pointer[0], pointer[1], pointer[2], escapeHeld(),
+                X11DragFollow.over(inside, inside ? awareAt(pointer[0], pointer[1])[0] : NULL, over.xwindow));
     }
 
     // ---- the source -----------------------------------------------------------------------------------
@@ -567,6 +661,7 @@ public final class X11Drag {
             }
             forgetIncoming();
         }
+        followTurn();
         DragRequest request = outgoing;
         if (request == null) {
             return;
@@ -855,7 +950,7 @@ public final class X11Drag {
         outgoing = null;
         target = NULL;
         dropped = false;
-        x.pollMillis = 250;
+        x.pollMillis = follow.active() ? 16 : 250;
         hidePicture();
         ownPointerAgain();
         if (TRACE) {

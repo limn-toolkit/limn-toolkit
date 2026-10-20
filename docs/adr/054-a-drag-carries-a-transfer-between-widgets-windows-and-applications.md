@@ -570,3 +570,54 @@ Review of the auto-scroll (2026-10-20):
   in and the bound was 4800 a second. Each is now carried into the viewport's points through the
   scale along the axis at the pointer, so the edge feels the same at any scale, and the content
   passes the eye as fast; the quarter of the viewport that bounds the band stays the viewport's.
+
+Files from a GTK 4 source on X11, followed by the pointer (2026-10-20, the owner's decision after
+the guest run of the unasked answer: on the Ubuntu X11 guest a file dragged from a file manager
+built on GTK 4 to the bottom edge of a page never scrolled it, and nothing under the pointer showed it
+would take the file; the drop itself arrived, through GLFW, as the 2026-10-10 leftovers left it):
+
+- **Why the scene saw the pointer once.** Read in GTK 4's X11 drag code: at its first move over
+  a window it looks the window's `XdndProxy` up and sends the enter and the first position there;
+  at the next move the window under the pointer is the same, and that branch takes the window
+  itself as where to send, which differs from the proxy, so it sends the proxy a **leave** and the
+  window an enter, and every later position and the drop. The window is GLFW's. Our side heard
+  enter, position, leave, and told the scene the drag had left; the "declared limit" of
+  2026-10-10 (no answer while files hover) was this.
+- **What GLFW does with them** (its X11 code, 3.5.1 as LWJGL 3.4.3 ships it): an enter keeps the
+  source and whether `text/uri-list` was offered; each position moves GLFW's own cursor
+  (the window's cursor-position callback runs, so the scene hears an ordinary move), and is
+  answered at once, accepting with a copy when files were offered and refusing otherwise; the
+  drop reads the files and says it finished with a copy, or refuses with no files; a leave is
+  not handled. Whether a drop callback is set plays no part.
+- **The follow.** A leave from the source of the drag over a window of ours, while the pointer
+  is still over that window (inside it, and no other window that takes drags on top of it
+  there), a button held and Escape up, and when files are among what is offered, is taken for
+  that turn: the drag stays on. Each turn of the clipboard's thread (16 ms while it lasts) reads
+  the pointer on our own connection (`XQueryPointer`, as the source side does) and tells the
+  scene the point when it moved; the scene's own auto-scroll covers a pointer at rest, asking
+  again after each step and pushing an answer that changed. It ends when no button is held, at
+  Escape, and when the pointer leaves the window (the source tells GLFW, which ignores it); an
+  enter from a source starts afresh. A leave with the pointer gone, Escape held, the button up,
+  or nothing but text offered is a leave as before.
+- **What the scene is offered.** Files alone, as a copy alone: only files arrive through GLFW's
+  drop, so a place that takes only text must not show that it would; and GLFW tells the source
+  every drop was a copy, so a move answered here would have the source delete files of which
+  the application was handed only the paths.
+- **Whose answer the source acts on.** It takes our status as well as GLFW's (it matches the
+  window the status names, which both name), and at the release it drops or calls off by the
+  last one it had. GLFW answers each position the moment it reads it; while the pointer rests
+  the scene's answer is sent again every six turns, so after a rest the last answer is ours: a
+  still release over a place that refuses calls the drag off, and over the drop area drops. A
+  release in the middle of a move can still act on GLFW's acceptance; the files then arrive
+  through GLFW and the place under the pointer is asked, as any files dropped there: one that
+  refuses takes nothing, and the source, told a copy finished, deletes nothing.
+- **Wayland has no such case.** The compositor carries the drag and sends enter, motion and
+  leave to every data device of the surface, ours included, whatever toolkit the source is
+  built on; the guest run saw a file from the Fedora guest's file manager scroll the page.
+- Text from a GTK 4 source on X11 still does not arrive (GLFW refuses it at the drop), and is
+  not followed.
+
+`X11DragFollowTest` holds the follow's turns against a pointer it is handed;
+`DragAutoScrollTest` the scene fed as the follow feeds it. Owed: the run on the Ubuntu X11
+guest, a file from that file manager rested at the bottom edge and released unmoved, and the
+GTK 3 peer's text, which keeps to the proxy, as before.

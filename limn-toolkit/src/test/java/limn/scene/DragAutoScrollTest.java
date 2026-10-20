@@ -632,6 +632,55 @@ class DragAutoScrollTest {
         }
     }
 
+    /**
+     * Files from a file manager built on GTK 4 over a window on X11: its source tells the window
+     * where the pointer is once, at the edge it came in by, and then talks to GLFW's window, so
+     * the backend follows the pointer itself and tells the scene each point it moved to, with the
+     * offer narrowed to files and a copy (or, as a backend could, the same point at every frame).
+     * Resting at the bottom edge with nothing more told, the page scrolls to its end, bringing the
+     * drop area under the pointer, and the answer that changed is pushed once, so the source drops
+     * at a still release. Told only the first point, as before the follow, nothing scrolled.
+     */
+    @Test
+    void filesFollowedByThePointerOnX11ScrollThePageToTheDropAreaWhetherToldOnceOrAtEveryFrame() {
+        ScrollView before = new ScrollView(new Sheet(W, 1200).put(new Box("area", W, 300), 0, 900));
+        showInSystemWindow(before, new SystemWindow());
+        limn.backend.spi.WindowInput told = limn.scene.internal.SceneAccess.input(scene);
+        told.dragOver(Transfer.of(DataFormat.FILES, List.of(java.nio.file.Path.of("gamma.txt"))).asOffer(),
+                Set.of(DropAction.COPY), 60, 20);
+        told.dragLeft(); // the source's leave as it turns to GLFW's window, taken at its word
+        frames(5, 60);
+        assertEquals(0, before.offsetY(), "before the follow: the first point, and nothing scrolled");
+        for (boolean everyFrame : List.of(false, true)) {
+            Box area = new Box("area", W, 300);
+            area.takes = true;
+            ScrollView page = new ScrollView(new Sheet(W, 1200).put(area, 0, 900));
+            SystemWindow window = new SystemWindow();
+            showInSystemWindow(page, window);
+            limn.backend.spi.WindowInput input = limn.scene.internal.SceneAccess.input(scene);
+            limn.transfer.Offer files = Transfer.of(DataFormat.FILES, List.of(java.nio.file.Path.of("gamma.txt")))
+                    .asOffer();
+            String which = everyFrame ? "told at every frame: " : "told when it moves: ";
+            assertEquals(null, input.dragOver(files, Set.of(DropAction.COPY), 60, 20), which + "the entry");
+            for (float y = 60; y <= H - 8; y += 40) {
+                input.dragOver(files, Set.of(DropAction.COPY), 60, Math.min(y, H - 8));
+                frames(1 / 60.0, 60);
+            }
+            input.dragOver(files, Set.of(DropAction.COPY), 60, H - 8);
+            for (int i = 0; i < 5 * 60; i++) {
+                if (everyFrame) {
+                    input.dragOver(files, Set.of(DropAction.COPY), 60, H - 8);
+                }
+                frames(1 / 60.0, 60);
+            }
+            assertEquals(1200 - H, page.offsetY(), 0.5f, which + "the page reached its end under the resting pointer");
+            Rect seen = onScreen(area);
+            assertTrue(seen.y() <= H - 8 && seen.bottom() > H - 8, which + "with the drop area under the pointer");
+            assertEquals(List.of("COPY"), window.told, which + "and the source was told, once, that it takes them");
+            input.dragLeft();
+        }
+    }
+
     @Test
     void aDragTheSceneDrivesPushesNothingToTheSystem() {
         Box logo = new Box("logo", 96, 96);
