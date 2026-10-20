@@ -1043,3 +1043,15 @@ its first stop, its button or its content's first widget as before when nothing 
 dialog's button rule cannot meet the content's request: it applies only to a body with no stop.
 `SceneOverlayTest` pushes a form asking each of its three fields as an overlay and as a popup;
 `ContentAsksTheFirstFocusTest` gives one to a dialog and a popover in both display modes.
+
+## Note, 2026-10-20 (review): a scene refuses its own root and an overlay already on its stack
+
+The refusal of another scene's layer exempted the scene doing the taking, so `pushOverlay` and
+`pushPopup` took an overlay already on the scene's own stack, and the scene's own root (R11S-4). A
+double push, a button that opens the same panel twice, put it on the stack twice, and the first
+`removeOverlay` walked it out of the scene while it stayed on top, the keyboard left on a field in
+no scene; the root pushed and taken off walked the window's whole tree out of the scene. Both are
+refused now with the same `IllegalArgumentException`, before anything moves, through the one
+place an overlay is stacked. A popup a handler pushes again after its removal is not on the stack
+any more and is taken as before. `AnotherScenesLayerIsRefusedTest` pushes each of an overlay, a
+popup and the root on its own scene, as an overlay and as a popup.

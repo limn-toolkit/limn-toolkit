@@ -852,11 +852,12 @@ public final class Scene {
      * it would go on naming it as its own and laying it out at its own window's size. That scene
      * lets go of it when it is taken off the stack ({@link #removeOverlay}) or when its window
      * closes. A widget that has a parent is refused the same way: an overlay is a root of its own,
-     * and as a container's child too it would be laid out, drawn and dispatched to twice.
+     * and as a container's child too it would be laid out, drawn and dispatched to twice. So are
+     * this scene's own root and an overlay already on its stack, which one push holds once.
      *
      * @param overlay the overlay's root
-     * @throws IllegalArgumentException if {@code overlay} has a parent, or is another scene's root
-     *                                  or an overlay on another scene's stack
+     * @throws IllegalArgumentException if {@code overlay} has a parent, is this or another scene's
+     *                                  root, or is an overlay on this or another scene's stack
      */
     public void pushOverlay(Widget<?> overlay) {
         Ui.checkUiThread();
@@ -985,6 +986,7 @@ public final class Scene {
      */
     private @Nullable Throwable stackOverlay(Widget<?> overlay, List<Runnable> settled) {
         refuseParented(overlay, "an overlay"); // before anything moves
+        refuseOwnLayer(overlay);
         refuseAnotherScenesLayer(overlay, this, "an overlay of another scene");
         // A drag captured before this modal opened must not keep feeding the
         // now-blocked content beneath the scrim: DRAG follows the capture, not
@@ -1040,8 +1042,8 @@ public final class Scene {
      * opened from. Closed with {@link #removeOverlay}.
      *
      * @param popup the popup's root widget
-     * @throws IllegalArgumentException if {@code popup} has a parent, or is another scene's root or
-     *                                  an overlay on another scene's stack, as
+     * @throws IllegalArgumentException if {@code popup} has a parent, is this or another scene's
+     *                                  root, or is an overlay on this or another scene's stack, as
      *                                  {@link #pushOverlay(Widget)} refuses it
      */
     public void pushPopup(Widget<?> popup) {
@@ -2409,6 +2411,25 @@ public final class Scene {
     }
 
     /**
+     * Refuses {@code overlay} when it is this scene's root or already on its stack: pushed twice,
+     * the first {@link #removeOverlay} walked it out of the scene while it stayed on top, and the
+     * root pushed and taken off walked the window's whole tree out. Checked before anything moves.
+     *
+     * @throws IllegalArgumentException when it is this scene's root or one of its overlays
+     */
+    private void refuseOwnLayer(Widget<?> overlay) {
+        if (overlay == root) {
+            throw new IllegalArgumentException(overlay.getClass().getName()
+                    + " is this scene's root, and cannot also be an overlay on its stack");
+        }
+        if (overlays.contains(overlay)) {
+            throw new IllegalArgumentException(overlay.getClass().getName()
+                    + " is already an overlay on this scene's stack, and cannot be pushed on it again: "
+                    + "take it off with removeOverlay first");
+        }
+    }
+
+    /**
      * Refuses {@code widget} when a scene other than {@code taking} holds it as its root or one of
      * its overlays: taken, it would leave that scene and join another while the first went on
      * naming it as its own, its root or a layer of its stack, laying it out at its own window's
@@ -2416,8 +2437,9 @@ public final class Scene {
      * anything.
      *
      * @param widget the widget being taken
-     * @param taking the scene taking it as a layer, which may hold it already; {@code null} for a
-     *               container, which no scene's layer may join, or a new scene
+     * @param taking the scene taking it as a layer, which refuses its own root and overlays itself
+     *               ({@link #refuseOwnLayer}); {@code null} for a container, which no scene's layer
+     *               may join, or a new scene
      * @param as     what it would become, for the message
      * @throws IllegalArgumentException when another scene holds it
      */

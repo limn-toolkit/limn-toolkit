@@ -258,4 +258,61 @@ class AnotherScenesLayerIsRefusedTest extends SceneTestBase {
         }
         assertEquals(List.of(), failures);
     }
+
+    /**
+     * A scene's own overlay pushed on it again, and its own root pushed on it, are refused as
+     * another scene's are. Accepted, a double push put the widget on the stack twice, and the first
+     * {@code removeOverlay} walked it out of the scene while it stayed on top, the keyboard left on
+     * a field in no scene; the root pushed and then taken off walked the window's whole tree out.
+     */
+    @Test
+    void aScenesOwnOverlayOrRootIsRefusedByItsOwnPush() {
+        List<String> failures = new ArrayList<>();
+        for (String what : new String[] {"its overlay", "its popup", "its root"}) {
+            for (Taker taker : new Taker[] {Taker.PUSH_OVERLAY, Taker.PUSH_POPUP}) {
+                String how = what + " taken by its own " + taker;
+                List<String> log = new ArrayList<>();
+                Key opener = new Key();
+                Column page = new Column();
+                page.add(opener);
+                Scene scene = new Scene(page);
+                scene.requestFocus(opener);
+                Told panel = new Told("panel", log);
+                Key inside = new Key();
+                panel.add(inside);
+                Widget<?> card = panel;
+                if (what.equals("its overlay")) {
+                    scene.pushOverlay(panel);
+                } else if (what.equals("its popup")) {
+                    scene.pushPopup(panel);
+                } else {
+                    card = page;
+                }
+                Widget<?> focusBefore = scene.focusedWidget();
+                int stackBefore = scene.overlays().size();
+                log.clear();
+                Widget<?> taken = card;
+                Runnable take = taker == Taker.PUSH_OVERLAY ? () -> scene.pushOverlay(taken) : () -> scene.pushPopup(taken);
+                try {
+                    IllegalArgumentException refused = assertThrows(IllegalArgumentException.class, take::run, how);
+                    assertTrue(refused.getMessage().contains(what.equals("its root") ? "root" : "overlay"),
+                            how + ": says why: " + refused.getMessage());
+                    assertEquals(stackBefore, scene.overlays().size(), how + ": the stack unchanged");
+                    assertSame(focusBefore, scene.focusedWidget(), how + ": the keyboard where it was");
+                    assertEquals(List.of(), log, how + ": nobody told anything");
+                    assertSame(page, scene.root(), how);
+                    assertSame(scene, page.scene(), how + ": the root still in the scene");
+                    if (card == panel) {
+                        scene.removeOverlay(panel);
+                        assertFalse(scene.overlays().contains(panel), how + ": one removeOverlay takes it off");
+                        assertNull(panel.scene(), how);
+                        assertSame(opener, scene.focusedWidget(), how + ": and gives the opener the keyboard back");
+                    }
+                } catch (AssertionError failure) {
+                    failures.add(failure.getMessage());
+                }
+            }
+        }
+        assertEquals(List.of(), failures);
+    }
 }
