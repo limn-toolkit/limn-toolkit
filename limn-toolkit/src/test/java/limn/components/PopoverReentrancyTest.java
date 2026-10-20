@@ -18,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -323,5 +324,101 @@ class PopoverReentrancyTest extends ComponentTestBase {
         assertTrue(holder.children().isEmpty());
         owner.requestClose();
         runtime.drain();
+    }
+
+    @Test
+    void anObserverThrowingAfterARemovalDoesNotHideTheHandlersThrow() {
+        Button first = new Button("First");
+        Column holder = new Column();
+        holder.add(first);
+        Column root = new Column();
+        root.add(holder);
+        inWindow(root);
+        holder.observeChanges((source, change) -> {
+            if (change.aspect() == Change.Aspect.CHILDREN) {
+                throw new IllegalArgumentException("an observer's bug");
+            }
+        });
+        Popover popover = new Popover(new SizedBox(160, 30, new TextField())).setDisplayMode(DisplayMode.IN_SCENE)
+                .onClose(origin -> {
+                    throw new IllegalStateException("an application's handler bug");
+                });
+        popover.showFor(first);
+        frames(3);
+        RuntimeException thrown = null;
+        try {
+            holder.remove(first);
+        } catch (RuntimeException e) {
+            thrown = e;
+        }
+        assertNotNull(thrown);
+        // The change channel contains an observer's throw; whatever else throws as the removal
+        // completes rides along with the handler's, which is the one that leaves.
+        assertEquals("an application's handler bug", thrown.getMessage(), "the handler's throw, not hidden");
+        assertNull(first.scene());
+        owner.requestClose();
+        runtime.drain();
+    }
+
+    @Test
+    void addingAWidgetFromAnotherSceneCompletesWhenAHandlerThrows() {
+        Button first = new Button("First");
+        Column elsewhere = new Column();
+        elsewhere.add(first);
+        Scene other = new Scene(elsewhere, () -> now[0]);
+        other.setTextRuler(RULER);
+        other.layoutPass(400, 300);
+        Popover popover = new Popover(new SizedBox(160, 30, new TextField())).setDisplayMode(DisplayMode.IN_SCENE)
+                .onClose(origin -> {
+                    throw new IllegalStateException("an application's handler bug");
+                });
+        popover.showFor(first);
+        assertTrue(popover.isOpen(), "sanity");
+        Column root = new Column();
+        inWindow(root);
+        List<Change.Aspect> heardOnRoot = new ArrayList<>();
+        root.observeChanges((source, change) -> heardOnRoot.add(change.aspect()));
+        IllegalStateException thrown = null;
+        try {
+            root.add(elsewhere); // a scene's root, adopted by another
+        } catch (IllegalStateException e) {
+            thrown = e;
+        }
+        assertNotNull(thrown, "the handler's throw is not swallowed");
+        assertSame(root, elsewhere.parent());
+        assertSame(scene, first.scene(), "the move completed");
+        assertTrue(heardOnRoot.contains(Change.Aspect.CHILDREN), "and was announced: " + heardOnRoot);
+        assertFalse(popover.isOpen());
+        owner.requestClose();
+        runtime.drain();
+    }
+
+    @Test
+    void aVirtualMachineErrorInAHandlerLeavesAtOnce() {
+        Button first = new Button("First");
+        Button second = new Button("Second");
+        Column holder = new Column();
+        holder.add(first);
+        holder.add(second);
+        Column root = new Column();
+        root.add(holder);
+        inWindow(root);
+        Popover p1 = new Popover(new SizedBox(160, 30, new TextField())).setDisplayMode(DisplayMode.NATIVE_WINDOW)
+                .onClose(origin -> {
+                    throw new StackOverflowError("deep");
+                });
+        Popover p2 = new Popover(new SizedBox(160, 30, new TextField())).setDisplayMode(DisplayMode.NATIVE_WINDOW)
+                .onClose(origin -> heard.add("second " + origin));
+        p1.showFor(first);
+        p2.showFor(second);
+        frames(3);
+        StackOverflowError thrown = null;
+        try {
+            root.remove(holder);
+        } catch (StackOverflowError e) {
+            thrown = e;
+        }
+        assertNotNull(thrown, "it propagates as it is");
+        assertEquals(List.of(), heard, "and no more application code runs after it");
     }
 }

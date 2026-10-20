@@ -1070,13 +1070,14 @@ public final class Scene {
         try {
             overlay.setSceneRecursively(null);
         } catch (RuntimeException | Error error) {
-            failed = error; // a handler of a popup hung in it: the removal completes first
+            failed = Widget.addFailure(null, error); // a popup's handler: the removal completes first
         }
         try {
             restoreAfterRemoving(overlay, restore, wasTop, keptKeyboardBelow);
-        } finally {
-            Widget.rethrow(failed);
+        } catch (RuntimeException | Error error) {
+            failed = Widget.addFailure(failed, error);
         }
+        Widget.rethrow(failed);
     }
 
     /** The rest of {@link #removeOverlay}, once the overlay is out of the scene. */
@@ -2191,6 +2192,7 @@ public final class Scene {
      * one before it threw, and the first throw is handed back, the others added to it as
      * suppressed, for the caller to rethrow once its change is complete: a throw here aborted a
      * removal half way, the subtree out of its parent and still in the scene, never told it left.
+     * A {@link VirtualMachineError} is not held: it leaves at once.
      *
      * @return what the closes threw, or null
      */
@@ -2203,12 +2205,8 @@ public final class Scene {
             if (hungPopups.contains(hung) && isInSubtree(hung.anchor(), subtree)) {
                 try {
                     hung.gone().run();
-                } catch (Throwable error) {
-                    if (failed == null) {
-                        failed = error;
-                    } else {
-                        failed.addSuppressed(error);
-                    }
+                } catch (RuntimeException | Error error) {
+                    failed = Widget.addFailure(failed, error); // a VirtualMachineError leaves at once
                 }
             }
         }

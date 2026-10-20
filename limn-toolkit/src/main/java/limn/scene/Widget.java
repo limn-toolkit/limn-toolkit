@@ -510,11 +510,24 @@ public abstract class Widget<W extends Widget<W>> {
         }
         children.add(index, child);
         child.parent = this;
-        child.setSceneRecursively(scene);
-        childrenChanged();
-        // Structure is announced on the parent, from the one funnel every child joins through,
-        // so a watcher of a tree hears a mount as it happens rather than by diffing child lists.
-        notifyChange(Change.of(Change.Aspect.CHILDREN, Change.Origin.CODE));
+        Throwable failed = null;
+        try {
+            // A popup hung in a child adopted from another scene closes as it leaves that one,
+            // and what its handler throws waits for the join to be complete and announced.
+            child.setSceneRecursively(scene);
+        } catch (RuntimeException | Error error) {
+            failed = addFailure(null, error);
+        }
+        try {
+            childrenChanged();
+            // Structure is announced on the parent, from the one funnel every child joins
+            // through, so a watcher of a tree hears a mount as it happens rather than by
+            // diffing child lists.
+            notifyChange(Change.of(Change.Aspect.CHILDREN, Change.Origin.CODE));
+        } catch (RuntimeException | Error error) {
+            failed = addFailure(failed, error);
+        }
+        rethrow(failed);
     }
 
     /** Removes a child (UI thread only); protected for the reason {@link #add(Widget)} is. */
@@ -534,16 +547,22 @@ public abstract class Widget<W extends Widget<W>> {
         Objects.requireNonNull(origin, "origin");
         if (children.remove(child)) {
             child.parent = null;
+            Throwable failed = null;
             try {
                 child.setSceneRecursively(null);
-            } finally {
-                // A popup's handler that threw as the child left: the removal still completes.
+            } catch (RuntimeException | Error error) {
+                failed = addFailure(null, error); // a popup's handler: the removal still completes
+            }
+            try {
                 if (scene != null) {
                     scene.onWidgetDetached(child);
                 }
                 childrenChanged();
                 notifyChange(Change.of(Change.Aspect.CHILDREN, origin));
+            } catch (RuntimeException | Error error) {
+                failed = addFailure(failed, error); // rides along, and never hides the first
             }
+            rethrow(failed);
         }
     }
 
@@ -586,6 +605,28 @@ public abstract class Widget<W extends Widget<W>> {
         bumpLocaleEpoch();
         setSceneRecursivelyInternal(newScene);
         rethrow(failed);
+    }
+
+    /**
+     * Holds what a step threw while later steps still run: the first throw, the later ones added
+     * to it as suppressed. A {@link VirtualMachineError} leaves at once, and no more application
+     * code runs after it.
+     *
+     * @param held  what an earlier step threw, or null
+     * @param error what this one threw
+     * @return the throw to hold
+     */
+    static Throwable addFailure(@Nullable Throwable held, Throwable error) {
+        if (error instanceof VirtualMachineError fatal) {
+            throw fatal;
+        }
+        if (held == null) {
+            return error;
+        }
+        if (held != error) {
+            held.addSuppressed(error);
+        }
+        return held;
     }
 
     /** Throws {@code failed} as it is, when there is one: it is unchecked, a handler's. */
@@ -1169,13 +1210,20 @@ public abstract class Widget<W extends Widget<W>> {
         if (this.visible != visible) {
             boolean shown = isVisible();
             this.visible = visible;
+            Throwable failed = null;
             try {
                 if (shown != isVisible()) {
                     presenceChanged();
                 }
-            } finally {
-                notifyChange(Change.of(Change.Aspect.VISIBLE, Change.Origin.CODE));
+            } catch (RuntimeException | Error error) {
+                failed = addFailure(null, error); // a popup's handler: the change still completes
             }
+            try {
+                notifyChange(Change.of(Change.Aspect.VISIBLE, Change.Origin.CODE));
+            } catch (RuntimeException | Error error) {
+                failed = addFailure(failed, error);
+            }
+            rethrow(failed);
         }
         return self();
     }
