@@ -282,6 +282,49 @@ Either way, clicking outside a modal dialog is ignored and beeps, exactly as the
 does. `setDismissOnScrim(true)` turns the in-scene form into a light dismissable overlay
 instead.
 
+### Asking before a dialog is cancelled
+
+A form in a dialog can ask before its changes are lost. `onCancel` is asked whenever the user
+closes the dialog with nothing chosen: Escape, a click on the scrim of a dismissable one, a button
+whose result is the cancel result, the system closing the dialog's own window, and a screen
+reader's dismiss. The handler answers now or later, so the question opens over the form, which
+stays open until it is answered:
+
+```java
+Dialog edit = new Dialog("Edit customer", "")
+        .setContent(form)
+        .addButton("Cancel", "cancel")
+        .addPrimaryButton("Save", "save")
+        .setCancelResult("cancel");
+edit.onCancel(request -> {
+    if (!form.isChanged()) {
+        request.allow();                       // nothing to lose
+        return;
+    }
+    new Dialog("Save changes?", "Your changes are lost if you don't save them.")
+            .addButton("Don't save", "discard")
+            .addButton("Cancel", "cancel")
+            .addPrimaryButton("Save", "save")
+            .setCancelResult("cancel")
+            .show(scene)
+            .thenAccept(answer -> {
+                if ("cancel".equals(answer)) {
+                    request.refuse();          // back to the form, as it was left
+                } else {
+                    edit.dismiss(answer);      // closes the form with that answer
+                }
+            });
+});
+```
+
+Only the cancel asks. The default button, any other button and a destructive one are answers and
+close the dialog at once; `dismiss` is your own close and asks nothing, and neither does the
+dialog's window going away or the application ending. While a request is unanswered, a second
+Escape asks nothing new, and the dialog's other buttons still answer it if nothing was opened over
+it; an answer given that way settles the request, and a late `allow()` or `refuse()` then does
+nothing. A handler that throws has refused, so the dialog stays open. It works the same in both
+display modes and under less motion, being asked before anything fades.
+
 ## Closing a window, and ending the application
 
 A window asks its close handler before it closes, and the handler may answer later, which

@@ -11,6 +11,7 @@ import limn.backend.spi.WindowInput;
 import limn.backend.WindowStyle;
 import limn.concurrent.Ui;
 import limn.concurrent.Subscription;
+import limn.internal.lang.Checks;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.i18n.I18nString;
@@ -32,6 +33,7 @@ import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 import java.util.concurrent.CompletionStage;
 import limn.backend.spi.WindowPeer;
 import limn.backend.spi.BackendPeer;
@@ -99,6 +101,13 @@ import limn.backend.spi.BackendPeer;
  * dialog already floating over it. {@link #keepInScene()} declines the promotion, and a
  * fullscreen owner never makes it, since a window there does not stack over anything.
  *
+ * <h2>Asking before it is cancelled</h2>
+ * A dialog the user closes with nothing chosen, by Escape, a click on the scrim, a button whose
+ * result is the {@linkplain #setCancelResult cancel result}, the system closing its own window or a
+ * screen reader's dismiss, asks its {@link #onCancel} handler first when it has one. The handler
+ * answers now or later, so a form with unsaved changes can ask "Save changes?" over itself and close
+ * only once that is answered. Every other answer closes it at once, and so does {@link #dismiss}.
+ *
  * <h2>Size</h2>
  * A dialog is a container of sized components rather than a sized component: it has no
  * size knob of its own, it <em>is</em> a {@link ControlSize} scope that its content
@@ -133,6 +142,70 @@ import limn.backend.spi.BackendPeer;
  * }</pre>
  */
 public final class Dialog {
+
+    /**
+     * One question to a dialog's {@link #onCancel} handler: may the dialog close with its cancel
+     * result? Answered once, with {@link #allow()} or {@link #refuse()}, now or later: a handler that
+     * shows a dialog of its own over this one keeps the request and answers from that dialog's result.
+     * Keeping it unanswered is how a handler holds it, and while it is held the dialog is not asked
+     * again.
+     *
+     * <p>A request the dialog settles itself, because it was answered another way (a button that is
+     * not the cancel, {@link #dismiss}, its window going away) while the request was held, is
+     * {@linkplain #isAnswered() answered}, and {@link #allow()} and {@link #refuse()} then do nothing.
+     */
+    public interface CancelRequest {
+
+        /**
+         * How the user closed the dialog.
+         *
+         * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+         * {@code default} branch.
+         */
+        enum Reason {
+
+            /** Escape. */
+            ESCAPE,
+
+            /** A click outside the card, in a dialog that {@linkplain #setDismissOnScrim dismisses on the scrim}. */
+            SCRIM,
+
+            /**
+             * A button whose result is the cancel result, pressed in any way: a click, Space, Return
+             * on it or answered by it as the default button, an assistive technology's press.
+             */
+            BUTTON,
+
+            /** The system closing the dialog's own window: its close button, Alt+F4, Cmd+W. */
+            WINDOW_CLOSE,
+
+            /** An assistive technology dismissing the dialog. */
+            ASSISTIVE_TECHNOLOGY
+        }
+
+        /** @return how the user closed the dialog */
+        Reason reason();
+
+        /**
+         * Closes the dialog with its cancel result, as the user's gesture would have: through the
+         * fade, or at once under less motion. UI thread only.
+         *
+         * @throws IllegalStateException if the request was already answered with {@code allow} or
+         *                               {@code refuse}
+         */
+        void allow();
+
+        /**
+         * Keeps the dialog open, with the keyboard where it was. UI thread only.
+         *
+         * @throws IllegalStateException if the request was already answered with {@code allow} or
+         *                               {@code refuse}
+         */
+        void refuse();
+
+        /** @return whether the request was answered, or settled by the dialog closing another way */
+        boolean isAnswered();
+    }
 
     private static final System.Logger LOG = System.getLogger(Dialog.class.getName());
 
@@ -174,6 +247,9 @@ public final class Dialog {
     private boolean hasDefaultButton;
     private boolean alwaysOnTop = true;
     private boolean dismissOnScrim; // default false: modal (ignore + beep), like a native modal
+    private @Nullable Consumer<CancelRequest> onCancel;
+    /** The cancel request asked and not answered yet, or {@code null}. */
+    private @Nullable Asked pendingCancel;
     /** How far the dialog has faded in where nothing fades its card: 1 in a window of its own. */
     private float fade;
     /** In the scene the card's opacity is the dialog's fade, which the veil reads and the slide keeps pace with. */
@@ -421,7 +497,7 @@ public final class Dialog {
             // a focused "Delete" answer Return (2026-10-19): this one lets the key through.
             button.refuseReturn();
         }
-        button.onAction(() -> resolve(resultValue));
+        button.onAction(() -> answer(resultValue));
         // Its press resolves the dialog, and once an answer is on its way out resolve() drops
         // it: so a reader is offered the press, and the press is performed, on the condition
         // the card's CANCEL is (semantics 5, 2026-09-15).
@@ -441,7 +517,9 @@ public final class Dialog {
     }
 
     /**
-     * Sets the result delivered on ESC / scrim dismiss (default {@code null}).
+     * Sets the result delivered on ESC / scrim dismiss (default {@code null}): the answer that means
+     * nothing was chosen. A button whose result is this one cancels too, and every way of cancelling
+     * asks {@link #onCancel} first when it is set.
      *
      * @param value what Escape or a dismissing scrim click resolves with; may be null
      * @return this dialog
@@ -450,6 +528,130 @@ public final class Dialog {
         Ui.checkUiThread();
         this.cancelResult = value;
         return this;
+    }
+
+    /**
+     * Asks the application whether the dialog may close when the user closes it with nothing
+     * chosen, which is every way of giving the {@linkplain #setCancelResult cancel result}: Escape, a
+     * click on the scrim of a dialog that {@linkplain #setDismissOnScrim dismisses on it}, a button
+     * whose result is the cancel result (judged when it is pressed, Return on the default button
+     * included), the system closing the dialog's own window, and an assistive technology's dismiss.
+     * The handler is given a {@link CancelRequest} it answers now or later; without a handler the
+     * dialog closes. Its other buttons, a destructive one included, are answers and never asked
+     * about, and neither is {@link #dismiss}, the application's own close, nor the dialog's window
+     * or its owner going away, nor the application ending.
+     *
+     * <p>The handler is called on the UI thread, during the user's gesture, before anything fades.
+     * While its request is unanswered the dialog asks nothing new: a second Escape does nothing. A
+     * handler that throws has refused: the dialog stays open, and the exception reaches the crash
+     * handler as any exception from application code on the UI thread does.
+     *
+     * @param handler the handler, or {@code null} to clear the slot
+     * @return this dialog
+     * @throws IllegalStateException if a handler is already registered
+     */
+    public Dialog onCancel(@Nullable Consumer<CancelRequest> handler) {
+        Ui.checkUiThread();
+        this.onCancel = Checks.handlerSlot(onCancel, handler, "Dialog.onCancel");
+        return this;
+    }
+
+    /** A button's press, or Return answered by the default button: the cancel asks, any other answers. */
+    private void answer(@Nullable String value) {
+        if (Objects.equals(value, cancelResult)) {
+            cancel(CancelRequest.Reason.BUTTON);
+        } else {
+            resolve(value);
+        }
+    }
+
+    /**
+     * The user closing the dialog with nothing chosen: its handler is asked, or it closes.
+     *
+     * @return whether the dialog began closing
+     */
+    private boolean cancel(CancelRequest.Reason reason) {
+        if (closing) {
+            return false;
+        }
+        Consumer<CancelRequest> handler = onCancel;
+        if (handler == null) {
+            resolve(cancelResult);
+            return true;
+        }
+        if (pendingCancel != null) {
+            return false; // asked already, and not answered: a second Escape asks nothing new
+        }
+        Asked asking = new Asked(reason);
+        pendingCancel = asking;
+        try {
+            handler.accept(asking);
+        } catch (RuntimeException | Error thrown) {
+            if (!asking.isAnswered()) {
+                asking.refuse(); // a handler that failed to decide must not lose what it guards
+            }
+            throw thrown;
+        }
+        return closing;
+    }
+
+    /** The request the cancel handler is given. */
+    private final class Asked implements CancelRequest {
+        private final Reason reason;
+        private boolean answered;
+        /** Answered for it: the dialog closed another way while it was held. */
+        private boolean settled;
+
+        Asked(Reason reason) {
+            this.reason = reason;
+        }
+
+        @Override
+        public Reason reason() {
+            return reason;
+        }
+
+        @Override
+        public void allow() {
+            if (answer()) {
+                resolve(cancelResult);
+            }
+        }
+
+        @Override
+        public void refuse() {
+            answer();
+        }
+
+        /** @return whether this answer is the one that counts */
+        private boolean answer() {
+            Ui.checkUiThread();
+            if (settled) {
+                return false; // the dialog has its answer already: nothing is left to decide
+            }
+            if (answered) {
+                throw new IllegalStateException("the request was already answered");
+            }
+            answered = true;
+            if (pendingCancel == this) {
+                pendingCancel = null;
+            }
+            return true;
+        }
+
+        @Override
+        public boolean isAnswered() {
+            return answered || settled;
+        }
+    }
+
+    /** The dialog closed another way: a request still held is over. */
+    private void settlePendingCancel() {
+        Asked held = pendingCancel;
+        if (held != null) {
+            pendingCancel = null;
+            held.settled = true;
+        }
     }
 
     /**
@@ -550,7 +752,8 @@ public final class Dialog {
      * Only applies to {@link DisplayMode#IN_SCENE}. When {@code false} the dialog
      * is truly modal: a scrim click is ignored and answered with the same alert
      * feedback (beep) a native modal gives; when {@code true} it closes with the
-     * {@linkplain #setCancelResult cancel result} (a dismissable overlay).
+     * {@linkplain #setCancelResult cancel result} (a dismissable overlay), asking
+     * {@link #onCancel} first when it is set.
      *
      * @param value whether a scrim click dismisses
      * @return this dialog
@@ -833,6 +1036,16 @@ public final class Dialog {
         modalWindow = backend.createWindow(WindowConfig.styled(title.get(), w, h, style, alwaysOnTop, true)
                 .ownedBy(window).atInOwner((window.logicalWidth() - w) / 2f, (window.logicalHeight() - h) / 2f));
         modalScene.bind(modalWindow);
+        // The system closing this window is the user cancelling the dialog, asked as Escape is; an
+        // application ending lets it go, its owner's handler being where that question is asked.
+        modalWindow.setCloseRequestHandler(request -> {
+            if (request.reason() == limn.backend.CloseRequest.Reason.APPLICATION_END) {
+                request.allow();
+                return;
+            }
+            request.refuse();
+            cancel(CancelRequest.Reason.WINDOW_CLOSE);
+        });
 
         // Show before pushing the modal so it can take native focus (offscreen
         // screenshot mode keeps it hidden and captures via captureNextFrame).
@@ -1265,10 +1478,10 @@ public final class Dialog {
         }
         if (event.key() == Keys.ESCAPE) {
             event.consume();
-            resolve(cancelResult);
+            cancel(CancelRequest.Reason.ESCAPE);
         } else if (event.key() == Keys.ENTER && hasDefaultButton) {
             event.consume();
-            resolve(defaultResult);
+            answer(defaultResult);
         }
     }
 
@@ -1342,6 +1555,7 @@ public final class Dialog {
                 return; // an answer is already on its way out; it owns the result
             }
             closing = true;
+            settlePendingCancel();
             // The window is already destroyed and the backend has dropped it from
             // the modal stack, so there is nothing here to pop, close or unhook:
             // only fields to stop pointing at the dead.
@@ -1373,6 +1587,7 @@ public final class Dialog {
             return;
         }
         closing = true;
+        settlePendingCancel();
         // The card's verb and its buttons' go with it. A native window's fade moves only the
         // window's opacity and damages nothing, so the walk that withdraws them is asked for.
         panel.invalidateAccessible();
@@ -1657,7 +1872,9 @@ public final class Dialog {
          * dismissal once an answer is already on its way out, which is the guard the key path
          * keeps and the reason a second cancel during the fade is a truthful {@code false} rather
          * than a silently swallowed call. The describe hook reads the same {@code answerable()},
-         * so through the fade the card publishes no {@code CANCEL} either (2026-09-15).
+         * so through the fade the card publishes no {@code CANCEL} either (2026-09-15). With a
+         * cancel handler the dismissal asks it, as Escape does, and answers {@code false} when the
+         * handler kept the dialog, held its request or had one held already.
          *
          * @param verb what was asked
          * @param arg  ignored; a dismissal carries none
@@ -1668,8 +1885,7 @@ public final class Dialog {
             if (verb != Accessible.Action.CANCEL || !answerable()) {
                 return false;
             }
-            resolve(cancelResult);
-            return true;
+            return cancel(CancelRequest.Reason.ASSISTIVE_TECHNOLOGY);
         }
 
         /**
@@ -1937,7 +2153,7 @@ public final class Dialog {
                     return;
                 }
                 if (dismissOnScrim) {
-                    resolve(cancelResult);
+                    cancel(CancelRequest.Reason.SCRIM);
                 } else if (hostScene != null && hostScene.window() != null) {
                     // Truly modal: ignore the click, but give the same feedback a
                     // native modal gives when its blocked parent is clicked.
