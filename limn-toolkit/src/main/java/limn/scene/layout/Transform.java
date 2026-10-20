@@ -82,7 +82,11 @@ import java.util.Objects;
  * the near edge reads a little softer too. Where the picture is seen at less than half its size,
  * a page turned far back, its detail is averaged rather than left to flicker while it turns. What
  * part of a child passes behind the eye is not drawn, and the rest is. A frosted glass inside a
- * child seen in perspective reads only what the child draws beneath it, not the window.
+ * child seen in perspective reads only what the child draws beneath it, not the window. Something
+ * inside that draws in a {@link limn.graphics.BlendMode blend mode}, a tint in
+ * {@link limn.graphics.BlendMode#MULTIPLY}, blends with the picture while the child is turned, and
+ * where the child drew nothing beneath it is drawn as itself; at rest, or only moved and scaled,
+ * there is no picture and it blends with what is beneath the container.
  *
  * <p><b>A watcher hears it</b> as {@link Change.Aspect#TRANSFORM} with origin {@code CODE} on this
  * container: every time a set changes a value, once for {@link #reset()}, and twice for a motion,

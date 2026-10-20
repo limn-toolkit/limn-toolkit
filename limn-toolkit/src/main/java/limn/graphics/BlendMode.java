@@ -7,7 +7,7 @@ package limn.graphics;
  * applies to every primitive: shapes, text, images.
  *
  * <p>The pipeline is premultiplied-alpha end to end; each mode maps to a
- * single fixed blend equation, and switching modes mid-frame is a batch
+ * fixed blend equation, and switching modes mid-frame is a batch
  * break (one extra draw call), so group same-mode painting where possible.
  *
  * <p>Inside a group drawn as one picture, an {@code Opacity} container below 1 or a
@@ -15,6 +15,11 @@ package limn.graphics;
  * drew nothing the source is drawn as itself, as an isolated group of a web page has it; outside any
  * group it combines with the window. A multiplied tint inside a fading container therefore shows
  * as itself while the container fades and multiplies what is beneath once the container is at 1.
+ * Inside a group {@link #MULTIPLY} is drawn in two passes, of which the second reads what the first
+ * left: draws in it that do not overlap share their two draw calls, and each draw that overlaps an
+ * earlier one of the same run takes two of its own. Ten overlapping tints inside a card cost about
+ * twenty draw calls more on every frame that draws the card as a picture, while it fades or while
+ * it is turned, and none at rest.
  *
  * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
  * {@code default} branch.

@@ -269,6 +269,7 @@ final class GlBatch implements AutoCloseable {
         vertexCount = 0;
         flatVertices.clear();
         flatVertexCount = 0;
+        twoPassCount = 0;
         drawCalls = 0;
         scissorEnabled = false; // per-frame: partial rendering re-hints each frame
     }
@@ -451,6 +452,86 @@ final class GlBatch implements AutoCloseable {
         return true;
     }
 
+    // The primitives queued under a blend drawn in two passes, in order: where each one's indices
+    // (or, for the flat program, its vertices) start, and its device bounds, x0 y0 x1 y1. The
+    // second pass reads what the first left, so two primitives that overlap must not share a pass:
+    // the flush draws, both passes, each run of primitives none of which overlaps another of the
+    // run, then the next run. A glyph quad, a shape, a piece of a path is a primitive, each opened
+    // by the ensure() that reserves its room. Kept only while such a blend is in force.
+    private int[] twoPassStart = new int[16];
+    private float[] twoPassBox = new float[64];
+    private int twoPassCount;
+    /** The most primitives one run tests against each other: the test is quadratic in the run. */
+    private static final int MAX_TWO_PASS_RUN = 64;
+
+    private void beginTwoPassPrimitive(int start, float x0, float y0, float x1, float y1) {
+        if (twoPassCount == twoPassStart.length) {
+            twoPassStart = java.util.Arrays.copyOf(twoPassStart, twoPassCount * 2);
+            twoPassBox = java.util.Arrays.copyOf(twoPassBox, twoPassCount * 8);
+        }
+        twoPassStart[twoPassCount] = start;
+        int at = twoPassCount * 4;
+        twoPassBox[at] = x0;
+        twoPassBox[at + 1] = y0;
+        twoPassBox[at + 2] = x1;
+        twoPassBox[at + 3] = y1;
+        twoPassCount++;
+    }
+
+    /** Whether primitive {@code i}'s bounds overlap those of any from {@code from} up to it. */
+    private boolean overlapsRun(int i, int from) {
+        int a = i * 4;
+        for (int j = from; j < i; j++) {
+            int b = j * 4;
+            if (twoPassBox[a] < twoPassBox[b + 2] && twoPassBox[b] < twoPassBox[a + 2]
+                    && twoPassBox[a + 1] < twoPassBox[b + 3] && twoPassBox[b + 1] < twoPassBox[a + 3]) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Draws {@code total} queued indices (or flat vertices), both passes, run by run: a run ends
+     * before a primitive that overlaps one already in it. What precedes the first record (nothing,
+     * as the canvas emits) is a run of its own.
+     */
+    private void drawInTwoPasses(boolean indexed, int total) {
+        int n = twoPassCount;
+        int head = n == 0 ? total : twoPassStart[0];
+        if (head > 0) {
+            drawBothPasses(indexed, 0, head);
+        }
+        int runFrom = 0;
+        for (int i = 1; i <= n; i++) {
+            if (i == n || i - runFrom >= MAX_TWO_PASS_RUN || overlapsRun(i, runFrom)) {
+                int first = twoPassStart[runFrom];
+                int end = i == n ? total : twoPassStart[i];
+                if (end > first) {
+                    drawBothPasses(indexed, first, end - first);
+                }
+                runFrom = i;
+            }
+        }
+        twoPassCount = 0;
+    }
+
+    private void drawBothPasses(boolean indexed, int first, int count) {
+        glBlendFuncSeparate(blendSrcRgb, blendDstRgb, blendSrcAlpha, blendDstAlpha);
+        drawRange(indexed, first, count);
+        secondPass();
+        drawRange(indexed, first, count);
+    }
+
+    private void drawRange(boolean indexed, int first, int count) {
+        if (indexed) {
+            glDrawElements(GL_TRIANGLES, count, GL_UNSIGNED_INT, (long) first * Integer.BYTES);
+        } else {
+            glDrawArrays(GL_TRIANGLES, first, count);
+        }
+        drawCalls++;
+    }
+
     /** Forgets the tracked texture (after atlas eviction deletes the pages). */
     void resetTexture() {
         textureId = 0;
@@ -474,6 +555,13 @@ final class GlBatch implements AutoCloseable {
     }
 
     void ensure(int vertexSlots, int indexSlots) {
+        if (blendThen != null) {
+            if (flatVertexCount > 0) {
+                flushFlat(); // drawn before this primitive, and its records with it
+            }
+            beginTwoPassPrimitive(indices.position(), Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY,
+                    Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY);
+        }
         if (vertices.remaining() < vertexSlots * VERTEX_FLOATS) {
             int needed = vertices.position() + vertexSlots * VERTEX_FLOATS;
             vertices = MemoryUtil.memRealloc(vertices, Math.max(needed, vertices.capacity() * 2));
@@ -498,6 +586,13 @@ final class GlBatch implements AutoCloseable {
     void vertex(float posX, float posY, float localX, float localY, float u, float v) {
         if (flatVertexCount > 0) {
             flushFlat(); // drawn before this primitive, which the canvas asked for after it
+        }
+        if (blendThen != null && twoPassCount > 0) {
+            int at = (twoPassCount - 1) * 4; // the primitive this vertex belongs to grows to hold it
+            twoPassBox[at] = Math.min(twoPassBox[at], posX);
+            twoPassBox[at + 1] = Math.min(twoPassBox[at + 1], posY);
+            twoPassBox[at + 2] = Math.max(twoPassBox[at + 2], posX);
+            twoPassBox[at + 3] = Math.max(twoPassBox[at + 3], posY);
         }
         vertices.put(posX).put(posY)
                 .put(localX).put(localY)
@@ -528,6 +623,9 @@ final class GlBatch implements AutoCloseable {
         }
         if (flatVertices.remaining() < 6 * FLAT_VERTEX_FLOATS) {
             flatVertices = MemoryUtil.memRealloc(flatVertices, flatVertices.capacity() * 2);
+        }
+        if (blendThen != null) {
+            beginTwoPassPrimitive(flatVertexCount, x0, y0, x1, y1);
         }
         flatVertex(x0, y0, r, g, b, a);
         flatVertex(x1, y0, r, g, b, a);
@@ -781,9 +879,9 @@ final class GlBatch implements AutoCloseable {
             glBindTexture(GL_TEXTURE_2D, textureId);
         }
         applyRasterState();
-        glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, 0);
-        drawCalls++;
-        if (secondPass()) {
+        if (blendThen != null) {
+            drawInTwoPasses(true, indexCount);
+        } else {
             glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, 0);
             drawCalls++;
         }
@@ -806,9 +904,9 @@ final class GlBatch implements AutoCloseable {
         glUniform2f(flatUniformViewport, targetWidth, targetHeight);
         glUniform2f(flatUniformOrigin, targetX, targetY);
         applyRasterState();
-        glDrawArrays(GL_TRIANGLES, 0, flatVertexCount);
-        drawCalls++;
-        if (secondPass()) {
+        if (blendThen != null) {
+            drawInTwoPasses(false, flatVertexCount);
+        } else {
             glDrawArrays(GL_TRIANGLES, 0, flatVertexCount);
             drawCalls++;
         }

@@ -1079,10 +1079,23 @@ target, the premultiplied form of the formula with the coverage of an over,
   shaders' portability rule, has only as an extension). Two passes over the same geometry: the window's multiply first, `cs·cb +
   cb·(1 − αs)` with the coverage kept, then `ONE_MINUS_DST_ALPHA, ONE` for colour and coverage, which
   adds the source where the backdrop is not, `cs·(1 − αb)`, and grows the coverage by as much. The
-  second pass reads what the first left, so a draw in it inside a group takes a draw call of its own
-  (two with its second pass), and only such draws pay. The glyph quads of one run of text are one
-  draw, and where two of them overlap at an antialiased edge the overlap is computed as the two
-  passes of the whole run, not glyph by glyph: a fraction of a pixel's coverage, at most.
+  second pass reads what the first left, so two primitives that overlap must not share a pass.
+  (2026-10-19, after the third review, R3S-9: built first with a flush before every primitive, two
+  draw calls each, and the glyph quads of one run of text as one draw, which this section called
+  exact but for "a fraction of a pixel" at an antialiased edge. It was not: over a transparent part
+  of the group the two passes of one draw lay the overlapping ink of two glyphs of the run as the
+  second under the first, not multiplied, up to 64 of 255 across the whole overlap for a tint at one
+  half. The batch now keeps, while such a mode is in force, where each primitive starts and its
+  device bounds, a glyph quad, a shape or a piece of a path each being one, and draws both passes
+  run by run, a run ending before a primitive that overlaps one already in it (at most 64 tested
+  against each other): overlapping glyphs are drawn one after the other, exact, and draws that do
+  not overlap share their two draw calls. `GlGroupBlendTest
+  .tintsInMultiplyThatDoNotOverlapShareTheirTwoPasses` holds ten tints apart inside a card to five
+  draw calls for the frame (it drew 22). Draws that overlap still take two each: the reviewer's card,
+  ten overlapping tints inside a group at one half, is 23 draw calls on the GPU and 24 on the
+  software renderer, against 4 and 5 before this section, on every frame that draws it as a picture,
+  while it fades or while it is turned, and the same as before at rest. `BlendMode`, `Canvas.saveLayer`
+  and `Transform` say so.)
 - A group composited in a mode into another group (section 2.3's ancestor mode, nested) takes the
   same table, both passes over its quad.
 

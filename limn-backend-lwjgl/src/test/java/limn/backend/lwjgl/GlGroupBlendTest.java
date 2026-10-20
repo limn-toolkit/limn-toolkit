@@ -148,6 +148,38 @@ class GlGroupBlendTest {
     }
 
     /**
+     * Ten tints in MULTIPLY that do not overlap, inside a group over a card it drew: drawn in one
+     * run, both passes over all ten, and not a pair of draws each. Each took a flush of its own,
+     * 22 draw calls for the frame where it is 4.
+     */
+    @Test
+    void tintsInMultiplyThatDoNotOverlapShareTheirTwoPasses() {
+        GlCanvas canvas = new GlCanvas(fonts);
+        try {
+            Consumer<GlCanvas> card = c -> {
+                c.saveLayer(0, 0, SIZE, SIZE, HALF);
+                c.fillRect(0, 0, SIZE, SIZE, GROUP);
+                c.save();
+                c.setBlendMode(BlendMode.MULTIPLY);
+                for (int i = 0; i < 10; i++) {
+                    c.fillCircle(6 + (i % 5) * 12, 16 + (i / 5) * 24, 3, SOURCE.withAlpha(0.6f));
+                }
+                c.restore();
+                c.restore();
+            };
+            render(canvas, card);
+            int calls = canvas.drawCallsLastFrame();
+            assertTrue(calls <= 5, "draw calls for the card, its ten tints and its composite: " + calls);
+            // And still the formula at a tint's centre: the card, multiplied once.
+            int[] atTint = renderAt(canvas, 6, 16, card);
+            assertPixel(over(PAGE, HALF, blend(BlendMode.MULTIPLY, SOURCE, 0.6f, GROUP, 1)), atTint,
+                    "at a tint's centre");
+        } finally {
+            canvas.dispose();
+        }
+    }
+
+    /**
      * Additive light over translucent content of the group, the group laid over nothing: every
      * pixel it leaves is a valid premultiplied one, no channel above its coverage, and it is the
      * sum of the two, colour and coverage, clamped, as a web page's plus-lighter has it. The colour
@@ -301,11 +333,20 @@ class GlGroupBlendTest {
 
     /** One frame over the page into a texture of its own; the pixel at the middle. */
     private static int[] render(GlCanvas canvas, Consumer<GlCanvas> paint) {
-        return render(canvas, PAGE, paint);
+        return render(canvas, PAGE, SIZE / 2, SIZE / 2, paint);
     }
 
-    /** One frame over {@code page} into a texture of its own; the pixel at the middle, alpha last. */
+    /** One frame over the page; the pixel at {@code (x, y)}, top-down. */
+    private static int[] renderAt(GlCanvas canvas, int x, int y, Consumer<GlCanvas> paint) {
+        return render(canvas, PAGE, x, y, paint);
+    }
+
     private static int[] render(GlCanvas canvas, Color page, Consumer<GlCanvas> paint) {
+        return render(canvas, page, SIZE / 2, SIZE / 2, paint);
+    }
+
+    /** One frame over {@code page} into a texture of its own; the pixel at {@code (x, y)}, alpha last. */
+    private static int[] render(GlCanvas canvas, Color page, int x, int y, Consumer<GlCanvas> paint) {
         int texture = GL33C.glGenTextures();
         int fbo = GL33C.glGenFramebuffers();
         int previousFbo = GL33C.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
@@ -327,7 +368,7 @@ class GlGroupBlendTest {
             paint.accept(canvas);
             canvas.endFrame();
             GL33C.glPixelStorei(GL33C.GL_PACK_ALIGNMENT, 1);
-            GL33C.glReadPixels(SIZE / 2, SIZE / 2, 1, 1, GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, pixel);
+            GL33C.glReadPixels(x, SIZE - 1 - y, 1, 1, GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, pixel);
             return new int[] {pixel.get(0) & 0xFF, pixel.get(1) & 0xFF, pixel.get(2) & 0xFF, pixel.get(3) & 0xFF};
         } finally {
             MemoryUtil.memFree(pixel);
