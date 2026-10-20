@@ -884,13 +884,15 @@ public final class Scene {
         List<Runnable> settled = new ArrayList<>(0);
         Throwable failed = stackOverlay(overlay, settled);
         try {
+            // The scene left lets go of the widget either way, telling it nothing: it no longer
+            // holds it, and its window's close would otherwise tell it of a loss, which ends an entry.
+            boolean composed = movedFrom.letGoOfMovedFocus();
+            if (composed) {
+                dispatchBubbling(keyboard, new PreeditEvent("", 0, 0, 0));
+            }
             if (!canTakeFocus(keyboard)) {
                 focusTraverse(false); // an onAttached cut the walk short before it reached the widget
             } else {
-                boolean composed = movedFrom.letGoOfMovedFocus();
-                if (composed) {
-                    dispatchBubbling(keyboard, new PreeditEvent("", 0, 0, 0));
-                }
                 // CODE, the origin of pushOverlay(Widget)'s traversal: the widget this scene had
                 // focused is told of its loss exactly as that traversal would tell it.
                 setFocus(keyboard, Change.Origin.CODE, true);

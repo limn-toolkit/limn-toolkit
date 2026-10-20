@@ -899,6 +899,11 @@ that the text above does not say, dated where it departs from it.
     `OutOfMemoryError` from one `onArrive` left the close, and the arrivals after it never ran. The
     close now runs them as it runs every other step, each contained and reported as a
     `WINDOW_CLOSE` crash, so the sentence holds. `ClosedWindowDetachesItsTreeTest` has the case.
+  - **Moved content whose walk was cut short** went to the overlay's first stop without the scene
+    it came from letting go of the keyboard there: that scene kept its focus on a widget it no
+    longer held, and its window's close told the widget of a loss, which ends an entry, the thing a
+    moved focus is spared. The scene left lets go in both paths now, and ends a composition there
+    as it does when the keyboard comes along. `SceneOverlayTest` has the case.
 
 ### 12.6 The input method in a popover's window, measured
 

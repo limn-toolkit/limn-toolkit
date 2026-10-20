@@ -393,6 +393,13 @@ class SceneOverlayTest extends SceneTestBase {
         assertNull(typing.scene(), "sanity, the walk never reached it");
         Widget<?> focused = owner.focusedWidget();
         assertTrue(focused == null || focused.scene() == owner, "the keyboard is in the scene: " + focused);
+        // The scene the content left lets go of the keyboard there, as the push does when the walk
+        // reaches the widget: it kept it on a widget it no longer held, and its window's close then
+        // told the widget of a loss, which ends an entry, the thing a moved focus is spared.
+        assertNull(window.focusedWidget(), "the scene left lets go of it");
+        log.clear();
+        window.requestFocus(null);
+        assertFalse(log.contains("lost typing"), "and tells the widget of no loss later: " + log);
     }
 
     /** A form that starts the keyboard on one of its fields as it joins a scene, as a page of a wizard does. */
