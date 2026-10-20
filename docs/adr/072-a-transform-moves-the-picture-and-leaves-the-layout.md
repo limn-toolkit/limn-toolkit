@@ -445,6 +445,32 @@ Both depend on section 3, and with it they are short.
   own is not placed again yet, section 9.4. Stage 2, the same day: a popup window placed against a
   widget is placed again by its owner, which the scene asks; a popup menu, opened at a point or a
   rectangle and not against a widget, is not followed; section 10.2.)
+- **A child drawn as nothing is out of reach, as a hidden one is.** (2026-10-19, the owner's
+  decision 16 on the audit of that day, finding TR-3.) A child the Transform draws as nothing, its
+  back turned to the viewer while back faces are hidden, a scale of 0 on either axis, a plane
+  exactly edge-on (`ChildTransform.drawsNothing`), was not showing and took no pointer, yet stayed
+  in the Tab order, kept the focus and was published `ENABLED`, `FOCUSABLE` and `VISIBLE`: the
+  pattern `setBackfaceVisible` teaches, two faces back to back, left the hidden face's controls
+  reachable by Tab and by a reader, and the focus landed on a control nobody could see. Nothing in
+  this record had decided keyboard reach for such a child. Now it answers `isShowing() == false`
+  and is out of reach by every path a hidden branch is: Tab and Shift+Tab, `requestFocus`, access
+  letters and a keyboard drag's targets pass it by (`Widget.inReach`, `collectFocusable`), the
+  pointer already did; the set or the motion frame that makes it so takes the focus, the hover, a
+  press and a drag out of it through `Scene.onWidgetDetached`, the path a hidden widget takes; the
+  walk publishes it as a hidden branch, not `VISIBLE`, not `SHOWING`, not `FOCUSABLE`, no verb,
+  and the scene's verb gate refuses one from an older snapshot. It comes back by itself when the
+  face turns or the scale returns; the focus it lost is not given back, as after `setVisible`. The
+  change has the accessible tree walked on the frame it happens, a motion's frame included, which
+  otherwise leaves the tree alone (section 2.3), so a reader hears the state change then. No new
+  `Change` is announced: the container announces `TRANSFORM` on a set and at a motion's start and
+  end, as before, and a hidden ancestor announces nothing on its descendants either. Two faces back
+  to back (two containers in a `Stack`, back faces hidden, the back half a turn further, turned
+  together) show exactly one face at every angle, the one turned toward the viewer, but at exactly
+  90 degrees, where both planes lie along the line of sight and neither is drawn: for that one
+  angle neither is showing or in reach, and a focus there is lost. A `flipTo` whose frame lands
+  exactly edge-on is the same for that frame. Tests: `TransformUndrawnChildTest`. Left as before:
+  a child drawn wholly behind the eye is not showing but stays in reach (finding TR-5 is about
+  its bounds).
 
 ### 2.9 Backdrop effects under and inside a transform
 

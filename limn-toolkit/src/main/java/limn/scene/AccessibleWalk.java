@@ -1147,11 +1147,14 @@ final class AccessibleWalk {
                               long scope, boolean enabled, boolean visible, boolean reachable) {
         boolean wasInert = insideInert;
         insideInert = wasInert || widget.inert;
+        // Children a transform draws as nothing, a hidden back face, a scale of 0, a plane edge-on,
+        // are published as a hidden branch's are: not visible, not showing, not focusable, no verb.
+        boolean childrenVisible = visible && !widget.drawsNoChildren();
         try {
             List<Widget<?>> children = widget.children();
             for (int i = 0; i < children.size(); i++) {
                 walkWidget(scene, children.get(i), widget, into, ownSlot, ownId, scope,
-                        enabled, visible, reachable);
+                        enabled, childrenVisible, reachable);
             }
         } finally {
             insideInert = wasInert;

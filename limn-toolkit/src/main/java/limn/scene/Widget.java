@@ -224,6 +224,7 @@ public abstract class Widget<W extends Widget<W>> {
         if (childTransform != null) {
             childTransform.setBackfaceVisible(visible);
         }
+        noteChildrenDrawn();
     }
 
     /** Makes {@code next} the matrix the children are drawn through, keeping the scene's list. */
@@ -239,6 +240,37 @@ public abstract class Widget<W extends Widget<W>> {
             } else {
                 scene.removeTransformed(this);
             }
+        }
+        noteChildrenDrawn();
+    }
+
+    /**
+     * Whether the matrix this widget draws its children through draws nothing of them: collapsed
+     * to a line or a point, seen edge-on, or showing a back face this widget hides. Such children
+     * are out of reach as a hidden widget's are: not {@linkplain #isShowing() showing}, out of the
+     * Tab order and the pointer's reach, and published hidden.
+     */
+    final boolean drawsNoChildren() {
+        ChildTransform through = childTransform;
+        return through != null && through.drawsNothing;
+    }
+
+    /** What {@link #drawsNoChildren()} answered when {@link #noteChildrenDrawn()} last looked. */
+    private boolean childrenUndrawn;
+
+    /**
+     * After the matrix or the back face's flag changed: when the children stopped being drawn or
+     * came back, the scene is told, which takes the focus, the hover and a press out of them as it
+     * does for a hidden branch and has the accessible tree walked again.
+     */
+    private void noteChildrenDrawn() {
+        boolean undrawn = drawsNoChildren();
+        if (undrawn == childrenUndrawn) {
+            return;
+        }
+        childrenUndrawn = undrawn;
+        if (scene != null) {
+            scene.childrenDrawnChanged(this, undrawn);
         }
     }
 
@@ -974,11 +1006,23 @@ public abstract class Widget<W extends Widget<W>> {
     }
 
     /**
+     * Whether this widget is drawn by every container above it, as well as visible through them.
+     *
+     * <p>A {@link limn.scene.layout.Transform} that draws its child as nothing, a back face
+     * turned to the viewer while it hides back faces, a scale of 0 on either axis, a plane seen
+     * exactly edge-on, leaves everything inside not showing, and out of reach as a hidden
+     * container leaves it: out of the Tab order, an access letter's and the pointer's reach, the
+     * focus, the hover and a press taken out of it as the change is made, and published to
+     * assistive technologies as hidden. Nothing of it is changed: it is showing again, and in reach,
+     * as soon as the face turns back or the scale returns; the focus it lost is not given back.
+     *
      * @return whether this widget is actually on screen: attached to a scene,
      *         visible together with every ancestor (unlike {@link #isVisible()},
-     *         which reflects only this widget's own flag), and not scrolled
-     *         fully out of an ancestor that {@linkplain #clipsChildren() clips}
-     *         (a scroll viewport). Animations use this to pause while their
+     *         which reflects only this widget's own flag), drawn by every
+     *         transform above it, and not scrolled fully out of an ancestor
+     *         that {@linkplain #clipsChildren() clips} (a scroll viewport), nor
+     *         drawn wholly behind the eye or outside such an ancestor by a
+     *         transform. Animations use this to pause while their
      *         widget is inside a hidden container (an unselected tab) or
      *         clipped out of view; without it, a progress bar scrolled away
      *         would keep ticking the frame loop at full rate while painting
@@ -1225,7 +1269,8 @@ public abstract class Widget<W extends Widget<W>> {
 
     /**
      * Whether the keyboard and an access letter can reach this widget: it and every ancestor
-     * visible by their own flags and enabled, and nothing on the way inert. Unlike
+     * visible by their own flags and enabled, nothing on the way inert, and no transform above
+     * drawing it as nothing ({@link #drawsNoChildren()}). Unlike
      * {@link #isShowing()} it does not ask about clips, because a control scrolled out of its
      * viewport is still one the focus can be moved to, and arriving there reveals it.
      */
@@ -1233,6 +1278,9 @@ public abstract class Widget<W extends Widget<W>> {
         for (Widget<?> w = this; w != null; w = w.parent) {
             if (!w.visible || w.elsewhere || !w.enabled || w.inert) {
                 return false;
+            }
+            if (w != this && w.drawsNoChildren()) {
+                return false; // a transform above draws it as a line, a point or a hidden back
             }
         }
         return true;

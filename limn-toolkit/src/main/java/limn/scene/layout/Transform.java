@@ -33,7 +33,7 @@ import java.util.Objects;
  *   <li>a rotation, {@link #setRotation}, in degrees clockwise on the screen, the same way in
  *       either direction, as a clock turns; {@code 0};</li>
  *   <li>a scale, {@link #setScale(float, float)}: a negative factor mirrors, and a factor of 0
- *       collapses the child to a line or a point, which then draws nothing and takes no pointer;
+ *       collapses the child to a line or a point, which then draws nothing and is out of reach (below);
  *       {@code (1, 1)};</li>
  *   <li>a general matrix, {@link #setMatrix}, for a skew or any other map the other values do not
  *       name; the identity;</li>
@@ -64,6 +64,16 @@ import java.util.Objects;
  * that should be cut goes inside a container that clips. It is hit only where its child is drawn,
  * inside its box or past it, so the place a child slid away from takes the pointer from what is
  * beneath.
+ *
+ * <p><b>A child drawn as nothing is out of reach, as a hidden one is.</b> Collapsed by a scale of 0
+ * on either axis, turned exactly edge-on, or showing its back while {@link #setBackfaceVisible back
+ * faces are hidden}, the child and everything inside it are not {@link #isShowing() showing}: the
+ * Tab key, an access letter and the pointer pass them by, the focus, the hover and a press held
+ * there are taken out of them at the set or the frame that does it, with the events a widget
+ * hidden by {@link #setVisible} is sent, and a screen reader is told they are hidden. They come
+ * back by themselves, in reach and published again, when the scale returns or the face turns
+ * back; the focus they lost is not given back. Nothing of the child's own state changes, and
+ * {@link #isVisible()} still answers what it was told.
  *
  * <p><b>What it costs</b>: nothing at rest, where the frame is the frame without it. Moved or
  * scaled, the child is drawn straight into the window, moved and scaled, every clip inside it exact;
@@ -295,7 +305,8 @@ public final class Transform extends Widget<Transform> {
      *
      * <p>With no {@link #setPerspective perspective} a turn about y narrows the child, and one past
      * ninety degrees shows its back, mirrored. A turn of exactly ninety degrees out of the screen
-     * leaves the child edge-on: it draws nothing and takes no pointer. A whole turn is no turn.
+     * leaves the child edge-on: it draws nothing and is out of reach, as the class's note says of a
+     * child drawn as nothing. A whole turn is no turn.
      *
      * @param axis    the axis, of any length but 0
      * @param degrees the angle, in degrees, the way the paragraph above says for each axis; about
@@ -375,9 +386,18 @@ public final class Transform extends Widget<Transform> {
     /**
      * Sets whether the child is drawn, and hit, while its plane shows the viewer its back: turned
      * past ninety degrees out of the screen. Drawn by default, mirrored as the back of a pane of
-     * glass is; hidden, a turned-over child draws nothing and takes no pointer, which is how two
-     * faces stacked back to back in one container show one at a time without a swap. A child
-     * mirrored by a negative {@link #setScale scale} still faces the viewer and is drawn either way.
+     * glass is; hidden, a turned-over child draws nothing and is out of reach as a hidden child is
+     * (see the class's note): not showing, passed by the Tab key and the pointer, the focus taken
+     * out of it, published hidden, until it turns back. A child mirrored by a negative
+     * {@link #setScale scale} still faces the viewer and is drawn either way.
+     *
+     * <p>This is how two faces show one at a time without a swap: a {@link Stack} of two
+     * containers with the same perspective and back faces hidden, the back turned half a turn
+     * further than the front, both turned together. At every angle exactly one face is drawn, is
+     * showing and takes the keyboard and the pointer, the one turned toward the viewer, but at
+     * exactly ninety degrees from flat, where both planes lie along the line of sight and neither is
+     * drawn: for that one angle neither face is showing or in reach. A focus held in the face that
+     * turns away is lost as it turns.
      *
      * @param visible whether a back face is drawn and hit
      * @return this
@@ -574,7 +594,9 @@ public final class Transform extends Widget<Transform> {
      * scale; text is softer while it turns and crisp again at the end. With a perspective it turns
      * in depth, the edge coming over growing toward the viewer, through a picture while it turns.
      * Either way it turns the child as it appears, after its own turn in depth and rotation, and
-     * leaves every value as it found it.
+     * leaves every value as it found it. A frame that lands exactly edge-on draws the child as
+     * nothing, which puts it out of reach for that frame (see the class's note); the face
+     * {@code atEdge} hides loses the focus as {@link #setVisible} takes it from any widget.
      *
      * <p>By the rules of {@link #slideTo(float, float, double, Runnable) slideTo}: eased over the
      * whole turn, fastest edge-on; on the one ticker beside a slide and a scale; superseded by a newer

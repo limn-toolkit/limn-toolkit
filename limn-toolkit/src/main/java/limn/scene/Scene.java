@@ -1704,8 +1704,8 @@ public final class Scene {
      */
     private static boolean isVisibleThroughAncestry(Widget<?> widget) {
         for (Widget<?> at = widget; at != null; at = at.parent()) {
-            if (!at.isVisible()) {
-                return false;
+            if (!at.isVisible() || (at != widget && at.drawsNoChildren())) {
+                return false; // hidden, or drawn as nothing by a transform above: the walk's VISIBLE
             }
         }
         return true;
@@ -2822,6 +2822,27 @@ public final class Scene {
         return transformed;
     }
 
+    /**
+     * A widget whose matrix drew its children stopped drawing them (a back face hidden, a scale of
+     * 0, a plane edge-on) or drew them again. Gone, they are out of reach as a hidden branch is, and
+     * by the same path: the focus, the hover, a press and a drag inside are taken out, with the
+     * events a hidden widget is sent. Either way the accessible tree is walked again, since what it
+     * publishes of them (visible, showing, focusable, their verbs) changed, on a frame of a motion
+     * too, which otherwise leaves the tree alone.
+     */
+    void childrenDrawnChanged(Widget<?> container, boolean undrawn) {
+        if (undrawn) {
+            // A copy: what a revocation runs may change the children.
+            for (Widget<?> child : List.copyOf(container.children())) {
+                if (child.scene() == this) {
+                    onWidgetDetached(child);
+                }
+            }
+        }
+        markAccessibleNodesDirty();
+        scheduleFrame();
+    }
+
     /** Whether a widget left the tree since the accessibility walk last listed who answers for a node. */
     private boolean walkMayNameDetached;
 
@@ -3299,6 +3320,9 @@ public final class Scene {
         }
         if (widget.isFocusable()) {
             out.add(widget);
+        }
+        if (widget.drawsNoChildren()) {
+            return; // drawn as a line, a point or a hidden back: nothing there to land on
         }
         for (Widget<?> child : widget.children()) {
             collectFocusable(child, out);
@@ -4564,6 +4588,9 @@ public final class Scene {
                 && limn.scene.internal.AccessLetterOwner.matches(owner.accessLetter(), key, codePoint)) {
             into.add(owner);
         }
+        if (at.drawsNoChildren()) {
+            return; // a transform draws nothing of them: as hidden
+        }
         for (Widget<?> child : at.children()) {
             collectAccessLetters(child, key, codePoint, into);
         }
@@ -5320,6 +5347,9 @@ public final class Scene {
             return;
         }
         out.add(widget);
+        if (widget.drawsNoChildren()) {
+            return; // a transform draws nothing of them: as hidden
+        }
         for (Widget<?> child : widget.children()) {
             collectDropCandidates(child, out);
         }
