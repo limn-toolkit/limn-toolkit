@@ -377,9 +377,12 @@ clears itself as soon as the user fixes it. A form that only revalidates on subm
 press the button to find out whether they are done.
 
 A date field and a date picker check what they hold themselves, a day out of range or one your
-filter refuses. Around one, a field shows the date's own reason in the error colour while you
-have set no message with a state other than `NONE` (a message set with `NONE` is not shown, so it
-counts as none), and a refused day keeps the border red whatever state you set.
+filter refuses. While one refuses its day, the field around it shows the date's own reason in the
+error colour, and that is what a screen reader hears: ahead of the helper text, and ahead of an
+`INFO` or `SUCCESS` message of yours, which would otherwise say "looks good" over a day still
+refused. An `ERROR` or `WARNING` message you set still takes the line, your own judgement of the
+day; the reason comes back when it goes. A message set with `NONE` is not shown, so it counts as
+none, and a refused day keeps the border red whatever state you set.
 
 :::tip[Validate late, clear early]
 Showing an error before someone has finished typing reads as nagging. A good default is to

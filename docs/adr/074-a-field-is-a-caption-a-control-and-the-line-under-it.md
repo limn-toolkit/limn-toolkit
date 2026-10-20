@@ -587,3 +587,25 @@ layout, and each message that came or went repainted the window, the cost
 (`SceneAccess.setLocaleInPlace`): its measure is marked and the scene re-measures upward until a
 size holds. `FieldTest.aMessageComingAndGoingRepaintsNoWindowWhenTheControlSpeaksAnotherLanguage`
 holds both forms to frames that repaint no window.
+
+## Note, 2026-10-20: a control's refusal comes before a reassuring message
+
+The review of the order above (R7C-4) found it said "looks good" over a date still refused: an
+application message with any state but `NONE` came before the control's own reason, so a field
+around a date field refusing its day, given `setValidation(SUCCESS, "Looks good")`, showed that
+line in the success tone while its border stayed red and a reader heard the control invalid, and
+the refusal was said nowhere. The owner's rule (decision 41): while the control refuses its value,
+its refusal shows on the line and is what a reader hears as the description, ahead of the helper
+text, an application `INFO` and an application `SUCCESS` message; an application `ERROR` or
+`WARNING` message still wins, being the application's own judgement of that value. So the line
+shows, in order: the application's message with `ERROR` or `WARNING`; the control's own reason;
+the application's message with `INFO` or `SUCCESS`; the helper text. `validationMessage()` and
+`validationMessageSource()` answer the same order without the helper text, from the one place the
+line reads it. A waiting `INFO` or `SUCCESS` message returns as soon as the control accepts its
+value, with no call from the application, and an `ERROR` or `WARNING` set with no message leaves
+the refusal on the line as before. The invalid state a reader hears is unchanged: the
+application's `ERROR`, or the control's own refusal.
+`FieldAccessibilityTest.whileTheControlRefusesItsValueItsRefusalIsShownAndReadAheadOfHelperInfoAndSuccess`
+walks a date field and a date picker through every transition (each state set over a refusal, the
+day refused and accepted again under a state already set), checking the line, its tone, both
+getters, the published description and the invalid state.

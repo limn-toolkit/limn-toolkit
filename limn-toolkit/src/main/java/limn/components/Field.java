@@ -44,11 +44,14 @@ import java.util.Objects;
  * <p><b>The line under the control says one thing.</b> While the state is not
  * {@link Validation#NONE} and a message is set, it is the message, in the state's {@link Tone} and
  * with the state's glyph before it, so the state never depends on colour alone; otherwise the
- * helper text, muted; otherwise nothing. A date field or a date picker that refuses what it holds,
- * a day out of range say, shows its own message in the error tone while the application has set
- * no message with a state other than {@link Validation#NONE}: a message set with {@code NONE} is not
- * shown, and counts as none. A screen reader hears the line as the control's description,
- * whichever it shows.
+ * helper text, muted; otherwise nothing. A message set with {@code NONE} is not shown, and counts
+ * as none. A control that refuses what it holds, a date field or a date picker holding a day out
+ * of range say, says why on the line, in the error tone, ahead of the helper text and of an
+ * {@link Validation#INFO} or {@link Validation#SUCCESS} message, which would otherwise say "looks
+ * good" over a value still refused; an {@link Validation#ERROR} or {@link Validation#WARNING}
+ * message the application set still takes the line, and the refusal returns to it when that
+ * message goes, while the control still refuses. A screen reader hears the line as the control's
+ * description, whichever it shows.
  *
  * <p><b>The line keeps its height.</b> A field given helper text, or a state once, reserves its line
  * from then on, so a form does not move when the first error appears or the last one is fixed. A
@@ -274,10 +277,12 @@ public final class Field extends Widget<Field> {
     }
 
     /**
-     * The message about the control: the one the application set with a state other than
-     * {@link Validation#NONE}, or, with none, the control's own reason (a date field that refuses a
-     * day), as the line under the control says it; {@code null} when there is neither. A message
-     * set with {@link Validation#NONE} is not shown, and is not answered here either. It reads in
+     * The message about the control, as the line under the control says it: the one the
+     * application set with {@link Validation#ERROR} or {@link Validation#WARNING}; else the
+     * control's own reason while it refuses what it holds (a date field that refuses a day); else
+     * the one the application set with {@link Validation#INFO} or {@link Validation#SUCCESS};
+     * {@code null} when there is none of them. A message set with {@link Validation#NONE} is not
+     * shown, and is not answered here either. It reads in
      * the control's language, the one the control declares, else the one it takes from this field
      * and the widgets above it, so a Portuguese date field in an English window is described in
      * Portuguese, on the line and here. See {@link #validationMessageSource()} for the value
@@ -297,17 +302,37 @@ public final class Field extends Widget<Field> {
     }
 
     /**
-     * The localizable value behind {@link #validationMessage()}: the application's message while
-     * the state is not {@link Validation#NONE}, else the control's own, else {@code null}.
+     * The localizable value behind {@link #validationMessage()}: the application's message with
+     * {@link Validation#ERROR} or {@link Validation#WARNING}, else the control's own reason, else
+     * the application's message with {@link Validation#INFO} or {@link Validation#SUCCESS}, else
+     * {@code null}.
      */
     public @Nullable I18nString validationMessageSource() {
-        I18nString shown = shownMessage();
-        return shown != null ? shown : FieldControls.ownMessage(control);
+        Said said = said();
+        return said == null ? null : said.text();
     }
 
-    /** The application's message, which shows only with a state: with none it is absent. */
-    private @Nullable I18nString shownMessage() {
-        return validation == Validation.NONE ? null : message;
+    /** A message about the control, and the state the line shows it in. */
+    private record Said(I18nString text, Validation state) { }
+
+    /**
+     * What is said about the control, decided in one place for the line and the getters: an
+     * application's error or warning, else the control's own refusal, else an application's
+     * information or success, else nothing. The refusal comes before a reassuring message: it says
+     * the value held is refused now, which "looks good" would contradict while a reader hears the
+     * control invalid; an error or a warning is the application's own judgement of that value, and
+     * keeps the last word.
+     */
+    private @Nullable Said said() {
+        I18nString applications = validation == Validation.NONE ? null : message;
+        if (applications != null && (validation == Validation.ERROR || validation == Validation.WARNING)) {
+            return new Said(applications, validation);
+        }
+        I18nString own = FieldControls.ownMessage(control);
+        if (own != null) {
+            return new Said(own, Validation.ERROR);
+        }
+        return applications == null ? null : new Said(applications, validation);
     }
 
     /**
@@ -325,8 +350,10 @@ public final class Field extends Widget<Field> {
      * Sets what the application decided about the value the control holds, and what to say about
      * it. The state colours the control's border where it draws one; the message, while the state is
      * not {@link Validation#NONE}, takes the line under the control in the state's tone, with the
-     * state's glyph; {@link Validation#ERROR} is the invalid state to a screen reader, which hears
-     * the message as the control's description. From the first state on, the line keeps its height.
+     * state's glyph, except that an {@link Validation#INFO} or {@link Validation#SUCCESS} message
+     * waits while the control refuses what it holds (a date field holding a day it refuses), whose
+     * reason the line shows instead; {@link Validation#ERROR} is the invalid state to a screen
+     * reader, which hears the line as the control's description. From the first state on, the line keeps its height.
      * Called from the application's handler or watcher, when it chooses: on change, on leaving the
      * field, on submitting. UI thread only.
      *
@@ -385,23 +412,19 @@ public final class Field extends Widget<Field> {
     }
 
     /**
-     * What the line shows, decided in one place: the application's message with its state, else
-     * the control's own reason, else the helper text, else nothing. The control's reason comes
-     * before the helper text: it says why the value it holds is refused now, which the helper text,
-     * how to fill the field, does not, and the helper text comes back once the value is accepted.
+     * What the line shows: what is said about the control ({@link #said()}), else the helper text,
+     * else nothing. The control's reason comes before the helper text too: it says why the value it
+     * holds is refused now, which the helper text, how to fill the field, does not, and the helper
+     * text comes back once the value is accepted.
      */
     private void refreshLine() {
         I18nString text;
         Validation shown;
-        I18nString applications = shownMessage();
-        I18nString own = applications == null ? FieldControls.ownMessage(control) : null;
-        if (applications != null) {
-            text = applications;
-            shown = validation;
-        } else if (own != null) {
-            text = own;
-            shown = Validation.ERROR;
-            reserve(); // the control spoke: the line it took keeps its height, as a message's does
+        Said said = said();
+        if (said != null) {
+            text = said.text();
+            shown = said.state();
+            reserve(); // something is said: the line keeps its height, as a state's does
         } else if (helper != null) {
             text = helper;
             shown = Validation.NONE;

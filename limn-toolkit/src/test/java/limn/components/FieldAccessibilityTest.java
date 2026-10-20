@@ -119,6 +119,108 @@ class FieldAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(failures.isEmpty(), String.join("\n", failures));
     }
 
+    /**
+     * The owner's rule for a control that refuses its value (a date field holding a day its filter
+     * refuses): its refusal is on the line, and is what a reader hears, ahead of the helper text and
+     * of an application's {@link Validation#INFO} or {@link Validation#SUCCESS} message, which said
+     * "Looks good" over a date still refused, in the success tone, while the reader heard "invalid";
+     * an application's {@link Validation#ERROR} or {@link Validation#WARNING} message still wins.
+     * Every transition, set by the application or by the control's validity moving under a state
+     * already set, on the line, the getters, the description and the invalid state, for a date
+     * field and for a picker, whose refusal is its field's.
+     */
+    @Test
+    void whileTheControlRefusesItsValueItsRefusalIsShownAndReadAheadOfHelperInfoAndSuccess() {
+        java.util.Locale before = limn.i18n.I18n.locale();
+        limn.i18n.I18n.setLocale(java.util.Locale.ENGLISH);
+        try {
+            List<String> failures = new ArrayList<>();
+            refusalCases(failures, "DateField", () -> {
+                DateField date = new DateField().setClock(TODAY).setDateFilter(d -> d.getDayOfMonth() != 13);
+                return new Object[] {date, (java.util.function.Consumer<Integer>) day ->
+                        date.setDate(java.time.LocalDate.of(2026, 11, day))};
+            });
+            refusalCases(failures, "DatePicker", () -> {
+                DatePicker picker = new DatePicker().setClock(TODAY).setDateFilter(d -> d.getDayOfMonth() != 13);
+                return new Object[] {picker, (java.util.function.Consumer<Integer>) day ->
+                        picker.setDate(java.time.LocalDate.of(2026, 11, day))};
+            });
+            assertTrue(failures.isEmpty(), String.join("\n", failures));
+        } finally {
+            limn.i18n.I18n.setLocale(before);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void refusalCases(List<String> failures, String input, Supplier<Object[]> make) {
+        Object[] made = make.get();
+        Widget<?> control = (Widget<?>) made[0];
+        java.util.function.Consumer<Integer> holdDay = (java.util.function.Consumer<Integer>) made[1];
+        Field field = new Field("Delivery", control).setHelperText("Any day but the 13th");
+        Label line = (Label) field.children().get(3);
+        Column root = new Column();
+        root.add(field);
+        bind(root);
+        String refusal = "This date is not available";
+        String helper = "Any day but the 13th";
+        // what, then the expected line, its tone (null: muted helper), the getter, and invalid.
+        record Step(String what, Runnable change, String line, Tone tone, String message, boolean invalid) { }
+        List<Step> steps = List.of(
+                new Step("an accepted day", () -> holdDay.accept(12), helper, null, null, false),
+                new Step("the day refused", () -> holdDay.accept(13), refusal, Tone.DANGER, refusal, true),
+                new Step("an application INFO over the refusal",
+                        () -> field.setValidation(Validation.INFO, "Delivery takes two days"),
+                        refusal, Tone.DANGER, refusal, true),
+                new Step("an application SUCCESS over the refusal",
+                        () -> field.setValidation(Validation.SUCCESS, "Looks good"),
+                        refusal, Tone.DANGER, refusal, true),
+                new Step("an application WARNING wins",
+                        () -> field.setValidation(Validation.WARNING, "Check the day"),
+                        "Check the day", Tone.WARNING, "Check the day", true),
+                new Step("an application ERROR wins",
+                        () -> field.setValidation(Validation.ERROR, "We do not deliver on the 13th"),
+                        "We do not deliver on the 13th", Tone.DANGER, "We do not deliver on the 13th", true),
+                new Step("an ERROR with no message", () -> field.setValidation(Validation.ERROR),
+                        refusal, Tone.DANGER, refusal, true),
+                new Step("a WARNING with no message", () -> field.setValidation(Validation.WARNING),
+                        refusal, Tone.DANGER, refusal, true),
+                new Step("SUCCESS set again", () -> field.setValidation(Validation.SUCCESS, "Looks good"),
+                        refusal, Tone.DANGER, refusal, true),
+                new Step("the day accepted under SUCCESS", () -> holdDay.accept(12),
+                        "Looks good", Tone.SUCCESS, "Looks good", false),
+                new Step("INFO over an accepted day",
+                        () -> field.setValidation(Validation.INFO, "Delivery takes two days"),
+                        "Delivery takes two days", Tone.INFO, "Delivery takes two days", false),
+                new Step("the day refused again under INFO", () -> holdDay.accept(13),
+                        refusal, Tone.DANGER, refusal, true),
+                new Step("a WARNING set while it refuses",
+                        () -> field.setValidation(Validation.WARNING, "Check the day"),
+                        "Check the day", Tone.WARNING, "Check the day", true),
+                new Step("SUCCESS after the WARNING", () -> field.setValidation(Validation.SUCCESS, "Looks good"),
+                        refusal, Tone.DANGER, refusal, true),
+                new Step("a message with no state", () -> field.setValidation(Validation.NONE, "Looks good"),
+                        refusal, Tone.DANGER, refusal, true),
+                new Step("cleared and accepted", () -> {
+                    field.clearValidation();
+                    holdDay.accept(12);
+                }, helper, null, null, false));
+        for (Step step : steps) {
+            String where = input + ", " + step.what();
+            step.change().run();
+            frame();
+            check(failures, where, "the line", step.line(), line.text());
+            check(failures, where, "the line's tone", String.valueOf(step.tone()), String.valueOf(line.tone()));
+            check(failures, where, "validationMessage()", String.valueOf(step.message()),
+                    String.valueOf(field.validationMessage()));
+            I18nString source = field.validationMessageSource();
+            check(failures, where, "validationMessageSource()", String.valueOf(step.message()),
+                    String.valueOf(source == null ? null : source.get()));
+            AccessibleNode node = named("Delivery");
+            check(failures, where, "the description", step.line(), node.description());
+            check(failures, where, "invalid", step.invalid(), node.has(Accessible.State.INVALID));
+        }
+    }
+
     private static void check(List<String> failures, String input, String what, Object expected, Object actual) {
         if (!expected.equals(actual)) {
             failures.add(input + ": " + what + " expected <" + expected + "> but was <" + actual + ">");
