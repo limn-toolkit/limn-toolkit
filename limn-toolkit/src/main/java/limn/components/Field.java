@@ -46,7 +46,9 @@ import java.util.Objects;
  * with the state's glyph before it, so the state never depends on colour alone; otherwise the
  * helper text, muted; otherwise nothing. A date field or a date picker that refuses what it holds,
  * a day out of range say, shows its own message in the error tone while the application has set
- * none. A screen reader hears the line as the control's description, whichever it shows.
+ * no message with a state other than {@link Validation#NONE}: a message set with {@code NONE} is not
+ * shown, and counts as none. A screen reader hears the line as the control's description,
+ * whichever it shows.
  *
  * <p><b>The line keeps its height.</b> A field given helper text, or a state once, reserves its line
  * from then on, so a form does not move when the first error appears or the last one is fixed. A

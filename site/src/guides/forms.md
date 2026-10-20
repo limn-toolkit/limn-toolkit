@@ -377,7 +377,8 @@ press the button to find out whether they are done.
 
 A date field and a date picker check what they hold themselves, a day out of range or one your
 filter refuses. Around one, a field shows the date's own reason in the error colour while you
-have set no message of your own, and a refused day keeps the border red whatever state you set.
+have set no message with a state other than `NONE` (a message set with `NONE` is not shown, so it
+counts as none), and a refused day keeps the border red whatever state you set.
 
 :::tip[Validate late, clear early]
 Showing an error before someone has finished typing reads as nagging. A good default is to
