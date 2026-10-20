@@ -346,3 +346,7 @@ names the variables itself (`ir_s…`).
   reads which names each loop reads, as the generator places it by, and counts a turn's loop that
   reads none of the state once, with the initial value's; a generator test holds the invariant
   loop before the outer one, where it is counted.
+- **2026-10-20, review 9: no `ir_` name reaches the generator unbound.** `SurfaceOutputs` refused
+  only a state name read outside its loop, so a reference to `ir_s0` beside a loop was written
+  bare and read that loop's variable. It now refuses any name starting `ir_` that no loop binds:
+  those are a loop's states or the generator's own variables, and inputs may not take them.

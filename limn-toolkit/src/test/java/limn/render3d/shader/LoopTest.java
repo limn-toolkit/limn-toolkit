@@ -311,4 +311,19 @@ class LoopTest {
         assertDoesNotThrow(() -> SurfaceOutputs.of(Expr.Lit.of(0f, 0f, 0f, 1f), loop.value(1), Expr.Lit.of(1f),
                 new Expr.Swizzle(loop, "xyz")));
     }
+
+    @Test
+    void aGeneratorNameReadWhereNoLoopBindsItIsRefusedByTheSurface() {
+        // ir_s0 is the variable the generator gives the first loop's state: read bare beside a
+        // loop it would silently be that loop's value.
+        Expr.Loop loop = loop(4, LoopTest::step);
+        for (String name : List.of("ir_s0", "ir_t3", "ir_i0", "ir_anything")) {
+            IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+                    () -> SurfaceOutputs.of(Expr.Lit.of(0f, 0f, 0f, 1f), new Expr.Ref(name, ShaderType.FLOAT),
+                            Expr.Lit.of(1f), new Expr.Construct(ShaderType.VEC3, List.of(loop, Expr.Lit.of(0f)))));
+            assertTrue(refused.getMessage().contains(name), refused.getMessage());
+        }
+        assertDoesNotThrow(() -> SurfaceOutputs.of(Expr.Lit.of(0f, 0f, 0f, 1f), new Expr.Ref("u_ir", ShaderType.FLOAT),
+                Expr.Lit.of(1f), Expr.Lit.of(0f, 0f, 0f)));
+    }
 }

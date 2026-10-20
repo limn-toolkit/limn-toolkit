@@ -57,16 +57,19 @@ public record SurfaceOutputs(Expr baseColor, Expr metallic, Expr roughness, Expr
     /**
      * Holds the surface's loops to {@link Expr.Loop#MAX_ITERATIONS} turns a pixel, its diffuse
      * response's counted once for each of the eight lights a pass shades with, and refuses a
-     * loop's state read outside its loop.
+     * loop's state read outside its loop and any other name starting {@code ir_}, which are the
+     * generator's.
      *
      * @throws IllegalArgumentException if the surface's loops take more turns a pixel than that,
-     *                                  or it reads a loop's state where no loop binds it
+     *                                  or it reads a name starting {@code ir_} where no loop
+     *                                  binds it
      */
     public SurfaceOutputs {
         java.util.List<Expr> all = outputs(baseColor, metallic, roughness, emissive, normal, diffuseResponse);
         String free = Loops.freeState(all);
         if (free != null) {
-            throw new IllegalArgumentException("a loop's state, " + free + ", is read outside its loop");
+            throw new IllegalArgumentException(free + " is read where no loop binds it: an ir_ name is a loop's"
+                    + " state, read outside its loop, or the generator's own");
         }
         long turns = Loops.surfaceTurns(outputs(baseColor, metallic, roughness, emissive, normal),
                 diffuseResponse, LIGHTS);

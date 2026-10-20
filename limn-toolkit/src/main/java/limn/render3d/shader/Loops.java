@@ -202,7 +202,10 @@ final class Loops {
         return null;
     }
 
-    /** The name of a loop's state read under {@code roots} outside its loop, or null. */
+    /**
+     * The first {@code ir_} name read under {@code roots} where no loop binds it, or null: a
+     * loop's state outside its loop, or one of the generator's own variables.
+     */
     static @Nullable String freeState(List<Expr> roots) {
         Map<Expr, Set<List<String>>> seen = new IdentityHashMap<>();
         for (Expr root : roots) {
@@ -220,8 +223,9 @@ final class Loops {
             return null;
         }
         if (node instanceof Expr.Ref ref) {
-            boolean state = isStateName(ref.name()) || ref.name().startsWith(BUILDING_PREFIX);
-            return state && !bound.contains(ref.name()) ? ref.name() : null;
+            // Every ir_ name is the generator's or a loop's: read where no loop binds it, it is either
+            // a state out of its loop or a generated variable reached by accident.
+            return ref.name().startsWith("ir_") && !bound.contains(ref.name()) ? ref.name() : null;
         }
         if (node instanceof Expr.Loop loop) {
             for (Expr start : loop.initial()) {
