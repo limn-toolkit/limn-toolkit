@@ -224,6 +224,10 @@ public final class RowsPlaceholder {
      * and inside a scroll view it would count as clipped away, and its load go unsaid.
      */
     private static boolean onScreen(Widget<?> widget) {
+        // Only the flags, by design: the clip walk stays out. Not asked here yet: a face a
+        // Transform does not draw (back face, scale 0, edge-on) and an opacity group at zero,
+        // both shown by their flags. Where the toolkit answers "not showing" for a child its
+        // Transform hides, that predicate belongs in this loop as well, without the clips.
         for (Widget<?> w = widget; w != null; w = w.parent()) {
             if (!w.isVisible()) {
                 return false;
