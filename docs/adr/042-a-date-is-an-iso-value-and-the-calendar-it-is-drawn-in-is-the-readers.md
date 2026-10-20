@@ -429,6 +429,19 @@ start field opens the grid anchored on the start, focus in the end field on the 
 writes back into whichever end the picker is filling. The two fields are ordinary children, so the
 period is typable end to end without ever opening the calendar.
 
+**Amendment, 2026-10-20 (the owner's Showcase review, D7): a period is one line packed at the
+start.** The two fields used to split the box in halves, so a period read stretched: the first date
+at the start, the dash in the middle, the second date far off at the other end. It now reads as it
+would be typed: the first date from the field's pad, the dash a small gap (`spacingSmall`) after
+it, the second date the same gap after the dash, and the room left over after the second date,
+before the calendar button, on the side reading ends on. The end field's box runs on over that
+room, so a click there lands in it. The dash packs against what the first date shows now, a
+placeholder or digits, and moves as the date fills, the picker laying itself out in place; only a
+box too narrow for the packed line falls back to the halves. Pinned by
+`DatePickerTest.aPeriodPacksItsDatesAndTheDashAtTheStartInEitherDirection`,
+`theDashAndTheSecondDateFollowTheFirstDateAsItIsTyped` and, against real glyphs at 1x and 2x,
+`ControlInkPixelTest.aPeriodPacksItsTwoDatesAndTheDashAtTheStartInEitherDirection`.
+
 ## 7. Week numbers and marks
 
 `setShowWeekNumbers(true)` adds a leading column carrying the week number from

@@ -5,6 +5,8 @@ import limn.components.ComboBox;
 import limn.components.TextField;
 import limn.components.Theme;
 import limn.components.date.DateField;
+import limn.components.date.DatePicker;
+import limn.components.date.DateRange;
 import limn.graphics.SvgIcon;
 import limn.scene.ControlSize;
 import limn.scene.Insets;
@@ -30,6 +32,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Supplier;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -39,8 +42,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <p>The text of a field, a combo, a date field and a button is centred on its box by its <em>cap
  * height</em>, at every control size, at 1x and 2x, wherever on the pixel grid the box happens to
- * start. And the gap between a leading icon's ink and its text's ink is the same in a button, a
- * field and a combo, in either direction.
+ * start. The gap between a leading icon's ink and its text's ink is the same in a button, a field
+ * and a combo, in either direction. And a period picker packs its two dates and the dash at the
+ * start of the field, the calendar button at the far end, in either direction, filled or empty.
  *
  * <p>Set the environment variable {@code LIMN_TEST_INK_REPORT} to a file to have every measurement
  * written there, and {@code LIMN_TEST_INK_DUMP} to a directory for the frames, as raw RGBA.
@@ -266,6 +270,67 @@ class ControlInkPixelTest {
                     gap, runs.size());
         }
         return gap;
+    }
+
+    // ------------------------------------------------------------------ D7: a period packs
+
+    @Test
+    void aPeriodPacksItsTwoDatesAndTheDashAtTheStartInEitherDirection() {
+        for (float scale : new float[] {1f, 2f}) {
+            for (LayoutDirection direction : LayoutDirection.values()) {
+                for (boolean empty : new boolean[] {false, true}) {
+                    DatePicker picker = DatePicker.ofRange().setClock(CLOCK);
+                    if (!empty) {
+                        picker.setRange(new DateRange(LocalDate.of(2026, 9, 14), LocalDate.of(2026, 9, 25)));
+                    }
+                    picker.setLocale(Locale.forLanguageTag("pt-BR"));
+                    Placed placed = render(picker, scale, 20, 20, 360, direction);
+                    measurePeriod(picker, placed, scale, direction, empty);
+                }
+            }
+        }
+    }
+
+    private void measurePeriod(DatePicker picker, Placed placed, float scale, LayoutDirection direction,
+                               boolean empty) {
+        var t = Theme.current().tokensFor(picker);
+        Inner in = inner(picker, placed, scale);
+        // Glyphs of one date are a few device pixels apart; the gaps between the parts are wider.
+        List<Span> parts = columnRuns(placed.image, in.x0, in.y0, in.x1, in.y1, Math.round(3 * scale) + 1);
+        if (REPORT) {
+            report("period %.0fx %s %s: box %.2f..%.2f parts %s%n", scale, direction,
+                    empty ? "empty" : "filled", placed.left * scale, (placed.left + picker.width()) * scale, parts);
+        }
+        boolean rtl = direction == LayoutDirection.RTL;
+        assertEquals(4, parts.size(), "first date, dash, second date and calendar: " + parts);
+        Span first = rtl ? parts.get(3) : parts.get(0);
+        Span dash = rtl ? parts.get(2) : parts.get(1);
+        Span second = rtl ? parts.get(1) : parts.get(0 + 2);
+        Span calendar = rtl ? parts.get(0) : parts.get(3);
+        float boxStart = (rtl ? placed.left + picker.width() : placed.left) * scale;
+        float boxEnd = (rtl ? placed.left : placed.left + picker.width()) * scale;
+        // The first date stands at the field's own pad from the edge reading starts on.
+        float lead = (rtl ? boxStart - first.to : first.from - boxStart) / scale;
+        assertTrue(Math.abs(lead - t.fieldPadH()) <= 1.5f, "the first date starts at the pad: " + lead);
+        // The dash keeps the separator's small gap on each side, whatever the dates hold.
+        float before = (rtl ? first.from - dash.to : dash.from - first.to) / scale;
+        float after = (rtl ? dash.from - second.to : second.from - dash.to) / scale;
+        // The separator's small gap, plus what the glyphs' own side bearings leave clear: never
+        // less than the gap, and never a third of an em more (a 1 keeps a wide margin of its own).
+        float gap = t.spacingSmall();
+        float slack = t.body().size() / 3;
+        float pixel = 1 / scale;
+        if (REPORT) {
+            report("period %.0fx %s %s: lead %.2f, first date to dash %.2f, dash to second date %.2f pt (gap %.0f)%n", scale,
+                    direction, empty ? "empty" : "filled", lead, before, after, gap);
+        }
+        assertTrue(before > gap - pixel && before < gap + slack && after > gap - pixel && after < gap + slack,
+                "the dash sits " + gap + " pt from each date, not " + before + " and " + after);
+        // And what is left of the field is empty up to the calendar at the far end.
+        float tail = (rtl ? second.from - calendar.to : calendar.from - second.to) / scale;
+        assertTrue(tail > 2 * t.fieldPadH(), "the room left over is after the second date: " + tail);
+        float calendarEnd = (rtl ? calendar.from - boxEnd : boxEnd - calendar.to) / scale;
+        assertTrue(calendarEnd < t.fieldTrailing() / 2, "the calendar at the trailing end: " + calendarEnd);
     }
 
     // ------------------------------------------------------------------ harness

@@ -165,6 +165,8 @@ public final class DatePicker extends Widget<DatePicker> {
         // Tab should land in and the button is where the second one goes.
         adopt(field);
         if (endField != null) {
+            field.setMember(DateField.Member.START);
+            endField.setMember(DateField.Member.END);
             adopt(endField);
             // The end of a period answers the last day or instant of what it names (decision
             // 51): a month range's end field reads June and answers the 30th.
@@ -227,6 +229,12 @@ public final class DatePicker extends Widget<DatePicker> {
                     invalidate();
                 }
                 case VALUE -> {
+                    if (member == field && endField != null && field.runWidth() != laidOutStartRun) {
+                        // The start date grew or shrank (a placeholder filled, a month named), so the
+                        // dash and the end date move to stay packed against it. The picker's own
+                        // box does not change, which is what lets this lay out in place.
+                        markNeedsLayoutInPlace();
+                    }
                     if (settingRange) {
                         break; // setRange announces once, with the whole period
                     }
@@ -348,6 +356,11 @@ public final class DatePicker extends Widget<DatePicker> {
      * A picker for a period: two fields with the calendar between them in range mode. Focus in the
      * first field anchors the grid on the start and focus in the second on the end, and the grid
      * writes back into whichever end is being filled.
+     *
+     * <p>The period reads as one line packed at the start of the box, as it would be typed: the
+     * first date, an en dash a small gap after it, the second date a small gap after the dash, and
+     * whatever room the box has left after the second date, before the calendar button. The dash
+     * follows the first date as it fills.
      *
      * @return the picker
      */
@@ -1118,15 +1131,22 @@ public final class DatePicker extends Widget<DatePicker> {
         float height = first.height();
         if (endField != null) {
             Size second = endField.measure(constraints.loosened());
-            width += second.width() + separatorWidth(t);
+            // A period's line: the field's pad, the widest start, the dash with its small gap on
+            // each side, the widest end and the pad again, so that any two dates fit packed.
+            width = t.fieldPadH() + field.widestRunWidth() + t.spacingSmall() + dashWidth(t)
+                    + t.spacingSmall() + endField.widestRunWidth() + t.fieldPadH();
             height = Math.max(height, second.height());
         }
         return constraints.constrain(width + buttonWidth(t), Math.max(height, t.controlHeight()));
     }
 
-    private float separatorWidth(SizeTokens t) {
-        return textRuler().measure(rangeSeparator(), t.body()).width() + 2 * t.spacingSmall();
+    /** The dash's own advance; the gaps on either side of it are the two fields' inner pads. */
+    private float dashWidth(SizeTokens t) {
+        return textRuler().measure(rangeSeparator(), t.body()).width();
     }
+
+    /** The start date's run width the last layout packed against; NaN before the first. */
+    private float laidOutStartRun = Float.NaN;
 
     /** An en dash between the two ends of a period: the typographic mark for a range. */
     private static String rangeSeparator() {
@@ -1152,14 +1172,24 @@ public final class DatePicker extends Widget<DatePicker> {
             field.layoutBox(contentLeft, 0, contentWidth, height());
             return;
         }
-        float separator = separatorWidth(t);
-        float each = Math.max(0, (contentWidth - separator) / 2);
-        float firstX = rtl ? contentLeft + each + separator : contentLeft;
-        float secondX = rtl ? contentLeft : contentLeft + each + separator;
-        field.measure(Constraints.tight(each, height()));
-        field.layoutBox(firstX, 0, each, height());
-        endField.measure(Constraints.tight(each, height()));
-        endField.layoutBox(secondX, 0, each, height());
+        // A period is one line packed at the start, as it would be typed: the first date from the
+        // pad, the dash a small gap after it, the second date a small gap after that, and the room
+        // left over after the second date, where the end field's box runs on to the button so a
+        // click there still lands in it. Only a box too narrow for the packed line splits in two
+        // halves, as every period did before.
+        float dash = dashWidth(t);
+        laidOutStartRun = field.runWidth();
+        float start = t.fieldPadH() + laidOutStartRun + t.spacingSmall();
+        if (start + dash + t.spacingSmall() + endField.runWidth() + t.fieldPadH() > contentWidth) {
+            start = Math.max(0, (contentWidth - dash) / 2);
+        }
+        float end = Math.max(0, contentWidth - start - dash);
+        float firstX = rtl ? contentLeft + contentWidth - start : contentLeft;
+        float secondX = rtl ? contentLeft : contentLeft + start + dash;
+        field.measure(Constraints.tight(start, height()));
+        field.layoutBox(firstX, 0, start, height());
+        endField.measure(Constraints.tight(end, height()));
+        endField.layoutBox(secondX, 0, end, height());
     }
 
     @Override
@@ -1188,7 +1218,7 @@ public final class DatePicker extends Widget<DatePicker> {
                         theme.outline().lerp(theme.focusRing(), focus)));
 
         if (endField != null) {
-            // The dash sits in the gap the layout left between the two fields, centred in it.
+            // The dash fills the gap the layout left between the two fields.
             TextRuler ruler = textRuler();
             String dash = rangeSeparator();
             ShapedText shaped = ruler.shape(dash, t.body(),
@@ -1196,7 +1226,7 @@ public final class DatePicker extends Widget<DatePicker> {
             float gapLeft = isRightToLeft()
                     ? endField.x() + endField.width()
                     : field.x() + field.width();
-            float gapWidth = separatorWidth(t);
+            float gapWidth = dashWidth(t);
             canvas.drawText(shaped, gapLeft + (gapWidth - shaped.metrics().width()) / 2,
                     ruler.centredBaseline(t.body(), h),
                     enabled ? theme.textMuted() : theme.disabledText());

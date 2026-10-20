@@ -273,7 +273,8 @@ Two fields and one grid: the first click in the calendar anchors the period, the
 and the days between are drawn as a band. `range()` answers `null` until both ends are filled — a
 period with one end is not a period, and is not published as one. Ends typed in the wrong
 order are put in order a whole period at a time: months typed 06/2026 then 03/2026 run from
-1 March to 30 June.
+1 March to 30 June. The period reads as one line at the start of its box, the two dates and the
+dash between them, whatever the box's width; the room left over is after the second date.
 
 ### Which days may be picked
 
