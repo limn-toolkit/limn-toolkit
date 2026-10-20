@@ -414,6 +414,36 @@ class DragAutoScrollTest {
         assertTrue(seen.bottom() > 0 && seen.y() < H, "the far box came into view: " + seen);
     }
 
+    /**
+     * The band and the speed are the screen's points, whatever scale a view is shown at. Until
+     * 2026-10-20 they were the view's own: a view shown at a quarter of its size had a band six
+     * points deep on screen, and one shown at twice its size scrolled at twice the speed on screen
+     * and reached twice as far in from its edge.
+     */
+    @Test
+    void underAScaleTheBandAndTheSpeedAreTheScreensPoints() {
+        limn.transfer.Offer files = Transfer.of(DataFormat.FILES, List.of(java.nio.file.Path.of("a.txt"))).asOffer();
+        for (float scale : new float[] {1f, 0.25f, 2f}) {
+            ScrollView view = new ScrollView(new Sheet(W, 100_000));
+            show(new Transform(view).setScale(scale));
+            limn.backend.spi.WindowInput input = limn.scene.internal.SceneAccess.input(scene);
+            float bottom = Math.min(onScreen(view).bottom(), H);
+
+            input.dragOver(files, Set.of(DropAction.COPY), W / 2, bottom - 30); // past the band's 24
+            frames(0.5, 60);
+            assertEquals(0, view.offsetY(), "at " + scale + ", 30 screen points from the edge nothing scrolls");
+
+            input.dragOver(files, Set.of(DropAction.COPY), W / 2, bottom - 12); // half way into it
+            frames(0.1, 60);
+            float from = view.offsetY();
+            frames(1, 60);
+            float onScreenPerSecond = (view.offsetY() - from) * scale;
+            assertEquals(800 * 0.5f * 0.5f, onScreenPerSecond, 10,
+                    "at " + scale + ", half way into the band the content passes at 200 screen points a second");
+            input.dragLeft();
+        }
+    }
+
     @Test
     void theSpeedFollowsTheDepthIsTheSameAtAnyFrameRateAndIsBounded() {
         float slow = distance(H - 20, 0.5, 60); // 4 points into the band

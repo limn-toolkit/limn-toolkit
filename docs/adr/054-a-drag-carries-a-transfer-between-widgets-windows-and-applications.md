@@ -564,3 +564,9 @@ Review of the auto-scroll (2026-10-20):
   rests. Covered by the scene's tests up to the window; the native side is read, not yet run: a
   run on the Linux guests owes it (rest at the page's bottom edge until the drop area is under
   the pointer, let go without moving; for our own drag and for a file manager's).
+- **The band and the speed are the window's points.** They were the viewport's own, so they
+  scaled with a transform: a view shown at a quarter of its size had a band six points deep on
+  screen and passed 139 points a second at its edge; at twice its size the band reached 48 points
+  in and the bound was 4800 a second. Each is now carried into the viewport's points through the
+  scale along the axis at the pointer, so the edge feels the same at any scale, and the content
+  passes the eye as fast; the quarter of the viewport that bounds the band stays the viewport's.

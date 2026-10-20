@@ -4868,13 +4868,14 @@ public final class Scene {
     /** How far a press travels before it asks whether a drag begins. */
     private static final float DRAG_THRESHOLD = 4;
     /**
-     * How deep the band along each edge of a scrolling viewport is, in its own points, where a
-     * drag scrolls it; a quarter of the viewport when that is less, so a short list keeps a middle.
+     * How deep the band along each edge of a scrolling viewport is, in the window's points whatever
+     * scale the viewport is shown at, where a drag scrolls it; a quarter of the viewport when that
+     * is less, so a short list keeps a middle.
      */
     private static final float AUTO_SCROLL_EDGE = 24;
-    /** How fast a drag at a viewport's very edge scrolls it, in points a second; slower inside the band. */
+    /** How fast a drag at a viewport's very edge scrolls it, in the window's points a second; slower inside the band. */
     private static final float AUTO_SCROLL_EDGE_SPEED = 800;
-    /** The fastest a drag past the edge scrolls, in points a second, however far past it goes. */
+    /** The fastest a drag past the edge scrolls, in the window's points a second, however far past it goes. */
     private static final float AUTO_SCROLL_MAX_SPEED = 2400;
     private static final float DRAG_IMAGE_OPACITY = 0.75f;
     private static final int DRAG_KEY_MASK =
@@ -5646,7 +5647,13 @@ public final class Scene {
                 float along = vertical ? local.y() : local.x();
                 float low = vertical ? box[1] : box[0];
                 float high = vertical ? box[3] : box[2];
-                float band = Math.min(AUTO_SCROLL_EDGE, (high - low) / 4);
+                // The band and the speed are the window's points: carried into the viewport's own,
+                // which a scale shown at a quarter of its size makes four times as many.
+                float perPoint = windowPointsPerPoint(w, local, vertical);
+                if (!(perPoint > 0) || Float.isInfinite(perPoint)) {
+                    continue; // seen edge on, or not at all
+                }
+                float band = Math.min(AUTO_SCROLL_EDGE / perPoint, (high - low) / 4);
                 if (band <= 0) {
                     continue;
                 }
@@ -5671,7 +5678,8 @@ public final class Scene {
                     horizontalTaken = true;
                 }
                 float depthFraction = depth / band;
-                float speed = Math.min(AUTO_SCROLL_MAX_SPEED, AUTO_SCROLL_EDGE_SPEED * depthFraction * depthFraction);
+                float speed = Math.min(AUTO_SCROLL_MAX_SPEED, AUTO_SCROLL_EDGE_SPEED * depthFraction * depthFraction)
+                        / perPoint;
                 float step = Math.min(room, (float) (speed * dt));
                 if (step > 0) {
                     axis.scrollBy(forward ? step : -step);
@@ -5697,6 +5705,16 @@ public final class Scene {
             }
         }
         return verticalTaken || horizontalTaken;
+    }
+
+    /**
+     * How many of the window's points one of {@code widget}'s own points along an axis is, at a
+     * point of it: 1 with no transform, a quarter in a view shown at a quarter of its size.
+     */
+    private static float windowPointsPerPoint(Widget<?> widget, Vec2 at, boolean vertical) {
+        Vec2 from = widget.localToScene(at.x(), at.y());
+        Vec2 to = widget.localToScene(at.x() + (vertical ? 0 : 1), at.y() + (vertical ? 1 : 0));
+        return (float) Math.hypot(to.x() - from.x(), to.y() - from.y());
     }
 
     /** Tells the window the answer of an ask the system did not make, when it is not the last it had. */
