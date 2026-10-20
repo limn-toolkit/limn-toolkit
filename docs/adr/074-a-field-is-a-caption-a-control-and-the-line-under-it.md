@@ -110,7 +110,8 @@ public final class Field extends Widget<Field> {
     public Field clearValidation();                         // NONE, no message
 
     public Widget<?> control();
-    public @Nullable I18nString label(), helperText(), validationMessage(); // String since 2026-10-19
+    public @Nullable String label(), helperText(), validationMessage();   // as they read (2026-10-19)
+    public @Nullable I18nString labelSource(), helperTextSource(), validationMessageSource();
     public boolean isRequired();
     public Validation validation();
 }
