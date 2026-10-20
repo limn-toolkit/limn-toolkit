@@ -296,6 +296,17 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * caret and the selection stay, no handler runs, no watcher hears of it, and no undo step is
      * left.
      *
+     * <p>A masked field lays its text out left to right in every language, since what it holds
+     * is a code or a number written in a fixed shape: in an Arabic or a Hebrew layout a card
+     * reads {@code 4111 1111 1111 1112} and a phone {@code +1 (415) 555-0123}, not their groups
+     * reversed. The paragraph is left to right, and the text starts at the left edge of the
+     * box, where the caret, the selection, a click and the arrow keys follow it and the guide
+     * continues it to the right, so each position stays where it is as it fills; a placeholder
+     * stands there too, and reads left to right unless its own words say otherwise. Letters that
+     * are written right to left keep their order inside the line: a Hebrew value under
+     * {@code "AAA-AAA"} reads right to left, its first group on the right. The field's icons,
+     * its trailing button and its pads still follow the layout direction.
+     *
      * <p>The text already in the field is fitted at once. {@code null} takes the mask away and
      * leaves the text as it is.
      *
@@ -317,8 +328,13 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
                 setText(fit.text(), Change.Origin.CODE);
             }
         }
-        // The guide is drawn and nothing else moves: the text, if the fitting changed it, was
-        // announced by setText, and the pattern is no part of what a reader hears.
+        // A mask decides the direction the text is laid out in, which the held lines are not keyed
+        // on when the layout reads left to right: drop them. The guide is drawn and nothing else
+        // moves: the text, if the fitting changed it, was announced by setText, and the pattern is
+        // no part of what a reader hears.
+        display = null;
+        composed = null;
+        guideHintLine = null;
         invalidate();
         return this;
     }
@@ -717,7 +733,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * @return the shaped display line; never null
      */
     protected ShapedText shapeDisplay(String text, Font font) {
-        return shapeText(text, font);
+        return mask != null ? textRuler().shape(text, font, ShapedText.Direction.LTR) : shapeText(text, font);
     }
 
     /**
@@ -765,7 +781,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         // never asks ShapedText.matches: the direction a line was shaped for is not recoverable
         // from the version, the font or the epoch, and a line shaped for the other one is wrong
         // by a fraction of a point in every geometry query asked of it.
-        ShapedText.Direction base = neutralBase();
+        ShapedText.Direction base = textBase();
         if (display == null || displayVersion != version || !f.equals(displayFont)
                 || displayEpoch != ruler.epoch() || displayBase != base) {
             display = shapeDisplay(model.text(), f);
@@ -854,14 +870,15 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         long version = model.textVersion();
         long epoch = ruler.epoch();
         int cursor = model.cursor();
-        ShapedText.Direction neutral = neutralBase();
+        ShapedText.Direction neutral = textBase();
         if (composed == null || composedVersion != version || composedCursor != cursor
                 || composedPreedit != preedit || !f.equals(composedFont) || composedEpoch != epoch
                 || composedBase != neutral) {
             String committed = model.text();
             int c = Math.min(cursor, committed.length());
             String spliced = committed.substring(0, c) + preedit + committed.substring(c);
-            composed = ruler.shape(spliced, f, ShapedText.Direction.of(spliced, neutral));
+            composed = ruler.shape(spliced, f, mask != null ? ShapedText.Direction.LTR
+                    : ShapedText.Direction.of(spliced, neutral));
             composedVersion = version;
             composedCursor = cursor;
             composedPreedit = preedit;
@@ -934,6 +951,27 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
 
 
     /**
+     * Whether the text is laid out from the right: in a right-to-left layout, except on a masked
+     * field. A mask's text is a code, a number or a document in a fixed shape, which runs left
+     * to right in every language, so its paragraph is left to right and it starts at the
+     * content's left edge, where the guide that continues it to the right keeps every position
+     * in place as it fills. The chrome (the icons, the trailing button, the pads) still follows
+     * the layout: {@link #contentLeft} and {@link #trailingRegionX} ask {@link #isRightToLeft()}.
+     */
+    private boolean textRightToLeft() {
+        return mask == null && isRightToLeft();
+    }
+
+    /**
+     * The direction a line of the field's text falls back to where it has no strong character,
+     * and the key its held lines are kept by: the layout's, or left to right on a masked field,
+     * whose lines are shaped left to right whatever they hold.
+     */
+    private ShapedText.Direction textBase() {
+        return mask != null ? ShapedText.Direction.LTR : neutralBase();
+    }
+
+    /**
      * Physical left edge of the text area: the leading inset reading left to right, and the
      * trailing one reading right to left. Every coordinate in this widget is composed from this
      * and {@link #innerWidth}, so the leading icon, the trailing button, the clip, the caret and
@@ -955,7 +993,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      */
     private float originX(SizeTokens t, float lineWidth) {
         float left = contentLeft(t);
-        return isRightToLeft() ? left + innerWidth(t) - lineWidth + scrollX : left - scrollX;
+        return textRightToLeft() ? left + innerWidth(t) - lineWidth + scrollX : left - scrollX;
     }
 
     /**
@@ -1073,7 +1111,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
             wanted = cursorX;
         }
         if (wanted != view) {
-            scrollX = isRightToLeft() ? lineWidth - inner - wanted : wanted;
+            scrollX = textRightToLeft() ? lineWidth - inner - wanted : wanted;
         }
         clampScrollX(t);
     }
@@ -1119,8 +1157,9 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * draws here.
      *
      * <p>Only with the caret at the end of the text and nothing selected, and only where the
-     * guide continues the line: on a line whose end is not its right edge (text that runs right
-     * to left, whose guide is drawn on the far side of it) the caret stays where it was.
+     * guide continues the line, which a masked field lays out left to right in any language: on a
+     * line whose end is not its right edge (letters that run right to left end it, so its end is
+     * the left edge of their run) the caret stays where it was.
      */
     private float guideLead(SizeTokens t, ShapedText line, float caretX) {
         if (mask == null || !isFocused() || model.hasSelection() || model.cursor() != model.length()) {
@@ -1131,10 +1170,9 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
             return 0;
         }
         if (model.length() == 0) {
-            // The guide is the hint, shaped and placed as the paint places it.
-            ShapedText hint = guideHint(t);
-            float hintStart = isRightToLeft() ? -hint.metrics().width() : 0;
-            return hintStart + hint.caretX(lead.length(), ShapedText.Affinity.UPSTREAM);
+            // The guide is the hint, shaped left to right and placed from the content's left edge,
+            // as the paint places it.
+            return guideHint(t).caretX(lead.length(), ShapedText.Affinity.UPSTREAM);
         }
         ShapedText tail = guideTail(t);
         float end = line.metrics().width();
@@ -1148,7 +1186,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
     private ShapedText guideHint(SizeTokens t) {
         Font f = t.body();
         String guide = mask.guide();
-        ShapedText.Direction base = ShapedText.Direction.of(guide, neutralBase());
+        ShapedText.Direction base = ShapedText.Direction.LTR;
         if (guideHintLine == null || !guideHintLine.text().equals(guide) || !f.equals(guideHintLine.font())
                 || guideHintLine.baseDirection() != base || guideHintLine.epoch() != textRuler().epoch()) {
             guideHintLine = textRuler().shape(guide, f, base);
@@ -1249,9 +1287,12 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
             // Keep the hint visible even while focused (only the caret joins it). The hint is a
             // string and not a held line, so it is shaped here for the field's own direction and
             // placed against the leading edge, which is the edge the caret is on.
+            // On a masked field the hint stands where the text will, from the left edge, and a
+            // placeholder with no letter of its own, an example such as +1 (415) 555-0123, reads
+            // left to right as that text does; one in words still reads in their direction.
             ShapedText hintLine = guided ? guideHint(t) : textRuler().shape(hint, f,
-                    ShapedText.Direction.of(hint, neutralBase()));
-            float hintX = rtl ? left + inner - hintLine.metrics().width() : left;
+                    ShapedText.Direction.of(hint, textBase()));
+            float hintX = textRightToLeft() ? left + inner - hintLine.metrics().width() : left;
             // The caret is where the caret box says, so the input method's window, a reader's
             // cursor and the line drawn agree: the leading edge, or past the literals a guide
             // starts with, where the first character will appear.

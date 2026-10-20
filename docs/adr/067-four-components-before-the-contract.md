@@ -154,6 +154,25 @@ Markdown.
   positions are all of one kind every character always fits, so nothing there changes. To change
   a letter of `ABC-1234-XY`, select it and type over it. A full field refusing an insertion now
   keeps a selection it had, too, where it used to collapse it.
+- *Amended 2026-10-19:* **a masked field lays its text out left to right in every language.**
+  The 2026-10-19 audit found the Showcase in Arabic showing the card `4111 1111 1111 1112` as
+  `1112 1111 1111 4111` and the phone placeholder `+1 (415) 555-0123` as `555-0123 (415) 1+`: a
+  value of digits, spaces and punctuation has no strong character, so its line took the layout's
+  direction as its base and the groups ran right to left. The owner's decision: no new API; a
+  masked `TextField` always lays its text out left to right, while its chrome keeps following the
+  layout. The text's paragraph is shaped left to right (the display line, a composition, the
+  guide), so the caret, the selection, hit testing and the arrow keys follow written order;
+  letters written right to left keep their own order inside the line (a Hebrew value under
+  `AAA-AAA` reads right to left, its first group on the right, as one run). The text is aligned
+  to the **left** edge of the content area, not to the start of the layout: the guide continues
+  the text to the right, and anchoring the line's left edge keeps every character where it is
+  as a position fills, where anchoring the right edge would shift the whole value by the
+  difference between a digit and a low line at each keystroke and again when the guide comes
+  and goes with the keyboard; it is also where a field written left to right in a right-to-left
+  form starts its text. The caret past the guide's literals works there as it does in a
+  left-to-right layout. A placeholder on a masked field stands at the same edge and reads left
+  to right unless its own words say otherwise, since it is most often an example of the value.
+  The leading icon, the trailing button and the pads still swap sides with the layout.
 - *Amended 2026-10-16:* **the reader no longer hears the pattern.** Read aloud, `AA-0000` is
   "A A dash zero zero zero zero" where it means two letters and four digits, in every language,
   and as the field's description it pushed out the tooltip, which the walk gives only to a node

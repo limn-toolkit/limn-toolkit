@@ -108,6 +108,12 @@ language, as the helper text of the field around it: "Three letters, four digits
 It is shown with or without the keyboard, where the guide shows only with it, and a reader
 hears it as the field's description.
 
+A masked field lays its text out left to right in every language: in an Arabic or a Hebrew
+form a card number reads `4111 1111 1111 1112` and a phone `+1 (415) 555-0123`, starting at the
+left edge of the box, with the guide after it, while the field's icons and trailing button stay
+on the sides the layout puts them. Letters written right to left keep their own order inside
+the line.
+
 Text between single quotes is literal, so a pattern can hold a `0`, an `A` or a `*` the field
 writes rather than fills: `+'0' 000` shows `+0 123`. Two single quotes are one apostrophe, inside
 quotes and out. It is the quoting `SimpleDateFormat` uses, and a pattern that opens a quote
