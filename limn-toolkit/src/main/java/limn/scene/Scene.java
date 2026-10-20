@@ -7351,6 +7351,13 @@ public final class Scene {
     /**
      * Runs measure/layout when dirty or resized (public for headless tests/embedding).
      *
+     * <p>What the new sizes take out of reach waits for the next frame: a transform that a pass
+     * turns edge-on, so that it draws its child as nothing, has the popups hung inside closed and
+     * the focus, the hover and a press inside taken out when {@link #renderFrame(Canvas)} runs, which
+     * lays out again before it paints, so that no handler edits a tree while it is being laid out.
+     * A caller that runs this alone and reads the scene before rendering a frame still finds such
+     * a popup open and the focus inside.
+     *
      * @param newWidth  the window's width
      * @param newHeight the window's height
      */
