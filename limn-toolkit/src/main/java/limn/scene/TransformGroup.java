@@ -614,6 +614,33 @@ final class TransformGroup implements TransformAccess.Values {
         // is walked only when something arrives, so a reader's highlight jumps to where the child
         // came to rest and does not follow the frames between.
         moved(slideArrives || scaleArrives || turnArrives || flipArrives);
+        boolean ran = false;
+        try {
+            runArrivals(sliding, scaling, turning, flipping, slideArrives, scaleArrives, turnArrives,
+                    flipArrives, flipReachesEdge);
+            ran = true;
+        } finally {
+            if (!ran) {
+                outliveAThrow(stepping);
+            }
+        }
+        if (ticker != stepping) {
+            return false; // an onArrive took the container out of this scene
+        }
+        if (slide != null || scale != null || rotating != null || flip != null) {
+            return true; // still moving, or an onArrive started another motion on this ticker
+        }
+        ticker = null;
+        return false;
+    }
+
+    /**
+     * What a frame's motions run, in order: a flip's swap at its edge, then the arrival of each
+     * motion that arrived and is still the current one of its kind.
+     */
+    private void runArrivals(@Nullable Motion sliding, @Nullable Motion scaling, @Nullable Motion turning,
+                             @Nullable Flip flipping, boolean slideArrives, boolean scaleArrives,
+                             boolean turnArrives, boolean flipArrives, boolean flipReachesEdge) {
         if (flipReachesEdge && flip == flipping) {
             flipping.swapped = true;
             flipping.atEdge.run(); // the application swaps what the child shows, edge-on
@@ -634,14 +661,26 @@ final class TransformGroup implements TransformAccess.Values {
             flip = null;
             arrive(flipping.onArrive);
         }
+    }
+
+    /**
+     * What a throw out of the application's code on {@code stepping}'s frame leaves behind: the
+     * scene drops a ticker that throws, so the container lets go of it, and the motions still in
+     * flight, those beside the one whose callback threw, those that arrived on this frame but had
+     * not run their {@code onArrive} yet, and any the callback asked for before it threw, go on on
+     * a ticker of their own on the same scene. Kept, the dropped ticker looked like the container's
+     * own to every later motion on the same scene, which then registered none and stood still.
+     */
+    private void outliveAThrow(MotionTicker stepping) {
         if (ticker != stepping) {
-            return false; // an onArrive took the container out of this scene
-        }
-        if (slide != null || scale != null || rotating != null || flip != null) {
-            return true; // still moving, or an onArrive started another motion on this ticker
+            return; // the callback took the container out of this scene, which let go of it already
         }
         ticker = null;
-        return false;
+        if (slide != null || scale != null || rotating != null || flip != null) {
+            MotionTicker next = new MotionTicker(stepping.scene);
+            ticker = next;
+            stepping.scene.addRealTimeTicker(next);
+        }
     }
 
     /** Steps a slide's, a scale's or a rotation's clock; whether it has arrived. */

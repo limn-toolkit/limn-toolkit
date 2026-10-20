@@ -1331,6 +1331,69 @@ class TransformTest extends SceneTestBase {
         assertEquals(beforeA[0], a.tickerCounts()[0], "and holds nothing of it after that frame");
     }
 
+    /**
+     * A drawer whose slide in has an onArrive with a fault in it: the scene logs the throw and
+     * drops the ticker, and the slide out that hides the drawer still moves and arrives. The
+     * container kept the dropped ticker as its own, and every later motion stood still.
+     */
+    @Test
+    void anOnArriveThatThrowsLeavesTheContainersLaterMotionsFreeToMoveAndArrive() {
+        Transform drawer = new Transform(new Leaf("drawer", painted));
+        Stack holder = new Stack();
+        holder.add(drawer);
+        Scene scene = sceneOf(holder);
+        int[] before = scene.tickerCounts();
+        drawer.slideTo(100, 0, 0.1, () -> {
+            throw new IllegalStateException("a fault of the application's");
+        });
+        for (int i = 0; i < 20; i++) {
+            advance(scene, 16);
+        }
+        assertEquals(100f, drawer.translationX(), "the slide arrived, and its onArrive threw");
+
+        AtomicInteger hidden = new AtomicInteger();
+        drawer.slideTo(0, 0, 0.1, () -> {
+            hidden.incrementAndGet();
+            drawer.setVisible(false);
+        });
+        advance(scene, 16);
+        advance(scene, 50);
+        float mid = drawer.translationX();
+        assertTrue(mid > 0f && mid < 100f, "the slide out moves: " + mid);
+        for (int i = 0; i < 20; i++) {
+            advance(scene, 16);
+        }
+        assertEquals(0f, drawer.translationX());
+        assertEquals(1, hidden.get(), "and arrives, so the drawer is hidden");
+        assertEquals(before[0], scene.tickerCounts()[0], "with no ticker left behind");
+    }
+
+    /**
+     * A flip whose swap throws, with a slide in flight beside it on the same ticker: the slide and
+     * the flip go on and arrive, each running its onArrive. They stood still on the ticker the
+     * scene dropped for the throw.
+     */
+    @Test
+    void aSwapThatThrowsMidFlipStopsNeitherTheFlipNorAMotionBesideIt() {
+        Transform t = new Transform(new Leaf("w", painted));
+        Stack holder = new Stack();
+        holder.add(t);
+        Scene scene = sceneOf(holder);
+        int[] before = scene.tickerCounts();
+        List<String> ran = new ArrayList<>();
+        t.slideTo(100, 0, 0.4, () -> ran.add("slid"));
+        t.flipTo(Transform.Flip.FORWARD, 0.2, () -> {
+            ran.add("edge");
+            throw new IllegalStateException("a fault of the application's");
+        }, () -> ran.add("flipped"));
+        for (int i = 0; i < 40; i++) {
+            advance(scene, 16);
+        }
+        assertEquals(List.of("edge", "flipped", "slid"), ran, "both arrive, the throw at the edge notwithstanding");
+        assertEquals(100f, t.translationX());
+        assertEquals(before[0], scene.tickerCounts()[0], "with no ticker left behind");
+    }
+
     // ------------------------------------------------------------------ showing
 
     @Test

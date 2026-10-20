@@ -1047,6 +1047,83 @@ class OpacityTest extends SceneTestBase {
         assertNull(second.scene(), "and the whole subtree left");
     }
 
+    /**
+     * A toast whose fade in has an onArrive with a fault in it: the scene logs the throw and drops
+     * the ticker, and the fade out that hides the toast later still moves and arrives. The group
+     * kept the dropped ticker as its own, so every later fade on the container found "its" ticker
+     * and registered none: it never moved and never arrived, and the toast stayed on screen.
+     */
+    @Test
+    void anOnArriveThatThrowsLeavesTheContainersLaterFadesFreeToMoveAndArrive()
+            throws ReflectiveOperationException {
+        Opacity toast = faded("toast");
+        Stack holder = new Stack();
+        holder.add(toast);
+        Scene scene = sceneOf(holder);
+        int[] before = scene.tickerCounts();
+        toast.setOpacity(0f);
+        toast.fadeTo(1f, 0.1, () -> {
+            throw new IllegalStateException("a fault of the application's");
+        });
+        for (int i = 0; i < 20; i++) {
+            advance(scene, 16);
+        }
+        assertEquals(1f, toast.opacity(), "the fade in arrived, and its onArrive threw");
+        assertNull(heldTicker(toast), "the container holds no ticker the scene has dropped");
+
+        AtomicInteger hidden = new AtomicInteger();
+        toast.fadeTo(0f, 0.1, () -> {
+            hidden.incrementAndGet();
+            toast.setVisible(false);
+        });
+        advance(scene, 16);
+        advance(scene, 50);
+        float mid = toast.opacity();
+        assertTrue(mid > 0f && mid < 1f, "the fade out moves: " + mid);
+        for (int i = 0; i < 20; i++) {
+            advance(scene, 16);
+        }
+        assertEquals(0f, toast.opacity());
+        assertEquals(1, hidden.get(), "and arrives, so the toast is hidden");
+        assertEquals(before[0], scene.tickerCounts()[0], "with no ticker left behind");
+
+        toast.setOpacity(0.3f);
+        toast.fadeTo(0.9f, 0.1, null);
+        for (int i = 0; i < 20; i++) {
+            advance(scene, 16);
+        }
+        assertEquals(0.9f, toast.opacity(), "and so does any fade after it");
+    }
+
+    /**
+     * An onArrive that asks for the next fade and then throws: the fade it asked for still moves
+     * and arrives. It was left on the ticker the scene dropped for the throw, and stood still.
+     */
+    @Test
+    void aFadeAskedForByAnOnArriveThatThenThrowsStillMovesAndArrives() {
+        Opacity w = faded("w");
+        Stack holder = new Stack();
+        holder.add(w);
+        Scene scene = sceneOf(holder);
+        int[] before = scene.tickerCounts();
+        AtomicInteger back = new AtomicInteger();
+        w.fadeTo(0f, 0.1, () -> {
+            w.fadeTo(1f, 0.1, back::incrementAndGet);
+            throw new IllegalStateException("a fault of the application's, after the next step");
+        });
+        for (int i = 0; i < 12; i++) {
+            advance(scene, 16);
+        }
+        float mid = w.opacity();
+        assertTrue(mid > 0f && mid < 1f, "the fade back moves: " + mid);
+        for (int i = 0; i < 20; i++) {
+            advance(scene, 16);
+        }
+        assertEquals(1f, w.opacity());
+        assertEquals(1, back.get(), "and arrives");
+        assertEquals(before[0], scene.tickerCounts()[0]);
+    }
+
     @Test
     void aWidgetNobodyFadesHoldsNoGroup() throws ReflectiveOperationException {
         java.lang.reflect.Field held = Widget.class.getDeclaredField("opacityGroup");

@@ -1002,3 +1002,20 @@ follow the same rule (ADR 072 section 13.3).
 the new window), `anOnArriveThatFadesAnotherContainerLeavingWithItSeesThatOneOutToo` (an inner
 container's onArrive fading the outer one, which the walk had not cleared yet) and
 `aThrowingOnArriveRunByALeavingStopsNeitherTheOtherArrivalsNorTheLeaving`; each failed before.
+
+### 8.3 An `onArrive` that throws, 2026-10-19
+
+The same round (OP-3) found that a fade whose `onArrive` threw on its last frame left the group
+holding the ticker the scene had just dropped for the throw (the scene's ticker guard logs it and
+removes it). Every later `fadeTo` on that container then found "its" ticker on the same scene and
+registered none: it never moved and never arrived, for the container's whole life in that scene. A
+fault in one callback, a toast's fade in, left the fade out whose `onArrive` hides the toast without
+effect, the toast on screen taking clicks.
+
+**The fix.** The frame that arrives runs the `onArrive` under a `finally` that, on a throw, lets go
+of the dropped ticker and, if the callback asked for another fade before it threw, gives that fade a
+ticker of its own on the same scene; the throw still reaches the scene's guard, which logs and
+reports it as before. `OpacityTest.anOnArriveThatThrowsLeavesTheContainersLaterFadesFreeToMoveAndArrive`
+(the audit's scenario, a fade out and a fade after a set) and
+`aFadeAskedForByAnOnArriveThatThenThrowsStillMovesAndArrives` failed before. `Transform` likewise
+(ADR 072 section 13.4).

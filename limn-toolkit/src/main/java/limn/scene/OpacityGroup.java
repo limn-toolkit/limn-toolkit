@@ -146,7 +146,15 @@ final class OpacityGroup {
             move(current.from + (current.target - current.from) * limn.math.Scalars.smoothstep(t));
             return true;
         }
-        settle(current);
+        boolean ran = false;
+        try {
+            settle(current);
+            ran = true;
+        } finally {
+            if (!ran) {
+                outliveAThrow(stepping);
+            }
+        }
         if (ticker != stepping) {
             return false; // its onArrive took the container out of this scene
         }
@@ -155,6 +163,26 @@ final class OpacityGroup {
         }
         ticker = null;
         return false;
+    }
+
+    /**
+     * What a throw out of the application's code on {@code stepping}'s frame leaves behind: the
+     * scene drops a ticker that throws, so the group lets go of it, and a fade the throwing
+     * {@code onArrive} asked for before it threw gets a ticker of its own on the same scene. Kept,
+     * the dropped ticker looked like the group's own to every later fade on the same scene, which
+     * then registered none and never moved nor arrived: a fade out meant to hide something left it
+     * on screen.
+     */
+    private void outliveAThrow(FadeTicker stepping) {
+        if (ticker != stepping) {
+            return; // the onArrive took the container out of this scene, which let go of it already
+        }
+        ticker = null;
+        if (fade != null) {
+            FadeTicker next = new FadeTicker(stepping.scene);
+            ticker = next;
+            stepping.scene.addRealTimeTicker(next);
+        }
     }
 
     /**

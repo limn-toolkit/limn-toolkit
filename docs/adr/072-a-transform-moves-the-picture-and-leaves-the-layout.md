@@ -2138,3 +2138,14 @@ new scene's frames in one, never by the old window's, which stepped a slide aske
 `onArrive` while the container sat still in another window.
 `TransformTest.whatALeavingRunsSeesTheContainerOutAndAMotionItAsksForIsNotSteppedByTheSceneLeft`
 and `aSwayWhoseContainerMovesToAnotherWindowMidSlideGoesOnInThatWindow` failed before.
+
+### 13.4 A callback that throws, 2026-10-19
+
+ADR 071 section 8.3's fix, for the motions, where one ticker steps all four: a frame's swap and
+arrivals run under a `finally` that, on a throw, lets go of the ticker the scene drops for it and,
+if any motion is still in flight (one beside the callback that threw, one that arrived on this frame
+and had not run its `onArrive` yet, or one the callback asked for), gives them a ticker of their own
+on the same scene, so they arrive on the next frame. Kept, the dropped ticker made every later motion
+of the container stand still, and the motions beside the throw with them.
+`TransformTest.anOnArriveThatThrowsLeavesTheContainersLaterMotionsFreeToMoveAndArrive` and
+`aSwapThatThrowsMidFlipStopsNeitherTheFlipNorAMotionBesideIt` failed before.
