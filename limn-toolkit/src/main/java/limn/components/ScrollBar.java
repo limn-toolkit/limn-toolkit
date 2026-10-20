@@ -38,6 +38,11 @@ import java.util.Objects;
  *       thumb rests at the right end of the track and walks left as the offset grows. A vertical
  *       bar's travel is a y and never mirrors; only the side its thumb hugs does, following the
  *       side the host puts the strip on.</li>
+ *   <li><b>Scrolls under a drag</b>: while something is dragged with the pointer, resting it
+ *       near an edge of the host's box, or past that edge, scrolls the host along the bar's
+ *       axis toward that edge, faster the nearer the edge and the farther past it. So a widget
+ *       of your own that scrolls through a bar scrolls under a drag as the toolkit's do, with no
+ *       code of its own.</li>
  * </ul>
  * The host calls {@link #onScrolled()} when it scrolls and {@link #onHostActivity()}
  * on pointer movement (for {@code AUTO}).
@@ -92,6 +97,22 @@ public final class ScrollBar extends Widget<ScrollBar> {
 
         /** Scrolls to {@code offset} (the host clamps). */
         void setOffset(float offset);
+
+        /**
+         * Scrolls by {@code delta} from where the content is, as the wheel does (the host clamps).
+         * A drag that rests near the host's edge scrolls through this, a few points a frame.
+         *
+         * <p>The default is {@code setOffset(offset() + delta)}, which is exact where the offset
+         * is. A host whose offset is an estimate, as a list whose rows of different heights are
+         * measured only as they are built, overrides it with a move that walks the content from
+         * where it is: through {@code setOffset} each small step would land by the estimate, and
+         * the rows would stand still and then leap.
+         *
+         * @param delta how far: positive toward the end of the content
+         */
+        default void scrollBy(float delta) {
+            setOffset(offset() + delta);
+        }
     }
 
     private static final float THIN = 5;
@@ -148,6 +169,25 @@ public final class ScrollBar extends Widget<ScrollBar> {
         // A plain arrow over the bar, overriding any text/pointer cursor the
         // scrolling host (e.g. a TextArea's I-beam) sets on its subtree.
         setCursor(Cursor.DEFAULT);
+        limn.scene.internal.SceneAccess.scrollsUnderDrag(this, new limn.scene.internal.DragScrollAxis() {
+            @Override
+            public boolean vertical() {
+                return ScrollBar.this.vertical();
+            }
+
+            @Override
+            public float room(boolean forward) {
+                // The offset grows toward the trailing edge, which is the left one on a mirrored bar.
+                boolean growing = forward != mirrored(isRightToLeft());
+                float offset = model.offset();
+                return Math.max(0, growing ? maxOffset() - offset : offset);
+            }
+
+            @Override
+            public void scrollBy(float points) {
+                model.scrollBy(mirrored(isRightToLeft()) ? -points : points);
+            }
+        });
     }
 
     /** When the bar is shown: always, never, or only while the content overflows. */

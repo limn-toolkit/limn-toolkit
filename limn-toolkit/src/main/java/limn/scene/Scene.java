@@ -4074,6 +4074,11 @@ public final class Scene {
             }
 
             @Override
+            public void scrollsUnderDrag(Widget<?> bar, limn.scene.internal.DragScrollAxis axis) {
+                bar.dragScrollAxis = axis;
+            }
+
+            @Override
             public void fieldControl(Widget<?> widget, boolean held, boolean required, boolean invalid) {
                 widget.setAccessibleFieldBits(!held ? 0 : Widget.FIELD_CONTROL
                         | (required ? Widget.FIELD_REQUIRED : 0)
@@ -5493,9 +5498,16 @@ public final class Scene {
 
     /** How far a press travels before it asks whether a drag begins. */
     private static final float DRAG_THRESHOLD = 4;
-    /** How near an edge of the widget that accepted the pointer rests for it to scroll. */
+    /**
+     * How deep the band along each edge of a scrolling viewport is, in the window's points whatever
+     * scale the viewport is shown at, where a drag scrolls it; a quarter of the viewport when that
+     * is less, so a short list keeps a middle.
+     */
     private static final float AUTO_SCROLL_EDGE = 24;
-    private static final double AUTO_SCROLL_SECONDS = 0.06;
+    /** How fast a drag at a viewport's very edge scrolls it, in the window's points a second; slower inside the band. */
+    private static final float AUTO_SCROLL_EDGE_SPEED = 800;
+    /** The fastest a drag past the edge scrolls, in the window's points a second, however far past it goes. */
+    private static final float AUTO_SCROLL_MAX_SPEED = 2400;
     private static final float DRAG_IMAGE_OPACITY = 0.75f;
     private static final int DRAG_KEY_MASK =
             Keys.MOD_SHIFT | Keys.MOD_CONTROL | Keys.MOD_ALT | Keys.MOD_SUPER;
@@ -5539,6 +5551,13 @@ public final class Scene {
         boolean awaitingSystem;
         /** Handed to the system: the pointer is its own until it says the drag is over. */
         boolean system;
+        /** Handed to the system and gone from this window: where it is now is not ours to know. */
+        boolean away;
+        /**
+         * What the system last said it allows over this window, the modifier keys as it read them;
+         * null until it has said. Asked again with it when the content scrolls under a still pointer.
+         */
+        java.util.@Nullable Set<limn.transfer.DropAction> systemAllowed;
         boolean droppedHere;
         limn.transfer.@Nullable DropAction doneHere;
 
@@ -5614,7 +5633,7 @@ public final class Scene {
                     announce(beginning, limn.accessibility.Accessible.Politeness.ASSERTIVE);
                 }
             } else {
-                addRealTimeTicker(new AutoScroll(session));
+                armAutoScroll();
                 if (!drag.isWithinWindow() && window != null && WindowPeer.of(window).supportsDrag()) {
                     handToSystem(session);
                 }
@@ -5679,6 +5698,7 @@ public final class Scene {
         }
         retarget(session, acceptor, event.acceptedAction());
         damageDragImage();
+        armAutoScroll();
         scheduleFrame();
     }
 
@@ -5887,6 +5907,11 @@ public final class Scene {
     private static final class Incoming {
         @Nullable Widget<?> target;
         limn.transfer.@Nullable DropAction action;
+        // What the system said last, asked again when the content scrolls under a still pointer.
+        limn.transfer.Offer offer = limn.transfer.Offer.EMPTY;
+        java.util.Set<limn.transfer.DropAction> allowed = java.util.Set.of();
+        float x;
+        float y;
     }
 
     /** {@code -Dlimn.drag.trace=true}: each step of handing a drag to the system, on standard error. */
@@ -6086,6 +6111,8 @@ public final class Scene {
         if (own != null) {
             own.x = x;
             own.y = y;
+            own.away = false;
+            own.systemAllowed = allowed;
             retarget(own, acceptor, action);
         } else {
             Incoming in = incoming;
@@ -6096,11 +6123,16 @@ public final class Scene {
             Widget<?> before = in.target;
             in.target = acceptor;
             in.action = action;
+            in.offer = offer;
+            in.allowed = allowed;
+            in.x = x;
+            in.y = y;
             if (before != null && before != acceptor) {
                 before.dispatchDragExit(event != null ? event : new DragEvent(x, y, modifiers, false, 0, 0,
                         offer, allowed, limn.transfer.DropAction.COPY, null));
             }
         }
+        armAutoScroll();
         scheduleFrame();
         return action;
     }
@@ -6109,6 +6141,7 @@ public final class Scene {
         Ui.checkUiThread();
         DragSession own = dragSession != null && dragSession.system ? dragSession : null;
         if (own != null) {
+            own.away = true;
             retarget(own, null, null);
         }
         Incoming in = incoming;
@@ -6147,38 +6180,247 @@ public final class Scene {
 
     // ---- what a pointer drag shows
 
-    /** Scrolls the widget that accepts the drag while the pointer rests near one of its edges. */
-    private final class AutoScroll implements Ticker {
-        private final DragSession session;
-        private double waited;
-
-        AutoScroll(DragSession session) {
-            this.session = session;
+    /** Whether {@link #autoScroll} is registered: it stops itself when it finds nothing to scroll. */
+    private boolean autoScrollArmed;
+    /**
+     * One instance, so arming twice registers it once. A step runs the application's code (each
+     * target's {@code onDragOver}, each scroll listener): one that throws has the ticker dropped,
+     * and the flag goes with it, or no later drag in this window would arm it again.
+     */
+    private final Ticker autoScroll = dt -> {
+        boolean more = false;
+        try {
+            more = autoScrollStep(dt);
+        } finally {
+            if (!more) {
+                autoScrollArmed = false;
+            }
         }
+        return more;
+    };
+    /** A viewport's visible box, in its own coordinates. */
+    private final float[] autoScrollBox = new float[4];
 
-        @Override
-        public boolean tick(double dtSeconds) {
-            if (dragSession != session) {
+    /** Starts the drag's auto-scroll, if it is not running: every move of a pointer drag does. */
+    private void armAutoScroll() {
+        if (!autoScrollArmed) {
+            autoScrollArmed = true;
+            addRealTimeTicker(autoScroll);
+        }
+    }
+
+    /**
+     * Scrolls what the pointer of a drag rests near the edge of, or is past the edge of, by one
+     * frame's worth: the drag this scene drives, one it handed to the system, or one from another
+     * program, never the keyboard's.
+     *
+     * <p>Every widget that scrolls through a scroll bar is a viewport, its box the part shown. From
+     * the widget under the pointer outward, the first viewport whose band along an edge holds the
+     * pointer and that can still move that way takes the axis; one at its limit leaves the axis to
+     * the next viewport out whose band holds the pointer too. A viewport the pointer is not over is
+     * not scrolled, so leaving a list for the page around it leaves the list alone; only a drag
+     * this scene drives can be past the window's edge, and there it scrolls what it was over at
+     * that edge, faster the farther past. The speed grows with the square of how deep into the band
+     * the pointer is, and is points a second times the tick's real time, so it is the same at any
+     * frame rate. A step that scrolled asks the widget under the pointer again, which has moved.
+     *
+     * <p>It is not motion the user can do without: under reduced motion it runs as it is, as
+     * scrolling itself does.
+     *
+     * @return whether anything was in a band with room to move, so the next frame scrolls again
+     */
+    private boolean autoScrollStep(double dt) {
+        DragSession session = dragSession;
+        Incoming in = incoming;
+        float x;
+        float y;
+        boolean mayBeOutside;
+        if (session != null) {
+            if (session.keyboard || session.away) {
                 return false;
             }
-            Widget<?> target = session.target;
-            waited += dtSeconds;
-            if (target == null || waited < AUTO_SCROLL_SECONDS) {
-                return true;
-            }
-            waited = 0;
-            limn.graphics.Rect box = target.localToSceneBounds(0, 0, target.width(), target.height());
-            float dx = session.x < box.x() + AUTO_SCROLL_EDGE ? 1
-                    : session.x > box.right() - AUTO_SCROLL_EDGE ? -1 : 0;
-            float dy = session.y < box.y() + AUTO_SCROLL_EDGE ? 1
-                    : session.y > box.bottom() - AUTO_SCROLL_EDGE ? -1 : 0;
-            if (dx != 0 || dy != 0) {
-                dispatchBubbling(target, new MouseEvent(MouseEvent.Type.WHEEL, session.x, session.y, -1,
-                        dx, dy, 0));
-                dragMoved(session.x, session.y); // what is under the pointer moved
-            }
-            return true;
+            x = session.x;
+            y = session.y;
+            mayBeOutside = !session.system; // the system tells only of points over the window
+        } else if (in != null) {
+            x = in.x;
+            y = in.y;
+            mayBeOutside = false;
+        } else {
+            return false;
         }
+        if (width <= 0 || height <= 0 || Float.isNaN(x) || Float.isNaN(y)) {
+            return false;
+        }
+        boolean outside = x < 0 || y < 0 || x >= width || y >= height;
+        if (outside && !mayBeOutside) {
+            return false;
+        }
+        // Past the window, what was under the pointer is what is at the window's edge nearest it.
+        Widget<?> under = hitAt(Math.max(0, Math.min(width - 0.5f, x)), Math.max(0, Math.min(height - 0.5f, y)));
+        boolean verticalTaken = false;
+        boolean horizontalTaken = false;
+        boolean scrolled = false;
+        for (Widget<?> w = under; w != null && !(verticalTaken && horizontalTaken); w = w.parent()) {
+            boolean boxed = false;
+            Vec2 local = null;
+            for (Widget<?> child : w.children()) {
+                limn.scene.internal.DragScrollAxis axis = child.dragScrollAxis;
+                if (axis == null || (axis.vertical() ? verticalTaken : horizontalTaken)) {
+                    continue;
+                }
+                if (!boxed) {
+                    boxed = true;
+                    local = visibleBox(w, autoScrollBox) ? w.sceneToLocal(x, y) : null;
+                }
+                if (local == null || Float.isNaN(local.x()) || Float.isNaN(local.y())) {
+                    continue;
+                }
+                float[] box = autoScrollBox;
+                boolean vertical = axis.vertical();
+                float along = vertical ? local.y() : local.x();
+                float low = vertical ? box[1] : box[0];
+                float high = vertical ? box[3] : box[2];
+                // The band and the speed are the window's points: carried into the viewport's own,
+                // which a scale shown at a quarter of its size makes four times as many.
+                float perPoint = windowPointsPerPoint(w, local, vertical);
+                if (!(perPoint > 0) || Float.isInfinite(perPoint)) {
+                    continue; // seen edge on, or not at all
+                }
+                float band = Math.min(AUTO_SCROLL_EDGE / perPoint, (high - low) / 4);
+                if (band <= 0) {
+                    continue;
+                }
+                boolean forward;
+                float depth;
+                if (along > high - band) {
+                    forward = true;
+                    depth = along - (high - band);
+                } else if (along < low + band) {
+                    forward = false;
+                    depth = low + band - along;
+                } else {
+                    continue;
+                }
+                float room = axis.room(forward);
+                if (room <= 0) {
+                    continue; // at its limit: the next viewport out, if the pointer is in its band too
+                }
+                if (vertical) {
+                    verticalTaken = true;
+                } else {
+                    horizontalTaken = true;
+                }
+                float depthFraction = depth / band;
+                float speed = Math.min(AUTO_SCROLL_MAX_SPEED, AUTO_SCROLL_EDGE_SPEED * depthFraction * depthFraction)
+                        / perPoint;
+                float step = Math.min(room, (float) (speed * dt));
+                if (step > 0) {
+                    axis.scrollBy(forward ? step : -step);
+                    scrolled = true;
+                }
+            }
+        }
+        if (scrolled) {
+            // What is under the pointer moved: whoever takes the drop is asked again, a drag the
+            // system drives with what the system last allowed, since the scene's keys are stale.
+            // The system hears an answer that changed: some ask again only when the pointer moves.
+            if (session != null && !session.system) {
+                dragMoved(x, y);
+            } else if (session != null) {
+                java.util.Set<limn.transfer.DropAction> allowed = session.systemAllowed;
+                if (allowed != null) {
+                    limn.transfer.DropAction was = session.action;
+                    tellSystemIfChanged(was, systemDragOver(session.offer, allowed, x, y));
+                }
+            } else if (in != null) {
+                limn.transfer.DropAction was = in.action;
+                tellSystemIfChanged(was, systemDragOver(in.offer, in.allowed, x, y));
+            }
+        }
+        return verticalTaken || horizontalTaken;
+    }
+
+    /**
+     * How many of the window's points one of {@code widget}'s own points along an axis is, at a
+     * point of it: 1 with no transform, a quarter in a view shown at a quarter of its size.
+     */
+    private static float windowPointsPerPoint(Widget<?> widget, Vec2 at, boolean vertical) {
+        Vec2 from = widget.localToScene(at.x(), at.y());
+        Vec2 to = widget.localToScene(at.x() + (vertical ? 0 : 1), at.y() + (vertical ? 1 : 0));
+        return (float) Math.hypot(to.x() - from.x(), to.y() - from.y());
+    }
+
+    /** Tells the window the answer of an ask the system did not make, when it is not the last it had. */
+    private void tellSystemIfChanged(limn.transfer.@Nullable DropAction was,
+            limn.transfer.@Nullable DropAction now) {
+        NativeWindow host = window;
+        if (now != was && host != null) {
+            WindowPeer.of(host).dragAnswerChanged(now);
+        }
+    }
+
+    /**
+     * The part of {@code widget}'s box that is on screen, in its own coordinates: its box cut by
+     * every ancestor that clips it and by the window, each carried into the widget's coordinates
+     * through the conversions a transform takes part in.
+     *
+     * @param out four floats to fill: left, top, right, bottom
+     * @return whether anything of it is on screen
+     */
+    private boolean visibleBox(Widget<?> widget, float[] out) {
+        out[0] = 0;
+        out[1] = 0;
+        out[2] = widget.width();
+        out[3] = widget.height();
+        Widget<?> below = widget;
+        for (Widget<?> node = widget.parent(); node != null; below = node, node = node.parent()) {
+            if (node.clipsChildren()) {
+                float cx = node.clipX(below);
+                float cy = node.clipY(below);
+                Vec2 corner = node.localToScene(cx, cy);
+                Vec2 far = node.localToScene(cx + node.clipWidth(below), cy + node.clipHeight(below));
+                Vec2 a = node.localToScene(cx + node.clipWidth(below), cy);
+                Vec2 b = node.localToScene(cx, cy + node.clipHeight(below));
+                if (!cut(widget, out, corner.x(), corner.y(), far.x(), far.y(), a.x(), a.y(), b.x(), b.y())) {
+                    return false;
+                }
+            }
+        }
+        return cut(widget, out, 0, 0, width, height, width, 0, 0, height);
+    }
+
+    /**
+     * Narrows {@code out} to the box, in {@code widget}'s coordinates, around four scene points.
+     *
+     * @return whether anything is left
+     */
+    private boolean cut(Widget<?> widget, float[] out, float x0, float y0, float x1, float y1, float x2, float y2,
+            float x3, float y3) {
+        float minX = Float.POSITIVE_INFINITY;
+        float minY = Float.POSITIVE_INFINITY;
+        float maxX = Float.NEGATIVE_INFINITY;
+        float maxY = Float.NEGATIVE_INFINITY;
+        float[] xs = {x0, x1, x2, x3};
+        float[] ys = {y0, y1, y2, y3};
+        for (int i = 0; i < 4; i++) {
+            Vec2 p = widget.sceneToLocal(xs[i], ys[i]);
+            if (Float.isNaN(p.x()) || Float.isNaN(p.y())) {
+                continue; // a corner behind the eye: the others bound what is seen
+            }
+            minX = Math.min(minX, p.x());
+            minY = Math.min(minY, p.y());
+            maxX = Math.max(maxX, p.x());
+            maxY = Math.max(maxY, p.y());
+        }
+        if (minX > maxX) {
+            return true; // nothing of it maps: it narrows nothing
+        }
+        out[0] = Math.max(out[0], minX);
+        out[1] = Math.max(out[1], minY);
+        out[2] = Math.min(out[2], maxX);
+        out[3] = Math.min(out[3], maxY);
+        return out[2] > out[0] && out[3] > out[1];
     }
 
     /** The largest part of a widget shown under the pointer when the source names none. */

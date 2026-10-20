@@ -198,7 +198,8 @@ Step 3, the scene's driver (`Scene`, `limn.scene.event`, `limn.transfer.Drag`), 
   moving a row within its list needs no Tab.
 - **Auto-scroll is a wheel event** sent to the accepting widget while the pointer rests within
   24 points of one of its edges, every 60 ms: whatever scrolls under a wheel scrolls under a
-  drag, with no interface of its own.
+  drag, with no interface of its own. (Replaced on 2026-10-20 by the scroll panes' own
+  edges; see the amendment at the end.)
 - **`Scene.setDragKey(key, modifiers)`** takes the two integers of `Keys`: an `Accelerator`
   belongs to the components, above the scene.
 - **Files from the system** still arrive from GLFW at the moment of the drop only: the scene asks
@@ -493,3 +494,79 @@ each measured on its guest with the drivers of step 6, scripts under `.claude/pe
   Mutter's own RemoteDesktop interface, since nothing else moves a pointer there without root.
 - Left as it is: a fractional scale's rounded picture on Wayland.
 
+
+Auto-scroll, amended (2026-10-20, the owner's run of the Showcase's drag and drop page: the logo
+dragged down toward the drop area made the page scroll UP, and it could be dropped only by
+scrolling first and dragging from outside the page). The rule of step 3, a wheel sent every
+60 ms to the widget that accepts the drop when the pointer is within 24 points of one of its
+edges, had two faults, measured on that page. It looked at the edges of the target and never at
+the scroll pane's, so nothing scrolled the page down at the window's bottom edge, and the area
+below the fold could not become a target. And when the area's top showed at the bottom of the
+window, entering it put the pointer within 24 points of the area's top: the wheel "up" went from
+the area, which does not scroll, to the page, which scrolled up by its 48-point detent and
+carried the area off from under the pointer. The sign was right for the target's edge; the edge
+was the wrong one. What replaces it, for every pointer drag (one the scene drives, one handed to
+the system, one from another program, never the keyboard's):
+
+- **A viewport is anything that scrolls through a `ScrollBar`**, the bar telling the scene its
+  axis, how far its holder can still move each way and the move itself, through an internal
+  hook: scroll views, lists, tables, trees, text areas, and a widget of an application's own
+  built on a bar. Its box, cut by the ancestors that clip it and by the
+  window, is the part on screen.
+- **From the widget under the pointer outward, the first viewport whose band along an edge holds
+  the pointer, and that can still move that way, takes that axis**; one at its limit leaves the
+  axis to the next one out whose band holds the pointer too, so a list flush with the bottom of
+  the page scrolls to its end and then the page goes on. A viewport the pointer is not over is
+  not scrolled: a list the pointer left for the page around it stays where it is, and a list at
+  its end in the middle of the page does not move the page.
+- **The band is 24 points, or a quarter of the viewport when that is less; the speed is 800
+  points a second times the square of how deep into the band the pointer is**, so it starts
+  gently, and past the edge it keeps growing, to at most 2400 points a second. It is the tick's
+  real time that multiplies it, so it is the same at any frame rate.
+- **Past the window's edge** only a drag the scene drives is still followed, and there what
+  scrolls is what was under the pointer at the window's edge nearest it; a drag the system
+  drives stops scrolling when the system says it left the window.
+- **Every step that scrolled asks the widget under the pointer again**, which has moved.
+- **The axes are physical**: a horizontal bar knows that its offset grows toward the left right to
+  left, and turns the sign; the pointer is carried into the viewport's own coordinates, so a
+  turned or scaled view scrolls toward the edge on screen.
+- **Under reduced motion it runs as it is**: it is the user's own scroll, not decoration.
+- **The wheel to the target is gone**, subsumed: every widget of the toolkit that took a drop
+  and scrolled under the wheel scrolls through a bar. A widget of an application's own that
+  scrolled under a wheel without a bar no longer scrolls under a drag; one that zoomed or
+  changed a value under the wheel is no longer zoomed or changed by a drag resting near its edge.
+
+`DragAutoScrollTest` holds each of these, and `ShowcaseDragScrollTest` the page itself.
+
+Review of the auto-scroll (2026-10-20):
+
+- **A step is a relative move.** The bar's model gained `scrollBy(delta)`, by default
+  `setOffset(offset() + delta)`; the list, the tree and the table override it with their rows'
+  walk, the move the wheel makes. Through `setOffset` each step of a few points landed by the
+  mean row height, as a thumb drag does: over rows of different heights the rows stood on the
+  step and then leapt by twenty to eighty points in one frame (measured, 400 rows of 12 to 112
+  points, a drag 18 points into the band). `DragAutoScrollTest` holds each of the three steady.
+- **A drag of ours handed to the system is asked again in the system's terms.** The ask after a
+  step went through the scene's own drag: the source's actions and the scene's modifier keys,
+  stale while the system drives. It now carries what the system last said it allows over the
+  window, as the system's own ask does, so a target is never offered a move the system, with the
+  copy key held, would not make.
+- **An answer that changes under a still pointer is pushed to the system.** The ask after a step
+  answered nobody: the system hears a window's answer only as the return of its own ask, and on
+  X11 and Wayland it asks only when the pointer moves, so a drop area scrolled under a pointer
+  resting in the band was decided, at the release, by the answer before the scroll (nothing),
+  until a wiggle. The scene now tells the window an answer that changed, once per change
+  (`WindowPeer.dragAnswerChanged`, a default that does nothing). X11 sends the source an
+  XdndStatus no position asked for: the protocol neither describes nor forbids one, and our own
+  source reads a status whenever it comes, so our drag over our own window is covered; Wayland
+  sends `set_actions` and `accept` again, which the protocol ties to no motion. Windows and macOS
+  are left as they are: OLE calls `DragOver` and AppKit `draggingUpdated:` again while the pointer
+  rests. Covered by the scene's tests up to the window; the native side is read, not yet run: a
+  run on the Linux guests owes it (rest at the page's bottom edge until the drop area is under
+  the pointer, let go without moving; for our own drag and for a file manager's).
+- **The band and the speed are the window's points.** They were the viewport's own, so they
+  scaled with a transform: a view shown at a quarter of its size had a band six points deep on
+  screen and passed 139 points a second at its edge; at twice its size the band reached 48 points
+  in and the bound was 4800 a second. Each is now carried into the viewport's points through the
+  scale along the axis at the pointer, so the edge feels the same at any scale, and the content
+  passes the eye as fast; the quarter of the viewport that bounds the band stays the viewport's.

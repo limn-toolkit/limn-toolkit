@@ -13,6 +13,16 @@ public interface WindowDrag {
      */
     boolean start(DragRequest request);
 
+    /**
+     * What the window answers the drag over it now, with no move of the pointer to ask it: the
+     * content scrolled under the pointer. Told to the drag's source as the answer to a move would
+     * be, while that drag is over this window and not yet dropped. UI thread.
+     *
+     * @param action what a widget there would carry out, or null when none takes it
+     */
+    default void answerChanged(limn.transfer.@org.jspecify.annotations.Nullable DropAction action) {
+    }
+
     /** The window is closing. UI thread. */
     void close();
 }

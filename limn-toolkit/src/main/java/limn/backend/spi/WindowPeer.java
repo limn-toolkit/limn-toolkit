@@ -172,4 +172,22 @@ public non-sealed interface WindowPeer extends NativeWindow {
     default boolean startDrag(DragRequest request) {
         return false;
     }
+
+    /**
+     * The answer this window gave the drag the system drives over it changed while the pointer
+     * stood still: the content scrolled under the pointer, and another widget, or none, takes the
+     * drag there now. Said once per change, for a drag from another program and for one this
+     * window handed over; never for a drag the scene drives itself. UI thread.
+     *
+     * <p>A system that asks {@link WindowInput#dragOver} again only when the pointer moves is to
+     * be told now, as the answer to its own ask would have told it, or a drop let go without a
+     * move is decided by the answer before the scroll. One that asks again on its own while the
+     * pointer rests hears the new answer then, and can leave this as it is: {@code default} and
+     * doing nothing.
+     *
+     * @param action the action a widget under the pointer would carry out now, or null when none
+     *               takes the drag there
+     */
+    default void dragAnswerChanged(limn.transfer.@Nullable DropAction action) {
+    }
 }

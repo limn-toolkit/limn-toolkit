@@ -465,6 +465,12 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
             public void setOffset(float value) {
                 engine.scrollTo(value, Change.Origin.USER);
             }
+
+            @Override
+            public void scrollBy(float delta) {
+                // Walked from where the rows are: setOffset lands by the mean row height.
+                engine.scrollBy(delta, Change.Origin.USER);
+            }
         });
         add(vBar);
     }

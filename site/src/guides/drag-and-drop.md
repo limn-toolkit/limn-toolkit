@@ -148,6 +148,24 @@ paint the dragged thing alone on a transparent surface. `withinWindow()` keeps a
 ever being offered to another program, which is right for something that means nothing outside
 its window.
 
+## When the place to drop is out of sight
+
+Whatever is dragged with the pointer, a scroll view, a list, a table, a tree or a text area
+under the pointer scrolls when the pointer comes near one of its edges, toward that edge: drag
+toward the bottom of a long page and the page brings up what is below, a drop area included. It
+starts gently and goes faster the nearer the edge. A drag that keeps to its window
+(`withinWindow()`) is followed past the window's edge too, faster the farther, up to a bound. A list inside a page scrolls first, and when it has reached its end the
+page around it takes over, if the pointer is near the page's edge too; a list the pointer has
+left for the page around it stays where it was. It works the same reading right to left, and
+for a view that is turned or scaled. Files dragged in from another program scroll the window in
+the same way.
+
+Nothing turns it on. A widget of your own that scrolls through a `ScrollBar` scrolls under a
+drag like the toolkit's do, a few points a frame through its model's `scrollBy`. Where your
+widget's offset is an estimate, as with rows of different heights measured only as they are
+built, override `scrollBy` with a move from where the content is, as the wheel makes: the default
+goes through `setOffset`, and each small step would land by the estimate.
+
 ## Your own widget as a target
 
 {% snippet guide:drag-target %}

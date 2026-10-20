@@ -85,6 +85,8 @@ public final class X11Drag {
     private List<String> incomingSpellings = List.of();
     private @Nullable Offer incomingOffer;
     private long incomingTime;
+    /** The source said the drop: the answer is final, and nothing more is told it before it is finished. */
+    private boolean incomingDropped;
     /** The drop was handed to the UI thread: the source is told it is finished once its data is read. */
     private boolean finishing;
     private boolean finishAccepted;
@@ -174,6 +176,11 @@ public final class X11Drag {
                     }
                 });
                 return true;
+            }
+
+            @Override
+            public void answerChanged(@Nullable DropAction action) {
+                x.post(() -> answerUnasked(entry, action));
             }
 
             @Override
@@ -300,6 +307,7 @@ public final class X11Drag {
                 }
             }
             incomingSpellings = List.copyOf(names);
+            incomingDropped = false;
             List<String> spellings = incomingSpellings;
             incomingOffer = PlatformClipboard.offer(ClipboardTypes.canonical(names),
                     kind -> x.read(selection, kind, () -> spellings, incomingTime), ui);
@@ -341,7 +349,7 @@ public final class X11Drag {
                 lastAnswered = action;
                 x.post(() -> {
                     if (source == incomingSource) {
-                        send(source, source, status, over.xwindow, action == null ? 0 : 3, 0, 0, atomOf(action));
+                        answer(source, over, action);
                     }
                 });
             });
@@ -353,6 +361,7 @@ public final class X11Drag {
             }
         } else if (type == drop && l0 == incomingSource) {
             incomingTime = l2;
+            incomingDropped = true;
             Entry over = incomingTarget;
             Offer offer = incomingOffer;
             if (TRACE) {
@@ -392,6 +401,34 @@ public final class X11Drag {
         }
     }
 
+    /**
+     * XdndStatus: whether the window of ours under the pointer takes the drag, and as what. Bit 1
+     * with an empty rectangle asks for a position at every move.
+     */
+    private void answer(long source, Entry over, @Nullable DropAction action) {
+        send(source, source, status, over.xwindow, action == null ? 0 : 3, 0, 0, atomOf(action));
+    }
+
+    /**
+     * Tells the source of the drag over a window of ours what that window answers now, though the
+     * source asked nothing: the content scrolled under a pointer that stands still, and a source
+     * sends XdndPosition only when the pointer moves. Released there, a source decides between
+     * XdndDrop and XdndLeave by the last XdndStatus it had, so without this a drop area that
+     * scrolled under the pointer took nothing until the pointer was wiggled. The protocol neither
+     * describes nor forbids a status that answers no position; a source that reads XdndStatus
+     * whenever it comes, as ours does, takes it as the target's answer for where the pointer is.
+     * X thread.
+     */
+    private void answerUnasked(Entry over, @Nullable DropAction action) {
+        if (incomingSource == NULL || incomingTarget != over || incomingDropped) {
+            return;
+        }
+        if (TRACE) {
+            System.err.println("limn.drag(x11): answers " + action + " unasked, the content having scrolled");
+        }
+        answer(incomingSource, over, action);
+    }
+
     private long lastIncomingAction;
     /** What the UI thread last answered a drag over a window of ours, for the trace alone. */
     private @Nullable DropAction lastAnswered;
@@ -405,6 +442,7 @@ public final class X11Drag {
     }
 
     private void forgetIncoming() {
+        incomingDropped = false;
         incomingSource = NULL;
         incomingTarget = null;
         incomingOffer = null;
