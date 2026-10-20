@@ -1156,7 +1156,9 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     /**
      * Opens the popup (native window when bound; pure state when headless). Announces
      * {@code EXPANDED}/{@code CODE}; the click, the keys and an assistive technology's expand
-     * announce it as {@code USER} through the same seam.
+     * announce it as {@code USER} through the same seam. In a scene, nothing happens, and nothing
+     * is announced, while the combo box is hidden, drawn as nothing by a transform above it, or
+     * on its way out of its window.
      */
     public void open() {
         Ui.checkUiThread();

@@ -132,8 +132,9 @@ A turn in depth has no motion of its own besides the flip, and is set at once. T
 quarter, the part shows its back, mirrored, unless `setBackfaceVisible(false)` hides it; turned
 exactly a quarter it is edge-on, draws nothing and takes no click. A part drawn as nothing, its
 back hidden, edge-on, or scaled to 0, is out of reach as a hidden one is: Tab passes it by, it
-loses the keyboard focus if it held it, a screen reader is told it is hidden, and it comes back by
-itself when it is drawn again, without the focus. Its picture is drawn at the size
+loses the keyboard focus if it held it, a popover or a list open from a control on it closes, a
+screen reader is told it is hidden, and it comes back by itself when it is drawn again, without
+the focus. Its picture is drawn at the size
 of the edge nearest the reader, so text far from it reads softer; on a computer with no graphics
 processor it is drawn at the part's own size, which costs that computer less and softens the near
 edge a little too. Where the part is seen at less than half its size, a page laid far back, its

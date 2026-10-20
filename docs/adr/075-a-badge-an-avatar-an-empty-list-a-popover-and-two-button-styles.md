@@ -777,8 +777,11 @@ that the text above does not say, dated where it departs from it.
     is no longer shown, hidden itself or with a container, a tab strip's page or an expander, as
     when it leaves. The tab strip keeps its list button visible while the list is open: the list
     still goes on the next turn once the tabs fit, by the close its layout posts, and the button
-    kept visible keeps that close out of the layout pass, where hiding it would now close the list. A child a transform stops drawing is the same case for
-    the branch that makes it so (`Scene.observeAnchorLeaving` says where it calls in).
+    kept visible keeps that close out of the layout pass, where hiding it would now close the
+    list. A child a transform stops drawing is the same case for the branch that makes it so
+    (`Scene.observeAnchorLeaving` says where it calls in). (2026-10-20, integrated: the scene does
+    it, `Scene.childrenDrawnChanged`, from a set at once and after a motion's frame or a layout
+    pass; see the second and third reviews below.)
   - **A closing layer took presses and the focus** (every in-scene popup, menus included): a
     press beside the fading card now reaches what is beneath, and the closing layer takes no
     focus (amended by the second review below: a press on the card stays the popup's).

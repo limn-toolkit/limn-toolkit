@@ -592,7 +592,13 @@ public final class DatePicker extends Widget<DatePicker> {
         return popup.inScene() ? DisplayMode.IN_SCENE : requested;
     }
 
-    /** Opens the calendar. Does nothing if it is already open or the picker is disabled. */
+    /**
+     * Opens the calendar. Does nothing if it is already open or the picker is disabled, nor, in a
+     * scene, while the picker is hidden, drawn as nothing by a transform above it, or on its way
+     * out of its window.
+     *
+     * @return this
+     */
     public DatePicker open() {
         Ui.checkUiThread();
         setOpen(true, Change.Origin.CODE);

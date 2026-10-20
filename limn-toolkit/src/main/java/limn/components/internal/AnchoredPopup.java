@@ -675,8 +675,10 @@ public final class AnchoredPopup {
             refocus = null; // on its way out of the window: the overlay's own way back is the rule
         }
         SceneAccess.releaseOverlayKeyboard(owner, closing);
-        // Nor does it take the keyboard again, or a press: one during the fade is for what is
-        // beneath (the scene passes the pointer by a layer that gave the keyboard back).
+        // Nor does it take the keyboard again. A press on the fading card is still the popup's,
+        // swallowed, so the second click of a double click does not reach the control under an
+        // item; one beside the card is for what is beneath (the scene passes the pointer by a
+        // layer that gave the keyboard back, outside its card).
         closing.setFocusable(false);
         if (refocus != null) {
             refocus.requestFocus();
