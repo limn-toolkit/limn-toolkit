@@ -330,3 +330,10 @@ names the variables itself (`ir_s…`).
   loop anywhere in its turn, and the provisional names are rewritten. A loop built apart and set
   in another's turn has names of its own too, so the hiding of section 3.4 now arises only in
   hand-built records. The device test builds the inner loop on a worker thread and draws 27.
+- **2026-10-20, review 9: a count numbers the IR once.** Each loop's constructor counted the
+  whole nest below it with a fresh memo and compared the loops in it by hashing each as a tree,
+  so a chain of k loops built through their initial values cost k³: 2.7 s at 400 one-turn loops.
+  The count now numbers the nodes by value once per count, as the generator does, and reads each
+  loop's turns from its number; a thousand such loops, the most the budget allows, build and pass
+  `SurfaceOutputs` in about a third of a second. A record cannot cache a count in a field it does
+  not declare, so each constructor still counts the nest below it, once.

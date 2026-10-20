@@ -258,7 +258,7 @@ final class Loops {
      * then each turn's loops, at least one turn's worth, times the count.
      */
     static long turns(List<Expr> initial, int maxIterations, List<Expr> turn) {
-        return turns(initial, maxIterations, turn, new HashMap<>());
+        return new Counter().turns(initial, maxIterations, turn);
     }
 
     /**
@@ -266,7 +266,8 @@ final class Loops {
      * passing through another loop add, a loop reached twice, or two built alike, counted once.
      */
     static long turns(List<Expr> roots) {
-        return work(frontier(roots), new HashMap<>());
+        Counter counter = new Counter();
+        return counter.work(counter.frontier(roots));
     }
 
     /**
@@ -277,65 +278,120 @@ final class Loops {
         if (lights < 0) {
             throw new IllegalArgumentException("a pass shades with no fewer than 0 lights, not " + lights);
         }
-        Map<LoopKey, Long> known = new HashMap<>();
-        Map<LoopKey, Expr.Loop> once = frontier(outputs);
-        long total = work(once, known);
+        Counter counter = new Counter();
+        Map<Integer, Expr.Loop> once = counter.frontier(outputs);
+        long total = counter.work(once);
         if (response != null) {
-            Map<LoopKey, Expr.Loop> perLight = frontier(List.of(response));
+            Map<Integer, Expr.Loop> perLight = counter.frontier(List.of(response));
             perLight.keySet().removeAll(once.keySet());
-            total = saturatedSum(total, saturatedProduct(lights, work(perLight, known)));
+            total = saturatedSum(total, saturatedProduct(lights, counter.work(perLight)));
         }
         return total;
     }
 
-    private static long turns(List<Expr> initial, int maxIterations, List<Expr> turn, Map<LoopKey, Long> known) {
-        long before = work(frontier(initial), known);
-        long each = Math.max(1, work(frontier(turn), known));
-        return saturatedSum(before, saturatedProduct(maxIterations, each));
-    }
-
     /**
-     * A loop as a computation, whichever of its values a node reads: the nodes for two values of
-     * one loop are one loop, computed once.
+     * Counts turns over the IR numbered by value as the generator numbers it, each node once: a
+     * loop is counted once however many of its values are read and however many times it was
+     * built alike, and a chain of loops is walked once, not once a loop.
      */
-    private record LoopKey(List<String> states, List<Expr> initial, int maxIterations, List<Expr> next,
-                           @Nullable Expr until) {
-        LoopKey(Expr.Loop loop) {
-            this(loop.states(), loop.initial(), loop.maxIterations(), loop.next(), loop.until());
-        }
-    }
+    private static final class Counter {
+        private final Map<Expr, Integer> ids = new IdentityHashMap<>();
+        private final Map<List<Object>, Integer> byKey = new HashMap<>();
+        private final Map<Expr, Integer> loopNumbers = new IdentityHashMap<>();
+        private final Map<List<Object>, Integer> byLoopKey = new HashMap<>();
+        private final Map<Integer, Long> counted = new HashMap<>();
 
-    /** The loops reached from {@code roots} without passing through another loop, by value. */
-    private static Map<LoopKey, Expr.Loop> frontier(List<Expr> roots) {
-        Map<LoopKey, Expr.Loop> loops = new java.util.LinkedHashMap<>();
-        Set<Expr> seen = Collections.newSetFromMap(new IdentityHashMap<>());
-        java.util.ArrayDeque<Expr> pending = new java.util.ArrayDeque<>(roots);
-        while (!pending.isEmpty()) {
-            Expr node = pending.pop();
-            if (!seen.add(node)) {
-                continue;
+        /** The node's number: equal for nodes of one kind, equal fields and equally numbered children. */
+        int id(Expr node) {
+            Integer known = ids.get(node);
+            if (known != null) {
+                return known;
             }
-            if (node instanceof Expr.Loop loop) {
-                loops.putIfAbsent(new LoopKey(loop), loop);
+            List<Object> key = new java.util.ArrayList<>();
+            if (node instanceof Expr.Lit || node instanceof Expr.Ref || node instanceof Expr.Raw) {
+                key.add(node);
+            } else if (node instanceof Expr.Swizzle swizzle) {
+                key.add("W" + swizzle.pattern());
+            } else if (node instanceof Expr.Binary binary) {
+                key.add(binary.op());
+            } else if (node instanceof Expr.Call call) {
+                key.add("C" + call.function());
+                key.add(call.type());
+            } else if (node instanceof Expr.Construct construct) {
+                key.add("K");
+                key.add(construct.type());
+            } else if (node instanceof Expr.Loop loop) {
+                key.add("P" + loop.index());
+                key.add(loopNumber(loop));
             } else {
-                pending.addAll(children(node));
+                key.add("S");
             }
+            if (!(node instanceof Expr.Loop)) {
+                for (Expr child : children(node)) {
+                    key.add(id(child));
+                }
+            }
+            int id = byKey.computeIfAbsent(key, k -> byKey.size());
+            ids.put(node, id);
+            return id;
         }
-        return loops;
-    }
 
-    private static long work(Map<LoopKey, Expr.Loop> loops, Map<LoopKey, Long> known) {
-        long sum = 0;
-        for (Map.Entry<LoopKey, Expr.Loop> entry : loops.entrySet()) {
-            Long turns = known.get(entry.getKey());
-            if (turns == null) {
-                Expr.Loop loop = entry.getValue();
-                turns = turns(loop.initial(), loop.maxIterations(), turnOf(loop), known);
-                known.put(entry.getKey(), turns);
+        /** The loop's number, whichever of its values the node reads. */
+        int loopNumber(Expr.Loop loop) {
+            Integer known = loopNumbers.get(loop);
+            if (known != null) {
+                return known;
             }
-            sum = saturatedSum(sum, turns);
+            List<Object> key = new java.util.ArrayList<>();
+            key.add(loop.states());
+            key.add(loop.maxIterations());
+            key.add(loop.until() == null);
+            for (Expr child : children(loop)) {
+                key.add(id(child));
+            }
+            int number = byLoopKey.computeIfAbsent(key, k -> byLoopKey.size());
+            loopNumbers.put(loop, number);
+            return number;
         }
-        return sum;
+
+        long turns(List<Expr> initial, int maxIterations, List<Expr> turn) {
+            long before = work(frontier(initial));
+            long each = Math.max(1, work(frontier(turn)));
+            return saturatedSum(before, saturatedProduct(maxIterations, each));
+        }
+
+        /** The loops reached from {@code roots} without passing through another loop, by number. */
+        Map<Integer, Expr.Loop> frontier(List<Expr> roots) {
+            Map<Integer, Expr.Loop> loops = new java.util.LinkedHashMap<>();
+            Set<Expr> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+            java.util.ArrayDeque<Expr> pending = new java.util.ArrayDeque<>(roots);
+            while (!pending.isEmpty()) {
+                Expr node = pending.pop();
+                if (!seen.add(node)) {
+                    continue;
+                }
+                if (node instanceof Expr.Loop loop) {
+                    loops.putIfAbsent(loopNumber(loop), loop);
+                } else {
+                    pending.addAll(children(node));
+                }
+            }
+            return loops;
+        }
+
+        long work(Map<Integer, Expr.Loop> loops) {
+            long sum = 0;
+            for (Map.Entry<Integer, Expr.Loop> entry : loops.entrySet()) {
+                Long turns = counted.get(entry.getKey());
+                if (turns == null) {
+                    Expr.Loop loop = entry.getValue();
+                    turns = turns(loop.initial(), loop.maxIterations(), turnOf(loop));
+                    counted.put(entry.getKey(), turns);
+                }
+                sum = saturatedSum(sum, turns);
+            }
+            return sum;
+        }
     }
 
     /** A loop's turn: its next values and its exit test. */

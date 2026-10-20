@@ -2,12 +2,14 @@ package limn.render3d.shader;
 
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -129,5 +131,23 @@ class SurfaceBudgetTest {
         IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
                 () -> emitting(two, two.value(1), counting(Expr.Lit.of(0f), 600, 0.003f)));
         assertTrue(refused.getMessage().contains("1200"), refused.getMessage());
+    }
+
+    @Test
+    void aThousandLoopsOfOneTurnChainedThroughTheirInitialValuesAreCountedQuickly() {
+        // Each constructor counted the whole chain below it afresh and hashed every loop in it as a
+        // tree: cubic in the chain, 2.7 s at 400, some 40 s at a thousand. Numbered once a count,
+        // the thousand take about a third of a second; the bound leaves room for a loaded machine.
+        // The thousand fit the budget exactly.
+        assertTimeoutPreemptively(Duration.ofSeconds(2), () -> {
+            Expr chain = Expr.Lit.of(0f);
+            for (int i = 0; i < 1000; i++) {
+                chain = counting(chain, 1, 1f);
+            }
+            Expr built = chain;
+            assertDoesNotThrow(() -> emitting(built));
+            assertThrows(IllegalArgumentException.class, () -> emitting(built, counting(Expr.Lit.of(0f), 25, 1f)),
+                    "1,025 turns");
+        });
     }
 }
