@@ -1069,6 +1069,68 @@ class OpacityTest extends SceneTestBase {
     }
 
     /**
+     * A StackOverflowError out of an onDetached as a removal walks two containers fading out: it
+     * leaves the removal at once, and neither fade's onArrive runs after it, the one settled before
+     * the throw included. The removal ran them in a finally, application code after an error that
+     * says nothing more should run.
+     */
+    @Test
+    void aVirtualMachineErrorDuringARemovalLeavesAtOnceAndRunsNoArrivalAfterIt() {
+        List<String> ran = new ArrayList<>();
+        Probe deep = new Probe("deep", painted) {
+            @Override
+            protected void onDetached() {
+                throw new StackOverflowError("an application's recursion (expected)");
+            }
+        };
+        Opacity before = faded("before");
+        Opacity fading = new Opacity(deep);
+        Row both = new Row();
+        both.add(before);
+        both.add(fading);
+        Stack holder = new Stack();
+        holder.add(both);
+        Scene a = sceneOf(holder);
+        before.fadeTo(0f, 0.3, () -> ran.add("before"));
+        fading.fadeTo(0f, 0.3, () -> ran.add("fading"));
+        advance(a, 16);
+        assertThrows(StackOverflowError.class, () -> holder.remove(both));
+        assertEquals(List.of(), ran, "no application code after it");
+    }
+
+    /**
+     * An OutOfMemoryError out of an onArrive a removal runs: it leaves the removal, and the next
+     * container's onArrive does not run. runSettled logged it and went on, and the removal
+     * returned as if nothing had happened.
+     */
+    @Test
+    void aVirtualMachineErrorInAnOnArriveRunByARemovalLeavesIt() {
+        Reported reported = new Reported();
+        limn.backend.Crashes.install(reported);
+        try {
+            List<String> ran = new ArrayList<>();
+            Opacity first = faded("first");
+            Opacity second = faded("second");
+            Row both = new Row();
+            both.add(first);
+            both.add(second);
+            Stack holder = new Stack();
+            holder.add(both);
+            Scene a = sceneOf(holder);
+            first.fadeTo(0f, 0.3, () -> {
+                throw new OutOfMemoryError("simulated (expected)");
+            });
+            second.fadeTo(0f, 0.3, () -> ran.add("second"));
+            advance(a, 16);
+            assertThrows(OutOfMemoryError.class, () -> holder.remove(both));
+            assertEquals(List.of(), ran, "no application code after it");
+            assertEquals(List.of(), reported.errors, "not contained as a ticker's throw");
+        } finally {
+            limn.backend.Crashes.uninstall(reported);
+        }
+    }
+
+    /**
      * A focused container removed mid-fade whose onArrive throws: the removal still does all its
      * own work. The throw came out of the walk, before the removal had given the focus back and
      * laid the parent out again: the scene's focus stayed on a widget in no scene, which kept

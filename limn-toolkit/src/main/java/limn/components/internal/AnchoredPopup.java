@@ -15,6 +15,7 @@ import limn.concurrent.Subscription;
 import limn.concurrent.Ui;
 import limn.graphics.Color;
 import limn.graphics.Rect;
+import limn.internal.lang.HandlerFailures;
 import limn.scene.Change;
 import limn.scene.Constraints;
 import limn.scene.Scene;

@@ -1,12 +1,14 @@
-package limn.components.internal;
+package limn.internal.lang;
 
 import org.jspecify.annotations.Nullable;
 
 /**
- * What an application's handlers threw while a component took several steps that must all run (a
- * popup's close: the popups hung in it, its teardown, its own handler): the first throw is kept,
- * the later ones added to it as suppressed, and it is thrown once every step has run. A
- * {@link VirtualMachineError} is never held: it leaves at once.
+ * What an application's handlers threw while the toolkit took several steps that must all run (a
+ * removal: the popups hung in the subtree closed, the walk, the focus taken out, the parent laid
+ * out again and told; a popup's close: the popups hung in it, its teardown, its own handler): the
+ * first throw is kept, the later ones added to it as suppressed, and it is thrown once every step
+ * has run. A {@link VirtualMachineError} is never held: it leaves at once, and none of the later
+ * steps runs, nor what the change would have run at its end (a fade's {@code onArrive}).
  *
  * <p><b>Not API</b>: see the package. UI thread only.
  */

@@ -9,6 +9,7 @@ import limn.graphics.Canvas;
 import limn.graphics.Rect;
 import limn.i18n.I18n;
 import limn.internal.lang.Checks;
+import limn.internal.lang.HandlerFailures;
 import limn.math.Vec2;
 import limn.scene.event.CharEvent;
 import limn.scene.event.DragEvent;
@@ -547,26 +548,23 @@ public abstract class Widget<W extends Widget<W>> {
         List<Runnable> settled = new ArrayList<>(0); // no array until a leaving settles something
         Throwable failed = null;
         try {
-            try {
-                // A popup hung in a child adopted from another scene closes as it leaves that one,
-                // and what its handler throws waits for the join to be complete and announced.
-                child.setSceneRecursively(scene, settled);
-            } catch (RuntimeException | Error error) {
-                failed = addFailure(null, error);
-            }
-            try {
-                childrenChanged();
-                // Structure is announced on the parent, from the one funnel every child joins
-                // through, so a watcher of a tree hears a mount as it happens rather than by
-                // diffing child lists.
-                notifyChange(Change.of(Change.Aspect.CHILDREN, Change.Origin.CODE));
-            } catch (RuntimeException | Error error) {
-                failed = addFailure(failed, error);
-            }
-        } finally {
-            runSettled(settled); // a watcher that throws must not drop what the leaving settled
+            // A popup hung in a child adopted from another scene closes as it leaves that one,
+            // and what its handler throws waits for the join to be complete and announced.
+            child.setSceneRecursively(scene, settled);
+        } catch (RuntimeException | Error error) {
+            failed = HandlerFailures.add(null, error);
         }
-        rethrow(failed);
+        try {
+            childrenChanged();
+            // Structure is announced on the parent, from the one funnel every child joins
+            // through, so a watcher of a tree hears a mount as it happens rather than by
+            // diffing child lists.
+            notifyChange(Change.of(Change.Aspect.CHILDREN, Change.Origin.CODE));
+        } catch (RuntimeException | Error error) {
+            failed = HandlerFailures.add(failed, error);
+        }
+        runSettled(settled); // a watcher that throws must not drop what the leaving settled
+        HandlerFailures.rethrow(failed);
     }
 
     /** Removes a child (UI thread only); protected for the reason {@link #add(Widget)} is. */
@@ -589,30 +587,27 @@ public abstract class Widget<W extends Widget<W>> {
             List<Runnable> settled = new ArrayList<>(0); // no array until a leaving settles something
             Throwable failed = null;
             try {
-                try {
-                    child.setSceneRecursively(null, settled);
-                } catch (RuntimeException | Error error) {
-                    failed = addFailure(null, error); // a popup's handler: the removal still completes
-                }
-                // Each step in a try of its own: a throw from the focus handlers must not keep the
-                // parent from being laid out again or the removal from being announced.
-                try {
-                    if (scene != null) {
-                        scene.onWidgetDetached(child); // runs the application's focus and pointer handlers
-                    }
-                } catch (RuntimeException | Error error) {
-                    failed = addFailure(failed, error); // rides along, and never hides the first
-                }
-                try {
-                    childrenChanged();
-                    notifyChange(Change.of(Change.Aspect.CHILDREN, origin));
-                } catch (RuntimeException | Error error) {
-                    failed = addFailure(failed, error);
-                }
-            } finally {
-                runSettled(settled); // a handler that throws must not drop what the leaving settled
+                child.setSceneRecursively(null, settled);
+            } catch (RuntimeException | Error error) {
+                failed = HandlerFailures.add(null, error); // a popup's handler: the removal still completes
             }
-            rethrow(failed);
+            // Each step in a try of its own: a throw from the focus handlers must not keep the
+            // parent from being laid out again or the removal from being announced.
+            try {
+                if (scene != null) {
+                    scene.onWidgetDetached(child); // runs the application's focus and pointer handlers
+                }
+            } catch (RuntimeException | Error error) {
+                failed = HandlerFailures.add(failed, error); // rides along, and never hides the first
+            }
+            try {
+                childrenChanged();
+                notifyChange(Change.of(Change.Aspect.CHILDREN, origin));
+            } catch (RuntimeException | Error error) {
+                failed = HandlerFailures.add(failed, error);
+            }
+            runSettled(settled); // a handler that throws must not drop what the leaving settled
+            HandlerFailures.rethrow(failed);
         }
     }
 
@@ -650,11 +645,12 @@ public abstract class Widget<W extends Widget<W>> {
      *
      * <p>A popup hung from a widget of the subtree closes before the walk, and what its handlers
      * throw is thrown once the walk is complete, with what the walk threw added to it: the caller
-     * still runs {@code settled}, in a {@code finally}, so a throwing {@code onClose} drops no
-     * fade's arrival, and finishes its own work before it rethrows. A handler that moved the
-     * subtree again meanwhile (put back into a column it is being removed from, or taken out of the
-     * one adopting it) is followed: once the walk is over, the subtree joins or leaves again so that
-     * its scene is the one its place in the tree says.
+     * holds it, finishes its own work and runs {@code settled}, so a throwing {@code onClose} drops
+     * no fade's arrival, and rethrows it after. A {@link VirtualMachineError} is not held: it
+     * leaves the caller at once, and nothing of {@code settled} runs after it. A handler that
+     * moved the subtree again meanwhile (put back into a column it is being removed from, or taken
+     * out of the one adopting it) is followed: once the walk is over, the subtree joins or leaves
+     * again so that its scene is the one its place in the tree says.
      *
      * @param newScene the scene the subtree joins, or null when it leaves every scene
      * @param settled  where what the leavings settled is added, for {@link #runSettled}
@@ -678,7 +674,7 @@ public abstract class Widget<W extends Widget<W>> {
         try {
             setSceneRecursivelyInternal(newScene, settled);
         } catch (RuntimeException | Error walk) {
-            failed = addFailure(failed, walk); // what was settled before it stays in the list
+            failed = HandlerFailures.add(failed, walk); // what was settled before it stays in the list
         }
         if (closed > 0) {
             // A handler of those popups ran after the caller had already moved the subtree, and may
@@ -691,11 +687,11 @@ public abstract class Widget<W extends Widget<W>> {
                 try {
                     setSceneRecursively(home, settled);
                 } catch (RuntimeException | Error again) {
-                    failed = addFailure(failed, again);
+                    failed = HandlerFailures.add(failed, again);
                 }
             }
         }
-        rethrow(failed);
+        HandlerFailures.rethrow(failed);
     }
 
     /**
@@ -713,44 +709,11 @@ public abstract class Widget<W extends Widget<W>> {
     }
 
     /**
-     * Holds what a step threw while later steps still run: the first throw, the later ones added
-     * to it as suppressed. A {@link VirtualMachineError} leaves at once, and no more application
-     * code runs after it.
-     *
-     * @param held  what an earlier step threw, or null
-     * @param error what this one threw
-     * @return the throw to hold
-     */
-    static Throwable addFailure(@Nullable Throwable held, Throwable error) {
-        if (error instanceof VirtualMachineError fatal) {
-            throw fatal;
-        }
-        if (held == null) {
-            return error;
-        }
-        if (held != error) {
-            held.addSuppressed(error);
-        }
-        return held;
-    }
-
-    /** Throws {@code failed} as it is, when there is one: it is unchecked, a handler's. */
-    static void rethrow(@Nullable Throwable failed) {
-        if (failed instanceof RuntimeException e) {
-            throw e;
-        }
-        if (failed instanceof Error e) {
-            throw e;
-        }
-        if (failed != null) {
-            throw new IllegalStateException(failed);
-        }
-    }
-
-    /**
      * Runs what a walk's leavings settled, each once and in order, at the end of the change that
      * walked: a callback that throws is logged and reported as a ticker's throw is, and neither
-     * stops the others nor reaches the caller of the change, which has already happened.
+     * stops the others nor reaches the caller of the change, which has already happened. A
+     * {@link VirtualMachineError} is not contained: it leaves at once, and the rest of the list
+     * does not run.
      *
      * @param settled what {@link #setSceneRecursively} collected; nothing for null or empty
      */
@@ -761,6 +724,8 @@ public abstract class Widget<W extends Widget<W>> {
         for (int i = 0; i < settled.size(); i++) {
             try {
                 settled.get(i).run();
+            } catch (VirtualMachineError fatal) {
+                throw fatal; // not contained: no more of the list runs
             } catch (Throwable error) {
                 LOG.log(System.Logger.Level.ERROR, "what a fade or a motion runs at its end threw as its "
                         + "container left its scene; the change went on", error);
@@ -1356,14 +1321,14 @@ public abstract class Widget<W extends Widget<W>> {
                     presenceChanged();
                 }
             } catch (RuntimeException | Error error) {
-                failed = addFailure(null, error); // a popup's handler: the change still completes
+                failed = HandlerFailures.add(null, error); // a popup's handler: the change still completes
             }
             try {
                 notifyChange(Change.of(Change.Aspect.VISIBLE, Change.Origin.CODE));
             } catch (RuntimeException | Error error) {
-                failed = addFailure(failed, error);
+                failed = HandlerFailures.add(failed, error);
             }
-            rethrow(failed);
+            HandlerFailures.rethrow(failed);
         }
         return self();
     }
@@ -1425,7 +1390,7 @@ public abstract class Widget<W extends Widget<W>> {
         } else if (scene != null) {
             scene.markLayoutDirty(this); // a root has no parent to absorb it
         }
-        rethrow(failed); // a popup's handler threw as it closed: the change above is complete
+        HandlerFailures.rethrow(failed); // a popup's handler threw as it closed: the change above is complete
     }
 
     /**

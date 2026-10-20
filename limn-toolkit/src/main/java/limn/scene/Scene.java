@@ -12,6 +12,7 @@ import limn.graphics.GpuSurface;
 import limn.graphics.Rect;
 import limn.input.Keys;
 import limn.internal.lang.Checks;
+import limn.internal.lang.HandlerFailures;
 import limn.math.Scalars;
 import limn.math.Vec2;
 import limn.scene.event.CharEvent;
@@ -282,7 +283,7 @@ public final class Scene {
         try {
             root.setSceneRecursively(this, settled);
         } catch (RuntimeException | Error error) {
-            failed = Widget.addFailure(null, error); // a popup hung in a root taken from another scene
+            failed = HandlerFailures.add(null, error); // a popup hung in a root taken from another scene
         }
         // Subscribed HERE, not in bind(): an unbound scene (every component test, a
         // ComboBox popup scene, a Dialog's modal scene between construction and bind)
@@ -298,7 +299,7 @@ public final class Scene {
         // A root taken from another scene mid-fade: once this one is whole. Nothing above runs the
         // application's code, so nothing between can drop these.
         Widget.runSettled(settled);
-        Widget.rethrow(failed); // what a popup's handler threw as it closed, this scene complete
+        HandlerFailures.rethrow(failed); // what a popup's handler threw as it closed, this scene complete
     }
 
     private limn.graphics.TextRuler textRuler;
@@ -840,11 +841,10 @@ public final class Scene {
             focusTraverse(false);
             requestRender();
         } catch (RuntimeException | Error error) {
-            failed = Widget.addFailure(failed, error);
-        } finally {
-            Widget.runSettled(settled); // a focus handler that throws must not drop them
+            failed = HandlerFailures.add(failed, error);
         }
-        Widget.rethrow(failed);
+        Widget.runSettled(settled); // a focus handler that throws must not drop them
+        HandlerFailures.rethrow(failed);
     }
 
     /**
@@ -897,11 +897,10 @@ public final class Scene {
             }
             requestRender();
         } catch (RuntimeException | Error error) {
-            failed = Widget.addFailure(failed, error);
-        } finally {
-            Widget.runSettled(settled); // what its leaving the other scene settled, in this one
+            failed = HandlerFailures.add(failed, error);
         }
-        Widget.rethrow(failed);
+        Widget.runSettled(settled); // what its leaving the other scene settled, in this one
+        HandlerFailures.rethrow(failed);
     }
 
     /**
@@ -934,11 +933,10 @@ public final class Scene {
             }
             requestRender();
         } catch (RuntimeException | Error error) {
-            failed = Widget.addFailure(failed, error);
-        } finally {
-            Widget.runSettled(settled);
+            failed = HandlerFailures.add(failed, error);
         }
-        Widget.rethrow(failed);
+        Widget.runSettled(settled);
+        HandlerFailures.rethrow(failed);
     }
 
     /**
@@ -963,7 +961,7 @@ public final class Scene {
         try {
             overlay.setSceneRecursively(this, settled);
         } catch (RuntimeException | Error error) {
-            failed = Widget.addFailure(null, error);
+            failed = HandlerFailures.add(null, error);
         }
         layoutDirty = true;
         return failed;
@@ -1125,31 +1123,28 @@ public final class Scene {
         }
         List<Runnable> settled = new ArrayList<>(0);
         Throwable failed = null;
+        // The order of Widget.remove, each step in a try of its own: the walk, then the focus and
+        // pointer taken out, which run the application's handlers, then the focus given back.
+        // With the focus step first and outside, its throw left the overlay out of the stack and
+        // never walked: still in the scene, never told it left, a fade inside it ticking where
+        // nothing drew it, and the focus given back to nobody.
         try {
-            // The order of Widget.remove, each step in a try of its own: the walk, then the focus
-            // and pointer taken out, which run the application's handlers, then the focus given
-            // back. With the focus step first and outside, its throw left the overlay out of the
-            // stack and never walked: still in the scene, never told it left, a fade inside it
-            // ticking where nothing drew it, and the focus given back to nobody.
-            try {
-                overlay.setSceneRecursively(null, settled);
-            } catch (RuntimeException | Error error) {
-                failed = Widget.addFailure(null, error); // a popup's handler: the removal completes first
-            }
-            try {
-                onWidgetDetached(overlay);
-            } catch (RuntimeException | Error error) {
-                failed = Widget.addFailure(failed, error);
-            }
-            try {
-                restoreAfterRemoving(overlay, restore, wasTop, keptKeyboardBelow);
-            } catch (RuntimeException | Error error) {
-                failed = Widget.addFailure(failed, error);
-            }
-        } finally {
-            Widget.runSettled(settled); // once the focus is given back
+            overlay.setSceneRecursively(null, settled);
+        } catch (RuntimeException | Error error) {
+            failed = HandlerFailures.add(null, error); // a popup's handler: the removal completes first
         }
-        Widget.rethrow(failed);
+        try {
+            onWidgetDetached(overlay);
+        } catch (RuntimeException | Error error) {
+            failed = HandlerFailures.add(failed, error);
+        }
+        try {
+            restoreAfterRemoving(overlay, restore, wasTop, keptKeyboardBelow);
+        } catch (RuntimeException | Error error) {
+            failed = HandlerFailures.add(failed, error);
+        }
+        Widget.runSettled(settled); // once the focus is given back
+        HandlerFailures.rethrow(failed);
     }
 
     /** The rest of {@link #removeOverlay}, once the overlay is out of the scene. */
@@ -2265,7 +2260,7 @@ public final class Scene {
      * one before it threw, and the first throw is handed back, the others added to it as
      * suppressed, for the caller to rethrow once its change is complete: a throw here aborted a
      * removal half way, the subtree out of its parent and still in the scene, never told it left.
-     * A {@link VirtualMachineError} is not held: it leaves at once.
+     * A {@link VirtualMachineError} is not held: it leaves at once, and no later close runs.
      *
      * @return what the closes threw, or null
      */
@@ -2280,7 +2275,7 @@ public final class Scene {
                 try {
                     hung.gone().run();
                 } catch (RuntimeException | Error error) {
-                    failed = Widget.addFailure(failed, error); // a VirtualMachineError leaves at once
+                    failed = HandlerFailures.add(failed, error); // a VirtualMachineError leaves at once
                 }
             }
         }
@@ -3159,6 +3154,8 @@ public final class Scene {
             }
             try {
                 revokeUndrawn(container);
+            } catch (VirtualMachineError fatal) {
+                throw fatal; // not held; the rest waits for the next frame
             } catch (Throwable error) {
                 LOG.log(Level.ERROR, "a handler threw as a transform drew its child as nothing; "
                         + "the UI loop keeps running", error);
@@ -3182,7 +3179,7 @@ public final class Scene {
             if (child.scene() == this) {
                 Throwable closing = anchorsLeaving(child);
                 if (closing != null) {
-                    failed = Widget.addFailure(failed, closing);
+                    failed = HandlerFailures.add(failed, closing);
                 }
                 if (!container.drawsNoChildren() || !inThisTree(container)) {
                     // A handler drew it again (an onClose that put the scale back) or took it out,
@@ -3192,11 +3189,11 @@ public final class Scene {
                 try {
                     onWidgetDetached(child);
                 } catch (RuntimeException | Error error) {
-                    failed = Widget.addFailure(failed, error);
+                    failed = HandlerFailures.add(failed, error);
                 }
             }
         }
-        Widget.rethrow(failed);
+        HandlerFailures.rethrow(failed);
     }
 
     /** Whether {@code widget} is in this scene and hangs, through its parents, from its root or an overlay. */
@@ -4145,7 +4142,7 @@ public final class Scene {
             public void closePopupsHungIn(Widget<?> panel) {
                 Scene scene = panel.scene();
                 if (scene != null) {
-                    Widget.rethrow(scene.anchorsLeaving(panel));
+                    HandlerFailures.rethrow(scene.anchorsLeaving(panel));
                 }
             }
 
@@ -4400,14 +4397,11 @@ public final class Scene {
         Objects.requireNonNull(popup, "popup");
         List<Runnable> settled = new ArrayList<>(0);
         Throwable failed = stackOverlay(popup, settled);
-        try {
-            popupOverlays.add(popup);
-            keyboardBelow.add(popup);
-            requestRender();
-        } finally {
-            Widget.runSettled(settled);
-        }
-        Widget.rethrow(failed);
+        popupOverlays.add(popup);
+        keyboardBelow.add(popup);
+        requestRender();
+        Widget.runSettled(settled);
+        HandlerFailures.rethrow(failed);
     }
 
     /**

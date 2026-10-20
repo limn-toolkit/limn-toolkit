@@ -833,6 +833,16 @@ that the text above does not say, dated where it departs from it.
     on a widget in no scene. The keyboard now lands only on a widget in the scene (the funnel's
     test, Tab's stops, and the focus moved content brings along), so such a push focuses what the
     walk reached or nothing. `SceneOverlayTest` has the three pushes.
+  - **A `VirtualMachineError` leaves at once** was true of the closes and the held throws, not of
+    what followed: a removal, a join, an overlay's removal and the pushes ran the fades' arrivals
+    in a `finally` after it, the list of arrivals logged one an `onArrive` threw and went on, and
+    the revocation queued after a motion's frame contained it. Now none of them runs application
+    code after one: the arrivals run after the steps, not in a `finally` (every step already holds
+    an ordinary throw), the list lets one leave and stops, and the queued revocation lets it reach
+    the frame's own containment. The helper that holds the throws is one, shared by the scene and
+    the components (`limn.internal.lang.HandlerFailures`). A window closing still contains every
+    throw of its teardown, this one included, so that what outlives the window is given back.
+    `OpacityTest` has the removal's two cases.
 
 ### 12.6 The input method in a popover's window, measured
 
