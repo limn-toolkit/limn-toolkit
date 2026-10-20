@@ -107,6 +107,14 @@ muted, and names nothing.
 *Note, 2026-10-18 (section 9):* the title and the subtitle take one line by default and as many as
 `setTitleLines` and `setSubtitleLines` allow.
 
+*Note, 2026-10-19 (audit AP-7):* a widget is in one place. Every part setter and `setFooter` refuse,
+with an `IllegalArgumentException` that their Javadoc names, a widget already in another container
+(an action already in this footer is accepted, and put in its new place), one that holds the card,
+and an action passed twice; each checks before it changes anything, so a refused call leaves the
+card as it was. `setFooter` used to take the old actions out and then fail in the tree with an
+`IllegalStateException`, leaving the card with no footer, and the part setters took the old part
+out before refusing the new one.
+
 ### 2.2 The API
 
 ```java

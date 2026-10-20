@@ -21,6 +21,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -309,5 +310,86 @@ class CardTest extends AccessibleComponentTestBase {
         card.setMedia(icon);
         assertNull(card.media());
         assertNull(picture.parent(), "the widget is given back");
+    }
+
+    // ------------------------------------------------------------------ one parent, all or nothing
+
+    @Test
+    void aFooterActionInAnotherContainerIsRefusedAndTheOldFooterStays() {
+        // The audit's case: setFooter took the old actions out and then threw an undocumented
+        // IllegalStateException from the tree, leaving the card with no footer at all.
+        Button keep = new Button("Keep");
+        Card card = new Card(new Label("Due Friday")).setFooter(keep);
+        Button shared = new Button("Approve");
+        Card other = new Card().setFooter(shared);
+        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+                () -> card.setFooter(new Button("Pay"), shared));
+        assertTrue(refused.getMessage().contains("another container"), refused.getMessage());
+        assertEquals(List.of(keep), card.footer(), "nothing changed: the old footer stays");
+        assertSame(other, shared.parent().parent(), "and the shared action stays where it was");
+    }
+
+    @Test
+    void anActionPassedTwiceOrHoldingTheCardIsRefusedAndTheOldFooterStays() {
+        Button keep = new Button("Keep");
+        Card card = new Card().setFooter(keep);
+        Button twice = new Button("Pay");
+        assertThrows(IllegalArgumentException.class, () -> card.setFooter(twice, twice));
+        assertEquals(List.of(keep), card.footer());
+        assertNull(twice.parent());
+        Row around = new Row();
+        around.add(card);
+        assertThrows(IllegalArgumentException.class, () -> card.setFooter(around));
+        assertEquals(List.of(keep), card.footer());
+        assertThrows(NullPointerException.class, () -> card.setFooter(new Button("A"), null));
+        assertEquals(List.of(keep), card.footer());
+    }
+
+    @Test
+    void theSameActionsSetAgainAndNoActionsAreAccepted() {
+        Button a = new Button("A");
+        Button b = new Button("B");
+        Card card = new Card().setFooter(a, b);
+        card.setFooter(b, a); // already this footer's: taken out and put back in the new order
+        assertEquals(List.of(b, a), card.footer());
+        card.setFooter();
+        assertEquals(List.of(), card.footer(), "no actions take the footer away");
+        assertNull(a.parent());
+    }
+
+    @Test
+    void aPartInAnotherContainerIsRefusedAndTheOldPartStays() {
+        // The other setters threw the same exception, but only after taking the old part out.
+        Label inPage = new Label("Elsewhere");
+        Column page = new Column();
+        page.add(inPage);
+        Label content = new Label("Due Friday");
+        Label prefix = new Label("P");
+        Label suffix = new Label("S");
+        Block media = new Block(10, 10);
+        Card card = new Card(content).setHeaderPrefix(prefix).setHeaderSuffix(suffix).setMedia(media);
+        assertThrows(IllegalArgumentException.class, () -> card.setContent(inPage));
+        assertThrows(IllegalArgumentException.class, () -> card.setHeaderPrefix(inPage));
+        assertThrows(IllegalArgumentException.class, () -> card.setHeaderSuffix(inPage));
+        assertThrows(IllegalArgumentException.class, () -> card.setMedia(inPage));
+        assertSame(content, card.content());
+        assertSame(card, ancestorCard(content), "the old content is still the card's");
+        assertSame(card, ancestorCard(prefix));
+        assertSame(card, ancestorCard(suffix));
+        assertSame(card, ancestorCard(media));
+        assertSame(page, inPage.parent());
+        Row around = new Row();
+        around.add(card);
+        assertThrows(IllegalArgumentException.class, () -> card.setContent(around), "one that holds the card");
+        assertSame(card, ancestorCard(content));
+    }
+
+    private static Card ancestorCard(Widget<?> w) {
+        for (Widget<?> at = w.parent(); at != null; at = at.parent()) {
+            if (at instanceof Card c) {
+                return c;
+            }
+        }
+        return null;
     }
 }

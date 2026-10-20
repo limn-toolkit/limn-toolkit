@@ -226,14 +226,16 @@ public final class Card extends Widget<Card> {
      *
      * @param newMedia the media, or {@code null}
      * @return this card
-     * @throws IllegalArgumentException when the card is activated and {@code newMedia} takes the
-     *                                  keyboard or holds a widget that does
+     * @throws IllegalArgumentException when {@code newMedia} is already in another container or
+     *                                  holds this card, or when the card is activated and it takes
+     *                                  the keyboard or holds a widget that does; the card is then
+     *                                  left as it was
      */
     public Card setMedia(@Nullable Widget<?> newMedia) {
         Ui.checkUiThread();
         refuseControl(newMedia);
-        mediaIcon = null;
         media = replace(media, newMedia, 0);
+        mediaIcon = null;
         markNeedsLayout();
         return this;
     }
@@ -282,8 +284,9 @@ public final class Card extends Widget<Card> {
      *
      * @param newPrefix the part, or {@code null} to take it away
      * @return this card
-     * @throws IllegalArgumentException when the card is activated and the part takes the keyboard
-     *                                  or holds a widget that does
+     * @throws IllegalArgumentException when the part is already in another container or holds this
+     *                                  card, or when the card is activated and it takes the keyboard
+     *                                  or holds a widget that does; the card is then left as it was
      */
     public Card setHeaderPrefix(@Nullable Widget<?> newPrefix) {
         Ui.checkUiThread();
@@ -439,8 +442,9 @@ public final class Card extends Widget<Card> {
      *
      * @param newSuffix the part, or {@code null} to take it away
      * @return this card
-     * @throws IllegalArgumentException when the card is activated and the part takes the keyboard
-     *                                  or holds a widget that does
+     * @throws IllegalArgumentException when the part is already in another container or holds this
+     *                                  card, or when the card is activated and it takes the keyboard
+     *                                  or holds a widget that does; the card is then left as it was
      */
     public Card setHeaderSuffix(@Nullable Widget<?> newSuffix) {
         Ui.checkUiThread();
@@ -461,8 +465,10 @@ public final class Card extends Widget<Card> {
      *
      * @param newContent the content, or {@code null} to take it away
      * @return this card
-     * @throws IllegalArgumentException when the card is activated and the content takes the
-     *                                  keyboard or holds a widget that does
+     * @throws IllegalArgumentException when the content is already in another container or holds
+     *                                  this card, or when the card is activated and it takes the
+     *                                  keyboard or holds a widget that does; the card is then left as
+     *                                  it was
      */
     public Card setContent(@Nullable Widget<?> newContent) {
         Ui.checkUiThread();
@@ -479,18 +485,29 @@ public final class Card extends Widget<Card> {
 
     /**
      * Sets the footer's actions, which sit at the card's trailing edge and wrap to another line on
-     * a narrow card. Nothing takes the footer away. Of an activated card, the footer is the part
-     * a click does not activate. UI thread only.
+     * a narrow card; the ones it had go back to the application. With no actions, it takes the
+     * footer away. Of an activated card, the footer is the part a click does not activate. UI
+     * thread only.
      *
-     * @param actions the actions, in reading order
+     * @param actions the actions, in reading order: each in no container, or in this footer already
      * @return this card
+     * @throws NullPointerException     when {@code actions} or one of them is {@code null}
+     * @throws IllegalArgumentException when an action is already in another container, holds this
+     *                                  card, or is passed twice; the footer is then left as it was
      */
     public Card setFooter(Widget<?>... actions) {
         Ui.checkUiThread();
         Objects.requireNonNull(actions, "actions");
-        for (Widget<?> each : actions) {
-            Objects.requireNonNull(each, "an action");
+        for (int i = 0; i < actions.length; i++) {
+            Widget<?> each = Objects.requireNonNull(actions[i], "an action");
+            refuseHeld(each, footer);
+            for (int j = 0; j < i; j++) {
+                if (actions[j] == each) {
+                    throw new IllegalArgumentException("an action is passed twice: a widget is in one place");
+                }
+            }
         }
+        // Everything is checked before the old actions go: a refused call leaves the footer as it was.
         boolean had = !footer.children().isEmpty();
         for (Widget<?> old : new ArrayList<>(footer.children())) {
             footer.remove(old);
@@ -544,14 +561,14 @@ public final class Card extends Widget<Card> {
         if (old == next) {
             return next;
         }
+        if (next != null) {
+            refuseHeld(next, null); // before the old part goes: a refused call changes nothing
+        }
         if (old != null) {
             area.drop(old);
             giveBack(old);
         }
         if (next != null) {
-            if (next.parent() != null) {
-                throw new IllegalArgumentException("the widget is already in another container");
-            }
             int at = 0;
             Widget<?>[] order = {media, prefix, titleLabel, subtitleLabel, suffix, content};
             for (int i = 0; i < slot; i++) {
@@ -562,6 +579,26 @@ public final class Card extends Widget<Card> {
             area.hold(at, next);
         }
         return next;
+    }
+
+    /**
+     * Refuses a part or an action that another container holds, or that holds this card: a widget
+     * is in one place, and the tree would refuse it after the old one had gone.
+     *
+     * @param widget the part or action
+     * @param own    the container it may already be in ({@code footer} for an action), or {@code null}
+     */
+    private void refuseHeld(Widget<?> widget, @Nullable Widget<?> own) {
+        Widget<?> parent = widget.parent();
+        if (parent != null && parent != own) {
+            throw new IllegalArgumentException("the widget is already in another container: take it out "
+                    + "first");
+        }
+        for (Widget<?> w = this; w != null; w = w.parent()) {
+            if (w == widget) {
+                throw new IllegalArgumentException("the widget holds this card");
+            }
+        }
     }
 
     // ------------------------------------------------------------------------------ looks
