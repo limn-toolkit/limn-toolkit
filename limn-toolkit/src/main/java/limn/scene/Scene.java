@@ -4803,7 +4803,16 @@ public final class Scene {
         // fullscreen in-scene menu), which then hit-tests the content below. An inert
         // subtree is passed by in Widget.hitTest itself, which every widget's answer goes
         // through now that it is the one entry.
-        Widget<?> top = topOverlay();
+        // An overlay fading out after giving the keyboard back has let go of the pointer too: a
+        // press during its fade is for what is beneath it, where it swallowed the press and took
+        // the focus, which went nowhere once it was removed.
+        Widget<?> top = null;
+        for (int i = overlays.size() - 1; i >= 0; i--) {
+            if (!closingOverlays.contains(overlays.get(i))) {
+                top = overlays.get(i);
+                break;
+            }
+        }
         Widget<?> asked = top != null && !top.overlayPassesPointer(sceneX, sceneY) ? top : root;
         float[] local = hitScratch;
         asked.sceneToLocal(sceneX, sceneY, local);
