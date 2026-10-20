@@ -90,13 +90,18 @@ loop it means nothing, and a surface that reads it there is refused. Generated:
 ```glsl
 vec4 ir_s0 = <initial>;
 for (int ir_i0 = 0; ir_i0 < 256; ++ir_i0) {
-    <locals the turn reads>
+    <locals the exit reads>
     if (<until> > 0.0) {
         break;
     }
+    <locals only the next state reads>
     ir_s0 = <next>;
 }
 ```
+
+*Amended 2026-10-20 (section 7, review 9 and 10):* the locals only the next state reads follow
+the break, so the turn that ends the loop does not compute them. A loop of several values
+computes every next value into a local before it assigns any.
 
 `until` is a float rather than a boolean because the IR has no boolean type and no comparison,
 and this needs neither: "above zero" is a subtraction away from every threshold
@@ -412,3 +417,6 @@ names the variables itself (`ir_s…`).
   turn, 0 for none, as section 3.4 says; the Javadoc, the parameter's description and the
   constructor's refusal ("its level", not "its depth") now say so, and a test holds siblings to
   level 1 and a loop around a loop that holds two to level 2.
+- **2026-10-20, review 10: section 3.1's template shows the exit first.** It still showed every
+  local of the turn before the break, which review 9's change to the generator had made untrue;
+  it now shows the locals the exit reads, the break, then the locals only the next state reads.
