@@ -10,6 +10,55 @@ Maven Central say which number that was.
 
 ### Fixed
 
+- With partial rendering, a `Transform` that an in-place layout moved (a sibling shown or hidden, a
+  label growing, a child hidden inside it, its wrapper hidden) left its old picture on screen and did
+  not draw the new one until a whole frame, in perspective too and for a picture zoomed past the
+  view it scrolls in; both places are now repainted, and a `Transform` the layout did not move is
+  not repainted at all.
+- A container taken out of its window, or moved to another, in the middle of a fade or a motion
+  runs its `onArrive` (and a flip's swap) only once it is out of that window, so a fade asked for
+  there follows the container instead of being stepped by the old window's frames; a focus or pointer
+  handler that throws during the removal, an overlay push or a popup's close no longer drops them.
+- An `onArrive`, or a flip's `atEdge`, that throws no longer freezes the container's later fades and
+  motions; a fade asked for before the throw, and motions beside it, still arrive.
+- A `Popover`, and a combo box's, date picker's or tab strip's list, closes as an adjustment when
+  the widget it hangs from goes: taken out of the window (by itself, with a container, with a
+  dialog it was in, with the window, even to be put back elsewhere), hidden (itself, with a
+  container, a tab page or a folded expander), or drawn as nothing by a `Transform` (a face turned
+  away, a scale of 0); and at once when a popover it was opened from closes. It stayed over the
+  window holding the keyboard and eating the next click, or said it was open with nothing shown. A
+  control asked to open while hidden or on its way out stays closed, and a date picker no longer
+  commits a date from a calendar that was never shown.
+- A press beside an in-scene popup that is fading out reaches what is beneath it; a press on the
+  fading card, such as the second click of a double click on an item, stays the popup's and never
+  reaches the control under the item. Closing a popover opened from another gives the keyboard
+  back at once, pressing beside an open editable combo box's list leaves the keyboard in its field,
+  and window shortcuts work while a popup fades out.
+- An exception thrown by a popup's or a popover's `onClose` while another popup closes, or while a
+  widget is added, removed or hidden, no longer leaves a layer over the window, a popup window open
+  or the change half done; it is rethrown once everything has run, and an `OutOfMemoryError` or
+  `StackOverflowError` propagates at once.
+- A `Popover` holding nothing focusable puts a screen reader on its named group, focusable and
+  focused, in the scene as in a window of its own; no warning about a private class is logged.
+- A control that arrives in a clicked `Card`'s content answers again once it is moved to the footer,
+  taken out of the card or left in a card that is no longer clicked, and a card put back into a
+  window keeps its controls out of reach at once; the card keeps no hold on a control it gave back.
+- An `Avatar` squeezed to a point or so across draws its tinted circle without letters instead of
+  throwing on every frame, and an `AvatarGroup` no longer cuts initials under the overlap: each
+  covered circle centres them on the part that shows, all at one size for the whole group (the
+  label's, or the smaller size its widest pair needs).
+- `setEmptyContent` and `setLoadingContent` on `ListView`, `Table` and `Tree` refuse, with an
+  `IllegalArgumentException`, a content already in another container or one that holds the widget;
+  a widget that leaves the window lets its content go, so a rebuilt page can give the same label
+  to a fresh list. One already on the page was accepted, the next frame was lost to an exception and
+  the content was then drawn twice on every frame.
+- A list, table or tree that is hidden, on a tab page that is not selected, or on a face a
+  `Transform` does not draw no longer announces "Loading Orders" or "Orders, 12 items"; it stays busy.
+  The announcement names a widget labelled by a caption bound with `setLabelFor`.
+- `Card.setFooter` and the part setters check before they change anything, so a refused call leaves
+  the card as it was, and all throw a documented `IllegalArgumentException`.
+- In a masked `TextField` under a right-to-left layout, Arabic-Indic or Persian digits no longer show
+  their groups reversed, and a Cut the field refuses no longer writes the clipboard.
 - An edit before the end of a masked `TextField` no longer corrupts its value. The field fitted
   the whole edited text afresh, so a literal the edit shifted could be read as a digit or a letter
   and value characters fell off the end while `isMaskComplete()` stayed true: under
@@ -444,6 +493,16 @@ Maven Central say which number that was.
 
 ### New
 
+- `Popover.detach()` lets a button go; a button opens one popover and a popover hangs from one
+  button: `attachTo` on a button that has one detaches the other, `attachTo` on another button
+  moves it (only the old button hears it collapse), and a detached popover still opens from
+  `showFor`.
+- In limn-test, `HeadlessWindow` exposes `textInput` and `preeditCaret`, `screenPositionRequests()`,
+  `requestedScreenX()` and `requestedScreenY()`, and `RowsSubject.empty(Widget, Label)` checks a
+  list's, table's or tree's empty content. Also new since 0.9.0 and named here: `Avatar.setInitials`
+  and `setColorIndex`; `Popover.setAlignment`, `setDisplayMode` and `setAccessibleName`; and
+  `isLoading`, `isShowingEmptyContent` and `isShowingLoadingContent` on `ListView`, `Table` and `Tree`,
+  which answer what the widget shows as of its last layout.
 - Part of a window fades as one picture in an `Opacity` container (ADR 071), which wraps one
   widget as `Padding` does: `new Opacity(panel)`. `setOpacity(float)` sets how opaque the child and
   everything under it are drawn, from 0 to 1, and `opacity()` answers it; `fadeTo(target, seconds,
@@ -1172,6 +1231,36 @@ Maven Central say which number that was.
 
 ### Changed
 
+- On a masked `TextField`, an edit that would move a character into a position that does not take
+  it is refused and does nothing, as typing into a full field does; before, the characters after it
+  closed up and those landing on the wrong kind were dropped (`ABC-1234-XY`, Backspace among the
+  digits, gave `ABC-124`). Typing or pasting over part of the value overwrites the selected
+  positions one by one and moves nothing; a key goes to the first selected position; a paste drops
+  its excess only where a value character follows, and at the end of the value fills the free
+  positions too; a selection of the whole value is replaced as in any field. A refused key keeps
+  the selection, in the direction it was made.
+- A masked `TextField` lays its text, its guide and its placeholder out left to right in every
+  language, from the left edge of its box, with its groups (the stretches between literals) in
+  written order whatever the digits' script; inside a group each script keeps its own direction,
+  and its icons and trailing button still follow the layout direction. Under a right-to-left layout
+  a card read `1112 1111 1111 4111`.
+- A child a `Transform` draws as nothing (a back face turned away with `setBackfaceVisible(false)`,
+  a scale that is 0 on either axis, a plane exactly edge-on) is out of reach as a hidden child is:
+  Tab, access letters and the pointer pass it by, the focus, the hover and a held press are taken
+  out of it, screen readers are told it is hidden, and it comes back by itself. A scale that arrives
+  at 0 takes the focus; turn a card over with `flipTo` to keep it.
+- A widget drawing in `BlendMode.MULTIPLY` or `ADDITIVE` inside an `Opacity` container below 1, or
+  inside any `Canvas.saveLayer`, a turned picture of a `Transform` included, blends with what the
+  group itself drew, and is drawn as itself where the group drew nothing, as an isolated group of a
+  web page is (`ADDITIVE` adds coverage as well as light). Before, `MULTIPLY` drew nothing below 1.
+  At 1 there is no group and the mode blends with the window, so a fade's last frame jumps, as a web
+  page's does. `MULTIPLY` there is drawn in two passes: draws that cannot cover a pixel in common
+  share them (200 heat-map cells take 9 draw calls), and each draw that can takes two of its own.
+- A validation message reads in the language of the control it describes: a `Field` draws its
+  message, or the control's own reason, in the control's language, and `Field.validationMessage()`
+  returns that text, falling back to the control's reason (a `DateField` refusing a day) when the
+  application set none. `label()`, `helperText()` and `validationMessage()` return the text as it
+  reads, and `labelSource()`, `helperTextSource()` and `validationMessageSource()` the `I18nString`.
 - Any of Limn's enums may gain constants in a 1.x minor. The promise in the README and the install
   guide and the Javadoc of every public enum say so: a `switch` over one keeps a `default` branch.
 - `Change.Aspect.ENABLED` is announced on every descendant whose `isEnabled()` changed when a
@@ -1405,8 +1494,13 @@ Maven Central say which number that was.
   draws as before. Code that multiplied by hand, `setOpacity(canvas.opacity() * fade)`, drops the
   product, `setOpacity(fade)`, or its fade is squared. Code that meant to replace an opacity in
   force divides by it.
-- `Change.Aspect` has `OPACITY`. A `switch` over the aspects that names every one, with no
-  `default`, needs a case for it to compile.
+- `Change.Aspect` has `OPACITY` and `TRANSFORM`. A `switch` over the aspects that names every one,
+  with no `default`, needs a case for each to compile; any of Limn's enums may gain constants in a
+  1.x minor, so give such a switch a `default`.
+- `DateField.validationMessage()` returns the message as it reads (`String`, in the field's own
+  language) instead of the `I18nString`, as `Field.validationMessage()` does; `validationMessageSource()`
+  returns the `I18nString`. Code that called `.get()` on it drops the `.get()`; code that read the key
+  calls `validationMessageSource()`.
 - An `&` before a letter or a digit in the text of a menu title or item, a `Button`, a
   `Checkbox`, a `RadioButton` or a `Label` bound with `setLabelFor` marks its access letter and
   is not shown (ADR 070): "R&D" shows "RD" with the D underlined, and `text()` answers "RD".
