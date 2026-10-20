@@ -111,8 +111,12 @@ requests, and a third method would add a third state with nothing that needs it.
 Rules for the time a request is unanswered:
 
 1. **No second request.** A second Escape, a click on Cancel or a reader's dismiss asks nothing
-   new, as a second click on a window's close button does not. A reader's `CANCEL` is then
-   answered `false`: the dialog did not begin closing.
+   new, as a second click on a window's close button does not. A reader's `CANCEL` then does
+   nothing: the dialog stays as it is. The platform is not told otherwise: a scene posts every
+   action a reader asks for to the UI thread and answers the platform as soon as the node exists,
+   so a dismiss that is refused, held or asked about is reported done like any other (corrected
+   2026-10-20: this rule said the reader's `CANCEL` was answered `false`, which is the card's own
+   hook answering the scene, not what the reader is told).
 2. **The dialog is not frozen by the request.** If the handler opened nothing over it, its other
    buttons still answer it; a dialog opened over it freezes it, as any stacked dialog does.
 3. **An answer that arrives another way settles the request.** If the dialog is answered by another

@@ -1919,8 +1919,11 @@ public final class Dialog {
          * keeps and the reason a second cancel during the fade is a truthful {@code false} rather
          * than a silently swallowed call. The describe hook reads the same {@code answerable()},
          * so through the fade the card publishes no {@code CANCEL} either (2026-09-15). With a
-         * cancel handler the dismissal asks it, as Escape does, and answers {@code false} when the
-         * handler kept the dialog, held its request or had one held already.
+         * cancel handler the dismissal asks it, as Escape does, and this hook answers
+         * {@code false} when the handler kept the dialog, held its request or had one held
+         * already. That answer is the scene's, which has already told the platform the action was
+         * taken when it posted it here: the reader hears nothing different, and the dialog does
+         * nothing.
          *
          * @param verb what was asked
          * @param arg  ignored; a dismissal carries none
