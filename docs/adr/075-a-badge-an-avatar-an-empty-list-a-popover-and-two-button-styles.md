@@ -658,6 +658,16 @@ that the text above does not say, dated where it departs from it.
   show; the review of the same day dropped it, because the holder was held weakly and a page rebuilt
   with a fresh list reusing one label was refused or not depending on whether the garbage collector
   had run.
+  *Second review, 2026-10-20 (R4C-1):* with the registry gone, a widget that wanted a content
+  another one held looked again only at its own next layout, so when the holder let it go later in
+  the same frame it stayed blank, and which of two lists stayed blank hung on the order the
+  application emptied them in; it also said it showed the content (`isShowingEmptyContent()` and
+  its description read what it wanted, not what it held). And a list dropped while it showed its
+  content kept it as a child for good, so the rebuilt page's fresh list was refused every time.
+  Now a widget waiting for a content watches the holder's children and asks for its layout as the
+  holder lets it go (shown at the next frame, whichever order); the getters and the description
+  read what the widget holds; and a widget leaving the window lets its content go, showing it again
+  when it comes back if it is still free.
 - **Said only where it is seen, by the name it is heard by** (2026-10-19, the audit's CO-12 and
   AX-4): a list in a hidden container or on a tab page not chosen, still in the window, said
   "Loading Archived" and "Archived, 0 items", loads the user could not see; it is now busy and says

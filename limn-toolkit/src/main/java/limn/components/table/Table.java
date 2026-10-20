@@ -2724,7 +2724,10 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         return placeholder.emptyContent();
     }
 
-    /** @return whether the empty content shows now: there is one, no rows and no load running */
+    /**
+     * @return whether the empty content shows now, as the last layout placed it: there is one, no
+     *         rows and no load running, and no other widget holds it
+     */
     public boolean isShowingEmptyContent() {
         return placeholder.isShowingEmpty();
     }
@@ -2783,9 +2786,19 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         return this;
     }
 
-    /** @return whether a loading content, the application's or the default, shows now */
+    /**
+     * @return whether a loading content, the application's or the default, shows now, as the
+     *         last layout placed it
+     */
     public boolean isShowingLoadingContent() {
         return placeholder.isShowingLoading();
+    }
+
+    /** Leaving the window, the empty or loading content shown goes back to being nobody's child. */
+    @Override
+    protected void onDetached() {
+        super.onDetached();
+        placeholder.hostDetached();
     }
 
     @Override

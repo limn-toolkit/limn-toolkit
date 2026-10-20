@@ -488,6 +488,95 @@ class EmptyContentTest extends AccessibleComponentTestBase {
         assertTrue(first.isShowingEmptyContent() != second.isShowingEmptyContent(), "shown by one");
     }
 
+    private static ListView<String> listOf(String... items) {
+        ListView<String> list = new ListView<>(Label::new);
+        list.setItems(new ArrayList<>(List.of(items)));
+        return list;
+    }
+
+    /** What each list says of the shared content agrees with where the content is. */
+    private static void assertTruthful(Label shared, ListView<?>... lists) {
+        for (ListView<?> l : lists) {
+            assertEquals(shared.parent() == l, l.isShowingEmptyContent(),
+                    "a list says it shows the content exactly while it holds it");
+        }
+    }
+
+    @Test
+    void aSharedContentGoesToTheListThatWantsItOnceTheOtherLetsItGoWhicheverAskedFirst() {
+        // The review's SharedEmpty: in one turn B empties and A fills. Asked in either order, B
+        // shows the content once A lets it go, and neither says it shows what it does not hold.
+        for (boolean bFirst : new boolean[] {false, true}) {
+            Label shared = new Label("No contacts");
+            ListView<String> a = listOf("a1");
+            ListView<String> b = listOf("b1");
+            a.setEmptyContent(shared, shared);
+            b.setEmptyContent(shared, shared);
+            TokenColumn root = new TokenColumn(Tokens.Role.SMALL);
+            root.add(new SizedBox(300, 120, a));
+            root.add(new SizedBox(300, 120, b));
+            bind(root);
+            a.setItems(List.of());
+            frame();
+            assertSame(a, shared.parent());
+            assertTruthful(shared, a, b);
+            for (int round = 0; round < 3; round++) {
+                if (bFirst) {
+                    b.setItems(List.of());
+                    a.setItems(List.of("a1"));
+                } else {
+                    a.setItems(List.of("a1"));
+                    b.setItems(List.of());
+                }
+                frame();
+                assertTruthful(shared, a, b);
+                frame();
+                assertSame(b, shared.parent(), "B shows it within a frame (" + (bFirst ? "B" : "A") + " first)");
+                assertTruthful(shared, a, b);
+                if (bFirst) {
+                    a.setItems(List.of());
+                    b.setItems(List.of("b1"));
+                } else {
+                    b.setItems(List.of("b1"));
+                    a.setItems(List.of());
+                }
+                frame();
+                frame();
+                assertSame(a, shared.parent(), "and back to A");
+                assertTruthful(shared, a, b);
+            }
+        }
+    }
+
+    @Test
+    void aListThatLeavesTheWindowLetsItsContentGoAndShowsItAgainWhenItComesBack() {
+        // The review's Rebuild: a search page rebuilt while it says "Nothing matches" reuses the
+        // label with a fresh list; the dropped list held it as its child for good.
+        Label shared = new Label("Nothing matches");
+        ListView<String> old = listOf();
+        old.setEmptyContent(shared, shared);
+        TokenColumn root = new TokenColumn(Tokens.Role.SMALL);
+        SizedBox box = new SizedBox(300, 120, old);
+        root.add(box);
+        bind(root);
+        assertSame(old, shared.parent(), "shown");
+        root.remove(box);
+        assertNull(shared.parent(), "let go as the list left the window");
+        assertFalse(old.isShowingEmptyContent());
+
+        root.add(box);
+        frame();
+        assertSame(old, shared.parent(), "the same list put back shows it again");
+        root.remove(box);
+
+        ListView<String> fresh = listOf();
+        fresh.setEmptyContent(shared, shared); // the rebuild: accepted
+        root.add(new SizedBox(300, 120, fresh));
+        frame();
+        assertSame(fresh, shared.parent());
+        assertTrue(fresh.isShowingEmptyContent());
+    }
+
     @Test
     void theSameContentSetAgainOrAsBothEmptyAndLoadingIsTheWidgetsOwn() {
         ListView<String> list = list();

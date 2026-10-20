@@ -6,6 +6,7 @@ import limn.components.Label;
 import limn.components.ProgressBar;
 import limn.components.TokenColumn;
 import limn.components.Tokens;
+import limn.concurrent.Subscription;
 import limn.concurrent.Ui;
 import limn.i18n.I18nString;
 import limn.scene.Constraints;
@@ -34,8 +35,11 @@ import org.jspecify.annotations.Nullable;
  * after the widget itself, and a hidden content holds no node and no focus. It belongs to no
  * selection: the rows' and the grid's contracts read members, and it is not one. So a content is
  * refused when it is already in another container: it would be laid out and drawn by two parents.
- * One given to two widgets while neither shows it is shown by the first that wants it, and not by
- * the other, which logs it once.
+ * One given to two widgets is shown by the one that holds it; the other logs it once and shows it
+ * at the frame after the first lets it go, told by the first's change of children, so which of two
+ * empty widgets shows it never hangs on the order the application emptied them in. A widget that
+ * leaves the window lets its content go, so a page rebuilt with a fresh widget can reuse it, and
+ * shows it again when it comes back.
  *
  * <p><b>UI thread only</b>, as the widgets that hold one are. Not API: see the package.
  */
@@ -78,6 +82,8 @@ public final class RowsPlaceholder {
     private @Nullable Widget<?> attached;
     /** Whether the log has said that the content to show was put elsewhere; once per content. */
     private boolean saidElsewhere;
+    /** The watch on the container that holds the content this widget wants, until it lets go. */
+    private @Nullable Subscription waiting;
 
     /**
      * @param host the widget this shows content for
@@ -105,6 +111,7 @@ public final class RowsPlaceholder {
         this.emptyContent = content;
         this.emptyMessage = content == null ? null : message;
         saidElsewhere = false;
+        stopWaiting();
         changed();
     }
 
@@ -143,6 +150,7 @@ public final class RowsPlaceholder {
         this.loadingContent = content;
         this.loadingMessage = content == null ? null : message;
         saidElsewhere = false;
+        stopWaiting();
         changed();
     }
 
@@ -243,13 +251,12 @@ public final class RowsPlaceholder {
 
     /** @return whether the empty content is what the widget shows now */
     public boolean isShowingEmpty() {
-        return emptyContent != null && wanted() == emptyContent;
+        return emptyContent != null && attached == emptyContent;
     }
 
     /** @return whether a loading content, the application's or the default, shows now */
     public boolean isShowingLoading() {
-        Widget<?> shown = wanted();
-        return shown != null && shown != emptyContent;
+        return attached != null && attached != emptyContent;
     }
 
     /**
@@ -279,7 +286,7 @@ public final class RowsPlaceholder {
 
     /** The label that describes the widget while what it belongs to shows, or {@code null}. */
     private @Nullable Label shownMessage() {
-        Widget<?> shown = wanted();
+        Widget<?> shown = attached;
         if (shown == null) {
             return null;
         }
@@ -351,13 +358,17 @@ public final class RowsPlaceholder {
     /** Makes the widget's children say what should show now. */
     private void sync() {
         Widget<?> want = wanted();
-        if (want == null && !saidElsewhere) {
-            Widget<?> elsewhere = candidate();
-            if (elsewhere != null && isElsewhere(elsewhere)) {
+        Widget<?> elsewhere = want == null ? candidate() : null;
+        if (elsewhere != null && isElsewhere(elsewhere)) {
+            waitFor(elsewhere);
+            if (!saidElsewhere) {
                 saidElsewhere = true;
                 LOG.log(System.Logger.Level.WARNING, "the content a " + host.widget().getClass().getSimpleName()
-                        + " shows with no rows was put in another container, and is not shown");
+                        + " shows with no rows is held by a " + elsewhere.parent().getClass().getSimpleName()
+                        + ", and shows here only once that lets it go");
             }
+        } else {
+            stopWaiting();
         }
         if (want == attached) {
             return;
@@ -376,6 +387,46 @@ public final class RowsPlaceholder {
         if (want != null) {
             host.attach(want);
             attached = want; // only once it is the widget's child: a throw leaves nothing believed
+        }
+    }
+
+    /**
+     * Watches the container that holds {@code content} until it lets it go, then asks for this
+     * widget's layout: the other widget giving it up after this one's layout of the same frame
+     * would otherwise leave this one blank until something else laid it out.
+     */
+    private void waitFor(Widget<?> content) {
+        if (waiting != null) {
+            return;
+        }
+        Widget<?> holder = content.parent();
+        waiting = holder.observeChanges((widget, change) -> {
+            if (change.aspect() == limn.scene.Change.Aspect.CHILDREN && content.parent() != holder) {
+                stopWaiting();
+                host.widget().markNeedsContainedLayout();
+            }
+        });
+    }
+
+    private void stopWaiting() {
+        if (waiting != null) {
+            waiting.cancel();
+            waiting = null;
+        }
+    }
+
+    /**
+     * The widget left the window: it lets its content go, so the content is free for another
+     * widget (a page rebuilt with a fresh list reusing its label), and stops waiting for one. The
+     * first layout back in a window shows it again if it is still free. Called from the widget's
+     * {@code onDetached}.
+     */
+    public void hostDetached() {
+        stopWaiting();
+        Widget<?> leaving = attached;
+        if (leaving != null) {
+            attached = null;
+            host.detach(leaving);
         }
     }
 

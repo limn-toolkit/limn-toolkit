@@ -2182,7 +2182,10 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         return placeholder.emptyContent();
     }
 
-    /** @return whether the empty content shows now: there is one, no rows and no load running */
+    /**
+     * @return whether the empty content shows now, as the last layout placed it: there is one, no
+     *         rows and no load running, and no other widget holds it
+     */
     public boolean isShowingEmptyContent() {
         return placeholder.isShowingEmpty();
     }
@@ -2241,7 +2244,10 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         return this;
     }
 
-    /** @return whether a loading content, the application's or the default, shows now */
+    /**
+     * @return whether a loading content, the application's or the default, shows now, as the
+     *         last layout placed it
+     */
     public boolean isShowingLoadingContent() {
         return placeholder.isShowingLoading();
     }
@@ -4002,6 +4008,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         // a job that was never going to deliver is a row that spins for good: the loads are
         // dropped here and started again by the attach.
         cancelAllLoads();
+        placeholder.hostDetached(); // the empty or loading content shown goes back to nobody's
     }
 
     // --------------------------------------------------------------------- accessibility
