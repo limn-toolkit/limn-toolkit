@@ -30,8 +30,9 @@ import java.util.function.Consumer;
  * {@link Dialog} are not: it shows one, its content, on the raised surface with the overlay's
  * shadow, below the anchor unless it does not fit there and above has more room.
  *
- * <p><b>It takes the keyboard.</b> On open the focus goes to the content's first focusable widget,
- * or, when it has none, to the popover itself, which a reader is then on; Tab and Shift+Tab cycle
+ * <p><b>It takes the keyboard.</b> On open the focus goes to the widget the content asked for as it
+ * joined ({@link limn.scene.Scene#requestFocus} from its {@code onAttached}), else to the content's
+ * first focusable widget, or, when it has none, to the popover itself, which a reader is then on; Tab and Shift+Tab cycle
  * inside it, as in a dialog; on close the focus is where it was, the anchor for a popover opened
  * from a button. It shows in a window
  * of its own where the platform allows ({@link DisplayMode#NATIVE_WINDOW}, the default, as its
@@ -439,6 +440,15 @@ public final class Popover {
         }
     }
 
+    private static boolean isInside(Widget<?> widget, Widget<?> root) {
+        for (Widget<?> w = widget; w != null; w = w.parent()) {
+            if (w == root) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static @Nullable Widget<?> firstFocusable(Widget<?> widget) {
         if (!widget.isVisible() || !widget.isEnabled()) {
             return null;
@@ -677,6 +687,11 @@ public final class Popover {
         public void presented(Widget<?> shown, @Nullable Scene popupScene) {
             if (!(shown instanceof Panel p)) {
                 return;
+            }
+            Scene scene = p.scene();
+            Widget<?> focused = scene == null ? null : scene.focusedWidget();
+            if (focused != null && isInside(focused, p.content())) {
+                return; // the content asked for one of its widgets as it joined: that is the first focus
             }
             focusFirst(p);
         }

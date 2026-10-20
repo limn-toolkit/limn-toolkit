@@ -844,7 +844,8 @@ public final class Scene {
      * everything: it captures all input and confines focus (hit-testing and
      * Tab traversal ignore the content and lower overlays). This is how modal
      * dialogs work: an in-scene overlay, no nested event loop. Focus moves to
-     * the overlay's first focusable widget.
+     * the overlay's first focusable widget, or stays on the one the overlay's content asked for
+     * with {@link #requestFocus} as it joined (from an {@link Widget#onAttached()}).
      *
      * <p>A widget that is another scene's root, or an overlay on another scene's stack, is refused
      * before anything moves, as a container's add and a new scene refuse it: the scene that holds
@@ -863,8 +864,12 @@ public final class Scene {
         List<Runnable> settled = new ArrayList<>(0);
         Throwable failed = stackOverlay(overlay, settled);
         try {
-            // Move focus into the new modal layer.
-            focusTraverse(false);
+            // Move focus into the new modal layer, unless the overlay's content already did, asking
+            // for one of its widgets from an onAttached: traversing from there would move on from
+            // the widget asked for, telling it of a gain and a loss in the one turn.
+            if (!holdsKeyboardInside(overlay)) {
+                focusTraverse(false);
+            }
             requestRender();
         } catch (RuntimeException | Error error) {
             failed = HandlerFailures.add(failed, error);
@@ -949,14 +954,17 @@ public final class Scene {
         List<Runnable> settled = new ArrayList<>(0);
         Throwable failed = stackOverlay(overlay, settled);
         try {
-            if (!canTakeFocus(first) || !isInSubtree(first, overlay)) {
-                focusTraverse(false);
-            } else {
-                focusByTraversal = true;
-                try {
-                    setFocus(first, Change.Origin.CODE);
-                } finally {
-                    focusByTraversal = false;
+            // Unless the content asked for one of its widgets as it joined, which is the first focus.
+            if (!holdsKeyboardInside(overlay)) {
+                if (!canTakeFocus(first) || !isInSubtree(first, overlay)) {
+                    focusTraverse(false);
+                } else {
+                    focusByTraversal = true;
+                    try {
+                        setFocus(first, Change.Origin.CODE);
+                    } finally {
+                        focusByTraversal = false;
+                    }
                 }
             }
             requestRender();
@@ -995,6 +1003,12 @@ public final class Scene {
         }
         layoutDirty = true;
         return failed;
+    }
+
+    /** Whether the keyboard is on a widget inside {@code overlay}, which a push just stacked. */
+    private boolean holdsKeyboardInside(Widget<?> overlay) {
+        Widget<?> keyboard = focused;
+        return keyboard != null && isInSubtree(keyboard, overlay);
     }
 
     /**
@@ -3562,7 +3576,9 @@ public final class Scene {
      * keyboard on its first field from there asks for a widget that is not in the scene yet. The
      * request is kept until the join is complete, and the field is focused then if it has joined
      * and nothing above refuses it; a later request, {@code null} included, replaces it. A join that
-     * an {@code onAttached} cut short before reaching the field focuses nothing.
+     * an {@code onAttached} cut short before reaching the field focuses nothing. Pushed as an
+     * overlay or a popup, the field asked for is the overlay's first focus: the push does not
+     * move on to its first stop.
      *
      * <p>An application calling this is code moving the focus, so the two {@code FOCUS} changes
      * it announces carry {@code CODE}. A gesture that moves focus does not come through here: a

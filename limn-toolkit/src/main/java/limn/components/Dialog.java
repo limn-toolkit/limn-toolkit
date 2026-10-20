@@ -476,7 +476,9 @@ public final class Dialog {
      * not press it, even while it holds the focus: so a person typing into the dialog and
      * pressing Return out of habit does not delete. Return then gives the default button's
      * answer, or none in a dialog without one. Nor does it take the dialog's first focus, which
-     * goes to the first control of the content that takes the keyboard (a field, say), or, when
+     * goes to the widget the content asked for as it joined ({@link Scene#requestFocus} from its
+     * {@code onAttached}), else to the first control of the content that takes the keyboard (a
+     * field, say), or, when
      * the content has none, to the default button, or else to the first button that destroys
      * nothing; only in a dialog whose every button is destructive does the first of them take it,
      * Return still not pressing it and Escape still cancelling. Space, a click and an assistive technology's
@@ -1088,11 +1090,15 @@ public final class Dialog {
         if (modal) {
             BackendPeer.of(backend).pushModal(modalWindow, blockParent);
         }
-        Button first = firstFocusedButton();
-        if (first != null) {
-            modalScene.requestFocus(first);
-        } else {
-            modalScene.focusTraverse(false); // the body's first stop, or nothing
+        // Unless the content asked for one of its widgets as it joined the new scene: that is the
+        // first focus, and traversing from it would move on to the stop after it.
+        if (modalScene.focusedWidget() == null) {
+            Button first = firstFocusedButton();
+            if (first != null) {
+                modalScene.requestFocus(first);
+            } else {
+                modalScene.focusTraverse(false); // the body's first stop, or nothing
+            }
         }
         fade = 1; // content painted opaque; the window opacity does the fading
         observeUnanswered(modalScene); // the OS can close this window out from under us

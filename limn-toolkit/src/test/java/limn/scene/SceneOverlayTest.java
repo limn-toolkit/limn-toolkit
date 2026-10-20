@@ -417,7 +417,9 @@ class SceneOverlayTest extends SceneTestBase {
         @Override
         protected void onAttached() {
             log.add("form attached");
-            scene().requestFocus(start);
+            if (start != null) {
+                scene().requestFocus(start);
+            }
         }
     }
 
@@ -445,6 +447,11 @@ class SceneOverlayTest extends SceneTestBase {
         @Override
         protected void onFocusGained() {
             log.add("gained " + name + (scene() == null ? " in no scene" : ""));
+        }
+
+        @Override
+        protected void onFocusLost() {
+            log.add("lost " + name);
         }
     }
 
@@ -517,5 +524,60 @@ class SceneOverlayTest extends SceneTestBase {
             assertTrue(focused == null || focused.scene() == scene, where + ": " + focused + " " + log);
             assertFalse(log.contains("gained name in no scene"), where + ": " + log);
         }
+    }
+
+    @Test
+    void aFocusAskedForAsAnOverlayJoinsWinsOverTheFirstStop() {
+        // A form pushed as an overlay or a popup that starts the keyboard on one of its fields from
+        // its own onAttached: the request was obeyed at the end of the walk, and the push's own
+        // traversal then ran from the field just focused and moved to the stop after it, so asked
+        // for its first field the form opened on its second, and asked for its last it wrapped to
+        // the first, each field told of a gain and a loss in the one turn. The asked field keeps it.
+        for (boolean popup : new boolean[] {false, true}) {
+            for (int asked = 0; asked < 3; asked++) {
+                String where = (popup ? "pushed as a popup" : "pushed as an overlay") + ", asking field " + asked;
+                log.clear();
+                StartingForm form = new StartingForm(log);
+                JoiningField[] fields = new JoiningField[3];
+                for (int i = 0; i < 3; i++) {
+                    fields[i] = new JoiningField("f" + i, log);
+                    form.add(fields[i]);
+                }
+                form.start = fields[asked];
+                Column content = new Column();
+                PressBox base = new PressBox("base", new ArrayList<>());
+                content.add(base);
+                Scene scene = new Scene(content);
+                scene.layoutPass(200, 200);
+                scene.requestFocus(base);
+                if (popup) {
+                    scene.pushPopup(form);
+                } else {
+                    scene.pushOverlay(form);
+                }
+                assertSame(fields[asked], scene.focusedWidget(), where + ": " + log);
+                assertEquals(List.of("form attached", "f0 attached", "f1 attached", "f2 attached", "gained f" + asked),
+                        log, where + ": only the asked field is told, of a gain");
+            }
+        }
+    }
+
+    @Test
+    void anOverlayWhoseContentAsksNothingStillOpensOnItsFirstStop() {
+        // The control beside it: nothing asked, the push focuses the overlay's first stop as before.
+        log.clear();
+        StartingForm form = new StartingForm(log);
+        JoiningField first = new JoiningField("f0", log);
+        form.add(first);
+        form.add(new JoiningField("f1", log));
+        form.start = null;
+        Column content = new Column();
+        PressBox base = new PressBox("base", new ArrayList<>());
+        content.add(base);
+        Scene scene = new Scene(content);
+        scene.layoutPass(200, 200);
+        scene.requestFocus(base);
+        scene.pushOverlay(form);
+        assertSame(first, scene.focusedWidget(), String.valueOf(log));
     }
 }

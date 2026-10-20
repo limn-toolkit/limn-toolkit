@@ -1028,3 +1028,18 @@ the theme editor or the site relied on it; one test built a scene over a chart i
 wrapped in a padding of another scene, and now builds it over the chart alone.
 `AnotherScenesLayerIsRefusedTest` takes a child in the same scene, in another and in none, with
 each push and a new scene.
+
+## Note, 2026-10-20 (review): the focus the content asks for is the overlay's first focus
+
+The fourth review kept a focus asked for from `onAttached` until the walk ended, and the walk of a
+push ends inside the push: `pushOverlay` and `pushPopup`, the dialog in either display mode and the
+popover then ran their own first focus from the widget just focused. A form that starts the
+keyboard on its first field opened on its second, and asked for its last it wrapped to the first,
+the field asked for told of a gain and a loss in the turn (R11S-2; the same before the fourth
+review, where the request was refused and the push landed on the first field by accident). A push
+now keeps a keyboard already inside the overlay it stacked, the dialog in a window of its own keeps
+one already in its new scene, and the popover keeps one already inside its content; each focuses
+its first stop, its button or its content's first widget as before when nothing was asked. The
+dialog's button rule cannot meet the content's request: it applies only to a body with no stop.
+`SceneOverlayTest` pushes a form asking each of its three fields as an overlay and as a popup;
+`ContentAsksTheFirstFocusTest` gives one to a dialog and a popover in both display modes.
