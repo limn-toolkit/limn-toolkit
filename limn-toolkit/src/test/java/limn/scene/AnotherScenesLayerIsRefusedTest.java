@@ -415,4 +415,42 @@ class AnotherScenesLayerIsRefusedTest extends SceneTestBase {
         floating.removeOverlay(untouched);
         assertNull(untouched.scene(), "and comes off the stack as any overlay does");
     }
+
+    /**
+     * A widget that already has a parent is refused by a container's add with the same
+     * {@link IllegalArgumentException} a push and a new scene refuse it with: the argument is what
+     * is wrong. A container's add threw an {@link IllegalStateException} for it, so the same
+     * condition had two types depending on the taker.
+     */
+    @Test
+    void aWidgetWithAParentIsRefusedByEveryAddWithTheExceptionAPushGives() {
+        List<String> failures = new ArrayList<>();
+        for (Taker taker : new Taker[] {Taker.CONTAINER_ADD, Taker.CONTAINER_INSERT, Taker.WIDGET_ADD}) {
+            List<String> log = new ArrayList<>();
+            Told card = new Told("card", log);
+            Column holder = new Column();
+            holder.add(card);
+            Column column = new Column();
+            FixedBox box = new FixedBox(50, 50);
+            column.add(box);
+            new Scene(column);
+            log.clear();
+            Runnable take = switch (taker) {
+                case CONTAINER_ADD -> () -> column.add(card);
+                case CONTAINER_INSERT -> () -> column.add(0, card);
+                default -> () -> box.add(card);
+            };
+            try {
+                IllegalArgumentException refused = assertThrows(IllegalArgumentException.class, take::run,
+                        String.valueOf(taker));
+                assertTrue(refused.getMessage().contains("parent"), taker + ": says why: " + refused.getMessage());
+                assertSame(holder, card.parent(), taker + ": still its parent's");
+                assertEquals(List.of(box), column.children(), taker + ": the column unchanged");
+                assertEquals(List.of(), log, taker + ": nobody told anything");
+            } catch (AssertionError failure) {
+                failures.add(failure.getMessage());
+            }
+        }
+        assertEquals(List.of(), failures);
+    }
 }

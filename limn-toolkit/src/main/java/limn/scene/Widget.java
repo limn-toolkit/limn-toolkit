@@ -463,9 +463,8 @@ public abstract class Widget<W extends Widget<W>> {
      *
      * @param child the child to append; never {@code null}
      * @throws NullPointerException     if {@code child} is {@code null}
-     * @throws IllegalStateException    if {@code child} already has a parent
-     * @throws IllegalArgumentException if {@code child} is an ancestor of this widget, a scene's
-     *                                  root, or an overlay on a scene's stack
+     * @throws IllegalArgumentException if {@code child} already has a parent, or is an ancestor of
+     *                                  this widget, a scene's root, or an overlay on a scene's stack
      */
     protected void add(Widget<?> child) {
         Ui.checkUiThread();
@@ -487,10 +486,9 @@ public abstract class Widget<W extends Widget<W>> {
      * @param child the child to insert; never {@code null}
      * @throws IndexOutOfBoundsException if {@code index} is outside that range
      * @throws NullPointerException      if {@code child} is {@code null}
-     * @throws IllegalStateException     if {@code child} already has a parent
-     * @throws IllegalArgumentException  if {@code child} is an ancestor of this widget, a scene's
-     *                                   root, or an overlay on a scene's stack, as
-     *                                   {@link #add(Widget)} says
+     * @throws IllegalArgumentException  if {@code child} already has a parent, or is an ancestor of
+     *                                   this widget, a scene's root, or an overlay on a scene's
+     *                                   stack, as {@link #add(Widget)} says
      */
     protected void add(int index, Widget<?> child) {
         Ui.checkUiThread();
@@ -551,9 +549,7 @@ public abstract class Widget<W extends Widget<W>> {
     /** The one place a child joins the tree; both {@code add} overloads end here. */
     private void insert(int index, Widget<?> child) {
         Objects.requireNonNull(child, "child");
-        if (child.parent != null) {
-            throw new IllegalStateException("widget already has a parent");
-        }
+        Scene.refuseParented(child, "a child in a container"); // as a push and a new scene refuse it
         Scene.refuseAnotherScenesLayer(child, null, "a child in a container"); // before anything moves
         for (Widget<?> ancestor = this; ancestor != null; ancestor = ancestor.parent) {
             if (ancestor == child) {

@@ -1078,3 +1078,16 @@ answered differently because a scene can do without an overlay and not without i
 `AnotherScenesLayerIsRefusedTest` binds again a scene whose root a column of another scene, a new
 scene and a column in no scene took, and one whose overlays were pushed elsewhere, adopted and
 left alone.
+
+## Note, 2026-10-20 (review): one exception for a widget that already has a parent
+
+A container's add refused a widget that already had a parent with an `IllegalStateException`,
+while the push and the new scene of the note above refuse the same widget with an
+`IllegalArgumentException`: one condition, two types, both documented and so both frozen at 1.0
+(R11S-7). The add now throws the `IllegalArgumentException` too, through the same check and with
+the same message, because the argument is what is wrong, as in decision 40's refusals and as the
+toolkit with a scene graph of the same shape throws for a node already a child elsewhere. The
+Javadoc of `Widget.add` and of `Container.add`, both overloads, says so.
+`AnotherScenesLayerIsRefusedTest` takes a parented widget with each add. A popover whose content
+an application put into a container of its own still refuses `showFor` with an
+`IllegalStateException`: there the argument is the anchor, and what is wrong is the popover's state.
