@@ -710,7 +710,10 @@ public final class AnchoredPopup {
 
         Layer(Opacity content) {
             this.content = content;
-            setFocusable(true);
+            // Only when it takes the keyboard: a layer that leaves it below (an editable combo's
+            // list) took the focus from a press beside the card through click-to-focus, outside
+            // the keyboard's layer, and once it was removed the keyboard was nobody's.
+            setFocusable(!host.keepsKeyboard());
             add(content);
         }
 

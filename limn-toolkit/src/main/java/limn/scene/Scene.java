@@ -4030,16 +4030,26 @@ public final class Scene {
      * the window and then as the field. A key typed during the fade goes to the field as well,
      * where it went to a calendar that was no longer there to answer it.
      *
-     * <p>Nothing happens for an overlay beneath one that holds the keyboard, that already leaves
-     * the keyboard beneath it, or that is not in this scene. {@link #removeOverlay} then gives
-     * nothing back a second time. An overlay beneath layers that all left the keyboard (a popover
+     * <p>Nothing happens for an overlay beneath one that holds the keyboard, or that is not in
+     * this scene. One that left the keyboard beneath it all along (an editable combo's list) has
+     * nothing to give back and is only marked closing, so the pointer passes it by as it fades.
+     * {@link #removeOverlay} then gives nothing back a second time. An overlay beneath layers that all left the keyboard (a popover
      * closing under the one opened from it, which is fading on top) gives it back at once: the
      * keyboard stayed on a button in a panel going away, and a key opened the inner one again.
      */
     private void releaseOverlayKeyboard(Widget<?> overlay) {
         Ui.checkUiThread();
         int index = overlays.indexOf(overlay);
-        if (index < 0 || keyboardBelow.contains(overlay)) {
+        if (index < 0) {
+            return;
+        }
+        if (keyboardBelow.contains(overlay)) {
+            // It never took the keyboard (an editable combo's list): nothing to give back, but it
+            // is closing all the same, and lets the pointer by as any closing overlay does.
+            if (!closingOverlays.contains(overlay)) {
+                closingOverlays.add(overlay);
+                invalidateAccessible();
+            }
             return;
         }
         for (int i = index + 1; i < overlays.size(); i++) {
