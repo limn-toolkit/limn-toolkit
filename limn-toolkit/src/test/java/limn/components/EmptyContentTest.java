@@ -698,6 +698,50 @@ class EmptyContentTest extends AccessibleComponentTestBase {
     }
 
     @Test
+    void aListWaitingForItsEmptyContentThatStartsLoadingWaitsForTheLoadingContentInstead() {
+        // Three lists sharing one "No results" label and one "Fetching..." label: A is empty and
+        // shows the label, C loads and shows "Fetching...". B is emptied (it waits for A to let
+        // the label go), then starts loading (it now wants "Fetching...", which C holds). C's load
+        // ends with rows: B shows "Fetching...". It kept watching A, for the label it no longer
+        // wanted, and stayed blank for as long as A held that one.
+        Label noResults = new Label("No results");
+        Label fetching = new Label("Fetching...");
+        ListView<String> a = new ListView<>(Label::new);
+        ListView<String> b = new ListView<>(Label::new);
+        ListView<String> c = new ListView<>(Label::new);
+        for (ListView<String> l : List.of(a, b, c)) {
+            l.setEmptyContent(noResults, noResults);
+            l.setLoadingContent(fetching, fetching);
+        }
+        b.setItems(List.of("b"));
+        c.setItems(List.of("c"));
+        TokenColumn root = new TokenColumn(Tokens.Role.SMALL);
+        for (ListView<String> l : List.of(a, b, c)) {
+            root.add(new SizedBox(300, 120, l));
+        }
+        bind(root);
+        frame();
+        c.setItems(List.of());
+        c.setLoading(true);
+        frame();
+        assertTrue(a.isShowingEmptyContent() && c.isShowingLoadingContent(), "sanity");
+        b.setItems(List.of());
+        frame();
+        assertFalse(b.isShowingEmptyContent(), "sanity: A holds the label");
+        b.setLoading(true);
+        frame();
+        assertFalse(b.isShowingLoadingContent(), "sanity: C holds it");
+
+        c.setItems(List.of("c"));
+        c.setLoading(false);
+        frame();
+        frame();
+
+        assertSame(b, fetching.parent(), "the label C let go shows in B");
+        assertTrue(b.isShowingLoadingContent());
+    }
+
+    @Test
     void aListAddedAndLoadedBeforeItsFirstFrameIsStillSaid() {
         // Not a test of the clip: a list just built inside a scroll view has no box yet when the
         // application starts its load in the same turn, and is on screen at the next frame.

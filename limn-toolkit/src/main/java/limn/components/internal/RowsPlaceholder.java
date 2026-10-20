@@ -84,6 +84,9 @@ public final class RowsPlaceholder {
     private boolean saidElsewhere;
     /** The watch on the container that holds the content this widget wants, until it lets go. */
     private @Nullable Subscription waiting;
+    /** The content {@link #waiting} waits for, and the container it watches. */
+    private @Nullable Widget<?> waitingFor;
+    private @Nullable Widget<?> waitingOn;
 
     /**
      * @param host the widget this shows content for
@@ -392,10 +395,16 @@ public final class RowsPlaceholder {
      * would otherwise leave this one blank until something else laid it out.
      */
     private void waitFor(Widget<?> content) {
-        if (waiting != null) {
+        Widget<?> holder = content.parent();
+        if (waiting != null && waitingFor == content && waitingOn == holder) {
             return;
         }
-        Widget<?> holder = content.parent();
+        // Wanted something else, or held by another container, since the watch was set: a list
+        // that waited for its empty content and then started loading kept watching the empty
+        // content's holder, and stayed blank when the loading content it wanted was let go.
+        stopWaiting();
+        waitingFor = content;
+        waitingOn = holder;
         waiting = holder.observeChanges((widget, change) -> {
             if (change.aspect() == limn.scene.Change.Aspect.CHILDREN && content.parent() != holder) {
                 stopWaiting();
@@ -409,6 +418,8 @@ public final class RowsPlaceholder {
             waiting.cancel();
             waiting = null;
         }
+        waitingFor = null;
+        waitingOn = null;
     }
 
     /**

@@ -674,6 +674,11 @@ that the text above does not say, dated where it departs from it.
   holder lets it go (shown at the next frame, whichever order); the getters and the description
   read what the widget holds; and a widget leaving the window lets its content go, showing it again
   when it comes back if it is still free.
+  *Third review, 2026-10-20 (R5C-1):* the watch stayed on the first holder it was set on: a list
+  that waited for its empty content and then started loading, wanting a loading content a third
+  list held, kept watching the empty content's holder, and stayed blank when the loading content
+  was let go. The watch now remembers the content and the holder it is for, and a layout that
+  wants another, or finds it held elsewhere, watches again. `EmptyContentTest` has the three lists.
 - **Said only where it is seen, by the name it is heard by** (2026-10-19, the audit's CO-12 and
   AX-4): a list in a hidden container or on a tab page not chosen, still in the window, said
   "Loading Archived" and "Archived, 0 items", loads the user could not see; it is now busy and says
