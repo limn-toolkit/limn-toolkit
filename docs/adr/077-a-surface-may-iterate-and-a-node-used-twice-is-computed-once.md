@@ -196,3 +196,11 @@ two sibling loops may both call their state `z`.
   GPU against 0.26 ms for the same panel in the built-in material, and 1.5 s to 3.0 s a frame at
   913x513 on the software renderer. The program count stayed at one over every run.
 
+- **2026-10-20, review: every walk visits a node once.** The generator's own check of what an
+  early-ending loop holds followed each child as a tree, and `Expr.Binary.type()` asked each
+  operand's type twice: a turn of k unrolled steps of z ↦ z² + c, each reading the step before six
+  times, took 1.2 s to generate at k = 10, 43 s at 12 and minutes beyond, inside the frame that
+  first drew the surface, and forty squarings z ↦ z·z hung the loop's constructor on the type of
+  its next state. Both now remember the nodes they have been through (by identity, as the nesting
+  check and the constructor's own check already did); k = 12 to 20 generate in milliseconds
+  together, and so does the forty-squaring chain.

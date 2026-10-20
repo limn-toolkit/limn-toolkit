@@ -405,6 +405,17 @@ final class GlslCodegen {
 
         /** What under {@code node} this generator cannot place in non-uniform control flow, or null. */
         private @org.jspecify.annotations.Nullable String refusedEarly(Expr node) {
+            return refusedEarly(node, java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>()));
+        }
+
+        /**
+         * Visits a node once however many parents share it: a turn that reuses its steps is a DAG
+         * whose paths, followed as a tree, grow as a power of its depth.
+         */
+        private @org.jspecify.annotations.Nullable String refusedEarly(Expr node, java.util.Set<Expr> seen) {
+            if (!seen.add(node)) {
+                return null;
+            }
             if (node instanceof Expr.Raw) {
                 return "raw GLSL, whose text nobody reads for a derivative";
             }
@@ -412,7 +423,7 @@ final class GlslCodegen {
                 return "the helper " + call.function() + ", which takes derivatives";
             }
             for (Expr child : children(node)) {
-                String found = refusedEarly(child);
+                String found = refusedEarly(child, seen);
                 if (found != null) {
                     return found;
                 }

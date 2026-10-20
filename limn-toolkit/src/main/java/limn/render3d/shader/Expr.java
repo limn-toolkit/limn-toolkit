@@ -80,7 +80,7 @@ public sealed interface Expr
     record Binary(Op op, Expr left, Expr right) implements Expr {
         @Override
         public ShaderType type() {
-            return left.type().components >= right.type().components ? left.type() : right.type();
+            return Values.type(this);
         }
     }
 

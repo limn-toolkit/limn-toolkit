@@ -7,14 +7,19 @@ import limn.render3d.shader.SurfaceOutputs;
 import limn.render3d.shader.TargetProfile;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.List;
 
 import static limn.backend.lwjgl.IrSurfaces.add;
 import static limn.backend.lwjgl.IrSurfaces.call;
+import static limn.backend.lwjgl.IrSurfaces.mul;
 import static limn.backend.lwjgl.IrSurfaces.ref;
+import static limn.backend.lwjgl.IrSurfaces.sub;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -183,5 +188,45 @@ class GlslSharingAndLoopsTest {
     void generationIsDeterministic() {
         assertEquals(fragment(IrSurfaces.mandelbrot(64)), fragment(IrSurfaces.mandelbrot(64)));
         assertEquals(fragment(IrSurfaces.moltenLike()), fragment(IrSurfaces.moltenLike()));
+    }
+
+    @Test
+    void aLoopThatCanEndEarlyOverADeepSharedTurnIsWrittenInMilliseconds() {
+        // Each step of z ↦ z² + c reads the step before six times through its swizzles: as a tree,
+        // twenty steps are 6^20 paths. The check of what an early-ending loop holds walked them so,
+        // 43 s at twelve steps in the frame that first drew the surface; walked once a node, every
+        // depth here takes milliseconds.
+        assertTimeoutPreemptively(Duration.ofSeconds(10), () -> {
+            for (int steps = 12; steps <= 20; steps++) {
+                Expr.Ref s = new Expr.Ref("s", ShaderType.VEC2);
+                Expr z = s;
+                for (int i = 0; i < steps; i++) {
+                    z = IrSurfaces.square(z, Expr.Lit.of(0.25f, 0.1f));
+                }
+                Expr.Loop loop = new Expr.Loop("s", Expr.Lit.of(0f, 0f), 8, z,
+                        sub(call("dot", ShaderType.FLOAT, s, s), Expr.Lit.of(4f)));
+                String frag = fragment(IrSurfaces.emitting(new Expr.Construct(ShaderType.VEC3,
+                        List.of(loop, Expr.Lit.of(0f)))));
+                assertTrue(frag.contains("for (int ir_i0 = 0; ir_i0 < 8; ++ir_i0) {"), "steps " + steps);
+            }
+        });
+    }
+
+    @Test
+    void aChainOfSquaresSharedByEveryStepIsTypedAndWrittenInMilliseconds() {
+        // z ↦ z·z forty times, each product read twice: every one is a local, declared by its type,
+        // and a type asked of each child as a tree is 2^40 questions.
+        assertTimeoutPreemptively(Duration.ofSeconds(5), () -> {
+            Expr z = ref("v_uv", ShaderType.VEC2);
+            for (int i = 0; i < 40; i++) {
+                z = mul(z, z);
+            }
+            Expr.Ref s = new Expr.Ref("s", ShaderType.VEC2);
+            Expr.Loop loop = new Expr.Loop("s", Expr.Lit.of(0f, 0f), 4, add(s, z),
+                    sub(new Expr.Swizzle(s, "x"), Expr.Lit.of(1f)));
+            String frag = fragment(IrSurfaces.emitting(new Expr.Construct(ShaderType.VEC3,
+                    List.of(loop, Expr.Lit.of(0f)))));
+            assertEquals(40, count(frag, "    vec2 ir_t"), "one local a step: " + frag);
+        });
     }
 }

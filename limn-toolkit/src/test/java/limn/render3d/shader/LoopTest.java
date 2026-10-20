@@ -2,11 +2,13 @@ package limn.render3d.shader;
 
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 /**
  * A loop in the shader IR is bounded, and its bound is the product along a nesting: no surface may
@@ -111,5 +113,22 @@ class LoopTest {
         // Every fragment runs every turn of a loop without until: uniform, so allowed.
         assertDoesNotThrow(() -> new Expr.Loop("z", Expr.Lit.of(0f, 0f), 8, sampled, null));
         assertDoesNotThrow(() -> new Expr.Loop("z", Expr.Lit.of(0f, 0f), 8, derivative, null));
+    }
+
+    @Test
+    void aNodeSharedByEveryStepOfAChainIsTypedOnce() {
+        // z ↦ z·z forty times, each product reading the one before twice: a type asked of each
+        // child as a tree is 2^40 questions, and the loop's constructor asks its next state's type.
+        assertTimeoutPreemptively(Duration.ofSeconds(5), () -> {
+            Expr z = Z;
+            for (int i = 0; i < 40; i++) {
+                z = new Expr.Binary(Expr.Op.MUL, z, z);
+            }
+            assertEquals(ShaderType.VEC2, z.type());
+            Expr chain = z;
+            assertDoesNotThrow(() -> new Expr.Loop("z", Expr.Lit.of(0f, 0f), 4,
+                    new Expr.Binary(Expr.Op.ADD, Z, chain),
+                    new Expr.Binary(Expr.Op.SUB, new Expr.Swizzle(chain, "x"), Expr.Lit.of(1f))));
+        });
     }
 }
