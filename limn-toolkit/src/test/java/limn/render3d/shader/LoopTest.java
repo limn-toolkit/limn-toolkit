@@ -59,8 +59,11 @@ class LoopTest {
             handed[1] = s;
             return new Expr.Swizzle(s, "x");
         });
-        assertEquals(new Expr.Ref(loop.states().get(0), ShaderType.VEC3), handed[0]);
+        assertEquals(ShaderType.VEC3, handed[0].type());
         assertEquals(handed[0], handed[1], "next and until read the same state");
+        // In the loop, what the turn returned reads the state under the loop's own name.
+        assertEquals(new Expr.Ref(loop.states().get(0), ShaderType.VEC3), loop.next().get(0));
+        assertEquals(new Expr.Swizzle(loop.next().get(0), "x"), loop.until());
         assertTrue(loop.states().get(0).startsWith("ir_"), "a name no input may take: " + loop.states());
     }
 
@@ -138,12 +141,29 @@ class LoopTest {
     }
 
     @Test
-    void aLoopBuiltApartMaySitInAnothersTurn() {
-        // Built before the outer loop, at the same depth, it has the outer state's name: inside its
-        // own turn the name is its state, which is all it could have read.
+    void aLoopBuiltApartAndSetInAnothersTurnHasNamesOfItsOwn() {
+        // A loop's names follow how many loops it holds, not where or when it was built: the outer
+        // one holds one more than any loop in its turn.
         Expr.Loop apart = loop(4, LoopTest::step);
         Expr.Loop outer = assertDoesNotThrow(() -> loop(8, z -> add(z, apart)));
-        assertEquals(apart.states(), outer.states());
+        assertNotEquals(apart.states(), outer.states());
+    }
+
+    @Test
+    void aLoopBuiltForAnothersTurnOnAnotherThreadStillReadsTheOuterState() throws Exception {
+        // Built inside the outer turn but on a worker thread: t + s must stay t + s, not become t + t.
+        Expr.Loop outer = Expr.Loop.of(Expr.Lit.of(1f), 3, s -> add(s,
+                java.util.concurrent.CompletableFuture.supplyAsync(
+                        () -> Expr.Loop.of(Expr.Lit.of(0f), 2, t -> add(t, s))).join()));
+        Expr.Loop inner = (Expr.Loop) ((Expr.Binary) outer.next().get(0)).right();
+        assertNotEquals(outer.states(), inner.states());
+        Expr.Binary turn = (Expr.Binary) inner.next().get(0);
+        assertEquals(new Expr.Ref(inner.states().get(0), ShaderType.FLOAT), turn.left());
+        assertEquals(new Expr.Ref(outer.states().get(0), ShaderType.FLOAT), turn.right(),
+                "the inner turn reads the outer state");
+        // The same loops built on one thread are the same value.
+        Expr.Loop here = Expr.Loop.of(Expr.Lit.of(1f), 3, s -> add(s, Expr.Loop.of(Expr.Lit.of(0f), 2, t -> add(t, s))));
+        assertEquals(here, outer);
     }
 
     @Test
@@ -218,7 +238,7 @@ class LoopTest {
         Expr outside = new Expr.Construct(ShaderType.VEC3, List.of(kept[0], Expr.Lit.of(0f)));
         IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
                 () -> SurfaceOutputs.of(Expr.Lit.of(0f, 0f, 0f, 1f), Expr.Lit.of(0f), Expr.Lit.of(1f), outside));
-        assertTrue(refused.getMessage().contains(loop.states().get(0)), refused.getMessage());
+        assertTrue(refused.getMessage().contains("outside its loop"), refused.getMessage());
         // In another loop's initial value it is outside its own loop too.
         Expr.Loop later = Expr.Loop.of(kept[0], 4, LoopTest::step);
         assertThrows(IllegalArgumentException.class, () -> SurfaceOutputs.of(Expr.Lit.of(0f, 0f, 0f, 1f),
@@ -244,8 +264,9 @@ class LoopTest {
             handed.add(s);
             return s;
         });
+        assertEquals(List.of(ShaderType.VEC4, ShaderType.FLOAT), handed.get(0).stream().map(Expr::type).toList());
         assertEquals(List.of(new Expr.Ref(loop.states().get(0), ShaderType.VEC4),
-                new Expr.Ref(loop.states().get(1), ShaderType.FLOAT)), handed.get(0));
+                new Expr.Ref(loop.states().get(1), ShaderType.FLOAT)), loop.next());
         assertNotEquals(loop.states().get(0), loop.states().get(1));
         // The node is the first value; value(1) reads the second, of the same loop.
         assertEquals(ShaderType.VEC4, loop.type());

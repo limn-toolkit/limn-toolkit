@@ -43,9 +43,106 @@ final class Loops {
     /** How the names {@link Expr.Loop#of} gives a state's values begin: two numbers follow. */
     static final String STATE_PREFIX = "ir_state";
 
-    /** The name {@link Expr.Loop#of} gives value {@code place} of a loop built {@code depth} deep. */
-    static String stateName(int depth, int place) {
-        return STATE_PREFIX + depth + "_" + place;
+    /** How the names a state has while {@link Expr.Loop#of} builds its turn begin. */
+    static final String BUILDING_PREFIX = "ir_building";
+
+    /** The name {@link Expr.Loop#of} gives value {@code place} of a loop at {@code level}. */
+    static String stateName(int level, int place) {
+        return STATE_PREFIX + level + "_" + place;
+    }
+
+    /**
+     * The level a loop over {@code turn} takes: one more than the highest of the loops anywhere in
+     * it, initial values and nested turns included, or 0 where there are none. A loop's name holds
+     * its level, so no loop in a turn shares a name with the loop around it.
+     */
+    static int level(List<Expr> turn) {
+        Set<Expr> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        java.util.ArrayDeque<Expr> pending = new java.util.ArrayDeque<>(turn);
+        int level = 0;
+        while (!pending.isEmpty()) {
+            Expr node = pending.pop();
+            if (!seen.add(node)) {
+                continue;
+            }
+            if (node instanceof Expr.Loop loop) {
+                level = Math.max(level, levelOf(loop) + 1);
+            }
+            pending.addAll(children(node));
+        }
+        return level;
+    }
+
+    /** The level held in a loop's names, {@code ir_state<level>_<place>}. */
+    private static int levelOf(Expr.Loop loop) {
+        String name = loop.states().get(0);
+        return Integer.parseInt(name.substring(STATE_PREFIX.length(), name.indexOf('_', STATE_PREFIX.length())));
+    }
+
+    /**
+     * {@code node} with every reference named in {@code names} renamed, rebuilt where it changes
+     * and kept where it does not; {@code done} remembers the nodes already seen.
+     */
+    static Expr rename(Expr node, Map<String, String> names, Map<Expr, Expr> done) {
+        Expr known = done.get(node);
+        if (known != null) {
+            return known;
+        }
+        Expr result = node;
+        if (node instanceof Expr.Ref ref) {
+            String name = names.get(ref.name());
+            if (name != null) {
+                result = new Expr.Ref(name, ref.type());
+            }
+        } else if (node instanceof Expr.Sample sample) {
+            Expr sampler = rename(sample.sampler(), names, done);
+            Expr uv = rename(sample.uv(), names, done);
+            if (sampler != sample.sampler() || uv != sample.uv()) {
+                result = new Expr.Sample((Expr.Ref) sampler, uv);
+            }
+        } else if (node instanceof Expr.Swizzle swizzle) {
+            Expr source = rename(swizzle.source(), names, done);
+            if (source != swizzle.source()) {
+                result = new Expr.Swizzle(source, swizzle.pattern());
+            }
+        } else if (node instanceof Expr.Binary binary) {
+            Expr left = rename(binary.left(), names, done);
+            Expr right = rename(binary.right(), names, done);
+            if (left != binary.left() || right != binary.right()) {
+                result = new Expr.Binary(binary.op(), left, right);
+            }
+        } else if (node instanceof Expr.Call call) {
+            List<Expr> args = renameAll(call.args(), names, done);
+            if (args != call.args()) {
+                result = new Expr.Call(call.function(), call.type(), args);
+            }
+        } else if (node instanceof Expr.Construct construct) {
+            List<Expr> args = renameAll(construct.args(), names, done);
+            if (args != construct.args()) {
+                result = new Expr.Construct(construct.type(), args);
+            }
+        } else if (node instanceof Expr.Loop loop) {
+            List<Expr> initial = renameAll(loop.initial(), names, done);
+            List<Expr> next = renameAll(loop.next(), names, done);
+            Expr until = loop.until() == null ? null : rename(loop.until(), names, done);
+            if (initial != loop.initial() || next != loop.next() || until != loop.until()) {
+                result = new Expr.Loop(loop.states(), initial, loop.maxIterations(), next, until, loop.index());
+            }
+        }
+        done.put(node, result);
+        return result;
+    }
+
+    /** {@code nodes} renamed, the same list where none changes. */
+    private static List<Expr> renameAll(List<Expr> nodes, Map<String, String> names, Map<Expr, Expr> done) {
+        List<Expr> renamed = new java.util.ArrayList<>(nodes.size());
+        boolean changed = false;
+        for (Expr node : nodes) {
+            Expr after = rename(node, names, done);
+            changed |= after != node;
+            renamed.add(after);
+        }
+        return changed ? renamed : nodes;
     }
 
     /** Whether {@code name} is one {@link Expr.Loop#of} gives a state's value. */
@@ -123,7 +220,8 @@ final class Loops {
             return null;
         }
         if (node instanceof Expr.Ref ref) {
-            return isStateName(ref.name()) && !bound.contains(ref.name()) ? ref.name() : null;
+            boolean state = isStateName(ref.name()) || ref.name().startsWith(BUILDING_PREFIX);
+            return state && !bound.contains(ref.name()) ? ref.name() : null;
         }
         if (node instanceof Expr.Loop loop) {
             for (Expr start : loop.initial()) {

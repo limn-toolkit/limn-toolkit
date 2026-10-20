@@ -206,6 +206,18 @@ class SurfaceLoopGlTest {
     }
 
     @Test
+    void aLoopBuiltForAnothersTurnOnAWorkerThreadReadsTheOuterState() {
+        // Each outer turn adds what an inner loop of two turns makes of the outer state, s + 2s:
+        // three turns from 1 are 27. Read as t + t, the inner loop is 0 and the surface draws 1.
+        Expr.Loop outer = Expr.Loop.of(Expr.Lit.of(1f), 3, s -> IrSurfaces.add(s,
+                java.util.concurrent.CompletableFuture.supplyAsync(
+                        () -> Expr.Loop.of(Expr.Lit.of(0f), 2, t -> IrSurfaces.add(t, s))).join()));
+        ScenePixels pixels = draw(context -> Material.Surface.of("test.thread", IrSurfaces.emitting(
+                new Expr.Construct(ShaderType.VEC3, List.of(IrSurfaces.mul(outer, Expr.Lit.of(0.01f)))))), false);
+        assertEquals(0.27f, centre(pixels, 0), 2e-3f);
+    }
+
+    @Test
     void anEscapeTimeFractalIsWhiteInsideTheSetAndDarkFarOutsideIt() {
         ScenePixels pixels = draw(context -> Material.Surface.of("test.mandelbrot", IrSurfaces.mandelbrot(256)), false);
         // The plane's uv runs across the target; at its middle c = -0.3, inside the set: every turn

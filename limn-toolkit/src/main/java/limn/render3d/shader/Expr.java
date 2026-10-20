@@ -245,10 +245,10 @@ public sealed interface Expr
      * each value of the state as a {@link Ref} of its initial value's type, under names it
      * chooses, which a surface's inputs cannot take (they may not start {@code ir_}). Those are the
      * record's {@code states}: a record keeps its components, and the IR has to say which
-     * references a loop binds, but nothing else names them. A loop built inside another's turn
-     * gets names of its own, so it may read the outer state; one built apart may sit in another's
-     * turn, its state hiding the outer one, which it could not have read. The state means nothing
-     * outside its loop: {@link SurfaceOutputs} refuses a surface that reads it there.
+     * references a loop binds, but nothing else names them. A loop is named by how many loops nest
+     * in its turn, one more than any loop in it holds, so a loop in another's turn, built there or
+     * apart, on any thread, has names of its own and may read the outer state. The state means
+     * nothing outside its loop: {@link SurfaceOutputs} refuses a surface that reads it there.
      *
      * <p><b>Bounded across a whole surface.</b> The count is a constant from 1 to
      * {@link #MAX_ITERATIONS}, and so is every turn a pixel takes in all the loops of one surface.
@@ -275,7 +275,8 @@ public sealed interface Expr
      * every pixel and may hold them all.
      *
      * @param states        the names of the state's values, as {@link #of} gives them:
-     *                      {@code ir_state}, the loop's depth, {@code _} and the value's place
+     *                      {@code ir_state}, how many loops nest in its turn, {@code _} and the
+     *                      value's place
      * @param initial       each value before the first turn; a float or vector type
      * @param maxIterations how many turns at most, 1 to {@link #MAX_ITERATIONS}
      * @param next          each value after one turn, of its initial value's type
@@ -289,8 +290,8 @@ public sealed interface Expr
         /** The most turns a pixel may take across every loop of a surface. */
         public static final int MAX_ITERATIONS = 1024;
 
-        /** How many loops are being built around the one being built now, on this thread. */
-        private static final ThreadLocal<int[]> BUILDING = ThreadLocal.withInitial(() -> new int[1]);
+        /** Numbers the loops being built, for the names their turns read until they are named. */
+        private static final java.util.concurrent.atomic.AtomicLong BUILDING = new java.util.concurrent.atomic.AtomicLong();
 
         /**
          * A loop of one value that takes every turn, in every pixel.
@@ -357,36 +358,45 @@ public sealed interface Expr
         }
 
         /**
-         * Names the state by how deep the loop is built, so a loop built inside another's turn reads
-         * the outer state under other names, and a method that builds a loop builds an equal one
-         * each time it is called at the same depth, which the generator then computes once.
+         * Hands the turn the state under names no other loop has, then names it for good by how
+         * many loops nest in the turn: one more than the most any loop in it holds. A loop in
+         * another's turn so has names of its own, whatever thread or order the two were built in,
+         * and a method that builds a loop builds an equal one each time, which the generator then
+         * computes once.
          */
         private static Loop build(List<Expr> initial, int maxIterations,
                                   java.util.function.UnaryOperator<List<Expr>> next,
                                   java.util.function.@org.jspecify.annotations.Nullable Function<List<Expr>, Expr> until) {
             java.util.Objects.requireNonNull(next, "next");
             List<Expr> start = List.copyOf(initial);
-            int[] depth = BUILDING.get();
-            List<String> names = new java.util.ArrayList<>();
+            String building = Loops.BUILDING_PREFIX + BUILDING.getAndIncrement() + "_";
             List<Expr> state = new java.util.ArrayList<>();
             for (int i = 0; i < start.size(); i++) {
-                names.add(Loops.stateName(depth[0], i));
-                state.add(new Ref(names.get(i), start.get(i).type()));
+                state.add(new Ref(building + i, start.get(i).type()));
             }
             List<Expr> handed = List.copyOf(state);
-            List<Expr> after;
-            Expr end;
-            depth[0]++;
-            try {
-                after = next.apply(handed);
-                end = until == null ? null : until.apply(handed);
-            } finally {
-                depth[0]--;
-            }
+            List<Expr> after = next.apply(handed);
             if (after == null) {
                 throw new IllegalArgumentException("next gave no state");
             }
-            return new Loop(names, start, maxIterations, after, end, 0);
+            Expr end = until == null ? null : until.apply(handed);
+            List<Expr> turn = new java.util.ArrayList<>(after);
+            if (end != null) {
+                turn.add(end);
+            }
+            int level = Loops.level(turn);
+            List<String> names = new java.util.ArrayList<>();
+            java.util.Map<String, String> renamed = new java.util.HashMap<>();
+            for (int i = 0; i < start.size(); i++) {
+                names.add(Loops.stateName(level, i));
+                renamed.put(building + i, names.get(i));
+            }
+            java.util.Map<Expr, Expr> done = new java.util.IdentityHashMap<>();
+            List<Expr> stepped = new java.util.ArrayList<>();
+            for (Expr value : after) {
+                stepped.add(Loops.rename(value, renamed, done));
+            }
+            return new Loop(names, start, maxIterations, stepped, end == null ? null : Loops.rename(end, renamed, done), 0);
         }
 
         /**

@@ -138,15 +138,18 @@ calls it knows to be defined, refusing every other name.
 
 ### 3.4 Names
 
-*Amended 2026-10-20 (section 7, the owner's decision 38).* The state is not named by the
-application. `Expr.Loop.of` names it `ir_state` and the number of loops being built around it,
-and hands `next` and `until` the reference; a surface input may not start `ir_`, so no input can
-be read where the state is meant, and the constructor accepts no other name. A loop built inside
-another's turn gets the next number and reads the outer state by its own; a loop built apart and
-set in another's turn has the outer one's number and hides it in its own turn, where it could not
-have read it anyway. The constructor checks every reference to the state in `next` and `until`
-has the initial value's type, and `SurfaceOutputs` refuses a state read outside its loop. The
-generator names the variable itself (`ir_s…`).
+*Amended 2026-10-20 (section 7, the owner's decision 38 and review 9).* The state is not named
+by the application. `Expr.Loop.of` hands `next` and `until` each value of the state as a reference
+under a name no other loop has, then names the loop for good `ir_state<level>_<place>`: its level
+is one more than the highest level of any loop in its turn (0 for a turn that holds none), and the
+place is the value's in the state. A loop in another's turn, built there or apart, on any thread,
+so always has names other than the outer loop's, and may read the outer state by the outer names;
+names are a function of the loop alone, so two loops built alike are equal. A surface input may
+not start `ir_`, so no input can be read where the state is meant, and the constructor accepts no
+other names. The constructor checks every reference to a value of the state in `next` and `until`
+has that value's type, and `SurfaceOutputs` refuses a state read outside its loop. A loop built
+by hand may still reuse an enclosing loop's names; in its turn they are its own. The generator
+names the variables itself (`ir_s…`).
 
 ## 4. Alternatives
 
@@ -317,3 +320,13 @@ generator names the variable itself (`ir_s…`).
   through a sphere of constant density, gathering colour and alpha and ending once alpha passes
   0.99, on the GPU and on Apple's software renderer, and hold it to the same march in Java; the
   density is worked out, never sampled, so the early end leaves nothing undefined.
+- **2026-10-20, review 9: a loop's names follow what it holds, not the thread that built it.**
+  `Loop.of` named a state by a per-thread count of the loops being built around it. A loop built
+  for another's turn on a worker thread (a future, a parallel stream) counted 0, took the outer
+  loop's names, and the outer state it read became its own: `t + s` turned into `t + t`, the
+  inner loop no longer read the outer state, was computed once before the outer loop, and a
+  surface meant to draw 27 drew 1, with no error. The turn now sees the state under provisional
+  names no other loop has; once it is built, the loop is named by its level, one more than any
+  loop anywhere in its turn, and the provisional names are rewritten. A loop built apart and set
+  in another's turn has names of its own too, so the hiding of section 3.4 now arises only in
+  hand-built records. The device test builds the inner loop on a worker thread and draws 27.
