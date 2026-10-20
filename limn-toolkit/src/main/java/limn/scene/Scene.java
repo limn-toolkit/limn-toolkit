@@ -3987,15 +3987,22 @@ public final class Scene {
      * the window and then as the field. A key typed during the fade goes to the field as well,
      * where it went to a calendar that was no longer there to answer it.
      *
-     * <p>Nothing happens for an overlay that is not the top one, that already leaves the keyboard
-     * beneath it, or that is not in this scene. {@link #removeOverlay} then gives nothing back a
-     * second time.
+     * <p>Nothing happens for an overlay beneath one that holds the keyboard, that already leaves
+     * the keyboard beneath it, or that is not in this scene. {@link #removeOverlay} then gives
+     * nothing back a second time. An overlay beneath layers that all left the keyboard (a popover
+     * closing under the one opened from it, which is fading on top) gives it back at once: the
+     * keyboard stayed on a button in a panel going away, and a key opened the inner one again.
      */
     private void releaseOverlayKeyboard(Widget<?> overlay) {
         Ui.checkUiThread();
         int index = overlays.indexOf(overlay);
-        if (index < 0 || index != overlays.size() - 1 || keyboardBelow.contains(overlay)) {
+        if (index < 0 || keyboardBelow.contains(overlay)) {
             return;
+        }
+        for (int i = index + 1; i < overlays.size(); i++) {
+            if (!keyboardBelow.contains(overlays.get(i))) {
+                return; // a layer above holds the keyboard: it is not this one's to give
+            }
         }
         keyboardBelow.add(overlay);
         closingOverlays.add(overlay);

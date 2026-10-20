@@ -233,11 +233,64 @@ class PopoverAnchorLeavesTest extends ComponentTestBase {
         drive(scene).type("q");
         assertEquals("", innerField.text(), "nothing typed reaches the inner field");
         if (mode == DisplayMode.IN_SCENE) {
-            assertEquals("q", own.text(), "the owner's field has the keyboard back");
+            assertSame(outerButton, scene.focusedWidget(),
+                    "the keyboard was in the outer one, so it is on its button, as after any popover");
         }
         assertNull(innerField.scene(), "the inner panel is gone");
         inner.showFor(outerButton);
         assertTrue(inner.isOpen(), "the inner popover opens again: it no longer thinks it is open");
+    }
+
+    @Test
+    void closingTheOuterPopoverInTheSceneTakesTheKeyboardHomeAtOnce() {
+        nestedInScene(true);
+    }
+
+    @Test
+    void escapeTwiceInTheSceneTakesTheKeyboardHomeAtOnce() {
+        nestedInScene(false);
+    }
+
+    /**
+     * The inner popover's layer fades on top, and the outer one could not give the keyboard back
+     * under it: for the outer one's fade the keyboard stayed on the inner's button in the panel
+     * going away, published focused, and Space opened the inner popover again from there.
+     */
+    private void nestedInScene(boolean byCode) {
+        Button more = new Button("More");
+        Column root = new Column();
+        root.add(more);
+        root.add(new SizedBox(300, 200, new Label("Orders")));
+        inWindow(root);
+        runtime.setDelayClock(() -> now[0]);
+        scene.requestFocus(more);
+        Button columns = new Button("Columns");
+        Column outerContent = new Column();
+        outerContent.add(columns);
+        Popover outer = popover("More", outerContent, DisplayMode.IN_SCENE).attachTo(more);
+        Popover inner = popover("Columns", new SizedBox(160, 30, new TextField()), DisplayMode.IN_SCENE)
+                .attachTo(columns);
+        drive(scene).click(more);
+        frames(20);
+        assertSame(columns, scene.focusedWidget(), "sanity: on the outer one's button");
+        drive(scene).press(Keys.SPACE);
+        frames(20);
+        assertTrue(inner.isOpen(), "sanity: the inner one is open");
+        if (byCode) {
+            outer.close();
+        } else {
+            drive(scene).press(Keys.ESCAPE);
+            frames(1);
+            drive(scene).press(Keys.ESCAPE);
+        }
+        assertFalse(outer.isOpen() || inner.isOpen());
+        assertSame(more, scene.focusedWidget(), "the keyboard is home at once, not in the panel fading out");
+        drive(scene).press(Keys.SPACE);
+        frames(1);
+        assertFalse(inner.isOpen(), "Space during the fade opens nothing from the panel going away");
+        assertTrue(outer.isOpen(), "it reached the button at home, which opens the outer one again");
+        frames(40);
+        assertTrue(outer.isOpen() && !inner.isOpen());
     }
 
     // ------------------------------------------------------------------ the window closing
