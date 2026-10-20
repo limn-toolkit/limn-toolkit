@@ -408,10 +408,13 @@ public final class Field extends Widget<Field> {
     /**
      * A message on the line is about the control, so it reads in the control's language (the one
      * it declares, else the one it inherits); the helper text is the field's and reads in the
-     * field's. Asked again at every measure, when a language above may have changed.
+     * field's. The line declares the control's language only where it differs from the field's,
+     * so a form with no language of its own lays nothing out when a message comes and goes. Asked
+     * again at every measure, when a language above may have changed.
      */
     private void lineInControlsLanguage() {
-        line.setLocale(lineSpeaksForControl ? control.locale() : null);
+        Locale controls = lineSpeaksForControl ? control.locale() : null;
+        line.setLocale(controls == null || controls.equals(locale()) ? null : controls);
     }
 
     /** The tone a state's line is drawn in. */
