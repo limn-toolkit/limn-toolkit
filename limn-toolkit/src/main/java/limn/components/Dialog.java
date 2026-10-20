@@ -1584,12 +1584,13 @@ public final class Dialog {
      * modes.
      *
      * <p>A dialog is normally answered by a button, ESC or the scrim, all of which
-     * run {@link #resolve}. Its window can also simply die: an OS close button on a
-     * {@link WindowStyle#DECORATED} dialog, or the owner window going away and
-     * taking its registered popups with it. Frames stop at that instant, and every
-     * completion path here is driven by a fade, so without this the future is
-     * abandoned and a caller that does its cleanup in {@code thenAccept} silently
-     * never does it. Cancel is the honest answer: nobody chose anything.
+     * run {@link #resolve}, and the system's close of its own window asks it as ESC
+     * does. Its surface can still simply die: the owner window going away and taking
+     * the windows it owns with it, or the window an in-scene dialog is drawn in
+     * closing. Frames stop at that instant, and every completion path here is driven
+     * by a fade, so without this the future is abandoned and a caller that does its
+     * cleanup in {@code thenAccept} silently never does it. Cancel is the honest
+     * answer: nobody chose anything.
      */
     private void observeUnanswered(Scene scene) {
         unanswered = scene.observeWindowClosed(() -> {
