@@ -101,8 +101,8 @@ public final class DatePicker extends Widget<DatePicker> {
         });
         // What the picker's fields say, the start's first: the box is one control to a field.
         limn.components.internal.FieldControls.ownMessage(DatePicker.class, picker ->
-                picker.field.validationMessage() != null || picker.endField == null
-                        ? picker.field.validationMessage() : picker.endField.validationMessage());
+                picker.field.validationMessageSource() != null || picker.endField == null
+                        ? picker.field.validationMessageSource() : picker.endField.validationMessageSource());
     }
     private final CalendarView calendar = new CalendarView();
     /**

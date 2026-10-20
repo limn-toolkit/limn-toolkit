@@ -734,17 +734,35 @@ class DateFieldTest extends ComponentTestBase {
         field.setDate(LocalDate.of(2026, 11, 13));
         assertFalse(field.isValid());
         assertNotNull(field.validationMessage());
-        assertEquals("limn.date.invalid.unavailable", field.validationMessage().key());
+        assertEquals("limn.date.invalid.unavailable", field.validationMessageSource().key());
+    }
+
+    @Test
+    void theMessageIsAStringInTheFieldsOwnLanguageAndItsSourceTheValueBehind() {
+        // As Field, Label and Button: validationMessage() is the text as it reads, here in the
+        // field's own language, and validationMessageSource() the value a language change
+        // re-resolves.
+        build(dateField(), EN_US);
+        field.setLocale(PT_BR);
+        field.setDateFilter(day -> day.getDayOfMonth() != 13);
+        field.setDate(LocalDate.of(2026, 11, 13));
+        String said = field.validationMessage();
+        assertEquals("Esta data não está disponível", said, "the field's language, not the process's");
+        assertEquals("This date is not available", field.validationMessageSource().get(),
+                "the source read outside the field, in the process's");
+        field.setDate(LocalDate.of(2026, 11, 12));
+        assertNull(field.validationMessage());
+        assertNull(field.validationMessageSource());
     }
 
     @Test
     void theValidityMessageNamesWhichRuleWasBroken() {
         build(dateField(), PT_BR);
         type("31");
-        assertEquals("limn.date.invalid.incomplete", field.validationMessage().key());
+        assertEquals("limn.date.invalid.incomplete", field.validationMessageSource().key());
         field.setMaxDate(LocalDate.of(2026, 1, 1));
         field.setDate(LocalDate.of(2026, 5, 5));
-        assertEquals("limn.date.invalid.outOfRange", field.validationMessage().key());
+        assertEquals("limn.date.invalid.outOfRange", field.validationMessageSource().key());
     }
 
     @Test

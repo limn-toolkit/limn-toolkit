@@ -259,9 +259,9 @@ class FieldTest extends ComponentTestBase {
         assertEquals("Weekdays only", line(field).text());
 
         date.setDate(LocalDate.of(2026, 11, 5));
-        I18nString own = date.validationMessage();
+        String own = date.validationMessage();
         assertNotNull(own);
-        assertEquals(own.get(), line(field).text(), "the date's own reason, followed through its validity");
+        assertEquals(own, line(field).text(), "the date's own reason, followed through its validity");
         assertEquals(Tone.DANGER, line(field).tone());
 
         field.setValidation(Validation.ERROR, "We do not deliver in November");

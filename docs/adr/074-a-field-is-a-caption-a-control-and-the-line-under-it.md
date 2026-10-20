@@ -541,4 +541,5 @@ frozen at 1.0. The owner chose the common shape (his decision 14): `label()`, `h
 letter's `&` mark taken out as the caption shows it, and `labelSource()`, `helperTextSource()` and
 `validationMessageSource()` return the `I18nString`. The sketch in section 2.1 is amended in place.
 `DateField.validationMessage()` still returns its `I18nString` (its keys are tested), which this
-decision did not cover.
+decision did not cover. *(2026-10-19, the owner's decision 21: it returns the `String` too, with
+`validationMessageSource()`; ADR 042 has the amendment.)*
