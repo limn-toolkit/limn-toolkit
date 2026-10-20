@@ -358,6 +358,21 @@ the making of the picture again each time, 0.1 to 0.5 ms on this GPU (ADR 071 §
   §6), and a pass that meets one's projected bounds paints the path down to it whatever its
   ancestors' boxes say. An ancestor that clips its children still clips; the pass follows the
   paint.
+- **A layout in place damages a moved picture too.** (2026-10-19, the audit of that day, finding
+  TR-2.) A sibling shown or hidden, or a label whose text grows, lays out only the nearest ancestor
+  whose size survives the change, and that pass damaged its children's boxes grown by their own
+  outsets. A Transform inside one of them, the usual case (inside a `Padding`, a `Row`, a `Card`),
+  draws its child past that box, and its outset is not its wrapper's: the old picture stayed on
+  screen and the new one was not drawn until a whole frame. A Transform whose own size changed
+  moved its whole picture too, since its origin is a fraction of its box, and the layout set the
+  new matrix with no damage. The in-place passes (`Scene.runVisibilityLayouts` and the contained
+  pass) now record, before laying out, where every Transform away from rest under the subtree
+  draws its child, through every matrix and clip above it, and damage that and where it draws it
+  after, as a set does: the projection, perspective included, on the GPU and on the software
+  renderer alike. Nothing is recorded in a scene with no Transform away from rest. Tests:
+  `TransformPassSeamTest`, a slid, a scaled, a rotated and a turned-in-depth card wrapped in a
+  `Padding` and moved by a sibling hidden and by a sibling's text growing, and a scaled container
+  resized by a child hidden inside it, on both renderers.
 - **Culling under a transform.** `Scene.culledFromPaint` tests a widget under a Transform by its
   projected bounds; inside a layer, `Widget.missesClip` tests against the picture's local clip,
   which is exact again. With no Transform away from rest the test is today's.

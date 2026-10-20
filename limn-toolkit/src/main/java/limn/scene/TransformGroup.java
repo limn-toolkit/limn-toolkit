@@ -812,7 +812,9 @@ final class TransformGroup implements TransformAccess.Values {
     @Override
     public void laidOut() {
         // The origin is a fraction of the box and the translation's x follows the direction, so a
-        // new size or a new direction moves the matrix; the layout that moved them repaints it.
+        // new size or a new direction moves the matrix. No damage here, where the old place is
+        // lost: the layout that moved them repaints both, a full one the window and one in place
+        // the picture it recorded before it began and the one after (Scene.recordMovedPictures).
         if (owner.childTransform != null || !atRest()) {
             owner.setChildMatrix(composed());
         }

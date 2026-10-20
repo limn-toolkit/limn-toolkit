@@ -8,14 +8,19 @@ import limn.scene.Insets;
 import limn.scene.Scene;
 import limn.scene.Size;
 import limn.scene.Widget;
+import limn.scene.layout.Column;
 import limn.scene.layout.Opacity;
 import limn.scene.layout.Padding;
+import limn.scene.layout.Row;
+import limn.scene.layout.SizedBox;
 import limn.scene.layout.Stack;
 import limn.scene.layout.Transform;
 import limn.testing.HeadlessUi;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.lwjgl.opengl.GL33C;
 import org.lwjgl.system.MemoryUtil;
 
@@ -274,8 +279,112 @@ class TransformPassSeamTest {
         assertPartialIsWhole(layers(shown), () -> shown.setBackfaceVisible(true));
     }
 
+    // ------------------------------------------------------------------ moved by an in-place layout
+
+    /** A plain block of colour, a sibling that hides or a child that does. */
+    private static final class Block extends Widget<Block> {
+        private final float w;
+        private final float h;
+        private final Color color;
+
+        Block(float w, float h, Color color) {
+            this.w = w;
+            this.h = h;
+            this.color = color;
+        }
+
+        @Override
+        protected Size onMeasure(Constraints c) {
+            return c.constrain(w, h);
+        }
+
+        @Override
+        protected void onPaint(Canvas canvas) {
+            canvas.fillRect(0, 0, width(), height(), color);
+        }
+    }
+
+    /** The four ways a container draws its child away from its box, each well past a wrapper's. */
+    enum Kind {
+        SLID {
+            @Override
+            Transform make() {
+                return new Transform(new Card()).setTranslation(41.3f, 8.6f);
+            }
+        },
+        SCALED {
+            @Override
+            Transform make() {
+                return new Transform(new Card()).setOrigin(0.2f, 0.7f).setScale(1.37f, 1.21f).setTranslation(17.3f, 3.1f);
+            }
+        },
+        ROTATED {
+            @Override
+            Transform make() {
+                return new Transform(new Card()).setRotation(23.5f).setTranslation(31.3f, 6.1f);
+            }
+        },
+        TURNED_IN_DEPTH {
+            @Override
+            Transform make() {
+                return new Transform(new Card()).setPerspective(140).setRotation3D(limn.math.Vec3.UNIT_Y, 38)
+                        .setTranslation(33.3f, 5.7f);
+            }
+        };
+
+        abstract Transform make();
+    }
+
+    @ParameterizedTest
+    @EnumSource(Kind.class)
+    void aWrappedTransformMovedByASiblingHiddenDrawsWhatTheWholeFrameDrew(Kind kind) {
+        // A column of fixed size: a banner above, then a padding holding the container, which draws
+        // its card past the padding's box. The banner hides, an in-place layout moves the padding
+        // up, and the card's picture moves with it: where it was and where it is are both outside
+        // the padding's box and the padding's own reach.
+        Block banner = new Block(60, 18, Color.rgb(0x20A060));
+        Column column = new Column();
+        column.add(banner);
+        column.add(new Padding(new Insets(0, 0, 0, 0), kind.make()));
+        assertPartialIsWhole(layers(new SizedBox(150, 60, column)), () -> banner.setVisible(false),
+                kind + ", sibling hidden");
+    }
+
+    @ParameterizedTest
+    @EnumSource(Kind.class)
+    void aWrappedTransformMovedByASiblingsTextGrowingDrawsWhatTheWholeFrameDrew(Kind kind) {
+        // A label beside the padding grows with its text, which lays the row out in place, and the
+        // padding moves toward the end with the card drawn past it.
+        limn.components.Label label = new limn.components.Label("Go");
+        Row row = new Row();
+        row.add(label);
+        row.add(new Padding(new Insets(0, 0, 0, 0), kind.make()));
+        assertPartialIsWhole(layers(new SizedBox(170, 60, row)), () -> label.setText("Go a good way further"),
+                kind + ", sibling's text grown");
+    }
+
+    @Test
+    void aTransformResizedByAChildHiddenInsideItDrawsWhatTheWholeFrameDrew() {
+        // The container's own size changes: its origin is a fraction of its box, so its matrix moves
+        // the card that stays, and the layout that set the new matrix damaged neither place.
+        Block second = new Block(50, 20, Color.rgb(0xC02080));
+        Column inner = new Column();
+        inner.add(new Card());
+        inner.add(second);
+        Transform t = new Transform(inner).setScale(1.5f).setTranslation(30.3f, 12.2f);
+        Column column = new Column();
+        column.add(new Padding(new Insets(0, 0, 0, 0), t));
+        assertPartialIsWhole(layers(new SizedBox(150, 60, column)), () -> second.setVisible(false),
+                "scaled, a child inside hidden");
+    }
+
     private void assertPartialIsWhole(Widget<?> root, Runnable change) {
+        assertPartialIsWhole(root, change, "");
+    }
+
+    private void assertPartialIsWhole(Widget<?> root, Runnable change, String scenario) {
         Scene scene = new Scene(root);
+        scene.setTextRuler(new ShapingRuler(fonts)); // a label measures its text by the real faces
         scene.setPartialRendering(true);
         int texture = GL33C.glGenTextures();
         int fbo = GL33C.glGenFramebuffers();
@@ -291,8 +400,8 @@ class TransformPassSeamTest {
             byte[] partial = readTopDown();
             frame(scene, 0);
             byte[] whole = readTopDown();
-            assertTrue(differs(before, whole), "the change moved something, or the case proves nothing");
-            assertSame(whole, partial);
+            assertTrue(differs(before, whole), scenario + ": the change moved something, or the case proves nothing");
+            assertSame(whole, partial, scenario);
         } finally {
             GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, previousFbo);
             GL33C.glViewport(previousViewport[0], previousViewport[1], previousViewport[2], previousViewport[3]);
@@ -317,7 +426,7 @@ class TransformPassSeamTest {
     }
 
     /** Every pixel within 2 of the reference, or the worst one and how many are not. */
-    private static void assertSame(byte[] expected, byte[] actual) {
+    private static void assertSame(byte[] expected, byte[] actual, String scenario) {
         int bad = 0;
         int worst = 0;
         int where = 0;
@@ -335,7 +444,7 @@ class TransformPassSeamTest {
             }
         }
         if (bad > 0) {
-            fail("the partial frame differs from the whole one in " + bad + " channel(s), worst " + worst
+            fail(scenario + ": the partial frame differs from the whole one in " + bad + " channel(s), worst " + worst
                     + " at " + (where % WIDTH) + "," + (where / WIDTH));
         }
         assertEquals(0, bad);
