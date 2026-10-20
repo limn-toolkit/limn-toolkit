@@ -2,8 +2,11 @@ package limn.backend.lwjgl.transfer;
 
 import limn.transfer.DropAction;
 
+import org.jspecify.annotations.Nullable;
+
 import java.util.List;
 import java.util.Set;
+import java.util.function.LongFunction;
 
 /**
  * A drag from another program over one of our windows on X11, followed by reading the pointer
@@ -16,14 +19,16 @@ import java.util.Set;
  * pointer once at the window's edge: a page never scrolled under a file resting at its bottom
  * edge, and nothing under the pointer showed it would take the file.
  *
- * <p>So the drag is followed when what is offered includes files, the pointer is over the window
+ * <p>So the drag is followed when what is offered includes files, the pointer is on the window
  * with a button held and Escape up, and either the source sends a leave (the code read sends one
- * as it turns away; the guest's file manager did not), or it falls silent: the pointer moved, as
- * this side reads it, and the source said nothing for {@link #SILENCE_NANOS}, counted from the
- * later of that move and this side's last answer, with no position of the source's unanswered. A
- * source that talks to us sends a position at once when the pointer moves, unless it waits for
- * our answer, and a source of this program's own is never followed. A position from the source ends
- * the follow: it talks to us again.
+ * as it turns away; the guest's file manager did not), or it falls silent: the pointer
+ * moved, as this side reads it, and the source said nothing for {@link #SILENCE_NANOS}, counted
+ * from the later of that move and this side's last answer, with no position of the source's
+ * unanswered. A source that talks to us sends a position at once when the pointer moves, unless
+ * it waits for our answer. On the window is inside its rectangle with the window the top-level one
+ * under the pointer ({@link #onWindow}): a source moving onto another window stacked over ours
+ * sends a real leave. A drag of this program's own is never followed, on a leave or on silence.
+ * A position from the source ends the follow: it talks to us again.
  *
  * <p>Each turn then tells the scene where the pointer is when it moved. The offer is narrowed to
  * files and the action to a copy, since only files arrive through GLFW's drop, which tells the
@@ -71,13 +76,59 @@ final class X11DragFollow {
      * @param rootY  on the root window
      * @param state  the buttons and modifier keys held, as {@code XQueryPointer} answers them
      * @param escape whether Escape is held
-     * @param over   whether it is inside the window the drag is over
+     * @param over   whether it is on the window the drag is over: inside its rectangle, with that
+     *               window the top-level one under the pointer ({@link #onWindow})
      */
     record Sample(int rootX, int rootY, int state, boolean escape, boolean over) {
 
         boolean buttonHeld() {
             return (state & BUTTONS) != 0;
         }
+    }
+
+    /**
+     * A child of the root window, as {@code XGetWindowAttributes} reads it.
+     *
+     * @param x                its left edge, outside its border, on the root window
+     * @param y                its top edge, outside its border, on the root window
+     * @param width            inside its border
+     * @param height           inside its border
+     * @param border           the border's width
+     * @param viewable         whether it is shown
+     * @param overrideRedirect whether no window manager frames it: a drag picture, a menu, a tooltip
+     */
+    record TopLevel(int x, int y, int width, int height, int border, boolean viewable, boolean overrideRedirect) {
+
+        boolean contains(int rootX, int rootY) {
+            return rootX >= x && rootY >= y && rootX < x + width + 2 * border && rootY < y + height + 2 * border;
+        }
+    }
+
+    /**
+     * Whether a point is on our window: the first child of the root window that holds it, read
+     * from the top of the stacking order down, is ours. A window not shown is passed over, and so
+     * is one no window manager frames: a source's drag picture under the pointer takes drags itself
+     * and is no sign of a leave, which is what the window's rectangle alone was chosen for. Another
+     * window stacked over ours is: a source moving onto it sends a real leave, and the drag was
+     * followed over a window it had left.
+     *
+     * @param bottomUp the children of the root window, bottom first, as {@code XQueryTree} lists them
+     * @param read     reads one of them, or {@code null} when it cannot be read (destroyed meanwhile);
+     *                 asked from the top down only until the point is found
+     * @param ours     the child of the root window that holds our window: its frame, or itself
+     * @param rootX    the point on the root window
+     * @param rootY    the point on the root window
+     * @return whether that child is the top-level window under the point
+     */
+    static boolean onWindow(long[] bottomUp, LongFunction<@Nullable TopLevel> read, long ours, int rootX,
+                            int rootY) {
+        for (int i = bottomUp.length - 1; i >= 0; i--) {
+            TopLevel window = read.apply(bottomUp[i]);
+            if (window != null && window.viewable() && !window.overrideRedirect() && window.contains(rootX, rootY)) {
+                return bottomUp[i] == ours;
+            }
+        }
+        return false;
     }
 
     private boolean active;
@@ -155,10 +206,12 @@ final class X11DragFollow {
      * @param at      the pointer now
      * @param offered the canonical types the drag offers
      * @param dropped whether the drop was already said
+     * @param ours    whether the source is this program's own, which reaches our windows like any
+     *                source and never turns to GLFW's window: its leave is always a leave
      * @return whether the drag is followed, from the point {@code at}
      */
-    boolean keepsAfterLeave(Sample at, List<String> offered, boolean dropped) {
-        if (dropped || !at.over() || !at.buttonHeld() || at.escape() || deliverable(offered).isEmpty()) {
+    boolean keepsAfterLeave(Sample at, List<String> offered, boolean dropped, boolean ours) {
+        if (ours || dropped || !at.over() || !at.buttonHeld() || at.escape() || deliverable(offered).isEmpty()) {
             return false;
         }
         start(at);

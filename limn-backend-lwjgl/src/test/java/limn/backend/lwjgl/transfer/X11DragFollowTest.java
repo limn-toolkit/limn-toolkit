@@ -4,7 +4,9 @@ import limn.transfer.DropAction;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -40,7 +42,7 @@ class X11DragFollowTest {
     void aLeaveWhileThePointerStaysOverTheWindowWithTheButtonHeldIsTheSourceGoingRoundTheProxy() {
         X11DragFollow follow = new X11DragFollow();
         assertFalse(follow.active());
-        assertTrue(follow.keepsAfterLeave(held(200, 150), FILE_MANAGER, false),
+        assertTrue(follow.keepsAfterLeave(held(200, 150), FILE_MANAGER, false, false),
                 "the file manager's leave, sent as it turns to the window itself, leaves the drag on");
         assertTrue(follow.active());
         assertEquals(X11DragFollow.Step.NOTHING, follow.tick(held(200, 150)),
@@ -50,28 +52,28 @@ class X11DragFollowTest {
     @Test
     void aRealLeaveIsStillALeave() {
         assertFalse(new X11DragFollow().keepsAfterLeave(
-                new X11DragFollow.Sample(900, 150, BUTTON1, false, false), FILE_MANAGER, false),
+                new X11DragFollow.Sample(900, 150, BUTTON1, false, false), FILE_MANAGER, false, false),
                 "the pointer went on to another window");
         assertFalse(new X11DragFollow().keepsAfterLeave(
-                new X11DragFollow.Sample(200, 150, BUTTON1, true, true), FILE_MANAGER, false),
+                new X11DragFollow.Sample(200, 150, BUTTON1, true, true), FILE_MANAGER, false, false),
                 "Escape called the drag off over the window");
         assertFalse(new X11DragFollow().keepsAfterLeave(
-                new X11DragFollow.Sample(200, 150, 0, false, true), FILE_MANAGER, false),
+                new X11DragFollow.Sample(200, 150, 0, false, true), FILE_MANAGER, false, false),
                 "the button is up: the drag is over");
-        assertFalse(new X11DragFollow().keepsAfterLeave(held(200, 150), FILE_MANAGER, true),
+        assertFalse(new X11DragFollow().keepsAfterLeave(held(200, 150), FILE_MANAGER, true, false),
                 "a leave after the drop");
         assertFalse(new X11DragFollow().keepsAfterLeave(held(200, 150),
-                List.of(ClipboardTypes.TEXT, ClipboardTypes.HTML), false),
+                List.of(ClipboardTypes.TEXT, ClipboardTypes.HTML), false, false),
                 "text alone: GLFW refuses it at the drop, so nothing would ever land and nothing is followed");
         assertTrue(new X11DragFollow().keepsAfterLeave(
-                new X11DragFollow.Sample(200, 150, 1 << 9, false, true), FILE_MANAGER, false),
+                new X11DragFollow.Sample(200, 150, 1 << 9, false, true), FILE_MANAGER, false, false),
                 "a drag with the middle button is followed as well");
     }
 
     @Test
     void aPointerRestingAtTheBottomEdgeIsToldOnceAndThenTheAnswerIsSealedWhileItRests() {
         X11DragFollow follow = new X11DragFollow();
-        follow.keepsAfterLeave(held(200, 20), FILE_MANAGER, false);
+        follow.keepsAfterLeave(held(200, 20), FILE_MANAGER, false, false);
         List<X11DragFollow.Step> steps = run(follow, held(200, 120), held(200, 250), held(200, 292));
         assertEquals(List.of(X11DragFollow.Step.OVER, X11DragFollow.Step.OVER, X11DragFollow.Step.OVER), steps,
                 "every new point on the way down is told to the scene");
@@ -95,26 +97,26 @@ class X11DragFollowTest {
     @Test
     void theFollowStopsAtTheReleaseAtEscapeAndWhenThePointerLeavesTheWindow() {
         X11DragFollow released = new X11DragFollow();
-        released.keepsAfterLeave(held(200, 150), FILE_MANAGER, false);
+        released.keepsAfterLeave(held(200, 150), FILE_MANAGER, false, false);
         assertEquals(List.of(X11DragFollow.Step.OVER, X11DragFollow.Step.LEFT, X11DragFollow.Step.NOTHING),
                 run(released, held(200, 292), new X11DragFollow.Sample(200, 292, 0, false, true), held(200, 292)),
                 "released over the window: the scene is told the drag left, and GLFW's own drop brings the files");
         assertFalse(released.active());
 
         X11DragFollow escaped = new X11DragFollow();
-        escaped.keepsAfterLeave(held(200, 150), FILE_MANAGER, false);
+        escaped.keepsAfterLeave(held(200, 150), FILE_MANAGER, false, false);
         assertEquals(X11DragFollow.Step.CALLED_OFF, escaped.tick(new X11DragFollow.Sample(200, 150, BUTTON1, true, true)),
                 "Escape: the scene is told it left, and the source that nothing here takes it");
         assertFalse(escaped.active());
 
         X11DragFollow away = new X11DragFollow();
-        away.keepsAfterLeave(held(200, 150), FILE_MANAGER, false);
+        away.keepsAfterLeave(held(200, 150), FILE_MANAGER, false, false);
         assertEquals(X11DragFollow.Step.LEFT, away.tick(new X11DragFollow.Sample(900, 150, BUTTON1, false, false)),
                 "the source tells GLFW's window it left, which nothing hears: the pointer says it");
         assertFalse(away.active());
 
         X11DragFollow entered = new X11DragFollow();
-        entered.keepsAfterLeave(held(200, 150), FILE_MANAGER, false);
+        entered.keepsAfterLeave(held(200, 150), FILE_MANAGER, false, false);
         entered.entered(0); // the source came back round the proxy with an enter of its own
         assertEquals(X11DragFollow.Step.NOTHING, entered.tick(held(250, 150)));
     }
@@ -245,5 +247,64 @@ class X11DragFollowTest {
         assertFalse(follow.stale(100 * MS + X11DragFollow.STALE_NANOS + 1, up), "counted again from now");
         assertTrue(follow.stale(200 * MS + 2 * X11DragFollow.STALE_NANOS, up),
                 "a source that dropped on GLFW's window, or went away, leaves nothing over the window");
+    }
+
+    // ---- R11C-1: a real leave, and our own drag
+
+    /**
+     * Our own outgoing drag reaches our windows through the hidden window like any source: its leave,
+     * as it moves on to a window stacked over ours, is a leave, and is never followed, as its silence
+     * never is.
+     */
+    @Test
+    void ourOwnDragsLeaveIsNeverFollowed() {
+        X11DragFollow follow = new X11DragFollow();
+        follow.entered(0);
+        assertFalse(follow.keepsAfterLeave(held(200, 150), FILE_MANAGER, false, true),
+                "a drag of this program's own is never followed");
+        assertFalse(follow.active());
+        assertEquals(X11DragFollow.Step.NOTHING, follow.tick(held(210, 150)), "and the scene is told no point");
+    }
+
+    private static X11DragFollow.TopLevel shown(int x, int y, int width, int height) {
+        return new X11DragFollow.TopLevel(x, y, width, height, 0, true, false);
+    }
+
+    /**
+     * Inside is the top-level window under the pointer, read from the top of the stacking order
+     * down, and ours: not merely our window's rectangle. A source moving from our window onto
+     * another window stacked over it (its own window, partly over ours; a second window of ours)
+     * sends a real leave there, and the drag was followed over the window it had left, its drop
+     * area lit and its edge band scrolling under the other window.
+     */
+    @Test
+    void thePointerIsOnOurWindowOnlyWhenOursIsTheTopLevelUnderIt() {
+        long ours = 0x400001;
+        long other = 0x600001;
+        long picture = 0x700001;
+        long hidden = 0x800001;
+        Map<Long, X11DragFollow.TopLevel> windows = new HashMap<>();
+        windows.put(ours, shown(100, 100, 600, 400));
+        windows.put(other, shown(400, 200, 500, 400)); // stacked over ours, covering its right half
+        windows.put(picture, new X11DragFollow.TopLevel(480, 280, 64, 64, 0, true, true)); // a drag picture
+        windows.put(hidden, new X11DragFollow.TopLevel(0, 0, 2000, 2000, 0, false, false)); // unmapped
+        long[] bottomUp = {ours, other, picture, hidden};
+        assertFalse(X11DragFollow.onWindow(bottomUp, windows::get, ours, 500, 300),
+                "over the other window stacked over ours, inside our rectangle: not ours");
+        assertTrue(X11DragFollow.onWindow(bottomUp, windows::get, ours, 200, 300),
+                "over the part of ours the other window does not cover");
+        windows.put(picture, new X11DragFollow.TopLevel(180, 280, 64, 64, 0, true, true));
+        assertTrue(X11DragFollow.onWindow(bottomUp, windows::get, ours, 200, 300),
+                "a drag picture under the pointer, which no window manager frames, is looked through: "
+                        + "it is what the first guest build took for a leave");
+        assertFalse(X11DragFollow.onWindow(bottomUp, windows::get, ours, 50, 50), "outside every window");
+        assertFalse(X11DragFollow.onWindow(new long[] {ours, other}, w -> null, ours, 200, 300),
+                "a window that cannot be read (destroyed meanwhile) is no window, and ours is not found");
+        assertTrue(X11DragFollow.onWindow(new long[] {ours}, windows::get, ours, 100 + 600, 300) == false
+                        && X11DragFollow.onWindow(new long[] {ours}, windows::get, ours, 100 + 599, 300),
+                "the window covers its width, not one pixel more");
+        windows.put(ours, new X11DragFollow.TopLevel(100, 100, 600, 400, 2, true, false));
+        assertTrue(X11DragFollow.onWindow(new long[] {ours}, windows::get, ours, 100 + 603, 300),
+                "and its border on both sides");
     }
 }

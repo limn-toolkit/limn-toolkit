@@ -305,8 +305,16 @@ public final class X11Drag {
         if (type == enter) {
             follow.entered(System.nanoTime());
             x.pollMillis = 16;
+            Entry before = incomingSource != NULL ? incomingTarget : null;
             incomingSource = l0;
             incomingTarget = windows.get(memGetAddress(event + 32));
+            Entry leftBehind = leftByEnter(before, incomingTarget);
+            if (leftBehind != null) {
+                // The drag went on from one window of ours to another stacked over it: the first,
+                // whose leave was kept or never came, is told it left, or its scene keeps the drag
+                // after it is over, its drop area lit and its auto-scroll running.
+                ui.post(() -> left(leftBehind));
+            }
             List<String> names = new ArrayList<>();
             if ((l1 & 1) != 0) {
                 for (long atom : longs(l0, typeList)) {
@@ -374,7 +382,7 @@ public final class X11Drag {
             Entry over = incomingTarget;
             X11DragFollow.Sample at = over == null ? null : sample(over);
             boolean kept = at != null && incomingOffer != null && follow.keepsAfterLeave(at,
-                    ClipboardTypes.canonical(incomingSpellings), incomingDropped);
+                    ClipboardTypes.canonical(incomingSpellings), incomingDropped, isOurs());
             if (TRACE) {
                 System.err.println("limn.drag(x11): leave from " + l0 + (at == null ? ""
                         : ", the pointer at " + at.rootX() + "," + at.rootY() + (at.over() ? " inside" : " outside")
@@ -598,8 +606,7 @@ public final class X11Drag {
         X11DragFollow.Sample at = sample(over);
         long now = System.nanoTime();
         if (!follow.active()) {
-            boolean ours = incomingSource == x.window() || outgoing != null;
-            if (follow.keepsAfterSilence(now, at, ClipboardTypes.canonical(incomingSpellings), false, ours)) {
+            if (follow.keepsAfterSilence(now, at, ClipboardTypes.canonical(incomingSpellings), false, isOurs())) {
                 followFrom(over, "the source fell silent while the pointer moved over the window");
             } else if (follow.stale(now, at)) {
                 if (TRACE) {
@@ -631,9 +638,31 @@ public final class X11Drag {
     }
 
     /**
-     * The pointer as the follow reads it: where, what is held, and whether it is inside the window.
-     * Inside is the window's rectangle, whatever is on top of it there: a source's drag picture may
-     * be under the pointer and take drags itself, and a window found there is no sign of a leave.
+     * Whether the drag over a window of ours is this program's own: our hidden window is its
+     * source, or a drag of ours is out. It reaches our windows through the server like any other
+     * program's, and never goes round the proxy. X thread.
+     */
+    private boolean isOurs() {
+        return incomingSource == x.window() || outgoing != null;
+    }
+
+    /**
+     * The window of ours a drag was over when an enter names another: the one to tell the drag
+     * left, or {@code null} when no drag was over one, or the enter is for the same window.
+     *
+     * @param before  the window of ours the drag on was over, or {@code null} with no drag on
+     * @param entered the window of ours the enter is for, or {@code null}
+     */
+    static <W> @Nullable W leftByEnter(@Nullable W before, @Nullable W entered) {
+        return before != null && before != entered ? before : null;
+    }
+
+    /**
+     * The pointer as the follow reads it: where, what is held, and whether it is on the window:
+     * inside its rectangle, with that window the top-level one under the pointer. A source's drag
+     * picture may be under the pointer and take drags itself, and is passed over, as every window
+     * no window manager frames is; another window stacked over ours is not, since a source moving
+     * onto it sends a real leave.
      */
     private X11DragFollow.Sample sample(Entry over) {
         int[] pointer = pointer();
@@ -647,7 +676,73 @@ public final class X11Drag {
                 inside = in[0] >= 0 && in[1] >= 0 && in[0] < memGetInt(out + 16) && in[1] < memGetInt(out + 20);
             }
         }
+        if (inside) {
+            inside = onWindow(over, pointer[0], pointer[1]);
+        }
         return new X11DragFollow.Sample(pointer[0], pointer[1], pointer[2], escapeHeld(), inside);
+    }
+
+    /** Whether the top-level window under a point holds {@code over}; see {@link X11DragFollow#onWindow}. */
+    private boolean onWindow(Entry over, int rootX, int rootY) {
+        long top = topLevelOf(over.xwindow);
+        if (top == NULL) {
+            return false;
+        }
+        long[] bottomUp;
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            long out = stack.ncalloc(8, 4, 8);
+            // root, parent, children, count
+            if (x.x("XQueryTree", "pppppp>i", x.display(), root, out, out + 8, out + 16, out + 24) == 0) {
+                return false;
+            }
+            long children = memGetAddress(out + 16);
+            bottomUp = new long[children == NULL ? 0 : memGetInt(out + 24)];
+            for (int i = 0; i < bottomUp.length; i++) {
+                bottomUp[i] = memGetAddress(children + 8L * i);
+            }
+            if (children != NULL) {
+                x.x("XFree", "p>i", children);
+            }
+        }
+        return X11DragFollow.onWindow(bottomUp, this::topLevel, top, rootX, rootY);
+    }
+
+    /** A child of the root window as {@code XGetWindowAttributes} reads it, or {@code null} when it cannot. */
+    private X11DragFollow.@Nullable TopLevel topLevel(long window) {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            long attributes = stack.ncalloc(8, 1, 136); // XWindowAttributes
+            if (x.x("XGetWindowAttributes", "ppp>i", x.display(), window, attributes) == 0) {
+                return null;
+            }
+            // x, y, width, height, border_width at 0..16; map_state at 92 (IsViewable is 2);
+            // override_redirect at 120
+            return new X11DragFollow.TopLevel(memGetInt(attributes), memGetInt(attributes + 4),
+                    memGetInt(attributes + 8), memGetInt(attributes + 12), memGetInt(attributes + 16),
+                    memGetInt(attributes + 92) == 2, memGetInt(attributes + 120) != 0);
+        }
+    }
+
+    /** The child of the root window that holds {@code window}: the window manager's frame, or itself; or none. */
+    private long topLevelOf(long window) {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            long out = stack.ncalloc(8, 4, 8);
+            long at = window;
+            for (int depth = 0; depth < 32; depth++) {
+                if (x.x("XQueryTree", "pppppp>i", x.display(), at, out, out + 8, out + 16, out + 24) == 0) {
+                    return NULL;
+                }
+                long children = memGetAddress(out + 16);
+                if (children != NULL) {
+                    x.x("XFree", "p>i", children);
+                }
+                long parent = memGetAddress(out + 8);
+                if (parent == root || parent == NULL) {
+                    return at;
+                }
+                at = parent;
+            }
+        }
+        return NULL;
     }
 
     // ---- the source -----------------------------------------------------------------------------------

@@ -610,7 +610,8 @@ would take the file; the drop itself arrived, through GLFW, as the 2026-10-10 le
   not handled. Whether a drop callback is set plays no part.
 - **The follow.** The drag over a window of ours is followed, when files are among what is
   offered, the pointer is inside the window (its rectangle: a source's drag picture under the
-  pointer may take drags itself, so what is on top there is not asked), a button is held and
+  pointer may take drags itself, so what is on top there is not asked; *2026-10-20, review: and
+  the window the top-level one under the pointer, see below*), a button is held and
   Escape is up, on either of two signs. **A leave** from its source while that holds. **Or
   silence**: the pointer moved, as our own readings see it, and the source said nothing for
   80 ms, counted from the later of that move and our last answer, with no position of its
@@ -654,3 +655,25 @@ would take the file; the drop itself arrived, through GLFW, as the 2026-10-10 le
 `DragAutoScrollTest` the scene fed as the follow feeds it. Owed: the run on the Ubuntu X11
 guest, a file from that file manager rested at the bottom edge and released unmoved, and the
 GTK 3 peer's text, which keeps to the proxy, as before.
+
+The review of the follow (2026-10-20, R11C):
+
+- **A real leave over our rectangle** (R11C-1). Inside was the window's rectangle alone, so two
+  real leaves were kept: a source of any toolkit moving from our window onto another window
+  stacked over it (the source's own window partly over ours, a panel that takes drops, a second
+  window of ours), and our own outgoing drag doing the same, which reaches our windows through the
+  hidden window like any source; and "a drag of this program's own is never followed" was true of
+  silence only. While the person dragged over the other window, our scene behind it was told each
+  point, its hidden drop area lit and an edge band under the other window scrolled; and when that
+  window was a second one of ours, its enter replaced the drag's window without the first being
+  told the drag left, so the first kept the drag, its highlight and its auto-scroll, after it was
+  over. Now inside is the rectangle with the window the top-level one under the pointer: the
+  children of the root window read from the top of the stacking order down, passing over those
+  not shown and those no window manager frames (a drag picture, the reason the rectangle was
+  chosen; a menu; a tooltip), the first one holding the point must be the one that holds our
+  window (its frame, or itself). It is read only when the pointer is inside the rectangle, one
+  `XQueryTree` and an `XGetWindowAttributes` per window above ours. Our own drag's leave is never
+  kept, and an enter for another window of ours tells the window the drag was over that it left.
+  `X11DragFollowTest` reads the window under the point against a stacking it is handed, and
+  refuses our own drag's leave; `X11DragTest` the enter. The reading of the server is not run
+  here (no X server on the machine that builds); the Linux guests rerun the follow.
