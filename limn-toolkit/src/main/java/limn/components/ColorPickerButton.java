@@ -49,7 +49,9 @@ import java.util.function.Consumer;
  * chip, which is the form a dense inspector column wants. It is then square, as a
  * {@link Button} holding only an icon is: as wide as it is tall, with the chip in the middle, and
  * {@link #setMinWidth} or {@link #setMaxWidth} make it wider or narrower. In a wider box the chip
- * keeps the leading edge, as far from it as from the top.
+ * keeps the leading edge, as far from it as from the top of the square; in a narrower one it is in
+ * the middle; in a taller one, which a row stretching its children makes, it is as far from the
+ * leading edge as in the square and in the middle top to bottom.
  *
  * <p>Not a {@link Button} subclass: what it draws is a value, not a label, and the two
  * disagree about almost every line of paint. It behaves like one (hover, focus ring,
@@ -390,11 +392,13 @@ public final class ColorPickerButton extends Widget<ColorPickerButton> {
     /**
      * The room before the chip: beside a caption the chip stands from the edge as a field's leading
      * icon does, as a {@link Button}'s icon does, and the caption keeps the button padding on its
-     * own side. A chip alone stands as far from that edge as from the top, which centres it in the
-     * square it asks for and keeps it the leading item when a parent makes the box wider.
+     * own side. A chip alone stands from that edge as far as it would in the square of the box's
+     * shorter side: in the middle of the square it asks for, the leading item when a parent makes
+     * the box wider, where the square put it when a parent makes it taller, and in the middle when
+     * a parent or {@code setMaxWidth} makes it narrower, so it never leaves the box.
      */
-    private float leadingPad(SizeTokens t, float height) {
-        return text().isEmpty() ? (height - t.iconBox()) / 2 : t.fieldPadH();
+    private float leadingPad(SizeTokens t, float width, float height) {
+        return text().isEmpty() ? (Math.min(width, height) - t.iconBox()) / 2 : t.fieldPadH();
     }
 
     /**
@@ -458,7 +462,7 @@ public final class ColorPickerButton extends Widget<ColorPickerButton> {
         float chipY = (h - chip) / 2;
         // The chip is the leading item of the pair, so its left edge is one pad in from the
         // left reading one way and one chip further than that from the right reading the other.
-        float lead = leadingPad(t, h);
+        float lead = leadingPad(t, w, h);
         paintChip(canvas, t, theme, rtl ? w - lead - chip : lead, chipY, chip, chip);
 
         String caption = text();

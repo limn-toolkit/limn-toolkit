@@ -2293,7 +2293,11 @@ It now asks for its own height as its width: the control height of its step, 24 
 50, unless a face taller than the floor grew the height, in which case the width follows it. The
 icon stays in the middle. `ColorPickerButton` with an empty caption, a chip and no text, follows
 the same rule; in a box a parent made wider its chip keeps the leading edge, as far from it as from
-the top. A button with a caption, with or without an icon, and a button with neither are measured as
+the top. *(2026-10-20, later: as far from that edge as in the square of the box's shorter side, so a
+box a stretching row made taller keeps the chip where the square put it, centred top to bottom, and
+a box `setMaxWidth` made narrower centres it, as the icon is centred; taken from the height alone,
+the chip left a stretched box altogether and overran a narrowed one's border, R8D-1,
+`ColorChipInAGivenBoxTest`.)* A button with a caption, with or without an icon, and a button with neither are measured as
 before. `MediaControls`' transport buttons were already `controlHeight` squares, so the toolkit's
 icon buttons now agree. The XSMALL square is 24, exactly `MIN_HIT_TARGET`, so no step falls below
 the floor §4 keeps.
