@@ -187,8 +187,10 @@ public final class SegmentedControl extends Widget<SegmentedControl> {
     }
 
     /**
-     * Called with the chosen index whenever the selection changes: a click, an arrow key and a
-     * {@link #setSelectedIndex} from code all arrive here.
+     * The application's response to the user choosing a segment: a click, an arrow key, an
+     * assistive technology's select. Called with the chosen index. Never for
+     * {@link #setSelectedIndex}, which is a caller's write; to hear every change whatever caused
+     * it, {@linkplain #observeChanges watch} the control instead.
      *
      * <p>One handler at a time: {@code null} clears it, and setting a second while one is set
      * throws {@link IllegalStateException}.
@@ -219,11 +221,11 @@ public final class SegmentedControl extends Widget<SegmentedControl> {
     }
 
     /**
-     * Selects a segment, scrolls it into view and fires {@link #onSelect}; code and a click take
-     * the same path, so a listener sees every change either way. Re-selecting the current segment
-     * still reveals it (a caller asking for a segment is asking to be shown it) but changes
-     * nothing and fires nothing; that early return is what keeps two controls bound to each other
-     * from recursing, so do not remove it. UI thread only.
+     * Selects a segment and scrolls it into view. The change is announced to the watchers as the
+     * code's and does not reach {@link #onSelect}, which answers the user. Re-selecting the current
+     * segment still reveals it (a caller asking for a segment is asking to be shown it) but changes
+     * nothing and announces nothing; that early return is what keeps two controls bound to each
+     * other from recursing, so do not remove it. UI thread only.
      *
      * @param index a segment in {@code [0, segmentCount)}
      * @throws IndexOutOfBoundsException if {@code index} is not a segment. Arrowing past an end is
