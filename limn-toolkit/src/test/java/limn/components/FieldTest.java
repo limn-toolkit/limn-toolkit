@@ -203,6 +203,66 @@ class FieldTest extends ComponentTestBase {
         }
     }
 
+    /** The texts one frame of {@code scene} draws, laid out again first at a form's size. */
+    private static List<String> painted(Scene scene) {
+        scene.layoutPass(360, 400);
+        List<String> drawn = new ArrayList<>();
+        scene.renderFrame(new FakeCanvas(360, 400) {
+            @Override
+            public void drawText(String text, float x, float y, Font font, Paint paint) {
+                drawn.add(text);
+            }
+        });
+        return drawn;
+    }
+
+    @Test
+    void aValidationMessageReadsInTheLanguageOfTheControlItDescribes() {
+        // The owner's rule: a Portuguese date field in an English window says why in Portuguese,
+        // and the Field around it shows and returns that, where it showed the reason in its own
+        // language and returned it in the caller's. The application's own message follows the
+        // control too; with no language declared anywhere, everything is the window's.
+        String english = "This date is not available";
+        String portuguese = "Esta data não está disponível";
+        java.util.Locale ptBr = java.util.Locale.forLanguageTag("pt-BR");
+        limn.i18n.I18n.setLocale(java.util.Locale.ENGLISH);
+        try {
+            for (String declares : List.of("date", "field", "none")) {
+                DateField date = new DateField().setClock(TODAY).setDateFilter(d -> d.getDayOfMonth() != 13);
+                Field field = new Field("Delivery", date);
+                if (declares.equals("date")) {
+                    date.setLocale(ptBr);
+                } else if (declares.equals("field")) {
+                    field.setLocale(ptBr);
+                }
+                Scene scene = laidOut(field, 360);
+                date.setDate(LocalDate.of(2026, 11, 13));
+                String expected = declares.equals("none") ? english : portuguese;
+                assertEquals(expected, date.validationMessage(), declares + ": the date's own");
+                assertEquals(expected, field.validationMessage(), declares + ": the field returns the control's");
+                assertTrue(painted(scene).contains(expected), declares + ": and shows it: " + painted(scene));
+
+                field.setValidation(Validation.ERROR, new I18nString("limn.date.invalid.unavailable", english));
+                assertEquals(expected, field.validationMessage(), declares + ": the application's message");
+                assertTrue(painted(scene).contains(expected), declares + ": painted " + painted(scene));
+            }
+
+            // The control stops declaring: the line goes back to the window's language.
+            DateField date = new DateField().setClock(TODAY).setDateFilter(d -> d.getDayOfMonth() != 13);
+            date.setLocale(ptBr);
+            Field field = new Field("Delivery", date);
+            Scene scene = laidOut(field, 360);
+            date.setDate(LocalDate.of(2026, 11, 13));
+            assertTrue(painted(scene).contains(portuguese));
+            date.setLocale(null);
+            assertEquals(english, field.validationMessage());
+            List<String> after = painted(scene);
+            assertTrue(after.contains(english) && !after.contains(portuguese), "followed: " + after);
+        } finally {
+            limn.i18n.I18n.setLocale(java.util.Locale.ENGLISH);
+        }
+    }
+
     @Test
     void placedMustHoldTheControl() {
         TextField control = new TextField();

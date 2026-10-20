@@ -541,5 +541,29 @@ frozen at 1.0. The owner chose the common shape (his decision 14): `label()`, `h
 letter's `&` mark taken out as the caption shows it, and `labelSource()`, `helperTextSource()` and
 `validationMessageSource()` return the `I18nString`. The sketch in section 2.1 is amended in place.
 `DateField.validationMessage()` still returns its `I18nString` (its keys are tested), which this
-decision did not cover. *(2026-10-19, the owner's decision 21: it returns the `String` too, with
+decision did not cover. *(2026-10-20, the owner's decision 21: it returns the `String` too, with
 `validationMessageSource()`; ADR 042 has the amendment.)*
+
+## Note, 2026-10-20: a validation message reads in the language of its control
+
+The review of the getters above (R4C-2) found one `I18nString` read in two languages in one
+subtree: `Field.validationMessage()` in the caller's language, `DateField.validationMessage()` in
+the date field's own, and the line under a Portuguese date field in an English window painted in
+the field's language. The owner's rule (decision 27): a validation message reads in the language of
+the control it describes. Precisely:
+
+- **What the line shows as a message** (the application's message while its state is not `NONE`,
+  or the control's own reason) is drawn in the control's effective language: the language the
+  control declares, else the one it inherits from its wrapper, this field and the widgets above.
+  The helper text and the caption are the field's and read in the field's language.
+- **`Field.validationMessage()`** answers in that same language, whoever asks: the application's
+  message, else the control's own reason (it answered only the application's before), resolved
+  under the control's language; `validationMessageSource()` answers the value behind it in the
+  same order.
+- So "the language in effect" of the first note means, for a message, the control's language: with
+  nothing declared anywhere it is the window's, as before.
+
+`FieldTest.aValidationMessageReadsInTheLanguageOfTheControlItDescribes` pins a Portuguese date
+field in an English process inside a field with no language, a Portuguese field around a date field
+with none, and neither, for the control's reason and the application's message, painted and
+returned, and the line following the control when it stops declaring.
