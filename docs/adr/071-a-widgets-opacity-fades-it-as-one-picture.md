@@ -1099,7 +1099,24 @@ target, the premultiplied form of the formula with the coverage of an over,
   ten overlapping tints inside a group at one half, is 23 draw calls on the GPU and 24 on the
   software renderer, against 4 and 5 before this section, on every frame that draws it as a picture,
   while it fades or while it is turned, and the same as before at rest. `BlendMode`, `Canvas.saveLayer`
-  and `Transform` say so.)
+  and `Transform` say so. 2026-10-20, after the fourth review, R4S-4: overlap was first judged on
+  the quads, which reach a pixel past each shape for its antialiasing, so shapes one pixel apart did
+  not share: ten in a row took 21 draw calls, a heat map of 200 cells with one-pixel gaps 383, where
+  2 outside a mode. It is now judged on the pixels each primitive can cover: its bounds taken to the
+  pixels whose centres they hold, edges included, after moving an analytic shape's bounds (a
+  rectangle, rounded or not, a circle, an ellipse, a stroke of one) in by the part of its pad where
+  the program's ramp is below a 255th, all of the pad but 0.452 of a pixel, which is where an outline
+  that runs along an axis, as it does at the extremes its bounds are made of, reaches a 255th
+  (`1 − smoothstep(−aa, aa, d)` with `aa` half a pixel there). A glyph, an image, a shadow, a path's
+  fringe keep their whole quads, which can only over-estimate. Measured on this Mac's GPU, the
+  reviewer's harness: ten rectangles or circles in a row a pixel apart, 3 draw calls (21 before);
+  the 200 cells, 9 (383; runs of 64 at most); a 43-character line at 12 and at 20 pixels, 11 and 9,
+  unchanged, since neighbouring glyphs' pictures usually share a pixel where both have ink, and
+  telling which do would mean reading the atlas. `GlGroupBlendTest
+  .tintsInMultiplyOnePixelApartShareTheirTwoPassesAndStayExact`, on the GPU and the software
+  renderer, holds twenty tints a pixel apart to four draw calls with the picture within one step of
+  NORMAL's, which it must equal over a transparent group, and tints that overlap by a pixel to more
+  than ten; it drew 19.)
 - A group composited in a mode into another group (section 2.3's ancestor mode, nested) takes the
   same table, both passes over its quad.
 

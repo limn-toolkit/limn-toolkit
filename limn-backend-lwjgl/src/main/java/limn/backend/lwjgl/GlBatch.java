@@ -460,16 +460,34 @@ final class GlBatch implements AutoCloseable {
     // by the ensure() that reserves its room. Kept only while such a blend is in force.
     private int[] twoPassStart = new int[16];
     private float[] twoPassBox = new float[64];
+    /** Per primitive, how far inside its quad's edges it covers nothing that shows (see below). */
+    private float[] twoPassInset = new float[16];
     private int twoPassCount;
+    /** The inset the next {@link #ensure} records for its primitive; 0 unless the canvas says. */
+    private float nextCoverageInset;
+
+    /**
+     * Says that the primitive the next {@link #ensure} opens covers less than a 255th of a pixel
+     * further than {@code inset} device pixels inside its quad's edges: an analytic shape, whose
+     * quad reaches a pixel past it for the antialiasing ramp, which is spent half a pixel past the
+     * edge where the shape's outline runs along an axis, as it does at the extremes its bounds are
+     * made of. Read only while a mode drawn in two passes is in force, to let two shapes a pixel
+     * apart share a run.
+     */
+    void coverageInsetForNext(float inset) {
+        nextCoverageInset = inset;
+    }
     /** The most primitives one run tests against each other: the test is quadratic in the run. */
     private static final int MAX_TWO_PASS_RUN = 64;
 
-    private void beginTwoPassPrimitive(int start, float x0, float y0, float x1, float y1) {
+    private void beginTwoPassPrimitive(int start, float x0, float y0, float x1, float y1, float inset) {
         if (twoPassCount == twoPassStart.length) {
             twoPassStart = java.util.Arrays.copyOf(twoPassStart, twoPassCount * 2);
             twoPassBox = java.util.Arrays.copyOf(twoPassBox, twoPassCount * 8);
+            twoPassInset = java.util.Arrays.copyOf(twoPassInset, twoPassCount * 2);
         }
         twoPassStart[twoPassCount] = start;
+        twoPassInset[twoPassCount] = inset;
         int at = twoPassCount * 4;
         twoPassBox[at] = x0;
         twoPassBox[at + 1] = y0;
@@ -478,17 +496,35 @@ final class GlBatch implements AutoCloseable {
         twoPassCount++;
     }
 
-    /** Whether primitive {@code i}'s bounds overlap those of any from {@code from} up to it. */
+    /**
+     * Whether primitive {@code i} can cover a pixel that any from {@code from} up to it covers:
+     * each one's bounds, moved in by its inset, taken to the pixels whose centres they hold, edges
+     * included, which are the pixels the rasterizer shades for it.
+     */
     private boolean overlapsRun(int i, int from) {
-        int a = i * 4;
+        int ax0 = firstPixel(twoPassBox[i * 4] + twoPassInset[i]);
+        int ay0 = firstPixel(twoPassBox[i * 4 + 1] + twoPassInset[i]);
+        int ax1 = lastPixel(twoPassBox[i * 4 + 2] - twoPassInset[i]);
+        int ay1 = lastPixel(twoPassBox[i * 4 + 3] - twoPassInset[i]);
         for (int j = from; j < i; j++) {
-            int b = j * 4;
-            if (twoPassBox[a] < twoPassBox[b + 2] && twoPassBox[b] < twoPassBox[a + 2]
-                    && twoPassBox[a + 1] < twoPassBox[b + 3] && twoPassBox[b + 1] < twoPassBox[a + 3]) {
+            float inset = twoPassInset[j];
+            if (ax0 <= lastPixel(twoPassBox[j * 4 + 2] - inset) && firstPixel(twoPassBox[j * 4] + inset) <= ax1
+                    && ay0 <= lastPixel(twoPassBox[j * 4 + 3] - inset)
+                    && firstPixel(twoPassBox[j * 4 + 1] + inset) <= ay1) {
                 return true;
             }
         }
         return false;
+    }
+
+    /** The first pixel whose centre lies at or past {@code edge}. */
+    private static int firstPixel(float edge) {
+        return (int) Math.ceil(edge - 0.5f);
+    }
+
+    /** The last pixel whose centre lies at or before {@code edge}. */
+    private static int lastPixel(float edge) {
+        return (int) Math.floor(edge - 0.5f);
     }
 
     /**
@@ -560,8 +596,9 @@ final class GlBatch implements AutoCloseable {
                 flushFlat(); // drawn before this primitive, and its records with it
             }
             beginTwoPassPrimitive(indices.position(), Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY,
-                    Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY);
+                    Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY, nextCoverageInset);
         }
+        nextCoverageInset = 0;
         if (vertices.remaining() < vertexSlots * VERTEX_FLOATS) {
             int needed = vertices.position() + vertexSlots * VERTEX_FLOATS;
             vertices = MemoryUtil.memRealloc(vertices, Math.max(needed, vertices.capacity() * 2));
@@ -625,7 +662,7 @@ final class GlBatch implements AutoCloseable {
             flatVertices = MemoryUtil.memRealloc(flatVertices, flatVertices.capacity() * 2);
         }
         if (blendThen != null) {
-            beginTwoPassPrimitive(flatVertexCount, x0, y0, x1, y1);
+            beginTwoPassPrimitive(flatVertexCount, x0, y0, x1, y1, 0);
         }
         flatVertex(x0, y0, r, g, b, a);
         flatVertex(x1, y0, r, g, b, a);

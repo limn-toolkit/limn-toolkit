@@ -16,10 +16,13 @@ package limn.graphics;
  * group it combines with the window. A multiplied tint inside a fading container therefore shows
  * as itself while the container fades and multiplies what is beneath once the container is at 1.
  * Inside a group {@link #MULTIPLY} is drawn in two passes, of which the second reads what the first
- * left: draws in it that do not overlap share their two draw calls, and each draw that overlaps an
- * earlier one of the same run takes two of its own. Ten overlapping tints inside a card cost about
- * twenty draw calls more on every frame that draws the card as a picture, while it fades or while
- * it is turned, and none at rest.
+ * left, so draws in it share their two draw calls only while no two of them can cover the same
+ * pixel, sixty-four at most; each draw that can takes two of its own. What that costs on every frame
+ * that draws the group as a picture, while it fades or while it is turned, and never at rest, as
+ * measured on a graphics card: shapes a pixel apart or more share (ten rectangles or circles in a
+ * row, 3 draw calls; a heat map of 200 cells with one-pixel gaps, 9); ten tints that overlap, about
+ * 20 more; a line of text, whose neighbouring glyphs' pictures usually share a pixel, 9 to 11 for
+ * 43 characters, where outside a group it is 1.
  *
  * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
  * {@code default} branch.

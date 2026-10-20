@@ -56,6 +56,12 @@ final class GlCanvas implements Canvas {
     private static final int PAINT_LINEAR = 1;
     private static final int PAINT_RADIAL = 2;
     private static final float AA_PAD_DEVICE = 1.0f;
+    /**
+     * How far past an analytic shape's outline, where it runs along an axis, its coverage reaches a
+     * 255th: the ramp is {@code 1 − smoothstep(−aa, aa, d)} with {@code aa} half a pixel there, and
+     * falls below a 255th at 0.904 of {@code aa}, 0.452 of a pixel.
+     */
+    private static final float SDF_COVERAGE_REACH = 0.452f;
     private static final float FLATTEN_TOLERANCE_DEVICE = 0.25f;
     private static final float EPSILON = 1e-6f;
     /** How far from a whole device pixel an edge may be and still count as on it (float noise). */
@@ -2576,6 +2582,7 @@ final class GlCanvas implements Canvas {
         applyBlend(s);
         batch.setShape(halfW, halfH, tl, tr, br, bl, strokeHalfWidth, KIND_ROUND_RECT, paintType);
         batch.setClip(clip);
+        batch.coverageInsetForNext(AA_PAD_DEVICE - SDF_COVERAGE_REACH); // as emitSdfQuad's quad
         batch.ensure(4 * 11, 6 * 11);
 
         float reach = stroke + (1 + RING_MARGIN_DEVICE) / t.minScale() + 1e-4f;
@@ -2933,6 +2940,12 @@ final class GlCanvas implements Canvas {
         applyBlend(s);
         batch.setShape(halfW, halfH, tl, tr, br, bl, strokeHalfWidth, kind, paintType);
         batch.setClip(s.clip);
+        if (kind == KIND_ROUND_RECT || kind == KIND_ELLIPSE) {
+            // The program's ramp falls below a 255th SDF_COVERAGE_REACH past the outline where it
+            // runs along an axis, which is where the bounds are taken: the rest of the pad covers
+            // nothing that shows (only a mode drawn in two passes reads it).
+            batch.coverageInsetForNext(AA_PAD_DEVICE - SDF_COVERAGE_REACH);
+        }
         batch.ensure(4, 6);
         int base = batch.baseVertex();
         putCorner(t, cx, cy, ux, uy, vx, vy, -ex, -ey);

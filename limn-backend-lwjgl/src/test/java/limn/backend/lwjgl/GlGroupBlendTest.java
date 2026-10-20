@@ -180,6 +180,66 @@ class GlGroupBlendTest {
     }
 
     /**
+     * Tints in MULTIPLY one device pixel apart, the gap of a heat map's cells, inside a group over
+     * nothing: they share their two passes, judged on the pixels each can cover rather than on its
+     * quad, which reaches a pixel past its edge for the antialiasing, and the picture is the one
+     * NORMAL draws there, as it must be over a transparent group. Judged on the quads, every tint
+     * took two draw calls of its own: 21 for ten. Tints that overlap by a pixel still do not share.
+     */
+    @Test
+    void tintsInMultiplyOnePixelApartShareTheirTwoPassesAndStayExact() {
+        GlCanvas canvas = new GlCanvas(fonts);
+        try {
+            tintsOnePixelApart(canvas);
+        } finally {
+            canvas.dispose();
+        }
+    }
+
+    @Test
+    void tintsInMultiplyOnePixelApartShareTheirTwoPassesAndStayExactOnASoftwareRenderer() {
+        HeadlessGl.onSoftwareRenderer(() -> {
+            GlCanvas canvas = new GlCanvas(fonts);
+            try {
+                tintsOnePixelApart(canvas);
+            } finally {
+                canvas.dispose();
+            }
+        });
+    }
+
+    private void tintsOnePixelApart(GlCanvas canvas) {
+        for (float gap : new float[] {1, -1}) {
+            float cell = 5;
+            java.util.function.BiConsumer<GlCanvas, BlendMode> tints = (c, mode) -> {
+                c.saveLayer(0, 0, SIZE, SIZE, HALF);
+                c.save();
+                c.setBlendMode(mode);
+                for (int i = 0; i < 10; i++) {
+                    float x = 2 + (i % 5) * (cell + gap);
+                    float y = 10 + (i / 5) * (cell + gap);
+                    c.fillRoundRect(limn.graphics.RoundRect.of(x, y, cell, cell, 1.5f), SOURCE.withAlpha(0.6f));
+                    c.fillCircle(x + cell / 2, y + 20 + cell / 2, cell / 2, SOURCE.withAlpha(0.6f));
+                }
+                c.restore();
+                c.restore();
+            };
+            render(canvas, Color.TRANSPARENT, c -> tints.accept(c, BlendMode.NORMAL));
+            byte[] normal = lastImage;
+            render(canvas, Color.TRANSPARENT, c -> tints.accept(c, BlendMode.MULTIPLY));
+            int calls = canvas.drawCallsLastFrame();
+            byte[] multiply = lastImage;
+            if (gap > 0) {
+                assertTrue(worst(normal, multiply) <= 1, "MULTIPLY over nothing is NORMAL, off by "
+                        + worst(normal, multiply));
+                assertTrue(calls <= 4, "twenty tints a pixel apart share their passes: " + calls + " draw calls");
+            } else {
+                assertTrue(calls > 10, "tints that overlap take passes of their own: " + calls + " draw calls");
+            }
+        }
+    }
+
+    /**
      * Additive light over translucent content of the group, the group laid over nothing: every
      * pixel it leaves is a valid premultiplied one, no channel above its coverage, and it is the
      * sum of the two, colour and coverage, clamped, as a web page's plus-lighter has it. The colour
@@ -345,6 +405,20 @@ class GlGroupBlendTest {
         return render(canvas, page, SIZE / 2, SIZE / 2, paint);
     }
 
+    /** Every pixel of the last {@link #render}, bottom-up as GL reads them. */
+    private static byte[] lastImage;
+
+    /** The largest difference of any colour channel between two images. */
+    private static int worst(byte[] a, byte[] b) {
+        int worst = 0;
+        for (int i = 0; i < a.length; i++) {
+            if (i % 4 != 3) {
+                worst = Math.max(worst, Math.abs((a[i] & 0xFF) - (b[i] & 0xFF)));
+            }
+        }
+        return worst;
+    }
+
     /** One frame over {@code page} into a texture of its own; the pixel at {@code (x, y)}, alpha last. */
     private static int[] render(GlCanvas canvas, Color page, int x, int y, Consumer<GlCanvas> paint) {
         int texture = GL33C.glGenTextures();
@@ -368,6 +442,14 @@ class GlGroupBlendTest {
             paint.accept(canvas);
             canvas.endFrame();
             GL33C.glPixelStorei(GL33C.GL_PACK_ALIGNMENT, 1);
+            ByteBuffer all = MemoryUtil.memAlloc(SIZE * SIZE * 4);
+            try {
+                GL33C.glReadPixels(0, 0, SIZE, SIZE, GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, all);
+                lastImage = new byte[SIZE * SIZE * 4];
+                all.get(lastImage);
+            } finally {
+                MemoryUtil.memFree(all);
+            }
             GL33C.glReadPixels(x, SIZE - 1 - y, 1, 1, GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, pixel);
             return new int[] {pixel.get(0) & 0xFF, pixel.get(1) & 0xFF, pixel.get(2) & 0xFF, pixel.get(3) & 0xFF};
         } finally {
