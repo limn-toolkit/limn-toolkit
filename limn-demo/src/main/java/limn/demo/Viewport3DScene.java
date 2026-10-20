@@ -180,10 +180,13 @@ final class Viewport3DScene {
             hint.setText(index == 0 ? Text.HINT_SELECT : Text.HINT_ORBIT);
         });
 
-        // The render scale of the materials scene: its target is allocated at this fraction of
-        // the view's device resolution and upsampled into the same box, so the Textures figure
-        // in the performance footer falls with the square of the setting while the widget's
-        // geometry does not move at all.
+        // The render scale of the page, every scene of it: each target is allocated at this
+        // fraction of its view's device resolution and upsampled into the same box, so the
+        // Textures figure in the performance footer falls with the square of the setting while
+        // the widget's geometry does not move at all. Set on all of them at once, the hidden ones
+        // included, so a scene switched to later is already at the scale the toolbar shows; a
+        // hidden view renders nothing, so setting it costs nothing until it shows.
+        List<Viewport3D> views = List.of(pbr, shadows);
         float[] scales = {1f, 0.75f, 0.5f, 0.25f};
         List<I18nString> percents = new ArrayList<>();
         for (float scale : scales) {
@@ -191,7 +194,12 @@ final class Viewport3DScene {
         }
         ComboBox<I18nString> renderScale = ComboBox.localized(percents);
         renderScale.setAccessibleName(Text.RENDER_SCALE);
-        renderScale.onSelect(() -> pbr.setRenderScale(scales[renderScale.selectedIndex()]));
+        renderScale.onSelect(() -> {
+            float scale = scales[renderScale.selectedIndex()];
+            for (Viewport3D view : views) {
+                view.setRenderScale(scale);
+            }
+        });
         Label scaleLabel = new Label(Text.RENDER_SCALE).setMuted(true).setLabelFor(renderScale);
 
         Row toolbar = Page.row(12, picker, scaleLabel, new SizedBox(100, SizedBox.UNSET, renderScale));
