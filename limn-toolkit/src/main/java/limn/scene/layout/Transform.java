@@ -69,8 +69,9 @@ import java.util.Objects;
  * on either axis, turned exactly edge-on, or showing its back while {@link #setBackfaceVisible back
  * faces are hidden}, the child and everything inside it are not {@link #isShowing() showing}: the
  * Tab key, an access letter and the pointer pass them by, the focus, the hover and a press held
- * there are taken out of them at the set or the frame that does it, with the events a widget
- * hidden by {@link #setVisible} is sent, and a screen reader is told they are hidden. They come
+ * there are taken out of them, with the events a widget hidden by {@link #setVisible} is sent,
+ * inside the set that does it, or once the frame of a motion that does it has stepped every
+ * motion, and a screen reader is told they are hidden. They come
  * back by themselves, in reach and published again, when the scale returns or the face turns
  * back; the focus they lost is not given back. Nothing of the child's own state changes, and
  * {@link #isVisible()} still answers what it was told.

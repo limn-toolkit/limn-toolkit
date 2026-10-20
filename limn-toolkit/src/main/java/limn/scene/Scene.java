@@ -2879,18 +2879,74 @@ public final class Scene {
      * events a hidden widget is sent. Either way the accessible tree is walked again, since what it
      * publishes of them (visible, showing, focusable, their verbs) changed, on a frame of a motion
      * too, which otherwise leaves the tree alone.
+     *
+     * <p>From a set the application made, the revocation runs at once, inside the call, as
+     * {@code setVisible(false)}'s does. From a motion's frame it waits until every ticker of the
+     * frame has run ({@link #revokeUndrawnAfterTheTicks}), so that the handlers it runs, which are
+     * the application's, never run while a container is setting its matrix, and a throw from one
+     * cannot cut a motion's frame short. From a container leaving the scene, settling its motion
+     * in the walk that takes it out, it does not run at all: the parent link is already cut, and
+     * whatever removes the branch takes the focus out of it once the walk is over.
      */
     void childrenDrawnChanged(Widget<?> container, boolean undrawn) {
-        if (undrawn) {
-            // A copy: what a revocation runs may change the children.
-            for (Widget<?> child : List.copyOf(container.children())) {
-                if (child.scene() == this) {
-                    onWidgetDetached(child);
-                }
-            }
-        }
         markAccessibleNodesDirty();
         scheduleFrame();
+        if (!undrawn || !inThisTree(container)) {
+            return;
+        }
+        if (tickingInProgress) {
+            if (!undrawnAfterTheTicks.contains(container)) {
+                undrawnAfterTheTicks.add(container);
+            }
+            return;
+        }
+        revokeUndrawn(container);
+    }
+
+    /** Containers a motion's frame drew as nothing, revoked after the frame's tickers; in order. */
+    private final List<Widget<?>> undrawnAfterTheTicks = new ArrayList<>();
+
+    /**
+     * Runs the revocations a motion's frames left waiting: for each container still in this scene
+     * and still drawing nothing, as {@link #childrenDrawnChanged} would have. A handler that throws
+     * is reported as a ticker's throw is, and the next container's revocation still runs.
+     */
+    private void revokeUndrawnAfterTheTicks() {
+        while (!undrawnAfterTheTicks.isEmpty()) {
+            Widget<?> container = undrawnAfterTheTicks.remove(0);
+            if (!container.drawsNoChildren() || !inThisTree(container)) {
+                continue; // drawn again by a later frame or set, or gone: nothing to take out
+            }
+            try {
+                revokeUndrawn(container);
+            } catch (Throwable error) {
+                LOG.log(Level.ERROR, "a handler threw as a transform drew its child as nothing; "
+                        + "the UI loop keeps running", error);
+                limn.backend.Crashes.report(limn.backend.CrashPhase.TICKER, error);
+            }
+        }
+    }
+
+    /** Takes the focus, the hover, a press and a drag out of {@code container}'s children. */
+    private void revokeUndrawn(Widget<?> container) {
+        // A copy: what a revocation runs may change the children.
+        for (Widget<?> child : List.copyOf(container.children())) {
+            if (child.scene() == this) {
+                onWidgetDetached(child);
+            }
+        }
+    }
+
+    /** Whether {@code widget} hangs, through its parents, from this scene's root or an overlay. */
+    private boolean inThisTree(Widget<?> widget) {
+        if (widget.scene() != this) {
+            return false;
+        }
+        Widget<?> top = widget;
+        while (top.parent() != null) {
+            top = top.parent();
+        }
+        return top == root || overlays.contains(top);
     }
 
     /** Whether a widget left the tree since the accessibility walk last listed who answers for a node. */
@@ -5944,6 +6000,7 @@ public final class Scene {
         if (!rePresent && frameCrashStreak <= FRAME_CRASH_RECOVERY_LIMIT) {
             tickAnimations();
         }
+        revokeUndrawnAfterTheTicks();
         // Before the full-damage decision, because a contained pass that could not keep its
         // promise sets layoutDirty and this frame has to become the full one after all.
         runContainedLayouts();

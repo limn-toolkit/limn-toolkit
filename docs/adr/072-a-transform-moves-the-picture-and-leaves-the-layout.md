@@ -486,6 +486,20 @@ Both depend on section 3, and with it they are short.
   exactly edge-on is the same for that frame. Tests: `TransformUndrawnChildTest`. Left as before:
   a child drawn wholly behind the eye is not showing but stays in reach (finding TR-5 is about
   its bounds).
+  (2026-10-19, after review, R3S-3 and R3S-5: the revocation ran the application's focus-lost and
+  mouse handlers from inside the matrix setter, and from a motion's frame that meant inside the
+  ticker: a handler that threw left the container holding a ticker the scene had dropped, and every
+  later motion of it stood still, the defect OP-3 closed for `onArrive` by another door; and a
+  container removed mid-motion settled at a target that draws nothing inside the walk that takes it
+  out, so the revocation ran there, the very place OP-2 moved `onArrive` out of. Now a set the
+  application makes revokes inside the call, as `setVisible(false)` does; a motion's frame queues
+  the container, and the scene revokes after every ticker of the frame has run, for each container
+  still in the scene and still drawing nothing, a throw logged and reported as a ticker's is and
+  the next one still revoked; and a container no longer hanging from the scene's root, left
+  mid-walk, revokes nothing, since what removes it takes the focus out after the walk. No motion
+  runs the application's code from `moved()` any more, so the guard OP-3 put round a frame's
+  arrivals covers every callback a frame runs. Tests: `TransformUndrawnChildTest`, a focus-lost
+  handler that throws as a `scaleTo` collapses the child, and a container removed mid-motion.)
 
 ### 2.9 Backdrop effects under and inside a transform
 

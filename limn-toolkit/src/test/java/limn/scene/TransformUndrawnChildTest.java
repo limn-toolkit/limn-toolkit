@@ -51,6 +51,11 @@ class TransformUndrawnChildTest extends SceneTestBase {
         final String name;
         int presses;
         int releases;
+        int lost;
+        /** An application's bug: its focus-lost handler throws. */
+        boolean throwOnLost;
+        /** Run first thing as the focus is lost, or null. */
+        Runnable whenLost;
 
         Face(String name) {
             this.name = name;
@@ -74,6 +79,17 @@ class TransformUndrawnChildTest extends SceneTestBase {
                 event.consume();
             } else if (event.type() == MouseEvent.Type.RELEASE) {
                 releases++;
+            }
+        }
+
+        @Override
+        protected void onFocusLost() {
+            lost++;
+            if (whenLost != null) {
+                whenLost.run();
+            }
+            if (throwOnLost) {
+                throw new IllegalStateException("an application's focus-lost handler throws");
             }
         }
 
@@ -290,6 +306,56 @@ class TransformUndrawnChildTest extends SceneTestBase {
         AccessibleNode node = harness.node("face");
         assertTrue(node.has(Accessible.State.SHOWING) && node.has(Accessible.State.FOCUSABLE),
                 "published drawn from the frame it is drawn on: " + node.states());
+    }
+
+    // ------------------------------------------------------------------ from a motion
+
+    private void step(Scene scene, int frames) {
+        for (int i = 0; i < frames; i++) {
+            now[0] += TimeUnit.MILLISECONDS.toNanos(16);
+            frame(scene);
+        }
+    }
+
+    @Test
+    void aMotionFrameThatDrawsAFocusedChildAsNothingTakesTheFocusAfterTheFramesMotionsAndOutlivesAThrow() {
+        Face face = new Face("face");
+        face.throwOnLost = true;
+        Transform t = new Transform(face);
+        Scene scene = sceneOf(column(new Face("before"), t, new Face("after")));
+        scene.requestFocus(face);
+        List<String> seen = new ArrayList<>();
+        face.whenLost = () -> seen.add("focus lost at scale " + t.scaleX());
+        t.scaleTo(0, 1, 0.1, null);
+        step(scene, 12);
+        assertEquals(0f, t.scaleX(), "collapsed");
+        assertEquals(1, face.lost, "the focus taken out of it once, its handler's throw contained");
+        assertNull(scene.focusedWidget());
+        assertEquals(List.of("focus lost at scale 0.0"), seen, "after the frame had set the matrix");
+        t.scaleTo(1, 1, 0.1, null);
+        step(scene, 12);
+        assertEquals(1f, t.scaleX(), "a later motion still moves");
+        t.slideTo(30, 0, 0.1, null);
+        step(scene, 12);
+        assertEquals(30f, t.translationX(), "and another kind too");
+    }
+
+    @Test
+    void aContainerRemovedWhileItsMotionDrawsTheChildAsNothingLosesTheFocusAfterTheDetachWalk() {
+        Face face = new Face("face");
+        Transform t = new Transform(face);
+        Column column = column(new Face("before"), t, new Face("after"));
+        Scene scene = sceneOf(column);
+        scene.requestFocus(face);
+        List<String> seen = new ArrayList<>();
+        face.whenLost = () -> seen.add("in a scene: " + (face.scene() != null));
+        t.scaleTo(0, 0, 0.3, null);
+        step(scene, 2);
+        Widget<?> wrapper = t.parent();
+        column.remove(wrapper); // settles the scale at 0 inside the walk that takes it out
+        assertEquals(1, face.lost, "the focus lost once");
+        assertNull(scene.focusedWidget());
+        assertEquals(List.of("in a scene: false"), seen, "and only once the walk was over");
     }
 
     // ------------------------------------------------------------------ two faces
