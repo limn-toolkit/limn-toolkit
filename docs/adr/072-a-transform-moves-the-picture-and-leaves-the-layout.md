@@ -515,6 +515,14 @@ Both depend on section 3, and with it they are short.
   handler's throw is rethrown once every child is revoked, and from a motion's frame it is reported
   as a ticker's. Tests: `AnchoredPopupHiddenAnchorTest`, a popover and a combo box on a card turned
   over, scaled to 0 and collapsed by a motion, in the scene and in a window of their own.)
+  (2026-10-20, the third review, R5S-7: a set's revocation went on to take the focus out of each
+  child after its popups' handlers had run, without asking again whether the container still drew
+  nothing, so an `onClose` that put the scale back left the face drawn and its focus taken all the
+  same; the queued path already asked. A set's revocation now stops once a handler has drawn the
+  container again or taken it out. Test: `AnchoredPopupHiddenAnchorTest`, a popover in a window of
+  its own whose `onClose` scales the card back. In the scene the popover holds the keyboard and
+  gives it back before its `onClose` runs, while the face is still not drawn, so there the focus
+  goes to nobody, as after `setVisible(false)`.)
 
 ### 2.9 Backdrop effects under and inside a transform
 

@@ -3146,7 +3146,8 @@ public final class Scene {
      * press and a drag out of them, as {@code setVisible(false)} does for a hidden branch: a
      * popover open from a button on a face that turns away has nothing left to hang from. Each
      * child's revocation runs whatever a popup's handler threw before it, and the first throw is
-     * rethrown once all have run.
+     * rethrown once all have run. A handler that draws the container again, or takes it out of the
+     * scene, ends the revocation there.
      */
     private void revokeUndrawn(Widget<?> container) {
         Throwable failed = null;
@@ -3156,6 +3157,11 @@ public final class Scene {
                 Throwable closing = anchorsLeaving(child);
                 if (closing != null) {
                     failed = Widget.addFailure(failed, closing);
+                }
+                if (!container.drawsNoChildren() || !inThisTree(container)) {
+                    // A handler drew it again (an onClose that put the scale back) or took it out,
+                    // as the queued path asks before it starts: nothing is left to take out here.
+                    break;
                 }
                 try {
                     onWidgetDetached(child);

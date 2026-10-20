@@ -390,4 +390,50 @@ class AnchoredPopupHiddenAnchorTest extends ComponentTestBase {
         assertFalse(popover.isOpen(), "the popover went with the page");
         assertEquals(List.of("ADJUSTMENT"), heard);
     }
+
+    @Test
+    void aPopoverWhoseOnCloseDrawsTheFaceAgainLeavesTheFaceItsFocus() {
+        // A card scaled to 0 by a set while a popover is open from a button on its face, and the
+        // popover's onClose puts the scale back ("closing the filter restores the card"): the face
+        // is drawn again, so the focus on it stays where it is. The set went on to take the focus
+        // out of a face that was drawn again, after the handler had undone it. In a window of its
+        // own the popover leaves the scene's keyboard on the face; in the scene it holds it, and
+        // gives it back before its onClose runs, while the face is still not drawn.
+        for (DisplayMode mode : new DisplayMode[] {DisplayMode.NATIVE_WINDOW}) {
+            Button filter = new Button("Filter");
+            Button second = new Button("Second");
+            Column face = new Column();
+            face.add(filter);
+            face.add(second);
+            limn.scene.layout.Transform card = card(face);
+            Column root = new Column();
+            root.add(card);
+            root.add(new Button("Other"));
+            inWindow(root);
+            boolean[] once = {false};
+            Popover popover = new Popover(new SizedBox(160, 30, new TextField())).setDisplayMode(mode)
+                    .onClose(origin -> {
+                        if (!once[0]) {
+                            once[0] = true;
+                            card.setScale(1);
+                        }
+                    });
+            scene.requestFocus(second);
+            popover.showFor(filter);
+            frames(3);
+            String where = mode.toString();
+            assertTrue(popover.isOpen(), where + ": sanity");
+
+            card.setScale(0);
+            frames(3);
+
+            assertFalse(popover.isOpen(), where);
+            assertEquals(1f, card.scaleX(), where + ": sanity, the handler drew the face again");
+            assertTrue(second.isShowing(), where);
+            assertTrue(second.isFocused(), where + ": the face drawn again keeps the focus, given back to it in the "
+                    + "scene: " + scene.focusedWidget());
+            owner.requestClose();
+            runtime.drain();
+        }
+    }
 }
