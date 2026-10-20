@@ -47,6 +47,8 @@ import java.util.Objects;
  */
 public abstract class Widget<W extends Widget<W>> {
 
+    private static final System.Logger LOG = System.getLogger(Widget.class.getName());
+
     /**
      * This widget as its own type, which is what every setter here returns so that a chain of
      * them keeps the type it started with: {@code new Button("OK").setEnabled(false)} is a
@@ -508,11 +510,12 @@ public abstract class Widget<W extends Widget<W>> {
         }
         children.add(index, child);
         child.parent = this;
-        child.setSceneRecursively(scene);
+        List<Runnable> settled = child.setSceneRecursively(scene);
         childrenChanged();
         // Structure is announced on the parent, from the one funnel every child joins through,
         // so a watcher of a tree hears a mount as it happens rather than by diffing child lists.
         notifyChange(Change.of(Change.Aspect.CHILDREN, Change.Origin.CODE));
+        runSettled(settled);
     }
 
     /** Removes a child (UI thread only); protected for the reason {@link #add(Widget)} is. */
@@ -532,12 +535,13 @@ public abstract class Widget<W extends Widget<W>> {
         Objects.requireNonNull(origin, "origin");
         if (children.remove(child)) {
             child.parent = null;
-            child.setSceneRecursively(null);
+            List<Runnable> settled = child.setSceneRecursively(null);
             if (scene != null) {
                 scene.onWidgetDetached(child);
             }
             childrenChanged();
             notifyChange(Change.of(Change.Aspect.CHILDREN, origin));
+            runSettled(settled);
         }
     }
 
@@ -567,42 +571,47 @@ public abstract class Widget<W extends Widget<W>> {
      *
      * <p>A fade or a motion of a container that leaves its scene settles during the walk, while
      * {@link #scene()} still answers the scene being left, and what it runs at its end, its
-     * {@code onArrive} and a flip's swap, runs once the walk is over, every widget of the subtree
-     * then in the scene it is going to. Run in the middle of the walk, a fade asked for there found
-     * the old scene and was stepped by its frames: a removed container kept that window rendering,
-     * and one moved to another window stood still there until the old one drew. One that throws
-     * stops neither the walk nor the others; the first throw reaches the caller once all have run.
+     * {@code onArrive} and a flip's swap, is handed back to the caller, which runs it with
+     * {@link #runSettled} once its own work is done: the focus given back, the parent laid out
+     * again, the change announced. Run in the middle of the walk, a fade asked for there found the
+     * old scene and was stepped by its frames; run before the caller's work, a throw cut that work
+     * short, and a callback that put the container back and focused it lost the focus to it.
+     *
+     * @return what the leavings settled run, for {@link #runSettled}, or null when none settled
      */
-    final void setSceneRecursively(Scene newScene) {
+    final @Nullable List<Runnable> setSceneRecursively(Scene newScene) {
         bumpControlSizeEpoch();
         bumpLayoutDirectionEpoch();
         bumpLocaleEpoch();
         List<Runnable> settled = new ArrayList<>(0); // no array until a leaving settles something
-        Throwable thrown = null;
         try {
             setSceneRecursivelyInternal(newScene, settled);
         } catch (Throwable walk) {
-            thrown = walk; // what settled before it still runs: those fades have ended
+            runSettled(settled); // those fades have ended; the walk's own throw goes on
+            throw walk;
+        }
+        return settled.isEmpty() ? null : settled;
+    }
+
+    /**
+     * Runs what a walk's leavings settled, each once and in order, at the end of the change that
+     * walked: a callback that throws is logged and reported as a ticker's throw is, and neither
+     * stops the others nor reaches the caller of the change, which has already happened.
+     *
+     * @param settled what {@link #setSceneRecursively} handed back; nothing for null
+     */
+    static void runSettled(@Nullable List<Runnable> settled) {
+        if (settled == null) {
+            return;
         }
         for (int i = 0; i < settled.size(); i++) {
             try {
                 settled.get(i).run();
             } catch (Throwable error) {
-                if (thrown == null) {
-                    thrown = error;
-                } else {
-                    thrown.addSuppressed(error);
-                }
+                LOG.log(System.Logger.Level.ERROR, "what a fade or a motion runs at its end threw as its "
+                        + "container left its scene; the change went on", error);
+                limn.backend.Crashes.report(CrashPhase.TICKER, error);
             }
-        }
-        if (thrown instanceof RuntimeException runtime) {
-            throw runtime;
-        }
-        if (thrown instanceof Error error) {
-            throw error;
-        }
-        if (thrown != null) {
-            throw new IllegalStateException(thrown); // a Runnable that threw a checked exception by stealth
         }
     }
 

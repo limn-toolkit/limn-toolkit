@@ -274,7 +274,7 @@ public final class Scene {
     public Scene(Widget<?> root, LongSupplier clock) {
         this.root = Objects.requireNonNull(root, "root");
         this.clock = clock;
-        root.setSceneRecursively(this);
+        List<Runnable> settled = root.setSceneRecursively(this);
         // Subscribed HERE, not in bind(): an unbound scene (every component test, a
         // ComboBox popup scene, a Dialog's modal scene between construction and bind)
         // would otherwise never hear a global font or control-size change, and because
@@ -286,6 +286,7 @@ public final class Scene {
                 LayoutDirection.observeChanges(metricsListener),
                 limn.i18n.I18n.observeChanges(metricsListener));
         paletteListener.armed(limn.scene.internal.SceneBackground.observeChanges(paletteListener));
+        Widget.runSettled(settled); // a root taken from another scene mid-fade: once this one is whole
     }
 
     private limn.graphics.TextRuler textRuler;
@@ -433,10 +434,11 @@ public final class Scene {
             if (locale != null) {
                 limn.i18n.I18n.retainLocale(locale);
             }
-            root.setSceneRecursively(this);
+            // Coming back from no scene, nothing in the tree is leaving one, so nothing settles.
+            Widget.runSettled(root.setSceneRecursively(this));
             for (int i = 0; i < overlays.size(); i++) {
                 if (overlays.get(i).scene() == null) {
-                    overlays.get(i).setSceneRecursively(this);
+                    Widget.runSettled(overlays.get(i).setSceneRecursively(this));
                 }
             }
         }
@@ -816,10 +818,11 @@ public final class Scene {
     public void pushOverlay(Widget<?> overlay) {
         Ui.checkUiThread();
         Objects.requireNonNull(overlay, "overlay");
-        stackOverlay(overlay);
+        List<Runnable> settled = stackOverlay(overlay);
         // Move focus into the new modal layer.
         focusTraverse(false);
         requestRender();
+        Widget.runSettled(settled);
     }
 
     /**
@@ -856,7 +859,7 @@ public final class Scene {
             pushOverlay(overlay);
             return;
         }
-        stackOverlay(overlay);
+        List<Runnable> settled = stackOverlay(overlay);
         boolean composed = movedFrom.letGoOfMovedFocus();
         if (composed) {
             dispatchBubbling(keyboard, new PreeditEvent("", 0, 0, 0));
@@ -865,6 +868,7 @@ public final class Scene {
         // told of its loss exactly as that traversal would tell it.
         setFocus(keyboard, Change.Origin.CODE, true);
         requestRender();
+        Widget.runSettled(settled); // what its leaving the other scene settled, in this one
     }
 
     /**
@@ -882,7 +886,7 @@ public final class Scene {
         Ui.checkUiThread();
         Objects.requireNonNull(overlay, "overlay");
         Objects.requireNonNull(first, "first");
-        stackOverlay(overlay);
+        List<Runnable> settled = stackOverlay(overlay);
         if (!canTakeFocus(first) || !isInSubtree(first, overlay)) {
             focusTraverse(false);
         } else {
@@ -894,10 +898,12 @@ public final class Scene {
             }
         }
         requestRender();
+        Widget.runSettled(settled);
     }
 
     /** Puts {@code overlay} on top, capturing input, and keeps the focus it takes to give back. */
-    private void stackOverlay(Widget<?> overlay) {
+    /** @return what the overlay's leaving another scene settled, which the caller runs last */
+    private @Nullable List<Runnable> stackOverlay(Widget<?> overlay) {
         // A drag captured before this modal opened must not keep feeding the
         // now-blocked content beneath the scrim: DRAG follows the capture, not
         // hit-testing. Synthesize its RELEASE (window blur's treatment).
@@ -907,8 +913,9 @@ public final class Scene {
         wheelLatch = null;
         overlayFocusReturn.add(focused); // remember who to focus when this closes
         overlays.add(overlay);
-        overlay.setSceneRecursively(this);
+        List<Runnable> settled = overlay.setSceneRecursively(this);
         layoutDirty = true;
+        return settled;
     }
 
     /**
@@ -1066,26 +1073,30 @@ public final class Scene {
             }
         }
         onWidgetDetached(overlay);
-        overlay.setSceneRecursively(null);
-        layoutDirty = true;
-        // Focus belongs to the topmost overlay. Removing a lower one (e.g. the
-        // previous menu still fading out beneath the menu it was switched to) must
-        // leave the current top overlay's focus untouched. One that left the keyboard beneath it
-        // never took the focus, so there is nothing to give back.
-        if (!wasTop || keptKeyboardBelow) {
+        List<Runnable> settled = overlay.setSceneRecursively(null);
+        try {
+            layoutDirty = true;
+            // Focus belongs to the topmost overlay. Removing a lower one (e.g. the
+            // previous menu still fading out beneath the menu it was switched to) must
+            // leave the current top overlay's focus untouched. One that left the keyboard beneath it
+            // never took the focus, so there is nothing to give back.
+            if (!wasTop || keptKeyboardBelow) {
+                requestRender();
+                return;
+            }
+            // Return focus to the widget that had it before this overlay opened
+            // (the button that triggered the dialog), if it is still usable.
+            if (restore != null && restore != overlay && isInSubtree(restore, keyboardRoot())
+                    && canTakeFocus(restore)) {
+                // The overlay closing is what moved the focus, not whoever closed it.
+                setFocus(restore, Change.Origin.ADJUSTMENT);
+            } else {
+                setFocus(null, Change.Origin.ADJUSTMENT);
+            }
             requestRender();
-            return;
+        } finally {
+            Widget.runSettled(settled); // once the focus is given back
         }
-        // Return focus to the widget that had it before this overlay opened
-        // (the button that triggered the dialog), if it is still usable.
-        if (restore != null && restore != overlay && isInSubtree(restore, keyboardRoot())
-                && canTakeFocus(restore)) {
-            // The overlay closing is what moved the focus, not whoever closed it.
-            setFocus(restore, Change.Origin.ADJUSTMENT);
-        } else {
-            setFocus(null, Change.Origin.ADJUSTMENT);
-        }
-        requestRender();
     }
 
     /** @return the topmost modal overlay, or {@code null} when none is open */
@@ -3893,10 +3904,11 @@ public final class Scene {
     private void pushPopupLeavingKeyboard(Widget<?> popup) {
         Ui.checkUiThread();
         Objects.requireNonNull(popup, "popup");
-        stackOverlay(popup);
+        List<Runnable> settled = stackOverlay(popup);
         popupOverlays.add(popup);
         keyboardBelow.add(popup);
         requestRender();
+        Widget.runSettled(settled);
     }
 
     /**
@@ -6642,16 +6654,23 @@ public final class Scene {
         }
         List<Widget<?>> layers = new ArrayList<>(overlays);
         layers.add(root);
+        List<List<Runnable>> settled = new ArrayList<>(0);
         for (Widget<?> layer : layers) {
             if (layer.scene() != this) {
                 continue; // an overlay closed by a widget that was detached before it
             }
             try {
-                layer.setSceneRecursively(null);
+                List<Runnable> ended = layer.setSceneRecursively(null);
+                if (ended != null) {
+                    settled.add(ended);
+                }
             } catch (Throwable error) {
                 LOG.log(Level.ERROR, "a widget's detach threw during window close; teardown continues", error);
                 limn.backend.Crashes.report(limn.backend.CrashPhase.WINDOW_CLOSE, error);
             }
+        }
+        for (List<Runnable> ended : settled) {
+            Widget.runSettled(ended); // once every layer is out
         }
     }
 

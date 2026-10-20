@@ -452,9 +452,10 @@ public final class Transform extends Widget<Transform> {
      * there and still waits for its seconds (a flip's swap first, if it has not run). Both run once
      * the container is out of the scene it left, so a motion they ask for follows the container:
      * straight there when it is in no scene, or on the frames of the scene it went to, never on
-     * those of the window it left. A callback that throws on a frame is logged and reported as a
-     * throwing ticker is, and changes nothing for the motions beside it, the container's later
-     * ones, or one it asked for before it threw.
+     * those of the window it left, and after the change that took it out has done all its own
+     * work. A callback that throws, on a frame or as its container leaves, is logged and reported
+     * as a throwing ticker is, and changes nothing for the motions beside it, the container's
+     * later ones, one it asked for before it threw, or the change.
      *
      * <p><b>A watcher hears it twice</b>, as {@link Change.Aspect#TRANSFORM}: when it starts, and when
      * it arrives or is superseded. The frames between repaint without announcing and without telling

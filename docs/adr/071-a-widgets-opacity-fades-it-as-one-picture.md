@@ -994,9 +994,9 @@ through (`Widget.setSceneRecursively`) runs once the walk is over, every widget 
 in the scene it is going to. A fade it asks for therefore goes straight there when the container is
 in no scene, a move to another window included (the container passes through no scene between the
 two), and is stepped by the new scene's frames when the walk took it straight into one; never by the
-old window's. An `onArrive` that throws there stops neither the walk nor the others; the first throw
-reaches the caller of the removal once all have run, where before it stopped the walk with part of
-the subtree still in the scene the removal took it out of. The `Transform` container's motions
+old window's. An `onArrive` that throws there stops neither the walk nor the others, where before it
+stopped the walk with part of the subtree still in the scene the removal took it out of; how the
+throw is reported is the amendment at the end of this section. The `Transform` container's motions
 follow the same rule (ADR 072 section 13.3).
 
 **Tests.** `OpacityTest.aFadeAskedForInTheOnArriveOfAFadeSettledByLeavingIsNotSteppedByTheSceneLeft`
@@ -1005,6 +1005,20 @@ follow the same rule (ADR 072 section 13.3).
 the new window), `anOnArriveThatFadesAnotherContainerLeavingWithItSeesThatOneOutToo` (an inner
 container's onArrive fading the outer one, which the walk had not cleared yet) and
 `aThrowingOnArriveRunByALeavingStopsNeitherTheOtherArrivalsNorTheLeaving`; each failed before.
+
+(2026-10-19, after the third review, R3S-4: the list first ran at the end of the walk, inside the
+funnel, and rethrew there, which was still before the caller's own work. A throw cut `remove()`
+short as before, the scene's focus left on a widget in no scene that went on receiving keys and the
+parent never laid out again; and a callback that put the container back in the same scene and
+focused it lost that focus to `remove()`'s bookkeeping a moment later. The funnel now hands the list
+back, and every caller, `add`, `remove`, `Scene.removeOverlay`, the pushes of an overlay and the
+close of a window, runs it last, once its focus, layout and announcement are done; a callback that
+throws there is logged and reported as a ticker's throw is (`CrashPhase.TICKER`) and does not come
+out of the change, which has already happened. A throw of the walk itself still runs what was
+settled before it. `OpacityTest.aThrowingOnArriveDoesNotCutTheRemovalThatSettledItShort` and
+`anOnArriveThatPutsTheContainerBackAndFocusesItKeepsThatFocus` failed before;
+`aThrowingOnArriveRunByALeavingStopsNeitherTheOtherArrivalsNorTheLeaving` now holds the report in
+place of the rethrow.)
 
 ### 8.3 An `onArrive` that throws, 2026-10-19
 

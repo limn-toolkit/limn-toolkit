@@ -1016,35 +1016,132 @@ class OpacityTest extends SceneTestBase {
         assertEquals(0.5f, outer.opacity());
     }
 
+    /** Records the crashes reported while it is installed. */
+    private static final class Reported implements limn.backend.CrashHandler {
+        final List<Throwable> errors = new ArrayList<>();
+        final List<limn.backend.CrashPhase> phases = new ArrayList<>();
+
+        @Override
+        public boolean crashed(limn.backend.CrashPhase phase, Throwable error) {
+            phases.add(phase);
+            errors.add(error);
+            return true;
+        }
+    }
+
     /**
      * Two containers leave together and the first one's onArrive throws: the second's still runs,
-     * the throw reaches the caller of the removal, and the subtree is out of the scene whole. Run in
-     * the middle of the walk, the throw stopped it there, the second container still in the scene
-     * the removal took it out of.
+     * the subtree is out of the scene whole, and the throw is reported, as a ticker's is, and does
+     * not come out of the removal. Run in the middle of the walk, the throw stopped it there, the
+     * second container still in the scene the removal took it out of.
      */
     @Test
     void aThrowingOnArriveRunByALeavingStopsNeitherTheOtherArrivalsNorTheLeaving() {
-        Opacity first = faded("first");
-        Opacity second = faded("second");
-        Row both = new Row();
-        both.add(first);
-        both.add(second);
-        Stack holder = new Stack();
-        holder.add(both);
-        Scene a = sceneOf(holder);
-        AtomicInteger secondArrived = new AtomicInteger();
-        first.fadeTo(0f, 0.3, () -> {
-            throw new IllegalStateException("a fault of the application's");
+        Reported reported = new Reported();
+        limn.backend.Crashes.install(reported);
+        try {
+            Opacity first = faded("first");
+            Opacity second = faded("second");
+            Row both = new Row();
+            both.add(first);
+            both.add(second);
+            Stack holder = new Stack();
+            holder.add(both);
+            Scene a = sceneOf(holder);
+            AtomicInteger secondArrived = new AtomicInteger();
+            IllegalStateException fault = new IllegalStateException("a fault of the application's (expected)");
+            first.fadeTo(0f, 0.3, () -> {
+                throw fault;
+            });
+            second.fadeTo(0f, 0.3, secondArrived::incrementAndGet);
+            advance(a, 16);
+            advance(a, 100);
+            holder.remove(both);
+            assertEquals(1, secondArrived.get(), "the other arrival ran");
+            assertNull(both.scene());
+            assertNull(first.scene());
+            assertNull(second.scene(), "and the whole subtree left");
+            assertEquals(List.of(fault), reported.errors, "the throw reported, once");
+            assertEquals(List.of(limn.backend.CrashPhase.TICKER), reported.phases, "as a ticker's is");
+        } finally {
+            limn.backend.Crashes.uninstall(reported);
+        }
+    }
+
+    /**
+     * A focused container removed mid-fade whose onArrive throws: the removal still does all its
+     * own work. The throw came out of the walk, before the removal had given the focus back and
+     * laid the parent out again: the scene's focus stayed on a widget in no scene, which kept
+     * receiving keys, and a gap stayed where the container had been.
+     */
+    @Test
+    void aThrowingOnArriveDoesNotCutTheRemovalThatSettledItShort() {
+        Reported reported = new Reported();
+        limn.backend.Crashes.install(reported);
+        try {
+            Probe lead = new Probe("lead", painted);
+            Probe inner = new Probe("inner", painted);
+            Probe after = new Probe("after", painted);
+            Opacity fading = new Opacity(inner);
+            limn.scene.layout.Column column = new limn.scene.layout.Column();
+            column.add(lead);
+            column.add(fading);
+            column.add(after);
+            List<Change> heard = new ArrayList<>();
+            column.observeChanges((source, change) -> heard.add(change));
+            Scene a = sceneOf(column);
+            a.requestFocus(inner);
+            assertSame(inner, a.focusedWidget());
+            float afterY = after.y();
+            fading.fadeTo(0f, 0.3, () -> {
+                throw new IllegalStateException("a fault of the application's (expected)");
+            });
+            advance(a, 16);
+            column.remove(fading);
+            assertEquals(1, reported.errors.size(), "the throw reported");
+            assertTrue(a.focusedWidget() != inner, "the focus left the removed container: " + a.focusedWidget());
+            assertTrue(heard.stream().anyMatch(c -> c.aspect() == Change.Aspect.CHILDREN),
+                    "the removal announced on the parent");
+            advance(a, 16);
+            assertTrue(after.y() < afterY, "and the parent laid out again: " + afterY + " -> " + after.y());
+        } finally {
+            limn.backend.Crashes.uninstall(reported);
+        }
+    }
+
+    /**
+     * An onArrive run by a removal that puts the container back in the same scene, under another
+     * parent, and focuses it, "fade out, move, fade in" taken out mid-fade: it keeps the focus it
+     * gave. The removal's own bookkeeping ran after the callback and revoked it.
+     */
+    @Test
+    void anOnArriveThatPutsTheContainerBackAndFocusesItKeepsThatFocus() {
+        Probe inner = new Probe("inner", painted);
+        Opacity fading = new Opacity(inner);
+        limn.scene.layout.Column first = new limn.scene.layout.Column();
+        first.add(fading);
+        limn.scene.layout.Column second = new limn.scene.layout.Column();
+        limn.scene.layout.Column column = new limn.scene.layout.Column();
+        column.add(first);
+        column.add(second);
+        Scene a = sceneOf(column);
+        a.requestFocus(inner);
+        fading.fadeTo(0.2f, 0.3, () -> {
+            first.remove(fading); // nothing: the removal below has already taken it out
+            second.add(fading);
+            fading.fadeTo(1f, 0.2, null);
+            a.requestFocus(inner);
         });
-        second.fadeTo(0f, 0.3, secondArrived::incrementAndGet);
         advance(a, 16);
-        advance(a, 100);
-        IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> holder.remove(both));
-        assertEquals("a fault of the application's", thrown.getMessage());
-        assertEquals(1, secondArrived.get(), "the other arrival ran");
-        assertNull(both.scene());
-        assertNull(first.scene());
-        assertNull(second.scene(), "and the whole subtree left");
+        first.remove(fading);
+        assertSame(second, fading.parent(), "back, under the other parent");
+        assertSame(a, fading.scene());
+        assertSame(inner, a.focusedWidget(), "and focused, as the onArrive asked");
+        for (int i = 0; i < 30; i++) {
+            advance(a, 16);
+        }
+        assertEquals(1f, fading.opacity(), "faded back in, on this scene's frames");
+        assertSame(inner, a.focusedWidget());
     }
 
     /**

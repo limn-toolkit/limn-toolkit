@@ -146,9 +146,10 @@ public final class Opacity extends Widget<Opacity> {
      * straight there and still waits for its seconds runs its {@code onArrive} then too. That
      * {@code onArrive} runs once the container is out of the scene it left, so a fade it asks for
      * follows the container: straight there when it is in no scene, or on the frames of the scene
-     * it went to, never on those of the window it left. An {@code onArrive} that throws on a frame
-     * is logged and reported as a throwing ticker is, and changes nothing for the container's
-     * later fades, nor for one it asked for before it threw.
+     * it went to, never on those of the window it left, and after the change that took it out has
+     * done all its own work. An {@code onArrive} that throws, on a frame or as its container
+     * leaves, is logged and reported as a throwing ticker is, and changes nothing for the
+     * container's later fades, nor for one it asked for before it threw, nor for the change.
      *
      * <p><b>A watcher hears a fade twice</b>, as {@link Change.Aspect#OPACITY} with origin
      * {@code CODE}: when it starts, and when it arrives or is superseded. The steps between set the
