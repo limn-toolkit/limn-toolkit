@@ -250,6 +250,15 @@ public final class AnchoredPopup {
     }
 
     /**
+     * @return whether {@link #open} would show it now: its anchor is one it can hang from
+     *         ({@link #canHangFrom}). A component asks before it says it is open, so a refused open
+     *         never leaves it open, expanded and driving a list or a calendar nobody sees.
+     */
+    public boolean canOpen() {
+        return canHangFrom(host.anchor());
+    }
+
+    /**
      * Opens it, in a window of its own where that was asked and the owner allows, in the scene
      * otherwise. Nothing happens with no scene, or for an anchor nothing can hang from
      * ({@link #canHangFrom}): a test without a window drives the component's own state. A no-op

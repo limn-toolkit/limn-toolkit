@@ -1165,8 +1165,8 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
 
     private void open(Change.Origin origin) {
         Ui.checkUiThread();
-        if (open) {
-            return;
+        if (open || scene() != null && !popup.canOpen()) {
+            return; // hidden, or on its way out of the window: a list nobody sees is not open
         }
         open = true;
         int selectedRow = Math.max(0, rowOfItem(selectedIndex));

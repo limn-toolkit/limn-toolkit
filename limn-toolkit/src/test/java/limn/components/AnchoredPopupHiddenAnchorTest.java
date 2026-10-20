@@ -1,5 +1,6 @@
 package limn.components;
 
+import limn.components.date.DatePicker;
 import limn.input.Keys;
 import limn.scene.Change;
 import limn.scene.Scene;
@@ -17,6 +18,7 @@ import java.util.concurrent.TimeUnit;
 import static limn.testing.SceneDriver.drive;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -110,6 +112,73 @@ class AnchoredPopupHiddenAnchorTest extends ComponentTestBase {
             holder.setVisible(false);
             assertFalse(combo.isOpen(), mode + ": the list went with the field");
             assertTrue(expanded.contains(Change.Origin.ADJUSTMENT), mode + ": " + expanded);
+            owner.requestClose();
+            runtime.drain();
+        }
+    }
+
+    // ------------------------------------------------------------------ asked to open while hidden
+
+    @Test
+    void aComboBoxAskedToOpenWhileHiddenStaysClosed() {
+        for (DisplayMode mode : DisplayMode.values()) {
+            ComboBox<String> combo = new ComboBox<>(List.of("Open", "Paid", "Late")).setDisplayMode(mode);
+            Column section = new Column();
+            section.add(combo);
+            Column root = new Column();
+            root.add(section);
+            inWindow(root);
+            List<Change.Origin> expanded = new ArrayList<>();
+            combo.observeChanges((source, change) -> {
+                if (change.aspect() == Change.Aspect.EXPANDED) {
+                    expanded.add(change.origin());
+                }
+            });
+            section.setVisible(false);
+            combo.open();
+            frames(3);
+            assertFalse(combo.isOpen(), mode + ": a list that cannot be shown is not open");
+            assertEquals(List.of(), expanded, mode + ": nor said to be");
+            section.setVisible(true);
+            frames(2);
+            drive(scene).click(combo);
+            frames(3);
+            assertTrue(combo.isOpen(), mode + ": the first click once shown opens it");
+            owner.requestClose();
+            runtime.drain();
+        }
+    }
+
+    @Test
+    void aDatePickerAskedToOpenWhileHiddenStaysClosedAndItsFieldCommitsNothing() {
+        for (DisplayMode mode : DisplayMode.values()) {
+            DatePicker picker = new DatePicker().setClock(java.time.Clock.fixed(
+                    java.time.Instant.parse("2026-09-09T12:00:00Z"), java.time.ZoneOffset.UTC))
+                    .setDisplayMode(mode);
+            Column section = new Column();
+            section.add(new SizedBox(300, 40, picker));
+            Column root = new Column();
+            root.add(section);
+            inWindow(root);
+            List<Change.Origin> expanded = new ArrayList<>();
+            picker.observeChanges((source, change) -> {
+                if (change.aspect() == Change.Aspect.EXPANDED) {
+                    expanded.add(change.origin());
+                }
+            });
+            section.setVisible(false);
+            picker.open();
+            frames(3);
+            assertFalse(picker.isOpen(), mode + ": a calendar that cannot be shown is not open");
+            assertEquals(List.of(), expanded, mode.toString());
+            section.setVisible(true);
+            frames(2);
+            scene.requestFocus(picker.field());
+            drive(scene).press(Keys.DOWN); // the field's own: the day segment steps
+            drive(scene).press(Keys.ENTER);
+            frames(3);
+            assertNull(picker.date(), mode + ": no whole date committed from a calendar never shown: "
+                    + picker.field().text());
             owner.requestClose();
             runtime.drain();
         }

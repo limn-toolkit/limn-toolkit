@@ -611,6 +611,11 @@ public final class DatePicker extends Widget<DatePicker> {
         if (open == wanted || wanted && !isEnabled()) {
             return;
         }
+        if (wanted && scene() != null && !popup.canOpen()) {
+            // Hidden, or on its way out of the window: a calendar nobody sees is not open, and
+            // never takes the field's keys (Down and Enter would commit a date from it).
+            return;
+        }
         open = wanted;
         if (wanted) {
             syncCalendarFromFields();

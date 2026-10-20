@@ -1037,6 +1037,9 @@ public final class TabbedPane extends Widget<TabbedPane> {
             closeTabList(Change.Origin.USER);
             return;
         }
+        if (!tabList.canOpen()) {
+            return; // its button hidden: a list nobody sees is not open
+        }
         listCursor = Math.max(0, selected);
         listHadKeyboard = holdsFocus(this);
         listFocusWas = scene().focusedWidget();
