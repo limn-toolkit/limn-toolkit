@@ -17,8 +17,8 @@ import java.util.List;
  * built apart, and {@code equals} and {@code hashCode} say so. The generator writes such a node
  * once and reads it wherever it is used, so a Java method that builds a sub-expression is as
  * cheap to call twice as once, and a variable reused in a long chain does not multiply the
- * shader's size. Comparing and hashing visit a node shared by many parents once; a node's
- * {@code toString} writes it out as a tree, as long as every path through it.
+ * shader's size. Comparing, hashing and {@code toString} visit a node shared by many parents
+ * once; {@code toString} writes such a node the first time as {@code #1=…} and then as {@code #1}.
  *
  * <p>A 1.x minor release may add node types: a {@code switch} over an {@code Expr} needs a
  * {@code default} branch.
@@ -110,6 +110,11 @@ public sealed interface Expr
         public int hashCode() {
             return Values.hash(this);
         }
+
+        @Override
+        public String toString() {
+            return Values.text(this);
+        }
     }
 
     /** Component selection, e.g. {@code .rgb} (→vec3) or {@code .x} (→float). */
@@ -127,6 +132,11 @@ public sealed interface Expr
         @Override
         public int hashCode() {
             return Values.hash(this);
+        }
+
+        @Override
+        public String toString() {
+            return Values.text(this);
         }
     }
 
@@ -146,6 +156,11 @@ public sealed interface Expr
         public int hashCode() {
             return Values.hash(this);
         }
+
+        @Override
+        public String toString() {
+            return Values.text(this);
+        }
     }
 
     /** A built-in or engine helper call with a declared result type. */
@@ -163,6 +178,11 @@ public sealed interface Expr
         public int hashCode() {
             return Values.hash(this);
         }
+
+        @Override
+        public String toString() {
+            return Values.text(this);
+        }
     }
 
     /** A constructor like {@code vec4(rgb, a)} or {@code vec3(x)}. */
@@ -179,6 +199,11 @@ public sealed interface Expr
         @Override
         public int hashCode() {
             return Values.hash(this);
+        }
+
+        @Override
+        public String toString() {
+            return Values.text(this);
         }
     }
 
@@ -377,6 +402,11 @@ public sealed interface Expr
         @Override
         public int hashCode() {
             return Values.hash(this);
+        }
+
+        @Override
+        public String toString() {
+            return Values.text(this);
         }
     }
 }

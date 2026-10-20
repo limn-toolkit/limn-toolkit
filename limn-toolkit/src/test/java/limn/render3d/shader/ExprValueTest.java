@@ -78,4 +78,21 @@ class ExprValueTest {
             assertNotEquals(one, squares(ref("u"), 39));
         });
     }
+
+    @Test
+    void aNodeIsWrittenOutAsARecordIs() {
+        Expr sum = new Expr.Binary(Expr.Op.ADD, new Expr.Ref("u", ShaderType.FLOAT), Expr.Lit.of(1f));
+        assertEquals("Binary[op=ADD, left=Ref[name=u, type=FLOAT], right=Lit[values=[1.0]]]", sum.toString());
+        assertEquals("Call[function=fract, type=FLOAT, args=[" + sum + "]]",
+                new Expr.Call("fract", ShaderType.FLOAT, List.of(sum)).toString());
+    }
+
+    @Test
+    void aNodeSharedByManyParentsIsWrittenOutOnce() {
+        // As a tree, forty squarings are 2^40 copies of the bottom one: no log line could hold it.
+        String text = assertTimeoutPreemptively(Duration.ofSeconds(5), () -> squares(ref("u"), 40).toString());
+        assertTrue(text.length() < 4_000, text.length() + " characters");
+        assertTrue(text.startsWith("Binary[op=MUL, left=#1=Binary[op=MUL, left=#2="), text);
+        assertTrue(text.endsWith(", right=#1]"), text);
+    }
 }

@@ -277,3 +277,7 @@ generator names the variable itself (`ir_s…`).
   apart and set in another's turn does; the review's fix that reads a local only where its names
   mean the same is what keeps that right, and the device test draws such a surface shared and in
   place to the same pixels. `Material.Surface` inputs may not start `ir_`.
+- **2026-10-20, a node writes itself out once.** `toString` was still a record's, a tree as long
+  as every path, so logging forty squarings z ↦ z·z never ended. A node with children and more
+  than one parent is now written the first time as `#n=…` and as `#n` after that; a node nothing
+  shares reads exactly as a record's `toString` did.
