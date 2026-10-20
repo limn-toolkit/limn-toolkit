@@ -795,7 +795,9 @@ that the text above does not say, dated where it departs from it.
   - **Drawn, not only visible:** a popup does not hang from a widget a transform draws as nothing
     (`SceneAccess.isDrawn`, `isShowing()` without its clipping, so a widget scrolled out of view or
     not laid out yet still can). Closing a popup when its anchor stops being drawn is the
-    transforms branch's half, at the integration.
+    transforms branch's half, at the integration. (2026-10-20, integrated: a set or a motion's
+    frame that makes a transform draw its child as nothing closes the popups hung in it, as an
+    adjustment, before it takes the focus out; ADR 072 section 2.8.)
   - **Window shortcuts** are offered whenever no overlay holds the keyboard: during a closing
     popup's fade, and while an editable combo box's list is open.
   - A popover moved from the button it was open from tells that button alone it collapsed.

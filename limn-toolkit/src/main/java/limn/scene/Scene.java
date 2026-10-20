@@ -2223,10 +2223,10 @@ public final class Scene {
      * that would otherwise stay over the window hanging from nothing. Told before the widgets
      * leaving hear {@code onDetached}, while they still answer this scene.
      *
-     * <p>For the integration of a Transform that stops drawing a child (a back face, a scale of
-     * 0): such a child no longer shown is the same case, and the place that decides it calls
-     * {@link #anchorsLeaving} for it as {@code Widget}'s visibility path does. A popup already
-     * refuses to open from such a child ({@code SceneAccess.isDrawn}).
+     * <p>A child a transform stops drawing (a back face turned away, a scale of 0, a plane
+     * edge-on) is no longer shown either: {@link #childrenDrawnChanged} closes the popups hung in
+     * it as the visibility path does, from a set at once and from a motion's frame once the frame's
+     * tickers have run. A popup refuses to open from such a child ({@code SceneAccess.isDrawn}).
      *
      * @param anchor the widget the popup hangs from
      * @param gone   takes the popup down
@@ -3062,8 +3062,8 @@ public final class Scene {
     /**
      * A widget whose matrix drew its children stopped drawing them (a back face hidden, a scale of
      * 0, a plane edge-on) or drew them again. Gone, they are out of reach as a hidden branch is, and
-     * by the same path: the focus, the hover, a press and a drag inside are taken out, with the
-     * events a hidden widget is sent. Either way the accessible tree is walked again, since what it
+     * by the same path: a popup hung from a widget inside closes, as an adjustment, and the focus,
+     * the hover, a press and a drag inside are taken out, with the events a hidden widget is sent. Either way the accessible tree is walked again, since what it
      * publishes of them (visible, showing, focusable, their verbs) changed, on a frame of a motion
      * too, which otherwise leaves the tree alone.
      *
@@ -3114,26 +3114,35 @@ public final class Scene {
         }
     }
 
-    /** Takes the focus, the hover, a press and a drag out of {@code container}'s children. */
+    /**
+     * Closes the popups hung from {@code container}'s children, then takes the focus, the hover, a
+     * press and a drag out of them, as {@code setVisible(false)} does for a hidden branch: a
+     * popover open from a button on a face that turns away has nothing left to hang from. Each
+     * child's revocation runs whatever a popup's handler threw before it, and the first throw is
+     * rethrown once all have run.
+     */
     private void revokeUndrawn(Widget<?> container) {
+        Throwable failed = null;
         // A copy: what a revocation runs may change the children.
         for (Widget<?> child : List.copyOf(container.children())) {
             if (child.scene() == this) {
-                onWidgetDetached(child);
+                Throwable closing = anchorsLeaving(child);
+                if (closing != null) {
+                    failed = Widget.addFailure(failed, closing);
+                }
+                try {
+                    onWidgetDetached(child);
+                } catch (RuntimeException | Error error) {
+                    failed = Widget.addFailure(failed, error);
+                }
             }
         }
+        Widget.rethrow(failed);
     }
 
-    /** Whether {@code widget} hangs, through its parents, from this scene's root or an overlay. */
+    /** Whether {@code widget} is in this scene and hangs, through its parents, from its root or an overlay. */
     private boolean inThisTree(Widget<?> widget) {
-        if (widget.scene() != this) {
-            return false;
-        }
-        Widget<?> top = widget;
-        while (top.parent() != null) {
-            top = top.parent();
-        }
-        return top == root || overlays.contains(top);
+        return widget.scene() == this && holdsInTree(widget);
     }
 
     /** Whether a widget left the tree since the accessibility walk last listed who answers for a node. */

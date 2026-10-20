@@ -506,6 +506,15 @@ Both depend on section 3, and with it they are short.
   runs the application's code from `moved()` any more, so the guard OP-3 put round a frame's
   arrivals covers every callback a frame runs. Tests: `TransformUndrawnChildTest`, a focus-lost
   handler that throws as a `scaleTo` collapses the child, and a container removed mid-motion.)
+  (2026-10-20, at the integration with ADR 075's popover fixes, review R4P-5: a popup closes when
+  its anchor is no longer shown, and refuses to open from one a transform draws as nothing, but the
+  revocation here took only the focus and the pointer out, so a popover or a combo box's list open
+  from a control on a face that turned away or collapsed stayed over the window, hanging from
+  nothing with the keyboard in it. The revocation now closes the popups hung in each child first,
+  as an adjustment, through `Scene.anchorsLeaving`, as `setVisible(false)` does; from a set, a
+  handler's throw is rethrown once every child is revoked, and from a motion's frame it is reported
+  as a ticker's. Tests: `AnchoredPopupHiddenAnchorTest`, a popover and a combo box on a card turned
+  over, scaled to 0 and collapsed by a motion, in the scene and in a window of their own.)
 
 ### 2.9 Backdrop effects under and inside a transform
 

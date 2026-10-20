@@ -202,6 +202,160 @@ class AnchoredPopupHiddenAnchorTest extends ComponentTestBase {
         assertTrue(popover.isOpen(), "drawn again, it opens");
     }
 
+    /** The ways a card stops drawing its face: turned away or scaled to 0, by a set or a motion. */
+    enum FaceGone {
+        TURNED_AWAY {
+            @Override
+            void undraw(limn.scene.layout.Transform card) {
+                card.setRotation3D(limn.math.Vec3.UNIT_Y, 180);
+            }
+        },
+        SCALED_TO_NOTHING {
+            @Override
+            void undraw(limn.scene.layout.Transform card) {
+                card.setScale(0);
+            }
+        },
+        SCALED_TO_NOTHING_BY_A_MOTION {
+            @Override
+            void undraw(limn.scene.layout.Transform card) {
+                card.scaleTo(0, 0, 0.2, null); // the frame that arrives draws nothing
+            }
+        };
+
+        abstract void undraw(limn.scene.layout.Transform card);
+    }
+
+    /** A card a reader turns over by hand, back faces hidden, holding {@code face}. */
+    private static limn.scene.layout.Transform card(Widget<?> face) {
+        return new limn.scene.layout.Transform(face).setPerspective(600).setBackfaceVisible(false);
+    }
+
+    @Test
+    void aPopoverOnACardFaceThatStopsBeingDrawnCloses() {
+        // A "Filter" button on the front of a card, its popover open, and the card turned over or
+        // collapsed: the button is no longer shown, so the panel has nothing to hang from.
+        for (DisplayMode mode : DisplayMode.values()) {
+            for (FaceGone gone : FaceGone.values()) {
+                heard.clear();
+                Button filter = new Button("Filter");
+                limn.scene.layout.Transform card = card(filter);
+                int[] otherClicks = {0};
+                Button other = new Button("Other").onAction(() -> otherClicks[0]++);
+                Column root = new Column();
+                root.add(card);
+                root.add(other);
+                inWindow(root);
+                Popover popover = new Popover(new SizedBox(160, 30, new TextField())).setDisplayMode(mode)
+                        .attachTo(filter).onClose(origin -> heard.add(origin.toString()));
+                drive(scene).click(filter);
+                frames(3);
+                String where = mode + ", " + gone;
+                assertTrue(popover.isOpen(), where + ": sanity");
+                gone.undraw(card);
+                frames(20);
+                assertFalse(filter.isShowing(), where + ": sanity, the face is not drawn");
+                assertFalse(popover.isOpen(), where + ": the popover went with the face");
+                assertEquals(List.of("ADJUSTMENT"), heard, where);
+                frames(40);
+                assertEquals(1, backend.windows().stream().filter(w -> !w.isClosed()).count(),
+                        where + ": no popup window left");
+                drive(scene).click(other);
+                assertEquals(1, otherClicks[0], where + ": no layer left over the window");
+                card.reset().setPerspective(600).setBackfaceVisible(false);
+                frames(2);
+                drive(scene).click(filter);
+                frames(3);
+                assertTrue(popover.isOpen(), where + ": drawn again, it opens again");
+                owner.requestClose();
+                runtime.drain();
+            }
+        }
+    }
+
+    @Test
+    void aComboBoxOnACardFaceThatStopsBeingDrawnClosesItsList() {
+        for (DisplayMode mode : DisplayMode.values()) {
+            for (FaceGone gone : FaceGone.values()) {
+                ComboBox<String> combo = new ComboBox<>(List.of("Open", "Paid", "Late")).setDisplayMode(mode);
+                limn.scene.layout.Transform card = card(combo);
+                int[] otherClicks = {0};
+                Button other = new Button("Other").onAction(() -> otherClicks[0]++);
+                Column root = new Column();
+                root.add(card);
+                root.add(other);
+                inWindow(root);
+                List<Change.Origin> expanded = new ArrayList<>();
+                combo.observeChanges((source, change) -> {
+                    if (change.aspect() == Change.Aspect.EXPANDED) {
+                        expanded.add(change.origin());
+                    }
+                });
+                combo.open();
+                frames(3);
+                String where = mode + ", " + gone;
+                assertTrue(combo.isOpen(), where + ": sanity");
+                expanded.clear();
+                gone.undraw(card);
+                frames(20);
+                assertFalse(combo.isOpen(), where + ": the list went with the face");
+                assertEquals(List.of(Change.Origin.ADJUSTMENT), expanded, where);
+                frames(40);
+                assertEquals(1, backend.windows().stream().filter(w -> !w.isClosed()).count(),
+                        where + ": no popup window left");
+                drive(scene).click(other);
+                assertEquals(1, otherClicks[0], where + ": no layer left over the window");
+                owner.requestClose();
+                runtime.drain();
+            }
+        }
+    }
+
+    @Test
+    void aPopoverWhoseOnCloseThrowsAsItsFaceStopsBeingDrawnStillClosesAndTheFaceLosesTheFocus() {
+        // An application's onClose with a bug: a set rethrows it once the revocation is complete,
+        // and a motion's frame reports it as a ticker's throw; either way nothing is left behind.
+        for (DisplayMode mode : DisplayMode.values()) {
+            for (boolean byMotion : new boolean[] {false, true}) {
+                Button filter = new Button("Filter");
+                limn.scene.layout.Transform card = card(filter);
+                int[] otherClicks = {0};
+                Button other = new Button("Other").onAction(() -> otherClicks[0]++);
+                Column root = new Column();
+                root.add(card);
+                root.add(other);
+                inWindow(root);
+                Popover popover = new Popover(new SizedBox(160, 30, new TextField())).setDisplayMode(mode)
+                        .attachTo(filter).onClose(origin -> {
+                            throw new IllegalStateException("an application's onClose throws");
+                        });
+                drive(scene).click(filter);
+                frames(3);
+                String where = mode + (byMotion ? ", by a motion" : ", by a set");
+                assertTrue(popover.isOpen(), where + ": sanity");
+                if (byMotion) {
+                    card.scaleTo(0, 0, 0.2, null);
+                    frames(20); // the frame's throw is contained: it does not leave the loop
+                } else {
+                    IllegalStateException thrown = org.junit.jupiter.api.Assertions.assertThrows(
+                            IllegalStateException.class, () -> card.setScale(0));
+                    assertEquals("an application's onClose throws", thrown.getMessage(), where);
+                    frames(20);
+                }
+                assertFalse(popover.isOpen(), where + ": closed all the same");
+                assertFalse(filter.isFocused(), where + ": the face's button does not keep the keyboard");
+                frames(40);
+                drive(scene).click(other);
+                assertEquals(1, otherClicks[0], where + ": no layer left over the window");
+                card.setScale(1);
+                frames(2);
+                assertTrue(filter.isShowing(), where + ": drawn again");
+                owner.requestClose();
+                runtime.drain();
+            }
+        }
+    }
+
     @Test
     void aComboBoxOpenedInADialogBeforeItsFirstFrameOpens() {
         ComboBox<String> combo = new ComboBox<>(List.of("One", "Two")).setDisplayMode(DisplayMode.IN_SCENE);

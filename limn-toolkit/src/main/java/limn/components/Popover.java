@@ -44,9 +44,9 @@ import java.util.function.Consumer;
  * (an adjustment): the anchor taken out of the tree by itself, with a container or a dialog it is
  * in, or with the window, even to be put back elsewhere in the window as a tool bar moves a
  * button into its overflow; hidden, itself or with a container, a tab strip's page or an expander;
- * and the popover it lies in closing, so a popover opened from another goes with it. The
- * keyboard, when it was in the panel, then goes where a focused widget's goes when it is taken
- * out or hidden: to nobody. And on {@link #close()} (the code's). {@link #onClose} hears each with
+ * on a face a transform no longer draws, turned away or scaled to nothing; and the popover it lies
+ * in closing, so a popover opened from another goes with it. The keyboard, when it was in the
+ * panel, then goes where a focused widget's goes when it is taken out or hidden: to nobody. And on {@link #close()} (the code's). {@link #onClose} hears each with
  * that origin. It is not modal: a press outside closes it and reaches nothing else, as a combo
  * box's list does. A question that must be answered is a
  * {@link Dialog}. It opens from {@link #showFor} or from the button {@link #attachTo} gave it, and

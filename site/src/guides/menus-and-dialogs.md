@@ -190,7 +190,8 @@ A `Popover` is a panel of controls that hangs from a button and closes when the 
 it: a filter, a column chooser, a short form. It is not modal; a press outside or Escape closes
 it. So does its button going: taken out of the window, with a dialog it was in, say, or a popover
 it was in, even to be put back elsewhere (a tool bar moving it into its overflow); or hidden, on
-a tab page out of sight or in a folded section. The keyboard, if it was in the popover, then goes
+a tab page out of sight or in a folded section, or on the face of a card a `Transform` turns over
+or scales to nothing. The keyboard, if it was in the popover, then goes
 to nobody, as a focused widget's does when it is taken out. It takes the keyboard while it is
 open, its first field focused and Tab cycling inside, and gives it back to the button when it
 closes. Where the platform can place a window of its own it
