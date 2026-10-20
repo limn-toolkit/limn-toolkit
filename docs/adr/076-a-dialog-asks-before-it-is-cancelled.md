@@ -230,3 +230,17 @@ assistive technology's set each forget it, and a caret that is not where it was 
 selection, says something did. A menu closed with nothing run, a popover dismissed and the
 question's Cancel still give it back. `SelectionBackFromOverlayTest` has every case, with the
 menus in the scene and in windows of their own.
+
+### 2026-10-20 (review): the field's own Cut, Copy and Paste act on the selection left
+
+The field's own context menu, built while the selection was there, ran its rows after the menu in
+the scene had taken the keyboard and the field had let its selection go: Copy left the clipboard as
+it was, Cut cut nothing, and Paste went in at the caret beside the word the person had selected,
+with every row enabled (R11S-1; older than R8G-1, the same on the tree before it). An application's
+Paste item did the same; its Cut and Copy already found the selection left, by selecting it again.
+Now every Cut, Copy and Paste, from either menu, selects the selection left again and copies it,
+takes it out or puts the clipboard over it, so after Copy the selection is there when the keyboard
+comes back, as after a menu in a window of its own. A selection the field has of its own at that
+moment wins, and a password field still copies nothing. A menu in a window
+of its own leaves the field the keyboard, and nothing changes there. `SelectionBackFromOverlayTest`
+runs Cut, Copy and Paste from both menus, on the field and the area, in both display modes.

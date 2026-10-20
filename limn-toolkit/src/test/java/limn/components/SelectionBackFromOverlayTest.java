@@ -96,6 +96,155 @@ class SelectionBackFromOverlayTest extends ComponentTestBase {
         settle();
     }
 
+    /** Opens the focused widget's own context menu from the keyboard and runs row {@code row} (0 Cut, 1 Copy, 2 Paste). */
+    private void ownMenuRow(int row) {
+        drive(scene).press(Keys.F10, Keys.MOD_SHIFT);
+        settle();
+        drive(scene).press(Keys.HOME);
+        for (int i = 0; i < row; i++) {
+            drive(scene).press(Keys.DOWN);
+        }
+        drive(scene).press(Keys.ENTER);
+        settle();
+    }
+
+    private HeadlessWindow window() {
+        return backend.windows().get(0);
+    }
+
+    // ---------------------------------------------------------------- Cut, Copy and Paste
+    //
+    // In the scene the menu takes the keyboard and the field lets its selection go with it, so the
+    // rows of the field's own menu, built while the selection was there, acted on nothing: Copy
+    // left the clipboard as it was, Cut cut nothing, and Paste went in at the caret beside the
+    // word the person had selected. A menu in a window of its own leaves the field the keyboard,
+    // and the same rows have always worked there; each case below runs in both.
+
+    @ParameterizedTest
+    @EnumSource(DisplayMode.class)
+    void copyFromTheFieldsOwnMenuCopiesTheSelectionAndLeavesItSelected(DisplayMode menus) {
+        open(menus);
+        window().clipboard().setText("CLIP");
+        scene.requestFocus(field);
+        field.select(6, 11);
+        settle();
+        ownMenuRow(1);
+        assertEquals("world", window().clipboard().text(), menus + ": Copy copied what was selected");
+        assertEquals("hello world", field.text(), menus + ": and changed nothing");
+        assertSame(field, scene.focusedWidget(), menus + ": the keyboard is back in the field");
+        assertEquals(6, field.selectionStart(), menus + ": still selected");
+        assertEquals(11, field.selectionEnd(), menus + ": still selected");
+    }
+
+    @ParameterizedTest
+    @EnumSource(DisplayMode.class)
+    void cutFromTheFieldsOwnMenuCutsTheSelection(DisplayMode menus) {
+        open(menus);
+        window().clipboard().setText("CLIP");
+        scene.requestFocus(field);
+        field.select(6, 11);
+        settle();
+        ownMenuRow(0);
+        assertEquals("world", window().clipboard().text(), menus + ": Cut put what was selected on the clipboard");
+        assertEquals("hello ", field.text(), menus + ": and took it out");
+        assertEquals(6, field.caretPosition(), menus + ": the caret where it was");
+        assertEquals(6, field.selectionEnd(), menus + ": with nothing selected");
+    }
+
+    @ParameterizedTest
+    @EnumSource(DisplayMode.class)
+    void pasteFromTheFieldsOwnMenuReplacesTheSelection(DisplayMode menus) {
+        open(menus);
+        window().clipboard().setText("CLIP");
+        scene.requestFocus(field);
+        field.select(6, 11);
+        settle();
+        ownMenuRow(2);
+        assertEquals("hello CLIP", field.text(), menus + ": Paste replaced what was selected");
+        assertEquals(10, field.caretPosition(), menus + ": the caret after what was pasted");
+        drive(scene).type("!");
+        settle();
+        assertEquals("hello CLIP!", field.text(), menus + ": the next key goes after it, nothing deleted");
+    }
+
+    @ParameterizedTest
+    @EnumSource(DisplayMode.class)
+    void cutCopyAndPasteFromTheAreasOwnMenuActOnTheSelection(DisplayMode menus) {
+        open(menus);
+        HeadlessWindow window = window();
+        window.clipboard().setText("CLIP");
+        scene.requestFocus(area);
+        area.select(5, 8); // "one"
+        settle();
+        ownMenuRow(1);
+        assertEquals("one", window.clipboard().text(), menus + ": Copy copied what was selected");
+        assertEquals(5, area.selectionStart(), menus + ": still selected after Copy");
+        assertEquals(8, area.selectionEnd(), menus + ": still selected after Copy");
+
+        window.clipboard().setText("CLIP");
+        ownMenuRow(2);
+        assertEquals("line CLIP\nline two\nline three\nline four", area.text(), menus + ": Paste replaced it");
+
+        area.select(10, 14); // "line" of the second line
+        settle();
+        ownMenuRow(0);
+        assertEquals("line", window.clipboard().text(), menus + ": Cut put what was selected on the clipboard");
+        assertEquals("line CLIP\n two\nline three\nline four", area.text(), menus + ": and took it out");
+    }
+
+    @ParameterizedTest
+    @EnumSource(DisplayMode.class)
+    void anApplicationsCutCopyAndPasteItemsActOnTheSelection(DisplayMode menus) {
+        open(menus);
+        HeadlessWindow window = window();
+        window.clipboard().setText("CLIP");
+        scene.requestFocus(field);
+        field.select(6, 11);
+        settle();
+        runFirstRow(new Menu().add(MenuItem.of(MenuItem.Role.COPY)), field);
+        assertEquals("world", window.clipboard().text(), menus + ": the Copy role copied the selection");
+        assertEquals(6, field.selectionStart(), menus + ": still selected after Copy");
+        assertEquals(11, field.selectionEnd(), menus + ": still selected after Copy");
+
+        window.clipboard().setText("CLIP");
+        runFirstRow(new Menu().add(MenuItem.of(MenuItem.Role.PASTE)), field);
+        assertEquals("hello CLIP", field.text(), menus + ": the Paste role replaced the selection");
+
+        scene.requestFocus(area);
+        area.select(5, 8);
+        settle();
+        runFirstRow(new Menu().add(MenuItem.of(MenuItem.Role.CUT)), area);
+        assertEquals("one", window.clipboard().text(), menus + ": the Cut role cut the area's selection");
+        assertEquals("line \nline two\nline three\nline four", area.text(), menus + ": and took it out");
+    }
+
+    @ParameterizedTest
+    @EnumSource(DisplayMode.class)
+    void aPasswordFieldsLeftSelectionIsNotCopiedButIsPastedOver(DisplayMode menus) {
+        PopupMenu.setDefaultDisplayMode(menus);
+        backend = new HeadlessBackend(runtime);
+        HeadlessWindow window = backend.open("Sign in", 600, 400);
+        PasswordField secret = new PasswordField();
+        secret.setText("hunter22");
+        Column column = new Column();
+        column.add(secret);
+        column.add(new Button("Sign in"));
+        scene = new Scene(column, clock::get);
+        scene.setTextRuler(RULER);
+        scene.bind(window);
+        window.frame();
+        window.clipboard().setText("CLIP");
+        scene.requestFocus(secret);
+        secret.select(0, 6);
+        settle();
+        runFirstRow(new Menu().add(MenuItem.of(MenuItem.Role.COPY)), secret);
+        assertEquals("CLIP", window.clipboard().text(), menus + ": a secret never reaches the clipboard");
+        secret.select(0, 6);
+        settle();
+        runFirstRow(new Menu().add(MenuItem.of(MenuItem.Role.PASTE)), secret);
+        assertEquals("CLIP22", secret.text(), menus + ": Paste replaced the selected part");
+    }
+
     @ParameterizedTest
     @EnumSource(DisplayMode.class)
     void selectAllFromTheFieldsOwnMenuSelectsAll(DisplayMode menus) {

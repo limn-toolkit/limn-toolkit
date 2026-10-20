@@ -2083,8 +2083,9 @@ public final class TextArea extends Widget<TextArea> {
     /**
      * The selection this widget had when it lost the keyboard, as start, end, the text's version
      * then and where the caret was left; {@code null} when it had none. A menu takes the keyboard
-     * to be walked, and its Cut and Copy are for what was selected before it did: the selection
-     * itself is let go with the focus, as it always was, and comes back for the command.
+     * to be walked, and its Cut, Copy and Paste are for what was selected before it did: the
+     * selection itself is let go with the focus, as it always was, and the command selects it again
+     * to act on it.
      *
      * <p>Forgotten by everything that sets the caret or the selection while the area is away
      * ({@link #select}, {@link #setText}, {@link #insertText}, the context menu's Select All, a key
@@ -2116,12 +2117,31 @@ public final class TextArea extends Widget<TextArea> {
 
     @Override
     protected boolean onEdit(limn.scene.EditCommand command) {
-        long[] left = selectionLeft;
-        if (left != null && hasSelectionLeft()
-                && (command == limn.scene.EditCommand.CUT || command == limn.scene.EditCommand.COPY)) {
-            select((int) left[0], (int) left[1]);
+        switch (command) {
+            case CUT, COPY -> selectLeftForCommand();
+            case PASTE -> {
+                if (!clipboard().text().isEmpty()) {
+                    selectLeftForCommand();
+                }
+            }
+            default -> {
+            }
         }
         return limn.components.internal.EditKeys.send(command, this::onKeyEvent);
+    }
+
+    /**
+     * Selects again the selection left with the keyboard, for a Cut, a Copy or a Paste from a menu
+     * that took it: the person chose the command over what they had selected, and the command
+     * takes it out, copies it (and it is selected when the keyboard comes back, from an overlay or
+     * not) or puts the clipboard over it. Nothing when the area has a selection of its own now, or
+     * none was left.
+     */
+    private void selectLeftForCommand() {
+        long[] left = selectionLeft;
+        if (left != null && !model.hasSelection() && hasSelectionLeft()) {
+            select((int) left[0], (int) left[1]);
+        }
     }
 
     @Override
@@ -2356,6 +2376,7 @@ public final class TextArea extends Widget<TextArea> {
 
             @Override
             public void cut() {
+                selectLeftForCommand();
                 copySelection(true);
                 ensureCursorVisible();
                 invalidate();
@@ -2363,6 +2384,7 @@ public final class TextArea extends Widget<TextArea> {
 
             @Override
             public void copy() {
+                selectLeftForCommand();
                 copySelection(false);
             }
 
@@ -2370,6 +2392,7 @@ public final class TextArea extends Widget<TextArea> {
             public void paste() {
                 String pasted = clipboard().text();
                 if (!pasted.isEmpty()) {
+                    selectLeftForCommand();
                     editFromUser(() -> model.insert(pasted));
                     ensureCursorVisible();
                     invalidate();

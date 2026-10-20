@@ -1645,8 +1645,9 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
     /**
      * The selection this widget had when it lost the keyboard, as start, end, the text's version
      * then and where the caret was left; {@code null} when it had none. A menu takes the keyboard
-     * to be walked, and its Cut and Copy are for what was selected before it did: the selection
-     * itself is let go with the focus, as it always was, and comes back for the command.
+     * to be walked, and its Cut, Copy and Paste are for what was selected before it did: the
+     * selection itself is let go with the focus, as it always was, and the command selects it again
+     * to act on it.
      *
      * <p>Forgotten by everything that sets the caret or the selection while the field is away
      * ({@link #select}, {@link #setText}, {@link #insertText}, the context menu's Select All, a key
@@ -1678,12 +1679,35 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
 
     @Override
     protected boolean onEdit(limn.scene.EditCommand command) {
-        long[] left = selectionLeft;
-        if (left != null && hasSelectionLeft()
-                && (command == limn.scene.EditCommand.CUT || command == limn.scene.EditCommand.COPY)) {
-            select((int) left[0], (int) left[1]);
+        switch (command) {
+            case CUT, COPY -> {
+                if (allowClipboardCopy()) {
+                    selectLeftForCommand();
+                }
+            }
+            case PASTE -> {
+                if (!clipboard().text().isEmpty()) {
+                    selectLeftForCommand();
+                }
+            }
+            default -> {
+            }
         }
         return limn.components.internal.EditKeys.send(command, this::onKeyEvent);
+    }
+
+    /**
+     * Selects again the selection left with the keyboard, for a Cut, a Copy or a Paste from a menu
+     * that took it: the person chose the command over what they had selected, and the command
+     * takes it out, copies it (and it is selected when the keyboard comes back, from an overlay or
+     * not) or puts the clipboard over it. Nothing when the field has a selection of its own now, or
+     * none was left.
+     */
+    private void selectLeftForCommand() {
+        long[] left = selectionLeft;
+        if (left != null && !model.hasSelection() && hasSelectionLeft()) {
+            select((int) left[0], (int) left[1]);
+        }
     }
 
     @Override
@@ -2041,6 +2065,9 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
 
             @Override
             public void cut() {
+                if (allowClipboardCopy()) {
+                    selectLeftForCommand();
+                }
                 copySelection(true);
                 ensureCursorVisible(Theme.current().tokensFor(TextField.this));
                 invalidate();
@@ -2048,6 +2075,9 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
 
             @Override
             public void copy() {
+                if (allowClipboardCopy()) {
+                    selectLeftForCommand();
+                }
                 copySelection(false);
             }
 
@@ -2055,6 +2085,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
             public void paste() {
                 String pasted = clipboard().text();
                 if (!pasted.isEmpty()) {
+                    selectLeftForCommand();
                     pasteFromUser(pasted);
                     ensureCursorVisible(Theme.current().tokensFor(TextField.this));
                     invalidate();
