@@ -13,6 +13,7 @@ import limn.scene.LayoutDirection;
 import limn.scene.Scene;
 import limn.scene.Size;
 import limn.scene.Widget;
+import limn.scene.layout.Column;
 import limn.scene.layout.Row;
 import limn.scene.layout.SizedBox;
 import limn.testing.AccessibleTrees;
@@ -184,6 +185,59 @@ class AvatarTest extends AccessibleComponentTestBase {
         assertEquals(1, drawn.ellipses, "the shoulders");
         assertEquals(2, drawn.circles.size(), "the tint and the head");
         assertEquals(Theme.current().textMuted(), drawn.circles.get(1).paint());
+    }
+
+    /** A widget painted after the avatar in the same frame, counting its paints. */
+    private static final class After extends Widget<After> {
+        int painted;
+
+        @Override
+        protected Size onMeasure(Constraints constraints) {
+            return constraints.constrain(10, 10);
+        }
+
+        @Override
+        protected void onPaint(limn.graphics.Canvas canvas) {
+            painted++;
+        }
+    }
+
+    @Test
+    void anAvatarSqueezedUnderAPointPaintsSafelyAndTheFrameGoesOn() {
+        // The audit's scenario: under about 1.2 pt the initials' size rounded to 0 and the font
+        // refused it, so the paint threw on every frame and what came after it was never drawn.
+        for (float d : new float[] {0, 0.5f, 1.2f}) {
+            for (Avatar avatar : List.of(new Avatar("Ada Lovelace"), new Avatar(" "),
+                    new Avatar("Ada Lovelace").setImage(new Image(2, 2, new byte[16])))) {
+                Column root = new Column();
+                root.add(new SizedBox(d, d, avatar));
+                After after = new After();
+                root.add(after);
+                Recorder drawn = paint(root, 100, 100);
+                assertEquals(1, after.painted, "d=" + d + ", " + avatar.name() + ": the frame went on");
+                assertTrue(drawn.texts.isEmpty(), "no initials under a point: " + drawn.texts);
+            }
+        }
+    }
+
+    @Test
+    void aGroupInABoxUnderAPointPaintsSafelyAndTheFrameGoesOn() {
+        for (float d : new float[] {0, 0.5f, 1.2f}) {
+            Column root = new Column();
+            root.add(new SizedBox(d, d, group(7)));
+            After after = new After();
+            root.add(after);
+            paint(root, 100, 100);
+            assertEquals(1, after.painted, "d=" + d);
+        }
+    }
+
+    @Test
+    void initialsStayDrawnAsLongAsTheyAreAPointTall() {
+        // The clamp is at the font, not at the circle: a small avatar keeps its letters.
+        Avatar avatar = new Avatar("Ada Lovelace");
+        Recorder drawn = paint(new SizedBox(4, 4, avatar), 4, 4);
+        assertEquals(List.of("AL"), drawn.texts);
     }
 
     @Test

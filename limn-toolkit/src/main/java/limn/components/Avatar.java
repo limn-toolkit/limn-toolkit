@@ -30,7 +30,8 @@ import java.util.regex.Pattern;
  *
  * <p><b>The size</b> is the control height of the step (32 points at {@code MEDIUM}), so an avatar
  * sits in a row of controls at their height; give it a {@link limn.scene.layout.SizedBox} for a
- * larger one, and the circle fills the smaller side of the box it is given.
+ * larger one, and the circle fills the smaller side of the box it is given. A box squeezed to a
+ * point or so across draws the tinted circle without its letters, and one of no size draws nothing.
  *
  * <p><b>The colour</b> is one of the chart palette's categorical colours
  * ({@link ChartPalette#defaultFor(Theme)}), chosen by the name's {@link String#hashCode()}, mixed, unless
@@ -301,6 +302,9 @@ public final class Avatar extends Widget<Avatar> {
     protected void onPaint(Canvas canvas) {
         Theme theme = Theme.of(this);
         float d = diameter();
+        if (!(d > 0)) {
+            return; // a box squeezed to nothing has no circle to draw
+        }
         float x = (width() - d) / 2;
         float y = (height() - d) / 2;
         float r = d / 2;
@@ -324,7 +328,13 @@ public final class Avatar extends Widget<Avatar> {
         Font font = t.label().bold();
         float scale = d / t.controlHeight();
         if (scale != 1) {
-            font = font.withSize(Math.round(font.size() * scale));
+            int size = Math.round(font.size() * scale);
+            if (size < 1) {
+                // A circle a point or so across would ask for letters of no size at all, which no
+                // font has: the tinted circle alone, a dot at that size.
+                return;
+            }
+            font = font.withSize(size);
         }
         ShapedText shaped = line;
         ShapedText.Direction base = ShapedText.Direction.of(letters, neutralBase());

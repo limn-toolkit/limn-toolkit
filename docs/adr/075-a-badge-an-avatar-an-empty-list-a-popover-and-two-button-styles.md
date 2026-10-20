@@ -603,6 +603,11 @@ that the text above does not say, dated where it departs from it.
   in `AXDescription` as section 3.3 says. Initials grow with a `SizedBox`. A group's hidden members
   are not its children (they have no box); the "+k" circle is a private child with the tooltip,
   and the group's child hook ignores every circle.
+- **A circle a point or so across** (2026-10-19, the audit's CO-5): the initials grow with the
+  circle and are rounded to a whole point, so under about 1.2 points they rounded to no size, the
+  font refused it, and the paint threw on every frame, losing what the frame painted after it. The
+  tinted circle is drawn alone there, and nothing at all in a box of no size. A group lays its
+  circles out at the control height whatever box it is given, so its own circles never get there.
 
 ### 12.4 Empty and loading content
 
