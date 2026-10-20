@@ -459,7 +459,7 @@ public final class AvatarGroup extends Widget<AvatarGroup> {
                 line = textRuler().shape(value, font, base);
             }
             TextMetrics m = line.metrics();
-            canvas.drawText(line, cx - m.width() / 2, cy - m.height() / 2 + m.ascent(), theme.textMuted());
+            canvas.drawText(line, cx - m.width() / 2, textRuler().centredBaseline(font, height()), theme.textMuted());
         }
     }
 }
