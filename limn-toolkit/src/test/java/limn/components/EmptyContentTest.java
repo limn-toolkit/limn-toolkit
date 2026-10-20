@@ -453,28 +453,39 @@ class EmptyContentTest extends AccessibleComponentTestBase {
     }
 
     @Test
-    void oneContentIsNeverTwoWidgetsEvenWhileNeitherShowsIt() {
-        // The hard case: the first list has rows, so its empty content has no parent at the moment
-        // the second list is given it; both empty later, and both would show it.
+    void aContentNotShownMayGoToAFreshWidgetWhateverHappenedToTheOld() {
+        // The review's case: a page rebuilt with a fresh list reuses the one "No contacts" label
+        // the dropped list held while it had rows. A registry of holders refused it until the old
+        // list was collected; whether a call throws must not depend on the garbage collector.
         names.add("Ana Lima");
+        ListView<String> old = list();
+        Label shared = new Label("No contacts");
+        old.setEmptyContent(shared, shared);
+        mount(old);
+        assertNull(shared.parent(), "not shown: the list has a row");
+        ListView<String> fresh = new ListView<>(Label::new);
+        fresh.setEmptyContent(shared, shared);
+        assertSame(shared, fresh.emptyContent());
+        Table<String> table = table();
+        table.setLoadingContent(shared); // free at this moment, so anyone's
+    }
+
+    @Test
+    void aContentTwoWidgetsWantAtOnceIsShownByOneAndDrawnOnce() {
+        // Given to two lists while neither showed it, then both empty in one window: the first to
+        // lay out shows it, the other shows nothing, and no frame is lost.
         ListView<String> first = list();
+        ListView<String> second = new ListView<>(Label::new);
+        second.setItems(new ArrayList<>());
         Label shared = new Label("No contacts");
         first.setEmptyContent(shared, shared);
-        ListView<String> second = new ListView<>(Label::new);
-        assertNull(shared.parent(), "not shown: the first list has a row");
-        assertThrows(IllegalArgumentException.class,
-                () -> second.setEmptyContent(shared), "the first list's empty content");
-        assertThrows(IllegalArgumentException.class,
-                () -> second.setLoadingContent(shared), "nor its loading content");
-        Table<String> table = table();
-        assertThrows(IllegalArgumentException.class,
-                () -> table.setEmptyContent(shared), "nor a table's");
-
-        first.setEmptyContent(null);
-        second.setEmptyContent(shared); // let go, it is anyone's
-        assertSame(shared, second.emptyContent());
-        assertThrows(IllegalArgumentException.class,
-                () -> first.setLoadingContent(shared), "now the second's");
+        second.setEmptyContent(shared, shared);
+        TokenColumn page = new TokenColumn(Tokens.Role.SMALL);
+        page.add(new SizedBox(300, 120, first));
+        page.add(new SizedBox(300, 120, second));
+        List<String> drawn = drawnBy(page);
+        assertEquals(1, drawn.stream().filter("No contacts"::equals).count(), "drawn once: " + drawn);
+        assertTrue(first.isShowingEmptyContent() != second.isShowingEmptyContent(), "shown by one");
     }
 
     @Test

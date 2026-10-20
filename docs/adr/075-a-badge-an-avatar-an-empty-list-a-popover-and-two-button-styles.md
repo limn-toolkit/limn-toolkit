@@ -635,10 +635,13 @@ that the text above does not say, dated where it departs from it.
   parent was accepted, and the next frame threw inside the widget's layout; since the placeholder
   had believed the content attached before adding it, it was then laid out and drawn by both
   parents every frame. The setters now refuse, with an `IllegalArgumentException`, a content in
-  another container, another widget's empty or loading content (even while neither shows it,
-  through a weak map of holders) and one that holds the widget; the placeholder believes a content
-  attached only once it is; and a content the application puts elsewhere after setting it is not
-  shown, with one warning, instead of losing frames.
+  another container (another widget showing it included) and one that holds the widget; the
+  placeholder believes a content attached only once it is; and a content the application puts
+  elsewhere after setting it, or that another widget shows first, is not shown, with one warning,
+  instead of losing frames. A registry of holders refused a content another widget held but did not
+  show; the review of the same day dropped it, because the holder was held weakly and a page rebuilt
+  with a fresh list reusing one label was refused or not depending on whether the garbage collector
+  had run.
 - **Said only where it is seen, by the name it is heard by** (2026-10-19, the audit's CO-12 and
   AX-4): a list in a hidden container or on a tab page not chosen, still in the window, said
   "Loading Archived" and "Archived, 0 items", loads the user could not see; it is now busy and says

@@ -2122,14 +2122,14 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
      * <p>The content is the tree's last child while it shows, so its own controls (a "Clear
      * filter" button) follow the tree in the Tab order and a reader finds them after its (no)
      * rows; they belong to no selection. It is this tree's own: one already in another
-     * container, or another widget's content, is refused. A content passed this way describes
-     * nothing to a reader: pass its message with {@link #setEmptyContent(Widget, Label)}.
+     * container is refused, and one given to two widgets shows in one only. A content passed this
+     * way describes nothing to a reader: pass its message with
+     * {@link #setEmptyContent(Widget, Label)}.
      *
      * @param content the content, or {@code null} for none
      * @return this tree
-     * @throws IllegalArgumentException when {@code content} is already in another container, is
-     *                                  another list's, table's or tree's empty or loading content, or
-     *                                  holds this tree
+     * @throws IllegalArgumentException when {@code content} is already in another container
+     *                                  (another widget showing it included), or holds this tree
      */
     public Tree<T> setEmptyContent(@Nullable Widget<?> content) {
         Ui.checkUiThread();
@@ -2144,9 +2144,8 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
      * @param content the content, or {@code null} for none
      * @param message the label inside it that says why there are no rows, or {@code null}
      * @return this tree
-     * @throws IllegalArgumentException when {@code content} is already in another container, is
-     *                                  another list's, table's or tree's empty or loading content, or
-     *                                  holds this tree
+     * @throws IllegalArgumentException when {@code content} is already in another container
+     *                                  (another widget showing it included), or holds this tree
      */
     public Tree<T> setEmptyContent(@Nullable Widget<?> content, @Nullable Label message) {
         Ui.checkUiThread();
@@ -2218,9 +2217,8 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
      *
      * @param content the content, or {@code null} for the default
      * @return this tree
-     * @throws IllegalArgumentException when {@code content} is already in another container, is
-     *                                  another list's, table's or tree's empty or loading content, or
-     *                                  holds this tree
+     * @throws IllegalArgumentException when {@code content} is already in another container
+     *                                  (another widget showing it included), or holds this tree
      */
     public Tree<T> setLoadingContent(@Nullable Widget<?> content) {
         Ui.checkUiThread();
@@ -2234,9 +2232,8 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
      * @param content the content, or {@code null} for the default
      * @param message the label inside it that says what is loading, or {@code null}
      * @return this tree
-     * @throws IllegalArgumentException when {@code content} is already in another container, is
-     *                                  another list's, table's or tree's empty or loading content, or
-     *                                  holds this tree
+     * @throws IllegalArgumentException when {@code content} is already in another container
+     *                                  (another widget showing it included), or holds this tree
      */
     public Tree<T> setLoadingContent(@Nullable Widget<?> content, @Nullable Label message) {
         Ui.checkUiThread();

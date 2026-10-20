@@ -2664,14 +2664,14 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
      * <p>The content is the table's last child while it shows, so its own controls (a "Clear
      * filter" button) follow the table in the Tab order and a reader finds them after its (no)
      * rows; they belong to no selection. It is this table's own: one already in another
-     * container, or another widget's content, is refused. A content passed this way describes
-     * nothing to a reader: pass its message with {@link #setEmptyContent(Widget, Label)}.
+     * container is refused, and one given to two widgets shows in one only. A content passed this
+     * way describes nothing to a reader: pass its message with
+     * {@link #setEmptyContent(Widget, Label)}.
      *
      * @param content the content, or {@code null} for none
      * @return this table
-     * @throws IllegalArgumentException when {@code content} is already in another container, is
-     *                                  another list's, table's or tree's empty or loading content, or
-     *                                  holds this table
+     * @throws IllegalArgumentException when {@code content} is already in another container
+     *                                  (another widget showing it included), or holds this table
      */
     public Table<T> setEmptyContent(@Nullable Widget<?> content) {
         Ui.checkUiThread();
@@ -2686,9 +2686,8 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
      * @param content the content, or {@code null} for none
      * @param message the label inside it that says why there are no rows, or {@code null}
      * @return this table
-     * @throws IllegalArgumentException when {@code content} is already in another container, is
-     *                                  another list's, table's or tree's empty or loading content, or
-     *                                  holds this table
+     * @throws IllegalArgumentException when {@code content} is already in another container
+     *                                  (another widget showing it included), or holds this table
      */
     public Table<T> setEmptyContent(@Nullable Widget<?> content, @Nullable Label message) {
         Ui.checkUiThread();
@@ -2760,9 +2759,8 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
      *
      * @param content the content, or {@code null} for the default
      * @return this table
-     * @throws IllegalArgumentException when {@code content} is already in another container, is
-     *                                  another list's, table's or tree's empty or loading content, or
-     *                                  holds this table
+     * @throws IllegalArgumentException when {@code content} is already in another container
+     *                                  (another widget showing it included), or holds this table
      */
     public Table<T> setLoadingContent(@Nullable Widget<?> content) {
         Ui.checkUiThread();
@@ -2776,9 +2774,8 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
      * @param content the content, or {@code null} for the default
      * @param message the label inside it that says what is loading, or {@code null}
      * @return this table
-     * @throws IllegalArgumentException when {@code content} is already in another container, is
-     *                                  another list's, table's or tree's empty or loading content, or
-     *                                  holds this table
+     * @throws IllegalArgumentException when {@code content} is already in another container
+     *                                  (another widget showing it included), or holds this table
      */
     public Table<T> setLoadingContent(@Nullable Widget<?> content, @Nullable Label message) {
         Ui.checkUiThread();

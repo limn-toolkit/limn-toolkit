@@ -16,10 +16,6 @@ import limn.scene.internal.SceneAccess;
 import limn.scene.layout.Flex;
 import org.jspecify.annotations.Nullable;
 
-import java.lang.ref.WeakReference;
-import java.util.Map;
-import java.util.WeakHashMap;
-
 /**
  * What a list, a table or a tree shows in its rows' viewport while it has no rows: the
  * application's empty content ("No orders match", a button that clears the filter), or while it
@@ -37,8 +33,9 @@ import java.util.WeakHashMap;
  * all otherwise, so a reader finds it after the (no) rows and the Tab key reaches its buttons
  * after the widget itself, and a hidden content holds no node and no focus. It belongs to no
  * selection: the rows' and the grid's contracts read members, and it is not one. So a content is
- * refused when it is already in another container or another widget's content: it would be laid
- * out and drawn by two parents.
+ * refused when it is already in another container: it would be laid out and drawn by two parents.
+ * One given to two widgets while neither shows it is shown by the first that wants it, and not by
+ * the other, which logs it once.
  *
  * <p><b>UI thread only</b>, as the widgets that hold one are. Not API: see the package.
  */
@@ -70,13 +67,6 @@ public final class RowsPlaceholder {
 
     private static final System.Logger LOG = System.getLogger(RowsPlaceholder.class.getName());
 
-    /**
-     * Which placeholder each content set on one belongs to, so that one content is never two
-     * widgets', even while neither shows it. The placeholder is held weakly: it holds its contents,
-     * and a strong value would keep every key alive.
-     */
-    private static final Map<Widget<?>, WeakReference<RowsPlaceholder>> HOLDERS = new WeakHashMap<>();
-
     private final Host host;
     private @Nullable Widget<?> emptyContent;
     private @Nullable Label emptyMessage;
@@ -106,16 +96,15 @@ public final class RowsPlaceholder {
      * @param message the label that says why there are no rows, or {@code null}: a content with no
      *                message describes nothing, since the toolkit does not read text out of an
      *                arbitrary widget
-     * @throws IllegalArgumentException when {@code content} is in another container, is the empty
-     *                                  or loading content of another widget, or holds this widget
+     * @throws IllegalArgumentException when {@code content} is in another container or holds this
+     *                                  widget
      */
     public void setEmpty(@Nullable Widget<?> content, @Nullable Label message) {
         Ui.checkUiThread();
         checkFree(content);
-        Widget<?> old = emptyContent;
         this.emptyContent = content;
         this.emptyMessage = content == null ? null : message;
-        held(old, content);
+        saidElsewhere = false;
         changed();
     }
 
@@ -145,22 +134,24 @@ public final class RowsPlaceholder {
      *
      * @param content the content, or {@code null} for the default
      * @param message the label inside it that describes the widget while it shows, or {@code null}
-     * @throws IllegalArgumentException when {@code content} is in another container, is the empty
-     *                                  or loading content of another widget, or holds this widget
+     * @throws IllegalArgumentException when {@code content} is in another container or holds this
+     *                                  widget
      */
     public void setLoadingContent(@Nullable Widget<?> content, @Nullable Label message) {
         Ui.checkUiThread();
         checkFree(content);
-        Widget<?> old = loadingContent;
         this.loadingContent = content;
         this.loadingMessage = content == null ? null : message;
-        held(old, content);
+        saidElsewhere = false;
         changed();
     }
 
     /**
-     * Refuses a content another parent or another widget has: added again by this one it would be
-     * laid out and drawn by both, and the frame that added it would throw.
+     * Refuses a content another parent has: added again by this one it would be laid out and drawn
+     * by both, and the frame that added it would throw. A content another widget holds but does not
+     * show is not refused: whether that widget is still wanted is not this one's to know (a
+     * registry of holders made the answer hang on the garbage collector), and {@link #sync} shows
+     * it in one place only.
      */
     private void checkFree(@Nullable Widget<?> content) {
         if (content == null) {
@@ -172,33 +163,12 @@ public final class RowsPlaceholder {
             throw new IllegalArgumentException("the content is already in another container: take it out "
                     + "first, or give the " + widget.getClass().getSimpleName() + " a content of its own");
         }
-        WeakReference<RowsPlaceholder> holder = HOLDERS.get(content);
-        RowsPlaceholder other = holder == null ? null : holder.get();
-        if (other != null && other != this && other.holds(content)) {
-            throw new IllegalArgumentException("the content is already the empty or loading content of "
-                    + "another " + other.host.widget().getClass().getSimpleName() + ": each takes one of its own");
-        }
         for (Widget<?> w = widget; w != null; w = w.parent()) {
             if (w == content) {
                 throw new IllegalArgumentException("the content holds the "
                         + widget.getClass().getSimpleName() + " it would show in");
             }
         }
-    }
-
-    private boolean holds(Widget<?> content) {
-        return content == emptyContent || content == loadingContent;
-    }
-
-    /** Lets {@code old} go unless it is still one of this widget's contents, and claims {@code next}. */
-    private void held(@Nullable Widget<?> old, @Nullable Widget<?> next) {
-        if (old != null && !holds(old)) {
-            HOLDERS.remove(old);
-        }
-        if (next != null) {
-            HOLDERS.put(next, new WeakReference<>(this));
-        }
-        saidElsewhere = false;
     }
 
     /** @return the loading content the application gave, or {@code null} for the default */
