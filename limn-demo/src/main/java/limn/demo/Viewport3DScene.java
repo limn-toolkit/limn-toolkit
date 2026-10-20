@@ -164,7 +164,7 @@ final class Viewport3DScene {
      * which a normal map or a bloom threshold can actually be judged. The page keeps the ones a
      * visitor reads at a glance: the lit forward pass with three light types, the shadow depth
      * pass, the environment's reflections, a model loaded from a file, and a surface computed on
-     * the GPU.
+     * the GPU ({@link GpuShaderScene}).
      *
      * <p>A toolbar over the view: the scene and the render scale, which is the page's and so
      * reaches every scene. The view below fills the page's width at 16:9, with the one hint it
@@ -208,6 +208,10 @@ final class Viewport3DScene {
         gltf.camera().eye(new Vec3(0.5f, 1.9f, 7.2f));
         gltf.setAccessibleName(Text.MODEL);
         scenes.add(new Shown(Text.MODEL, Page.aspect(16f / 9f, gltf), List.of(gltf), Text.HINT_ORBIT, sayModel));
+
+        List<Viewport3D> shaderViews = new ArrayList<>();
+        Widget<?> shader = GpuShaderScene.content(shaderViews::add);
+        scenes.add(new Shown(GpuShaderScene.Text.SHADER, shader, shaderViews, Text.HINT_ORBIT, null));
 
         return page(scenes, index -> modelShowing[0] = scenes.get(index).views().contains(gltf));
     }
