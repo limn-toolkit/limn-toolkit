@@ -369,3 +369,14 @@ names the variables itself (`ir_s…`).
 - **2026-10-20, review 9: stale lines marked.** Section 3.4 is rewritten to the names as they
   are, and the earlier entries this round overtook (`toString`, `turnsPerPixel`, the single
   `state` and depth names) carry a note saying what superseded them; the log keeps its order.
+- **2026-10-20, review 9: the exit is asked before the next state's own work.** The generator
+  wrote every local of a turn before the `if (…) break;`, so the turn that ends a loop computed the
+  next state anyway: the Showcase cloud's noise, eight hashes, once more for every pixel that
+  stopped. The locals the exit reads now come first, then the break, then what only the next
+  state needs; a local the exit made, the next state reads where it is. The loop keeps the shape
+  section 3.1 gives. The cloud also ends at once for a ray that passes beside its ball, which
+  gathered nothing in 48 steps. Measured with a scratch harness on this Mac, best of twelve
+  frames, three runs each: on Apple's software renderer at 320x180, 396 ms a frame before, 387 ms
+  with the reorder alone, 146 ms with both, the image unchanged to the last bit; on the GPU at
+  640x360 and 1826x1026 every form measured 0.8 to 6 ms with readback, within the noise of that
+  measurement.

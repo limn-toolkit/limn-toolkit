@@ -353,4 +353,27 @@ class GlslSharingAndLoopsTest {
         assertTrue(inner > 0 && around > inner, frag);
         assertFalse(loopText(frag, 0).contains("< 512;"), "not inside the outer loop: " + frag);
     }
+
+    @Test
+    void theExitIsAskedBeforeTheWorkOnlyTheNextStateNeeds() {
+        // The turn's heavy part, used twice, is a local; the exit does not read it, so the turn that
+        // ends the loop must not compute it.
+        Expr.Loop loop = Expr.Loop.of(Expr.Lit.of(0f), 8, s -> {
+            Expr heavy = call("sin", ShaderType.FLOAT, mul(s, Expr.Lit.of(3f)));
+            return add(add(heavy, heavy), Expr.Lit.of(0.1f));
+        }, s -> sub(s, Expr.Lit.of(4f)));
+        String turn = loopText(fragment(IrSurfaces.emitting(new Expr.Construct(ShaderType.VEC3, List.of(loop)))), 0);
+        int exit = turn.indexOf("break;");
+        int heavy = turn.indexOf("= sin((ir_s0 * 3.0));");
+        assertTrue(exit > 0 && heavy > exit, turn);
+        // What the exit reads it computes first, and the next state reuses it after the break.
+        Expr.Loop shared = Expr.Loop.of(Expr.Lit.of(0f), 8, s -> {
+            Expr heavy2 = call("sin", ShaderType.FLOAT, mul(s, Expr.Lit.of(3f)));
+            return add(heavy2, heavy2);
+        }, s -> sub(call("sin", ShaderType.FLOAT, mul(s, Expr.Lit.of(3f))), Expr.Lit.of(0.5f)));
+        String both = loopText(fragment(IrSurfaces.emitting(new Expr.Construct(ShaderType.VEC3, List.of(shared)))), 0);
+        int local = both.indexOf("float ir_t0 = sin((ir_s0 * 3.0));");
+        assertTrue(local > 0 && local < both.indexOf("break;"), both);
+        assertEquals(1, count(both, "sin("), both);
+    }
 }

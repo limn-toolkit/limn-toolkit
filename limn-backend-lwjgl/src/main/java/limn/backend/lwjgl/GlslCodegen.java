@@ -463,7 +463,8 @@ final class GlslCodegen {
         /**
          * A loop as statements, in the innermost block that sees what it reads: each value of its
          * state declared and set, then a {@code for} of a constant count that asks {@code until}
-         * before each turn and steps the state, every value from the state before the turn.
+         * before each turn, before any work only the next state needs, and steps the state, every
+         * value from the state before the turn.
          * Returns the variables that hold its values.
          */
         private List<String> loop(Expr.Loop loop, int id, int number, Scope scope) {
@@ -490,7 +491,11 @@ final class GlslCodegen {
                 binds.put(loop.states().get(i), variable);
             }
             Scope body = new Scope(home, binds, home.indent + "    ");
+            // The exit and the locals it reads first; what only the next state needs after the break,
+            // so the turn that ends the loop does not compute it. A local the exit made, the next
+            // state reads where it is.
             String until = loop.until() == null ? null : emit(loop.until(), body);
+            String asked = body.takePrelude();
             List<String> next = new java.util.ArrayList<>();
             for (Expr value : loop.next()) {
                 next.add(emit(value, body));
@@ -498,12 +503,13 @@ final class GlslCodegen {
             StringBuilder text = new StringBuilder();
             text.append(home.indent).append("for (int ").append(counter).append(" = 0; ").append(counter)
                     .append(" < ").append(loop.maxIterations()).append("; ++").append(counter).append(") {\n");
-            text.append(body.takePrelude());
+            text.append(asked);
             if (until != null) {
                 text.append(body.indent).append("if (").append(until).append(" > 0.0) {\n")
                         .append(body.indent).append("    break;\n")
                         .append(body.indent).append("}\n");
             }
+            text.append(body.takePrelude());
             if (next.size() == 1) {
                 text.append(body.indent).append(variables.get(0)).append(" = ").append(next.get(0)).append(";\n");
             } else {

@@ -388,9 +388,10 @@ final class GpuShaderScene {
      *
      * <p>The density is the noise, thinned toward the ball's edge; each step adds the light of
      * what it crosses, in the palette's colours by how dense it is, behind what is already in
-     * front of it. The loop ends once the gathered alpha passes 0.99, a different step in each
-     * pixel, so it may hold no texture lookup and no derivative; the noise is worked out, and
-     * needs neither. What the ray does not gather is the crust behind it.
+     * front of it. The loop ends once the gathered alpha passes 0.99, or at once for a ray that
+     * passes beside the ball, a different step in each pixel, so it may hold no texture lookup and
+     * no derivative; the noise is worked out, and needs neither. What the ray does not gather is
+     * the crust behind it.
      */
     private static SurfaceOutputs cloudOutputs() {
         Expr time = new Expr.Swizzle(ref("u_time", ShaderType.VEC4), "x");
@@ -417,7 +418,10 @@ final class GpuShaderScene {
                     mul(new Expr.Swizzle(heatKnobs, "w"), Expr.Lit.of(0.6f)));
             return List.of(add(gathered, mul(new Expr.Construct(ShaderType.VEC4, List.of(glow, Expr.Lit.of(1f))), taken)),
                     add(travelled, Expr.Lit.of(CLOUD_STEP)));
-        }, s -> new Expr.Binary(Expr.Op.SUB, new Expr.Swizzle(s.get(0), "w"), Expr.Lit.of(0.99f)));
+        }, s -> call("max", ShaderType.FLOAT,
+                new Expr.Binary(Expr.Op.SUB, new Expr.Swizzle(s.get(0), "w"), Expr.Lit.of(0.99f)),
+                // A ray that passes beside the ball gathers nothing: it stops before its first step.
+                new Expr.Binary(Expr.Op.SUB, call("length", ShaderType.FLOAT, across), Expr.Lit.of(CLOUD_RADIUS))));
         Expr crust = new Expr.Construct(ShaderType.VEC4, List.of(
                 mul(new Expr.Swizzle(ref("u_crust", ShaderType.VEC4), "xyz"),
                         new Expr.Binary(Expr.Op.SUB, Expr.Lit.of(1f), new Expr.Swizzle(march, "w"))),
