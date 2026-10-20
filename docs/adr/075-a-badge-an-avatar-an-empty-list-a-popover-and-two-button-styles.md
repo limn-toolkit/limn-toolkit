@@ -608,15 +608,22 @@ that the text above does not say, dated where it departs from it.
   font refused it, and the paint threw on every frame, losing what the frame painted after it. The
   tinted circle is drawn alone there, and nothing at all in a box of no size. A group lays its
   circles out at the control height whatever box it is given, so its own circles never get there.
-- **Initials clear the overlap** (2026-10-19, the owner's decision 23, after the audit's SD-4): each
-  circle after the first is drawn over the one before a quarter of a diameter in, with its ring,
-  and two-letter initials reached past that quarter, so "AL" lost the foot of its L left to right
-  and the A's left side right to left. A circle the next one covers now centres its initials on the
-  part it shows: three quarters of the diameter less the ring, from the circle's edge at the
-  letters' height on the near side, the side away from the overlap, which turns with the
-  direction. A pair wider than that part (a joined emoji with a letter) is drawn at the size that
-  fits; the last circle, and so the "+k" circle, keeps its initials centred. `AvatarTest` holds the
-  ruler's run of each covered circle inside that part, both ways, beside a "+k" circle.
+- **Initials clear the overlap** (2026-10-20, the owner's decisions 23 and 26, after the audit's
+  SD-4): each circle after the first is drawn over the one before a quarter of a diameter in, with
+  its ring, and two-letter initials reached past that quarter, so "AL" lost the foot of its L left
+  to right and the A's left side right to left. A circle the next one covers now centres its
+  initials on the part it shows: three quarters of the diameter less the ring, from the circle's
+  edge at the letters' height on the near side, the side away from the overlap in the group's
+  direction (decision 23). Centring alone does not clear every pair: in the shipped face (Roboto
+  Bold, `MEDIUM`) that part is 19.51 points wide and "MW" is 22.76, "HM" 20.57, "DW" 19.82. The first
+  fix drew each such pair smaller on its own, the fixer's addition and not the owner's choice, which
+  gave one group three sizes (11, 12 and 13 points). The owner chose one size per group (decision
+  26): every circle, the last one too, draws its initials at the label size or at the size the
+  group's widest pair needs to fit that part, whichever is smaller; the audit's group of nine
+  (AL, MW, HM, OD, DW, RC, MW, LV, AL) measured with the real shaper draws all nine at 11 points. A
+  picture draws no letters and sets no size; the "+k" circle keeps its own label. `AvatarTest`
+  holds, with the test ruler, each covered circle's run inside that part both ways, one size in the
+  group, and the size following a member joining, changing initials or taking a picture.
 
 ### 12.4 Empty and loading content
 
