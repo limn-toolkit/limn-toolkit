@@ -106,14 +106,64 @@ class Viewport3DPageTest {
 
         SegmentedControl picker = all(scene.root(), SegmentedControl.class).get(0);
         for (int each = 0; each < picker.segmentCount(); each++) {
-            picker.setSelectedIndex(each);
-            window[0].frame();
+            show(scene, window[0], picker, each);
+            int showing = 0;
             for (Viewport3D view : views) {
                 if (view.isShowing()) {
+                    showing++;
                     assertEquals(0.5f, view.renderScale(), 1e-6f,
                             "the scene shown after a switch keeps the scale: " + picker.segment(each));
                 }
             }
+            assertEquals(1, showing, "one scene shows at a time: " + picker.segment(each));
+        }
+    }
+
+    /**
+     * The user choosing the picker's segment {@code index} from the keyboard: the page answers a
+     * user's choice, and {@code setSelectedIndex} is a caller's write that runs no handler.
+     */
+    static void show(Scene scene, HeadlessWindow window, SegmentedControl picker, int index) {
+        scene.requestFocus(picker);
+        while (picker.selectedIndex() != index) {
+            drive(scene).press(picker.selectedIndex() < index ? Keys.RIGHT : Keys.LEFT);
+        }
+        window.frame();
+    }
+
+    /** The picker's segment that says {@code name}, as the reader of the picker hears it. */
+    static int segmentOf(SegmentedControl picker, limn.i18n.I18nString name) {
+        for (int i = 0; i < picker.segmentCount(); i++) {
+            if (picker.segmentSource(i).equals(name)) {
+                return i;
+            }
+        }
+        throw new AssertionError("no segment " + name.get());
+    }
+
+    @Test
+    void theEnvironmentAndTheModelAreScenesOfThePage() {
+        HeadlessWindow[] window = new HeadlessWindow[1];
+        Scene scene = page(window);
+        SegmentedControl picker = all(scene.root(), SegmentedControl.class).get(0);
+        segmentOf(picker, Viewport3DScene.Text.ENVIRONMENT);
+        segmentOf(picker, Viewport3DScene.Text.MODEL);
+    }
+
+    @Test
+    void theModelSaysWhatItLoadedOnceItIsInView() {
+        limn.components.Label status = new limn.components.Label("");
+        Page.reportTo(status);
+        try {
+            HeadlessWindow[] window = new HeadlessWindow[1];
+            Scene scene = page(window);
+            assertEquals("", status.text(), "nothing is said of a scene that is not in view");
+            SegmentedControl picker = all(scene.root(), SegmentedControl.class).get(0);
+            show(scene, window[0], picker, segmentOf(picker, Viewport3DScene.Text.MODEL));
+            ui.pumpUntil(() -> status.text().contains("nodes"));
+            assertEquals("toy.gltf · nodes: 3 · materials: 3 · textures: 1", status.text());
+        } finally {
+            Page.reportTo(null);
         }
     }
 }

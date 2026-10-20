@@ -35,6 +35,7 @@ import limn.render3d.Primitives;
 import limn.render3d.Sampler;
 import limn.render3d.TextureData;
 import limn.render3d.VertexAttribute;
+import limn.render3d.gltf.GltfModel;
 import limn.render3d.scene.LightNode;
 import limn.render3d.scene.MeshNode;
 import limn.render3d.scene.Scene3D;
@@ -52,6 +53,7 @@ import limn.scene.layout.Padding;
 import limn.scene.layout.Row;
 import limn.scene.layout.SizedBox;
 import limn.scene.layout.Stack;
+import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -84,6 +86,11 @@ final class Viewport3DScene {
         static final I18nString CHECKED = new I18nString("showcase.viewport.checked", "Checked sphere");
         static final I18nString SILVER = new I18nString("showcase.viewport.silver", "Silver sphere");
         static final I18nString FLOOR = new I18nString("showcase.viewport.floor", "Floor");
+        static final I18nString ENVIRONMENT = new I18nString("showcase.viewport.environment", "Environment");
+        static final I18nString MODEL = new I18nString("showcase.viewport.model", "Model");
+        static final I18nString MODEL_LOADING = new I18nString("showcase.viewport.modelLoading", "Loading {0}…");
+        static final I18nString MODEL_LOADED = new I18nString("showcase.viewport.modelLoaded",
+                "{0} · nodes: {1} · materials: {2} · textures: {3}");
 
         private Text() {
         }
@@ -100,11 +107,11 @@ final class Viewport3DScene {
     private static final int TEXTURED_BALL = 2;
 
     /**
-     * The sky the showcase's two scenes stand under: a soft blue overhead going pale at the
+     * The sky the showcase's scenes stand under: a soft blue overhead going pale at the
      * horizon, over a dim floor, at a strength that lights the metals' reflections without
      * washing out the three lights that model them.
      */
-    private static final Environment SKY = Environment.gradient(
+    static final Environment SKY = Environment.gradient(
             new Vec3(0.24f, 0.40f, 0.68f),
             new Vec3(0.56f, 0.66f, 0.80f),
             new Vec3(0.16f, 0.16f, 0.18f)).intensity(0.45f);
@@ -140,45 +147,108 @@ final class Viewport3DScene {
     }
 
     /**
-     * The two the showcase's tab shows, in its picker's order.
+     * One scene of the showcase's page: what its segment in the picker says, what it shows, the
+     * views whose render scale the toolbar sets, the gesture its hint names, and what it says to
+     * the status line as it comes into view, if anything.
+     */
+    record Shown(I18nString name, Widget<?> body, List<Viewport3D> views, I18nString hint,
+                 @Nullable Runnable onShow) {
+    }
+
+    /**
+     * The scenes the showcase's page shows, in its picker's order.
      *
-     * <p>Two, out of the ten viewports this class builds. The other eight each have a
-     * {@code --scene} of their own ({@code gltf}, {@code ibl}, {@code debugdraw},
-     * {@code blend3d}, {@code normalmap}, {@code bloom}, {@code surface}, and the cube
-     * field via {@code --gadget}), where they get a whole window instead of the sliver a
-     * tab body leaves them, which is the size at which a normal map or a bloom threshold
-     * can actually be judged. A ten-segment picker inside a tab was ten ways to look at a
-     * 200-point-tall render badly.
+     * <p>Not every viewport this class builds. The rest each have a {@code --scene} of their own
+     * ({@code debugdraw}, {@code blend3d}, {@code normalmap}, {@code bloom}, {@code surface}, and
+     * the cube field via {@code --gadget}), where they get a whole window, which is the size at
+     * which a normal map or a bloom threshold can actually be judged. The page keeps the ones a
+     * visitor reads at a glance: the lit forward pass with three light types, the shadow depth
+     * pass, the environment's reflections, a model loaded from a file, and a surface computed on
+     * the GPU.
      *
-     * <p>These two earn the place because between them they run the whole pipeline: PBR is
-     * the lit forward pass with three light types, and shadows add the depth pass from the
-     * light. Everything the others add is a variation on top of what these two already do.
-     *
-     * <p>A toolbar over the view: the scene, the render scale, and the one hint the view
-     * needs, the gesture. The view below fills the page's width at 16:9; only the visible one
-     * renders (the other pauses). What a click selects goes to the window's status line.
+     * <p>A toolbar over the view: the scene and the render scale, which is the page's and so
+     * reaches every scene. The view below fills the page's width at 16:9, with the one hint it
+     * needs, the gesture, under it; only the visible one renders (the others pause). What a
+     * click selects goes to the window's status line.
      */
     static Widget<?> tabContent() {
+        List<Shown> scenes = new ArrayList<>();
+
         Viewport3D pbr = buildViewport(560, 320, Page::report, true);
+        pbr.setAccessibleName(Text.MATERIALS);
+        scenes.add(new Shown(Text.MATERIALS, Page.aspect(16f / 9f, pbr), List.of(pbr), Text.HINT_SELECT, null));
+
         Viewport3D shadows = shadowViewport(560, 320, true);
         shadows.setAccessibleName(Text.SHADOWS);
-        pbr.setAccessibleName(Text.MATERIALS);
-        Widget<?>[] demos = {Page.aspect(16f / 9f, pbr), Page.aspect(16f / 9f, shadows)};
-        demos[1].setVisible(false);
+        scenes.add(new Shown(Text.SHADOWS, Page.aspect(16f / 9f, shadows), List.of(shadows), Text.HINT_ORBIT, null));
+
+        Viewport3D environment = iblViewport(560, 320);
+        // Nearer than the standalone scene's camera: at the page's 16:9 the row of five otherwise
+        // fills half the width.
+        environment.camera().eye(new Vec3(0, 0.5f, 6.2f));
+        environment.setAccessibleName(Text.ENVIRONMENT);
+        scenes.add(new Shown(Text.ENVIRONMENT, Page.aspect(16f / 9f, environment), List.of(environment),
+                Text.HINT_ORBIT, null));
+
+        // The model loads on the worker pool while the page is already up, so what it says it
+        // loaded is said when it is the scene in view: the moment it lands, if that is now, or
+        // when the visitor switches to it.
+        GltfModel[] model = {null};
+        boolean[] modelShowing = {false};
+        Runnable sayModel = () -> Page.report(model[0] == null
+                ? Text.MODEL_LOADING.format(GltfScene.MODEL)
+                : Text.MODEL_LOADED.format(GltfScene.MODEL, model[0].nodes().size(),
+                        model[0].materials().size(), model[0].textures().size()));
+        Viewport3D gltf = GltfScene.viewport(560, 320, SKY, loaded -> {
+            model[0] = loaded;
+            if (modelShowing[0]) {
+                sayModel.run();
+            }
+        });
+        gltf.camera().eye(new Vec3(0.5f, 1.9f, 7.2f));
+        gltf.setAccessibleName(Text.MODEL);
+        scenes.add(new Shown(Text.MODEL, Page.aspect(16f / 9f, gltf), List.of(gltf), Text.HINT_ORBIT, sayModel));
+
+        return page(scenes, index -> modelShowing[0] = scenes.get(index).views().contains(gltf));
+    }
+
+    /** The page over {@code scenes}: the toolbar, the scene in view, and its hint. */
+    private static Widget<?> page(List<Shown> scenes, java.util.function.IntConsumer shown) {
         Stack viewers = new Stack();
-        for (Widget<?> demo : demos) {
-            viewers.add(demo);
+        List<Viewport3D> views = new ArrayList<>();
+        I18nString[] names = new I18nString[scenes.size()];
+        for (int i = 0; i < scenes.size(); i++) {
+            Shown scene = scenes.get(i);
+            scene.body().setVisible(i == 0);
+            viewers.add(scene.body());
+            views.addAll(scene.views());
+            names[i] = scene.name();
         }
 
-        Label hint = Page.hint(Text.HINT_SELECT).setWrap(false);
-        SegmentedControl picker = new SegmentedControl(Text.MATERIALS, Text.SHADOWS);
+        Label hint = Page.hint(scenes.get(0).hint());
+        SegmentedControl picker = new SegmentedControl(names);
         picker.setAccessibleName(Text.SCENE);
-        picker.onSelect(index -> {
-            for (int i = 0; i < demos.length; i++) {
-                demos[i].setVisible(i == index);
+        java.util.function.IntConsumer showScene = index -> {
+            for (int i = 0; i < scenes.size(); i++) {
+                scenes.get(i).body().setVisible(i == index);
             }
-            hint.setText(index == 0 ? Text.HINT_SELECT : Text.HINT_ORBIT);
-        });
+            Shown scene = scenes.get(index);
+            hint.setText(scene.hint());
+            shown.accept(index);
+            if (scene.onShow() != null) {
+                scene.onShow().run();
+            }
+        };
+        picker.onSelect(showScene);
+        // A lab switch, like the Showcase's own -Dlimn.demo.page: -Dlimn.demo.viewport.scene=Model
+        // opens the page on that scene, by its English name, so a film of the page can show it.
+        String start = System.getProperty("limn.demo.viewport.scene");
+        for (int i = 0; start != null && i < names.length; i++) {
+            if (names[i].english().equalsIgnoreCase(start)) {
+                picker.setSelectedIndex(i);
+                showScene.accept(i);
+            }
+        }
 
         // The render scale of the page, every scene of it: each target is allocated at this
         // fraction of its view's device resolution and upsampled into the same box, so the
@@ -186,7 +256,6 @@ final class Viewport3DScene {
         // the widget's geometry does not move at all. Set on all of them at once, the hidden ones
         // included, so a scene switched to later is already at the scale the toolbar shows; a
         // hidden view renders nothing, so setting it costs nothing until it shows.
-        List<Viewport3D> views = List.of(pbr, shadows);
         float[] scales = {1f, 0.75f, 0.5f, 0.25f};
         List<I18nString> percents = new ArrayList<>();
         for (float scale : scales) {
@@ -202,13 +271,15 @@ final class Viewport3DScene {
         });
         Label scaleLabel = new Label(Text.RENDER_SCALE).setMuted(true).setLabelFor(renderScale);
 
-        Row toolbar = Page.row(12, picker, scaleLabel, new SizedBox(100, SizedBox.UNSET, renderScale));
+        Row toolbar = Page.row(12, picker);
         toolbar.add(Expanded.spacer(1));
-        toolbar.add(hint);
+        toolbar.add(scaleLabel);
+        toolbar.add(new SizedBox(100, SizedBox.UNSET, renderScale));
 
         Column col = Page.column();
         col.add(toolbar);
         col.add(viewers);
+        col.add(hint);
         return col;
     }
 
