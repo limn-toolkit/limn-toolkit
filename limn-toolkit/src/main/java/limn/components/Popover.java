@@ -260,13 +260,22 @@ public final class Popover {
         if (attached == button) {
             return this;
         }
-        detach();
+        // Both buttons and both popovers are settled before any handler runs: an onClose below
+        // that attaches, detaches or shows a popover then starts from the end state, and what it
+        // does is final.
+        Button left = letGo();
         Popover previous = button.attachedPopover();
         if (previous != null) {
-            previous.detach();
+            previous.letGo();
         }
         attached = button;
         button.attachPopover(this);
+        if (left != null) {
+            closeIfOpenFrom(left);
+        }
+        if (previous != null) {
+            previous.closeIfOpenFrom(button);
+        }
         return this;
     }
 
@@ -277,24 +286,52 @@ public final class Popover {
      * stays. The popover still opens from {@link #showFor}, and can be attached again. A no-op when
      * it is on no button.
      *
+     * <p>The popover is off the button before {@link #onClose} hears the close, so what the handler
+     * does is the end state: attaching it again puts it back on a button, and showing it for the
+     * button shows it as {@link #showFor} does for any widget, from a button that does not open it.
+     *
      * @return this popover
      */
     public Popover detach() {
         Ui.checkUiThread();
-        Button button = attached;
-        if (button == null) {
-            return this;
-        }
-        if (open && anchor == button) {
-            closeWith(Change.Origin.CODE); // the button no longer opens it, so it no longer hangs from it
-        }
-        if (attached == button) { // unless onClose moved it meanwhile
-            attached = null;
-            if (button.attachedPopover() == this) {
-                button.attachPopover(null);
-            }
+        Button left = letGo();
+        if (left != null) {
+            closeIfOpenFrom(left);
         }
         return this;
+    }
+
+    /**
+     * Takes this popover off its button, both sides at once and before any handler runs.
+     *
+     * @return the button it was on, or null
+     */
+    private @Nullable Button letGo() {
+        Button button = attached;
+        if (button == null) {
+            return null;
+        }
+        attached = null;
+        if (button.attachedPopover() == this) {
+            button.attachPopover(null);
+        }
+        return button;
+    }
+
+    /**
+     * A panel open from a button that no longer opens it closes, as the code's, and the button is
+     * told it is collapsed. Not when a handler put the popover back on that button meanwhile.
+     */
+    private void closeIfOpenFrom(Button button) {
+        if (open && anchor == button && attached != button) {
+            closeWith(Change.Origin.CODE);
+            button.notifyExpanded();
+        }
+    }
+
+    /** @return the button {@link #attachTo} gave it, or null */
+    @Nullable Button attachedButton() {
+        return attached;
     }
 
     /** @return the attached button's popup, as the owner shape drives it */

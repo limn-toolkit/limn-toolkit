@@ -171,6 +171,61 @@ class PopoverAttachTest extends ComponentTestBase {
         assertTrue(second.isOpen(), "the button opens the new one");
     }
 
+    // ------------------------------------------------------------------ an onClose that attaches
+
+    @Test
+    void anOnCloseAttachingAThirdPopoverToTheButtonLeavesOnePopoverOnIt() {
+        // p2.attachTo(b) detaches p1, open from b; p1's handler puts p3 on b. p3 then believed it
+        // was on b while b held p2, and could never be put on b again.
+        scene();
+        Popover p3 = popover("Third");
+        Popover p1 = popover("First").attachTo(filter);
+        p1.onClose(null);
+        p1.onClose(origin -> p3.attachTo(filter));
+        click(filter);
+        assertTrue(p1.isOpen());
+        Popover p2 = popover("Second").attachTo(filter);
+        Popover on = filter.attachedPopover();
+        assertTrue(on == p2 || on == p3, "the button holds one of them: " + on);
+        for (Popover each : List.of(p1, p2, p3)) {
+            assertEquals(each == on, each.attachedButton() == filter,
+                    "a popover believes it is on the button exactly when the button holds it");
+        }
+        p3.attachTo(filter);
+        assertSame(p3, filter.attachedPopover(), "and p3 can be put on it");
+        assertNull(p2.attachedButton());
+    }
+
+    @Test
+    void anOnCloseAttachingThePopoverBackToItsButtonDuringDetachIsWhatHolds() {
+        scene();
+        Popover popover = popover("Filter orders").attachTo(filter);
+        popover.onClose(null);
+        popover.onClose(origin -> popover.attachTo(filter));
+        click(filter);
+        popover.detach();
+        assertSame(popover, filter.attachedPopover(), "what the handler did last is the end state");
+        assertSame(filter, popover.attachedButton());
+        assertFalse(popover.isOpen());
+    }
+
+    @Test
+    void anOnCloseShowingThePopoverAgainDuringDetachLeavesAButtonThatSaysSo() {
+        scene();
+        Popover popover = popover("Filter orders").attachTo(filter);
+        popover.onClose(null);
+        popover.onClose(origin -> popover.showFor(filter));
+        click(filter);
+        popover.detach();
+        assertNull(filter.attachedPopover(), "detached");
+        assertNull(popover.attachedButton());
+        assertTrue(popover.isOpen(), "shown again by its handler, for a plain widget, as showFor does");
+        popover.onClose(null);
+        popover.close();
+        click(filter);
+        assertFalse(popover.isOpen(), "the button opens nothing");
+    }
+
     @Test
     void aReaderIsToldTheButtonNoLongerOpensAPopup() {
         Button button = new Button("Filter");
