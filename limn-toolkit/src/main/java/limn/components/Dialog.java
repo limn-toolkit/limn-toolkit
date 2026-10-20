@@ -1471,9 +1471,22 @@ public final class Dialog {
      * <p>Without this a dialog whose body holds a text field could not be answered from the
      * keyboard at all: initial focus lands on the field, the field ignores Return, and the card
      * knew only ESC.
+     *
+     * <p>Only the press answers, never the keyboard's repeats of it, which are consumed, as a
+     * {@link Button} arms on the press alone. A key held down otherwise acted on every dialog it
+     * reached: an Escape held on a form whose cancel handler asks a question cancelled that
+     * question on the next repeat, the form asked again on the one after, and the two alternated
+     * for as long as the key was down (2026-10-20).
      */
     private void answerDialogKey(KeyEvent event) {
         if (!event.isPressed() || closing) {
+            return;
+        }
+        boolean answers = event.key() == Keys.ESCAPE || (event.key() == Keys.ENTER && hasDefaultButton);
+        if (event.isRepeat()) {
+            if (answers) {
+                event.consume(); // nor does it reach anything behind the card
+            }
             return;
         }
         if (event.key() == Keys.ESCAPE) {

@@ -269,6 +269,126 @@ class DialogCancelRequestTest extends ComponentTestBase {
         assertEquals(2, asked.size());
     }
 
+    // ------------------------------------------------------------- a key held down
+
+    /** The question a changed form asks over itself, as the guide and the Showcase ask it. */
+    private Dialog question(DisplayMode mode, List<Dialog> opened) {
+        Dialog asking = new Dialog("Save changes?", "")
+                .addButton("Don't save", "discard")
+                .addButton("Cancel", "cancel")
+                .addPrimaryButton("Save", "save")
+                .setCancelResult("cancel")
+                .setDisplayMode(mode);
+        if (mode == DisplayMode.IN_SCENE) {
+            asking.keepInScene();
+        }
+        opened.add(asking);
+        return asking;
+    }
+
+    /** Where a key goes now: the top open question's own window, or the form's keys. */
+    private Scene keyboard(List<Dialog> opened) {
+        for (int i = opened.size() - 1; i >= 0; i--) {
+            Dialog q = opened.get(i);
+            if (!q.result().toCompletableFuture().isDone() && q.displayMode() == DisplayMode.NATIVE_WINDOW) {
+                return q.contentRoot().scene();
+            }
+        }
+        return keys;
+    }
+
+    /** One step of a key held down: 33 ms of the clock, every window framed twice. */
+    private void step() {
+        clock.addAndGet(TimeUnit.MILLISECONDS.toNanos(33));
+        runtime.drain();
+        for (int pass = 0; pass < 2; pass++) {
+            for (HeadlessWindow w : List.copyOf(backend.windows())) {
+                if (w.scene() != null && !w.isClosed()) {
+                    w.frame();
+                }
+            }
+        }
+    }
+
+    /**
+     * {@code key} pressed, then repeated by the keyboard every 33 ms for a second and a half, each
+     * repeat going to whatever has the keyboard then, then released.
+     */
+    private void hold(int key, List<Dialog> opened) {
+        drive(keys).keyEvent(key, true, false, 0);
+        drive(keys).inputBatchEnded();
+        step();
+        for (int t = 0; t < 1500; t += 33) {
+            Scene target = keyboard(opened);
+            drive(target).keyEvent(key, true, true, 0);
+            drive(target).inputBatchEnded();
+            step();
+        }
+        Scene target = keyboard(opened);
+        drive(target).keyEvent(key, false, false, 0);
+        drive(target).inputBatchEnded();
+        settle();
+    }
+
+    /**
+     * Escape held down on a changed form asks once. The keyboard's repeats land in the question it
+     * opened, and acted on there they cancelled it, which gave the form back the keyboard and the
+     * next repeat asked again: a question opening and closing for as long as the key was held, a
+     * whole-window strobe under less motion, and a window made and destroyed per turn in a window
+     * of its own.
+     */
+    @ParameterizedTest
+    @EnumSource(DisplayMode.class)
+    void escapeHeldDownAsksOnceAndItsRepeatsDoNotAnswerTheQuestion(DisplayMode mode) {
+        for (boolean reduced : new boolean[] {false, true}) {
+            String what = mode + (reduced ? ", less motion" : "");
+            preferences = new TestPreferences().reduceMotion(reduced);
+            List<Dialog> opened = new ArrayList<>();
+            open(mode, form(), request -> question(mode, opened).show(host).thenAccept(answer -> {
+                if ("cancel".equals(answer)) {
+                    request.refuse();
+                } else {
+                    dialog.dismiss(answer);
+                }
+            }));
+            hold(Keys.ESCAPE, opened);
+            assertEquals(1, asked.size(), what + ": one question for one press");
+            assertEquals(1, opened.size(), what + ": one question opened");
+            assertFalse(opened.get(0).result().toCompletableFuture().isDone(),
+                    what + ": the repeats did not cancel the question");
+            assertOpen(what);
+            opened.get(0).dismiss("cancel");
+            settle();
+            assertOpen(what + ", the question's Cancel");
+            preferences.close();
+            preferences = null;
+        }
+    }
+
+    /**
+     * Return held down answers once: on an alert whose OK is its cancel result, the press asks, and
+     * the repeats do not press the question's default button.
+     */
+    @ParameterizedTest
+    @EnumSource(DisplayMode.class)
+    void returnHeldDownAnswersOnceAndItsRepeatsDoNotAnswerTheQuestion(DisplayMode mode) {
+        List<Dialog> opened = new ArrayList<>();
+        Dialog alert = new Dialog("Stock running low", "").addPrimaryButton("OK", "ok");
+        alert.setCancelResult("ok");
+        open(mode, alert, request -> question(mode, opened).show(host).thenAccept(answer -> {
+            if ("cancel".equals(answer)) {
+                request.refuse();
+            } else {
+                dialog.dismiss(answer);
+            }
+        }));
+        hold(Keys.ENTER, opened);
+        assertEquals(1, asked.size(), mode + ": one question for one press");
+        assertFalse(opened.get(0).result().toCompletableFuture().isDone(),
+                mode + ": the repeats did not answer the question with its default button");
+        assertOpen(mode.name());
+    }
+
     // ------------------------------------------------------------- what is never asked
 
     @ParameterizedTest
