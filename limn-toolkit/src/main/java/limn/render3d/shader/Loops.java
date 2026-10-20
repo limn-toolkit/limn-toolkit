@@ -82,6 +82,15 @@ final class Loops {
         return most;
     }
 
+    /**
+     * The texture functions that need no neighbouring pixel: told their level of detail or its
+     * gradients, or asking the size. Every other {@code texture…} function picks its level from the
+     * derivatives of its coordinates. ({@code texelFetch} reads one texel and is no {@code texture…}.)
+     */
+    private static final Set<String> EXPLICIT_LEVEL = Set.of("textureSize", "textureLod",
+            "textureLodOffset", "textureProjLod", "textureProjLodOffset", "textureGrad", "textureGradOffset",
+            "textureProjGrad", "textureProjGradOffset");
+
     /** What under {@code node} is undefined in non-uniform control flow, or {@code null}. */
     static @Nullable String undefinedEarly(Expr node) {
         return undefinedEarly(node, Collections.newSetFromMap(new IdentityHashMap<>()));
@@ -94,9 +103,14 @@ final class Loops {
         if (node instanceof Expr.Sample) {
             return "a texture sample";
         }
-        if (node instanceof Expr.Call call && (call.function().equals("dFdx")
-                || call.function().equals("dFdy") || call.function().equals("fwidth"))) {
-            return "a derivative (" + call.function() + ")";
+        if (node instanceof Expr.Call call) {
+            String function = call.function();
+            if (function.startsWith("dFd") || function.startsWith("fwidth")) {
+                return "a derivative (" + function + ")";
+            }
+            if (function.startsWith("texture") && !EXPLICIT_LEVEL.contains(function)) {
+                return "a texture lookup that picks its own level of detail (" + function + ")";
+            }
         }
         for (Expr child : children(node)) {
             String found = undefinedEarly(child, seen);

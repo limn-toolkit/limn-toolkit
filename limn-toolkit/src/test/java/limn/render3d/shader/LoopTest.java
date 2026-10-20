@@ -131,4 +131,30 @@ class LoopTest {
                     new Expr.Binary(Expr.Op.SUB, new Expr.Swizzle(chain, "x"), Expr.Lit.of(1f))));
         });
     }
+
+    @Test
+    void aLoopThatCanEndEarlyTakesNoLookupThatPicksItsOwnLevelOfDetail() {
+        // The lookups that choose a level of detail from the pixel's neighbours are undefined where
+        // the neighbours took other turns, whether the IR says Sample or names the function itself.
+        Expr until = new Expr.Binary(Expr.Op.SUB, new Expr.Swizzle(Z, "x"), Expr.Lit.of(4f));
+        Expr sheet = new Expr.Ref("u_tex", ShaderType.SAMPLER2D);
+        for (String name : List.of("texture", "textureProj", "textureOffset", "textureProjOffset")) {
+            Expr lookup = new Expr.Binary(Expr.Op.ADD, Z, new Expr.Swizzle(
+                    new Expr.Call(name, ShaderType.VEC4, List.of(sheet, Z)), "xy"));
+            assertThrows(IllegalArgumentException.class,
+                    () -> new Expr.Loop("z", Expr.Lit.of(0f, 0f), 8, lookup, until), name);
+            assertThrows(IllegalArgumentException.class, () -> new Expr.Loop("z", Expr.Lit.of(0f, 0f), 8,
+                    step(Z), new Expr.Swizzle(new Expr.Call(name, ShaderType.VEC4, List.of(sheet, Z)), "x")),
+                    name + " in until");
+            assertDoesNotThrow(() -> new Expr.Loop("z", Expr.Lit.of(0f, 0f), 8, lookup, null),
+                    name + " where every pixel takes every turn");
+        }
+        // A lookup told its level, or reading one texel, needs no neighbour.
+        for (String name : List.of("textureLod", "textureLodOffset", "textureProjLod", "textureGrad",
+                "textureGradOffset", "textureProjGrad", "texelFetch", "textureSize")) {
+            Expr lookup = new Expr.Binary(Expr.Op.ADD, Z, new Expr.Swizzle(
+                    new Expr.Call(name, ShaderType.VEC4, List.of(sheet, Z)), "xy"));
+            assertDoesNotThrow(() -> new Expr.Loop("z", Expr.Lit.of(0f, 0f), 8, lookup, until), name);
+        }
+    }
 }

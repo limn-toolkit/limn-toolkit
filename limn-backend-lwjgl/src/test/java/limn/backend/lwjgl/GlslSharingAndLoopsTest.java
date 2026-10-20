@@ -271,4 +271,35 @@ class GlslSharingAndLoopsTest {
         assertTrue(foldedBody.contains("fract((ir_s0 * 3.0))"), foldedBody);
         assertFalse(foldedBody.contains("ir_t0"), foldedBody);
     }
+
+    @Test
+    void aLoopThatCanEndEarlyCallsOnlyWhatIsDefinedWherePixelsTakeDifferentTurns() {
+        Expr.Ref s = new Expr.Ref("s", ShaderType.FLOAT);
+        Expr until = sub(s, Expr.Lit.of(1f));
+        // The framework's shadow helper samples its map choosing the level itself.
+        Expr shadow = call("shadowFactor", ShaderType.FLOAT, ref("v_worldPos", ShaderType.VEC3), s);
+        // A name the generator does not know is no promise either.
+        Expr unknown = call("wobble", ShaderType.FLOAT, s);
+        for (Expr call : List.of(shadow, unknown)) {
+            Expr.Loop loop = new Expr.Loop("s", Expr.Lit.of(0f), 4, add(s, call), until);
+            IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+                    () -> fragment(IrSurfaces.emitting(new Expr.Construct(ShaderType.VEC3, List.of(loop)))));
+            assertTrue(refused.getMessage().contains(((Expr.Call) call).function()), refused.getMessage());
+            // Every pixel takes every turn of a loop without an early end: there they are defined.
+            Expr.Loop uniform = new Expr.Loop("s", Expr.Lit.of(0f), 4, add(s, call), null);
+            assertDoesNotThrow(() -> fragment(IrSurfaces.emitting(new Expr.Construct(ShaderType.VEC3,
+                    List.of(uniform)))));
+        }
+        // The built-ins defined anywhere, and the framework's helpers that neither sample nor take a
+        // derivative, are accepted.
+        Expr ok = add(add(call("sin", ShaderType.FLOAT, s), call("dot", ShaderType.FLOAT, s, s)),
+                add(call("mix", ShaderType.FLOAT, s, Expr.Lit.of(1f), Expr.Lit.of(0.5f)),
+                        new Expr.Swizzle(call("srgbToLinear", ShaderType.VEC3,
+                                new Expr.Construct(ShaderType.VEC3, List.of(s))), "x")));
+        Expr texel = new Expr.Swizzle(call("textureLod", ShaderType.VEC4, ref("u_sheet", ShaderType.SAMPLER2D),
+                ref("v_uv", ShaderType.VEC2), Expr.Lit.of(0f)), "x");
+        Expr.Loop allowed = new Expr.Loop("s", Expr.Lit.of(0f), 4, add(add(s, ok), texel), until);
+        assertDoesNotThrow(() -> fragment(IrSurfaces.emitting(new Expr.Construct(ShaderType.VEC3,
+                List.of(allowed)))));
+    }
 }

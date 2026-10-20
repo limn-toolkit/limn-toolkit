@@ -127,10 +127,14 @@ public sealed interface Expr
      *
      * <p><b>An early end is non-uniform control flow.</b> A loop with an {@code until} ends at
      * different turns in neighbouring pixels, where the shading languages leave a derivative and
-     * an implicitly filtered texture lookup undefined, so its {@code next} and {@code until} may
-     * hold no {@link Sample} and no call to {@code dFdx}, {@code dFdy} or {@code fwidth}; a
-     * generator also refuses there its own helpers that take derivatives and any {@link Raw}
-     * text. A loop without an {@code until} runs every turn in every pixel and may hold them all.
+     * a texture lookup that picks its own level of detail undefined, so its {@code next} and
+     * {@code until} may hold no {@link Sample}, no call to {@code dFdx}, {@code dFdy} or
+     * {@code fwidth}, and no call to {@code texture}, {@code textureProj}, {@code textureOffset} or
+     * {@code textureProjOffset}; {@code textureLod}, {@code textureGrad}, their variants,
+     * {@code texelFetch} and {@code textureSize} are defined there. A generator also refuses there
+     * any {@link Raw} text and every call it does not know to be defined, its own helpers that
+     * sample or take derivatives among them. A loop without an {@code until} runs every turn in
+     * every pixel and may hold them all.
      *
      * <p>The state's name is an identifier every profile accepts and none of the generator's:
      * ASCII letters, digits and {@code _}, a letter first, no {@code __}, and neither

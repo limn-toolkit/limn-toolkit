@@ -117,6 +117,10 @@ does not know the framework's helpers), or an `Expr.Raw`, whose text nobody read
 generator refuses it). A loop without an `until` runs every turn in every fragment and may hold
 all of them.
 
+*Amended 2026-10-20 (section 7):* the constructor also refuses the `texture…` functions that pick
+their own level of detail, whatever node reaches them, and the generator accepts there only the
+calls it knows to be defined, refusing every other name.
+
 ### 3.4 Names
 
 The state is named by the application, so the constructor holds it to an identifier both
@@ -212,3 +216,13 @@ two sibling loops may both call their state `z`.
   in place was right. A local is now reused only when no block between it and the reader binds a
   name the node reads; otherwise the node is written afresh, in the block whose binding it reads.
   The device test holds such a surface, shared and in place, to the same pixels.
+- **2026-10-20, review: what an early-ending loop may call is a list of what is allowed.** Section
+  3.3 refused `Expr.Sample` and three derivatives by name, but `Expr.Call` reaches every built-in:
+  `Call("texture", …)`, `textureProj`, `textureOffset`, `textureProjOffset` and the framework's
+  `shadowFactor` (an implicit-level `texture` inside) were accepted in a loop that can end early,
+  where GLSL ES 3.20 §8.9, like 3.00 and 3.30, leaves them undefined. The constructor now also
+  refuses every `texture…` function but the ones told their level or gradients and `textureSize`,
+  and every name beginning `dFd` or `fwidth`. The generator, which knows the whole name space a
+  surface can call (no surface declares a function), accepts there only the built-ins of both
+  profiles defined in non-uniform control flow and its own helpers that are arithmetic alone,
+  and refuses any other name, so a function it has not read is no promise.

@@ -99,9 +99,38 @@ final class GlslCodegen {
      */
     static boolean shareSubexpressions = true;
 
-    /** The generator's own helpers that take derivatives, refused where those are undefined. */
-    private static final java.util.Set<String> DERIVATIVE_HELPERS = java.util.Set.of("normalMapToWorld",
-            "worldToTangent");
+    /**
+     * The functions a loop that can end early may call: the built-ins of GLSL 3.30 and GLSL ES 3.00
+     * that are defined where neighbouring pixels take different turns, and the framework's own
+     * helpers that neither sample nor take a derivative. A list of what is allowed rather than of
+     * what is not, so a name it does not know, a lookup added to a profile later or a helper
+     * added to the framework, is refused until someone has read what it does.
+     */
+    private static final java.util.Set<String> DEFINED_EARLY = java.util.Set.of(
+            // Angle and trigonometry, exponential, common.
+            "radians", "degrees", "sin", "cos", "tan", "asin", "acos", "atan", "sinh", "cosh", "tanh",
+            "asinh", "acosh", "atanh", "pow", "exp", "log", "exp2", "log2", "sqrt", "inversesqrt",
+            "abs", "sign", "floor", "trunc", "round", "roundEven", "ceil", "fract", "mod", "modf", "min",
+            "max", "clamp", "mix", "step", "smoothstep", "isnan", "isinf", "floatBitsToInt",
+            "floatBitsToUint", "intBitsToFloat", "uintBitsToFloat", "packSnorm2x16", "unpackSnorm2x16",
+            "packUnorm2x16", "unpackUnorm2x16", "packHalf2x16", "unpackHalf2x16",
+            // Geometric, matrix, vector relational.
+            "length", "distance", "dot", "cross", "normalize", "faceforward", "reflect", "refract",
+            "matrixCompMult", "outerProduct", "transpose", "determinant", "inverse", "lessThan",
+            "lessThanEqual", "greaterThan", "greaterThanEqual", "equal", "notEqual", "any", "all", "not",
+            // Texture functions told their level or reading one texel.
+            "textureSize", "texelFetch", "texelFetchOffset", "textureLod", "textureLodOffset",
+            "textureProjLod", "textureProjLodOffset", "textureGrad", "textureGradOffset",
+            "textureProjGrad", "textureProjGradOffset",
+            // The framework's helpers that are arithmetic alone.
+            "srgbToLinear", "distributionGGX", "geometrySchlickGGX", "geometrySmith", "fresnelSchlick",
+            "fresnelSchlickRoughness", "skyRadiance", "shIrradiance");
+
+    /** Why the framework's helpers that are not arithmetic alone are refused there. */
+    private static final java.util.Map<String, String> UNDEFINED_EARLY_HELPERS = java.util.Map.of(
+            "normalMapToWorld", "takes derivatives",
+            "worldToTangent", "takes derivatives",
+            "shadowFactor", "samples the shadow map at a level of detail it picks itself");
 
     /**
      * A block of the generated {@code main()}: where a local can be declared and what it sees.
@@ -428,8 +457,10 @@ final class GlslCodegen {
             if (node instanceof Expr.Raw) {
                 return "raw GLSL, whose text nobody reads for a derivative";
             }
-            if (node instanceof Expr.Call call && DERIVATIVE_HELPERS.contains(call.function())) {
-                return "the helper " + call.function() + ", which takes derivatives";
+            if (node instanceof Expr.Call call && !DEFINED_EARLY.contains(call.function())) {
+                String why = UNDEFINED_EARLY_HELPERS.get(call.function());
+                return why != null ? "the helper " + call.function() + ", which " + why
+                        : "a call to " + call.function() + ", which is not a function known to be defined there";
             }
             for (Expr child : children(node)) {
                 String found = refusedEarly(child, seen);
