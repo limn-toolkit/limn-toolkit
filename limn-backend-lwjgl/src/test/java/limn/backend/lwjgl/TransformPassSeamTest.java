@@ -377,6 +377,37 @@ class TransformPassSeamTest {
                 kind + ", wrapper hidden");
     }
 
+    /** A picture with stripes across it, so that one moved by a fraction shows. */
+    private static final class Stripes extends Widget<Stripes> {
+        @Override
+        protected Size onMeasure(Constraints c) {
+            return c.constrain(50, 40);
+        }
+
+        @Override
+        protected void onPaint(Canvas canvas) {
+            for (int band = 0; band * 5 < height(); band++) {
+                canvas.fillRect(0, band * 5, width(), 5, band % 2 == 0 ? Color.WHITE : Color.rgb(0x206040));
+            }
+        }
+    }
+
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void aPictureZoomedPastTheViewItScrollsInMovedByABannerDrawsWhatTheWholeFrameDrew(boolean shown) {
+        // An image preview zoomed four times, larger than the scroll view round it on every side,
+        // under a banner that hides or comes back: cut at the view, its picture is the same
+        // rectangle before and after, and it still moved inside it.
+        Block banner = new Block(60, 14, Color.rgb(0x20A060));
+        banner.setVisible(!shown);
+        Column column = new Column();
+        column.add(banner);
+        column.add(new Padding(new Insets(0, 0, 0, 0),
+                new Transform(new Stripes()).setScale(4).setTranslation(30, 0)));
+        assertPartialIsWhole(layers(new SizedBox(150, 90, new limn.components.ScrollView(column))),
+                () -> banner.setVisible(shown), shown ? "banner shown" : "banner hidden");
+    }
+
     @Test
     void theLastOfARowOfZoomedCellsHiddenDrawsWhatTheWholeFrameDrew() {
         // A row of cells, each card zoomed past its cell as a hover does; the last cell hides.
@@ -411,7 +442,9 @@ class TransformPassSeamTest {
     }
 
     private void assertPartialIsWhole(Widget<?> root, Runnable change, String scenario) {
-        Scene scene = new Scene(root);
+        // One instant for every frame: a scroll bar fades on the clock, and the whole frame drawn
+        // after the partial one must show the same bar.
+        Scene scene = new Scene(root, () -> 5_000_000_000L);
         scene.setTextRuler(new ShapingRuler(fonts)); // a label measures its text by the real faces
         scene.setPartialRendering(true);
         int texture = GL33C.glGenTextures();

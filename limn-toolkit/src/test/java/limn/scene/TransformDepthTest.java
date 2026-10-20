@@ -644,6 +644,32 @@ class TransformDepthTest extends SceneTestBase {
                 () -> "nor as it comes back: " + painted + " in " + canvas.passes);
     }
 
+    @Test
+    void aPictureZoomedPastTheViewItScrollsInIsRepaintedWhenABannerAboveItHides() {
+        // Cut at the view, the zoomed picture is the same rectangle before and after the banner
+        // hides; the picture itself moved up inside it, and is repainted.
+        TransformTest.Leaf banner = new Card("banner", painted, 60, 14);
+        limn.scene.layout.Column column = new limn.scene.layout.Column();
+        column.add(banner);
+        column.add(new Padding(new Insets(0, 0, 0, 0),
+                new Transform(new Card("picture", painted, 50, 40)).setScale(4).setTranslation(30, 0)));
+        Scene scene = sceneOf(at(new SizedBox(150, 90, new limn.components.ScrollView(column)), 0, 0));
+        banner.setVisible(false);
+        frame(scene);
+        float x0 = Float.POSITIVE_INFINITY;
+        float y0 = Float.POSITIVE_INFINITY;
+        float x1 = Float.NEGATIVE_INFINITY;
+        float y1 = Float.NEGATIVE_INFINITY;
+        for (Rect pass : canvas.passes) {
+            x0 = Math.min(x0, pass.x());
+            y0 = Math.min(y0, pass.y());
+            x1 = Math.max(x1, pass.x() + pass.width());
+            y1 = Math.max(y1, pass.y() + pass.height());
+        }
+        assertTrue(x0 <= 0 && y0 <= 0 && x1 >= 150 && y1 >= 90,
+                () -> "the picture fills the view, which is repainted whole: " + canvas.passes);
+    }
+
     // ------------------------------------------------------------------ readers
 
     @Test

@@ -2158,6 +2158,16 @@ public final class Scene {
      */
     private boolean clippedSceneRect(Widget<?> widget, float x, float y, float w, float h,
                                      float[] out) {
+        return sceneRect(widget, x, y, w, h, out, true);
+    }
+
+    /**
+     * {@link #clippedSceneRect}, or with {@code clip} false the same walk with no ancestor's clip
+     * applied: where the rectangle lies in the scene, however much of it a clip lets be seen. Still
+     * false for a hidden branch and for a rectangle wholly behind the eye.
+     */
+    private boolean sceneRect(Widget<?> widget, float x, float y, float w, float h, float[] out,
+                              boolean clip) {
         float x0 = x;
         float y0 = y;
         float x1 = x + w;
@@ -2167,7 +2177,7 @@ public final class Scene {
             if (!node.isVisible()) {
                 return false; // hidden branch: it paints nothing, so no pixel changed
             }
-            if (node != widget && node.clipsChildren()) {
+            if (clip && node != widget && node.clipsChildren()) {
                 // The ancestor's clip for the child we came up through, which is its box unless it
                 // says otherwise. +1: the clip boundary itself antialiases within a pixel.
                 float cx = node.clipX(below);
@@ -2698,14 +2708,17 @@ public final class Scene {
     }
 
     /** Where a transform container draws its children after an in-place pass; see damageMovedPictures. */
-    private final float[] pictureScratch = new float[4];
+    private final float[] pictureScratch = new float[8];
+    /** Where a transform container draws its children before an in-place pass; see recordMovedPictures. */
+    private final float[] recordScratch = new float[8];
     /** The transform containers {@link #recordMovedPictures} found drawing something, in order. */
     private final List<Widget<?>> movedPicturesWho = new ArrayList<>();
     /**
      * Where each of {@link #movedPicturesWho} drew its children before the pass, in scene
-     * coordinates, four floats each.
+     * coordinates, eight floats each: the rectangle the clips leave of it, then the whole picture
+     * before any clip ({@link #pictureInScene}).
      */
-    private float[] movedPicturesBefore = new float[16];
+    private float[] movedPicturesBefore = new float[32];
 
     /**
      * Before an in-place pass lays {@code subtree} out: records where every transform container in
@@ -2723,14 +2736,14 @@ public final class Scene {
         }
         for (int i = 0; i < transformed.size(); i++) {
             Widget<?> container = transformed.get(i);
-            if (!isInSubtree(container, subtree) || !pictureInScene(container, clipScratch)) {
+            if (!isInSubtree(container, subtree) || !pictureInScene(container, recordScratch)) {
                 continue;
             }
-            int at = movedPicturesWho.size() * 4;
-            if (at + 4 > movedPicturesBefore.length) {
+            int at = movedPicturesWho.size() * 8;
+            if (at + 8 > movedPicturesBefore.length) {
                 movedPicturesBefore = Arrays.copyOf(movedPicturesBefore, movedPicturesBefore.length * 2);
             }
-            System.arraycopy(clipScratch, 0, movedPicturesBefore, at, 4);
+            System.arraycopy(recordScratch, 0, movedPicturesBefore, at, 8);
             movedPicturesWho.add(container);
         }
     }
@@ -2761,10 +2774,12 @@ public final class Scene {
             boolean around = isInSubtree(changed, container);
             if (was >= 0) {
                 movedPicturesWho.set(was, null); // matched: not damaged again below
-                int at = was * 4;
-                if (!around && drawn && r[at] == now[0] && r[at + 1] == now[1]
-                        && r[at + 2] == now[2] && r[at + 3] == now[3]) {
-                    continue; // drawn where it was: nothing of it changed
+                int at = was * 8;
+                if (!around && drawn && Arrays.equals(r, at, at + 8, now, 0, 8)) {
+                    // Drawn where it was, the whole picture and what the clips leave of it: the
+                    // clipped rectangles alone are the same for a picture larger than its view
+                    // that moved inside it.
+                    continue;
                 }
                 addDamage(r[at], r[at + 1], r[at + 2], r[at + 3]);
             }
@@ -2775,21 +2790,42 @@ public final class Scene {
         // One recorded that is no longer a transform container of this subtree: its old place.
         for (int i = 0; i < recorded; i++) {
             if (movedPicturesWho.get(i) != null) {
-                addDamage(r[i * 4], r[i * 4 + 1], r[i * 4 + 2], r[i * 4 + 3]);
+                addDamage(r[i * 8], r[i * 8 + 1], r[i * 8 + 2], r[i * 8 + 3]);
             }
         }
         movedPicturesWho.clear();
     }
 
     /**
-     * Where {@code container} draws its children now, in scene coordinates, clamped by every
-     * clipping ancestor, into {@code out} as {@code x, y, width, height}; false when nothing of it
-     * is on screen (a hidden branch, clipped away, behind the eye, or nothing painted).
+     * Where {@code container} draws its children now, in scene coordinates: clamped by every
+     * clipping ancestor into {@code out[0..3]} as {@code x, y, width, height}, the rectangle damage
+     * takes, and, when {@code out} has room, the whole picture before any clip into
+     * {@code out[4..7]}, the one a comparison reads; false when nothing of it is on screen (a
+     * hidden branch, clipped away, behind the eye, or nothing painted).
      */
     private boolean pictureInScene(Widget<?> container, float[] out) {
         float[] b = container.childrenPaintedBounds();
-        return !Float.isNaN(b[0]) && clippedSceneRect(container, b[0], b[1], b[2] - b[0], b[3] - b[1], out);
+        if (Float.isNaN(b[0])) {
+            return false;
+        }
+        // Copied first: a walk through a picture laid through mipmaps reads the same buffer.
+        float x = b[0];
+        float y = b[1];
+        float w = b[2] - b[0];
+        float h = b[3] - b[1];
+        if (!clippedSceneRect(container, x, y, w, h, out)) {
+            return false;
+        }
+        if (out.length >= 8) {
+            float[] whole = wholePictureScratch;
+            sceneRect(container, x, y, w, h, whole, false);
+            System.arraycopy(whole, 0, out, 4, 4);
+        }
+        return true;
     }
+
+    /** The whole picture {@link #pictureInScene} walks up before it is copied out. */
+    private final float[] wholePictureScratch = new float[4];
 
     /**
      * A widget is about to be hidden, by its own flag or by being presented elsewhere: every

@@ -387,7 +387,13 @@ the making of the picture again each time, 0.1 to 0.5 ms on this GPU (ADR 071 §
   it runs only over a widget that clips its children and damages that widget's whole box. What is
   left is the cost of reading each picture twice, a walk of everything inside the Transform: some
   0.13 ms a toggle for a Transform over ten thousand rows, against 0.42 ms for the pass itself.
-  Tests: `TransformDepthTest`, nothing of the page or of the cards repainted.)
+  Tests: `TransformDepthTest`, nothing of the page or of the cards repainted. Second review, R4S-1:
+  the comparison read the pictures as the clips leave them, and a picture larger than its view, an
+  image zoomed four times in a scroll view under a toolbar that hides, is cut to the same
+  rectangle before and after while it moves inside it; it was left stale. The whole picture, before
+  any clip, is compared as well, and the damage stays the clipped rectangles; the two scenes above
+  keep their numbers. Tests: the zoomed picture with its banner hidden and shown,
+  `TransformPassSeamTest` on both renderers and `TransformDepthTest`.)
 - **Culling under a transform.** `Scene.culledFromPaint` tests a widget under a Transform by its
   projected bounds; inside a layer, `Widget.missesClip` tests against the picture's local clip,
   which is exact again. With no Transform away from rest the test is today's.
