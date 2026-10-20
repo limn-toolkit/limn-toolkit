@@ -1067,7 +1067,23 @@ public final class Scene {
             }
         }
         onWidgetDetached(overlay);
-        overlay.setSceneRecursively(null);
+        Throwable failed = null;
+        try {
+            overlay.setSceneRecursively(null);
+        } catch (RuntimeException | Error error) {
+            failed = Widget.addFailure(null, error); // a popup's handler: the removal completes first
+        }
+        try {
+            restoreAfterRemoving(overlay, restore, wasTop, keptKeyboardBelow);
+        } catch (RuntimeException | Error error) {
+            failed = Widget.addFailure(failed, error);
+        }
+        Widget.rethrow(failed);
+    }
+
+    /** The rest of {@link #removeOverlay}, once the overlay is out of the scene. */
+    private void restoreAfterRemoving(Widget<?> overlay, @Nullable Widget<?> restore, boolean wasTop,
+                                      boolean keptKeyboardBelow) {
         layoutDirty = true;
         // Focus belongs to the topmost overlay. Removing a lower one (e.g. the
         // previous menu still fading out beneath the menu it was switched to) must
@@ -1078,9 +1094,11 @@ public final class Scene {
             return;
         }
         // Return focus to the widget that had it before this overlay opened
-        // (the button that triggered the dialog), if it is still usable.
-        if (restore != null && restore != overlay && isInSubtree(restore, keyboardRoot())
-                && canTakeFocus(restore)) {
+        // (the button that triggered the dialog), if it is still usable. Never in a window that
+        // has closed, whose focus went to nobody first: a popup hung from a widget of it closes
+        // as the tree leaves, and a widget focused then would be focused in a dead scene.
+        if (restore != null && restore != overlay && !detachedByClose
+                && isInSubtree(restore, keyboardRoot()) && canTakeFocus(restore)) {
             // The overlay closing is what moved the focus, not whoever closed it.
             setFocus(restore, Change.Origin.ADJUSTMENT);
         } else {
@@ -2133,6 +2151,83 @@ public final class Scene {
                 Objects.requireNonNull(placeAgain, "placeAgain"));
         anchoredWindows.add(placed);
         return once(() -> anchoredWindows.remove(placed));
+    }
+
+    /** A popup hung from {@code anchor}, and what takes it down when the anchor goes. */
+    private record HungPopup(Widget<?> anchor, Runnable gone) {
+    }
+
+    /** The popups hung from a widget of this scene; see {@link #observeAnchorLeaving}. */
+    private final List<HungPopup> hungPopups = new ArrayList<>();
+
+    /**
+     * Not API: tells {@code gone} when {@code anchor} leaves this scene, by itself or with a
+     * container, an overlay or the window it is in, when it stops being shown (hidden itself or
+     * with a container), or when the panel of a popup it lies in closes, for a popup hung from it
+     * that would otherwise stay over the window hanging from nothing. Told before the widgets
+     * leaving hear {@code onDetached}, while they still answer this scene.
+     *
+     * <p>For the integration of a Transform that stops drawing a child (a back face, a scale of
+     * 0): such a child no longer shown is the same case, and the place that decides it calls
+     * {@link #anchorsLeaving} for it as {@code Widget}'s visibility path does. A popup already
+     * refuses to open from such a child ({@code SceneAccess.isDrawn}).
+     *
+     * @param anchor the widget the popup hangs from
+     * @param gone   takes the popup down
+     * @return a handle that unregisters
+     */
+    Subscription observeAnchorLeaving(Widget<?> anchor, Runnable gone) {
+        Ui.checkUiThread();
+        HungPopup hung = new HungPopup(Objects.requireNonNull(anchor, "anchor"),
+                Objects.requireNonNull(gone, "gone"));
+        hungPopups.add(hung);
+        return once(() -> hungPopups.remove(hung));
+    }
+
+    /**
+     * {@code subtree} is leaving this scene, is being hidden, or is the panel of a popup that is
+     * closing: every popup hung from a widget in it goes. A copy, since each that goes lets go of
+     * its entry, and one going may take another down with it (a popover holding the anchor of
+     * another).
+     *
+     * <p>The closes run the application's handlers, inside a structural change. Each runs whatever
+     * one before it threw, and the first throw is handed back, the others added to it as
+     * suppressed, for the caller to rethrow once its change is complete: a throw here aborted a
+     * removal half way, the subtree out of its parent and still in the scene, never told it left.
+     * A {@link VirtualMachineError} is not held: it leaves at once.
+     *
+     * @return what the closes threw, or null
+     */
+    @Nullable Throwable anchorsLeaving(Widget<?> subtree) {
+        if (hungPopups.isEmpty()) {
+            return null;
+        }
+        Throwable failed = null;
+        for (HungPopup hung : List.copyOf(hungPopups)) {
+            if (hungPopups.contains(hung) && isInSubtree(hung.anchor(), subtree)) {
+                try {
+                    hung.gone().run();
+                } catch (RuntimeException | Error error) {
+                    failed = Widget.addFailure(failed, error); // a VirtualMachineError leaves at once
+                }
+            }
+        }
+        return failed;
+    }
+
+    /**
+     * @return whether {@code widget} hangs under this scene's root or one of its overlays, in a
+     *         window that has not closed
+     */
+    boolean holdsInTree(Widget<?> widget) {
+        if (detachedByClose) {
+            return false;
+        }
+        Widget<?> top = widget;
+        while (top.parent() != null) {
+            top = top.parent();
+        }
+        return top == root || overlays.contains(top);
     }
 
     /**
@@ -3775,6 +3870,11 @@ public final class Scene {
             }
 
             @Override
+            public void overlayCard(Widget<?> overlay, limn.scene.internal.OverlayCard card) {
+                overlay.overlayCard = card;
+            }
+
+            @Override
             public void pressFocus(Widget<?> widget, limn.scene.internal.PressFocus filter) {
                 widget.pressFocus = filter;
             }
@@ -3903,6 +4003,30 @@ public final class Scene {
             @Override
             public Subscription observeAnchorMoved(Scene scene, Widget<?> anchor, Runnable placeAgain) {
                 return scene.observeAnchorMoved(anchor, placeAgain);
+            }
+
+            @Override
+            public Subscription observeAnchorLeaving(Scene scene, Widget<?> anchor, Runnable gone) {
+                return scene.observeAnchorLeaving(anchor, gone);
+            }
+
+            @Override
+            public void closePopupsHungIn(Widget<?> panel) {
+                Scene scene = panel.scene();
+                if (scene != null) {
+                    Widget.rethrow(scene.anchorsLeaving(panel));
+                }
+            }
+
+            @Override
+            public boolean isDrawn(Widget<?> widget) {
+                return widget.isDrawnInScene();
+            }
+
+            @Override
+            public boolean isInTree(Widget<?> widget) {
+                Scene scene = widget.scene();
+                return scene != null && scene.holdsInTree(widget);
             }
 
             @Override
@@ -4160,21 +4284,38 @@ public final class Scene {
      * the window and then as the field. A key typed during the fade goes to the field as well,
      * where it went to a calendar that was no longer there to answer it.
      *
-     * <p>Nothing happens for an overlay that is not the top one, that already leaves the keyboard
-     * beneath it, or that is not in this scene. {@link #removeOverlay} then gives nothing back a
-     * second time.
+     * <p>Nothing happens for an overlay beneath one that holds the keyboard, or that is not in
+     * this scene. One that left the keyboard beneath it all along (an editable combo's list) has
+     * nothing to give back and is only marked closing, so the pointer passes it by as it fades.
+     * {@link #removeOverlay} then gives nothing back a second time. An overlay beneath layers that all left the keyboard (a popover
+     * closing under the one opened from it, which is fading on top) gives it back at once: the
+     * keyboard stayed on a button in a panel going away, and a key opened the inner one again.
      */
     private void releaseOverlayKeyboard(Widget<?> overlay) {
         Ui.checkUiThread();
         int index = overlays.indexOf(overlay);
-        if (index < 0 || index != overlays.size() - 1 || keyboardBelow.contains(overlay)) {
+        if (index < 0) {
             return;
+        }
+        if (keyboardBelow.contains(overlay)) {
+            // It never took the keyboard (an editable combo's list): nothing to give back, but it
+            // is closing all the same, and lets the pointer by as any closing overlay does.
+            if (!closingOverlays.contains(overlay)) {
+                closingOverlays.add(overlay);
+                invalidateAccessible();
+            }
+            return;
+        }
+        for (int i = index + 1; i < overlays.size(); i++) {
+            if (!keyboardBelow.contains(overlays.get(i))) {
+                return; // a layer above holds the keyboard: it is not this one's to give
+            }
         }
         keyboardBelow.add(overlay);
         closingOverlays.add(overlay);
         Widget<?> restore = overlayFocusReturn.get(index);
-        if (restore != null && restore != overlay && isInSubtree(restore, keyboardRoot())
-                && canTakeFocus(restore)) {
+        if (restore != null && restore != overlay && !detachedByClose
+                && isInSubtree(restore, keyboardRoot()) && canTakeFocus(restore)) {
             setFocus(restore, Change.Origin.ADJUSTMENT);
         } else {
             setFocus(null, Change.Origin.ADJUSTMENT);
@@ -4498,8 +4639,9 @@ public final class Scene {
             pressLocalX = capturedLocalX;
             pressLocalY = capturedLocalY;
             dragAsked = false;
-            // Click-to-focus: nearest focusable ancestor of the press target.
-            Widget<?> focusTarget = hit;
+            // Click-to-focus: nearest focusable ancestor of the press target. None for a press a
+            // closing overlay swallows on its card: the keyboard went back to the layer beneath.
+            Widget<?> focusTarget = hit != null && closingOverlays.contains(hit) ? null : hit;
             while (focusTarget != null && !focusTarget.isFocusable()) {
                 focusTarget = focusTarget.parent();
             }
@@ -4854,9 +4996,10 @@ public final class Scene {
      * own, on macOS, the system runs a bar's accelerator before the key is sent to the window at
      * all. See {@link limn.components.MenuBar}.
      *
-     * <p>Handlers are <b>not</b> consulted while a modal overlay owns the scene: an open dialog
-     * or an in-scene menu has the keyboard, and a shortcut belonging to what it covers must not
-     * fire behind it.
+     * <p>Handlers are <b>not</b> consulted while a modal overlay owns the scene's keyboard: an open
+     * dialog or an in-scene menu has it, and a shortcut belonging to what it covers must not fire
+     * behind it. An overlay that gave the keyboard back and is fading out, or a list that leaves
+     * the keyboard in the field that opened it, does not own it.
      *
      * <p>A handler that throws is contained and read as <i>did not handle</i>, so the chord goes
      * on to the next handler and to Tab traversal -- the policy {@code Work.deliverIf} already
@@ -4942,7 +5085,10 @@ public final class Scene {
 
     private void offerToShortcutHandlers(KeyEvent event) {
         java.util.function.Predicate<KeyEvent>[] snapshot = shortcutHandlers;
-        if (event.isConsumed() || snapshot == null || topOverlay() != null) {
+        // Refused while a layer that holds the keyboard covers the window, and only then: an
+        // overlay fading out after giving the keyboard back, or a list that leaves it in its
+        // field, is no reason to refuse the window's own shortcuts to the window's own keyboard.
+        if (event.isConsumed() || snapshot == null || keyboardRoot() != root) {
             return;
         }
         for (java.util.function.Predicate<KeyEvent> handler : snapshot) {
@@ -4966,11 +5112,41 @@ public final class Scene {
         // fullscreen in-scene menu), which then hit-tests the content below. An inert
         // subtree is passed by in Widget.hitTest itself, which every widget's answer goes
         // through now that it is the one entry.
-        Widget<?> top = topOverlay();
-        Widget<?> asked = top != null && !top.overlayPassesPointer(sceneX, sceneY) ? top : root;
+        // An overlay fading out after giving the keyboard back lets a press beside its card through
+        // to what is beneath: it swallowed that press and took the focus, which went nowhere once
+        // it was removed. A press on the card, still drawn, stays its own, and the overlay's root
+        // takes it without the focus (see the press): the second click of a double click on a
+        // list's item, a date or a menu item lands there, and went through to the control beneath
+        // the item, a button pressed or a word selected the user never saw.
         float[] local = hitScratch;
+        Widget<?> top = null;
+        for (int i = overlays.size() - 1; i >= 0; i--) {
+            Widget<?> overlay = overlays.get(i);
+            if (!closingOverlays.contains(overlay)) {
+                top = overlay;
+                break;
+            }
+            if (drawsAt(overlay, sceneX, sceneY)) {
+                return overlay;
+            }
+        }
+        Widget<?> asked = top != null && !top.overlayPassesPointer(sceneX, sceneY) ? top : root;
         asked.sceneToLocal(sceneX, sceneY, local);
         return asked.hitTest(local[0], local[1]);
+    }
+
+    /**
+     * @return whether {@code overlay} draws its surface at the scene point: where it says it does,
+     *         else where a widget inside it, and not the overlay itself, takes the point
+     */
+    private boolean drawsAt(Widget<?> overlay, float sceneX, float sceneY) {
+        if (overlay.overlayCard != null) {
+            return overlay.overlayCard.drawsAt(sceneX, sceneY);
+        }
+        float[] local = hitScratch;
+        overlay.sceneToLocal(sceneX, sceneY, local);
+        Widget<?> onIt = overlay.hitTest(local[0], local[1]);
+        return onIt != null && onIt != overlay;
     }
 
     /** The point {@link #hitAt} asks about, in the asked root's space; one, since input runs on the UI thread. */

@@ -34,8 +34,9 @@ import java.util.Objects;
  * calendar, the list of every tab a tab strip keeps out of sight. The work they share, done once:
  * a window of its own placed against the widget where the platform allows, the scene where it does
  * not (a window that cannot be positioned, as on Wayland, or a fullscreen owner), a fade in and
- * out, closing when the application loses the keyboard, a press lands elsewhere or the owner's
- * fullscreen changes, the window's tree grafted into the owner's so a reader never leaves it.
+ * out, closing when the application loses the keyboard, a press lands elsewhere, the owner's
+ * fullscreen changes or the widget leaves the window, the window's tree grafted into the owner's
+ * so a reader never leaves it.
  *
  * <p>What is the component's own stays with it, behind {@link Host}: what the surface shows and
  * how big it is, the keys it answers, what its layer is to a reader, and its own close, with the
@@ -81,8 +82,10 @@ public final class AnchoredPopup {
 
         /**
          * The component's own close, with what caused it: a press elsewhere or beside the card is
-         * the user's, the application losing the keyboard or the owner's fullscreen changing is an
-         * adjustment.
+         * the user's, the application losing the keyboard, the owner's fullscreen changing or the
+         * anchor leaving the window or being hidden is an adjustment. For the anchor, the popup
+         * closes itself after this when the component did not, unless the component's close showed
+         * it again (its application's handler did), which is then left as it is.
          *
          * @param origin who closed it
          */
@@ -187,6 +190,12 @@ public final class AnchoredPopup {
     private @Nullable Subscription route;
     /** While its window is up: placing it again when a transform above the anchor comes to rest. */
     private @Nullable Subscription anchorMoved;
+    /** While open: closing it when the anchor leaves the window, or the popup it lies in closes. */
+    private @Nullable Subscription anchorLeaves;
+    /** Set while it closes because its anchor left: nothing is focused on a widget going away. */
+    private boolean anchorGone;
+    /** Counts the presentations, so a close for one never takes down the one shown after it. */
+    private int presentation;
 
     public AnchoredPopup(Host host) {
         this.host = Objects.requireNonNull(host, "host");
@@ -223,9 +232,33 @@ public final class AnchoredPopup {
     }
 
     /**
+     * @param anchor a widget
+     * @return whether a popup can hang from it: in a scene's tree, and not on its way out of it (a
+     *         widget being taken out still answers its scene while the popups hung from it close,
+     *         and a handler of theirs may ask to show one there again), nor hidden or drawn as
+     *         nothing by a transform; a widget scrolled out of view, or not laid out yet, can
+     */
+    public static boolean canHangFrom(Widget<?> anchor) {
+        // Drawn: visible with every ancestor and not drawn as nothing by a transform above it (a
+        // face turned away, a scale of 0). Scrolled out of a viewport, or not laid out yet (a
+        // combo box opened in a dialog just shown), it still is: isShowing() refuses both.
+        return anchor.scene() != null && SceneAccess.isInTree(anchor) && SceneAccess.isDrawn(anchor);
+    }
+
+    /**
+     * @return whether {@link #open} would show it now: its anchor is one it can hang from
+     *         ({@link #canHangFrom}). A component asks before it says it is open, so a refused open
+     *         never leaves it open, expanded and driving a list or a calendar nobody sees.
+     */
+    public boolean canOpen() {
+        return canHangFrom(host.anchor());
+    }
+
+    /**
      * Opens it, in a window of its own where that was asked and the owner allows, in the scene
-     * otherwise. Nothing happens with no scene: a test without a window drives the component's own
-     * state. A no-op while open.
+     * otherwise. Nothing happens with no scene, or for an anchor nothing can hang from
+     * ({@link #canHangFrom}): a test without a window drives the component's own state. A no-op
+     * while open.
      *
      * @param requested the presentation the component was asked for
      */
@@ -233,11 +266,18 @@ public final class AnchoredPopup {
         Ui.checkUiThread();
         Widget<?> anchor = host.anchor();
         Scene scene = anchor.scene();
-        if (open || scene == null) {
+        if (open || scene == null || !canHangFrom(anchor)) {
             return;
         }
         open = true;
+        presentation++;
         ownerScene = scene;
+        // Here and not in each component's onDetached, which a component that is no widget has no
+        // way to hear: the anchor taken out of the window, by itself or with a container or a
+        // dialog it is in, or the window closing, or the popup it lies in closing, takes this one
+        // down. Left up, it would hang over the window from nothing, holding its keyboard and
+        // every press, and its owner would think it open.
+        anchorLeaves = SceneAccess.observeAnchorLeaving(scene, anchor, this::anchorLeft);
         // A press in another application never reaches the owner: the application losing the
         // keyboard closes the popup instead, or it would float over whatever took it.
         blur = scene.observeWindowBlur(() -> Ui.post(this::closeUnlessRefocused));
@@ -501,8 +541,30 @@ public final class AnchoredPopup {
     }
 
     /**
+     * Its anchor left the window or stopped being shown: the component closes it as an
+     * adjustment, or it closes itself. Not when the component's close showed it again, for another
+     * anchor (an application's handler did): that presentation is a new one, and stays.
+     */
+    private void anchorLeft() {
+        if (!open) {
+            return;
+        }
+        int closing = presentation;
+        anchorGone = true;
+        try {
+            host.dismiss(Change.Origin.ADJUSTMENT);
+            if (open && presentation == closing) {
+                close();
+            }
+        } finally {
+            anchorGone = false;
+        }
+    }
+
+    /**
      * Takes it down, fading it where there is a frame pump to fade it. What it holds is let go
-     * first, so one opened again while this fades builds afresh. A no-op while closed.
+     * first, so one opened again while this fades builds afresh; a popup hung from a widget in its
+     * panel goes first, at once. A no-op while closed.
      */
     public void close() {
         Ui.checkUiThread();
@@ -510,12 +572,25 @@ public final class AnchoredPopup {
             return;
         }
         open = false;
-        for (Subscription each : new Subscription[] {cursor, route, presses, blur, popupBlur, fullscreen,
-                anchorMoved}) {
-            if (each != null) {
-                each.cancel();
-            }
-        }
+        boolean leaving = anchorGone;
+        anchorGone = false;
+        // What this presentation holds comes off the fields before any application code can run:
+        // the closes of the popups hung in its panel run their handlers, and a handler that shows
+        // this popup again builds a presentation of its own, which nothing below then touches. Its
+        // layer, taken down here instead, stayed over the window for good, owned by nothing.
+        Widget<?> closingPanel = panel;
+        Layer closingLayer = layer;
+        NativeWindow closingWindow = window;
+        Scene closingPopupScene = popupScene;
+        Scene scene = ownerScene;
+        Subscription[] held = {cursor, route, presses, blur, popupBlur, fullscreen, anchorMoved,
+                anchorLeaves};
+        panel = null;
+        layer = null;
+        window = null;
+        popupScene = null;
+        ownerScene = null;
+        anchorLeaves = null;
         anchorMoved = null;
         cursor = null;
         route = null;
@@ -523,28 +598,43 @@ public final class AnchoredPopup {
         blur = null;
         popupBlur = null;
         fullscreen = null;
-        Scene scene = ownerScene;
-        ownerScene = null;
-        if (window != null) {
-            closeWindow(scene);
-        } else if (layer != null) {
-            closeLayer(scene);
-        } else {
-            panel = null; // closed before its window was made
+        for (Subscription each : held) {
+            if (each != null) {
+                each.cancel();
+            }
         }
+        // An inner popup's handler that throws stops nothing here: this one's layer or window is
+        // in no field any more, and left up it would cover the window for good. The throw follows.
+        Throwable failed = null;
+        if (closingPanel != null) {
+            // Before this one lets go of the keyboard, as a stack unwinds: the inner popup gives it
+            // back to its button in this panel, and this one then takes it home.
+            try {
+                SceneAccess.closePopupsHungIn(closingPanel);
+            } catch (RuntimeException | Error error) {
+                failed = HandlerFailures.add(failed, error);
+            }
+        }
+        try {
+            if (closingWindow != null) {
+                closeWindow(scene, closingWindow, closingPopupScene, closingPanel);
+            } else if (closingLayer != null) {
+                closeLayer(scene, closingLayer, leaving);
+            }
+            // else closed before its window was made: nothing was shown
+        } catch (RuntimeException | Error error) {
+            failed = HandlerFailures.add(failed, error);
+        }
+        HandlerFailures.rethrow(failed);
     }
 
-    private void closeWindow(@Nullable Scene scene) {
+    private void closeWindow(@Nullable Scene scene, NativeWindow closing, @Nullable Scene closingScene,
+                             @Nullable Widget<?> closingPanel) {
         // The panel's verbs are withdrawn now: a window's fade moves only its opacity and damages
         // nothing, so the walk that withdraws them has to be asked for.
-        if (panel != null) {
-            panel.invalidateAccessible();
+        if (closingPanel != null) {
+            closingPanel.invalidateAccessible();
         }
-        NativeWindow closing = window;
-        Scene closingScene = popupScene;
-        window = null;
-        popupScene = null;
-        panel = null;
         NativeWindow parent = scene != null ? scene.window() : null;
         if (closingScene != null && closingScene.isWindowFocused()
                 && parent != null && !parent.isClosed()) {
@@ -566,10 +656,7 @@ public final class AnchoredPopup {
         }
     }
 
-    private void closeLayer(@Nullable Scene owner) {
-        Layer closing = layer;
-        layer = null;
-        panel = null;
+    private void closeLayer(@Nullable Scene owner, Layer closing, boolean leaving) {
         if (owner == null) {
             host.released(); // never opened in a scene: nothing holds the layer
             return;
@@ -583,7 +670,13 @@ public final class AnchoredPopup {
         // of a card nobody is typing into any more, and the focus is never published on a layer
         // about to go.
         Widget<?> refocus = host.refocus();
+        if (leaving) {
+            refocus = null; // on its way out of the window: the overlay's own way back is the rule
+        }
         SceneAccess.releaseOverlayKeyboard(owner, closing);
+        // Nor does it take the keyboard again, or a press: one during the fade is for what is
+        // beneath (the scene passes the pointer by a layer that gave the keyboard back).
+        closing.setFocusable(false);
         if (refocus != null) {
             refocus.requestFocus();
         }
@@ -613,7 +706,10 @@ public final class AnchoredPopup {
 
         Layer(Opacity content) {
             this.content = content;
-            setFocusable(true);
+            // Only when it takes the keyboard: a layer that leaves it below (an editable combo's
+            // list) took the focus from a press beside the card through click-to-focus, outside
+            // the keyboard's layer, and once it was removed the keyboard was nobody's.
+            setFocusable(!host.keepsKeyboard());
             add(content);
         }
 

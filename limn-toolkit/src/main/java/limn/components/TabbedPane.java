@@ -1037,6 +1037,9 @@ public final class TabbedPane extends Widget<TabbedPane> {
             closeTabList(Change.Origin.USER);
             return;
         }
+        if (!tabList.canOpen()) {
+            return; // its button hidden: a list nobody sees is not open
+        }
         listCursor = Math.max(0, selected);
         listHadKeyboard = holdsFocus(this);
         listFocusWas = scene().focusedWidget();
@@ -1057,6 +1060,9 @@ public final class TabbedPane extends Widget<TabbedPane> {
         tabList.close();
         listFocusWas = null; // read by the close, and held no longer than the list is open
         listButton.invalidateAccessible();
+        if (!overflowing) {
+            markNeedsLayout(); // its button stayed for the open list alone: it goes now
+        }
         notifyChange(Change.of(Change.Aspect.EXPANDED, origin));
     }
 
@@ -1739,7 +1745,12 @@ public final class TabbedPane extends Widget<TabbedPane> {
         // its chevron (guarded setters, safe inside layout).
         prevButton.setVisible(overflowing);
         nextButton.setVisible(overflowing);
-        listButton.setVisible(overflowing);
+        // The list's button stays visible while its list is open. Not to keep the list: once the
+        // tabs fit, the close posted from onLayout takes it on the next turn. To keep that close
+        // out of this pass: a popup hung from a button hidden here would close at once, inside
+        // the layout placing the tree, which that posted close exists to avoid. It goes with the
+        // layout after the list closes; meanwhile it keeps the box it last had.
+        listButton.setVisible(overflowing || tabList.isOpen());
         prevButton.setEnabled(scrollOffset > 0.5f);
         nextButton.setEnabled(scrollOffset < maxOffset - 0.5f);
 

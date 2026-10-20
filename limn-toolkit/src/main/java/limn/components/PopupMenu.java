@@ -1140,6 +1140,12 @@ public final class PopupMenu {
             this.ruler = ruler;
             setFocusable(true); // receive keyboard while open
             limn.scene.internal.SceneAccess.drawsAccessLetters(this); // the rows' letters
+            // Its columns are drawn here, not by child widgets: while it fades out, a press on
+            // them (a double click's second on an item) stays the menu's, one beside them goes on.
+            limn.scene.internal.SceneAccess.overlayCard(this, (sceneX, sceneY) -> {
+                Vec2 local = sceneToLocal(sceneX, sceneY);
+                return columnAt(local.x() + offsetX, local.y() + offsetY) != null;
+            });
         }
 
         void pushRoot() {

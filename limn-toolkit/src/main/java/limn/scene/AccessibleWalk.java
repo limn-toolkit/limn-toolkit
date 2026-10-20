@@ -742,13 +742,27 @@ final class AccessibleWalk {
             }
             return;              // ignored: no node, and no children either
         }
+        // A grafted popup's window never takes the keyboard (Scene#graftPopup): the field that
+        // opened it keeps the focus, and one focused node per tree is the rule a reader relies on.
+        // A popup that holds a focus of its own, which this window's keys drive (a popover of
+        // controls), is the one exception, and then it is its focused widget that is published
+        // focused and not this scene's: still one, and the one the keys land on. Followed down,
+        // for a popup of that kind opened from inside another (2026-10-19).
+        Scene focusScene = this.scene;
+        for (Scene inner = focusScene.focusPopup(); inner != null; inner = inner.focusPopup()) {
+            focusScene = inner;
+        }
+        boolean focused = scene == focusScene && scene.focusedWidget() == widget;
         // Operable and not merely enabled: what is published focusable is what the keyboard can
         // reach, and beneath a popup it reaches nothing.
         boolean focusable = widget.isFocusable() && operable && ownVisible
                 // The root of a grafted popup the keyboard drives is focusable in its own scene,
                 // where the keys are handed to it, and nowhere a reader can put the focus: the
-                // keyboard is this window's, and the popup's rows are reached as its cursor.
-                && widget != keyboardPopupRoot;
+                // keyboard is this window's, and the popup's rows are reached as its cursor. Unless
+                // that root is the node published focused, a popover's panel holding the keyboard
+                // with nothing inside to take it: a node focused and not focusable is one a client
+                // that sorts focus events by focusability drops.
+                && (widget != keyboardPopupRoot || focused);
         if (builder.declaresNothing() && !focusable && !builder.hasChildren()) {
             warnIfItPaints(widget);
             builder.drop();
@@ -839,17 +853,6 @@ final class AccessibleWalk {
                 builder.inoperableAt(i);
             }
         }
-        // A grafted popup's window never takes the keyboard (Scene#graftPopup): the field that
-        // opened it keeps the focus, and one focused node per tree is the rule a reader relies on.
-        // A popup that holds a focus of its own, which this window's keys drive (a popover of
-        // controls), is the one exception, and then it is its focused widget that is published
-        // focused and not this scene's: still one, and the one the keys land on. Followed down,
-        // for a popup of that kind opened from inside another (2026-10-19).
-        Scene focusScene = this.scene;
-        for (Scene inner = focusScene.focusPopup(); inner != null; inner = inner.focusPopup()) {
-            focusScene = inner;
-        }
-        boolean focused = scene == focusScene && scene.focusedWidget() == widget;
         if (focused) {
             focusedId = id;
         }

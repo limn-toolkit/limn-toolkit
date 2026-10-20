@@ -82,6 +82,23 @@ public final class SceneAccess {
          */
         Subscription observeAnchorMoved(Scene scene, Widget<?> anchor, Runnable placeAgain);
 
+        /**
+         * @param scene  the scene the anchor is in
+         * @param anchor the widget a popup hangs from
+         * @param gone   takes the popup down; see {@link SceneAccess#observeAnchorLeaving}
+         * @return a handle that unregisters
+         */
+        Subscription observeAnchorLeaving(Scene scene, Widget<?> anchor, Runnable gone);
+
+        /** @param panel a closing popup's panel; see {@link SceneAccess#closePopupsHungIn} */
+        void closePopupsHungIn(Widget<?> panel);
+
+        /** @param widget a widget; see {@link SceneAccess#isInTree} */
+        boolean isInTree(Widget<?> widget);
+
+        /** @param widget a widget; see {@link SceneAccess#isDrawn} */
+        boolean isDrawn(Widget<?> widget);
+
         @org.jspecify.annotations.Nullable Widget<?> focusedBefore(Scene scene);
 
         /**
@@ -117,6 +134,8 @@ public final class SceneAccess {
         void drawsAccessLetters(Widget<?> widget);
 
         void pressFocus(Widget<?> widget, PressFocus filter);
+
+        void overlayCard(Widget<?> overlay, OverlayCard card);
 
         /**
          * @param widget   the control a field holds; see {@link SceneAccess#fieldControl}
@@ -304,6 +323,18 @@ public final class SceneAccess {
     }
 
     /**
+     * Makes {@code card} what the scene asks of {@code overlay} while it fades out: where it draws
+     * its surface, so a press there stays its own. Without one the scene asks whether the press
+     * lands on a widget inside the overlay.
+     *
+     * @param overlay an overlay's root that draws its surface itself
+     * @param card    where that surface is drawn
+     */
+    public static void overlayCard(Widget<?> overlay, OverlayCard card) {
+        hook().overlayCard(overlay, card);
+    }
+
+    /**
      * Says what a field around {@code control} says of it to an assistive technology, published on
      * the node a caption bound to the control would name (the control, or the inner part a
      * composite sends its caption to): a node of its own, a group where the control declares no
@@ -476,6 +507,57 @@ public final class SceneAccess {
      */
     public static Subscription observeAnchorMoved(Scene scene, Widget<?> anchor, Runnable placeAgain) {
         return hook().observeAnchorMoved(java.util.Objects.requireNonNull(scene, "scene"), anchor, placeAgain);
+    }
+
+    /**
+     * Tells {@code gone} when {@code anchor} leaves {@code scene}: taken out of it by itself or
+     * with a container, an overlay such as a dialog, or the window it is in; or when the panel of a
+     * popup it lies in closes ({@link #closePopupsHungIn}); or when it stops being shown, hidden
+     * itself or with a container (a tab strip showing another page, an expander folding). For a
+     * popup hung from the anchor, which
+     * would otherwise stay over the window hanging from nothing, holding its keyboard and every
+     * press. Told before the widgets leaving hear {@code onDetached}, while they still answer the
+     * scene being left.
+     *
+     * @param scene  the scene the anchor is in
+     * @param anchor the widget the popup hangs from
+     * @param gone   takes the popup down; UI thread
+     * @return a handle that unregisters; twice is a no-op
+     */
+    public static Subscription observeAnchorLeaving(Scene scene, Widget<?> anchor, Runnable gone) {
+        return hook().observeAnchorLeaving(java.util.Objects.requireNonNull(scene, "scene"), anchor, gone);
+    }
+
+    /**
+     * Takes down every popup hung from a widget inside {@code panel}, the panel of a popup that is
+     * closing: a popover opened from a button in another popover goes with it, at once, and not
+     * when the outer one's fade ends. Nothing happens for a panel in no scene.
+     *
+     * @param panel the closing popup's panel
+     */
+    public static void closePopupsHungIn(Widget<?> panel) {
+        hook().closePopupsHungIn(java.util.Objects.requireNonNull(panel, "panel"));
+    }
+
+    /**
+     * @param widget a widget
+     * @return whether it hangs in its scene's tree, under the root or an overlay, in a window that
+     *         has not closed: false for one being taken out, which still answers its scene while
+     *         the popups hung from it close
+     */
+    public static boolean isInTree(Widget<?> widget) {
+        return hook().isInTree(java.util.Objects.requireNonNull(widget, "widget"));
+    }
+
+    /**
+     * @param widget a widget
+     * @return whether it is drawn in its scene: in one, visible with every ancestor, and not drawn
+     *         as nothing by a transform above it (a back face turned away, a scale of 0, a plane
+     *         seen edge-on). What {@link Widget#isShowing()} answers without its clipping: a
+     *         widget scrolled out of a viewport, or not laid out yet, is drawn
+     */
+    public static boolean isDrawn(Widget<?> widget) {
+        return hook().isDrawn(java.util.Objects.requireNonNull(widget, "widget"));
     }
 
     /** @return the widget that had the keyboard in {@code scene} before the one that has it now, or null */

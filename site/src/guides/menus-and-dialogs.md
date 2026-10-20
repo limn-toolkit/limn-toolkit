@@ -188,16 +188,23 @@ reader's own language. You get it by using the widget; there is nothing to switc
 
 A `Popover` is a panel of controls that hangs from a button and closes when the user is done with
 it: a filter, a column chooser, a short form. It is not modal; a press outside or Escape closes
-it. It takes the keyboard while it is open, its first field focused and Tab cycling inside, and
-gives it back to the button when it closes. Where the platform can place a window of its own it
+it. So does its button going: taken out of the window, with a dialog it was in, say, or a popover
+it was in, even to be put back elsewhere (a tool bar moving it into its overflow); or hidden, on
+a tab page out of sight or in a folded section. The keyboard, if it was in the popover, then goes
+to nobody, as a focused widget's does when it is taken out. It takes the keyboard while it is
+open, its first field focused and Tab cycling inside, and gives it back to the button when it
+closes. Where the platform can place a window of its own it
 opens in one, so it can pass the window's edge, and a field in it types as any field does, an
 input method's composition included.
 
 {% snippet guide:popover %}
 
 `attachTo(button)` makes the button open and close it, and tells a screen reader that the button
-opens a popup and whether it is open; `showFor(widget)` opens it from anything else. Nothing opens
-a popover on hover: a surface that opens as the pointer passes is a tooltip.
+opens a popup and whether it is open; `showFor(widget)` opens it from anything else. A button
+opens one popover and a popover hangs from one button: attaching another popover to the button
+detaches the first, attaching the popover to another button moves it, and `detach()` lets the
+button go, a plain button again. Nothing opens a popover on hover: a surface that opens as the
+pointer passes is a tooltip.
 
 ## Dialogs
 

@@ -155,6 +155,8 @@ public abstract class Widget<W extends Widget<W>> {
     boolean drawsAccessLetters;
     /** Where a press does not take the keyboard, for the few widgets with such a spot; see SceneAccess. */
     limn.scene.internal.@Nullable PressFocus pressFocus;
+    /** Where an overlay that draws its surface itself draws it; see SceneAccess#overlayCard. */
+    limn.scene.internal.@Nullable OverlayCard overlayCard;
     /**
      * Whether this subtree is passing out of reach: drawn and enabled as it is, but no pointer
      * lands in it and no focus moves into it. See {@link limn.scene.internal.SceneAccess#setInert}.
@@ -540,11 +542,24 @@ public abstract class Widget<W extends Widget<W>> {
         }
         children.add(index, child);
         child.parent = this;
-        child.setSceneRecursively(scene);
-        childrenChanged();
-        // Structure is announced on the parent, from the one funnel every child joins through,
-        // so a watcher of a tree hears a mount as it happens rather than by diffing child lists.
-        notifyChange(Change.of(Change.Aspect.CHILDREN, Change.Origin.CODE));
+        Throwable failed = null;
+        try {
+            // A popup hung in a child adopted from another scene closes as it leaves that one,
+            // and what its handler throws waits for the join to be complete and announced.
+            child.setSceneRecursively(scene);
+        } catch (RuntimeException | Error error) {
+            failed = addFailure(null, error);
+        }
+        try {
+            childrenChanged();
+            // Structure is announced on the parent, from the one funnel every child joins
+            // through, so a watcher of a tree hears a mount as it happens rather than by
+            // diffing child lists.
+            notifyChange(Change.of(Change.Aspect.CHILDREN, Change.Origin.CODE));
+        } catch (RuntimeException | Error error) {
+            failed = addFailure(failed, error);
+        }
+        rethrow(failed);
     }
 
     /** Removes a child (UI thread only); protected for the reason {@link #add(Widget)} is. */
@@ -564,12 +579,22 @@ public abstract class Widget<W extends Widget<W>> {
         Objects.requireNonNull(origin, "origin");
         if (children.remove(child)) {
             child.parent = null;
-            child.setSceneRecursively(null);
-            if (scene != null) {
-                scene.onWidgetDetached(child);
+            Throwable failed = null;
+            try {
+                child.setSceneRecursively(null);
+            } catch (RuntimeException | Error error) {
+                failed = addFailure(null, error); // a popup's handler: the removal still completes
             }
-            childrenChanged();
-            notifyChange(Change.of(Change.Aspect.CHILDREN, origin));
+            try {
+                if (scene != null) {
+                    scene.onWidgetDetached(child);
+                }
+                childrenChanged();
+                notifyChange(Change.of(Change.Aspect.CHILDREN, origin));
+            } catch (RuntimeException | Error error) {
+                failed = addFailure(failed, error); // rides along, and never hides the first
+            }
+            rethrow(failed);
         }
     }
 
@@ -598,10 +623,55 @@ public abstract class Widget<W extends Widget<W>> {
      * is what makes the memo provably exact rather than hopefully exact.
      */
     final void setSceneRecursively(Scene newScene) {
+        Scene leaving = scene;
+        Throwable failed = null;
+        if (leaving != null && leaving != newScene) {
+            // A popup hung from a widget in this subtree goes first, while the subtree still
+            // answers the scene it is leaving: a popover's panel would otherwise stay over the
+            // window hanging from nothing, holding its keyboard and every press. What its handlers
+            // throw waits for the move to be complete.
+            failed = leaving.anchorsLeaving(this);
+        }
         bumpControlSizeEpoch();
         bumpLayoutDirectionEpoch();
         bumpLocaleEpoch();
         setSceneRecursivelyInternal(newScene);
+        rethrow(failed);
+    }
+
+    /**
+     * Holds what a step threw while later steps still run: the first throw, the later ones added
+     * to it as suppressed. A {@link VirtualMachineError} leaves at once, and no more application
+     * code runs after it.
+     *
+     * @param held  what an earlier step threw, or null
+     * @param error what this one threw
+     * @return the throw to hold
+     */
+    static Throwable addFailure(@Nullable Throwable held, Throwable error) {
+        if (error instanceof VirtualMachineError fatal) {
+            throw fatal;
+        }
+        if (held == null) {
+            return error;
+        }
+        if (held != error) {
+            held.addSuppressed(error);
+        }
+        return held;
+    }
+
+    /** Throws {@code failed} as it is, when there is one: it is unchecked, a handler's. */
+    static void rethrow(@Nullable Throwable failed) {
+        if (failed instanceof RuntimeException e) {
+            throw e;
+        }
+        if (failed instanceof Error e) {
+            throw e;
+        }
+        if (failed != null) {
+            throw new IllegalStateException(failed);
+        }
     }
 
     private void setSceneRecursivelyInternal(Scene newScene) {
@@ -1000,6 +1070,24 @@ public abstract class Widget<W extends Widget<W>> {
 
     // ----------------------------------------------------------------- flags
 
+    /**
+     * Whether this widget is drawn in its scene: in one, visible with every ancestor, and not drawn
+     * as nothing by a transform above it. {@link #isShowing()} without its clipping, for a popup
+     * deciding whether it can hang from a widget scrolled out of view or not laid out yet.
+     */
+    final boolean isDrawnInScene() {
+        for (Widget<?> w = this; w != null; w = w.parent) {
+            if (!w.visible || w.elsewhere) {
+                return false;
+            }
+            ChildTransform through = w.parent != null ? w.parent.childTransform : null;
+            if (through != null && through.drawsNothing) {
+                return false;
+            }
+        }
+        return scene != null;
+    }
+
     /** This widget's own visibility flag; see {@link #isShowing()} for whether it is on screen. */
     public final boolean isVisible() {
         return visible && !elsewhere;
@@ -1169,10 +1257,20 @@ public abstract class Widget<W extends Widget<W>> {
                 scene.damagePicturesLeaving(this); // while the branch still draws them
             }
             this.visible = visible;
-            if (shown != isVisible()) {
-                presenceChanged();
+            Throwable failed = null;
+            try {
+                if (shown != isVisible()) {
+                    presenceChanged();
+                }
+            } catch (RuntimeException | Error error) {
+                failed = addFailure(null, error); // a popup's handler: the change still completes
             }
-            notifyChange(Change.of(Change.Aspect.VISIBLE, Change.Origin.CODE));
+            try {
+                notifyChange(Change.of(Change.Aspect.VISIBLE, Change.Origin.CODE));
+            } catch (RuntimeException | Error error) {
+                failed = addFailure(failed, error);
+            }
+            rethrow(failed);
         }
         return self();
     }
@@ -1212,7 +1310,12 @@ public abstract class Widget<W extends Widget<W>> {
 
     /** {@link #isVisible()} changed: the subtree leaves or rejoins the layout around it. */
     private void presenceChanged() {
+        Throwable failed = null;
         if (!isVisible() && scene != null) {
+            // A popup hung from a widget in this subtree goes with it, as when it leaves: hidden,
+            // or on a page a tab strip put out of sight, it has nowhere to hang from and nowhere
+            // to give the keyboard back to.
+            failed = scene.anchorsLeaving(this);
             scene.onWidgetDetached(this); // revoke focus/hover/press in this subtree
         }
         // Every measure on the way up is stale, exactly as for markNeedsLayout(): whichever
@@ -1229,6 +1332,7 @@ public abstract class Widget<W extends Widget<W>> {
         } else if (scene != null) {
             scene.markLayoutDirty(this); // a root has no parent to absorb it
         }
+        rethrow(failed); // a popup's handler threw as it closed: the change above is complete
     }
 
     /**

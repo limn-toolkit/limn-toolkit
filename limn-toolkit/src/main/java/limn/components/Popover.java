@@ -3,6 +3,7 @@ package limn.components;
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.components.internal.AnchoredPopup;
+import limn.components.internal.HandlerFailures;
 import limn.components.internal.a11y.PopupOwnerAccessibility;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
@@ -30,17 +31,24 @@ import java.util.function.Consumer;
  * shadow, below the anchor unless it does not fit there and above has more room.
  *
  * <p><b>It takes the keyboard.</b> On open the focus goes to the content's first focusable widget,
- * or to the panel when it has none; Tab and Shift+Tab cycle inside it, as in a dialog; on close
- * the focus is where it was, the anchor for a popover opened from a button. It shows in a window
+ * or, when it has none, to the popover itself, which a reader is then on; Tab and Shift+Tab cycle
+ * inside it, as in a dialog; on close the focus is where it was, the anchor for a popover opened
+ * from a button. It shows in a window
  * of its own where the platform allows ({@link DisplayMode#NATIVE_WINDOW}, the default, as its
  * siblings), so it can pass the window's edge; that window never takes the desktop's keyboard, and
  * the owner's keys, characters and input-method composition are delivered into it, so a field
  * inside types as any field does, a Japanese or a Chinese input method included.
  *
- * <p><b>It closes</b> on a press outside it or Escape (the user's), on the application losing the
- * keyboard or the owner's fullscreen changing (an adjustment), and on {@link #close()} (the
- * code's), which {@link #onClose} hears with that origin. It is not modal: a press outside closes
- * it and reaches nothing else, as a combo box's list does. A question that must be answered is a
+ * <p><b>It closes</b> on a press outside it or Escape (the user's); on the application losing the
+ * keyboard, the owner's fullscreen changing, or the anchor leaving the window or no longer shown
+ * (an adjustment): the anchor taken out of the tree by itself, with a container or a dialog it is
+ * in, or with the window, even to be put back elsewhere in the window as a tool bar moves a
+ * button into its overflow; hidden, itself or with a container, a tab strip's page or an expander;
+ * and the popover it lies in closing, so a popover opened from another goes with it. The
+ * keyboard, when it was in the panel, then goes where a focused widget's goes when it is taken
+ * out or hidden: to nobody. And on {@link #close()} (the code's). {@link #onClose} hears each with
+ * that origin. It is not modal: a press outside closes it and reaches nothing else, as a combo
+ * box's list does. A question that must be answered is a
  * {@link Dialog}. It opens from {@link #showFor} or from the button {@link #attachTo} gave it, and
  * never on hover or focus: a surface that opens as the pointer passes is a tooltip.
  *
@@ -82,6 +90,8 @@ public final class Popover {
     private float lastWidth = 1;
     private float lastHeight = 1;
     private final AnchoredPopup popup = new AnchoredPopup(new Host());
+    /** What the attached button drives: one for the popover's life, whichever button it is on. */
+    private final Owner owner = new Owner();
 
     /**
      * A popover showing {@code content}, which the popover lays out at its own measure within the
@@ -100,14 +110,14 @@ public final class Popover {
 
     /**
      * Shows the panel against {@code anchor}. A no-op while open; nothing shows for an anchor that
-     * is in no scene.
+     * is in no scene, is hidden, or is being taken out of its window.
      *
      * @param anchor the widget the panel hangs from
      */
     public void showFor(Widget<?> anchor) {
         Ui.checkUiThread();
         Objects.requireNonNull(anchor, "anchor");
-        if (open || anchor.scene() == null) {
+        if (open || !AnchoredPopup.canHangFrom(anchor)) {
             return;
         }
         if (content.parent() != null) {
@@ -137,18 +147,39 @@ public final class Popover {
     }
 
     private void closeWith(Change.Origin origin) {
+        closeWith(origin, attached);
+    }
+
+    /**
+     * @param origin who closed it
+     * @param tell   the button told it collapsed: the one it is on, or the one it was open from as
+     *               it moves to another, which never expanded
+     */
+    private void closeWith(Change.Origin origin, @Nullable Button tell) {
         if (!open) {
             return;
         }
         open = false;
-        popup.close();
-        if (attached != null) {
-            attached.invalidateAccessible();
-            attached.notifyExpanded();
+        // A popover hung in this one whose handler throws stops neither this one's close nor what
+        // its button and its own handler are told: the throw follows them.
+        Throwable failed = null;
+        try {
+            popup.close();
+        } catch (RuntimeException | Error error) {
+            failed = HandlerFailures.add(failed, error);
         }
-        if (onClose != null) {
-            onClose.accept(origin);
+        try {
+            if (tell != null) {
+                tell.invalidateAccessible();
+                tell.notifyExpanded();
+            }
+            if (onClose != null) {
+                onClose.accept(origin);
+            }
+        } catch (RuntimeException | Error error) {
+            failed = HandlerFailures.add(failed, error);
         }
+        HandlerFailures.rethrow(failed);
     }
 
     /** @return whether the panel is showing, or about to in a window being made */
@@ -223,8 +254,9 @@ public final class Popover {
 
     /**
      * Hears the panel close, with who closed it: {@code USER} for a press outside or Escape,
-     * {@code ADJUSTMENT} for the application losing the keyboard or the owner's fullscreen
-     * changing, {@code CODE} for {@link #close()}.
+     * {@code ADJUSTMENT} for the application losing the keyboard, the owner's fullscreen changing
+     * or the anchor leaving the window (with a dialog it was in, say, or a popover it was in
+     * closing), {@code CODE} for {@link #close()}.
      *
      * @param handler the handler, or {@code null} to clear the slot
      * @return this popover
@@ -239,8 +271,12 @@ public final class Popover {
     /**
      * Makes {@code button} open the panel when pressed, and close it when pressed while it is open.
      * The button then tells a reader it opens a popup and whether it is open, and offers expand and
-     * collapse in place of press. A button opens one popover; {@code attachTo} on another button
-     * moves it there.
+     * collapse in place of press.
+     *
+     * <p>A button opens one popover, and a popover is attached to one button: a popover already on
+     * {@code button} is {@linkplain #detach() detached} from it, and this one is detached from the
+     * button it was on, so {@code attachTo} on another button moves it there. Attaching it to the
+     * button it is on changes nothing.
      *
      * @param button the button; never null
      * @return this popover
@@ -248,12 +284,85 @@ public final class Popover {
     public Popover attachTo(Button button) {
         Ui.checkUiThread();
         Objects.requireNonNull(button, "button");
-        if (attached != null) {
-            attached.attachPopover(null);
+        if (attached == button) {
+            return this;
+        }
+        // Both buttons and both popovers are settled before any handler runs: an onClose below
+        // that attaches, detaches or shows a popover then starts from the end state, and what it
+        // does is final.
+        Button left = letGo();
+        Popover previous = button.attachedPopover();
+        if (previous != null) {
+            previous.letGo();
         }
         attached = button;
-        button.attachPopover(new Owner());
+        button.attachPopover(this);
+        if (left != null) {
+            closeIfOpenFrom(left);
+        }
+        if (previous != null) {
+            previous.closeIfOpenFrom(button);
+        }
         return this;
+    }
+
+    /**
+     * Lets go of the button {@link #attachTo} gave it: the button opens nothing any more and is a
+     * plain button again, to a reader as well. A panel open from that button closes, as the code's
+     * ({@link #onClose} hears {@code CODE}); one {@linkplain #showFor shown for} another widget
+     * stays. The popover still opens from {@link #showFor}, and can be attached again. A no-op when
+     * it is on no button.
+     *
+     * <p>The popover is off the button before {@link #onClose} hears the close, so what the handler
+     * does is the end state: attaching it again puts it back on a button, and showing it for the
+     * button shows it as {@link #showFor} does for any widget, from a button that does not open it.
+     *
+     * @return this popover
+     */
+    public Popover detach() {
+        Ui.checkUiThread();
+        Button left = letGo();
+        if (left != null) {
+            closeIfOpenFrom(left);
+        }
+        return this;
+    }
+
+    /**
+     * Takes this popover off its button, both sides at once and before any handler runs.
+     *
+     * @return the button it was on, or null
+     */
+    private @Nullable Button letGo() {
+        Button button = attached;
+        if (button == null) {
+            return null;
+        }
+        attached = null;
+        if (button.attachedPopover() == this) {
+            button.attachPopover(null);
+        }
+        return button;
+    }
+
+    /**
+     * A panel open from a button that no longer opens it closes, as the code's, and the button is
+     * told it is collapsed. Not when a handler put the popover back on that button meanwhile.
+     */
+    private void closeIfOpenFrom(Button button) {
+        if (open && anchor == button && attached != button) {
+            closeWith(Change.Origin.CODE, button);
+        }
+    }
+
+    /** @return the button {@link #attachTo} gave it, or null */
+    @Nullable Button attachedButton() {
+        return attached;
+    }
+
+    /** @return the attached button's popup, as the owner shape drives it */
+    PopupOwnerAccessibility.Host ownerShape() {
+        return owner;
     }
 
     /** The attached button's popup, as the owner shape drives it. */
@@ -295,22 +404,37 @@ public final class Popover {
         return anchor == null ? null : SceneAccess.applicationName(anchor);
     }
 
-    /** Whether the keyboard is somewhere inside the panel's own scene subtree. */
+    /**
+     * Whether the keyboard is the popover's: somewhere inside the panel, or in the scene on the
+     * layer the panel is drawn on, which holds it when the content takes none.
+     */
     private boolean holdsFocusInside(@Nullable Widget<?> focused) {
+        if (focused == null || panel == null) {
+            return false;
+        }
         for (Widget<?> w = focused; w != null; w = w.parent()) {
             if (w == panel) {
+                return true;
+            }
+        }
+        for (Widget<?> w = panel.parent(); w != null; w = w.parent()) {
+            if (w == focused) {
                 return true;
             }
         }
         return false;
     }
 
-    /** Moves the keyboard to the content's first focusable widget, or to the panel with none. */
+    /**
+     * Moves the keyboard to the content's first focusable widget. With none, it goes to the
+     * popover's node: the panel in a window of its own; in the scene the layer, which took it as
+     * it was pushed.
+     */
     private static void focusFirst(Panel into) {
         Widget<?> first = firstFocusable(into.content());
         if (first != null) {
             first.requestFocus();
-        } else {
+        } else if (into.inWindow) {
             into.requestFocus();
         }
     }
@@ -352,9 +476,11 @@ public final class Popover {
         Panel(boolean inWindow) {
             this.inWindow = inWindow;
             add(content);
-            // The panel takes the keyboard only when nothing in it can: it is then where Escape and
-            // a reader's focus land.
-            setFocusable(firstFocusable(content) == null);
+            // In a window of its own the panel takes the keyboard when nothing in it can: it is
+            // then where Escape and a reader's focus land, the popover's named group. In the scene
+            // the layer is that group, and holds the keyboard itself: a focusable panel there was
+            // an unnamed node of no role under it, and the one the focus was published on.
+            setFocusable(inWindow && firstFocusable(content) == null);
         }
 
         Widget<?> content() {
@@ -405,6 +531,16 @@ public final class Popover {
         @Override
         protected void onKeyEvent(KeyEvent event) {
             escape(event);
+        }
+
+        /**
+         * Its fill, border and shadow are the raised surface's and tell a reader nothing: in a
+         * window of its own the panel names itself, and in the scene the layer it is drawn on is
+         * the popover's node, so the panel is rightly absent there and nobody is told to fix it.
+         */
+        @Override
+        protected boolean paintsDecoration() {
+            return true;
         }
 
         /**

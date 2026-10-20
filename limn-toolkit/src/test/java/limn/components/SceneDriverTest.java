@@ -86,6 +86,30 @@ class SceneDriverTest extends ComponentTestBase {
             }
 
             @Override
+            public limn.concurrent.Subscription observeAnchorLeaving(Scene scene, limn.scene.Widget<?> anchor,
+                                                                     Runnable gone) {
+                return null;
+            }
+
+            @Override
+            public void closePopupsHungIn(limn.scene.Widget<?> panel) {
+            }
+
+            @Override
+            public boolean isInTree(limn.scene.Widget<?> widget) {
+                return false;
+            }
+
+            @Override
+            public boolean isDrawn(limn.scene.Widget<?> widget) {
+                return false;
+            }
+
+            @Override
+            public void overlayCard(limn.scene.Widget<?> overlay, limn.scene.internal.OverlayCard card) {
+            }
+
+            @Override
             public limn.scene.Widget<?> focusedBefore(Scene scene) {
                 return null;
             }

@@ -203,11 +203,26 @@ class PopoverTest extends ComponentTestBase {
     }
 
     @Test
-    void aPopoverWithNoControlsTakesTheKeyboardOnItsPanel() {
+    void aPopoverWithNoControlsTakesTheKeyboardOnItsLayerInTheScene() {
+        // The layer is the popover's node in the scene, the group a reader is put on; the panel
+        // drawn on it is no node (PopoverNoControlsAccessibilityTest reads the tree).
         inScene(40, 20);
+        scene.requestFocus(anchor);
         popover = new Popover(new Label("Last synced 10:42")).setDisplayMode(DisplayMode.IN_SCENE);
         open();
-        assertSame(popover.content().parent(), scene.focusedWidget(), "the panel itself");
+        Widget<?> panel = popover.content().parent();
+        Widget<?> focused = scene.focusedWidget();
+        assertNotNull(focused);
+        assertFalse(focused == panel, "not the panel");
+        boolean below = false;
+        for (Widget<?> w = panel.parent(); w != null; w = w.parent()) {
+            below |= w == focused;
+        }
+        assertTrue(below, "the layer the panel is drawn on: " + focused);
+        drive(scene).keyEvent(Keys.ESCAPE, true, false, 0);
+        drive(scene).inputBatchEnded();
+        assertFalse(popover.isOpen(), "Escape closes it");
+        assertSame(anchor, scene.focusedWidget(), "back to the anchor");
     }
 
     // ------------------------------------------------------------------ the attached button
