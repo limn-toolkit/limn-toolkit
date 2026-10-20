@@ -532,12 +532,16 @@ public abstract class Widget<W extends Widget<W>> {
         Objects.requireNonNull(origin, "origin");
         if (children.remove(child)) {
             child.parent = null;
-            child.setSceneRecursively(null);
-            if (scene != null) {
-                scene.onWidgetDetached(child);
+            try {
+                child.setSceneRecursively(null);
+            } finally {
+                // A popup's handler that threw as the child left: the removal still completes.
+                if (scene != null) {
+                    scene.onWidgetDetached(child);
+                }
+                childrenChanged();
+                notifyChange(Change.of(Change.Aspect.CHILDREN, origin));
             }
-            childrenChanged();
-            notifyChange(Change.of(Change.Aspect.CHILDREN, origin));
         }
     }
 
@@ -567,16 +571,32 @@ public abstract class Widget<W extends Widget<W>> {
      */
     final void setSceneRecursively(Scene newScene) {
         Scene leaving = scene;
+        Throwable failed = null;
         if (leaving != null && leaving != newScene) {
             // A popup hung from a widget in this subtree goes first, while the subtree still
             // answers the scene it is leaving: a popover's panel would otherwise stay over the
-            // window hanging from nothing, holding its keyboard and every press.
-            leaving.anchorsLeaving(this);
+            // window hanging from nothing, holding its keyboard and every press. What its handlers
+            // throw waits for the move to be complete.
+            failed = leaving.anchorsLeaving(this);
         }
         bumpControlSizeEpoch();
         bumpLayoutDirectionEpoch();
         bumpLocaleEpoch();
         setSceneRecursivelyInternal(newScene);
+        rethrow(failed);
+    }
+
+    /** Throws {@code failed} as it is, when there is one: it is unchecked, a handler's. */
+    static void rethrow(@Nullable Throwable failed) {
+        if (failed instanceof RuntimeException e) {
+            throw e;
+        }
+        if (failed instanceof Error e) {
+            throw e;
+        }
+        if (failed != null) {
+            throw new IllegalStateException(failed);
+        }
     }
 
     private void setSceneRecursivelyInternal(Scene newScene) {
@@ -1129,10 +1149,13 @@ public abstract class Widget<W extends Widget<W>> {
         if (this.visible != visible) {
             boolean shown = isVisible();
             this.visible = visible;
-            if (shown != isVisible()) {
-                presenceChanged();
+            try {
+                if (shown != isVisible()) {
+                    presenceChanged();
+                }
+            } finally {
+                notifyChange(Change.of(Change.Aspect.VISIBLE, Change.Origin.CODE));
             }
-            notifyChange(Change.of(Change.Aspect.VISIBLE, Change.Origin.CODE));
         }
         return self();
     }
@@ -1169,11 +1192,12 @@ public abstract class Widget<W extends Widget<W>> {
 
     /** {@link #isVisible()} changed: the subtree leaves or rejoins the layout around it. */
     private void presenceChanged() {
+        Throwable failed = null;
         if (!isVisible() && scene != null) {
             // A popup hung from a widget in this subtree goes with it, as when it leaves: hidden,
             // or on a page a tab strip put out of sight, it has nowhere to hang from and nowhere
             // to give the keyboard back to.
-            scene.anchorsLeaving(this);
+            failed = scene.anchorsLeaving(this);
             scene.onWidgetDetached(this); // revoke focus/hover/press in this subtree
         }
         // Every measure on the way up is stale, exactly as for markNeedsLayout(): whichever
@@ -1190,6 +1214,7 @@ public abstract class Widget<W extends Widget<W>> {
         } else if (scene != null) {
             scene.markLayoutDirty(this); // a root has no parent to absorb it
         }
+        rethrow(failed); // a popup's handler threw as it closed: the change above is complete
     }
 
     /**

@@ -16,6 +16,7 @@ import java.util.concurrent.TimeUnit;
 import static limn.testing.SceneDriver.drive;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -223,5 +224,34 @@ class PopoverReentrancyTest extends ComponentTestBase {
             owner.requestClose();
             runtime.drain();
         }
+    }
+
+    @Test
+    void anApplicationCodeThrowingWhileAnAnchorLeavesStillLetsTheRemovalFinish() {
+        Button first = new Button("First");
+        Column holder = new Column();
+        holder.add(first);
+        Column root = new Column();
+        root.add(holder);
+        inWindow(root);
+        Popover popover = new Popover(new SizedBox(160, 30, new TextField())).setDisplayMode(DisplayMode.IN_SCENE)
+                .onClose(origin -> {
+                    throw new IllegalStateException("an application's handler bug");
+                });
+        popover.showFor(first);
+        frames(3);
+        IllegalStateException thrown = null;
+        try {
+            holder.remove(first);
+        } catch (IllegalStateException e) {
+            thrown = e;
+        }
+        assertNotNull(thrown, "the handler's throw is not swallowed");
+        assertNull(first.scene(), "the removal finished: the button left the window");
+        assertNull(first.parent());
+        assertFalse(popover.isOpen());
+        assertTrue(holder.children().isEmpty());
+        owner.requestClose();
+        runtime.drain();
     }
 }

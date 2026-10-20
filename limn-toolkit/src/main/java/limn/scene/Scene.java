@@ -1066,7 +1066,22 @@ public final class Scene {
             }
         }
         onWidgetDetached(overlay);
-        overlay.setSceneRecursively(null);
+        Throwable failed = null;
+        try {
+            overlay.setSceneRecursively(null);
+        } catch (RuntimeException | Error error) {
+            failed = error; // a handler of a popup hung in it: the removal completes first
+        }
+        try {
+            restoreAfterRemoving(overlay, restore, wasTop, keptKeyboardBelow);
+        } finally {
+            Widget.rethrow(failed);
+        }
+    }
+
+    /** The rest of {@link #removeOverlay}, once the overlay is out of the scene. */
+    private void restoreAfterRemoving(Widget<?> overlay, @Nullable Widget<?> restore, boolean wasTop,
+                                      boolean keptKeyboardBelow) {
         layoutDirty = true;
         // Focus belongs to the topmost overlay. Removing a lower one (e.g. the
         // previous menu still fading out beneath the menu it was switched to) must
@@ -2171,16 +2186,33 @@ public final class Scene {
      * closing: every popup hung from a widget in it goes. A copy, since each that goes lets go of
      * its entry, and one going may take another down with it (a popover holding the anchor of
      * another).
+     *
+     * <p>The closes run the application's handlers, inside a structural change. Each runs whatever
+     * one before it threw, and the first throw is handed back, the others added to it as
+     * suppressed, for the caller to rethrow once its change is complete: a throw here aborted a
+     * removal half way, the subtree out of its parent and still in the scene, never told it left.
+     *
+     * @return what the closes threw, or null
      */
-    void anchorsLeaving(Widget<?> subtree) {
+    @Nullable Throwable anchorsLeaving(Widget<?> subtree) {
         if (hungPopups.isEmpty()) {
-            return;
+            return null;
         }
+        Throwable failed = null;
         for (HungPopup hung : List.copyOf(hungPopups)) {
             if (hungPopups.contains(hung) && isInSubtree(hung.anchor(), subtree)) {
-                hung.gone().run();
+                try {
+                    hung.gone().run();
+                } catch (Throwable error) {
+                    if (failed == null) {
+                        failed = error;
+                    } else {
+                        failed.addSuppressed(error);
+                    }
+                }
             }
         }
+        return failed;
     }
 
     /**
@@ -3728,7 +3760,7 @@ public final class Scene {
             public void closePopupsHungIn(Widget<?> panel) {
                 Scene scene = panel.scene();
                 if (scene != null) {
-                    scene.anchorsLeaving(panel);
+                    Widget.rethrow(scene.anchorsLeaving(panel));
                 }
             }
 
