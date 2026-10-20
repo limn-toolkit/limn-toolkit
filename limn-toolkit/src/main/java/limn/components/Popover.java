@@ -30,7 +30,7 @@ import java.util.function.Consumer;
  * shadow, below the anchor unless it does not fit there and above has more room.
  *
  * <p><b>It takes the keyboard.</b> On open the focus goes to the content's first focusable widget,
- * or to the panel when it has none; Tab and Shift+Tab cycle inside it, as in a dialog; on close
+ * or, when it has none, to the popover itself, which a reader is then on; Tab and Shift+Tab cycle inside it, as in a dialog; on close
  * the focus is where it was, the anchor for a popover opened from a button. It shows in a window
  * of its own where the platform allows ({@link DisplayMode#NATIVE_WINDOW}, the default, as its
  * siblings), so it can pass the window's edge; that window never takes the desktop's keyboard, and
@@ -341,22 +341,37 @@ public final class Popover {
         return anchor == null ? null : SceneAccess.applicationName(anchor);
     }
 
-    /** Whether the keyboard is somewhere inside the panel's own scene subtree. */
+    /**
+     * Whether the keyboard is the popover's: somewhere inside the panel, or in the scene on the
+     * layer the panel is drawn on, which holds it when the content takes none.
+     */
     private boolean holdsFocusInside(@Nullable Widget<?> focused) {
+        if (focused == null || panel == null) {
+            return false;
+        }
         for (Widget<?> w = focused; w != null; w = w.parent()) {
             if (w == panel) {
+                return true;
+            }
+        }
+        for (Widget<?> w = panel.parent(); w != null; w = w.parent()) {
+            if (w == focused) {
                 return true;
             }
         }
         return false;
     }
 
-    /** Moves the keyboard to the content's first focusable widget, or to the panel with none. */
+    /**
+     * Moves the keyboard to the content's first focusable widget. With none, it goes to the
+     * popover's node: the panel in a window of its own; in the scene the layer, which took it as
+     * it was pushed.
+     */
     private static void focusFirst(Panel into) {
         Widget<?> first = firstFocusable(into.content());
         if (first != null) {
             first.requestFocus();
-        } else {
+        } else if (into.inWindow) {
             into.requestFocus();
         }
     }
@@ -398,9 +413,11 @@ public final class Popover {
         Panel(boolean inWindow) {
             this.inWindow = inWindow;
             add(content);
-            // The panel takes the keyboard only when nothing in it can: it is then where Escape and
-            // a reader's focus land.
-            setFocusable(firstFocusable(content) == null);
+            // In a window of its own the panel takes the keyboard when nothing in it can: it is
+            // then where Escape and a reader's focus land, the popover's named group. In the scene
+            // the layer is that group, and holds the keyboard itself: a focusable panel there was
+            // an unnamed node of no role under it, and the one the focus was published on.
+            setFocusable(inWindow && firstFocusable(content) == null);
         }
 
         Widget<?> content() {
@@ -451,6 +468,16 @@ public final class Popover {
         @Override
         protected void onKeyEvent(KeyEvent event) {
             escape(event);
+        }
+
+        /**
+         * Its fill, border and shadow are the raised surface's and tell a reader nothing: in a
+         * window of its own the panel names itself, and in the scene the layer it is drawn on is
+         * the popover's node, so the panel is rightly absent there and nobody is told to fix it.
+         */
+        @Override
+        protected boolean paintsDecoration() {
+            return true;
         }
 
         /**

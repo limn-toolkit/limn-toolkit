@@ -275,7 +275,7 @@ Not a widget, as `PopupMenu` and `Dialog` are not: it shows one.
   section 12.5). Not modal (question 16): a press outside closes it and reaches nothing else, as
   a combo box's list does.
 - **Focus** (question 12): on open the keyboard goes to the content's first focusable widget, or to
-  the panel when it has none; Tab and Shift+Tab cycle inside, as in a dialog; on close the focus
+  the panel when it has none (in the scene, to its layer: amended 2026-10-19, section 12.5); Tab and Shift+Tab cycle inside, as in a dialog; on close the focus
   goes back to the anchor if it was inside. In the scene the layer holds the focus; in a window of
   its own the owner keeps the desktop's focus and its keys, characters **and input-method
   composition** are routed to the popover's scene (question 13), so a field inside it types as
@@ -677,6 +677,20 @@ that the text above does not say, dated where it departs from it.
   another widget stays, and a detached popover still opens from `showFor`. The button holds the
   popover and the popover the button, nothing else, and both sides are cleared together.
   `PopoverAttachTest` has every transition.
+- **A popover with nothing focusable, to a reader** (2026-10-19, the audit of that day). In the
+  scene the panel took the keyboard, and since the layer is the popover's node there and the panel
+  says nothing, the walk published the focus on an unnamed node of role `UNKNOWN` under the named
+  group, broke two of `AccessibleInvariants`' rules and logged a warning about `Popover$Panel`,
+  a class no application can reach; any in-scene popover logged the "paints its own content"
+  warning about it too. In a window of its own the panel, the named group, is the root of a popup
+  the owner's keys drive, which the walk publishes not focusable, so it was focused and not
+  focusable. Now, in the scene the panel never takes the keyboard and the layer keeps it from the
+  push: the focused node is the group named as the popover, with its `CANCEL`, and Escape and the
+  way back are the layer's. Naming the panel as well was the other way, and would have published
+  the group twice, one inside the other. The panel declares its painting decoration, so the walk
+  warns about nothing. In the walk, the root of a keyboard-driven popup is published `FOCUSABLE`
+  when it is the node published `FOCUSED`, so the two presentations agree.
+  `PopoverNoControlsAccessibilityTest` reads both trees and holds them to `AccessibleInvariants`.
 
 ### 12.6 The input method in a popover's window, measured
 
