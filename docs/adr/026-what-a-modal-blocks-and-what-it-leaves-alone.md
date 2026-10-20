@@ -107,7 +107,7 @@ somewhat more than painting over dimmed it (0.1 of it shows where 0.2 did; a pix
 composite dims by 107.8 light and 43.8 dark (96.2 and 32.1 painted over); an opaque window is byte
 for byte what painting over gave, on the GPU and on the software renderer; a clear window's content
 alone dims by 10.7 and 4.6, its clear pixels staying clear. A canvas without that blend multiplies
-as before. `BlockedWindowVeilPixelTest` holds it light and dark, opaque, translucent and clear, on a
+the locked window's veil, as before, and paints the dialog's over. `BlockedWindowVeilPixelTest` holds it light and dark, opaque, translucent and clear, on a
 whole frame and on five partial passes in a row that touch nothing outside themselves, on the GPU
 and on Apple's software renderer.
 
@@ -118,4 +118,3 @@ application may colour, so the blend's colour factors are `DST_ALPHA, ONE_MINUS_
 `S·a·A + C(1 - a)` for a veil of colour `S`, which is `C(1 - a)` for black and, on an opaque pixel,
 exactly painting over. `InSceneDialogVeilPixelTest` holds the corners clear, light and dark, opaque
 and glass, on the GPU and on the software renderer.
-
