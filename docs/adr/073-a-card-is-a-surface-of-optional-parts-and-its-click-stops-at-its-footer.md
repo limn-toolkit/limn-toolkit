@@ -683,8 +683,11 @@ choice open, it is said here.
   out of reach) as a container takes it out, and every one as the card leaves the window (the
   review of that day found a control taken out of a card that never came back dead and held, and
   one card letting go undoing another's hold on the one flag); the first layout back in a window
-  finds again what is still in the area. A card gives back a control only when no other card holds
-  it.
+  finds again what is still in the area, and the area's attach does it at once (the second review,
+  2026-10-20: a card put back held nothing until its next layout, and a click before it reached the
+  button). No two cards ever hold one control (a card holds one only while it is under that card's
+  area in a window, an outer card's walk stops at an inner clicked card's area, and the watch gives
+  a control back before it can arrive elsewhere), so the one inert flag a widget has is enough.
 - **The group of a clicked card with a footer** is named by the title. An application that names a
   card with no title names its button; the group around it stays unnamed, the card having no way
   to read the name the application wrote.

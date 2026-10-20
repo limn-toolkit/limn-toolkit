@@ -838,7 +838,7 @@ public final class Card extends Widget<Card> {
      * Gives back every control this card holds out of reach: its area left the window. Out of a
      * window nothing can be pressed, and a control taken out of the area now, where no watch hears
      * it, would stay dead wherever it went; the first layout back in a window finds again what is
-     * still in the area.
+     * still in the area, and its area's attach does so at once.
      */
     private void releaseAll() {
         for (int i = madeInert.size() - 1; i >= 0; i--) {
@@ -848,16 +848,13 @@ public final class Card extends Widget<Card> {
     }
 
     /**
-     * Ends this card's hold on {@code control}: it answers again, unless another activated card's
-     * area now holds it out of reach too, the flag being one per widget, so one card letting go
-     * never undoes another's hold.
+     * Ends this card's hold on {@code control}: it answers again. The inert flag is one per widget,
+     * and no other card can hold the same control: a card holds a control only while it is under
+     * that card's area in a window; an outer clicked card's walk stops at an inner clicked card's
+     * area, which takes the keyboard, and never reaches the inner card's controls; and a control
+     * leaving one area is given back, by the watch, before it can arrive in another.
      */
     private void release(Widget<?> control) {
-        for (Widget<?> w = control.parent(); w != null; w = w.parent()) {
-            if (w instanceof Card other && other != this && other.madeInert.contains(control)) {
-                return;
-            }
-        }
         SceneAccess.setInert(control, false);
     }
 
