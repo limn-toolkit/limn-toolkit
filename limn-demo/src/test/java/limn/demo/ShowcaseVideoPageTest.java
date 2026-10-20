@@ -153,6 +153,81 @@ class ShowcaseVideoPageTest {
         }
     }
 
+    /**
+     * An open that reports how far it has got, while the page is away, is not taken for one whose
+     * answer was refused: its answer may still land after the page is back, and opening it again
+     * then opened the same entry twice, the first withdrawn and closed unseen. Whether the answer
+     * was still wanted was asked before every delivery, progress included, and the asking recorded
+     * a refusal.
+     */
+    @Test
+    void progressReportedWhileThePageIsAwayDoesNotOpenTheEntryAgain() throws Exception {
+        assumeTrue(limn.video.ffmpeg.FfmpegLibrary.isAvailable(), "needs the FFmpeg native");
+        CountDownLatch reported = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        java.util.concurrent.atomic.AtomicInteger opens = new java.util.concurrent.atomic.AtomicInteger();
+        SyntheticVideoDecoder bars = new SyntheticVideoDecoder();
+        limn.video.VideoDecoder reporting = new limn.video.VideoDecoder() {
+            @Override
+            public String name() {
+                return "reporting bars";
+            }
+
+            @Override
+            public boolean supports(Path file) {
+                return bars.supports(file);
+            }
+
+            @Override
+            public VideoStreamSource openStream(Path file) {
+                return bars.openStream(file);
+            }
+
+            @Override
+            public VideoStreamSource openStream(Path file, limn.concurrent.Progress progress) {
+                opens.incrementAndGet();
+                progress.report(0.5);
+                reported.countDown();
+                try {
+                    release.await(30, TimeUnit.SECONDS);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                }
+                return bars.openStream(file);
+            }
+        };
+        Videos.installDecoder(reporting);
+        VideoScene.setSoundAllowed(false);
+        try (HeadlessUi ui = new HeadlessUi()) {
+            Widget<?> page = VideoScene.pageContent();
+            Column holder = new Column();
+            holder.add(page);
+            Scene scene = new Scene(holder, () -> 0L);
+            VideoView view = find(page, VideoView.class).get(0);
+            ui.pumpUntil(() -> view.source() != null, 30_000_000_000L); // the clip
+
+            SegmentedControl picker = sourcePicker(page);
+            scene.requestFocus(picker);
+            limn.testing.SceneDriver.drive(scene).press(limn.input.Keys.RIGHT); // the bars, through the facade
+            assertEquals(VideoScene.Text.BARS, picker.segmentSource(picker.selectedIndex()), "sanity: the bars picked");
+            ui.pumpUntil(() -> reported.getCount() == 0, 30_000_000_000L);
+            holder.remove(page); // the Showcase showing another page
+            ui.runtime().drain(); // the progress report, asked about while the page is away
+            holder.add(page); // and back, before the open has answered
+
+            release.countDown();
+            ui.pumpUntil(() -> view.source() != null, 30_000_000_000L);
+            assertEquals(1, opens.get(), "the bars were opened again although their answer was still to come");
+            VideoStreamSource shown = view.source();
+            view.setSource(null);
+            shown.close();
+        } finally {
+            release.countDown();
+            VideoScene.setSoundAllowed(true);
+            Videos.uninstallDecoder(reporting);
+        }
+    }
+
     @Test
     void aRunNobodyWatchesStillOpensTheClipWhileThePageIsBuilt() throws Exception {
         assumeTrue(limn.video.ffmpeg.FfmpegLibrary.isAvailable(), "needs the FFmpeg native");

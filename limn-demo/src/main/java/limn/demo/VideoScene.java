@@ -261,12 +261,10 @@ final class VideoScene {
      * @param opened   what was opened, or null when this machine cannot play the entry
      * @param failed   what the decoder threw, unwrapped
      * @param progress the newest fraction the open published, 0 to 1; most opens publish none
-     * @param wanted   whether the answer is still wanted; a false closes what was opened
      */
     private record Pick(java.util.function.Consumer<Opened> opened,
                         java.util.function.Consumer<Throwable> failed,
-                        java.util.function.DoubleConsumer progress,
-                        java.util.function.BooleanSupplier wanted) {
+                        java.util.function.DoubleConsumer progress) {
     }
 
     /**
@@ -292,7 +290,6 @@ final class VideoScene {
                         .onSuccess(source -> pick.opened().accept(new Opened(source, null, null)))
                         .onFailure(pick.failed())
                         .onProgress(pick.progress())
-                        .deliverIf(pick.wanted())
                         .start();
             }
         };
@@ -327,7 +324,6 @@ final class VideoScene {
                         .onSuccess(pick.opened())
                         .onFailure(pick.failed())
                         .onProgress(pick.progress())
-                        .deliverIf(pick.wanted())
                         // The leak guard, and it is not theoretical: clicking through the picker
                         // withdraws opens that have already produced a container, and this is
                         // what closes them. The facade's own form carries its own.
@@ -335,6 +331,16 @@ final class VideoScene {
                         .start();
             }
         };
+    }
+
+    /** Closes on a worker what an open produced for a pane that has left its scene. */
+    private static void closeOpenedLater(Opened opened) {
+        if (opened != null) {
+            limn.concurrent.Ui.<Void>work(progress -> {
+                closeOpened(opened);
+                return null;
+            }).start();
+        }
     }
 
     /**
@@ -412,6 +418,10 @@ final class VideoScene {
         say.accept(Text.OPENING_FILE.format(name));
         ownFile(file).opener().start(new Pick(
                 opened -> {
+                    if (host.scene() == null) {
+                        closeOpenedLater(opened); // the page that asked has gone
+                        return;
+                    }
                     if (opened == null) {
                         say.accept(Text.CANNOT_PLAY_FILE.format(name));
                         LOG.log(System.Logger.Level.INFO, "Cannot play {0}: {1}", file, encodedUnavailableDetail());
@@ -423,13 +433,14 @@ final class VideoScene {
                     say.accept(Text.PLAYING_IN_WINDOW.format(name));
                 },
                 failure -> {
-                    say.accept(Text.CANNOT_PLAY_FILE.format(name));
                     LOG.log(System.Logger.Level.INFO, "Cannot play " + file, failure);
+                    if (host.scene() != null) {
+                        say.accept(Text.CANNOT_PLAY_FILE.format(name));
+                    }
                 },
                 fraction -> {
                     // Nothing to show it on: this window does not exist yet.
-                },
-                () -> host.scene() != null));
+                }));
     }
 
     /** Builds and shows the window for what {@link #openInOwnWindow} opened. UI thread. */
@@ -905,7 +916,11 @@ final class VideoScene {
         private boolean attachedOnce;
         /** The open last started for this pane, or null: see {@link #reopenWith(Runnable)}. */
         private Runnable lastOpen;
-        /** Whether an answer for this pane was refused because it had left its scene. */
+        /**
+         * Whether the answer to this pane's open came while the pane was away, and was refused:
+         * set by that answer alone, and never by a report of progress, which a later answer may
+         * still follow.
+         */
         private boolean refused;
         private long openingSinceNanos;
         private boolean openingPolling;
@@ -966,14 +981,20 @@ final class VideoScene {
          * before it has ever been in one, which is the page being built, opening its first entry on
          * a worker. A pane that was shown and has left (its window closed, or the Showcase showing
          * another page) takes nothing, and what was opened for it is closed rather than handed to
-         * a view off screen; {@link #onAttached} opens it again if the pane comes back.
+         * a view off screen; {@link #onAttached} opens it again if the pane comes back. Asks and
+         * records nothing: the answer that is refused says so ({@link #refuse}).
          */
         boolean wanted() {
-            boolean wanted = scene() != null || !attachedOnce;
-            if (!wanted) {
-                refused = true;
-            }
-            return wanted;
+            return scene() != null || !attachedOnce;
+        }
+
+        /**
+         * The answer to this pane's open came while it was away and was refused, so the pane opens
+         * it again when it is back. Not a report of progress, after which the answer may still
+         * land once the pane is back: taking one for a refusal opened the entry twice.
+         */
+        void refuse() {
+            refused = true;
         }
 
         /**
@@ -2633,7 +2654,10 @@ final class VideoScene {
      * window it is built for is on screen already, and the page is built on a click in its
      * navigation, so a container opened here, with the native extracted behind a lock on a
      * machine's first run, was that click frozen for a tenth of a second to more than one. The
-     * delivery is then wanted until the pane has been in a scene and left it.
+     * answer is then taken until the pane has been in a scene and left it; one that comes while
+     * the pane is away is closed on a worker and opened again when the pane is back. Every
+     * delivery reaches the handlers below, which ask the pane, so that only the answer, and never
+     * a report of progress, counts as refused.
      *
      * <p><b>Only a run that captures the window as it is built opens here instead</b>
      * ({@link #setOpenWhileBuilding}): a delivery would land on a frame a {@code --screenshot} run
@@ -2681,6 +2705,11 @@ final class VideoScene {
         open.opening = entry.opener().start(new Pick(
                 opened -> {
                     open.opening = null;
+                    if (!pane.wanted()) {
+                        pane.refuse();
+                        closeOpenedLater(opened);
+                        return;
+                    }
                     if (opened != null) {
                         // The evidence that the cost moved rather than went away: this is how long
                         // the pick took, and the window drew every frame of it.
@@ -2694,11 +2723,18 @@ final class VideoScene {
                 },
                 failure -> {
                     open.opening = null;
+                    if (!pane.wanted()) {
+                        pane.refuse();
+                        return;
+                    }
                     showFailure(pane, facts, failure);
                     cannotPlay.run();
                 },
-                pane::showOpeningProgress,
-                pane::wanted));
+                fraction -> {
+                    if (pane.wanted()) {
+                        pane.showOpeningProgress(fraction);
+                    }
+                }));
     }
 
     /**
