@@ -62,6 +62,8 @@ class DragAutoScrollTest {
         boolean takes;
         /** Its drag goes to the system, allowing a move or a copy: a picture of its own hands it over at once. */
         boolean toSystem;
+        /** Its drag never leaves the window: the scene drives it even where the system could. */
+        boolean withinWindow;
         /** What it accepted each time it was asked. */
         final List<DropAction> accepted = new ArrayList<>();
 
@@ -90,8 +92,9 @@ class DragAutoScrollTest {
                         .image(new limn.graphics.Image(1, 1, new byte[4]), 0, 0)
                         .onEnd(action -> log.add(name + ":END:" + action));
             }
-            return Drag.of(Transfer.of(CARD, card)).allow(DropAction.MOVE)
+            Drag drag = Drag.of(Transfer.of(CARD, card)).allow(DropAction.MOVE)
                     .onEnd(action -> log.add(name + ":END:" + action));
+            return withinWindow ? drag.withinWindow() : drag;
         }
 
         @Override
@@ -178,6 +181,14 @@ class DragAutoScrollTest {
         public boolean startDrag(limn.backend.spi.DragRequest request) {
             handed = request;
             return true;
+        }
+
+        /** Each answer the scene pushed to the system with no ask of the system's. */
+        final List<String> told = new ArrayList<>();
+
+        @Override
+        public void dragAnswerChanged(limn.transfer.@org.jspecify.annotations.Nullable DropAction action) {
+            told.add(String.valueOf(action));
         }
     }
 
@@ -542,6 +553,72 @@ class DragAutoScrollTest {
         Rect seen = onScreen(area);
         assertEquals(DropAction.COPY, input.dropped(offer, Set.of(DropAction.COPY), 60, seen.y() + seen.height() / 2),
                 "dropped on it, a copy");
+    }
+
+    /**
+     * Where the system asks the window again only when the pointer moves (X11 and Wayland), the
+     * answer of a step that scrolled a drop area under a still pointer never reached it: let go
+     * there without a wiggle, and the drag ended with nothing. The scene now pushes an answer
+     * that changed to the window, once per change, for a drag from another program and for one
+     * of ours handed to the system.
+     */
+    @Test
+    void anAnswerThatChangesUnderAStillPointerIsPushedToTheSystemOncePerChange() {
+        for (boolean ours : List.of(false, true)) {
+            log.clear();
+            Box logo = new Box("logo", 96, 96);
+            logo.card = "logo";
+            logo.toSystem = true;
+            Box area = new Box("area", W, 150);
+            area.takes = true;
+            ScrollView page = new ScrollView(new Sheet(W, 1200).put(logo, 12, 20).put(area, 0, 900));
+            SystemWindow window = new SystemWindow();
+            showInSystemWindow(page, window);
+            limn.backend.spi.WindowInput input = limn.scene.internal.SceneAccess.input(scene);
+            limn.transfer.Offer offer;
+            if (ours) {
+                press(logo);
+                assertTrue(window.handed != null, "the drag went to the system");
+                offer = Transfer.of(CARD, "logo").asOffer();
+            } else {
+                offer = Transfer.of(DataFormat.FILES, List.of(java.nio.file.Path.of("a.txt"))).asOffer();
+            }
+            String which = ours ? "ours: " : "another program's: ";
+            assertEquals(null, input.dragOver(offer, Set.of(DropAction.COPY), 60, H - 4), which + "nothing takes it there yet");
+            boolean arrived = false;
+            for (int i = 0; i < 600 && !arrived; i++) {
+                frames(1 / 60.0, 60);
+                Rect seen = onScreen(area);
+                arrived = seen.y() <= H - 4 && seen.bottom() > H - 4;
+            }
+            assertTrue(arrived, which + "the area came under the still pointer");
+            assertEquals(List.of("COPY"), window.told, which + "the system was told the area takes it, once");
+            frames(4, 60);
+            assertTrue(onScreen(area).bottom() <= H - 4, which + "and the page carried it on past the pointer");
+            assertEquals(List.of("COPY", "null"), window.told, which + "then told that nothing there takes it");
+            input.dragLeft();
+            frames(0.5, 60);
+            assertEquals(2, window.told.size(), which + "gone from the window, nothing more is told");
+        }
+    }
+
+    @Test
+    void aDragTheSceneDrivesPushesNothingToTheSystem() {
+        Box logo = new Box("logo", 96, 96);
+        logo.card = "logo";
+        Box area = new Box("area", W, 150);
+        area.takes = true;
+        logo.withinWindow = true;
+        ScrollView page = new ScrollView(new Sheet(W, 1200).put(logo, 12, 20).put(area, 0, 600));
+        SystemWindow window = new SystemWindow();
+        showInSystemWindow(page, window);
+        press(logo);
+        assertEquals(null, window.handed, "a drag that stays in the window is the scene's");
+        move(60, H - 4);
+        frames(3, 60);
+        assertTrue(page.offsetY() > 0);
+        assertEquals(List.of(), window.told, "its answers are the scene's own");
+        release(60, H - 4);
     }
 
     @Test

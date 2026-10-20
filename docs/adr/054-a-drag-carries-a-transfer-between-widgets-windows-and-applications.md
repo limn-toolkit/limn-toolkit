@@ -551,3 +551,16 @@ Review of the auto-scroll (2026-10-20):
   stale while the system drives. It now carries what the system last said it allows over the
   window, as the system's own ask does, so a target is never offered a move the system, with the
   copy key held, would not make.
+- **An answer that changes under a still pointer is pushed to the system.** The ask after a step
+  answered nobody: the system hears a window's answer only as the return of its own ask, and on
+  X11 and Wayland it asks only when the pointer moves, so a drop area scrolled under a pointer
+  resting in the band was decided, at the release, by the answer before the scroll (nothing),
+  until a wiggle. The scene now tells the window an answer that changed, once per change
+  (`WindowPeer.dragAnswerChanged`, a default that does nothing). X11 sends the source an
+  XdndStatus no position asked for: the protocol neither describes nor forbids one, and our own
+  source reads a status whenever it comes, so our drag over our own window is covered; Wayland
+  sends `set_actions` and `accept` again, which the protocol ties to no motion. Windows and macOS
+  are left as they are: OLE calls `DragOver` and AppKit `draggingUpdated:` again while the pointer
+  rests. Covered by the scene's tests up to the window; the native side is read, not yet run: a
+  run on the Linux guests owes it (rest at the page's bottom edge until the drop area is under
+  the pointer, let go without moving; for our own drag and for a file manager's).

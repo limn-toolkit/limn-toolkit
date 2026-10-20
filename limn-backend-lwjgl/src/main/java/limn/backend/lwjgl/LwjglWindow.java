@@ -2581,6 +2581,17 @@ final class LwjglWindow implements WindowPeer {
         return macDrag != null && macDrag.start(request);
     }
 
+    @Override
+    public void dragAnswerChanged(limn.transfer.@org.jspecify.annotations.Nullable DropAction action) {
+        backend.uiRuntime().checkUiThread();
+        // X11 and Wayland ask the window only as the pointer moves, so the answer goes to them
+        // now. OLE calls DragOver and AppKit draggingUpdated again while the pointer rests, and
+        // hear it at their next call.
+        if (linuxDrag != null && !destroyed) {
+            linuxDrag.answerChanged(action);
+        }
+    }
+
     /** Paints now, from inside a loop the system runs while it drives a drag. */
     private void paintDuringDrag() {
         frameRequested = true;

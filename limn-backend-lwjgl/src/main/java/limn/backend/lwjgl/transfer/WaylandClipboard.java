@@ -526,21 +526,51 @@ public final class WaylandClipboard implements NativeClipboard {
                 if (offer != dragOffer || dragDropped || closing) {
                     return;
                 }
-                int wanted = action == limn.transfer.DropAction.MOVE ? ACTION_MOVE
-                        : action == null ? 0 : ACTION_COPY;
-                if (wl.version(offer) >= 3) {
-                    wl.request(offer, 4, NULL, 0, Integer.toUnsignedLong(wanted), Integer.toUnsignedLong(wanted));
-                }
-                List<String> mimes = offers.getOrDefault(offer, List.of());
-                try (MemoryStack stack = MemoryStack.stackPush()) {
-                    // accept: the type it would be taken as, or none for a place that refuses
-                    wl.request(offer, 0, NULL, 0, Integer.toUnsignedLong(dragSerial),
-                            action == null || mimes.isEmpty() ? NULL : memAddress(stack.UTF8(mimes.get(0))));
-                }
-                dragTaken = action != null;
-                wl.flush(display);
+                answer(offer, action);
             }
         });
+    }
+
+    /**
+     * Tells the compositor what the window of ours under the drag would do with it: the action,
+     * and the type it would be taken as, or none for a place that refuses. The compositor holds
+     * the last of these for the drop. Under {@link #lock}.
+     */
+    private void answer(long offer, limn.transfer.@org.jspecify.annotations.Nullable DropAction action) {
+        int wanted = action == limn.transfer.DropAction.MOVE ? ACTION_MOVE
+                : action == null ? 0 : ACTION_COPY;
+        if (wl.version(offer) >= 3) {
+            wl.request(offer, 4, NULL, 0, Integer.toUnsignedLong(wanted), Integer.toUnsignedLong(wanted)); // set_actions
+        }
+        List<String> mimes = offers.getOrDefault(offer, List.of());
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            // accept: the type it would be taken as, or none for a place that refuses
+            wl.request(offer, 0, NULL, 0, Integer.toUnsignedLong(dragSerial),
+                    action == null || mimes.isEmpty() ? NULL : memAddress(stack.UTF8(mimes.get(0))));
+        }
+        dragTaken = action != null;
+        wl.flush(display);
+    }
+
+    /**
+     * What a window of ours answers the drag over it now, though no motion asked: the content
+     * scrolled under a pointer that stands still. Motion is the only thing that asks, and the
+     * compositor decides a drop by the last accept and action it had, so without this a drop area
+     * that scrolled under the pointer took nothing until the pointer was wiggled. The protocol ties
+     * neither request to a motion: set_actions may be sent many times, "typically" after an enter or
+     * a motion, and accept is the offer's answer until the drop. UI thread.
+     */
+    private void answerUnasked(Window window, limn.transfer.@org.jspecify.annotations.Nullable DropAction action) {
+        synchronized (lock) {
+            long offer = dragOffer;
+            if (dragOver != window || offer == NULL || dragData == null || dragDropped || closing) {
+                return;
+            }
+            if (TRACE) {
+                System.err.println("limn.drag(wayland): answers " + action + " unasked, the content having scrolled");
+            }
+            answer(offer, action);
+        }
     }
 
     /** What the source allows, the action the compositor has chosen for the keys held first. */
@@ -721,11 +751,17 @@ public final class WaylandClipboard implements NativeClipboard {
      */
     public WindowDrag register(long surface, java.util.function.Supplier<limn.backend.spi.WindowInput> input,
             java.util.function.DoubleUnaryOperator toLogical, limn.concurrent.UiRuntime ui) {
-        windows.put(surface, new Window(surface, input, toLogical, ui));
+        Window window = new Window(surface, input, toLogical, ui);
+        windows.put(surface, window);
         return new WindowDrag() {
             @Override
             public boolean start(limn.backend.spi.DragRequest request) {
                 return startDrag(surface, request, ui);
+            }
+
+            @Override
+            public void answerChanged(limn.transfer.@org.jspecify.annotations.Nullable DropAction action) {
+                answerUnasked(window, action);
             }
 
             @Override

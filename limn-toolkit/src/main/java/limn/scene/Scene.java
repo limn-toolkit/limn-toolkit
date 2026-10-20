@@ -5682,18 +5682,30 @@ public final class Scene {
         if (scrolled) {
             // What is under the pointer moved: whoever takes the drop is asked again, a drag the
             // system drives with what the system last allowed, since the scene's keys are stale.
+            // The system hears an answer that changed: some ask again only when the pointer moves.
             if (session != null && !session.system) {
                 dragMoved(x, y);
             } else if (session != null) {
                 java.util.Set<limn.transfer.DropAction> allowed = session.systemAllowed;
                 if (allowed != null) {
-                    systemDragOver(session.offer, allowed, x, y);
+                    limn.transfer.DropAction was = session.action;
+                    tellSystemIfChanged(was, systemDragOver(session.offer, allowed, x, y));
                 }
             } else if (in != null) {
-                systemDragOver(in.offer, in.allowed, x, y);
+                limn.transfer.DropAction was = in.action;
+                tellSystemIfChanged(was, systemDragOver(in.offer, in.allowed, x, y));
             }
         }
         return verticalTaken || horizontalTaken;
+    }
+
+    /** Tells the window the answer of an ask the system did not make, when it is not the last it had. */
+    private void tellSystemIfChanged(limn.transfer.@Nullable DropAction was,
+            limn.transfer.@Nullable DropAction now) {
+        NativeWindow host = window;
+        if (now != was && host != null) {
+            WindowPeer.of(host).dragAnswerChanged(now);
+        }
     }
 
     /**
