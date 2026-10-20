@@ -6,7 +6,6 @@ import limn.components.Theme;
 import limn.components.Validation;
 import limn.graphics.TextRulers;
 import limn.i18n.I18n;
-import limn.i18n.I18nString;
 import limn.input.Keys;
 import limn.scene.Scene;
 import limn.scene.Widget;
@@ -127,7 +126,7 @@ class ShowcaseDocumentFieldsTest {
      */
     private static String line(TextField text) {
         Field field = (Field) text.parent();
-        I18nString message = field.validationMessage();
-        return field.validation() == Validation.NONE || message == null ? "" : message.get();
+        String message = field.validationMessage();
+        return field.validation() == Validation.NONE || message == null ? "" : message;
     }
 }

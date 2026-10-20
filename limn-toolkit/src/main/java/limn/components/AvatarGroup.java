@@ -4,12 +4,15 @@ import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
+import limn.graphics.Font;
 import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
+import limn.graphics.TextRuler;
 import limn.i18n.I18n;
 import limn.scene.Constraints;
 import limn.scene.Size;
 import limn.scene.Widget;
+import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -18,7 +21,11 @@ import java.util.Objects;
 /**
  * People drawn as a stack of {@link Avatar}s: the approvers of a document, the members of a team.
  * Each avatar overlaps the one before by a quarter of its width, ringed in the surface colour so
- * the overlap reads as a stack.
+ * the overlap reads as a stack. A circle covered by the next one centres its initials on the part
+ * that shows, the three quarters away from the overlap, so no letter is cut; the last circle keeps
+ * them in its middle. Every circle draws its initials at one size: the label's, or the smaller size
+ * the group's widest pair needs to fit that part ("MW" in the shipped face), so the stack reads
+ * even.
  *
  * <p><b>Past {@link #setMaxShown(int) the most shown}</b> (four by default), the first ones are
  * drawn and the last place is a circle that says how many more there are, "+3", whose tooltip lists
@@ -51,6 +58,16 @@ public final class AvatarGroup extends Widget<AvatarGroup> {
     // Every member's name joined for a reader, built when a member or a name changes, or the
     // language does, with the counter the node's description is diffed by.
     private String description = "";
+
+    // The group's one size for initials, and what it was worked out for.
+    private long initialsStamp;
+    private long fitStamp = -1;
+    private long fitEpoch = -1;
+    private float fitD = -1;
+    private @Nullable Font fitFrom;
+    private @Nullable Font fitFont;
+    private @Nullable TextRuler fitRuler;
+    private long fitRulerEpoch;
     private long describedEpoch = -1;
     private boolean describedStale = true;
     private long descriptionWitness;
@@ -147,6 +164,78 @@ public final class AvatarGroup extends Widget<AvatarGroup> {
         describedStale = true;
         invalidateAccessible();
         more.retitle();
+        memberDrawnAnew();
+    }
+
+    /** A member's initials or picture changed: the group's one size for initials may move. */
+    void memberDrawnAnew() {
+        initialsStamp++;
+        invalidate();
+    }
+
+    /**
+     * The font every circle of the group draws its initials in: {@code full}, or the size the
+     * widest pair among the circles that draw initials needs to fit the part of a circle the next
+     * one leaves, whichever is smaller; {@code null} when that is under a point. One size for all,
+     * the last circle included, so the stack reads even and a member joining at the end does not
+     * change the circle before it alone. Kept while the members, the font, the circle and the ruler
+     * hold.
+     *
+     * @param full  the font an avatar alone would draw its initials in
+     * @param d     the circles' diameter
+     * @param ruler the ruler the circles shape with
+     * @return the font, or {@code null} for no initials
+     */
+    @Nullable Font initialsFont(Font full, float d, TextRuler ruler) {
+        long epoch = I18n.epoch(); // the initials are upper-cased in each member's language
+        if (fitStamp == initialsStamp && fitEpoch == epoch && fitD == d && full.equals(fitFrom)
+                && fitRuler == ruler && fitRulerEpoch == ruler.epoch()) {
+            return fitFont;
+        }
+        float r = d / 2;
+        float part = step(d) - Avatar.RING;
+        float size = full.size();
+        for (Avatar member : members) {
+            if (member.parent() != this || member.image() != null) {
+                continue; // hidden, or a picture: no letters drawn
+            }
+            String letters = member.shownInitials();
+            if (letters.isEmpty()) {
+                continue;
+            }
+            TextMetrics m = ruler.measure(letters, full);
+            float room = part - edgeAt(r, m.height());
+            if (m.width() > room) {
+                size = Math.min(size, (float) Math.floor(full.size() * room / m.width()));
+            }
+        }
+        fitFont = size >= 1 ? (size == full.size() ? full : full.withSize(size)) : null;
+        fitFrom = full;
+        fitD = d;
+        fitRuler = ruler;
+        fitRulerEpoch = ruler.epoch();
+        fitStamp = initialsStamp;
+        fitEpoch = epoch;
+        return fitFont;
+    }
+
+    /**
+     * How much of {@code member}'s circle shows when another circle is drawn after it, over its
+     * trailing quarter and that circle's ring; 0 for the last circle, which nothing covers.
+     */
+    float shownPart(Widget<?> member, float d) {
+        List<Widget<?>> circles = children();
+        int at = circles.indexOf(member);
+        return at >= 0 && at < circles.size() - 1 ? step(d) - Avatar.RING : 0;
+    }
+
+    /**
+     * How far in from a circle's side its edge is at the height of a run {@code height} tall
+     * centred on it: letters that start nearer would cross the edge at their top or bottom.
+     */
+    static float edgeAt(float r, float height) {
+        float half = Math.min(r, height / 2);
+        return r - (float) Math.sqrt(r * r - half * half);
     }
 
     /**
@@ -167,6 +256,7 @@ public final class AvatarGroup extends Widget<AvatarGroup> {
             more.retitle();
         }
         describedStale = true;
+        initialsStamp++; // who draws initials, and so their one size, may have changed
         invalidateAccessible();
         markNeedsLayout();
     }
@@ -184,7 +274,7 @@ public final class AvatarGroup extends Widget<AvatarGroup> {
     }
 
     /** Each circle starts three quarters of a diameter after the one before: a quarter overlaps. */
-    private static float step(float d) {
+    static float step(float d) {
         return d * 0.75f;
     }
 

@@ -1088,11 +1088,15 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
      *
      * <p>The content is the list's last child while it shows, so its own controls (a "Clear
      * filter" button) follow the list in the Tab order and a reader finds them after its (no)
-     * rows; they belong to no selection. A content passed this way describes nothing to a reader:
-     * pass its message with {@link #setEmptyContent(Widget, Label)}.
+     * rows; they belong to no selection. It is this list's own: one already in another
+     * container is refused, and one given to two widgets shows in one only. A content passed this
+     * way describes nothing to a reader: pass its message with
+     * {@link #setEmptyContent(Widget, Label)}.
      *
      * @param content the content, or {@code null} for none
      * @return this list
+     * @throws IllegalArgumentException when {@code content} is already in another container
+     *                                  (another widget showing it included), or holds this list
      */
     public ListView<T> setEmptyContent(@Nullable Widget<?> content) {
         Ui.checkUiThread();
@@ -1107,6 +1111,8 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
      * @param content the content, or {@code null} for none
      * @param message the label inside it that says why there are no rows, or {@code null}
      * @return this list
+     * @throws IllegalArgumentException when {@code content} is already in another container
+     *                                  (another widget showing it included), or holds this list
      */
     public ListView<T> setEmptyContent(@Nullable Widget<?> content, @Nullable Label message) {
         Ui.checkUiThread();
@@ -1143,7 +1149,10 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         return placeholder.emptyContent();
     }
 
-    /** @return whether the empty content shows now: there is one, no rows and no load running */
+    /**
+     * @return whether the empty content shows now, as the last layout placed it: there is one, no
+     *         rows and no load running, and no other widget holds it
+     */
     public boolean isShowingEmptyContent() {
         return placeholder.isShowingEmpty();
     }
@@ -1152,9 +1161,11 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
      * Says the list is loading its rows, or has finished. While it loads with no rows, the
      * loading content shows in the viewport in place of the empty one; over rows already shown,
      * they stay. Either way the list is published busy, and a reader is told both ends: "Loading
-     * Orders" at the start, with the name given by {@code setAccessibleName}, and at the end how
-     * many rows arrived, or the empty message when none did. Set the rows first, then say the load
-     * ended, so the count said is the count shown.
+     * Orders" at the start, with the name a reader hears the list by (given by
+     * {@code setAccessibleName}, or by a caption bound with {@link Label#setLabelFor}), and at the
+     * end how many rows arrived, or the empty message when none did. A list in a hidden container
+     * or on a tab page not chosen is busy and says nothing of its load. Set the rows first, then
+     * say the load ended, so the count said is the count shown.
      *
      * @param loading whether a load is running
      * @return this list
@@ -1176,6 +1187,8 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
      *
      * @param content the content, or {@code null} for the default
      * @return this list
+     * @throws IllegalArgumentException when {@code content} is already in another container
+     *                                  (another widget showing it included), or holds this list
      */
     public ListView<T> setLoadingContent(@Nullable Widget<?> content) {
         Ui.checkUiThread();
@@ -1189,6 +1202,8 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
      * @param content the content, or {@code null} for the default
      * @param message the label inside it that says what is loading, or {@code null}
      * @return this list
+     * @throws IllegalArgumentException when {@code content} is already in another container
+     *                                  (another widget showing it included), or holds this list
      */
     public ListView<T> setLoadingContent(@Nullable Widget<?> content, @Nullable Label message) {
         Ui.checkUiThread();
@@ -1196,9 +1211,19 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         return this;
     }
 
-    /** @return whether a loading content, the application's or the default, shows now */
+    /**
+     * @return whether a loading content, the application's or the default, shows now, as the
+     *         last layout placed it
+     */
     public boolean isShowingLoadingContent() {
         return placeholder.isShowingLoading();
+    }
+
+    /** Leaving the window, the empty or loading content shown goes back to being nobody's child. */
+    @Override
+    protected void onDetached() {
+        super.onDetached();
+        placeholder.hostDetached();
     }
 
     // ---------------------------------------------------------------- items

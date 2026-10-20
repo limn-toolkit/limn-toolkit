@@ -24,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -369,5 +370,333 @@ class EmptyContentTest extends AccessibleComponentTestBase {
         assertFalse(emptied.cleared, "the message coming back is not a full frame");
         assertTrue(list.isShowingEmptyContent());
         assertNotNull(beside.parent());
+    }
+
+    // ------------------------------------------------------------------ one parent, one widget
+
+    private static void setLoadingContent(Widget<?> rows, Widget<?> content) {
+        if (rows instanceof ListView<?> l) {
+            l.setLoadingContent(content);
+        } else if (rows instanceof Table<?> t) {
+            t.setLoadingContent(content);
+        } else {
+            ((Tree<?>) rows).setLoadingContent(content);
+        }
+    }
+
+    private static void setEmptyContent(Widget<?> rows, Widget<?> content) {
+        if (rows instanceof ListView<?> l) {
+            l.setEmptyContent(content);
+        } else if (rows instanceof Table<?> t) {
+            t.setEmptyContent(content);
+        } else {
+            ((Tree<?>) rows).setEmptyContent(content);
+        }
+    }
+
+    /** The texts one frame of {@code root} draws. */
+    private static List<String> drawnBy(Widget<?> root) {
+        Scene s = new Scene(root);
+        s.setTextRuler(RULER);
+        s.layoutPass(600, 400);
+        List<String> drawn = new ArrayList<>();
+        s.renderFrame(new FakeCanvas(600, 400) {
+            @Override
+            public void drawText(String text, float x, float y, limn.graphics.Font font,
+                    limn.graphics.Paint paint) {
+                drawn.add(text);
+            }
+        });
+        return drawn;
+    }
+
+    @Test
+    void aContentAlreadyInAnotherContainerIsRefusedAtTheSetterAndDrawnOnce() {
+        // The audit's scenario: a status label already on the page passed as the empty content was
+        // accepted; the next frame threw inside the list's layout, and then the label was laid out
+        // by both parents and drawn twice, every frame.
+        for (int kind = 0; kind < 3; kind++) {
+            for (boolean loadingContent : new boolean[] {false, true}) {
+                names.clear();
+                Widget<?> rows = kind == 0 ? list() : kind == 1 ? table() : folders();
+                Label status = new Label("No contacts");
+                TokenColumn page = new TokenColumn(Tokens.Role.SMALL);
+                page.add(status);
+                page.add(new SizedBox(300, 200, rows));
+                String which = kind + (loadingContent ? " loading" : " empty");
+                IllegalArgumentException refused = assertThrows(
+                        IllegalArgumentException.class, () -> {
+                            if (loadingContent) {
+                                setLoadingContent(rows, status);
+                            } else {
+                                setEmptyContent(rows, status);
+                            }
+                        }, which);
+                assertTrue(refused.getMessage().contains("container"), refused.getMessage());
+                if (!loadingContent) {
+                    assertNull(emptyContentOf(rows), which + ": nothing was set");
+                }
+                List<String> drawn = drawnBy(page);
+                assertEquals(1, drawn.stream().filter("No contacts"::equals).count(), which + ": " + drawn);
+                assertSame(page, status.parent(), which + ": the label stays where it was");
+            }
+        }
+    }
+
+    private static Widget<?> emptyContentOf(Widget<?> rows) {
+        if (rows instanceof ListView<?> l) {
+            return l.emptyContent();
+        } else if (rows instanceof Table<?> t) {
+            return t.emptyContent();
+        }
+        return ((Tree<?>) rows).emptyContent();
+    }
+
+    @Test
+    void aContentNotShownMayGoToAFreshWidgetWhateverHappenedToTheOld() {
+        // The review's case: a page rebuilt with a fresh list reuses the one "No contacts" label
+        // the dropped list held while it had rows. A registry of holders refused it until the old
+        // list was collected; whether a call throws must not depend on the garbage collector.
+        names.add("Ana Lima");
+        ListView<String> old = list();
+        Label shared = new Label("No contacts");
+        old.setEmptyContent(shared, shared);
+        mount(old);
+        assertNull(shared.parent(), "not shown: the list has a row");
+        ListView<String> fresh = new ListView<>(Label::new);
+        fresh.setEmptyContent(shared, shared);
+        assertSame(shared, fresh.emptyContent());
+        Table<String> table = table();
+        table.setLoadingContent(shared); // free at this moment, so anyone's
+    }
+
+    @Test
+    void aContentTwoWidgetsWantAtOnceIsShownByOneAndDrawnOnce() {
+        // Given to two lists while neither showed it, then both empty in one window: the first to
+        // lay out shows it, the other shows nothing, and no frame is lost.
+        ListView<String> first = list();
+        ListView<String> second = new ListView<>(Label::new);
+        second.setItems(new ArrayList<>());
+        Label shared = new Label("No contacts");
+        first.setEmptyContent(shared, shared);
+        second.setEmptyContent(shared, shared);
+        TokenColumn page = new TokenColumn(Tokens.Role.SMALL);
+        page.add(new SizedBox(300, 120, first));
+        page.add(new SizedBox(300, 120, second));
+        List<String> drawn = drawnBy(page);
+        assertEquals(1, drawn.stream().filter("No contacts"::equals).count(), "drawn once: " + drawn);
+        assertTrue(first.isShowingEmptyContent() != second.isShowingEmptyContent(), "shown by one");
+    }
+
+    private static ListView<String> listOf(String... items) {
+        ListView<String> list = new ListView<>(Label::new);
+        list.setItems(new ArrayList<>(List.of(items)));
+        return list;
+    }
+
+    /** What each list says of the shared content agrees with where the content is. */
+    private static void assertTruthful(Label shared, ListView<?>... lists) {
+        for (ListView<?> l : lists) {
+            assertEquals(shared.parent() == l, l.isShowingEmptyContent(),
+                    "a list says it shows the content exactly while it holds it");
+        }
+    }
+
+    @Test
+    void aSharedContentGoesToTheListThatWantsItOnceTheOtherLetsItGoWhicheverAskedFirst() {
+        // The review's SharedEmpty: in one turn B empties and A fills. Asked in either order, B
+        // shows the content once A lets it go, and neither says it shows what it does not hold.
+        for (boolean bFirst : new boolean[] {false, true}) {
+            Label shared = new Label("No contacts");
+            ListView<String> a = listOf("a1");
+            ListView<String> b = listOf("b1");
+            a.setEmptyContent(shared, shared);
+            b.setEmptyContent(shared, shared);
+            TokenColumn root = new TokenColumn(Tokens.Role.SMALL);
+            root.add(new SizedBox(300, 120, a));
+            root.add(new SizedBox(300, 120, b));
+            bind(root);
+            a.setItems(List.of());
+            frame();
+            assertSame(a, shared.parent());
+            assertTruthful(shared, a, b);
+            for (int round = 0; round < 3; round++) {
+                if (bFirst) {
+                    b.setItems(List.of());
+                    a.setItems(List.of("a1"));
+                } else {
+                    a.setItems(List.of("a1"));
+                    b.setItems(List.of());
+                }
+                frame();
+                assertTruthful(shared, a, b);
+                frame();
+                assertSame(b, shared.parent(), "B shows it within a frame (" + (bFirst ? "B" : "A") + " first)");
+                assertTruthful(shared, a, b);
+                if (bFirst) {
+                    a.setItems(List.of());
+                    b.setItems(List.of("b1"));
+                } else {
+                    b.setItems(List.of("b1"));
+                    a.setItems(List.of());
+                }
+                frame();
+                frame();
+                assertSame(a, shared.parent(), "and back to A");
+                assertTruthful(shared, a, b);
+            }
+        }
+    }
+
+    @Test
+    void aListThatLeavesTheWindowLetsItsContentGoAndShowsItAgainWhenItComesBack() {
+        // The review's Rebuild: a search page rebuilt while it says "Nothing matches" reuses the
+        // label with a fresh list; the dropped list held it as its child for good.
+        Label shared = new Label("Nothing matches");
+        ListView<String> old = listOf();
+        old.setEmptyContent(shared, shared);
+        TokenColumn root = new TokenColumn(Tokens.Role.SMALL);
+        SizedBox box = new SizedBox(300, 120, old);
+        root.add(box);
+        bind(root);
+        assertSame(old, shared.parent(), "shown");
+        root.remove(box);
+        assertNull(shared.parent(), "let go as the list left the window");
+        assertFalse(old.isShowingEmptyContent());
+
+        root.add(box);
+        frame();
+        assertSame(old, shared.parent(), "the same list put back shows it again");
+        root.remove(box);
+
+        ListView<String> fresh = listOf();
+        fresh.setEmptyContent(shared, shared); // the rebuild: accepted
+        root.add(new SizedBox(300, 120, fresh));
+        frame();
+        assertSame(fresh, shared.parent());
+        assertTrue(fresh.isShowingEmptyContent());
+    }
+
+    @Test
+    void theSameContentSetAgainOrAsBothEmptyAndLoadingIsTheWidgetsOwn() {
+        ListView<String> list = list();
+        Empty empty = Empty.make();
+        list.setEmptyContent(empty.content(), empty.message());
+        mount(list);
+        assertSame(list, empty.content().parent(), "shown");
+        list.setEmptyContent(empty.content(), empty.message()); // again, while it is the list's child
+        list.setLoadingContent(empty.content());
+        frame();
+        assertSame(list, empty.content().parent());
+    }
+
+    @Test
+    void aContentThatHoldsTheWidgetIsRefused() {
+        ListView<String> list = list();
+        TokenColumn around = new TokenColumn(Tokens.Role.SMALL);
+        around.add(list);
+        assertThrows(IllegalArgumentException.class,
+                () -> list.setEmptyContent(around));
+    }
+
+    @Test
+    void aContentTheApplicationPutElsewhereAfterIsNotShownAndTheFrameGoesOn() {
+        // Set while free, then added to the page by the application: the list does not take it
+        // from its parent, draws nothing of it, and loses no frame.
+        names.add("Ana Lima");
+        ListView<String> list = list();
+        Label status = new Label("No contacts");
+        list.setEmptyContent(status, status);
+        TokenColumn page = new TokenColumn(Tokens.Role.SMALL);
+        page.add(new SizedBox(300, 200, list));
+        page.add(status);
+        names.clear();
+        list.refresh();
+        List<String> drawn = drawnBy(page);
+        assertEquals(1, drawn.stream().filter("No contacts"::equals).count(), "drawn once: " + drawn);
+        assertSame(page, status.parent());
+        assertFalse(list.isShowingEmptyContent(), "the list does not show what it does not hold");
+    }
+
+    // ------------------------------------------------------------------ what is said, and to whom
+
+    @Test
+    void aListThatIsNotShowingSaysNothingOfItsLoadAndStaysBusy() {
+        // The audit's HiddenAnnounce: a list in a hidden container and one on a tab not selected,
+        // both in the window, said "Loading Archived", "Loading Customers", "Archived, 0 items" and
+        // "Customers, 0 items", loads the user could not see.
+        ListView<String> archived = new ListView<>(Label::new);
+        archived.setItems(new ArrayList<>());
+        archived.setAccessibleName("Archived");
+        TokenColumn hiddenBox = new TokenColumn(Tokens.Role.SMALL);
+        hiddenBox.add(new SizedBox(200, 100, archived));
+        hiddenBox.setVisible(false);
+        ListView<String> customers = new ListView<>(Label::new);
+        customers.setItems(new ArrayList<>());
+        customers.setAccessibleName("Customers");
+        TabbedPane tabs = new TabbedPane();
+        tabs.addTab("Orders", new Label("orders page"));
+        tabs.addTab("People", new SizedBox(200, 100, customers));
+        TokenColumn root = new TokenColumn(Tokens.Role.SMALL);
+        root.add(hiddenBox);
+        root.add(new SizedBox(400, 200, tabs));
+        bind(root);
+        bridge.events.clear();
+
+        archived.setLoading(true);
+        customers.setLoading(true);
+        frame();
+        archived.setLoading(false);
+        customers.setLoading(false);
+        frame();
+        assertEquals(List.of(), announced(), "neither is on screen");
+
+        customers.setLoading(true);
+        tabs.setSelectedIndex(1);
+        frame();
+        assertTrue(node("Customers").states().contains(Accessible.State.BUSY),
+                "still busy when its page is chosen during the load");
+        customers.setLoading(false);
+        frame();
+        assertEquals(List.of("Customers, 0 items"), announced(), "said once it shows");
+    }
+
+    @Test
+    void aListAddedAndLoadedBeforeItsFirstFrameIsStillSaid() {
+        // Not a test of the clip: a list just built inside a scroll view has no box yet when the
+        // application starts its load in the same turn, and is on screen at the next frame.
+        TokenColumn root = new TokenColumn(Tokens.Role.SMALL);
+        bind(root);
+        ListView<String> list = list();
+        root.add(new SizedBox(300, 200, new ScrollView(list)));
+        list.setLoading(true);
+        frame();
+        assertEquals(List.of("Loading Contacts"), announced());
+    }
+
+    @Test
+    void aListNamedByABoundCaptionIsSaidByThatName() {
+        // AX-4: the caption the accessibility guide keeps as the idiom named the list to a reader
+        // and not its load ("Loading…", "2 items").
+        ListView<String> list = new ListView<>(Label::new);
+        list.setItems(names);
+        Label caption = new Label("Contacts").setLabelFor(list);
+        TokenColumn root = new TokenColumn(Tokens.Role.SMALL);
+        root.add(caption);
+        root.add(new SizedBox(300, 200, list));
+        bind(root);
+        list.setLoading(true);
+        frame();
+        names.add("Ana Lima");
+        names.add("Rui Costa");
+        list.refresh();
+        list.setLoading(false);
+        frame();
+        assertEquals(List.of("Loading Contacts", "Contacts, 2 items"), announced());
+
+        list.setAccessibleName("Address book"); // the name the application wrote wins, as in the tree
+        list.setLoading(true);
+        frame();
+        assertEquals("Loading Address book", announced().get(2));
     }
 }

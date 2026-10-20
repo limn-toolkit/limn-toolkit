@@ -7,6 +7,7 @@ import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Image;
 import limn.graphics.Path2D;
+import limn.i18n.I18n;
 import limn.i18n.I18nString;
 import limn.scene.Change;
 import limn.scene.Constraints;
@@ -15,6 +16,7 @@ import limn.scene.Widget;
 import limn.scene.internal.SceneAccess;
 import org.jspecify.annotations.Nullable;
 
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -148,8 +150,17 @@ public final class Field extends Widget<Field> {
         return control;
     }
 
-    /** The caption, or {@code null} for none. */
-    public @Nullable I18nString label() {
+    /**
+     * The caption as it currently reads, or {@code null} for none: its text in the language in
+     * effect, an access letter's {@code &} mark taken out ("&amp;Name" reads "Name"); see
+     * {@link #labelSource()} for the value behind it.
+     */
+    public @Nullable String label() {
+        return label == null ? null : caption.text();
+    }
+
+    /** The localizable value behind {@link #label()}, or {@code null} for none. */
+    public @Nullable I18nString labelSource() {
         return label;
     }
 
@@ -188,8 +199,16 @@ public final class Field extends Widget<Field> {
         mark.setVisible(required && newLabel != null);
     }
 
-    /** The helper text, or {@code null}. */
-    public @Nullable I18nString helperText() {
+    /**
+     * The helper text in the language in effect, or {@code null} for none; see
+     * {@link #helperTextSource()} for the value behind it.
+     */
+    public @Nullable String helperText() {
+        return helper == null ? null : helper.get();
+    }
+
+    /** The localizable value behind {@link #helperText()}, or {@code null} for none. */
+    public @Nullable I18nString helperTextSource() {
         return helper;
     }
 
@@ -252,9 +271,33 @@ public final class Field extends Widget<Field> {
         return validation;
     }
 
-    /** The message the application set with the state, or {@code null}. */
-    public @Nullable I18nString validationMessage() {
-        return message;
+    /**
+     * The message about the control: the one the application set with the state, or, with none, the
+     * control's own reason (a date field that refuses a day), as the line under the control says
+     * it; {@code null} when there is neither. It reads in the control's language, the one the
+     * control declares, else the one it takes from this field and the widgets above it, so a
+     * Portuguese date field in an English window is described in Portuguese, on the line and here.
+     * See {@link #validationMessageSource()} for the value behind it.
+     */
+    public @Nullable String validationMessage() {
+        I18nString source = validationMessageSource();
+        if (source == null) {
+            return null;
+        }
+        Locale enclosing = I18n.pushScope(control.locale());
+        try {
+            return source.get();
+        } finally {
+            I18n.popScope(enclosing);
+        }
+    }
+
+    /**
+     * The localizable value behind {@link #validationMessage()}: the application's message, else
+     * the control's own, else {@code null}.
+     */
+    public @Nullable I18nString validationMessageSource() {
+        return message != null ? message : FieldControls.ownMessage(control);
     }
 
     /**
@@ -319,6 +362,9 @@ public final class Field extends Widget<Field> {
 
     // ---------------------------------------------------------------------------- the line
 
+    /** Whether the line shows a message about the control, which reads in the control's language. */
+    private boolean lineSpeaksForControl;
+
     private void reserve() {
         if (!reserves) {
             reserves = true;
@@ -346,6 +392,8 @@ public final class Field extends Widget<Field> {
             shown = Validation.NONE;
         }
         line.setText(text);
+        lineSpeaksForControl = shown != Validation.NONE;
+        lineInControlsLanguage();
         line.setTone(shown == Validation.NONE ? null : toneOf(shown));
         line.setMuted(shown == Validation.NONE);
         line.setIcon(shown == Validation.NONE ? null : Glyph.of(shown));
@@ -355,6 +403,18 @@ public final class Field extends Widget<Field> {
         line.setDescriptionFor(says ? control : null);
         line.setAccessibleIgnored(!says);
         line.setVisible(reserves);
+    }
+
+    /**
+     * A message on the line is about the control, so it reads in the control's language (the one
+     * it declares, else the one it inherits); the helper text is the field's and reads in the
+     * field's. The line declares the control's language only where it differs from the field's,
+     * so a form with no language of its own lays nothing out when a message comes and goes. Asked
+     * again at every measure, when a language above may have changed.
+     */
+    private void lineInControlsLanguage() {
+        Locale controls = lineSpeaksForControl ? control.locale() : null;
+        line.setLocale(controls == null || controls.equals(locale()) ? null : controls);
     }
 
     /** The tone a state's line is drawn in. */
@@ -409,6 +469,7 @@ public final class Field extends Widget<Field> {
 
     @Override
     protected Size onMeasure(Constraints constraints) {
+        lineInControlsLanguage(); // nothing when unchanged; a language above may have moved
         SizeTokens t = Theme.of(this).tokensFor(this);
         Constraints loose = Constraints.loose(constraints.maxWidth(), Constraints.UNBOUNDED_LIMIT);
         float headWidth = 0;

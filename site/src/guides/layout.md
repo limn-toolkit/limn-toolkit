@@ -175,7 +175,7 @@ is one click as a whole.
 A card that is clicked holds no control above its footer: a button, a field or a check box put
 in its media, its header or its content is refused with an `IllegalArgumentException`, since a
 control inside a control is two clicks in one place, and one that arrives later is logged and
-answers nothing. Actions go in the footer. A screen reader hears a clicked card as a button
+answers nothing until you move it to the footer or take it out. Actions go in the footer. A screen reader hears a clicked card as a button
 named by its title and described by its subtitle, and nothing else inside it, so whatever else
 the card shows that a listener needs, the amount and the date in that invoice, is said with
 `setAccessibleDescription` on the card; [Accessibility](/docs/accessibility/) has the rest.

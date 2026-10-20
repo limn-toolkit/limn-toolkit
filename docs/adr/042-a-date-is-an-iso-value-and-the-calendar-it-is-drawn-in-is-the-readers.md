@@ -411,6 +411,18 @@ that was typed, and `isValid()` says separately that it is not acceptable (`Date
 by `CalendarViewTest.theCursorStopsOnARefusedDayAndEnterIsRefusedThere` and
 `CalendarViewAccessibilityTest.aDayTheBoundsRefuseCarriesNoSelectVerb`.
 
+**Amendment, 2026-10-20 (the owner's decisions 21 and 27, after the audit's AP-4): the message is
+a string, in the control's language.** `DateField.validationMessage()` returns the `String` it
+reads as, and the new `validationMessageSource()` returns the `I18nString` behind it: the same pair
+of shapes `Field` has, and `Label` and `Button` have as `text()` and `textSource()`. It returned the
+`I18nString` since phase 1, so a field's message and a date's were two shapes under one name. The
+string resolves in the date field's own language, the one it declares or else inherits, and not in
+the caller's: a validation message reads in the language of the control it describes (decision
+27), and a `Field` around the date field shows and returns it in that same language (ADR 074, note
+of 2026-10-20). `DatePicker` and the field's line read the source;
+`DateFieldTest.theMessageIsAStringInTheFieldsOwnLanguageAndItsSourceTheValueBehind` pins both, and
+the tests that name the broken rule read the source's key.
+
 ## 6. A period is one grid and two fields
 
 `CalendarView.setSelectionMode(RANGE)` makes the grid select a period: the first click sets an

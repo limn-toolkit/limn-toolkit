@@ -5,6 +5,7 @@ import limn.accessibility.Accessible;
 import limn.animation.Transition;
 import limn.backend.Cursor;
 import limn.components.internal.a11y.LeafActionAccessibility;
+import limn.concurrent.Subscription;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
@@ -66,8 +67,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * the keyboard (a button, a field, a check box) is refused in the media, the header and the
  * content of a card that is activated, with an {@link IllegalArgumentException} from the setter or
  * from {@code onActivate}; one that arrives later, inside a content the application changes, is
- * logged once and answers nothing, and every press and key there stays the card's. Actions go in
- * the footer. A card that is not activated takes any widget in any part.
+ * logged once and answers nothing, and every press and key there stays the card's. Moved to the
+ * footer, taken out of the card, or left in a card that is no longer clicked, it answers again as
+ * it did, and the card keeps no hold on it. Actions go in the footer. A card that is not activated
+ * takes any widget in any part.
  *
  * <p><b>To a reader.</b> A card with a title is a group named by its title, whose title is a
  * heading; a card with none is transparent, as a {@link Surface} is, so a chart in a card is the
@@ -181,8 +184,13 @@ public final class Card extends Widget<Card> {
     private MediaFit mediaFit = MediaFit.NATURAL;
     private float mediaAspect = 16f / 9f;
     private @Nullable Runnable action;
-    /** The controls this card put out of reach because they arrived in its area; given back after. */
+    /**
+     * The controls this card put out of reach because they arrived in its area; each is given back
+     * as it leaves the area, as its part is replaced, or as the card stops being clicked.
+     */
     private final List<Widget<?>> madeInert = new ArrayList<>();
+    /** The window's tree watched for a control leaving the area, while one is held out of reach. */
+    private @Nullable Subscription leavingWatch;
 
     // Where the last layout put what the card draws itself: the icon media's box and the top of
     // the footer's band, which is where the area ends and the divider is drawn.
@@ -218,14 +226,16 @@ public final class Card extends Widget<Card> {
      *
      * @param newMedia the media, or {@code null}
      * @return this card
-     * @throws IllegalArgumentException when the card is activated and {@code newMedia} takes the
-     *                                  keyboard or holds a widget that does
+     * @throws IllegalArgumentException when {@code newMedia} is already in another container or
+     *                                  holds this card, or when the card is activated and it takes
+     *                                  the keyboard or holds a widget that does; the card is then
+     *                                  left as it was
      */
     public Card setMedia(@Nullable Widget<?> newMedia) {
         Ui.checkUiThread();
         refuseControl(newMedia);
-        mediaIcon = null;
         media = replace(media, newMedia, 0);
+        mediaIcon = null;
         markNeedsLayout();
         return this;
     }
@@ -274,8 +284,9 @@ public final class Card extends Widget<Card> {
      *
      * @param newPrefix the part, or {@code null} to take it away
      * @return this card
-     * @throws IllegalArgumentException when the card is activated and the part takes the keyboard
-     *                                  or holds a widget that does
+     * @throws IllegalArgumentException when the part is already in another container or holds this
+     *                                  card, or when the card is activated and it takes the keyboard
+     *                                  or holds a widget that does; the card is then left as it was
      */
     public Card setHeaderPrefix(@Nullable Widget<?> newPrefix) {
         Ui.checkUiThread();
@@ -431,8 +442,9 @@ public final class Card extends Widget<Card> {
      *
      * @param newSuffix the part, or {@code null} to take it away
      * @return this card
-     * @throws IllegalArgumentException when the card is activated and the part takes the keyboard
-     *                                  or holds a widget that does
+     * @throws IllegalArgumentException when the part is already in another container or holds this
+     *                                  card, or when the card is activated and it takes the keyboard
+     *                                  or holds a widget that does; the card is then left as it was
      */
     public Card setHeaderSuffix(@Nullable Widget<?> newSuffix) {
         Ui.checkUiThread();
@@ -453,8 +465,10 @@ public final class Card extends Widget<Card> {
      *
      * @param newContent the content, or {@code null} to take it away
      * @return this card
-     * @throws IllegalArgumentException when the card is activated and the content takes the
-     *                                  keyboard or holds a widget that does
+     * @throws IllegalArgumentException when the content is already in another container or holds
+     *                                  this card, or when the card is activated and it takes the
+     *                                  keyboard or holds a widget that does; the card is then left as
+     *                                  it was
      */
     public Card setContent(@Nullable Widget<?> newContent) {
         Ui.checkUiThread();
@@ -471,18 +485,29 @@ public final class Card extends Widget<Card> {
 
     /**
      * Sets the footer's actions, which sit at the card's trailing edge and wrap to another line on
-     * a narrow card. Nothing takes the footer away. Of an activated card, the footer is the part
-     * a click does not activate. UI thread only.
+     * a narrow card; the ones it had go back to the application. With no actions, it takes the
+     * footer away. Of an activated card, the footer is the part a click does not activate. UI
+     * thread only.
      *
-     * @param actions the actions, in reading order
+     * @param actions the actions, in reading order: each in no container, or in this footer already
      * @return this card
+     * @throws NullPointerException     when {@code actions} or one of them is {@code null}
+     * @throws IllegalArgumentException when an action is already in another container, holds this
+     *                                  card, or is passed twice; the footer is then left as it was
      */
     public Card setFooter(Widget<?>... actions) {
         Ui.checkUiThread();
         Objects.requireNonNull(actions, "actions");
-        for (Widget<?> each : actions) {
-            Objects.requireNonNull(each, "an action");
+        for (int i = 0; i < actions.length; i++) {
+            Widget<?> each = Objects.requireNonNull(actions[i], "an action");
+            refuseHeld(each, footer);
+            for (int j = 0; j < i; j++) {
+                if (actions[j] == each) {
+                    throw new IllegalArgumentException("an action is passed twice: a widget is in one place");
+                }
+            }
         }
+        // Everything is checked before the old actions go: a refused call leaves the footer as it was.
         boolean had = !footer.children().isEmpty();
         for (Widget<?> old : new ArrayList<>(footer.children())) {
             footer.remove(old);
@@ -490,6 +515,7 @@ public final class Card extends Widget<Card> {
         for (Widget<?> each : actions) {
             footer.add(each);
         }
+        giveBackWhatLeft(); // an action moved here out of the area, as the warning advises
         markNeedsLayout();
         if (had != (actions.length > 0)) {
             // The published tree changes shape: an activated card turns from a button into a
@@ -535,14 +561,14 @@ public final class Card extends Widget<Card> {
         if (old == next) {
             return next;
         }
+        if (next != null) {
+            refuseHeld(next, null); // before the old part goes: a refused call changes nothing
+        }
         if (old != null) {
             area.drop(old);
             giveBack(old);
         }
         if (next != null) {
-            if (next.parent() != null) {
-                throw new IllegalArgumentException("the widget is already in another container");
-            }
             int at = 0;
             Widget<?>[] order = {media, prefix, titleLabel, subtitleLabel, suffix, content};
             for (int i = 0; i < slot; i++) {
@@ -553,6 +579,26 @@ public final class Card extends Widget<Card> {
             area.hold(at, next);
         }
         return next;
+    }
+
+    /**
+     * Refuses a part or an action that another container holds, or that holds this card: a widget
+     * is in one place, and the tree would refuse it after the old one had gone.
+     *
+     * @param widget the part or action
+     * @param own    the container it may already be in ({@code footer} for an action), or {@code null}
+     */
+    private void refuseHeld(Widget<?> widget, @Nullable Widget<?> own) {
+        Widget<?> parent = widget.parent();
+        if (parent != null && parent != own) {
+            throw new IllegalArgumentException("the widget is already in another container: take it out "
+                    + "first");
+        }
+        for (Widget<?> w = this; w != null; w = w.parent()) {
+            if (w == widget) {
+                throw new IllegalArgumentException("the widget holds this card");
+            }
+        }
     }
 
     // ------------------------------------------------------------------------------ looks
@@ -670,6 +716,7 @@ public final class Card extends Widget<Card> {
                 for (Widget<?> each : new ArrayList<>(madeInert)) {
                     giveBack(each);
                 }
+                watchLeaving();
             }
             invalidate();
             markNeedsLayout();
@@ -745,6 +792,7 @@ public final class Card extends Widget<Card> {
         if (at.isFocusable() && !madeInert.contains(at)) {
             madeInert.add(at);
             SceneAccess.setInert(at, true);
+            watchLeaving();
             if (SAID_INERT.add(at.getClass().getName())) {
                 LOG.log(System.Logger.Level.WARNING, "a " + at.getClass().getName() + " arrived in the "
                         + "area of a Card activated by a click, and answers nothing there: put it in "
@@ -762,13 +810,80 @@ public final class Card extends Widget<Card> {
     private void giveBack(Widget<?> at) {
         for (int i = madeInert.size() - 1; i >= 0; i--) {
             Widget<?> each = madeInert.get(i);
-            for (Widget<?> w = each; w != null; w = w.parent()) {
-                if (w == at) {
-                    madeInert.remove(i);
-                    SceneAccess.setInert(each, false);
-                    break;
-                }
+            if (isAtOrUnder(each, at)) {
+                madeInert.remove(i);
+                release(each);
             }
+        }
+        watchLeaving();
+    }
+
+    /**
+     * Gives back every control this card put out of reach that is no longer in its area: one the
+     * application moved to the footer, as the warning tells it to, took out, or put elsewhere. It
+     * answers again where it went, and the card keeps no hold on it.
+     */
+    private void giveBackWhatLeft() {
+        for (int i = madeInert.size() - 1; i >= 0; i--) {
+            Widget<?> each = madeInert.get(i);
+            if (!isAtOrUnder(each, area)) {
+                madeInert.remove(i);
+                release(each);
+            }
+        }
+        watchLeaving();
+    }
+
+    /**
+     * Gives back every control this card holds out of reach: its area left the window. Out of a
+     * window nothing can be pressed, and a control taken out of the area now, where no watch hears
+     * it, would stay dead wherever it went; the first layout back in a window finds again what is
+     * still in the area, and its area's attach does so at once.
+     */
+    private void releaseAll() {
+        for (int i = madeInert.size() - 1; i >= 0; i--) {
+            release(madeInert.remove(i));
+        }
+        watchLeaving();
+    }
+
+    /**
+     * Ends this card's hold on {@code control}: it answers again. The inert flag is one per widget,
+     * and no other card can hold the same control: a card holds a control only while it is under
+     * that card's area in a window; an outer clicked card's walk stops at an inner clicked card's
+     * area, which takes the keyboard, and never reaches the inner card's controls; and a control
+     * leaving one area is given back, by the watch, before it can arrive in another.
+     */
+    private void release(Widget<?> control) {
+        SceneAccess.setInert(control, false);
+    }
+
+    private static boolean isAtOrUnder(Widget<?> widget, Widget<?> at) {
+        for (Widget<?> w = widget; w != null; w = w.parent()) {
+            if (w == at) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Watches the window's tree while this card holds a control out of reach, so that one taken
+     * out of the area is given back as it goes, and not at the card's next layout, which a change
+     * inside a container that lays itself out alone does not bring. A card out of a window holds
+     * nothing ({@link #releaseAll}), so it needs no watch there.
+     */
+    private void watchLeaving() {
+        boolean want = !madeInert.isEmpty() && scene() != null && area.scene() != null;
+        if (want && leavingWatch == null) {
+            leavingWatch = scene().observeChanges((widget, change) -> {
+                if (change.aspect() == Change.Aspect.CHILDREN) {
+                    giveBackWhatLeft();
+                }
+            });
+        } else if (!want && leavingWatch != null) {
+            leavingWatch.cancel();
+            leavingWatch = null;
         }
     }
 
@@ -1063,6 +1178,7 @@ public final class Card extends Widget<Card> {
         float inner = Math.max(0, width() - 2 * pad);
         footer.measure(Constraints.loose(inner, Constraints.UNBOUNDED_LIMIT));
         footer.layoutBox(pad, a.footerY, inner, a.footerHeight);
+        giveBackWhatLeft();
         if (action != null) {
             quietControlsInArea();
         }
@@ -1223,6 +1339,11 @@ public final class Card extends Widget<Card> {
         return footer;
     }
 
+    /** @return how many controls this card holds out of reach; for tests */
+    int inertControls() {
+        return madeInert.size();
+    }
+
     /** @return whether the pointer is over the area, as the area was told; for tests */
     boolean isAreaHovered() {
         return area.hovered;
@@ -1290,11 +1411,22 @@ public final class Card extends Widget<Card> {
         protected void onAttached() {
             super.onAttached();
             observeHover();
+            if (action != null) {
+                // Out of a window the card held nothing; back in one, what its area holds is out of
+                // reach again now, not at its next layout, which input may come before.
+                quietControlsInArea();
+            }
+            watchLeaving();
         }
 
         @Override
         protected void onDetached() {
             super.onDetached();
+            releaseAll(); // and the watch goes: the window's tree is not this card's any more
+            if (leavingWatch != null) {
+                leavingWatch.cancel();
+                leavingWatch = null;
+            }
             SceneAccess.observeHoverWithin(this, null);
             hovered = false;
             armed = false;

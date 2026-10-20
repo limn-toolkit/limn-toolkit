@@ -30,7 +30,8 @@ import java.util.regex.Pattern;
  *
  * <p><b>The size</b> is the control height of the step (32 points at {@code MEDIUM}), so an avatar
  * sits in a row of controls at their height; give it a {@link limn.scene.layout.SizedBox} for a
- * larger one, and the circle fills the smaller side of the box it is given.
+ * larger one, and the circle fills the smaller side of the box it is given. A box squeezed to a
+ * point or so across draws the tinted circle without its letters, and one of no size draws nothing.
  *
  * <p><b>The colour</b> is one of the chart palette's categorical colours
  * ({@link ChartPalette#defaultFor(Theme)}), chosen by the name's {@link String#hashCode()}, mixed, unless
@@ -148,6 +149,9 @@ public final class Avatar extends Widget<Avatar> {
         }
         this.initials = value;
         invalidate();
+        if (group != null) {
+            group.memberDrawnAnew(); // the group's one size for initials may move
+        }
         return this;
     }
 
@@ -165,6 +169,9 @@ public final class Avatar extends Widget<Avatar> {
         }
         this.image = newImage;
         invalidate();
+        if (group != null) {
+            group.memberDrawnAnew();
+        }
         return this;
     }
 
@@ -301,6 +308,9 @@ public final class Avatar extends Widget<Avatar> {
     protected void onPaint(Canvas canvas) {
         Theme theme = Theme.of(this);
         float d = diameter();
+        if (!(d > 0)) {
+            return; // a box squeezed to nothing has no circle to draw
+        }
         float x = (width() - d) / 2;
         float y = (height() - d) / 2;
         float r = d / 2;
@@ -324,16 +334,44 @@ public final class Avatar extends Widget<Avatar> {
         Font font = t.label().bold();
         float scale = d / t.controlHeight();
         if (scale != 1) {
-            font = font.withSize(Math.round(font.size() * scale));
+            int size = Math.round(font.size() * scale);
+            if (size < 1) {
+                // A circle a point or so across would ask for letters of no size at all, which no
+                // font has: the tinted circle alone, a dot at that size.
+                return;
+            }
+            font = font.withSize(size);
         }
-        ShapedText shaped = line;
+        AvatarGroup g = parent() instanceof AvatarGroup in ? in : null;
+        if (g != null) {
+            // One size for the whole group, the size its widest pair needs to clear the overlap,
+            // so the stack reads even; the last circle takes it too.
+            font = g.initialsFont(font, d, textRuler());
+            if (font == null) {
+                return;
+            }
+        }
         ShapedText.Direction base = ShapedText.Direction.of(letters, neutralBase());
+        ShapedText shaped = line;
         if (shaped == null || !shaped.matches(letters, font, base, textRuler())) {
             shaped = textRuler().shape(letters, font, base);
             line = shaped;
         }
         TextMetrics m = shaped.metrics();
-        canvas.drawText(shaped, x + (d - m.width()) / 2, y + (d - m.height()) / 2 + m.ascent(),
+        // Where the letters go: the middle of the circle, or, under the next circle of a group,
+        // the middle of the part it leaves, three quarters less the ring, from the circle's edge at
+        // the letters' height on the near side, the side away from the overlap in the group's
+        // direction. "AL" lost the foot of its L when centred on the whole circle.
+        float from = x;
+        float to = x + d;
+        float shown = g == null ? 0 : g.shownPart(this, d);
+        if (shown > 0) {
+            float edge = AvatarGroup.edgeAt(r, m.height());
+            boolean rtl = g.isRightToLeft(); // the group's: it is the group that lays the circles out
+            from = rtl ? x + d - shown : x + edge;
+            to = rtl ? x + d - edge : x + shown;
+        }
+        canvas.drawText(shaped, (from + to - m.width()) / 2, y + (d - m.height()) / 2 + m.ascent(),
                 theme.text());
     }
 

@@ -107,6 +107,14 @@ muted, and names nothing.
 *Note, 2026-10-18 (section 9):* the title and the subtitle take one line by default and as many as
 `setTitleLines` and `setSubtitleLines` allow.
 
+*Note, 2026-10-19 (audit AP-7):* a widget is in one place. Every part setter and `setFooter` refuse,
+with an `IllegalArgumentException` that their Javadoc names, a widget already in another container
+(an action already in this footer is accepted, and put in its new place), one that holds the card,
+and an action passed twice; each checks before it changes anything, so a refused call leaves the
+card as it was. `setFooter` used to take the old actions out and then fail in the tree with an
+`IllegalStateException`, leaving the card with no footer, and the part setters took the old part
+out before refusing the new one.
+
 ### 2.2 The API
 
 ```java
@@ -667,6 +675,19 @@ choice open, it is said here.
 - **A control found at a layout** is made inert where it is, and given back to the application,
   inert no more, when it leaves the card or the card stops being clicked. A card that stops being
   clicked with its area holding the keyboard lets the keyboard go as a removed widget does.
+  *Note, 2026-10-19 (audit CO-4):* "when it leaves the card" held only when its whole part was
+  replaced. A control taken out of a column in the content and handed to `setFooter`, as the
+  warning advises, stayed inert in the footer (no click, no focus), and the card kept a reference to
+  any such control the application discarded. It is now given back as it leaves the area: by
+  `setFooter` at once, by a watch on the window's tree (held only while the card holds a control
+  out of reach) as a container takes it out, and every one as the card leaves the window (the
+  review of that day found a control taken out of a card that never came back dead and held, and
+  one card letting go undoing another's hold on the one flag); the first layout back in a window
+  finds again what is still in the area, and the area's attach does it at once (the second review,
+  2026-10-20: a card put back held nothing until its next layout, and a click before it reached the
+  button). No two cards ever hold one control (a card holds one only while it is under that card's
+  area in a window, an outer card's walk stops at an inner clicked card's area, and the watch gives
+  a control back before it can arrive elsewhere), so the one inert flag a widget has is enough.
 - **The group of a clicked card with a footer** is named by the title. An application that names a
   card with no title names its button; the group around it stays unnamed, the card having no way
   to read the name the application wrote.

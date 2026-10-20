@@ -13,6 +13,7 @@ import limn.scene.LayoutDirection;
 import limn.scene.Scene;
 import limn.scene.Size;
 import limn.scene.Widget;
+import limn.scene.layout.Column;
 import limn.scene.layout.Row;
 import limn.scene.layout.SizedBox;
 import limn.testing.AccessibleTrees;
@@ -99,6 +100,8 @@ class AvatarTest extends AccessibleComponentTestBase {
 
         final List<Circle> circles = new ArrayList<>();
         final List<String> texts = new ArrayList<>();
+        final List<Float> xs = new ArrayList<>();
+        final List<Font> fonts = new ArrayList<>();
         final List<Paint> inks = new ArrayList<>();
         final List<RoundRect> clips = new ArrayList<>();
         final List<float[]> images = new ArrayList<>();
@@ -121,6 +124,8 @@ class AvatarTest extends AccessibleComponentTestBase {
         @Override
         public void drawText(String text, float x, float y, Font font, Paint paint) {
             texts.add(text);
+            xs.add(x);
+            fonts.add(font);
             inks.add(paint);
         }
 
@@ -184,6 +189,59 @@ class AvatarTest extends AccessibleComponentTestBase {
         assertEquals(1, drawn.ellipses, "the shoulders");
         assertEquals(2, drawn.circles.size(), "the tint and the head");
         assertEquals(Theme.current().textMuted(), drawn.circles.get(1).paint());
+    }
+
+    /** A widget painted after the avatar in the same frame, counting its paints. */
+    private static final class After extends Widget<After> {
+        int painted;
+
+        @Override
+        protected Size onMeasure(Constraints constraints) {
+            return constraints.constrain(10, 10);
+        }
+
+        @Override
+        protected void onPaint(limn.graphics.Canvas canvas) {
+            painted++;
+        }
+    }
+
+    @Test
+    void anAvatarSqueezedUnderAPointPaintsSafelyAndTheFrameGoesOn() {
+        // The audit's scenario: under about 1.2 pt the initials' size rounded to 0 and the font
+        // refused it, so the paint threw on every frame and what came after it was never drawn.
+        for (float d : new float[] {0, 0.5f, 1.2f}) {
+            for (Avatar avatar : List.of(new Avatar("Ada Lovelace"), new Avatar(" "),
+                    new Avatar("Ada Lovelace").setImage(new Image(2, 2, new byte[16])))) {
+                Column root = new Column();
+                root.add(new SizedBox(d, d, avatar));
+                After after = new After();
+                root.add(after);
+                Recorder drawn = paint(root, 100, 100);
+                assertEquals(1, after.painted, "d=" + d + ", " + avatar.name() + ": the frame went on");
+                assertTrue(drawn.texts.isEmpty(), "no initials under a point: " + drawn.texts);
+            }
+        }
+    }
+
+    @Test
+    void aGroupInABoxUnderAPointPaintsSafelyAndTheFrameGoesOn() {
+        for (float d : new float[] {0, 0.5f, 1.2f}) {
+            Column root = new Column();
+            root.add(new SizedBox(d, d, group(7)));
+            After after = new After();
+            root.add(after);
+            paint(root, 100, 100);
+            assertEquals(1, after.painted, "d=" + d);
+        }
+    }
+
+    @Test
+    void initialsStayDrawnAsLongAsTheyAreAPointTall() {
+        // The clamp is at the font, not at the circle: a small avatar keeps its letters.
+        Avatar avatar = new Avatar("Ada Lovelace");
+        Recorder drawn = paint(new SizedBox(4, 4, avatar), 4, 4);
+        assertEquals(List.of("AL"), drawn.texts);
     }
 
     @Test
@@ -250,6 +308,134 @@ class AvatarTest extends AccessibleComponentTestBase {
         assertNull(first.parent());
         assertThrows(IllegalArgumentException.class, () -> g.add(g.members().get(1)),
                 "an avatar is in one group");
+    }
+
+    // ------------------------------------------------------------------ initials under the overlap
+
+    private static final String CODER = "\uD83D\uDC69\u200D\uD83D\uDCBB"; // woman, joiner, laptop
+
+    /**
+     * Asserts that each circle the next one covers keeps its initials' whole run inside the part it
+     * shows, that the last circle keeps them centred, and that every avatar of the group draws them
+     * at one size, which it answers; the run's width is the ruler's, at the font the circle drew
+     * with.
+     */
+    private static float assertInitialsClearTheOverlap(AvatarGroup g, boolean rtl) {
+        if (rtl) {
+            g.setLayoutDirection(LayoutDirection.RTL);
+        }
+        Recorder drawn = paint(g, 400, 60);
+        List<Widget<?>> circles = g.children();
+        assertEquals(circles.size(), drawn.texts.size(), "one run per circle: " + drawn.texts);
+        java.util.Set<Float> sizes = new java.util.TreeSet<>();
+        for (int i = 0; i < circles.size(); i++) {
+            if (circles.get(i) instanceof Avatar) {
+                sizes.add(drawn.fonts.get(i).size());
+            }
+        }
+        assertEquals(1, sizes.size(), "one size for the group's initials: " + drawn.texts + " " + sizes);
+        for (int i = 0; i < circles.size(); i++) {
+            Widget<?> circle = circles.get(i);
+            float d = Math.min(circle.width(), circle.height());
+            float r = d / 2;
+            float left = (circle.width() - d) / 2; // the recorder hears the circle's own coordinates
+            String text = drawn.texts.get(i);
+            float x = drawn.xs.get(i);
+            limn.graphics.TextMetrics m = SCALED_RULER.measure(text, drawn.fonts.get(i));
+            String which = (rtl ? "rtl " : "ltr ") + i + " \"" + text + "\"";
+            if (i == circles.size() - 1) {
+                assertEquals(left + r, x + m.width() / 2, 0.01f, which + ": the last is centred");
+                continue;
+            }
+            // The next circle and its ring cover the far quarter: what shows is the near three
+            // quarters less the ring, and at the run's height the circle's edge on the near side.
+            float shown = d * 0.75f - Avatar.RING;
+            float half = Math.min(r, m.height() / 2);
+            float edge = r - (float) Math.sqrt(r * r - half * half);
+            float lo = rtl ? left + d - shown : left + edge;
+            float hi = rtl ? left + d - edge : left + shown;
+            assertTrue(x >= lo - 0.01f && x + m.width() <= hi + 0.01f,
+                    which + ": run " + x + ".." + (x + m.width()) + " outside the part shown " + lo + ".." + hi);
+        }
+        return sizes.iterator().next();
+    }
+
+    private static float label() {
+        return Theme.current().tokensFor(new Avatar("x")).label().size();
+    }
+
+    @Test
+    void initialsUnderTheNextCircleStayInThePartTheCircleShowsLeftToRight() {
+        // The audit's crop: "AL" lost the foot of its L under the next circle's ring. Pairs this
+        // ruler finds narrow enough keep the label size, on every circle.
+        float size = assertInitialsClearTheOverlap(new AvatarGroup(new Avatar("Ana Lima"),
+                new Avatar("Mei Wong"), new Avatar("Rui Costa")), false);
+        assertEquals(label(), size, 0.01f);
+    }
+
+    @Test
+    void initialsUnderTheNextCircleStayInThePartTheCircleShowsRightToLeft() {
+        float size = assertInitialsClearTheOverlap(new AvatarGroup(new Avatar("Ana Lima"),
+                new Avatar("Mei Wong"), new Avatar("Rui Costa")), true);
+        assertEquals(label(), size, 0.01f);
+    }
+
+    @Test
+    void aPairTooWideForThePartShownSetsTheOneSizeOfTheWholeGroup() {
+        // A joined emoji with a letter is four code points to this ruler, wider than the part a
+        // covered circle shows: every circle of the group, the last one too, draws its initials at
+        // the size that pair needs, so the stack reads even (the owner's choice over a size per
+        // pair, which gave one group three sizes).
+        for (boolean rtl : new boolean[] {false, true}) {
+            float size = assertInitialsClearTheOverlap(new AvatarGroup(new Avatar("Ana Lima"),
+                    new Avatar(CODER + " Dev"), new Avatar("Rui Costa")), rtl);
+            assertTrue(size < label(), "smaller than the label: " + size);
+        }
+    }
+
+    @Test
+    void aMemberDeclaringTheOtherDirectionFollowsTheGroupsOverlap() {
+        // The group lays the circles out in its own direction: a member that declares the other
+        // one still has the next circle on the group's trailing side.
+        Avatar own = new Avatar("Mei Wong");
+        own.setLayoutDirection(LayoutDirection.LTR);
+        assertInitialsClearTheOverlap(new AvatarGroup(new Avatar("Ana Lima"), own, new Avatar("Rui Costa")), true);
+    }
+
+    @Test
+    void theOneSizeFollowsAMemberJoiningOrLeaving() {
+        AvatarGroup g = new AvatarGroup(new Avatar("Ana Lima"), new Avatar("Rui Costa"));
+        assertEquals(label(), assertInitialsClearTheOverlap(g, false), 0.01f);
+        Avatar wide = new Avatar(CODER + " Dev");
+        g.add(wide);
+        assertTrue(assertInitialsClearTheOverlap(g, false) < label(), "the wide pair joined");
+        wide.setInitials("WD");
+        assertEquals(label(), assertInitialsClearTheOverlap(g, false), 0.01f, "its initials changed");
+        wide.setInitials(null);
+        wide.setImage(new Image(2, 2, new byte[16]));
+        Recorder drawn = paint(g, 400, 60);
+        assertEquals(List.of(label(), label()), drawn.fonts.stream().map(Font::size).toList(),
+                "a picture draws no letters and sets no size");
+    }
+
+    @Test
+    void theCircleBeforeTheCountIsCoveredAndTheCountIsCentred() {
+        for (boolean rtl : new boolean[] {false, true}) {
+            AvatarGroup g = new AvatarGroup(new Avatar("Ana Lima"), new Avatar("Mei Wong"),
+                    new Avatar("Rui Costa"), new Avatar("Lena Vogel"), new Avatar("Omar Haddad"));
+            assertInitialsClearTheOverlap(g, rtl);
+            assertFalse(g.children().get(g.children().size() - 1) instanceof Avatar, "the count is last");
+        }
+    }
+
+    @Test
+    void anAvatarAloneKeepsItsInitialsCentredAtTheirSize() {
+        Avatar alone = new Avatar("Mei Wong");
+        float d = Theme.current().tokensFor(alone).controlHeight();
+        Recorder drawn = paint(alone, d, d);
+        limn.graphics.TextMetrics m = SCALED_RULER.measure("MW", drawn.fonts.get(0));
+        assertEquals(d / 2, drawn.xs.get(0) + m.width() / 2, 0.01f);
+        assertEquals(Theme.current().tokensFor(alone).label().size(), drawn.fonts.get(0).size(), 0.01f);
     }
 
     @Test

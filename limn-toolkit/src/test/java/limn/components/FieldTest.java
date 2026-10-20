@@ -162,6 +162,108 @@ class FieldTest extends ComponentTestBase {
     }
 
     @Test
+    void theTextGettersAnswerStringsInTheLanguageInEffectAndTheSourcesTheValuesBehind() {
+        // As Label, Button and Card do: label() is the caption as it reads, the access letter's
+        // mark taken out, and labelSource() the value a language change re-resolves.
+        java.util.Locale portuguese = java.util.Locale.forLanguageTag("pt-BR");
+        limn.i18n.StringBundle bundle = limn.i18n.PropertyBundle.of(portuguese, java.util.Map.of(
+                "test.field.name", "&Nome", "test.field.help", "Como no documento",
+                "test.field.error", "Obrigatório"));
+        limn.i18n.I18n.addBundle(bundle);
+        try {
+            limn.i18n.I18n.setLocale(java.util.Locale.ENGLISH);
+            I18nString name = new I18nString("test.field.name", "&Name");
+            I18nString help = new I18nString("test.field.help", "As on the card");
+            I18nString error = new I18nString("test.field.error", "Required");
+            Field field = new Field(name, new TextField()).setHelperText(help)
+                    .setValidation(Validation.ERROR, error);
+            String caption = field.label();
+            assertEquals("Name", caption);
+            assertEquals("As on the card", field.helperText());
+            assertEquals("Required", field.validationMessage());
+            assertSame(name, field.labelSource());
+            assertSame(help, field.helperTextSource());
+            assertSame(error, field.validationMessageSource());
+
+            limn.i18n.I18n.setLocale(portuguese);
+            assertEquals("Nome", field.label());
+            assertEquals("Como no documento", field.helperText());
+            assertEquals("Obrigatório", field.validationMessage());
+
+            field.setLabel((I18nString) null).setHelperText((I18nString) null).clearValidation();
+            assertNull(field.label());
+            assertNull(field.labelSource());
+            assertNull(field.helperText());
+            assertNull(field.helperTextSource());
+            assertNull(field.validationMessage());
+            assertNull(field.validationMessageSource());
+        } finally {
+            limn.i18n.I18n.removeBundle(bundle);
+            limn.i18n.I18n.setLocale(java.util.Locale.ENGLISH);
+        }
+    }
+
+    /** The texts one frame of {@code scene} draws, laid out again first at a form's size. */
+    private static List<String> painted(Scene scene) {
+        scene.layoutPass(360, 400);
+        List<String> drawn = new ArrayList<>();
+        scene.renderFrame(new FakeCanvas(360, 400) {
+            @Override
+            public void drawText(String text, float x, float y, Font font, Paint paint) {
+                drawn.add(text);
+            }
+        });
+        return drawn;
+    }
+
+    @Test
+    void aValidationMessageReadsInTheLanguageOfTheControlItDescribes() {
+        // The owner's rule: a Portuguese date field in an English window says why in Portuguese,
+        // and the Field around it shows and returns that, where it showed the reason in its own
+        // language and returned it in the caller's. The application's own message follows the
+        // control too; with no language declared anywhere, everything is the window's.
+        String english = "This date is not available";
+        String portuguese = "Esta data não está disponível";
+        java.util.Locale ptBr = java.util.Locale.forLanguageTag("pt-BR");
+        limn.i18n.I18n.setLocale(java.util.Locale.ENGLISH);
+        try {
+            for (String declares : List.of("date", "field", "none")) {
+                DateField date = new DateField().setClock(TODAY).setDateFilter(d -> d.getDayOfMonth() != 13);
+                Field field = new Field("Delivery", date);
+                if (declares.equals("date")) {
+                    date.setLocale(ptBr);
+                } else if (declares.equals("field")) {
+                    field.setLocale(ptBr);
+                }
+                Scene scene = laidOut(field, 360);
+                date.setDate(LocalDate.of(2026, 11, 13));
+                String expected = declares.equals("none") ? english : portuguese;
+                assertEquals(expected, date.validationMessage(), declares + ": the date's own");
+                assertEquals(expected, field.validationMessage(), declares + ": the field returns the control's");
+                assertTrue(painted(scene).contains(expected), declares + ": and shows it: " + painted(scene));
+
+                field.setValidation(Validation.ERROR, new I18nString("limn.date.invalid.unavailable", english));
+                assertEquals(expected, field.validationMessage(), declares + ": the application's message");
+                assertTrue(painted(scene).contains(expected), declares + ": painted " + painted(scene));
+            }
+
+            // The control stops declaring: the line goes back to the window's language.
+            DateField date = new DateField().setClock(TODAY).setDateFilter(d -> d.getDayOfMonth() != 13);
+            date.setLocale(ptBr);
+            Field field = new Field("Delivery", date);
+            Scene scene = laidOut(field, 360);
+            date.setDate(LocalDate.of(2026, 11, 13));
+            assertTrue(painted(scene).contains(portuguese));
+            date.setLocale(null);
+            assertEquals(english, field.validationMessage());
+            List<String> after = painted(scene);
+            assertTrue(after.contains(english) && !after.contains(portuguese), "followed: " + after);
+        } finally {
+            limn.i18n.I18n.setLocale(java.util.Locale.ENGLISH);
+        }
+    }
+
+    @Test
     void placedMustHoldTheControl() {
         TextField control = new TextField();
         assertThrows(IllegalArgumentException.class, () -> new Field(I18nString.literal("Name"), control,
@@ -217,9 +319,9 @@ class FieldTest extends ComponentTestBase {
         assertEquals("Weekdays only", line(field).text());
 
         date.setDate(LocalDate.of(2026, 11, 5));
-        I18nString own = date.validationMessage();
+        String own = date.validationMessage();
         assertNotNull(own);
-        assertEquals(own.get(), line(field).text(), "the date's own reason, followed through its validity");
+        assertEquals(own, line(field).text(), "the date's own reason, followed through its validity");
         assertEquals(Tone.DANGER, line(field).tone());
 
         field.setValidation(Validation.ERROR, "We do not deliver in November");

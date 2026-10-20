@@ -603,6 +603,27 @@ that the text above does not say, dated where it departs from it.
   in `AXDescription` as section 3.3 says. Initials grow with a `SizedBox`. A group's hidden members
   are not its children (they have no box); the "+k" circle is a private child with the tooltip,
   and the group's child hook ignores every circle.
+- **A circle a point or so across** (2026-10-19, the audit's CO-5): the initials grow with the
+  circle and are rounded to a whole point, so under about 1.2 points they rounded to no size, the
+  font refused it, and the paint threw on every frame, losing what the frame painted after it. The
+  tinted circle is drawn alone there, and nothing at all in a box of no size. A group lays its
+  circles out at the control height whatever box it is given, so its own circles never get there.
+- **Initials clear the overlap** (2026-10-20, the owner's decisions 23 and 26, after the audit's
+  SD-4): each circle after the first is drawn over the one before a quarter of a diameter in, with
+  its ring, and two-letter initials reached past that quarter, so "AL" lost the foot of its L left
+  to right and the A's left side right to left. A circle the next one covers now centres its
+  initials on the part it shows: three quarters of the diameter less the ring, from the circle's
+  edge at the letters' height on the near side, the side away from the overlap in the group's
+  direction (decision 23). Centring alone does not clear every pair: in the shipped face (Roboto
+  Bold, `MEDIUM`) that part is 19.51 points wide and "MW" is 22.76, "HM" 20.57, "DW" 19.82. The first
+  fix drew each such pair smaller on its own, the fixer's addition and not the owner's choice, which
+  gave one group three sizes (11, 12 and 13 points). The owner chose one size per group (decision
+  26): every circle, the last one too, draws its initials at the label size or at the size the
+  group's widest pair needs to fit that part, whichever is smaller; the audit's group of nine
+  (AL, MW, HM, OD, DW, RC, MW, LV, AL) measured with the real shaper draws all nine at 11 points. A
+  picture draws no letters and sets no size; the "+k" circle keeps its own label. `AvatarTest`
+  holds, with the test ruler, each covered circle's run inside that part both ways, one size in the
+  group, and the size following a member joining, changing initials or taking a picture.
 
 ### 12.4 Empty and loading content
 
@@ -626,6 +647,36 @@ that the text above does not say, dated where it departs from it.
   `moveChild` already did, the scene falling back to a full pass when the size moved. The full
   toolkit suite stayed green with the change.
 - The rows contract gains the case of section 4.3, run by the list, the table and the tree.
+- **One parent, one widget** (2026-10-19, the audit's CO-11): a content that already had a
+  parent was accepted, and the next frame threw inside the widget's layout; since the placeholder
+  had believed the content attached before adding it, it was then laid out and drawn by both
+  parents every frame. The setters now refuse, with an `IllegalArgumentException`, a content in
+  another container (another widget showing it included) and one that holds the widget; the
+  placeholder believes a content attached only once it is; and a content the application puts
+  elsewhere after setting it, or that another widget shows first, is not shown, with one warning,
+  instead of losing frames. A registry of holders refused a content another widget held but did not
+  show; the review of the same day dropped it, because the holder was held weakly and a page rebuilt
+  with a fresh list reusing one label was refused or not depending on whether the garbage collector
+  had run.
+  *Second review, 2026-10-20 (R4C-1):* with the registry gone, a widget that wanted a content
+  another one held looked again only at its own next layout, so when the holder let it go later in
+  the same frame it stayed blank, and which of two lists stayed blank hung on the order the
+  application emptied them in; it also said it showed the content (`isShowingEmptyContent()` and
+  its description read what it wanted, not what it held). And a list dropped while it showed its
+  content kept it as a child for good, so the rebuilt page's fresh list was refused every time.
+  Now a widget waiting for a content watches the holder's children and asks for its layout as the
+  holder lets it go (shown at the next frame, whichever order); the getters and the description
+  read what the widget holds; and a widget leaving the window lets its content go, showing it again
+  when it comes back if it is still free.
+- **Said only where it is seen, by the name it is heard by** (2026-10-19, the audit's CO-12 and
+  AX-4): a list in a hidden container or on a tab page not chosen, still in the window, said
+  "Loading Archived" and "Archived, 0 items", loads the user could not see; it is now busy and says
+  nothing. The test is the widget and every ancestor shown, not `isShowing()`, whose clip walk
+  counts a list built and set loading in one turn as clipped away inside a scroll view until its
+  first layout. And `SceneAccess.applicationName` now names as the walk does, the explicit name,
+  then a caption bound with `setLabelFor`, then the tooltip, so a list named by the caption the
+  accessibility guide keeps as the idiom says "Loading Contacts" and not "Loading…". A popover's
+  name from its button follows the same order.
 
 ### 12.5 Popover
 

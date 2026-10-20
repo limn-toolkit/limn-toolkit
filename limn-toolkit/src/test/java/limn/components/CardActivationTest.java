@@ -7,6 +7,7 @@ import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.MouseEvent;
 import limn.scene.layout.Column;
+import limn.scene.layout.Row;
 import limn.scene.layout.SizedBox;
 import org.junit.jupiter.api.Test;
 
@@ -307,6 +308,199 @@ class CardActivationTest extends AccessibleComponentTestBase {
         heard.clear();
         click(sx(late, 5), sy(late, 5));
         assertEquals(List.of("pay"), heard, "a plain card again: the button is the application's again");
+        assertEquals(0, card.inertControls(), "and the card holds it no longer");
+    }
+
+    /** A card whose content gained a button after it was activated: the button is out of reach. */
+    private Button lateButton(Column content) {
+        Button late = new Button("Pay");
+        late.onAction(() -> heard.add("pay"));
+        content.add(late);
+        frame();
+        return late;
+    }
+
+    @Test
+    void aControlMovedFromTheAreaToTheFooterAsTheWarningSaysAnswersThere() {
+        // The audit's scenario: the warning says "put it in the footer", and the button moved there
+        // stayed dead, no click and no focus, since only replacing its whole part gave it back.
+        Column content = new Column();
+        Card card = bindCard(new Card(content).setTitle("Invoice").onActivate(() -> heard.add("card")));
+        Button late = lateButton(content);
+        assertEquals(1, card.inertControls());
+
+        content.remove(late);
+        card.setFooter(late);
+        frame();
+        heard.clear();
+        click(sx(late, 5), sy(late, 5));
+        assertEquals(List.of("pay"), heard, "the footer's button is clicked as the button it is");
+        late.requestFocus();
+        assertSame(late, scene.focusedWidget(), "and takes the keyboard");
+        assertEquals(0, card.inertControls(), "the card holds it no longer");
+    }
+
+    @Test
+    void aControlMovedToTheFooterInsideItsContainerAnswersThere() {
+        // The hard case: the control is not the widget moved but inside it, and the move happens
+        // with no frame between taking it out and putting it in.
+        Column content = new Column();
+        Card card = bindCard(new Card(content).setTitle("Invoice").onActivate(() -> heard.add("card")));
+        Row actions = new Row();
+        Button late = new Button("Pay");
+        late.onAction(() -> heard.add("pay"));
+        actions.add(late);
+        content.add(actions);
+        frame();
+        assertEquals(1, card.inertControls());
+
+        content.remove(actions);
+        card.setFooter(actions);
+        assertEquals(0, card.inertControls(), "given back at once, before any frame");
+        frame();
+        heard.clear();
+        click(sx(late, 5), sy(late, 5));
+        assertEquals(List.of("pay"), heard);
+    }
+
+    @Test
+    void aControlTakenOutOfTheAreaIsGivenBackAndForgotten() {
+        Column content = new Column();
+        Card card = bindCard(new Card(content).setTitle("Invoice").onActivate(() -> heard.add("card")));
+        Button late = lateButton(content);
+
+        content.remove(late);
+        assertEquals(0, card.inertControls(), "the card keeps no reference to a control it no longer holds");
+        Column root = (Column) card.parent().parent();
+        root.add(late); // somewhere else in the window, outside any card
+        frame();
+        heard.clear();
+        click(sx(late, 5), sy(late, 5));
+        assertEquals(List.of("pay"), heard, "the button answers where the application put it");
+    }
+
+    @Test
+    void aControlTakenOutWhileTheCardIsOutOfTheWindowAndPutBackElsewhereAnswers() {
+        Column content = new Column();
+        Card card = bindCard(new Card(content).setTitle("Invoice").onActivate(() -> heard.add("card")));
+        Button late = lateButton(content);
+        SizedBox box = (SizedBox) card.parent();
+        Column root = (Column) box.parent();
+        root.remove(box);
+        content.remove(late); // nothing in a window hears this
+        root.add(box);
+        frame();
+        assertEquals(0, card.inertControls());
+        root.add(late);
+        frame();
+        heard.clear();
+        click(sx(late, 5), sy(late, 5));
+        assertEquals(List.of("pay"), heard);
+    }
+
+    @Test
+    void aControlTakenOutOfACardThatNeverComesBackAnswersWhereItWent() {
+        // The review's case: the card leaves the window (a page closed), its button is reused
+        // elsewhere, and the card is never put back, so no layout of it gives anything back.
+        Column content = new Column();
+        Card card = bindCard(new Card(content).setTitle("Invoice").onActivate(() -> heard.add("card")));
+        Button late = lateButton(content);
+        SizedBox box = (SizedBox) card.parent();
+        Column root = (Column) box.parent();
+        root.remove(box);
+        assertEquals(0, card.inertControls(), "a card out of the window holds nothing out of reach");
+        content.remove(late);
+        root.add(late);
+        frame();
+        heard.clear();
+        click(sx(late, 5), sy(late, 5));
+        assertEquals(List.of("pay"), heard);
+        late.requestFocus();
+        assertSame(late, scene.focusedWidget());
+    }
+
+    @Test
+    void aControlMovedFromACardOutOfTheWindowIntoAnotherStaysTheOthersWhenTheFirstComesBack() {
+        // The review's second case: card A, out of the window, still held the button when it went
+        // into card B's area; A coming back gave it back there, a live control inside B's button.
+        Column root = new Column();
+        bind(root);
+        scene.setTextRuler(RULER);
+        Column inA = new Column();
+        Column inB = new Column();
+        Card a = new Card(inA).setTitle("A").onActivate(() -> heard.add("A"));
+        Card b = new Card(inB).setTitle("B").onActivate(() -> heard.add("B"));
+        SizedBox boxA = new SizedBox(W, SizedBox.UNSET, a);
+        root.add(boxA);
+        root.add(new SizedBox(W, SizedBox.UNSET, b));
+        frame();
+        Button late = lateButton(inA);
+        assertEquals(1, a.inertControls());
+        root.remove(boxA);
+        inA.remove(late);
+        inB.add(late);
+        frame();
+        assertEquals(1, b.inertControls(), "B holds it now");
+        root.add(0, boxA);
+        frame();
+        heard.clear();
+        click(sx(late, 5), sy(late, 5));
+        assertEquals(List.of("B"), heard, "the press is B's");
+        frame();
+        heard.clear();
+        click(sx(late, 5), sy(late, 5));
+        assertEquals(List.of("B"), heard, "and stays B's");
+        assertEquals(0, a.inertControls());
+    }
+
+    @Test
+    void aCardPutBackPutsItsControlsOutOfReachAgain() {
+        Column content = new Column();
+        Card card = bindCard(new Card(content).setTitle("Invoice").onActivate(() -> heard.add("card")));
+        Button late = lateButton(content);
+        SizedBox box = (SizedBox) card.parent();
+        Column root = (Column) box.parent();
+        root.remove(box);
+        root.add(box);
+        frame();
+        assertEquals(1, card.inertControls(), "found again at the first layout back in the window");
+        heard.clear();
+        click(sx(late, 5), sy(late, 5));
+        assertEquals(List.of("card"), heard);
+    }
+
+    @Test
+    void aCardPutBackHoldsItsControlsBeforeItsNextLayout() {
+        // The second review's case: taken out and put back in one turn, the card held nothing until
+        // its next layout, so a click before the frame reached the button.
+        Column content = new Column();
+        Card card = bindCard(new Card(content).setTitle("Invoice").onActivate(() -> heard.add("card")));
+        Button late = lateButton(content);
+        SizedBox box = (SizedBox) card.parent();
+        Column root = (Column) box.parent();
+        float x = sx(late, 5);
+        float y = sy(late, 5);
+        root.remove(box);
+        root.add(box);
+        assertEquals(1, card.inertControls(), "held again as the card comes back");
+        heard.clear();
+        click(x, y);
+        assertEquals(List.of("card"), heard, "the press is the card's, before any frame");
+    }
+
+    @Test
+    void aControlStillInTheAreaStaysOutOfReachAfterAnotherIsTakenOut() {
+        Column content = new Column();
+        Card card = bindCard(new Card(content).setTitle("Invoice").onActivate(() -> heard.add("card")));
+        Button first = lateButton(content);
+        Button second = lateButton(content);
+        assertEquals(2, card.inertControls());
+        content.remove(first);
+        frame();
+        assertEquals(1, card.inertControls());
+        heard.clear();
+        click(sx(second, 5), sy(second, 5));
+        assertEquals(List.of("card"), heard, "the one left is still the card's");
     }
 
     @Test

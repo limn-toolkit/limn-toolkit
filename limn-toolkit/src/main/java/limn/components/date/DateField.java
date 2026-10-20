@@ -260,7 +260,7 @@ public final class DateField extends Widget<DateField> {
                 date.invalidate();
             }
         });
-        limn.components.internal.FieldControls.ownMessage(DateField.class, DateField::validationMessage);
+        limn.components.internal.FieldControls.ownMessage(DateField.class, DateField::validationMessageSource);
     }
     private Runnable onChange;
     /** Which half moved, so one announcement reaches the one handler it belongs to. */
@@ -786,11 +786,29 @@ public final class DateField extends Widget<DateField> {
     }
 
     /**
-     * @return why the field is not valid, in the field's own language, or {@code null} when it is.
-     *         This is what a screen reader is told after "invalid", and what an application shows
-     *         beside the field if it does not have a message of its own
+     * @return why the field is not valid, as it reads in the field's own language, or
+     *         {@code null} when it is. This is what a screen reader is told after "invalid", and
+     *         what an application shows beside the field if it does not have a message of its
+     *         own; see {@link #validationMessageSource()} for the value behind it
      */
-    public @Nullable I18nString validationMessage() {
+    public @Nullable String validationMessage() {
+        I18nString reason = validity;
+        if (reason == null) {
+            return null;
+        }
+        Locale enclosing = I18n.pushScope(locale());
+        try {
+            return reason.get();
+        } finally {
+            I18n.popScope(enclosing);
+        }
+    }
+
+    /**
+     * @return the localizable value behind {@link #validationMessage()}, or {@code null} when the
+     *         field is valid
+     */
+    public @Nullable I18nString validationMessageSource() {
         return validity;
     }
 
