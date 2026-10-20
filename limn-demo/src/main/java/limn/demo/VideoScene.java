@@ -125,6 +125,14 @@ final class VideoScene {
      */
     private static int initialSource;
 
+    /**
+     * Whether the entry a tab opens on is opened on the thread that builds the tab, rather than on
+     * a worker as every later pick is. Only for a run nobody watches, which reads the window as
+     * soon as it is drawn: a screenshot, a film. Process-wide and set before any view is built,
+     * for the same reason {@link #staticFrame} is.
+     */
+    private static boolean openWhileBuilding;
+
     private VideoScene() {
     }
 
@@ -154,6 +162,18 @@ final class VideoScene {
      */
     static void setSoundAllowed(boolean allowed) {
         soundAllowed = allowed;
+    }
+
+    /**
+     * Opens the entry a tab is built on while it is built, for a run that captures the window as
+     * soon as it is drawn (a screenshot, a film), whose first picture must be the entry's and never
+     * "Opening…". Everywhere else that open goes to a worker: the page's sample clip is a container,
+     * and on a machine's first run the native behind it is extracted under a lock, which on the UI
+     * thread is a window frozen for a tenth of a second to more than one on a click in the
+     * navigation.
+     */
+    static void setOpenWhileBuilding(boolean open) {
+        openWhileBuilding = open;
     }
 
     /**
@@ -211,13 +231,15 @@ final class VideoScene {
 
     /**
      * How a picker entry opens, in the two shapes this tab needs: on the calling thread while the
-     * tab is being built, and as a job once there is a window that must not freeze.
+     * tab is being built for a capture, and as a job everywhere else, since the window a tab is
+     * built for is on screen and must not freeze.
      */
     private interface Opener {
 
         /**
-         * Opens on the calling thread and takes as long as the decoder takes: the form for the
-         * build, where the window has not appeared yet and there is no frame to lose.
+         * Opens on the calling thread and takes as long as the decoder takes: the form for a
+         * capture's build ({@link #setOpenWhileBuilding}), where nobody is watching the window and
+         * its first picture must be the entry's.
          *
          * @return what was opened, or null when this machine cannot play this entry at all
          */
@@ -879,6 +901,12 @@ final class VideoScene {
         private String notice;
         /** What is being opened right now, or null when nothing is. */
         private String opening;
+        /** Whether this pane has been in a scene: see {@link #wanted}. */
+        private boolean attachedOnce;
+        /** The open last started for this pane, or null: see {@link #reopenWith(Runnable)}. */
+        private Runnable lastOpen;
+        /** Whether an answer for this pane was refused because it had left its scene. */
+        private boolean refused;
         private long openingSinceNanos;
         private boolean openingPolling;
         /** The newest fraction the open published, or NaN while it has published none. */
@@ -921,6 +949,48 @@ final class VideoScene {
                 // the picture it lands past the fold, which is the same trap the ordering comment
                 // in tabContent() records for the prose.
                 add(transport);
+            }
+        }
+
+        /**
+         * Keeps the open just started for this pane, to start it again should the pane leave its
+         * scene before the open answers and come back later.
+         */
+        void reopenWith(Runnable again) {
+            lastOpen = again;
+            refused = false;
+        }
+
+        /**
+         * Whether an answer to the open in flight is still wanted: while the pane is in a scene, and
+         * before it has ever been in one, which is the page being built, opening its first entry on
+         * a worker. A pane that was shown and has left (its window closed, or the Showcase showing
+         * another page) takes nothing, and what was opened for it is closed rather than handed to
+         * a view off screen; {@link #onAttached} opens it again if the pane comes back.
+         */
+        boolean wanted() {
+            boolean wanted = scene() != null || !attachedOnce;
+            if (!wanted) {
+                refused = true;
+            }
+            return wanted;
+        }
+
+        /**
+         * Starts again an open whose answer was refused while the pane was away, since otherwise
+         * the page reads "Opening…" for ever once it is back: a click on the Video page and away
+         * again before the clip has opened is enough. Otherwise only the opening line moves on, for
+         * an open started while the page was built and still running.
+         */
+        @Override
+        protected void onAttached() {
+            super.onAttached();
+            attachedOnce = true;
+            if (refused && opening != null && lastOpen != null) {
+                refused = false;
+                lastOpen.run();
+            } else {
+                pollOpening();
             }
         }
 
@@ -2244,12 +2314,12 @@ final class VideoScene {
      *
      * <p>The sample clip first, because it is what the page is for: a real container,
      * demultiplexed and decoded by FFmpeg through the JNI shim, picture and soundtrack, which
-     * is the whole of the lab's list at once. A capture can rely on it as well as on the bars:
-     * the page is built before it is shown, so its first entry is opened there and then, and
-     * the clip is in this jar rather than encoded first, so no screenshot finds "Opening…".
-     * The colour bars second, generated in memory, which play on a machine whose decoder will
-     * not load, and which the page then opens on instead (see {@link #tabContent(float, float,
-     * List, boolean)}).
+     * is the whole of the lab's list at once. It opens on a worker, as every pick does, and the
+     * page reads "Opening…" for the moment that takes; a capture opens it while the page is
+     * built instead ({@link #setOpenWhileBuilding}), and the clip is in this jar rather than
+     * encoded first, so no screenshot finds "Opening…". The colour bars second, generated in
+     * memory, which play on a machine whose decoder will not load, and which the page then opens
+     * on instead (see {@link #tabContent(float, float, List, boolean)}).
      *
      * <p>The ten left out are one property each (a chroma layout, a matrix, an odd
      * size, a bit depth), and each is a comparison against the entry beside it, which
@@ -2375,34 +2445,44 @@ final class VideoScene {
                 view.restart();
             }
         };
-        boolean playing = play(pane, view, facts, open, current[0], sound[0]);
-        if (!playing && !details) {
-            // The page opens on something that plays. On a machine whose decoder will not load
-            // (no payload for this platform) the sample clip cannot, and a page that opens on
-            // "Cannot play this video" shows the failure before the feature; so it opens on the
-            // next entry that does, the generated bars, and the clip stays in the picker to say
-            // the same sentence when it is chosen. The reason is in the log. The lab's scene
-            // keeps the entry it was asked for: there, the failure is the reading.
-            for (int index = 0; index < sources.size() && !playing; index++) {
-                if (index != initial) {
-                    current[0] = sources.get(index);
-                    playing = play(pane, view, facts, open, current[0], sound[0]);
-                    if (playing) {
-                        initial = index;
-                    }
-                }
-            }
-            if (!playing) {
-                current[0] = sources.get(initial); // nothing plays: the pane says so, as before
-            }
-        }
-        describe.accept(current[0]);
-
         SegmentedControl picker = new SegmentedControl(
                 sources.stream().map(VideoScene::displayName).toArray(I18nString[]::new));
         picker.setAccessibleName(Text.SOURCE);
         picker.setSelectedIndex(initial);
+        describe.accept(current[0]);
+        // The page opens on something that plays. On a machine whose decoder will not load (no
+        // payload for this platform) the sample clip cannot, and a page that opens on "Cannot play
+        // this video" shows the failure before the feature; so it moves on to the next entry that
+        // does, the generated bars, with the picker on it, and the clip stays in the picker to say
+        // the same sentence when it is chosen. The reason is in the log. What finds out is the
+        // open, which is a worker's unless the run captures the window as it is built, so the move
+        // is made when the open answers, whichever thread it ran on. The lab's scene keeps the
+        // entry it was asked for: there, the failure is the reading.
+        boolean[] moving = {false};
+        java.util.Iterator<Integer> others = java.util.stream.IntStream.range(0, sources.size())
+                .filter(index -> index != initial).boxed().iterator();
+        Runnable[] instead = {null};
+        instead[0] = () -> {
+            // Nothing left to try: the picker goes back to where the page opened, and the pane
+            // already says that nothing plays, as it did before.
+            int index = others.hasNext() ? others.next() : initial;
+            current[0] = sources.get(index);
+            moving[0] = true;
+            try {
+                picker.setSelectedIndex(index);
+            } finally {
+                moving[0] = false;
+            }
+            describe.accept(current[0]);
+            if (index != initial) {
+                play(pane, view, facts, open, current[0], sound[0], 0, instead[0]);
+            }
+        };
+        play(pane, view, facts, open, current[0], sound[0], 0, details ? null : instead[0]);
         picker.onSelect(index -> {
+            if (moving[0]) {
+                return; // the page moving on by itself, which opens the entry itself
+            }
             current[0] = sources.get(index);
             describe.accept(current[0]);
             play(pane, view, facts, open, current[0], sound[0]);
@@ -2522,15 +2602,16 @@ final class VideoScene {
         return new ScrollView(tabContent(SCENE_PICTURE_WIDTH, SCENE_PICTURE_HEIGHT, SOURCES, true));
     }
 
-    /**
-     * Opens {@code entry} and plays it from its first picture.
-     *
-     * @return false when the entry was opened here, while the tab was built, and cannot play on
-     *         this machine; true when it is showing or on its way
-     */
-    private static boolean play(VideoPane pane, VideoView view, Label facts, Playing open,
-                                Source entry, boolean withSound) {
-        return play(pane, view, facts, open, entry, withSound, 0);
+    /** Opens {@code entry} and plays it from its first picture. */
+    private static void play(VideoPane pane, VideoView view, Label facts, Playing open, Source entry,
+                             boolean withSound) {
+        play(pane, view, facts, open, entry, withSound, 0, null);
+    }
+
+    /** Opens {@code entry} and plays it from {@code resumeMicros}. */
+    private static void play(VideoPane pane, VideoView view, Label facts, Playing open, Source entry,
+                             boolean withSound, long resumeMicros) {
+        play(pane, view, facts, open, entry, withSound, resumeMicros, null);
     }
 
     /**
@@ -2548,21 +2629,27 @@ final class VideoScene {
      * be shown is the entry last asked for. What the abandoned one had already opened is closed on
      * a worker rather than leaked, by the discard guard the job carries.
      *
-     * <p><b>An open with nowhere to deliver runs here instead</b>, and the condition is the pane
-     * having no scene yet: that is the tab being built, where there is no window to freeze, no
-     * frame loop to keep alive, and a delivery would land on a frame a {@code --screenshot} run
-     * has already captured past.
+     * <p><b>The tab being built takes the same worker</b>, though it is in no window yet: the
+     * window it is built for is on screen already, and the page is built on a click in its
+     * navigation, so a container opened here, with the native extracted behind a lock on a
+     * machine's first run, was that click frozen for a tenth of a second to more than one. The
+     * delivery is then wanted until the pane has been in a scene and left it.
+     *
+     * <p><b>Only a run that captures the window as it is built opens here instead</b>
+     * ({@link #setOpenWhileBuilding}): a delivery would land on a frame a {@code --screenshot} run
+     * has already captured past, and a film's first picture would read "Opening…".
      *
      * @param resumeMicros where to seek to once the stream lands, or 0 to start from the beginning
-     * @return false when the entry was opened here, while the tab was built, and cannot play on
-     *         this machine (its pane then says so); true when it is showing or on its way
+     * @param unplayable   run, after the pane says so, when this machine cannot play the entry, or
+     *                     null; never for an open a later pick withdrew
      */
-    private static boolean play(VideoPane pane, VideoView view, Label facts, Playing open,
-                                Source entry, boolean withSound, long resumeMicros) {
+    private static void play(VideoPane pane, VideoView view, Label facts, Playing open,
+                             Source entry, boolean withSound, long resumeMicros, Runnable unplayable) {
         view.setSource(null);
         view.setPlayer(null);
         open.closeAll();
-        if (pane.scene() == null) {
+        Runnable cannotPlay = unplayable == null ? () -> { } : unplayable;
+        if (openWhileBuilding && pane.scene() == null) {
             Opened opened;
             long startedNanos = System.nanoTime();
             try {
@@ -2572,18 +2659,23 @@ final class VideoScene {
                 // refuses is a sentence either way, and not a crash on the way to the first
                 // frame because it happened to be the entry the tab was built on.
                 showFailure(pane, facts, failure);
-                return false;
+                cannotPlay.run();
+                return;
             }
             if (opened != null) {
-                // What the build paid for it, on the thread that builds: the page's sample clip is
-                // a container, where the bars it used to open on are generated in memory.
+                // What the capture paid for it, on the thread that builds: nobody is watching this
+                // window, and the page's sample clip is a container.
                 System.out.printf("Video: '%s' opened in %d ms, while the page was built%n",
                         entry.label(), (System.nanoTime() - startedNanos) / 1_000_000L);
             }
             show(pane, view, facts, open, opened, withSound, resumeMicros);
-            return opened != null;
+            if (opened == null) {
+                cannotPlay.run();
+            }
+            return;
         }
         pane.showOpening(entry.label());
+        pane.reopenWith(() -> play(pane, view, facts, open, entry, withSound, resumeMicros, unplayable));
         facts.setText(Text.OPENING.get());
         long startedNanos = System.nanoTime();
         open.opening = entry.opener().start(new Pick(
@@ -2596,14 +2688,17 @@ final class VideoScene {
                                 entry.label(), (System.nanoTime() - startedNanos) / 1_000_000L);
                     }
                     show(pane, view, facts, open, opened, withSound, resumeMicros);
+                    if (opened == null) {
+                        cannotPlay.run();
+                    }
                 },
                 failure -> {
                     open.opening = null;
                     showFailure(pane, facts, failure);
+                    cannotPlay.run();
                 },
                 pane::showOpeningProgress,
-                () -> pane.scene() != null));
-        return true;
+                pane::wanted));
     }
 
     /**
