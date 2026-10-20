@@ -225,10 +225,11 @@ depends on the desktop's clipboard manager.
   key held it is the target's preference that decides between those two, not the source's.
   Shift and Control still ask for a move and a copy.
 - **On X11, a program built on GTK 4** speaks to your window in a way that goes round the
-  channel drags are answered on. Files dropped from one arrive all the same, the desktop's
-  file manager being the usual case, but your widget is not asked while they hover, and
-  anything else such a program drags, text for one, does not arrive. Under Wayland, and from
-  programs built on anything else, a drag is answered in full.
+  channel drags are answered on. Files dragged from one, the desktop's file manager being the
+  usual case, are followed by the pointer instead: your widget is asked as they hover, offered
+  them as files alone and as a copy alone, and they arrive at the drop. Anything else such a
+  program drags, text for one, does not arrive. Under Wayland, and from programs built on
+  anything else, a drag is answered in full.
 - **At a fractional display scale under Wayland**, the picture that follows the pointer is
   rounded to a whole scale and may look slightly soft.
 - **In a test**, the headless window has a clipboard of its own and a drag stays inside its
