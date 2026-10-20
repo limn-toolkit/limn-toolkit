@@ -589,16 +589,30 @@ would take the file; the drop itself arrived, through GLFW, as the 2026-10-10 le
   answered at once, accepting with a copy when files were offered and refusing otherwise; the
   drop reads the files and says it finished with a copy, or refuses with no files; a leave is
   not handled. Whether a drop callback is set plays no part.
-- **The follow.** A leave from the source of the drag over a window of ours, while the pointer
-  is still over that window (inside it, and no other window that takes drags on top of it
-  there), a button held and Escape up, and when files are among what is offered, is taken for
-  that turn: the drag stays on. Each turn of the clipboard's thread (16 ms while it lasts) reads
-  the pointer on our own connection (`XQueryPointer`, as the source side does) and tells the
-  scene the point when it moved; the scene's own auto-scroll covers a pointer at rest, asking
-  again after each step and pushing an answer that changed. It ends when no button is held, at
-  Escape, and when the pointer leaves the window (the source tells GLFW, which ignores it); an
-  enter from a source starts afresh. A leave with the pointer gone, Escape held, the button up,
-  or nothing but text offered is a leave as before.
+- **The follow.** The drag over a window of ours is followed, when files are among what is
+  offered, the pointer is inside the window (its rectangle: a source's drag picture under the
+  pointer may take drags itself, so what is on top there is not asked), a button is held and
+  Escape is up, on either of two signs. **A leave** from its source while that holds. **Or
+  silence**: the pointer moved, as our own readings see it, and the source said nothing for
+  80 ms, counted from the later of that move and our last answer, with no position of its
+  unanswered. A source that talks to us sends a position at once when the pointer moves, unless
+  it waits for our answer, so a GTK 3 source resting, or moving, is never followed; a source
+  that names its point in other units (a scaled toolkit) is not either, since its point is not
+  compared with ours. A drag of this program's own is never followed. Each turn of the
+  clipboard's thread (16 ms while a drag is over a window of ours) reads the pointer on our own
+  connection (`XQueryPointer`, as the source side does) and tells the scene the point when it
+  moved; the scene's own auto-scroll covers a pointer at rest, asking again after each step and
+  pushing an answer that changed. It ends when no button is held, when the pointer leaves the
+  window (the source tells GLFW, which ignores it), at a position from the source (it talks to
+  us again), and at Escape, which also sends the source a refusal, so a source that did not hear
+  the key drops nothing at a still release; an enter starts afresh. A drag over a window that is
+  not followed and whose buttons have been up for a second with no drop and no leave (a source
+  that dropped on GLFW's window, or went away) is forgotten, where it used to stay until the
+  next drag.
+- **The guest's first run of it** (the follow on a leave alone): the guest's file manager sent
+  no leave at all, or none the trace showed (leaves were not traced): enter, one position, and
+  then only GLFW's drop, five runs of five. Leaves are traced now, with where the pointer was and
+  whether the drag was kept, and silence is the second sign.
 - **What the scene is offered.** Files alone, as a copy alone: only files arrive through GLFW's
   drop, so a place that takes only text must not show that it would; and GLFW tells the source
   every drop was a copy, so a move answered here would have the source delete files of which
@@ -617,7 +631,7 @@ would take the file; the drop itself arrived, through GLFW, as the 2026-10-10 le
 - Text from a GTK 4 source on X11 still does not arrive (GLFW refuses it at the drop), and is
   not followed.
 
-`X11DragFollowTest` holds the follow's turns against a pointer it is handed;
+`X11DragFollowTest` holds both signs, the turns and the forgetting against a pointer it is handed;
 `DragAutoScrollTest` the scene fed as the follow feeds it. Owed: the run on the Ubuntu X11
 guest, a file from that file manager rested at the bottom edge and released unmoved, and the
 GTK 3 peer's text, which keeps to the proxy, as before.
