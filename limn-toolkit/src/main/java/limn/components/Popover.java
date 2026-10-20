@@ -3,6 +3,7 @@ package limn.components;
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.components.internal.AnchoredPopup;
+import limn.components.internal.HandlerFailures;
 import limn.components.internal.a11y.PopupOwnerAccessibility;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
@@ -150,14 +151,26 @@ public final class Popover {
             return;
         }
         open = false;
-        popup.close();
-        if (attached != null) {
-            attached.invalidateAccessible();
-            attached.notifyExpanded();
+        // A popover hung in this one whose handler throws stops neither this one's close nor what
+        // its button and its own handler are told: the throw follows them.
+        Throwable failed = null;
+        try {
+            popup.close();
+        } catch (RuntimeException | Error error) {
+            failed = HandlerFailures.add(failed, error);
         }
-        if (onClose != null) {
-            onClose.accept(origin);
+        try {
+            if (attached != null) {
+                attached.invalidateAccessible();
+                attached.notifyExpanded();
+            }
+            if (onClose != null) {
+                onClose.accept(origin);
+            }
+        } catch (RuntimeException | Error error) {
+            failed = HandlerFailures.add(failed, error);
         }
+        HandlerFailures.rethrow(failed);
     }
 
     /** @return whether the panel is showing, or about to in a window being made */

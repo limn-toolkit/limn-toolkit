@@ -227,6 +227,76 @@ class PopoverReentrancyTest extends ComponentTestBase {
     }
 
     @Test
+    void anInnerOnCloseThatThrowsStillLetsTheOuterOneCloseInTheScene() {
+        for (String how : List.of("code", "hide", "remove")) {
+            innerOnCloseThrows(DisplayMode.IN_SCENE, how);
+        }
+    }
+
+    @Test
+    void anInnerOnCloseThatThrowsStillLetsTheOuterOneCloseInWindows() {
+        for (String how : List.of("code", "hide", "remove")) {
+            innerOnCloseThrows(DisplayMode.NATIVE_WINDOW, how);
+        }
+    }
+
+    /**
+     * A bug in an inner popover's handler, once: the outer one's close stopped at the throw, its
+     * fields already cleared, and its layer covered the window for good (its window stayed open).
+     * Every close and every teardown runs, and the throw comes after.
+     */
+    private void innerOnCloseThrows(DisplayMode mode, String how) {
+        heard.clear();
+        Button more = new Button("More");
+        Column holder = new Column();
+        holder.add(more);
+        Button base = new Button("Base");
+        int[] clicks = {0};
+        base.onAction(() -> clicks[0]++);
+        Column root = new Column();
+        root.add(holder);
+        root.add(new SizedBox(300, 120, new Label("Orders")));
+        root.add(base);
+        inWindow(root);
+        Button columns = new Button("Columns");
+        Column outerContent = new Column();
+        outerContent.add(columns);
+        Popover outer = new Popover(outerContent).setDisplayMode(mode).attachTo(more)
+                .onClose(origin -> heard.add("outer " + origin));
+        Popover inner = new Popover(new SizedBox(100, 30, new TextField())).setDisplayMode(mode).attachTo(columns)
+                .onClose(origin -> {
+                    heard.add("inner " + origin);
+                    throw new IllegalStateException("an inner handler's bug");
+                });
+        outer.showFor(more);
+        frames(3);
+        inner.showFor(columns);
+        frames(3);
+        RuntimeException thrown = null;
+        try {
+            switch (how) {
+                case "code" -> outer.close();
+                case "hide" -> holder.setVisible(false);
+                default -> holder.remove(more);
+            }
+        } catch (IllegalStateException e) {
+            thrown = e;
+        }
+        String where = mode + " " + how + " " + heard;
+        assertNotNull(thrown, "the handler's throw is not swallowed: " + where);
+        assertFalse(outer.isOpen() || inner.isOpen(), where);
+        assertTrue(heard.contains("outer " + (how.equals("code") ? "CODE" : "ADJUSTMENT")),
+                "the outer one's own handler still ran: " + where);
+        frames(40);
+        drive(scene).click(base);
+        frames(3);
+        assertEquals(1, clicks[0], "nothing is left over the window: " + where);
+        assertEquals(1, openWindows(), "the owner's window alone: " + where);
+        owner.requestClose();
+        runtime.drain();
+    }
+
+    @Test
     void anApplicationCodeThrowingWhileAnAnchorLeavesStillLetsTheRemovalFinish() {
         Button first = new Button("First");
         Column holder = new Column();

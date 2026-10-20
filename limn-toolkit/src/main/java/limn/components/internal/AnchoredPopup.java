@@ -598,17 +598,29 @@ public final class AnchoredPopup {
                 each.cancel();
             }
         }
+        // An inner popup's handler that throws stops nothing here: this one's layer or window is
+        // in no field any more, and left up it would cover the window for good. The throw follows.
+        Throwable failed = null;
         if (closingPanel != null) {
             // Before this one lets go of the keyboard, as a stack unwinds: the inner popup gives it
             // back to its button in this panel, and this one then takes it home.
-            SceneAccess.closePopupsHungIn(closingPanel);
+            try {
+                SceneAccess.closePopupsHungIn(closingPanel);
+            } catch (RuntimeException | Error error) {
+                failed = HandlerFailures.add(failed, error);
+            }
         }
-        if (closingWindow != null) {
-            closeWindow(scene, closingWindow, closingPopupScene, closingPanel);
-        } else if (closingLayer != null) {
-            closeLayer(scene, closingLayer, leaving);
+        try {
+            if (closingWindow != null) {
+                closeWindow(scene, closingWindow, closingPopupScene, closingPanel);
+            } else if (closingLayer != null) {
+                closeLayer(scene, closingLayer, leaving);
+            }
+            // else closed before its window was made: nothing was shown
+        } catch (RuntimeException | Error error) {
+            failed = HandlerFailures.add(failed, error);
         }
-        // else closed before its window was made: nothing was shown
+        HandlerFailures.rethrow(failed);
     }
 
     private void closeWindow(@Nullable Scene scene, NativeWindow closing, @Nullable Scene closingScene,
