@@ -680,8 +680,11 @@ choice open, it is said here.
   warning advises, stayed inert in the footer (no click, no focus), and the card kept a reference to
   any such control the application discarded. It is now given back as it leaves the area: by
   `setFooter` at once, by a watch on the window's tree (held only while the card holds a control
-  out of reach) as a container takes it out, and at the card's next layout when it was taken out
-  while the card was in no window.
+  out of reach) as a container takes it out, and every one as the card leaves the window (the
+  review of that day found a control taken out of a card that never came back dead and held, and
+  one card letting go undoing another's hold on the one flag); the first layout back in a window
+  finds again what is still in the area. A card gives back a control only when no other card holds
+  it.
 - **The group of a clicked card with a footer** is named by the title. An application that names a
   card with no title names its button; the group around it stays unnamed, the card having no way
   to read the name the application wrote.

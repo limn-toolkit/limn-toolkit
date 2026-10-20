@@ -812,7 +812,7 @@ public final class Card extends Widget<Card> {
             Widget<?> each = madeInert.get(i);
             if (isAtOrUnder(each, at)) {
                 madeInert.remove(i);
-                SceneAccess.setInert(each, false);
+                release(each);
             }
         }
         watchLeaving();
@@ -828,10 +828,37 @@ public final class Card extends Widget<Card> {
             Widget<?> each = madeInert.get(i);
             if (!isAtOrUnder(each, area)) {
                 madeInert.remove(i);
-                SceneAccess.setInert(each, false);
+                release(each);
             }
         }
         watchLeaving();
+    }
+
+    /**
+     * Gives back every control this card holds out of reach: its area left the window. Out of a
+     * window nothing can be pressed, and a control taken out of the area now, where no watch hears
+     * it, would stay dead wherever it went; the first layout back in a window finds again what is
+     * still in the area.
+     */
+    private void releaseAll() {
+        for (int i = madeInert.size() - 1; i >= 0; i--) {
+            release(madeInert.remove(i));
+        }
+        watchLeaving();
+    }
+
+    /**
+     * Ends this card's hold on {@code control}: it answers again, unless another activated card's
+     * area now holds it out of reach too, the flag being one per widget, so one card letting go
+     * never undoes another's hold.
+     */
+    private void release(Widget<?> control) {
+        for (Widget<?> w = control.parent(); w != null; w = w.parent()) {
+            if (w instanceof Card other && other != this && other.madeInert.contains(control)) {
+                return;
+            }
+        }
+        SceneAccess.setInert(control, false);
     }
 
     private static boolean isAtOrUnder(Widget<?> widget, Widget<?> at) {
@@ -846,8 +873,8 @@ public final class Card extends Widget<Card> {
     /**
      * Watches the window's tree while this card holds a control out of reach, so that one taken
      * out of the area is given back as it goes, and not at the card's next layout, which a change
-     * inside a container that lays itself out alone does not bring. A control taken out while the
-     * card is in no window is given back at the card's next layout.
+     * inside a container that lays itself out alone does not bring. A card out of a window holds
+     * nothing ({@link #releaseAll}), so it needs no watch there.
      */
     private void watchLeaving() {
         boolean want = !madeInert.isEmpty() && scene() != null && area.scene() != null;
@@ -1393,8 +1420,9 @@ public final class Card extends Widget<Card> {
         @Override
         protected void onDetached() {
             super.onDetached();
+            releaseAll(); // and the watch goes: the window's tree is not this card's any more
             if (leavingWatch != null) {
-                leavingWatch.cancel(); // the window's tree is not this card's any more
+                leavingWatch.cancel();
                 leavingWatch = null;
             }
             SceneAccess.observeHoverWithin(this, null);
