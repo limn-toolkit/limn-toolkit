@@ -240,6 +240,113 @@ class GlGroupBlendTest {
     }
 
     /**
+     * Shapes in MULTIPLY that touch, or stand less than a device pixel apart, inside a group over
+     * nothing, a white one drawn before a black one, the worst pair for the second pass: the
+     * picture is the one each draws in a run of its own (the run broken between them by a NORMAL
+     * draw in a far corner), bars of a chart touching at whole pixels with different heights, a
+     * rounded corner beside a bar, two circles, tiles at fractional positions. Judged on bounds
+     * that assumed an outline's coverage stops half a pixel past it, they shared a run while a
+     * pixel diagonal to a corner, where the antialiasing ramp widens, had coverage from both: the
+     * pass order changed it by up to 7 steps on a GPU and 21 on a software renderer.
+     */
+    @Test
+    void shapesInMultiplyLessThanAPixelApartDrawAsInRunsOfTheirOwn() {
+        GlCanvas canvas = new GlCanvas(fonts);
+        try {
+            lessThanAPixelApart(canvas);
+        } finally {
+            canvas.dispose();
+        }
+    }
+
+    @Test
+    void shapesInMultiplyLessThanAPixelApartDrawAsInRunsOfTheirOwnOnASoftwareRenderer() {
+        HeadlessGl.onSoftwareRenderer(() -> {
+            GlCanvas canvas = new GlCanvas(fonts);
+            try {
+                lessThanAPixelApart(canvas);
+            } finally {
+                canvas.dispose();
+            }
+        });
+    }
+
+    private void lessThanAPixelApart(GlCanvas canvas) {
+        java.util.List<String> failures = new java.util.ArrayList<>();
+        for (float top : new float[] {20f, 20.35f, 20.7f}) {
+            for (float gap : new float[] {0f, 0.2f, 0.45f, 0.8f}) {
+                float t = top;
+                float g = gap;
+                pair(canvas, failures, "bars, top " + top + ", gap " + gap,
+                        c -> c.fillRect(2, t, 8, 40 - t, Color.WHITE),
+                        c -> c.fillRect(10 + g, 4, 8, 36, Color.BLACK));
+                pair(canvas, failures, "a rounded rect beside a bar, top " + top + ", gap " + gap,
+                        c -> c.fillRoundRect(limn.graphics.RoundRect.of(2, t, 8, 40 - t, 1f), Color.WHITE),
+                        c -> c.fillRect(10 + g, 4, 8, 36, Color.BLACK));
+                pair(canvas, failures, "tiles at fractions, top " + top + ", gap " + gap,
+                        c -> c.fillRoundRect(limn.graphics.RoundRect.of(2.3f, t, 7.4f, 9.6f, 2f), Color.WHITE),
+                        c -> c.fillRoundRect(limn.graphics.RoundRect.of(9.7f + g, t - 9.6f - g, 7.4f, 9.6f, 2f),
+                                Color.BLACK));
+            }
+        }
+        for (float distance : new float[] {8f, 8.25f, 8.5f, 8.85f}) {
+            for (float dy : new float[] {0f, 0.3f, 0.6f}) {
+                float d = distance;
+                float y = dy;
+                pair(canvas, failures, "two circles " + distance + " apart, dy " + dy,
+                        c -> c.fillCircle(20, 24 + y, 4, Color.WHITE),
+                        c -> c.fillCircle(20 + d, 24, 4, Color.BLACK));
+            }
+        }
+        assertEquals(java.util.List.of(), failures, "shapes less than a pixel apart drew as in runs of their own");
+    }
+
+    /**
+     * Draws {@code a} then {@code b} in MULTIPLY in a group over nothing, once as the canvas runs
+     * them and once with a NORMAL draw in the far corner between them, which breaks the run, and
+     * adds to {@code failures} a case whose pictures differ by more than a step.
+     */
+    private void pair(GlCanvas canvas, java.util.List<String> failures, String what, Consumer<GlCanvas> a,
+                      Consumer<GlCanvas> b) {
+        for (boolean broken : new boolean[] {false, true}) {
+            render(canvas, Color.TRANSPARENT, c -> {
+                c.saveLayer(0, 0, SIZE, SIZE, 0.999f);
+                c.save();
+                c.setBlendMode(BlendMode.MULTIPLY);
+                a.accept(c);
+                c.restore();
+                if (broken) {
+                    c.fillRect(SIZE - 1, SIZE - 1, 1, 1, new Color(0, 0, 0, 0.0001f));
+                }
+                c.save();
+                c.setBlendMode(BlendMode.MULTIPLY);
+                b.accept(c);
+                c.restore();
+                c.restore();
+            });
+            if (broken) {
+                byte[] separate = lastImage;
+                int worst = 0;
+                for (int i = 0; i < separate.length; i++) {
+                    int pixel = i / 4;
+                    boolean farCorner = pixel % SIZE == SIZE - 1 && pixel / SIZE == 0; // bottom-up rows
+                    if (i % 4 != 3 && !farCorner) {
+                        worst = Math.max(worst, Math.abs((shared[i] & 0xFF) - (separate[i] & 0xFF)));
+                    }
+                }
+                if (worst > 1) {
+                    failures.add(what + ": off by " + worst);
+                }
+            } else {
+                shared = lastImage;
+            }
+        }
+    }
+
+    /** The picture {@link #pair} drew with the two draws in one run. */
+    private byte[] shared;
+
+    /**
      * Additive light over translucent content of the group, the group laid over nothing: every
      * pixel it leaves is a valid premultiplied one, no channel above its coverage, and it is the
      * sum of the two, colour and coverage, clamped, as a web page's plus-lighter has it. The colour

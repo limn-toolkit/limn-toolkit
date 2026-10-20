@@ -460,22 +460,26 @@ final class GlBatch implements AutoCloseable {
     // by the ensure() that reserves its room. Kept only while such a blend is in force.
     private int[] twoPassStart = new int[16];
     private float[] twoPassBox = new float[64];
-    /** Per primitive, how far inside its quad's edges it covers nothing that shows (see below). */
+    /**
+     * Per primitive, how far inside its quad's edges an analytic shape's own bounds lie, its
+     * antialiasing pad; 0 for any other primitive (see below).
+     */
     private float[] twoPassInset = new float[16];
     private int twoPassCount;
     /** The inset the next {@link #ensure} records for its primitive; 0 unless the canvas says. */
-    private float nextCoverageInset;
+    private float nextShapeInset;
+    /** How far below a whole device pixel a gap may come out and still count as one (float noise). */
+    private static final float GAP_TOLERANCE = 1e-3f;
 
     /**
-     * Says that the primitive the next {@link #ensure} opens covers less than a 255th of a pixel
-     * further than {@code inset} device pixels inside its quad's edges: an analytic shape, whose
-     * quad reaches a pixel past it for the antialiasing ramp, which is spent half a pixel past the
-     * edge where the shape's outline runs along an axis, as it does at the extremes its bounds are
-     * made of. Read only while a mode drawn in two passes is in force, to let two shapes a pixel
-     * apart share a run.
+     * Says that the primitive the next {@link #ensure} opens is an analytic shape (a rectangle,
+     * rounded or not, a circle, an ellipse, a stroke of one) whose own bounds lie {@code pad}
+     * device pixels inside its quad's edges, the room its antialiasing ramp is given. Read only
+     * while a mode drawn in two passes is in force, to let two such shapes a pixel apart share a
+     * run.
      */
-    void coverageInsetForNext(float inset) {
-        nextCoverageInset = inset;
+    void shapeInsetForNext(float pad) {
+        nextShapeInset = pad;
     }
     /** The most primitives one run tests against each other: the test is quadratic in the run. */
     private static final int MAX_TWO_PASS_RUN = 64;
@@ -497,20 +501,33 @@ final class GlBatch implements AutoCloseable {
     }
 
     /**
-     * Whether primitive {@code i} can cover a pixel that any from {@code from} up to it covers:
-     * each one's bounds, moved in by its inset, taken to the pixels whose centres they hold, edges
-     * included, which are the pixels the rasterizer shades for it.
+     * Whether primitive {@code i} can cover a pixel that any from {@code from} up to it covers.
+     * Two analytic shapes cannot when their own bounds are a device pixel or more apart on an
+     * axis: where an outline runs along an axis the ramp is spent half a pixel past it, but beside
+     * a corner, sharp or rounded, the field's gradient turns diagonal and the ramp widens toward a
+     * pixel, so a pixel diagonal to the corner of a shape that touches another, or stands less
+     * than a pixel from it, has coverage from both. Any other pair is judged on the quads, taken
+     * to the pixels whose centres they hold, edges included, which are the pixels the rasterizer
+     * shades for each.
      */
     private boolean overlapsRun(int i, int from) {
-        int ax0 = firstPixel(twoPassBox[i * 4] + twoPassInset[i]);
-        int ay0 = firstPixel(twoPassBox[i * 4 + 1] + twoPassInset[i]);
-        int ax1 = lastPixel(twoPassBox[i * 4 + 2] - twoPassInset[i]);
-        int ay1 = lastPixel(twoPassBox[i * 4 + 3] - twoPassInset[i]);
+        float pad = twoPassInset[i];
+        int ax0 = firstPixel(twoPassBox[i * 4]);
+        int ay0 = firstPixel(twoPassBox[i * 4 + 1]);
+        int ax1 = lastPixel(twoPassBox[i * 4 + 2]);
+        int ay1 = lastPixel(twoPassBox[i * 4 + 3]);
         for (int j = from; j < i; j++) {
-            float inset = twoPassInset[j];
-            if (ax0 <= lastPixel(twoPassBox[j * 4 + 2] - inset) && firstPixel(twoPassBox[j * 4] + inset) <= ax1
-                    && ay0 <= lastPixel(twoPassBox[j * 4 + 3] - inset)
-                    && firstPixel(twoPassBox[j * 4 + 1] + inset) <= ay1) {
+            float other = twoPassInset[j];
+            if (pad > 0 && other > 0) {
+                float gapX = Math.max(twoPassBox[j * 4] + other - (twoPassBox[i * 4 + 2] - pad),
+                        twoPassBox[i * 4] + pad - (twoPassBox[j * 4 + 2] - other));
+                float gapY = Math.max(twoPassBox[j * 4 + 1] + other - (twoPassBox[i * 4 + 3] - pad),
+                        twoPassBox[i * 4 + 1] + pad - (twoPassBox[j * 4 + 3] - other));
+                if (gapX < 1 - GAP_TOLERANCE && gapY < 1 - GAP_TOLERANCE) {
+                    return true;
+                }
+            } else if (ax0 <= lastPixel(twoPassBox[j * 4 + 2]) && firstPixel(twoPassBox[j * 4]) <= ax1
+                    && ay0 <= lastPixel(twoPassBox[j * 4 + 3]) && firstPixel(twoPassBox[j * 4 + 1]) <= ay1) {
                 return true;
             }
         }
@@ -596,9 +613,9 @@ final class GlBatch implements AutoCloseable {
                 flushFlat(); // drawn before this primitive, and its records with it
             }
             beginTwoPassPrimitive(indices.position(), Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY,
-                    Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY, nextCoverageInset);
+                    Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY, nextShapeInset);
         }
-        nextCoverageInset = 0;
+        nextShapeInset = 0;
         if (vertices.remaining() < vertexSlots * VERTEX_FLOATS) {
             int needed = vertices.position() + vertexSlots * VERTEX_FLOATS;
             vertices = MemoryUtil.memRealloc(vertices, Math.max(needed, vertices.capacity() * 2));

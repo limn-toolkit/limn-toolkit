@@ -1117,7 +1117,20 @@ target, the premultiplied form of the formula with the coverage of an over,
   .tintsInMultiplyOnePixelApartShareTheirTwoPassesAndStayExact`, on the GPU and the software
   renderer, holds twenty tints a pixel apart to four draw calls with the picture within one step of
   NORMAL's, which it must equal over a transparent group, and tints that overlap by a pixel to more
-  than ten; it drew 19.)
+  than ten; it drew 19.) 2026-10-20, after the fifth review, R5S-3: the 0.452 of a pixel held only
+  where an outline runs along an axis. Beside a corner, sharp or rounded, the field's gradient turns
+  diagonal and the ramp, sized by the derivatives over a 2 by 2 block that straddles the corner,
+  widens toward a pixel, so shapes that touch or stand less than a pixel apart shared a run while
+  the pixel diagonal to a corner had coverage from both, and the pass order changed it by up to 7
+  steps on the GPU and 21 on the software renderer, over a transparent part of the group (bars of a
+  chart side by side, tiles at fractional positions). Two analytic shapes now share only when their
+  own bounds, the quad less the whole pad, are a device pixel or more apart on an axis; any other
+  pair is judged on the quads. The reviewer's sweeps, on both renderers, are exact (at most one
+  step): white then black rectangles at gaps of 0 to 1.9 pixels, 1,000 positions each, a rounded
+  corner beside a bar, two circles, a stroke beside a fill, rotations; the one-pixel heat map keeps
+  its 9 draw calls, and ten bars of a chart side by side take 21 rather than 3.
+  `GlGroupBlendTest.shapesInMultiplyLessThanAPixelApartDrawAsInRunsOfTheirOwn`, on both
+  renderers, holds the picture of every such pair to the one each draws in a run of its own.
 - A group composited in a mode into another group (section 2.3's ancestor mode, nested) takes the
   same table, both passes over its quad.
 

@@ -20,8 +20,10 @@ package limn.graphics;
  * pixel, sixty-four at most; each draw that can takes two of its own. What that costs on every frame
  * that draws the group as a picture, while it fades or while it is turned, and never at rest, as
  * measured on a graphics card: shapes a pixel apart or more share (ten rectangles or circles in a
- * row, 3 draw calls; a heat map of 200 cells with one-pixel gaps, 9); ten tints that overlap, about
- * 20 more; a line of text, whose neighbouring glyphs' pictures usually share a pixel, 9 to 11 for
+ * row, 3 draw calls; a heat map of 200 cells with one-pixel gaps, 9); shapes that touch or stand
+ * less than a pixel apart do not, since beside a corner each one's antialiasing reaches a pixel of
+ * the other (ten bars of a chart side by side, 21); ten tints that overlap, about 20 more; a line
+ * of text, whose neighbouring glyphs' pictures usually share a pixel, 9 to 11 for
  * 43 characters, where outside a group it is 1.
  *
  * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a

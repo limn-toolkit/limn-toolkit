@@ -175,8 +175,9 @@ public interface Canvas {
      * arrives at 1, which a page's own fade does too. Draw what should blend with what is beneath
      * outside the group, or keep the group below 1. Inside a layer {@link BlendMode#MULTIPLY} is
      * drawn in two passes: draws in it that cannot cover a pixel in common share them, shapes a
-     * pixel apart included, and each that can costs two draw calls of its own, a line of text about
-     * one pair for every eight to ten glyphs ({@link BlendMode} has the measured numbers).
+     * pixel or more apart included, and each that can, shapes that touch included, costs two draw
+     * calls of its own, a line of text about one pair for every eight to ten glyphs
+     * ({@link BlendMode} has the measured numbers).
      *
      * <p><b>What it costs</b>, measured on the renderer this toolkit ships: two batch
      * breaks and one composited quad per layer, about 0.03 to 0.1 ms of GPU for a popup-sized
