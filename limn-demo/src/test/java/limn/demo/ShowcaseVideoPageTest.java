@@ -1,0 +1,314 @@
+package limn.demo;
+
+import limn.components.Label;
+import limn.components.SegmentedControl;
+import limn.components.VideoView;
+import limn.scene.Scene;
+import limn.scene.Widget;
+import limn.scene.layout.Column;
+import limn.testing.HeadlessUi;
+import limn.video.VideoStreamSource;
+import limn.video.Videos;
+import limn.video.decode.SyntheticVideoDecoder;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
+
+/**
+ * The Showcase's Video page opens on the sample clip, Big Buck Bunny, with its credit under it, as
+ * its licence asks, and keeps the colour bars in its picker.
+ *
+ * <p>The clip is the bundled excerpt and nothing else, whatever FFmpeg payload is on the class
+ * path: a developer's {@code full} payload can encode, and the page's clip entry then played a
+ * clip written on the spot, eight colour bars under the bunny's credit, so the page showed colour
+ * bars whichever entry was picked. Where the decoder cannot load at all the page opens on the bars
+ * instead of on a picture that says it cannot play.
+ *
+ * <p>The clip is opened on a worker, as every pick of the picker is: a container is a demultiplexer
+ * and a decoder set up, and on a machine's first run the native extracted behind a lock, so opening
+ * it while the page was built froze the window for a tenth of a second to more than one on a click
+ * in the navigation. A run nobody watches (a screenshot, a film) still opens it while the page is
+ * built, so its first picture is the clip and never "Opening…".
+ */
+class ShowcaseVideoPageTest {
+
+    @TempDir
+    Path directory;
+
+    @Test
+    void thePageOpensOnTheBundledClipWithItsCreditEvenWhereThePayloadCanEncode() {
+        assumeTrue(limn.video.ffmpeg.FfmpegLibrary.isAvailable(), "needs the FFmpeg native");
+        SyntheticVideoDecoder bars = new SyntheticVideoDecoder();
+        Videos.installDecoder(bars);
+        VideoScene.setSoundAllowed(false); // no audio device: the view is handed the stream itself
+        try (HeadlessUi ui = new HeadlessUi()) {
+            Widget<?> page = VideoScene.pageContent();
+            SegmentedControl picker = sourcePicker(page);
+            assertEquals(2, picker.segmentCount(), "the clip and the bars");
+            assertEquals(VideoScene.Text.CLIP, picker.segmentSource(picker.selectedIndex()),
+                    "the page opens on the sample clip");
+            assertTrue(creditShown(page), "the clip's credit is shown under it");
+
+            VideoView view = find(page, VideoView.class).get(0);
+            ui.pumpUntil(() -> view.source() != null, 30_000_000_000L);
+            assertClip(view);
+        } finally {
+            VideoScene.setSoundAllowed(true);
+            Videos.uninstallDecoder(bars);
+        }
+    }
+
+    @Test
+    void buildingThePageLeavesOpeningTheClipToAWorker() throws Exception {
+        assumeTrue(limn.video.ffmpeg.FfmpegLibrary.isAvailable(), "needs the FFmpeg native");
+        SyntheticVideoDecoder bars = new SyntheticVideoDecoder();
+        Videos.installDecoder(bars);
+        VideoScene.setSoundAllowed(false);
+        CountDownLatch release = new CountDownLatch(1);
+        try (HeadlessUi ui = new HeadlessUi()) {
+            // The one worker held, so whatever the build hands it cannot have run when the build
+            // returns: a picture in the view by then was opened on this thread, the UI thread,
+            // which is the frozen window a click in the navigation used to cost.
+            CountDownLatch held = new CountDownLatch(1);
+            ui.workers().execute(() -> {
+                held.countDown();
+                try {
+                    release.await(30, TimeUnit.SECONDS);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            assertTrue(held.await(10, TimeUnit.SECONDS), "the worker never started");
+
+            Widget<?> page = VideoScene.pageContent();
+            VideoView view = find(page, VideoView.class).get(0);
+            assertNull(view.source(), "the clip was opened on the UI thread while the page was built");
+            SegmentedControl picker = sourcePicker(page);
+            assertEquals(VideoScene.Text.CLIP, picker.segmentSource(picker.selectedIndex()),
+                    "the picker says what is opening");
+            assertTrue(creditShown(page), "the credit is there before the picture is");
+
+            release.countDown();
+            ui.pumpUntil(() -> view.source() != null, 30_000_000_000L);
+            assertClip(view);
+            assertEquals(VideoScene.Text.CLIP, picker.segmentSource(picker.selectedIndex()));
+        } finally {
+            release.countDown();
+            VideoScene.setSoundAllowed(true);
+            Videos.uninstallDecoder(bars);
+        }
+    }
+
+    @Test
+    void aPageLeftBeforeTheClipOpenedOpensItAgainWhenItIsBack() throws Exception {
+        assumeTrue(limn.video.ffmpeg.FfmpegLibrary.isAvailable(), "needs the FFmpeg native");
+        SyntheticVideoDecoder bars = new SyntheticVideoDecoder();
+        Videos.installDecoder(bars);
+        VideoScene.setSoundAllowed(false);
+        CountDownLatch release = new CountDownLatch(1);
+        try (HeadlessUi ui = new HeadlessUi()) {
+            ui.workers().execute(() -> {
+                try {
+                    release.await(30, TimeUnit.SECONDS);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            // A click on the Video page and on another one before the clip has opened: the
+            // Showcase takes the page out of its window and keeps it for the next visit.
+            Widget<?> page = VideoScene.pageContent();
+            Column holder = new Column();
+            holder.add(page);
+            new Scene(holder, () -> 0L);
+            holder.remove(page);
+
+            release.countDown();
+            CountDownLatch answered = new CountDownLatch(1);
+            ui.workers().execute(answered::countDown); // one worker: behind the clip's open
+            assertTrue(answered.await(30, TimeUnit.SECONDS), "the clip's open never finished");
+            ui.runtime().drain(); // its answer, refused while the page is away
+            VideoView view = find(page, VideoView.class).get(0);
+            assertNull(view.source(), "a page away from its window was handed the clip");
+
+            holder.add(page); // the page shown again
+            ui.pumpUntil(() -> view.source() != null, 30_000_000_000L);
+            assertClip(view);
+        } finally {
+            release.countDown();
+            VideoScene.setSoundAllowed(true);
+            Videos.uninstallDecoder(bars);
+        }
+    }
+
+    @Test
+    void aRunNobodyWatchesStillOpensTheClipWhileThePageIsBuilt() throws Exception {
+        assumeTrue(limn.video.ffmpeg.FfmpegLibrary.isAvailable(), "needs the FFmpeg native");
+        SyntheticVideoDecoder bars = new SyntheticVideoDecoder();
+        Videos.installDecoder(bars);
+        VideoScene.setSoundAllowed(false);
+        VideoScene.setOpenWhileBuilding(true);
+        CountDownLatch release = new CountDownLatch(1);
+        try (HeadlessUi ui = new HeadlessUi()) {
+            // The worker held here too: a screenshot's or a film's first picture must not wait
+            // for one, or it would be "Opening…".
+            ui.workers().execute(() -> {
+                try {
+                    release.await(30, TimeUnit.SECONDS);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            Widget<?> page = VideoScene.pageContent();
+            assertClip(find(page, VideoView.class).get(0));
+        } finally {
+            release.countDown();
+            VideoScene.setOpenWhileBuilding(false);
+            VideoScene.setSoundAllowed(true);
+            Videos.uninstallDecoder(bars);
+        }
+    }
+
+    @Test
+    void theLabSceneCallsItsContainerEntryMp4AndNotTheSampleClip() {
+        // Its MP4 entry plays the clip it writes (eight colour bars) wherever the payload can
+        // encode, so "Sample clip" there would name the bars the bunny's name, which is what the
+        // page did before it got a clip entry of its own.
+        try (HeadlessUi ui = new HeadlessUi()) {
+            List<String> labels = new ArrayList<>();
+            for (SegmentedControl each : find(VideoScene.content(), SegmentedControl.class)) {
+                for (int i = 0; i < each.segmentCount(); i++) {
+                    labels.add(each.segmentSource(i).get());
+                }
+            }
+            assertTrue(labels.contains("MP4"), labels.toString());
+            assertFalse(labels.contains(VideoScene.Text.CLIP.get()), labels.toString());
+        }
+    }
+
+    /** The bundled excerpt is in the view, and is closed again. */
+    private static void assertClip(VideoView view) {
+        VideoStreamSource shown = view.source();
+        assertNotNull(shown, "the clip opened and the view shows it");
+        try {
+            // The bundled excerpt's own size (a row short of its name, as the original is),
+            // and not the 320 by 180 a payload with an encoder writes and plays instead.
+            assertEquals(640, shown.width(), "canWriteClip=" + limn.video.ffmpeg.FfmpegMedia.canWriteClip());
+            assertEquals(359, shown.height(), "canWriteClip=" + limn.video.ffmpeg.FfmpegMedia.canWriteClip());
+        } finally {
+            view.setSource(null);
+            shown.close();
+        }
+    }
+
+    @Test
+    void withoutTheDecoderThePageOpensOnTheBarsAndKeepsTheClipInItsPicker() throws Exception {
+        // In a JVM of its own: whether the native loaded is decided once per process, and every
+        // other test of this module may already have loaded it. An empty directory named as the
+        // place to load it from is a machine without the payload, by the library's own switch.
+        Path empty = Files.createDirectory(directory.resolve("no-payload"));
+        Path log = directory.resolve("child.log");
+        Process child = new ProcessBuilder(List.of(
+                Path.of(System.getProperty("java.home"), "bin", "java").toString(),
+                "-D" + limn.video.ffmpeg.FfmpegLibrary.LIBRARY_PROPERTY + "=" + empty,
+                "-cp", System.getProperty("java.class.path"), NoDecoder.class.getName()))
+                .redirectErrorStream(true).redirectOutput(log.toFile()).start();
+        boolean finished = child.waitFor(60, TimeUnit.SECONDS);
+        if (!finished) {
+            child.destroyForcibly().waitFor();
+        }
+        String output = Files.readString(log);
+        assertTrue(finished, "the child never finished:\n" + output);
+        assertEquals(0, child.exitValue(), output);
+        assertTrue(output.contains("decoder available: false"), output);
+        // Both ways the page opens: on a worker, as a window shows it, and while it is built, as
+        // a screenshot or a film takes it.
+        for (String run : List.of("worker", "while built")) {
+            assertTrue(output.contains(run + " segments: showcase.video.clip, showcase.video.bars"), output);
+            assertTrue(output.contains(run + " selected: showcase.video.bars"), output);
+            assertTrue(output.contains(run + " picture: 640x360"), output);
+            assertTrue(output.contains(run + " credit shown: false"), output);
+        }
+    }
+
+    /** Builds the page with the decoder unable to load, and says what it opened on. */
+    static final class NoDecoder {
+
+        public static void main(String[] args) {
+            Videos.installDecoder(new SyntheticVideoDecoder());
+            VideoScene.setSoundAllowed(false);
+            try (HeadlessUi ui = new HeadlessUi()) {
+                System.out.println("decoder available: " + limn.video.ffmpeg.FfmpegLibrary.isAvailable());
+                Widget<?> page = VideoScene.pageContent();
+                // The clip's open fails on the worker, and the bars are opened after it there.
+                VideoView view = find(page, VideoView.class).get(0);
+                ui.pumpUntil(() -> view.source() != null, 30_000_000_000L);
+                say("worker", page);
+
+                VideoScene.setOpenWhileBuilding(true);
+                say("while built", VideoScene.pageContent());
+            }
+        }
+
+        private static void say(String run, Widget<?> page) {
+            SegmentedControl picker = sourcePicker(page);
+            List<String> keys = new ArrayList<>();
+            for (int i = 0; i < picker.segmentCount(); i++) {
+                keys.add(picker.segmentSource(i).key());
+            }
+            System.out.println(run + " segments: " + String.join(", ", keys));
+            System.out.println(run + " selected: " + picker.segmentSource(picker.selectedIndex()).key());
+            VideoStreamSource shown = find(page, VideoView.class).get(0).source();
+            System.out.println(run + " picture: " + (shown == null ? "none"
+                    : shown.width() + "x" + shown.height()));
+            System.out.println(run + " credit shown: " + creditShown(page));
+        }
+    }
+
+    static SegmentedControl sourcePicker(Widget<?> page) {
+        for (SegmentedControl each : find(page, SegmentedControl.class)) {
+            for (int i = 0; i < each.segmentCount(); i++) {
+                if (each.segmentSource(i) == VideoScene.Text.CLIP) {
+                    return each;
+                }
+            }
+        }
+        throw new AssertionError("no source picker on the Video page");
+    }
+
+    static boolean creditShown(Widget<?> page) {
+        for (Label each : find(page, Label.class)) {
+            if (each.isVisible() && each.text().equals(VideoScene.Text.CREDIT.get())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static <T> List<T> find(Widget<?> root, Class<T> type) {
+        List<T> found = new ArrayList<>();
+        collect(root, type, found);
+        return found;
+    }
+
+    private static <T> void collect(Widget<?> widget, Class<T> type, List<T> found) {
+        if (type.isInstance(widget)) {
+            found.add(type.cast(widget));
+        }
+        for (Widget<?> child : widget.children()) {
+            collect(child, type, found);
+        }
+    }
+}

@@ -62,6 +62,12 @@ class ShowcaseNumbersInLanguageTest {
     /** The Arabic decimal or grouping sign beside a Latin digit: one system's sign, the other's digits. */
     private static final Pattern MIXED_SEPARATOR = Pattern.compile("[0-9][٫٬]|[٫٬][0-9]");
 
+    /**
+     * Names with a version in them, which every language writes as their owner does: the sample
+     * clip's licence is "CC BY 3.0" in Portuguese too, and is no amount.
+     */
+    private static final List<String> NAMES = List.of("CC BY 3.0");
+
     private HeadlessUi ui;
     private HeadlessBackend backend;
 
@@ -92,8 +98,9 @@ class ShowcaseNumbersInLanguageTest {
         List<String> wrong = new ArrayList<>();
         for (AppScene.Place place : pages()) {
             for (String text : texts(shown(place))) {
-                if (ENGLISH_DECIMAL.matcher(text).find() || ENGLISH_GROUPED.matcher(text).find()
-                        || ISO_DATE.matcher(text).find()) {
+                String numbers = withoutNames(text);
+                if (ENGLISH_DECIMAL.matcher(numbers).find() || ENGLISH_GROUPED.matcher(numbers).find()
+                        || ISO_DATE.matcher(numbers).find()) {
                     wrong.add(place.id() + ": " + text);
                 }
             }
@@ -107,12 +114,20 @@ class ShowcaseNumbersInLanguageTest {
         List<String> wrong = new ArrayList<>();
         for (AppScene.Place place : pages()) {
             for (String text : texts(shown(place))) {
-                if (MIXED_SEPARATOR.matcher(text).find() || ISO_DATE.matcher(text).find()) {
+                String numbers = withoutNames(text);
+                if (MIXED_SEPARATOR.matcher(numbers).find() || ISO_DATE.matcher(numbers).find()) {
                     wrong.add(place.id() + ": " + text);
                 }
             }
         }
         assertEquals(List.of(), wrong);
+    }
+
+    private static String withoutNames(String text) {
+        for (String name : NAMES) {
+            text = text.replace(name, "");
+        }
+        return text;
     }
 
     /** Every page of the Showcase but the orders, which a test of its own covers. */

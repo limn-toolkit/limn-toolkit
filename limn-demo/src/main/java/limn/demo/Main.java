@@ -235,6 +235,13 @@ public final class Main {
             if (options.screenshotFile() != null) {
                 VideoScene.setSoundAllowed(false);
             }
+            // A run that captures the window (a screenshot, a film) opens a video page's first
+            // entry while it builds the page, so its first picture is the entry and not "Opening…".
+            // A window somebody uses opens it on a worker: a container on the UI thread is a click
+            // in the navigation frozen for a tenth of a second, and more on a machine's first run.
+            if (screenshotMode || System.getProperty("limn.demo.film") != null) {
+                VideoScene.setOpenWhileBuilding(true);
+            }
 
             // Set before any scene exists for the same reason: a screenshot must capture
             // the language it was asked for, not the machine's with a relayout on top.

@@ -516,10 +516,16 @@ to the toolkit.
   that fits. A control added below the picture lands past the fold and a capture cannot show it,
   which is why the transport is over the picture and why that tab's picture box is shorter than the
   standalone scene's.
-- **The tab offers a short list of the sources; `--scene video` offers all of them.** The list is
-  `VideoScene.TAB_SOURCES`, named rather than sliced, and the entry it opens on must be one a
-  capture can rely on: generated in memory, on screen in the frame the tab is built. An entry
-  that encodes or demultiplexes a file first puts "Opening …" in every screenshot of that tab.
+- **The page offers a short list of the sources; `--scene video` offers all of them.** The list is
+  `VideoScene.pageSources()`, named rather than sliced: the sample clip, which is the excerpt the
+  jar carries and never a clip the payload writes (ADR 027, amended 2026-10-20), then the colour
+  bars generated in memory, which the page opens on instead where the decoder will not load. The
+  page opens its first entry on a worker, as every pick does, and reads "Opening…" for the moment
+  that takes: a container opened on the UI thread froze the click that chose the page for a tenth
+  of a second, and for more than one on a machine's first run, while the native was extracted. A
+  run that captures the window as it is drawn (`--screenshot`, `-Dlimn.demo.film`) opens it while
+  the page is built instead, through `VideoScene.setOpenWhileBuilding`, so no capture finds
+  "Opening…".
 - The writer tests need a `full` build — `scripts/build-ffmpeg.sh --profile full` in a sibling
   clone of limn-ffmpeg-natives, picked up from `../limn-ffmpeg-natives/native/dist/full` by
   convention; the published `player` payload the other tests resolve from Central has no

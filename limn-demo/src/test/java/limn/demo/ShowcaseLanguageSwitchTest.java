@@ -63,10 +63,16 @@ class ShowcaseLanguageSwitchTest {
         Images.installDecoder(DECODER);
         limn.graphics.SvgIcon.installRenderer(RENDERER);
         backend = new HeadlessBackend(ui.runtime());
+        // The Video page opens its clip while it is built, as a capture's does, and not on a worker
+        // whose answer lands on whichever frame it finishes before: the two pages compared would
+        // otherwise differ by whether the clip's soundtrack line had arrived yet, and that line is
+        // one this test exists for ("Audio 1 of 1: eng" stayed English on a switched page).
+        VideoScene.setOpenWhileBuilding(true);
     }
 
     @AfterEach
     void uninstallRuntime() {
+        VideoScene.setOpenWhileBuilding(false);
         I18n.setLocale(Locale.ENGLISH);
         limn.graphics.SvgIcon.uninstallRenderer(RENDERER);
         Images.uninstallDecoder(DECODER);
