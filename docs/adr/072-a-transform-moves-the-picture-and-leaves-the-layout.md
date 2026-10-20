@@ -377,7 +377,17 @@ the making of the picture again each time, 0.1 to 0.5 ms on this GPU (ADR 071 §
   the wrapper hidden was recorded as nothing and its picture past the wrapper's box stayed on
   screen. `setVisible(false)` and a widget presented elsewhere now damage, as the flag is set and
   while the branch is still drawn, the picture of every Transform inside it. Tests: the four kinds
-  with their wrapper hidden, and the last of a row of cells zoomed 1.4 hidden.)
+  with their wrapper hidden, and the last of a row of cells zoomed 1.4 hidden. R3S-2 and R3S-8,
+  same review: every Transform under the pass was damaged twice, moved or not, so a page drawn at
+  1.01 beside a box shown and hidden was repainted whole on every toggle, and 300 turned cards
+  above a box at the end of their column cost 37,200 square points a toggle against 1,681. A
+  Transform is now damaged only where the pass moved, resized, showed or hid its picture, or when
+  it holds the widget whose change ran the pass, whose inside moved wherever the picture lies;
+  those two scenes are back to 9,481 and 1,681 square points. The contained pass records nothing:
+  it runs only over a widget that clips its children and damages that widget's whole box. What is
+  left is the cost of reading each picture twice, a walk of everything inside the Transform: some
+  0.13 ms a toggle for a Transform over ten thousand rows, against 0.42 ms for the pass itself.
+  Tests: `TransformDepthTest`, nothing of the page or of the cards repainted.)
 - **Culling under a transform.** `Scene.culledFromPaint` tests a widget under a Transform by its
   projected bounds; inside a layer, `Widget.missesClip` tests against the picture's local clip,
   which is exact again. With no Transform away from rest the test is today's.

@@ -2532,12 +2532,12 @@ public final class Scene {
                     layoutDirty = true; // the parent placed it against a size that just moved
                     continue;
                 }
-                recordMovedPictures(widget);
                 widget.layoutBox(widget.x(), widget.y(), widget.width(), widget.height());
             } finally {
                 containedTarget = null;
             }
-            damageMovedPictures(widget);
+            // A transform container inside draws no farther than the widget's clip, so the
+            // widget's own damage covers both of its places.
             damageWidget(widget);
             containedThisFrame.add(widget);
         }
@@ -2565,14 +2565,15 @@ public final class Scene {
      * the last axis it let a focus ring past declares nothing from then on, and its old box grown
      * by that nothing left the part of the ring it had drawn beside the box on screen.
      *
-     * <p><b>A transform container anywhere under the ancestor has its picture damaged where it was
-     * drawn before the pass and where it is drawn after</b> ({@link #recordMovedPictures}), because
-     * it draws its children where its matrix says, past its own box and past the box of whatever
-     * wraps it, and a layout that moves the wrapper or resizes the container (whose origin is a
-     * fraction of its box) moves that whole picture: the children's boxes and outsets compared
-     * below would leave the old picture on screen and not draw the new one. One inside a branch being
-     * hidden was damaged as the flag was set ({@link #damagePicturesLeaving}), since by now the
-     * branch draws nothing to record.
+     * <p><b>A transform container under the ancestor that the pass moves has its picture damaged
+     * where it was drawn before the pass and where it is drawn after</b>
+     * ({@link #recordMovedPictures}), because it draws its children where its matrix says, past its
+     * own box and past the box of whatever wraps it, and a layout that moves the wrapper or resizes
+     * the container (whose origin is a fraction of its box) moves that whole picture: the
+     * children's boxes and outsets compared below would leave the old picture on screen and not
+     * draw the new one. One drawn where it was is left alone, unless it holds the widget, whose
+     * change moved its inside. One inside a branch being hidden was damaged as the flag was set
+     * ({@link #damagePicturesLeaving}), since by now the branch draws nothing to record.
      *
      * <p>Every case the comparison cannot vouch for falls back rather than guesses: a widget no
      * longer in this scene or with no parent, an ancestor never measured, a climb past the root,
@@ -2648,7 +2649,7 @@ public final class Scene {
             } finally {
                 containedTarget = null;
             }
-            damageMovedPictures(anchor);
+            damageMovedPictures(anchor, widget);
             if (absorbedInsidePass || !children.equals(anchor.children())) {
                 // Something moved that the comparison below would not see.
                 absorbedInsidePass = false;
@@ -2696,13 +2697,15 @@ public final class Scene {
         return false;
     }
 
+    /** Where a transform container draws its children after an in-place pass; see damageMovedPictures. */
+    private final float[] pictureScratch = new float[4];
+    /** The transform containers {@link #recordMovedPictures} found drawing something, in order. */
+    private final List<Widget<?>> movedPicturesWho = new ArrayList<>();
     /**
-     * Where each transform container under an in-place pass drew its children before the pass, in
-     * scene coordinates, four floats each; see {@link #recordMovedPictures}.
+     * Where each of {@link #movedPicturesWho} drew its children before the pass, in scene
+     * coordinates, four floats each.
      */
     private float[] movedPicturesBefore = new float[16];
-    /** How many floats of {@link #movedPicturesBefore} hold rectangles. */
-    private int movedPicturesBeforeSize;
 
     /**
      * Before an in-place pass lays {@code subtree} out: records where every transform container in
@@ -2710,56 +2713,72 @@ public final class Scene {
      * clip above, as {@link #damageMovedPicture} would damage it. The pass may move a container
      * (its wrapper moved) or change its matrix (its size changed, and with it the origin), and so
      * the whole picture, perspective included, wherever it lies; {@link #damageMovedPictures}
-     * damages these places and the new ones. Nothing, and no cost past one emptiness check, when
+     * damages, of these, the ones that moved. Nothing, and no cost past one emptiness check, when
      * no widget of the scene draws through a matrix.
      */
     private void recordMovedPictures(Widget<?> subtree) {
-        movedPicturesBeforeSize = 0;
+        movedPicturesWho.clear();
         if (transformed.isEmpty() || (!partialRendering && !damageDebug)) {
             return;
         }
         for (int i = 0; i < transformed.size(); i++) {
             Widget<?> container = transformed.get(i);
-            if (!isInSubtree(container, subtree)) {
+            if (!isInSubtree(container, subtree) || !pictureInScene(container, clipScratch)) {
                 continue;
             }
-            float[] b = container.childrenPaintedBounds();
-            if (Float.isNaN(b[0])
-                    || !clippedSceneRect(container, b[0], b[1], b[2] - b[0], b[3] - b[1], clipScratch)) {
-                continue;
-            }
-            if (movedPicturesBeforeSize + 4 > movedPicturesBefore.length) {
+            int at = movedPicturesWho.size() * 4;
+            if (at + 4 > movedPicturesBefore.length) {
                 movedPicturesBefore = Arrays.copyOf(movedPicturesBefore, movedPicturesBefore.length * 2);
             }
-            System.arraycopy(clipScratch, 0, movedPicturesBefore, movedPicturesBeforeSize, 4);
-            movedPicturesBeforeSize += 4;
+            System.arraycopy(clipScratch, 0, movedPicturesBefore, at, 4);
+            movedPicturesWho.add(container);
         }
     }
 
     /**
-     * After the in-place pass {@link #recordMovedPictures} came before: damages each place recorded
-     * and where every transform container in {@code subtree} draws its children now. Its matrix was
-     * set by the layout with no damage of its own, since only here are both places known.
+     * After the in-place pass {@link #recordMovedPictures} came before, for a change of
+     * {@code changed}: damages the old and the new place of each transform container in
+     * {@code subtree} whose picture the pass moved, resized or showed or hid, and the whole picture
+     * of one that holds {@code changed}, whose inside the pass moved wherever the picture lies. Its
+     * matrix was set by the layout with no damage of its own, since only here are both places
+     * known. A container the pass did not move, beside the change and not around it, keeps its
+     * pixels: the comparison of the children's boxes already repaints all the pass moved.
      */
-    private void damageMovedPictures(Widget<?> subtree) {
-        for (int i = 0; i < movedPicturesBeforeSize; i += 4) {
-            float[] r = movedPicturesBefore;
-            addDamage(r[i], r[i + 1], r[i + 2], r[i + 3]);
-        }
-        movedPicturesBeforeSize = 0;
-        if (transformed.isEmpty() || (!partialRendering && !damageDebug)) {
+    private void damageMovedPictures(Widget<?> subtree, Widget<?> changed) {
+        int recorded = movedPicturesWho.size();
+        if (recorded == 0 && (transformed.isEmpty() || (!partialRendering && !damageDebug))) {
             return;
         }
+        float[] r = movedPicturesBefore;
+        float[] now = pictureScratch;
         for (int i = 0; i < transformed.size(); i++) {
             Widget<?> container = transformed.get(i);
             if (!isInSubtree(container, subtree)) {
                 continue;
             }
-            float[] b = container.childrenPaintedBounds();
-            if (!Float.isNaN(b[0])) {
-                addClippedDamage(container, b[0], b[1], b[2] - b[0], b[3] - b[1]);
+            int was = movedPicturesWho.indexOf(container);
+            boolean drawn = pictureInScene(container, now);
+            boolean around = isInSubtree(changed, container);
+            if (was >= 0) {
+                movedPicturesWho.set(was, null); // matched: not damaged again below
+                int at = was * 4;
+                if (!around && drawn && r[at] == now[0] && r[at + 1] == now[1]
+                        && r[at + 2] == now[2] && r[at + 3] == now[3]) {
+                    continue; // drawn where it was: nothing of it changed
+                }
+                addDamage(r[at], r[at + 1], r[at + 2], r[at + 3]);
+            }
+            if (drawn) {
+                addDamage(now[0], now[1], now[2], now[3]);
             }
         }
+        // One recorded that is no longer a transform container of this subtree: its old place.
+        for (int i = 0; i < recorded; i++) {
+            if (movedPicturesWho.get(i) != null) {
+                addDamage(r[i * 4], r[i * 4 + 1], r[i * 4 + 2], r[i * 4 + 3]);
+            }
+        }
+        movedPicturesWho.clear();
     }
 
     /**

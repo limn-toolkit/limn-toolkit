@@ -597,6 +597,53 @@ class TransformDepthTest extends SceneTestBase {
         assertTrue(canvas.matrices.isEmpty(), "with no turn and no picture");
     }
 
+    // ------------------------------------------------------------------ in-place layouts
+
+    @Test
+    void aSiblingShownAndHiddenBesideATransformThatDoesNotMoveRepaintsNothingOfItsPicture() {
+        // A page drawn a hair larger, and a small box beside it that comes and goes: the in-place
+        // layout of the box moves nothing of the page, so nothing of the page is repainted.
+        limn.scene.layout.Column rows = new limn.scene.layout.Column();
+        for (int i = 0; i < 10; i++) {
+            rows.add(new Card("row" + i, painted, 300, 20));
+        }
+        Transform page = new Transform(rows).setScale(1.01f);
+        TransformTest.Leaf box = new Card("box", painted, 40, 40);
+        limn.scene.layout.Column root = new limn.scene.layout.Column();
+        root.add(page);
+        root.add(new FixedBox(10, 12)); // keeps the box clear of the page's antialiased edge
+        root.add(box);
+        Scene scene = sceneOf(root);
+        for (int i = 0; i < 4; i++) {
+            box.setVisible(i % 2 == 1);
+            frame(scene);
+            final int toggle = i;
+            assertTrue(painted.stream().noneMatch(name -> name.startsWith("row")),
+                    () -> "toggle " + toggle + ": the page was repainted: " + painted + " in " + canvas.passes);
+        }
+    }
+
+    @Test
+    void aBoxHiddenAfterAColumnOfTurnedCardsRepaintsNoneOfThem() {
+        limn.scene.layout.Column column = new limn.scene.layout.Column();
+        for (int i = 0; i < 20; i++) {
+            column.add(new Padding(new Insets(4, 0, 0, 0),
+                    new Transform(new Card("card" + i, painted, 200, 20)).setRotation(2)));
+        }
+        TransformTest.Leaf box = new Card("box", painted, 40, 40);
+        column.add(new FixedBox(10, 12));
+        column.add(box);
+        Scene scene = sceneOf(new SizedBox(400, 700, column));
+        box.setVisible(false);
+        frame(scene);
+        assertTrue(painted.stream().noneMatch(name -> name.startsWith("card")),
+                () -> "no card moved, none is repainted: " + painted + " in " + canvas.passes);
+        box.setVisible(true);
+        frame(scene);
+        assertTrue(painted.stream().noneMatch(name -> name.startsWith("card")),
+                () -> "nor as it comes back: " + painted + " in " + canvas.passes);
+    }
+
     // ------------------------------------------------------------------ readers
 
     @Test
