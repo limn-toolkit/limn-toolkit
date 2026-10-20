@@ -18,7 +18,13 @@ import limn.graphics.Color;
 public interface VeilCanvas {
 
     /**
-     * Veils a rectangle, in current coordinates, over every pixel already painted in this pass.
+     * Veils a rectangle, in current coordinates, over every pixel already painted in this pass into
+     * the target it draws to: the window, or the picture of the innermost layer open. Inside a layer
+     * the veil veils what the layer holds, as at the top level it veils what the window holds, and
+     * what lies under the layer is to it what the desktop under a translucent window is: kept where
+     * the layer is clear, covered more where the layer's coverage grows. So a scene rendered whole
+     * inside a layer keeps its dim and its clear pixels, and a pixel painted under the layer before
+     * it opened, where the layer holds nothing, is left as it was.
      *
      * @param x      left edge
      * @param y      top edge

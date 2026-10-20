@@ -1432,7 +1432,9 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
      * The veil in {@link GlBlend#VEIL}'s blend, which is no {@link limn.graphics.BlendMode} and so
      * cannot be a state an application sets: one rectangle, its factors in force only while it is
      * emitted, so the next primitive's flush draws it with them and what follows goes back to the
-     * state's mode.
+     * state's mode. Inside a layer too, where it reads the layer's picture: it veils what the layer
+     * holds, and keeps its clear pixels clear, which painting over there would not (a scene rendered
+     * inside an application's layer would get its dark corners back).
      */
     @Override
     public void fillVeil(float x, float y, float width, float height, limn.graphics.Color veil) {

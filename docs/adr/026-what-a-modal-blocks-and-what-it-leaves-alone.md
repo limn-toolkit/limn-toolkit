@@ -118,3 +118,12 @@ application may colour, so the blend's colour factors are `DST_ALPHA, ONE_MINUS_
 `S·a·A + C(1 - a)` for a veil of colour `S`, which is `C(1 - a)` for black and, on an opaque pixel,
 exactly painting over. `InSceneDialogVeilPixelTest` holds the corners clear, light and dark, opaque
 and glass, on the GPU and on the software renderer.
+
+The blend reads the coverage of the target it draws into, so inside a layer it veils what the
+layer holds, which starts clear: a scene rendered whole inside a layer an application opened, to
+fade or turn it, keeps its dim and its clear pixels, and what the application drew under that layer
+is to the veil what the desktop is to a translucent window (R8G-2 of the eighth review, which read
+the vanishing of a veil laid over nothing as the scene losing its dim). Painting over inside a
+layer, the fallback considered, would put the dark corners back into a transparent scene rendered
+that way. `VeilInsideALayerPixelTest` holds both, through a layer at 0.999, on the GPU and on the
+software renderer. Limn's own veils are laid at the top level of the scene's frame.
