@@ -237,6 +237,18 @@ final class ShapingRuler implements TextRuler, AutoCloseable {
         return fonts.measure(font, text).width();
     }
 
+    /**
+     * The primary face's own cap height, the face whose ascent and descent every line this ruler
+     * shapes carries, so the band a control centres and the line's metrics come from one face
+     * whatever falls back inside the line.
+     */
+    @Override
+    public float capHeight(Font font) {
+        java.util.Objects.requireNonNull(font, "font");
+        limn.concurrent.Ui.checkUiThread();
+        return fonts.resolve(font).capHeight(font.size());
+    }
+
     @Override
     public long epoch() {
         return fonts.epoch();

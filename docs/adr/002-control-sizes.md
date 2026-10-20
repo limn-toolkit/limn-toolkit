@@ -2231,3 +2231,27 @@ Three adversarial reviews (visual, engineering, completeness) were applied. What
 - **§8.1(e)'s test inventory gains the six missing files** (`ScrollBarTest`, `TabScrollOverflowTest`, `TabbedPaneFocusTest`, `TextFieldImeTest`, `TextAreaImeTest`, `TransitionIntegrationTest`), and §10.2 gains **#21**, the per-step preedit assertion that makes §7.11 trap 3's deferral executable; it fails today.
 - **§10.2 grows from 21 to 26 tests**, including the ink-fraction monotonicity (#3b) that revision 1's own table would have failed, the hit-target reachability (#20) the height ramp now depends on, and the locked-pen ratio bound inside #17.
 - **Two open questions closed by arithmetic** (the check-mark pen, the XLARGE Checkbox clamp) and **two new ones opened** by the fixes: the phase-1 `hitOutset()` scope, and un-`final`ing `Padding` for the `Token*` containers.
+
+## Note, 2026-10-20: single-line text is centred by its cap height
+
+Trap 6 of §7 gave every single-line control the baseline `(height − metrics.height())/2 + ascent`,
+which centres the line box. The owner read the Showcase's combo text as sitting high, and a
+measurement on the real backend agreed: in a field, a combo and a button the capitals stood above
+the box centre at every step, by 0.10 to 0.32 pt on average at 1x and 0.20 to 0.62 pt at 2x, the
+worst box phase reaching a whole device pixel (XLARGE, 2x). Two causes add up: Roboto reserves more
+above its capitals than below its baseline, so a centred line box puts the capitals about 0.014 em
+high, and the canvas rounds the baseline to a whole device pixel wherever the box falls.
+
+The rule is now `TextRuler.centredBaseline(font, height) = (height + capHeight)/2`, with
+`capHeight` the top of the primary face's H (the face whose ascent and descent the line carries).
+A ruler with no outlines answers `ascent − descent`, which is exactly the old expression, so every
+fake ruler's numbers are unchanged. Every control that centres one line in a box uses it, paint
+and `baselineOffset()` alike: Button, TextField and its subclasses, ComboBox (field, hint, chips,
+list rows), DateField, DatePicker's dash, CalendarView, Spinner, SegmentedControl, Checkbox,
+RadioButton, ColorPickerButton, MenuBar, PopupMenu, TabbedPane, Expander, Badge, Avatar, Table,
+the chart legend and tooltip rows, the scene's tooltip and the two placeholders. Label and
+TextArea keep their top-anchored lines. Measured after: the mean offset is within 0.12 device px of
+the centre at every step and scale, and the worst phase is the half pixel the rounding owes
+(`ControlInkPixelTest`). Ideographs from the CJK fallback face centre within a third of a point;
+Arabic letters, whose tails hang below the shared baseline, read about 1.5 pt low, which is the
+face's design and not this rule's.

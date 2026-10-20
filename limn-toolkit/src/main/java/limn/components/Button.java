@@ -423,11 +423,10 @@ public final class Button extends Widget<Button> {
     @Override
     protected float baselineOffset() {
         SizeTokens t = Theme.of(this).tokensFor(this);
-        // The same shaped value the paint draws, for exactly the reason this method exists: two
+        // The same expression the paint draws with, for exactly the reason this method exists: two
         // opinions on one band are two numbers a BASELINE row can be aligned to. Nothing read off
         // it here is horizontal, so this expression is the same in both directions.
-        TextMetrics metrics = caption(textRuler(), t.body()).metrics();
-        return (height() - metrics.height()) / 2 + metrics.ascent();
+        return textRuler().centredBaseline(t.body(), height());
     }
 
     /**
@@ -532,7 +531,7 @@ public final class Button extends Widget<Button> {
         // from the block's own left edge reading right to left, where the gutter is at the far
         // end. With no icon the advance is zero and the two arms are the same number.
         float textX = rtl ? blockX : blockX + advance;
-        float baseline = (height() - metrics.height()) / 2 + metrics.ascent();
+        float baseline = textRuler().centredBaseline(font, height());
         canvas.drawText(line, textX, baseline, ink);
         if (AccessLetters.shownIn(this)) {
             MenuInk.underlineMnemonic(canvas, line, shown().index(), textX, baseline, ink);

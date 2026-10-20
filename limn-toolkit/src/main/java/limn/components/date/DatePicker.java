@@ -14,7 +14,6 @@ import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.RoundRect;
 import limn.graphics.ShapedText;
-import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
 import limn.input.Keys;
 import limn.internal.lang.Checks;
@@ -1191,7 +1190,6 @@ public final class DatePicker extends Widget<DatePicker> {
         if (endField != null) {
             // The dash sits in the gap the layout left between the two fields, centred in it.
             TextRuler ruler = textRuler();
-            TextMetrics fm = ruler.measure("Hg", t.body());
             String dash = rangeSeparator();
             ShapedText shaped = ruler.shape(dash, t.body(),
                     ShapedText.Direction.of(dash, neutralBase()));
@@ -1200,7 +1198,7 @@ public final class DatePicker extends Widget<DatePicker> {
                     : field.x() + field.width();
             float gapWidth = separatorWidth(t);
             canvas.drawText(shaped, gapLeft + (gapWidth - shaped.metrics().width()) / 2,
-                    (h - fm.height()) / 2 + fm.ascent(),
+                    ruler.centredBaseline(t.body(), h),
                     enabled ? theme.textMuted() : theme.disabledText());
         }
     }

@@ -410,8 +410,7 @@ public final class ColorPickerButton extends Widget<ColorPickerButton> {
     @Override
     protected float baselineOffset() {
         SizeTokens t = Theme.of(this).tokensFor(this);
-        TextMetrics metrics = textRuler().measure(text(), t.body());
-        return (height() - metrics.height()) / 2 + metrics.ascent();
+        return textRuler().centredBaseline(t.body(), height());
     }
 
     /** The focus ring is drawn outside the box; damage has to know. See {@link Button}. */
@@ -458,7 +457,7 @@ public final class ColorPickerButton extends Widget<ColorPickerButton> {
             float captionX = rtl
                     ? w - t.padH() - chipAdvance(t) - metrics.width()
                     : t.padH() + chipAdvance(t);
-            canvas.drawText(line, captionX, (h - metrics.height()) / 2 + metrics.ascent(),
+            canvas.drawText(line, captionX, textRuler().centredBaseline(font, h),
                     isEnabled() ? theme.text() : theme.disabledText());
         }
 

@@ -344,8 +344,7 @@ public final class RadioButton extends Widget<RadioButton> {
             return super.baselineOffset();
         }
         SizeTokens t = Theme.of(this).tokensFor(this);
-        TextMetrics metrics = textRuler().measure(shown().text(), t.body());
-        return (height() - metrics.height()) / 2 + metrics.ascent();
+        return textRuler().centredBaseline(t.body(), height());
     }
 
     @Override
@@ -400,7 +399,7 @@ public final class RadioButton extends Widget<RadioButton> {
             float labelX = rtl
                     ? width() - ring - t.gapLabel() - metrics.width()
                     : ring + t.gapLabel();
-            float baseline = (height() - metrics.height()) / 2 + metrics.ascent();
+            float baseline = textRuler().centredBaseline(t.body(), height());
             canvas.drawText(line, labelX, baseline, ink);
             if (AccessLetters.shownIn(this)) {
                 MenuInk.underlineMnemonic(canvas, line, shown().index(), labelX, baseline, ink);

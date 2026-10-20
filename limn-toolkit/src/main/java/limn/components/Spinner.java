@@ -1142,14 +1142,14 @@ public final class Spinner extends Widget<Spinner> {
     }
 
     /** The one text anchor: paint and {@link #baselineOffset()} must never disagree. */
-    private float baselineFor(TextMetrics metrics) {
-        return (height() - metrics.height()) / 2 + metrics.ascent();
+    private float baselineFor(Font font) {
+        return textRuler().centredBaseline(font, height());
     }
 
     @Override
     protected float baselineOffset() {
         SizeTokens t = Theme.of(this).tokensFor(this);
-        return baselineFor(textRuler().measure("Hg", t.body()));
+        return baselineFor(t.body());
     }
 
     // ------------------------------------------------------------------ paint
@@ -1221,7 +1221,7 @@ public final class Spinner extends Widget<Spinner> {
     private void paintValue(Canvas canvas, Theme theme, SizeTokens t, boolean enabled, float focus) {
         Font font = t.body();
         Color ink = enabled ? theme.text() : theme.disabledText();
-        float baseline = baselineFor(textRuler().measure("Hg", font));
+        float baseline = baselineFor(font);
 
         if (edit != null) {
             paintTypedValue(canvas, theme, t, font, baseline, ink);

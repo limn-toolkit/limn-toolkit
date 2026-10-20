@@ -364,8 +364,7 @@ public final class Badge extends Widget<Badge> {
         if (kind == Kind.DOT) {
             return super.baselineOffset();
         }
-        TextMetrics metrics = line(textRuler(), Theme.of(this).tokensFor(this).label()).metrics();
-        return (height() - metrics.height()) / 2 + metrics.ascent();
+        return textRuler().centredBaseline(Theme.of(this).tokensFor(this).label(), height());
     }
 
     @Override
@@ -384,7 +383,7 @@ public final class Badge extends Widget<Badge> {
                 ink.withAlpha(ink.a() * (theme.isDark() ? 0.26f : 0.16f)));
         ShapedText shaped = line(textRuler(), t.label());
         TextMetrics metrics = shaped.metrics();
-        float baseline = (height() - metrics.height()) / 2 + metrics.ascent();
+        float baseline = textRuler().centredBaseline(t.label(), height());
         if (kind == Kind.COUNT) {
             canvas.drawText(shaped, (width() - metrics.width()) / 2, baseline, theme.text());
             return;

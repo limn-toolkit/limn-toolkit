@@ -333,7 +333,7 @@ public final class Avatar extends Widget<Avatar> {
             line = shaped;
         }
         TextMetrics m = shaped.metrics();
-        canvas.drawText(shaped, x + (d - m.width()) / 2, y + (d - m.height()) / 2 + m.ascent(),
+        canvas.drawText(shaped, x + (d - m.width()) / 2, y + textRuler().centredBaseline(font, d),
                 theme.text());
     }
 

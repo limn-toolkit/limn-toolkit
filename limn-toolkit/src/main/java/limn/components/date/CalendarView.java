@@ -1814,7 +1814,6 @@ public final class CalendarView extends Widget<CalendarView> {
         paintWeekdayRow(canvas, theme, t, ruler, neutral, rtl);
 
         Font body = t.body();
-        TextMetrics fm = ruler.measure("Hg", body);
         LocalDate today = today();
         float radius = t.radiusSmall();
         float inset = Strokes.HALF_PIXEL_INSET;
@@ -1826,7 +1825,7 @@ public final class CalendarView extends Widget<CalendarView> {
                         ShapedText.Direction.of(weekText[w], neutral));
                 canvas.drawText(week,
                         weekColumnLeft(rtl) + (weekColW - week.metrics().width()) / 2,
-                        top + (cellH - fm.height()) / 2 + fm.ascent(), theme.textMuted());
+                        top + ruler.centredBaseline(body, cellH), theme.textMuted());
             }
             for (int c = 0; c < DAYS_IN_WEEK; c++) {
                 int index = w * DAYS_IN_WEEK + c;
@@ -1862,7 +1861,7 @@ public final class CalendarView extends Widget<CalendarView> {
                         : end ? theme.onPrimary()
                         : inMonth ? theme.text() : theme.textMuted();
                 canvas.drawText(line, left + (cellW - line.metrics().width()) / 2,
-                        top + (cellH - fm.height()) / 2 + fm.ascent(), ink);
+                        top + ruler.centredBaseline(body, cellH), ink);
 
                 DayMark mark = dayMarks == null ? null : dayMarks.apply(day);
                 if (mark != null) {
@@ -1892,7 +1891,6 @@ public final class CalendarView extends Widget<CalendarView> {
     private void paintChooser(Canvas canvas, Theme theme, SizeTokens t, TextRuler ruler,
                               ShapedText.Direction neutral, boolean rtl, boolean enabled) {
         Font font = t.body();
-        TextMetrics fm = ruler.measure("Hg", font);
         float radius = t.radiusSmall();
         float inset = Strokes.HALF_PIXEL_INSET;
         // A terminal chooser fills the SELECTION the way the day grid does, ends solid and the
@@ -1924,7 +1922,7 @@ public final class CalendarView extends Widget<CalendarView> {
             ShapedText line = ruler.shape(text, font, ShapedText.Direction.of(text, neutral));
             Color ink = !offered ? theme.disabledText() : stands == 2 ? theme.onPrimary() : theme.text();
             canvas.drawText(line, left + (cellW - line.metrics().width()) / 2,
-                    top + (cellH - fm.height()) / 2 + fm.ascent(), ink);
+                    top + ruler.centredBaseline(font, cellH), ink);
             if (focus > 0.001f && part == Part.GRID && i == effectiveChooserCursor()) {
                 float gap = Strokes.FOCUS_GAP_INDICATOR;
                 canvas.drawRoundRect(left + gap, top + gap, cellW - 2 * gap, cellH - 2 * gap,
@@ -2024,7 +2022,6 @@ public final class CalendarView extends Widget<CalendarView> {
         float pad = t.spacingSmall();
         ShapedText title = ruler.shape(headerTitle, t.body(),
                 ShapedText.Direction.of(headerTitle, neutral));
-        TextMetrics fm = ruler.measure("Hg", t.body());
         float titleWidth = title.metrics().width();
         float titleX = (width() - titleWidth) / 2;
         // The title is a button, so it is drawn as one when the pointer is on it: without that
@@ -2034,7 +2031,7 @@ public final class CalendarView extends Widget<CalendarView> {
             canvas.fillRoundRect(titleX - padX, pad, titleWidth + 2 * padX, headerH,
                     t.radiusSmall(), theme.surfaceRaised());
         }
-        canvas.drawText(title, titleX, pad + (headerH - fm.height()) / 2 + fm.ascent(),
+        canvas.drawText(title, titleX, pad + ruler.centredBaseline(t.body(), headerH),
                 enabled ? theme.text() : theme.disabledText());
         // The arrow that goes BACK is in the gutter reading starts from, and points that way; both
         // its side and its ink turn over, while what it does does not. Same split SegmentedControl
@@ -2085,7 +2082,6 @@ public final class CalendarView extends Widget<CalendarView> {
     private void paintWeekdayRow(Canvas canvas, Theme theme, SizeTokens t, TextRuler ruler,
                                  ShapedText.Direction neutral, boolean rtl) {
         Font font = t.label();
-        TextMetrics fm = ruler.measure("Hg", font);
         float top = t.spacingSmall() + headerH;
         if (showWeekNumbers) {
             String head = DateStrings.WEEK_COLUMN.get();
@@ -2095,14 +2091,14 @@ public final class CalendarView extends Widget<CalendarView> {
             ShapedText shaped = ruler.shape(glyph, font, ShapedText.Direction.of(glyph, neutral));
             canvas.drawText(shaped,
                     weekColumnLeft(rtl) + (weekColW - shaped.metrics().width()) / 2,
-                    top + (weekdayH - fm.height()) / 2 + fm.ascent(), theme.textMuted());
+                    top + ruler.centredBaseline(font, weekdayH), theme.textMuted());
         }
         for (int c = 0; c < DAYS_IN_WEEK; c++) {
             String text = weekdayText[c];
             ShapedText shaped = ruler.shape(text, font, ShapedText.Direction.of(text, neutral));
             canvas.drawText(shaped,
                     cellLeft(c, rtl) + (cellW - shaped.metrics().width()) / 2,
-                    top + (weekdayH - fm.height()) / 2 + fm.ascent(), theme.textMuted());
+                    top + ruler.centredBaseline(font, weekdayH), theme.textMuted());
         }
     }
 

@@ -1895,7 +1895,9 @@ public abstract class Widget<W extends Widget<W>> {
      * the alignment reference for {@link limn.scene.layout.Flex.CrossAlignment#BASELINE}.
      * Default {@code height()}: align on the bottom edge, the correct fallback for a widget
      * with no text. Text-bearing components override with the expression they already paint
-     * with, {@code (height() - metrics.height()) / 2 + metrics.ascent()}.
+     * with; a single-line control's is
+     * {@link limn.graphics.TextRuler#centredBaseline textRuler().centredBaseline(font, height())},
+     * which stands the line's capitals in the middle of the box.
      *
      * <p>Valid only once this widget has been given a box. {@code Flex} guarantees that: it
      * lays every child of a BASELINE line out at cross position 0 first, reads the baselines,

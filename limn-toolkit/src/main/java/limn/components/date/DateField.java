@@ -1890,8 +1890,7 @@ public final class DateField extends Widget<DateField> {
 
     @Override
     protected float baselineOffset() {
-        TextMetrics metrics = textRuler().measure("Hg", Theme.of(this).tokensFor(this).body());
-        return (height() - metrics.height()) / 2 + metrics.ascent();
+        return textRuler().centredBaseline(Theme.of(this).tokensFor(this).body(), height());
     }
 
     @Override
@@ -1941,8 +1940,7 @@ public final class DateField extends Widget<DateField> {
                                float focus) {
         Font font = t.body();
         TextRuler ruler = textRuler();
-        TextMetrics fm = ruler.measure("Hg", font);
-        float baseline = (height() - fm.height()) / 2 + fm.ascent();
+        float baseline = ruler.centredBaseline(font, height());
         ShapedText.Direction neutral = neutralBase();
         float x = runStart(t, ruler, font, neutral);
         int slot = 0;

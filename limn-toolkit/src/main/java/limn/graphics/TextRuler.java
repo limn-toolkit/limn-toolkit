@@ -108,6 +108,50 @@ public interface TextRuler {
         return measure(text, font).width();
     }
 
+    // --------------------------------------------------------------------- vertical placement
+
+    /**
+     * How far the capitals of {@code font} stand above the baseline, in logical points: the top
+     * of a flat capital such as H in the face {@code font} resolves to, which is the face whose
+     * ascent and descent {@link #measure} reports.
+     *
+     * <p>It is what {@link #centredBaseline} centres on. A box's text reads as centred when the
+     * band from the baseline to the cap line is centred, because that band is what the eye takes
+     * for the line: the room the ascent and the descent reserve above and below it is not the same
+     * in any face, so centring the whole line box puts the capitals a little high or a little low
+     * depending on the face, and the bundled one stood them about a seventieth of an em high.
+     *
+     * <p>The default answers {@code ascent - descent} of an empty measurement, the one value for
+     * which {@link #centredBaseline} centres the line box exactly as a ruler with no outlines to
+     * read has to; a ruler that reads its faces answers the face's own cap height.
+     *
+     * @param font the face and size
+     * @return the cap height, in logical points
+     */
+    default float capHeight(Font font) {
+        TextMetrics line = measure("", font);
+        return line.ascent() - line.descent();
+    }
+
+    /**
+     * Where one line of {@code font} puts its baseline, from the top of a box {@code boxHeight}
+     * tall, for its capitals to stand in the vertical middle of the box: half the box plus half
+     * the {@linkplain #capHeight cap height}. Every single-line control in this toolkit places its
+     * text with this, and reports it as its baseline, so a field, a combo, a button and a date
+     * all read on the same line and on their box's centre.
+     *
+     * <p>Lower-case letters, digits with round tops and the glyphs of another script drawn by a
+     * fallback face sit where their face puts them against that baseline, which is the point of a
+     * baseline: a row of controls in several scripts still reads on one line.
+     *
+     * @param font      the face and size
+     * @param boxHeight the height of the box the line is centred in
+     * @return the baseline's distance from the top of the box
+     */
+    default float centredBaseline(Font font, float boxHeight) {
+        return (boxHeight + capHeight(font)) / 2;
+    }
+
     // --------------------------------------------------------------------- shaping
 
     /**

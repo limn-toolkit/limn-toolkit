@@ -3484,8 +3484,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
                     ShapedText line = fittedCell(slot, c, shaped, available, ruler);
                     float tw = line.metrics().width();
                     float x = textX(columns.get(c).alignment(), left, colW[s], tw, padH, rtl);
-                    float baseline = top + (slot.height - line.metrics().height()) / 2
-                            + line.metrics().ascent();
+                    float baseline = top + ruler.centredBaseline(body, slot.height);
                     canvas.drawText(line, x, baseline, theme.text());
                 }
                 if (row == focusRow && isFocused() && !headerFocused
@@ -3543,8 +3542,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
                             ? ruler.ellipsize(shaped, available) : shaped;
                     float tw = line.metrics().width();
                     float x = textX(columns.get(c).alignment(), left, colW[s], tw, padH, rtl);
-                    float baseline = top + (footerH - line.metrics().height()) / 2
-                            + line.metrics().ascent();
+                    float baseline = top + ruler.centredBaseline(font, footerH);
                     canvas.drawText(line, x, baseline, theme.text());
                 }
             } finally {
@@ -3586,8 +3584,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
                     if (rtl) {
                         x += indicator;
                     }
-                    float baseline = (headerH - line.metrics().height()) / 2
-                            + line.metrics().ascent();
+                    float baseline = ruler.centredBaseline(font, headerH);
                     canvas.drawText(line, x, baseline, theme.textMuted());
                     if (indicator > 0) {
                         // A chevron after the title on the reading side: up for ascending.
