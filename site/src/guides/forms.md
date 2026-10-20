@@ -92,9 +92,11 @@ not take are passed over, so pasting `KLM-4217-X9` and pasting `KLM4217X9` give 
 and Backspace after a literal takes the character before it. An edit in the middle leaves every
 literal where the pattern has it, and a field whose positions are all filled takes nothing more,
 so a correction is made by selecting what to replace and typing over it. On a pattern that mixes
-letters, digits and any characters, like the one above, the characters after an edit close up,
-and one that lands where it is not taken is dropped: typing `Q` after the `B` of `ABC-1234-X`
-gives `ABQ-1234-X`. A user may also type the literals:
+letters, digits and any characters, like the one above, an edit moves the characters after it,
+and one that would land where it is not taken would be lost, so such an edit is refused and the
+field does nothing: typing `Q` after the `B` of `ABC-1234-X`, or Backspace in the digits of
+`ABC-1234-XY`, changes nothing, while Backspace in the digits of `ABC-1234` or a `5` typed after
+the `3` of `ABC-1234-X` (the `4` moving into an any position) is made. A user may also type the literals:
 under `'DE'00 0000` the `D` shows, then the `E`, then the digits, and typing `DE89` or `89`
 gives the same value. While the field has the keyboard the positions still to fill show after the
 text as a guide, `KLM-42__-__`, and the caret stands where the next character will appear, after

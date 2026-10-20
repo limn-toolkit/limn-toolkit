@@ -133,13 +133,27 @@ Markdown.
   give way, never the value's, which is what typing at the end of a full field already did and
   what "what does not fit after the last position is dropped" meant for a paste; the other
   reading, pushing the last character off, is the silent loss the audit reported. Typing the
-  literal under the caret mid-text now steps over it, as it does at the end. Unchanged, and
-  still the owner's to decide: on a pattern that mixes kinds of position (`AAA-0000-**`), the
-  characters after an edit close up, and one that lands in a position that refuses it is passed
-  over (`ABC-1234-XY`, Backspace after the 3, gives `ABC-124`: the X and the Y land in the
-  fourth digit's place). What an edit inserts on such a pattern is limited by the count of free
-  positions, so it can still close up a later character the same way; nothing an edit does
-  there turns a literal into a value.
+  literal under the caret mid-text now steps over it, as it does at the end. Left then for the
+  owner: on a pattern that mixes kinds of position (`AAA-0000-**`) the characters after an edit
+  moved along and one that landed in a position refusing it was passed over, lost
+  (`ABC-1234-XY`, Backspace after the 3, gave `ABC-124`); see the next amendment.
+- *Amended 2026-10-19:* **on a pattern that mixes kinds of position, an edit that would lose a
+  character is refused.** The owner's decision, of the three the audit offered (lose the later
+  characters, as it did; refuse the edit; keep later sections in place, which needs a model of
+  holes in the value): an edit moves the value's characters after it by as many positions as it
+  inserted more, or fewer, than it took, and when one of them would land in a position that does
+  not take it (a letter on a digit's place, a digit on a letter's), the edit is not made. The
+  field does nothing, as a full field does: the text, the caret and the selection stay, no
+  handler runs, no watcher or reader hears of it, and no undo step is left, so a redo is kept.
+  `ABC-1234-XY` with Backspace after the 3, and `ABC-1234-X` with `Q` typed after the `B`, are
+  refused. An edit whose moved characters all still fit is made: a digit moving within its run
+  of digits with nothing of another kind after it (`ABC-1234`, Backspace after the 1, gives
+  `ABC-234`), a digit or a letter moving on into an any position (`ABC-1234-X`, `5` after the 3,
+  gives `ABC-1235-4X`), any character moving within the any positions, and an edit that puts back
+  as many characters as it took, each of its kind, which moves nothing. On a pattern whose
+  positions are all of one kind every character always fits, so nothing there changes. To change
+  a letter of `ABC-1234-XY`, select it and type over it. A full field refusing an insertion now
+  keeps a selection it had, too, where it used to collapse it.
 - *Amended 2026-10-16:* **the reader no longer hears the pattern.** Read aloud, `AA-0000` is
   "A A dash zero zero zero zero" where it means two letters and four digits, in every language,
   and as the field's description it pushed out the tooltip, which the walk gives only to a node

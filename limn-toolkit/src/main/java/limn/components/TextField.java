@@ -89,6 +89,11 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      */
     private boolean restoringHistory;
     /**
+     * Whether the mask refused the edit just fitted, which puts the text back as it was: the
+     * caret and the selection go back too, so a refused edit does nothing at all.
+     */
+    private boolean maskRefused;
+    /**
      * The caret and the selection as the edit being announced found them, so that an edit the
      * mask turns into nothing leaves them as they were, or reports only how they moved; {@code
      * null} for a caller's {@link #setText}, which places the caret itself.
@@ -278,11 +283,18 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * them is ever read as a character typed into a position. An edit never pushes characters
      * already typed off the end: typing or pasting into a field with no position free changes
      * nothing, as typing at the end of a full field does, and what finds no free position of a
-     * longer paste is dropped. To replace characters, select them and type over them. On a
-     * pattern whose positions are all of one kind, that is all an edit changes. On one that
-     * mixes them ({@code "AAA-0000-**"}), the characters after the edit close up, and one that
-     * lands in a position that does not take it is passed over: {@code ABC-1234-X} with a
-     * {@code Q} typed after the {@code B} reads {@code ABQ-1234-X}, its {@code C} gone.
+     * longer paste is dropped. To replace characters, select them and type over them. An edit
+     * moves the characters after it by as many positions as it inserts more, or fewer, than it
+     * takes. On a pattern whose positions are all of one kind each still lands in a position
+     * that takes it. On one that mixes them ({@code "AAA-0000-**"}), an edit that would move a
+     * character into a position that does not take it, where it would be lost, is refused:
+     * {@code ABC-1234-X} with a {@code Q} typed after the {@code B}, or {@code ABC-1234-XY} with
+     * Backspace among the digits, stays as it is. A digit moving within its run of digits with
+     * nothing of another kind after it, or on into an any position, still fits, and that edit is
+     * made: {@code ABC-1234-X} with a {@code 5} typed after the {@code 3} reads
+     * {@code ABC-1235-4X}. A refused edit, here or in a full field, does nothing: the text, the
+     * caret and the selection stay, no handler runs, no watcher hears of it, and no undo step is
+     * left.
      *
      * <p>The text already in the field is fitted at once. {@code null} takes the mask away and
      * leaves the text as it is.
@@ -360,6 +372,13 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
                         maskedText.length() - offset - removed)) {
             fit = mask.edit(maskedText, offset, offset + removed,
                     text.substring(offset, offset + inserted), collapsedDelete);
+            if (fit == null) {
+                // Refused: no position free for what was inserted, or a character the edit moved
+                // would land where it is not taken. The text goes back as the mask wrote it.
+                maskRefused = true;
+                fit = new limn.components.internal.text.InputMask.Conformed(maskedText,
+                        Math.min(caret, maskedText.length()), maskedRaw);
+            }
         } else {
             // The text moved by some other way than an edit of what the mask wrote.
             fit = mask.conform(text, caret);
@@ -1891,13 +1910,25 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         if (mask != null) {
             String before = maskedText;
             fitToMask();
+            boolean refused = maskRefused;
+            maskRefused = false;
             if (!restoringHistory && model.text().equals(before)) {
                 // The mask refused the edit, or put back all it took: the text did not change,
-                // so no handler runs and no watcher hears of it. Only a caret that moved, past
-                // a literal typed over or off a selection, is reported.
+                // so no handler runs and no watcher hears of it. A refused edit leaves the caret
+                // and the selection where they were; otherwise only a caret that moved, past a
+                // literal typed over or off a selection, is reported.
                 model.clearCharDamage();
                 if (caretBefore != null) {
-                    if (selectionStartBeforeEdit == selectionEndBeforeEdit
+                    if (refused) {
+                        int caretAt = caretBefore.charIndex();
+                        if (selectionStartBeforeEdit != selectionEndBeforeEdit) {
+                            model.setCursor(caretAt == selectionStartBeforeEdit
+                                    ? selectionEndBeforeEdit : selectionStartBeforeEdit, false);
+                            model.setCaret(caretBefore, true);
+                        } else {
+                            model.setCaret(caretBefore, false);
+                        }
+                    } else if (selectionStartBeforeEdit == selectionEndBeforeEdit
                             && model.cursor() == caretBefore.charIndex()) {
                         model.setCaret(caretBefore, false);
                     } else {

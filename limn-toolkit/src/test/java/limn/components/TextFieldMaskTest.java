@@ -439,6 +439,87 @@ class TextFieldMaskTest extends AccessibleComponentTestBase {
         }
     }
 
+    // ------------------------------- a mixed pattern refuses an edit that would lose a character
+
+    @Test
+    void onAMixedPatternBackspaceInTheDigitsIsRefusedAndNothingIsHeard() {
+        holding("AAA-0000-**", "ABC-1234-XY", 7); // after the 3
+        List<Change> edits = new ArrayList<>();
+        field.observeChanges((widget, change) -> edits.add(change));
+        frame();
+        heard.clear();
+        bridge.events.clear();
+        drive(scene).press(Keys.BACKSPACE);
+        frame();
+        assertEquals("ABC-1234-XY", field.text(), "not ABC-124: the X and the Y would be lost");
+        assertEquals("ABC1234XY", field.unmaskedText());
+        assertEquals(7, field.caretPosition(), "the caret did not move");
+        assertEquals(List.of(), heard, "no handler runs");
+        assertEquals(List.of(), edits, "no watcher hears of it");
+        assertEquals(List.of(), bridge.eventsOf(AccessibleEvent.Type.CARET_MOVED), bridge.events.toString());
+        assertEquals(List.of(), bridge.eventsOf(AccessibleEvent.Type.TEXT_CHANGED), bridge.events.toString());
+    }
+
+    @Test
+    void onAMixedPatternALetterTypedBeforeOthersIsRefusedWhenOneWouldLandOnADigit() {
+        holding("AAA-0000-**", "ABC-1234-X", 2); // after the B
+        type("Q");
+        assertEquals("ABC-1234-X", field.text(), "not ABQ-1234-X: the C would land on a digit and go");
+        assertEquals(2, field.caretPosition());
+        assertEquals(List.of(), heard);
+
+        holding("AAA-0000-**", "ABC-1234-XY", 4); // after the dash: Backspace means the C
+        drive(scene).press(Keys.BACKSPACE);
+        assertEquals("ABC-1234-XY", field.text(), "the 1 would land on a letter's place");
+        drive(scene).press(Keys.DELETE);
+        assertEquals("ABC-1234-XY", field.text(), "Delete takes the 1: the X would land on a digit");
+    }
+
+    @Test
+    void onAMixedPatternAnEditWhoseCharactersStillFitIsMade() {
+        holding("AAA-0000-**", "ABC-1234-X", 7); // after the 3
+        type("5");
+        assertEquals("ABC-1235-4X", field.text(), "the 4 moves into an any position, which takes it");
+        assertEquals(List.of("ABC-1235-4X"), heard);
+
+        holding("AAA-0000-**", "ABC-1234", 5); // after the 1
+        drive(scene).press(Keys.BACKSPACE);
+        assertEquals("ABC-234", field.text(), "nothing after the digits: the 2, 3 and 4 stay digits");
+        assertEquals(4, field.caretPosition());
+    }
+
+    @Test
+    void aRefusedEditKeepsTheSelectionTheUndoHistoryAndRedo() {
+        holding("AAA-0000-**", "ABC-1234-XY", 0);
+        field.select(5, 7); // "23"
+        type("9");
+        assertEquals("ABC-1234-XY", field.text(), "not ABC-194: the X and the Y would be lost");
+        assertEquals(5, field.selectionStart(), "the selection is as it was");
+        assertEquals(7, field.selectionEnd());
+        assertEquals(List.of(), heard);
+
+        holding("+1 (000) 000-0000", "+1 (555) 123-4567", 0);
+        field.select(0, 2); // "+1", literals alone, in a full field
+        type("9");
+        assertEquals("+1 (555) 123-4567", field.text());
+        assertEquals(0, field.selectionStart(), "a full field's refusal keeps the selection too");
+        assertEquals(2, field.selectionEnd());
+
+        // A refused key leaves no undo step of its own and keeps the redo the undo left.
+        holding("AAA-0000-**", "ABC-1234-XY", 11);
+        drive(scene).press(Keys.BACKSPACE);
+        assertEquals("ABC-1234-X", field.text(), "within the any run: made");
+        drive(scene).press(Keys.Z, COMMAND);
+        assertEquals("ABC-1234-XY", field.text());
+        field.setCaretPosition(7);
+        drive(scene).press(Keys.BACKSPACE);
+        assertEquals("ABC-1234-XY", field.text(), "refused");
+        drive(scene).press(Keys.Z, COMMAND | Keys.MOD_SHIFT);
+        assertEquals("ABC-1234-X", field.text(), "redo after the refused Backspace");
+        drive(scene).press(Keys.Z, COMMAND);
+        assertEquals("ABC-1234-XY", field.text(), "one undo, as before: the refusal left no step");
+    }
+
     @Test
     void steppingOverALiteralNeverLeavesTheCaretInsideACluster() {
         holding("**-**", "ab\u0301c", 2); // the combining acute lands on the hyphen: "ab-\u0301c"

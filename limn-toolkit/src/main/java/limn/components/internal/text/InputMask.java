@@ -171,22 +171,29 @@ public final class InputMask {
      * included: a fragment pasted with its literals, or the literal under the caret typed over, is
      * taken as those literals, and the caret steps past them. With no position free, the inserted
      * characters that find none are dropped: an edit never pushes the value's own characters off
-     * the end. On a pattern that mixes kinds of position, the value's characters after the edit
-     * close up as {@link #conformRaw} fits them, and one that lands in a position refusing it is
-     * passed over.
+     * the end, and one of which nothing finds a position is refused.
+     *
+     * <p>The value's characters after the edit move by as many positions as the edit inserted
+     * more, or fewer, than it took. Each must land in a position that takes it: on a pattern whose
+     * positions are all of one kind each always does, and on one that mixes them a character that
+     * would land in a position refusing it ({@code C} on a digit of {@code AAA-0000-**}) would be
+     * lost, so the edit is refused instead. A digit moving into an any position, or within its
+     * run of digits, lands in one that takes it, and the edit is made.
      *
      * <p>A Backspace or Delete with nothing selected ({@code step} -1 or 1) that took only
      * literals, which writing the text again puts back, takes the filled character beyond them
-     * instead, as the user meant; a literal the text ended in is not put back, so it goes alone.
+     * instead, as the user meant, on the same terms; a literal the text ended in is not put back,
+     * so it goes alone.
      *
      * @param text     a text this mask wrote, such as {@link Conformed#text()}
      * @param from     where the edit's range begins in {@code text}, in chars
      * @param to       where it ends, in chars
      * @param inserted what took its place
      * @param step     -1 for a Backspace, 1 for a Delete, with nothing selected; 0 otherwise
-     * @return the text, the caret after what was inserted, and the filled characters
+     * @return the text, the caret after what was inserted, and the filled characters; or
+     *         {@code null} when the edit is refused, which leaves the text as it was
      */
-    public Conformed edit(String text, int from, int to, String inserted, int step) {
+    public @Nullable Conformed edit(String text, int from, int to, String inserted, int step) {
         int a = text.codePointCount(0, from);
         int b = a + text.codePointCount(from, to);
         StringBuilder before = new StringBuilder();
@@ -214,11 +221,19 @@ public final class InputMask {
         if (added.codePointCount(0, added.length()) > room) {
             // No position for the rest: what was inserted gives way, never the value.
             room = Math.max(room, 0);
+            if (room == 0 && !tookValue) {
+                return null;
+            }
             added = added.substring(0, added.offsetByCodePoints(0, room));
             reach = room == 0 ? 0 : slotEntry(kept + room - 1) + 1 - a;
         }
         String raw = before + added + after;
         Conformed fit = conformRaw(raw, before.length() + added.length());
+        if (fit.raw().length() != raw.length()) {
+            // A character the edit moved landed in a position of another kind, which passed over
+            // it: the edit would lose a character the user did not take, so it is not made.
+            return null;
+        }
         String fitted = fit.text();
         int written = fitted.codePointCount(0, fitted.length());
         int caretEntry = Math.max(fitted.codePointCount(0, fit.caret()), a + reach);
@@ -244,7 +259,8 @@ public final class InputMask {
             int gone = step < 0 ? kept - 1 : kept;
             if (gone >= 0 && gone < value.codePointCount(0, value.length())) {
                 String left = removeRaw(value, gone);
-                return conformRaw(left, left.offsetByCodePoints(0, gone));
+                Conformed closed = conformRaw(left, left.offsetByCodePoints(0, gone));
+                return closed.raw().length() == left.length() ? closed : null;
             }
         }
         int caret = fitted.offsetByCodePoints(0, Math.min(caretEntry, written));

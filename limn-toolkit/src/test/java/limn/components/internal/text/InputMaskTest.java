@@ -228,10 +228,8 @@ class InputMaskTest {
 
     @Test
     void anEditIntoAFieldWithNoPositionFreeGivesWayAndKeepsTheValue() {
-        InputMask.Conformed full = US.edit("+1 (555) 123-4567", 0, 0, "9", 0);
-        assertEquals("+1 (555) 123-4567", full.text(), "nothing pushed off the end");
-        assertEquals("5551234567", full.raw());
-        assertEquals(0, full.caret());
+        assertNull(US.edit("+1 (555) 123-4567", 0, 0, "9", 0), "refused: nothing pushed off the end");
+        assertNull(US.edit("+1 (555) 123-4567", 0, 2, "9", 0), "over literals alone, refused too");
 
         InputMask.Conformed longer = US.edit("+1 (555) 123-45", 4, 4, "9876", 0);
         assertEquals("+1 (985) 551-2345", longer.text(), "the room there was, and no more");
@@ -267,16 +265,35 @@ class InputMaskTest {
     }
 
     @Test
-    void onAMixedPatternTheCharactersAfterAnEditCloseUpAndARefusedOneIsPassedOver() {
-        // As before the edit was made to the value: which of the owner's options replaces this is
-        // still open, so the test pins today's behaviour rather than endorsing it.
+    void onAMixedPatternAnEditThatWouldLoseACharacterIsRefused() {
         InputMask serial = InputMask.of("AAA-0000-**");
-        assertEquals("ABC-124", serial.edit("ABC-1234-XY", 6, 7, "", -1).text(),
-                "Backspace after the 3: the X and the Y land in the fourth digit's place and are passed over");
-        assertEquals("ABC-1235-4X", serial.edit("ABC-1234-X", 7, 7, "5", 0).text(),
-                "the 4 moves on into an any position, and the dash stays a literal");
-        assertEquals("ABQ-1234-X", serial.edit("ABC-1234-X", 2, 2, "Q", 0).text(),
-                "the example setMask's Javadoc and the forms guide give: the C lands on a digit and goes");
+        assertNull(serial.edit("ABC-1234-XY", 6, 7, "", -1),
+                "Backspace after the 3: the X would land on the fourth digit's place, not ABC-124");
+        assertNull(serial.edit("ABC-1234-X", 2, 2, "Q", 0), "Q after the B: the C would land on a digit");
+        assertNull(serial.edit("ABC-1234-XY", 1, 2, "", -1), "Backspace after the A: not BCX");
+        assertNull(serial.edit("ABC-1234-XY", 5, 7, "9", 0), "23 typed over with a 9: not ABC-194");
+        assertNull(serial.edit("ABC-1234-XY", 4, 4, "", -1),
+                "Backspace after the dash takes the C, and the 1 would land on a letter");
+        assertNull(serial.edit("ABC-123", 1, 2, "", -1), "a shorter value: the 1 would land on a letter");
+        assertNull(serial.edit("ABC-1234-XY", 2, 5, "", 0), "C-1 cut: the 2 would land on a letter");
+    }
+
+    @Test
+    void onAMixedPatternAnEditWhoseMovedCharactersLandWhereTheyAreTakenIsMade() {
+        InputMask serial = InputMask.of("AAA-0000-**");
+        InputMask.Conformed onIntoAny = serial.edit("ABC-1234-X", 7, 7, "5", 0);
+        assertEquals("ABC-1235-4X", onIntoAny.text(), "the 4 moves on into an any position, and the dash stays");
+        assertEquals("ABC12354X", onIntoAny.raw());
+        assertEquals("ABC-134", serial.edit("ABC-1234", 5, 6, "", -1).text(),
+                "Backspace within the digits, nothing after them: the 3 and the 4 stay digits");
+        assertEquals("ABC-1234-Y", serial.edit("ABC-1234-XY", 9, 10, "", -1).text(), "within the any run");
+        assertEquals("ABZ-9234-XY", serial.edit("ABC-1234-XY", 2, 5, "Z9", 0).text(),
+                "as many put back as were taken, each of its kind: nothing moves");
+        assertEquals("AC", serial.edit("ABC", 1, 2, "", -1).text(), "letters close up among letters");
+        InputMask digitsThenAny = InputMask.of("00-**");
+        assertEquals("23-4", digitsThenAny.edit("12-34", 0, 1, "", 1).text(),
+                "the 3 moves back into a digit position, which takes it");
+        assertNull(digitsThenAny.edit("12-ab", 0, 1, "", 1), "the a would land on a digit");
     }
 
     @Test

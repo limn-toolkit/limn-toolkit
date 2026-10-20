@@ -18,9 +18,10 @@ import static org.junit.jupiter.api.Assertions.fail;
  * Random edits from fixed seeds on masked fields, each checked against a model that knows, from
  * the pattern alone, which characters of the text are literals and which are the value's. What
  * it holds a field to: no edit ever turns a literal into a value, a value character goes only when
- * the user took it (or, on a pattern that mixes digit, letter and any positions, when the close-up
- * after an edit lands it in a position that refuses it), typing into a field with no free position
- * changes nothing, and the field's text is always one its pattern writes, so
+ * the user took it, on every pattern, so an edit on a pattern that mixes digit, letter and any
+ * positions is made exactly when the characters it moves still land in positions that take them
+ * and changes nothing otherwise, typing into a field with no free position changes nothing, and
+ * the field's text is always one its pattern writes, so
  * {@link TextField#isMaskComplete()} is true only when every position holds a character the user
  * or the application supplied. The patterns are the ones the demo uses and the ones edits before a
  * run of literals once corrupted.
@@ -36,6 +37,8 @@ class TextFieldMaskEditsTest extends AccessibleComponentTestBase {
             // Runs a position would also take, and the shapes around them.
             "+55 (00) 00000-0000", "****-****", "000 '9' 000", "'55'0-000", "+'0' 000", "(00)",
             "00 kg", "**.**", "''00", "AAA-AAA",
+            // Mixed: digits that may move on into any positions, and kinds that alternate.
+            "00-**", "A0A 0A0",
     };
 
     private static final int RUNS = 24;
@@ -47,7 +50,7 @@ class TextFieldMaskEditsTest extends AccessibleComponentTestBase {
     @Test
     void noEditTurnsALiteralIntoAValueOrLosesAValueTheUserDidNotTake() {
         for (String pattern : PATTERNS) {
-            int[] reached = new int[2];
+            int[] reached = new int[4];
             for (int run = 0; run < RUNS; run++) {
                 exercise(pattern, 0x5EED_0000L + pattern.hashCode() * 31L + run, reached);
             }
@@ -56,6 +59,11 @@ class TextFieldMaskEditsTest extends AccessibleComponentTestBase {
             if (reached[0] < 20 || reached[1] < 5) {
                 fail(pattern + ": the random edits reached " + reached[0] + " edits mid-value and "
                         + reached[1] + " insertions into a full field; more runs or steps are needed");
+            }
+            // On a mixed pattern, both answers: edits refused, and edits made that moved characters.
+            if (!new Model(pattern).oneKind && (reached[2] < 5 || reached[3] < 5)) {
+                fail(pattern + ": the random edits reached " + reached[2] + " refused edits and "
+                        + reached[3] + " made ones that moved a character; more runs or steps are needed");
             }
         }
     }
@@ -172,7 +180,7 @@ class TextFieldMaskEditsTest extends AccessibleComponentTestBase {
             } else if (from >= 0) {
                 model.count(oldText, from, to, typed, reached);
                 model.checkEdit(oldText, oldRaw, from, to, typed == null ? "" : typed, collapsed,
-                        field, context);
+                        field, context, reached);
             } else if (!what.startsWith("setText") && !(field.text().equals(oldText)
                     && field.unmaskedText().equals(oldRaw))) {
                 fail("a caret move changed the text: " + context);
@@ -245,7 +253,7 @@ class TextFieldMaskEditsTest extends AccessibleComponentTestBase {
         private final int[] entries;
         private final boolean[] slot;
         private final int slots;
-        private final boolean oneKind;
+        final boolean oneKind;
         private final Set<Integer> literals = new HashSet<>();
         private final int[] alphabet;
 
@@ -425,12 +433,15 @@ class TextFieldMaskEditsTest extends AccessibleComponentTestBase {
         /**
          * The edit replaced chars {@code [from, to)} of {@code oldText} with {@code typed}. The
          * value after it is the value before {@code from}, then characters of {@code typed}, then
-         * the value after {@code to}: never a literal of the old text. On a pattern of one kind of
-         * position that is exact, and the typed characters are all a free position takes, in order;
-         * on a mixed pattern the close-up may pass over later characters, and only those.
+         * the value after {@code to}, every one of them: never a literal of the old text, and never
+         * a value character lost the user did not take. On a pattern of one kind of position the
+         * typed characters are all a free position takes, in order. On a mixed one the model works
+         * out, position by position, what the typed characters fill and where the characters after
+         * the edit land: the edit is made exactly when every one of them lands in a position that
+         * takes it, and otherwise the value is as it was.
          */
         void checkEdit(String oldText, String oldRaw, int from, int to, String typed, int collapsed,
-                       TextField field, String context) {
+                       TextField field, String context, int[] reached) {
             int a = oldText.codePointCount(0, from);
             int b = a + oldText.codePointCount(from, to);
             String before = valueIn(oldText, 0, a);
@@ -439,56 +450,132 @@ class TextFieldMaskEditsTest extends AccessibleComponentTestBase {
             String raw = field.unmaskedText();
             String text = field.text();
             int caretValues = count(valueIn(text, 0, text.codePointCount(0, field.caretPosition())));
-            if (collapsed != 0 && removed.isEmpty() && typed.isEmpty() && !raw.equals(oldRaw)) {
-                // Backspace or Delete took only literals the fitting would put back, so it took the
-                // value character beyond them instead.
+            boolean literalTyped = typed.codePoints().anyMatch(literals::contains);
+            if (collapsed != 0 && removed.isEmpty() && typed.isEmpty()) {
+                // Backspace or Delete took only literals the fitting would put back, so it takes the
+                // value character beyond them instead, when there is one and what follows it still
+                // lands where it is taken.
                 String expectedBefore = collapsed < 0 && !before.isEmpty()
                         ? before.substring(0, before.offsetByCodePoints(before.length(), -1)) : before;
                 String expectedAfter = collapsed > 0 && !after.isEmpty()
                         ? after.substring(after.offsetByCodePoints(0, 1)) : after;
-                expectClosedUp(raw, expectedBefore, "", expectedAfter, context);
-                if (caretValues != count(expectedBefore)) {
-                    fail("the caret is not where the character taken was: " + context);
+                if (!raw.equals(oldRaw)) {
+                    if (!raw.equals(expectedBefore + expectedAfter)) {
+                        fail("expected the value " + expectedBefore + expectedAfter
+                                + " after the step over a literal, got " + raw + ": " + context);
+                    }
+                    if (caretValues != count(expectedBefore)) {
+                        fail("the caret is not where the character taken was: " + context);
+                    }
+                    noteMixed(after, true, reached);
+                    return;
+                }
+                boolean beyond = !expectedBefore.equals(before) || !expectedAfter.equals(after);
+                if (text.equals(oldText) && beyond
+                        && fitsFrom(count(expectedBefore), expectedAfter)) {
+                    fail("a step over a literal was refused though nothing it moved would be lost: "
+                            + context);
+                }
+                if (beyond && text.equals(oldText)) {
+                    noteMixed(after, false, reached);
                 }
                 return;
             }
             int room = slots - count(before) - count(after);
             String acceptable = acceptedIn(typed);
-            boolean literalTyped = typed.codePoints().anyMatch(literals::contains);
             if (!raw.startsWith(before)) {
                 fail("a value character before the edit was lost or changed: " + context);
             }
             String rest = raw.substring(before.length());
+            if (!rest.endsWith(after)) {
+                fail("a value character after the edit was lost or changed, or a literal became one: "
+                        + context);
+            }
+            if (!oneKind && raw.equals(oldRaw) && text.equals(oldText)) {
+                // Nothing changed. Refused, rightly only if something the edit moved would land in a
+                // position that does not take it; otherwise it was made and came to the same value,
+                // which the checks below hold to what the positions take.
+                if (literalTyped) {
+                    return;
+                }
+                if (!fitsFrom(count(before) + count(fills(count(before), typed, room)), after)) {
+                    noteMixed(after, false, reached);
+                    return;
+                }
+            }
+            String inserted = rest.substring(0, rest.length() - after.length());
+            if (!isSubsequence(inserted, typed)) {
+                fail("a value character came from neither the value nor what was typed: " + context);
+            }
             if (oneKind) {
-                if (!rest.endsWith(after)) {
-                    fail("a value character after the edit was lost or changed, or a literal became one: "
-                            + context);
-                }
-                String inserted = rest.substring(0, rest.length() - after.length());
-                if (!isSubsequence(inserted, typed)) {
-                    fail("a value character came from neither the value nor what was typed: " + context);
-                }
                 int expected = Math.min(count(acceptable), Math.max(room, 0));
                 if (literalTyped ? count(inserted) > expected : !inserted.equals(
                         acceptable.substring(0, acceptable.offsetByCodePoints(0, expected)))) {
                     fail("the typed characters a free position takes are not the ones inserted ("
                             + inserted + ", room " + room + "): " + context);
                 }
-                if (caretValues != count(before) + count(inserted)) {
-                    fail("the caret is not after what was inserted: " + context);
-                }
-            } else if (!isSubsequence(rest, typed + after)) {
-                fail("a value character came from neither the value nor what was typed: " + context);
+            } else if (!literalTyped && !inserted.equals(fills(count(before), typed, room))) {
+                fail("the typed characters the positions take are not the ones inserted (" + inserted
+                        + ", expected " + fills(count(before), typed, room) + "): " + context);
+            }
+            if (!oneKind && !fitsFrom(count(before) + count(inserted), after)) {
+                fail("a character after the edit sits in a position that does not take it: " + context);
+            }
+            if (caretValues != count(before) + count(inserted)) {
+                fail("the caret is not after what was inserted: " + context);
+            }
+            if (count(inserted) != count(removed)) {
+                noteMixed(after, true, reached);
             }
         }
 
-        private void expectClosedUp(String raw, String before, String inserted, String after, String context) {
-            String expected = before + inserted + after;
-            if (oneKind ? !raw.equals(expected) : !(raw.startsWith(before + inserted)
-                    && isSubsequence(raw.substring(before.length() + inserted.length()), after))) {
-                fail("expected the value " + expected + " after the step over a literal, got " + raw
-                        + ": " + context);
+        /** Counts, on a mixed pattern, an edit with value after it refused or made. */
+        private void noteMixed(String after, boolean made, int[] reached) {
+            if (!oneKind && !after.isEmpty()) {
+                reached[made ? 3 : 2]++;
             }
+        }
+
+        /** The kind of the {@code index}-th position to fill. */
+        private int kindOf(int index) {
+            for (int i = 0, n = 0; i < entries.length; i++) {
+                if (slot[i] && n++ == index) {
+                    return entries[i];
+                }
+            }
+            return -1;
+        }
+
+        /** Whether {@code chars} land, one per position from the {@code first}-th on, where each is taken. */
+        private boolean fitsFrom(int first, String chars) {
+            int[] cps = chars.codePoints().toArray();
+            for (int j = 0; j < cps.length; j++) {
+                int kind = kindOf(first + j);
+                if (kind < 0 || !accepts(kind, cps[j])) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /**
+         * What the typed characters fill from the {@code first}-th position on: each position takes
+         * the next one it accepts, passing over the others, and no more than {@code room} of them.
+         */
+        private String fills(int first, String typed, int room) {
+            StringBuilder out = new StringBuilder();
+            int n = 0;
+            for (int cp : typed.codePoints().toArray()) {
+                if (n >= room) {
+                    break;
+                }
+                int kind = kindOf(first + n);
+                if (kind >= 0 && accepts(kind, cp)) {
+                    out.appendCodePoint(cp);
+                    n++;
+                }
+            }
+            return out.toString();
         }
 
         /** The characters of {@code typed} a position of this one-kind pattern takes. */
