@@ -566,7 +566,9 @@ final class VideoScene {
             new Source("Y4M file", "The same pictures written to a real YUV4MPEG2 file in the "
                     + "temporary directory and read back, header, FRAME lines and all.",
                     writingFirst(VideoScene::y4mFile)),
-            new Source("MP4", "Ten seconds of Big Buck Bunny (CC BY 3.0, Blender Foundation).",
+            new Source("MP4", "A real container through FFmpeg: ten seconds of Big Buck Bunny "
+                    + "(CC BY 3.0, Blender Foundation), or, where this payload can encode, a clip "
+                    + "of bars written here with two soundtracks and two subtitle tracks.",
                     onAWorker(VideoScene::openEncoded)),
             new Source("10-bit", "The Gradient entry's pattern in 10-bit 4:2:0, and the difference "
                     + "is countable: the same one-code-per-column ramp has four times as many "
@@ -2223,31 +2225,50 @@ final class VideoScene {
     private static final float SCENE_PICTURE_HEIGHT = 320;
 
     /**
-     * The two the showcase's Video page offers, out of the twelve
+     * The sample clip the Showcase's Video page opens on: the excerpt this jar carries and nothing
+     * else, whatever the FFmpeg payload on the class path can do.
+     *
+     * <p>Not the lab's MP4 entry, which plays a clip it writes whenever the payload has an encoder
+     * (a developer's {@code full} build beside the repository has one), because that clip is eight
+     * colour bars, and the page names Big Buck Bunny under its picture as the licence asks: with
+     * the lab's entry the page showed colour bars whichever entry was picked, credited to a film
+     * that was not on screen.
+     */
+    private static final Source SAMPLE_CLIP = new Source("Clip",
+            "Ten seconds of Big Buck Bunny (CC BY 3.0, Blender Foundation).",
+            onAWorker(() -> openContainer(BundledClip.path())));
+
+    /**
+     * The two the showcase's Video page offers, in its picker's order, out of the twelve
      * {@code --scene video} does.
      *
-     * <p>Bars first because it is the one a capture can rely on: it is generated in
-     * memory and is on screen in the frame the tab is built, where MP4 encodes a clip
-     * into the temporary directory first and would leave "Opening MP4…" in every
-     * screenshot of this tab. MP4 second because it is the whole of the rest of the
-     * list at once: a real container, demultiplexed and decoded by FFmpeg through
-     * the JNI shim, with the soundtrack that is inside the file.
+     * <p>The sample clip first, because it is what the page is for: a real container,
+     * demultiplexed and decoded by FFmpeg through the JNI shim, picture and soundtrack, which
+     * is the whole of the lab's list at once. A capture can rely on it as well as on the bars:
+     * the page is built before it is shown, so its first entry is opened there and then, and
+     * the clip is in this jar rather than encoded first, so no screenshot finds "Opening…".
+     * The colour bars second, generated in memory, which play on a machine whose decoder will
+     * not load, and which the page then opens on instead (see {@link #tabContent(float, float,
+     * List, boolean)}).
      *
      * <p>The ten left out are one property each (a chroma layout, a matrix, an odd
      * size, a bit depth), and each is a comparison against the entry beside it, which
      * a tab that shows one picture at a time cannot make. {@code --scene video} shows
-     * them all, at twice the picture size, which is where that comparison belongs.
+     * them all, at twice the picture size, which is where that comparison belongs; it
+     * opens on its first, the bars, as it always has.
      */
-    private static final List<String> TAB_SOURCES = List.of("Bars", "MP4");
+    private static List<Source> pageSources() {
+        return List.of(SAMPLE_CLIP, sourcesNamed(List.of("Bars")).get(0));
+    }
 
     /** the showcase's Video page. */
     static Widget<?> tabContent() {
-        return tabContent(TAB_PICTURE_WIDTH, TAB_PICTURE_HEIGHT, sourcesNamed(TAB_SOURCES), true);
+        return tabContent(TAB_PICTURE_WIDTH, TAB_PICTURE_HEIGHT, pageSources(), true);
     }
 
     /** The application's Video page: the same two sources in a picture as tall as the 3D viewport's. */
     static Widget<?> pageContent() {
-        return tabContent(568, 320, sourcesNamed(TAB_SOURCES), false);
+        return tabContent(568, 320, pageSources(), false);
     }
 
     /**
@@ -2270,7 +2291,7 @@ final class VideoScene {
     private static I18nString displayName(Source source) {
         return switch (source.label()) {
             case "Bars" -> Text.BARS;
-            case "MP4" -> Text.CLIP;
+            case "Clip" -> Text.CLIP;
             default -> I18nString.literal(source.label());
         };
     }
@@ -2293,7 +2314,7 @@ final class VideoScene {
         java.util.function.Consumer<Source> describe = source -> {
             if (details) {
                 caption.setText(source.caption());
-            } else if ("MP4".equals(source.label())) {
+            } else if (source == SAMPLE_CLIP) {
                 caption.setText(Text.CREDIT);
             } else {
                 caption.setText("");
@@ -2343,7 +2364,6 @@ final class VideoScene {
         // chose is not in the picker at all, and everything that re-opens (Restart, the soundtrack
         // switch) has to re-open THAT rather than whichever entry was last highlighted.
         Source[] current = {sources.get(initial)};
-        describe.accept(current[0]);
         reopen[0] = at -> play(pane, view, facts, open, current[0], sound[0], at);
         restart[0] = () -> {
             if (open.player != null) {
@@ -2355,7 +2375,28 @@ final class VideoScene {
                 view.restart();
             }
         };
-        play(pane, view, facts, open, current[0], sound[0]);
+        boolean playing = play(pane, view, facts, open, current[0], sound[0]);
+        if (!playing && !details) {
+            // The page opens on something that plays. On a machine whose decoder will not load
+            // (no payload for this platform) the sample clip cannot, and a page that opens on
+            // "Cannot play this video" shows the failure before the feature; so it opens on the
+            // next entry that does, the generated bars, and the clip stays in the picker to say
+            // the same sentence when it is chosen. The reason is in the log. The lab's scene
+            // keeps the entry it was asked for: there, the failure is the reading.
+            for (int index = 0; index < sources.size() && !playing; index++) {
+                if (index != initial) {
+                    current[0] = sources.get(index);
+                    playing = play(pane, view, facts, open, current[0], sound[0]);
+                    if (playing) {
+                        initial = index;
+                    }
+                }
+            }
+            if (!playing) {
+                current[0] = sources.get(initial); // nothing plays: the pane says so, as before
+            }
+        }
+        describe.accept(current[0]);
 
         SegmentedControl picker = new SegmentedControl(
                 sources.stream().map(VideoScene::displayName).toArray(I18nString[]::new));
@@ -2481,10 +2522,15 @@ final class VideoScene {
         return new ScrollView(tabContent(SCENE_PICTURE_WIDTH, SCENE_PICTURE_HEIGHT, SOURCES, true));
     }
 
-    /** Opens {@code entry} and plays it from its first picture. */
-    private static void play(VideoPane pane, VideoView view, Label facts, Playing open, Source entry,
-                             boolean withSound) {
-        play(pane, view, facts, open, entry, withSound, 0);
+    /**
+     * Opens {@code entry} and plays it from its first picture.
+     *
+     * @return false when the entry was opened here, while the tab was built, and cannot play on
+     *         this machine; true when it is showing or on its way
+     */
+    private static boolean play(VideoPane pane, VideoView view, Label facts, Playing open,
+                                Source entry, boolean withSound) {
+        return play(pane, view, facts, open, entry, withSound, 0);
     }
 
     /**
@@ -2508,14 +2554,17 @@ final class VideoScene {
      * has already captured past.
      *
      * @param resumeMicros where to seek to once the stream lands, or 0 to start from the beginning
+     * @return false when the entry was opened here, while the tab was built, and cannot play on
+     *         this machine (its pane then says so); true when it is showing or on its way
      */
-    private static void play(VideoPane pane, VideoView view, Label facts, Playing open, Source entry,
-                             boolean withSound, long resumeMicros) {
+    private static boolean play(VideoPane pane, VideoView view, Label facts, Playing open,
+                                Source entry, boolean withSound, long resumeMicros) {
         view.setSource(null);
         view.setPlayer(null);
         open.closeAll();
         if (pane.scene() == null) {
             Opened opened;
+            long startedNanos = System.nanoTime();
             try {
                 opened = entry.opener().openNow();
             } catch (RuntimeException failure) {
@@ -2523,10 +2572,16 @@ final class VideoScene {
                 // refuses is a sentence either way, and not a crash on the way to the first
                 // frame because it happened to be the entry the tab was built on.
                 showFailure(pane, facts, failure);
-                return;
+                return false;
+            }
+            if (opened != null) {
+                // What the build paid for it, on the thread that builds: the page's sample clip is
+                // a container, where the bars it used to open on are generated in memory.
+                System.out.printf("Video: '%s' opened in %d ms, while the page was built%n",
+                        entry.label(), (System.nanoTime() - startedNanos) / 1_000_000L);
             }
             show(pane, view, facts, open, opened, withSound, resumeMicros);
-            return;
+            return opened != null;
         }
         pane.showOpening(entry.label());
         facts.setText(Text.OPENING.get());
@@ -2548,6 +2603,7 @@ final class VideoScene {
                 },
                 pane::showOpeningProgress,
                 () -> pane.scene() != null));
+        return true;
     }
 
     /**
