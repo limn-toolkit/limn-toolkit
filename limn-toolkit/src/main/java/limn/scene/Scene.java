@@ -7299,7 +7299,18 @@ public final class Scene {
                 limn.backend.Crashes.report(limn.backend.CrashPhase.WINDOW_CLOSE, error);
             }
         }
-        Widget.runSettled(settled); // once every layer is out
+        // Once every layer is out, each in a try of its own and contained whatever it throws, a
+        // VirtualMachineError included, as every other step of the close is: an arrival after the
+        // one that threw may give back something that outlives the window.
+        for (int i = 0; i < settled.size(); i++) {
+            try {
+                settled.get(i).run();
+            } catch (Throwable error) {
+                LOG.log(Level.ERROR, "what a fade or a motion runs at its end threw during window close; "
+                        + "teardown continues", error);
+                limn.backend.Crashes.report(limn.backend.CrashPhase.WINDOW_CLOSE, error);
+            }
+        }
     }
 
     private Runnable[] windowCloseObservers;

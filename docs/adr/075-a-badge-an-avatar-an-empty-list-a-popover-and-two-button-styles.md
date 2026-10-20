@@ -893,6 +893,12 @@ that the text above does not say, dated where it departs from it.
     skips a subtree that is back in the scene, and the focus given back skips an overlay pushed
     again, or put into the tree with the focus inside it. A card the handler moved into another
     window still has this window's focus taken out of it. `PopoverReentrancyTest` has the cases.
+  - **A window's close and a `VirtualMachineError` from an arrival:** the third review's sentence
+    above, that a closing window contains every throw of its teardown, was true of the walk and not
+    of the fades' arrivals, which the close ran through the list that lets such an error leave: an
+    `OutOfMemoryError` from one `onArrive` left the close, and the arrivals after it never ran. The
+    close now runs them as it runs every other step, each contained and reported as a
+    `WINDOW_CLOSE` crash, so the sentence holds. `ClosedWindowDetachesItsTreeTest` has the case.
 
 ### 12.6 The input method in a popover's window, measured
 

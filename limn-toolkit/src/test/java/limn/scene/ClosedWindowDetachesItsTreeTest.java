@@ -95,4 +95,58 @@ class ClosedWindowDetachesItsTreeTest {
             second.frame();
         }
     }
+
+    @Test
+    void anOutOfMemoryErrorFromAFadesArrivalAsTheWindowClosesIsContainedAndTheNextArrivalRuns() {
+        // Two containers fading as their window closes, the first one's onArrive throwing an
+        // OutOfMemoryError: the close contains it, as it contains every other throw of its
+        // teardown, and the second arrival, which may give back something that outlives the window,
+        // still runs. The close let the error leave and dropped the second arrival.
+        List<Throwable> reported = new ArrayList<>();
+        List<limn.backend.CrashPhase> phases = new ArrayList<>();
+        limn.backend.CrashHandler handler = (phase, error) -> {
+            phases.add(phase);
+            reported.add(error);
+            return true;
+        };
+        limn.backend.Crashes.install(handler);
+        try (HeadlessUi ui = new HeadlessUi()) {
+            HeadlessBackend backend = new HeadlessBackend(ui.runtime());
+            List<String> seen = new ArrayList<>();
+            limn.scene.layout.Opacity first = new limn.scene.layout.Opacity(new Noting("a", seen)).setOpacity(0.2f);
+            limn.scene.layout.Opacity second = new limn.scene.layout.Opacity(new Noting("b", seen)).setOpacity(0.2f);
+            limn.scene.layout.Column root = new limn.scene.layout.Column();
+            root.add(first);
+            root.add(second);
+            Scene scene = new Scene(root);
+            scene.setTextRuler(TestRulers.FIXED);
+            HeadlessWindow window = backend.open("Closes", 300, 200);
+            scene.bind(window);
+            List<String> ran = new ArrayList<>();
+            OutOfMemoryError fatal = new OutOfMemoryError("simulated (expected)");
+            first.fadeTo(1f, 1.0, () -> {
+                ran.add("first");
+                throw fatal;
+            });
+            second.fadeTo(1f, 1.0, () -> ran.add("second"));
+            window.frame();
+            window.frame();
+
+            Throwable escaped = null;
+            try {
+                window.close();
+            } catch (OutOfMemoryError e) {
+                escaped = e; // caught here so the test runner is not taken down with it
+            }
+
+            assertNull(escaped, "the close contains it");
+            assertEquals(List.of("first", "second"), ran, "the next arrival still ran");
+            assertEquals(List.of(fatal), reported, "contained and reported once");
+            assertEquals(List.of(limn.backend.CrashPhase.WINDOW_CLOSE), phases);
+            assertNull(first.scene());
+            assertNull(second.scene());
+        } finally {
+            limn.backend.Crashes.uninstall(handler);
+        }
+    }
 }
