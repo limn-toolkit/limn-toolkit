@@ -197,7 +197,10 @@ input method's composition included.
 {% snippet guide:popover %}
 
 `attachTo(button)` makes the button open and close it, and tells a screen reader that the button
-opens a popup and whether it is open; `showFor(widget)` opens it from anything else. Nothing opens
+opens a popup and whether it is open; `showFor(widget)` opens it from anything else. A button
+opens one popover and a popover hangs from one button: attaching another popover to the button
+detaches the first, attaching the popover to another button moves it, and `detach()` lets the
+button go, a plain button again. Nothing opens
 a popover on hover: a surface that opens as the pointer passes is a tooltip.
 
 ## Dialogs

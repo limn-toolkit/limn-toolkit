@@ -84,6 +84,8 @@ public final class Popover {
     private float lastWidth = 1;
     private float lastHeight = 1;
     private final AnchoredPopup popup = new AnchoredPopup(new Host());
+    /** What the attached button drives: one for the popover's life, whichever button it is on. */
+    private final Owner owner = new Owner();
 
     /**
      * A popover showing {@code content}, which the popover lays out at its own measure within the
@@ -242,8 +244,12 @@ public final class Popover {
     /**
      * Makes {@code button} open the panel when pressed, and close it when pressed while it is open.
      * The button then tells a reader it opens a popup and whether it is open, and offers expand and
-     * collapse in place of press. A button opens one popover; {@code attachTo} on another button
-     * moves it there.
+     * collapse in place of press.
+     *
+     * <p>A button opens one popover, and a popover is attached to one button: a popover already on
+     * {@code button} is {@linkplain #detach() detached} from it, and this one is detached from the
+     * button it was on, so {@code attachTo} on another button moves it there. Attaching it to the
+     * button it is on changes nothing.
      *
      * @param button the button; never null
      * @return this popover
@@ -251,12 +257,49 @@ public final class Popover {
     public Popover attachTo(Button button) {
         Ui.checkUiThread();
         Objects.requireNonNull(button, "button");
-        if (attached != null) {
-            attached.attachPopover(null);
+        if (attached == button) {
+            return this;
+        }
+        detach();
+        Popover previous = button.attachedPopover();
+        if (previous != null) {
+            previous.detach();
         }
         attached = button;
-        button.attachPopover(new Owner());
+        button.attachPopover(this);
         return this;
+    }
+
+    /**
+     * Lets go of the button {@link #attachTo} gave it: the button opens nothing any more and is a
+     * plain button again, to a reader as well. A panel open from that button closes, as the code's
+     * ({@link #onClose} hears {@code CODE}); one {@linkplain #showFor shown for} another widget
+     * stays. The popover still opens from {@link #showFor}, and can be attached again. A no-op when
+     * it is on no button.
+     *
+     * @return this popover
+     */
+    public Popover detach() {
+        Ui.checkUiThread();
+        Button button = attached;
+        if (button == null) {
+            return this;
+        }
+        if (open && anchor == button) {
+            closeWith(Change.Origin.CODE); // the button no longer opens it, so it no longer hangs from it
+        }
+        if (attached == button) { // unless onClose moved it meanwhile
+            attached = null;
+            if (button.attachedPopover() == this) {
+                button.attachPopover(null);
+            }
+        }
+        return this;
+    }
+
+    /** @return the attached button's popup, as the owner shape drives it */
+    PopupOwnerAccessibility.Host ownerShape() {
+        return owner;
     }
 
     /** The attached button's popup, as the owner shape drives it. */

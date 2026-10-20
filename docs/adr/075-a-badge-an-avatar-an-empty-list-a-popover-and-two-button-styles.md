@@ -252,6 +252,7 @@ public final class Popover {
     public Popover setAccessibleName(@Nullable I18nString name);
     public Popover onClose(@Nullable Consumer<Change.Origin> handler);
     public Popover attachTo(Button button);               // the button opens and closes it
+    public Popover detach();                              // lets go of it (2026-10-19, section 12.5)
 }
 ```
 
@@ -265,6 +266,7 @@ Not a widget, as `PopupMenu` and `Dialog` are not: it shows one.
   `OVERLAY`'s shadow, `radiusMedium`, `spacingMedium` around the content; its size the content's
   measure within the room (a long content is the application's `ScrollView`).
 - **Opened** by `showFor`, or by the attached button's press, which closes it when it is open.
+  One popover per button and one button per popover (amended 2026-10-19, section 12.5).
   No hover or focus trigger (question 15): a surface that opens when the pointer passes is a
   tooltip, which every widget has.
 - **Closed** by a press outside it or Escape (the user's), by the application losing the keyboard
@@ -458,6 +460,8 @@ comes in now; question 13 added that the composition is routed and measured firs
     - *The alternative:* a trigger setter as some libraries offer, which on a desktop duplicates the
       tooltip and opens surfaces nobody asked for.
     - **Answer:** the recommendation: none; `showFor` and `attachTo` only.
+    - *Note, 2026-10-19:* `detach()` joins them (section 12.5), to let go of the button
+      `attachTo` gave; it opens nothing, so the answer stands: no trigger.
 16. **A modal popover?**
     - *Recommended:* no: a modal question is a `Dialog`.
     - **Answer:** the recommendation: not modal.
@@ -662,6 +666,17 @@ that the text above does not say, dated where it departs from it.
   popover gives the keyboard back to its button and the outer one takes it home. A popup closed
   because its anchor left puts the keyboard on nothing that is leaving; a window that has closed
   gives it to nobody. `PopoverAnchorLeavesTest` has the cases.
+- **One popover per button, and `detach()`** (2026-10-19, the owner's decision on the audit of
+  that day). A button had one slot that `attachTo` overwrote while the popover kept its own
+  reference: after `p1.attachTo(b); p2.attachTo(b); p1.attachTo(c)` the first popover, still
+  believing it was on `b`, emptied `b`'s slot, and `b` opened nothing and told a reader it had no
+  popup. Now `attachTo(button)` detaches the popover `button` had, which then has no button, and
+  detaches this popover from its own, so a popover is on one button at most; attaching it to the
+  button it is on changes nothing. `detach()`, fluent as the setters, lets go of the button, which
+  is a plain button again; a panel open from that button closes as the code's, one shown for
+  another widget stays, and a detached popover still opens from `showFor`. The button holds the
+  popover and the popover the button, nothing else, and both sides are cleared together.
+  `PopoverAttachTest` has every transition.
 
 ### 12.6 The input method in a popover's window, measured
 

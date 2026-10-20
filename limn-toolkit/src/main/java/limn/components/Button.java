@@ -260,10 +260,11 @@ public final class Button extends Widget<Button> {
             if (popover != null) {
                 // The press opens the popover attached to this button, or closes it while open,
                 // before the application's own handler hears the press.
-                if (popover.isOpen()) {
-                    popover.close();
+                PopupOwnerAccessibility.Host owner = popover.ownerShape();
+                if (owner.isOpen()) {
+                    owner.close();
                 } else {
-                    popover.open();
+                    owner.open();
                 }
             }
             if (action != null) {
@@ -275,14 +276,20 @@ public final class Button extends Widget<Button> {
     }
 
     /**
-     * The popover {@link Popover#attachTo} gave this button, as the owner shape drives it, or
-     * {@code null}: the button then says it opens a popup and whether it is open, and offers
-     * expand and collapse in place of press.
+     * The popover {@link Popover#attachTo} gave this button, or {@code null}: the button then says
+     * it opens a popup and whether it is open, and offers expand and collapse in place of press.
+     * One at most; {@link Popover} keeps the two sides in step, and nothing else is held.
      */
-    private PopupOwnerAccessibility.@Nullable Host popover;
+    private @Nullable Popover popover;
 
-    void attachPopover(PopupOwnerAccessibility.@Nullable Host host) {
-        this.popover = host;
+    /** @return the popover attached to this button, or null */
+    @Nullable Popover attachedPopover() {
+        return popover;
+    }
+
+    /** Called by {@link Popover} alone, which has let go of any popover this button held. */
+    void attachPopover(@Nullable Popover attached) {
+        this.popover = attached;
         invalidateAccessible();
     }
 
@@ -573,7 +580,7 @@ public final class Button extends Widget<Button> {
             // A button that opens a popover is a POPUP_OWNER ahead of a leaf (ADR 045 §3), the
             // shape a tab strip's list button has: HAS_POPUP, the expand facet, and EXPAND or
             // COLLAPSE by state in place of PRESS.
-            PopupOwnerAccessibility.describe(a, popover.isOpen());
+            PopupOwnerAccessibility.describe(a, popover.ownerShape().isOpen());
             return;
         }
         // The LEAF_ACTION shape, written once (ADR 045 §3): PRESS exactly while accepted.
@@ -599,7 +606,7 @@ public final class Button extends Widget<Button> {
     @Override
     protected boolean onAccessibilityAction(Accessible.Action verb, Accessible.Argument arg) {
         if (popover != null) {
-            return isEnabled() && PopupOwnerAccessibility.perform(popover, verb);
+            return isEnabled() && PopupOwnerAccessibility.perform(popover.ownerShape(), verb);
         }
         return LeafActionAccessibility.perform(leafHost, verb);
     }
