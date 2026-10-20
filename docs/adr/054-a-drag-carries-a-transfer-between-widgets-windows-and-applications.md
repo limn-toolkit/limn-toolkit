@@ -677,3 +677,16 @@ The review of the follow (2026-10-20, R11C):
   `X11DragFollowTest` reads the window under the point against a stacking it is handed, and
   refuses our own drag's leave; `X11DragTest` the enter. The reading of the server is not run
   here (no X server on the machine that builds); the Linux guests rerun the follow.
+- **A late drop after a release** (R11C-2). Silence cannot tell a source that went round the
+  proxy from one that still talks to us but stalled for 80 ms (a busy main thread, a pause of its
+  runtime, a loaded machine; a browser's link drag offers files too). Let go in that stall, the
+  follow ended and forgot the drag at once, and the source, catching up, sent its drop to the
+  proxy on the last status it had, ours: the drop was ignored, the source never told it finished
+  (a GTK 3 source waits minutes for that) and the scene never given it. A follow its source's
+  silence started now hands a release over without forgetting the drag: the scene is told the
+  drag left, nothing is followed again, and the drag waits as long as a drag over the window
+  waits with the buttons up, one second, for a late drop, which is taken, as what was followed
+  (files, as a copy), and finished. A follow a leave started ends at the release as before: that
+  source said it was done with us. A position from the source after the release is answered as
+  any position, with what it offers in full. `X11DragFollowTest` has the release, the wait, a
+  press meanwhile and the next drag's enter.

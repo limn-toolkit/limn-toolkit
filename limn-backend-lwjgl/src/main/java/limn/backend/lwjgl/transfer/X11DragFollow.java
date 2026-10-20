@@ -36,7 +36,9 @@ import java.util.function.LongFunction;
  * the pointer rests the scene's answer is sent to it again every {@link #SEAL_TICKS} turns: the
  * source acts on the last answer it had when the button is let go, and after a rest that is ours.
  * The follow ends when the button is let go, at Escape, and when the pointer leaves the window,
- * which the source tells GLFW and nobody else.
+ * which the source tells GLFW and nobody else. A follow the source's silence started cannot tell
+ * a source that went round the proxy from one that only stalled: let go there, the drag is kept,
+ * for as long as a drag over the window waits with the buttons up, so a late drop still arrives.
  */
 final class X11DragFollow {
 
@@ -66,7 +68,13 @@ final class X11DragFollow {
         /** The button was let go, or the pointer left the window: the scene is told the drag left. */
         LEFT,
         /** Escape: the scene is told the drag left, and the source that nothing here takes it. */
-        CALLED_OFF
+        CALLED_OFF,
+        /**
+         * The button was let go in a follow the source's silence started: the scene is told the drag
+         * left, and the drag waits, for as long as {@link #stale} lets a drag over the window wait
+         * with the buttons up, for the drop of a source that was only slow.
+         */
+        LET_GO
     }
 
     /**
@@ -132,6 +140,10 @@ final class X11DragFollow {
     }
 
     private boolean active;
+    /** The follow on was started by the source's silence: it may still be talking to us, only slowly. */
+    private boolean bySilence;
+    /** The button was let go in a follow its source's silence started: nothing is followed again. */
+    private boolean letGo;
     private int x;
     private int y;
     private int still;
@@ -167,6 +179,7 @@ final class X11DragFollow {
      */
     void entered(long now) {
         active = false;
+        letGo = false;
         sampled = false;
         quietSince = now;
         unanswered = false;
@@ -214,7 +227,7 @@ final class X11DragFollow {
         if (ours || dropped || !at.over() || !at.buttonHeld() || at.escape() || deliverable(offered).isEmpty()) {
             return false;
         }
-        start(at);
+        start(at, false);
         return true;
     }
 
@@ -230,7 +243,7 @@ final class X11DragFollow {
      * @return whether the drag is followed, from the point {@code at}
      */
     boolean keepsAfterSilence(long now, Sample at, List<String> offered, boolean dropped, boolean ours) {
-        if (active || dropped || ours || deliverable(offered).isEmpty()) {
+        if (active || letGo || dropped || ours || deliverable(offered).isEmpty()) {
             return false;
         }
         if (sampled && !away && (at.rootX() != sampleX || at.rootY() != sampleY)) {
@@ -244,7 +257,7 @@ final class X11DragFollow {
                 || now - Math.max(awaySince, quietSince) < SILENCE_NANOS) {
             return false;
         }
-        start(at);
+        start(at, true);
         return true;
     }
 
@@ -252,7 +265,8 @@ final class X11DragFollow {
      * A turn of the X thread while a drag is over the window and not followed: whether it is gone
      * with nothing said, the buttons having been up for {@link #STALE_NANOS} with no drop and no
      * leave (a source that dropped on GLFW's window, or went away). The drop a source says at the
-     * release comes long before.
+     * release comes long before; a source that was followed on its silence and then let go may
+     * still say it within that time.
      *
      * @param now the time, in nanoseconds
      * @param at  the pointer now
@@ -270,8 +284,9 @@ final class X11DragFollow {
         return now - releasedSince >= STALE_NANOS;
     }
 
-    private void start(Sample at) {
+    private void start(Sample at, boolean silence) {
         active = true;
+        bySilence = silence;
         x = at.rootX();
         y = at.rootY();
         still = 0;
@@ -290,6 +305,11 @@ final class X11DragFollow {
         if (at.escape()) {
             active = false;
             return Step.CALLED_OFF;
+        }
+        if (!at.buttonHeld() && bySilence) {
+            active = false;
+            letGo = true;
+            return Step.LET_GO;
         }
         if (!at.buttonHeld() || !at.over()) {
             active = false;

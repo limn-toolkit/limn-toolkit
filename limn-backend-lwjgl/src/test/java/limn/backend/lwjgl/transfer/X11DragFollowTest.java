@@ -307,4 +307,54 @@ class X11DragFollowTest {
         assertTrue(X11DragFollow.onWindow(new long[] {ours}, windows::get, ours, 100 + 603, 300),
                 "and its border on both sides");
     }
+
+    // ---- R11C-2: a late drop after a release
+
+    /**
+     * A source that still talks to us but stalled for a moment (a busy main thread, a pause of its
+     * runtime) reads as silent and is followed; if the button is let go in that stall the source
+     * sends its drop late, to the proxy. The follow then hands the release over without forgetting
+     * the drag, which waits for that drop as long as a drag over the window waits with the buttons
+     * up, and does not start a follow again meanwhile.
+     */
+    @Test
+    void aReleaseInAFollowSilenceStartedKeepsTheDragForALateDrop() {
+        X11DragFollow follow = new X11DragFollow();
+        follow.entered(0);
+        follow.heard(0);
+        follow.answered(5 * MS);
+        follow.keepsAfterSilence(10 * MS, held(500, 400), FILE_MANAGER, false, false);
+        follow.keepsAfterSilence(20 * MS, held(505, 400), FILE_MANAGER, false, false);
+        assertTrue(follow.keepsAfterSilence(101 * MS, held(530, 400), FILE_MANAGER, false, false),
+                "sanity: stalled 81 ms after the move, followed");
+        X11DragFollow.Sample up = new X11DragFollow.Sample(530, 400, 0, false, true);
+        assertEquals(X11DragFollow.Step.LET_GO, follow.tick(up),
+                "let go: the scene is told no more points, and the drag is not forgotten yet");
+        assertFalse(follow.active());
+        assertFalse(follow.keepsAfterSilence(120 * MS, held(540, 400), FILE_MANAGER, false, false),
+                "a press after it is no reason to follow a drag that was let go");
+        assertFalse(follow.stale(130 * MS, up));
+        assertFalse(follow.stale(130 * MS + X11DragFollow.STALE_NANOS - 1, up), "still waiting for a late drop");
+        assertTrue(follow.stale(130 * MS + X11DragFollow.STALE_NANOS, up), "forgotten when the wait is over");
+
+        X11DragFollow fromLeave = new X11DragFollow();
+        fromLeave.keepsAfterLeave(held(200, 150), FILE_MANAGER, false, false);
+        assertEquals(X11DragFollow.Step.LEFT, fromLeave.tick(up),
+                "a source that sent a leave said it was done with us: its release ends the drag at once");
+
+        X11DragFollow again = new X11DragFollow();
+        again.entered(0);
+        again.heard(0);
+        again.answered(5 * MS);
+        again.keepsAfterSilence(10 * MS, held(500, 400), FILE_MANAGER, false, false);
+        again.keepsAfterSilence(101 * MS, held(530, 400), FILE_MANAGER, false, false);
+        again.tick(up);
+        again.entered(200 * MS);
+        again.heard(202 * MS);
+        again.answered(210 * MS);
+        again.keepsAfterSilence(220 * MS, held(500, 400), FILE_MANAGER, false, false);
+        again.keepsAfterSilence(230 * MS, held(505, 400), FILE_MANAGER, false, false);
+        assertTrue(again.keepsAfterSilence(320 * MS, held(530, 400), FILE_MANAGER, false, false),
+                "the next drag's enter starts afresh");
+    }
 }

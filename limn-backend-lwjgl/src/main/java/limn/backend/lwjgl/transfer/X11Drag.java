@@ -345,6 +345,7 @@ public final class X11Drag {
                 System.err.println("limn.drag(x11): the source names a point again; the follow ends");
             }
             follow.heard(System.nanoTime());
+            followOffer = null; // it hears our answers to what it offers again, and drops on them
             Entry over = entryAt(memGetAddress(event + 32), rootX, rootY);
             Offer offer = incomingOffer;
             if (TRACE && tracedPositions++ < 6) {
@@ -401,7 +402,10 @@ public final class X11Drag {
             incomingTime = l2;
             incomingDropped = true;
             Entry over = incomingTarget;
-            Offer offer = incomingOffer;
+            // A source followed on its silence and let go may drop late, on the last answer it had,
+            // which was ours to what GLFW delivers, as a copy.
+            Offer followed = followOffer;
+            Offer offer = followed != null ? followed : incomingOffer;
             if (TRACE) {
                 System.err.println("limn.drag(x11): drop message, over " + (over == null ? "none of ours" : "a window of ours"));
             }
@@ -411,7 +415,7 @@ public final class X11Drag {
                 return;
             }
             float[] at = pointerIn(over);
-            Set<DropAction> allowed = allowed(lastIncomingAction);
+            Set<DropAction> allowed = followed != null ? X11DragFollow.ALLOWED : allowed(lastIncomingAction);
             ui.post(() -> {
                 WindowInput in = over.input.get();
                 DropAction done = in == null ? null : in.dropped(offer, allowed, at[0], at[1]);
@@ -620,6 +624,15 @@ public final class X11Drag {
         switch (follow.tick(at)) {
             case OVER -> followedOver(over);
             case SEAL -> answer(incomingSource, over, answered);
+            case LET_GO -> {
+                // A source that only stalled still drops on the proxy: the drag waits for it, as
+                // stale() lets a drag over the window wait with the buttons up, and the scene, told
+                // no more points, lets go of what the drag lit.
+                if (TRACE) {
+                    System.err.println("limn.drag(x11): the followed drag was let go; a late drop is still taken");
+                }
+                ui.post(() -> left(over));
+            }
             case CALLED_OFF, LEFT -> {
                 boolean escape = at.escape();
                 if (TRACE) {
