@@ -560,6 +560,21 @@ class TextFieldMaskTest extends AccessibleComponentTestBase {
     }
 
     @Test
+    void anOverwriteKeepsTheDirectionTheSelectionWasMadeIn() {
+        holding("AAA-0000-**", "ABC-1234-XY", 6);
+        drive(scene).press(Keys.LEFT, Keys.MOD_SHIFT);
+        drive(scene).press(Keys.LEFT, Keys.MOD_SHIFT); // "12", made backwards: the caret at 4
+        type("5");
+        assertEquals("ABC-5234-XY", field.text());
+        assertEquals(5, field.selectionStart());
+        assertEquals(6, field.selectionEnd());
+        assertEquals(5, field.caretPosition(), "the caret still at the start of what is selected");
+        drive(scene).press(Keys.LEFT, Keys.MOD_SHIFT);
+        assertEquals(4, field.selectionStart(), "so Shift+Left goes on extending it");
+        assertEquals(6, field.selectionEnd());
+    }
+
+    @Test
     void aCharacterTheNextSelectedPositionRefusesIsRefusedAndTheSelectionStays() {
         holding("AAA-0000-**", "ABC-1234-XY", 0);
         field.select(4, 6);

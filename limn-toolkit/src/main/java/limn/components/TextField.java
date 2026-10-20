@@ -398,7 +398,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * over everything, set by an assistive technology) is fitted as a value from scratch; an undo
      * or a redo reads the text it puts back as the mask wrote it.
      */
-    private void fitToMask(boolean typed, boolean key) {
+    private void fitToMask(boolean typed, boolean key, boolean backwards) {
         String text = model.text();
         int caret = model.cursor();
         int offset = model.damageOffset();
@@ -474,8 +474,12 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
             }
         }
         if (selectFrom >= 0 && selectFrom != fit.caret()) {
-            model.setCursor(selectFrom, false);
-            model.setCursor(fit.caret(), true);
+            // What stays selected keeps the direction it was made in: a selection made backwards
+            // keeps its caret at the start, so Shift+Left goes on extending it.
+            int anchor = backwards ? fit.caret() : selectFrom;
+            int cursor = backwards ? selectFrom : fit.caret();
+            model.setCursor(anchor, false);
+            model.setCursor(cursor, true);
         }
     }
 
@@ -2061,7 +2065,8 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         }
         if (mask != null) {
             String before = maskedText;
-            fitToMask(typed, key);
+            fitToMask(typed, key, caretBefore != null && selectionStartBeforeEdit != selectionEndBeforeEdit
+                    && caretBefore.charIndex() == selectionStartBeforeEdit);
             boolean refused = maskRefused;
             maskRefused = false;
             if (!restoringHistory && model.text().equals(before)) {
