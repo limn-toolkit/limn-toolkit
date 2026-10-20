@@ -421,4 +421,61 @@ class PopoverReentrancyTest extends ComponentTestBase {
         assertNotNull(thrown, "it propagates as it is");
         assertEquals(List.of(), heard, "and no more application code runs after it");
     }
+    @Test
+    void aFadeLeavingWithAnAnchorWhosePopoverThrowsStillArrives() {
+        // A card fading in, a button on it with its popover open, and the card taken out mid-fade by
+        // a removal or with the overlay it is in: the popover's onClose has a bug and throws. The
+        // removal completes and rethrows that throw, and the fade's onArrive, which a leaving runs
+        // once the change is over, still runs once, as it would without the throw.
+        for (boolean asOverlay : new boolean[] {false, true}) {
+            Button filter = new Button("Filter");
+            int[] arrived = {0};
+            limn.scene.layout.Opacity card = new limn.scene.layout.Opacity(filter).setOpacity(0.2f);
+            Column holder = new Column();
+            Column root = new Column();
+            root.add(holder);
+            root.add(new Button("Base"));
+            inWindow(root);
+            if (asOverlay) {
+                scene.pushOverlay(card);
+            } else {
+                holder.add(card);
+            }
+            frames(2);
+            card.fadeTo(1f, 1.0, () -> arrived[0]++);
+            frames(2);
+            List<Change.Aspect> told = new ArrayList<>();
+            holder.observeChanges((source, change) -> told.add(change.aspect()));
+            Popover popover = new Popover(new SizedBox(160, 30, new TextField())).setDisplayMode(DisplayMode.IN_SCENE)
+                    .onClose(origin -> {
+                        throw new IllegalStateException("an application's handler bug");
+                    });
+            popover.showFor(filter);
+            frames(3);
+            assertTrue(popover.isOpen(), "sanity");
+            String where = asOverlay ? "its overlay removed" : "removed";
+            IllegalStateException thrown = null;
+            try {
+                if (asOverlay) {
+                    scene.removeOverlay(card);
+                } else {
+                    holder.remove(card);
+                }
+            } catch (IllegalStateException e) {
+                thrown = e;
+            }
+            assertNotNull(thrown, where + ": the handler's throw is not swallowed");
+            assertEquals("an application's handler bug", thrown.getMessage(), where);
+            assertNull(filter.scene(), where + ": the change completed");
+            assertFalse(popover.isOpen(), where);
+            assertEquals(1, arrived[0], where + ": the fade's arrival ran once all the same");
+            if (!asOverlay) {
+                assertEquals(List.of(Change.Aspect.CHILDREN), told, where + ": the removal was announced");
+            }
+            frames(40);
+            assertEquals(1, arrived[0], where + ": and only once");
+            owner.requestClose();
+            runtime.drain();
+        }
+    }
 }
