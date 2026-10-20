@@ -210,6 +210,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
     /** The seam {@link SearchField#clear()} enters with the trailing button's origin. */
     void setText(String text, Change.Origin origin) {
         boolean moved = !model.text().equals(text);
+        selectionLeft = null; // the caller put the caret at the start, which wins
         model.setText(text);
         // Show the head of the text; onPaint re-clamps against the real width
         // (which may still be 0 here: set before the first layout pass).
@@ -552,6 +553,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
             return this;
         }
         noteCaretBeforeEdit();
+        selectionLeft = null;
         model.insert(text);
         announceTextEdit(Change.Origin.CODE);
         ensureCursorVisible();
@@ -747,6 +749,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         int before = model.cursor();
         int from = model.alignToGrapheme(anchor);
         int to = model.alignToGrapheme(caret);
+        selectionLeft = null; // set while the field is away, it is what the keyboard comes back to
         model.setCursor(from, false);
         model.setCursor(to, from != to);
         ensureCursorVisible();
@@ -1640,10 +1643,16 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
     }
 
     /**
-     * The selection this widget had when it lost the keyboard, as start, end and the text's
-     * version then; {@code null} when it had none. A menu takes the keyboard to be walked, and
-     * its Cut and Copy are for what was selected before it did: the selection itself is let go
-     * with the focus, as it always was, and comes back for the command.
+     * The selection this widget had when it lost the keyboard, as start, end, the text's version
+     * then and where the caret was left; {@code null} when it had none. A menu takes the keyboard
+     * to be walked, and its Cut and Copy are for what was selected before it did: the selection
+     * itself is let go with the focus, as it always was, and comes back for the command.
+     *
+     * <p>Forgotten by everything that sets the caret or the selection while the field is away
+     * ({@link #select}, {@link #setText}, {@link #insertText}, the context menu's Select All, a key
+     * an edit command sends, an assistive technology's set): a menu item or a panel button that
+     * selected everything or moved the caret runs before the overlay gives the keyboard back, and
+     * what it did is what the person comes back to.
      */
     private long @Nullable [] selectionLeft;
 
@@ -1694,6 +1703,9 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
             // its press has already been swallowed.
             event.consume();
             return;
+        }
+        if (!isFocused()) {
+            selectionLeft = null; // an edit command's key (Select All), sent while the field is away
         }
         long text = model.textVersion();
         int start = model.selectionStart();
@@ -2051,6 +2063,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
 
             @Override
             public void selectAll() {
+                selectionLeft = null;
                 model.selectAll();
                 invalidate();
             }
@@ -2299,8 +2312,12 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         @Override public boolean laidOut() { return width() > 0; }
         @Override public void requestFocus() { TextField.this.requestFocus(Change.Origin.USER); }
         @Override public void showContextMenuForFocus() { TextField.this.showContextMenuForFocus(); }
-        @Override public void edit(Runnable change) { editFromUser(change); }
+        @Override public void edit(Runnable change) {
+            selectionLeft = null;
+            editFromUser(change);
+        }
         @Override public void caretMoved() {
+            selectionLeft = null;
             ensureCursorVisible();
             resetBlink();
             invalidate();
@@ -2457,9 +2474,11 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * text is as it was: in a window of its own the dialog takes only the window's focus, and the
      * selection stays; in the scene it took the keyboard, and the person came back to a bare caret,
      * so the next key typed was inserted where it should have replaced what they had selected.
+     * Only when nothing set the caret or the selection meanwhile: whatever did forgot the record,
+     * and a caret that is not where it was left, or a selection, says something did.
      */
     private void takeBackSelection(long @Nullable [] left) {
-        if (left != null && left[2] == model.textVersion()
+        if (left != null && left[2] == model.textVersion() && !model.hasSelection() && model.cursor() == left[3]
                 && limn.scene.internal.SceneAccess.focusReturnedFromOverlay(this)) {
             int caret = model.cursor();
             int anchor = caret == (int) left[0] ? (int) left[1] : (int) left[0];
@@ -2474,9 +2493,11 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         focusFade.to(0);
         blinkGeneration++; // stop the pending blink
         cursorVisible = true;
-        selectionLeft = model.hasSelection()
-                ? new long[] {model.selectionStart(), model.selectionEnd(), model.textVersion()} : null;
+        boolean had = model.hasSelection();
+        long start = model.selectionStart();
+        long end = model.selectionEnd();
         model.clearSelection();
+        selectionLeft = had ? new long[] {start, end, model.textVersion(), model.cursor()} : null;
         preedit = ""; // drop any in-progress composition
         preeditCaret = 0;
         preeditFocusStart = 0;

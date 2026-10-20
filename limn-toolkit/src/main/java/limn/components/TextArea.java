@@ -242,6 +242,7 @@ public final class TextArea extends Widget<TextArea> {
     public TextArea setText(String text) {
         Ui.checkUiThread();
         boolean moved = !model.text().equals(text);
+        selectionLeft = null; // the caller put the caret at the start, which wins
         model.setText(text);
         scrollX = 0;
         scrollY = 0;
@@ -341,6 +342,7 @@ public final class TextArea extends Widget<TextArea> {
         if (text == null || text.isEmpty()) {
             return this;
         }
+        selectionLeft = null;
         model.insert(text);
         announceTextEdit(Change.Origin.CODE);
         ensureCursorVisible();
@@ -434,6 +436,7 @@ public final class TextArea extends Widget<TextArea> {
         int before = model.cursor();
         int from = model.alignToGrapheme(anchor);
         int to = model.alignToGrapheme(caret);
+        selectionLeft = null; // set while the area is away, it is what the keyboard comes back to
         model.setCursor(from, false);
         model.setCursor(to, from != to);
         goalX = Float.NaN;
@@ -2078,10 +2081,16 @@ public final class TextArea extends Widget<TextArea> {
     }
 
     /**
-     * The selection this widget had when it lost the keyboard, as start, end and the text's
-     * version then; {@code null} when it had none. A menu takes the keyboard to be walked, and
-     * its Cut and Copy are for what was selected before it did: the selection itself is let go
-     * with the focus, as it always was, and comes back for the command.
+     * The selection this widget had when it lost the keyboard, as start, end, the text's version
+     * then and where the caret was left; {@code null} when it had none. A menu takes the keyboard
+     * to be walked, and its Cut and Copy are for what was selected before it did: the selection
+     * itself is let go with the focus, as it always was, and comes back for the command.
+     *
+     * <p>Forgotten by everything that sets the caret or the selection while the area is away
+     * ({@link #select}, {@link #setText}, {@link #insertText}, the context menu's Select All, a key
+     * an edit command sends, an assistive technology's set): a menu item or a panel button that
+     * selected everything or moved the caret runs before the overlay gives the keyboard back, and
+     * what it did is what the person comes back to.
      */
     private long @Nullable [] selectionLeft;
 
@@ -2132,6 +2141,9 @@ public final class TextArea extends Widget<TextArea> {
             // release acts on nothing here, and its press has already been swallowed.
             event.consume();
             return;
+        }
+        if (!isFocused()) {
+            selectionLeft = null; // an edit command's key (Select All), sent while the area is away
         }
         long text = model.textVersion();
         int start = model.selectionStart();
@@ -2366,6 +2378,7 @@ public final class TextArea extends Widget<TextArea> {
 
             @Override
             public void selectAll() {
+                selectionLeft = null;
                 model.selectAll();
                 invalidate();
             }
@@ -2706,8 +2719,12 @@ public final class TextArea extends Widget<TextArea> {
         @Override public boolean laidOut() { return width() > 0; }
         @Override public void requestFocus() { TextArea.this.requestFocus(Change.Origin.USER); }
         @Override public void showContextMenuForFocus() { TextArea.this.showContextMenuForFocus(); }
-        @Override public void edit(Runnable change) { editFromUser(change); }
+        @Override public void edit(Runnable change) {
+            selectionLeft = null;
+            editFromUser(change);
+        }
         @Override public void caretMoved() {
+            selectionLeft = null;
             // The sticky goal column goes: a caret placed by an assistive technology is a click,
             // and every non-vertical path of this widget's own clears it.
             goalX = Float.NaN;
@@ -2894,8 +2911,10 @@ public final class TextArea extends Widget<TextArea> {
         resetBlink();
         // The keyboard back from an overlay that took it (a dialog opened over the form in the
         // scene, a menu), with the text as it was: the selection it let go of comes back, as it
-        // stays in a window a dialog of its own was opened over.
-        if (left != null && left[2] == model.textVersion()
+        // stays in a window a dialog of its own was opened over. Only when nothing set the caret
+        // or the selection meanwhile: whatever did forgot the record, and a caret that is not
+        // where it was left, or a selection, says something did.
+        if (left != null && left[2] == model.textVersion() && !model.hasSelection() && model.cursor() == left[3]
                 && limn.scene.internal.SceneAccess.focusReturnedFromOverlay(this)) {
             int caret = model.cursor();
             int anchor = caret == (int) left[0] ? (int) left[1] : (int) left[0];
@@ -2910,9 +2929,11 @@ public final class TextArea extends Widget<TextArea> {
         focusFade.to(0);
         blinkGeneration++;
         cursorVisible = true;
-        selectionLeft = model.hasSelection()
-                ? new long[] {model.selectionStart(), model.selectionEnd(), model.textVersion()} : null;
+        boolean had = model.hasSelection();
+        long start = model.selectionStart();
+        long end = model.selectionEnd();
         model.clearSelection();
+        selectionLeft = had ? new long[] {start, end, model.textVersion(), model.cursor()} : null;
         preedit = ""; // drop any in-progress composition
         composed = null; // and the shaping of it, which nothing can ask for again
         composedRowShapes = null; // and its wrapped rows, sliced from that shaping

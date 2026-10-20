@@ -216,3 +216,17 @@ area given the focus back by an overlay that closes now takes back the selection
 with its caret at the same end, when its text is unchanged; a menu that took the keyboard gives it
 back the same way.
 
+
+### 2026-10-20 (later): only a selection nothing touched comes back
+
+The selection was checked against the text alone, and the keyboard comes back as the overlay
+starts to close, which is after a menu item's or a panel button's action has run. So an action
+that moved the caret or the selection without changing the text was overwritten: Select All from
+the field's own context menu in the scene gave the old selection back, and "Go to start" left a
+selection from the old anchor to the new caret that the next key typed replaced (R8G-1). The
+selection now comes back only when nothing set the caret or the selection while the field was
+away: setting them by code, the context menu's Select All, a key an edit command sends and an
+assistive technology's set each forget it, and a caret that is not where it was left, or a
+selection, says something did. A menu closed with nothing run, a popover dismissed and the
+question's Cancel still give it back. `SelectionBackFromOverlayTest` has every case, with the
+menus in the scene and in windows of their own.
