@@ -110,9 +110,10 @@ A part of `next` or `until` that does not read the state is computed once, befor
 `MAX_ITERATIONS` is **1024**, and it bounds every turn a pixel takes across a whole surface
 (amended 2026-10-20, section 7; it bounded the product along one nesting, and loops side by side
 were each counted alone). Loops side by side, and a loop in another's initial value, add their
-turns; a loop in another's turn multiplies by that loop's count, so a loop of 32 turns may hold
-one of 32, not one of 64 nor two of 32 side by side; a loop read twice, or two built alike, is
-computed once and counted once. The constructor refuses a count below 1 or above the cap and a
+turns; a loop in another's turn that reads the other's state multiplies by that loop's count, so
+a loop of 32 turns may hold one of 32, not one of 64 nor two of 32 side by side; a loop in a turn
+that reads nothing of that loop's state is computed once, before it, and counted once (amended
+2026-10-20, review 9), as is a loop read twice, or two built alike. The constructor refuses a count below 1 or above the cap and a
 loop that, with what it holds, passes it; `SurfaceOutputs` refuses a surface that passes it,
 counting its diffuse response once for each of the eight lights a pass shades with at most
 (`RenderPass.addLight`: "up to 8; extras are ignored"). 1024 is four times what the
@@ -337,3 +338,11 @@ names the variables itself (`ir_s…`).
   loop's turns from its number; a thousand such loops, the most the budget allows, build and pass
   `SurfaceOutputs` in about a third of a second. A record cannot cache a count in a field it does
   not declare, so each constructor still counts the nest below it, once.
+- **2026-10-20, review 9: the budget counts what the generator runs.** The count multiplied every
+  loop in another's turn by that loop's count, while the generator computes a loop that reads
+  nothing of the outer state once, before the outer loop, as section 3.1 promises: a loop of 4
+  around an invariant loop of 512 runs 516 turns a pixel and was refused as 2,048, and an equal
+  loop of 300 in the initial value and in `until`, written once, counted 1,200. The count now
+  reads which names each loop reads, as the generator places it by, and counts a turn's loop that
+  reads none of the state once, with the initial value's; a generator test holds the invariant
+  loop before the outer one, where it is counted.

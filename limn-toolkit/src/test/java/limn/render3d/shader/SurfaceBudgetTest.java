@@ -150,4 +150,23 @@ class SurfaceBudgetTest {
                     "1,025 turns");
         });
     }
+
+    @Test
+    void aLoopInATurnThatDoesNotReadTheStateIsCountedOnceAsItIsComputedOnce() {
+        // Reading nothing of the outer state, the inner loop is computed once, before the outer
+        // one: 512 + 4, not 4 × 512.
+        Expr.Loop invariant = counting(Expr.Lit.of(0f), 512, 1f);
+        assertDoesNotThrow(() -> Expr.Loop.of(Expr.Lit.of(0f), 4, s -> add(s, invariant)));
+        // An equal loop in the initial value and in until is written once: 300 + 3.
+        Expr.Loop x = counting(Expr.Lit.of(0f), 300, 1f);
+        assertDoesNotThrow(() -> Expr.Loop.of(x, 3, s -> add(s, Expr.Lit.of(1f)),
+                s -> new Expr.Binary(Expr.Op.SUB, s, x)));
+        // Reading the state, it is a turn's work: 4 × 512 is refused.
+        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+                () -> Expr.Loop.of(Expr.Lit.of(0f), 4, s -> add(s, counting(s, 512, 1f))));
+        assertTrue(refused.getMessage().contains("2048"), refused.getMessage());
+        // Through a loop nested deeper that reads it, too.
+        assertThrows(IllegalArgumentException.class, () -> Expr.Loop.of(Expr.Lit.of(0f), 4,
+                s -> add(s, Expr.Loop.of(Expr.Lit.of(0f), 2, t -> add(t, counting(s, 256, 1f))))));
+    }
 }

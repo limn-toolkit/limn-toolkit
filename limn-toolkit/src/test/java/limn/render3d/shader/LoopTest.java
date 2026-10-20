@@ -95,14 +95,15 @@ class LoopTest {
 
     @Test
     void aNestingIsCappedByTheProductOfItsCounts() {
-        assertDoesNotThrow(() -> loop(32, z -> add(z, loop(32, LoopTest::step))));
-        assertThrows(IllegalArgumentException.class, () -> loop(32, z -> add(z, loop(64, LoopTest::step))),
+        // Inner loops that start from the outer state: a turn's work.
+        assertDoesNotThrow(() -> loop(32, z -> add(z, Expr.Loop.of(z, 32, LoopTest::step))));
+        assertThrows(IllegalArgumentException.class, () -> loop(32, z -> add(z, Expr.Loop.of(z, 64, LoopTest::step))),
                 "32 turns of 64 turns is 2048 turns a fragment");
         // A loop in the initial value runs once, before the outer one: it does not multiply.
         assertDoesNotThrow(() -> Expr.Loop.of(loop(64, LoopTest::step), 16, LoopTest::step));
         // A loop in until, a turn's work like next, does multiply.
         assertThrows(IllegalArgumentException.class, () -> Expr.Loop.of(ORIGIN, 32, LoopTest::step,
-                z -> new Expr.Swizzle(loop(64, LoopTest::step), "x")));
+                z -> new Expr.Swizzle(Expr.Loop.of(z, 64, LoopTest::step), "x")));
     }
 
     @Test

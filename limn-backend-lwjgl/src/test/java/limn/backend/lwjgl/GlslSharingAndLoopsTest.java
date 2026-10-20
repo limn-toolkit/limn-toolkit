@@ -341,4 +341,16 @@ class GlslSharingAndLoopsTest {
         assertTrue(frag.indexOf("((v_uv - vec2(0.5, 0.5)) * 6.0)") < frag.indexOf("for (int ir_i0"), frag);
         assertEquals(1, count(frag, "for (int ir_i"), frag);
     }
+
+    @Test
+    void aLoopInATurnThatDoesNotReadTheStateIsWrittenBeforeTheLoopAsItIsCounted() {
+        // The budget counts it once because this is where it runs: before the outer loop.
+        Expr.Loop invariant = Expr.Loop.of(Expr.Lit.of(0f), 512, t -> add(t, Expr.Lit.of(1f)));
+        Expr.Loop outer = Expr.Loop.of(Expr.Lit.of(0f), 4, s -> add(s, invariant));
+        String frag = fragment(IrSurfaces.emitting(new Expr.Construct(ShaderType.VEC3, List.of(outer))));
+        int inner = frag.indexOf("< 512;");
+        int around = frag.indexOf("< 4;");
+        assertTrue(inner > 0 && around > inner, frag);
+        assertFalse(loopText(frag, 0).contains("< 512;"), "not inside the outer loop: " + frag);
+    }
 }

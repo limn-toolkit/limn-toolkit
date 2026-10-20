@@ -254,11 +254,13 @@ final class Loops {
 
     /**
      * The most turns a pixel takes in a loop of {@code maxIterations} turns over {@code turn}
-     * (its next state and its exit test) after {@code initial}: the initial values' loops once,
-     * then each turn's loops, at least one turn's worth, times the count.
+     * (its next state and its exit test) after {@code initial}, binding {@code states}: the
+     * initial values' loops once, and the turn's loops that read none of the states once with
+     * them, since they are computed before the loop; then the turn's loops that read the state, at
+     * least one turn's worth, times the count.
      */
-    static long turns(List<Expr> initial, int maxIterations, List<Expr> turn) {
-        return new Counter().turns(initial, maxIterations, turn);
+    static long turns(List<Expr> initial, int maxIterations, List<Expr> turn, List<String> states) {
+        return new Counter().turns(initial, maxIterations, turn, states);
     }
 
     /**
@@ -300,6 +302,30 @@ final class Loops {
         private final Map<Expr, Integer> loopNumbers = new IdentityHashMap<>();
         private final Map<List<Object>, Integer> byLoopKey = new HashMap<>();
         private final Map<Integer, Long> counted = new HashMap<>();
+        private final Map<Expr, Set<String>> reads = new IdentityHashMap<>();
+
+        /** The IR names a node reads, a loop's own states excepted, as the generator places it by. */
+        Set<String> reads(Expr node) {
+            Set<String> known = reads.get(node);
+            if (known != null) {
+                return known;
+            }
+            Set<String> names = new java.util.HashSet<>();
+            if (node instanceof Expr.Ref ref) {
+                names.add(ref.name());
+            }
+            for (Expr child : children(node)) {
+                names.addAll(reads(child));
+            }
+            if (node instanceof Expr.Loop loop) {
+                names.removeAll(loop.states());
+                for (Expr start : loop.initial()) {
+                    names.addAll(reads(start));
+                }
+            }
+            reads.put(node, names);
+            return names;
+        }
 
         /** The node's number: equal for nodes of one kind, equal fields and equally numbered children. */
         int id(Expr node) {
@@ -354,10 +380,17 @@ final class Loops {
             return number;
         }
 
-        long turns(List<Expr> initial, int maxIterations, List<Expr> turn) {
-            long before = work(frontier(initial));
-            long each = Math.max(1, work(frontier(turn)));
-            return saturatedSum(before, saturatedProduct(maxIterations, each));
+        long turns(List<Expr> initial, int maxIterations, List<Expr> turn, List<String> states) {
+            Map<Integer, Expr.Loop> before = frontier(initial);
+            Map<Integer, Expr.Loop> each = new java.util.LinkedHashMap<>();
+            frontier(turn).forEach((number, loop) -> {
+                if (java.util.Collections.disjoint(reads(loop), states)) {
+                    before.putIfAbsent(number, loop);
+                } else {
+                    each.put(number, loop);
+                }
+            });
+            return saturatedSum(work(before), saturatedProduct(maxIterations, Math.max(1, work(each))));
         }
 
         /** The loops reached from {@code roots} without passing through another loop, by number. */
@@ -385,7 +418,7 @@ final class Loops {
                 Long turns = counted.get(entry.getKey());
                 if (turns == null) {
                     Expr.Loop loop = entry.getValue();
-                    turns = turns(loop.initial(), loop.maxIterations(), turnOf(loop));
+                    turns = turns(loop.initial(), loop.maxIterations(), turnOf(loop), loop.states());
                     counted.put(entry.getKey(), turns);
                 }
                 sum = saturatedSum(sum, turns);
