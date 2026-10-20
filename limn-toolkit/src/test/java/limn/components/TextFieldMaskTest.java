@@ -595,6 +595,24 @@ class TextFieldMaskTest extends AccessibleComponentTestBase {
     }
 
     @Test
+    void aRefusedCutLeavesTheClipboardAloneAndAMadeOneFillsIt() {
+        TextFieldTest.MockClipboard clipboard = TextFieldTest.MockClipboard.holding("before");
+        holding("AAA-0000-**", "ABC-1234-XY", 0);
+        scene.setClipboard(clipboard);
+        field.select(4, 6); // "12": the X would land on a digit
+        drive(scene).press(Keys.X, COMMAND);
+        assertEquals("ABC-1234-XY", field.text());
+        assertEquals("before", clipboard.value, "a refused Cut is not a Copy");
+        assertEquals(4, field.selectionStart());
+        assertEquals(6, field.selectionEnd());
+
+        field.select(9, 11); // "XY": nothing after it
+        drive(scene).press(Keys.X, COMMAND);
+        assertEquals("ABC-1234-", field.text(), "the dash before them stays, as after a Backspace");
+        assertEquals("XY", clipboard.value, "a Cut made fills the clipboard");
+    }
+
+    @Test
     void steppingOverALiteralNeverLeavesTheCaretInsideACluster() {
         holding("**-**", "ab\u0301c", 2); // the combining acute lands on the hyphen: "ab-\u0301c"
         assertEquals("ab-\u0301c", field.text());

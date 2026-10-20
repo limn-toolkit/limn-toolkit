@@ -109,6 +109,7 @@ class TextFieldMaskEditsTest extends AccessibleComponentTestBase {
             int collapsed = 0;
             boolean history = false;
             boolean weak = false;
+            boolean cut = false;
             String what;
             if (roll < 30) {
                 typed = new String(Character.toChars(model.someCharacter(random)));
@@ -148,6 +149,12 @@ class TextFieldMaskEditsTest extends AccessibleComponentTestBase {
                 what = "redo";
                 history = true;
                 drive(scene).press(Keys.Z, COMMAND | Keys.MOD_SHIFT);
+            } else if (roll >= 74 && roll < 78 && selected) {
+                what = "cut";
+                clipboard.value = "\u0000";
+                drive(scene).press(Keys.X, COMMAND);
+                typed = "";
+                cut = true;
             } else if (roll < 74) {
                 String value = random.nextBoolean() ? model.someValue(random)
                         : model.someFragment(random) + model.someFragment(random);
@@ -168,6 +175,13 @@ class TextFieldMaskEditsTest extends AccessibleComponentTestBase {
             // An edit is heard once when it changed the text, and not at all when the mask
             // refused it or put back what it took; a caller's setText reaches no handler.
             boolean changed = !field.text().equals(oldText);
+            if (cut && clipboard.value.equals("\u0000") == changed) {
+                fail("a cut " + (changed ? "made left the clipboard alone" : "refused wrote the clipboard")
+                        + ": " + context);
+            }
+            if (clipboard.value.equals("\u0000")) {
+                clipboard.value = "";
+            }
             if (announced[0] != (changed ? 1 : 0)
                     || announced[1] != (changed && !what.startsWith("setText") ? 1 : 0)) {
                 fail(announced[0] + " text changes and " + announced[1] + " handler runs for an edit that "

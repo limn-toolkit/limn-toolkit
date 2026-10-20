@@ -307,8 +307,8 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * nothing of another kind after it, or on into an any position, still fits, and that edit is
      * made: {@code ABC-1234-X} with a {@code 5} typed after the {@code 3} reads
      * {@code ABC-1235-4X}. A refused edit, here or in a full field, does nothing: the text, the
-     * caret and the selection stay, no handler runs, no watcher hears of it, and no undo step is
-     * left.
+     * caret and the selection stay, no handler runs, no watcher hears of it, no undo step is
+     * left, and a refused Cut leaves the clipboard as it was.
      *
      * <p>A masked field lays its text out left to right in every language, since what it holds
      * is a code or a number written in a fixed shape: its groups, the stretches between
@@ -1796,12 +1796,19 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         if (!model.hasSelection() || !allowClipboardCopy()) {
             return false;
         }
-        clipboard().setText(model.selectedText());
+        String selected = model.selectedText();
         if (cut) {
+            // The clipboard takes what was cut only once the removal is made: a mask that refuses
+            // it leaves the text, and a Cut that wrote the clipboard anyway would be a Copy.
+            String before = model.text();
             noteCaretBeforeEdit();
             model.deleteSelection();
             announceTextEdit(Change.Origin.USER);
+            if (model.text().equals(before)) {
+                return true;
+            }
         }
+        clipboard().setText(selected);
         return true;
     }
 

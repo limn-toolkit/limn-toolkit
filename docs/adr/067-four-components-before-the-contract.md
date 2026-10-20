@@ -153,7 +153,9 @@ Markdown.
   as many characters as it took, each of its kind, which moves nothing. On a pattern whose
   positions are all of one kind every character always fits, so nothing there changes. To change
   a letter of `ABC-1234-XY`, select it and type over it. A full field refusing an insertion now
-  keeps a selection it had, too, where it used to collapse it.
+  keeps a selection it had, too, where it used to collapse it. (Added 2026-10-20: a refused Cut
+  writes nothing to the clipboard; it wrote the selection before offering the removal to the
+  mask, so a refused Cut was a Copy.)
 - *Amended 2026-10-19:* **a masked field lays its text out left to right in every language.**
   The 2026-10-19 audit found the Showcase in Arabic showing the card `4111 1111 1111 1112` as
   `1112 1111 1111 4111` and the phone placeholder `+1 (415) 555-0123` as `555-0123 (415) 1+`: a
