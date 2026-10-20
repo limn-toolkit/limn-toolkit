@@ -1177,7 +1177,7 @@ public final class Scene {
         if (restore != null && restore != overlay && !detachedByClose
                 && isInSubtree(restore, keyboardRoot()) && canTakeFocus(restore)) {
             // The overlay closing is what moved the focus, not whoever closed it.
-            setFocus(restore, Change.Origin.ADJUSTMENT);
+            giveFocusBack(restore);
         } else {
             setFocus(null, Change.Origin.ADJUSTMENT);
         }
@@ -4099,6 +4099,12 @@ public final class Scene {
             }
 
             @Override
+            public boolean focusReturnedFromOverlay(Widget<?> widget) {
+                Scene scene = widget.scene();
+                return scene != null && scene.focusReturning == widget;
+            }
+
+            @Override
             public boolean namedByApplication(Widget<?> widget) {
                 return widget.accessibleName() != null || widget.accessibleLabelledBy() != null
                         || widget.tooltipSource() != null;
@@ -4523,13 +4529,30 @@ public final class Scene {
         Widget<?> restore = overlayFocusReturn.get(index);
         if (restore != null && restore != overlay && !detachedByClose
                 && isInSubtree(restore, keyboardRoot()) && canTakeFocus(restore)) {
-            setFocus(restore, Change.Origin.ADJUSTMENT);
+            giveFocusBack(restore);
         } else {
             setFocus(null, Change.Origin.ADJUSTMENT);
         }
         invalidateAccessible();
         requestRender();
     }
+
+    /**
+     * Gives {@code restore} the focus an overlay took from it, as the overlay closes, telling it so
+     * while it gains it ({@link limn.scene.internal.SceneAccess#focusReturnedFromOverlay}): the
+     * overlay closing is what moved the focus, not whoever closed it.
+     */
+    private void giveFocusBack(Widget<?> restore) {
+        focusReturning = restore;
+        try {
+            setFocus(restore, Change.Origin.ADJUSTMENT);
+        } finally {
+            focusReturning = null;
+        }
+    }
+
+    /** The widget an overlay closing is giving the focus back to, while it is told; else {@code null}. */
+    private @Nullable Widget<?> focusReturning;
 
     /** @return whether {@code overlay} leaves the keyboard with the layer beneath it */
     boolean leavesKeyboardBelow(Widget<?> overlay) {
@@ -7274,14 +7297,36 @@ public final class Scene {
         }
     }
 
-    /** Dims this window while a modal locks it, just like the old in-scene dialog. */
+    /**
+     * Dims this window while a modal locks it, just like the old in-scene dialog.
+     *
+     * <p>Not painted over: black at the veil's alpha painted over the whole framebuffer put
+     * half-opaque black where the window had nothing, and a dialog with a second one open over it,
+     * its window transparent round its rounded card, showed a dark square at each corner of the card
+     * (2026-10-20). The veil darkens every pixel's colour by its alpha and scales its coverage by one
+     * plus that alpha: a clear pixel stays clear, an opaque one is the same pixel painting over gave,
+     * and a partly covered one gains coverage, so the desktop seen through a translucent window
+     * darkens with the window, which coverage left alone would not. A canvas that cannot blend so
+     * multiplies the veil instead, which keeps the clear pixels clear and the opaque ones the same
+     * but leaves the desktop through a translucent pixel undimmed.
+     */
     private void paintModalScrim(Canvas canvas) {
         if (scrimAlpha > 0.001f) {
             // Ease the linear time-ramp so the dim glides in/out instead of
             // marching at a constant rate.
             float eased = Scalars.smoothstep(scrimAlpha / SCRIM_MAX_ALPHA) * SCRIM_MAX_ALPHA;
-            canvas.fillRect(0, 0, canvas.width(), canvas.height(),
-                    Color.rgba(0x000000, eased));
+            if (canvas instanceof limn.scene.internal.VeilCanvas veil) {
+                veil.fillVeil(0, 0, canvas.width(), canvas.height(), Color.rgba(0x000000, eased));
+                return;
+            }
+            canvas.save();
+            try {
+                canvas.setBlendMode(limn.graphics.BlendMode.MULTIPLY);
+                canvas.fillRect(0, 0, canvas.width(), canvas.height(),
+                        Color.rgba(0x000000, eased));
+            } finally {
+                canvas.restore();
+            }
         }
     }
 

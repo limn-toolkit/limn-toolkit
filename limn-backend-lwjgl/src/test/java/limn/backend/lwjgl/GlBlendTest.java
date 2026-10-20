@@ -52,6 +52,23 @@ class GlBlendTest {
         assertEquals(GL33C.GL_ONE, f.dstAlpha());
     }
 
+    /**
+     * A modal's veil: colour {@code S·a·A + C(1 - a)}, coverage {@code A + A·a}, so clear stays
+     * clear, opaque is source-over, and a translucent pixel covers more; and it is none of the
+     * application's modes, whose factors it must not share.
+     */
+    @Test
+    void theVeilScalesCoverageByOnePlusItsAlphaAndIsNoApplicationMode() {
+        GlBlend.Factors f = GlBlend.VEIL;
+        assertEquals(GL33C.GL_DST_ALPHA, f.srcRgb());
+        assertEquals(GL33C.GL_ONE_MINUS_SRC_ALPHA, f.dstRgb());
+        assertEquals(GL33C.GL_DST_ALPHA, f.srcAlpha());
+        assertEquals(GL33C.GL_ONE, f.dstAlpha());
+        for (BlendMode mode : BlendMode.values()) {
+            org.junit.jupiter.api.Assertions.assertNotEquals(GlBlend.of(mode), f, mode.name());
+        }
+    }
+
     @Test
     void inAGroupNormalIsTheWindowsAndAdditiveSumsColourAndCoverage() {
         GlBlend.InGroup normal = GlBlend.inGroup(BlendMode.NORMAL);

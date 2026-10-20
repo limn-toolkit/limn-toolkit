@@ -123,8 +123,12 @@ public final class TabbedPane extends Widget<TabbedPane> {
      * One question to {@link #onTabClose}: may this tab close? Answered once, with
      * {@link #allow()} or {@link #refuse()}, now or later: a handler that shows a dialog keeps the
      * request and answers from its result. While it is unanswered the tab is not asked again.
+     *
+     * <p>Only Limn implements this interface. A test asks a handler the way the user does: a click
+     * on the tab's close button, or the key that closes the selected tab, through the scene driver
+     * of {@code limn-test}.
      */
-    public interface TabCloseRequest {
+    public sealed interface TabCloseRequest permits CloseAsk {
 
         /** @return the tab's index now, or -1 when it is no longer in the pane */
         int index();

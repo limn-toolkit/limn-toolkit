@@ -180,6 +180,11 @@ class SceneDriverTest extends ComponentTestBase {
             }
 
             @Override
+            public boolean focusReturnedFromOverlay(limn.scene.Widget<?> widget) {
+                return false;
+            }
+
+            @Override
             public void observeHoverWithin(limn.scene.Widget<?> widget,
                                            limn.scene.internal.SceneAccess.HoverWithin observer) {
             }

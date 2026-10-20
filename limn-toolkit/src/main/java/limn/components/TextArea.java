@@ -2888,9 +2888,21 @@ public final class TextArea extends Widget<TextArea> {
 
     @Override
     protected void onFocusGained() {
+        long[] left = selectionLeft;
         selectionLeft = null;
         focusFade.to(1);
         resetBlink();
+        // The keyboard back from an overlay that took it (a dialog opened over the form in the
+        // scene, a menu), with the text as it was: the selection it let go of comes back, as it
+        // stays in a window a dialog of its own was opened over.
+        if (left != null && left[2] == model.textVersion()
+                && limn.scene.internal.SceneAccess.focusReturnedFromOverlay(this)) {
+            int caret = model.cursor();
+            int anchor = caret == (int) left[0] ? (int) left[1] : (int) left[0];
+            model.setCursor(anchor, false);
+            model.setCursor(caret, true);
+            invalidate();
+        }
     }
 
     @Override

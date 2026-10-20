@@ -187,6 +187,12 @@ public final class SceneAccess {
         boolean inReach(Widget<?> widget);
 
         /**
+         * @param widget a widget being given the focus
+         * @return whether an overlay closing gives it back; see {@link SceneAccess#focusReturnedFromOverlay}
+         */
+        boolean focusReturnedFromOverlay(Widget<?> widget);
+
+        /**
          * @param widget   a widget; see {@link SceneAccess#observeHoverWithin}
          * @param observer told as the hover enters and leaves its subtree, or {@code null} to stop
          */
@@ -423,6 +429,21 @@ public final class SceneAccess {
      */
     public static boolean inReach(Widget<?> widget) {
         return hook().inReach(java.util.Objects.requireNonNull(widget, "widget"));
+    }
+
+    /**
+     * Whether the focus {@code widget} is being given is the focus an overlay took from it and
+     * gives back as it closes: a dialog in the scene over a form, a menu. Such a widget never lost
+     * the keyboard as far as the person is concerned, any more than one in a window a dialog of its
+     * own was opened over, which loses only the window's focus; a field takes back the selection
+     * the overlay's taking of the keyboard made it let go of. Only meaningful inside
+     * {@code onFocusGained}, as {@code focusArrivedByTraversal} is.
+     *
+     * @param widget the widget being given the focus
+     * @return whether an overlay closing gives it back
+     */
+    public static boolean focusReturnedFromOverlay(Widget<?> widget) {
+        return hook().focusReturnedFromOverlay(java.util.Objects.requireNonNull(widget, "widget"));
     }
 
     /**

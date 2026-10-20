@@ -204,8 +204,8 @@ final class DialogsScene {
     }
 
     /**
-     * The dialogs page: the questions an order desk asks, one per scope of modality, two at once,
-     * three alerts, and the question before the window closes.
+     * The dialogs page: the questions an order desk asks, one per scope of modality, a form that
+     * asks before its changes are lost, three alerts, and the question before the window closes.
      *
      * @param status unused: the page reports through {@link Page#report}
      */
@@ -267,28 +267,28 @@ final class DialogsScene {
             dialog.showNonModal(preferences).thenAccept(r -> Page.report(Text.PREFERENCES_CLOSED.get()));
         });
 
-        // Two at once: the customer's form locks this window, and a beat later the application
-        // asks about its unsaved changes over it. The upper one must be on top and answerable,
-        // and the lower one frozen until it closes.
+        // Two at once: the customer's form locks this window, and when the user closes it with
+        // a field changed, Cancel or Escape, the application asks about the changes over it,
+        // keeping the form open until that is answered. The upper one must be on top and
+        // answerable, and the lower one frozen until it closes.
         customer.onAction(() -> {
             String name = "Harbor Supply";
+            String email = "orders@harborsupply.example";
+            TextField nameField = new TextField().setText(name);
+            TextField emailField = new TextField().setText(email);
             Column form = new Column();
             form.gap(Page.GAP).crossAlignment(Flex.CrossAlignment.STRETCH);
-            form.add(new Field(Text.NAME, new TextField().setText(name)));
-            form.add(new Field(Text.EMAIL, new TextField().setText("orders@harborsupply.example")));
+            form.add(new Field(Text.NAME, nameField));
+            form.add(new Field(Text.EMAIL, emailField));
             Dialog lower = look.dress(new Dialog(Text.CUSTOMER_TITLE, I18nString.EMPTY))
                     .setContent(new SizedBox(320, SizedBox.UNSET, form))
                     .addButton(ShowcaseStrings.ACTION_CANCEL, "cancel")
                     .addPrimaryButton(ShowcaseStrings.ACTION_SAVE, "save")
                     .setCancelResult("cancel");
-            lower.show(customer).thenAccept(r -> Page.report(switch (String.valueOf(r)) {
-                case "save" -> Text.SAVED.format(name);
-                case "discard" -> Text.DISCARDED.format(name);
-                default -> Text.UNCHANGED.format(name);
-            }));
-            Ui.postDelayed(() -> {
-                if (customer.scene() == null || lower.result().toCompletableFuture().isDone()) {
-                    return; // the page was left meanwhile, or the form answered first
+            lower.onCancel(request -> {
+                if (nameField.text().equals(name) && emailField.text().equals(email)) {
+                    request.allow(); // nothing to lose
+                    return;
                 }
                 look.dress(new Dialog(I18nString.literal(Text.UNSAVED_TITLE.format(name)), Text.UNSAVED_BODY))
                         .addButton(Text.DONT_SAVE, "discard")
@@ -296,14 +296,20 @@ final class DialogsScene {
                         .addPrimaryButton(ShowcaseStrings.ACTION_SAVE, "save")
                         .setCancelResult("cancel")
                         .show(customer)
-                        .thenAccept(r -> {
-                            if ("cancel".equals(r) || r == null) {
-                                Page.report(Text.STILL_EDITING.format(name));
+                        .thenAccept(answer -> {
+                            if ("save".equals(answer) || "discard".equals(answer)) {
+                                request.dialog().dismiss(answer); // closes the form, and settles the request
                             } else {
-                                lower.dismiss(r);
+                                request.refuse();
+                                Page.report(Text.STILL_EDITING.format(name));
                             }
                         });
-            }, 700);
+            });
+            lower.show(customer).thenAccept(r -> Page.report(switch (String.valueOf(r)) {
+                case "save" -> Text.SAVED.format(name);
+                case "discard" -> Text.DISCARDED.format(name);
+                default -> Text.UNCHANGED.format(name);
+            }));
         });
 
         // Application-modal: while the data is replaced, no window of the application may edit it.

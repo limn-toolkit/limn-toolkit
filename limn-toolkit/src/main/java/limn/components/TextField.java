@@ -2437,6 +2437,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
 
     @Override
     protected void onFocusGained() {
+        long[] left = selectionLeft;
         selectionLeft = null;
         focusFade.to(1);
         resetBlink();
@@ -2445,6 +2446,26 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         // The neighbouring Spinner has made the same distinction for typing since it shipped.
         if (focusArrivedByTraversal()) {
             model.selectAll();
+        } else {
+            takeBackSelection(left);
+        }
+    }
+
+    /**
+     * Puts back the selection the field let go of with the keyboard, when the keyboard comes back
+     * from an overlay that took it (a dialog opened over the form in the scene, a menu) and the
+     * text is as it was: in a window of its own the dialog takes only the window's focus, and the
+     * selection stays; in the scene it took the keyboard, and the person came back to a bare caret,
+     * so the next key typed was inserted where it should have replaced what they had selected.
+     */
+    private void takeBackSelection(long @Nullable [] left) {
+        if (left != null && left[2] == model.textVersion()
+                && limn.scene.internal.SceneAccess.focusReturnedFromOverlay(this)) {
+            int caret = model.cursor();
+            int anchor = caret == (int) left[0] ? (int) left[1] : (int) left[0];
+            model.setCursor(anchor, false);
+            model.setCursor(caret, true);
+            invalidate();
         }
     }
 

@@ -35,7 +35,7 @@ import static org.lwjgl.opengl.GL33C.glClear;
  * triangulation allocates its index arrays per call; cached path geometry is
  * planned alongside the widget layer.
  */
-final class GlCanvas implements Canvas {
+final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
 
     private static final System.Logger LOG = System.getLogger(GlCanvas.class.getName());
 
@@ -177,6 +177,8 @@ final class GlCanvas implements Canvas {
     private ShapingRuler ownRuler;
     private float scale = 1;
     private boolean inFrame;
+    /** While {@link #fillVeil} emits: its blend in place of the state's mode. */
+    private boolean veiling;
     private int flatRects;
     private long flatPixels;
     /**
@@ -1349,12 +1351,12 @@ final class GlCanvas implements Canvas {
      * overlaps one already in it, since the second pass reads what the first left.
      */
     private void applyBlend(State s) {
-        if (openLayers > 0 && s.blendMode != limn.graphics.BlendMode.NORMAL) {
+        if (!veiling && openLayers > 0 && s.blendMode != limn.graphics.BlendMode.NORMAL) {
             GlBlend.InGroup g = GlBlend.inGroup(s.blendMode);
             batch.requireBlend(g.first(), g.then());
             return;
         }
-        GlBlend.Factors f = GlBlend.of(s.blendMode);
+        GlBlend.Factors f = veiling ? GlBlend.VEIL : GlBlend.of(s.blendMode);
         batch.requireBlend(f.srcRgb(), f.dstRgb(), f.srcAlpha(), f.dstAlpha());
     }
 
@@ -1424,6 +1426,22 @@ final class GlCanvas implements Canvas {
             return;
         }
         emitRoundRect(x, y, width, height, 0, 0, 0, 0, -1, paint);
+    }
+
+    /**
+     * The veil in {@link GlBlend#VEIL}'s blend, which is no {@link limn.graphics.BlendMode} and so
+     * cannot be a state an application sets: one rectangle, its factors in force only while it is
+     * emitted, so the next primitive's flush draws it with them and what follows goes back to the
+     * state's mode.
+     */
+    @Override
+    public void fillVeil(float x, float y, float width, float height, limn.graphics.Color veil) {
+        veiling = true;
+        try {
+            fillRect(x, y, width, height, veil);
+        } finally {
+            veiling = false;
+        }
     }
 
     @Override

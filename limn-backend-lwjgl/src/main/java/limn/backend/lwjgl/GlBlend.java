@@ -3,6 +3,7 @@ package limn.backend.lwjgl;
 import limn.graphics.BlendMode;
 import org.jspecify.annotations.Nullable;
 
+import static org.lwjgl.opengl.GL33C.GL_DST_ALPHA;
 import static org.lwjgl.opengl.GL33C.GL_DST_COLOR;
 import static org.lwjgl.opengl.GL33C.GL_ONE;
 import static org.lwjgl.opengl.GL33C.GL_ONE_MINUS_DST_ALPHA;
@@ -69,6 +70,21 @@ final class GlBlend {
      */
     private static final InGroup MULTIPLY_IN_GROUP = new InGroup(MULTIPLY,
             new Factors(GL_ONE_MINUS_DST_ALPHA, GL_ONE, GL_ONE_MINUS_DST_ALPHA, GL_ONE));
+
+    /**
+     * A modal's veil ({@code limn.scene.internal.VeilCanvas}), which no {@link BlendMode} names: for
+     * a veil of premultiplied colour {@code S·a} and alpha {@code a} over a pixel of premultiplied
+     * colour {@code C} and coverage {@code A}, {@code C' = S·a·A + C(1 - a)} and
+     * {@code A' = A·a + A = A(1 + a)}, clamped to 1 by the fixed-point targets the 2D canvas draws
+     * into. A clear pixel stays clear ({@code 0} stays {@code 0}), so a dialog's window round its
+     * rounded card has no dark corners; an opaque one is exactly what painting the veil over it gives
+     * ({@code A = 1}: the colour is source-over's, and {@code 1 + a} clamps to 1); a partly covered
+     * one darkens and gains coverage ({@code 0.6} becomes {@code 0.9} under a half-alpha veil), so
+     * the desktop seen through a translucent window is dimmed with it, as it was before the veil was
+     * multiplied.
+     */
+    static final Factors VEIL =
+            new Factors(GL_DST_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_DST_ALPHA, GL_ONE);
 
     private GlBlend() {
     }
