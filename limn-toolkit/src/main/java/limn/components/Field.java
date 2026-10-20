@@ -272,12 +272,14 @@ public final class Field extends Widget<Field> {
     }
 
     /**
-     * The message about the control: the one the application set with the state, or, with none, the
-     * control's own reason (a date field that refuses a day), as the line under the control says
-     * it; {@code null} when there is neither. It reads in the control's language, the one the
-     * control declares, else the one it takes from this field and the widgets above it, so a
-     * Portuguese date field in an English window is described in Portuguese, on the line and here.
-     * See {@link #validationMessageSource()} for the value behind it.
+     * The message about the control: the one the application set with a state other than
+     * {@link Validation#NONE}, or, with none, the control's own reason (a date field that refuses a
+     * day), as the line under the control says it; {@code null} when there is neither. A message
+     * set with {@link Validation#NONE} is not shown, and is not answered here either. It reads in
+     * the control's language, the one the control declares, else the one it takes from this field
+     * and the widgets above it, so a Portuguese date field in an English window is described in
+     * Portuguese, on the line and here. See {@link #validationMessageSource()} for the value
+     * behind it.
      */
     public @Nullable String validationMessage() {
         I18nString source = validationMessageSource();
@@ -293,11 +295,17 @@ public final class Field extends Widget<Field> {
     }
 
     /**
-     * The localizable value behind {@link #validationMessage()}: the application's message, else
-     * the control's own, else {@code null}.
+     * The localizable value behind {@link #validationMessage()}: the application's message while
+     * the state is not {@link Validation#NONE}, else the control's own, else {@code null}.
      */
     public @Nullable I18nString validationMessageSource() {
-        return message != null ? message : FieldControls.ownMessage(control);
+        I18nString shown = shownMessage();
+        return shown != null ? shown : FieldControls.ownMessage(control);
+    }
+
+    /** The application's message, which shows only with a state: with none it is absent. */
+    private @Nullable I18nString shownMessage() {
+        return validation == Validation.NONE ? null : message;
     }
 
     /**
@@ -321,7 +329,9 @@ public final class Field extends Widget<Field> {
      * field, on submitting. UI thread only.
      *
      * @param state      the state
-     * @param newMessage what to say, or {@code null} for nothing: the helper text stays on the line
+     * @param newMessage what to say, or {@code null} for nothing: the helper text stays on the line.
+     *                   With {@link Validation#NONE} it is neither shown nor read, nor answered
+     *                   by {@link #validationMessage()}
      * @return this field
      */
     public Field setValidation(Validation state, @Nullable I18nString newMessage) {
@@ -372,13 +382,19 @@ public final class Field extends Widget<Field> {
         }
     }
 
-    /** What the line shows, decided in one place: the message, the control's own, the helper, nothing. */
+    /**
+     * What the line shows, decided in one place: the application's message with its state, else
+     * the control's own reason, else the helper text, else nothing. The control's reason comes
+     * before the helper text: it says why the value it holds is refused now, which the helper text,
+     * how to fill the field, does not, and the helper text comes back once the value is accepted.
+     */
     private void refreshLine() {
         I18nString text;
         Validation shown;
-        I18nString own = message == null ? FieldControls.ownMessage(control) : null;
-        if (validation != Validation.NONE && message != null) {
-            text = message;
+        I18nString applications = shownMessage();
+        I18nString own = applications == null ? FieldControls.ownMessage(control) : null;
+        if (applications != null) {
+            text = applications;
             shown = validation;
         } else if (own != null) {
             text = own;

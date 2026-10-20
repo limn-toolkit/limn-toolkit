@@ -335,6 +335,38 @@ class FieldTest extends ComponentTestBase {
     }
 
     @Test
+    void aMessageSetWithNoStateIsNotShownNorReadAndTheDatesRefusalStaysOnTheLine() {
+        // An application that passes the message it computed whatever the state,
+        // setValidation(ok ? NONE : ERROR, message), with a date field that refuses the day held:
+        // the message is not on the line while the state is NONE, so the getters do not name it
+        // either, and the date's own refusal keeps the line, ahead of the helper text, because the
+        // date is still refused. The getter answered the application's message, which nothing
+        // showed, and the line hid the refusal behind the helper text.
+        DateField date = new DateField().setClock(TODAY).setMaxDate(LocalDate.of(2026, 10, 31));
+        Field field = new Field("Delivery", date).setHelperText("dd/mm/yyyy");
+        Scene scene = laidOut(field, 320);
+        date.setDate(LocalDate.of(2026, 11, 5));
+        String own = date.validationMessage();
+        assertNotNull(own, "sanity: the date refuses the day");
+
+        field.setValidation(Validation.NONE, "Looks good");
+
+        assertEquals(own, line(field).text(), "the refusal stays on the line");
+        assertEquals(Tone.DANGER, line(field).tone());
+        assertEquals(own, field.validationMessage(), "and the getter names what the line says");
+        assertEquals(own, field.validationMessageSource().get());
+
+        date.setDate(LocalDate.of(2026, 10, 6));
+        assertEquals("dd/mm/yyyy", line(field).text(), "accepted: the helper, still not the message");
+        assertNull(field.validationMessage(), "nothing is said about the control");
+
+        field.setValidation(Validation.SUCCESS, "Looks good");
+        assertEquals("Looks good", line(field).text(), "with a state, the message shows");
+        assertEquals("Looks good", field.validationMessage());
+        scene.layoutPass(320, 400);
+    }
+
+    @Test
     void aPaletteChangeRecoloursTheLineWithNoCodeOfTheApplications() {
         Field field = new Field("Email", new TextField()).setValidation(Validation.ERROR, "Enter an address");
         Scene scene = laidOut(field, 320);

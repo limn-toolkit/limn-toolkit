@@ -567,3 +567,14 @@ the control it describes. Precisely:
 field in an English process inside a field with no language, a Portuguese field around a date field
 with none, and neither, for the control's reason and the application's message, painted and
 returned, and the line following the control when it stops declaring.
+
+*Review, 2026-10-20 (R5C-2):* "the application's message, else the control's own reason" did not
+say what a message set with `NONE` is. The line never shows one (it shows a message only with a
+state), yet the getter answered it, naming a text nothing showed, and the line, which left the
+control's reason out whenever a message was set at all, showed the helper text instead of a date
+field's refusal while the date was still refused. A message set with `NONE` is now absent, on the
+line and in both getters; so the line shows, in order, the
+application's message with its state, the control's own reason, the helper text. The reason comes
+before the helper text because it says why the value held is refused now, which the helper text,
+how to fill the field, does not; the helper text returns once the value is accepted.
+`FieldTest.aMessageSetWithNoStateIsNotShownNorReadAndTheDatesRefusalStaysOnTheLine` has it.
