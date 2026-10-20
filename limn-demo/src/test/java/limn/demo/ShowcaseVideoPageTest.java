@@ -181,6 +181,23 @@ class ShowcaseVideoPageTest {
         }
     }
 
+    @Test
+    void theLabSceneCallsItsContainerEntryMp4AndNotTheSampleClip() {
+        // Its MP4 entry plays the clip it writes (eight colour bars) wherever the payload can
+        // encode, so "Sample clip" there would name the bars the bunny's name, which is what the
+        // page did before it got a clip entry of its own.
+        try (HeadlessUi ui = new HeadlessUi()) {
+            List<String> labels = new ArrayList<>();
+            for (SegmentedControl each : find(VideoScene.content(), SegmentedControl.class)) {
+                for (int i = 0; i < each.segmentCount(); i++) {
+                    labels.add(each.segmentSource(i).get());
+                }
+            }
+            assertTrue(labels.contains("MP4"), labels.toString());
+            assertFalse(labels.contains(VideoScene.Text.CLIP.get()), labels.toString());
+        }
+    }
+
     /** The bundled excerpt is in the view, and is closed again. */
     private static void assertClip(VideoView view) {
         VideoStreamSource shown = view.source();

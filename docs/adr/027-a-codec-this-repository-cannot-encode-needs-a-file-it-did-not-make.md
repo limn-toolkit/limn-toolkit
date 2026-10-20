@@ -84,7 +84,10 @@ it with a larger corpus for anyone who has one.
   Foundation's credit, and it opened on the bars entry besides: colour bars whichever entry was
   picked, the lesson of §2 again (a default that prefers the developer's build hides the shipped
   one). Where the decoder will not load, the page opens on the generated bars and keeps the clip
-  in its picker; the lab's `--scene video` keeps its MP4 entry and its first entry as they were.
+  in its picker. The lab's `--scene video` keeps its twelve entries and opens on its first, the
+  bars, as before, and its MP4 entry still writes its own clip when the payload can encode; that
+  entry's segment now reads "MP4" where it read "Sample clip", since what it plays there may be
+  that clip of bars, and its caption names both.
 - **Not media without paperwork.** Three things or it does not go in: a licence that permits
   redistribution, the attribution that licence requires (in `media/README.md` and in `NOTICE`,
   because a reader of one is not a reader of the other), and a recorded digest, so a file can be
