@@ -641,6 +641,11 @@ that the text above does not say, dated where it departs from it.
   the old size, and the group's description the old names. The size is now kept while the letters
   each circle draws hold, which are the members' own in their language, and the description while
   the group's language holds. `AvatarTest` switches a window to Portuguese and back.)
+  (2026-10-20, the review's R7C-1: "the members' own in their language" was true of the upper
+  case and not of the name, which a member named by a role resolved in the language of whichever
+  circle was painting; beside a member that declares another language, the letters, and so the
+  size, changed from circle to circle, two sizes in one group every frame. A member now reads its
+  name in its own language whoever asks. `AvatarTest.oneSizeHoldsWhenOneMemberDeclaresItsOwnLanguage`.)
 
 ### 12.4 Empty and loading content
 

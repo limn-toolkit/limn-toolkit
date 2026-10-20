@@ -482,6 +482,58 @@ class AvatarTest extends AccessibleComponentTestBase {
     }
 
     @Test
+    void oneSizeHoldsWhenOneMemberDeclaresItsOwnLanguage() {
+        // A member named by a role, "Support Team", whose Portuguese words are the wide pair, in an
+        // English window, beside a member that declares Portuguese. The role member resolved its
+        // name in the language of whichever circle was painting, so its letters, and the size
+        // worked out from them, changed from circle to circle: the Portuguese member's circle drew
+        // at the size of the Portuguese pair and the others at the English one, two sizes in one
+        // group, every frame. The role member's letters are read in its own language, English here.
+        Locale brazilian = Locale.forLanguageTag("pt-BR");
+        limn.i18n.StringBundle roles = (key, locale) ->
+                "avatar.supportTeam".equals(key) && brazilian.equals(locale) ? CODER + " Suporte" : null;
+        Locale before = limn.i18n.I18n.locale();
+        limn.i18n.I18n.setLocale(Locale.ENGLISH);
+        limn.i18n.I18n.addBundle(roles);
+        try {
+            Avatar support = new Avatar(new limn.i18n.I18nString("avatar.supportTeam", "Support Team"));
+            Avatar ana = new Avatar("Ana Lima");
+            ana.setLocale(brazilian);
+            AvatarGroup g = new AvatarGroup(support, ana, new Avatar("Rui Costa"));
+            Scene s = new Scene(g);
+            s.setTextRuler(SCALED_RULER);
+            for (int frame = 1; frame <= 2; frame++) {
+                s.layoutPass(400, 60);
+                Recorder drawn = new Recorder(400, 60);
+                s.renderFrame(drawn);
+                assertEquals(3, drawn.fonts.size(), "frame " + frame + ", sanity: " + drawn.texts);
+                assertEquals(1, drawn.fonts.stream().map(Font::size).distinct().count(),
+                        "frame " + frame + ": one size: " + drawn.texts + " " + drawn.fonts);
+                assertEquals(label(), drawn.fonts.get(0).size(), 0.01f,
+                        "frame " + frame + ": the role member's own language, English: " + drawn.texts);
+            }
+            assertEquals("ST", support.shownInitials(), "whichever scope asks");
+            Locale enclosing = limn.i18n.I18n.pushScope(brazilian);
+            try {
+                assertEquals("ST", support.shownInitials(), "a Portuguese scope included");
+            } finally {
+                limn.i18n.I18n.popScope(enclosing);
+            }
+            ana.setLocale(null);
+            support.setLocale(brazilian);
+            s.layoutPass(400, 60);
+            Recorder drawn = new Recorder(400, 60);
+            s.renderFrame(drawn);
+            assertTrue(drawn.fonts.get(0).size() < label(), "declared Portuguese, the wide pair sets the size: "
+                    + drawn.texts + " " + drawn.fonts);
+            assertEquals(1, drawn.fonts.stream().map(Font::size).distinct().count(), "one size: " + drawn.fonts);
+        } finally {
+            limn.i18n.I18n.removeBundle(roles);
+            limn.i18n.I18n.setLocale(before);
+        }
+    }
+
+    @Test
     void anAvatarAloneKeepsItsInitialsCentredAtTheirSize() {
         Avatar alone = new Avatar("Mei Wong");
         float d = Theme.current().tokensFor(alone).controlHeight();

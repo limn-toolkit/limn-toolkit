@@ -225,7 +225,7 @@ public final class AvatarGroup extends Widget<AvatarGroup> {
         if (member.parent() != this || member.image() != null) {
             return null; // hidden, or a picture: no letters drawn
         }
-        String letters = member.shownInitials(); // upper-cased in the member's language
+        String letters = member.shownInitials(); // read and upper-cased in the member's own language
         return letters.isEmpty() ? null : letters;
     }
 

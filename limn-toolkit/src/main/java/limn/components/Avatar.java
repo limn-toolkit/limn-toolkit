@@ -11,6 +11,7 @@ import limn.graphics.Image;
 import limn.graphics.RoundRect;
 import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
+import limn.i18n.I18n;
 import limn.i18n.I18nString;
 import limn.i18n.internal.LocaleServices;
 import limn.scene.Change;
@@ -270,13 +271,23 @@ public final class Avatar extends Widget<Avatar> {
         return m.lookingAt() ? m.group() : word;
     }
 
-    /** The initials drawn: the ones given, or derived once per name and locale. */
+    /**
+     * The initials drawn: the ones given, or derived once per name and locale. The name is read in
+     * this avatar's own language whoever asks, so a group working out its one size from every
+     * member's letters gets the same letters from each of its circles.
+     */
     String shownInitials() {
         if (initials != null) {
             return initials;
         }
-        String value = name.get();
         Locale locale = locale();
+        String value;
+        Locale enclosing = I18n.pushScope(locale);
+        try {
+            value = name.get();
+        } finally {
+            I18n.popScope(enclosing);
+        }
         if (shownInitials == null || !value.equals(shownFor) || !locale.equals(shownIn)) {
             shownInitials = initialsOf(value, locale);
             shownFor = value;
