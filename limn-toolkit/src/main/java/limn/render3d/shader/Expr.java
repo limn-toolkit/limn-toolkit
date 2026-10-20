@@ -245,9 +245,10 @@ public sealed interface Expr
      * each value of the state as a {@link Ref} of its initial value's type, under names it
      * chooses, which a surface's inputs cannot take (they may not start {@code ir_}). Those are the
      * record's {@code states}: a record keeps its components, and the IR has to say which
-     * references a loop binds, but nothing else names them. A loop is named by how many loops nest
-     * in its turn, one more than any loop in it holds, so a loop in another's turn, built there or
-     * apart, on any thread, has names of its own and may read the outer state. The state means
+     * references a loop binds, but nothing else names them. A loop is named by its level: one more
+     * than the highest level of a loop in its turn, 0 for a turn that holds none. So a loop in
+     * another's turn, built there or apart, on any thread, has names of its own and may read the
+     * outer state. The state means
      * nothing outside its loop: {@link SurfaceOutputs} refuses a surface that reads it there.
      *
      * <p><b>Bounded across a whole surface.</b> The count is a constant from 1 to
@@ -278,8 +279,9 @@ public sealed interface Expr
      * every pixel and may hold them all.
      *
      * @param states        the names of the state's values, as {@link #of} gives them:
-     *                      {@code ir_state}, how many loops nest in its turn, {@code _} and the
-     *                      value's place
+     *                      {@code ir_state}, the loop's level (one more than the highest level
+     *                      of a loop in its turn, 0 for none), {@code _} and the value's
+     *                      place
      * @param initial       each value before the first turn; a float or vector type
      * @param maxIterations how many turns at most, 1 to {@link #MAX_ITERATIONS}
      * @param next          each value after one turn, of its initial value's type
@@ -363,8 +365,8 @@ public sealed interface Expr
         }
 
         /**
-         * Hands the turn the state under names no other loop has, then names it for good by how
-         * many loops nest in the turn: one more than the most any loop in it holds. A loop in
+         * Hands the turn the state under names no other loop has, then names it for good by its
+         * level: one more than the highest level of a loop in the turn, 0 for none. A loop in
          * another's turn so has names of its own, whatever thread or order the two were built in,
          * and a method that builds a loop builds an equal one each time, which the generator then
          * computes once.
@@ -436,7 +438,7 @@ public sealed interface Expr
                 String state = states.get(i);
                 if (!Loops.isStateName(state)) {
                     throw new IllegalArgumentException("a loop's state is named by Loop.of, " + Loops.STATE_PREFIX
-                            + ", its depth, _ and its place, not \"" + state + "\"");
+                            + ", its level, _ and its place, not \"" + state + "\"");
                 }
                 ShaderType type = initial.get(i).type();
                 if (type.components == 0) {

@@ -406,3 +406,9 @@ names the variables itself (`ir_s…`).
   loop passed (the new name is a level above every state under it), so the constructor skips the
   checks that walk the nest while a rename rebuilds it. A nest 200 deep now builds and passes
   `SurfaceOutputs` in about 0.3 s.
+- **2026-10-20, review 10: the level is the height of what a loop holds.** The Javadoc said a
+  loop is named by "how many loops nest in its turn", which reads as a count: a turn holding three
+  loops side by side would be 3. The level is one more than the highest level of a loop in the
+  turn, 0 for none, as section 3.4 says; the Javadoc, the parameter's description and the
+  constructor's refusal ("its level", not "its depth") now say so, and a test holds siblings to
+  level 1 and a loop around a loop that holds two to level 2.

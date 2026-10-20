@@ -343,4 +343,20 @@ class LoopTest {
         assertEquals(ShaderType.FLOAT, Expr.Loop.of(Expr.Lit.of(0f), 8, once).type());
         assertEquals(ShaderType.VEC2, Expr.Loop.of(ORIGIN, 8, LoopTest::step, anyX).type());
     }
+
+    @Test
+    void aLoopsLevelIsTheHeightOfWhatItHolds() {
+        // Three loops side by side in a turn are one level down, not three.
+        Expr.Loop siblings = loop(2, z -> add(add(add(z, Expr.Loop.of(z, 2, LoopTest::step)),
+                Expr.Loop.of(z, 3, LoopTest::step)), Expr.Loop.of(z, 4, LoopTest::step)));
+        assertEquals(List.of("ir_state1_0"), siblings.states());
+        // One loop holding two side by side is level 1; the loop around it is level 2.
+        Expr.Loop tall = loop(2, z -> add(z, loop(2, w -> add(add(w, Expr.Loop.of(z, 2, LoopTest::step)),
+                Expr.Loop.of(w, 2, LoopTest::step)))));
+        assertEquals(List.of("ir_state2_0"), tall.states());
+        assertEquals(List.of("ir_state0_0"), loop(2, LoopTest::step).states());
+        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class, () -> new Expr.Loop(
+                List.of("s"), List.of(ORIGIN), 2, List.of(ORIGIN), null, 0));
+        assertTrue(refused.getMessage().contains("its level"), refused.getMessage());
+    }
 }
