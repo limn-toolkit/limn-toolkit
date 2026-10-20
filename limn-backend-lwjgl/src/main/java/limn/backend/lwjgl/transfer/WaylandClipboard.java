@@ -525,7 +525,8 @@ public final class WaylandClipboard implements NativeClipboard {
             }
             lastAnswered = action;
             synchronized (lock) {
-                if (offer != dragOffer || dragDropped || closing) {
+                // To the drag it was computed for: a native address may be reused by the next one.
+                if (offer != dragOffer || data != dragData || dragDropped || closing) {
                     return;
                 }
                 answer(offer, action);

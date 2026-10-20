@@ -375,7 +375,9 @@ public final class X11Drag {
                 }
                 lastAnswered = action;
                 x.post(() -> {
-                    if (source == incomingSource) {
+                    // To the drag it was computed for: the source's window is the same for every
+                    // drag a program makes, and a drag that entered since is another offer.
+                    if (source == incomingSource && offer == incomingOffer) {
                         answer(source, over, action);
                     }
                 });
@@ -610,7 +612,7 @@ public final class X11Drag {
             }
             lastAnswered = action;
             x.post(() -> {
-                if (source == incomingSource && follow.active()) {
+                if (source == incomingSource && follow.active() && offer == followOffer) {
                     answer(source, over, action);
                 }
             });

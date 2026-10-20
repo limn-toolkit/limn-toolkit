@@ -696,3 +696,11 @@ The review of the follow (2026-10-20, R11C):
   every 16 ms until the next drag entered (an incoming drag left it at 250 ms before the follow).
   What the drop did is handed on whatever happens, a throw as a refusal, and the throw goes on to
   the runtime as any handler's does. `X11DragTest` has both.
+- **An ordinary answer reaches only the drag it was computed for** (R11C-7). The record of the
+  drag answered is taken when an answer is sent, and the ordinary answer was let through by the
+  source's window on X11 (one for every drag a program makes) and the offer's native address on
+  Wayland, so an answer computed for one drag and sent after the next had entered from the same
+  source would have marked the next answered with the first one's action. Not reachable by a
+  person (a new drag needs a release and a press within one round trip of the UI thread); each
+  ordinary answer now also checks that the drag it was computed for is still the one over the
+  window, the followed one included. By reading; nothing here can run the two native paths.
