@@ -71,7 +71,8 @@ import java.util.Objects;
  * Tab key, an access letter and the pointer pass them by, the focus, the hover and a press held
  * there are taken out of them, with the events a widget hidden by {@link #setVisible} is sent,
  * inside the set that does it, or once the frame of a motion that does it has stepped every
- * motion, and a screen reader is told they are hidden. A popover or a list open from a control in
+ * motion, or once the layout pass that does it (a new box tipping a plane past edge-on) is over,
+ * and a screen reader is told they are hidden. A popover or a list open from a control in
  * them closes, as an adjustment, before the focus is taken out, and none opens from one. They come
  * back by themselves, in reach and published again, when the scale returns or the face turns
  * back; the focus they lost is not given back. Nothing of the child's own state changes, and
