@@ -70,6 +70,8 @@ public final class WaylandClipboard implements NativeClipboard {
     private long pointer;
     private final Map<Long, List<String>> offers = new HashMap<>();
     private long selection;
+    /** The drag (its offer's data) the last answer to a motion went to. Under {@link #lock}. */
+    private final AnsweredDrag dragAnswered = new AnsweredDrag();
     private long dragOffer;
     private long ownSource;
     private final Map<Long, Function<String, byte[]>> sources = new HashMap<>();
@@ -549,6 +551,7 @@ public final class WaylandClipboard implements NativeClipboard {
                     action == null || mimes.isEmpty() ? NULL : memAddress(stack.UTF8(mimes.get(0))));
         }
         dragTaken = action != null;
+        dragAnswered.answered(dragData);
         wl.flush(display);
     }
 
@@ -558,12 +561,15 @@ public final class WaylandClipboard implements NativeClipboard {
      * compositor decides a drop by the last accept and action it had, so without this a drop area
      * that scrolled under the pointer took nothing until the pointer was wiggled. The protocol ties
      * neither request to a motion: set_actions may be sent many times, "typically" after an enter or
-     * a motion, and accept is the offer's answer until the drop. UI thread.
+     * a motion, and accept is the offer's answer until the drop. Only to the drag the last answer
+     * to a motion went to: one that entered since is not told the answer computed for the one
+     * before it. UI thread.
      */
     private void answerUnasked(Window window, limn.transfer.@org.jspecify.annotations.Nullable DropAction action) {
         synchronized (lock) {
             long offer = dragOffer;
-            if (dragOver != window || offer == NULL || dragData == null || dragDropped || closing) {
+            if (dragOver != window || offer == NULL || dragData == null || dragDropped || closing
+                    || !dragAnswered.isAnswered(dragData)) {
                 return;
             }
             if (TRACE) {

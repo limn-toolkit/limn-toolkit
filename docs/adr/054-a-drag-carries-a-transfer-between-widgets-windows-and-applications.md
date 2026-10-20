@@ -581,3 +581,11 @@ Review of the auto-scroll (2026-10-20):
   line through the pointer stops being seen, by its box, a clipping ancestor, the window or the
   horizon, found by halving from the pointer out (R8D-2). `DragAutoScrollTest` holds each edge at
   45 degrees with the eye at 600 and at 60 degrees with the eye at 300.
+- **An unasked answer reaches only the drag it was computed for** (2026-10-20, later). It is
+  computed on the UI thread from the drag the scene last heard of, and X11 and Wayland checked
+  only that some drag was over the window when it was sent, so a drag leaving and the next
+  entering the same window in between would have handed the next one the first one's accept and
+  action until its own first answer. The UI thread hears of drags in the order the backend does,
+  so such a stale answer always comes before the next drag's first ordinary one: each backend now
+  lets an unasked answer through only to the drag its last ordinary answer went to
+  (`AnsweredDrag`, R8D-3). Read and unit-tested, not yet run on the Linux guests.

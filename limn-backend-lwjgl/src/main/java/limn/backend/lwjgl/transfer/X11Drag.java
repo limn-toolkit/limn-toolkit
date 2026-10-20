@@ -87,6 +87,8 @@ public final class X11Drag {
     private long incomingTime;
     /** The source said the drop: the answer is final, and nothing more is told it before it is finished. */
     private boolean incomingDropped;
+    /** The incoming drag (its offer) the last XdndStatus to a position went to. */
+    private final AnsweredDrag incomingAnswered = new AnsweredDrag();
     /** The drop was handed to the UI thread: the source is told it is finished once its data is read. */
     private boolean finishing;
     private boolean finishAccepted;
@@ -406,6 +408,7 @@ public final class X11Drag {
      * with an empty rectangle asks for a position at every move.
      */
     private void answer(long source, Entry over, @Nullable DropAction action) {
+        incomingAnswered.answered(incomingOffer);
         send(source, source, status, over.xwindow, action == null ? 0 : 3, 0, 0, atomOf(action));
     }
 
@@ -417,10 +420,12 @@ public final class X11Drag {
      * scrolled under the pointer took nothing until the pointer was wiggled. The protocol neither
      * describes nor forbids a status that answers no position; a source that reads XdndStatus
      * whenever it comes, as ours does, takes it as the target's answer for where the pointer is.
-     * X thread.
+     * Only to the drag the last answer to a position went to: one that entered since is not told
+     * the answer computed for the one before it. X thread.
      */
     private void answerUnasked(Entry over, @Nullable DropAction action) {
-        if (incomingSource == NULL || incomingTarget != over || incomingDropped) {
+        if (incomingSource == NULL || incomingTarget != over || incomingDropped
+                || !incomingAnswered.isAnswered(incomingOffer)) {
             return;
         }
         if (TRACE) {
@@ -442,6 +447,7 @@ public final class X11Drag {
     }
 
     private void forgetIncoming() {
+        incomingAnswered.forget();
         incomingDropped = false;
         incomingSource = NULL;
         incomingTarget = null;
