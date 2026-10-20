@@ -99,8 +99,8 @@ the composite by 96.2 painted over and 73.9 multiplied in the light theme, 32.1 
 one, where the dim almost disappeared (R6G-3 of the dialogs review). The owner decided (decision
 36) that the veil keeps clear pixels clear, leaves opaque ones exactly as they were, and dims partly
 covered ones. It is laid in a blend of its own, which the GL canvas offers to the scene internally
-and no `BlendMode` names: colour `C(1 - a)` (`ZERO, ONE_MINUS_SRC_ALPHA`), coverage
-`A(1 + a)` clamped to 1 (`DST_ALPHA, ONE`). A clear pixel stays at 0, an opaque one at 1 with the
+and no `BlendMode` names: colour `C(1 - a)` for the black veil, coverage `A(1 + a)` clamped to 1
+(alpha factors `DST_ALPHA, ONE`). A clear pixel stays at 0, an opaque one at 1 with the
 colour painting over gave, and coverage 0.6 becomes 0.9, so the desktop through it is dimmed again,
 somewhat more than painting over dimmed it (0.1 of it shows where 0.2 did; a pixel already at
 `1 / (1 + a)`, two thirds at the half veil, becomes opaque). Measured on the same page: at 0.6 the
@@ -110,4 +110,12 @@ alone dims by 10.7 and 4.6, its clear pixels staying clear. A canvas without tha
 as before. `BlockedWindowVeilPixelTest` holds it light and dark, opaque, translucent and clear, on a
 whole frame and on five partial passes in a row that touch nothing outside themselves, on the GPU
 and on Apple's software renderer.
+
+The in-scene dialog's own veil, the palette's scrim over the scene it opens in, is laid the same
+way (R6G-5): a dialog in a window of its own with a question opened in its scene over one of its
+fields put the same dark squares at that window's corners. The scrim is a palette tone an
+application may colour, so the blend's colour factors are `DST_ALPHA, ONE_MINUS_SRC_ALPHA`: colour
+`S·a·A + C(1 - a)` for a veil of colour `S`, which is `C(1 - a)` for black and, on an opaque pixel,
+exactly painting over. `InSceneDialogVeilPixelTest` holds the corners clear, light and dark, opaque
+and glass, on the GPU and on the software renderer.
 

@@ -6404,8 +6404,8 @@ public final class Scene {
             // Ease the linear time-ramp so the dim glides in/out instead of
             // marching at a constant rate.
             float eased = Scalars.smoothstep(scrimAlpha / SCRIM_MAX_ALPHA) * SCRIM_MAX_ALPHA;
-            if (canvas instanceof limn.scene.internal.LockVeil veil) {
-                veil.fillLockVeil(eased);
+            if (canvas instanceof limn.scene.internal.VeilCanvas veil) {
+                veil.fillVeil(0, 0, canvas.width(), canvas.height(), Color.rgba(0x000000, eased));
                 return;
             }
             canvas.save();

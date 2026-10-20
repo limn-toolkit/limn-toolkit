@@ -39,19 +39,19 @@ final class GlBlend {
             new Factors(GL_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
 
     /**
-     * The veil a window locked by a modal is dimmed with ({@code limn.scene.internal.LockVeil}),
-     * which no {@link BlendMode} names: for black at the veil's alpha {@code a} over a premultiplied
-     * pixel of colour {@code C} and coverage {@code A}, {@code C' = C(1 - a)} and
+     * A modal's veil ({@code limn.scene.internal.VeilCanvas}), which no {@link BlendMode} names: for
+     * a veil of premultiplied colour {@code S·a} and alpha {@code a} over a pixel of premultiplied
+     * colour {@code C} and coverage {@code A}, {@code C' = S·a·A + C(1 - a)} and
      * {@code A' = A·a + A = A(1 + a)}, clamped to 1 by the fixed-point targets the 2D canvas draws
      * into. A clear pixel stays clear ({@code 0} stays {@code 0}), so a dialog's window round its
      * rounded card has no dark corners; an opaque one is exactly what painting the veil over it gives
-     * ({@code 1 + a} clamps to 1, and the colour factor is the same); a partly covered one darkens
-     * and gains coverage ({@code 0.6} becomes {@code 0.9} at the toolkit's half-alpha veil), so the
-     * desktop seen through a translucent window is dimmed with it, as it was before the veil was
+     * ({@code A = 1}: the colour is source-over's, and {@code 1 + a} clamps to 1); a partly covered
+     * one darkens and gains coverage ({@code 0.6} becomes {@code 0.9} under a half-alpha veil), so
+     * the desktop seen through a translucent window is dimmed with it, as it was before the veil was
      * multiplied.
      */
-    static final Factors LOCK_VEIL =
-            new Factors(GL_ZERO, GL_ONE_MINUS_SRC_ALPHA, GL_DST_ALPHA, GL_ONE);
+    static final Factors VEIL =
+            new Factors(GL_DST_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_DST_ALPHA, GL_ONE);
 
     private GlBlend() {
     }
