@@ -60,7 +60,9 @@ class TextFieldMaskEditsTest extends AccessibleComponentTestBase {
                 fail(pattern + ": the random edits reached " + reached[0] + " edits mid-value and "
                         + reached[1] + " insertions into a full field; more runs or steps are needed");
             }
-            if (reached[4] < 3) {
+            // An overwrite needs a selection of some positions but not all, which two positions
+            // rarely give: the count is asked of the patterns with more.
+            if (reached[4] < 3 && new Model(pattern).slots > 2) {
                 fail(pattern + ": the random edits reached " + reached[4]
                         + " overwrites of a selection; more runs or steps are needed");
             }
@@ -195,6 +197,8 @@ class TextFieldMaskEditsTest extends AccessibleComponentTestBase {
                 if (!isSubsequence(field.unmaskedText(), oldRaw)) {
                     fail("a word deletion added a value character: " + context);
                 }
+            } else if (from >= 0 && typed != null && model.startsNewValue(oldText, from, to, typed)) {
+                model.checkNewValue(oldText, from, to, typed, field, context);
             } else if (from >= 0 && typed != null && model.overwrites(oldText, from, to, typed)) {
                 model.checkOverwrite(oldText, oldRaw, from, to, typed, field, context, reached);
             } else if (from >= 0) {
@@ -546,6 +550,54 @@ class TextFieldMaskEditsTest extends AccessibleComponentTestBase {
             }
             if (count(inserted) != count(removed)) {
                 noteMixed(after, true, reached);
+            }
+        }
+
+        /** Whether typing or pasting {@code typed} over chars {@code [from, to)} starts a new value: they hold every filled position. */
+        boolean startsNewValue(String oldText, int from, int to, String typed) {
+            if (typed.isEmpty() || from == to) {
+                return false;
+            }
+            int a = oldText.codePointCount(0, from);
+            int b = a + oldText.codePointCount(from, to);
+            int written = oldText.codePointCount(0, oldText.length());
+            boolean any = false;
+            for (int i = 0; i < written && i < entries.length; i++) {
+                if (slot[i]) {
+                    if (i < a || i >= b) {
+                        return false;
+                    }
+                    any = true;
+                }
+            }
+            return any;
+        }
+
+        /**
+         * Typed or pasted over the whole value: the new value is what the positions take of the
+         * typed text from the first on; one with nothing taken, and nothing to show, is refused and
+         * leaves the text and the selection.
+         */
+        void checkNewValue(String oldText, int from, int to, String typed, TextField field, String context) {
+            String raw = field.unmaskedText();
+            if (field.text().equals(oldText) && field.selectionStart() == from && field.selectionEnd() == to) {
+                if (!typed.codePoints().anyMatch(literals::contains) && !fills(0, typed, slots).isEmpty()) {
+                    fail("a new value some position takes was refused: " + context);
+                }
+                return;
+            }
+            if (typed.codePoints().anyMatch(literals::contains)) {
+                if (!isSubsequence(raw, typed)) {
+                    fail("a new value holds a character not typed: " + context);
+                }
+                return;
+            }
+            String expected = fills(0, typed, slots);
+            if (!raw.equals(expected)) {
+                fail("the new value is " + raw + ", expected " + expected + ": " + context);
+            }
+            if (field.caretPosition() != field.text().length() || field.selectionStart() != field.selectionEnd()) {
+                fail("after a new value the caret is not at its end: " + context);
             }
         }
 

@@ -591,7 +591,55 @@ class TextFieldMaskTest extends AccessibleComponentTestBase {
         field.select(0, field.text().length());
         clipboard.value = "KLM-4217-Z9";
         drive(scene).press(Keys.V, COMMAND);
-        assertEquals("KLM-4217-Z9", field.text(), "a whole value over the whole text, with its literals");
+        assertEquals("KLM-4217-Z9", field.text(), "over the whole value, a new value, with its literals");
+    }
+
+    @Test
+    void typingOrPastingOverTheWholeValueStartsANewOne() {
+        holding("+1 (000) 000-0000", "+1 (555) 123-4567", 0);
+        drive(scene).press(Keys.A, COMMAND);
+        type("9");
+        assertEquals("+1 (9", field.text(), "Ctrl+A, then a digit: a new value, as in any field");
+        assertEquals(5, field.caretPosition());
+        assertEquals(List.of("+1 (9"), heard);
+        drive(scene).press(Keys.Z, COMMAND);
+        assertEquals("+1 (555) 123-4567", field.text(), "one undo puts the old value back");
+
+        TextFieldTest.MockClipboard clipboard = TextFieldTest.MockClipboard.holding("4155550123");
+        scene.setClipboard(clipboard);
+        drive(scene).press(Keys.A, COMMAND);
+        drive(scene).press(Keys.V, COMMAND);
+        assertEquals("+1 (415) 555-0123", field.text(), "Ctrl+A, then a paste");
+
+        field.select(4, 17); // every digit, without the +1 ( before them
+        type("7");
+        assertEquals("+1 (7", field.text(), "every position selected is the whole value, literals or not");
+
+        holding("00 kg", "12 kg", 0);
+        field.select(0, 2); // the digits, not the kg after them
+        type("3");
+        assertEquals("3", field.text(), "the literals that end the pattern go with the old value");
+    }
+
+    @Test
+    void overTheWholeValueACharacterNoPositionTakesIsRefused() {
+        holding("+1 (000) 000-0000", "+1 (555) 123-4567", 0);
+        drive(scene).press(Keys.A, COMMAND);
+        type("x");
+        assertEquals("+1 (555) 123-4567", field.text(), "not an emptied field");
+        assertEquals(0, field.selectionStart(), "and the selection stays");
+        assertEquals(17, field.selectionEnd());
+        assertEquals(List.of(), heard);
+    }
+
+    @Test
+    void aSelectionOfEveryPositionButOneIsOverwritten() {
+        holding("+1 (000) 000-0000", "+1 (555) 123-4567", 0);
+        field.select(0, 16); // all but the last 7
+        type("9");
+        assertEquals("+1 (955) 123-4567", field.text(), "the first position overwritten, nothing else");
+        assertEquals(5, field.selectionStart(), "the rest of the selection stays");
+        assertEquals(16, field.selectionEnd());
     }
 
     @Test

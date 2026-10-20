@@ -296,7 +296,11 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * as it was. A character the next selected position does not take is refused, the selection
      * unchanged; a paste fills the selected positions in order with the characters each takes,
      * leaves those it does not reach as they were and still selected, and drops what is left of
-     * it. Each keystroke is an undo step of its own. An edit that is not an overwrite (a
+     * it. Each keystroke is an undo step of its own. A selection that holds every position the
+     * text fills, with or without the literals around them ({@code Ctrl+A}, or the digits alone of
+     * {@code +1 (555) 123-4567}), is the whole value: typing or pasting over it starts a new value,
+     * as in any field, and one of which no position takes anything is refused. An edit that is
+     * not an overwrite (a
      * Backspace, a Delete, a Cut, typing with nothing selected or over literals alone) moves the
      * characters after it by as many positions as it inserts more, or fewer, than it
      * takes. On a pattern whose positions are all of one kind each still lands in a position
@@ -403,6 +407,19 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
                 restoringHistory ? mask.written(text, caret) : null;
         if (fit != null) {
             // Put back as it was written.
+        } else if (typed && editOfWritten && removed > 0 && inserted > 0
+                && offset == selectionStartBeforeEdit && offset + removed == selectionEndBeforeEdit
+                && mask.selectsWholeValue(maskedText, offset, offset + removed)) {
+            // Typed or pasted over the whole value: a new value, as in any field. One of which
+            // no character is taken, and no literal typed by hand, is refused rather than
+            // emptying the field.
+            String fresh = text.substring(offset, offset + inserted);
+            fit = mask.conform(fresh, fresh.length());
+            if (fit.text().isEmpty()) {
+                maskRefused = true;
+                fit = new limn.components.internal.text.InputMask.Conformed(maskedText,
+                        Math.min(caret, maskedText.length()), maskedRaw);
+            }
         } else if (typed && editOfWritten && removed > 0 && inserted > 0
                 && offset == selectionStartBeforeEdit && offset + removed == selectionEndBeforeEdit
                 && mask.holdsPosition(maskedText, offset, offset + removed)) {

@@ -295,6 +295,32 @@ public final class InputMask {
     }
 
     /**
+     * Whether the chars {@code [from, to)} of a text this mask wrote take in its whole value:
+     * every position the text fills lies in the range, whatever literals lie in it or around it,
+     * and there is at least one. Typing or pasting over such a selection starts a new value.
+     *
+     * @param text a text this mask wrote
+     * @param from where the range begins, in chars
+     * @param to   where it ends, in chars
+     * @return whether the range holds every filled position of the text
+     */
+    public boolean selectsWholeValue(String text, int from, int to) {
+        int a = text.codePointCount(0, from);
+        int b = a + text.codePointCount(from, to);
+        int written = text.codePointCount(0, text.length());
+        boolean any = false;
+        for (int entry = 0; entry < written && entry < codePoints.length; entry++) {
+            if (slotAt[entry]) {
+                if (entry < a || entry >= b) {
+                    return false;
+                }
+                any = true;
+            }
+        }
+        return any;
+    }
+
+    /**
      * Typing or pasting over a selection: the characters of {@code inserted} a position takes
      * replace the selected positions one by one, from the first, and nothing moves. They are read
      * from the entry the selection begins on, as {@link #edit} reads them, so a fragment carried

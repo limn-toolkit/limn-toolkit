@@ -191,9 +191,15 @@ Markdown.
   they were and still selected, and drops the rest of the paste: nothing is pushed into the
   positions after the selection. Each keystroke is its own undo step, as before. A selection
   holding only literals is typed over as before (an insertion where it begins), and Backspace,
-  Delete and Cut over a selection remain removals under the refusal above. Selecting everything
-  and typing therefore overwrites from the first position rather than clearing the field;
-  Delete clears it. `insertText`, a caller's write, still replaces the selection.
+  Delete and Cut over a selection remain removals under the refusal above. `insertText`, a
+  caller's write, still replaces the selection. *Amended the same day, the owner's decision 25:*
+  a selection that holds the **whole value**, every position the text fills, with or without the
+  literals inside and around it (`Ctrl+A`, or the ten digits of `+1 (555) 123-4567` without
+  `+1 (`), is not overwritten: typing or pasting over it starts a new value, as in any text field,
+  fitted afresh from what was typed or pasted (`Ctrl+A`, `9` gives `+1 (9`; under `00 kg`, the
+  digits of `12 kg` selected and `3` typed gives `3`). One from which no position takes anything
+  and no literal is written is refused, so a stray key does not empty the field. A selection of
+  every position but one is partial and overwritten as above.
 - *Amended 2026-10-20:* **a masked line keeps its groups in written order whatever the digits'
   script.** The review of the amendment above found that a left-to-right paragraph is not enough
   with Arabic-Indic digits (U+0660 to U+0669, which an Arabic keyboard types and the mask takes as
