@@ -210,7 +210,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
     /** The seam {@link SearchField#clear()} enters with the trailing button's origin. */
     void setText(String text, Change.Origin origin) {
         boolean moved = !model.text().equals(text);
-        selectionLeft = null; // the caller put the caret at the start, which wins
+        selectionLeft = null; // the caret goes to the end of the new text, and that is what comes back
         model.setText(text);
         // Show the head of the text; onPaint re-clamps against the real width
         // (which may still be 0 here: set before the first layout pass).

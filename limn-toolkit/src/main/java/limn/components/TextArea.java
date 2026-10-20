@@ -242,7 +242,7 @@ public final class TextArea extends Widget<TextArea> {
     public TextArea setText(String text) {
         Ui.checkUiThread();
         boolean moved = !model.text().equals(text);
-        selectionLeft = null; // the caller put the caret at the start, which wins
+        selectionLeft = null; // the caret goes to the end of the new text, and that is what comes back
         model.setText(text);
         scrollX = 0;
         scrollY = 0;
