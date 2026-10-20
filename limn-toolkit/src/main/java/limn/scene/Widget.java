@@ -652,6 +652,10 @@ public abstract class Widget<W extends Widget<W>> {
      * out of the one adopting it) is followed: once the walk is over, the subtree joins or leaves
      * again so that its scene is the one its place in the tree says.
      *
+     * <p>A subtree that goes straight from one scene into another leaves the first, every
+     * {@link #onDetached()} told while {@link #scene()} still answers it, and then joins the
+     * second, as a removal and an add would tell it.
+     *
      * @param newScene the scene the subtree joins, or null when it leaves every scene
      * @param settled  where what the leavings settled is added, for {@link #runSettled}
      */
@@ -697,6 +701,18 @@ public abstract class Widget<W extends Widget<W>> {
      */
     private @Nullable Throwable walkAndFollow(@Nullable Scene leaving, @Nullable Scene newScene, int closed,
                                               @Nullable Throwable failed, List<Runnable> settled) {
+        Scene from = scene;
+        if (from != null && newScene != null && from != newScene) {
+            // Straight from one scene into another (a window's root adopted by another window, an
+            // overlay pushed into a second one): a leave, then a join, as a removal and an add are.
+            // Walked in one pass, no widget was told either, and what one registered in the first
+            // scene, or a GPU resource of the first window's, stayed there.
+            try {
+                setSceneRecursivelyInternal(null, settled);
+            } catch (RuntimeException | Error walk) {
+                failed = HandlerFailures.add(failed, walk);
+            }
+        }
         try {
             setSceneRecursivelyInternal(newScene, settled);
         } catch (RuntimeException | Error walk) {
@@ -840,7 +856,8 @@ public abstract class Widget<W extends Widget<W>> {
     }
 
     /**
-     * Called when this widget leaves the scene: detached from the tree, or still in it when the
+     * Called when this widget leaves the scene: detached from the tree, moved into another scene
+     * (told this before the {@link #onAttached} of the scene it joins), or still in it when the
      * scene's window closes, which detaches every widget the scene has. What was taken in
      * {@link #onAttached} from something that outlives the window (a listener's place in a list
      * of the process's, a resource of the system's) is given back here.

@@ -161,4 +161,76 @@ class WidgetLifecycleTest extends SceneTestBase {
             scene.setLocale(null); // releases the retain; process statics outlive the test
         }
     }
+
+    /** Says, in a shared list, each hook it is told and the scene it answers then. */
+    private static final class Told extends FixedBox {
+        final String name;
+        final java.util.List<String> log;
+        final java.util.Map<Scene, String> names;
+
+        Told(String name, java.util.List<String> log, java.util.Map<Scene, String> names) {
+            super(10, 10);
+            this.name = name;
+            this.log = log;
+            this.names = names;
+        }
+
+        @Override protected void onAttached() {
+            log.add("attach " + name + "@" + names.get(scene()));
+        }
+
+        @Override protected void onDetached() {
+            log.add("detach " + name + "@" + names.get(scene()));
+        }
+    }
+
+    @Test
+    void aSubtreeMovedStraightIntoAnotherSceneLeavesTheFirstAndJoinsTheSecond() {
+        // Another window's root adopted by this window's column, and another window's overlay pushed
+        // as this one's: neither went through a removal, and the walk moved the subtree from one
+        // scene into the other telling no widget anything. A widget that registered something in the
+        // first scene as it joined, and gives it back through scene() as it leaves, never gave it
+        // back there; one holding a GPU resource of the first window's context kept drawing it in
+        // the second. Each is now told it left the first, children first, while scene() still
+        // answers it, and then that it joined the second, as a removal and an add would tell it.
+        for (boolean overlay : new boolean[] {false, true}) {
+            String how = overlay ? "another window's overlay pushed here" : "another window's root adopted here";
+            java.util.List<String> log = new java.util.ArrayList<>();
+            java.util.Map<Scene, String> names = new java.util.HashMap<>();
+            Told card = new Told("card", log, names);
+            Told inner = new Told("inner", log, names);
+            card.add(inner);
+            ResourceWidget resource = new ResourceWidget();
+            inner.add(resource);
+            Scene first;
+            if (overlay) {
+                first = new Scene(new FixedBox(100, 100));
+                first.pushOverlay(card);
+            } else {
+                first = new Scene(card);
+            }
+            Scene second = new Scene(new FixedBox(100, 100));
+            names.put(first, "first");
+            names.put(second, "second");
+            names.put(null, "none");
+            log.clear();
+
+            if (overlay) {
+                second.pushOverlay(card);
+            } else {
+                second.root().add(card);
+            }
+
+            assertEquals(java.util.List.of("detach inner@first", "detach card@first",
+                    "attach card@second", "attach inner@second"), log, how);
+            assertSame(first, resource.sceneWhileDetaching, how + ": handed its resource to the window it left");
+            assertSame(second, resource.sceneWhileAttaching, how);
+            assertEquals(2, resource.attached, how);
+            assertEquals(1, resource.detached, how);
+            assertSame(second, card.scene(), how);
+            assertSame(second, resource.scene(), how);
+            first.drainPendingDisposals();
+            assertTrue(resource.surface.disposed, how + ": freed by the first window's next frame");
+        }
+    }
 }

@@ -589,4 +589,72 @@ class PopoverReentrancyTest extends ComponentTestBase {
         second.requestClose();
         runtime.drain();
     }
+
+    /** A column that records the scene it answers each time it is told it joins or leaves one. */
+    private static final class Seen extends Column {
+        final List<Scene> joined = new ArrayList<>();
+        final List<Scene> left = new ArrayList<>();
+
+        @Override
+        protected void onAttached() {
+            joined.add(scene());
+        }
+
+        @Override
+        protected void onDetached() {
+            left.add(scene());
+        }
+    }
+
+    @Test
+    void anOnCloseMovingTheRemovedCardIntoAnotherWindowTellsItItLeftTheFirst() {
+        // A card with an open popover, removed from its column; the popover's onClose puts it into
+        // a column of a second window. The card was moved between the two scenes by a walk that
+        // told it nothing, and then told it left the second window: it never heard that it left the
+        // first, so what its onAttached registered there, given back through scene(), was given
+        // back to the second. It is told it left the first window and joined the second, and ends
+        // in the second, a popover opening from its button there.
+        Button filter = new Button("Filter");
+        Seen card = new Seen();
+        card.add(filter);
+        Column holder = new Column();
+        Column root = new Column();
+        root.add(holder);
+        root.add(new Button("Base"));
+        inWindow(root);
+        HeadlessWindow second = backend.open("Details", 300, 200);
+        Column elsewhere = new Column();
+        Scene other = new Scene(elsewhere, () -> now[0]);
+        other.setTextRuler(RULER);
+        other.bind(second);
+        second.frame();
+        holder.add(card);
+        frames(2);
+        card.joined.clear();
+        Popover popover = new Popover(new SizedBox(160, 30, new TextField())).setDisplayMode(DisplayMode.IN_SCENE)
+                .onClose(origin -> elsewhere.add(card));
+        popover.showFor(filter);
+        frames(3);
+        assertTrue(popover.isOpen(), "sanity");
+
+        holder.remove(card);
+        frames(3);
+
+        assertSame(elsewhere, card.parent());
+        assertSame(other, card.scene());
+        assertSame(other, filter.scene());
+        assertTrue(card.left.contains(scene), "told it left the first window: " + card.left);
+        assertSame(other, card.joined.get(card.joined.size() - 1), "and that it joined the second");
+        assertEquals(card.joined.size(), card.left.size(), "told it joined as often as it left, after its first join: "
+                + card.joined + " " + card.left);
+        Popover again = new Popover(new SizedBox(160, 30, new TextField())).setDisplayMode(DisplayMode.IN_SCENE);
+        again.showFor(filter);
+        frames(3);
+        assertTrue(again.isOpen(), "a popover opens from its button in the second window");
+        again.close();
+        frames(40);
+        owner.requestClose();
+        second.requestClose();
+        runtime.drain();
+    }
 }

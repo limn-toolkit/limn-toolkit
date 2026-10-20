@@ -870,6 +870,15 @@ that the text above does not say, dated where it departs from it.
     walk has not reached is kept until the outermost walk into that scene ends, and is obeyed then
     if the widget has joined and nothing else refuses it; a later request replaces it. A walk cut
     short before the widget still focuses nothing. `SceneOverlayTest` has both.
+  - **A move straight from one scene into another** told no widget anything: another window's
+    root adopted by a column here, another window's overlay pushed here, and the subtree a handler
+    moves into a second window while the first removes it. A widget that registered something in
+    the first window as it joined never gave it back there (and gave it back to the second, if it
+    did so through `scene()`), and a GPU resource of the first window's context stayed in use in the
+    second. Such a move is now a leave and then a join, every `onDetached` told while `scene()`
+    still answers the first, as a removal and an add would tell it. What stays open is the first
+    scene's side: a scene whose root another window adopted still names it as its root (section
+    12.8). `WidgetLifecycleTest` and `PopoverReentrancyTest` have the cases.
 
 ### 12.6 The input method in a popover's window, measured
 
@@ -915,3 +924,7 @@ site's component gallery three, the guides their sections from `StatusExample`, 
   window's place and the committed text; the control run with `-Dlimn.demo.popover.search=true`.
   On Wayland the popover is in the scene and the route is not taken.
 - **The commit on Return on macOS** (section 12.6), for every field.
+- **A scene whose root or overlay another scene takes** (the fourth review, 2026-10-20): the
+  widget leaves the first scene and joins the second, told both, but the first still names it as
+  its root, or keeps it in its overlay stack, and lays it out at its own window's size. Whether
+  taking it is refused, or leaves the first scene showing nothing, is a decision for the owner.
