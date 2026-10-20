@@ -10,6 +10,12 @@ package limn.graphics;
  * single fixed blend equation, and switching modes mid-frame is a batch
  * break (one extra draw call), so group same-mode painting where possible.
  *
+ * <p>Inside a group drawn as one picture, an {@code Opacity} container below 1 or a
+ * {@linkplain Canvas#saveLayer layer}, a mode combines with what the group itself drew, and where it
+ * drew nothing the source is drawn as itself, as an isolated group of a web page has it; outside any
+ * group it combines with the window. A multiplied tint inside a fading container therefore shows
+ * as itself while the container fades and multiplies what is beneath once the container is at 1.
+ *
  * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
  * {@code default} branch.
  */

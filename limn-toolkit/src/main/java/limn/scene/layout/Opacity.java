@@ -43,6 +43,15 @@ import java.util.Objects;
  * child is one picture blended once in that mode at every opacity, 1 included, so a fade arriving
  * at 1 does not jump.
  *
+ * <p><b>A blend mode inside it</b>, a descendant that draws in {@link limn.graphics.BlendMode#MULTIPLY}
+ * or {@link limn.graphics.BlendMode#ADDITIVE}, blends below 1 with what the subtree itself drew
+ * beneath it, and where it drew nothing is drawn as itself, since the picture starts transparent,
+ * as an isolated group of a web page does; at 1 there is no picture, and it blends with what is
+ * beneath the container. A multiplied tint in a card fading in therefore shows as itself over the
+ * page during the fade and multiplies the page on the fade's last frame, the jump a page's own
+ * fade makes too. Where that jump matters, draw what blends with the page outside the container,
+ * or end the fade just below 1.
+ *
  * <p><b>A watcher hears it</b> as {@link Change.Aspect#OPACITY} with origin {@code CODE} on this
  * container: every time {@link #setOpacity} changes the value and never when it does not, and
  * twice for a {@link #fadeTo fade}, as it starts and as it arrives or is superseded.

@@ -1,5 +1,6 @@
 package limn.backend.lwjgl;
 
+import org.jspecify.annotations.Nullable;
 import org.lwjgl.system.MemoryUtil;
 
 import java.nio.FloatBuffer;
@@ -399,12 +400,32 @@ final class GlBatch implements AutoCloseable {
     private int blendDstAlpha = GL_ONE_MINUS_SRC_ALPHA;
 
     /**
+     * The factors of a second pass over the same geometry, or null for one pass: a mode drawn into
+     * a group's picture that no single set of factors gives ({@link GlBlend#inGroup}).
+     */
+    private GlBlend.@Nullable Factors blendThen;
+
+    /**
      * Declares the blend factors for upcoming geometry. A change with pending
      * geometry flushes it: one extra draw call per mode switch.
      */
     void requireBlend(int srcRgb, int dstRgb, int srcAlpha, int dstAlpha) {
+        requireBlend(srcRgb, dstRgb, srcAlpha, dstAlpha, null);
+    }
+
+    /**
+     * {@link #requireBlend(int, int, int, int)} for a mode drawn in two passes: every draw of the
+     * geometry that follows is made a second time under {@code then}'s factors, the composite's
+     * too. The second pass reads what the first left, so two primitives that overlap must not share
+     * a draw; the caller flushes between them.
+     */
+    void requireBlend(GlBlend.Factors first, GlBlend.@Nullable Factors then) {
+        requireBlend(first.srcRgb(), first.dstRgb(), first.srcAlpha(), first.dstAlpha(), then);
+    }
+
+    private void requireBlend(int srcRgb, int dstRgb, int srcAlpha, int dstAlpha, GlBlend.@Nullable Factors then) {
         boolean changed = srcRgb != blendSrcRgb || dstRgb != blendDstRgb
-                || srcAlpha != blendSrcAlpha || dstAlpha != blendDstAlpha;
+                || srcAlpha != blendSrcAlpha || dstAlpha != blendDstAlpha || then != blendThen;
         if (changed && (indices.position() > 0 || flatVertexCount > 0)) {
             flush();
         }
@@ -412,6 +433,22 @@ final class GlBatch implements AutoCloseable {
         blendDstRgb = dstRgb;
         blendSrcAlpha = srcAlpha;
         blendDstAlpha = dstAlpha;
+        blendThen = then;
+    }
+
+    /**
+     * Sets the second pass's factors, when the mode in force has one: called between a draw and
+     * the same draw made again. The next {@link #applyRasterState} puts the first pass's back.
+     *
+     * @return whether there is a second pass to draw
+     */
+    private boolean secondPass() {
+        GlBlend.Factors then = blendThen;
+        if (then == null) {
+            return false;
+        }
+        glBlendFuncSeparate(then.srcRgb(), then.dstRgb(), then.srcAlpha(), then.dstAlpha());
+        return true;
     }
 
     /** Forgets the tracked texture (after atlas eviction deletes the pages). */
@@ -585,6 +622,22 @@ final class GlBatch implements AutoCloseable {
             glBindSampler(0, sampler);
         }
         applyRasterState();
+        drawCompositeOnce(alpha, clip);
+        if (secondPass()) {
+            // The pieces of one composite never overlap, so the second pass may follow them all,
+            // each piece setting its own scissor again.
+            applyRasterScissor();
+            drawCompositeOnce(alpha, clip);
+        }
+        glDisable(GL_SCISSOR_TEST);
+        if (smooth) {
+            glBindSampler(0, 0);
+        }
+        glBindVertexArray(0);
+    }
+
+    /** The composite's quad, or its pieces, under the clip, once, in the factors set now. */
+    private void drawCompositeOnce(float alpha, @Nullable DeviceClip clip) {
         if (clip == null) {
             usePlainComposite(alpha);
             glDrawArrays(GL_TRIANGLES, 0, compositeCount);
@@ -595,11 +648,6 @@ final class GlBatch implements AutoCloseable {
         } else {
             drawUnderComputedClip(alpha, clip);
         }
-        glDisable(GL_SCISSOR_TEST);
-        if (smooth) {
-            glBindSampler(0, 0);
-        }
-        glBindVertexArray(0);
     }
 
     /**
@@ -734,8 +782,12 @@ final class GlBatch implements AutoCloseable {
         }
         applyRasterState();
         glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, 0);
-        glBindVertexArray(0);
         drawCalls++;
+        if (secondPass()) {
+            glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, 0);
+            drawCalls++;
+        }
+        glBindVertexArray(0);
 
         vertices.clear();
         indices.clear();
@@ -755,8 +807,12 @@ final class GlBatch implements AutoCloseable {
         glUniform2f(flatUniformOrigin, targetX, targetY);
         applyRasterState();
         glDrawArrays(GL_TRIANGLES, 0, flatVertexCount);
-        glBindVertexArray(0);
         drawCalls++;
+        if (secondPass()) {
+            glDrawArrays(GL_TRIANGLES, 0, flatVertexCount);
+            drawCalls++;
+        }
+        glBindVertexArray(0);
         flatVertices.clear();
         flatVertexCount = 0;
     }
@@ -768,6 +824,11 @@ final class GlBatch implements AutoCloseable {
         glBlendFuncSeparate(blendSrcRgb, blendDstRgb, blendSrcAlpha, blendDstAlpha);
         glDisable(GL_DEPTH_TEST);
         glDisable(GL_CULL_FACE);
+        applyRasterScissor();
+    }
+
+    /** The damage scissor while the window is the target, none in a layer. */
+    private void applyRasterScissor() {
         if (scissorEnabled && !inLayer) {
             glEnable(GL_SCISSOR_TEST);
             glScissor(scissorX, scissorY, scissorW, scissorH);

@@ -312,7 +312,10 @@ whether Limn should do the same, and for input too, and the owner kept the web p
   straight would blend each draw on its own where the picture below 1 is drawn in NORMAL and
   blended once, and a fade arriving at 1 jumped; the rule of section 2.3, the composite in the
   mode in force and the inside from NORMAL, holds at every opacity. A canvas without layers keeps
-  the mode on each draw at every opacity.)
+  the mode on each draw at every opacity. 2026-10-19, the owner's decision 17, section 8.4: a
+  mode a descendant draws in inside the layer blends with the layer, transparent where the group
+  drew nothing, as an isolated group of a web page does; at 1 under NORMAL there is still no
+  layer, so that draw blends with the window, and the fade's last frame jumps, as a page's does.)
 - **At 0, nothing is drawn**: `paintWidget` returns before the subtree, as it does for a widget
   that misses the clip. The widget is still there (section 2.1).
 - **Between, the subtree is drawn into a layer and the layer is composited with the opacity.**
@@ -1019,3 +1022,58 @@ reports it as before. `OpacityTest.anOnArriveThatThrowsLeavesTheContainersLaterF
 (the audit's scenario, a fade out and a fade after a set) and
 `aFadeAskedForByAnOnArriveThatThenThrowsStillMovesAndArrives` failed before. `Transform` likewise
 (ADR 072 section 13.4).
+
+### 8.4 A blend mode inside the group: the owner's decision 17, 2026-10-19
+
+The same round (OP-4) found that a descendant drawing in `BlendMode.MULTIPLY` inside a container
+below 1 drew nothing: inside the layer drawing starts over a transparent picture, and the window's
+multiply factors (`DST_COLOR, ONE_MINUS_SRC_ALPHA` for colour, the coverage left alone) multiply a
+transparent picture into nothing. At 1 there is no layer and the same draw multiplied the window.
+Every fade in of such content showed nothing and the multiplied draw appeared on the last frame;
+every fade out dropped it on the first (the audit's probe: 242, 166, 90, the page untouched, at any
+value below 1, and 121, 83, 90 at 1). The amendment of section 2.3 covered only a mode an ancestor
+leaves in force, which the composite carries. `ADDITIVE` was continuous only because its factors
+leave the picture's coverage at 0, so the added colour went through the composite as light added
+to the window, which is not what a group is either.
+
+**The owner's decision 17.** Inside a group below 1 a mode blends with the group's own backdrop,
+which is transparent where the group drew nothing, as an isolated group of the web's compositing
+rules does: `Cs' = (1 − αb)·Cs + αb·B(Cb, Cs)`, so with `αb = 0` the source is drawn unblended, and
+over what the group drew it blends with that. At 1 there is no group and the mode blends with the
+window, as before. The jump at the end of a fade stays, documented, as a page's own has it: the
+alternative, a layer kept at 1 for a container that has faded, would have cost a picture a frame
+for every container at rest and left a mode inside a container that never fades still blending
+with the window.
+
+**How it is drawn.** The canvas keeps the window's factors (section 2.3's composite, a translucent
+window's coverage, the 3D pass) and uses another table, `GlBlend.inGroup`, while a layer is the
+target, the premultiplied form of the formula with the coverage of an over,
+`αo = αs + αb·(1 − αs)`:
+
+- `ADDITIVE`: `co = cs + cb`, one pass (`ONE, ONE` for colour, `ONE, ONE_MINUS_SRC_ALPHA` for
+  coverage). The separable formula with `B = Cb + Cs` comes to the same sum.
+- `MULTIPLY`: `co = cs·(1 − αb) + cs·cb + cb·(1 − αs)`, which no single set of fixed factors gives
+  (it would need a second output of the fragment, dual-source blending, which GLSL ES 3.00, the
+  shaders' portability rule, has only as an extension). Two passes over the same geometry: the window's multiply first, `cs·cb +
+  cb·(1 − αs)` with the coverage kept, then `ONE_MINUS_DST_ALPHA, ONE` for colour and coverage, which
+  adds the source where the backdrop is not, `cs·(1 − αb)`, and grows the coverage by as much. The
+  second pass reads what the first left, so a draw in it inside a group takes a draw call of its own
+  (two with its second pass), and only such draws pay. The glyph quads of one run of text are one
+  draw, and where two of them overlap at an antialiased edge the overlap is computed as the two
+  passes of the whole run, not glyph by glyph: a fraction of a pixel's coverage, at most.
+- A group composited in a mode into another group (section 2.3's ancestor mode, nested) takes the
+  same table, both passes over its quad.
+
+On an opaque backdrop both rows equal the window's, so a group that draws its own opaque background
+first is unchanged.
+
+**Tests.** `GlGroupBlendTest`, on the GPU and on a software renderer (`HeadlessGl.onSoftwareRenderer`,
+Apple's on this Mac), holds each pixel to the formula within two steps of 255 for
+`MULTIPLY` and `ADDITIVE`: over a transparent part of the group, over what the group drew, a
+translucent source over translucent group content, two draws that overlap (which fails with the two
+passes sharing one draw), a group composited in the mode over a transparent part of the outer one
+and over what it drew, and at 1 with the window; and the audit's scene through an `Opacity`
+container, which drew 242, 166, 90 at one half before and 185, 147, 173 now, and 121, 83, 90 at 1
+as before. `GlBlendTest` pins the table. The brief for this round named `SCREEN` as well; the
+toolkit has no such mode (`NORMAL`, `ADDITIVE`, `MULTIPLY`), and the table needs a row for any mode
+added later.

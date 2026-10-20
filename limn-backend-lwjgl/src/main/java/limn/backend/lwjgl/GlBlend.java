@@ -1,9 +1,11 @@
 package limn.backend.lwjgl;
 
 import limn.graphics.BlendMode;
+import org.jspecify.annotations.Nullable;
 
 import static org.lwjgl.opengl.GL33C.GL_DST_COLOR;
 import static org.lwjgl.opengl.GL33C.GL_ONE;
+import static org.lwjgl.opengl.GL33C.GL_ONE_MINUS_DST_ALPHA;
 import static org.lwjgl.opengl.GL33C.GL_ONE_MINUS_SRC_ALPHA;
 import static org.lwjgl.opengl.GL33C.GL_ZERO;
 
@@ -37,6 +39,33 @@ final class GlBlend {
     private static final Factors MULTIPLY =
             new Factors(GL_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
 
+    /**
+     * How a mode draws into a group's picture: one pass, or two over the same geometry, the second
+     * with {@code then}'s factors.
+     */
+    record InGroup(Factors first, @Nullable Factors then) {
+    }
+
+    private static final InGroup NORMAL_IN_GROUP = new InGroup(NORMAL, null);
+    /**
+     * Additive in a group: the colours add, as on the window, and the coverage grows as a draw's
+     * over: {@code co = cs + cb}, {@code αo = αs + αb·(1 − αs)}. Where the group drew nothing the
+     * source is then itself, which the web's separable formula gives for a sum: its terms
+     * {@code cs·(1 − αb) + cb·(1 − αs) + αs·αb·(Cb + Cs)} come to {@code cs + cb}.
+     */
+    private static final InGroup ADDITIVE_IN_GROUP = new InGroup(
+            new Factors(GL_ONE, GL_ONE, GL_ONE, GL_ONE_MINUS_SRC_ALPHA), null);
+    /**
+     * Multiply in a group, the web's {@code co = cs·(1 − αb) + cs·cb + cb·(1 − αs)} with
+     * {@code αo = αs + αb·(1 − αs)}: no one pass of fixed factors gives the first term beside the
+     * other two, so the window's multiply goes first, {@code cs·cb + cb·(1 − αs)} with the
+     * coverage kept, and a second pass over the same geometry adds the source where the backdrop is
+     * not, {@code cs·(1 − αb)}, and grows the coverage by as much. On an opaque backdrop the second
+     * adds nothing, and the two are the window's multiply.
+     */
+    private static final InGroup MULTIPLY_IN_GROUP = new InGroup(MULTIPLY,
+            new Factors(GL_ONE_MINUS_DST_ALPHA, GL_ONE, GL_ONE_MINUS_DST_ALPHA, GL_ONE));
+
     private GlBlend() {
     }
 
@@ -45,6 +74,23 @@ final class GlBlend {
             case NORMAL -> NORMAL;
             case ADDITIVE -> ADDITIVE;
             case MULTIPLY -> MULTIPLY;
+        };
+    }
+
+    /**
+     * The factors of {@code mode} drawn into a group's picture, which starts transparent: the mode
+     * blends with what the group drew there, its backdrop, and where the group drew nothing the
+     * source shows as itself, as an isolated group of the web's compositing rules has it. The
+     * window's factors leave the target's coverage alone, right for a window, whose coverage the
+     * system's compositor reads, and for a 3D target laid over a widget; in a picture, whose
+     * coverage is what the composite lays over the window, they multiplied or added to nothing.
+     * Equal to {@link #of} wherever the backdrop is opaque.
+     */
+    static InGroup inGroup(BlendMode mode) {
+        return switch (mode) {
+            case NORMAL -> NORMAL_IN_GROUP;
+            case ADDITIVE -> ADDITIVE_IN_GROUP;
+            case MULTIPLY -> MULTIPLY_IN_GROUP;
         };
     }
 }

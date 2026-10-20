@@ -165,6 +165,16 @@ public interface Canvas {
      * force when it is opened is the one the composite uses, and drawing inside starts from
      * {@link BlendMode#NORMAL}.
      *
+     * <p><b>A blend mode inside a layer blends with the layer</b>, which starts transparent, and
+     * not with what is beneath it, as an isolated group of a web page does: a draw in
+     * {@link BlendMode#MULTIPLY} or {@link BlendMode#ADDITIVE} combines with what was drawn before
+     * it inside the layer, and where nothing was, it is drawn as itself, as a draw in
+     * {@link BlendMode#NORMAL} would be. An opacity of 1 under {@link BlendMode#NORMAL} opens no
+     * layer, so there the same draw combines with what is beneath: a tint that multiplies inside a
+     * group fading in shows over the page as itself during the fade and multiplies it once the fade
+     * arrives at 1, which a page's own fade does too. Draw what should blend with what is beneath
+     * outside the group, or keep the group below 1.
+     *
      * <p><b>What it costs</b>, measured on the renderer this toolkit ships: two batch
      * breaks and one composited quad per layer, about 0.03 to 0.1 ms of GPU for a popup-sized
      * layer on a GPU and a percent or two of the frame on a software renderer; a window-sized one
@@ -263,6 +273,10 @@ public interface Canvas {
      * primitive (shape, text, image) combines with the destination. Restored
      * by {@link #restore()}. Backends without blend-mode support paint
      * {@link BlendMode#NORMAL} (the no-op default).
+     *
+     * <p>Inside a {@linkplain #saveLayer layer} the destination is the layer's own picture, which
+     * starts transparent: a draw in another mode combines with what the layer drew before it, and
+     * where it drew nothing is drawn as itself.
      */
     default void setBlendMode(BlendMode mode) {
     }

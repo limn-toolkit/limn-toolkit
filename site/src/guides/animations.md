@@ -56,7 +56,10 @@ toolkit's own popups fade, and runs what it is handed when it arrives:
 Between 0 and 1 the container's child and its subtree are drawn as one picture, and the picture is
 laid over the window with the opacity, so the parts of a panel do not show through each other
 halfway: a row's highlight stays under its icon and a card's border under its buttons. One
-container inside another multiplies its opacity. At 1 nothing extra is drawn and at 0 nothing is
+container inside another multiplies its opacity. Something inside that draws in a blend mode,
+a tint in `MULTIPLY`, blends with the rest of the picture and is drawn as itself where the picture
+is empty, so during a fade it shows as itself over the page, and it multiplies the page once the
+fade arrives at 1, where there is no picture; that last frame jumps, as it does on a web page. At 1 nothing extra is drawn and at 0 nothing is
 drawn at all; in between, the picture costs a few hundredths of a millisecond a frame on a graphics
 card for something the size of a popup, and a percent or two of the frame where the system draws
 without one. Only what is in a container pays for it, and the container changes nothing else: it

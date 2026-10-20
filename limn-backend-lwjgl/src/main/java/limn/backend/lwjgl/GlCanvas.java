@@ -1340,8 +1340,24 @@ final class GlCanvas implements Canvas {
      * sheet must not punch an opaque rectangle into a transparent overlay. The
      * factors live in {@link GlBlend}, shared with the 3D pass so one mode cannot
      * come to mean two different equations.
+     *
+     * <p>Inside a layer the target is a group's picture, which starts transparent, and the mode
+     * blends with what the group drew there ({@link GlBlend#inGroup}): where it drew nothing, the
+     * source shows as itself, so a draw in MULTIPLY inside a fading group is seen for the whole of
+     * the fade, where it used to multiply nothing and appear only once the group reached 1. A mode
+     * drawn in two passes takes a draw per primitive, since the second pass reads what the first
+     * left and two primitives that overlap in one draw would each read the other's first pass:
+     * only such draws inside a group pay for it.
      */
     private void applyBlend(State s) {
+        if (openLayers > 0 && s.blendMode != limn.graphics.BlendMode.NORMAL) {
+            GlBlend.InGroup g = GlBlend.inGroup(s.blendMode);
+            if (g.then() != null) {
+                batch.flush(); // one primitive per draw, the one this call begins
+            }
+            batch.requireBlend(g.first(), g.then());
+            return;
+        }
         GlBlend.Factors f = GlBlend.of(s.blendMode);
         batch.requireBlend(f.srcRgb(), f.dstRgb(), f.srcAlpha(), f.dstAlpha());
     }
