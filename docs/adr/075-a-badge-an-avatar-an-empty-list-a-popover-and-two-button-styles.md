@@ -1014,3 +1014,17 @@ the scene, so the keyboard the scene holds in it is carried as before; the frame
 once the card has gone. `DialogCancelRequestTest` moves such a dialog, with a field selected, into
 a fullscreen owner's scene and answers it there; `HeadlessBackend.setCompositorShadowsPopups(false)`
 is the desktop that casts no shadow.
+
+## Note, 2026-10-20 (later): a widget with a parent is no scene's layer or root either
+
+Decision 40 refused another scene's root or overlay to every taker; its fixer left out the other
+half of the same rule, a container's child taken as a layer or a root. `Scene.pushOverlay`,
+`pushPopup` (and the toolkit's own pushes, through the one place an overlay is stacked) and a new
+`Scene` now refuse a widget that has a parent with an `IllegalArgumentException`, before anything
+moves, whether the parent is in the same scene, another one or none: pushed, the widget was a
+layer and a child at once, laid out, drawn and dispatched to by both, and a new scene over it took
+it out of its container without the container hearing of it. Nothing in the toolkit, the demo,
+the theme editor or the site relied on it; one test built a scene over a chart it had already
+wrapped in a padding of another scene, and now builds it over the chart alone.
+`AnotherScenesLayerIsRefusedTest` takes a child in the same scene, in another and in none, with
+each push and a new scene.

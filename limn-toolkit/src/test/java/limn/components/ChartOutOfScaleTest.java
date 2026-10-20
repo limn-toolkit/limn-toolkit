@@ -176,12 +176,17 @@ class ChartOutOfScaleTest extends ComponentTestBase {
     }
 
     private Scene sceneOf(Chart<?> chart) {
-        chart.setAnimationDuration(0);
-        chart.setLegendPosition(Chart.LegendPosition.NONE);
-        chart.setPreferredSize(300, 200);
+        prepare(chart);
         Scene scene = new Scene(new Padding(Insets.all(100), chart));
         scene.setTextRuler(RULER);
         return scene;
+    }
+
+    /** No animation, no legend, 300 by 200: what every chart here is drawn with. */
+    private static void prepare(Chart<?> chart) {
+        chart.setAnimationDuration(0);
+        chart.setLegendPosition(Chart.LegendPosition.NONE);
+        chart.setPreferredSize(300, 200);
     }
 
     private static InkCanvas frame(Scene scene) {
@@ -343,7 +348,7 @@ class ChartOutOfScaleTest extends ComponentTestBase {
                     ChartSeries.of("v", 1e300, 5e299, 2e299));
             chart.setLocale(java.util.Locale.ENGLISH);
             chart.setHorizontal(sideways);
-            sceneOf(chart);
+            prepare(chart); // the scene's root itself, so not inside the padding sceneOf puts round it
             // The test ruler gives every character ten points, so five of them take more than the
             // fifth of 300 points each sideways label may have; a real face takes about 35.
             chart.setPreferredSize(500, 200);

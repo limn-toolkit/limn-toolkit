@@ -241,11 +241,12 @@ public final class Scene {
      * <p>A widget belongs to one scene as its root or one of its overlays: one that is already
      * another scene's root, or an overlay on another scene's stack, is refused, as
      * {@link #pushOverlay(Widget)} and every container's add refuse it. That scene lets go of it
-     * when it is taken off the stack ({@link #removeOverlay}) or when its window closes.
+     * when it is taken off the stack ({@link #removeOverlay}) or when its window closes. A widget
+     * that has a parent is refused too: a root has none.
      *
      * @param root the widget tree to lay out, paint and dispatch to; never null
-     * @throws IllegalArgumentException if {@code root} is another scene's root or an overlay on
-     *                                  another scene's stack
+     * @throws IllegalArgumentException if {@code root} has a parent, or is another scene's root or
+     *                                  an overlay on another scene's stack
      */
     public Scene(Widget<?> root) {
         this(root, System::nanoTime);
@@ -284,11 +285,12 @@ public final class Scene {
      *
      * @param root  as {@link #Scene(Widget)} takes it, and refused as it refuses it
      * @param clock what this scene reads as now, in nanoseconds
-     * @throws IllegalArgumentException if {@code root} is another scene's root or an overlay on
-     *                                  another scene's stack
+     * @throws IllegalArgumentException if {@code root} has a parent, or is another scene's root or
+     *                                  an overlay on another scene's stack
      */
     public Scene(Widget<?> root, LongSupplier clock) {
-        refuseAnotherScenesLayer(Objects.requireNonNull(root, "root"), null, "the root of a new scene");
+        refuseParented(Objects.requireNonNull(root, "root"), "the root of a new scene");
+        refuseAnotherScenesLayer(root, null, "the root of a new scene");
         this.root = root;
         this.clock = clock;
         List<Runnable> settled = new ArrayList<>(0);
@@ -848,11 +850,12 @@ public final class Scene {
      * before anything moves, as a container's add and a new scene refuse it: the scene that holds
      * it would go on naming it as its own and laying it out at its own window's size. That scene
      * lets go of it when it is taken off the stack ({@link #removeOverlay}) or when its window
-     * closes.
+     * closes. A widget that has a parent is refused the same way: an overlay is a root of its own,
+     * and as a container's child too it would be laid out, drawn and dispatched to twice.
      *
      * @param overlay the overlay's root
-     * @throws IllegalArgumentException if {@code overlay} is another scene's root or an overlay on
-     *                                  another scene's stack
+     * @throws IllegalArgumentException if {@code overlay} has a parent, or is another scene's root
+     *                                  or an overlay on another scene's stack
      */
     public void pushOverlay(Widget<?> overlay) {
         Ui.checkUiThread();
@@ -973,7 +976,8 @@ public final class Scene {
      *         caller rethrows once its own work is done, or null
      */
     private @Nullable Throwable stackOverlay(Widget<?> overlay, List<Runnable> settled) {
-        refuseAnotherScenesLayer(overlay, this, "an overlay of another scene"); // before anything moves
+        refuseParented(overlay, "an overlay"); // before anything moves
+        refuseAnotherScenesLayer(overlay, this, "an overlay of another scene");
         // A drag captured before this modal opened must not keep feeding the
         // now-blocked content beneath the scrim: DRAG follows the capture, not
         // hit-testing. Synthesize its RELEASE (window blur's treatment).
@@ -1022,8 +1026,9 @@ public final class Scene {
      * opened from. Closed with {@link #removeOverlay}.
      *
      * @param popup the popup's root widget
-     * @throws IllegalArgumentException if {@code popup} is another scene's root or an overlay on
-     *                                  another scene's stack, as {@link #pushOverlay(Widget)} refuses it
+     * @throws IllegalArgumentException if {@code popup} has a parent, or is another scene's root or
+     *                                  an overlay on another scene's stack, as
+     *                                  {@link #pushOverlay(Widget)} refuses it
      */
     public void pushPopup(Widget<?> popup) {
         Ui.checkUiThread();
@@ -2368,6 +2373,24 @@ public final class Scene {
         rootLetGo = true;
         if (moving != root) {
             root.releaseMovingChild(moving);
+        }
+    }
+
+    /**
+     * Refuses {@code widget} when it has a parent: a layer or a root of a scene that is also a
+     * container's child would be laid out, drawn and dispatched to by both. Checked before
+     * anything moves, as {@link #refuseAnotherScenesLayer} is.
+     *
+     * @param widget the widget being taken
+     * @param as     what it would become, for the message
+     * @throws IllegalArgumentException when it has a parent
+     */
+    static void refuseParented(Widget<?> widget, String as) {
+        Widget<?> parent = widget.parent();
+        if (parent != null) {
+            throw new IllegalArgumentException(widget.getClass().getName() + " already has a parent, "
+                    + parent.getClass().getName() + ", and cannot also be " + as
+                    + ": take it out of its parent first");
         }
     }
 

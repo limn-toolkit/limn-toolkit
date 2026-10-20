@@ -200,4 +200,62 @@ class AnotherScenesLayerIsRefusedTest extends SceneTestBase {
         assertTrue(first.holdsAsLayer(popup));
         assertSame(first, anchor.scene());
     }
+    /**
+     * A widget that has a parent belongs to that parent, and no scene takes it as a layer or a root
+     * while it does: a push of an overlay or a popup and a new scene over it refuse it as a
+     * container's add does, before anything moves, whether the parent is in a scene (the same one
+     * or another) or in none. Taken, it was a layer of one scene and a child of a container at
+     * once, laid out by both, and the container went on drawing and dispatching to it.
+     */
+    @Test
+    void aWidgetWithAParentIsRefusedByEveryPushAndANewScene() {
+        List<String> failures = new ArrayList<>();
+        for (String where : new String[] {"in this scene", "in another scene", "in no scene"}) {
+            for (Taker taker : new Taker[] {Taker.PUSH_OVERLAY, Taker.PUSH_POPUP, Taker.NEW_SCENE}) {
+                String how = "a child " + where + " taken by " + taker;
+                List<String> log = new ArrayList<>();
+                Told card = new Told("card", log);
+                Column holder = new Column();
+                holder.add(card);
+                Key key = new Key();
+                Column page = new Column();
+                page.add(key);
+                Scene taking;
+                Scene holding = null;
+                if (where.equals("in this scene")) {
+                    page.add(holder);
+                    taking = new Scene(page);
+                    holding = taking;
+                } else {
+                    taking = new Scene(page);
+                    if (where.equals("in another scene")) {
+                        holding = new Scene(holder);
+                    }
+                }
+                taking.requestFocus(key);
+                List<Change.Aspect> heard = new ArrayList<>();
+                holder.observeChanges((source, change) -> heard.add(change.aspect()));
+                log.clear();
+                Runnable take = switch (taker) {
+                    case PUSH_OVERLAY -> () -> taking.pushOverlay(card);
+                    case PUSH_POPUP -> () -> taking.pushPopup(card);
+                    default -> () -> new Scene(card);
+                };
+                try {
+                    IllegalArgumentException refused = assertThrows(IllegalArgumentException.class, take::run, how);
+                    assertTrue(refused.getMessage().contains("parent"), how + ": says why: " + refused.getMessage());
+                    assertSame(holder, card.parent(), how + ": still its parent's");
+                    assertEquals(List.of(card), holder.children(), how);
+                    assertSame(holding, card.scene(), how + ": in the scene it was in");
+                    assertFalse(taking.holdsAsLayer(card), how + ": not on the stack");
+                    assertEquals(List.of(), log, how + ": nobody told anything");
+                    assertEquals(List.of(), heard, how + ": nothing announced");
+                    assertSame(key, taking.focusedWidget(), how + ": the keyboard where it was");
+                } catch (AssertionError failure) {
+                    failures.add(failure.getMessage());
+                }
+            }
+        }
+        assertEquals(List.of(), failures);
+    }
 }
