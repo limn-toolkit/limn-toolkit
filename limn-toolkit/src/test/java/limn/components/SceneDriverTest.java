@@ -101,6 +101,10 @@ class SceneDriverTest extends ComponentTestBase {
             }
 
             @Override
+            public void overlayCard(limn.scene.Widget<?> overlay, limn.scene.internal.OverlayCard card) {
+            }
+
+            @Override
             public limn.scene.Widget<?> focusedBefore(Scene scene) {
                 return null;
             }

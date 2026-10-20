@@ -3627,6 +3627,11 @@ public final class Scene {
             }
 
             @Override
+            public void overlayCard(Widget<?> overlay, limn.scene.internal.OverlayCard card) {
+                overlay.overlayCard = card;
+            }
+
+            @Override
             public void pressFocus(Widget<?> widget, limn.scene.internal.PressFocus filter) {
                 widget.pressFocus = filter;
             }
@@ -4370,8 +4375,9 @@ public final class Scene {
             pressLocalX = capturedLocalX;
             pressLocalY = capturedLocalY;
             dragAsked = false;
-            // Click-to-focus: nearest focusable ancestor of the press target.
-            Widget<?> focusTarget = hit;
+            // Click-to-focus: nearest focusable ancestor of the press target. None for a press a
+            // closing overlay swallows on its card: the keyboard went back to the layer beneath.
+            Widget<?> focusTarget = hit != null && closingOverlays.contains(hit) ? null : hit;
             while (focusTarget != null && !focusTarget.isFocusable()) {
                 focusTarget = focusTarget.parent();
             }
@@ -4835,20 +4841,41 @@ public final class Scene {
         // fullscreen in-scene menu), which then hit-tests the content below. An inert
         // subtree is passed by in Widget.hitTest itself, which every widget's answer goes
         // through now that it is the one entry.
-        // An overlay fading out after giving the keyboard back has let go of the pointer too: a
-        // press during its fade is for what is beneath it, where it swallowed the press and took
-        // the focus, which went nowhere once it was removed.
+        // An overlay fading out after giving the keyboard back lets a press beside its card through
+        // to what is beneath: it swallowed that press and took the focus, which went nowhere once
+        // it was removed. A press on the card, still drawn, stays its own, and the overlay's root
+        // takes it without the focus (see the press): the second click of a double click on a
+        // list's item, a date or a menu item lands there, and went through to the control beneath
+        // the item, a button pressed or a word selected the user never saw.
+        float[] local = hitScratch;
         Widget<?> top = null;
         for (int i = overlays.size() - 1; i >= 0; i--) {
-            if (!closingOverlays.contains(overlays.get(i))) {
-                top = overlays.get(i);
+            Widget<?> overlay = overlays.get(i);
+            if (!closingOverlays.contains(overlay)) {
+                top = overlay;
                 break;
+            }
+            if (drawsAt(overlay, sceneX, sceneY)) {
+                return overlay;
             }
         }
         Widget<?> asked = top != null && !top.overlayPassesPointer(sceneX, sceneY) ? top : root;
-        float[] local = hitScratch;
         asked.sceneToLocal(sceneX, sceneY, local);
         return asked.hitTest(local[0], local[1]);
+    }
+
+    /**
+     * @return whether {@code overlay} draws its surface at the scene point: where it says it does,
+     *         else where a widget inside it, and not the overlay itself, takes the point
+     */
+    private boolean drawsAt(Widget<?> overlay, float sceneX, float sceneY) {
+        if (overlay.overlayCard != null) {
+            return overlay.overlayCard.drawsAt(sceneX, sceneY);
+        }
+        float[] local = hitScratch;
+        overlay.sceneToLocal(sceneX, sceneY, local);
+        Widget<?> onIt = overlay.hitTest(local[0], local[1]);
+        return onIt != null && onIt != overlay;
     }
 
     /** The point {@link #hitAt} asks about, in the asked root's space; one, since input runs on the UI thread. */

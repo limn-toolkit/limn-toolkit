@@ -132,6 +132,8 @@ public final class SceneAccess {
 
         void pressFocus(Widget<?> widget, PressFocus filter);
 
+        void overlayCard(Widget<?> overlay, OverlayCard card);
+
         /**
          * @param widget   the control a field holds; see {@link SceneAccess#fieldControl}
          * @param held     whether a field holds it
@@ -314,6 +316,18 @@ public final class SceneAccess {
      */
     public static void pressFocus(Widget<?> widget, PressFocus filter) {
         hook().pressFocus(widget, filter);
+    }
+
+    /**
+     * Makes {@code card} what the scene asks of {@code overlay} while it fades out: where it draws
+     * its surface, so a press there stays its own. Without one the scene asks whether the press
+     * lands on a widget inside the overlay.
+     *
+     * @param overlay an overlay's root that draws its surface itself
+     * @param card    where that surface is drawn
+     */
+    public static void overlayCard(Widget<?> overlay, OverlayCard card) {
+        hook().overlayCard(overlay, card);
     }
 
     /**

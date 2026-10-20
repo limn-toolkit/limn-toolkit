@@ -37,10 +37,14 @@ class AnchoredPopupClosingLayerTest extends ComponentTestBase {
         Button filter = new Button("Filter");
         TextField other = new TextField().setAccessibleName("Other");
         ComboBox<String> status = new ComboBox<>(List.of("Open", "Paid")).setDisplayMode(DisplayMode.IN_SCENE);
-        Column root = new Column();
-        root.add(filter);
-        root.add(status);
-        root.add(new SizedBox(200, 30, other));
+        // The field beside the popups, where a press passes their fading cards by.
+        Column left = new Column();
+        left.add(filter);
+        left.add(status);
+        limn.scene.layout.Row root = new limn.scene.layout.Row();
+        root.add(left);
+        root.add(new SizedBox(150, 10));
+        root.add(new SizedBox(100, 30, other));
         AccessibleHarness harness = new AccessibleHarness(runtime, root, new StubWindow(false));
         harness.scene.setTextRuler(RULER);
         harness.frame();

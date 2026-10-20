@@ -155,6 +155,8 @@ public abstract class Widget<W extends Widget<W>> {
     boolean drawsAccessLetters;
     /** Where a press does not take the keyboard, for the few widgets with such a spot; see SceneAccess. */
     limn.scene.internal.@Nullable PressFocus pressFocus;
+    /** Where an overlay that draws its surface itself draws it; see SceneAccess#overlayCard. */
+    limn.scene.internal.@Nullable OverlayCard overlayCard;
     /**
      * Whether this subtree is passing out of reach: drawn and enabled as it is, but no pointer
      * lands in it and no focus moves into it. See {@link limn.scene.internal.SceneAccess#setInert}.
