@@ -126,7 +126,10 @@ depth instead of flat:
 
 A turn in depth has no motion of its own besides the flip, and is set at once. Turned past a
 quarter, the part shows its back, mirrored, unless `setBackfaceVisible(false)` hides it; turned
-exactly a quarter it is edge-on, draws nothing and takes no click. Its picture is drawn at the size
+exactly a quarter it is edge-on, draws nothing and takes no click. A part drawn as nothing, its
+back hidden, edge-on, or scaled to 0, is out of reach as a hidden one is: Tab passes it by, it
+loses the keyboard focus if it held it, a screen reader is told it is hidden, and it comes back by
+itself when it is drawn again, without the focus. Its picture is drawn at the size
 of the edge nearest the reader, so text far from it reads softer; on a computer with no graphics
 processor it is drawn at the part's own size, which costs that computer less and softens the near
 edge a little too. Where the part is seen at less than half its size, a page laid far back, its
@@ -142,6 +145,12 @@ turn: the swap comes on the next turn of the UI thread, so a press answers at on
 motion runs at its end after the seconds it was asked to take, never inside the call, as with a fade. Something watching the container hears
 `Change.Aspect.TRANSFORM` each time a set changes a value, and twice for a motion. To fade a
 moving part as well, put the `Opacity` outside: `new Opacity(new Transform(child))`.
+
+A scale that reaches 0 on either axis draws the part as nothing and so takes the focus out of it,
+whether it is set or a `scaleTo` passes through it on the way: a card turned over by hand, scaled
+to 0 across, swapped and scaled back, always loses the focus it held, since a motion arrives
+exactly at its target. To turn a card over and keep the focus on it, use `flipTo`, whose frames
+pass the edge rather than stopping on it.
 
 ## Something that repeats
 

@@ -189,7 +189,9 @@ public final class Transform extends Widget<Transform> {
     /**
      * Scales the child by {@code sx} along x and {@code sy} along y about the
      * {@link #setOrigin origin}, at once. A {@link #scaleTo scale} in flight is superseded. A uniform
-     * scale keeps text crisp; two different factors draw it softer while they last.
+     * scale keeps text crisp; two different factors draw it softer while they last. A factor of 0
+     * on either axis draws the child as nothing and takes the keyboard focus out of it, as hiding
+     * it would (see the class's note).
      *
      * @param sx the factor along x; negative mirrors, 0 collapses the child to a line
      * @param sy the factor along y
@@ -513,6 +515,12 @@ public final class Transform extends Widget<Transform> {
      * inside this call, superseded by a newer scale or a {@link #setScale}, settled as the container
      * leaves its scene, and heard twice. The glyphs of
      * the text inside are drawn again at each size the scale passes through.
+     *
+     * <p>A scale that reaches 0 on either axis, as a target or on the way to one, draws the child
+     * as nothing and puts it out of reach as a hidden child is (see the class's note): it loses the
+     * keyboard focus, which is not given back when the scale returns. A motion arrives exactly at
+     * its target, so a card turned over by hand, scaled to 0 across, swapped and scaled back, always
+     * loses the focus it held; {@link #flipTo flipTo} turns a card over and keeps it.
      *
      * @param sx       the factor along x to arrive at
      * @param sy       the factor along y to arrive at
