@@ -145,6 +145,8 @@ public final class Scene {
     private final java.util.Set<Ticker> realTimeTickers =
             java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
     private boolean tickingInProgress;
+    /** How deep in a layout pass, a full or a contained one, the scene is; 0 outside one. */
+    private int layoutDepth;
     private double timeScale = 1;
     private boolean paused;
     private double tickDtScene; // this frame's dt for scene-time tickers (clamped × factor)
@@ -2693,6 +2695,15 @@ public final class Scene {
      * placed it against a size that is no longer true and only a full pass can fix that.
      */
     private void runContainedLayouts() {
+        layoutDepth++;
+        try {
+            runContainedLayoutsNow();
+        } finally {
+            layoutDepth--;
+        }
+    }
+
+    private void runContainedLayoutsNow() {
         containedThisFrame.clear();
         if (containedLayouts.isEmpty()) {
             return;
@@ -2770,6 +2781,15 @@ public final class Scene {
      * children and escalates if it does not. Wrong costs a frame, never a stale pixel.
      */
     private void runVisibilityLayouts() {
+        layoutDepth++;
+        try {
+            runVisibilityLayoutsNow();
+        } finally {
+            layoutDepth--;
+        }
+    }
+
+    private void runVisibilityLayoutsNow() {
         if (visibilityChanges.isEmpty()) {
             return;
         }
@@ -3098,7 +3118,9 @@ public final class Scene {
      * {@code setVisible(false)}'s does. From a motion's frame it waits until every ticker of the
      * frame has run ({@link #revokeUndrawnAfterTheTicks}), so that the handlers it runs, which are
      * the application's, never run while a container is setting its matrix, and a throw from one
-     * cannot cut a motion's frame short. From a container leaving the scene, settling its motion
+     * cannot cut a motion's frame short. From a layout pass (a new box size can tip a plane within
+     * a rounding error of edge-on past it) it waits until the frame's pass is over, so that no
+     * handler edits a tree a container is laying out. From a container leaving the scene, settling its motion
      * in the walk that takes it out, it does not run at all: the parent link is already cut, and
      * whatever removes the branch takes the focus out of it once the walk is over.
      */
@@ -3108,7 +3130,7 @@ public final class Scene {
         if (!undrawn || !inThisTree(container)) {
             return;
         }
-        if (tickingInProgress) {
+        if (tickingInProgress || layoutDepth > 0) {
             if (!undrawnAfterTheTicks.contains(container)) {
                 undrawnAfterTheTicks.add(container);
             }
@@ -3117,13 +3139,17 @@ public final class Scene {
         revokeUndrawn(container);
     }
 
-    /** Containers a motion's frame drew as nothing, revoked after the frame's tickers; in order. */
+    /**
+     * Containers a motion's frame or a layout pass drew as nothing, revoked after the frame's
+     * tickers or after the pass; in order.
+     */
     private final List<Widget<?>> undrawnAfterTheTicks = new ArrayList<>();
 
     /**
-     * Runs the revocations a motion's frames left waiting: for each container still in this scene
-     * and still drawing nothing, as {@link #childrenDrawnChanged} would have. A handler that throws
-     * is reported as a ticker's throw is, and the next container's revocation still runs.
+     * Runs the revocations a motion's frames or a layout pass left waiting: for each container
+     * still in this scene and still drawing nothing, as {@link #childrenDrawnChanged} would have. A
+     * handler that throws is reported as a ticker's throw is, and the next container's revocation
+     * still runs.
      */
     private void revokeUndrawnAfterTheTicks() {
         while (!undrawnAfterTheTicks.isEmpty()) {
@@ -6350,6 +6376,18 @@ public final class Scene {
             fullDamagePending = true;
         }
         layoutPass(canvas.width(), canvas.height());
+        if (!undrawnAfterTheTicks.isEmpty()) {
+            // The pass made a transform draw its child as nothing: its revocation, which runs the
+            // application's handlers, waited for the pass to be over, and what those handlers
+            // changed is laid out before this frame paints.
+            revokeUndrawnAfterTheTicks();
+            runContainedLayouts();
+            runVisibilityLayouts();
+            if (layoutDirty) {
+                fullDamagePending = true;
+                layoutPass(canvas.width(), canvas.height());
+            }
+        }
         if (!rePresent && pointerInside && pressed == null && dragSession == null) {
             // Content may have moved under a stationary mouse (keyboard scroll,
             // overlay close, layout change): hover follows what is under the
@@ -7236,8 +7274,22 @@ public final class Scene {
         }
     }
 
-    /** Runs measure/layout when dirty or resized (public for headless tests/embedding). */
+    /**
+     * Runs measure/layout when dirty or resized (public for headless tests/embedding).
+     *
+     * @param newWidth  the window's width
+     * @param newHeight the window's height
+     */
     public void layoutPass(float newWidth, float newHeight) {
+        layoutDepth++;
+        try {
+            layoutPassNow(newWidth, newHeight);
+        } finally {
+            layoutDepth--;
+        }
+    }
+
+    private void layoutPassNow(float newWidth, float newHeight) {
         if (!layoutDirty && newWidth == width && newHeight == height) {
             // Contained requests are still owed a pass: this is the entry point a headless test
             // or an embedder calls instead of rendering a frame, and without this a list that

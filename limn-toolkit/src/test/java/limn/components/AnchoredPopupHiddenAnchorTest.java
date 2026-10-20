@@ -436,4 +436,83 @@ class AnchoredPopupHiddenAnchorTest extends ComponentTestBase {
             runtime.drain();
         }
     }
+
+    /** A box its test sizes, which lays its one child out at that size. */
+    private static final class Sized extends Widget<Sized> {
+        float w = 200;
+
+        Sized(Widget<?> child) {
+            add(child);
+        }
+
+        void setWidth(float width) {
+            w = width;
+            markNeedsLayout();
+        }
+
+        @Override
+        protected limn.scene.Size onMeasure(limn.scene.Constraints c) {
+            children().get(0).measure(limn.scene.Constraints.tight(w, 100));
+            return c.constrain(w, 100);
+        }
+
+        @Override
+        protected void onLayout() {
+            children().get(0).layoutBox(0, 0, w, 100);
+        }
+    }
+
+    @Test
+    void aLayoutPassThatStopsAFaceBeingDrawnClosesItsPopoverAfterThePass() {
+        // A face turned within a ten-thousandth of a degree of edge-on under a perspective, drawn
+        // until its box is resized and the rounding of the new matrix puts it past edge-on; a
+        // popover open from a button on it, whose onClose tidies up by taking the card out of its
+        // column. The close runs after the layout pass, not inside it: run there, the handler
+        // edited the tree a column was laying out, and the frame threw.
+        for (DisplayMode mode : DisplayMode.values()) {
+            List<Throwable> crashes = new ArrayList<>();
+            limn.backend.CrashHandler handler = (phase, error) -> {
+                crashes.add(error);
+                return true;
+            };
+            limn.backend.Crashes.install(handler);
+            try {
+                Button filter = new Button("Filter");
+                Column face = new Column();
+                face.add(filter);
+                Sized box = new Sized(face);
+                limn.scene.layout.Transform card = new limn.scene.layout.Transform(box).setPerspective(200)
+                        .setRotation3D(limn.math.Vec3.UNIT_Y, 89.99994f);
+                Column root = new Column();
+                root.add(card);
+                root.add(new Button("Other"));
+                inWindow(root);
+                frames(2);
+                String where = mode.toString();
+                assertTrue(filter.isShowing(), where + ": sanity, drawn at this width");
+                List<String> closes = new ArrayList<>();
+                Popover popover = new Popover(new SizedBox(160, 30, new TextField())).setDisplayMode(mode)
+                        .onClose(origin -> {
+                            closes.add(origin.toString());
+                            root.remove(card);
+                        });
+                popover.showFor(filter);
+                frames(3);
+                assertTrue(popover.isOpen(), where + ": sanity");
+
+                box.setWidth(1000);
+                frames(3);
+                assertFalse(filter.isShowing() && card.parent() != null, where + ": sanity, not drawn at that one");
+
+                assertEquals(List.of(), crashes, where + ": nothing thrown in the frame");
+                assertEquals(List.of("ADJUSTMENT"), closes, where);
+                assertFalse(popover.isOpen(), where);
+                assertNull(card.parent(), where + ": the handler's removal done");
+                owner.requestClose();
+                runtime.drain();
+            } finally {
+                limn.backend.Crashes.uninstall(handler);
+            }
+        }
+    }
 }

@@ -523,6 +523,13 @@ Both depend on section 3, and with it they are short.
   its own whose `onClose` scales the card back. In the scene the popover holds the keyboard and
   gives it back before its `onClose` runs, while the face is still not drawn, so there the focus
   goes to nobody, as after `setVisible(false)`.)
+  (2026-10-20, the third review, R5S-4: a layout pass can change whether a Transform draws its
+  child only by rounding, a plane within about 1e-4 degrees of edge-on under a perspective whose
+  box is resized, but when it did, the revocation ran the popups' handlers inside the pass, and an
+  `onClose` that took the card out of its column broke the column's layout and the frame. A pass,
+  full or contained, now queues the revocation as a motion's frame does, and the frame runs it once
+  its pass is over and lays out again what the handlers changed before it paints. Test:
+  `AnchoredPopupHiddenAnchorTest`, a card turned 89.99994 degrees resized from 200 to 1000 wide.)
 
 ### 2.9 Backdrop effects under and inside a transform
 
