@@ -190,6 +190,12 @@ class GlslSharingAndLoopsTest {
         assertEquals(fragment(IrSurfaces.moltenLike()), fragment(IrSurfaces.moltenLike()));
     }
 
+    /** The text of the first loop, from its for to the brace that closes it. */
+    private static String firstLoop(String frag) {
+        int start = frag.indexOf("    for (int ir_i0");
+        return frag.substring(start, frag.indexOf("\n    }\n", start) + 7);
+    }
+
     @Test
     void aLoopThatCanEndEarlyOverADeepSharedTurnIsWrittenInMilliseconds() {
         // Each step of z ↦ z² + c reads the step before six times through its swizzles: as a tree,
@@ -228,5 +234,41 @@ class GlslSharingAndLoopsTest {
                     List.of(loop, Expr.Lit.of(0f)))));
             assertEquals(40, count(frag, "    vec2 ir_t"), "one local a step: " + frag);
         });
+    }
+
+    @Test
+    void aLoopsStateNamedLikeAnInputIsTheStateInsideTheLoopWhicheverIsWrittenFirst() {
+        // A Value "z" doubled by the base colour, and a loop whose state is also called z, doubled
+        // three times. The base colour is written first and its z * 2 becomes a local over the
+        // uniform; inside the loop z is the state, and that local is not what z * 2 means there.
+        Expr.Ref z = new Expr.Ref("z", ShaderType.VEC4);
+        Expr twice = mul(z, Expr.Lit.of(2f));
+        Expr.Loop loop = new Expr.Loop("z", Expr.Lit.of(1f, 1f, 1f, 1f), 3, twice, null);
+        String declared = "\nuniform vec4 z;\n";
+        String outsideFirst = GlslCodegen.generate(SurfaceOutputs.of(twice, Expr.Lit.of(0f), Expr.Lit.of(1f),
+                new Expr.Swizzle(loop, "xyz")), declared, TargetProfile.GLSL_330).fragmentSource();
+        assertTrue(outsideFirst.contains("    vec4 baseColor = ir_t0;\n"), outsideFirst);
+        assertTrue(outsideFirst.contains("    vec4 ir_t0 = (z * 2.0);\n"), outsideFirst);
+        String body = firstLoop(outsideFirst);
+        assertFalse(body.contains("ir_t0"), body);
+        assertTrue(body.contains("(ir_s0 * 2.0)"), body);
+
+        // Inside first: the loop's local is in its body, and the base colour reads the uniform.
+        String insideFirst = GlslCodegen.generate(SurfaceOutputs.of(loop, Expr.Lit.of(0f), Expr.Lit.of(1f),
+                new Expr.Swizzle(twice, "xyz")), declared, TargetProfile.GLSL_330).fragmentSource();
+        assertTrue(firstLoop(insideFirst).contains("(ir_s0 * 2.0)"), insideFirst);
+        assertTrue(insideFirst.contains("(z * 2.0)"), insideFirst);
+
+        // The same with a varying of the framework's own for the name.
+        Expr uv = ref("v_uv", ShaderType.VEC2);
+        Expr cells = call("fract", ShaderType.VEC2, mul(uv, Expr.Lit.of(3f)));
+        Expr.Loop folded = new Expr.Loop("v_uv", Expr.Lit.of(0.5f, 0.5f), 4, cells, null);
+        String varying = fragment(SurfaceOutputs.of(new Expr.Construct(ShaderType.VEC4,
+                        List.of(cells, Expr.Lit.of(0f), Expr.Lit.of(1f))), Expr.Lit.of(0f), Expr.Lit.of(1f),
+                new Expr.Construct(ShaderType.VEC3, List.of(folded, Expr.Lit.of(0f)))));
+        assertTrue(varying.contains("fract((v_uv * 3.0))"), varying);
+        String foldedBody = firstLoop(varying);
+        assertTrue(foldedBody.contains("fract((ir_s0 * 3.0))"), foldedBody);
+        assertFalse(foldedBody.contains("ir_t0"), foldedBody);
     }
 }

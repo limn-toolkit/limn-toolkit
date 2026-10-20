@@ -128,11 +128,20 @@ final class GlslCodegen {
             this.floor = parent == null;
         }
 
-        @org.jspecify.annotations.Nullable String local(int id) {
+        /**
+         * The local that holds node {@code id} as this block reads it, or null. A local in an
+         * enclosing block holds what the node meant there: when a block in between binds a name
+         * the node {@code reads}, a loop's state named like an input, the node means something
+         * else here and is written afresh.
+         */
+        @org.jspecify.annotations.Nullable String local(int id, java.util.Set<String> reads) {
             for (Scope at = this; at != null; at = at.parent) {
                 String name = at.locals.get(id);
                 if (name != null) {
                     return name;
+                }
+                if (at.binds != null && reads.contains(at.binds)) {
+                    return null;
                 }
             }
             return null;
@@ -177,8 +186,8 @@ final class GlslCodegen {
      * Two nodes are the same when their kind, their fields and their children's
      * numbers are; a node that is not a literal, a reference or a swizzle of one, used by more
      * than one parent, becomes a local, declared before the first statement that reads it in the
-     * innermost block that sees everything it reads. A loop is written as statements and read by
-     * its variable.
+     * innermost block that sees everything it reads, and read from it wherever the names it reads
+     * still mean what they meant there. A loop is written as statements and read by its variable.
      */
     private static final class Emitter {
         private final TargetProfile profile;
@@ -303,7 +312,7 @@ final class GlslCodegen {
                 return emit(swizzle.source(), scope) + "." + swizzle.pattern();
             }
             int id = id(node);
-            String local = scope.local(id);
+            String local = scope.local(id, reads(id));
             if (local != null) {
                 return local;
             }

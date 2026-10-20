@@ -164,6 +164,14 @@ class SurfaceLoopGlTest {
                         new Material.Surface.Texture("u_mask", context.upload(gradient(), Sampler.smooth()))),
                 List.of(new Material.Surface.Value("u_knobs", new Vec4(0.3f, 0.2f, 0, 0))), null));
         materials.put("molten", context -> Material.Surface.of("test.molten", IrSurfaces.moltenLike()));
+        // A loop's state named like one of the surface's inputs, the input read outside the loop
+        // first: inside the loop the name is the state, shared or not.
+        Expr.Ref z = new Expr.Ref("z", ShaderType.VEC4);
+        Expr twice = IrSurfaces.mul(z, Expr.Lit.of(2f));
+        Expr.Loop doubled = new Expr.Loop("z", Expr.Lit.of(0.01f, 0.02f, 0.03f, 1f), 3, twice, null);
+        materials.put("a state named like an input", context -> new Material.Surface("test.named",
+                SurfaceOutputs.of(twice, Expr.Lit.of(0f), Expr.Lit.of(0.6f), new Expr.Swizzle(doubled, "xyz")),
+                List.of(), List.of(new Material.Surface.Value("z", new Vec4(0.3f, 0.2f, 0.1f, 0.5f))), null));
         boolean was = GlslCodegen.shareSubexpressions;
         try {
             // The comparison means something only where the two forms differ: the standard surface

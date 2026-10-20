@@ -106,8 +106,10 @@ public sealed interface Expr
      * <p>Each turn first asks {@code until}, when there is one, of the state as it stands: above
      * zero ends the loop; otherwise the state becomes {@code next}. The loop's value is the state
      * when it ends. Inside {@code next} and {@code until} the state is read as
-     * {@code new Expr.Ref(state, initial.type())}; outside them the name means nothing. A part of
-     * {@code next} or {@code until} that does not read the state is computed once, before the loop.
+     * {@code new Expr.Ref(state, initial.type())}, and there the name is the state even where an
+     * input of the surface or a varying of the framework has the same one; outside them the name
+     * means nothing. A part of {@code next} or {@code until} that does not read the state is
+     * computed once, before the loop.
      *
      * <pre>{@code
      * // An escape-time fractal: z ↦ z² + c, counting turns, until |z|² passes 256.

@@ -204,3 +204,11 @@ two sibling loops may both call their state `z`.
   its next state. Both now remember the nodes they have been through (by identity, as the nesting
   check and the constructor's own check already did); k = 12 to 20 generate in milliseconds
   together, and so does the forty-squaring chain.
+- **2026-10-20, review: a local is read only where its names mean the same.** Sharing numbered a
+  reference by its name, and a local was reused from any enclosing block. A loop's state named
+  like an input of the surface (a `Value` called `z`) or a framework varying (`v_uv`), with a node
+  over that name written outside the loop first, gave the loop's body the local computed from the
+  uniform where the IR meant the state: it compiled and drew wrong pixels, while the form written
+  in place was right. A local is now reused only when no block between it and the reader binds a
+  name the node reads; otherwise the node is written afresh, in the block whose binding it reads.
+  The device test holds such a surface, shared and in place, to the same pixels.
