@@ -267,6 +267,7 @@ names the variables itself (`ir_s…`).
   that visits a shared node once, because a record's own `hashCode` follows each child as a tree:
   forty squarings z ↦ z·z, 2^40 paths, never finished. Two such chains built apart compare and
   hash in milliseconds. `toString` is still a record's, a tree as long as every path.
+  *(Superseded: "a node writes itself out once", below.)*
 - **2026-10-20, the owner's decision 37: the cap is the whole surface's.** The review found the
   cap bounded the product along one nesting while the Javadoc promised no surface could hang the
   GPU: 64 loops of 1024 chained through their initial values were accepted (65,536 turns a
@@ -277,6 +278,9 @@ names the variables itself (`ir_s…`).
   response for one light), and the generator (the response once for each of its eight lights).
   `SurfaceOutputs.turnsPerPixel(lights)` is new and public, so a backend with its own light count
   can hold a surface to it. The device test's two loops, 50 and 1024, became 50 and 974.
+  *(Superseded in part: the response is counted for eight lights at construction and
+  `turnsPerPixel` is gone; a loop in a turn that reads nothing of the state counts once. See the
+  later entries.)*
 - **2026-10-20, the owner's decision 38: a loop is built by a factory that hands it its state.**
   The review found the state reached by a free-name `Ref` whose type nothing checked: a `vec2`
   reference to a `vec4` state was accepted and failed to compile at draw time, a reference outside
@@ -292,6 +296,10 @@ names the variables itself (`ir_s…`).
   apart and set in another's turn does; the review's fix that reads a local only where its names
   mean the same is what keeps that right, and the device test draws such a surface shared and in
   place to the same pixels. `Material.Surface` inputs may not start `ir_`.
+  *(Superseded in part: the state became `states`, a list, with decision 39b; names became
+  `ir_state<level>_<place>`, by the level of what the loop holds, with review 9, so a loop built
+  apart no longer hides the outer state; the turn's type became a `Function` with wildcards. Section
+  3.4 is current.)*
 - **2026-10-20, a node writes itself out once.** `toString` was still a record's, a tree as long
   as every path, so logging forty squarings z ↦ z·z never ended. A node with children and more
   than one parent is now written the first time as `#n=…` and as `#n` after that; a node nothing
@@ -358,3 +366,6 @@ names the variables itself (`ir_s…`).
   initial` with `Function<? super List<Expr>, ? extends List<? extends Expr>> next` and
   `Function<? super List<Expr>, ? extends Expr> until`: the widest that still hands the turn a
   `List<Expr>` of the state. A lambda reads as before.
+- **2026-10-20, review 9: stale lines marked.** Section 3.4 is rewritten to the names as they
+  are, and the earlier entries this round overtook (`toString`, `turnsPerPixel`, the single
+  `state` and depth names) carry a note saying what superseded them; the log keeps its order.
