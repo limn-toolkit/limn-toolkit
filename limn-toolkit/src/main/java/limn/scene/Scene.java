@@ -2235,8 +2235,9 @@ public final class Scene {
      *
      * <p>A child a transform stops drawing (a back face turned away, a scale of 0, a plane
      * edge-on) is no longer shown either: {@link #childrenDrawnChanged} closes the popups hung in
-     * it as the visibility path does, from a set at once, and from a motion's frame or a layout pass
-     * once the frame's tickers or the pass have run. A popup refuses to open from such a child ({@code SceneAccess.isDrawn}).
+     * it as the visibility path does, from a set at once, and from a motion's frame or a layout
+     * pass once the frame's tickers or the pass have run. A popup refuses to open from such a
+     * child ({@code SceneAccess.isDrawn}).
      *
      * @param anchor the widget the popup hangs from
      * @param gone   takes the popup down
@@ -4149,6 +4150,11 @@ public final class Scene {
             @Override
             public boolean isDrawn(Widget<?> widget) {
                 return widget.isDrawnInScene();
+            }
+
+            @Override
+            public void setLocaleInPlace(Widget<?> widget, java.util.@Nullable Locale locale) {
+                widget.declareLocale(locale, true);
             }
 
             @Override

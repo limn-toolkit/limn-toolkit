@@ -578,3 +578,12 @@ application's message with its state, the control's own reason, the helper text.
 before the helper text because it says why the value held is refused now, which the helper text,
 how to fill the field, does not; the helper text returns once the value is accepted.
 `FieldTest.aMessageSetWithNoStateIsNotShownNorReadAndTheDatesRefusalStaysOnTheLine` has it.
+
+*Review, 2026-10-20 (R5C-8):* the line declares the control's language only where it differs from
+the field's, so a form in one language lays nothing out when a message comes or goes; but where
+they differ, the line's change of language went through `Widget.setLocale`, which asks for a full
+layout, and each message that came or went repainted the window, the cost
+`DamageContractTest` refuses. The line now changes language in place, as it changes text
+(`SceneAccess.setLocaleInPlace`): its measure is marked and the scene re-measures upward until a
+size holds. `FieldTest.aMessageComingAndGoingRepaintsNoWindowWhenTheControlSpeaksAnotherLanguage`
+holds both forms to frames that repaint no window.

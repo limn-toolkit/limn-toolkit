@@ -99,6 +99,9 @@ public final class SceneAccess {
         /** @param widget a widget; see {@link SceneAccess#isDrawn} */
         boolean isDrawn(Widget<?> widget);
 
+        /** See {@link SceneAccess#setLocaleInPlace}. */
+        void setLocaleInPlace(Widget<?> widget, java.util.@org.jspecify.annotations.Nullable Locale locale);
+
         @org.jspecify.annotations.Nullable Widget<?> focusedBefore(Scene scene);
 
         /**
@@ -558,6 +561,21 @@ public final class SceneAccess {
      */
     public static boolean isDrawn(Widget<?> widget) {
         return hook().isDrawn(java.util.Objects.requireNonNull(widget, "widget"));
+    }
+
+    /**
+     * {@link Widget#setLocale}, laid out in place: the widget's measure is marked and the scene
+     * re-measures upward from its parent until a size holds, repainting what moved, as a label's
+     * new text does, rather than laying the window out. For a leaf whose language follows another
+     * widget's (a field's line reading in its control's language), whose box a new language moves
+     * no more than a new text does.
+     *
+     * @param widget the widget
+     * @param locale the language it declares, or {@code null} to inherit
+     */
+    public static void setLocaleInPlace(Widget<?> widget,
+                                        java.util.@org.jspecify.annotations.Nullable Locale locale) {
+        hook().setLocaleInPlace(java.util.Objects.requireNonNull(widget, "widget"), locale);
     }
 
     /** @return the widget that had the keyboard in {@code scene} before the one that has it now, or null */

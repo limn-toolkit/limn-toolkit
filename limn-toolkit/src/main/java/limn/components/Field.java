@@ -430,7 +430,9 @@ public final class Field extends Widget<Field> {
      */
     private void lineInControlsLanguage() {
         Locale controls = lineSpeaksForControl ? control.locale() : null;
-        line.setLocale(controls == null || controls.equals(locale()) ? null : controls);
+        // In place, as a new text on the line is: a full layout repainted the window each time a
+        // message came or went under a control in another language.
+        SceneAccess.setLocaleInPlace(line, controls == null || controls.equals(locale()) ? null : controls);
     }
 
     /** The tone a state's line is drawn in. */

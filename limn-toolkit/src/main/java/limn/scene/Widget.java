@@ -2090,8 +2090,18 @@ public abstract class Widget<W extends Widget<W>> {
      */
     public final W setLocale(@Nullable Locale locale) {
         Ui.checkUiThread();
+        declareLocale(locale, false);
+        return self();
+    }
+
+    /**
+     * {@link #setLocale}, with the layout it asks for: a full pass, or, {@code inPlace}, the one a
+     * label's new text asks for (see {@code SceneAccess.setLocaleInPlace}).
+     */
+    final void declareLocale(@Nullable Locale locale, boolean inPlace) {
+        Ui.checkUiThread();
         if (Objects.equals(declaredLocale, locale)) {
-            return self();
+            return;
         }
         Locale previous = declaredLocale;
         declaredLocale = locale;
@@ -2102,8 +2112,11 @@ public abstract class Widget<W extends Widget<W>> {
             I18n.releaseLocale(previous);
         }
         bumpLocaleEpoch();
-        markNeedsLayout();
-        return self();
+        if (inPlace) {
+            markNeedsLayoutInPlace();
+        } else {
+            markNeedsLayout();
+        }
     }
 
     /**

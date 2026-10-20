@@ -367,6 +367,53 @@ class FieldTest extends ComponentTestBase {
     }
 
     @Test
+    void aMessageComingAndGoingRepaintsNoWindowWhenTheControlSpeaksAnotherLanguage() {
+        // A Portuguese text field in an English form: its message comes and goes on the line, which
+        // reads in the control's language, as the same-language form's does, without a frame that
+        // repaints the window. The line's change of language asked for a full layout each time.
+        java.util.Locale ptBr = java.util.Locale.forLanguageTag("pt-BR");
+        java.util.Locale before = limn.i18n.I18n.locale();
+        limn.i18n.I18n.setLocale(java.util.Locale.ENGLISH);
+        try {
+            for (boolean other : new boolean[] {false, true}) {
+                TextField email = new TextField();
+                if (other) {
+                    email.setLocale(ptBr);
+                }
+                Field field = new Field("Email", email).setHelperText("Where the receipt goes");
+                long[] nanos = {1};
+                Column form = new Column();
+                form.crossAlignment(Flex.CrossAlignment.STRETCH);
+                form.add(field);
+                Scene scene = new Scene(new SizedBox(360, 400, form), () -> nanos[0]);
+                scene.setTextRuler(SCALED_RULER);
+                scene.setPartialRendering(true);
+                RecordingTestCanvas canvas = new RecordingTestCanvas(360, 400);
+                String where = other ? "the control in Portuguese" : "one language";
+                java.util.function.Consumer<String> settle = what -> {
+                    for (int frame = 0; frame < 30; frame++) {
+                        nanos[0] += 16_000_000L;
+                        canvas.reset();
+                        scene.renderFrame(canvas);
+                        if (canvas.nothingPainted()) {
+                            return;
+                        }
+                        assertFalse(canvas.cleared && !what.equals("first"),
+                                where + ", " + what + ": frame " + frame + " repainted the whole window");
+                    }
+                };
+                settle.accept("first");
+                field.setValidation(Validation.ERROR, "Enter an address");
+                settle.accept("an error and its message");
+                field.clearValidation();
+                settle.accept("fixed");
+            }
+        } finally {
+            limn.i18n.I18n.setLocale(before);
+        }
+    }
+
+    @Test
     void aPaletteChangeRecoloursTheLineWithNoCodeOfTheApplications() {
         Field field = new Field("Email", new TextField()).setValidation(Validation.ERROR, "Enter an address");
         Scene scene = laidOut(field, 320);

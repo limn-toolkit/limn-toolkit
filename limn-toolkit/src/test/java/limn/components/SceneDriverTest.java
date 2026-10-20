@@ -106,6 +106,10 @@ class SceneDriverTest extends ComponentTestBase {
             }
 
             @Override
+            public void setLocaleInPlace(limn.scene.Widget<?> widget, java.util.Locale locale) {
+            }
+
+            @Override
             public void overlayCard(limn.scene.Widget<?> overlay, limn.scene.internal.OverlayCard card) {
             }
 
