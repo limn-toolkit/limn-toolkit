@@ -1074,8 +1074,9 @@ target, the premultiplied form of the formula with the coverage of an over,
   left a colour above its coverage, white at one half over white at one half coming to a colour of 1
   at a coverage of 0.75, no valid premultiplied pixel, and the composite laid more light than either
   rule gives; the sum keeps every channel within the coverage, since `cs ≤ αs` and `cb ≤ αb`. Over a
-  transparent part of the group and over opaque content the two agree. Whether `ADDITIVE` is isolated
-  at all is still the owner's question; this only makes the isolated pixel valid.
+  transparent part of the group and over opaque content the two agree. That `ADDITIVE` is isolated
+  at all the owner settled on 2026-10-20, decision 20: like the other modes, as the web's rules
+  have it, the end-of-fade jump documented; this only makes the isolated pixel valid.
   `GlGroupBlendTest.additiveOverTranslucentGroupContentLeavesAValidPremultipliedPixel` failed
   before, 128 of colour at 96 of coverage.)
 - `MULTIPLY`: `co = cs·(1 − αb) + cs·cb + cb·(1 − αs)`, which no single set of fixed factors gives
