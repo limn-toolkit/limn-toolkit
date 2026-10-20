@@ -2356,6 +2356,22 @@ public final class Scene {
     }
 
     /**
+     * {@link #letGoOfRoot()} for {@code moving}, the root or a child of it, which is then taken out
+     * of the root without leaving this scene; see
+     * {@link limn.scene.internal.SceneAccess#letGoOfRoot(Scene, Widget)}.
+     */
+    void letGoOfRoot(Widget<?> moving) {
+        Widget<?> holder = moving.parent();
+        if (moving != root && holder != root) {
+            throw new IllegalArgumentException("neither this scene's root nor a child of it");
+        }
+        rootLetGo = true;
+        if (moving != root) {
+            root.releaseMovingChild(moving);
+        }
+    }
+
+    /**
      * Refuses {@code widget} when a scene other than {@code taking} holds it as its root or one of
      * its overlays: taken, it would leave that scene and join another while the first went on
      * naming it as its own, its root or a layer of its stack, laying it out at its own window's
@@ -4260,6 +4276,11 @@ public final class Scene {
             @Override
             public void letGoOfRoot(Scene scene) {
                 scene.letGoOfRoot();
+            }
+
+            @Override
+            public void letGoOfRoot(Scene scene, Widget<?> moving) {
+                scene.letGoOfRoot(moving);
             }
 
             @Override

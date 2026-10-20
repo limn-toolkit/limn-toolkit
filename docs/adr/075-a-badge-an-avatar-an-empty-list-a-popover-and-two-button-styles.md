@@ -1000,3 +1000,17 @@ scene's root:
 another scene, the same scene's overlay, the let-go cases and a popup left open by a refusal;
 `PopoverReentrancyTest` the adoption cases rewritten as refusals and the handler's fourth scene;
 `WidgetLifecycleTest` the straight move, now refused with nothing told.
+
+## Note, 2026-10-20 (later): a card under a shadow margin moves too
+
+The dialog's card is the root of its window's scene only where the compositor casts the shadow;
+where it casts none, the window is larger than the card by the shadow's reach and the card is the
+child of the frame that insets it. Letting go of the root left the card in that frame, the
+container that fades the card in the owner's scene refused a widget with a parent, and the move
+threw with the owner's lock already released: the dialog said it was in the scene and was in
+neither. The scene being left now lets go of its root for the card it names
+(`SceneAccess.letGoOfRoot(scene, card)`), which takes a child of the root out of it without leaving
+the scene, so the keyboard the scene holds in it is carried as before; the frame lays out nothing
+once the card has gone. `DialogCancelRequestTest` moves such a dialog, with a field selected, into
+a fullscreen owner's scene and answers it there; `HeadlessBackend.setCompositorShadowsPopups(false)`
+is the desktop that casts no shadow.

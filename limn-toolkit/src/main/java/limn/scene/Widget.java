@@ -585,6 +585,19 @@ public abstract class Widget<W extends Widget<W>> {
         HandlerFailures.rethrow(failed);
     }
 
+    /**
+     * Takes {@code child} out of this widget's children and leaves it in its scene, telling
+     * nothing: for a child about to be adopted by a container outside any scene, whose add then
+     * walks it out of this one as it walks out a scene's root, the scene's focus record left for
+     * the move to carry. Only {@link Scene#letGoOfRoot(Widget)} calls it.
+     */
+    final void releaseMovingChild(Widget<?> child) {
+        if (children.remove(child)) {
+            child.parent = null;
+            childrenChanged();
+        }
+    }
+
     /** Removes a child (UI thread only); protected for the reason {@link #add(Widget)} is. */
     protected void remove(Widget<?> child) {
         remove(child, Change.Origin.CODE);

@@ -64,6 +64,9 @@ public final class PopupFrame extends Widget<PopupFrame> {
 
     @Override
     protected void onLayout() {
+        if (panel.parent() != this) {
+            return; // the panel moved on (a dialog's card into its owner's scene): not ours to lay out
+        }
         float w = Math.max(0, width() - 2 * margin);
         float h = Math.max(0, height() - 2 * margin);
         panel.measure(Constraints.tight(w, h));

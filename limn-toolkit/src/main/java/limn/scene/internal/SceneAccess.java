@@ -46,6 +46,9 @@ public final class SceneAccess {
         /** @param scene the scene that lets go of its root; see {@link SceneAccess#letGoOfRoot} */
         void letGoOfRoot(Scene scene);
 
+        /** See {@link SceneAccess#letGoOfRoot(Scene, Widget)}. */
+        void letGoOfRoot(Scene scene, Widget<?> moving);
+
         /**
          * Pushes a modal overlay into {@code scene} with the keyboard on {@code first}; see
          * {@link SceneAccess#pushOverlayFocusing}.
@@ -635,6 +638,22 @@ public final class SceneAccess {
      */
     public static void letGoOfRoot(Scene scene) {
         hook().letGoOfRoot(java.util.Objects.requireNonNull(scene, "scene"));
+    }
+
+    /**
+     * Lets {@code scene} go of its root as {@link #letGoOfRoot(Scene)} does, for {@code moving},
+     * which is that root or a child of it: a modal dialog's card under the frame that insets it in a
+     * window larger than the card by its shadow's reach. A child is taken out of the root without
+     * leaving the scene, so that the container that adopts it walks it out of that scene as it
+     * walks a root out, and the scene keeps the focus it had in it for the move to carry.
+     *
+     * @param scene  the scene whose root, or whose root's child, moves
+     * @param moving the root, or a child of it
+     * @throws IllegalArgumentException if {@code moving} is neither
+     */
+    public static void letGoOfRoot(Scene scene, Widget<?> moving) {
+        hook().letGoOfRoot(java.util.Objects.requireNonNull(scene, "scene"),
+                java.util.Objects.requireNonNull(moving, "moving"));
     }
 
     public static void pushMovedOverlay(Scene scene, Widget<?> overlay, Scene movedFrom) {

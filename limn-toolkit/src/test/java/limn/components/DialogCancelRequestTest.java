@@ -519,6 +519,49 @@ class DialogCancelRequestTest extends ComponentTestBase {
         assertOpen("without a handler");
     }
 
+    /**
+     * A modal dialog whose window is larger than its card by the shadow's reach, as a frameless
+     * one is on a desktop whose compositor casts no shadow, moves into its owner's scene as one
+     * without that margin does. Its card sat under the frame that insets it, and the containers
+     * that fade and slide it in the scene took it from there as if it were the window's root, so
+     * the move threw "widget already has a parent" with the owner's lock already let go, and the
+     * question was neither a window nor in the scene.
+     */
+    @org.junit.jupiter.api.Test
+    void aModalDialogWhoseWindowHasAShadowMarginMovesIntoItsOwnersScene() {
+        backend = new HeadlessBackend(runtime);
+        backend.setCompositorShadowsPopups(false);
+        ownerWindow = backend.open("Orders", 600, 400);
+        host = new Scene(new Label("Orders"), clock::get);
+        host.setTextRuler(RULER);
+        host.bind(ownerWindow);
+        ownerWindow.frame();
+        TextField name = new TextField().setText("Harbor Supply");
+        result.set("<open>");
+        dialog = new Dialog("Edit customer", "").setContent(name)
+                .addButton("Cancel", "cancel").addPrimaryButton("Save", "save").setCancelResult("cancel")
+                .setDisplayMode(DisplayMode.NATIVE_WINDOW).setStyle(limn.backend.WindowStyle.UNDECORATED_TRANSLUCENT);
+        dialog.show(host).thenAccept(result::set);
+        keys = dialog.contentRoot().scene();
+        settle();
+        assertTrue(keys.root() instanceof limn.components.internal.PopupFrame,
+                "sanity: the dialog's window is larger than its card, which a frame insets");
+        keys.requestFocus(name);
+        name.select(2, 6);
+        settle();
+
+        drive(host).windowFullscreenChanged(true);
+        drive(host).inputBatchEnded();
+        settle();
+        assertSame(DisplayMode.IN_SCENE, dialog.displayMode(), "the dialog moved into the scene");
+        keys = host;
+        assertSame(name, host.focusedWidget(), "with the keyboard where it was");
+        assertEquals(2, name.selectionStart(), "and the field's selection as it was");
+        assertEquals(6, name.selectionEnd(), "and the field's selection as it was");
+        click("Save");
+        assertEquals("save", result.get(), "the dialog answers from the scene");
+    }
+
     // ------------------------------------------------------------- what is never asked
 
     @ParameterizedTest

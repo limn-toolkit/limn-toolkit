@@ -66,6 +66,10 @@ class SceneDriverTest extends ComponentTestBase {
             }
 
             @Override
+            public void letGoOfRoot(Scene scene, Widget<?> moving) {
+            }
+
+            @Override
             public void pushOverlayFocusing(Scene scene, Widget<?> overlay, Widget<?> first) {
             }
 

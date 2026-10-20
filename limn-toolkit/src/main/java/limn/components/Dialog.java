@@ -1148,11 +1148,13 @@ public final class Dialog {
         modalScene = null;
         displayMode = DisplayMode.IN_SCENE;
         hostScene = owner;
-        // The card is the root of the scene being left, parentless; that scene lets go of it, which
-        // a scene's root is refused by every container until then, so the container that fades it
-        // can adopt it, and adopting it takes it out of that scene before pushOverlay puts it in
-        // this one. The window left draws nothing and answers nothing but its close from here on.
-        SceneAccess.letGoOfRoot(leaving);
+        // The card is the root of the scene being left, or, in a window larger than the card by
+        // its shadow's reach, the child of the frame that insets it; that scene lets go of it (a
+        // scene's root is refused by every container until then) and takes it out of the frame,
+        // leaving it in the scene with the keyboard, so the container that fades it can adopt it,
+        // and adopting it takes it out of that scene before pushOverlay puts it in this one. The
+        // window left draws nothing and answers nothing but its close from here on.
+        SceneAccess.letGoOfRoot(leaving, panel);
         overlay = new SceneOverlay(fadingCard());
         overlay.setInheritanceHost(inheritanceHostFor(owner));
         // With the keyboard, taken from the scene being left before its close could run the

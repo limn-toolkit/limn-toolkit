@@ -76,6 +76,25 @@ public final class HeadlessBackend implements BackendPeer {
         this.runtime = runtime;
     }
 
+    private boolean compositorShadows = true;
+
+    /**
+     * Says whether this backend's system casts a shadow around an undecorated window, which it
+     * does by default. Told it does not, the toolkit makes such a window larger than its panel and
+     * draws the shadow in the margin, as on a desktop whose compositor casts none: what a test of
+     * a frameless dialog or popup on such a desktop sets first.
+     *
+     * @param casts whether the compositor casts the shadow
+     */
+    public void setCompositorShadowsPopups(boolean casts) {
+        compositorShadows = casts;
+    }
+
+    @Override
+    public boolean compositorShadowsPopups() {
+        return compositorShadows;
+    }
+
     /**
      * Opens the application's own window, the one a demo scene binds to.
      *
