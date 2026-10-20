@@ -2283,3 +2283,35 @@ past the icon. A caption alone and an icon alone keep `padH` on both sides and s
 `ColorPickerButton`'s chip beside a caption follows the same rule. The button's measured width
 loses `padH − fieldPadH` (8 pt at MEDIUM); edge to icon ink now equals the combo's within a device
 pixel at every step, scale and direction (`ControlInkPixelTest`).
+
+## Note, 2026-10-20: an icon-only button is square
+
+§7.1 measured every button as its content plus `padH` on each side, so a button holding only an
+icon was 58 × 32 at MEDIUM, an 18 pt icon 20 pt from each edge. The owner decided that a button
+with an icon and no caption is square by default, and that whoever wants another width can have it.
+It now asks for its own height as its width: the control height of its step, 24 / 28 / 32 / 40 /
+50, unless a face taller than the floor grew the height, in which case the width follows it. The
+icon stays in the middle. `ColorPickerButton` with an empty caption, a chip and no text, follows
+the same rule; in a box a parent made wider its chip keeps the leading edge, as far from it as from
+the top. A button with a caption, with or without an icon, and a button with neither are measured as
+before. `MediaControls`' transport buttons were already `controlHeight` squares, so the toolkit's
+icon buttons now agree. The XSMALL square is 24, exactly `MIN_HIT_TARGET`, so no step falls below
+the floor §4 keeps.
+
+The default comes from the size row the theme hands the button (`Theme.tokensFor`), and the
+adjustment is `setMinWidth` / `setMaxWidth`, which every widget already has: wider with the first,
+narrower with the second, an exact width with both, and the icon centred in whatever box results
+(`IconOnlyButtonTest`, `ControlInkPixelTest`). Rejected:
+
+- **A setter on `Button`** (an icon-only width or a horizontal padding): it would be a second way
+  to say what the width bounds already say, for one widget out of all of them.
+- **A new token in `SizeTokens`** equal to `controlHeight`: the decision is a relation to the
+  height, and a separate column would write down the coincidence of two numbers rather than the
+  rule, free to drift from the height it is meant to equal. It would not be a knob either, since
+  no application can change a row. (`fieldTrailing` is kept apart from `controlHeight` for the
+  opposite reason: it is expected to diverge.)
+- **A value in the palette** (`Theme.Builder`, `ThemeFormat`, the theme editor): a palette carries
+  no metric anything measures from, which is what lets a palette switch repaint without measuring
+  again (`Theme.tokens`, `ThemeShapeTest`). Carrying a width would make a switch a relayout, a
+  colour well's switch on every frame of a drag included, and would give the saved format its
+  first size key. Left to the owner if an application-wide width is wanted.

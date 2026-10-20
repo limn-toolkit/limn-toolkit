@@ -154,7 +154,9 @@ class ColorPickerButtonMirroringTest extends ComponentTestBase {
         SizeTokens t = tokens();
         Frame frame = paint();
 
-        assertEquals(WIDTH - t.padH() - t.iconBox(), chipX(frame), EPS,
+        // As far in from the leading edge as from the top: the middle of the square the button
+        // asks for, and the leading item of a box a parent made wider.
+        assertEquals(WIDTH - (HEIGHT - t.iconBox()) / 2 - t.iconBox(), chipX(frame), EPS,
                 "with no caption the chip is still the leading item, and still on the lead");
         assertTrue(frame.texts().isEmpty(), "an empty caption paints no line to place");
     }

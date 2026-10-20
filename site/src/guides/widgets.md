@@ -73,7 +73,10 @@ Three looks for a button, and a tone for what destroys something. The filled `PR
 the one action a view is for; `SECONDARY` is outlined, for the others beside it; `TERTIARY` has no
 fill or border until the pointer is over it, for a quiet action that should not compete. Any of
 them takes `setDestructive(true)` for a button that deletes or discards, which draws it in the
-palette's danger colour. The box is the same at every style, so a row of them lines up.
+palette's danger colour. The box is the same at every style, so a row of them lines up. A
+button with an icon and no caption is square, as wide as its step is tall, with the icon in the
+middle; `setMinWidth` and `setMaxWidth` give one button another width. Give it a tooltip, which is
+also the name a screen reader says for it.
 
 {% snippet guide:button-styles %}
 

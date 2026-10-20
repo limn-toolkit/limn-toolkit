@@ -2,6 +2,7 @@ package limn.backend.lwjgl;
 
 import limn.components.Button;
 import limn.components.ComboBox;
+import limn.components.SizeTokens;
 import limn.components.TextField;
 import limn.components.Theme;
 import limn.components.date.DateField;
@@ -320,14 +321,20 @@ class ControlInkPixelTest {
         assertTrue(failures.isEmpty(), "a button's icon stands off from its edge: " + failures);
     }
 
-    /** A button that is only an icon keeps the icon in the middle of its box, as it always has. */
+    /**
+     * A button that is only an icon is a square, the control height of its step on both sides, and
+     * keeps the icon in the middle of it, as it always kept it in the middle of its wider box.
+     */
     @Test
-    void anIconOnlyButtonKeepsItsIconCentred() {
+    void anIconOnlyButtonIsASquareWithItsIconCentred() {
         for (float scale : new float[] {1f, 2f}) {
             for (ControlSize size : ControlSize.values()) {
                 for (LayoutDirection direction : LayoutDirection.values()) {
                     Widget<?> button = new Button("").setIcon(SvgIcon.of(SQUARE)).setControlSize(size);
                     Placed placed = render(button, scale, 20, 20, NATURAL, direction);
+                    float side = SizeTokens.of(size).controlHeight();
+                    assertEquals(side, button.width(), 1e-3f, size + ": the square's width");
+                    assertEquals(side, button.height(), 1e-3f, size + ": the square's height");
                     Inner in = inner(button, placed, scale);
                     List<Span> runs = columnRuns(placed.image, in.x0, in.y0, in.x1, in.y1, 2);
                     assertEquals(1, runs.size(), "one icon: " + runs);

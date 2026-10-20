@@ -1121,7 +1121,9 @@ final class AppScene {
                     }
                 });
                 return edit;
-            }).width(64).sortable(false);
+                // The SMALL button's square, 28, inside the cell's padding on both sides at the
+                // default step: at 64 the cell squeezed it to 24 by 28.
+            }).width(68).sortable(false);
             table = new Table<>(List.of(number, customer, placed, due, state, total, open));
             // What a tool driving the application from outside finds these three by.
             table.setId("orders");

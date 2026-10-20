@@ -48,6 +48,16 @@ import java.util.Objects;
  * button asks for puts it the icon gap away. Reading right to left the whole of that is mirrored.
  * Whether the glyph drawn inside the square turns around as well is the caller's to say &mdash;
  * see {@link Icon.Mirroring}.
+ *
+ * <p><b>An icon with no caption makes a square button</b>: as wide as it is tall, which is the
+ * control height of its {@link ControlSize}, 24, 28, 32, 40 or 50 points, the icon in the middle.
+ * That is the width it asks for, and like any widget's it is the parent's to grant: a button that
+ * should be wider or narrower says so with {@link #setMinWidth} or {@link #setMaxWidth}, both
+ * together for an exact width, and the icon stays in the middle of the box it is given. Those
+ * bounds are the one way to say it, for this button as for any other widget; with none set, the
+ * square is the default. At the smallest step the square is 24 points, the pointer target this
+ * toolkit keeps every control at or above. A button with a caption, beside an icon or not, asks
+ * for its caption's width and padding as before.
  */
 public final class Button extends Widget<Button> {
 
@@ -246,12 +256,18 @@ public final class Button extends Widget<Button> {
         return icon != null && !shown().text().isEmpty();
     }
 
+    /** Whether the content is an icon and nothing else, the shape that asks for a square. */
+    private boolean iconAlone() {
+        return icon != null && shown().text().isEmpty();
+    }
+
     /**
      * The room on the side reading starts from. Beside a caption the icon stands from the edge as
      * a field's or a combo's leading icon does ({@code fieldPadH}), and the caption keeps the
      * button's own padding on its side: the caption's wide padding on the icon's side too set the
-     * icon nearly twice as far in as the same icon in a combo beside it. A caption alone and an icon
-     * alone keep {@code padH} on both sides.
+     * icon nearly twice as far in as the same icon in a combo beside it. A caption alone keeps
+     * {@code padH} on both sides; an icon alone asks for a square instead and is centred in it, so
+     * no padding of this kind reaches its measure.
      */
     private float leadingPad(SizeTokens t) {
         return iconBesideCaption() ? t.fieldPadH() : t.padH();
@@ -432,9 +448,13 @@ public final class Button extends Widget<Button> {
         TextMetrics metrics = caption(textRuler(), t.body()).metrics();
         // resolvedHeight is max(controlHeight, lineHeight + 2*padV): the box binds at every
         // step, which is what absorbed the undocumented +4 this used to carry.
-        return constraints.constrain(
-                leadingPad(t) + iconAdvance(t) + metrics.width() + t.padH(),
-                t.resolvedHeight(metrics.lineHeight()));
+        float height = t.resolvedHeight(metrics.lineHeight());
+        // An icon alone asks for a square: its own height, which is the step's control height
+        // unless a face taller than the floor grew it. The caption's padding on both sides of
+        // an 18 pt icon made a 58 by 32 slab of it at MEDIUM. A bound set on the button wins.
+        float width = iconAlone() ? height
+                : leadingPad(t) + iconAdvance(t) + metrics.width() + t.padH();
+        return constraints.constrain(width, height);
     }
 
     /** The baseline BASELINE rows align on, the very expression {@link #onPaint} draws with. */
