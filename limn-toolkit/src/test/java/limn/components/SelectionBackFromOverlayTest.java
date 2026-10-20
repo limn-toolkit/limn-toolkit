@@ -112,6 +112,15 @@ class SelectionBackFromOverlayTest extends ComponentTestBase {
         return backend.windows().get(0);
     }
 
+    /** Moves the caret to the start whenever {@code field} loses the keyboard, as a binding that shows a value's head does. */
+    private static void caretToStartOnBlur(TextField field) {
+        field.observeChanges((source, change) -> {
+            if (change.aspect() == limn.scene.Change.Aspect.FOCUS && !field.isFocused()) {
+                field.setCaretPosition(0);
+            }
+        });
+    }
+
     // ---------------------------------------------------------------- Cut, Copy and Paste
     //
     // In the scene the menu takes the keyboard and the field lets its selection go with it, so the
@@ -216,6 +225,37 @@ class SelectionBackFromOverlayTest extends ComponentTestBase {
         runFirstRow(new Menu().add(MenuItem.of(MenuItem.Role.CUT)), area);
         assertEquals("one", window.clipboard().text(), menus + ": the Cut role cut the area's selection");
         assertEquals("line \nline two\nline three\nline four", area.text(), menus + ": and took it out");
+    }
+
+    /**
+     * A listener that moves the caret when the field loses the keyboard (to show the head of a long
+     * value) forgets the selection the keyboard would come back to, but not what the person had
+     * selected when they opened the menu: Cut, Copy and Paste still act on it.
+     */
+    @ParameterizedTest
+    @EnumSource(DisplayMode.class)
+    void aCaretMovedOnBlurDoesNotTakeTheSelectionFromCutCopyAndPaste(DisplayMode menus) {
+        open(menus);
+        HeadlessWindow window = window();
+        window.clipboard().setText("CLIP");
+        caretToStartOnBlur(field);
+        scene.requestFocus(field);
+        field.select(6, 11);
+        settle();
+        runFirstRow(new Menu().add(MenuItem.of(MenuItem.Role.COPY)), field);
+        assertEquals("world", window.clipboard().text(), menus + ": the Copy role copied the selection");
+
+        field.select(6, 11);
+        settle();
+        ownMenuRow(0);
+        assertEquals("hello ", field.text(), menus + ": the menu's Cut cut it");
+
+        field.setText("hello world");
+        field.select(6, 11);
+        window.clipboard().setText("CLIP");
+        settle();
+        ownMenuRow(2);
+        assertEquals("hello CLIP", field.text(), menus + ": the menu's Paste replaced it");
     }
 
     @ParameterizedTest

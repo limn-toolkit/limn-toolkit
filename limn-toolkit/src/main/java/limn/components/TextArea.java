@@ -2082,10 +2082,8 @@ public final class TextArea extends Widget<TextArea> {
 
     /**
      * The selection this widget had when it lost the keyboard, as start, end, the text's version
-     * then and where the caret was left; {@code null} when it had none. A menu takes the keyboard
-     * to be walked, and its Cut, Copy and Paste are for what was selected before it did: the
-     * selection itself is let go with the focus, as it always was, and the command selects it again
-     * to act on it.
+     * then and where the caret was left, to be given back with the keyboard; {@code null} when it
+     * had none. The selection itself is let go with the focus, as it always was.
      *
      * <p>Forgotten by everything that sets the caret or the selection while the area is away
      * ({@link #select}, {@link #setText}, {@link #insertText}, the context menu's Select All, a key
@@ -2095,8 +2093,18 @@ public final class TextArea extends Widget<TextArea> {
      */
     private long @Nullable [] selectionLeft;
 
+    /**
+     * The same selection as start, end and the text's version then, for the commands: a menu takes
+     * the keyboard to be walked, and its Cut, Copy and Paste are for what was selected before it
+     * did, and each selects it again to act on it. Kept apart from {@link #selectionLeft} because
+     * a caret moved while the area is away (a listener that shows the head of the value when the
+     * keyboard leaves) says the selection is not to come back, not that the person chose the
+     * command over something else; only an edit of the text, or the keyboard coming back, ends it.
+     */
+    private long @Nullable [] rangeLeft;
+
     private boolean hasSelectionLeft() {
-        long[] left = selectionLeft;
+        long[] left = rangeLeft;
         return left != null && !isFocused() && left[2] == model.textVersion();
     }
 
@@ -2138,7 +2146,7 @@ public final class TextArea extends Widget<TextArea> {
      * none was left.
      */
     private void selectLeftForCommand() {
-        long[] left = selectionLeft;
+        long[] left = rangeLeft;
         if (left != null && !model.hasSelection() && hasSelectionLeft()) {
             select((int) left[0], (int) left[1]);
         }
@@ -2930,6 +2938,7 @@ public final class TextArea extends Widget<TextArea> {
     protected void onFocusGained() {
         long[] left = selectionLeft;
         selectionLeft = null;
+        rangeLeft = null;
         focusFade.to(1);
         resetBlink();
         // The keyboard back from an overlay that took it (a dialog opened over the form in the
@@ -2957,6 +2966,7 @@ public final class TextArea extends Widget<TextArea> {
         long end = model.selectionEnd();
         model.clearSelection();
         selectionLeft = had ? new long[] {start, end, model.textVersion(), model.cursor()} : null;
+        rangeLeft = had ? new long[] {start, end, model.textVersion()} : null;
         preedit = ""; // drop any in-progress composition
         composed = null; // and the shaping of it, which nothing can ask for again
         composedRowShapes = null; // and its wrapped rows, sliced from that shaping

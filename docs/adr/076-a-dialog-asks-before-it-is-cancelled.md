@@ -244,3 +244,12 @@ comes back, as after a menu in a window of its own. A selection the field has of
 moment wins, and a password field still copies nothing. A menu in a window
 of its own leaves the field the keyboard, and nothing changes there. `SelectionBackFromOverlayTest`
 runs Cut, Copy and Paste from both menus, on the field and the area, in both display modes.
+
+### 2026-10-20 (review): a caret moved on blur keeps the commands' selection
+
+Forgetting the selection on any set while the field was away also caught what runs with the
+keyboard's leaving: a listener that moves the caret when the field loses the keyboard (to show the
+head of a long value) made the menu's Cut and Copy find nothing, where a menu in a window of its
+own, which leaves the field the keyboard, cut and copied the selection (R11S-6). The field now
+keeps two records: the selection to give back with the keyboard, forgotten by any set as above, and
+the selection the commands act on, ended only by an edit of the text or the keyboard coming back.
