@@ -546,3 +546,8 @@ Review of the auto-scroll (2026-10-20):
   mean row height, as a thumb drag does: over rows of different heights the rows stood on the
   step and then leapt by twenty to eighty points in one frame (measured, 400 rows of 12 to 112
   points, a drag 18 points into the band). `DragAutoScrollTest` holds each of the three steady.
+- **A drag of ours handed to the system is asked again in the system's terms.** The ask after a
+  step went through the scene's own drag: the source's actions and the scene's modifier keys,
+  stale while the system drives. It now carries what the system last said it allows over the
+  window, as the system's own ask does, so a target is never offered a move the system, with the
+  copy key held, would not make.

@@ -60,6 +60,10 @@ class DragAutoScrollTest {
         final float h;
         String card;
         boolean takes;
+        /** Its drag goes to the system, allowing a move or a copy: a picture of its own hands it over at once. */
+        boolean toSystem;
+        /** What it accepted each time it was asked. */
+        final List<DropAction> accepted = new ArrayList<>();
 
         Box(String name, float w, float h) {
             this.name = name;
@@ -81,6 +85,11 @@ class DragAutoScrollTest {
             if (card == null) {
                 return null;
             }
+            if (toSystem) {
+                return Drag.of(Transfer.of(CARD, card)).allow(DropAction.MOVE, DropAction.COPY)
+                        .image(new limn.graphics.Image(1, 1, new byte[4]), 0, 0)
+                        .onEnd(action -> log.add(name + ":END:" + action));
+            }
             return Drag.of(Transfer.of(CARD, card)).allow(DropAction.MOVE)
                     .onEnd(action -> log.add(name + ":END:" + action));
         }
@@ -89,6 +98,7 @@ class DragAutoScrollTest {
         protected void onDragOver(DragEvent event) {
             if (takes && (event.offer().has(CARD) || event.offer().has(DataFormat.FILES))) {
                 event.accept();
+                accepted.add(event.acceptedAction());
             }
         }
 
@@ -155,10 +165,38 @@ class DragAutoScrollTest {
         show(root, W, H);
     }
 
+    /** A window that takes a drag, as one with a native drag does, and keeps what it was handed. */
+    private static final class SystemWindow extends limn.testing.StubWindow {
+        limn.backend.spi.DragRequest handed;
+
+        @Override
+        public boolean supportsDrag() {
+            return true;
+        }
+
+        @Override
+        public boolean startDrag(limn.backend.spi.DragRequest request) {
+            handed = request;
+            return true;
+        }
+    }
+
+    /** Shown in a window whose drags the system drives. */
+    private void showInSystemWindow(Widget<?> root, SystemWindow window) {
+        show(root, W, H, window);
+    }
+
     private void show(Widget<?> root, float width, float height) {
+        show(root, width, height, null);
+    }
+
+    private void show(Widget<?> root, float width, float height, limn.backend.@org.jspecify.annotations.Nullable NativeWindow window) {
         sceneWidth = width;
         sceneHeight = height;
         scene = new Scene(root, () -> nanos[0]);
+        if (window != null) {
+            scene.bind(window);
+        }
         canvas = new NoopCanvas((int) width, (int) height);
         scene.layoutPass(width, height);
         scene.renderFrame(canvas);
@@ -476,6 +514,34 @@ class DragAutoScrollTest {
         frames(1, 60);
         assertTrue(page.offsetY() > 0, "the next drag scrolls the page again: " + page.offsetY());
         release(60, H - 4);
+    }
+
+    @Test
+    void ourOwnDragHandedToTheSystemIsAskedAgainWithWhatTheSystemAllows() {
+        // The source allows a move or a copy; the system, with the key for a copy held, allows
+        // only the copy. Until 2026-10-20 the ask after a step went through the scene's own
+        // drag: the source's set and the scene's modifier keys, stale while the system drives,
+        // so the target accepted and drew a move the system would not make.
+        Box logo = new Box("logo", 96, 96);
+        logo.card = "logo";
+        logo.toSystem = true;
+        Box area = new Box("area", W, 150);
+        area.takes = true;
+        ScrollView page = new ScrollView(new Sheet(W, 1200).put(logo, 12, 20).put(area, 0, 900));
+        SystemWindow window = new SystemWindow();
+        showInSystemWindow(page, window);
+        press(logo);
+        assertTrue(window.handed != null, "the drag went to the system");
+        limn.backend.spi.WindowInput input = limn.scene.internal.SceneAccess.input(scene);
+        limn.transfer.Offer offer = Transfer.of(CARD, "logo").asOffer();
+        input.dragOver(offer, Set.of(DropAction.COPY), 60, H - 4);
+        frames(3, 60);
+        assertTrue(onScreen(area).y() < H - 4, "the area came under the pointer: " + onScreen(area));
+        assertFalse(area.accepted.isEmpty(), "and was asked as it did");
+        assertEquals(Set.of(DropAction.COPY), Set.copyOf(area.accepted), "only ever the copy the system allows");
+        Rect seen = onScreen(area);
+        assertEquals(DropAction.COPY, input.dropped(offer, Set.of(DropAction.COPY), 60, seen.y() + seen.height() / 2),
+                "dropped on it, a copy");
     }
 
     @Test

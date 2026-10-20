@@ -4921,6 +4921,11 @@ public final class Scene {
         boolean system;
         /** Handed to the system and gone from this window: where it is now is not ours to know. */
         boolean away;
+        /**
+         * What the system last said it allows over this window, the modifier keys as it read them;
+         * null until it has said. Asked again with it when the content scrolls under a still pointer.
+         */
+        java.util.@Nullable Set<limn.transfer.DropAction> systemAllowed;
         boolean droppedHere;
         limn.transfer.@Nullable DropAction doneHere;
 
@@ -5472,6 +5477,7 @@ public final class Scene {
             own.x = x;
             own.y = y;
             own.away = false;
+            own.systemAllowed = allowed;
             retarget(own, acceptor, action);
         } else {
             Incoming in = incoming;
@@ -5674,9 +5680,15 @@ public final class Scene {
             }
         }
         if (scrolled) {
-            // What is under the pointer moved: whoever takes the drop is asked again.
-            if (session != null) {
+            // What is under the pointer moved: whoever takes the drop is asked again, a drag the
+            // system drives with what the system last allowed, since the scene's keys are stale.
+            if (session != null && !session.system) {
                 dragMoved(x, y);
+            } else if (session != null) {
+                java.util.Set<limn.transfer.DropAction> allowed = session.systemAllowed;
+                if (allowed != null) {
+                    systemDragOver(session.offer, allowed, x, y);
+                }
             } else if (in != null) {
                 systemDragOver(in.offer, in.allowed, x, y);
             }
