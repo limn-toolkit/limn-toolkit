@@ -1180,7 +1180,8 @@ public final class Dialog {
      * <p>Meanwhile it draws nothing and answers nothing: the card is the owner's, and a frame or a
      * key reaching it through the scene it left would lay it out at this window's size or act on
      * it from a window the person no longer sees. Only its close still reaches that scene, which
-     * lets go of what it holds.
+     * lets go of what it holds; and the system's close of it, which it may still receive since it
+     * holds the focus, closes it without asking the dialog.
      */
     private static final class LeftWindow implements Runnable {
         private final NativeWindow window;
@@ -1189,6 +1190,9 @@ public final class Dialog {
 
         LeftWindow(NativeWindow window, Scene leaving) {
             this.window = window;
+            // The system's close of this window, which still holds the focus, closes it alone: the
+            // dialog's handler would refuse it and cancel the dialog that now lives in the scene.
+            window.setCloseRequestHandler(null);
             WindowPeer.of(window).setFrameCallback((renderer, frame) -> { });
             WindowPeer.of(window).setInput(new ClosingOnly(SceneAccess.input(leaving)));
             leaving.fadeWindow(0f, 0, null); // out of sight at once, though still up

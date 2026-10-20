@@ -474,6 +474,51 @@ class DialogCancelRequestTest extends ComponentTestBase {
         assertEquals(10, notes.selectionEnd(), mode + ": the notes' selection is back");
     }
 
+    // ------------------------------------------------------------- a window left for the owner's scene
+
+    /**
+     * A modal dialog whose owner goes fullscreen moves into the owner's scene, and its own window
+     * stays up, out of sight, until the owner has the focus. The system's close of that window in
+     * the meantime (Alt+F4, Cmd+W, which reach the window that still holds the focus) must close
+     * that window only: it kept the dialog's close handler, which refused it and cancelled the
+     * dialog now living in the scene, asking its handler or, without one, closing it.
+     */
+    @org.junit.jupiter.api.Test
+    void theSystemsCloseOfTheWindowADialogLeftForItsOwnersSceneLeavesTheDialogAlone() {
+        open(DisplayMode.NATIVE_WINDOW, form(), request -> { });
+        HeadlessWindow left = publishing();
+        drive(host).windowFullscreenChanged(true);
+        drive(host).inputBatchEnded();
+        assertSame(DisplayMode.IN_SCENE, dialog.displayMode(), "sanity: the dialog moved into the scene");
+        assertFalse(left.isClosed(), "sanity: its window waits for the owner's focus");
+        left.userClose();
+        runtime.drain();
+        assertTrue(left.isClosed(), "the window the dialog left closes");
+        assertEquals(List.of(), asked, "and the dialog is not asked");
+        settle();
+        assertOpen("with a handler");
+
+        // Without a handler, the same close closed the dialog with its cancel result.
+        result.set("<open>");
+        backend = new HeadlessBackend(runtime);
+        ownerWindow = backend.open("Orders", 600, 400);
+        host = new Scene(new Label("Orders"), clock::get);
+        host.setTextRuler(RULER);
+        host.bind(ownerWindow);
+        ownerWindow.frame();
+        dialog = form();
+        dialog.show(host).thenAccept(result::set);
+        keys = dialog.contentRoot().scene();
+        settle();
+        left = publishing();
+        drive(host).windowFullscreenChanged(true);
+        drive(host).inputBatchEnded();
+        left.userClose();
+        runtime.drain();
+        settle();
+        assertOpen("without a handler");
+    }
+
     // ------------------------------------------------------------- what is never asked
 
     @ParameterizedTest
