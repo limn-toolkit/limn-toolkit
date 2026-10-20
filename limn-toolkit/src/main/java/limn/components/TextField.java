@@ -94,6 +94,11 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      */
     private boolean maskRefused;
     /**
+     * Whether the edit being announced is the user typing or pasting, which over a selection that
+     * holds a position of the mask overwrites those positions instead of replacing the selection.
+     */
+    private boolean typingOver;
+    /**
      * The caret and the selection as the edit being announced found them, so that an edit the
      * mask turns into nothing leaves them as they were, or reports only how they moved; {@code
      * null} for a caller's {@link #setText}, which places the caret itself.
@@ -283,8 +288,17 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * them is ever read as a character typed into a position. An edit never pushes characters
      * already typed off the end: typing or pasting into a field with no position free changes
      * nothing, as typing at the end of a full field does, and what finds no free position of a
-     * longer paste is dropped. To replace characters, select them and type over them. An edit
-     * moves the characters after it by as many positions as it inserts more, or fewer, than it
+     * longer paste is dropped. To replace characters, select them and type over them: typing or
+     * pasting over a selection that holds positions overwrites them one by one from the first,
+     * and nothing moves. With {@code 12} of {@code ABC-1234-XY} selected, a {@code 5} reads
+     * {@code ABC-5234-XY} with the {@code 2} still selected, and a {@code 6} then
+     * {@code ABC-5634-XY} with the caret after it; stopping midway leaves what is still selected
+     * as it was. A character the next selected position does not take is refused, the selection
+     * unchanged; a paste fills the selected positions in order with the characters each takes,
+     * leaves those it does not reach as they were and still selected, and drops what is left of
+     * it. Each keystroke is an undo step of its own. An edit that is not an overwrite (a
+     * Backspace, a Delete, a Cut, typing with nothing selected or over literals alone) moves the
+     * characters after it by as many positions as it inserts more, or fewer, than it
      * takes. On a pattern whose positions are all of one kind each still lands in a position
      * that takes it. On one that mixes them ({@code "AAA-0000-**"}), an edit that would move a
      * character into a position that does not take it, where it would be lost, is refused:
@@ -372,24 +386,42 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * over everything, set by an assistive technology) is fitted as a value from scratch; an undo
      * or a redo reads the text it puts back as the mask wrote it.
      */
-    private void fitToMask() {
+    private void fitToMask(boolean typed) {
         String text = model.text();
         int caret = model.cursor();
         int offset = model.damageOffset();
         int removed = model.damageRemoved();
         int inserted = model.damageInserted();
         String before = maskedText;
+        boolean editOfWritten = offset + removed <= maskedText.length()
+                && maskedText.length() - removed + inserted == text.length()
+                && text.regionMatches(0, maskedText, 0, offset)
+                && text.regionMatches(offset + inserted, maskedText, offset + removed,
+                        maskedText.length() - offset - removed);
+        int selectFrom = -1;
         limn.components.internal.text.InputMask.Conformed fit =
                 restoringHistory ? mask.written(text, caret) : null;
         if (fit != null) {
             // Put back as it was written.
+        } else if (typed && editOfWritten && removed > 0 && inserted > 0
+                && offset == selectionStartBeforeEdit && offset + removed == selectionEndBeforeEdit
+                && mask.holdsPosition(maskedText, offset, offset + removed)) {
+            // Typed or pasted over a selection: the selected positions are overwritten one by one
+            // and nothing moves; those not reached stay selected.
+            limn.components.internal.text.InputMask.Overwritten over = mask.overwrite(maskedText,
+                    offset, offset + removed, text.substring(offset, offset + inserted));
+            if (over == null) {
+                maskRefused = true;
+                fit = new limn.components.internal.text.InputMask.Conformed(maskedText,
+                        Math.min(caret, maskedText.length()), maskedRaw);
+            } else {
+                fit = new limn.components.internal.text.InputMask.Conformed(over.text(),
+                        over.selectionEnd(), over.raw());
+                selectFrom = over.selectionStart();
+            }
         } else if (offset == 0 && inserted == text.length()) {
             fit = mask.conform(text, caret);
-        } else if (offset + removed <= maskedText.length()
-                && maskedText.length() - removed + inserted == text.length()
-                && text.regionMatches(0, maskedText, 0, offset)
-                && text.regionMatches(offset + inserted, maskedText, offset + removed,
-                        maskedText.length() - offset - removed)) {
+        } else if (editOfWritten) {
             fit = mask.edit(maskedText, offset, offset + removed,
                     text.substring(offset, offset + inserted), collapsedDelete);
             if (fit == null) {
@@ -415,6 +447,10 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
             if (aligned != model.cursor()) {
                 model.setCursor(aligned, false);
             }
+        }
+        if (selectFrom >= 0 && selectFrom != fit.caret()) {
+            model.setCursor(selectFrom, false);
+            model.setCursor(fit.caret(), true);
         }
     }
 
@@ -1716,7 +1752,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
                     String pasted = clipboard().text();
                     // Pasting an empty clipboard must not destroy the selection.
                     if (!pasted.isEmpty()) {
-                        editFromUser(() -> model.insert(pasted));
+                        pasteFromUser(pasted);
                     }
                 } else {
                     handled = false;
@@ -1777,6 +1813,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         }
         noteCaretBeforeEdit();
         model.insertCodePoint(cp);
+        typingOver = true;
         announceTextEdit(Change.Origin.USER);
         ensureCursorVisible();
         resetBlink();
@@ -1959,7 +1996,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
             public void paste() {
                 String pasted = clipboard().text();
                 if (!pasted.isEmpty()) {
-                    editFromUser(() -> model.insert(pasted));
+                    pasteFromUser(pasted);
                     ensureCursorVisible(Theme.current().tokensFor(TextField.this));
                     invalidate();
                 }
@@ -1982,12 +2019,14 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
     private void announceTextEdit(Change.Origin origin) {
         ShapedText.Position caretBefore = caretBeforeEdit;
         caretBeforeEdit = null;
+        boolean typed = typingOver;
+        typingOver = false;
         if (!model.hasCharDamage()) {
             return;
         }
         if (mask != null) {
             String before = maskedText;
-            fitToMask();
+            fitToMask(typed);
             boolean refused = maskRefused;
             maskRefused = false;
             if (!restoringHistory && model.text().equals(before)) {
@@ -2028,6 +2067,15 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * damage rather than by copying the document out twice and comparing, which was two full
      * copies per keystroke for a question the model already answers.
      */
+    /** Pastes {@code pasted} as the user's edit: over a selection of a masked field, an overwrite. */
+    private void pasteFromUser(String pasted) {
+        model.clearCharDamage();
+        noteCaretBeforeEdit();
+        model.insert(pasted);
+        typingOver = true;
+        announceTextEdit(Change.Origin.USER);
+    }
+
     private void editFromUser(Runnable edit) {
         model.clearCharDamage();
         noteCaretBeforeEdit();

@@ -50,7 +50,7 @@ class TextFieldMaskEditsTest extends AccessibleComponentTestBase {
     @Test
     void noEditTurnsALiteralIntoAValueOrLosesAValueTheUserDidNotTake() {
         for (String pattern : PATTERNS) {
-            int[] reached = new int[4];
+            int[] reached = new int[5];
             for (int run = 0; run < RUNS; run++) {
                 exercise(pattern, 0x5EED_0000L + pattern.hashCode() * 31L + run, reached);
             }
@@ -59,6 +59,10 @@ class TextFieldMaskEditsTest extends AccessibleComponentTestBase {
             if (reached[0] < 20 || reached[1] < 5) {
                 fail(pattern + ": the random edits reached " + reached[0] + " edits mid-value and "
                         + reached[1] + " insertions into a full field; more runs or steps are needed");
+            }
+            if (reached[4] < 3) {
+                fail(pattern + ": the random edits reached " + reached[4]
+                        + " overwrites of a selection; more runs or steps are needed");
             }
             // On a mixed pattern, both answers: edits refused, and edits made that moved characters.
             if (!new Model(pattern).oneKind && (reached[2] < 5 || reached[3] < 5)) {
@@ -177,6 +181,8 @@ class TextFieldMaskEditsTest extends AccessibleComponentTestBase {
                 if (!isSubsequence(field.unmaskedText(), oldRaw)) {
                     fail("a word deletion added a value character: " + context);
                 }
+            } else if (from >= 0 && typed != null && model.overwrites(oldText, from, to, typed)) {
+                model.checkOverwrite(oldText, oldRaw, from, to, typed, field, context, reached);
             } else if (from >= 0) {
                 model.count(oldText, from, to, typed, reached);
                 model.checkEdit(oldText, oldRaw, from, to, typed == null ? "" : typed, collapsed,
@@ -527,6 +533,107 @@ class TextFieldMaskEditsTest extends AccessibleComponentTestBase {
             if (count(inserted) != count(removed)) {
                 noteMixed(after, true, reached);
             }
+        }
+
+        /** Whether typing or pasting {@code typed} over chars {@code [from, to)} overwrites: they hold a position. */
+        boolean overwrites(String oldText, int from, int to, String typed) {
+            if (typed.isEmpty() || from == to) {
+                return false;
+            }
+            int a = oldText.codePointCount(0, from);
+            int b = a + oldText.codePointCount(from, to);
+            for (int i = a; i < b && i < entries.length; i++) {
+                if (slot[i]) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * Typed or pasted over a selection that holds positions: the characters the selected
+         * positions take replace them one by one from the first, nothing outside the selection
+         * changes, nothing moves, and what was not reached stays selected; when nothing is taken,
+         * nothing changes and the selection stays.
+         */
+        void checkOverwrite(String oldText, String oldRaw, int from, int to, String typed, TextField field,
+                            String context, int[] reached) {
+            int a = oldText.codePointCount(0, from);
+            int b = a + oldText.codePointCount(from, to);
+            String text = field.text();
+            String raw = field.unmaskedText();
+            if (text.codePointCount(0, text.length()) != oldText.codePointCount(0, oldText.length())) {
+                fail("an overwrite moved the text: " + context);
+            }
+            int[] oldValue = oldRaw.codePoints().toArray();
+            int[] value = raw.codePoints().toArray();
+            List<Integer> selected = new ArrayList<>();
+            for (int i = 0, n = 0; i < entries.length && n < oldValue.length; i++) {
+                if (slot[i]) {
+                    if (i >= a && i < b) {
+                        selected.add(n);
+                    }
+                    n++;
+                }
+            }
+            for (int n = 0; n < oldValue.length; n++) {
+                if (!selected.contains(n) && value[n] != oldValue[n]) {
+                    fail("an overwrite changed a character outside the selection: " + context);
+                }
+            }
+            if (typed.codePoints().anyMatch(literals::contains)) {
+                return;
+            }
+            StringBuilder fills = new StringBuilder();
+            int k = 0;
+            for (int cp : typed.codePoints().toArray()) {
+                if (k >= selected.size()) {
+                    break;
+                }
+                if (accepts(kindOf(selected.get(k)), cp)) {
+                    fills.appendCodePoint(cp);
+                    k++;
+                }
+            }
+            if (k == 0) {
+                if (!text.equals(oldText) || field.selectionStart() != from || field.selectionEnd() != to) {
+                    fail("an overwrite no position takes changed the text or the selection: " + context);
+                }
+                return;
+            }
+            int[] expected = oldValue.clone();
+            int[] filled = fills.toString().codePoints().toArray();
+            for (int j = 0; j < k; j++) {
+                expected[selected.get(j)] = filled[j];
+            }
+            if (!java.util.Arrays.equals(expected, value)) {
+                fail("the overwrite wrote " + raw + ", expected " + new String(expected, 0, expected.length)
+                        + ": " + context);
+            }
+            if (k < selected.size()) {
+                int start = text.offsetByCodePoints(0, entryOf(selected.get(k)));
+                int end = text.offsetByCodePoints(0, b);
+                if (field.selectionStart() != start || field.selectionEnd() != end) {
+                    fail("the positions not reached are not what stays selected (" + field.selectionStart()
+                            + ".." + field.selectionEnd() + ", expected " + start + ".." + end + "): " + context);
+                }
+            } else {
+                int caret = text.offsetByCodePoints(0, entryOf(selected.get(k - 1)) + 1);
+                if (field.selectionStart() != caret || field.selectionEnd() != caret) {
+                    fail("the caret is not after the last position overwritten: " + context);
+                }
+            }
+            reached[4]++;
+        }
+
+        /** The entry of the {@code index}-th position to fill. */
+        private int entryOf(int index) {
+            for (int i = 0, n = 0; i < entries.length; i++) {
+                if (slot[i] && n++ == index) {
+                    return i;
+                }
+            }
+            return entries.length;
         }
 
         /** Counts, on a mixed pattern, an edit with value after it refused or made. */

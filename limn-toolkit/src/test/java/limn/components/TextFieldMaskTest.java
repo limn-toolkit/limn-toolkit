@@ -303,8 +303,10 @@ class TextFieldMaskTest extends AccessibleComponentTestBase {
         holding("****-****", "ABCD-EFG", 1);
         field.select(1, 3); // "BC"
         type("x");
-        assertEquals("AxDE-FG", field.text(), "not AxD--EFG");
-        assertEquals("AxDEFG", field.unmaskedText());
+        assertEquals("AxCD-EFG", field.text(), "the B overwritten, nothing moved: not AxD--EFG");
+        assertEquals("AxCDEFG", field.unmaskedText());
+        assertEquals(2, field.selectionStart(), "the C, not reached, stays selected");
+        assertEquals(3, field.selectionEnd());
 
         holding("+1 (000) 000-0000", "+1 (555) 123-4567", 0);
         field.select(0, 2); // "+1", literals alone
@@ -424,16 +426,16 @@ class TextFieldMaskTest extends AccessibleComponentTestBase {
         String[][] cases = {{"6", "1"}, {"6", "x"}, {"7", ")"}, {"6", "12"}};
         for (String[] keys : cases) {
             holding("+1 (000) 000-0000", "5551234567", 0);
-            field.select(0, field.text().length());
+            field.select(4, 5); // the first 5
             type("9");
-            assertEquals("+1 (9", field.text());
+            assertEquals("+1 (955) 123-4567", field.text());
             drive(scene).press(Keys.Z, COMMAND);
             assertEquals("+1 (555) 123-4567", field.text());
             field.setCaretPosition(Integer.parseInt(keys[0]));
             type(keys[1]);
             assertEquals("+1 (555) 123-4567", field.text(), keys[1] + " is refused");
             drive(scene).press(Keys.Z, COMMAND | Keys.MOD_SHIFT);
-            assertEquals("+1 (9", field.text(), "redo after a refused " + keys[1]);
+            assertEquals("+1 (955) 123-4567", field.text(), "redo after a refused " + keys[1]);
             drive(scene).press(Keys.Z, COMMAND);
             assertEquals("+1 (555) 123-4567", field.text(), "and undo again after " + keys[1]);
         }
@@ -491,11 +493,11 @@ class TextFieldMaskTest extends AccessibleComponentTestBase {
     @Test
     void aRefusedEditKeepsTheSelectionTheUndoHistoryAndRedo() {
         holding("AAA-0000-**", "ABC-1234-XY", 0);
-        field.select(5, 7); // "23"
-        type("9");
-        assertEquals("ABC-1234-XY", field.text(), "not ABC-194: the X and the Y would be lost");
-        assertEquals(5, field.selectionStart(), "the selection is as it was");
-        assertEquals(7, field.selectionEnd());
+        field.select(2, 5); // "C-1"
+        drive(scene).press(Keys.DELETE);
+        assertEquals("ABC-1234-XY", field.text(), "not AB2-34XY: the 2 would land on a letter");
+        assertEquals(2, field.selectionStart(), "the selection is as it was");
+        assertEquals(5, field.selectionEnd());
         assertEquals(List.of(), heard);
 
         holding("+1 (000) 000-0000", "+1 (555) 123-4567", 0);
@@ -518,6 +520,78 @@ class TextFieldMaskTest extends AccessibleComponentTestBase {
         assertEquals("ABC-1234-X", field.text(), "redo after the refused Backspace");
         drive(scene).press(Keys.Z, COMMAND);
         assertEquals("ABC-1234-XY", field.text(), "one undo, as before: the refusal left no step");
+    }
+
+    // ------------------------------------------- typing over a selection overwrites its positions
+
+    @Test
+    void typingOverASelectionOverwritesItsPositionsOneByOne() {
+        holding("AAA-0000-**", "ABC-1234-XY", 0);
+        field.select(4, 6); // "12"
+        type("5");
+        assertEquals("ABC-5234-XY", field.text(), "the 1 overwritten, nothing moved");
+        assertEquals(5, field.selectionStart(), "the 2 is what stays selected");
+        assertEquals(6, field.selectionEnd());
+        type("6");
+        assertEquals("ABC-5634-XY", field.text());
+        assertEquals(6, field.selectionStart(), "every selected position written: a caret after the last");
+        assertEquals(6, field.selectionEnd());
+        assertEquals(List.of("ABC-5234-XY", "ABC-5634-XY"), heard, "one change per keystroke");
+        drive(scene).press(Keys.Z, COMMAND);
+        assertEquals("ABC-5234-XY", field.text(), "undo takes one keystroke back");
+        drive(scene).press(Keys.Z, COMMAND);
+        assertEquals("ABC-1234-XY", field.text());
+        drive(scene).press(Keys.Z, COMMAND | Keys.MOD_SHIFT);
+        drive(scene).press(Keys.Z, COMMAND | Keys.MOD_SHIFT);
+        assertEquals("ABC-5634-XY", field.text(), "and redo puts each back");
+    }
+
+    @Test
+    void anOverwriteStoppedMidwayLeavesTheRestSelectedAndAcrossALiteralSkipsIt() {
+        holding("AAA-0000-**", "ABC-1234-XY", 0);
+        field.select(7, 10); // "4-X"
+        type("9");
+        assertEquals("ABC-1239-XY", field.text());
+        assertEquals(9, field.selectionStart(), "the X, past the dash, stays selected");
+        assertEquals(10, field.selectionEnd());
+        drive(scene).press(Keys.RIGHT);
+        assertEquals("ABC-1239-XY", field.text(), "stopping there leaves the X as it was");
+        assertEquals(10, field.caretPosition());
+    }
+
+    @Test
+    void aCharacterTheNextSelectedPositionRefusesIsRefusedAndTheSelectionStays() {
+        holding("AAA-0000-**", "ABC-1234-XY", 0);
+        field.select(4, 6);
+        type("x");
+        assertEquals("ABC-1234-XY", field.text(), "a letter on a digit");
+        assertEquals(4, field.selectionStart());
+        assertEquals(6, field.selectionEnd());
+        assertEquals(List.of(), heard);
+    }
+
+    @Test
+    void pastingOverASelectionFillsItsPositionsInOrderAndDropsTheRest() {
+        TextFieldTest.MockClipboard clipboard = new TextFieldTest.MockClipboard();
+        holding("AAA-0000-**", "ABC-1234-XY", 0);
+        scene.setClipboard(clipboard);
+        field.select(4, 8); // "1234"
+        clipboard.value = "98";
+        drive(scene).press(Keys.V, COMMAND);
+        assertEquals("ABC-9834-XY", field.text(), "two positions filled, the 3 and the 4 untouched");
+        assertEquals(6, field.selectionStart(), "and still selected");
+        assertEquals(8, field.selectionEnd());
+
+        field.select(4, 6); // "98"
+        clipboard.value = "123456";
+        drive(scene).press(Keys.V, COMMAND);
+        assertEquals("ABC-1234-XY", field.text(), "what finds no selected position is dropped: nothing moves");
+        assertEquals(6, field.caretPosition());
+
+        field.select(0, field.text().length());
+        clipboard.value = "KLM-4217-Z9";
+        drive(scene).press(Keys.V, COMMAND);
+        assertEquals("KLM-4217-Z9", field.text(), "a whole value over the whole text, with its literals");
     }
 
     @Test

@@ -173,6 +173,25 @@ Markdown.
   left-to-right layout. A placeholder on a masked field stands at the same edge and reads left
   to right unless its own words say otherwise, since it is most often an example of the value.
   The leading icon, the trailing button and the pads still swap sides with the layout.
+- *Amended 2026-10-20:* **typing over a selection overwrites its positions.** The review of the
+  refusal above found that the correction route it, the Javadoc and the forms guide recommend,
+  "select them and type over them", was refused on a mixed pattern for any selection of two or
+  more characters with something of another kind after it: typing is one keystroke at a time,
+  and the first key replaced the whole selection with one character, which moved what followed
+  (`ABC-1234-XY`, `12` selected, `56` typed: nothing changed). The owner's decision: typing over a
+  selection in a masked field, of any pattern, **overwrites** the selected positions one by one
+  and moves nothing. `12` selected, `5` replaces the 1 and the selection becomes the 2; `6`
+  replaces the 2 and the caret stands after it; a user who stops midway leaves what is still
+  selected as it was. The typed text is read from the entry the selection begins on, as an edit
+  reads it, so a literal carried with it is taken as the literal; a character the next selected
+  position refuses is refused, the selection unchanged. A paste over a selection fills the
+  selected positions in order with the characters each takes, leaves those it does not reach as
+  they were and still selected, and drops the rest of the paste: nothing is pushed into the
+  positions after the selection. Each keystroke is its own undo step, as before. A selection
+  holding only literals is typed over as before (an insertion where it begins), and Backspace,
+  Delete and Cut over a selection remain removals under the refusal above. Selecting everything
+  and typing therefore overwrites from the first position rather than clearing the field;
+  Delete clears it. `insertText`, a caller's write, still replaces the selection.
 - *Amended 2026-10-20:* **a masked line keeps its groups in written order whatever the digits'
   script.** The review of the amendment above found that a left-to-right paragraph is not enough
   with Arabic-Indic digits (U+0660 to U+0669, which an Arabic keyboard types and the mask takes as

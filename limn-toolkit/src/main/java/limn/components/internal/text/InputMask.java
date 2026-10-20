@@ -267,6 +267,84 @@ public final class InputMask {
         return new Conformed(fitted, caret, fit.raw());
     }
 
+    /**
+     * What {@link #overwrite} made of a text: the text, its filled characters, and the selection
+     * left over it, {@code selectionStart == selectionEnd} for a caret.
+     */
+    public record Overwritten(String text, String raw, int selectionStart, int selectionEnd) {
+    }
+
+    /**
+     * Whether the chars {@code [from, to)} of a text this mask wrote hold a position to fill, so
+     * that typing over them {@linkplain #overwrite overwrites} rather than {@linkplain #edit edits}.
+     *
+     * @param text a text this mask wrote
+     * @param from where the range begins, in chars
+     * @param to   where it ends, in chars
+     * @return whether a position lies in the range
+     */
+    public boolean holdsPosition(String text, int from, int to) {
+        int a = text.codePointCount(0, from);
+        int b = a + text.codePointCount(from, to);
+        for (int entry = a; entry < b && entry < codePoints.length; entry++) {
+            if (slotAt[entry]) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Typing or pasting over a selection: the characters of {@code inserted} a position takes
+     * replace the selected positions one by one, from the first, and nothing moves. They are read
+     * from the entry the selection begins on, as {@link #edit} reads them, so a fragment carried
+     * with its literals fills the same positions as one without. What finds no selected position
+     * is dropped; the selected positions they did not reach keep their characters and stay
+     * selected, from the first of them to the selection's end; when every selected position was
+     * filled, the caret goes after the last one.
+     *
+     * @param text     a text this mask wrote
+     * @param from     where the selection begins, in chars
+     * @param to       where it ends, in chars; the range holds a position
+     * @param inserted what was typed or pasted
+     * @return the text, its filled characters and the selection left, or {@code null} when no
+     *         character of {@code inserted} is taken by the position it would fill, which leaves
+     *         the text as it was
+     */
+    public @Nullable Overwritten overwrite(String text, int from, int to, String inserted) {
+        int[] cps = text.codePoints().toArray();
+        int a = text.codePointCount(0, from);
+        int b = a + text.codePointCount(from, to);
+        int[] selected = new int[b - a];
+        int count = 0;
+        for (int entry = a; entry < b && entry < codePoints.length; entry++) {
+            if (slotAt[entry]) {
+                selected[count++] = entry;
+            }
+        }
+        String added = read(inserted, inserted.length(), true, a).raw();
+        int[] fill = added.codePoints().limit(count).toArray();
+        if (fill.length == 0) {
+            return null;
+        }
+        for (int k = 0; k < fill.length; k++) {
+            cps[selected[k]] = fill[k];
+        }
+        String out = new String(cps, 0, cps.length);
+        StringBuilder raw = new StringBuilder(slots);
+        for (int entry = 0; entry < cps.length && entry < codePoints.length; entry++) {
+            if (slotAt[entry]) {
+                raw.appendCodePoint(cps[entry]);
+            }
+        }
+        int end = out.offsetByCodePoints(0, b);
+        if (fill.length < count) {
+            return new Overwritten(out, raw.toString(), out.offsetByCodePoints(0, selected[fill.length]), end);
+        }
+        int caret = out.offsetByCodePoints(0, selected[fill.length - 1] + 1);
+        return new Overwritten(out, raw.toString(), caret, caret);
+    }
+
     /** @return the entry of the pattern that holds the {@code index}-th position to fill */
     private int slotEntry(int index) {
         for (int i = 0, n = 0; i < codePoints.length; i++) {

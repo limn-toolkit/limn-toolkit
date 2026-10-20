@@ -91,8 +91,13 @@ the pattern arrive with its last position (`00 kg` shows `12 kg`). Characters a 
 not take are passed over, so pasting `KLM-4217-X9` and pasting `KLM4217X9` give the same text,
 and Backspace after a literal takes the character before it. An edit in the middle leaves every
 literal where the pattern has it, and a field whose positions are all filled takes nothing more,
-so a correction is made by selecting what to replace and typing over it. On a pattern that mixes
-letters, digits and any characters, like the one above, an edit moves the characters after it,
+so a correction is made by selecting what to replace and typing over it: typing or pasting over
+a selection overwrites its positions one by one and moves nothing, so with `12` of
+`ABC-1234-XY` selected, `5` gives `ABC-5234-XY` with the `2` still selected, and `6` then
+`ABC-5634-XY`. A character the next selected position does not take is refused, and a paste
+fills the selected positions in order, leaving those it does not reach selected and dropping
+what is left of it. On a pattern that mixes
+letters, digits and any characters, like the one above, any other edit moves the characters after it,
 and one that would land where it is not taken would be lost, so such an edit is refused and the
 field does nothing: typing `Q` after the `B` of `ABC-1234-X`, or Backspace in the digits of
 `ABC-1234-XY`, changes nothing, while Backspace in the digits of `ABC-1234` or a `5` typed after
