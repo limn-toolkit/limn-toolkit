@@ -146,11 +146,12 @@ motion runs at its end after the seconds it was asked to take, never inside the 
 `Change.Aspect.TRANSFORM` each time a set changes a value, and twice for a motion. To fade a
 moving part as well, put the `Opacity` outside: `new Opacity(new Transform(child))`.
 
-A scale that reaches 0 on either axis draws the part as nothing and so takes the focus out of it,
-whether it is set or a `scaleTo` passes through it on the way: a card turned over by hand, scaled
-to 0 across, swapped and scaled back, always loses the focus it held, since a motion arrives
-exactly at its target. To turn a card over and keep the focus on it, use `flipTo`, whose frames
-pass the edge rather than stopping on it.
+A scale of 0 on either axis draws the part as nothing and so takes the focus out of it, whether it
+is set or a `scaleTo` arrives there: a card turned over by hand, scaled to 0 across, swapped and
+scaled back, always loses the focus it held, since a motion arrives exactly at its target. A
+`scaleTo` that only passes 0 on its way, from 1 to -1, keeps it, as its frames between do not land
+on 0. To turn a card over and keep the focus on it, use `flipTo`, whose frames pass the edge rather
+than stopping on it.
 
 ## Something that repeats
 

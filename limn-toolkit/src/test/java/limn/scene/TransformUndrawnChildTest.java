@@ -341,6 +341,24 @@ class TransformUndrawnChildTest extends SceneTestBase {
     }
 
     @Test
+    void aScaleThatArrivesAtNothingTakesTheFocusAndOneThatOnlyPassesThroughItDoesNot() {
+        // As scaleTo's Javadoc and the Animations guide say: the frames of a motion do not land on
+        // 0 on the way to a mirror, and its arrival lands exactly on its target.
+        Face face = new Face("face");
+        Transform t = new Transform(face);
+        Scene scene = sceneOf(column(new Face("before"), t, new Face("after")));
+        scene.requestFocus(face);
+        t.scaleTo(-1, 1, 0.3, null);
+        step(scene, 30);
+        assertEquals(-1f, t.scaleX(), "mirrored");
+        assertSame(face, scene.focusedWidget(), "passing through 0 keeps the focus");
+        t.scaleTo(0, 1, 0.3, null);
+        step(scene, 30);
+        assertEquals(0f, t.scaleX());
+        assertNull(scene.focusedWidget(), "arriving at 0 takes it");
+    }
+
+    @Test
     void aContainerRemovedWhileItsMotionDrawsTheChildAsNothingLosesTheFocusAfterTheDetachWalk() {
         Face face = new Face("face");
         Transform t = new Transform(face);

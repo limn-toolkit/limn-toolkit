@@ -516,11 +516,12 @@ public final class Transform extends Widget<Transform> {
      * leaves its scene, and heard twice. The glyphs of
      * the text inside are drawn again at each size the scale passes through.
      *
-     * <p>A scale that reaches 0 on either axis, as a target or on the way to one, draws the child
-     * as nothing and puts it out of reach as a hidden child is (see the class's note): it loses the
-     * keyboard focus, which is not given back when the scale returns. A motion arrives exactly at
-     * its target, so a card turned over by hand, scaled to 0 across, swapped and scaled back, always
-     * loses the focus it held; {@link #flipTo flipTo} turns a card over and keeps it.
+     * <p>A scale that arrives at 0 on either axis draws the child as nothing and puts it out of
+     * reach as a hidden child is (see the class's note): it loses the keyboard focus, which is not
+     * given back when the scale returns. A motion arrives exactly at its target, so a card turned
+     * over by hand, scaled to 0 across, swapped and scaled back, always loses the focus it held;
+     * {@link #flipTo flipTo} turns a card over and keeps it. A motion that only passes 0 on its way,
+     * from 1 to −1, keeps it: its frames between do not land on 0.
      *
      * @param sx       the factor along x to arrive at
      * @param sy       the factor along y to arrive at
