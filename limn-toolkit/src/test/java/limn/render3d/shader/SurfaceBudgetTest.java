@@ -197,6 +197,18 @@ class SurfaceBudgetTest {
         assertEquals(4 * (60 + 4), Loops.surfaceTurns(List.of(d3), null, 8));
     }
 
+    @Test
+    void anEqualLoopInTheTurnsOfTwoSiblingLoopsIsCountedInEach() {
+        // One helper called in two turns: the inner loops are equal values, yet each reads its own
+        // loop's state, so each is written and run in its own turn. 4 × 8 twice.
+        java.util.function.Function<Expr, Expr.Loop> helper = s -> counting(s, 8, 1f);
+        Expr.Loop first = Expr.Loop.of(Expr.Lit.of(0f), 4, s -> add(s, helper.apply(s)));
+        Expr.Loop second = Expr.Loop.of(Expr.Lit.of(5f), 4, s -> add(s, helper.apply(s)));
+        assertEquals(64, Loops.surfaceTurns(List.of(add(first, second)), null, 8));
+        // One of them in the diffuse response: 4 × 8, and 8 lights × 4 × 8.
+        assertEquals(288, Loops.surfaceTurns(List.of(first), second, 8));
+    }
+
     /** {@code k} loops of one turn, each built in the turn of the one around it, the innermost reading every state. */
     private static Expr.Loop nest(int k, List<Expr> outer) {
         return Expr.Loop.of(Expr.Lit.of(0f), 1, s -> {

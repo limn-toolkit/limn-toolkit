@@ -76,6 +76,8 @@ class LoopBudgetPropertyTest {
         private final List<List<List<Expr>>> poolScopes = new ArrayList<>();
         private final List<Expr.Loop> apart = new ArrayList<>();
         private int loopsLeft = 6;
+        /** How many pairs of sibling loops this surface holds whose turns hold one equal loop. */
+        int twins;
 
         Builder(long seed) {
             random = new Random(seed);
@@ -109,6 +111,8 @@ class LoopBudgetPropertyTest {
                         : new Expr.Call("min", ShaderType.FLOAT, List.of(node(depth - 1, open), node(depth - 1, open)));
             } else if (c < 0.8 && !apart.isEmpty()) {
                 made = apart.get(random.nextInt(apart.size()));
+            } else if (c < 0.86 && loopsLeft >= 2) {
+                made = twins(open);
             } else if (loopsLeft > 0) {
                 made = loop(depth, open);
             } else {
@@ -119,6 +123,38 @@ class LoopBudgetPropertyTest {
                 poolScopes.add(open);
             }
             return made;
+        }
+
+        /**
+         * What an application's helper builds from a state: a loop drawn from {@code seed} alone,
+         * so the helper called in two turns builds one value in both.
+         */
+        static Expr.Loop helper(Expr state, long seed) {
+            Random drawn = new Random(seed);
+            int turns = 1 + drawn.nextInt(4);
+            float scale = (drawn.nextInt(4) + 1) / 4f;
+            java.util.function.Function<Expr, Expr> next = t -> new Expr.Call("fract", ShaderType.FLOAT,
+                    List.of(new Expr.Binary(Expr.Op.MUL, t, Expr.Lit.of(scale))));
+            return drawn.nextBoolean()
+                    ? Expr.Loop.of(state, turns, next)
+                    : Expr.Loop.of(state, turns, next, t -> new Expr.Binary(Expr.Op.SUB, t, Expr.Lit.of(0.75f)));
+        }
+
+        /**
+         * Two sibling loops, each calling one helper on its own state: their inner loops are equal
+         * values that read different states, which the generator writes once in each turn.
+         */
+        Expr twins(List<List<Expr>> open) {
+            loopsLeft -= 2;
+            long seed = random.nextLong();
+            Expr.Loop first = Expr.Loop.of(node(1, open), 1 + random.nextInt(4),
+                    s -> new Expr.Binary(Expr.Op.ADD, s, helper(s, seed)));
+            Expr.Loop second = Expr.Loop.of(node(1, open), 1 + random.nextInt(4),
+                    s -> new Expr.Binary(Expr.Op.ADD, s, helper(s, seed)));
+            if (((Expr.Binary) first.next().get(0)).right().equals(((Expr.Binary) second.next().get(0)).right())) {
+                twins++;
+            }
+            return new Expr.Binary(Expr.Op.ADD, first, second);
         }
 
         Expr loop(int depth, List<List<Expr>> open) {
@@ -175,14 +211,37 @@ class LoopBudgetPropertyTest {
         return (long) count.invoke(null, outputs, surface.diffuseResponse(), Gl3DContext.MAX_LIGHTS);
     }
 
+    /** Whether a generated loop of main() opens inside another generated loop. */
+    static boolean loopInLoop(String fragment) {
+        String main = fragment.substring(fragment.indexOf("void main()"));
+        Deque<Boolean> blocks = new ArrayDeque<>();
+        for (String line : main.split("\n")) {
+            boolean generated = FOR.matcher(line).find();
+            for (char c : line.toCharArray()) {
+                if (c == '{') {
+                    if (generated && blocks.contains(true)) {
+                        return true;
+                    }
+                    blocks.push(generated);
+                    generated = false;
+                } else if (c == '}') {
+                    blocks.pop();
+                }
+            }
+        }
+        return false;
+    }
+
     @Test
     void theBudgetIsTheTurnsTheGeneratedShaderRuns() throws Exception {
         int checked = 0;
         int withLoopsInLoops = 0;
+        int withTwins = 0;
         for (long seed = 1; seed <= 300; seed++) {
             SurfaceOutputs surface;
+            Builder builder = new Builder(seed);
             try {
-                surface = new Builder(seed).surface();
+                surface = builder.surface();
             } catch (IllegalArgumentException overBudget) {
                 continue; // a random surface may ask for more than the cap: refused, nothing to compare
             }
@@ -190,12 +249,39 @@ class LoopBudgetPropertyTest {
             long run = turnsRun(fragment);
             assertEquals(run, budget(surface), "seed " + seed + "\n" + fragment.substring(fragment.indexOf("void main()")));
             checked++;
-            if (fragment.contains("\n        for (int ir_i")) {
-                withLoopsInLoops++; // a generated loop indented under another block of main
+            if (loopInLoop(fragment)) {
+                withLoopsInLoops++;
+            }
+            if (builder.twins > 0) {
+                withTwins++;
             }
         }
         assertTrue(checked > 200, checked + " surfaces checked");
-        assertTrue(withLoopsInLoops > 20, withLoopsInLoops + " with a loop in a loop");
+        assertTrue(withLoopsInLoops > 20, withLoopsInLoops + " with a generated loop in a generated loop");
+        // An equal loop in the turns of two sibling loops is written in two blocks: the shape where
+        // counting it once for the surface would undercount.
+        assertTrue(withTwins > 30, withTwins + " with an equal loop in two sibling turns");
+    }
+
+    @Test
+    void anEqualLoopInTheTurnsOfTwoSiblingLoopsRunsInEach() throws Exception {
+        // One helper called in two turns: two equal inner loops, each reading its own state.
+        java.util.function.Function<Expr, Expr.Loop> helper = s -> Expr.Loop.of(s, 8,
+                t -> new Expr.Binary(Expr.Op.ADD, t, Expr.Lit.of(1f)));
+        Expr.Loop first = Expr.Loop.of(Expr.Lit.of(0f), 4, s -> new Expr.Binary(Expr.Op.ADD, s, helper.apply(s)));
+        Expr.Loop second = Expr.Loop.of(Expr.Lit.of(5f), 4, s -> new Expr.Binary(Expr.Op.ADD, s, helper.apply(s)));
+        assertEquals(((Expr.Binary) first.next().get(0)).right(), ((Expr.Binary) second.next().get(0)).right());
+        SurfaceOutputs siblings = IrSurfaces.emitting(new Expr.Construct(ShaderType.VEC3,
+                List.of(new Expr.Binary(Expr.Op.ADD, first, second))));
+        String both = GlslCodegen.generate(siblings, TargetProfile.GLSL_330).fragmentSource();
+        assertEquals(64, turnsRun(both), "4 × 8 in each");
+        assertEquals(64, budget(siblings));
+        // One of them in the diffuse response: 4 × 8, and 8 lights × 4 × 8.
+        SurfaceOutputs lit = IrSurfaces.emitting(new Expr.Construct(ShaderType.VEC3, List.of(first)))
+                .withDiffuseResponse(second);
+        String split = GlslCodegen.generate(lit, TargetProfile.GLSL_330).fragmentSource();
+        assertEquals(288, turnsRun(split));
+        assertEquals(288, budget(lit));
     }
 
     @Test

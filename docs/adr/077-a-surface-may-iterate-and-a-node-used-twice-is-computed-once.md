@@ -420,3 +420,12 @@ names the variables itself (`ir_s…`).
 - **2026-10-20, review 10: section 3.1's template shows the exit first.** It still showed every
   local of the turn before the break, which review 9's change to the generator had made untrue;
   it now shows the locals the exit reads, the break, then the locals only the next state reads.
+- **2026-10-20, review 12: the property test sees a loop written in two blocks.** Its random
+  surfaces never held one helper called in the turns of two sibling loops, the shape where an
+  equal loop reads two different states and the generator writes it once in each turn, so a
+  regression that counted every loop number once for the surface (undercounting it) passed all
+  three hundred seeds. The builder now makes such twins (more than thirty of the surfaces hold
+  them), and the two fixed cases are counted in the toolkit and held to the generated shader in
+  the backend: siblings 4 × 8 each, 64; one of them in the diffuse response, 288. With that
+  regression put in place of `Loops`, the property test fails at seed 7 and both fixed cases
+  fail (36 for 64); with `Loops` as it is, all pass.
