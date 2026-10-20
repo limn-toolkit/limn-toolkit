@@ -372,7 +372,12 @@ the making of the picture again each time, 0.1 to 0.5 ms on this GPU (ADR 071 §
   renderer alike. Nothing is recorded in a scene with no Transform away from rest. Tests:
   `TransformPassSeamTest`, a slid, a scaled, a rotated and a turned-in-depth card wrapped in a
   `Padding` and moved by a sibling hidden and by a sibling's text growing, and a scaled container
-  resized by a child hidden inside it, on both renderers.
+  resized by a child hidden inside it, on both renderers. (2026-10-19, after review, R3S-1: the
+  record runs at the frame, after `setVisible(false)` has hidden the branch, so a Transform inside
+  the wrapper hidden was recorded as nothing and its picture past the wrapper's box stayed on
+  screen. `setVisible(false)` and a widget presented elsewhere now damage, as the flag is set and
+  while the branch is still drawn, the picture of every Transform inside it. Tests: the four kinds
+  with their wrapper hidden, and the last of a row of cells zoomed 1.4 hidden.)
 - **Culling under a transform.** `Scene.culledFromPaint` tests a widget under a Transform by its
   projected bounds; inside a layer, `Widget.missesClip` tests against the picture's local clip,
   which is exact again. With no Transform away from rest the test is today's.

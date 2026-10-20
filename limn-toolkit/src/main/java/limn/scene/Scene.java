@@ -2570,7 +2570,9 @@ public final class Scene {
      * it draws its children where its matrix says, past its own box and past the box of whatever
      * wraps it, and a layout that moves the wrapper or resizes the container (whose origin is a
      * fraction of its box) moves that whole picture: the children's boxes and outsets compared
-     * below would leave the old picture on screen and not draw the new one.
+     * below would leave the old picture on screen and not draw the new one. One inside a branch being
+     * hidden was damaged as the flag was set ({@link #damagePicturesLeaving}), since by now the
+     * branch draws nothing to record.
      *
      * <p>Every case the comparison cannot vouch for falls back rather than guesses: a widget no
      * longer in this scene or with no parent, an ancestor never measured, a climb past the root,
@@ -2756,6 +2758,35 @@ public final class Scene {
             float[] b = container.childrenPaintedBounds();
             if (!Float.isNaN(b[0])) {
                 addClippedDamage(container, b[0], b[1], b[2] - b[0], b[3] - b[1]);
+            }
+        }
+    }
+
+    /**
+     * Where {@code container} draws its children now, in scene coordinates, clamped by every
+     * clipping ancestor, into {@code out} as {@code x, y, width, height}; false when nothing of it
+     * is on screen (a hidden branch, clipped away, behind the eye, or nothing painted).
+     */
+    private boolean pictureInScene(Widget<?> container, float[] out) {
+        float[] b = container.childrenPaintedBounds();
+        return !Float.isNaN(b[0]) && clippedSceneRect(container, b[0], b[1], b[2] - b[0], b[3] - b[1], out);
+    }
+
+    /**
+     * A widget is about to be hidden, by its own flag or by being presented elsewhere: every
+     * transform container inside it, itself included, has its picture damaged where it is drawn
+     * now, while the branch is still visible. The in-place pass that follows finds the branch
+     * hidden and records nothing of it, and the hidden widget's box and outset, which that pass
+     * damages, are not where a container inside draws past them.
+     */
+    void damagePicturesLeaving(Widget<?> branch) {
+        if (transformed.isEmpty() || (!partialRendering && !damageDebug)) {
+            return;
+        }
+        for (int i = 0; i < transformed.size(); i++) {
+            Widget<?> container = transformed.get(i);
+            if (isInSubtree(container, branch) && pictureInScene(container, clipScratch)) {
+                addDamage(clipScratch[0], clipScratch[1], clipScratch[2], clipScratch[3]);
             }
         }
     }

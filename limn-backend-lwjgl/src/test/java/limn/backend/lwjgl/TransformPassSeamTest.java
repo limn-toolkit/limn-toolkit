@@ -363,6 +363,34 @@ class TransformPassSeamTest {
                 kind + ", sibling's text grown");
     }
 
+    @ParameterizedTest
+    @EnumSource(Kind.class)
+    void aWrapperHiddenRoundATransformDrawsWhatTheWholeFrameDrew(Kind kind) {
+        // The padding round the container hides: the card it drew past the padding's box must go
+        // with it, though by the frame the layout runs the branch is hidden and draws nothing.
+        Padding wrapper = new Padding(new Insets(0, 0, 0, 0), kind.make());
+        Column column = new Column();
+        column.add(new Block(60, 18, Color.rgb(0x20A060)));
+        column.add(wrapper);
+        column.add(new Block(60, 8, Color.rgb(0xC02080)));
+        assertPartialIsWhole(layers(new SizedBox(150, 70, column)), () -> wrapper.setVisible(false),
+                kind + ", wrapper hidden");
+    }
+
+    @Test
+    void theLastOfARowOfZoomedCellsHiddenDrawsWhatTheWholeFrameDrew() {
+        // A row of cells, each card zoomed past its cell as a hover does; the last cell hides.
+        Row row = new Row();
+        Padding last = null;
+        for (int i = 0; i < 3; i++) {
+            last = new Padding(new Insets(0, 0, 0, 0), new Transform(new Card()).setScale(1.4f));
+            row.add(last);
+        }
+        Padding hidden = last;
+        assertPartialIsWhole(layers(new SizedBox(170, 60, row)), () -> hidden.setVisible(false),
+                "zoomed cell hidden");
+    }
+
     @Test
     void aTransformResizedByAChildHiddenInsideItDrawsWhatTheWholeFrameDrew() {
         // The container's own size changes: its origin is a fraction of its box, so its matrix moves

@@ -1165,6 +1165,9 @@ public abstract class Widget<W extends Widget<W>> {
         Ui.checkUiThread();
         if (this.visible != visible) {
             boolean shown = isVisible();
+            if (shown && !visible && scene != null) {
+                scene.damagePicturesLeaving(this); // while the branch still draws them
+            }
             this.visible = visible;
             if (shown != isVisible()) {
                 presenceChanged();
@@ -1187,6 +1190,9 @@ public abstract class Widget<W extends Widget<W>> {
         Ui.checkUiThread();
         if (elsewhere != value) {
             boolean shown = isVisible();
+            if (shown && value && scene != null) {
+                scene.damagePicturesLeaving(this);
+            }
             elsewhere = value;
             if (shown != isVisible()) {
                 presenceChanged();
