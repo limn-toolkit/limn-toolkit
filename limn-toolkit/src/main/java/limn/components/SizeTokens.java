@@ -129,7 +129,7 @@ public final class SizeTokens {
     // gaps -------------------------------------------------------------
     private static final float[] GAP_BUTTON_ROW        = {    4,     5,        6,     8,    10 };
     private static final float[] COLOR_GAP             = {    5,     6,        8,    10,    13 }; // ColorPicker block + row gap
-    private static final float[] GAP_ICON              = {    5,     6,        8,     9,    11 };
+    private static final float[] GAP_ICON              = {    4,     5,        6,     8,    10 }; // one gap for every icon beside its text
     private static final float[] GAP_LABEL             = {    4,     5,        6,     8,    10 };
     private static final float[] NEWLINE_HINT          = {    4,     5,        6,     8,    10 };
     private static final float[] POPUP_GAP             = {    2,     3,        4,     5,     6 };
@@ -465,7 +465,11 @@ public final class SizeTokens {
         return values.gapButtonRow();
     }
 
-    /** @return the gap between an icon and the text beside it */
+    /**
+     * @return the gap between an icon and the text beside it: a button's icon and its caption, a
+     *         field's leading icon and its text, a combo's or a menu row's icon and its label, a
+     *         label's icon and its words, all one distance at a step
+     */
     public float gapIcon() {
         return values.gapIcon();
     }

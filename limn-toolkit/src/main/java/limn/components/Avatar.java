@@ -397,7 +397,7 @@ public final class Avatar extends Widget<Avatar> {
             from = rtl ? x + d - shown : x + edge;
             to = rtl ? x + d - edge : x + shown;
         }
-        canvas.drawText(shaped, (from + to - m.width()) / 2, y + (d - m.height()) / 2 + m.ascent(),
+        canvas.drawText(shaped, (from + to - m.width()) / 2, y + textRuler().centredBaseline(font, d),
                 theme.text());
     }
 

@@ -19,7 +19,6 @@ import limn.graphics.Font;
 import limn.graphics.Path2D;
 import limn.graphics.Rect;
 import limn.graphics.ShapedText;
-import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
 import limn.i18n.I18nString;
 import limn.input.Keys;
@@ -1380,7 +1379,6 @@ public final class PopupMenu {
                     theme.surfaceRaised().withAlpha(0.98f), Strokes.BORDER, theme.outline());
 
             Font font = t.body();
-            TextMetrics fm = ruler.measure("Hg", font);
             List<MenuItem> items = col.menu.items();
             canvas.save();
             // Rows stay off the border: the clip inset IS the border width.
@@ -1437,7 +1435,7 @@ public final class PopupMenu {
                     paintCheck(canvas, checkX, iy + rowH / 2,
                             item.isEnabled() ? theme.primary() : theme.disabledText(), t);
                 }
-                float baseline = iy + (rowH - fm.height()) / 2 + fm.ascent();
+                float baseline = iy + ruler.centredBaseline(font, rowH);
                 // drawText places a run's LEFT edge for either base direction (a right-to-left
                 // line fills the same box from the other end), so a leading-aligned label in a
                 // mirrored column needs its own width to find that edge. That width is the
@@ -2728,7 +2726,7 @@ public final class PopupMenu {
             // Mirroring swaps which gutter holds the check and which holds the arrow, and the
             // sum is the same either way: the column width, fit(), maxScroll(), the bounding
             // box and the native window size are all the same numbers in both directions.
-            this.iconSlot = anyIcon ? iconSide(ruler, t) + t.spacingSmall() : 0;
+            this.iconSlot = anyIcon ? iconSide(ruler, t) + t.gapIcon() : 0;
             this.contentW = Math.max(t.menuMinWidth(),
                     t.menuCheckGutter() + iconSlot + maxLabel + hintColumn + t.menuArrowGutter());
             this.w = this.contentW;

@@ -971,4 +971,119 @@ class DatePickerTest extends ComponentTestBase {
         assertEquals(LocalDate.of(2026, 12, 31), picker.date(),
                 "and with the guess on it resolves into the window, as any other leave does");
     }
+
+    // ------------------------------------------------------------------ a period packs (D7)
+
+    /** Digits wider than a placeholder's hyphens, as in every real face; other marks between. */
+    private static final limn.graphics.TextRuler DIGITS_WIDE = (text, font) -> {
+        float width = 0;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            width += Character.isDigit(c) ? 8 : c == '-' ? 4 : 6;
+        }
+        return new limn.graphics.TextMetrics(width, 8, 2, 12);
+    };
+
+    private FakeCanvas canvas;
+
+    /** A period 400 wide in a window, drawn once, so a later frame lays out only what asks for it. */
+    private void buildPeriod(limn.scene.LayoutDirection direction, DateRange range) {
+        I18n.setLocale(Locale.forLanguageTag("pt-BR"));
+        picker = rangePicker();
+        picker.setRange(range);
+        picker.setLayoutDirection(direction);
+        limn.scene.layout.Column root = new limn.scene.layout.Column();
+        root.add(new limn.scene.layout.SizedBox(400, limn.scene.layout.SizedBox.UNSET, picker));
+        scene = new Scene(root, () -> nanos[0]);
+        scene.setTextRuler(DIGITS_WIDE);
+        scene.bind(new StubWindow());
+        canvas = new FakeCanvas(400, 300);
+        scene.renderFrame(canvas);
+    }
+
+    private static float runOf(String text) {
+        return DIGITS_WIDE.measure(text, SizeTokens.of(limn.scene.ControlSize.MEDIUM).body()).width();
+    }
+
+    /**
+     * The owner's Showcase drew a period stretched over its box: the first date at the start, the
+     * dash in the middle and the second date at the far end, because the two fields split the box
+     * in halves. A period is one line packed at the start, as it would be typed, in either
+     * direction: the first date from the pad, the dash a small gap after it, the second date a
+     * small gap after that, and the room left over after the second date and before the button.
+     */
+    @Test
+    void aPeriodPacksItsDatesAndTheDashAtTheStartInEitherDirection() {
+        SizeTokens t = SizeTokens.of(limn.scene.ControlSize.MEDIUM);
+        float pad = t.fieldPadH();
+        float gap = t.spacingSmall();
+        float dash = runOf("\u2013");
+        float date = runOf("14/09/2026");
+        float button = t.fieldTrailing();
+        DateRange holiday = new DateRange(LocalDate.of(2026, 9, 14), LocalDate.of(2026, 9, 25));
+
+        buildPeriod(limn.scene.LayoutDirection.LTR, holiday);
+        DateField start = picker.field();
+        DateField end = picker.endField();
+        assertEquals(0, start.x(), 0.001f, "the first date stands at the start");
+        assertEquals(pad + date + gap, start.width(), 0.001f, "and takes its pad, its run and a small gap");
+        assertEquals(start.width() + dash, end.x(), 0.001f, "the second date follows the dash");
+        assertEquals(400 - button, end.x() + end.width(), 0.001f,
+                "and its box runs on to the button, so the room left over is after it");
+
+        buildPeriod(limn.scene.LayoutDirection.RTL, holiday);
+        start = picker.field();
+        end = picker.endField();
+        assertEquals(400, start.x() + start.width(), 0.001f, "reading right to left it starts at the right");
+        assertEquals(pad + date + gap, start.width(), 0.001f);
+        assertEquals(start.x() - dash, end.x() + end.width(), 0.001f, "the second date to its left, past the dash");
+        assertEquals(button, end.x(), 0.001f, "and the room left over is before the button on the left");
+    }
+
+    /**
+     * The dash stays packed against what the first date shows now: a placeholder is narrower than
+     * the digits typed over it, so the line moves up behind the date as it fills, on the next frame
+     * and without a layout of the whole window.
+     */
+    @Test
+    void theDashAndTheSecondDateFollowTheFirstDateAsItIsTyped() {
+        SizeTokens t = SizeTokens.of(limn.scene.ControlSize.MEDIUM);
+        buildPeriod(limn.scene.LayoutDirection.LTR, null);
+        float empty = t.fieldPadH() + runOf("--/--/----") + t.spacingSmall();
+        assertEquals(empty, picker.field().width(), 0.001f, "an empty first date packs against its placeholder");
+        float endBefore = picker.endField().x();
+
+        scene.requestFocus(picker.field());
+        type("14092026");
+        scene.renderFrame(canvas);
+        float filled = t.fieldPadH() + runOf("14/09/2026") + t.spacingSmall();
+        assertEquals(LocalDate.of(2026, 9, 14), picker.field().date());
+        assertEquals(filled, picker.field().width(), 0.001f, "the typed date is what the dash packs against");
+        assertEquals(endBefore + (filled - empty), picker.endField().x(), 0.001f,
+                "and the second date moved with it");
+    }
+
+    /**
+     * A click still lands in the date it is on, and the room left over belongs to the second date,
+     * whose box runs on to the button: a click there puts the caret in it, as a click past the end
+     * of a text field does.
+     */
+    @Test
+    void aClickOnEitherDateOrOnTheRoomLeftOverReachesTheRightField() {
+        DateRange holiday = new DateRange(LocalDate.of(2026, 9, 14), LocalDate.of(2026, 9, 25));
+        for (limn.scene.LayoutDirection direction : limn.scene.LayoutDirection.values()) {
+            buildPeriod(direction, holiday);
+            boolean rtl = direction == limn.scene.LayoutDirection.RTL;
+            DateField start = picker.field();
+            DateField end = picker.endField();
+            float y = start.localToScene(0, start.height() / 2).y();
+            clickAt(start.localToScene(start.width() / 2, 0).x(), y);
+            scene.renderFrame(canvas);
+            assertTrue(start.isFocused(), direction + ": a click on the first date reaches it");
+            float leftover = rtl ? end.localToScene(10, 0).x() : end.localToScene(end.width() - 10, 0).x();
+            clickAt(leftover, y);
+            scene.renderFrame(canvas);
+            assertTrue(end.isFocused(), direction + ": a click in the room left over reaches the second date");
+        }
+    }
 }

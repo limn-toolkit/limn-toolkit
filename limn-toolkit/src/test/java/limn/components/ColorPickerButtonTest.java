@@ -222,9 +222,10 @@ class ColorPickerButtonTest extends ComponentTestBase {
         button.setText("");
         float bare = button.measure(Constraints.loose(400, 300)).width();
 
+        // And the chip alone asks for a square: no caption, no gap and no padding of either kind.
         SizeTokens t = SizeTokens.MEDIUM;
-        assertEquals(captioned - RULER.measure("#F59E0B", t.body()).width() - t.gapIcon(),
-                bare, 0.01f);
+        assertTrue(captioned > bare + RULER.measure("#F59E0B", t.body()).width());
+        assertEquals(button.measure(Constraints.loose(400, 300)).height(), bare, 0.01f);
     }
 
     @Test

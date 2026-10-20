@@ -492,7 +492,7 @@ public class Viewport3D extends Widget<Viewport3D> {
         TextMetrics metrics = line.metrics();
         Color ink = theme.textMuted();
         canvas.drawText(line, (width() - metrics.width()) / 2,
-                (height() - metrics.height()) / 2 + metrics.ascent(), ink);
+                textRuler().centredBaseline(font, height()), ink);
     }
 
     private void startTicking() {

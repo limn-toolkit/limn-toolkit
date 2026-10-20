@@ -1222,7 +1222,7 @@ public abstract class Chart<W extends Chart<W>> extends Widget<W> {
             float textX = rtl
                     ? x + w - swatch - t.gapIcon() - m.width()
                     : x + swatch + t.gapIcon();
-            float baseline = y + (h - m.height()) / 2 + m.ascent();
+            float baseline = y + textRuler().centredBaseline(font, h);
             Color ink = !entry.visible() ? theme.disabledText()
                     : i == hoveredLegend ? theme.text() : theme.textMuted();
             canvas.drawText(line, textX, baseline, ink);
@@ -1369,7 +1369,7 @@ public abstract class Chart<W extends Chart<W>> extends Widget<W> {
                 float textX = rtl
                         ? px + panelWidth - padH - swatch - t.gapIcon() - m.width()
                         : px + padH + swatch + t.gapIcon();
-                float baseline = y + (rowHeight - m.height()) / 2 + m.ascent();
+                float baseline = y + textRuler().centredBaseline(rowFont, rowHeight);
                 canvas.drawText(nameLine, textX, baseline, theme.textMuted());
                 if (tooltipFormat == null) {
                     // The value is the row's far column, so it swaps sides with the name in the

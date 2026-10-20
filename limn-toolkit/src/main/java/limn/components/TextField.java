@@ -1006,9 +1006,13 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * two expressions that only agreed at MEDIUM: at the steps where the height floor binds
      * the locked 1&nbsp;pt {@code INK_BLEED} silently became 0.03–1.97&nbsp;pt and the preedit
      * underline landed inside the descender ink.
+     *
+     * <p>The line is placed by its capitals, as every single-line control places it
+     * ({@link limn.graphics.TextRuler#centredBaseline}), and the box hangs from that baseline by
+     * the ascent, so the caret and the bands still span the whole line.
      */
-    private float textTop(TextMetrics metrics) {
-        return (height() - metrics.height()) / 2;
+    private float textTop(TextMetrics metrics, Font font) {
+        return textRuler().centredBaseline(font, height()) - metrics.ascent();
     }
 
     /**
@@ -1114,8 +1118,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
 
     @Override
     protected float baselineOffset() {
-        TextMetrics metrics = textRuler().measure("Hg", Theme.of(this).tokensFor(this).body());
-        return textTop(metrics) + metrics.ascent();
+        return textRuler().centredBaseline(Theme.of(this).tokensFor(this).body(), height());
     }
 
     private float innerWidth(SizeTokens t) {
@@ -1367,7 +1370,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         canvas.save();
         canvas.clipRect(left - Strokes.AA_BLEED, 0,
                 inner + 2 * Strokes.AA_BLEED, height());
-        float inkTop = textTop(metrics);
+        float inkTop = textTop(metrics, f);
         float baseline = inkTop + metrics.ascent();
         float liveWidth = liveWidth(t);
         float originX = originX(t, liveWidth);
@@ -1931,7 +1934,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         float liveWidth = liveWidth(t);
         float localX = originX(t, liveWidth) + caretDisplayX(t);
         out[0] = Math.max(left, Math.min(localX, left + innerWidth(t)));
-        out[1] = textTop(metrics) - Strokes.INK_BLEED;
+        out[1] = textTop(metrics, t.body()) - Strokes.INK_BLEED;
         out[2] = Strokes.CARET;
         out[3] = metrics.height() + 2 * Strokes.INK_BLEED;
         return true;

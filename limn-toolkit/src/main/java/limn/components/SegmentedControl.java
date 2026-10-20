@@ -11,7 +11,6 @@ import limn.graphics.Color;
 import limn.graphics.Font;
 import limn.i18n.I18nString;
 import limn.graphics.ShapedText;
-import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
 import limn.input.Keys;
 import limn.internal.lang.Checks;
@@ -409,8 +408,7 @@ public final class SegmentedControl extends Widget<SegmentedControl> {
 
     @Override
     protected float baselineOffset() {
-        TextMetrics fm = textRuler().measure("Hg", Theme.of(this).tokensFor(this).body());
-        return (height() - fm.height()) / 2 + fm.ascent();
+        return textRuler().centredBaseline(Theme.of(this).tokensFor(this).body(), height());
     }
 
     /**
@@ -531,7 +529,6 @@ public final class SegmentedControl extends Widget<SegmentedControl> {
 
         Font font = t.body();
         TextRuler ruler = textRuler();
-        TextMetrics fm = ruler.measure("Hg", font);
         ShapedText.Direction neutral = direction.neutralBase();
         for (int i = 0; i < segments.size(); i++) {
             float cellLeft = cellLeft(rtl, bounds[i], bounds[i + 1]);
@@ -549,7 +546,7 @@ public final class SegmentedControl extends Widget<SegmentedControl> {
                     : i == selected ? theme.onPrimary()
                     : i == hoverIndex ? theme.text() : theme.textMuted();
             canvas.drawText(line, cellLeft + (cellWidth - textWidth) / 2,
-                    (height() - fm.height()) / 2 + fm.ascent(), ink);
+                    ruler.centredBaseline(font, height()), ink);
         }
         canvas.restore();
 

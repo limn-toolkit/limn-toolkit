@@ -11,7 +11,6 @@ import limn.graphics.Font;
 import limn.graphics.Icon;
 import limn.graphics.Path2D;
 import limn.graphics.ShapedText;
-import limn.graphics.TextMetrics;
 import limn.i18n.I18nString;
 import limn.input.Keys;
 import limn.internal.lang.Checks;
@@ -509,8 +508,7 @@ public final class Expander extends Widget<Expander> {
 
         @Override
         protected float baselineOffset() {
-            TextMetrics m = textRuler().measure("Hg", Theme.of(this).tokensFor(this).body());
-            return (height() - m.height()) / 2 + m.ascent();
+            return textRuler().centredBaseline(Theme.of(this).tokensFor(this).body(), height());
         }
 
         @Override
@@ -528,8 +526,7 @@ public final class Expander extends Widget<Expander> {
             Color ink = enabled ? theme.text() : theme.disabledText();
             Color quiet = enabled ? theme.textMuted() : theme.disabledText();
             Font font = t.body();
-            TextMetrics line = textRuler().measure("Hg", font);
-            float baseline = (height() - line.height()) / 2 + line.ascent();
+            float baseline = textRuler().centredBaseline(font, height());
 
             // From the start of reading: the arrow, the icon, the title; the summary at the end.
             float start = t.padH();

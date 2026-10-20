@@ -1190,7 +1190,7 @@ public final class VideoView extends Widget<VideoView> {
                 theme.surfaceRaised(), Strokes.BORDER, theme.outline());
         // Centred inside an already-centred pill: unchanged in either direction.
         canvas.drawText(line, left + (pillWidth - metrics.width()) / 2,
-                top + (pillHeight - metrics.height()) / 2 + metrics.ascent(), theme.text());
+                top + textRuler().centredBaseline(font, pillHeight), theme.text());
     }
 
     /**

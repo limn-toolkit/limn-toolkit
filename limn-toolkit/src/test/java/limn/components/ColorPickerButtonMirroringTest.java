@@ -79,7 +79,7 @@ class ColorPickerButtonMirroringTest extends ComponentTestBase {
         build(LayoutDirection.RTL);
         SizeTokens t = tokens();
 
-        assertEquals(WIDTH - t.padH() - t.iconBox(), chipX(paint()), EPS,
+        assertEquals(WIDTH - t.fieldPadH() - t.iconBox(), chipX(paint()), EPS,
                 "the chip leads the pair, and reading right to left the lead is the right");
     }
 
@@ -88,7 +88,7 @@ class ColorPickerButtonMirroringTest extends ComponentTestBase {
         build(LayoutDirection.LTR);
         SizeTokens t = tokens();
 
-        assertEquals(t.padH(), chipX(paint()), EPS);
+        assertEquals(t.fieldPadH(), chipX(paint()), EPS);
     }
 
     @Test
@@ -118,7 +118,7 @@ class ColorPickerButtonMirroringTest extends ComponentTestBase {
 
         // drawText places a line by its LEFT edge whichever way the line runs, so the caption's
         // own width is part of the leading x here and part of nothing at all in the other one.
-        assertEquals(WIDTH - t.padH() - t.iconBox() - t.gapIcon() - text, captionX(paint()), EPS,
+        assertEquals(WIDTH - t.fieldPadH() - t.iconBox() - t.gapIcon() - text, captionX(paint()), EPS,
                 "the caption starts where the chip's advance ends, measured from the right");
     }
 
@@ -127,7 +127,7 @@ class ColorPickerButtonMirroringTest extends ComponentTestBase {
         build(LayoutDirection.LTR);
         SizeTokens t = tokens();
 
-        assertEquals(t.padH() + t.iconBox() + t.gapIcon(), captionX(paint()), EPS);
+        assertEquals(t.fieldPadH() + t.iconBox() + t.gapIcon(), captionX(paint()), EPS);
     }
 
     @Test
@@ -154,7 +154,9 @@ class ColorPickerButtonMirroringTest extends ComponentTestBase {
         SizeTokens t = tokens();
         Frame frame = paint();
 
-        assertEquals(WIDTH - t.padH() - t.iconBox(), chipX(frame), EPS,
+        // As far in from the leading edge as from the top: the middle of the square the button
+        // asks for, and the leading item of a box a parent made wider.
+        assertEquals(WIDTH - (HEIGHT - t.iconBox()) / 2 - t.iconBox(), chipX(frame), EPS,
                 "with no caption the chip is still the leading item, and still on the lead");
         assertTrue(frame.texts().isEmpty(), "an empty caption paints no line to place");
     }
@@ -168,7 +170,7 @@ class ColorPickerButtonMirroringTest extends ComponentTestBase {
         // changed would move every widget beside it.
         build(LayoutDirection.LTR);
         SizeTokens t = tokens();
-        float expected = captionWidth(HEX) + t.iconBox() + t.gapIcon() + 2 * t.padH();
+        float expected = captionWidth(HEX) + t.iconBox() + t.gapIcon() + t.fieldPadH() + t.padH();
         float ltr = button.measure(Constraints.loose(WIDTH, HEIGHT)).width();
 
         build(LayoutDirection.RTL);

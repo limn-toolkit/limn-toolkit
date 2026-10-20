@@ -275,6 +275,24 @@ public final class DateField extends Widget<DateField> {
      * control reads as one control rather than as two fields that happen to be adjacent.
      */
     private boolean chrome = true;
+
+    /** Which end of a period a field is, if it is one: what decides its pads. */
+    enum Member {
+        /** A field on its own, or a picker's only one: the field's pad on both sides. */
+        ALONE,
+        /** The start of a period: the field's pad before the run, the dash's small gap after it. */
+        START,
+        /** The end of a period: the dash's small gap before the run, the field's pad after it. */
+        END
+    }
+
+    /**
+     * Which end of a period this field is. A period reads as one line, the first date, a dash and
+     * the second date packed at the start of the box, so the two fields meet the dash with the small
+     * gap a separator keeps rather than with the field pads that would hold them apart. Set by the
+     * picker; {@link Member#ALONE} otherwise.
+     */
+    private Member member = Member.ALONE;
     /**
      * What the picker takes before the field sees a key. Package-private and single-slotted,
      * because it is the picker's wiring and not an application's: the handler slots stay free for
@@ -1496,6 +1514,12 @@ public final class DateField extends Widget<DateField> {
         invalidate();
     }
 
+    /** The picker's, not an application's: see {@link #member}. */
+    void setMember(Member role) {
+        member = role;
+        invalidate();
+    }
+
     /** The picker's, not an application's: see {@link #keyDelegate}. */
     void setKeyDelegate(java.util.function.Consumer<KeyEvent> delegate) {
         keyDelegate = delegate;
@@ -1908,8 +1932,7 @@ public final class DateField extends Widget<DateField> {
 
     @Override
     protected float baselineOffset() {
-        TextMetrics metrics = textRuler().measure("Hg", Theme.of(this).tokensFor(this).body());
-        return (height() - metrics.height()) / 2 + metrics.ascent();
+        return textRuler().centredBaseline(Theme.of(this).tokensFor(this).body(), height());
     }
 
     @Override
@@ -1959,8 +1982,7 @@ public final class DateField extends Widget<DateField> {
                                float focus) {
         Font font = t.body();
         TextRuler ruler = textRuler();
-        TextMetrics fm = ruler.measure("Hg", font);
-        float baseline = (height() - fm.height()) / 2 + fm.ascent();
+        float baseline = ruler.centredBaseline(font, height());
         ShapedText.Direction neutral = neutralBase();
         float x = runStart(t, ruler, font, neutral);
         int slot = 0;
@@ -2002,12 +2024,43 @@ public final class DateField extends Widget<DateField> {
      */
     private float runStart(SizeTokens t, TextRuler ruler, Font font,
                            ShapedText.Direction neutral) {
+        float runWidth = runWidth(ruler, font, neutral);
+        float lead = leadingPad(t);
+        return isRightToLeft() ? Math.max(trailingPad(t), width() - lead - runWidth) : lead;
+    }
+
+    private float runWidth(TextRuler ruler, Font font, ShapedText.Direction neutral) {
         float runWidth = 0;
         for (DatePattern.Part part : parts) {
             runWidth += pieceWidth(ruler, font, neutral, part);
         }
-        float pad = t.fieldPadH();
-        return isRightToLeft() ? Math.max(pad, width() - pad - runWidth) : pad;
+        return runWidth;
+    }
+
+    /**
+     * The width the run of pieces takes as it reads now, placeholders included: what a period
+     * packs its dash against. The picker's, not an application's.
+     */
+    float runWidth() {
+        ensureParts();
+        return runWidth(textRuler(), Theme.of(this).tokensFor(this).body(), neutralBase());
+    }
+
+    /** The width the widest value this field can hold takes: what a period reserves for it. */
+    float widestRunWidth() {
+        ensureParts();
+        return textRuler().measure(widestForm.isEmpty() ? "Hg" : widestForm,
+                Theme.of(this).tokensFor(this).body()).width();
+    }
+
+    /** The room before the run, on the side reading starts from. */
+    private float leadingPad(SizeTokens t) {
+        return member == Member.END ? t.spacingSmall() : t.fieldPadH();
+    }
+
+    /** The room after the run, on the side reading ends on. */
+    private float trailingPad(SizeTokens t) {
+        return member == Member.START ? t.spacingSmall() : t.fieldPadH();
     }
 
     private float pieceWidth(TextRuler ruler, Font font, ShapedText.Direction neutral,

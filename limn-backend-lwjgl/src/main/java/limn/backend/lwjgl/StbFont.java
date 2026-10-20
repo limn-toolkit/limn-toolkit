@@ -14,6 +14,7 @@ import java.nio.file.Path;
 import static org.lwjgl.stb.STBTruetype.stbtt_FindGlyphIndex;
 import static org.lwjgl.stb.STBTruetype.stbtt_GetFontOffsetForIndex;
 import static org.lwjgl.stb.STBTruetype.stbtt_GetGlyphBitmapBox;
+import static org.lwjgl.stb.STBTruetype.stbtt_GetGlyphBox;
 import static org.lwjgl.stb.STBTruetype.stbtt_GetGlyphHMetrics;
 import static org.lwjgl.stb.STBTruetype.stbtt_GetGlyphKernAdvance;
 import static org.lwjgl.stb.STBTruetype.stbtt_GetFontVMetrics;
@@ -90,6 +91,8 @@ final class StbFont implements AutoCloseable {
     // size at a time, so a single-entry memo removes the per-call JNI hop.
     private float lastSizePx = Float.NaN;
     private float lastScale;
+    // The top of the capitals in font units, read once from the outlines on first need.
+    private int capUnits = MISSING;
     private boolean closed;
 
     // The shaper's view of this same face, built on the first run shaped WITH it and destroyed in
@@ -216,6 +219,31 @@ final class StbFont implements AutoCloseable {
             lastScale = stbtt_ScaleForMappingEmToPixels(info, sizePx);
         }
         return lastScale;
+    }
+
+    /**
+     * How far the capitals stand above the baseline at {@code sizePx}: the top of this face's H,
+     * whose flat top is the cap line in every Latin face, or, in a face with no H (one script's
+     * own face), its ascent less its descent, which centres the line box as a face without a cap
+     * line has to be.
+     */
+    float capHeight(float sizePx) {
+        if (capUnits == MISSING) {
+            capUnits = ascentUnits + descentUnits; // stb's descent is negative: ascent - |descent|
+            int glyph = glyphIndex('H');
+            if (glyph != 0) {
+                try (MemoryStack stack = MemoryStack.stackPush()) {
+                    IntBuffer x0 = stack.mallocInt(1);
+                    IntBuffer y0 = stack.mallocInt(1);
+                    IntBuffer x1 = stack.mallocInt(1);
+                    IntBuffer y1 = stack.mallocInt(1);
+                    if (stbtt_GetGlyphBox(info, glyph, x0, y0, x1, y1) && y1.get(0) > 0) {
+                        capUnits = y1.get(0);
+                    }
+                }
+            }
+        }
+        return capUnits * scaleForSize(sizePx);
     }
 
     /** Measures one line at {@code sizePx} (same units as the result). */

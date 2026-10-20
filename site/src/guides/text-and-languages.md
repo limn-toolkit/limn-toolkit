@@ -295,6 +295,12 @@ else does. The value answers everything else you would otherwise measure a prefi
 where a caret goes, which index is under an x, which boxes cover a selection, where to cut
 for an ellipsis.
 
+To stand a line in the middle of a box the way the toolkit's own controls do, take the baseline
+from the ruler, `textRuler().centredBaseline(font, boxHeight)`, and return the same number from
+`baselineOffset()` so a row aligned on baselines puts yours on the line with theirs. It centres
+the capitals rather than the whole line box: the room a face reserves above its tallest letter
+and below its deepest is never the same, so a line box centred exactly still reads high or low.
+
 ## What it does not do
 
 - **Vertical writing.** Mongolian and the vertical form of CJK need a second axis through

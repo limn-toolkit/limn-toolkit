@@ -38,7 +38,7 @@ public final class Tokens {
      * {@code default} branch.
      */
     public enum Role {
-        /** {@code spacingSmall}: 3 / 4 / 6 / 8 / 10. Tight groups, icon-to-label gaps. */
+        /** {@code spacingSmall}: 3 / 4 / 6 / 8 / 10. Tight groups; an icon beside its text takes {@code gapIcon}. */
         SMALL,
         /** {@code spacingMedium}: 6 / 9 / 12 / 16 / 20. The default gutter between controls. */
         MEDIUM,

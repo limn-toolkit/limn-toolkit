@@ -1393,7 +1393,6 @@ public final class TabbedPane extends Widget<TabbedPane> {
             float inset = t.popupRowInsetX();
             float itemH = t.popupItemHeight();
             Font font = t.body();
-            TextMetrics metrics = textRuler().measure("Hg", font);
             float side = t.tabIconSize();
             float markX = rtl ? width() - inset - t.popupMarkerCol() / 2 : inset + t.popupMarkerCol() / 2;
             float iconRoom = listIconRoom(t);
@@ -1434,7 +1433,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
                     line = textRuler().ellipsize(line, room);
                 }
                 canvas.drawText(line, rtl ? textStart - line.metrics().width() : textStart,
-                        top + (itemH - metrics.height()) / 2 + metrics.ascent(), ink);
+                        top + textRuler().centredBaseline(font, itemH), ink);
                 if (header.closable && active) {
                     float left = closeLeft(t);
                     float y = top + (itemH - side) / 2;
@@ -2586,8 +2585,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
             if (title.get().isEmpty()) {
                 return super.baselineOffset(); // no text: align on the bottom edge
             }
-            TextMetrics metrics = textRuler().measure(title.get(), Theme.of(this).tokensFor(this).body());
-            return (height() - metrics.height()) / 2 + metrics.ascent();
+            return textRuler().centredBaseline(Theme.of(this).tokensFor(this).body(), height());
         }
 
         @Override
@@ -2637,7 +2635,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
             ShapedText line = textRuler().shape(title.get(), font,
                     ShapedText.Direction.of(title.get(), neutralBase()));
             canvas.drawText(line, textLeft,
-                    (height() - metrics.height()) / 2 + metrics.ascent(), ink);
+                    textRuler().centredBaseline(font, height()), ink);
 
             if (closeShown()) {
                 float side = t.tabIconSize();

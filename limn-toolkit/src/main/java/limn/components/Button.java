@@ -40,12 +40,24 @@ import java.util.Objects;
  * pass into a local and threaded down; resolving twice inside one pass is how measure and
  * paint end up disagreeing about where the label sits.
  *
- * <p>The icon-and-caption block is centred, so a text-only button draws the same coordinates
- * whichever way its subtree reads. What the direction decides is the <em>order</em> of the two
- * things inside that block: the icon is {@linkplain #setIcon(Icon) leading}, which is the block's
- * left end reading left to right and its right end reading right to left. Whether the glyph
- * drawn inside that square turns around as well is the caller's to say &mdash; see
- * {@link Icon.Mirroring}.
+ * <p>A caption alone, or an icon alone, is centred, so a text-only button draws the same
+ * coordinates whichever way its subtree reads. An icon beside a caption is
+ * {@linkplain #setIcon(Icon) leading}: it stands from the edge reading starts from by the inset a
+ * text field's or a combo box's leading icon keeps, so icons line up down a form, and the caption
+ * is centred in the rest of the button inside the button's own padding, which at the width the
+ * button asks for puts it the icon gap away. Reading right to left the whole of that is mirrored.
+ * Whether the glyph drawn inside the square turns around as well is the caller's to say &mdash;
+ * see {@link Icon.Mirroring}.
+ *
+ * <p><b>An icon with no caption makes a square button</b>: as wide as it is tall, which is the
+ * control height of its {@link ControlSize}, 24, 28, 32, 40 or 50 points, the icon in the middle.
+ * That is the width it asks for, and like any widget's it is the parent's to grant: a button that
+ * should be wider or narrower says so with {@link #setMinWidth} or {@link #setMaxWidth}, both
+ * together for an exact width, and the icon stays in the middle of the box it is given. Those
+ * bounds are the one way to say it, for this button as for any other widget; with none set, the
+ * square is the default. At the smallest step the square is 24 points, the pointer target this
+ * toolkit keeps every control at or above. A button with a caption, beside an icon or not, asks
+ * for its caption's width and padding as before.
  */
 public final class Button extends Widget<Button> {
 
@@ -239,6 +251,28 @@ public final class Button extends Widget<Button> {
         return t.iconBox() + (shown().text().isEmpty() ? 0 : t.gapIcon());
     }
 
+    /** Whether the content is an icon and a caption, the one shape whose two sides differ. */
+    private boolean iconBesideCaption() {
+        return icon != null && !shown().text().isEmpty();
+    }
+
+    /** Whether the content is an icon and nothing else, the shape that asks for a square. */
+    private boolean iconAlone() {
+        return icon != null && shown().text().isEmpty();
+    }
+
+    /**
+     * The room on the side reading starts from. Beside a caption the icon stands from the edge as
+     * a field's or a combo's leading icon does ({@code fieldPadH}), and the caption keeps the
+     * button's own padding on its side: the caption's wide padding on the icon's side too set the
+     * icon nearly twice as far in as the same icon in a combo beside it. A caption alone keeps
+     * {@code padH} on both sides; an icon alone asks for a square instead and is centred in it, so
+     * no padding of this kind reaches its measure.
+     */
+    private float leadingPad(SizeTokens t) {
+        return iconBesideCaption() ? t.fieldPadH() : t.padH();
+    }
+
     /**
      * The application's response to the user pressing the button: a click, Space or Enter while
      * focused, an assistive technology's press. Not called while disabled. A press is announced
@@ -421,20 +455,23 @@ public final class Button extends Widget<Button> {
         TextMetrics metrics = caption(textRuler(), t.body()).metrics();
         // resolvedHeight is max(controlHeight, lineHeight + 2*padV): the box binds at every
         // step, which is what absorbed the undocumented +4 this used to carry.
-        return constraints.constrain(
-                metrics.width() + iconAdvance(t) + 2 * t.padH(),
-                t.resolvedHeight(metrics.lineHeight()));
+        float height = t.resolvedHeight(metrics.lineHeight());
+        // An icon alone asks for a square: its own height, which is the step's control height
+        // unless a face taller than the floor grew it. The caption's padding on both sides of
+        // an 18 pt icon made a 58 by 32 slab of it at MEDIUM. A bound set on the button wins.
+        float width = iconAlone() ? height
+                : leadingPad(t) + iconAdvance(t) + metrics.width() + t.padH();
+        return constraints.constrain(width, height);
     }
 
     /** The baseline BASELINE rows align on, the very expression {@link #onPaint} draws with. */
     @Override
     protected float baselineOffset() {
         SizeTokens t = Theme.of(this).tokensFor(this);
-        // The same shaped value the paint draws, for exactly the reason this method exists: two
+        // The same expression the paint draws with, for exactly the reason this method exists: two
         // opinions on one band are two numbers a BASELINE row can be aligned to. Nothing read off
         // it here is horizontal, so this expression is the same in both directions.
-        TextMetrics metrics = caption(textRuler(), t.body()).metrics();
-        return (height() - metrics.height()) / 2 + metrics.ascent();
+        return textRuler().centredBaseline(t.body(), height());
     }
 
     /**
@@ -519,11 +556,25 @@ public final class Button extends Widget<Button> {
 
         float advance = iconAdvance(t);
         float block = advance + metrics.width();
-        // The block is CENTRED and stays exactly where it is under mirroring: a centre is the
-        // same number in both directions, which is what makes a text-only button — the
-        // overwhelming majority — render identically either way. Only the order of the two
-        // things inside the block changes, and that is the two placements below.
+        // A caption alone or an icon alone is CENTRED and stays exactly where it is under
+        // mirroring: a centre is the same number in both directions, which is what makes a
+        // text-only button — the overwhelming majority — render identically either way.
         float blockX = (width() - block) / 2;
+        float textX;
+        if (iconBesideCaption()) {
+            // An icon beside a caption stands at the field inset from the edge reading starts
+            // from, wherever the button's width puts its other end, so it lines up with the icon
+            // of a field or a combo above or below it; the caption is centred in what is left
+            // between the icon's gap and the button's own padding, which at the width the button
+            // asks for is exactly that gap. Mirrored as a whole reading right to left.
+            float lead = leadingPad(t) + advance;
+            float room = Math.max(0, width() - lead - t.padH() - metrics.width());
+            blockX = rtl ? width() - leadingPad(t) - block : leadingPad(t);
+            textX = rtl ? width() - lead - metrics.width() - room / 2 : lead + room / 2;
+        } else {
+            // The caption takes the rest of the block; with no icon the advance is zero.
+            textX = rtl ? blockX : blockX + advance;
+        }
         if (icon != null) {
             float iconSize = t.iconBox();
             // Leading, written as a coordinate: the block's own left edge reading left to right,
@@ -535,11 +586,7 @@ public final class Button extends Widget<Button> {
             icon.paint(canvas, iconX, (height() - iconSize) / 2, iconSize, ink, theme.isDark(),
                     rtl && iconMirroring == Icon.Mirroring.IN_RTL);
         }
-        // The caption takes the rest of the block: past the gutter reading left to right, and
-        // from the block's own left edge reading right to left, where the gutter is at the far
-        // end. With no icon the advance is zero and the two arms are the same number.
-        float textX = rtl ? blockX : blockX + advance;
-        float baseline = (height() - metrics.height()) / 2 + metrics.ascent();
+        float baseline = textRuler().centredBaseline(font, height());
         canvas.drawText(line, textX, baseline, ink);
         if (AccessLetters.shownIn(this)) {
             MenuInk.underlineMnemonic(canvas, line, shown().index(), textX, baseline, ink);

@@ -46,7 +46,10 @@ import java.util.function.Consumer;
  *
  * <p>The caption defaults to the colour's hex and follows it. {@link #setText} replaces it
  * with anything else, including nothing: a button with an empty caption is chrome and a
- * chip, which is the form a dense inspector column wants.
+ * chip, which is the form a dense inspector column wants. It is then square, as a
+ * {@link Button} holding only an icon is: as wide as it is tall, with the chip in the middle, and
+ * {@link #setMinWidth} or {@link #setMaxWidth} make it wider or narrower. In a wider box the chip
+ * keeps the leading edge, as far from it as from the top.
  *
  * <p>Not a {@link Button} subclass: what it draws is a value, not a label, and the two
  * disagree about almost every line of paint. It behaves like one (hover, focus ring,
@@ -385,6 +388,16 @@ public final class ColorPickerButton extends Widget<ColorPickerButton> {
     }
 
     /**
+     * The room before the chip: beside a caption the chip stands from the edge as a field's leading
+     * icon does, as a {@link Button}'s icon does, and the caption keeps the button padding on its
+     * own side. A chip alone stands as far from that edge as from the top, which centres it in the
+     * square it asks for and keeps it the leading item when a parent makes the box wider.
+     */
+    private float leadingPad(SizeTokens t, float height) {
+        return text().isEmpty() ? (height - t.iconBox()) / 2 : t.fieldPadH();
+    }
+
+    /**
      * What the shaper should fall back to for a caption with nothing strong in it, given the
      * direction this pass already resolved.
      *
@@ -401,17 +414,18 @@ public final class ColorPickerButton extends Widget<ColorPickerButton> {
     protected Size onMeasure(Constraints constraints) {
         SizeTokens t = Theme.of(this).tokensFor(this);
         TextMetrics metrics = textRuler().measure(text(), t.body());
-        return constraints.constrain(
-                metrics.width() + chipAdvance(t) + 2 * t.padH(),
-                t.resolvedHeight(metrics.lineHeight()));
+        float height = t.resolvedHeight(metrics.lineHeight());
+        // A chip alone asks for a square, as an icon alone in a Button does.
+        float width = text().isEmpty() ? height
+                : t.fieldPadH() + chipAdvance(t) + metrics.width() + t.padH();
+        return constraints.constrain(width, height);
     }
 
     /** The baseline BASELINE rows align on, the expression {@link #onPaint} draws with. */
     @Override
     protected float baselineOffset() {
         SizeTokens t = Theme.of(this).tokensFor(this);
-        TextMetrics metrics = textRuler().measure(text(), t.body());
-        return (height() - metrics.height()) / 2 + metrics.ascent();
+        return textRuler().centredBaseline(t.body(), height());
     }
 
     /** The focus ring is drawn outside the box; damage has to know. See {@link Button}. */
@@ -441,12 +455,14 @@ public final class ColorPickerButton extends Widget<ColorPickerButton> {
         canvas.fillRoundRectWithBorder(0, 0, w, h, radius, fill, Strokes.BORDER, theme.outline());
 
         float chip = t.iconBox();
+        float chipY = (h - chip) / 2;
         // The chip is the leading item of the pair, so its left edge is one pad in from the
         // left reading one way and one chip further than that from the right reading the other.
-        paintChip(canvas, t, theme, rtl ? w - t.padH() - chip : t.padH(),
-                (h - chip) / 2, chip, chip);
+        float lead = leadingPad(t, h);
+        paintChip(canvas, t, theme, rtl ? w - lead - chip : lead, chipY, chip, chip);
 
         String caption = text();
+
         if (!caption.isEmpty()) {
             Font font = t.body();
             ShapedText line = textRuler().shape(caption, font,
@@ -456,9 +472,9 @@ public final class ColorPickerButton extends Widget<ColorPickerButton> {
             // the caption's leading x is expressed as one: the chip's advance in from the
             // trailing pad, less the line's own width.
             float captionX = rtl
-                    ? w - t.padH() - chipAdvance(t) - metrics.width()
-                    : t.padH() + chipAdvance(t);
-            canvas.drawText(line, captionX, (h - metrics.height()) / 2 + metrics.ascent(),
+                    ? w - lead - chipAdvance(t) - metrics.width()
+                    : lead + chipAdvance(t);
+            canvas.drawText(line, captionX, textRuler().centredBaseline(font, h),
                     isEnabled() ? theme.text() : theme.disabledText());
         }
 

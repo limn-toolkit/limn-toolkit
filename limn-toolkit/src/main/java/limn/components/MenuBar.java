@@ -12,7 +12,6 @@ import limn.graphics.Color;
 import limn.graphics.Font;
 import limn.graphics.Rect;
 import limn.graphics.ShapedText;
-import limn.graphics.TextMetrics;
 import limn.i18n.I18n;
 import limn.input.Keys;
 import limn.scene.Change;
@@ -637,8 +636,7 @@ public final class MenuBar extends Widget<MenuBar> {
         if (entries.isEmpty()) {
             return super.baselineOffset(); // no titles: a bare strip aligns on its bottom edge
         }
-        TextMetrics fm = textRuler().measure("Hg", Theme.of(this).tokensFor(this).body());
-        return (height() - fm.height()) / 2 + fm.ascent();
+        return textRuler().centredBaseline(Theme.of(this).tokensFor(this).body(), height());
     }
 
     // ------------------------------------------------------------------ paint
@@ -652,7 +650,6 @@ public final class MenuBar extends Widget<MenuBar> {
         float ruleY = height() - Strokes.HALF_PIXEL_INSET;
         canvas.drawLine(0, ruleY, width(), ruleY, Strokes.HAIRLINE, theme.outline());
         Font font = t.body();
-        TextMetrics fm = textRuler().measure("Hg", font);
         float chip = t.menuBarChipInset();
         // One resolution for the whole pass, beside the row, for the same reason.
         boolean rtl = isRightToLeft();
@@ -680,7 +677,7 @@ public final class MenuBar extends Widget<MenuBar> {
             float textX = rtl
                     ? x + w - t.menuBarPadH() - line.metrics().width()
                     : x + t.menuBarPadH();
-            float baseline = (height() - fm.height()) / 2 + fm.ascent();
+            float baseline = textRuler().centredBaseline(font, height());
             canvas.drawText(line, textX, baseline, ink);
             // The rule takes its edges off the painted line's own shaping and copes with a
             // right-to-left run itself: the mirrored left edge is the whole of what it needs, and

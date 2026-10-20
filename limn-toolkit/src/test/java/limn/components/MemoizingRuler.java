@@ -24,6 +24,8 @@ final class MemoizingRuler implements TextRuler {
     private String lastText;
     private Font lastFont;
     private TextMetrics last;
+    private Font capFont;
+    private float cap;
 
     @Override
     public TextMetrics measure(String text, Font font) {
@@ -33,5 +35,19 @@ final class MemoizingRuler implements TextRuler {
             lastFont = font;
         }
         return last;
+    }
+
+    /**
+     * The cap height a centred baseline is placed by, remembered as the shipped ruler reads it once
+     * per face: the default asks {@code measure("")}, which would evict the line this memo holds
+     * on every call and allocate a value per blink.
+     */
+    @Override
+    public float capHeight(Font font) {
+        if (!font.equals(capFont)) {
+            cap = ComponentTestBase.RULER.capHeight(font);
+            capFont = font;
+        }
+        return cap;
     }
 }

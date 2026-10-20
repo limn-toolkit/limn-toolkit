@@ -2231,3 +2231,87 @@ Three adversarial reviews (visual, engineering, completeness) were applied. What
 - **§8.1(e)'s test inventory gains the six missing files** (`ScrollBarTest`, `TabScrollOverflowTest`, `TabbedPaneFocusTest`, `TextFieldImeTest`, `TextAreaImeTest`, `TransitionIntegrationTest`), and §10.2 gains **#21**, the per-step preedit assertion that makes §7.11 trap 3's deferral executable; it fails today.
 - **§10.2 grows from 21 to 26 tests**, including the ink-fraction monotonicity (#3b) that revision 1's own table would have failed, the hit-target reachability (#20) the height ramp now depends on, and the locked-pen ratio bound inside #17.
 - **Two open questions closed by arithmetic** (the check-mark pen, the XLARGE Checkbox clamp) and **two new ones opened** by the fixes: the phase-1 `hitOutset()` scope, and un-`final`ing `Padding` for the `Token*` containers.
+
+## Note, 2026-10-20: single-line text is centred by its cap height
+
+Trap 6 of §7 gave every single-line control the baseline `(height − metrics.height())/2 + ascent`,
+which centres the line box. The owner read the Showcase's combo text as sitting high, and a
+measurement on the real backend agreed: in a field, a combo and a button the capitals stood above
+the box centre at every step, by 0.10 to 0.32 pt on average at 1x and 0.20 to 0.62 pt at 2x, the
+worst box phase reaching a whole device pixel (XLARGE, 2x). Two causes add up: Roboto reserves more
+above its capitals than below its baseline, so a centred line box puts the capitals about 0.014 em
+high, and the canvas rounds the baseline to a whole device pixel wherever the box falls.
+
+The rule is now `TextRuler.centredBaseline(font, height) = (height + capHeight)/2`, with
+`capHeight` the top of the primary face's H (the face whose ascent and descent the line carries).
+A ruler with no outlines answers `ascent − descent`, which is exactly the old expression, so every
+fake ruler's numbers are unchanged. Every control that centres one line in a box uses it, paint
+and `baselineOffset()` alike: Button, TextField and its subclasses, ComboBox (field, hint, chips,
+list rows), DateField, DatePicker's dash, CalendarView, Spinner, SegmentedControl, Checkbox,
+RadioButton, ColorPickerButton, MenuBar, PopupMenu, TabbedPane, Expander, Badge, Avatar, Table,
+the chart legend and tooltip rows, the scene's tooltip and the two placeholders. Label and
+TextArea keep their top-anchored lines. Measured after: the mean offset is within 0.12 device px of
+the centre at every step and scale, and the worst phase is the half pixel the rounding owes
+(`ControlInkPixelTest`). Ideographs from the CJK fallback face centre within a third of a point;
+Arabic letters, whose tails hang below the shared baseline, read about 1.5 pt low, which is the
+face's design and not this rule's.
+
+## Note, 2026-10-20: one gap between an icon and its text
+
+The owner found a button's icon too far from its caption next to a combo's, whose gap he read as
+right. Measured ink to ink with the bundled check mark, a MEDIUM button stood 11.6 pt from its
+caption and a combo 9.3 pt: the button and a field's leading icon took `gapIcon` (5 / 6 / 8 / 9 /
+11) while the combo, its chips and a menu row took `spacingSmall` (3 / 4 / 6 / 8 / 10), a label its
+`gapLabel` and a tab its `tabIconGap` (both 4 / 5 / 6 / 8 / 10). `gapIcon` is now 4 / 5 / 6 / 8 /
+10, the value most of them already had, and every icon beside its text takes it: Button,
+TextField's leading icon, ComboBox (field, list rows, chips), PopupMenu rows, Label, Expander,
+ColorPickerButton, the chart legend and the table's sort mark. MEDIUM moves 8 to 6 for the button
+and the field, and the combo's two dense steps gain a point (3 at XSMALL was the 0.27 em §3.4
+refused for text-adjacent gaps). A `TabbedPane` tab keeps `tabIconGap`, equal at every step, and a
+`Badge` its own smaller mark gap inside its pill. After: the three controls agree within a device
+pixel at every step, scale and direction (`ControlInkPixelTest`), the MEDIUM check mark standing
+8.8 to 9.9 pt from the text in all three, the spread being the pixel grid's. The tables above keep
+the old row as written; the search field's leading inset of §7.10 is now 24 / 29 / 34 / 41 / 50.
+
+**Amended the same day:** the gap was equal but the owner still saw the button's icon far from its
+edge: 23 px from the button's edge at 1x against 13.5 px from a combo's, because the button kept
+its caption padding `padH` (20 at MEDIUM) on the icon's side. An icon beside a caption now stands
+`fieldPadH` from the edge reading starts from (12 at MEDIUM), the inset a field's and a combo's
+leading icon keep, at the button's own width and stretched wider; the caption keeps `padH` on its
+own side and is centred in what is left, which at the button's own width is exactly `gapIcon`
+past the icon. A caption alone and an icon alone keep `padH` on both sides and stay centred.
+`ColorPickerButton`'s chip beside a caption follows the same rule. The button's measured width
+loses `padH − fieldPadH` (8 pt at MEDIUM); edge to icon ink now equals the combo's within a device
+pixel at every step, scale and direction (`ControlInkPixelTest`).
+
+## Note, 2026-10-20: an icon-only button is square
+
+§7.1 measured every button as its content plus `padH` on each side, so a button holding only an
+icon was 58 × 32 at MEDIUM, an 18 pt icon 20 pt from each edge. The owner decided that a button
+with an icon and no caption is square by default, and that whoever wants another width can have it.
+It now asks for its own height as its width: the control height of its step, 24 / 28 / 32 / 40 /
+50, unless a face taller than the floor grew the height, in which case the width follows it. The
+icon stays in the middle. `ColorPickerButton` with an empty caption, a chip and no text, follows
+the same rule; in a box a parent made wider its chip keeps the leading edge, as far from it as from
+the top. A button with a caption, with or without an icon, and a button with neither are measured as
+before. `MediaControls`' transport buttons were already `controlHeight` squares, so the toolkit's
+icon buttons now agree. The XSMALL square is 24, exactly `MIN_HIT_TARGET`, so no step falls below
+the floor §4 keeps.
+
+The default comes from the size row the theme hands the button (`Theme.tokensFor`), and the
+adjustment is `setMinWidth` / `setMaxWidth`, which every widget already has: wider with the first,
+narrower with the second, an exact width with both, and the icon centred in whatever box results
+(`IconOnlyButtonTest`, `ControlInkPixelTest`). Rejected:
+
+- **A setter on `Button`** (an icon-only width or a horizontal padding): it would be a second way
+  to say what the width bounds already say, for one widget out of all of them.
+- **A new token in `SizeTokens`** equal to `controlHeight`: the decision is a relation to the
+  height, and a separate column would write down the coincidence of two numbers rather than the
+  rule, free to drift from the height it is meant to equal. It would not be a knob either, since
+  no application can change a row. (`fieldTrailing` is kept apart from `controlHeight` for the
+  opposite reason: it is expected to diverge.)
+- **A value in the palette** (`Theme.Builder`, `ThemeFormat`, the theme editor): a palette carries
+  no metric anything measures from, which is what lets a palette switch repaint without measuring
+  again (`Theme.tokens`, `ThemeShapeTest`). Carrying a width would make a switch a relayout, a
+  colour well's switch on every frame of a drag included, and would give the saved format its
+  first size key. Left to the owner if an application-wide width is wanted.

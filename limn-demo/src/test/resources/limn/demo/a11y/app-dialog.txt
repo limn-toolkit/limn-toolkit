@@ -64,7 +64,7 @@
  63     button "Filter" [disabled, expandable, has-popup] collapsed
  64     button "Mark as paid" [disabled]
  65     button "New order" [disabled, offscreen]
- 66     table "Orders" (explicit) [disabled] selection=multiple scroll v=0% view 20% h=0% view 68% table 48x7
+ 66     table "Orders" (explicit) [disabled] selection=multiple scroll v=0% view 20% h=0% view 67% table 48x7
  67       group "" [disabled]
  68         column header "Order" [disabled] cell header,0
  69         column header "Customer" [disabled] cell header,1
@@ -157,7 +157,7 @@
 156         cell "48 orders" [disabled] cell footer,1
 157         cell "$106,914.00" [disabled, offscreen] cell footer,5
 158       scroll bar "" [disabled, vertical] value=0 [0..1610 step 406]
-159       scroll bar "" [disabled, horizontal] value=0 [0..257 step 535]
+159       scroll bar "" [disabled, horizontal] value=0 [0..261 step 535]
 160     scroll pane "" [disabled, hidden, offscreen] scroll none
 161       label "Order #1089" [disabled, hidden, offscreen]
 162       button "Close" (explicit) desc "Close" [disabled, hidden, offscreen]

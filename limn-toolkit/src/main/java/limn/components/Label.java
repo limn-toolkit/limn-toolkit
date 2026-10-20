@@ -489,7 +489,7 @@ public final class Label extends Widget<Label> {
 
     /** Room the text itself gets: the box less the icon and its gap. */
     private float textWidth(SizeTokens t, Font f) {
-        return Math.max(0, width() - (icon == null ? 0 : iconBox(t, f) + t.gapLabel()));
+        return Math.max(0, width() - (icon == null ? 0 : iconBox(t, f) + t.gapIcon()));
     }
 
     /**
@@ -831,7 +831,7 @@ public final class Label extends Widget<Label> {
         TextRuler ruler = textRuler();
         Font f = effectiveFont(t);
         TextMetrics line = ruler.measure("Hg", f);
-        float iconSpace = icon == null ? 0 : iconBox(t, f) + t.gapLabel();
+        float iconSpace = icon == null ? 0 : iconBox(t, f) + t.gapIcon();
         // The row is the line box whether or not there is an icon. The icon square is
         // deliberately larger and overhangs (class note); letting it drive the height here is
         // what made a mixed form column ragged.
@@ -886,7 +886,7 @@ public final class Label extends Widget<Label> {
         // resolutions that disagreed inside one paint would draw the text under the icon.
         boolean rtl = isRightToLeft();
         float iconBox = icon == null ? 0 : iconBox(t, f);
-        float iconSpace = icon == null ? 0 : iconBox + t.gapLabel();
+        float iconSpace = icon == null ? 0 : iconBox + t.gapIcon();
         // Physical left edge of the text region. The icon gutter is on the side reading starts
         // on, so left to right the text starts past it, and right to left the gutter is at the
         // far end and the text region already begins at the box's own left edge. Only one of the

@@ -328,7 +328,7 @@ public final class Checkbox extends Widget<Checkbox> {
             float labelX = rtl
                     ? left - t.gapLabel() - metrics.width()
                     : left + indicatorWidth(t) + t.gapLabel();
-            float baseline = (height() - metrics.height()) / 2 + metrics.ascent();
+            float baseline = textRuler().centredBaseline(t.body(), height());
             canvas.drawText(line, labelX, baseline, ink);
             if (AccessLetters.shownIn(this)) {
                 MenuInk.underlineMnemonic(canvas, line, shown().index(), labelX, baseline, ink);
@@ -373,8 +373,7 @@ public final class Checkbox extends Widget<Checkbox> {
             return super.baselineOffset();
         }
         SizeTokens t = Theme.of(this).tokensFor(this);
-        TextMetrics metrics = labelLine(t).metrics();
-        return (height() - metrics.height()) / 2 + metrics.ascent();
+        return textRuler().centredBaseline(t.body(), height());
     }
 
     /**

@@ -7232,7 +7232,6 @@ public final class Scene {
         TooltipStyle style = supplier.apply(tooltipStep());
         limn.graphics.Font font = style.font();
         limn.graphics.ShapedText line = tooltipLine(font);
-        limn.graphics.TextMetrics fm = textRuler().measure("Hg", font);
         float x = rect.x();
         float y = rect.y();
         float w = rect.width();
@@ -7251,7 +7250,7 @@ public final class Scene {
         float textX = tooltipDirection().isRightToLeft()
                 ? x + w - style.padH() - line.metrics().width()
                 : x + style.padH();
-        canvas.drawText(line, textX, y + (h - fm.height()) / 2 + fm.ascent(), style.text());
+        canvas.drawText(line, textX, y + textRuler().centredBaseline(font, h), style.text());
         canvas.restore();
         paintedTooltipRect = rect;
         paintedTooltipReach = style.shadowReach();

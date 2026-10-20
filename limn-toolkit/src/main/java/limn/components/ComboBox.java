@@ -1929,15 +1929,14 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
 
     /** The room an icon takes before a text, with its gap: none when no item has an icon. */
     private float iconRoom(SizeTokens t) {
-        return icons.isEmpty() ? 0 : t.fieldIcon() + t.spacingSmall();
+        return icons.isEmpty() ? 0 : t.fieldIcon() + t.gapIcon();
     }
 
     /** Mixed-step rows align on this, not on the box; see {@code Flex.CrossAlignment.BASELINE}. */
     @Override
     protected float baselineOffset() {
         SizeTokens t = Theme.of(this).tokensFor(this);
-        TextMetrics metrics = textRuler().measure(selectedText(), t.body());
-        return (height() - metrics.height()) / 2 + metrics.ascent();
+        return textRuler().centredBaseline(t.body(), height());
     }
 
     /**
@@ -1995,10 +1994,9 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             return; // the chips stand for the selection, drawn by the strip above this
         }
         String label = selectedText();
-        // The vertical band stays the measured one, because that is what baselineOffset()
-        // reports and a row aligned on a baseline the paint does not use is a row out of line.
-        // Only the horizontal placement needs the shaped run.
-        TextMetrics metrics = textRuler().measure(label, font);
+        // The baseline is the one baselineOffset() reports, because a row aligned on a baseline
+        // the paint does not use is a row out of line. Only the horizontal placement needs the
+        // shaped run.
         Color ink = isEnabled() ? theme.text() : theme.disabledText();
         canvas.save();
         // The band that keeps the label off the chevron: its variable edge is the one reading
@@ -2037,7 +2035,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         float textX = rtl ? width() - t.fieldPadH() - lead - line.metrics().width()
                 : t.fieldPadH() + lead;
         canvas.drawText(line, textX,
-                (height() - metrics.height()) / 2 + metrics.ascent(), ink);
+                textRuler().centredBaseline(font, height()), ink);
         canvas.restore();
         paintChevron(canvas, theme, t, rtl);
     }
@@ -2046,12 +2044,11 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     private void paintHint(Canvas canvas, Theme theme, SizeTokens t, boolean rtl, float lead) {
         Font font = t.body();
         String hint = placeholder.get();
-        TextMetrics metrics = textRuler().measure(hint, font);
         canvas.save();
         canvas.clipRect(rtl ? t.comboTextClip() : 0, 0, width() - t.comboTextClip(), height());
         ShapedText line = textRuler().shape(hint, font, ShapedText.Direction.of(hint, neutralBase()));
         float x = rtl ? width() - t.fieldPadH() - lead - line.metrics().width() : t.fieldPadH() + lead;
-        canvas.drawText(line, x, (height() - metrics.height()) / 2 + metrics.ascent(),
+        canvas.drawText(line, x, textRuler().centredBaseline(font, height()),
                 isEnabled() ? theme.textMuted() : theme.disabledText());
         canvas.restore();
     }
@@ -2661,7 +2658,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             SizeTokens t = Theme.of(this).tokensFor(ComboBox.this);
             float text = textRuler().measure(items.get(item).get(), t.body()).width();
             Icon icon = iconOfItem(item);
-            float w = 2 * chipPadH(t) + text + (icon != null ? t.fieldIcon() + t.spacingSmall() : 0);
+            float w = 2 * chipPadH(t) + text + (icon != null ? t.fieldIcon() + t.gapIcon() : 0);
             return constraints.constrain(w, constraints.maxHeight());
         }
 
@@ -2683,7 +2680,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
                 float ico = t.fieldIcon();
                 icon.paint(canvas, rtl ? width() - pad - ico : pad, (height() - ico) / 2, ico, ink,
                         theme.isDark(), rtl && mirrorsIconOfRow(item));
-                x += ico + t.spacingSmall();
+                x += ico + t.gapIcon();
             }
             Font font = t.body();
             float room = Math.max(0, width() - x - pad);
@@ -2692,9 +2689,8 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             if (line.metrics().width() > room) {
                 line = textRuler().ellipsize(line, room);
             }
-            TextMetrics metrics = textRuler().measure("Hg", font);
             canvas.drawText(line, rtl ? width() - x - line.metrics().width() : x,
-                    (height() - metrics.height()) / 2 + metrics.ascent(), ink);
+                    textRuler().centredBaseline(font, height()), ink);
         }
     }
 
@@ -2729,9 +2725,8 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             Font font = t.label();
             String text = text();
             ShapedText line = textRuler().shape(text, font, ShapedText.Direction.of(text, neutralBase()));
-            TextMetrics metrics = textRuler().measure("Hg", font);
             canvas.drawText(line, (width() - line.metrics().width()) / 2,
-                    (height() - metrics.height()) / 2 + metrics.ascent(),
+                    textRuler().centredBaseline(font, height()),
                     enabled ? theme.textMuted() : theme.disabledText());
         }
     }
@@ -2977,7 +2972,6 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
                     Strokes.BORDER, theme.outline());
 
             Font font = t.body();
-            TextMetrics metrics = textRuler().measure("Hg", font);
             // The two row columns and the label's band, composed once: they are the same for
             // every row, and computing them per row is how three copies of one expression get
             // back in.
@@ -3039,7 +3033,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
                 }
                 canvas.drawText(line, rtl ? textStart - lead - line.metrics().width()
                                 : textStart + lead,
-                        top + (itemH - metrics.height()) / 2 + metrics.ascent(),
+                        top + textRuler().centredBaseline(font, itemH),
                         theme.text());
                 canvas.restore();
             }
@@ -3052,7 +3046,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
                 canvas.save();
                 canvas.clipRect(bandX, top, bandW, itemH);
                 canvas.drawText(line, rtl ? textStart - line.metrics().width() : textStart,
-                        top + (itemH - metrics.height()) / 2 + metrics.ascent(),
+                        top + textRuler().centredBaseline(font, itemH),
                         theme.textMuted());
                 canvas.restore();
             }
