@@ -54,7 +54,7 @@ class DragAutoScrollTest {
     private float sceneHeight = H;
 
     /** A box a fixed size that drags a card when it holds one and takes cards when it is a shelf. */
-    private final class Box extends Widget<Box> {
+    private class Box extends Widget<Box> {
         final String name;
         final float w;
         final float h;
@@ -436,6 +436,46 @@ class DragAutoScrollTest {
         float stopped = page.offsetY();
         frames(0.5, 60);
         assertEquals(stopped, page.offsetY(), "gone from the window, nothing scrolls");
+    }
+
+    @Test
+    void aTargetThatThrowsOnceDuringAStepLeavesLaterDragsScrolling() {
+        // An application's onDragOver meets a state it did not expect once, while the page
+        // scrolls under the pointer: the scene drops the ticker that threw. Until 2026-10-20 the
+        // flag that said the ticker was registered stayed set, and no later drag in that window
+        // ever scrolled anything again.
+        Box logo = new Box("logo", 96, 96);
+        logo.card = "logo";
+        boolean[] armed = {true};
+        ScrollView[] holder = new ScrollView[1];
+        Box area = new Box("area", W, 1000) {
+            @Override
+            protected void onDragOver(DragEvent event) {
+                if (armed[0] && holder[0].offsetY() > 0) {
+                    armed[0] = false;
+                    throw new IllegalStateException("the application did not expect this once");
+                }
+                super.onDragOver(event);
+            }
+        };
+        area.takes = true;
+        ScrollView page = new ScrollView(new Sheet(W, 1200).put(logo, 12, 20).put(area, 0, 200, W, 1000));
+        holder[0] = page;
+        show(page);
+        press(logo);
+        move(60, H - 4);
+        frames(1, 60);
+        assertFalse(armed[0], "the target threw during a step");
+        release(60, H - 4);
+        page.scrollTo(0, 0);
+        frames(0.1, 60);
+        assertEquals(0, page.offsetY());
+
+        press(logo);
+        move(60, H - 4);
+        frames(1, 60);
+        assertTrue(page.offsetY() > 0, "the next drag scrolls the page again: " + page.offsetY());
+        release(60, H - 4);
     }
 
     @Test

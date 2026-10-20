@@ -5541,11 +5541,19 @@ public final class Scene {
 
     /** Whether {@link #autoScroll} is registered: it stops itself when it finds nothing to scroll. */
     private boolean autoScrollArmed;
-    /** One instance, so arming twice registers it once. */
+    /**
+     * One instance, so arming twice registers it once. A step runs the application's code (each
+     * target's {@code onDragOver}, each scroll listener): one that throws has the ticker dropped,
+     * and the flag goes with it, or no later drag in this window would arm it again.
+     */
     private final Ticker autoScroll = dt -> {
-        boolean more = autoScrollStep(dt);
-        if (!more) {
-            autoScrollArmed = false;
+        boolean more = false;
+        try {
+            more = autoScrollStep(dt);
+        } finally {
+            if (!more) {
+                autoScrollArmed = false;
+            }
         }
         return more;
     };
