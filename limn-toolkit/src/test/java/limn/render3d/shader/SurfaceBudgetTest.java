@@ -119,4 +119,15 @@ class SurfaceBudgetTest {
         Expr.Loop shared = counting(Expr.Lit.of(0f), 600, 0.01f);
         assertDoesNotThrow(() -> emitting(shared).withDiffuseResponse(shared));
     }
+
+    @Test
+    void aLoopReadForSeveralOfItsValuesIsCountedOnce() {
+        Expr.Loop two = Expr.Loop.of(List.of(Expr.Lit.of(0f), Expr.Lit.of(1f)), 600,
+                s -> List.of(add(s.get(0), Expr.Lit.of(0.001f)), add(s.get(1), Expr.Lit.of(0.002f))));
+        // Its first value in one output and its second in another: one loop of 600.
+        assertDoesNotThrow(() -> emitting(two, two.value(1)));
+        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+                () -> emitting(two, two.value(1), counting(Expr.Lit.of(0f), 600, 0.003f)));
+        assertTrue(refused.getMessage().contains("1200"), refused.getMessage());
+    }
 }

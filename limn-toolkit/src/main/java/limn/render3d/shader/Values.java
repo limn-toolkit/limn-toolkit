@@ -37,7 +37,7 @@ final class Values {
             return found;
         }
         if (node instanceof Expr.Loop loop) {
-            return type(loop.initial(), known);
+            return type(loop.initial().get(loop.index()), known);
         }
         return node.type();
     }
@@ -94,8 +94,8 @@ final class Values {
             return x.type() == y.type();
         }
         if (a instanceof Expr.Loop x && b instanceof Expr.Loop y) {
-            return x.state().equals(y.state()) && x.maxIterations() == y.maxIterations()
-                    && (x.until() == null) == (y.until() == null);
+            return x.states().equals(y.states()) && x.maxIterations() == y.maxIterations()
+                    && x.index() == y.index() && (x.until() == null) == (y.until() == null);
         }
         return a instanceof Expr.Sample;
     }
@@ -135,7 +135,7 @@ final class Values {
             return Objects.hash("Construct", construct.type().name());
         }
         if (node instanceof Expr.Loop loop) {
-            return Objects.hash("Loop", loop.state(), loop.maxIterations(), loop.until() == null);
+            return Objects.hash("Loop", loop.states(), loop.maxIterations(), loop.index(), loop.until() == null);
         }
         return "Sample".hashCode();
     }
@@ -199,16 +199,17 @@ final class Values {
             out.append("Construct[type=").append(construct.type()).append(", args=");
             writeAll(construct.args(), parents, labels, out);
         } else if (node instanceof Expr.Loop loop) {
-            out.append("Loop[state=").append(loop.state()).append(", initial=");
-            write(loop.initial(), parents, labels, out);
+            out.append("Loop[states=").append(loop.states()).append(", initial=");
+            writeAll(loop.initial(), parents, labels, out);
             out.append(", maxIterations=").append(loop.maxIterations()).append(", next=");
-            write(loop.next(), parents, labels, out);
+            writeAll(loop.next(), parents, labels, out);
             out.append(", until=");
             if (loop.until() == null) {
                 out.append("null");
             } else {
                 write(loop.until(), parents, labels, out);
             }
+            out.append(", index=").append(loop.index());
         }
         out.append(']');
     }

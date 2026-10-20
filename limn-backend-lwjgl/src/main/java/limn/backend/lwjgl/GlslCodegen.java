@@ -38,7 +38,7 @@ final class GlslCodegen {
      */
     static Generated generate(SurfaceOutputs surface, String declarations, TargetProfile profile) {
         Emitter emitter = new Emitter(profile, surface);
-        Scope top = new Scope(null, null, null, "    ");
+        Scope top = new Scope(null, java.util.Map.of(), "    ");
         // A surface without a normal shades by the interpolated geometric one; the
         // helper the standard surface calls derives its own frame, so there is no
         // shared Ng to leave lying around unused.
@@ -82,7 +82,7 @@ final class GlslCodegen {
         if (surface.diffuseResponse() == null) {
             return FRAG_ACCUMULATE_STANDARD;
         }
-        Scope lights = new Scope(top, null, null, "        ");
+        Scope lights = new Scope(top, java.util.Map.of(), "        ");
         lights.floor = true;
         return emitter.statement(lights, "        float diffuseResponse = ", surface.diffuseResponse(), ";\n")
                 + "        Lo += (kd * albedo / PI * diffuseResponse + specular * NdotL)"
@@ -139,22 +139,30 @@ final class GlslCodegen {
      */
     private static final class Scope {
         final @org.jspecify.annotations.Nullable Scope parent;
-        /** The IR name this block binds (a loop's state), or null. */
-        final @org.jspecify.annotations.Nullable String binds;
-        /** The GLSL variable it stands for. */
-        final @org.jspecify.annotations.Nullable String variable;
+        /** The IR names this block binds (a loop's state values), each to its GLSL variable. */
+        final java.util.Map<String, String> binds;
         final String indent;
         final java.util.Map<Integer, String> locals = new java.util.HashMap<>();
+        /** The variables of the loops written in this block, by the loop's number. */
+        final java.util.Map<Integer, List<String>> loops = new java.util.HashMap<>();
         final StringBuilder prelude = new StringBuilder();
         boolean floor;
 
-        Scope(@org.jspecify.annotations.Nullable Scope parent, @org.jspecify.annotations.Nullable String binds,
-              @org.jspecify.annotations.Nullable String variable, String indent) {
+        Scope(@org.jspecify.annotations.Nullable Scope parent, java.util.Map<String, String> binds, String indent) {
             this.parent = parent;
             this.binds = binds;
-            this.variable = variable;
             this.indent = indent;
             this.floor = parent == null;
+        }
+
+        /** Whether this block binds a name in {@code reads}. */
+        boolean bindsAny(java.util.Set<String> reads) {
+            for (String name : binds.keySet()) {
+                if (reads.contains(name)) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         /**
@@ -169,7 +177,21 @@ final class GlslCodegen {
                 if (name != null) {
                     return name;
                 }
-                if (at.binds != null && reads.contains(at.binds)) {
+                if (at.bindsAny(reads)) {
+                    return null;
+                }
+            }
+            return null;
+        }
+
+        /** The variables of loop {@code number} as this block reads them, or null: as {@link #local}. */
+        @org.jspecify.annotations.Nullable List<String> loopVariables(int number, java.util.Set<String> reads) {
+            for (Scope at = this; at != null; at = at.parent) {
+                List<String> variables = at.loops.get(number);
+                if (variables != null) {
+                    return variables;
+                }
+                if (at.bindsAny(reads)) {
                     return null;
                 }
             }
@@ -178,8 +200,9 @@ final class GlslCodegen {
 
         @org.jspecify.annotations.Nullable String variableOf(String name) {
             for (Scope at = this; at != null; at = at.parent) {
-                if (name.equals(at.binds)) {
-                    return at.variable;
+                String variable = at.binds.get(name);
+                if (variable != null) {
+                    return variable;
                 }
             }
             return null;
@@ -192,7 +215,7 @@ final class GlslCodegen {
         Scope home(java.util.Set<String> reads) {
             Scope floorScope = null;
             for (Scope at = this; at != null; at = at.parent) {
-                if (at.binds != null && reads.contains(at.binds)) {
+                if (at.bindsAny(reads)) {
                     return at;
                 }
                 if (at.floor) {
@@ -225,8 +248,11 @@ final class GlslCodegen {
         private final List<Expr> nodes = new java.util.ArrayList<>();
         private final List<Integer> uses = new java.util.ArrayList<>();
         private final java.util.Map<Integer, java.util.Set<String>> reads = new java.util.HashMap<>();
+        private final java.util.Map<String, Integer> loopNumbers = new java.util.HashMap<>();
+        private final java.util.Set<Integer> countedLoops = new java.util.HashSet<>();
         private int temps;
         private int loops;
+        private int states;
 
         Emitter(TargetProfile profile, SurfaceOutputs surface) {
             this.profile = profile;
@@ -244,6 +270,10 @@ final class GlslCodegen {
         /** Counts each parent of a node once, however many times the parent itself is used. */
         private void count(int id, java.util.Set<Integer> counted) {
             if (!counted.add(id)) {
+                return;
+            }
+            // The nodes for two values of one loop are one loop: its parts are its own once.
+            if (nodes.get(id) instanceof Expr.Loop loop && !countedLoops.add(loopNumber(loop))) {
                 return;
             }
             for (Expr child : children(nodes.get(id))) {
@@ -274,7 +304,8 @@ final class GlslCodegen {
             } else if (node instanceof Expr.Raw raw) {
                 key.append("X").append(raw.target()).append(':').append(raw.type()).append(':').append(raw.glsl());
             } else if (node instanceof Expr.Loop loop) {
-                key.append("P").append(loop.state()).append(':').append(loop.maxIterations());
+                key.append("P").append(loop.states()).append(':').append(loop.maxIterations())
+                        .append(':').append(loop.index());
             } else if (node instanceof Expr.Sample) {
                 key.append("S");
             } else {
@@ -316,8 +347,10 @@ final class GlslCodegen {
                 names.addAll(reads(id(child)));
             }
             if (node instanceof Expr.Loop loop) {
-                names.remove(loop.state());
-                names.addAll(reads(id(loop.initial())));
+                names.removeAll(loop.states());
+                for (Expr start : loop.initial()) {
+                    names.addAll(reads(id(start)));
+                }
             }
             reads.put(id, names);
             return names;
@@ -346,12 +379,18 @@ final class GlslCodegen {
                 return inline(node, scope);
             }
             int id = id(node);
+            if (node instanceof Expr.Loop loop) {
+                // Every value of one loop reads the variables of one loop, written once.
+                int number = loopNumber(loop);
+                List<String> variables = scope.loopVariables(number, reads(id));
+                if (variables == null) {
+                    variables = loop(loop, id, number, scope);
+                }
+                return variables.get(loop.index());
+            }
             String local = scope.local(id, reads(id));
             if (local != null) {
                 return local;
-            }
-            if (node instanceof Expr.Loop loop) {
-                return loop(loop, id, scope);
             }
             if (!shareSubexpressions) {
                 return inline(node, scope);
@@ -411,31 +450,51 @@ final class GlslCodegen {
             return args.stream().map(a -> emit(a, scope)).collect(Collectors.joining(", "));
         }
 
+        /** The number of the loop {@code loop} is a value of: its values share it. */
+        private int loopNumber(Expr.Loop loop) {
+            StringBuilder key = new StringBuilder().append(loop.states()).append(':').append(loop.maxIterations())
+                    .append('(');
+            for (Expr child : children(loop)) {
+                key.append(id(child)).append(',');
+            }
+            return loopNumbers.computeIfAbsent(key.append(')').toString(), k -> loopNumbers.size());
+        }
+
         /**
-         * A loop as statements, in the innermost block that sees what it reads: its state declared
-         * and set, then a {@code for} of a constant count that asks {@code until} before each turn
-         * and steps the state. Returns the variable that holds its value.
+         * A loop as statements, in the innermost block that sees what it reads: each value of its
+         * state declared and set, then a {@code for} of a constant count that asks {@code until}
+         * before each turn and steps the state, every value from the state before the turn.
+         * Returns the variables that hold its values.
          */
-        private String loop(Expr.Loop loop, int id, Scope scope) {
+        private List<String> loop(Expr.Loop loop, int id, int number, Scope scope) {
             if (loop.until() != null) {
-                String refused = refusedEarly(loop.next());
-                if (refused == null) {
-                    refused = refusedEarly(loop.until());
-                }
-                if (refused != null) {
-                    throw new IllegalArgumentException("a loop that can end early cannot hold " + refused
-                            + ": it is undefined where neighbouring pixels take different turns");
+                java.util.Set<Expr> seen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+                for (Expr part : turnOf(loop)) {
+                    String refused = refusedEarly(part, seen);
+                    if (refused != null) {
+                        throw new IllegalArgumentException("a loop that can end early cannot hold " + refused
+                                + ": it is undefined where neighbouring pixels take different turns");
+                    }
                 }
             }
             Scope home = scope.home(reads(id));
-            String variable = "ir_s" + loops;
             String counter = "ir_i" + loops++;
-            String initial = emit(loop.initial(), home);
-            home.prelude.append(home.indent).append(loop.type().glsl).append(' ').append(variable)
-                    .append(" = ").append(initial).append(";\n");
-            Scope body = new Scope(home, loop.state(), variable, home.indent + "    ");
+            List<String> variables = new java.util.ArrayList<>();
+            java.util.Map<String, String> binds = new java.util.HashMap<>();
+            for (int i = 0; i < loop.states().size(); i++) {
+                String variable = "ir_s" + states++;
+                String initial = emit(loop.initial().get(i), home);
+                home.prelude.append(home.indent).append(loop.initial().get(i).type().glsl).append(' ')
+                        .append(variable).append(" = ").append(initial).append(";\n");
+                variables.add(variable);
+                binds.put(loop.states().get(i), variable);
+            }
+            Scope body = new Scope(home, binds, home.indent + "    ");
             String until = loop.until() == null ? null : emit(loop.until(), body);
-            String next = emit(loop.next(), body);
+            List<String> next = new java.util.ArrayList<>();
+            for (Expr value : loop.next()) {
+                next.add(emit(value, body));
+            }
             StringBuilder text = new StringBuilder();
             text.append(home.indent).append("for (int ").append(counter).append(" = 0; ").append(counter)
                     .append(" < ").append(loop.maxIterations()).append("; ++").append(counter).append(") {\n");
@@ -445,11 +504,31 @@ final class GlslCodegen {
                         .append(body.indent).append("    break;\n")
                         .append(body.indent).append("}\n");
             }
-            text.append(body.indent).append(variable).append(" = ").append(next).append(";\n");
+            if (next.size() == 1) {
+                text.append(body.indent).append(variables.get(0)).append(" = ").append(next.get(0)).append(";\n");
+            } else {
+                // Each value steps from the state before the turn: computed first, then assigned. A
+                // local already holds a value computed before the assignments.
+                List<String> stepped = new java.util.ArrayList<>();
+                for (int i = 0; i < next.size(); i++) {
+                    if (next.get(i).matches("ir_t[0-9]+")) {
+                        stepped.add(next.get(i));
+                        continue;
+                    }
+                    String temp = "ir_t" + temps++;
+                    text.append(body.indent).append(loop.initial().get(i).type().glsl).append(' ').append(temp)
+                            .append(" = ").append(next.get(i)).append(";\n");
+                    stepped.add(temp);
+                }
+                for (int i = 0; i < next.size(); i++) {
+                    text.append(body.indent).append(variables.get(i)).append(" = ").append(stepped.get(i))
+                            .append(";\n");
+                }
+            }
             text.append(home.indent).append("}\n");
             home.prelude.append(text);
-            home.locals.put(id, variable);
-            return variable;
+            home.loops.put(number, List.copyOf(variables));
+            return variables;
         }
 
         /** What under {@code node} this generator cannot place in non-uniform control flow, or null. */
@@ -501,10 +580,20 @@ final class GlslCodegen {
             return construct.args();
         }
         if (node instanceof Expr.Loop loop) {
-            return loop.until() == null ? List.of(loop.initial(), loop.next())
-                    : List.of(loop.initial(), loop.next(), loop.until());
+            List<Expr> all = new java.util.ArrayList<>(loop.initial());
+            all.addAll(turnOf(loop));
+            return all;
         }
         return List.of();
+    }
+
+    /** A loop's turn: its next values, then its exit test. */
+    private static List<Expr> turnOf(Expr.Loop loop) {
+        List<Expr> turn = new java.util.ArrayList<>(loop.next());
+        if (loop.until() != null) {
+            turn.add(loop.until());
+        }
+        return turn;
     }
 
     private static String literal(float[] values) {

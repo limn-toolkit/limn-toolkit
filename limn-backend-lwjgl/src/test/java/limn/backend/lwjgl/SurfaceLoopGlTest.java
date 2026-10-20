@@ -67,6 +67,9 @@ class SurfaceLoopGlTest {
         all.put("mandelbrot", IrSurfaces.mandelbrot(256));
         all.put("blur loop", IrSurfaces.blurLoop());
         all.put("sampler through raw text", IrSurfaces.samplerThroughRawText());
+        all.put("volume march", IrSurfaces.volumeSurface());
+        all.put("swap", IrSurfaces.emitting(new Expr.Construct(ShaderType.VEC3,
+                List.of(IrSurfaces.swap(), IrSurfaces.swap().value(1), Expr.Lit.of(0f)))));
         return all;
     }
 
@@ -141,6 +144,65 @@ class SurfaceLoopGlTest {
         ScenePixels pixels = draw(context -> Material.Surface.of("test.loops", both), false);
         assertEquals(0.5f, centre(pixels, 0), 2e-3f, "fifty turns of a hundredth");
         assertEquals(0.4f, centre(pixels, 1), 2e-3f, "four turns, then the exit");
+    }
+
+    /**
+     * Holds the march at pixel (x, y) to the same march in Java, along the ray the pixel's uv,
+     * read back from {@code uv}, says it took; returns that ray's distance from the sphere's axis.
+     */
+    private static float assertMarch(ScenePixels pixels, ScenePixels uv, int x, int y, String where) {
+        float rx = (uv.channel(x, y, 0) - 0.5f) * IrSurfaces.MARCH_SPREAD;
+        float ry = (uv.channel(x, y, 1) - 0.5f) * IrSurfaces.MARCH_SPREAD;
+        float[] expected = IrSurfaces.marchOnCpu(rx, ry);
+        assertEquals(expected[0], pixels.channel(x, y, 0), 2e-3f, where + ": alpha gathered");
+        assertEquals(expected[1] * 0.25f, pixels.channel(x, y, 1), 2e-3f, where + ": distance travelled");
+        assertEquals(expected[2], pixels.channel(x, y, 2), 2e-3f, where + ": colour gathered");
+        return (float) Math.hypot(rx, ry);
+    }
+
+    /** The march, then the uv, drawn on the context current. */
+    private static List<ScenePixels> drawMarch() {
+        return List.of(draw(context -> Material.Surface.of("test.volume", IrSurfaces.volumeSurface()), false),
+                draw(context -> Material.Surface.of("test.uv", IrSurfaces.uvAsLight()), false));
+    }
+
+    private static void assertMarches(List<ScenePixels> drawn) {
+        // The centre ray crosses the sphere's middle and ends early, all but opaque.
+        assertTrue(assertMarch(drawn.get(0), drawn.get(1), SIZE / 2, SIZE / 2, "centre") < 0.2f);
+        assertTrue(drawn.get(0).channel(SIZE / 2, SIZE / 2, 0) > 0.99f, "the centre is all but opaque");
+        assertTrue(drawn.get(0).channel(SIZE / 2, SIZE / 2, 1) < 0.25f * 1.5f, "and stopped early");
+        // A corner ray misses it, gathers nothing and takes every turn.
+        assertTrue(assertMarch(drawn.get(0), drawn.get(1), 0, 0, "corner") > 1.1f, "the corner misses");
+        assertEquals(0.25f * IrSurfaces.MARCH_TURNS * IrSurfaces.MARCH_STEP, drawn.get(0).channel(0, 0, 1), 2e-3f);
+    }
+
+    @Test
+    void aMarchThroughAVolumeGathersWhatItCrossesAndStopsOnceOpaque() {
+        assertMarches(drawMarch());
+    }
+
+    @Test
+    void aMarchThroughAVolumeDrawsTheSameOnTheSoftwareRenderer() {
+        List<List<ScenePixels>> drawn = new ArrayList<>();
+        HeadlessGl.onSoftwareRenderer(() -> drawn.add(drawMarch()));
+        assertMarches(drawn.get(0));
+    }
+
+    @Test
+    void theValuesOfALoopStepTogetherFromTheStateBeforeTheTurn() {
+        SurfaceOutputs swapped = IrSurfaces.emitting(new Expr.Construct(ShaderType.VEC3,
+                List.of(IrSurfaces.swap(), IrSurfaces.swap().value(1), Expr.Lit.of(0f))));
+        for (boolean software : new boolean[]{false, true}) {
+            List<ScenePixels> drawn = new ArrayList<>();
+            Runnable drawIt = () -> drawn.add(draw(context -> Material.Surface.of("test.swap", swapped), false));
+            if (software) {
+                HeadlessGl.onSoftwareRenderer(drawIt);
+            } else {
+                drawIt.run();
+            }
+            assertEquals(0.2f, centre(drawn.get(0), 0), 2e-3f, "three swaps of (0.1, 0.2)");
+            assertEquals(0.1f, centre(drawn.get(0), 1), 2e-3f, "three swaps of (0.1, 0.2)");
+        }
     }
 
     @Test

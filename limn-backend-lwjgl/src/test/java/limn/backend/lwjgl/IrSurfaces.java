@@ -176,10 +176,77 @@ final class IrSurfaces {
      * its own turn doubles the inner state, under the same name.
      */
     static Expr.Loop shadowingLoops() {
-        String name = Expr.Loop.of(Expr.Lit.of(0f), 1, s -> s).state();
-        Expr.Ref s = new Expr.Ref(name, ShaderType.VEC4);
+        List<String> names = Expr.Loop.of(Expr.Lit.of(0f), 1, s -> s).states();
+        Expr.Ref s = new Expr.Ref(names.get(0), ShaderType.VEC4);
         Expr twice = mul(s, Expr.Lit.of(2f));
-        Expr.Loop inner = new Expr.Loop(name, s, 2, twice, null);
-        return new Expr.Loop(name, Expr.Lit.of(0.001f, 0.002f, 0.003f, 1f / 216), 3, add(twice, inner), null);
+        Expr.Loop inner = new Expr.Loop(names, List.of(s), 2, List.of(twice), null, 0);
+        return new Expr.Loop(names, List.of(Expr.Lit.of(0.001f, 0.002f, 0.003f, 1f / 216)), 3,
+                List.of(add(twice, inner)), null, 0);
+    }
+
+    /** The march's step along the ray, its density inside the sphere, and its most turns. */
+    static final float MARCH_STEP = 0.05f;
+    static final float MARCH_DENSITY = 5f;
+    static final int MARCH_TURNS = 64;
+    /** How far across the ray's x and y run as uv runs from 0 to 1. */
+    static final float MARCH_SPREAD = 6f;
+    /** Where the march starts along z: no step lands within 0.02 of the sphere's surface. */
+    static final float MARCH_START = -1.225f;
+
+    /**
+     * A ray marched front to back through a sphere of radius 1 and constant density, its colour
+     * (premultiplied, warm) and the distance it travelled carried as two values, ending once the
+     * colour is all but opaque. The ray runs along z through (uv - 0.5) × {@link #MARCH_SPREAD}.
+     * Density is worked out, never sampled, so the early end leaves nothing undefined.
+     */
+    static Expr.Loop volume() {
+        Expr xy = mul(sub(ref("v_uv", ShaderType.VEC2), Expr.Lit.of(0.5f, 0.5f)), Expr.Lit.of(MARCH_SPREAD));
+        return Expr.Loop.of(List.of(Expr.Lit.of(0f, 0f, 0f, 0f), Expr.Lit.of(0f)), MARCH_TURNS, s -> {
+            Expr colour = s.get(0);
+            Expr travelled = s.get(1);
+            Expr point = new Expr.Construct(ShaderType.VEC3, List.of(xy, add(Expr.Lit.of(MARCH_START), travelled)));
+            Expr inside = sub(Expr.Lit.of(1f), call("step", ShaderType.FLOAT, Expr.Lit.of(1f),
+                    call("length", ShaderType.FLOAT, point)));
+            Expr gathered = mul(mul(inside, Expr.Lit.of(MARCH_DENSITY * MARCH_STEP)),
+                    sub(Expr.Lit.of(1f), new Expr.Swizzle(colour, "w")));
+            return List.of(add(colour, mul(Expr.Lit.of(1f, 0.6f, 0.2f, 1f), gathered)),
+                    add(travelled, Expr.Lit.of(MARCH_STEP)));
+        }, s -> sub(new Expr.Swizzle(s.get(0), "w"), Expr.Lit.of(0.99f)));
+    }
+
+    /** The march drawn as light: red its alpha, green a quarter of the distance travelled, blue its green. */
+    static SurfaceOutputs volumeSurface() {
+        Expr.Loop march = volume();
+        return emitting(new Expr.Construct(ShaderType.VEC3, List.of(new Expr.Swizzle(march, "w"),
+                mul(march.value(1), Expr.Lit.of(0.25f)), new Expr.Swizzle(march, "y"))));
+    }
+
+    /** The same march in Java, in floats: alpha, distance and green at the point (x, y). */
+    static float[] marchOnCpu(float x, float y) {
+        float green = 0;
+        float alpha = 0;
+        float travelled = 0;
+        for (int turn = 0; turn < MARCH_TURNS; turn++) {
+            if (alpha - 0.99f > 0) {
+                break;
+            }
+            float z = MARCH_START + travelled;
+            float inside = (float) Math.sqrt(x * x + y * y + z * z) >= 1f ? 0f : 1f;
+            float gathered = inside * (MARCH_DENSITY * MARCH_STEP) * (1f - alpha);
+            green += 0.6f * gathered;
+            alpha += gathered;
+            travelled += MARCH_STEP;
+        }
+        return new float[]{alpha, travelled, green};
+    }
+
+    /** Two floats that swap places each turn, three times: (0.1, 0.2) ends as (0.2, 0.1). */
+    static Expr.Loop swap() {
+        return Expr.Loop.of(List.of(Expr.Lit.of(0.1f), Expr.Lit.of(0.2f)), 3, s -> List.of(s.get(1), s.get(0)));
+    }
+
+    /** The plane's uv as light, red u and green v: where each pixel's ray runs. */
+    static SurfaceOutputs uvAsLight() {
+        return emitting(new Expr.Construct(ShaderType.VEC3, List.of(ref("v_uv", ShaderType.VEC2), Expr.Lit.of(0f))));
     }
 }

@@ -33,40 +33,71 @@ final class Loops {
             return construct.args();
         }
         if (node instanceof Expr.Loop loop) {
-            return loop.until() == null ? List.of(loop.initial(), loop.next())
-                    : List.of(loop.initial(), loop.next(), loop.until());
+            List<Expr> all = new java.util.ArrayList<>(loop.initial());
+            all.addAll(turnOf(loop));
+            return all;
         }
         return List.of();
     }
 
-    /** How the names {@link Expr.Loop#of} gives a state begin: a number follows. */
+    /** How the names {@link Expr.Loop#of} gives a state's values begin: two numbers follow. */
     static final String STATE_PREFIX = "ir_state";
 
-    /** Whether {@code name} is one {@link Expr.Loop#of} gives a state. */
+    /** The name {@link Expr.Loop#of} gives value {@code place} of a loop built {@code depth} deep. */
+    static String stateName(int depth, int place) {
+        return STATE_PREFIX + depth + "_" + place;
+    }
+
+    /** Whether {@code name} is one {@link Expr.Loop#of} gives a state's value. */
     static boolean isStateName(String name) {
-        return name.matches("ir_state(0|[1-9][0-9]{0,8})");
+        return name.matches("ir_state(0|[1-9][0-9]{0,8})_(0|[1-9][0-9]{0,8})");
     }
 
     /**
-     * The type a reference to {@code state} under {@code node} has where it is not {@code type},
-     * or null. A loop under it that binds the same name hides it in its turn, not in its initial
-     * value, which is computed in the turn around it.
+     * Why a reference under {@code turn} to a value of the state, named in {@code types}, is not of
+     * that value's type, or null. A loop under it that binds a name hides it in its turn, not in
+     * its initial values, which are computed in the turn around it.
      */
-    static @Nullable ShaderType misread(Expr node, String state, ShaderType type) {
-        return misread(node, state, type, Collections.newSetFromMap(new IdentityHashMap<>()));
+    static @Nullable String misread(List<Expr> turn, Map<String, ShaderType> types) {
+        Map<Expr, Set<Map<String, ShaderType>>> seen = new IdentityHashMap<>();
+        for (Expr part : turn) {
+            String found = misread(part, types, seen);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
     }
 
-    private static @Nullable ShaderType misread(Expr node, String state, ShaderType type, Set<Expr> seen) {
-        if (!seen.add(node)) {
+    private static @Nullable String misread(Expr node, Map<String, ShaderType> types,
+                                            Map<Expr, Set<Map<String, ShaderType>>> seen) {
+        if (types.isEmpty() || !seen.computeIfAbsent(node, n -> new java.util.HashSet<>()).add(types)) {
             return null;
         }
-        if (node instanceof Expr.Ref ref && ref.name().equals(state) && ref.type() != type) {
-            return ref.type();
+        if (node instanceof Expr.Ref ref) {
+            ShaderType type = types.get(ref.name());
+            return type == null || ref.type() == type ? null
+                    : "the state's " + ref.name() + " is a " + type + ", read here as a " + ref.type();
         }
-        List<Expr> inside = node instanceof Expr.Loop loop && loop.state().equals(state)
-                ? List.of(loop.initial()) : children(node);
-        for (Expr child : inside) {
-            ShaderType found = misread(child, state, type, seen);
+        if (node instanceof Expr.Loop loop) {
+            for (Expr start : loop.initial()) {
+                String found = misread(start, types, seen);
+                if (found != null) {
+                    return found;
+                }
+            }
+            Map<String, ShaderType> outer = new HashMap<>(types);
+            outer.keySet().removeAll(loop.states());
+            for (Expr part : turnOf(loop)) {
+                String found = misread(part, outer, seen);
+                if (found != null) {
+                    return found;
+                }
+            }
+            return null;
+        }
+        for (Expr child : children(node)) {
+            String found = misread(child, types, seen);
             if (found != null) {
                 return found;
             }
@@ -95,12 +126,15 @@ final class Loops {
             return isStateName(ref.name()) && !bound.contains(ref.name()) ? ref.name() : null;
         }
         if (node instanceof Expr.Loop loop) {
-            String found = freeState(loop.initial(), bound, seen);
-            if (found != null) {
-                return found;
+            for (Expr start : loop.initial()) {
+                String found = freeState(start, bound, seen);
+                if (found != null) {
+                    return found;
+                }
             }
             List<String> inside = new java.util.ArrayList<>(bound);
-            inside.add(loop.state());
+            inside.addAll(loop.states());
+            String found;
             for (Expr part : turnOf(loop)) {
                 found = freeState(part, inside, seen);
                 if (found != null) {
@@ -122,10 +156,10 @@ final class Loops {
 
     /**
      * The most turns a pixel takes in a loop of {@code maxIterations} turns over {@code turn}
-     * (its next state and its exit test) after {@code initial}: the initial value's loops once,
+     * (its next state and its exit test) after {@code initial}: the initial values' loops once,
      * then each turn's loops, at least one turn's worth, times the count.
      */
-    static long turns(Expr initial, int maxIterations, List<Expr> turn) {
+    static long turns(List<Expr> initial, int maxIterations, List<Expr> turn) {
         return turns(initial, maxIterations, turn, new HashMap<>());
     }
 
@@ -145,26 +179,37 @@ final class Loops {
         if (lights < 0) {
             throw new IllegalArgumentException("a pass shades with no fewer than 0 lights, not " + lights);
         }
-        Map<Expr.Loop, Long> known = new HashMap<>();
-        Set<Expr.Loop> once = frontier(outputs);
+        Map<LoopKey, Long> known = new HashMap<>();
+        Map<LoopKey, Expr.Loop> once = frontier(outputs);
         long total = work(once, known);
         if (response != null) {
-            Set<Expr.Loop> perLight = frontier(List.of(response));
-            perLight.removeAll(once);
+            Map<LoopKey, Expr.Loop> perLight = frontier(List.of(response));
+            perLight.keySet().removeAll(once.keySet());
             total = saturatedSum(total, saturatedProduct(lights, work(perLight, known)));
         }
         return total;
     }
 
-    private static long turns(Expr initial, int maxIterations, List<Expr> turn, Map<Expr.Loop, Long> known) {
-        long before = work(frontier(List.of(initial)), known);
+    private static long turns(List<Expr> initial, int maxIterations, List<Expr> turn, Map<LoopKey, Long> known) {
+        long before = work(frontier(initial), known);
         long each = Math.max(1, work(frontier(turn), known));
         return saturatedSum(before, saturatedProduct(maxIterations, each));
     }
 
+    /**
+     * A loop as a computation, whichever of its values a node reads: the nodes for two values of
+     * one loop are one loop, computed once.
+     */
+    private record LoopKey(List<String> states, List<Expr> initial, int maxIterations, List<Expr> next,
+                           @Nullable Expr until) {
+        LoopKey(Expr.Loop loop) {
+            this(loop.states(), loop.initial(), loop.maxIterations(), loop.next(), loop.until());
+        }
+    }
+
     /** The loops reached from {@code roots} without passing through another loop, by value. */
-    private static Set<Expr.Loop> frontier(List<Expr> roots) {
-        Set<Expr.Loop> loops = new java.util.LinkedHashSet<>();
+    private static Map<LoopKey, Expr.Loop> frontier(List<Expr> roots) {
+        Map<LoopKey, Expr.Loop> loops = new java.util.LinkedHashMap<>();
         Set<Expr> seen = Collections.newSetFromMap(new IdentityHashMap<>());
         java.util.ArrayDeque<Expr> pending = new java.util.ArrayDeque<>(roots);
         while (!pending.isEmpty()) {
@@ -173,7 +218,7 @@ final class Loops {
                 continue;
             }
             if (node instanceof Expr.Loop loop) {
-                loops.add(loop);
+                loops.putIfAbsent(new LoopKey(loop), loop);
             } else {
                 pending.addAll(children(node));
             }
@@ -181,21 +226,28 @@ final class Loops {
         return loops;
     }
 
-    private static long work(Set<Expr.Loop> loops, Map<Expr.Loop, Long> known) {
+    private static long work(Map<LoopKey, Expr.Loop> loops, Map<LoopKey, Long> known) {
         long sum = 0;
-        for (Expr.Loop loop : loops) {
-            Long turns = known.get(loop);
+        for (Map.Entry<LoopKey, Expr.Loop> entry : loops.entrySet()) {
+            Long turns = known.get(entry.getKey());
             if (turns == null) {
+                Expr.Loop loop = entry.getValue();
                 turns = turns(loop.initial(), loop.maxIterations(), turnOf(loop), known);
-                known.put(loop, turns);
+                known.put(entry.getKey(), turns);
             }
             sum = saturatedSum(sum, turns);
         }
         return sum;
     }
 
-    private static List<Expr> turnOf(Expr.Loop loop) {
-        return loop.until() == null ? List.of(loop.next()) : List.of(loop.next(), loop.until());
+    /** A loop's turn: its next values and its exit test. */
+    static List<Expr> turnOf(Expr.Loop loop) {
+        if (loop.until() == null) {
+            return loop.next();
+        }
+        List<Expr> turn = new java.util.ArrayList<>(loop.next());
+        turn.add(loop.until());
+        return turn;
     }
 
     private static long saturatedSum(long a, long b) {

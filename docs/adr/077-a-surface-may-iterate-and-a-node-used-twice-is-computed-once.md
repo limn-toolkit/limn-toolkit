@@ -1,11 +1,14 @@
 # ADR 077: A surface may iterate, and a node used twice is computed once
 
-- **Status:** Accepted and implemented, 2026-10-20. The owner's decision 29 of the 2026-10-19 audit: loops,
-  locals and helper functions in the public shader IR, and common subexpressions shared by the
-  GLSL generator, before 1.0, "but verify everything stays compatible with the minimum shader
-  profile Limn uses". Section 1 is that profile, read from the sources; section 3 is the smallest
-  surface that does what the decision asks, and section 4 says which of the three named
-  constructs it builds and why the other two are not public types.
+- **Status:** Accepted and implemented, 2026-10-20. Built: loops of one value or several, and
+  common subexpressions shared by the GLSL generator. Not built: a public let and helper
+  functions. The owner's decision 29 of the 2026-10-19 audit asked for loops, locals and helper
+  functions in the public shader IR, and sharing in the generator, before 1.0, "but verify
+  everything stays compatible with the minimum shader profile Limn uses"; section 4 gave the
+  reasons for building only the loop, and the owner's decision 39b (2026-10-20, section 7)
+  confirmed them: no let and no helper functions before 1.0, a 1.x minor release free to add
+  either as new node types, and a loop that carries several values. Section 1 is the profile,
+  read from the sources; section 3 is the loop.
 - **Date:** 2026-10-20
 - **New public API:** `Expr.Loop` in `limn.render3d.shader`, with `Expr.Loop.MAX_ITERATIONS`.
 - **Compatibility:** additive. `Expr` is a sealed interface and gains a permitted record, so an
@@ -62,7 +65,11 @@ relies on, and the rule it takes from each:
    float or vector type, its initial value, a maximum count, the next state, and an optional
    `until` that ends the loop early, built by `Expr.Loop.of`, which hands the turn its state as a
    node (amended 2026-10-20, section 7).
-3. **Neither a let nor a function** becomes a public type (section 4).
+3. **Neither a let nor a function** becomes a public type (section 4). A 1.x minor release may
+   add either as a new node type: `Expr` already tells a `switch` over it to keep a `default`.
+4. **A loop carries several values** when a surface needs more than a vector holds, as a volume
+   marched along a ray does with the colour it gathers and the distance it has gone (amended
+   2026-10-20, section 7).
 
 ## 3. `Expr.Loop`
 
@@ -154,6 +161,10 @@ generator names the variable itself (`ir_s…`).
   function type with parameters, calls and a recursion rule, a second language inside the first;
   and a Java method that builds the IR is already a function, which sharing makes as cheap to
   call twice as once. The decision's purpose, iterative surfaces, does not need either.
+- *Confirmed 2026-10-20 (decision 39b).* Asked what a let and helper functions would bring, with
+  examples, the owner kept both out of 1.0: a let is a Java variable plus the generator's sharing,
+  and helper functions only make the text, and a driver's compile, smaller, with no effect a
+  surface cannot already have. Either can come in a 1.x as a new node type.
 - **A loop with a bound read at run time** (a uniform). Rejected: the cap could then be passed at
   run time and refused nowhere. A surface that wants fewer turns ends early with `until`, reading
   its uniform there.
@@ -288,3 +299,21 @@ generator names the variable itself (`ir_s…`).
   "up to 8; extras are ignored", so `SurfaceOutputs` now counts eight at construction, the public
   method and the generator's second check are gone, and a backend test holds the generator's light
   loop to the same eight.
+- **2026-10-20, the owner's decision 39b: a loop carries several values.** The owner confirmed no
+  public let and no helper functions before 1.0 (a let is a Java variable plus sharing; functions
+  only shrink the text and the compile, with no new effect; a 1.x may add either as a new node),
+  and asked instead for what neither gives: a state of more than one vector. A volume marched
+  along a ray gathers a colour and alpha (a `vec4`) and tracks the distance it has gone (a
+  `float`), five floats that no single state held. `Expr.Loop.of(List<Expr> initial,
+  maxIterations, next, until)` hands the turn the state as a list of nodes, one per value, each
+  of its initial value's type, and takes the next values back as a list; the one-value form is
+  unchanged. The record now holds `states`, `initial` and `next` as lists and an `index`: the
+  node is one value of the loop, the first for the factory's, and `loop.value(1)` reads the
+  second, the same loop computed once and counted once however many of its values are read
+  (as the whole-surface budget counts and the generator writes it). Each value is checked for its
+  type, in `next` and wherever it is read; the generator writes one local per value, and a turn
+  of several values computes every next value before it assigns any, so each steps from the state
+  before the turn (a loop that swaps two values is the test). The device tests march a ray
+  through a sphere of constant density, gathering colour and alpha and ending once alpha passes
+  0.99, on the GPU and on Apple's software renderer, and hold it to the same march in Java; the
+  density is worked out, never sampled, so the early end leaves nothing undefined.

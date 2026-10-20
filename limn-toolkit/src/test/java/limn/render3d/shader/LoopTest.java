@@ -59,9 +59,9 @@ class LoopTest {
             handed[1] = s;
             return new Expr.Swizzle(s, "x");
         });
-        assertEquals(new Expr.Ref(loop.state(), ShaderType.VEC3), handed[0]);
+        assertEquals(new Expr.Ref(loop.states().get(0), ShaderType.VEC3), handed[0]);
         assertEquals(handed[0], handed[1], "next and until read the same state");
-        assertTrue(loop.state().startsWith("ir_"), "a name no input may take: " + loop.state());
+        assertTrue(loop.states().get(0).startsWith("ir_"), "a name no input may take: " + loop.states());
     }
 
     @Test
@@ -74,9 +74,10 @@ class LoopTest {
     @Test
     void aLoopBuiltInsideAnothersTurnReadsBothStates() {
         Expr.Loop nested = loop(4, z -> add(z, loop(4, w -> add(w, z))));
-        Expr.Loop inner = (Expr.Loop) ((Expr.Binary) nested.next()).right();
-        assertNotEquals(nested.state(), inner.state(), "the inner state has a name of its own");
-        assertEquals(new Expr.Ref(nested.state(), ShaderType.VEC2), ((Expr.Binary) inner.next()).right(),
+        Expr.Loop inner = (Expr.Loop) ((Expr.Binary) nested.next().get(0)).right();
+        assertNotEquals(nested.states(), inner.states(), "the inner state has a name of its own");
+        assertEquals(new Expr.Ref(nested.states().get(0), ShaderType.VEC2),
+                ((Expr.Binary) inner.next().get(0)).right(),
                 "and the inner turn reads the outer state by the outer name");
     }
 
@@ -116,23 +117,24 @@ class LoopTest {
         // A reference of the state's name with another type, built by hand: the generator would
         // write vec4((ir_s0 + vec2(1.0)), ...) where ir_s0 is a vec4, which no profile compiles.
         Expr.Loop four = Expr.Loop.of(Expr.Lit.of(0f, 0f, 0f, 0f), 4, s -> s);
-        Expr.Ref misread = new Expr.Ref(four.state(), ShaderType.VEC2);
+        Expr.Ref misread = new Expr.Ref(four.states().get(0), ShaderType.VEC2);
         Expr next = new Expr.Construct(ShaderType.VEC4, List.of(step(misread), ORIGIN));
         IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
-                () -> new Expr.Loop(four.state(), four.initial(), 4, next, null));
+                () -> new Expr.Loop(four.states(), four.initial(), 4, List.of(next), null, 0));
         assertTrue(refused.getMessage().contains("VEC2"), refused.getMessage());
-        assertThrows(IllegalArgumentException.class, () -> new Expr.Loop(four.state(), four.initial(), 4,
-                four.initial(), new Expr.Swizzle(misread, "x")), "in until too");
+        assertThrows(IllegalArgumentException.class, () -> new Expr.Loop(four.states(), four.initial(), 4,
+                four.initial(), new Expr.Swizzle(misread, "x"), 0), "in until too");
     }
 
     @Test
     void theStatesNameIsTheOneTheFactoryGives() {
-        for (String bad : List.of("z", "s", "v_uv", "ir_z", "ir_state", "ir_state01", "gl_z")) {
-            assertThrows(IllegalArgumentException.class,
-                    () -> new Expr.Loop(bad, ORIGIN, 8, step(new Expr.Ref(bad, ShaderType.VEC2)), null), bad);
+        for (String bad : List.of("z", "s", "v_uv", "ir_z", "ir_state", "ir_state0", "ir_state01_0",
+                "ir_state0_01", "gl_z")) {
+            assertThrows(IllegalArgumentException.class, () -> new Expr.Loop(List.of(bad), List.of(ORIGIN), 8,
+                    List.of(step(new Expr.Ref(bad, ShaderType.VEC2))), null, 0), bad);
         }
-        assertDoesNotThrow(() -> new Expr.Loop("ir_state3", ORIGIN, 8,
-                step(new Expr.Ref("ir_state3", ShaderType.VEC2)), null));
+        assertDoesNotThrow(() -> new Expr.Loop(List.of("ir_state3_0"), List.of(ORIGIN), 8,
+                List.of(step(new Expr.Ref("ir_state3_0", ShaderType.VEC2))), null, 0));
     }
 
     @Test
@@ -141,7 +143,7 @@ class LoopTest {
         // own turn the name is its state, which is all it could have read.
         Expr.Loop apart = loop(4, LoopTest::step);
         Expr.Loop outer = assertDoesNotThrow(() -> loop(8, z -> add(z, apart)));
-        assertEquals(apart.state(), outer.state());
+        assertEquals(apart.states(), outer.states());
     }
 
     @Test
@@ -216,7 +218,7 @@ class LoopTest {
         Expr outside = new Expr.Construct(ShaderType.VEC3, List.of(kept[0], Expr.Lit.of(0f)));
         IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
                 () -> SurfaceOutputs.of(Expr.Lit.of(0f, 0f, 0f, 1f), Expr.Lit.of(0f), Expr.Lit.of(1f), outside));
-        assertTrue(refused.getMessage().contains(loop.state()), refused.getMessage());
+        assertTrue(refused.getMessage().contains(loop.states().get(0)), refused.getMessage());
         // In another loop's initial value it is outside its own loop too.
         Expr.Loop later = Expr.Loop.of(kept[0], 4, LoopTest::step);
         assertThrows(IllegalArgumentException.class, () -> SurfaceOutputs.of(Expr.Lit.of(0f, 0f, 0f, 1f),
@@ -224,5 +226,67 @@ class LoopTest {
         // Read where its loop binds it, it is the state.
         assertDoesNotThrow(() -> SurfaceOutputs.of(Expr.Lit.of(0f, 0f, 0f, 1f), Expr.Lit.of(0f), Expr.Lit.of(1f),
                 new Expr.Construct(ShaderType.VEC3, List.of(loop, Expr.Lit.of(0f)))));
+    }
+
+    // ---------------------------------------------------------------- several values
+
+    /** A colour gathered and a distance travelled: the shape of a ray marched through a volume. */
+    private static Expr.Loop march(int turns) {
+        return Expr.Loop.of(List.of(Expr.Lit.of(0f, 0f, 0f, 0f), Expr.Lit.of(0f)), turns,
+                s -> List.of(add(s.get(0), Expr.Lit.of(0.1f, 0.1f, 0.1f, 0.1f)), add(s.get(1), Expr.Lit.of(0.05f))),
+                s -> new Expr.Binary(Expr.Op.SUB, new Expr.Swizzle(s.get(0), "w"), Expr.Lit.of(0.99f)));
+    }
+
+    @Test
+    void aLoopCarriesSeveralValuesEachHandedAsANodeOfItsType() {
+        List<List<Expr>> handed = new java.util.ArrayList<>();
+        Expr.Loop loop = Expr.Loop.of(List.of(Expr.Lit.of(0f, 0f, 0f, 0f), Expr.Lit.of(0f)), 8, s -> {
+            handed.add(s);
+            return s;
+        });
+        assertEquals(List.of(new Expr.Ref(loop.states().get(0), ShaderType.VEC4),
+                new Expr.Ref(loop.states().get(1), ShaderType.FLOAT)), handed.get(0));
+        assertNotEquals(loop.states().get(0), loop.states().get(1));
+        // The node is the first value; value(1) reads the second, of the same loop.
+        assertEquals(ShaderType.VEC4, loop.type());
+        assertEquals(ShaderType.FLOAT, loop.value(1).type());
+        assertEquals(1, loop.value(1).index());
+        assertEquals(loop, loop.value(0));
+        assertNotEquals(loop, loop.value(1), "two values of one loop are two values");
+        assertEquals(march(8).value(1), march(8).value(1), "built twice alike, one value");
+        assertThrows(IllegalArgumentException.class, () -> loop.value(2));
+    }
+
+    @Test
+    void eachValueOfTheNextStateIsOfItsOwnValuesType() {
+        List<Expr> start = List.of(Expr.Lit.of(0f, 0f, 0f, 0f), Expr.Lit.of(0f));
+        assertThrows(IllegalArgumentException.class, () -> Expr.Loop.of(start, 8, s -> List.of(s.get(0))),
+                "two values in, one out");
+        assertThrows(IllegalArgumentException.class, () -> Expr.Loop.of(start, 8, s -> List.of(s.get(1), s.get(0))),
+                "the colour cannot become the distance");
+        assertThrows(IllegalArgumentException.class, () -> Expr.Loop.of(List.of(), 8, s -> s), "no value at all");
+        // A reference to the second value with the first one's type, built by hand.
+        Expr.Loop loop = march(8);
+        Expr.Ref misread = new Expr.Ref(loop.states().get(1), ShaderType.VEC4);
+        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class, () -> new Expr.Loop(
+                loop.states(), loop.initial(), 8, List.of(misread, loop.next().get(1)), null, 0));
+        assertTrue(refused.getMessage().contains(loop.states().get(1)), refused.getMessage());
+        // An early end is checked for every value's next.
+        assertThrows(IllegalArgumentException.class, () -> Expr.Loop.of(start, 8,
+                s -> List.of(s.get(0), add(s.get(1), new Expr.Call("fwidth", ShaderType.FLOAT, List.of(s.get(1))))),
+                s -> new Expr.Swizzle(s.get(0), "w")));
+    }
+
+    @Test
+    void aSecondValueReadOutsideItsLoopIsRefusedByTheSurface() {
+        List<Expr> kept = new java.util.ArrayList<>();
+        Expr.Loop loop = Expr.Loop.of(List.of(Expr.Lit.of(0f, 0f, 0f, 0f), Expr.Lit.of(0f)), 4, s -> {
+            kept.addAll(s);
+            return s;
+        });
+        assertThrows(IllegalArgumentException.class, () -> SurfaceOutputs.of(Expr.Lit.of(0f, 0f, 0f, 1f),
+                kept.get(1), Expr.Lit.of(1f), new Expr.Swizzle(loop, "xyz")));
+        assertDoesNotThrow(() -> SurfaceOutputs.of(Expr.Lit.of(0f, 0f, 0f, 1f), loop.value(1), Expr.Lit.of(1f),
+                new Expr.Swizzle(loop, "xyz")));
     }
 }

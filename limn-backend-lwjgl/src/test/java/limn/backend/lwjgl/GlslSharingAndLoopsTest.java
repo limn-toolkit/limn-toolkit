@@ -169,6 +169,8 @@ class GlslSharingAndLoopsTest {
     @Test
     void sharingAndLoopsStayInsideTheEs300Subset() {
         for (SurfaceOutputs surface : List.of(IrSurfaces.mandelbrot(256), IrSurfaces.blurLoop(),
+                IrSurfaces.volumeSurface(), IrSurfaces.emitting(new Expr.Construct(ShaderType.VEC3,
+                        List.of(IrSurfaces.swap(), IrSurfaces.swap().value(1), Expr.Lit.of(0f)))),
                 IrSurfaces.unrolled(9), IrSurfaces.dissolveLike(), IrSurfaces.moltenLike(),
                 StandardSurface.metallicRoughness())) {
             String body330 = GlslCodegen.generate(surface, "", TargetProfile.GLSL_330)
@@ -311,5 +313,32 @@ class GlslSharingAndLoopsTest {
         // shades with; the light loop the generator writes runs it that many times at most.
         assertEquals(8, Gl3DContext.MAX_LIGHTS);
         assertTrue(fragment(IrSurfaces.emitting(Expr.Lit.of(0f, 0f, 0f))).contains("#define MAX_LIGHTS 8\n"));
+    }
+
+    @Test
+    void aLoopOfSeveralValuesIsOneForWithAVariableEachThatStepsFromTheStateBeforeTheTurn() {
+        Expr.Loop swap = IrSurfaces.swap();
+        String frag = fragment(IrSurfaces.emitting(new Expr.Construct(ShaderType.VEC3,
+                List.of(swap, swap.value(1), Expr.Lit.of(0f)))));
+        assertTrue(frag.contains("    float ir_s0 = 0.1;\n    float ir_s1 = 0.2;\n"), frag);
+        assertEquals(1, count(frag, "for (int ir_i"), "both values read one loop: " + frag);
+        // Assigned one after the other, the second would read the first's new value: (0.2, 0.2).
+        String turn = loopText(frag, 0);
+        assertTrue(turn.contains("        float ir_t0 = ir_s1;\n        float ir_t1 = ir_s0;\n"
+                + "        ir_s0 = ir_t0;\n        ir_s1 = ir_t1;\n"), turn);
+        assertTrue(frag.contains("vec3 emissive = vec3(ir_s0, ir_s1, 0.0);"), frag);
+    }
+
+    @Test
+    void aMarchThroughAVolumeGathersItsColourAndDistanceInOneLoopThatEndsEarly() {
+        String frag = fragment(IrSurfaces.volumeSurface());
+        assertTrue(frag.contains("    vec4 ir_s0 = vec4(0.0, 0.0, 0.0, 0.0);\n    float ir_s1 = 0.0;\n"), frag);
+        String turn = loopText(frag, 0);
+        assertTrue(turn.contains("        if ((ir_s0.w - 0.99) > 0.0) {\n"), turn);
+        assertTrue(turn.contains("        ir_s0 = ir_t") && turn.contains("        ir_s1 = ir_t"), turn);
+        assertFalse(turn.contains("texture"), "density is worked out, not sampled");
+        // The ray's point across the plane reads no value of the state: computed before the loop.
+        assertTrue(frag.indexOf("((v_uv - vec2(0.5, 0.5)) * 6.0)") < frag.indexOf("for (int ir_i0"), frag);
+        assertEquals(1, count(frag, "for (int ir_i"), frag);
     }
 }
