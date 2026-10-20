@@ -84,13 +84,16 @@ class SurfaceBudgetTest {
     void aLoopComputedOnceIsCountedOnce() {
         Expr.Loop shared = counting(Expr.Lit.of(0f), 600, 0.001f);
         // Read by two outputs and twice in one: the generator writes it once.
-        SurfaceOutputs twice = assertDoesNotThrow(() -> SurfaceOutputs.of(
+        // Counted four times it would be 2,400.
+        assertDoesNotThrow(() -> SurfaceOutputs.of(
                 new Expr.Construct(ShaderType.VEC4, List.of(shared, shared, Expr.Lit.of(0f), Expr.Lit.of(1f))),
                 shared, Expr.Lit.of(1f), new Expr.Construct(ShaderType.VEC3, List.of(shared))));
-        assertEquals(600, twice.turnsPerPixel(1));
         // Built twice alike, it is the same computation, also written once.
-        assertEquals(600, assertDoesNotThrow(() -> emitting(shared,
-                counting(Expr.Lit.of(0f), 600, 0.001f))).turnsPerPixel(1));
+        assertDoesNotThrow(() -> emitting(shared, counting(Expr.Lit.of(0f), 600, 0.001f)));
+        // With one more loop of 600 beside it, it is still counted once: 1,200.
+        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+                () -> emitting(shared, shared, counting(Expr.Lit.of(0f), 600, 0.002f)));
+        assertTrue(refused.getMessage().contains("1200"), refused.getMessage());
     }
 
     @Test
@@ -100,21 +103,20 @@ class SurfaceBudgetTest {
                         add(new Expr.Swizzle(s, "z"), Expr.Lit.of(1f)), Expr.Lit.of(0f))),
                 s -> new Expr.Binary(Expr.Op.SUB, new Expr.Call("dot", ShaderType.FLOAT,
                         List.of(new Expr.Swizzle(s, "xy"), new Expr.Swizzle(s, "xy"))), Expr.Lit.of(256f)));
-        assertEquals(256, emitting(new Expr.Swizzle(loop, "z")).turnsPerPixel(1));
+        assertDoesNotThrow(() -> emitting(new Expr.Swizzle(loop, "z")));
     }
 
     @Test
-    void theDiffuseResponseTakesItsTurnsOncePerLight() {
+    void theDiffuseResponseTakesItsTurnsOnceForEachOfTheEightLightsAPassShades() {
+        // A pass shades with up to eight lights, and the response runs for each: 200 + 8 × 100.
         Expr.Loop response = counting(Expr.Lit.of(0f), 100, 0.01f);
-        SurfaceOutputs lit = emitting(counting(Expr.Lit.of(0f), 200, 0.001f)).withDiffuseResponse(response);
-        assertEquals(300, lit.turnsPerPixel(1));
-        assertEquals(1000, lit.turnsPerPixel(8));
-        // Read by an output too, it is computed once, before the lights.
-        assertEquals(100, emitting(response).withDiffuseResponse(response).turnsPerPixel(8));
-        // Built, a surface is held to the cap for one light; a generator holds it to its own count.
-        SurfaceOutputs heavy = emitting().withDiffuseResponse(counting(Expr.Lit.of(0f), 1024, 0.01f));
-        assertEquals(8192, heavy.turnsPerPixel(8));
-        Expr overOneLight = add(counting(Expr.Lit.of(0f), 1024, 0.01f), counting(Expr.Lit.of(0f), 1, 0.02f));
-        assertThrows(IllegalArgumentException.class, () -> emitting().withDiffuseResponse(overOneLight));
+        assertDoesNotThrow(() -> emitting(counting(Expr.Lit.of(0f), 200, 0.001f)).withDiffuseResponse(response));
+        assertDoesNotThrow(() -> emitting().withDiffuseResponse(counting(Expr.Lit.of(0f), 128, 0.01f)));
+        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+                () -> emitting().withDiffuseResponse(counting(Expr.Lit.of(0f), 129, 0.01f)));
+        assertTrue(refused.getMessage().contains("1032"), refused.getMessage());
+        // Read by an output too, it is computed once, before the lights: 600, not 600 + 8 × 600.
+        Expr.Loop shared = counting(Expr.Lit.of(0f), 600, 0.01f);
+        assertDoesNotThrow(() -> emitting(shared).withDiffuseResponse(shared));
     }
 }

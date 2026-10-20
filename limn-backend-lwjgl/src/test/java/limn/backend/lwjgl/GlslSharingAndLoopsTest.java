@@ -306,13 +306,10 @@ class GlslSharingAndLoopsTest {
     }
 
     @Test
-    void aDiffuseResponseThatLoopsIsHeldToTheCapOnceForEachLightTheGeneratorShades() {
-        // 200 turns a light fit one light, and the light loop runs the response for eight: 1,600.
-        Expr.Loop response = Expr.Loop.of(Expr.Lit.of(0f), 200, f -> add(f, Expr.Lit.of(0.001f)));
-        SurfaceOutputs surface = IrSurfaces.emitting(Expr.Lit.of(0f, 0f, 0f)).withDiffuseResponse(response);
-        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class, () -> fragment(surface));
-        assertTrue(refused.getMessage().contains("1600"), refused.getMessage());
-        Expr.Loop fits = Expr.Loop.of(Expr.Lit.of(0f), 128, f -> add(f, Expr.Lit.of(0.001f)));
-        assertDoesNotThrow(() -> fragment(IrSurfaces.emitting(Expr.Lit.of(0f, 0f, 0f)).withDiffuseResponse(fits)));
+    void theLightLoopShadesTheEightLightsTheSurfaceWasCountedFor() {
+        // SurfaceOutputs counts a looping diffuse response once for each of the eight lights a pass
+        // shades with; the light loop the generator writes runs it that many times at most.
+        assertEquals(8, Gl3DContext.MAX_LIGHTS);
+        assertTrue(fragment(IrSurfaces.emitting(Expr.Lit.of(0f, 0f, 0f))).contains("#define MAX_LIGHTS 8\n"));
     }
 }

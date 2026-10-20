@@ -51,9 +51,13 @@ package limn.render3d.shader;
 public record SurfaceOutputs(Expr baseColor, Expr metallic, Expr roughness, Expr emissive,
                              Expr normal, Expr diffuseResponse) {
 
+    /** The most lights a pass shades a pixel with ({@code RenderPass.addLight}: up to 8). */
+    private static final int LIGHTS = 8;
+
     /**
      * Holds the surface's loops to {@link Expr.Loop#MAX_ITERATIONS} turns a pixel, its diffuse
-     * response counted for one light, and refuses a loop's state read outside its loop.
+     * response's counted once for each of the eight lights a pass shades with, and refuses a
+     * loop's state read outside its loop.
      *
      * @throws IllegalArgumentException if the surface's loops take more turns a pixel than that,
      *                                  or it reads a loop's state where no loop binds it
@@ -65,7 +69,7 @@ public record SurfaceOutputs(Expr baseColor, Expr metallic, Expr roughness, Expr
             throw new IllegalArgumentException("a loop's state, " + free + ", is read outside its loop");
         }
         long turns = Loops.surfaceTurns(outputs(baseColor, metallic, roughness, emissive, normal),
-                diffuseResponse, 1);
+                diffuseResponse, LIGHTS);
         if (turns > Expr.Loop.MAX_ITERATIONS) {
             throw new IllegalArgumentException("this surface takes up to " + turns + " turns a pixel across"
                     + " its loops, more than " + Expr.Loop.MAX_ITERATIONS);
@@ -95,21 +99,6 @@ public record SurfaceOutputs(Expr baseColor, Expr metallic, Expr roughness, Expr
      */
     public SurfaceOutputs withDiffuseResponse(Expr diffuseResponse) {
         return new SurfaceOutputs(baseColor, metallic, roughness, emissive, normal, diffuseResponse);
-    }
-
-    /**
-     * The most loop turns a pixel takes to shade this surface under {@code lights} lights: every
-     * loop it computes, loops side by side adding and a loop in another's turn multiplying by its
-     * count, a loop read twice or built twice alike counted once, and the diffuse response's
-     * loops once for each light. A backend holds a surface to {@link Expr.Loop#MAX_ITERATIONS}
-     * with the most lights it shades a pixel with.
-     *
-     * @param lights how many lights the diffuse response runs for, 0 or more
-     * @return the turns, {@link Long#MAX_VALUE} where they pass it
-     */
-    public long turnsPerPixel(int lights) {
-        return Loops.surfaceTurns(outputs(baseColor, metallic, roughness, emissive, normal),
-                diffuseResponse, lights);
     }
 
     private static java.util.List<Expr> outputs(Expr... outputs) {

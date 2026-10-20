@@ -248,8 +248,7 @@ public sealed interface Expr
      * one of 64, nor two of 32 side by side. A loop read twice, or two built alike, is computed
      * once and counted once. A loop holds itself and what it holds to the cap, and
      * {@link SurfaceOutputs} holds the whole surface, counting the turns of its diffuse response
-     * once for each light a pass shades with (once when it is built; a generator, which knows how
-     * many lights it shades with, holds the surface to that count). So no surface asks a pixel for
+     * once for each of the eight lights a pass shades with at most. So no surface asks a pixel for
      * more than {@value #MAX_ITERATIONS} turns, in any profile. The cap bounds turns, not what a
      * turn costs, which is the surface's as it is without a loop. {@code until} is a float rather
      * than a boolean, so a threshold is a subtraction away; an iteration count, when a surface

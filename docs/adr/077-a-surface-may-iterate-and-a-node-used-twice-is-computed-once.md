@@ -107,8 +107,8 @@ turns; a loop in another's turn multiplies by that loop's count, so a loop of 32
 one of 32, not one of 64 nor two of 32 side by side; a loop read twice, or two built alike, is
 computed once and counted once. The constructor refuses a count below 1 or above the cap and a
 loop that, with what it holds, passes it; `SurfaceOutputs` refuses a surface that passes it,
-counting its diffuse response for one light, and the generator, whose light loop runs the response
-for each of its eight lights, refuses one that passes it under eight. 1024 is four times what the
+counting its diffuse response once for each of the eight lights a pass shades with at most
+(`RenderPass.addLight`: "up to 8; extras are ignored"). 1024 is four times what the
 Showcase's Mandelbrot uses and what a smooth-coloured escape-time fractal wants on screen at
 single precision, where the picture runs out of precision long before it runs out of turns. The
 cap bounds turns, not the cost of a turn: a surface with a large body still costs what it costs,
@@ -281,3 +281,10 @@ generator names the variable itself (`ir_s…`).
   as every path, so logging forty squarings z ↦ z·z never ended. A node with children and more
   than one parent is now written the first time as `#n=…` and as `#n` after that; a node nothing
   shares reads exactly as a record's `toString` did.
+- **2026-10-20, the diffuse response is counted for eight lights when the surface is built.**
+  Decision 37 first counted it for one light in `SurfaceOutputs` and again for eight in the
+  generator, through a new public `SurfaceOutputs.turnsPerPixel(lights)`, so a looping response
+  could pass construction and be refused at the first draw. `RenderPass.addLight` already promises
+  "up to 8; extras are ignored", so `SurfaceOutputs` now counts eight at construction, the public
+  method and the generator's second check are gone, and a backend test holds the generator's light
+  loop to the same eight.

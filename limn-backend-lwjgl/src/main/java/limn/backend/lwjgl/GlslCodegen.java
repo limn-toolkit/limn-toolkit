@@ -37,13 +37,6 @@ final class GlslCodegen {
      * the only moment anybody would want to hear about it.
      */
     static Generated generate(SurfaceOutputs surface, String declarations, TargetProfile profile) {
-        // The surface held itself to the cap for one light; the light loop runs its response for each.
-        long turns = surface.turnsPerPixel(Gl3DContext.MAX_LIGHTS);
-        if (turns > Expr.Loop.MAX_ITERATIONS) {
-            throw new IllegalArgumentException("this surface takes up to " + turns + " turns a pixel across"
-                    + " its loops under " + Gl3DContext.MAX_LIGHTS + " lights, its diffuse response's once a"
-                    + " light, more than " + Expr.Loop.MAX_ITERATIONS);
-        }
         Emitter emitter = new Emitter(profile, surface);
         Scope top = new Scope(null, null, null, "    ");
         // A surface without a normal shades by the interpolated geometric one; the
