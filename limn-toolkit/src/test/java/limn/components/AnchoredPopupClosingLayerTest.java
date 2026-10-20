@@ -119,4 +119,52 @@ class AnchoredPopupClosingLayerTest extends ComponentTestBase {
         harness.frame();
         assertTrue(combo.text().contains("x"), "typing reaches it: " + combo.text());
     }
+
+    // ------------------------------------------------------------------ window shortcuts
+
+    @Test
+    void aWindowShortcutWorksDuringAPopoversFadeOut() {
+        Button filter = new Button("Filter");
+        limn.scene.layout.Row root = new limn.scene.layout.Row();
+        root.add(filter);
+        harness = new AccessibleHarness(runtime, root, new StubWindow(false));
+        harness.scene.setTextRuler(RULER);
+        harness.frame();
+        int[] saves = {0};
+        harness.scene.addShortcutHandler(event -> {
+            if (event.key() == Keys.S && (event.modifiers() & Keys.MOD_CONTROL) != 0 && event.isPressed()) {
+                saves[0]++;
+                return true;
+            }
+            return false;
+        });
+        Popover popover = new Popover(new SizedBox(100, 30, new TextField().setAccessibleName("Inside")))
+                .setDisplayMode(DisplayMode.IN_SCENE).attachTo(filter);
+        drive(harness.scene).click(filter);
+        harness.advanceTime(400, null);
+        drive(harness.scene).press(Keys.S, Keys.MOD_CONTROL);
+        assertEquals(0, saves[0], "sanity: not while the popover holds the keyboard");
+        drive(harness.scene).press(Keys.ESCAPE);
+        harness.advanceTime(30, null);
+        assertFalse(popover.isOpen());
+        drive(harness.scene).press(Keys.S, Keys.MOD_CONTROL);
+        assertEquals(1, saves[0], "the keyboard is the window's again, its shortcuts with it");
+    }
+
+    @Test
+    void aWindowShortcutWorksWhileAnEditableComboListIsOpen() {
+        Button other = new Button("Other");
+        ComboBox<String> combo = editable(other);
+        int[] saves = {0};
+        harness.scene.addShortcutHandler(event -> {
+            if (event.key() == Keys.S && (event.modifiers() & Keys.MOD_CONTROL) != 0 && event.isPressed()) {
+                saves[0]++;
+                return true;
+            }
+            return false;
+        });
+        assertTrue(combo.isOpen(), "sanity");
+        drive(harness.scene).press(Keys.S, Keys.MOD_CONTROL);
+        assertEquals(1, saves[0], "the combo's field has the keyboard, and the window its shortcuts");
+    }
 }

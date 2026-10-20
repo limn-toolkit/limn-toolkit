@@ -4742,9 +4742,10 @@ public final class Scene {
      * own, on macOS, the system runs a bar's accelerator before the key is sent to the window at
      * all. See {@link limn.components.MenuBar}.
      *
-     * <p>Handlers are <b>not</b> consulted while a modal overlay owns the scene: an open dialog
-     * or an in-scene menu has the keyboard, and a shortcut belonging to what it covers must not
-     * fire behind it.
+     * <p>Handlers are <b>not</b> consulted while a modal overlay owns the scene's keyboard: an open
+     * dialog or an in-scene menu has it, and a shortcut belonging to what it covers must not fire
+     * behind it. An overlay that gave the keyboard back and is fading out, or a list that leaves
+     * the keyboard in the field that opened it, does not own it.
      *
      * <p>A handler that throws is contained and read as <i>did not handle</i>, so the chord goes
      * on to the next handler and to Tab traversal -- the policy {@code Work.deliverIf} already
@@ -4830,7 +4831,10 @@ public final class Scene {
 
     private void offerToShortcutHandlers(KeyEvent event) {
         java.util.function.Predicate<KeyEvent>[] snapshot = shortcutHandlers;
-        if (event.isConsumed() || snapshot == null || topOverlay() != null) {
+        // Refused while a layer that holds the keyboard covers the window, and only then: an
+        // overlay fading out after giving the keyboard back, or a list that leaves it in its
+        // field, is no reason to refuse the window's own shortcuts to the window's own keyboard.
+        if (event.isConsumed() || snapshot == null || keyboardRoot() != root) {
             return;
         }
         for (java.util.function.Predicate<KeyEvent> handler : snapshot) {
