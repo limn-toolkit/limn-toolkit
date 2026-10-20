@@ -34,7 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The generator's sharing and loops on a real device (ADR 076): every surface it writes compiles
+ * The generator's sharing and loops on a real device (ADR 077): every surface it writes compiles
  * and links on the GPU and on Apple's software renderer, a loop's value reaches the pixel, and
  * sharing a node draws exactly the pixels writing it in place drew.
  */

@@ -1,4 +1,4 @@
-# ADR 076: A surface may iterate, and a node used twice is computed once
+# ADR 077: A surface may iterate, and a node used twice is computed once
 
 - **Status:** Accepted and implemented, 2026-10-20. The owner's decision 29 of the 2026-10-19 audit: loops,
   locals and helper functions in the public shader IR, and common subexpressions shared by the

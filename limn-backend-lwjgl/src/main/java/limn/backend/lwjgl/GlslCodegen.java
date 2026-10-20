@@ -91,7 +91,7 @@ final class GlslCodegen {
 
     // ------------------------------------------------------------ IR → GLSL
 
-    // Sharing and loops: ADR 076.
+    // Sharing and loops: ADR 077.
     /**
      * Whether a node used more than once is written once into a local. Package-private
      * and on by default; the device test turns it off to hold the shared form to the pixels the

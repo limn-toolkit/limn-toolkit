@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * What the generator writes for a surface that uses a node twice and for one that loops (ADR
- * 076): a shared node written once, an iteration that grows with its steps and not as a power of
+ * 077): a shared node written once, an iteration that grows with its steps and not as a power of
  * them, a loop that is a bounded {@code for} with its exit, and all of it inside the subset GLSL
  * 3.30 and GLSL ES 3.00 share. Pure string generation; the device tests are {@link SurfaceLoopGlTest}.
  */
