@@ -88,3 +88,26 @@ customer form with its question over it, seen on macOS). The veil is now multipl
 corners stay clear, and on an opaque window the pixels are the ones painting over gave.
 `BlockedWindowVeilPixelTest` holds it on a whole frame and on a partial pass, on the GPU and on a
 software renderer.
+
+## Note, 2026-10-20 (later): a translucent locked window dims the desktop through it
+
+Multiplying kept the corners clear, and it also left a translucent pixel's coverage alone: a
+locked window that is see-through (an undecorated translucent window with a glassy background)
+darkened only what it drew itself, and the desktop seen through it not at all. Measured over a
+mid-grey desktop on a page of controls, with the veil at one half: a background at 0.6 alpha dimmed
+the composite by 96.2 painted over and 73.9 multiplied in the light theme, 32.1 and 9.8 in the dark
+one, where the dim almost disappeared (R6G-3 of the dialogs review). The owner decided (decision
+36) that the veil keeps clear pixels clear, leaves opaque ones exactly as they were, and dims partly
+covered ones. It is laid in a blend of its own, which the GL canvas offers to the scene internally
+and no `BlendMode` names: colour `C(1 - a)` (`ZERO, ONE_MINUS_SRC_ALPHA`), coverage
+`A(1 + a)` clamped to 1 (`DST_ALPHA, ONE`). A clear pixel stays at 0, an opaque one at 1 with the
+colour painting over gave, and coverage 0.6 becomes 0.9, so the desktop through it is dimmed again,
+somewhat more than painting over dimmed it (0.1 of it shows where 0.2 did; a pixel already at
+`1 / (1 + a)`, two thirds at the half veil, becomes opaque). Measured on the same page: at 0.6 the
+composite dims by 107.8 light and 43.8 dark (96.2 and 32.1 painted over); an opaque window is byte
+for byte what painting over gave, on the GPU and on the software renderer; a clear window's content
+alone dims by 10.7 and 4.6, its clear pixels staying clear. A canvas without that blend multiplies
+as before. `BlockedWindowVeilPixelTest` holds it light and dark, opaque, translucent and clear, on a
+whole frame and on five partial passes in a row that touch nothing outside themselves, on the GPU
+and on Apple's software renderer.
+

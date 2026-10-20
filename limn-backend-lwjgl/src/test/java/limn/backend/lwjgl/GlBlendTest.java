@@ -50,6 +50,23 @@ class GlBlendTest {
         assertEquals(GL33C.GL_ONE, f.dstAlpha());
     }
 
+    /**
+     * The locked window's veil: colour {@code C(1 - a)}, coverage {@code A + A·a}, so clear stays
+     * clear, opaque stays opaque, and a translucent pixel covers more; and it is none of the
+     * application's modes, whose factors it must not share.
+     */
+    @Test
+    void theLockVeilScalesCoverageByOnePlusItsAlphaAndIsNoApplicationMode() {
+        GlBlend.Factors f = GlBlend.LOCK_VEIL;
+        assertEquals(GL33C.GL_ZERO, f.srcRgb());
+        assertEquals(GL33C.GL_ONE_MINUS_SRC_ALPHA, f.dstRgb());
+        assertEquals(GL33C.GL_DST_ALPHA, f.srcAlpha());
+        assertEquals(GL33C.GL_ONE, f.dstAlpha());
+        for (BlendMode mode : BlendMode.values()) {
+            org.junit.jupiter.api.Assertions.assertNotEquals(GlBlend.of(mode), f, mode.name());
+        }
+    }
+
     @Test
     void everyModeResolvesToOneSharedConstant() {
         // Shared instances, not per-call allocations: this runs in the 2D emission

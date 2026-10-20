@@ -19,17 +19,21 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * A window that a modal dialog locks is dimmed by its scene, and the dim must darken only what the
- * window shows. A dialog's own window is transparent round its rounded card, and the dim was a
- * black rectangle over the whole framebuffer: where the window had nothing it put half-opaque
- * black, so a dialog with a second one open over it showed four dark squares at the corners of its
- * card, outside its rounded edge (the owner's review of 2026-10-20, the customer's form with the
- * question over it). The corners must stay as clear as they were, and the card dim by the veil's
- * share, on a whole frame and on a pass that repaints part of one, on the GPU and on a software
- * renderer. An opaque window dims exactly as before.
+ * A window that a modal dialog locks is dimmed by its scene, and the dim must darken what the
+ * window shows and nothing it does not. A dialog's own window is transparent round its rounded
+ * card, and the dim was a black rectangle over the whole framebuffer: where the window had nothing
+ * it put half-opaque black, so a dialog with a second one open over it showed four dark squares at
+ * the corners of its card, outside its rounded edge (the owner's review of 2026-10-20, the
+ * customer's form with the question over it). The corners must stay as clear as they were, and the
+ * card dim by the veil's share. Multiplying the veil kept the corners clear but also left a
+ * translucent pixel's coverage alone, so the desktop seen through a translucent locked window was
+ * not dimmed at all: a pixel of coverage {@code A} must reach {@code A(1 + a)} under a veil of
+ * {@code a}, its colour {@code C(1 - a)}, which keeps 0 at 0 and 1 at 1. On a whole frame and on
+ * passes that repaint part of one, again and again, with nothing outside them touched; light and
+ * dark, opaque, translucent and clear; on the GPU and on a software renderer. An opaque window dims
+ * exactly as before.
  */
 class BlockedWindowVeilPixelTest {
 
@@ -39,9 +43,15 @@ class BlockedWindowVeilPixelTest {
     private static final int WIDTH = (int) (W_PT * SCALE);
     private static final int HEIGHT = (int) (H_PT * SCALE);
     private static final float RADIUS = 16;
-    private static final Color CARD = Color.rgb(0xF2F2F2);
+    private static final Color LIGHT = Color.rgb(0xF2F2F2);
+    private static final Color DARK = Color.rgb(0x2B2D31);
+    /** A glassy card: what a translucent tool window shows, the desktop seen through it. */
+    private static final float GLASS = 0.6f;
     /** The veil's alpha once it has settled, the toolkit's constant for a native modal's dim. */
     private static final float VEIL = 0.5f;
+    /** The part of the window a partial pass repaints, in points: the card's top left corner. */
+    private static final int PASS_W_PT = 40;
+    private static final int PASS_H_PT = 30;
 
     private final long[] nanos = {TimeUnit.SECONDS.toNanos(1)};
     private HeadlessUi ui;
@@ -65,8 +75,14 @@ class BlockedWindowVeilPixelTest {
         }
     }
 
-    /** A dialog's card: a rounded opaque surface filling its window, nothing beyond its corners. */
+    /** A dialog's card: a rounded surface filling its window, nothing beyond its corners. */
     private static final class CardOnly extends Widget<CardOnly> {
+        private final Color color;
+
+        CardOnly(Color color) {
+            this.color = color;
+        }
+
         @Override
         protected Size onMeasure(Constraints c) {
             return c.constrain(W_PT, H_PT);
@@ -74,23 +90,47 @@ class BlockedWindowVeilPixelTest {
 
         @Override
         protected void onPaint(Canvas canvas) {
-            canvas.fillRoundRect(0, 0, width(), height(), RADIUS, CARD);
+            canvas.fillRoundRect(0, 0, width(), height(), RADIUS, color);
+        }
+    }
+
+    /** What the locked window shows: its background and its card. */
+    private record Look(String name, Color background, Color card) {
+    }
+
+    private static final Look[] TRANSPARENT_WINDOWS = {
+        new Look("light opaque card", Color.TRANSPARENT, LIGHT),
+        new Look("dark opaque card", Color.TRANSPARENT, DARK),
+        new Look("light glass card", Color.TRANSPARENT, LIGHT.withAlpha(GLASS)),
+        new Look("dark glass card", Color.TRANSPARENT, DARK.withAlpha(GLASS)),
+        new Look("light glass on light glass", LIGHT.withAlpha(0.3f), LIGHT.withAlpha(GLASS)),
+    };
+
+    @Test
+    void onTheGpuTheCornersOfALockedDialogsCardStayClearAndTheCardDims() {
+        for (Look look : TRANSPARENT_WINDOWS) {
+            new Target().run(look);
         }
     }
 
     @Test
-    void onTheGpuTheCornersOfALockedDialogsCardStayClearAndTheCardDims() {
-        new Target().run(true);
-    }
-
-    @Test
     void onASoftwareRendererTheCornersOfALockedDialogsCardStayClearAndTheCardDims() {
-        HeadlessGl.onSoftwareRenderer(() -> new Target().run(true));
+        HeadlessGl.onSoftwareRenderer(() -> {
+            for (Look look : TRANSPARENT_WINDOWS) {
+                new Target().run(look);
+            }
+        });
     }
 
     @Test
     void anOpaqueLockedWindowDimsAsBeforeEverywhere() {
-        new Target().run(false);
+        new Target().run(new Look("opaque window, light", Color.rgb(0x3060C0), LIGHT));
+        new Target().run(new Look("opaque window, dark", Color.rgb(0x1B1D21), DARK));
+    }
+
+    @Test
+    void onASoftwareRendererAnOpaqueLockedWindowDimsAsBeforeEverywhere() {
+        HeadlessGl.onSoftwareRenderer(() -> new Target().run(new Look("opaque window", Color.rgb(0x3060C0), LIGHT)));
     }
 
     /** A framebuffer of its own in the current context, and the scenario drawn into it. */
@@ -101,7 +141,7 @@ class BlockedWindowVeilPixelTest {
         private int texture;
         private int fbo;
 
-        void run(boolean transparent) {
+        void run(Look look) {
             GL33C.glGetIntegerv(GL33C.GL_VIEWPORT, previousViewport);
             texture = GL33C.glGenTextures();
             fbo = GL33C.glGenFramebuffers();
@@ -114,7 +154,7 @@ class BlockedWindowVeilPixelTest {
                 GL33C.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
                         GL33C.GL_TEXTURE_2D, texture, 0);
                 GL33C.glViewport(0, 0, WIDTH, HEIGHT);
-                scenario(transparent);
+                scenario(look);
             } finally {
                 GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, previousFbo);
                 GL33C.glViewport(previousViewport[0], previousViewport[1], previousViewport[2],
@@ -125,20 +165,18 @@ class BlockedWindowVeilPixelTest {
             }
         }
 
-        private void scenario(boolean transparent) {
-            String device = HeadlessGl.describe();
-            CardOnly card = new CardOnly();
+        private void scenario(Look look) {
+            String device = HeadlessGl.describe() + ", " + look.name();
+            CardOnly card = new CardOnly(look.card());
             Scene scene = new Scene(card, () -> nanos[0]);
             scene.setTextRuler(new ShapingRuler(fonts));
-            Color background = transparent ? Color.TRANSPARENT : Color.rgb(0x3060C0);
-            scene.setBackground(background);
+            scene.setBackground(look.background());
             StubWindow window = new StubWindow();
             scene.bind(window);
             frame(scene, 0);
-            int[] corner = pixel(read(), 1, 1);
-            int[] middle = pixel(read(), WIDTH / 2, HEIGHT / 2);
-            if (transparent) {
-                assertEquals(0, corner[3], device + ": the corner outside the card is clear to begin with");
+            byte[] unlocked = read();
+            if (look.background().a() == 0) {
+                assertEquals(0, pixel(unlocked, 1, 1)[3], device + ": the corner outside the card is clear to begin with");
             }
 
             window.modalBlocked = true; // a dialog opened over this one
@@ -147,37 +185,53 @@ class BlockedWindowVeilPixelTest {
                 frame(scene, 0); // the veil retints the whole window while it moves
             }
             byte[] whole = read();
-            check(device + ", whole frame", whole, corner, middle, transparent);
+            checkVeiled(device + ", whole frame", unlocked, whole);
 
-            // A repaint of part of the window, which clears its rectangle and paints it again, the
-            // veil included: the card's top left corner, so the pass covers what must stay clear.
-            card.invalidate(0, 0, 40, 30);
-            nanos[0] += TimeUnit.MILLISECONDS.toNanos(30);
-            frame(scene, 1);
-            check(device + ", partial pass", read(), corner, middle, transparent);
+            // Repaints of part of the window, each of which clears its rectangle and paints it
+            // again, the veil included: the card's top left corner, so a pass covers what must stay
+            // clear. Five in a row, which must neither darken the pass further nor touch the rest.
+            for (int pass = 1; pass <= 5; pass++) {
+                card.invalidate(0, 0, PASS_W_PT, PASS_H_PT);
+                nanos[0] += TimeUnit.MILLISECONDS.toNanos(30);
+                frame(scene, 1);
+                byte[] partial = read();
+                String what = device + ", partial pass " + pass;
+                checkVeiled(what, unlocked, partial);
+                int margin = 8; // device pixels round the pass, which its antialiasing may reach
+                for (int y = 0; y < HEIGHT; y++) {
+                    for (int x = 0; x < WIDTH; x++) {
+                        if (x < PASS_W_PT * SCALE + margin && y < PASS_H_PT * SCALE + margin) {
+                            continue;
+                        }
+                        int[] now = pixel(partial, x, y);
+                        int[] before = pixel(whole, x, y);
+                        if (!java.util.Arrays.equals(now, before)) {
+                            throw new AssertionError(what + ": the pass touched " + x + "," + y + " outside it: "
+                                    + str(before) + " -> " + str(now));
+                        }
+                    }
+                }
+            }
         }
 
-        private void check(String what, byte[] image, int[] cornerBefore, int[] middleBefore,
-                           boolean transparent) {
-            int[] corner = pixel(image, 1, 1);
-            int[] middle = pixel(image, WIDTH / 2, HEIGHT / 2);
-            if (transparent) {
-                assertTrue(corner[3] <= 1 && corner[0] <= 1 && corner[1] <= 1 && corner[2] <= 1,
-                        what + ": outside the rounded card the locked window stays clear, not a dark square: "
-                                + str(corner));
-            } else {
+        /**
+         * Every probe is the unlocked pixel veiled: colour times {@code 1 - a}, coverage times
+         * {@code 1 + a} up to full. The corner outside the card, the card's middle outside any
+         * pass, and a point inside the pass.
+         */
+        private void checkVeiled(String what, byte[] unlocked, byte[] locked) {
+            int[][] probes = {{1, 1}, {WIDTH / 2, HEIGHT / 2}, {(int) (30 * SCALE), (int) (20 * SCALE)}};
+            for (int[] at : probes) {
+                int[] before = pixel(unlocked, at[0], at[1]);
+                int[] after = pixel(locked, at[0], at[1]);
+                String where = what + " at " + at[0] + "," + at[1] + ": " + str(before) + " -> " + str(after);
                 for (int c = 0; c < 3; c++) {
-                    assertEquals(cornerBefore[c] * (1 - VEIL), corner[c], 2,
-                            what + ": an opaque window's corner dims by the veil, channel " + c);
+                    assertEquals(before[c] * (1 - VEIL), after[c], 2, where + ", colour channel " + c);
                 }
-                assertEquals(255, corner[3], what + ": and stays opaque");
+                assertEquals(Math.min(255, before[3] * (1 + VEIL)), after[3], 2,
+                        where + ", coverage: a clear pixel stays clear, an opaque one opaque, and a "
+                                + "translucent one covers more, so the desktop through it darkens");
             }
-            for (int c = 0; c < 3; c++) {
-                assertEquals(middleBefore[c] * (1 - VEIL), middle[c], 2,
-                        what + ": the card dims by the veil, channel " + c + " " + str(middleBefore)
-                                + " -> " + str(middle));
-            }
-            assertEquals(255, middle[3], what + ": the card stays opaque");
         }
 
         private void frame(Scene scene, int bufferAge) {

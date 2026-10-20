@@ -6389,18 +6389,25 @@ public final class Scene {
     /**
      * Dims this window while a modal locks it, just like the old in-scene dialog.
      *
-     * <p>Multiplied, not painted over: black at the veil's alpha multiplied in darkens every pixel by
-     * that share and leaves its coverage as it was, so a window that is transparent round what it
-     * shows, a dialog's own window round its rounded card, stays clear there. Painted over, the veil
-     * put half-opaque black where the window had nothing, and a dialog with a second one open over it
-     * showed a dark square at each corner of its card (2026-10-20). On an opaque window the two are
-     * the same pixels.
+     * <p>Not painted over: black at the veil's alpha painted over the whole framebuffer put
+     * half-opaque black where the window had nothing, and a dialog with a second one open over it,
+     * its window transparent round its rounded card, showed a dark square at each corner of the card
+     * (2026-10-20). The veil darkens every pixel's colour by its alpha and scales its coverage by one
+     * plus that alpha: a clear pixel stays clear, an opaque one is the same pixel painting over gave,
+     * and a partly covered one gains coverage, so the desktop seen through a translucent window
+     * darkens with the window, which coverage left alone would not. A canvas that cannot blend so
+     * multiplies the veil instead, which keeps the clear pixels clear and the opaque ones the same
+     * but leaves the desktop through a translucent pixel undimmed.
      */
     private void paintModalScrim(Canvas canvas) {
         if (scrimAlpha > 0.001f) {
             // Ease the linear time-ramp so the dim glides in/out instead of
             // marching at a constant rate.
             float eased = Scalars.smoothstep(scrimAlpha / SCRIM_MAX_ALPHA) * SCRIM_MAX_ALPHA;
+            if (canvas instanceof limn.scene.internal.LockVeil veil) {
+                veil.fillLockVeil(eased);
+                return;
+            }
             canvas.save();
             try {
                 canvas.setBlendMode(limn.graphics.BlendMode.MULTIPLY);

@@ -35,7 +35,7 @@ import static org.lwjgl.opengl.GL33C.glClear;
  * triangulation allocates its index arrays per call; cached path geometry is
  * planned alongside the widget layer.
  */
-final class GlCanvas implements Canvas {
+final class GlCanvas implements Canvas, limn.scene.internal.LockVeil {
 
     private static final System.Logger LOG = System.getLogger(GlCanvas.class.getName());
 
@@ -177,6 +177,8 @@ final class GlCanvas implements Canvas {
     private ShapingRuler ownRuler;
     private float scale = 1;
     private boolean inFrame;
+    /** While {@link #fillLockVeil} emits: its blend in place of the state's mode. */
+    private boolean veiling;
     private int flatRects;
     private long flatPixels;
     /**
@@ -1342,7 +1344,7 @@ final class GlCanvas implements Canvas {
      * come to mean two different equations.
      */
     private void applyBlend(State s) {
-        GlBlend.Factors f = GlBlend.of(s.blendMode);
+        GlBlend.Factors f = veiling ? GlBlend.LOCK_VEIL : GlBlend.of(s.blendMode);
         batch.requireBlend(f.srcRgb(), f.dstRgb(), f.srcAlpha(), f.dstAlpha());
     }
 
@@ -1412,6 +1414,22 @@ final class GlCanvas implements Canvas {
             return;
         }
         emitRoundRect(x, y, width, height, 0, 0, 0, 0, -1, paint);
+    }
+
+    /**
+     * Black at {@code alpha} over the whole canvas in {@link GlBlend#LOCK_VEIL}'s blend, which is no
+     * {@link limn.graphics.BlendMode} and so cannot be a state an application sets: one rectangle,
+     * its factors in force only while it is emitted, so the next primitive's flush draws it with
+     * them and what follows goes back to the state's mode.
+     */
+    @Override
+    public void fillLockVeil(float alpha) {
+        veiling = true;
+        try {
+            fillRect(0, 0, width(), height(), limn.graphics.Color.rgba(0x000000, alpha));
+        } finally {
+            veiling = false;
+        }
     }
 
     @Override
