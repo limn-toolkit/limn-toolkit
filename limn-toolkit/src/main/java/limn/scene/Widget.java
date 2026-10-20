@@ -1170,6 +1170,10 @@ public abstract class Widget<W extends Widget<W>> {
     /** {@link #isVisible()} changed: the subtree leaves or rejoins the layout around it. */
     private void presenceChanged() {
         if (!isVisible() && scene != null) {
+            // A popup hung from a widget in this subtree goes with it, as when it leaves: hidden,
+            // or on a page a tab strip put out of sight, it has nowhere to hang from and nowhere
+            // to give the keyboard back to.
+            scene.anchorsLeaving(this);
             scene.onWidgetDetached(this); // revoke focus/hover/press in this subtree
         }
         // Every measure on the way up is stale, exactly as for markNeedsLayout(): whichever

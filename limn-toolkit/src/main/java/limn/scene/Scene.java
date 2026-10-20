@@ -2145,9 +2145,14 @@ public final class Scene {
 
     /**
      * Not API: tells {@code gone} when {@code anchor} leaves this scene, by itself or with a
-     * container, an overlay or the window it is in, or when the panel of a popup it lies in closes,
-     * for a popup hung from it that would otherwise stay over the window hanging from nothing.
-     * Told before the widgets leaving hear {@code onDetached}, while they still answer this scene.
+     * container, an overlay or the window it is in, when it stops being shown (hidden itself or
+     * with a container), or when the panel of a popup it lies in closes, for a popup hung from it
+     * that would otherwise stay over the window hanging from nothing. Told before the widgets
+     * leaving hear {@code onDetached}, while they still answer this scene.
+     *
+     * <p>For the integration of a Transform that stops drawing a child (a back face, a scale of
+     * 0): such a child no longer shown is the same case, and the place that decides it calls
+     * {@link #anchorsLeaving} for it as {@code Widget}'s visibility path does.
      *
      * @param anchor the widget the popup hangs from
      * @param gone   takes the popup down
@@ -2162,9 +2167,10 @@ public final class Scene {
     }
 
     /**
-     * {@code subtree} is leaving this scene, or is the panel of a popup that is closing: every popup
-     * hung from a widget in it goes. A copy, since each that goes lets go of its entry, and one
-     * going may take another down with it (a popover holding the anchor of another).
+     * {@code subtree} is leaving this scene, is being hidden, or is the panel of a popup that is
+     * closing: every popup hung from a widget in it goes. A copy, since each that goes lets go of
+     * its entry, and one going may take another down with it (a popover holding the anchor of
+     * another).
      */
     void anchorsLeaving(Widget<?> subtree) {
         if (hungPopups.isEmpty()) {

@@ -1057,6 +1057,9 @@ public final class TabbedPane extends Widget<TabbedPane> {
         tabList.close();
         listFocusWas = null; // read by the close, and held no longer than the list is open
         listButton.invalidateAccessible();
+        if (!overflowing) {
+            markNeedsLayout(); // its button stayed for the open list alone: it goes now
+        }
         notifyChange(Change.of(Change.Aspect.EXPANDED, origin));
     }
 
@@ -1739,7 +1742,10 @@ public final class TabbedPane extends Widget<TabbedPane> {
         // its chevron (guarded setters, safe inside layout).
         prevButton.setVisible(overflowing);
         nextButton.setVisible(overflowing);
-        listButton.setVisible(overflowing);
+        // The list's button stays while its list is open, which takes the tabs' new number as they
+        // are closed from it: a list hung from a hidden button closes, and it closed as soon as
+        // the tabs left fitted the strip, under the user still closing them from the list.
+        listButton.setVisible(overflowing || tabList.isOpen());
         prevButton.setEnabled(scrollOffset > 0.5f);
         nextButton.setEnabled(scrollOffset < maxOffset - 0.5f);
 

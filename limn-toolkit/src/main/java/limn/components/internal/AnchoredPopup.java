@@ -83,9 +83,9 @@ public final class AnchoredPopup {
         /**
          * The component's own close, with what caused it: a press elsewhere or beside the card is
          * the user's, the application losing the keyboard, the owner's fullscreen changing or the
-         * anchor leaving the window is an adjustment. For the anchor, the popup closes itself after
-         * this when the component did not, unless the component's close showed it again (its
-         * application's handler did), which is then left as it is.
+         * anchor leaving the window or being hidden is an adjustment. For the anchor, the popup
+         * closes itself after this when the component did not, unless the component's close showed
+         * it again (its application's handler did), which is then left as it is.
          *
          * @param origin who closed it
          */
@@ -235,10 +235,18 @@ public final class AnchoredPopup {
      * @param anchor a widget
      * @return whether a popup can hang from it: in a scene's tree, and not on its way out of it (a
      *         widget being taken out still answers its scene while the popups hung from it close,
-     *         and a handler of theirs may ask to show one there again)
+     *         and a handler of theirs may ask to show one there again), nor hidden
      */
     public static boolean canHangFrom(Widget<?> anchor) {
-        return anchor.scene() != null && SceneAccess.isInTree(anchor);
+        if (anchor.scene() == null || !SceneAccess.isInTree(anchor)) {
+            return false;
+        }
+        for (Widget<?> w = anchor; w != null; w = w.parent()) {
+            if (!w.isVisible()) {
+                return false; // scrolled out of sight is still shown; hidden is not
+            }
+        }
+        return true;
     }
 
     /**
@@ -528,9 +536,9 @@ public final class AnchoredPopup {
     }
 
     /**
-     * Its anchor left the window: the component closes it as an adjustment, or it closes itself.
-     * Not when the component's close showed it again, for another anchor (an application's
-     * handler did): that presentation is a new one, and stays.
+     * Its anchor left the window or stopped being shown: the component closes it as an
+     * adjustment, or it closes itself. Not when the component's close showed it again, for another
+     * anchor (an application's handler did): that presentation is a new one, and stays.
      */
     private void anchorLeft() {
         if (!open) {

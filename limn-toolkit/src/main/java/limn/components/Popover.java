@@ -104,7 +104,7 @@ public final class Popover {
 
     /**
      * Shows the panel against {@code anchor}. A no-op while open; nothing shows for an anchor that
-     * is in no scene, or is being taken out of its window.
+     * is in no scene, is hidden, or is being taken out of its window.
      *
      * @param anchor the widget the panel hangs from
      */

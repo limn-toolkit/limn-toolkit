@@ -493,7 +493,9 @@ public final class SceneAccess {
     /**
      * Tells {@code gone} when {@code anchor} leaves {@code scene}: taken out of it by itself or
      * with a container, an overlay such as a dialog, or the window it is in; or when the panel of a
-     * popup it lies in closes ({@link #closePopupsHungIn}). For a popup hung from the anchor, which
+     * popup it lies in closes ({@link #closePopupsHungIn}); or when it stops being shown, hidden
+     * itself or with a container (a tab strip showing another page, an expander folding). For a
+     * popup hung from the anchor, which
      * would otherwise stay over the window hanging from nothing, holding its keyboard and every
      * press. Told before the widgets leaving hear {@code onDetached}, while they still answer the
      * scene being left.
