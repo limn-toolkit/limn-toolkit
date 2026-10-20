@@ -6386,14 +6386,29 @@ public final class Scene {
         }
     }
 
-    /** Dims this window while a modal locks it, just like the old in-scene dialog. */
+    /**
+     * Dims this window while a modal locks it, just like the old in-scene dialog.
+     *
+     * <p>Multiplied, not painted over: black at the veil's alpha multiplied in darkens every pixel by
+     * that share and leaves its coverage as it was, so a window that is transparent round what it
+     * shows, a dialog's own window round its rounded card, stays clear there. Painted over, the veil
+     * put half-opaque black where the window had nothing, and a dialog with a second one open over it
+     * showed a dark square at each corner of its card (2026-10-20). On an opaque window the two are
+     * the same pixels.
+     */
     private void paintModalScrim(Canvas canvas) {
         if (scrimAlpha > 0.001f) {
             // Ease the linear time-ramp so the dim glides in/out instead of
             // marching at a constant rate.
             float eased = Scalars.smoothstep(scrimAlpha / SCRIM_MAX_ALPHA) * SCRIM_MAX_ALPHA;
-            canvas.fillRect(0, 0, canvas.width(), canvas.height(),
-                    Color.rgba(0x000000, eased));
+            canvas.save();
+            try {
+                canvas.setBlendMode(limn.graphics.BlendMode.MULTIPLY);
+                canvas.fillRect(0, 0, canvas.width(), canvas.height(),
+                        Color.rgba(0x000000, eased));
+            } finally {
+                canvas.restore();
+            }
         }
     }
 

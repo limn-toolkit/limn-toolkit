@@ -76,3 +76,15 @@ The remaining six questions are smaller and remain open. The note that listed th
 `artifacts/modal-stack-2026-08/parecer.md`, is not in this repository and no copy of it survives
 here, so the list has to be retaken before it can be worked through: what is recorded is that six
 remain, not which six.
+
+## Note, 2026-10-20: a locked window's dim darkens only what the window shows
+
+A window a native modal locks is dimmed by its own scene, a black veil at half alpha over the
+frame. It was painted over the frame, so where the window shows nothing it put half-opaque black: a
+dialog's own window is transparent round its rounded card, and a dialog with a second one open over
+it showed a dark square at each corner of its card, outside the rounded edge (the Showcase's
+customer form with its question over it, seen on macOS). The veil is now multiplied in
+(`BlendMode.MULTIPLY`): every pixel darkens by the veil's share and keeps its coverage, so the
+corners stay clear, and on an opaque window the pixels are the ones painting over gave.
+`BlockedWindowVeilPixelTest` holds it on a whole frame and on a partial pass, on the GPU and on a
+software renderer.
