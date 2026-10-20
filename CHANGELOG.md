@@ -51,6 +51,10 @@ Maven Central say which number that was.
   `StackOverflowError` out of the first call on the UI thread when every step goes straight to its
   target: for a person who asked the system for less motion, before the container is in a shown
   window, or for zero seconds.
+- A `DatePicker` closed and opened again before its close had ended, in one handler or within the
+  close's fade, no longer shows an empty popup while `isOpen()` answers true.
+- The Showcase video page's soundtrack button follows a change of language; it kept "Generated
+  soundtrack" in the language it was built in.
 - An SVG whose style sheet or class lists are built to be slow no longer freezes the UI thread on
   its first draw. One element listing 200,000 class names (1.5 MB) took 17 s to read; a rule
   `.k.aaa…` against a class `k aaa…` took 10 s at 600 KB and nearly three minutes at 2.4 MB; a rule
@@ -453,9 +457,12 @@ Maven Central say which number that was.
   in none pays nothing. It is a picture and not a presence: at 0 the child is still laid out, takes
   a click and the keyboard, and is read by a screen reader, and `setVisible(false)` is what takes
   it away, which a fade out does in its `onArrive`. While the system asks for less motion, or with
-  no window to fade in, a fade goes straight to its target and runs its `onArrive` on the next turn
-  of the UI thread, never inside `fadeTo`, so a pulse asks for its next fade there; a newer `fadeTo`
-  or a `setOpacity` stops one in flight, or drops an `onArrive` still waiting, which never runs; a container taken out of its window mid-fade arrives
+  no window to fade in, a fade goes straight to its target and runs its `onArrive` after the seconds
+  it was asked for, or on the next turn of the UI thread for zero seconds, never inside `fadeTo`; the
+  next step of a sequence or a pulse is asked for there, keeps its pace and lets the UI thread sleep
+  between steps, and runs for as long as the code asks, so a pulse stops itself when what it stands
+  for is over or its container is no longer showing. A newer `fadeTo` or a `setOpacity` stops one in
+  flight, or drops an `onArrive` still waiting, which never runs; a container taken out of its window mid-fade arrives
   as it leaves, and runs its `onArrive` then. A watcher of the container hears
   `Change.Aspect.OPACITY` each time `setOpacity` changes the value and twice for a fade, as it
   starts and as it ends. Measured on an Apple M5 Max, a popup's fade frame costs 0.04 ms of CPU and
@@ -1017,8 +1024,10 @@ Maven Central say which number that was.
   every clip inside exact, a frame of it repaints where the child was and where it is and lays
   nothing out, and at rest the container costs nothing. A newer motion or a set stops one in flight,
   whose `onArrive` never runs; a container taken out of its window mid-motion arrives as it leaves;
-  under less motion every motion goes straight to its target, and a flip swaps on the next turn of
-  the UI thread, where `atEdge` and then `onArrive` run; no callback ever runs inside the call. A watcher
+  under less motion every motion goes straight to its target and runs its `onArrive` after the
+  seconds it was asked for (the next turn for zero), and a flip swaps, its `atEdge`, on the next turn
+  so a press answers at once; no callback ever runs inside the call, a swap already made stays made,
+  and a container that leaves its scene runs a waiting `onArrive` then. A watcher
   hears `Change.Aspect.TRANSFORM` on every set that changes a value and twice for a motion.
   Measured on an Apple M5 Max, the first scale of a card full of text rasterizes its glyphs at each
   size it passes, about 0.25 ms of CPU a frame, and a repeat costs what the still card costs.
@@ -1182,6 +1191,14 @@ Maven Central say which number that was.
   being thrown out of `fadeTo`.
 - Typing the literal under the caret in the middle of a masked `TextField` steps over it, as it does
   at the end.
+- In limn-test, `HeadlessWindow.frame()` drains the UI queue, then draws that window (several
+  windows drain once each, where a desktop drains once a turn), and `AccessibleHarness.frame()` and
+  each step of `advanceTime` do the same. An `AccessibleHarness` makes its scene clock the clock the
+  runtime's timers fall due on, so `advanceTime` runs a `Ui.postDelayed` timer, or a fade's waiting
+  `onArrive`, as its time passes, with motion and under less motion alike, and
+  `HeadlessBackend.windows()` can be iterated while a frame opens or closes a window. A test whose
+  posted tasks or timers must not run until it says so sees them run on the next frame or
+  `advanceTime`.
 - The in-scene fades of a `ComboBox`'s list, a `DatePicker`'s calendar, a `TabbedPane`'s list of
   every tab, a `PopupMenu`'s cascade, an in-scene `Dialog`'s card, the hover tooltip and a chart's
   tooltip panel draw their surface as one picture: halfway through, a highlight no longer shows
@@ -1375,11 +1392,12 @@ Maven Central say which number that was.
   and `equals`, `hashCode` and `toString` work as before, but nothing outside builds or deconstructs
   one, and `SizeTokens.TABLE` is gone: use `SizeTokens.of(step)`, `SizeTokens.MEDIUM` or
   `Theme.tokensFor(widget)`.
-- `Scene.fadeWindow`, `fadeWindowIn` and `fadeWindowOut` run their callback on the next turn of the
-  UI thread, not inside the call, when the fade goes straight there (no window, zero seconds, or the
-  opacity the window already has). A newer call before then drops it, and a window that closes
-  first runs it as it closes. Code that read a result right after the call reads it after the next
-  turn; in a test, drain the runtime once (`ui.runtime().drain()`).
+- `Scene.fadeWindow`, `fadeWindowIn` and `fadeWindowOut` no longer run their callback inside the call
+  when the fade goes straight there: it runs after the seconds asked for when no window is bound or
+  the window already has that opacity, and on the next turn of the UI thread for zero seconds. A
+  newer call before then drops it, and a window that closes first runs it as it closes. Code that
+  read a result right after the call reads it on a later turn; in a test, frame the window, or move
+  the clock given to `new HeadlessUi(clock)` past the seconds.
 - `Canvas.setOpacity` multiplies the opacity in force instead of replacing it, so an opacity set
   inside a fading surface or a layer combines with it. Code that set it once on a fresh `save()`
   draws as before. Code that multiplied by hand, `setOpacity(canvas.opacity() * fade)`, drops the
