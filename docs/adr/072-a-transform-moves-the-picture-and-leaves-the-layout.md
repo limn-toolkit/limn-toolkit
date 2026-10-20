@@ -2149,3 +2149,9 @@ on the same scene, so they arrive on the next frame. Kept, the dropped ticker ma
 of the container stand still, and the motions beside the throw with them.
 `TransformTest.anOnArriveThatThrowsLeavesTheContainersLaterMotionsFreeToMoveAndArrive` and
 `aSwapThatThrowsMidFlipStopsNeitherTheFlipNorAMotionBesideIt` failed before.
+(2026-10-19, after the third review, R3S-3: the guard first began after the frame's matrix was set,
+and setting it reaches application code too, a child's own reach past its box read by the frame's
+damage and, once a child that stops being drawn gives up its focus and pointer, the application's
+handlers. A throw there left the dropped ticker held as before. The guard now covers the setting of
+the matrix as well: `TransformTest.aThrowFromWhatSettingAFramesMatrixRunsLeavesLaterMotionsFreeToMove`
+failed before.)

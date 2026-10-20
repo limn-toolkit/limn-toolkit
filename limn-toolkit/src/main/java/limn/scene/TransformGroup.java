@@ -610,12 +610,15 @@ final class TransformGroup implements TransformAccess.Values {
         if (turnArrives) {
             rotation = turning.toA;
         }
-        // One damage for the frame, of where the child was and where it is: the accessible tree
-        // is walked only when something arrives, so a reader's highlight jumps to where the child
-        // came to rest and does not follow the frames between.
-        moved(slideArrives || scaleArrives || turnArrives || flipArrives);
         boolean ran = false;
         try {
+            // One damage for the frame, of where the child was and where it is: the accessible tree
+            // is walked only when something arrives, so a reader's highlight jumps to where the
+            // child came to rest and does not follow the frames between. Inside the guard: setting
+            // the matrix may tell the scene that the child is no longer drawn, which takes its focus
+            // and its pointer and so runs the application's handlers, which may throw as a
+            // callback may.
+            moved(slideArrives || scaleArrives || turnArrives || flipArrives);
             runArrivals(sliding, scaling, turning, flipping, slideArrives, scaleArrives, turnArrives,
                     flipArrives, flipReachesEdge);
             ran = true;
@@ -664,7 +667,8 @@ final class TransformGroup implements TransformAccess.Values {
     }
 
     /**
-     * What a throw out of the application's code on {@code stepping}'s frame leaves behind: the
+     * What a throw out of the application's code on {@code stepping}'s frame, from a callback or
+     * from a handler that setting the frame's matrix ran, leaves behind: the
      * scene drops a ticker that throws, so the container lets go of it, and the motions still in
      * flight, those beside the one whose callback threw, those that arrived on this frame but had
      * not run their {@code onArrive} yet, and any the callback asked for before it threw, go on on

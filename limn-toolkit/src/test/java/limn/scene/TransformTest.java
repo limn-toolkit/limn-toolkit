@@ -1394,6 +1394,50 @@ class TransformTest extends SceneTestBase {
         assertEquals(before[0], scene.tickerCounts()[0], "with no ticker left behind");
     }
 
+    /**
+     * Application code reached by setting a frame's matrix, here a child's own reach past its box,
+     * which the frame's damage reads, throws once mid-slide: the container's later motions still
+     * move. That code ran before the guard that lets go of the ticker the scene drops for a throw,
+     * so the container kept it, and every later motion stood still. (Where the child stops being
+     * drawn, setting the matrix also takes its focus and its pointer, which runs the application's
+     * handlers: the same door.)
+     */
+    @Test
+    void aThrowFromWhatSettingAFramesMatrixRunsLeavesLaterMotionsFreeToMove() {
+        boolean[] fault = {false};
+        Leaf child = new Leaf("w", painted) {
+            @Override
+            protected float paintOutset() {
+                if (fault[0]) {
+                    fault[0] = false;
+                    throw new IllegalStateException("a fault of the application's (expected)");
+                }
+                return super.paintOutset();
+            }
+        };
+        Transform t = new Transform(child);
+        Stack holder = new Stack();
+        holder.add(t);
+        Scene scene = sceneOf(holder);
+        int[] before = scene.tickerCounts();
+        t.slideTo(100, 0, 0.3, null);
+        advance(scene, 16);
+        advance(scene, 50);
+        fault[0] = true;
+        advance(scene, 16); // the frame whose damage throws
+        assertFalse(fault[0], "the fault was hit");
+        for (int i = 0; i < 30; i++) {
+            advance(scene, 16);
+        }
+        assertEquals(100f, t.translationX(), "the slide in flight went on and arrived");
+        t.slideTo(0, 0, 0.1, null);
+        for (int i = 0; i < 20; i++) {
+            advance(scene, 16);
+        }
+        assertEquals(0f, t.translationX(), "and a later one moves");
+        assertEquals(before[0], scene.tickerCounts()[0], "with no ticker left behind");
+    }
+
     // ------------------------------------------------------------------ showing
 
     @Test
