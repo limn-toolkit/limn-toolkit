@@ -148,8 +148,17 @@ public final class Field extends Widget<Field> {
         return control;
     }
 
-    /** The caption, or {@code null} for none. */
-    public @Nullable I18nString label() {
+    /**
+     * The caption as it currently reads, or {@code null} for none: its text in the language in
+     * effect, an access letter's {@code &} mark taken out ("&amp;Name" reads "Name"); see
+     * {@link #labelSource()} for the value behind it.
+     */
+    public @Nullable String label() {
+        return label == null ? null : caption.text();
+    }
+
+    /** The localizable value behind {@link #label()}, or {@code null} for none. */
+    public @Nullable I18nString labelSource() {
         return label;
     }
 
@@ -188,8 +197,16 @@ public final class Field extends Widget<Field> {
         mark.setVisible(required && newLabel != null);
     }
 
-    /** The helper text, or {@code null}. */
-    public @Nullable I18nString helperText() {
+    /**
+     * The helper text in the language in effect, or {@code null} for none; see
+     * {@link #helperTextSource()} for the value behind it.
+     */
+    public @Nullable String helperText() {
+        return helper == null ? null : helper.get();
+    }
+
+    /** The localizable value behind {@link #helperText()}, or {@code null} for none. */
+    public @Nullable I18nString helperTextSource() {
         return helper;
     }
 
@@ -252,8 +269,16 @@ public final class Field extends Widget<Field> {
         return validation;
     }
 
-    /** The message the application set with the state, or {@code null}. */
-    public @Nullable I18nString validationMessage() {
+    /**
+     * The message the application set with the state, in the language in effect, or {@code null}
+     * for none; see {@link #validationMessageSource()} for the value behind it.
+     */
+    public @Nullable String validationMessage() {
+        return message == null ? null : message.get();
+    }
+
+    /** The localizable value behind {@link #validationMessage()}, or {@code null} for none. */
+    public @Nullable I18nString validationMessageSource() {
         return message;
     }
 

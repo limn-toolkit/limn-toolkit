@@ -162,6 +162,48 @@ class FieldTest extends ComponentTestBase {
     }
 
     @Test
+    void theTextGettersAnswerStringsInTheLanguageInEffectAndTheSourcesTheValuesBehind() {
+        // As Label, Button and Card do: label() is the caption as it reads, the access letter's
+        // mark taken out, and labelSource() the value a language change re-resolves.
+        java.util.Locale portuguese = java.util.Locale.forLanguageTag("pt-BR");
+        limn.i18n.StringBundle bundle = limn.i18n.PropertyBundle.of(portuguese, java.util.Map.of(
+                "test.field.name", "&Nome", "test.field.help", "Como no documento",
+                "test.field.error", "Obrigatório"));
+        limn.i18n.I18n.addBundle(bundle);
+        try {
+            limn.i18n.I18n.setLocale(java.util.Locale.ENGLISH);
+            I18nString name = new I18nString("test.field.name", "&Name");
+            I18nString help = new I18nString("test.field.help", "As on the card");
+            I18nString error = new I18nString("test.field.error", "Required");
+            Field field = new Field(name, new TextField()).setHelperText(help)
+                    .setValidation(Validation.ERROR, error);
+            String caption = field.label();
+            assertEquals("Name", caption);
+            assertEquals("As on the card", field.helperText());
+            assertEquals("Required", field.validationMessage());
+            assertSame(name, field.labelSource());
+            assertSame(help, field.helperTextSource());
+            assertSame(error, field.validationMessageSource());
+
+            limn.i18n.I18n.setLocale(portuguese);
+            assertEquals("Nome", field.label());
+            assertEquals("Como no documento", field.helperText());
+            assertEquals("Obrigatório", field.validationMessage());
+
+            field.setLabel((I18nString) null).setHelperText((I18nString) null).clearValidation();
+            assertNull(field.label());
+            assertNull(field.labelSource());
+            assertNull(field.helperText());
+            assertNull(field.helperTextSource());
+            assertNull(field.validationMessage());
+            assertNull(field.validationMessageSource());
+        } finally {
+            limn.i18n.I18n.removeBundle(bundle);
+            limn.i18n.I18n.setLocale(java.util.Locale.ENGLISH);
+        }
+    }
+
+    @Test
     void placedMustHoldTheControl() {
         TextField control = new TextField();
         assertThrows(IllegalArgumentException.class, () -> new Field(I18nString.literal("Name"), control,

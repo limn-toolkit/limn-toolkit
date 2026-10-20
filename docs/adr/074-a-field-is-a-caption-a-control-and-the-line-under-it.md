@@ -110,7 +110,7 @@ public final class Field extends Widget<Field> {
     public Field clearValidation();                         // NONE, no message
 
     public Widget<?> control();
-    public @Nullable I18nString label(), helperText(), validationMessage();
+    public @Nullable I18nString label(), helperText(), validationMessage(); // String since 2026-10-19
     public boolean isRequired();
     public Validation validation();
 }
@@ -527,3 +527,17 @@ ADR 075 (section 12.1) found that `primary`, solved for a fill at 3:1, falls und
 `Theme.primaryText()`, primary moved toward the text colour only until it clears 4.5:1 on the
 canvas, a card and a popover, and `Tone.ACCENT` resolves to it, so a label in the accent tone reads
 in every palette. `ThemeContrastTest` now holds ACCENT among the state tones.
+
+## Note, 2026-10-19: the text getters answer strings
+
+The audit of 2026-10-19 (AP-4) found `label()`, `helperText()` and `validationMessage()` returning
+`I18nString` where every other widget's text getter of that kind returns the `String` as it reads
+and pairs it with a `…Source()` getter for the value behind it (`Label` and `Button`'s `text()` and
+`textSource()`, `MenuItem`'s `label()` and `labelSource()`, `Card`'s `title()`): `String caption =
+field.label()` did not compile where `button.text()` and `card.title()` do, and a return type is
+frozen at 1.0. The owner chose the common shape (his decision 14): `label()`, `helperText()` and
+`validationMessage()` return the text in the language in effect, `label()` with an access
+letter's `&` mark taken out as the caption shows it, and `labelSource()`, `helperTextSource()` and
+`validationMessageSource()` return the `I18nString`. The sketch in section 2.1 is amended in place.
+`DateField.validationMessage()` still returns its `I18nString` (its keys are tested), which this
+decision did not cover.
