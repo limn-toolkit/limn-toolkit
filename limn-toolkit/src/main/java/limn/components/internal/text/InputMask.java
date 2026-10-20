@@ -324,10 +324,13 @@ public final class InputMask {
      * Typing or pasting over a selection: the characters of {@code inserted} a position takes
      * replace the selected positions one by one, from the first, and nothing moves. They are read
      * from the entry the selection begins on, as {@link #edit} reads them, so a fragment carried
-     * with its literals fills the same positions as one without. What finds no selected position
-     * is dropped; the selected positions they did not reach keep their characters and stay
-     * selected, from the first of them to the selection's end; when every selected position was
-     * filled, the caret goes after the last one.
+     * with its literals fills the same positions as one without. Where a filled position follows
+     * the selection, what finds no selected position is dropped, since going on would move that
+     * character; where none does, the selection ends the value and what is left goes on into the
+     * free positions after it, as an {@link #edit} there would, moving nothing. The selected
+     * positions not reached keep their characters and stay selected, from the first of them to
+     * the selection's end; when every selected position was filled, the caret goes after the last
+     * character written.
      *
      * @param text     a text this mask wrote
      * @param from     where the selection begins, in chars
@@ -349,6 +352,14 @@ public final class InputMask {
             }
         }
         String added = read(inserted, inserted.length(), true, a).raw();
+        if (added.codePointCount(0, added.length()) > count && !filledFrom(cps, b)) {
+            // The selection ends the value: what is left of a paste fills the free positions
+            // after it, which moves nothing, as the same paste with nothing selected would.
+            Conformed edited = edit(text, from, to, inserted, 0);
+            if (edited != null) {
+                return new Overwritten(edited.text(), edited.raw(), edited.caret(), edited.caret());
+            }
+        }
         int[] fill = added.codePoints().limit(count).toArray();
         if (fill.length == 0) {
             return null;
@@ -369,6 +380,16 @@ public final class InputMask {
         }
         int caret = out.offsetByCodePoints(0, selected[fill.length - 1] + 1);
         return new Overwritten(out, raw.toString(), caret, caret);
+    }
+
+    /** Whether a text of code points {@code cps} fills a position at entry {@code from} or after. */
+    private boolean filledFrom(int[] cps, int from) {
+        for (int entry = from; entry < cps.length && entry < codePoints.length; entry++) {
+            if (slotAt[entry]) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** @return the entry of the pattern that holds the {@code index}-th position to fill */

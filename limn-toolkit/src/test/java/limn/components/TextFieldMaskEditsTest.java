@@ -628,9 +628,6 @@ class TextFieldMaskEditsTest extends AccessibleComponentTestBase {
             int b = a + oldText.codePointCount(from, to);
             String text = field.text();
             String raw = field.unmaskedText();
-            if (text.codePointCount(0, text.length()) != oldText.codePointCount(0, oldText.length())) {
-                fail("an overwrite moved the text: " + context);
-            }
             int[] oldValue = oldRaw.codePoints().toArray();
             int[] value = raw.codePoints().toArray();
             List<Integer> selected = new ArrayList<>();
@@ -642,12 +639,38 @@ class TextFieldMaskEditsTest extends AccessibleComponentTestBase {
                     n++;
                 }
             }
+            // A selection that ends the value lets a paste go on into the free positions after it.
+            boolean endsValue = selected.get(selected.size() - 1) == oldValue.length - 1;
+            boolean literalTyped = typed.codePoints().anyMatch(literals::contains);
+            if (endsValue) {
+                int first = selected.get(0);
+                String all = fills(first, typed, slots - first);
+                if (literalTyped ? value.length > selected.size() + first
+                        : count(all) > selected.size()) {
+                    if (!literalTyped && !raw.equals(new String(oldValue, 0, first) + all)) {
+                        fail("a paste over the end of the value wrote " + raw + ", expected "
+                                + new String(oldValue, 0, first) + all + ": " + context);
+                    }
+                    if (!raw.startsWith(new String(oldValue, 0, first))) {
+                        fail("a paste over the end of the value changed what came before it: " + context);
+                    }
+                    int caretValues = count(valueIn(text, 0, text.codePointCount(0, field.caretPosition())));
+                    if (!literalTyped && (caretValues != value.length || field.selectionStart() != field.selectionEnd())) {
+                        fail("after a paste over the end of the value the caret is not after it: " + context);
+                    }
+                    reached[4]++;
+                    return;
+                }
+            }
+            if (text.codePointCount(0, text.length()) != oldText.codePointCount(0, oldText.length())) {
+                fail("an overwrite moved the text: " + context);
+            }
             for (int n = 0; n < oldValue.length; n++) {
                 if (!selected.contains(n) && value[n] != oldValue[n]) {
                     fail("an overwrite changed a character outside the selection: " + context);
                 }
             }
-            if (typed.codePoints().anyMatch(literals::contains)) {
+            if (literalTyped) {
                 return;
             }
             StringBuilder fills = new StringBuilder();

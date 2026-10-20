@@ -189,7 +189,11 @@ Markdown.
   position refuses is refused, the selection unchanged. A paste over a selection fills the
   selected positions in order with the characters each takes, leaves those it does not reach as
   they were and still selected, and drops the rest of the paste: nothing is pushed into the
-  positions after the selection. Each keystroke is its own undo step, as before. A selection
+  positions after the selection. (Amended 2026-10-20, from the second review: where no value
+  character follows the selection, it ends the value and the rest of the paste goes on into the
+  free positions after it, as the same paste with nothing selected would, since that moves
+  nothing; `+1 (415) 5` with the 5 selected and `9990123` pasted gives `+1 (415) 999-0123`, where
+  the first version of the overwrite gave `+1 (415) 9`.) Each keystroke is its own undo step, as before. A selection
   holding only literals is typed over as before (an insertion where it begins), and Backspace,
   Delete and Cut over a selection remain removals under the refusal above. `insertText`, a
   caller's write, still replaces the selection. *Amended the same day, the owner's decision 25:*

@@ -595,6 +595,32 @@ class TextFieldMaskTest extends AccessibleComponentTestBase {
     }
 
     @Test
+    void aPasteOverASelectionThatEndsTheValueGoesOnIntoTheFreePositions() {
+        TextFieldTest.MockClipboard clipboard = TextFieldTest.MockClipboard.holding("9990123");
+        holding("+1 (000) 000-0000", "4155", 0);
+        scene.setClipboard(clipboard);
+        field.select(9, 10); // the 5 just typed, the last of the value
+        drive(scene).press(Keys.V, COMMAND);
+        assertEquals("+1 (415) 999-0123", field.text(), "not +1 (415) 9: nothing follows, nothing moves");
+        assertEquals(17, field.caretPosition());
+
+        clipboard.value = "345";
+        holding("AAA-0000-**", "ABC12", 0);
+        scene.setClipboard(clipboard);
+        field.select(5, 6); // the 2
+        drive(scene).press(Keys.V, COMMAND);
+        assertEquals("ABC-1345", field.text());
+
+        // With a value after the selection, the paste still fills the selection alone.
+        clipboard.value = "999";
+        holding("0000 0000", "12345", 0);
+        scene.setClipboard(clipboard);
+        field.select(3, 4); // the 4, with the 5 after it
+        drive(scene).press(Keys.V, COMMAND);
+        assertEquals("1239 5", field.text(), "the 5 stays where it is");
+    }
+
+    @Test
     void typingOrPastingOverTheWholeValueStartsANewOne() {
         holding("+1 (000) 000-0000", "+1 (555) 123-4567", 0);
         drive(scene).press(Keys.A, COMMAND);

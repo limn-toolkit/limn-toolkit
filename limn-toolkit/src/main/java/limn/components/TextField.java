@@ -296,7 +296,10 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * as it was. A character the next selected position does not take is refused, the selection
      * unchanged; a paste fills the selected positions in order with the characters each takes,
      * leaves those it does not reach as they were and still selected, and drops what is left of
-     * it. Each keystroke is an undo step of its own. A selection that holds every position the
+     * it where a typed character follows the selection; where none does, the selection ends the
+     * value and what is left fills the free positions after it, which moves nothing:
+     * {@code +1 (415) 5} with the {@code 5} selected and {@code 9990123} pasted reads
+     * {@code +1 (415) 999-0123}. Each keystroke is an undo step of its own. A selection that holds every position the
      * text fills, with or without the literals around them ({@code Ctrl+A}, or the digits alone of
      * {@code +1 (555) 123-4567}), is the whole value: typing or pasting over it starts a new value,
      * as in any field, and one of which no position takes anything is refused. An edit that is

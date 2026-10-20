@@ -96,7 +96,9 @@ a selection overwrites its positions one by one and moves nothing, so with `12` 
 `ABC-1234-XY` selected, `5` gives `ABC-5234-XY` with the `2` still selected, and `6` then
 `ABC-5634-XY`. A character the next selected position does not take is refused, and a paste
 fills the selected positions in order, leaving those it does not reach selected and dropping
-what is left of it. A selection of the whole value (every filled position, with or without the
+what is left of it where a character of the value follows; at the end of the value it goes on
+into the free positions, so pasting `9990123` over the last `5` of `+1 (415) 5` gives
+`+1 (415) 999-0123`. A selection of the whole value (every filled position, with or without the
 literals around them, as Ctrl+A gives) is replaced as in any field: typing or pasting over it
 starts a new value. On a pattern that mixes
 letters, digits and any characters, like the one above, any other edit moves the characters after it,
