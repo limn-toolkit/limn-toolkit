@@ -216,3 +216,13 @@ from `limn-test`, which no test in this repository had needed anything else for.
 request is a public class of `limn.backend.internal`, because the run time lets a class of another
 package implement a sealed interface only when it is public; its constructor is private.
 `CloseRequest` has not been released (it came after 0.9.0), so no released application is broken.
+
+## Note, 2026-10-20: only Limn implements `QuitRequest` either
+
+`QuitRequest`, the question an application ending puts to its `QuitHandler` before any window, is
+sealed the same way, as the owner decided (decision 42 of the 2026-10-19 review, the fourth sibling
+of decision 35): it permits only the ending coordinator's request, a public final class of
+`limn.backend.internal` with a private constructor, for the reason the note above gives. Its
+sentence inviting an application to implement it to test its handler goes; a test asks the handler
+with the backend's `requestQuit()`, as `ApplicationEndingTest` does. `QuitRequest` has not been
+released either (it came after 0.9.0).

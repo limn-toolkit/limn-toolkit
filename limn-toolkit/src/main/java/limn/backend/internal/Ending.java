@@ -289,13 +289,17 @@ public final class Ending {
         }
     }
 
-    /** The application-wide question to the quit handler. */
-    private static final class Quit implements QuitRequest {
+    /**
+     * The application-wide question to the quit handler. Public only because the sealed
+     * {@link QuitRequest} permits it from another package, which the run time allows of a public
+     * class alone; nothing outside this class can make one.
+     */
+    public static final class Quit implements QuitRequest {
 
         private final Round round;
         private boolean answered;
 
-        Quit(Round round) {
+        private Quit(Round round) {
             this.round = round;
         }
 

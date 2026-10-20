@@ -14,16 +14,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The three requests a user's close puts to an application, a window's, a tab's and a dialog's,
- * are implemented by Limn alone, so that a 1.x release can give each a method without breaking an
- * application's class: open, the one an application had implemented would stop compiling. Each is
- * sealed and permits only the class Limn answers with; a mock made the way mocking libraries make
- * one, a proxy, is refused. A test asks a handler the way the user does, through the headless
- * backend.
+ * and the fourth an application ending puts to its quit handler, are implemented by Limn alone, so
+ * that a 1.x release can give each a method without breaking an application's class: open, the one
+ * an application had implemented would stop compiling. Each is sealed and permits only the class
+ * Limn answers with; a mock made the way mocking libraries make one, a proxy, is refused. A test
+ * asks a handler the way the user and the system do, through the headless backend.
  */
 class CloseRequestsAreSealedTest {
 
     private static final List<Class<?>> REQUESTS =
-            List.of(CloseRequest.class, TabbedPane.TabCloseRequest.class, Dialog.CancelRequest.class);
+            List.of(CloseRequest.class, TabbedPane.TabCloseRequest.class, Dialog.CancelRequest.class,
+                    QuitRequest.class);
 
     @Test
     void eachRequestIsSealedAndPermitsOnlyLimnsOwnClass() {
