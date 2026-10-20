@@ -315,4 +315,104 @@ class AnotherScenesLayerIsRefusedTest extends SceneTestBase {
         }
         assertEquals(List.of(), failures);
     }
+
+    /** A scene bound to a window that then closed, its tree let go of. */
+    private Scene closedScene(HeadlessBackend backend, Widget<?> root) {
+        Scene scene = new Scene(root);
+        scene.setTextRuler(TestRulers.FIXED);
+        HeadlessWindow window = backend.open("Floating", 200, 100);
+        scene.bind(window);
+        window.frame();
+        return scene;
+    }
+
+    /**
+     * A scene whose window closed and is bound again does not take back a root another scene took
+     * meanwhile: a floating tool window's content docked into the main window's column, or made a
+     * new window's root, and the same scene then bound to a new window to float it again. It took
+     * the root back unasked, the content then the floating scene's root and the dock's child at
+     * once. The bind is refused, before anything changes, and works once the content is let go.
+     */
+    @Test
+    void aClosedScenesRootTakenMeanwhileRefusesItsBindAgain() {
+        HeadlessBackend backend = new HeadlessBackend(runtime);
+        for (String taker : new String[] {"a column of another scene", "a new scene", "a column in no scene"}) {
+            List<String> log = new ArrayList<>();
+            Told content = new Told("content", log);
+            Scene floating = closedScene(backend, content);
+            backend.windows().get(backend.windows().size() - 1).close();
+            assertNull(content.scene(), taker + ": sanity, the close let go of it");
+            Column dock = new Column();
+            Scene holder = null;
+            if (taker.equals("a new scene")) {
+                holder = new Scene(content);
+            } else {
+                dock.add(content);
+                if (taker.equals("a column of another scene")) {
+                    holder = new Scene(dock);
+                }
+            }
+            log.clear();
+            HeadlessWindow again = backend.open("Floating again", 200, 100);
+            IllegalStateException refused = assertThrows(IllegalStateException.class, () -> floating.bind(again),
+                    taker);
+            assertTrue(refused.getMessage().contains("root"), taker + ": says why: " + refused.getMessage());
+            assertSame(holder, content.scene(), taker + ": still where it was taken");
+            assertEquals(List.of(), log, taker + ": nobody told anything");
+            assertNull(again.scene(), taker + ": the window was not bound");
+            if (holder != null && holder.root() == content) {
+                assertSame(content, holder.root(), taker);
+            } else {
+                assertSame(dock, content.parent(), taker + ": still the dock's");
+            }
+
+            // Let go of, it is taken back as any closed scene's root is.
+            if (content.parent() != null) {
+                dock.remove(content);
+            } else {
+                continue; // a new scene's root is its scene's until that window closes
+            }
+            floating.bind(again);
+            assertSame(floating, content.scene(), taker + ": bound again once let go of");
+        }
+    }
+
+    /**
+     * Its overlays another scene took meanwhile are that scene's: bound again, the closed scene
+     * leaves them off its stack, where they stayed on both stacks at once, and takes back the
+     * ones nobody took.
+     */
+    @Test
+    void aClosedScenesOverlayTakenMeanwhileStaysWithItsTaker() {
+        HeadlessBackend backend = new HeadlessBackend(runtime);
+        List<String> log = new ArrayList<>();
+        Scene floating = closedScene(backend, new FixedBox(100, 100));
+        Told pushedElsewhere = new Told("pushed elsewhere", log);
+        Told adopted = new Told("adopted", log);
+        Told untouched = new Told("untouched", log);
+        floating.pushOverlay(pushedElsewhere);
+        floating.pushPopup(adopted);
+        floating.pushOverlay(untouched);
+        backend.windows().get(backend.windows().size() - 1).close();
+        Scene other = new Scene(new FixedBox(100, 100));
+        other.pushOverlay(pushedElsewhere);
+        Column column = new Column();
+        column.add(adopted);
+        log.clear();
+
+        HeadlessWindow again = backend.open("Floating again", 200, 100);
+        floating.bind(again);
+
+        assertEquals(List.of(untouched), floating.overlays(), "only the one nobody took is back on the stack");
+        assertSame(floating, untouched.scene());
+        assertSame(other, pushedElsewhere.scene(), "the pushed one stays its taker's");
+        assertTrue(other.holdsAsLayer(pushedElsewhere));
+        assertFalse(floating.holdsAsLayer(pushedElsewhere));
+        assertSame(column, adopted.parent(), "the adopted one stays its column's");
+        assertNull(adopted.scene());
+        assertFalse(floating.isPopup(adopted));
+        assertEquals(List.of("attach untouched"), log);
+        floating.removeOverlay(untouched);
+        assertNull(untouched.scene(), "and comes off the stack as any overlay does");
+    }
 }

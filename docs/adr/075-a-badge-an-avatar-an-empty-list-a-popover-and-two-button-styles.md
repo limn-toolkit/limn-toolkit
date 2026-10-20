@@ -1055,3 +1055,26 @@ refused now with the same `IllegalArgumentException`, before anything moves, thr
 place an overlay is stacked. A popup a handler pushes again after its removal is not on the stack
 any more and is taken as before. `AnotherScenesLayerIsRefusedTest` pushes each of an overlay, a
 popup and the root on its own scene, as an overlay and as a popup.
+
+## Note, 2026-10-20 (review): a closed scene bound again does not take back what was taken
+
+Decision 40 lets a scene's root and overlays be taken once its window has closed, and `bind` of
+that scene to a new window then walked its root back in, and kept every overlay on its stack,
+whoever had taken them meanwhile (R11S-3): a floating tool window's content docked into the main
+window's column, then the same scene bound again to float it, was the floating scene's root and
+the dock's child at once, and an overlay another scene had pushed was on both stacks. The two are
+answered differently because a scene can do without an overlay and not without its root:
+
+- **An overlay taken since the close** (it has a parent, or another scene holds it) is the
+  taker's: the bind leaves it off this scene's stack, without a walk, and brings back the
+  overlays nobody took.
+- **A root taken since the close** refuses the bind with an `IllegalStateException` naming where
+  it went, before anything changes, the window left unbound. It is an `IllegalStateException` and
+  not the `IllegalArgumentException` of decision 40's refusals because what is wrong is the
+  scene's state, not the window passed in. Once the root is taken out of where it went, the bind
+  works and the tree comes back as before. Leaving the scene empty was the other answer, and was
+  not taken: a scene has no "no root", and every path that reads its root would have to learn one.
+
+`AnotherScenesLayerIsRefusedTest` binds again a scene whose root a column of another scene, a new
+scene and a column in no scene took, and one whose overlays were pushed elsewhere, adopted and
+left alone.

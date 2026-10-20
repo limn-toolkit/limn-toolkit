@@ -453,14 +453,41 @@ public final class Scene {
         layoutDirty = true;
     }
 
-    /** Wires this scene into a window: input, frame rendering, invalidation, clipboard. */
+    /**
+     * Wires this scene into a window: input, frame rendering, invalidation, clipboard.
+     *
+     * <p>A scene whose window closed may be bound again, to the same window's successor or to
+     * another: the tree the close let go of comes back to it. Not what another scene, or a
+     * container, took meanwhile: an overlay taken stays its taker's and is no longer on this
+     * scene's stack, and a root taken refuses the bind, since a scene has no tree without its
+     * root; take the root out of where it went first.
+     *
+     * @param window the window this scene draws in and takes its input from
+     * @throws IllegalStateException if this scene's window closed and its root has been taken
+     *                               since: it has a parent, or it is in another scene
+     */
     public void bind(NativeWindow window) {
+        if (detachedByClose && takenSinceTheClose(root)) {
+            // Before anything changes: the root is another scene's, or a container's, now.
+            Widget<?> taker = root.parent();
+            throw new IllegalStateException("this scene's window closed and its root, "
+                    + root.getClass().getName() + ", has been taken since, "
+                    + (taker != null ? "by " + taker.getClass().getName() : "as another scene's root or overlay")
+                    + ": take it out of there before binding this scene again");
+        }
         this.window = window;
         if (detachedByClose) {
-            // Bound again after its window closed: the tree that close took out comes back.
+            // Bound again after its window closed: the tree that close took out comes back, but
+            // not an overlay another scene, or a container, took meanwhile, which is the taker's.
             detachedByClose = false;
             if (locale != null) {
                 limn.i18n.I18n.retainLocale(locale);
+            }
+            for (int i = overlays.size() - 1; i >= 0; i--) {
+                Widget<?> overlay = overlays.get(i);
+                if (takenSinceTheClose(overlay)) {
+                    forgetTakenOverlay(i);
+                }
             }
             // Coming back from no scene, nothing in the tree is leaving one, so nothing settles and
             // no popup closes.
@@ -499,6 +526,27 @@ public final class Scene {
         publishTheWindowNodeIfOwed();
         watchUnderlines(this);
         runObservers(windowBoundObservers);
+    }
+
+    /**
+     * @return whether {@code layer}, this scene's root or one of its overlays when its window closed,
+     *         has been taken since: it has a parent, or it is in another scene
+     */
+    private boolean takenSinceTheClose(Widget<?> layer) {
+        Scene now = layer.scene();
+        return layer.parent() != null || now != null && now != this;
+    }
+
+    /**
+     * Takes the overlay at {@code index} off the stack of this scene, whose window closed, without
+     * a walk: the close walked it out, and another scene or a container has taken it since.
+     */
+    private void forgetTakenOverlay(int index) {
+        Widget<?> overlay = overlays.remove(index);
+        overlayFocusReturn.remove(index);
+        popupOverlays.remove(overlay);
+        keyboardBelow.remove(overlay);
+        closingOverlays.remove(overlay);
     }
 
     /** The scenes bound to a window that is open, which a change of the system's underlines repaints. */
