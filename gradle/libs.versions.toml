@@ -28,7 +28,7 @@ limn-ffmpeg-natives = "9.0.2.1"
 # the first three components are the Tabler release inside, the fourth that repository's own.
 # Compiled against the published toolkit as compileOnly, so it names no toolkit version and
 # nothing here depends on it but the demo — an application, which is the shape a pack is for.
-limn-icons-tabler = "3.48.0.0"
+limn-icons-tabler = "3.48.0.1"
 # The SVG renderer, from the limn-lunasvg-natives repository, versioned with lunasvg (ADR 066):
 # the first three components are the lunasvg inside, the fourth that repository's packaging. The
 # backend depends on its main jar and on all six natives-<os>-<arch> classifiers, as it does on
