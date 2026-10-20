@@ -241,7 +241,8 @@ While your rows are on their way, `setLoading(true)` shows a loading content in 
 tells a reader "Loading Orders"; `setLoading(false)` after the rows are set tells them how many
 arrived, or the empty message when none did. The name is the one a reader hears the widget by,
 from `setAccessibleName` or a caption bound with `setLabelFor`, and a widget on a page the user
-does not see, a hidden container or a tab not chosen, is busy and says nothing.
+does not see, a hidden container, a tab not chosen or the face of a card a `Transform` turns away
+or scales to nothing, is busy and says nothing.
 
 {% snippet guide:table-empty %}
 

@@ -682,7 +682,13 @@ that the text above does not say, dated where it departs from it.
   first layout. And `SceneAccess.applicationName` now names as the walk does, the explicit name,
   then a caption bound with `setLabelFor`, then the tooltip, so a list named by the caption the
   accessibility guide keeps as the idiom says "Loading Contacts" and not "Loading…". A popover's
-  name from its button follows the same order.
+  name from its button follows the same order. (2026-10-20, at the integration with ADR 072's
+  decision 16, review R3C-7: a face a transform does not draw, turned away, scaled to 0 or
+  edge-on, is not shown either, so the test is now `SceneAccess.isDrawn`, the one a popup asks
+  before it hangs from a widget: the visibility chain and each transform's "draws nothing", still
+  without the clips. An opacity group at 0 still speaks: a page fading in starts there, often in
+  the turn its load starts, and the accessible tree publishes it showing.
+  `EmptyContentTest.aListOnAFaceATransformDoesNotDrawSaysNothingOfItsLoad` failed before.)
 
 ### 12.5 Popover
 

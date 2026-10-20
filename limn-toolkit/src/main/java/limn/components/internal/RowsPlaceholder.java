@@ -188,8 +188,8 @@ public final class RowsPlaceholder {
      * Says the widget is loading, or has finished. The widget is published busy while it loads,
      * and a reader is told both ends: "Loading Orders" at the start, and at the end how many rows
      * arrived ("Orders, 12 items"), or the empty message when none did, the name being the one a
-     * reader hears the widget by. A widget in a hidden container or on a tab page not chosen is
-     * busy and says nothing. Set the rows before saying the load ended, so the count said is the
+     * reader hears the widget by. A widget in a hidden container, on a tab page not chosen or on a
+     * face a transform does not draw is busy and says nothing. Set the rows before saying the load ended, so the count said is the
      * one shown.
      *
      * @param value whether a load is running
@@ -226,22 +226,18 @@ public final class RowsPlaceholder {
     }
 
     /**
-     * Whether the widget is where the user sees it: it and every ancestor shown, so not in a
-     * hidden container nor on a tab page not chosen. Not {@link Widget#isShowing()}, which also
-     * asks the clips: a list built and set loading in one turn has no box until the next frame,
-     * and inside a scroll view it would count as clipped away, and its load go unsaid.
+     * Whether the widget is where the user sees it: it and every ancestor shown, and drawn by every
+     * transform above it, so not in a hidden container, on a tab page not chosen, nor on a face a
+     * transform does not draw (turned away, scaled to nothing, edge-on). Not
+     * {@link Widget#isShowing()}, which also asks the clips: a list built and set loading in one
+     * turn has no box until the next frame, and inside a scroll view it would count as clipped
+     * away, and its load go unsaid.
      */
     private static boolean onScreen(Widget<?> widget) {
-        // Only the flags, by design: the clip walk stays out. Not asked here yet: a face a
-        // Transform does not draw (back face, scale 0, edge-on) and an opacity group at zero,
-        // both shown by their flags. Where the toolkit answers "not showing" for a child its
-        // Transform hides, that predicate belongs in this loop as well, without the clips.
-        for (Widget<?> w = widget; w != null; w = w.parent()) {
-            if (!w.isVisible()) {
-                return false;
-            }
-        }
-        return true;
+        // The flags and the transforms, the clip walk left out by design. An opacity group at 0 is
+        // left out too: a page fading in starts there, often in the turn its load starts, and the
+        // tree still publishes it showing.
+        return SceneAccess.isDrawn(widget);
     }
 
     /** @return whether a load is running */

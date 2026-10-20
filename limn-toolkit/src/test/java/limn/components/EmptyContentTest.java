@@ -662,6 +662,42 @@ class EmptyContentTest extends AccessibleComponentTestBase {
     }
 
     @Test
+    void aListOnAFaceATransformDoesNotDrawSaysNothingOfItsLoad() {
+        // Two faces of a card back to back: the list on the back, turned away from the viewer, and
+        // a card collapsed to nothing. Neither is shown, as a hidden page is not, so neither says
+        // its load; turned toward the viewer, the end of the load is said.
+        ListView<String> back = new ListView<>(Label::new);
+        back.setItems(new ArrayList<>());
+        back.setAccessibleName("Archived");
+        limn.scene.layout.Transform backFace = new limn.scene.layout.Transform(new SizedBox(200, 100, back))
+                .setPerspective(600).setBackfaceVisible(false).setRotation3D(limn.math.Vec3.UNIT_Y, 180);
+        ListView<String> collapsed = new ListView<>(Label::new);
+        collapsed.setItems(new ArrayList<>());
+        collapsed.setAccessibleName("Customers");
+        limn.scene.layout.Transform folded = new limn.scene.layout.Transform(new SizedBox(200, 100, collapsed))
+                .setScale(0);
+        TokenColumn root = new TokenColumn(Tokens.Role.SMALL);
+        root.add(backFace);
+        root.add(folded);
+        bind(root);
+        bridge.events.clear();
+
+        back.setLoading(true);
+        collapsed.setLoading(true);
+        frame();
+        assertEquals(List.of(), announced(), "neither face is drawn");
+        assertFalse(node("Archived").states().contains(Accessible.State.SHOWING),
+                "sanity: the back face is published hidden");
+
+        backFace.setRotation3D(limn.math.Vec3.UNIT_Y, 0);
+        frame();
+        back.setLoading(false);
+        collapsed.setLoading(false);
+        frame();
+        assertEquals(List.of("Archived, 0 items"), announced(), "said once its face turns toward the viewer");
+    }
+
+    @Test
     void aListAddedAndLoadedBeforeItsFirstFrameIsStillSaid() {
         // Not a test of the clip: a list just built inside a scroll view has no box yet when the
         // application starts its load in the same turn, and is on screen at the next frame.

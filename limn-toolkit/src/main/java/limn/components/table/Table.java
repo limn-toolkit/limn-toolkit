@@ -2738,9 +2738,9 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
      * they stay. Either way the table is published busy, and a reader is told both ends: "Loading
      * Orders" at the start, with the name a reader hears the table by (given by
      * {@code setAccessibleName}, or by a caption bound with {@link Label#setLabelFor}), and at the
-     * end how many rows arrived, or the empty message when none did. A table in a hidden container
-     * or on a tab page not chosen is busy and says nothing of its load. Set the rows first, then
-     * say the load ended, so the count said is the count shown.
+     * end how many rows arrived, or the empty message when none did. A table in a hidden container,
+     * on a tab page not chosen or on a face a transform does not draw is busy and says nothing of
+     * its load. Set the rows first, then say the load ended, so the count said is the count shown.
      *
      * @param loading whether a load is running
      * @return this table
