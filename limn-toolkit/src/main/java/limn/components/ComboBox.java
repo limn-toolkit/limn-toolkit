@@ -1927,7 +1927,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
 
     /** The room an icon takes before a text, with its gap: none when no item has an icon. */
     private float iconRoom(SizeTokens t) {
-        return icons.isEmpty() ? 0 : t.fieldIcon() + t.spacingSmall();
+        return icons.isEmpty() ? 0 : t.fieldIcon() + t.gapIcon();
     }
 
     /** Mixed-step rows align on this, not on the box; see {@code Flex.CrossAlignment.BASELINE}. */
@@ -2656,7 +2656,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             SizeTokens t = Theme.of(this).tokensFor(ComboBox.this);
             float text = textRuler().measure(items.get(item).get(), t.body()).width();
             Icon icon = iconOfItem(item);
-            float w = 2 * chipPadH(t) + text + (icon != null ? t.fieldIcon() + t.spacingSmall() : 0);
+            float w = 2 * chipPadH(t) + text + (icon != null ? t.fieldIcon() + t.gapIcon() : 0);
             return constraints.constrain(w, constraints.maxHeight());
         }
 
@@ -2678,7 +2678,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
                 float ico = t.fieldIcon();
                 icon.paint(canvas, rtl ? width() - pad - ico : pad, (height() - ico) / 2, ico, ink,
                         theme.isDark(), rtl && mirrorsIconOfRow(item));
-                x += ico + t.spacingSmall();
+                x += ico + t.gapIcon();
             }
             Font font = t.body();
             float room = Math.max(0, width() - x - pad);

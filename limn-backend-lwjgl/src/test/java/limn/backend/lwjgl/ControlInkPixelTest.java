@@ -39,7 +39,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <p>The text of a field, a combo, a date field and a button is centred on its box by its <em>cap
  * height</em>, at every control size, at 1x and 2x, wherever on the pixel grid the box happens to
- * start.
+ * start. And the gap between a leading icon's ink and its text's ink is the same in a button, a
+ * field and a combo, in either direction.
  *
  * <p>Set the environment variable {@code LIMN_TEST_INK_REPORT} to a file to have every measurement
  * written there, and {@code LIMN_TEST_INK_DUMP} to a directory for the frames, as raw RGBA.
@@ -53,6 +54,14 @@ class ControlInkPixelTest {
     private static final boolean REPORT = REPORT_FILE != null;
     /** Capitals with flat tops and a flat foot, so the ink spans exactly cap height to baseline. */
     private static final String CAPS = "HEIDE";
+    /** A check mark on the 24-unit grid stroke icons are drawn on, a round-capped 2-unit pen. */
+    private static final String CHECK = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\""
+            + " fill=\"none\" stroke=\"#000\" stroke-width=\"2\" stroke-linecap=\"round\""
+            + " stroke-linejoin=\"round\"><path d=\"M5 12l5 5l10 -10\"/></svg>";
+
+    /** A square that inks the whole of its box. */
+    private static final String SQUARE = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\">"
+            + "<rect width=\"24\" height=\"24\" fill=\"#000\"/></svg>";
     /** A fixed today, so no date part depends on the day the test runs. */
     private static final java.time.Clock CLOCK =
             java.time.Clock.fixed(java.time.Instant.parse("2026-10-20T12:00:00Z"), java.time.ZoneOffset.UTC);
@@ -205,6 +214,60 @@ class ControlInkPixelTest {
         }
     }
 
+    // ------------------------------------------------------------------ D6: icon to text gap
+
+    @Test
+    void aButtonsIconStandsAsFarFromItsTextAsAComboIconDoes() {
+        // Asserted with a square that inks its whole box, so the gap read is the token and the
+        // letter's own side bearing and nothing else: a button's icon box is larger than a field's,
+        // and a stroke icon's margin inside its box grows with the box. The check mark, the icon
+        // the owner saw, is measured beside it for the report.
+        List<String> failures = new ArrayList<>();
+        for (float scale : new float[] {1f, 2f}) {
+            for (ControlSize size : ControlSize.values()) {
+                for (LayoutDirection direction : LayoutDirection.values()) {
+                    for (String svg : new String[] {SQUARE, CHECK}) {
+                        String kind = svg == SQUARE ? " square" : " check";
+                        float combo = iconGap(() -> new ComboBox<>(List.of(CAPS)).setSelectedIndex(0)
+                                .setItemIcon(item -> SvgIcon.of(svg)), size, scale, direction, "ComboBox" + kind);
+                        float button = iconGap(() -> new Button(CAPS).setIcon(SvgIcon.of(svg)),
+                                size, scale, direction, "Button" + kind);
+                        float field = iconGap(() -> new TextField().setText(CAPS).setLeadingIcon(SvgIcon.of(svg)),
+                                size, scale, direction, "TextField" + kind);
+                        // One device pixel: each edge is read where the pixel grid put it.
+                        float pixel = 1.05f / scale;
+                        if (svg == SQUARE && (Math.abs(button - combo) > pixel || Math.abs(field - combo) > pixel)) {
+                            failures.add(String.format(Locale.ROOT, "%s %.0fx %s: combo %.2f, button %.2f, field %.2f pt",
+                                    size, scale, direction, combo, button, field));
+                        }
+                    }
+                }
+            }
+        }
+        assertTrue(failures.isEmpty(), "icon-to-text gaps disagree: " + failures);
+    }
+
+    /** Points of empty paper between the icon's ink and the text's ink, on the side between them. */
+    private float iconGap(Supplier<Widget<?>> make, ControlSize size, float scale, LayoutDirection direction,
+                          String name) {
+        Widget<?> widget = make.get().setControlSize(size);
+        Placed placed = render(widget, scale, 20, 20, 240, direction);
+        Inner in = inner(widget, placed, scale);
+        List<Span> runs = columnRuns(placed.image, in.x0, in.y0, in.x1, in.y1, 2);
+        // The icon and the first letter are the two runs at the leading end; a combo's chevron and
+        // anything further along are not read.
+        boolean rtl = direction == LayoutDirection.RTL;
+        Span icon = rtl ? runs.get(runs.size() - 1) : runs.get(0);
+        Span text = rtl ? runs.get(runs.size() - 2) : runs.get(1);
+        float gap = (rtl ? icon.from - text.to : text.from - icon.to) / scale;
+        if (REPORT) {
+            report("gap %-16s %-7s %.0fx %s: icon ink %.2f..%.2f text from %.2f..%.2f gap %.2f pt"
+                            + " (runs %d)%n", name, size, scale, direction, icon.from, icon.to, text.from, text.to,
+                    gap, runs.size());
+        }
+        return gap;
+    }
+
     // ------------------------------------------------------------------ harness
 
     private record Named(String name, Supplier<Widget<?>> make) {
@@ -296,6 +359,43 @@ class ControlInkPixelTest {
             peak = Math.max(peak, cover[y - y0]);
         }
         return span(cover, y0, peak);
+    }
+
+    /** The runs of inked columns, split where at least {@code split} empty columns stand between. */
+    private static List<Span> columnRuns(byte[] image, int x0, int y0, int x1, int y1, int split) {
+        int bg = lum(image, x0, (y0 + y1) / 2);
+        float[] cover = new float[x1 - x0];
+        float peak = 0;
+        for (int x = x0; x < x1; x++) {
+            for (int y = y0; y < y1; y++) {
+                cover[x - x0] = Math.max(cover[x - x0], Math.abs(lum(image, x, y) - bg));
+            }
+            peak = Math.max(peak, cover[x - x0]);
+        }
+        List<Span> runs = new ArrayList<>();
+        float threshold = peak * 0.15f;
+        int i = 0;
+        while (i < cover.length) {
+            if (cover[i] <= threshold) {
+                i++;
+                continue;
+            }
+            int start = i;
+            int end = i;
+            int empty = 0;
+            for (int j = i; j < cover.length; j++) {
+                if (cover[j] > threshold) {
+                    end = j;
+                    empty = 0;
+                } else if (++empty >= split) {
+                    break;
+                }
+            }
+            float[] slice = java.util.Arrays.copyOfRange(cover, start, end + 1);
+            runs.add(span(slice, x0 + start, peak));
+            i = end + 1;
+        }
+        return runs;
     }
 
     private static Span span(float[] cover, int origin, float peak) {

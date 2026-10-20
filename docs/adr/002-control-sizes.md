@@ -2255,3 +2255,20 @@ the centre at every step and scale, and the worst phase is the half pixel the ro
 (`ControlInkPixelTest`). Ideographs from the CJK fallback face centre within a third of a point;
 Arabic letters, whose tails hang below the shared baseline, read about 1.5 pt low, which is the
 face's design and not this rule's.
+
+## Note, 2026-10-20: one gap between an icon and its text
+
+The owner found a button's icon too far from its caption next to a combo's, whose gap he read as
+right. Measured ink to ink with the bundled check mark, a MEDIUM button stood 11.6 pt from its
+caption and a combo 9.3 pt: the button and a field's leading icon took `gapIcon` (5 / 6 / 8 / 9 /
+11) while the combo, its chips and a menu row took `spacingSmall` (3 / 4 / 6 / 8 / 10), a label its
+`gapLabel` and a tab its `tabIconGap` (both 4 / 5 / 6 / 8 / 10). `gapIcon` is now 4 / 5 / 6 / 8 /
+10, the value most of them already had, and every icon beside its text takes it: Button,
+TextField's leading icon, ComboBox (field, list rows, chips), PopupMenu rows, Label, Expander,
+ColorPickerButton, the chart legend and the table's sort mark. MEDIUM moves 8 to 6 for the button
+and the field, and the combo's two dense steps gain a point (3 at XSMALL was the 0.27 em §3.4
+refused for text-adjacent gaps). A `TabbedPane` tab keeps `tabIconGap`, equal at every step, and a
+`Badge` its own smaller mark gap inside its pill. After: the three controls agree within a device
+pixel at every step, scale and direction (`ControlInkPixelTest`), the MEDIUM check mark standing
+8.8 to 9.9 pt from the text in all three, the spread being the pixel grid's. The tables above keep
+the old row as written; the search field's leading inset of §7.10 is now 24 / 29 / 34 / 41 / 50.

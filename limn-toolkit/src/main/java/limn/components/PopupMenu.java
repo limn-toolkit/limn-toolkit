@@ -2720,7 +2720,7 @@ public final class PopupMenu {
             // Mirroring swaps which gutter holds the check and which holds the arrow, and the
             // sum is the same either way: the column width, fit(), maxScroll(), the bounding
             // box and the native window size are all the same numbers in both directions.
-            this.iconSlot = anyIcon ? iconSide(ruler, t) + t.spacingSmall() : 0;
+            this.iconSlot = anyIcon ? iconSide(ruler, t) + t.gapIcon() : 0;
             this.contentW = Math.max(t.menuMinWidth(),
                     t.menuCheckGutter() + iconSlot + maxLabel + hintColumn + t.menuArrowGutter());
             this.w = this.contentW;
