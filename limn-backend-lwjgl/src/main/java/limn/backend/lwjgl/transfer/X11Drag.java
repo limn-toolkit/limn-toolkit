@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import java.util.function.DoubleUnaryOperator;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -416,20 +417,20 @@ public final class X11Drag {
             }
             float[] at = pointerIn(over);
             Set<DropAction> allowed = followed != null ? X11DragFollow.ALLOWED : allowed(lastIncomingAction);
-            ui.post(() -> {
+            ui.post(() -> dropAndFinish(() -> {
                 WindowInput in = over.input.get();
                 DropAction done = in == null ? null : in.dropped(offer, allowed, at[0], at[1]);
                 if (TRACE) {
                     System.err.println("limn.drag(x11): dropped at " + at[0] + "," + at[1] + ", done " + done);
                 }
-                x.post(() -> {
-                    // Told once what was dropped has been read, or the source lets go of it first.
-                    finishing = true;
-                    finishAccepted = done != null;
-                    finishAction = done;
-                    finishDeadline = System.nanoTime() + FINISH_TIMEOUT_NANOS;
-                });
-            });
+                return done;
+            }, done -> x.post(() -> {
+                // Told once what was dropped has been read, or the source lets go of it first.
+                finishing = true;
+                finishAccepted = done != null;
+                finishAction = done;
+                finishDeadline = System.nanoTime() + FINISH_TIMEOUT_NANOS;
+            })));
         } else if (type == status && outgoing != null && l0 == target) {
             waitingStatus = false;
             accepted = (l1 & 1) != 0;
@@ -440,6 +441,24 @@ public final class X11Drag {
             }
         } else if (type == finished && outgoing != null && dropped) {
             end(targetVersion >= 5 && (l1 & 1) == 0 ? null : actionOf(targetVersion >= 5 ? l2 : acceptedAction));
+        }
+    }
+
+    /**
+     * Runs the application's drop and hands what it did to {@code finish}, whatever happens: a
+     * drop that throws is handed on as a refusal, and the throw goes on. Without it the source was
+     * never told the drop was finished, the drag was never forgotten, and the X thread kept turning
+     * sixty times a second until the next drag. UI thread.
+     *
+     * @param drop   the drop, as the scene takes it
+     * @param finish what is owed the source once the drop has run
+     */
+    static void dropAndFinish(Supplier<@Nullable DropAction> drop, Consumer<@Nullable DropAction> finish) {
+        DropAction done = null;
+        try {
+            done = drop.get();
+        } finally {
+            finish.accept(done);
         }
     }
 

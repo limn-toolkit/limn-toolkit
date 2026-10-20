@@ -690,3 +690,9 @@ The review of the follow (2026-10-20, R11C):
   source said it was done with us. A position from the source after the release is answered as
   any position, with what it offers in full. `X11DragFollowTest` has the release, the wait, a
   press meanwhile and the next drag's enter.
+- **A drop that throws** (R11C-6). An application's `onDrop` that threw ended the UI thread's
+  part before the source was owed its finish: the source was never told, the drag never
+  forgotten, and the clipboard's thread, whose turn skips a drag that was dropped, kept turning
+  every 16 ms until the next drag entered (an incoming drag left it at 250 ms before the follow).
+  What the drop did is handed on whatever happens, a throw as a refusal, and the throw goes on to
+  the runtime as any handler's does. `X11DragTest` has both.
