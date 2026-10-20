@@ -32,10 +32,12 @@ import limn.scene.layout.Row;
 import java.util.List;
 
 /**
- * Computation on the GPU, shown, in two patterns: molten rock whose every pixel is worked out by
+ * Computation on the GPU, shown, in three patterns: molten rock whose every pixel is worked out by
  * the fragment shader, as fractal noise moving with time, on a sphere over a lake of the same;
- * and the Mandelbrot set on a panel, up to 256 turns of z ↦ z² + c a pixel through a loop in the
- * shader IR, smooth-coloured and zooming slowly into the valley between its two largest parts.
+ * the Mandelbrot set on a panel, up to 256 turns of z ↦ z² + c a pixel through a loop in the
+ * shader IR, smooth-coloured and zooming slowly into the valley between its two largest parts;
+ * and a glowing cloud on the same panel, a ray marched through drifting noise a pixel, gathering
+ * colour until it is opaque.
  *
  * <p>It is an application's {@link Material.Surface}, written in the toolkit's portable shader
  * IR, and the engine still lights it: the crust takes the scene's light and the sky, and the
@@ -64,6 +66,7 @@ final class GpuShaderScene {
         static final I18nString PATTERN = new I18nString("showcase.shader.pattern", "Pattern");
         static final I18nString MOLTEN = new I18nString("showcase.shader.molten", "Molten rock");
         static final I18nString FRACTAL = new I18nString("showcase.shader.fractal", "Fractal");
+        static final I18nString CLOUD = new I18nString("showcase.shader.cloud", "Cloud");
         static final I18nString PAUSED =
                 new I18nString("showcase.shader.paused", "Paused: the system asks for less motion");
 
@@ -349,6 +352,79 @@ final class GpuShaderScene {
         return SurfaceOutputs.of(crust, Expr.Lit.of(0f), Expr.Lit.of(0.6f), glow);
     }
 
+    // ------------------------------------------------------------------ the cloud
+
+    /** The cloud's program key: one program, whatever the drift or the palette. */
+    static final String CLOUD_KEY = "demo.cloud";
+    /** The most steps a ray takes through the cloud, front to back. */
+    static final int CLOUD_TURNS = 48;
+    /** The cloud's ball: its radius, and how far a step goes to cross it in the turns there are. */
+    private static final float CLOUD_RADIUS = 1.2f;
+    private static final float CLOUD_STEP = 2f * CLOUD_RADIUS / CLOUD_TURNS;
+    /** How much light a unit of the cloud's density stops over a unit of distance. */
+    private static final float CLOUD_DENSITY = 6f;
+
+    private static final Material.Surface CLOUD = new Material.Surface(CLOUD_KEY, cloudOutputs(), List.of(),
+            List.of(new Material.Surface.Value("u_time", Vec4.ZERO),
+                    new Material.Surface.Value("u_heat", PALETTES[0][0]),
+                    new Material.Surface.Value("u_tint", PALETTES[0][1]),
+                    new Material.Surface.Value("u_crust", PALETTES[0][2])),
+            null);
+
+    /** The cloud at {@code time} in palette {@code palette}: the same key and program, new values. */
+    static Material.Surface cloud(double time, int palette) {
+        Vec4[] p = PALETTES[palette];
+        return CLOUD.with(List.of(), List.of(
+                new Material.Surface.Value("u_time", new Vec4((float) time, 0, 0, 0)),
+                new Material.Surface.Value("u_heat", p[0]),
+                new Material.Surface.Value("u_tint", p[1]),
+                new Material.Surface.Value("u_crust", p[2])));
+    }
+
+    /**
+     * A glowing cloud, in the IR: each pixel of the panel marches a ray front to back through a
+     * ball of drifting noise, a loop of two values, the colour and alpha gathered so far and the
+     * distance gone, which is where along the ray the next step looks.
+     *
+     * <p>The density is the noise, thinned toward the ball's edge; each step adds the light of
+     * what it crosses, in the palette's colours by how dense it is, behind what is already in
+     * front of it. The loop ends once the gathered alpha passes 0.99, a different step in each
+     * pixel, so it may hold no texture lookup and no derivative; the noise is worked out, and
+     * needs neither. What the ray does not gather is the crust behind it.
+     */
+    private static SurfaceOutputs cloudOutputs() {
+        Expr time = new Expr.Swizzle(ref("u_time", ShaderType.VEC4), "x");
+        Expr heatKnobs = ref("u_heat", ShaderType.VEC4);
+        Expr across = mul(new Expr.Binary(Expr.Op.SUB, ref("v_uv", ShaderType.VEC2), Expr.Lit.of(0.5f, 0.5f)),
+                Expr.Lit.of(PANEL_ASPECT * 2.6f, -2.6f));
+        Expr drift = new Expr.Construct(ShaderType.VEC3, List.of(Expr.Lit.of(0f),
+                mul(time, Expr.Lit.of(-0.35f)), mul(time, Expr.Lit.of(0.12f))));
+        Expr.Loop march = Expr.Loop.of(List.of(Expr.Lit.of(0f, 0f, 0f, 0f), Expr.Lit.of(0f)), CLOUD_TURNS, s -> {
+            Expr gathered = s.get(0);
+            Expr travelled = s.get(1);
+            Expr point = new Expr.Construct(ShaderType.VEC3, List.of(across, add(Expr.Lit.of(-CLOUD_RADIUS), travelled)));
+            Expr edge = call("clamp", ShaderType.FLOAT, new Expr.Binary(Expr.Op.SUB, Expr.Lit.of(1f),
+                    mul(call("length", ShaderType.FLOAT, point), Expr.Lit.of(1f / CLOUD_RADIUS))),
+                    Expr.Lit.of(0f), Expr.Lit.of(1f));
+            Expr density = mul(call("smoothstep", ShaderType.FLOAT, Expr.Lit.of(0.3f), Expr.Lit.of(0.75f),
+                    noise(add(mul(point, Expr.Lit.of(1.7f)), drift))), mul(edge, Expr.Lit.of(1.6f)));
+            Expr taken = mul(mul(call("min", ShaderType.FLOAT, density, Expr.Lit.of(1f)),
+                    Expr.Lit.of(CLOUD_DENSITY * CLOUD_STEP)),
+                    new Expr.Binary(Expr.Op.SUB, Expr.Lit.of(1f), new Expr.Swizzle(gathered, "w")));
+            Expr heat = call("clamp", ShaderType.FLOAT, mul(density, Expr.Lit.of(1.4f)), Expr.Lit.of(0f), Expr.Lit.of(1f));
+            Expr glow = mul(mul(call("pow", ShaderType.VEC3, new Expr.Construct(ShaderType.VEC3, List.of(heat)),
+                    new Expr.Swizzle(heatKnobs, "xyz")), new Expr.Swizzle(ref("u_tint", ShaderType.VEC4), "xyz")),
+                    mul(new Expr.Swizzle(heatKnobs, "w"), Expr.Lit.of(0.6f)));
+            return List.of(add(gathered, mul(new Expr.Construct(ShaderType.VEC4, List.of(glow, Expr.Lit.of(1f))), taken)),
+                    add(travelled, Expr.Lit.of(CLOUD_STEP)));
+        }, s -> new Expr.Binary(Expr.Op.SUB, new Expr.Swizzle(s.get(0), "w"), Expr.Lit.of(0.99f)));
+        Expr crust = new Expr.Construct(ShaderType.VEC4, List.of(
+                mul(new Expr.Swizzle(ref("u_crust", ShaderType.VEC4), "xyz"),
+                        new Expr.Binary(Expr.Op.SUB, Expr.Lit.of(1f), new Expr.Swizzle(march, "w"))),
+                Expr.Lit.of(1f)));
+        return SurfaceOutputs.of(crust, Expr.Lit.of(0f), Expr.Lit.of(0.82f), new Expr.Swizzle(march, "xyz"));
+    }
+
     // ------------------------------------------------------------------- the view
 
     private static final Vec3 LAVA_EYE = new Vec3(0f, 2.2f, 5.4f);
@@ -405,10 +481,11 @@ final class GpuShaderScene {
                 molten[0].material(surface(now, palette[0], 0.07f));
                 molten[1].material(surface(now, palette[0], 0f));
             } else {
-                panel[0].material(fractal(now, palette[0]));
+                // The fractal and the cloud share the panel, each its own program.
+                panel[0].material(pattern[0] == 1 ? fractal(now, palette[0]) : cloud(now, palette[0]));
             }
             float aspect = viewport.height() > 0 ? viewport.width() / viewport.height() : 1f;
-            scene[pattern[0]].render(pass, viewport.camera(), aspect);
+            scene[pattern[0] == 0 ? 0 : 1].render(pass, viewport.camera(), aspect);
         });
         viewport.observeDispose(() -> {
             for (int i = 0; i < scene.length; i++) {
@@ -432,7 +509,7 @@ final class GpuShaderScene {
             viewport.invalidate(); // a still view, under less motion, shows the new palette too
         });
 
-        SegmentedControl patterns = new SegmentedControl(Text.MOLTEN, Text.FRACTAL);
+        SegmentedControl patterns = new SegmentedControl(Text.MOLTEN, Text.FRACTAL, Text.CLOUD);
         patterns.setAccessibleName(Text.PATTERN);
         java.util.function.IntConsumer choosePattern = index -> {
             pattern[0] = index;
@@ -442,11 +519,15 @@ final class GpuShaderScene {
             viewport.invalidate();
         };
         patterns.onSelect(choosePattern);
-        // A lab switch for a film of the page: -Dlimn.demo.shader.pattern=Fractal opens on that
-        // pattern, by its English name.
-        if (Text.FRACTAL.english().equalsIgnoreCase(String.valueOf(System.getProperty("limn.demo.shader.pattern")))) {
-            patterns.setSelectedIndex(1);
-            choosePattern.accept(1);
+        // A lab switch for a film of the page: -Dlimn.demo.shader.pattern=Fractal (or Cloud) opens
+        // on that pattern, by its English name.
+        String asked = String.valueOf(System.getProperty("limn.demo.shader.pattern"));
+        List<I18nString> named = List.of(Text.MOLTEN, Text.FRACTAL, Text.CLOUD);
+        for (int i = 1; i < named.size(); i++) {
+            if (named.get(i).english().equalsIgnoreCase(asked)) {
+                patterns.setSelectedIndex(i);
+                choosePattern.accept(i);
+            }
         }
 
         Label paused = Page.hint(Text.PAUSED);

@@ -111,6 +111,21 @@ class GpuShaderSceneTest {
     }
 
     @Test
+    void theCloudIsOneProgramThatMarchesAColourAndADistanceAndEndsEarly() {
+        Material.Surface first = GpuShaderScene.cloud(0.0, 0);
+        Material.Surface later = GpuShaderScene.cloud(9.0, 2);
+        assertEquals(GpuShaderScene.CLOUD_KEY, later.key());
+        assertSame(first.outputs(), later.outputs(), "the expressions are built once");
+        limn.render3d.shader.Expr.Loop march = loopIn(first.outputs().emissive());
+        assertEquals(GpuShaderScene.CLOUD_TURNS, march.maxIterations());
+        assertEquals(java.util.List.of(limn.render3d.shader.ShaderType.VEC4, limn.render3d.shader.ShaderType.FLOAT),
+                march.initial().stream().map(limn.render3d.shader.Expr::type).toList(),
+                "the colour gathered and the distance travelled");
+        assertTrue(march.until() != null, "it stops once the cloud is opaque");
+        assertNotEquals(first.values(), later.values(), "the drift and the palette moved");
+    }
+
+    @Test
     void theZoomGoesFromTheWholeSetToAThousandthOfItAndBack() {
         assertEquals(GpuShaderScene.WIDEST, GpuShaderScene.scaleAt(0), 1e-9);
         assertEquals(GpuShaderScene.DEEPEST, GpuShaderScene.scaleAt(30), 1e-9);
