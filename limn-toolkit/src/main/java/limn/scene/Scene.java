@@ -2178,6 +2178,21 @@ public final class Scene {
     }
 
     /**
+     * @return whether {@code widget} hangs under this scene's root or one of its overlays, in a
+     *         window that has not closed
+     */
+    boolean holdsInTree(Widget<?> widget) {
+        if (detachedByClose) {
+            return false;
+        }
+        Widget<?> top = widget;
+        while (top.parent() != null) {
+            top = top.parent();
+        }
+        return top == root || overlays.contains(top);
+    }
+
+    /**
      * Adds damage for a rect in {@code widget}'s local coordinates, walking up
      * to scene coordinates while clamping it at every ancestor that clips its
      * children: a region scrolled out of a viewport damages only its visible
@@ -3709,6 +3724,12 @@ public final class Scene {
                 if (scene != null) {
                     scene.anchorsLeaving(panel);
                 }
+            }
+
+            @Override
+            public boolean isInTree(Widget<?> widget) {
+                Scene scene = widget.scene();
+                return scene != null && scene.holdsInTree(widget);
             }
 
             @Override

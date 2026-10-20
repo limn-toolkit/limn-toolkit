@@ -104,14 +104,14 @@ public final class Popover {
 
     /**
      * Shows the panel against {@code anchor}. A no-op while open; nothing shows for an anchor that
-     * is in no scene.
+     * is in no scene, or is being taken out of its window.
      *
      * @param anchor the widget the panel hangs from
      */
     public void showFor(Widget<?> anchor) {
         Ui.checkUiThread();
         Objects.requireNonNull(anchor, "anchor");
-        if (open || anchor.scene() == null) {
+        if (open || !AnchoredPopup.canHangFrom(anchor)) {
             return;
         }
         if (content.parent() != null) {

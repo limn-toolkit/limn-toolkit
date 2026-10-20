@@ -1,5 +1,6 @@
 package limn.components;
 
+import limn.scene.Change;
 import limn.scene.Scene;
 import limn.scene.Widget;
 import limn.scene.layout.Column;
@@ -15,6 +16,7 @@ import java.util.concurrent.TimeUnit;
 import static limn.testing.SceneDriver.drive;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -63,7 +65,7 @@ class PopoverReentrancyTest extends ComponentTestBase {
         return in != null && (in.window() == null || !in.window().isClosed());
     }
 
-    private enum Trigger { CODE, APPLICATION_SWITCH }
+    private enum Trigger { CODE, APPLICATION_SWITCH, ANCHOR_LEAVES }
 
     // ------------------------------------------------------------------ an inner onClose showing the outer again
 
@@ -122,11 +124,15 @@ class PopoverReentrancyTest extends ComponentTestBase {
                 owner.desktopFocus(true);
                 owner.desktopFocus(false);
             }
+            case ANCHOR_LEAVES -> holder.remove(more);
         }
         frames(40);
         String where = mode + " " + trigger + " " + heard;
         assertFalse(inner.isOpen(), where);
         assertEquals(outer.isOpen(), shown(outer), "the outer one is shown exactly when it says it is open: " + where);
+        if (trigger == Trigger.ANCHOR_LEAVES) {
+            assertFalse(outer.isOpen(), "never shown again from a button on its way out: " + where);
+        }
 
         if (outer.isOpen()) {
             // Shown again during its own close: what it hears is its own, a press outside included.
@@ -146,5 +152,76 @@ class PopoverReentrancyTest extends ComponentTestBase {
         assertTrue(outer.isOpen() && shown(outer), "and the outer one opens and shows again: " + where);
         owner.requestClose();
         runtime.drain();
+    }
+
+    // ------------------------------------------------------------------ onClose showing the same popover elsewhere
+
+    @Test
+    void aPopoverShownElsewhereByItsOwnOnCloseAsItsAnchorLeavesIsShownThere() {
+        for (DisplayMode mode : DisplayMode.values()) {
+            // A walkthrough reusing one popover from step to step: the step's anchor goes, and
+            // its handler moves the popover on. The close that followed took the new presentation
+            // down, and the popover said it was open with nothing shown, refusing every showFor.
+            heard.clear();
+            Button first = new Button("First");
+            Button next = new Button("Next");
+            Column holder = new Column();
+            holder.add(first);
+            Column root = new Column();
+            root.add(holder);
+            root.add(next);
+            inWindow(root);
+            Popover[] self = new Popover[1];
+            self[0] = new Popover(new SizedBox(160, 30, new TextField())).setDisplayMode(mode).onClose(origin -> {
+                heard.add("P " + origin);
+                if (origin == Change.Origin.ADJUSTMENT) {
+                    self[0].showFor(next);
+                }
+            });
+            self[0].showFor(first);
+            frames(3);
+            holder.remove(first);
+            frames(40);
+            assertEquals(List.of("P ADJUSTMENT"), heard, mode.toString());
+            assertTrue(self[0].isOpen(), mode + ": shown for the next step");
+            assertTrue(shown(self[0]), mode + ": and it is on screen");
+            self[0].close();
+            frames(40);
+            assertFalse(shown(self[0]), mode + ": closed, gone");
+            owner.requestClose();
+            runtime.drain();
+        }
+    }
+
+    @Test
+    void aPopoverShownAgainForTheAnchorThatIsLeavingStaysClosed() {
+        for (DisplayMode mode : DisplayMode.values()) {
+            heard.clear();
+            Button first = new Button("First");
+            Column holder = new Column();
+            holder.add(first);
+            Column root = new Column();
+            root.add(holder);
+            inWindow(root);
+            Popover[] self = new Popover[1];
+            self[0] = new Popover(new SizedBox(160, 30, new TextField())).setDisplayMode(mode).onClose(origin -> {
+                heard.add("P " + origin);
+                self[0].showFor(first); // still answers its scene while it leaves
+            });
+            self[0].showFor(first);
+            frames(3);
+            holder.remove(first);
+            frames(40);
+            assertFalse(self[0].isOpen(), mode + ": a widget on its way out is nothing to hang from");
+            assertNull(self[0].content().scene(), mode.toString());
+            Button again = new Button("Again");
+            root.add(again);
+            frames(2);
+            self[0].showFor(again);
+            frames(3);
+            assertTrue(self[0].isOpen() && shown(self[0]), mode + ": it opens from a widget in the window");
+            owner.requestClose();
+            runtime.drain();
+        }
     }
 }

@@ -93,6 +93,9 @@ public final class SceneAccess {
         /** @param panel a closing popup's panel; see {@link SceneAccess#closePopupsHungIn} */
         void closePopupsHungIn(Widget<?> panel);
 
+        /** @param widget a widget; see {@link SceneAccess#isInTree} */
+        boolean isInTree(Widget<?> widget);
+
         @org.jspecify.annotations.Nullable Widget<?> focusedBefore(Scene scene);
 
         /**
@@ -513,6 +516,16 @@ public final class SceneAccess {
      */
     public static void closePopupsHungIn(Widget<?> panel) {
         hook().closePopupsHungIn(java.util.Objects.requireNonNull(panel, "panel"));
+    }
+
+    /**
+     * @param widget a widget
+     * @return whether it hangs in its scene's tree, under the root or an overlay, in a window that
+     *         has not closed: false for one being taken out, which still answers its scene while
+     *         the popups hung from it close
+     */
+    public static boolean isInTree(Widget<?> widget) {
+        return hook().isInTree(java.util.Objects.requireNonNull(widget, "widget"));
     }
 
     /** @return the widget that had the keyboard in {@code scene} before the one that has it now, or null */

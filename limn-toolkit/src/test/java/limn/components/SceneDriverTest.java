@@ -96,6 +96,11 @@ class SceneDriverTest extends ComponentTestBase {
             }
 
             @Override
+            public boolean isInTree(limn.scene.Widget<?> widget) {
+                return false;
+            }
+
+            @Override
             public limn.scene.Widget<?> focusedBefore(Scene scene) {
                 return null;
             }

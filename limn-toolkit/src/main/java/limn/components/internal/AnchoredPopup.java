@@ -83,8 +83,9 @@ public final class AnchoredPopup {
         /**
          * The component's own close, with what caused it: a press elsewhere or beside the card is
          * the user's, the application losing the keyboard, the owner's fullscreen changing or the
-         * anchor leaving the window is an adjustment. The popup closes itself after this when the
-         * component did not.
+         * anchor leaving the window is an adjustment. For the anchor, the popup closes itself after
+         * this when the component did not, unless the component's close showed it again (its
+         * application's handler did), which is then left as it is.
          *
          * @param origin who closed it
          */
@@ -193,6 +194,8 @@ public final class AnchoredPopup {
     private @Nullable Subscription anchorLeaves;
     /** Set while it closes because its anchor left: nothing is focused on a widget on its way out. */
     private boolean anchorGone;
+    /** Counts the presentations, so a close for one never takes down the one shown after it. */
+    private int presentation;
 
     public AnchoredPopup(Host host) {
         this.host = Objects.requireNonNull(host, "host");
@@ -229,9 +232,20 @@ public final class AnchoredPopup {
     }
 
     /**
+     * @param anchor a widget
+     * @return whether a popup can hang from it: in a scene's tree, and not on its way out of it (a
+     *         widget being taken out still answers its scene while the popups hung from it close,
+     *         and a handler of theirs may ask to show one there again)
+     */
+    public static boolean canHangFrom(Widget<?> anchor) {
+        return anchor.scene() != null && SceneAccess.isInTree(anchor);
+    }
+
+    /**
      * Opens it, in a window of its own where that was asked and the owner allows, in the scene
-     * otherwise. Nothing happens with no scene: a test without a window drives the component's own
-     * state. A no-op while open.
+     * otherwise. Nothing happens with no scene, or for an anchor nothing can hang from
+     * ({@link #canHangFrom}): a test without a window drives the component's own state. A no-op
+     * while open.
      *
      * @param requested the presentation the component was asked for
      */
@@ -239,10 +253,11 @@ public final class AnchoredPopup {
         Ui.checkUiThread();
         Widget<?> anchor = host.anchor();
         Scene scene = anchor.scene();
-        if (open || scene == null) {
+        if (open || scene == null || !canHangFrom(anchor)) {
             return;
         }
         open = true;
+        presentation++;
         ownerScene = scene;
         // Here and not in each component's onDetached, which a component that is no widget has no
         // way to hear: the anchor taken out of the window, by itself or with a container or a
@@ -512,15 +527,22 @@ public final class AnchoredPopup {
         }
     }
 
-    /** Its anchor left the window: the component closes it as an adjustment, or it closes itself. */
+    /**
+     * Its anchor left the window: the component closes it as an adjustment, or it closes itself.
+     * Not when the component's close showed it again, for another anchor (an application's
+     * handler did): that presentation is a new one, and stays.
+     */
     private void anchorLeft() {
         if (!open) {
             return;
         }
+        int closing = presentation;
         anchorGone = true;
         try {
             host.dismiss(Change.Origin.ADJUSTMENT);
-            close();
+            if (open && presentation == closing) {
+                close();
+            }
         } finally {
             anchorGone = false;
         }
