@@ -3431,8 +3431,16 @@ public final class Scene {
      * Moves keyboard focus to {@code widget}, or clears it when {@code null}. Ignored
      * for a widget that is not focusable, for one that is hidden or disabled itself or through
      * any ancestor (a control inside a hidden tab or a disabled form), for one inside a subtree
-     * sliding shut, and for one outside the topmost modal overlay. One merely scrolled out of
-     * its viewport is not refused: arriving reveals it. UI thread only.
+     * sliding shut, for one outside the topmost modal overlay, and for one in another scene or in
+     * none. One merely scrolled out of its viewport is not refused: arriving reveals it. UI thread
+     * only.
+     *
+     * <p>A widget still joining this scene is the exception: a container's
+     * {@link Widget#onAttached()} runs before its children are attached, so a form that starts the
+     * keyboard on its first field from there asks for a widget that is not in the scene yet. The
+     * request is kept until the join is complete, and the field is focused then if it has joined
+     * and nothing above refuses it; a later request, {@code null} included, replaces it. A join that
+     * an {@code onAttached} cut short before reaching the field focuses nothing.
      *
      * <p>An application calling this is code moving the focus, so the two {@code FOCUS} changes
      * it announces carry {@code CODE}. A gesture that moves focus does not come through here: a
@@ -3449,6 +3457,13 @@ public final class Scene {
     /** The funnel the origin travels through; see {@link #requestFocus(Widget)}. */
     void requestFocus(Widget<?> widget, Change.Origin origin) {
         Ui.checkUiThread();
+        if (widget != null && widget.scene() == null && joinDepth > 0 && reachable(widget)
+                && holdsInTree(widget)) {
+            // Not reached by the walk yet: asked for from an ancestor's onAttached.
+            focusAfterJoin = widget;
+            focusAfterJoinOrigin = origin;
+            return;
+        }
         if (widget != null && !canTakeFocus(widget)) {
             return;
         }
@@ -3459,7 +3474,46 @@ public final class Scene {
         if (widget != null && !isInSubtree(widget, keyboardRoot())) {
             return;
         }
+        focusAfterJoin = null; // the later request wins
         setFocus(widget, origin);
+    }
+
+    /** How many walks into this scene are in progress; see {@link #requestFocus(Widget)}. */
+    private int joinDepth;
+
+    /** A widget asked for while a walk had not reached it yet, focused once the join is complete. */
+    private @Nullable Widget<?> focusAfterJoin;
+    private Change.Origin focusAfterJoinOrigin = Change.Origin.CODE;
+
+    /** A walk into this scene starts: until the outermost one ends, a request may wait for it. */
+    void joinStarted() {
+        joinDepth++;
+    }
+
+    /**
+     * A walk into this scene ended. Once the outermost has, the focus asked for while it ran goes
+     * where it was asked, if the widget is now in this scene and nothing refuses it.
+     *
+     * @param whole  whether the walk ran to its end; when it did not, nothing waits for it
+     * @param failed what the walk's caller holds so far, or null
+     * @return {@code failed}, with what the focus handlers threw added to it
+     */
+    @Nullable Throwable joinEnded(boolean whole, @Nullable Throwable failed) {
+        joinDepth--;
+        Widget<?> widget = focusAfterJoin;
+        if (joinDepth > 0 || widget == null) {
+            return failed;
+        }
+        focusAfterJoin = null;
+        if (!whole) {
+            return failed; // a VirtualMachineError is on its way out: no application code after it
+        }
+        try {
+            requestFocus(widget, focusAfterJoinOrigin);
+        } catch (RuntimeException | Error error) {
+            failed = HandlerFailures.add(failed, error);
+        }
+        return failed;
     }
 
     /**

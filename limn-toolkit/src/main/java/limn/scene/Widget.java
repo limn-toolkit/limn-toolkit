@@ -671,6 +671,32 @@ public abstract class Widget<W extends Widget<W>> {
         bumpControlSizeEpoch();
         bumpLayoutDirectionEpoch();
         bumpLocaleEpoch();
+        if (newScene != null) {
+            newScene.joinStarted(); // a focus asked for from an onAttached waits for the join's end
+        }
+        boolean whole = false;
+        try {
+            failed = walkAndFollow(leaving, newScene, closed, failed, settled);
+            whole = true;
+        } finally {
+            if (newScene != null && !whole) {
+                newScene.joinEnded(false, null);
+            }
+        }
+        if (newScene != null) {
+            failed = newScene.joinEnded(true, failed);
+        }
+        HandlerFailures.rethrow(failed);
+    }
+
+    /**
+     * The walk of {@link #setSceneRecursively}, and the join or leave again that follows a handler
+     * that moved the subtree meanwhile.
+     *
+     * @return {@code failed}, with what the walk and the second walk threw added to it
+     */
+    private @Nullable Throwable walkAndFollow(@Nullable Scene leaving, @Nullable Scene newScene, int closed,
+                                              @Nullable Throwable failed, List<Runnable> settled) {
         try {
             setSceneRecursivelyInternal(newScene, settled);
         } catch (RuntimeException | Error walk) {
@@ -691,7 +717,7 @@ public abstract class Widget<W extends Widget<W>> {
                 }
             }
         }
-        HandlerFailures.rethrow(failed);
+        return failed;
     }
 
     /**

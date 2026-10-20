@@ -394,4 +394,118 @@ class SceneOverlayTest extends SceneTestBase {
         Widget<?> focused = owner.focusedWidget();
         assertTrue(focused == null || focused.scene() == owner, "the keyboard is in the scene: " + focused);
     }
+
+    /** A form that starts the keyboard on one of its fields as it joins a scene, as a page of a wizard does. */
+    static final class StartingForm extends Column {
+        final List<String> log;
+        Widget<?> start;
+
+        StartingForm(List<String> log) {
+            this.log = log;
+        }
+
+        @Override
+        protected void onAttached() {
+            log.add("form attached");
+            scene().requestFocus(start);
+        }
+    }
+
+    /** A focusable leaf that says when it joins and when it gains the keyboard. */
+    static final class JoiningField extends Widget<JoiningField> {
+        final String name;
+        final List<String> log;
+
+        JoiningField(String name, List<String> log) {
+            this.name = name;
+            this.log = log;
+            setFocusable(true);
+        }
+
+        @Override
+        protected Size onMeasure(Constraints c) {
+            return c.constrain(100, 20);
+        }
+
+        @Override
+        protected void onAttached() {
+            log.add(name + " attached");
+        }
+
+        @Override
+        protected void onFocusGained() {
+            log.add("gained " + name + (scene() == null ? " in no scene" : ""));
+        }
+    }
+
+    @Test
+    void aContainerFocusingItsFieldFromOnAttachedStartsTheKeyboardThere() {
+        // A form whose onAttached says "start here", scene().requestFocus(nameField), added to a
+        // live window and made the root a scene is built on: the walk attaches top-down, so the
+        // field answers no scene while the form's onAttached runs, and the request was dropped,
+        // the keyboard starting nowhere. It lands on the field once the field has joined.
+        for (boolean asRoot : new boolean[] {false, true}) {
+            String where = asRoot ? "the root of a new scene" : "added to a live window";
+            log.clear();
+            StartingForm form = new StartingForm(log);
+            JoiningField other = new JoiningField("surname", log);
+            JoiningField name = new JoiningField("name", log);
+            form.add(other);
+            form.add(name);
+            form.start = name;
+            Scene scene;
+            if (asRoot) {
+                scene = new Scene(form);
+            } else {
+                Column content = new Column();
+                PressBox base = new PressBox("base", new ArrayList<>());
+                content.add(base);
+                scene = new Scene(content);
+                scene.layoutPass(200, 200);
+                scene.requestFocus(base);
+                content.add(form);
+            }
+            assertSame(name, scene.focusedWidget(), where + ": " + log);
+            assertEquals(List.of("form attached", "surname attached", "name attached", "gained name"), log,
+                    where + ": the field gains the keyboard once it has joined, and is the one told");
+        }
+    }
+
+    @Test
+    void aFocusAskedForInAJoinTheWalkNeverFinishesLandsNowhere() {
+        // The hard case beside it: the form asks for its field, and a widget before the field throws
+        // from onAttached, so the walk never reaches it. The keyboard goes to no widget in no scene,
+        // on a live window and in a pushed overlay alike.
+        for (boolean overlay : new boolean[] {false, true}) {
+            String where = overlay ? "pushed as an overlay" : "added to a live window";
+            log.clear();
+            StartingForm form = new StartingForm(log);
+            AttachFault fault = new AttachFault();
+            JoiningField name = new JoiningField("name", log);
+            form.add(fault);
+            form.add(name);
+            form.start = name;
+            Column content = new Column();
+            PressBox base = new PressBox("base", new ArrayList<>());
+            content.add(base);
+            Scene scene = new Scene(content);
+            scene.layoutPass(200, 200);
+            scene.requestFocus(base);
+            IllegalStateException thrown = null;
+            try {
+                if (overlay) {
+                    scene.pushOverlay(form);
+                } else {
+                    content.add(form);
+                }
+            } catch (IllegalStateException e) {
+                thrown = e;
+            }
+            assertEquals("a fault in onAttached (expected)", thrown == null ? null : thrown.getMessage(), where);
+            assertNull(name.scene(), where + ": sanity, the walk never reached it");
+            Widget<?> focused = scene.focusedWidget();
+            assertTrue(focused == null || focused.scene() == scene, where + ": " + focused + " " + log);
+            assertFalse(log.contains("gained name in no scene"), where + ": " + log);
+        }
+    }
 }

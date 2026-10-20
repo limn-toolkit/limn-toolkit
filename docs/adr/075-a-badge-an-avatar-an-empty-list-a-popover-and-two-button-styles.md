@@ -862,6 +862,14 @@ that the text above does not say, dated where it departs from it.
     the components (`limn.internal.lang.HandlerFailures`). A window closing still contains every
     throw of its teardown, this one included, so that what outlives the window is given back.
     `OpacityTest` has the removal's two cases.
+- **The fourth review** (2026-10-20, the third review's fixes):
+  - **A focus asked for from `onAttached`:** the third review's rule, the keyboard only on a widget
+    in the scene, refused a container that starts the keyboard on its own field from its
+    `onAttached`, on a live window or as a new scene's root, since the walk attaches top-down and
+    the field is not in the scene yet when its container's hook runs. A request for a widget the
+    walk has not reached is kept until the outermost walk into that scene ends, and is obeyed then
+    if the widget has joined and nothing else refuses it; a later request replaces it. A walk cut
+    short before the widget still focuses nothing. `SceneOverlayTest` has both.
 
 ### 12.6 The input method in a popover's window, measured
 
