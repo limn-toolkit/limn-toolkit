@@ -537,17 +537,23 @@ public final class AnchoredPopup {
             return;
         }
         open = false;
-        if (panel != null) {
-            // Before this one lets go of anything, as a stack unwinds: the inner popup gives the
-            // keyboard back to its button in this panel, and this one then takes it home.
-            SceneAccess.closePopupsHungIn(panel);
-        }
-        for (Subscription each : new Subscription[] {cursor, route, presses, blur, popupBlur, fullscreen,
-                anchorMoved, anchorLeaves}) {
-            if (each != null) {
-                each.cancel();
-            }
-        }
+        boolean leaving = anchorGone;
+        anchorGone = false;
+        // What this presentation holds comes off the fields before any application code can run:
+        // the closes of the popups hung in its panel run their handlers, and a handler that shows
+        // this popup again builds a presentation of its own, which nothing below then touches. Its
+        // layer, taken down here instead, stayed over the window for good, owned by nothing.
+        Widget<?> closingPanel = panel;
+        Layer closingLayer = layer;
+        NativeWindow closingWindow = window;
+        Scene closingPopupScene = popupScene;
+        Scene scene = ownerScene;
+        Subscription[] held = {cursor, route, presses, blur, popupBlur, fullscreen, anchorMoved, anchorLeaves};
+        panel = null;
+        layer = null;
+        window = null;
+        popupScene = null;
+        ownerScene = null;
         anchorLeaves = null;
         anchorMoved = null;
         cursor = null;
@@ -556,28 +562,31 @@ public final class AnchoredPopup {
         blur = null;
         popupBlur = null;
         fullscreen = null;
-        Scene scene = ownerScene;
-        ownerScene = null;
-        if (window != null) {
-            closeWindow(scene);
-        } else if (layer != null) {
-            closeLayer(scene);
-        } else {
-            panel = null; // closed before its window was made
+        for (Subscription each : held) {
+            if (each != null) {
+                each.cancel();
+            }
         }
+        if (closingPanel != null) {
+            // Before this one lets go of the keyboard, as a stack unwinds: the inner popup gives it
+            // back to its button in this panel, and this one then takes it home.
+            SceneAccess.closePopupsHungIn(closingPanel);
+        }
+        if (closingWindow != null) {
+            closeWindow(scene, closingWindow, closingPopupScene, closingPanel);
+        } else if (closingLayer != null) {
+            closeLayer(scene, closingLayer, leaving);
+        }
+        // else closed before its window was made: nothing was shown
     }
 
-    private void closeWindow(@Nullable Scene scene) {
+    private void closeWindow(@Nullable Scene scene, NativeWindow closing, @Nullable Scene closingScene,
+                             @Nullable Widget<?> closingPanel) {
         // The panel's verbs are withdrawn now: a window's fade moves only its opacity and damages
         // nothing, so the walk that withdraws them has to be asked for.
-        if (panel != null) {
-            panel.invalidateAccessible();
+        if (closingPanel != null) {
+            closingPanel.invalidateAccessible();
         }
-        NativeWindow closing = window;
-        Scene closingScene = popupScene;
-        window = null;
-        popupScene = null;
-        panel = null;
         NativeWindow parent = scene != null ? scene.window() : null;
         if (closingScene != null && closingScene.isWindowFocused()
                 && parent != null && !parent.isClosed()) {
@@ -599,10 +608,7 @@ public final class AnchoredPopup {
         }
     }
 
-    private void closeLayer(@Nullable Scene owner) {
-        Layer closing = layer;
-        layer = null;
-        panel = null;
+    private void closeLayer(@Nullable Scene owner, Layer closing, boolean leaving) {
         if (owner == null) {
             host.released(); // never opened in a scene: nothing holds the layer
             return;
@@ -616,7 +622,7 @@ public final class AnchoredPopup {
         // of a card nobody is typing into any more, and the focus is never published on a layer
         // about to go.
         Widget<?> refocus = host.refocus();
-        if (anchorGone) {
+        if (leaving) {
             refocus = null; // on its way out of the window: the overlay's own way back is the rule
         }
         SceneAccess.releaseOverlayKeyboard(owner, closing);
