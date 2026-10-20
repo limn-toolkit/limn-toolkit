@@ -21,7 +21,8 @@ import java.util.function.LongFunction;
  *
  * <p>So the drag is followed when what is offered includes files, the pointer is on the window
  * with a button held and Escape up, and either the source sends a leave (the code read sends one
- * as it turns away; the guest's file manager did not), or it falls silent: the pointer
+ * as it turns away, and so does the guest's file manager, which the first build refused because
+ * it read the drag picture under the pointer as another window), or it falls silent: the pointer
  * moved, as this side reads it, and the source said nothing for {@link #SILENCE_NANOS}, counted
  * from the later of that move and this side's last answer, with no position of the source's
  * unanswered. A source that talks to us sends a position at once when the pointer moves, unless

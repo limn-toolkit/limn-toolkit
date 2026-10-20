@@ -588,7 +588,8 @@ Review of the auto-scroll (2026-10-20):
   action until its own first answer. The UI thread hears of drags in the order the backend does,
   so such a stale answer always comes before the next drag's first ordinary one: each backend now
   lets an unasked answer through only to the drag its last ordinary answer went to
-  (`AnsweredDrag`, R8D-3). Read and unit-tested, not yet run on the Linux guests.
+  (`AnsweredDrag`, R8D-3). Read and unit-tested; run on the Linux guests on 2026-10-20 with the
+  integrated build (see the follow's guest runs below).
 
 Files from a GTK 4 source on X11, followed by the pointer (2026-10-20, the owner's decision after
 the guest run of the unasked answer: on the Ubuntu X11 guest a file dragged from a file manager
@@ -632,7 +633,9 @@ would take the file; the drop itself arrived, through GLFW, as the 2026-10-10 le
 - **The guest's first run of it** (the follow on a leave alone): the guest's file manager sent
   no leave at all, or none the trace showed (leaves were not traced): enter, one position, and
   then only GLFW's drop, five runs of five. Leaves are traced now, with where the pointer was and
-  whether the drag was kept, and silence is the second sign.
+  whether the drag was kept, and silence is the second sign. *(2026-10-20, the second run: the
+  file manager does send the leave; that first build refused it, its check of what was over the
+  window finding the source's drag picture under the pointer, which takes drags itself.)*
 - **What the scene is offered.** Files alone, as a copy alone: only files arrive through GLFW's
   drop, so a place that takes only text must not show that it would; and GLFW tells the source
   every drop was a copy, so a move answered here would have the source delete files of which
@@ -652,9 +655,22 @@ would take the file; the drop itself arrived, through GLFW, as the 2026-10-10 le
   not followed.
 
 `X11DragFollowTest` holds both signs, the turns and the forgetting against a pointer it is handed;
-`DragAutoScrollTest` the scene fed as the follow feeds it. Owed: the run on the Ubuntu X11
-guest, a file from that file manager rested at the bottom edge and released unmoved, and the
-GTK 3 peer's text, which keeps to the proxy, as before.
+`DragAutoScrollTest` the scene fed as the follow feeds it.
+
+The guest runs (2026-10-20), a page 1200 high with a drop area wholly below the fold, the file
+rested 8 px above the window's bottom edge for five seconds and released unmoved:
+
+- **The follow's second build, Ubuntu 24.04 on X11:** a file from the GTK 4 file manager, two of
+  two: the leave kept, the page scrolled from 0 to 900, the scene's answer sent unasked, the drop
+  a copy of the file. Rested at the top edge, a place that refuses: no drop, and GLFW dropped
+  nothing either. Escape after a second: the follow called off, the scroll stopped at 398, no
+  drop. Text from the GTK 3 peer: dropped as a copy, the source ending with a copy, no follow.
+- **The integrated build (the unasked answer of R8D-3 and the follow together):** on Fedora
+  with KWin on Wayland, a file from its file manager two of two, dropped as a copy with the page
+  scrolled to 900, and no drop at the top edge; on Ubuntu on X11, the GTK 4 file manager's file
+  two of two, no drop at the top edge, Escape calling the follow off with the scroll stopped at
+  396, and the GTK 3 peer's text dropped as a copy. The drivers refused to inject while a window
+  not under test was kept above or active.
 
 The review of the follow (2026-10-20, R11C):
 
