@@ -100,6 +100,8 @@ class AvatarTest extends AccessibleComponentTestBase {
 
         final List<Circle> circles = new ArrayList<>();
         final List<String> texts = new ArrayList<>();
+        final List<Float> xs = new ArrayList<>();
+        final List<Font> fonts = new ArrayList<>();
         final List<Paint> inks = new ArrayList<>();
         final List<RoundRect> clips = new ArrayList<>();
         final List<float[]> images = new ArrayList<>();
@@ -122,6 +124,8 @@ class AvatarTest extends AccessibleComponentTestBase {
         @Override
         public void drawText(String text, float x, float y, Font font, Paint paint) {
             texts.add(text);
+            xs.add(x);
+            fonts.add(font);
             inks.add(paint);
         }
 
@@ -304,6 +308,82 @@ class AvatarTest extends AccessibleComponentTestBase {
         assertNull(first.parent());
         assertThrows(IllegalArgumentException.class, () -> g.add(g.members().get(1)),
                 "an avatar is in one group");
+    }
+
+    // ------------------------------------------------------------------ initials under the overlap
+
+    private static final String CODER = "\uD83D\uDC69\u200D\uD83D\uDCBB"; // woman, joiner, laptop
+
+    /**
+     * Asserts that each circle the next one covers keeps its initials' whole run inside the part it
+     * shows, and that the last circle keeps them centred; the run's width is the ruler's, at the
+     * font the circle drew with.
+     */
+    private static void assertInitialsClearTheOverlap(AvatarGroup g, boolean rtl) {
+        if (rtl) {
+            g.setLayoutDirection(LayoutDirection.RTL);
+        }
+        Recorder drawn = paint(g, 400, 60);
+        List<Widget<?>> circles = g.children();
+        assertEquals(circles.size(), drawn.texts.size(), "one run per circle: " + drawn.texts);
+        for (int i = 0; i < circles.size(); i++) {
+            Widget<?> circle = circles.get(i);
+            float d = Math.min(circle.width(), circle.height());
+            float r = d / 2;
+            float left = (circle.width() - d) / 2; // the recorder hears the circle's own coordinates
+            String text = drawn.texts.get(i);
+            float x = drawn.xs.get(i);
+            limn.graphics.TextMetrics m = SCALED_RULER.measure(text, drawn.fonts.get(i));
+            String which = (rtl ? "rtl " : "ltr ") + i + " \"" + text + "\"";
+            if (i == circles.size() - 1) {
+                assertEquals(left + r, x + m.width() / 2, 0.01f, which + ": the last is centred");
+                continue;
+            }
+            // The next circle and its ring cover the far quarter: what shows is the near three
+            // quarters less the ring, and at the run's height the circle's edge on the near side.
+            float shown = d * 0.75f - Avatar.RING;
+            float half = Math.min(r, m.height() / 2);
+            float edge = r - (float) Math.sqrt(r * r - half * half);
+            float lo = rtl ? left + d - shown : left + edge;
+            float hi = rtl ? left + d - edge : left + shown;
+            assertTrue(x >= lo - 0.01f && x + m.width() <= hi + 0.01f,
+                    which + ": run " + x + ".." + (x + m.width()) + " outside the part shown " + lo + ".." + hi);
+        }
+    }
+
+    @Test
+    void initialsUnderTheNextCircleStayInThePartTheCircleShowsLeftToRight() {
+        // The audit's crop: "AL" lost the foot of its L under the next circle's ring. A wide pair
+        // and a joined emoji with a letter are the hard cases: the emoji is four code points wide
+        // to the ruler, wider than the part shown, and is drawn smaller to fit.
+        assertInitialsClearTheOverlap(new AvatarGroup(new Avatar("Ana Lima"), new Avatar("Mei Wong"),
+                new Avatar(CODER + " Dev"), new Avatar("Rui Costa")), false);
+    }
+
+    @Test
+    void initialsUnderTheNextCircleStayInThePartTheCircleShowsRightToLeft() {
+        assertInitialsClearTheOverlap(new AvatarGroup(new Avatar("Ana Lima"), new Avatar("Mei Wong"),
+                new Avatar(CODER + " Dev"), new Avatar("Rui Costa")), true);
+    }
+
+    @Test
+    void theCircleBeforeTheCountIsCoveredAndTheCountIsCentred() {
+        for (boolean rtl : new boolean[] {false, true}) {
+            AvatarGroup g = new AvatarGroup(new Avatar("Ana Lima"), new Avatar("Mei Wong"),
+                    new Avatar("Rui Costa"), new Avatar("Lena Vogel"), new Avatar("Omar Haddad"));
+            assertInitialsClearTheOverlap(g, rtl);
+            assertFalse(g.children().get(g.children().size() - 1) instanceof Avatar, "the count is last");
+        }
+    }
+
+    @Test
+    void anAvatarAloneKeepsItsInitialsCentredAtTheirSize() {
+        Avatar alone = new Avatar("Mei Wong");
+        float d = Theme.current().tokensFor(alone).controlHeight();
+        Recorder drawn = paint(alone, d, d);
+        limn.graphics.TextMetrics m = SCALED_RULER.measure("MW", drawn.fonts.get(0));
+        assertEquals(d / 2, drawn.xs.get(0) + m.width() / 2, 0.01f);
+        assertEquals(Theme.current().tokensFor(alone).label().size(), drawn.fonts.get(0).size(), 0.01f);
     }
 
     @Test

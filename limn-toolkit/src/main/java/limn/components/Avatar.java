@@ -19,6 +19,7 @@ import limn.scene.Size;
 import limn.scene.Widget;
 import org.jspecify.annotations.Nullable;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.regex.Matcher;
@@ -76,6 +77,8 @@ public final class Avatar extends Widget<Avatar> {
     private @Nullable String shownFor;
     private @Nullable Locale shownIn;
     private @Nullable ShapedText line;
+    /** The initials drawn smaller to fit the part of the circle a group leaves, when they must be. */
+    private @Nullable ShapedText fitted;
 
     /**
      * An avatar for a person with a fixed name.
@@ -336,15 +339,52 @@ public final class Avatar extends Widget<Avatar> {
             }
             font = font.withSize(size);
         }
-        ShapedText shaped = line;
         ShapedText.Direction base = ShapedText.Direction.of(letters, neutralBase());
-        if (shaped == null || !shaped.matches(letters, font, base, textRuler())) {
-            shaped = textRuler().shape(letters, font, base);
-            line = shaped;
-        }
+        ShapedText shaped = line = shaped(line, letters, font, base);
         TextMetrics m = shaped.metrics();
-        canvas.drawText(shaped, x + (d - m.width()) / 2, y + (d - m.height()) / 2 + m.ascent(),
+        // Where the letters may go: the whole circle, or, under the next circle of a group, the
+        // part it leaves, three quarters less the ring, from the circle's edge at the letters'
+        // height on the near side. Centred there, every pair clears the overlap ("AL" lost the
+        // foot of its L); a pair wider than that part is drawn smaller to fit.
+        float from = x;
+        float to = x + d;
+        float shown = coveredPart(d);
+        if (shown > 0) {
+            float half = Math.min(r, m.height() / 2);
+            float edge = r - (float) Math.sqrt(r * r - half * half);
+            boolean rtl = isRightToLeft(); // the next circle is on the trailing side
+            from = rtl ? x + d - shown : x + edge;
+            to = rtl ? x + d - edge : x + shown;
+            if (m.width() > to - from) {
+                int size = (int) Math.floor(font.size() * (to - from) / m.width());
+                if (size < 1) {
+                    return;
+                }
+                shaped = fitted = shaped(fitted, letters, font.withSize(size), base);
+                m = shaped.metrics();
+            }
+        }
+        canvas.drawText(shaped, (from + to - m.width()) / 2, y + (d - m.height()) / 2 + m.ascent(),
                 theme.text());
+    }
+
+    /** {@code kept} while it is the initials at {@code font} on this ruler, else shaped anew. */
+    private ShapedText shaped(@Nullable ShapedText kept, String letters, Font font, ShapedText.Direction base) {
+        return kept != null && kept.matches(letters, font, base, textRuler())
+                ? kept : textRuler().shape(letters, font, base);
+    }
+
+    /**
+     * How much of a circle {@code d} across shows when the group draws another circle after it,
+     * over its trailing quarter and ring; 0 when nothing covers it (alone, or last in its group).
+     */
+    private float coveredPart(float d) {
+        if (!(parent() instanceof AvatarGroup g)) {
+            return 0;
+        }
+        List<Widget<?>> circles = g.children();
+        int at = circles.indexOf(this);
+        return at >= 0 && at < circles.size() - 1 ? AvatarGroup.step(d) - RING : 0;
     }
 
     /** The picture covering the circle: its middle square, scaled to the diameter, clipped round. */

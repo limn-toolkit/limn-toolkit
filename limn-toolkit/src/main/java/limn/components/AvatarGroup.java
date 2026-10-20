@@ -18,7 +18,9 @@ import java.util.Objects;
 /**
  * People drawn as a stack of {@link Avatar}s: the approvers of a document, the members of a team.
  * Each avatar overlaps the one before by a quarter of its width, ringed in the surface colour so
- * the overlap reads as a stack.
+ * the overlap reads as a stack. A circle covered by the next one centres its initials on the part
+ * that shows, the three quarters away from the overlap, drawn smaller when a pair is wider than
+ * that part, so no letter is cut; the last circle keeps them in its middle.
  *
  * <p><b>Past {@link #setMaxShown(int) the most shown}</b> (four by default), the first ones are
  * drawn and the last place is a circle that says how many more there are, "+3", whose tooltip lists
@@ -184,7 +186,7 @@ public final class AvatarGroup extends Widget<AvatarGroup> {
     }
 
     /** Each circle starts three quarters of a diameter after the one before: a quarter overlaps. */
-    private static float step(float d) {
+    static float step(float d) {
         return d * 0.75f;
     }
 
