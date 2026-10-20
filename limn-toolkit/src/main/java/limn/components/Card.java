@@ -1414,6 +1414,11 @@ public final class Card extends Widget<Card> {
         protected void onAttached() {
             super.onAttached();
             observeHover();
+            if (action != null) {
+                // Out of a window the card held nothing; back in one, what its area holds is out of
+                // reach again now, not at its next layout, which input may come before.
+                quietControlsInArea();
+            }
             watchLeaving();
         }
 

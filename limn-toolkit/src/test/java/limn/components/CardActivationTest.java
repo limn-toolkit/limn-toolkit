@@ -470,6 +470,25 @@ class CardActivationTest extends AccessibleComponentTestBase {
     }
 
     @Test
+    void aCardPutBackHoldsItsControlsBeforeItsNextLayout() {
+        // The second review's case: taken out and put back in one turn, the card held nothing until
+        // its next layout, so a click before the frame reached the button.
+        Column content = new Column();
+        Card card = bindCard(new Card(content).setTitle("Invoice").onActivate(() -> heard.add("card")));
+        Button late = lateButton(content);
+        SizedBox box = (SizedBox) card.parent();
+        Column root = (Column) box.parent();
+        float x = sx(late, 5);
+        float y = sy(late, 5);
+        root.remove(box);
+        root.add(box);
+        assertEquals(1, card.inertControls(), "held again as the card comes back");
+        heard.clear();
+        click(x, y);
+        assertEquals(List.of("card"), heard, "the press is the card's, before any frame");
+    }
+
+    @Test
     void aControlStillInTheAreaStaysOutOfReachAfterAnotherIsTakenOut() {
         Column content = new Column();
         Card card = bindCard(new Card(content).setTitle("Invoice").onActivate(() -> heard.add("card")));
