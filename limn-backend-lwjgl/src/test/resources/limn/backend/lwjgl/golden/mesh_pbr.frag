@@ -199,7 +199,8 @@ void main() {
     vec3 V = normalize(u_cameraPos.xyz - v_worldPos);
     float NdotV = max(dot(N, V), 1e-4);
 
-    vec4 baseColor = vec4(((srgbToLinear(u_baseColor.rgb) * srgbToLinear(texture(u_baseColorTex, v_uv).rgb)) * v_color.rgb), ((u_baseColor.a * texture(u_baseColorTex, v_uv).a) * v_color.a));
+    vec4 ir_t0 = texture(u_baseColorTex, v_uv);
+    vec4 baseColor = vec4(((srgbToLinear(u_baseColor.rgb) * srgbToLinear(ir_t0.rgb)) * v_color.rgb), ((u_baseColor.a * ir_t0.a) * v_color.a));
     vec3 albedo = baseColor.rgb;
     float metallic = clamp(u_mr.x, 0.0, 1.0);
     float roughness = clamp(u_mr.y, 0.04, 1.0);

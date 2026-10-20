@@ -37,21 +37,24 @@ final class GlslCodegen {
      * the only moment anybody would want to hear about it.
      */
     static Generated generate(SurfaceOutputs surface, String declarations, TargetProfile profile) {
+        Emitter emitter = new Emitter(profile, surface);
+        Scope top = new Scope(null, null, null, "    ");
         // A surface without a normal shades by the interpolated geometric one; the
         // helper the standard surface calls derives its own frame, so there is no
         // shared Ng to leave lying around unused.
-        String normal = surface.normal() == null
-                ? "normalize(v_normal)" : emit(surface.normal(), profile);
+        StringBuilder main = new StringBuilder();
+        main.append(surface.normal() == null
+                ? "    vec3 N = normalize(v_normal);\n"
+                : emitter.statement(top, "    vec3 N = ", surface.normal(), ";\n"));
+        main.append("    vec3 V = normalize(u_cameraPos.xyz - v_worldPos);\n"
+                + "    float NdotV = max(dot(N, V), 1e-4);\n\n");
+        main.append(emitter.statement(top, "    vec4 baseColor = ", surface.baseColor(), ";\n"));
+        main.append("    vec3 albedo = baseColor.rgb;\n");
+        main.append(emitter.statement(top, "    float metallic = clamp(", surface.metallic(), ", 0.0, 1.0);\n"));
+        main.append(emitter.statement(top, "    float roughness = clamp(", surface.roughness(), ", 0.04, 1.0);\n"));
+        main.append(emitter.statement(top, "    vec3 emissive = ", surface.emissive(), ";\n"));
         String fragment = profile.header + FRAG_BANNER + FRAG_FRAMEWORK + declarations + FRAG_MAIN_OPEN
-                + "    vec3 N = " + normal + ";\n"
-                + "    vec3 V = normalize(u_cameraPos.xyz - v_worldPos);\n"
-                + "    float NdotV = max(dot(N, V), 1e-4);\n\n"
-                + "    vec4 baseColor = " + emit(surface.baseColor(), profile) + ";\n"
-                + "    vec3 albedo = baseColor.rgb;\n"
-                + "    float metallic = clamp(" + emit(surface.metallic(), profile) + ", 0.0, 1.0);\n"
-                + "    float roughness = clamp(" + emit(surface.roughness(), profile) + ", 0.04, 1.0);\n"
-                + "    vec3 emissive = " + emit(surface.emissive(), profile) + ";\n"
-                + FRAG_MAIN_LIGHTING + accumulate(surface, profile) + FRAG_MAIN_TAIL;
+                + main + FRAG_MAIN_LIGHTING + accumulate(surface, emitter, top) + FRAG_MAIN_TAIL;
         String vertex = profile.header + VERT_BANNER + VERT_BODY;
         return new Generated(vertex, fragment);
     }
@@ -70,53 +73,376 @@ final class GlslCodegen {
      * <p>The two forms are equal in real arithmetic and differ in the last bits, so the
      * choice is made here, once, at generation time, not by handing the standard surface
      * a response of {@code NdotL} and hoping the optimiser puts the factor back.
+     *
+     * <p>The response is written inside the light loop, and so are the locals it alone needs: it
+     * may read the loop's {@code L} and {@code NdotL}. What it shares with the outputs above is
+     * read from their locals, which the loop sees.
      */
-    private static String accumulate(SurfaceOutputs surface, TargetProfile profile) {
+    private static String accumulate(SurfaceOutputs surface, Emitter emitter, Scope top) {
         if (surface.diffuseResponse() == null) {
             return FRAG_ACCUMULATE_STANDARD;
         }
-        return "        float diffuseResponse = " + emit(surface.diffuseResponse(), profile) + ";\n"
+        Scope lights = new Scope(top, null, null, "        ");
+        lights.floor = true;
+        return emitter.statement(lights, "        float diffuseResponse = ", surface.diffuseResponse(), ";\n")
                 + "        Lo += (kd * albedo / PI * diffuseResponse + specular * NdotL)"
                 + " * radiance * shadow;\n";
     }
 
     // ------------------------------------------------------------ IR → GLSL
 
-    private static String emit(Expr e, TargetProfile profile) {
-        if (e instanceof Expr.Lit lit) {
-            return literal(lit.values());
+    // Sharing and loops: ADR 076.
+    /**
+     * Whether a node used more than once is written once into a local. Package-private
+     * and on by default; the device test turns it off to hold the shared form to the pixels the
+     * form written in place drew.
+     */
+    static boolean shareSubexpressions = true;
+
+    /** The generator's own helpers that take derivatives, refused where those are undefined. */
+    private static final java.util.Set<String> DERIVATIVE_HELPERS = java.util.Set.of("normalMapToWorld",
+            "worldToTangent");
+
+    /**
+     * A block of the generated {@code main()}: where a local can be declared and what it sees.
+     * A loop's body is a scope that binds the loop's state; the light loop's is a floor, the
+     * innermost a local that reads nothing bound can go, because the blocks above it are written.
+     */
+    private static final class Scope {
+        final @org.jspecify.annotations.Nullable Scope parent;
+        /** The IR name this block binds (a loop's state), or null. */
+        final @org.jspecify.annotations.Nullable String binds;
+        /** The GLSL variable it stands for. */
+        final @org.jspecify.annotations.Nullable String variable;
+        final String indent;
+        final java.util.Map<Integer, String> locals = new java.util.HashMap<>();
+        final StringBuilder prelude = new StringBuilder();
+        boolean floor;
+
+        Scope(@org.jspecify.annotations.Nullable Scope parent, @org.jspecify.annotations.Nullable String binds,
+              @org.jspecify.annotations.Nullable String variable, String indent) {
+            this.parent = parent;
+            this.binds = binds;
+            this.variable = variable;
+            this.indent = indent;
+            this.floor = parent == null;
         }
-        if (e instanceof Expr.Ref ref) {
-            return ref.name();
-        }
-        if (e instanceof Expr.Sample sample) {
-            return "texture(" + sample.sampler().name() + ", " + emit(sample.uv(), profile) + ")";
-        }
-        if (e instanceof Expr.Swizzle swizzle) {
-            return emit(swizzle.source(), profile) + "." + swizzle.pattern();
-        }
-        if (e instanceof Expr.Binary binary) {
-            return "(" + emit(binary.left(), profile) + " " + binary.op().glsl + " "
-                    + emit(binary.right(), profile) + ")";
-        }
-        if (e instanceof Expr.Call call) {
-            return call.function() + "(" + args(call.args(), profile) + ")";
-        }
-        if (e instanceof Expr.Construct construct) {
-            return construct.type().glsl + "(" + args(construct.args(), profile) + ")";
-        }
-        if (e instanceof Expr.Raw raw) {
-            if (raw.target() != profile) {
-                throw new IllegalStateException("raw GLSL node targets " + raw.target()
-                        + " but generating for " + profile + " (non-portable escape)");
+
+        @org.jspecify.annotations.Nullable String local(int id) {
+            for (Scope at = this; at != null; at = at.parent) {
+                String name = at.locals.get(id);
+                if (name != null) {
+                    return name;
+                }
             }
-            return "(" + raw.glsl() + ")";
+            return null;
         }
-        throw new IllegalStateException("unknown Expr: " + e);
+
+        @org.jspecify.annotations.Nullable String variableOf(String name) {
+            for (Scope at = this; at != null; at = at.parent) {
+                if (name.equals(at.binds)) {
+                    return at.variable;
+                }
+            }
+            return null;
+        }
+
+        /**
+         * Where a node reading {@code reads} is declared: the innermost block binding something
+         * it reads, or the floor of this group when it reads nothing bound.
+         */
+        Scope home(java.util.Set<String> reads) {
+            Scope floorScope = null;
+            for (Scope at = this; at != null; at = at.parent) {
+                if (at.binds != null && reads.contains(at.binds)) {
+                    return at;
+                }
+                if (at.floor) {
+                    floorScope = at;
+                    break;
+                }
+            }
+            return floorScope != null ? floorScope : this;
+        }
+
+        String takePrelude() {
+            String text = prelude.toString();
+            prelude.setLength(0);
+            return text;
+        }
     }
 
-    private static String args(List<Expr> args, TargetProfile profile) {
-        return args.stream().map(a -> emit(a, profile)).collect(Collectors.joining(", "));
+    /**
+     * Writes the IR as GLSL, numbering it by value so that a node used twice is written once.
+     * Two nodes are the same when their kind, their fields and their children's
+     * numbers are; a node that is not a literal, a reference or a swizzle of one, used by more
+     * than one parent, becomes a local, declared before the first statement that reads it in the
+     * innermost block that sees everything it reads. A loop is written as statements and read by
+     * its variable.
+     */
+    private static final class Emitter {
+        private final TargetProfile profile;
+        private final java.util.IdentityHashMap<Expr, Integer> ids = new java.util.IdentityHashMap<>();
+        private final java.util.Map<String, Integer> byKey = new java.util.HashMap<>();
+        private final List<Expr> nodes = new java.util.ArrayList<>();
+        private final List<Integer> uses = new java.util.ArrayList<>();
+        private final java.util.Map<Integer, java.util.Set<String>> reads = new java.util.HashMap<>();
+        private int temps;
+        private int loops;
+
+        Emitter(TargetProfile profile, SurfaceOutputs surface) {
+            this.profile = profile;
+            java.util.Set<Integer> counted = new java.util.HashSet<>();
+            for (Expr root : new Expr[]{surface.normal(), surface.baseColor(), surface.metallic(),
+                    surface.roughness(), surface.emissive(), surface.diffuseResponse()}) {
+                if (root != null) {
+                    int id = id(root);
+                    uses.set(id, uses.get(id) + 1);
+                    count(id, counted);
+                }
+            }
+        }
+
+        /** Counts each parent of a node once, however many times the parent itself is used. */
+        private void count(int id, java.util.Set<Integer> counted) {
+            if (!counted.add(id)) {
+                return;
+            }
+            for (Expr child : children(nodes.get(id))) {
+                int childId = id(child);
+                uses.set(childId, uses.get(childId) + 1);
+                count(childId, counted);
+            }
+        }
+
+        int id(Expr node) {
+            Integer known = ids.get(node);
+            if (known != null) {
+                return known;
+            }
+            StringBuilder key = new StringBuilder();
+            if (node instanceof Expr.Lit lit) {
+                key.append("L").append(java.util.Arrays.toString(lit.values()));
+            } else if (node instanceof Expr.Ref ref) {
+                key.append("R").append(ref.name()).append(':').append(ref.type());
+            } else if (node instanceof Expr.Swizzle swizzle) {
+                key.append("W").append(id(swizzle.source())).append('.').append(swizzle.pattern());
+            } else if (node instanceof Expr.Binary binary) {
+                key.append("B").append(binary.op()).append(id(binary.left())).append(',').append(id(binary.right()));
+            } else if (node instanceof Expr.Call call) {
+                key.append("C").append(call.function()).append(':').append(call.type());
+            } else if (node instanceof Expr.Construct construct) {
+                key.append("K").append(construct.type());
+            } else if (node instanceof Expr.Raw raw) {
+                key.append("X").append(raw.target()).append(':').append(raw.type()).append(':').append(raw.glsl());
+            } else if (node instanceof Expr.Loop loop) {
+                key.append("P").append(loop.state()).append(':').append(loop.maxIterations());
+            } else if (node instanceof Expr.Sample) {
+                key.append("S");
+            } else {
+                throw new IllegalStateException("unknown Expr: " + node);
+            }
+            if (!(node instanceof Expr.Swizzle) && !(node instanceof Expr.Binary)) {
+                key.append('(');
+                for (Expr child : children(node)) {
+                    key.append(id(child)).append(',');
+                }
+                key.append(node instanceof Expr.Loop loop && loop.until() == null ? "-" : "").append(')');
+            }
+            Integer same = byKey.get(key.toString());
+            int id;
+            if (same != null) {
+                id = same;
+            } else {
+                id = nodes.size();
+                nodes.add(node);
+                uses.add(0);
+                byKey.put(key.toString(), id);
+            }
+            ids.put(node, id);
+            return id;
+        }
+
+        /** The IR names a node reads, a loop's own state excepted. */
+        java.util.Set<String> reads(int id) {
+            java.util.Set<String> known = reads.get(id);
+            if (known != null) {
+                return known;
+            }
+            Expr node = nodes.get(id);
+            java.util.Set<String> names = new java.util.HashSet<>();
+            if (node instanceof Expr.Ref ref) {
+                names.add(ref.name());
+            }
+            for (Expr child : children(node)) {
+                names.addAll(reads(id(child)));
+            }
+            if (node instanceof Expr.Loop loop) {
+                names.remove(loop.state());
+                names.addAll(reads(id(loop.initial())));
+            }
+            reads.put(id, names);
+            return names;
+        }
+
+        /** {@code prefix + node + suffix} as one statement of {@code scope}, after the locals it reads. */
+        String statement(Scope scope, String prefix, Expr node, String suffix) {
+            String text = emit(node, scope);
+            return scope.takePrelude() + prefix + text + suffix;
+        }
+
+        String emit(Expr node, Scope scope) {
+            if (node instanceof Expr.Lit lit) {
+                return literal(lit.values());
+            }
+            if (node instanceof Expr.Ref ref) {
+                String variable = scope.variableOf(ref.name());
+                return variable != null ? variable : ref.name();
+            }
+            if (node instanceof Expr.Swizzle swizzle && trivial(swizzle.source())) {
+                return emit(swizzle.source(), scope) + "." + swizzle.pattern();
+            }
+            int id = id(node);
+            String local = scope.local(id);
+            if (local != null) {
+                return local;
+            }
+            if (node instanceof Expr.Loop loop) {
+                return loop(loop, id, scope);
+            }
+            if (!shareSubexpressions) {
+                return inline(node, scope);
+            }
+            Scope home = scope.home(reads(id));
+            if (uses.get(id) < 2 && home == scope) {
+                return inline(node, scope);
+            }
+            String name = "ir_t" + temps++;
+            String text = inline(node, home);
+            home.prelude.append(home.indent).append(node.type().glsl).append(' ').append(name)
+                    .append(" = ").append(text).append(";\n");
+            home.locals.put(id, name);
+            return name;
+        }
+
+        private static boolean trivial(Expr node) {
+            return node instanceof Expr.Lit || node instanceof Expr.Ref
+                    || node instanceof Expr.Swizzle swizzle && trivial(swizzle.source());
+        }
+
+        /** {@code node} written in place, its children by {@link #emit}. */
+        private String inline(Expr node, Scope scope) {
+            if (node instanceof Expr.Sample sample) {
+                return "texture(" + emit(sample.sampler(), scope) + ", " + emit(sample.uv(), scope) + ")";
+            }
+            if (node instanceof Expr.Swizzle swizzle) {
+                return emit(swizzle.source(), scope) + "." + swizzle.pattern();
+            }
+            if (node instanceof Expr.Binary binary) {
+                return "(" + emit(binary.left(), scope) + " " + binary.op().glsl + " "
+                        + emit(binary.right(), scope) + ")";
+            }
+            if (node instanceof Expr.Call call) {
+                return call.function() + "(" + args(call.args(), scope) + ")";
+            }
+            if (node instanceof Expr.Construct construct) {
+                return construct.type().glsl + "(" + args(construct.args(), scope) + ")";
+            }
+            if (node instanceof Expr.Raw raw) {
+                if (raw.target() != profile) {
+                    throw new IllegalStateException("raw GLSL node targets " + raw.target()
+                            + " but generating for " + profile + " (non-portable escape)");
+                }
+                return "(" + raw.glsl() + ")";
+            }
+            throw new IllegalStateException("unknown Expr: " + node);
+        }
+
+        private String args(List<Expr> args, Scope scope) {
+            return args.stream().map(a -> emit(a, scope)).collect(Collectors.joining(", "));
+        }
+
+        /**
+         * A loop as statements, in the innermost block that sees what it reads: its state declared
+         * and set, then a {@code for} of a constant count that asks {@code until} before each turn
+         * and steps the state. Returns the variable that holds its value.
+         */
+        private String loop(Expr.Loop loop, int id, Scope scope) {
+            if (loop.until() != null) {
+                String refused = refusedEarly(loop.next());
+                if (refused == null) {
+                    refused = refusedEarly(loop.until());
+                }
+                if (refused != null) {
+                    throw new IllegalArgumentException("a loop that can end early cannot hold " + refused
+                            + ": it is undefined where neighbouring pixels take different turns");
+                }
+            }
+            Scope home = scope.home(reads(id));
+            String variable = "ir_s" + loops;
+            String counter = "ir_i" + loops++;
+            String initial = emit(loop.initial(), home);
+            home.prelude.append(home.indent).append(loop.type().glsl).append(' ').append(variable)
+                    .append(" = ").append(initial).append(";\n");
+            Scope body = new Scope(home, loop.state(), variable, home.indent + "    ");
+            String until = loop.until() == null ? null : emit(loop.until(), body);
+            String next = emit(loop.next(), body);
+            StringBuilder text = new StringBuilder();
+            text.append(home.indent).append("for (int ").append(counter).append(" = 0; ").append(counter)
+                    .append(" < ").append(loop.maxIterations()).append("; ++").append(counter).append(") {\n");
+            text.append(body.takePrelude());
+            if (until != null) {
+                text.append(body.indent).append("if (").append(until).append(" > 0.0) {\n")
+                        .append(body.indent).append("    break;\n")
+                        .append(body.indent).append("}\n");
+            }
+            text.append(body.indent).append(variable).append(" = ").append(next).append(";\n");
+            text.append(home.indent).append("}\n");
+            home.prelude.append(text);
+            home.locals.put(id, variable);
+            return variable;
+        }
+
+        /** What under {@code node} this generator cannot place in non-uniform control flow, or null. */
+        private @org.jspecify.annotations.Nullable String refusedEarly(Expr node) {
+            if (node instanceof Expr.Raw) {
+                return "raw GLSL, whose text nobody reads for a derivative";
+            }
+            if (node instanceof Expr.Call call && DERIVATIVE_HELPERS.contains(call.function())) {
+                return "the helper " + call.function() + ", which takes derivatives";
+            }
+            for (Expr child : children(node)) {
+                String found = refusedEarly(child);
+                if (found != null) {
+                    return found;
+                }
+            }
+            return null;
+        }
+    }
+
+    /** The children of {@code node}, in the order they are written. */
+    private static List<Expr> children(Expr node) {
+        if (node instanceof Expr.Sample sample) {
+            return List.of(sample.sampler(), sample.uv());
+        }
+        if (node instanceof Expr.Swizzle swizzle) {
+            return List.of(swizzle.source());
+        }
+        if (node instanceof Expr.Binary binary) {
+            return List.of(binary.left(), binary.right());
+        }
+        if (node instanceof Expr.Call call) {
+            return call.args();
+        }
+        if (node instanceof Expr.Construct construct) {
+            return construct.args();
+        }
+        if (node instanceof Expr.Loop loop) {
+            return loop.until() == null ? List.of(loop.initial(), loop.next())
+                    : List.of(loop.initial(), loop.next(), loop.until());
+        }
+        return List.of();
     }
 
     private static String literal(float[] values) {

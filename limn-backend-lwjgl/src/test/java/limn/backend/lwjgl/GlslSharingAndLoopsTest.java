@@ -1,0 +1,187 @@
+package limn.backend.lwjgl;
+
+import limn.render3d.shader.Expr;
+import limn.render3d.shader.ShaderType;
+import limn.render3d.shader.StandardSurface;
+import limn.render3d.shader.SurfaceOutputs;
+import limn.render3d.shader.TargetProfile;
+import org.junit.jupiter.api.Test;
+
+import java.util.List;
+
+import static limn.backend.lwjgl.IrSurfaces.add;
+import static limn.backend.lwjgl.IrSurfaces.call;
+import static limn.backend.lwjgl.IrSurfaces.ref;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * What the generator writes for a surface that uses a node twice and for one that loops (ADR
+ * 076): a shared node written once, an iteration that grows with its steps and not as a power of
+ * them, a loop that is a bounded {@code for} with its exit, and all of it inside the subset GLSL
+ * 3.30 and GLSL ES 3.00 share. Pure string generation; the device tests are {@link SurfaceLoopGlTest}.
+ */
+class GlslSharingAndLoopsTest {
+
+    private static String fragment(SurfaceOutputs surface) {
+        return GlslCodegen.generate(surface, "\nuniform sampler2D u_sheet;\nuniform sampler2D u_mask;\n"
+                + "uniform vec4 u_knobs;\n", TargetProfile.GLSL_330).fragmentSource();
+    }
+
+    private static int count(String text, String part) {
+        int n = 0;
+        for (int at = text.indexOf(part); at >= 0; at = text.indexOf(part, at + 1)) {
+            n++;
+        }
+        return n;
+    }
+
+    @Test
+    void aNodeUsedTwiceIsWrittenOnce() {
+        Expr texel = new Expr.Sample(new Expr.Ref("u_sheet", ShaderType.SAMPLER2D), ref("v_uv", ShaderType.VEC2));
+        // Two equal nodes built apart, as an application builds them: shared by value, not by identity.
+        Expr again = new Expr.Sample(new Expr.Ref("u_sheet", ShaderType.SAMPLER2D), ref("v_uv", ShaderType.VEC2));
+        String frag = fragment(SurfaceOutputs.of(texel, Expr.Lit.of(0f), Expr.Lit.of(1f),
+                new Expr.Swizzle(again, "rgb")));
+        assertEquals(1, count(frag, "texture(u_sheet, v_uv)"), frag);
+        assertTrue(frag.contains("    vec4 ir_t0 = texture(u_sheet, v_uv);\n"), frag);
+        assertTrue(frag.contains("    vec4 baseColor = ir_t0;\n"), frag);
+        assertTrue(frag.contains("    vec3 emissive = ir_t0.rgb;\n"), frag);
+        assertTrue(frag.indexOf("vec4 ir_t0") < frag.indexOf("vec4 baseColor"), "declared before it is read");
+    }
+
+    @Test
+    void anUnrolledIterationGrowsWithItsStepsNotAsAPowerOfThem() {
+        // Nine steps of z ↦ z² + c read z 4^9 = 262,144 times written as a tree: megabytes of
+        // source for a driver to parse. Shared, each step is written once.
+        String frag = fragment(IrSurfaces.unrolled(9));
+        String framework = fragment(IrSurfaces.emitting(Expr.Lit.of(0f, 0f, 0f)));
+        assertTrue(frag.length() - framework.length() < 4_000,
+                "nine steps cost " + (frag.length() - framework.length()) + " characters");
+    }
+
+    @Test
+    void theStandardSurfaceSamplesItsBaseColourOnce() {
+        String frag = GlslCodegen.generate(StandardSurface.metallicRoughness(), TargetProfile.GLSL_330)
+                .fragmentSource();
+        assertEquals(1, count(frag, "texture(u_baseColorTex, v_uv)"), frag);
+        assertEquals(1, count(frag, "texture(u_normalTex, v_uv)"), frag);
+    }
+
+    @Test
+    void writtenInPlaceAsBeforeTheSameSurfaceReadsItsNodesWhereTheyAre() {
+        // The switch the pixel test holds the two forms with: off, nothing is shared.
+        boolean was = GlslCodegen.shareSubexpressions;
+        GlslCodegen.shareSubexpressions = false;
+        try {
+            String frag = GlslCodegen.generate(StandardSurface.metallicRoughness(), TargetProfile.GLSL_330)
+                    .fragmentSource();
+            assertEquals(2, count(frag, "texture(u_baseColorTex, v_uv)"), frag);
+            assertFalse(frag.contains("ir_t"), frag);
+        } finally {
+            GlslCodegen.shareSubexpressions = was;
+        }
+    }
+
+    @Test
+    void aLoopIsABoundedForThatAsksItsExitBeforeEachTurn() {
+        String frag = fragment(IrSurfaces.mandelbrot(256));
+        assertTrue(frag.contains("    vec4 ir_s0 = vec4(0.0, 0.0, 0.0, 0.0);\n"), frag);
+        assertTrue(frag.contains("    for (int ir_i0 = 0; ir_i0 < 256; ++ir_i0) {\n"), frag);
+        int loop = frag.indexOf("for (int ir_i0");
+        int exit = frag.indexOf("        if (", loop);
+        int brk = frag.indexOf("            break;\n", loop);
+        int assign = frag.indexOf("        ir_s0 = ", loop);
+        assertTrue(exit > loop && brk > exit && assign > brk, "ask, break, then step: " + frag.substring(loop));
+        assertTrue(frag.substring(exit, brk).contains(" - 256.0) > 0.0) {"), frag.substring(exit, brk));
+        // The loop is read after it by its variable, twice, never written again.
+        assertEquals(1, count(frag, "for (int ir_i0"), frag);
+        assertTrue(frag.contains("ir_s0.z"), frag);
+        assertTrue(frag.contains("ir_s0.xy"), frag);
+    }
+
+    @Test
+    void whatATurnDoesNotChangeIsComputedBeforeTheLoop() {
+        String frag = fragment(IrSurfaces.mandelbrot(256));
+        int loop = frag.indexOf("for (int ir_i0");
+        int c = frag.indexOf("((v_uv - vec2(0.6, 0.5)) * vec2(3.0, 2.4))");
+        assertTrue(c >= 0 && c < loop, "c depends on the pixel, not on the turn");
+        assertEquals(1, count(frag, "(v_uv - vec2(0.6, 0.5))"), frag);
+    }
+
+    @Test
+    void aLoopWithoutAnExitRunsEveryTurnAndMaySample() {
+        String frag = fragment(IrSurfaces.blurLoop());
+        assertTrue(frag.contains("for (int ir_i0 = 0; ir_i0 < 8; ++ir_i0) {"), frag);
+        assertFalse(frag.contains("break;\n        }\n        ir_s0"), frag);
+        int loop = frag.indexOf("for (int ir_i0");
+        assertTrue(frag.indexOf("texture(u_sheet", loop) > loop, "the sample is a turn's work");
+    }
+
+    @Test
+    void twoLoopsInOneSurfaceEachGetTheirOwnVariables() {
+        Expr.Ref z = new Expr.Ref("z", ShaderType.FLOAT);
+        Expr.Loop half = new Expr.Loop("z", Expr.Lit.of(0f), 5, add(z, Expr.Lit.of(0.1f)), null);
+        Expr.Loop third = new Expr.Loop("z", Expr.Lit.of(0f), 3, add(z, Expr.Lit.of(0.1f)), null);
+        String frag = fragment(IrSurfaces.emitting(new Expr.Construct(ShaderType.VEC3, List.of(half, third,
+                Expr.Lit.of(0f)))));
+        assertTrue(frag.contains("float ir_s0 = 0.0;"), frag);
+        assertTrue(frag.contains("float ir_s1 = 0.0;"), frag);
+        assertTrue(frag.contains("vec3 emissive = vec3(ir_s0, ir_s1, 0.0);"), frag);
+    }
+
+    @Test
+    void aResponseToTheLightKeepsItsOwnLocalsInsideTheLightLoop() {
+        Expr tangent = call("worldToTangent", ShaderType.VEC3, ref("L", ShaderType.VEC3));
+        Expr response = call("max", ShaderType.FLOAT, new Expr.Swizzle(tangent, "z"),
+                new Expr.Swizzle(tangent, "y"));
+        String frag = fragment(IrSurfaces.emitting(Expr.Lit.of(0f, 0f, 0f)).withDiffuseResponse(response));
+        int lights = frag.indexOf("for (int i = 0; i < MAX_LIGHTS; i++)");
+        int local = frag.indexOf("vec3 ir_t0 = worldToTangent(L);");
+        int read = frag.indexOf("float diffuseResponse = max(ir_t0.z, ir_t0.y);");
+        assertTrue(lights > 0 && local > lights && read > local, frag.substring(lights));
+    }
+
+    @Test
+    void aFrameworkHelperThatTakesDerivativesIsRefusedInALoopThatCanEndEarly() {
+        Expr.Ref s = new Expr.Ref("s", ShaderType.VEC3);
+        for (String helper : List.of("worldToTangent", "normalMapToWorld")) {
+            Expr next = helper.equals("worldToTangent")
+                    ? call(helper, ShaderType.VEC3, s)
+                    : call(helper, ShaderType.VEC3, s, Expr.Lit.of(1f));
+            Expr.Loop loop = new Expr.Loop("s", Expr.Lit.of(0f, 0f, 1f), 4, next,
+                    IrSurfaces.sub(new Expr.Swizzle(s, "x"), Expr.Lit.of(0.5f)));
+            assertThrows(IllegalArgumentException.class, () -> fragment(IrSurfaces.emitting(loop)), helper);
+        }
+        Expr.Ref f = new Expr.Ref("f", ShaderType.FLOAT);
+        Expr.Loop raw = new Expr.Loop("f", Expr.Lit.of(0f), 4,
+                add(f, new Expr.Raw(TargetProfile.GLSL_330, "dFdx(v_uv.x)", ShaderType.FLOAT)),
+                IrSurfaces.sub(f, Expr.Lit.of(1f)));
+        assertThrows(IllegalArgumentException.class,
+                () -> fragment(IrSurfaces.emitting(new Expr.Construct(ShaderType.VEC3, List.of(raw)))),
+                "raw text is read by nobody, so it is refused where a derivative would be undefined");
+    }
+
+    @Test
+    void sharingAndLoopsStayInsideTheEs300Subset() {
+        for (SurfaceOutputs surface : List.of(IrSurfaces.mandelbrot(256), IrSurfaces.blurLoop(),
+                IrSurfaces.unrolled(9), IrSurfaces.dissolveLike(), IrSurfaces.moltenLike(),
+                StandardSurface.metallicRoughness())) {
+            String body330 = GlslCodegen.generate(surface, "", TargetProfile.GLSL_330)
+                    .fragmentSource().substring(TargetProfile.GLSL_330.header.length());
+            String bodyEs = GlslCodegen.generate(surface, "", TargetProfile.GLSL_ES_300)
+                    .fragmentSource().substring(TargetProfile.GLSL_ES_300.header.length());
+            assertEquals(body330, bodyEs, "a surface is portable or it is not portable");
+            // ES 3.00 converts no int to a float: the counter is the only int, and meets none.
+            assertFalse(body330.matches("(?s).*ir_i\\d+\\s*[*/+-].*"), "the counter takes part in no arithmetic");
+        }
+    }
+
+    @Test
+    void generationIsDeterministic() {
+        assertEquals(fragment(IrSurfaces.mandelbrot(64)), fragment(IrSurfaces.mandelbrot(64)));
+        assertEquals(fragment(IrSurfaces.moltenLike()), fragment(IrSurfaces.moltenLike()));
+    }
+}
