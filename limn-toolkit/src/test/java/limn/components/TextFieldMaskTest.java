@@ -595,6 +595,30 @@ class TextFieldMaskTest extends AccessibleComponentTestBase {
     }
 
     @Test
+    void aKeyTypedOverASelectionThatBeginsOnALiteralGoesToTheFirstSelectedPosition() {
+        holding("000 '9' 000", "123 9 456", 0);
+        field.select(4, 9); // "9 456": the quoted 9, then the digits
+        type("9");
+        assertEquals("123 9 956", field.text(), "the 9 is the 4's place, not the literal over again");
+        assertEquals(7, field.selectionStart());
+        assertEquals(9, field.selectionEnd());
+
+        holding("+1 (000) 000-0000", "+1 (415) 555-0123", 0);
+        field.select(1, 5); // "1 (4"
+        type("1");
+        assertEquals("+1 (115) 555-0123", field.text(), "an area code that begins with 1");
+        assertEquals(5, field.caretPosition());
+
+        // A paste is still read from where the selection begins, literals and all.
+        TextFieldTest.MockClipboard clipboard = TextFieldTest.MockClipboard.holding(") 9");
+        holding("+1 (000) 000-0000", "+1 (415) 555-0123", 0);
+        scene.setClipboard(clipboard);
+        field.select(7, 10); // ") 5"
+        drive(scene).press(Keys.V, COMMAND);
+        assertEquals("+1 (415) 955-0123", field.text(), "the pasted ) and space are the literals");
+    }
+
+    @Test
     void aPasteOverASelectionThatEndsTheValueGoesOnIntoTheFreePositions() {
         TextFieldTest.MockClipboard clipboard = TextFieldTest.MockClipboard.holding("9990123");
         holding("+1 (000) 000-0000", "4155", 0);

@@ -322,9 +322,12 @@ public final class InputMask {
 
     /**
      * Typing or pasting over a selection: the characters of {@code inserted} a position takes
-     * replace the selected positions one by one, from the first, and nothing moves. They are read
-     * from the entry the selection begins on, as {@link #edit} reads them, so a fragment carried
-     * with its literals fills the same positions as one without. Where a filled position follows
+     * replace the selected positions one by one, from the first, and nothing moves. A paste is
+     * read from the entry the selection begins on, as {@link #edit} reads it, so a fragment carried
+     * with its literals fills the same positions as one without. A keystroke is read from the first
+     * selected position: a literal the selection begins on is selected, not under the caret, so
+     * the {@code 1} typed over {@code 1 (4} of {@code +1 (415)} is the area code's, not the
+     * literal's. Where a filled position follows
      * the selection, what finds no selected position is dropped, since going on would move that
      * character; where none does, the selection ends the value and what is left goes on into the
      * free positions after it, as an {@link #edit} there would, moving nothing. The selected
@@ -336,11 +339,13 @@ public final class InputMask {
      * @param from     where the selection begins, in chars
      * @param to       where it ends, in chars; the range holds a position
      * @param inserted what was typed or pasted
+     * @param keystroke whether {@code inserted} is one key typed rather than a paste
      * @return the text, its filled characters and the selection left, or {@code null} when no
      *         character of {@code inserted} is taken by the position it would fill, which leaves
      *         the text as it was
      */
-    public @Nullable Overwritten overwrite(String text, int from, int to, String inserted) {
+    public @Nullable Overwritten overwrite(String text, int from, int to, String inserted,
+                                           boolean keystroke) {
         int[] cps = text.codePoints().toArray();
         int a = text.codePointCount(0, from);
         int b = a + text.codePointCount(from, to);
@@ -351,7 +356,7 @@ public final class InputMask {
                 selected[count++] = entry;
             }
         }
-        String added = read(inserted, inserted.length(), true, a).raw();
+        String added = read(inserted, inserted.length(), true, keystroke ? selected[0] : a).raw();
         if (added.codePointCount(0, added.length()) > count && !filledFrom(cps, b)) {
             // The selection ends the value: what is left of a paste fills the free positions
             // after it, which moves nothing, as the same paste with nothing selected would.

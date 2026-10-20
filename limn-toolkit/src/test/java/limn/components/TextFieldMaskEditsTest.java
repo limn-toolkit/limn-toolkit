@@ -200,7 +200,8 @@ class TextFieldMaskEditsTest extends AccessibleComponentTestBase {
             } else if (from >= 0 && typed != null && model.startsNewValue(oldText, from, to, typed)) {
                 model.checkNewValue(oldText, from, to, typed, field, context);
             } else if (from >= 0 && typed != null && model.overwrites(oldText, from, to, typed)) {
-                model.checkOverwrite(oldText, oldRaw, from, to, typed, field, context, reached);
+                model.checkOverwrite(oldText, oldRaw, from, to, typed, what.startsWith("type "), field,
+                        context, reached);
             } else if (from >= 0) {
                 model.count(oldText, from, to, typed, reached);
                 model.checkEdit(oldText, oldRaw, from, to, typed == null ? "" : typed, collapsed,
@@ -622,8 +623,8 @@ class TextFieldMaskEditsTest extends AccessibleComponentTestBase {
          * changes, nothing moves, and what was not reached stays selected; when nothing is taken,
          * nothing changes and the selection stays.
          */
-        void checkOverwrite(String oldText, String oldRaw, int from, int to, String typed, TextField field,
-                            String context, int[] reached) {
+        void checkOverwrite(String oldText, String oldRaw, int from, int to, String typed, boolean key,
+                            TextField field, String context, int[] reached) {
             int a = oldText.codePointCount(0, from);
             int b = a + oldText.codePointCount(from, to);
             String text = field.text();
@@ -641,7 +642,9 @@ class TextFieldMaskEditsTest extends AccessibleComponentTestBase {
             }
             // A selection that ends the value lets a paste go on into the free positions after it.
             boolean endsValue = selected.get(selected.size() - 1) == oldValue.length - 1;
-            boolean literalTyped = typed.codePoints().anyMatch(literals::contains);
+            // A key is read from the first selected position, so a literal there is no candidate;
+            // a paste is read from where the selection begins, literals and all.
+            boolean literalTyped = !key && typed.codePoints().anyMatch(literals::contains);
             if (endsValue) {
                 int first = selected.get(0);
                 String all = fills(first, typed, slots - first);

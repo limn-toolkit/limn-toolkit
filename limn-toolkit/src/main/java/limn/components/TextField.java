@@ -98,6 +98,8 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * holds a position of the mask overwrites those positions instead of replacing the selection.
      */
     private boolean typingOver;
+    /** Whether that edit is one key typed, read from the first selected position, not a paste. */
+    private boolean typedKey;
     /**
      * The caret and the selection as the edit being announced found them, so that an edit the
      * mask turns into nothing leaves them as they were, or reports only how they moved; {@code
@@ -293,7 +295,10 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * and nothing moves. With {@code 12} of {@code ABC-1234-XY} selected, a {@code 5} reads
      * {@code ABC-5234-XY} with the {@code 2} still selected, and a {@code 6} then
      * {@code ABC-5634-XY} with the caret after it; stopping midway leaves what is still selected
-     * as it was. A character the next selected position does not take is refused, the selection
+     * as it was. A key goes to the first selected position even when the selection begins on a
+     * literal that is the same character: the {@code 1} typed over {@code 1 (4} of
+     * {@code +1 (415)} is the area code's. A character the next selected position does not take
+     * is refused, the selection
      * unchanged; a paste fills the selected positions in order with the characters each takes,
      * leaves those it does not reach as they were and still selected, and drops what is left of
      * it where a typed character follows the selection; where none does, the selection ends the
@@ -393,7 +398,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * over everything, set by an assistive technology) is fitted as a value from scratch; an undo
      * or a redo reads the text it puts back as the mask wrote it.
      */
-    private void fitToMask(boolean typed) {
+    private void fitToMask(boolean typed, boolean key) {
         String text = model.text();
         int caret = model.cursor();
         int offset = model.damageOffset();
@@ -429,7 +434,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
             // Typed or pasted over a selection: the selected positions are overwritten one by one
             // and nothing moves; those not reached stay selected.
             limn.components.internal.text.InputMask.Overwritten over = mask.overwrite(maskedText,
-                    offset, offset + removed, text.substring(offset, offset + inserted));
+                    offset, offset + removed, text.substring(offset, offset + inserted), key);
             if (over == null) {
                 maskRefused = true;
                 fit = new limn.components.internal.text.InputMask.Conformed(maskedText,
@@ -1841,6 +1846,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         noteCaretBeforeEdit();
         model.insertCodePoint(cp);
         typingOver = true;
+        typedKey = true;
         announceTextEdit(Change.Origin.USER);
         ensureCursorVisible();
         resetBlink();
@@ -2047,13 +2053,15 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         ShapedText.Position caretBefore = caretBeforeEdit;
         caretBeforeEdit = null;
         boolean typed = typingOver;
+        boolean key = typedKey;
         typingOver = false;
+        typedKey = false;
         if (!model.hasCharDamage()) {
             return;
         }
         if (mask != null) {
             String before = maskedText;
-            fitToMask(typed);
+            fitToMask(typed, key);
             boolean refused = maskRefused;
             maskRefused = false;
             if (!restoringHistory && model.text().equals(before)) {

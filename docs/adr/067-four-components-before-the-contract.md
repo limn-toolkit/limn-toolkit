@@ -184,9 +184,12 @@ Markdown.
   selection in a masked field, of any pattern, **overwrites** the selected positions one by one
   and moves nothing. `12` selected, `5` replaces the 1 and the selection becomes the 2; `6`
   replaces the 2 and the caret stands after it; a user who stops midway leaves what is still
-  selected as it was. The typed text is read from the entry the selection begins on, as an edit
-  reads it, so a literal carried with it is taken as the literal; a character the next selected
-  position refuses is refused, the selection unchanged. A paste over a selection fills the
+  selected as it was. A paste is read from the entry the selection begins on, as an edit reads
+  it, so a literal carried with it is taken as the literal; a key typed is read from the first
+  selected position (amended 2026-10-20, from the second review: read from where the selection
+  begins, a `1` typed over `1 (4` of `+1 (415)` was taken for the selected literal and refused,
+  though the literal is selected, not under the caret, and the 4's place takes it); a character
+  the next selected position refuses is refused, the selection unchanged. A paste over a selection fills the
   selected positions in order with the characters each takes, leaves those it does not reach as
   they were and still selected, and drops the rest of the paste: nothing is pushed into the
   positions after the selection. (Amended 2026-10-20, from the second review: where no value
