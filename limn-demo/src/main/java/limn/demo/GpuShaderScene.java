@@ -6,6 +6,7 @@ import limn.components.SegmentedControl;
 import limn.components.Slider;
 import limn.components.Viewport3D;
 import limn.i18n.I18nString;
+import limn.math.Quat;
 import limn.math.Transform3D;
 import limn.math.Vec3;
 import limn.math.Vec4;
@@ -31,8 +32,10 @@ import limn.scene.layout.Row;
 import java.util.List;
 
 /**
- * Computation on the GPU, shown: molten rock whose every pixel is worked out by the fragment
- * shader, as fractal noise moving with time, on a sphere over a lake of the same.
+ * Computation on the GPU, shown, in two patterns: molten rock whose every pixel is worked out by
+ * the fragment shader, as fractal noise moving with time, on a sphere over a lake of the same;
+ * and the Mandelbrot set on a panel, up to 256 turns of z ↦ z² + c a pixel through a loop in the
+ * shader IR, smooth-coloured and zooming slowly into the valley between its two largest parts.
  *
  * <p>It is an application's {@link Material.Surface}, written in the toolkit's portable shader
  * IR, and the engine still lights it: the crust takes the scene's light and the sky, and the
@@ -58,6 +61,9 @@ final class GpuShaderScene {
         static final I18nString LAVA = new I18nString("showcase.shader.lava", "Lava");
         static final I18nString PLASMA = new I18nString("showcase.shader.plasma", "Plasma");
         static final I18nString ICE = new I18nString("showcase.shader.ice", "Ice");
+        static final I18nString PATTERN = new I18nString("showcase.shader.pattern", "Pattern");
+        static final I18nString MOLTEN = new I18nString("showcase.shader.molten", "Molten rock");
+        static final I18nString FRACTAL = new I18nString("showcase.shader.fractal", "Fractal");
         static final I18nString PAUSED =
                 new I18nString("showcase.shader.paused", "Paused: the system asks for less motion");
 
@@ -155,9 +161,10 @@ final class GpuShaderScene {
      * offset and is warped by a wave, so it churns in place, as a crust over convection does.
      *
      * <p>The glow is the heat raised to a power per channel, times a strength: with red's power
-     * lowest it reddens first and whitens last, the order a body glows in as it heats. That reads
-     * the heat once, which matters here: the IR is a tree, written out whole wherever a node is
-     * used, so an expression that used the noise twice would compute it twice.
+     * lowest it reddens first and whitens last, the order a body glows in as it heats. The noise
+     * builds each cell's corner hashes from one {@code floor} and blends them by one smoothed
+     * fraction: the generator writes a node used more than once once, so neither is computed
+     * twice.
      */
     private static SurfaceOutputs outputs() {
         Expr time = new Expr.Swizzle(ref("u_time", ShaderType.VEC4), "x");
@@ -242,7 +249,111 @@ final class GpuShaderScene {
         return new Expr.Call(function, type, List.of(args));
     }
 
+    // --------------------------------------------------------------- the fractal
+
+    /** The fractal's program key: one program, whatever the zoom, the colour or the frame. */
+    static final String FRACTAL_KEY = "demo.fractal";
+    /** The most turns a pixel takes: a quarter of what a loop may, and enough at this zoom. */
+    static final int FRACTAL_TURNS = 256;
+    /** Where the zoom goes: the valley of seahorses, between the main cardioid and its largest bulb. */
+    private static final double CENTRE_X = -0.743643887;
+    private static final double CENTRE_Y = 0.131825904;
+    /** How wide the view is at its widest, the whole set, and at its deepest, a thousandth of that. */
+    static final double WIDEST = 3.0;
+    static final double DEEPEST = 0.003;
+    /** A zoom in and out again takes this long, at speed 1. */
+    private static final double ZOOM_SECONDS = 60;
+    /** The panel's width over its height, which the mapping from its uv to the plane keeps. */
+    private static final float PANEL_ASPECT = 16f / 9f;
+
+    /**
+     * How wide the view of the set is at {@code time}: from {@link #WIDEST} to {@link #DEEPEST}
+     * and back, evenly in the logarithm, so each doubling of the zoom takes as long as the last.
+     * Worked out here in double precision and handed to the shader as a value.
+     */
+    static double scaleAt(double time) {
+        double phase = 0.5 - 0.5 * Math.cos(2 * Math.PI * time / ZOOM_SECONDS);
+        return Math.exp(Math.log(WIDEST) + (Math.log(DEEPEST) - Math.log(WIDEST)) * phase);
+    }
+
+    private static final Material.Surface FRACTAL = new Material.Surface(FRACTAL_KEY, fractalOutputs(), List.of(),
+            List.of(new Material.Surface.Value("u_time", Vec4.ZERO),
+                    new Material.Surface.Value("u_view", new Vec4((float) CENTRE_X, (float) CENTRE_Y, (float) WIDEST, 0)),
+                    new Material.Surface.Value("u_heat", PALETTES[0][0]),
+                    new Material.Surface.Value("u_tint", PALETTES[0][1]),
+                    new Material.Surface.Value("u_crust", PALETTES[0][2])),
+            null);
+
+    /** The fractal at {@code time} in palette {@code palette}: the same key and program, new values. */
+    static Material.Surface fractal(double time, int palette) {
+        Vec4[] p = PALETTES[palette];
+        return FRACTAL.with(List.of(), List.of(
+                new Material.Surface.Value("u_time", new Vec4((float) time, 0, 0, 0)),
+                new Material.Surface.Value("u_view", new Vec4((float) CENTRE_X, (float) CENTRE_Y,
+                        (float) scaleAt(time), 0)),
+                new Material.Surface.Value("u_heat", p[0]),
+                new Material.Surface.Value("u_tint", p[1]),
+                new Material.Surface.Value("u_crust", p[2])));
+    }
+
+    /**
+     * The Mandelbrot set, in the IR: c is the panel's point on the complex plane, and a loop
+     * carries (z, turns) through z ↦ z² + c until |z|² passes 256 or the turns run out.
+     *
+     * <p>The loop can end early, a different turn in each pixel, so it holds no texture sample and
+     * no derivative, which are undefined there; it needs neither. c reads only the pixel, so it is
+     * computed once before the loop. The colour is the smooth count, the turns plus the fraction
+     * of a turn the escape had left, which removes the bands a whole count draws; it is dark where
+     * a pixel leaves at once and runs through a cosine that drifts with time, so the colours move outward through the bands even where the
+     * zoom holds still. Inside the set, where every turn was taken, the panel is its crust.
+     */
+    private static SurfaceOutputs fractalOutputs() {
+        Expr view = ref("u_view", ShaderType.VEC4);
+        Expr heatKnobs = ref("u_heat", ShaderType.VEC4);
+        Expr offset = mul(new Expr.Binary(Expr.Op.SUB, ref("v_uv", ShaderType.VEC2), Expr.Lit.of(0.5f, 0.5f)),
+                Expr.Lit.of(PANEL_ASPECT, -1f));
+        Expr c = add(new Expr.Swizzle(view, "xy"), mul(offset, new Expr.Swizzle(view, "z")));
+
+        Expr.Ref s = new Expr.Ref("s", ShaderType.VEC4);
+        Expr zx = new Expr.Swizzle(s, "x");
+        Expr zy = new Expr.Swizzle(s, "y");
+        Expr squared = new Expr.Construct(ShaderType.VEC2, List.of(
+                new Expr.Binary(Expr.Op.SUB, mul(zx, zx), mul(zy, zy)),
+                mul(mul(Expr.Lit.of(2f), zx), zy)));
+        Expr next = new Expr.Construct(ShaderType.VEC4, List.of(add(squared, c),
+                add(new Expr.Swizzle(s, "z"), Expr.Lit.of(1f)), Expr.Lit.of(0f)));
+        Expr until = new Expr.Binary(Expr.Op.SUB,
+                call("dot", ShaderType.FLOAT, new Expr.Swizzle(s, "xy"), new Expr.Swizzle(s, "xy")),
+                Expr.Lit.of(256f));
+        Expr.Loop escape = new Expr.Loop("s", Expr.Lit.of(0f, 0f, 0f, 0f), FRACTAL_TURNS, next, until);
+
+        Expr turns = new Expr.Swizzle(escape, "z");
+        Expr radius = call("max", ShaderType.FLOAT, call("length", ShaderType.FLOAT, new Expr.Swizzle(escape, "xy")),
+                Expr.Lit.of(1.0001f));
+        Expr smooth = new Expr.Binary(Expr.Op.SUB, add(turns, Expr.Lit.of(1f)),
+                call("log2", ShaderType.FLOAT, call("log2", ShaderType.FLOAT, radius)));
+        Expr outside = new Expr.Binary(Expr.Op.SUB, Expr.Lit.of(1f),
+                call("step", ShaderType.FLOAT, Expr.Lit.of(FRACTAL_TURNS - 0.5f), turns));
+        Expr time = new Expr.Swizzle(ref("u_time", ShaderType.VEC4), "x");
+        Expr wave = call("cos", ShaderType.FLOAT, add(mul(smooth, Expr.Lit.of(0.21f)), mul(time, Expr.Lit.of(-0.5f))));
+        // Dark far from the set, where a pixel leaves in a turn or two, and lit toward its edge.
+        Expr nearness = call("smoothstep", ShaderType.FLOAT, Expr.Lit.of(1f), Expr.Lit.of(26f), smooth);
+        Expr heat = mul(mul(new Expr.Binary(Expr.Op.SUB, Expr.Lit.of(0.55f), mul(wave, Expr.Lit.of(0.45f))),
+                nearness), outside);
+        Expr glow = mul(mul(call("pow", ShaderType.VEC3,
+                        new Expr.Construct(ShaderType.VEC3, List.of(heat)), new Expr.Swizzle(heatKnobs, "xyz")),
+                mul(new Expr.Swizzle(heatKnobs, "w"), Expr.Lit.of(0.45f))),
+                new Expr.Swizzle(ref("u_tint", ShaderType.VEC4), "xyz"));
+        Expr crust = new Expr.Construct(ShaderType.VEC4, List.of(
+                new Expr.Swizzle(ref("u_crust", ShaderType.VEC4), "xyz"), Expr.Lit.of(1f)));
+        return SurfaceOutputs.of(crust, Expr.Lit.of(0f), Expr.Lit.of(0.6f), glow);
+    }
+
     // ------------------------------------------------------------------- the view
+
+    private static final Vec3 LAVA_EYE = new Vec3(0f, 2.2f, 5.4f);
+    private static final Vec3 LAVA_TARGET = new Vec3(0, -0.35f, 0);
+    private static final Vec3 PANEL_EYE = new Vec3(0f, 0f, 4.9f);
 
     /**
      * The scene for the showcase's page: the view, and under it the speed and the palette.
@@ -252,13 +363,16 @@ final class GpuShaderScene {
     static Widget<?> content(java.util.function.Consumer<Viewport3D> views) {
         Clock clock = new Clock();
         int[] palette = {0};
+        int[] pattern = {0};
         MeshData sphereData = Primitives.sphere(1.25f, 64, 96);
         MeshData lakeData = Primitives.plane(80, 80);
-        Scene3D[] scene = {null};
+        MeshData panelData = Primitives.plane(6.4f, 6.4f / PANEL_ASPECT);
+        Scene3D[] scene = {null, null};
         MeshNode[] molten = new MeshNode[2];
+        MeshNode[] panel = {null};
 
         Viewport3D viewport = new Viewport3D().setPreferredSize(560, 320);
-        viewport.camera().eye(new Vec3(0f, 2.2f, 5.4f)).target(new Vec3(0, -0.35f, 0));
+        viewport.camera().eye(LAVA_EYE).target(LAVA_TARGET);
         viewport.setController(new OrbitController(viewport.camera()));
         viewport.setRenderer((pass, t) -> {
             if (scene[0] == null) {
@@ -273,18 +387,35 @@ final class GpuShaderScene {
                 built.root().add(new LightNode(new Light.Directional(
                         new Vec3(0.3f, 1f, 0.4f), new Vec3(0.75f, 0.8f, 1f), 1.6f)));
                 scene[0] = built;
+                // The panel stands up facing the camera: the plane turned a quarter about x.
+                Scene3D framed = new Scene3D()
+                        .background(new Vec4(0.02f, 0.02f, 0.025f, 1f))
+                        .ambient(new Vec3(0.03f, 0.03f, 0.035f))
+                        .exposure(1.0f);
+                panel[0] = framed.root().add(new MeshNode(Graphics3D.upload(panelData), fractal(0, 0))
+                        .transform(new Transform3D(Vec3.ZERO,
+                                Quat.fromAxisAngle(Vec3.UNIT_X, (float) Math.PI / 2), Vec3.ONE)));
+                framed.root().add(new LightNode(new Light.Directional(
+                        new Vec3(0.3f, 0.6f, 1f), new Vec3(0.75f, 0.8f, 1f), 1.2f)));
+                scene[1] = framed;
             }
             double now = clock.advance(t);
-            // The sphere more molten than the lake: the same program, one value apart.
-            molten[0].material(surface(now, palette[0], 0.07f));
-            molten[1].material(surface(now, palette[0], 0f));
+            if (pattern[0] == 0) {
+                // The sphere more molten than the lake: the same program, one value apart.
+                molten[0].material(surface(now, palette[0], 0.07f));
+                molten[1].material(surface(now, palette[0], 0f));
+            } else {
+                panel[0].material(fractal(now, palette[0]));
+            }
             float aspect = viewport.height() > 0 ? viewport.width() / viewport.height() : 1f;
-            scene[0].render(pass, viewport.camera(), aspect);
+            scene[pattern[0]].render(pass, viewport.camera(), aspect);
         });
         viewport.observeDispose(() -> {
-            if (scene[0] != null) {
-                scene[0].dispose();
-                scene[0] = null; // the renderer above rebuilds lazily on re-attach
+            for (int i = 0; i < scene.length; i++) {
+                if (scene[i] != null) {
+                    scene[i].dispose();
+                    scene[i] = null; // the renderer above rebuilds lazily on re-attach
+                }
             }
         });
         viewport.setAccessibleName(Text.SHADER);
@@ -301,6 +432,23 @@ final class GpuShaderScene {
             viewport.invalidate(); // a still view, under less motion, shows the new palette too
         });
 
+        SegmentedControl patterns = new SegmentedControl(Text.MOLTEN, Text.FRACTAL);
+        patterns.setAccessibleName(Text.PATTERN);
+        java.util.function.IntConsumer choosePattern = index -> {
+            pattern[0] = index;
+            // Each pattern from where it is best seen; the orbit starts again from there.
+            viewport.camera().eye(index == 0 ? LAVA_EYE : PANEL_EYE).target(index == 0 ? LAVA_TARGET : Vec3.ZERO);
+            viewport.setController(new OrbitController(viewport.camera()));
+            viewport.invalidate();
+        };
+        patterns.onSelect(choosePattern);
+        // A lab switch for a film of the page: -Dlimn.demo.shader.pattern=Fractal opens on that
+        // pattern, by its English name.
+        if (Text.FRACTAL.english().equalsIgnoreCase(String.valueOf(System.getProperty("limn.demo.shader.pattern")))) {
+            patterns.setSelectedIndex(1);
+            choosePattern.accept(1);
+        }
+
         Label paused = Page.hint(Text.PAUSED);
         Runnable followMotion = () -> {
             boolean still = Motion.reduced();
@@ -310,16 +458,17 @@ final class GpuShaderScene {
         followMotion.run();
         SystemPreferences.observeChanges(followMotion); // for the life of the page, as Page's are
 
-        Row controls = Page.row(12, Labelled.caption(Text.SPEED, speed).setMuted(true),
-                new limn.scene.layout.SizedBox(180, limn.scene.layout.SizedBox.UNSET, speed),
+        Row controls = Page.row(12, Labelled.caption(Text.PATTERN, patterns).setMuted(true), patterns,
+                Labelled.caption(Text.SPEED, speed).setMuted(true),
+                new limn.scene.layout.SizedBox(140, limn.scene.layout.SizedBox.UNSET, speed),
                 Labelled.caption(Text.PALETTE, palettes).setMuted(true), palettes);
         controls.add(Expanded.spacer(1));
-        controls.add(paused);
 
         Column body = new Column();
         body.gap(Page.GAP).crossAlignment(Flex.CrossAlignment.STRETCH);
         body.add(Page.aspect(16f / 9f, viewport));
         body.add(controls);
+        body.add(paused); // a line of its own: the row of controls is full in a long language
         return body;
     }
 }

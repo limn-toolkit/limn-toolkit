@@ -98,6 +98,52 @@ class GpuShaderSceneTest {
         }
     }
 
+    @Test
+    void theFractalIsOneProgramThatLoopsAndEndsEarly() {
+        Material.Surface first = GpuShaderScene.fractal(0.0, 0);
+        Material.Surface later = GpuShaderScene.fractal(17.0, 1);
+        assertEquals(GpuShaderScene.FRACTAL_KEY, later.key());
+        assertSame(first.outputs(), later.outputs(), "the expressions are built once");
+        limn.render3d.shader.Expr.Loop loop = loopIn(first.outputs().emissive());
+        assertEquals(GpuShaderScene.FRACTAL_TURNS, loop.maxIterations());
+        assertTrue(loop.until() != null, "it stops where the point escapes");
+        assertNotEquals(first.values(), later.values(), "the zoom, the colour and the palette moved");
+    }
+
+    @Test
+    void theZoomGoesFromTheWholeSetToAThousandthOfItAndBack() {
+        assertEquals(GpuShaderScene.WIDEST, GpuShaderScene.scaleAt(0), 1e-9);
+        assertEquals(GpuShaderScene.DEEPEST, GpuShaderScene.scaleAt(30), 1e-9);
+        assertEquals(GpuShaderScene.WIDEST, GpuShaderScene.scaleAt(60), 1e-9);
+        for (double t = 0; t < 60; t += 0.5) {
+            double scale = GpuShaderScene.scaleAt(t);
+            assertTrue(scale <= GpuShaderScene.WIDEST + 1e-9 && scale >= GpuShaderScene.DEEPEST - 1e-12, "at " + t);
+        }
+    }
+
+    private static limn.render3d.shader.Expr.Loop loopIn(limn.render3d.shader.Expr node) {
+        if (node instanceof limn.render3d.shader.Expr.Loop loop) {
+            return loop;
+        }
+        java.util.List<limn.render3d.shader.Expr> children = java.util.List.of();
+        if (node instanceof limn.render3d.shader.Expr.Binary b) {
+            children = java.util.List.of(b.left(), b.right());
+        } else if (node instanceof limn.render3d.shader.Expr.Call c) {
+            children = c.args();
+        } else if (node instanceof limn.render3d.shader.Expr.Construct c) {
+            children = c.args();
+        } else if (node instanceof limn.render3d.shader.Expr.Swizzle w) {
+            children = java.util.List.of(w.source());
+        }
+        for (limn.render3d.shader.Expr child : children) {
+            limn.render3d.shader.Expr.Loop found = loopIn(child);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
+    }
+
     private static Label pausedLine(Scene scene) {
         for (Label label : Viewport3DPageTest.all(scene.root(), Label.class)) {
             if (label.text().equals(GpuShaderScene.Text.PAUSED.get())) {

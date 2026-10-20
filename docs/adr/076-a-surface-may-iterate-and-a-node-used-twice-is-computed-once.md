@@ -186,3 +186,13 @@ two sibling loops may both call their state `z`.
   The nesting check is memoized by node and by the names around it, so a chain built by reusing
   its last step, as the unrolled test builds nine, is walked once per nesting rather than once per
   path. Sharing is a generator rule and no IR type: the sealed `Expr` gained one record, `Loop`.
+- **2026-10-20, measured** (GPU time per frame, median of 300 after 20 to warm, three rounds that
+  agree within 0.01 ms; 4x MSAA). On this Mac's GPU sharing changes nothing: the Showcase's molten
+  surface costs 0.445 ms shared and 0.447 ms in place at 1826x1026, the driver's compiler already
+  sharing what the text repeated. On Apple's software renderer it is the difference that matters:
+  1.32 s a frame shared against 5.43 s in place at 913x513 (0.38 s against 1.56 s at 456x256),
+  four times less, because that compiler computes what it is given. The Showcase's Mandelbrot, up
+  to 256 turns a pixel, costs 0.32 ms at its widest and 0.39 ms at its deepest at 1826x1026 on the
+  GPU against 0.26 ms for the same panel in the built-in material, and 1.5 s to 3.0 s a frame at
+  913x513 on the software renderer. The program count stayed at one over every run.
+
