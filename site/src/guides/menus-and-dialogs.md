@@ -311,11 +311,16 @@ edit.onCancel(request -> {
                 if ("cancel".equals(answer)) {
                     request.refuse();          // back to the form, as it was left
                 } else {
-                    edit.dismiss(answer);      // closes the form with that answer
+                    request.dialog().dismiss(answer); // closes the form with that answer
                 }
             });
 });
 ```
+
+`allow()` closes the form with its cancel result, the answer for "nothing to lose". Save and
+Don't save are answers of their own, which the code that showed the form acts on, so they go
+through `request.dialog().dismiss(answer)`: the form closes with that result, and the request is
+settled by it.
 
 Only the cancel asks. The default button, any other button and a destructive one are answers and
 close the dialog at once; `dismiss` is your own close and asks nothing, and neither does the

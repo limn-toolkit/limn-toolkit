@@ -298,7 +298,7 @@ final class DialogsScene {
                         .show(customer)
                         .thenAccept(answer -> {
                             if ("save".equals(answer) || "discard".equals(answer)) {
-                                lower.dismiss(answer); // closes the form, and settles the request
+                                request.dialog().dismiss(answer); // closes the form, and settles the request
                             } else {
                                 request.refuse();
                                 Page.report(Text.STILL_EDITING.format(name));

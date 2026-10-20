@@ -150,6 +150,21 @@ public final class Dialog {
      * Keeping it unanswered is how a handler holds it, and while it is held the dialog is not asked
      * again.
      *
+     * <p>{@code allow()} closes the dialog with its cancel result, so it is the answer for "close and
+     * lose the changes" only. A different answer, the Save of a "Save changes?" question asked over a
+     * form, is given with {@code request.dialog().dismiss(result)}: the dialog closes with that
+     * result, which is what the code that showed it acts on, and the request is settled by it.
+     *
+     * <pre>{@code
+     * form.onCancel(request -> question.show(scene).thenAccept(answer -> {
+     *     if ("cancel".equals(answer)) {
+     *         request.refuse();                  // back to the form, as it was left
+     *     } else {
+     *         request.dialog().dismiss(answer);  // the form closes with "save" or "discard"
+     *     }
+     * }));
+     * }</pre>
+     *
      * <p>A request the dialog settles itself, because it was answered another way (a button that is
      * not the cancel, {@link #dismiss}, its window going away) while the request was held, is
      * {@linkplain #isAnswered() answered}, and {@link #allow()} and {@link #refuse()} then do nothing.
@@ -182,6 +197,9 @@ public final class Dialog {
             /** An assistive technology dismissing the dialog. */
             ASSISTIVE_TECHNOLOGY
         }
+
+        /** @return the dialog asked about, whose {@link Dialog#dismiss} gives it an answer of the handler's own */
+        Dialog dialog();
 
         /** @return how the user closed the dialog */
         Reason reason();
@@ -537,7 +555,9 @@ public final class Dialog {
      * whose result is the cancel result (judged when it is pressed, Return on the default button
      * included), the system closing the dialog's own window, and an assistive technology's dismiss.
      * The handler is given a {@link CancelRequest} it answers now or later; without a handler the
-     * dialog closes. Its other buttons, a destructive one included, are answers and never asked
+     * dialog closes. An answer other than the cancel result, the Save of a question asked over a
+     * form, is given with the request's {@linkplain CancelRequest#dialog() dialog}'s {@link #dismiss},
+     * which settles the request. Its other buttons, a destructive one included, are answers and never asked
      * about, and neither is {@link #dismiss}, the application's own close, nor the dialog's window
      * or its owner going away, nor the application ending.
      *
@@ -604,6 +624,11 @@ public final class Dialog {
 
         Asked(Reason reason) {
             this.reason = reason;
+        }
+
+        @Override
+        public Dialog dialog() {
+            return Dialog.this;
         }
 
         @Override
@@ -782,6 +807,9 @@ public final class Dialog {
 
     /**
      * Programmatically closes the dialog, resolving with {@code result}. UI thread only.
+     *
+     * <p>Never asks the {@link #onCancel} handler, whatever the result, and settles a request that
+     * handler holds: it is how a handler gives an answer other than the cancel result.
      *
      * @param result what the dialog resolves with; may be null
      */

@@ -249,14 +249,15 @@ class DialogCancelRequestTest extends ComponentTestBase {
             question.set(asking);
             asking.show(host).thenAccept(answer -> {
                 if ("cancel".equals(answer)) {
-                    request.refuse();
+                    request.refuse();          // back to the form, as it was left
                 } else {
-                    request.allow();
+                    request.dialog().dismiss(answer); // the form closes with that answer
                 }
             });
         });
         press(Keys.ESCAPE);
         assertOpen(mode + ", the question is open over it");
+        assertSame(dialog, asked.get(0).dialog(), "the request names the dialog it asks about");
         assertFalse(question.get().result().toCompletableFuture().isDone());
         question.get().dismiss("cancel");
         settle();
@@ -265,8 +266,35 @@ class DialogCancelRequestTest extends ComponentTestBase {
         click("Cancel");
         question.get().dismiss("discard");
         settle();
-        assertEquals("cancel", result.get(), mode + ", Don't save lets the form go with its cancel result");
+        assertEquals("discard", result.get(), mode + ", Don't save closes the form with its own answer");
         assertEquals(2, asked.size());
+    }
+
+    /**
+     * Save in the question closes the form with "save", which is what the code that opened the
+     * form persists on: answered with {@code allow()}, the form closed with its cancel result and
+     * the caller saved nothing, exactly when the user chose Save. The request is settled by the
+     * dismiss, and a late answer to it does nothing.
+     */
+    @ParameterizedTest
+    @EnumSource(DisplayMode.class)
+    void saveInTheQuestionClosesTheFormWithSaveThroughTheRequestsDialog(DisplayMode mode) {
+        List<Dialog> opened = new ArrayList<>();
+        open(mode, form(), request -> question(mode, opened).show(host).thenAccept(answer -> {
+            if ("cancel".equals(answer)) {
+                request.refuse();
+            } else {
+                request.dialog().dismiss(answer);
+            }
+        }));
+        click("Cancel");
+        opened.get(0).dismiss("save");
+        settle();
+        assertEquals("save", result.get(), mode + ": the caller of show() is told save, and saves");
+        Dialog.CancelRequest request = asked.get(0);
+        request.refuse(); // too late: the form has its answer
+        settle();
+        assertEquals("save", result.get(), mode + ": a late answer changes nothing");
     }
 
     // ------------------------------------------------------------- a key held down
@@ -348,7 +376,7 @@ class DialogCancelRequestTest extends ComponentTestBase {
                 if ("cancel".equals(answer)) {
                     request.refuse();
                 } else {
-                    dialog.dismiss(answer);
+                    request.dialog().dismiss(answer);
                 }
             }));
             hold(Keys.ESCAPE, opened);
@@ -379,7 +407,7 @@ class DialogCancelRequestTest extends ComponentTestBase {
             if ("cancel".equals(answer)) {
                 request.refuse();
             } else {
-                dialog.dismiss(answer);
+                request.dialog().dismiss(answer);
             }
         }));
         hold(Keys.ENTER, opened);

@@ -6,7 +6,8 @@
 - **Scope:** the ways a user closes a `Dialog` without choosing anything, and how an application
   keeps it open, now or after asking something of its own.
 - **New public API:** `Dialog.onCancel(Consumer<Dialog.CancelRequest>)`; `Dialog.CancelRequest`
-  with `reason()`, `allow()`, `refuse()` and `isAnswered()`; `Dialog.CancelRequest.Reason`.
+  with `dialog()`, `reason()`, `allow()`, `refuse()` and `isAnswered()`;
+  `Dialog.CancelRequest.Reason`.
 - **Compatibility:** additive. A dialog without a handler closes as it did. One change for every
   dialog in a window of its own: closing that window from the system (a decorated window's close
   button, Alt+F4, Cmd+W) now fades it out as the dialog's other answers do, where the window used to
@@ -44,13 +45,19 @@ dialog.onCancel(request -> {
             .show(scene)
             .thenAccept(answer -> {
                 if ("cancel".equals(answer)) {
-                    request.refuse();          // back to the form, as it was left
+                    request.refuse();                  // back to the form, as it was left
                 } else {
-                    request.allow();           // the form closes with its cancel result
+                    request.dialog().dismiss(answer);  // the form closes with "save" or "discard"
                 }
             });
 });
 ```
+
+`allow()` closes the form with its **cancel result**, so it is the answer for "close, nothing to
+lose" only. Save and Don't save are answers of their own, which the code that showed the form acts
+on, and are given with `request.dialog().dismiss(answer)`: the form closes with that result and the
+request is settled (2.4, rule 3). Answered with `allow()`, Save closed the form as cancelled and its
+caller saved nothing (corrected 2026-10-20, section 5).
 
 ### 2.1 What is asked, and what is not
 
@@ -160,3 +167,16 @@ It can be set before or after `show`, and is read when the user cancels. UI thre
   to the form as it was left.
 - The menus and dialogs guide gains the section; `DialogCancelRequestTest` holds the rules in both
   modes, `ShowcaseCustomerDialogTest` the Showcase.
+
+## 5. Notes
+
+### 2026-10-20: the request names its dialog, and Save is a dismiss
+
+The example in section 2 answered the question's Save with `request.allow()`, which closes the form
+with its cancel result: the caller of `show()` was told "cancel" and saved nothing, exactly when the
+user chose Save, while the guide and the Showcase already used `dismiss` (R6G-2 of the dialogs
+review). The owner decided (decision 34) that the request carries `dialog()`, as `CloseRequest`
+carries `window()` and `TabCloseRequest` `content()`, and that the documents give every answer
+other than the cancel result with `request.dialog().dismiss(result)`, which settles the request.
+`allow(String)` was the other shape offered and is not taken: an answer with a result of its own is
+not an allowed cancel, and `dismiss` already gives it without asking the handler.
