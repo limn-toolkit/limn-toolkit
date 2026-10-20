@@ -24,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -369,5 +370,151 @@ class EmptyContentTest extends AccessibleComponentTestBase {
         assertFalse(emptied.cleared, "the message coming back is not a full frame");
         assertTrue(list.isShowingEmptyContent());
         assertNotNull(beside.parent());
+    }
+
+    // ------------------------------------------------------------------ one parent, one widget
+
+    private static void setLoadingContent(Widget<?> rows, Widget<?> content) {
+        if (rows instanceof ListView<?> l) {
+            l.setLoadingContent(content);
+        } else if (rows instanceof Table<?> t) {
+            t.setLoadingContent(content);
+        } else {
+            ((Tree<?>) rows).setLoadingContent(content);
+        }
+    }
+
+    private static void setEmptyContent(Widget<?> rows, Widget<?> content) {
+        if (rows instanceof ListView<?> l) {
+            l.setEmptyContent(content);
+        } else if (rows instanceof Table<?> t) {
+            t.setEmptyContent(content);
+        } else {
+            ((Tree<?>) rows).setEmptyContent(content);
+        }
+    }
+
+    /** The texts one frame of {@code root} draws. */
+    private static List<String> drawnBy(Widget<?> root) {
+        Scene s = new Scene(root);
+        s.setTextRuler(RULER);
+        s.layoutPass(600, 400);
+        List<String> drawn = new ArrayList<>();
+        s.renderFrame(new FakeCanvas(600, 400) {
+            @Override
+            public void drawText(String text, float x, float y, limn.graphics.Font font,
+                    limn.graphics.Paint paint) {
+                drawn.add(text);
+            }
+        });
+        return drawn;
+    }
+
+    @Test
+    void aContentAlreadyInAnotherContainerIsRefusedAtTheSetterAndDrawnOnce() {
+        // The audit's scenario: a status label already on the page passed as the empty content was
+        // accepted; the next frame threw inside the list's layout, and then the label was laid out
+        // by both parents and drawn twice, every frame.
+        for (int kind = 0; kind < 3; kind++) {
+            for (boolean loadingContent : new boolean[] {false, true}) {
+                names.clear();
+                Widget<?> rows = kind == 0 ? list() : kind == 1 ? table() : folders();
+                Label status = new Label("No contacts");
+                TokenColumn page = new TokenColumn(Tokens.Role.SMALL);
+                page.add(status);
+                page.add(new SizedBox(300, 200, rows));
+                String which = kind + (loadingContent ? " loading" : " empty");
+                IllegalArgumentException refused = assertThrows(
+                        IllegalArgumentException.class, () -> {
+                            if (loadingContent) {
+                                setLoadingContent(rows, status);
+                            } else {
+                                setEmptyContent(rows, status);
+                            }
+                        }, which);
+                assertTrue(refused.getMessage().contains("container"), refused.getMessage());
+                if (!loadingContent) {
+                    assertNull(emptyContentOf(rows), which + ": nothing was set");
+                }
+                List<String> drawn = drawnBy(page);
+                assertEquals(1, drawn.stream().filter("No contacts"::equals).count(), which + ": " + drawn);
+                assertSame(page, status.parent(), which + ": the label stays where it was");
+            }
+        }
+    }
+
+    private static Widget<?> emptyContentOf(Widget<?> rows) {
+        if (rows instanceof ListView<?> l) {
+            return l.emptyContent();
+        } else if (rows instanceof Table<?> t) {
+            return t.emptyContent();
+        }
+        return ((Tree<?>) rows).emptyContent();
+    }
+
+    @Test
+    void oneContentIsNeverTwoWidgetsEvenWhileNeitherShowsIt() {
+        // The hard case: the first list has rows, so its empty content has no parent at the moment
+        // the second list is given it; both empty later, and both would show it.
+        names.add("Ana Lima");
+        ListView<String> first = list();
+        Label shared = new Label("No contacts");
+        first.setEmptyContent(shared, shared);
+        ListView<String> second = new ListView<>(Label::new);
+        assertNull(shared.parent(), "not shown: the first list has a row");
+        assertThrows(IllegalArgumentException.class,
+                () -> second.setEmptyContent(shared), "the first list's empty content");
+        assertThrows(IllegalArgumentException.class,
+                () -> second.setLoadingContent(shared), "nor its loading content");
+        Table<String> table = table();
+        assertThrows(IllegalArgumentException.class,
+                () -> table.setEmptyContent(shared), "nor a table's");
+
+        first.setEmptyContent(null);
+        second.setEmptyContent(shared); // let go, it is anyone's
+        assertSame(shared, second.emptyContent());
+        assertThrows(IllegalArgumentException.class,
+                () -> first.setLoadingContent(shared), "now the second's");
+    }
+
+    @Test
+    void theSameContentSetAgainOrAsBothEmptyAndLoadingIsTheWidgetsOwn() {
+        ListView<String> list = list();
+        Empty empty = Empty.make();
+        list.setEmptyContent(empty.content(), empty.message());
+        mount(list);
+        assertSame(list, empty.content().parent(), "shown");
+        list.setEmptyContent(empty.content(), empty.message()); // again, while it is the list's child
+        list.setLoadingContent(empty.content());
+        frame();
+        assertSame(list, empty.content().parent());
+    }
+
+    @Test
+    void aContentThatHoldsTheWidgetIsRefused() {
+        ListView<String> list = list();
+        TokenColumn around = new TokenColumn(Tokens.Role.SMALL);
+        around.add(list);
+        assertThrows(IllegalArgumentException.class,
+                () -> list.setEmptyContent(around));
+    }
+
+    @Test
+    void aContentTheApplicationPutElsewhereAfterIsNotShownAndTheFrameGoesOn() {
+        // Set while free, then added to the page by the application: the list does not take it
+        // from its parent, draws nothing of it, and loses no frame.
+        names.add("Ana Lima");
+        ListView<String> list = list();
+        Label status = new Label("No contacts");
+        list.setEmptyContent(status, status);
+        TokenColumn page = new TokenColumn(Tokens.Role.SMALL);
+        page.add(new SizedBox(300, 200, list));
+        page.add(status);
+        names.clear();
+        list.refresh();
+        List<String> drawn = drawnBy(page);
+        assertEquals(1, drawn.stream().filter("No contacts"::equals).count(), "drawn once: " + drawn);
+        assertSame(page, status.parent());
+        assertFalse(list.isShowingEmptyContent(), "the list does not show what it does not hold");
     }
 }

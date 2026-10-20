@@ -1088,11 +1088,15 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
      *
      * <p>The content is the list's last child while it shows, so its own controls (a "Clear
      * filter" button) follow the list in the Tab order and a reader finds them after its (no)
-     * rows; they belong to no selection. A content passed this way describes nothing to a reader:
-     * pass its message with {@link #setEmptyContent(Widget, Label)}.
+     * rows; they belong to no selection. It is this list's own: one already in another
+     * container, or another widget's content, is refused. A content passed this way describes
+     * nothing to a reader: pass its message with {@link #setEmptyContent(Widget, Label)}.
      *
      * @param content the content, or {@code null} for none
      * @return this list
+     * @throws IllegalArgumentException when {@code content} is already in another container, is
+     *                                  another list's, table's or tree's empty or loading content, or
+     *                                  holds this list
      */
     public ListView<T> setEmptyContent(@Nullable Widget<?> content) {
         Ui.checkUiThread();
@@ -1107,6 +1111,9 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
      * @param content the content, or {@code null} for none
      * @param message the label inside it that says why there are no rows, or {@code null}
      * @return this list
+     * @throws IllegalArgumentException when {@code content} is already in another container, is
+     *                                  another list's, table's or tree's empty or loading content, or
+     *                                  holds this list
      */
     public ListView<T> setEmptyContent(@Nullable Widget<?> content, @Nullable Label message) {
         Ui.checkUiThread();
@@ -1176,6 +1183,9 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
      *
      * @param content the content, or {@code null} for the default
      * @return this list
+     * @throws IllegalArgumentException when {@code content} is already in another container, is
+     *                                  another list's, table's or tree's empty or loading content, or
+     *                                  holds this list
      */
     public ListView<T> setLoadingContent(@Nullable Widget<?> content) {
         Ui.checkUiThread();
@@ -1189,6 +1199,9 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
      * @param content the content, or {@code null} for the default
      * @param message the label inside it that says what is loading, or {@code null}
      * @return this list
+     * @throws IllegalArgumentException when {@code content} is already in another container, is
+     *                                  another list's, table's or tree's empty or loading content, or
+     *                                  holds this list
      */
     public ListView<T> setLoadingContent(@Nullable Widget<?> content, @Nullable Label message) {
         Ui.checkUiThread();

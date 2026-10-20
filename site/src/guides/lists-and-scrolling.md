@@ -232,7 +232,8 @@ take it away when one arrives: they know their count, so you only say what to sh
 yet" or "No orders match the filter", which only you know. It sits in the middle of the rows'
 viewport, between a table's header and its footer, and its buttons follow the table in the Tab
 order. The label you pass with it is what a screen reader hears the empty table described by.
-`setEmptyMessage("…")` is the short form, one muted line.
+`setEmptyMessage("…")` is the short form, one muted line. The content is the widget's own: one
+already on the page, or already another list's, is refused with an `IllegalArgumentException`.
 
 While your rows are on their way, `setLoading(true)` shows a loading content in the same place
 (a moving bar over "Loading…", or your own with `setLoadingContent`), marks the widget busy, and

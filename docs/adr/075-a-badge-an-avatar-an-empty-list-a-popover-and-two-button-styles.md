@@ -631,6 +631,14 @@ that the text above does not say, dated where it departs from it.
   `moveChild` already did, the scene falling back to a full pass when the size moved. The full
   toolkit suite stayed green with the change.
 - The rows contract gains the case of section 4.3, run by the list, the table and the tree.
+- **One parent, one widget** (2026-10-19, the audit's CO-11): a content that already had a
+  parent was accepted, and the next frame threw inside the widget's layout; since the placeholder
+  had believed the content attached before adding it, it was then laid out and drawn by both
+  parents every frame. The setters now refuse, with an `IllegalArgumentException`, a content in
+  another container, another widget's empty or loading content (even while neither shows it,
+  through a weak map of holders) and one that holds the widget; the placeholder believes a content
+  attached only once it is; and a content the application puts elsewhere after setting it is not
+  shown, with one warning, instead of losing frames.
 
 ### 12.5 Popover
 

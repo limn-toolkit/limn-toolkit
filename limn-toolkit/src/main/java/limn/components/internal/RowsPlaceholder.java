@@ -16,6 +16,10 @@ import limn.scene.internal.SceneAccess;
 import limn.scene.layout.Flex;
 import org.jspecify.annotations.Nullable;
 
+import java.lang.ref.WeakReference;
+import java.util.Map;
+import java.util.WeakHashMap;
+
 /**
  * What a list, a table or a tree shows in its rows' viewport while it has no rows: the
  * application's empty content ("No orders match", a button that clears the filter), or while it
@@ -32,7 +36,9 @@ import org.jspecify.annotations.Nullable;
  * <p><b>A child, last.</b> The content is the widget's last child while it shows and no child at
  * all otherwise, so a reader finds it after the (no) rows and the Tab key reaches its buttons
  * after the widget itself, and a hidden content holds no node and no focus. It belongs to no
- * selection: the rows' and the grid's contracts read members, and it is not one.
+ * selection: the rows' and the grid's contracts read members, and it is not one. So a content is
+ * refused when it is already in another container or another widget's content: it would be laid
+ * out and drawn by two parents.
  *
  * <p><b>UI thread only</b>, as the widgets that hold one are. Not API: see the package.
  */
@@ -62,6 +68,15 @@ public final class RowsPlaceholder {
         int rowCount();
     }
 
+    private static final System.Logger LOG = System.getLogger(RowsPlaceholder.class.getName());
+
+    /**
+     * Which placeholder each content set on one belongs to, so that one content is never two
+     * widgets', even while neither shows it. The placeholder is held weakly: it holds its contents,
+     * and a strong value would keep every key alive.
+     */
+    private static final Map<Widget<?>, WeakReference<RowsPlaceholder>> HOLDERS = new WeakHashMap<>();
+
     private final Host host;
     private @Nullable Widget<?> emptyContent;
     private @Nullable Label emptyMessage;
@@ -71,6 +86,8 @@ public final class RowsPlaceholder {
     private @Nullable Label defaultLoadingLine;
     private boolean loading;
     private @Nullable Widget<?> attached;
+    /** Whether the log has said that the content to show was put elsewhere; once per content. */
+    private boolean saidElsewhere;
 
     /**
      * @param host the widget this shows content for
@@ -89,11 +106,16 @@ public final class RowsPlaceholder {
      * @param message the label that says why there are no rows, or {@code null}: a content with no
      *                message describes nothing, since the toolkit does not read text out of an
      *                arbitrary widget
+     * @throws IllegalArgumentException when {@code content} is in another container, is the empty
+     *                                  or loading content of another widget, or holds this widget
      */
     public void setEmpty(@Nullable Widget<?> content, @Nullable Label message) {
         Ui.checkUiThread();
+        checkFree(content);
+        Widget<?> old = emptyContent;
         this.emptyContent = content;
         this.emptyMessage = content == null ? null : message;
+        held(old, content);
         changed();
     }
 
@@ -123,12 +145,60 @@ public final class RowsPlaceholder {
      *
      * @param content the content, or {@code null} for the default
      * @param message the label inside it that describes the widget while it shows, or {@code null}
+     * @throws IllegalArgumentException when {@code content} is in another container, is the empty
+     *                                  or loading content of another widget, or holds this widget
      */
     public void setLoadingContent(@Nullable Widget<?> content, @Nullable Label message) {
         Ui.checkUiThread();
+        checkFree(content);
+        Widget<?> old = loadingContent;
         this.loadingContent = content;
         this.loadingMessage = content == null ? null : message;
+        held(old, content);
         changed();
+    }
+
+    /**
+     * Refuses a content another parent or another widget has: added again by this one it would be
+     * laid out and drawn by both, and the frame that added it would throw.
+     */
+    private void checkFree(@Nullable Widget<?> content) {
+        if (content == null) {
+            return;
+        }
+        Widget<?> widget = host.widget();
+        Widget<?> parent = content.parent();
+        if (parent != null && parent != widget) {
+            throw new IllegalArgumentException("the content is already in another container: take it out "
+                    + "first, or give the " + widget.getClass().getSimpleName() + " a content of its own");
+        }
+        WeakReference<RowsPlaceholder> holder = HOLDERS.get(content);
+        RowsPlaceholder other = holder == null ? null : holder.get();
+        if (other != null && other != this && other.holds(content)) {
+            throw new IllegalArgumentException("the content is already the empty or loading content of "
+                    + "another " + other.host.widget().getClass().getSimpleName() + ": each takes one of its own");
+        }
+        for (Widget<?> w = widget; w != null; w = w.parent()) {
+            if (w == content) {
+                throw new IllegalArgumentException("the content holds the "
+                        + widget.getClass().getSimpleName() + " it would show in");
+            }
+        }
+    }
+
+    private boolean holds(Widget<?> content) {
+        return content == emptyContent || content == loadingContent;
+    }
+
+    /** Lets {@code old} go unless it is still one of this widget's contents, and claims {@code next}. */
+    private void held(@Nullable Widget<?> old, @Nullable Widget<?> next) {
+        if (old != null && !holds(old)) {
+            HOLDERS.remove(old);
+        }
+        if (next != null) {
+            HOLDERS.put(next, new WeakReference<>(this));
+        }
+        saidElsewhere = false;
     }
 
     /** @return the loading content the application gave, or {@code null} for the default */
@@ -191,8 +261,16 @@ public final class RowsPlaceholder {
         return shown != null && shown != emptyContent;
     }
 
-    /** What should show now: nothing over rows, the loading content while loading, else the empty. */
+    /**
+     * What should show now: nothing over rows, the loading content while loading, else the empty;
+     * and nothing in place of a content the application has since put in another container.
+     */
     private @Nullable Widget<?> wanted() {
+        Widget<?> want = candidate();
+        return want != null && isElsewhere(want) ? null : want;
+    }
+
+    private @Nullable Widget<?> candidate() {
         if (host.rowCount() > 0) {
             return null;
         }
@@ -200,6 +278,12 @@ public final class RowsPlaceholder {
             return loadingContent != null ? loadingContent : defaultLoading();
         }
         return emptyContent;
+    }
+
+    /** Whether {@code content} is a child of something other than the widget. */
+    private boolean isElsewhere(Widget<?> content) {
+        Widget<?> parent = content.parent();
+        return parent != null && parent != host.widget();
     }
 
     /** The label that describes the widget while what it belongs to shows, or {@code null}. */
@@ -276,6 +360,14 @@ public final class RowsPlaceholder {
     /** Makes the widget's children say what should show now. */
     private void sync() {
         Widget<?> want = wanted();
+        if (want == null && !saidElsewhere) {
+            Widget<?> elsewhere = candidate();
+            if (elsewhere != null && isElsewhere(elsewhere)) {
+                saidElsewhere = true;
+                LOG.log(System.Logger.Level.WARNING, "the content a " + host.widget().getClass().getSimpleName()
+                        + " shows with no rows was put in another container, and is not shown");
+            }
+        }
         if (want == attached) {
             return;
         }
@@ -291,8 +383,8 @@ public final class RowsPlaceholder {
             }
         }
         if (want != null) {
-            attached = want;
             host.attach(want);
+            attached = want; // only once it is the widget's child: a throw leaves nothing believed
         }
     }
 
