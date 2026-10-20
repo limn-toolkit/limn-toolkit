@@ -108,16 +108,17 @@ class IconOnlyButtonTest extends ComponentTestBase {
 
     @Test
     void aMinimumWidthWidensOneButtonAndTheIconStaysInTheMiddle() {
-        Button button = iconOnly(ControlSize.MEDIUM, SCALED_RULER);
+        // In the row's scene from the start: a scene's root is refused by a container.
+        Button button = new Button("").setIcon(new RecordingIcon()).setControlSize(ControlSize.MEDIUM);
+        Row row = new Row();
+        row.add(button);
+        Scene scene = new Scene(row);
+        scene.setTextRuler(SCALED_RULER);
         button.setMinWidth(58);
         assertEquals(58, measured(button).width(), EPS);
 
         RecordingIcon icon = new RecordingIcon();
         button.setIcon(icon);
-        Row row = new Row();
-        row.add(button);
-        Scene scene = new Scene(row);
-        scene.setTextRuler(SCALED_RULER);
         scene.layoutPass(300, 100);
         scene.renderFrame(new FakeCanvas(300, 100));
         assertEquals(58, button.width(), EPS, "a row lets the button choose its width");

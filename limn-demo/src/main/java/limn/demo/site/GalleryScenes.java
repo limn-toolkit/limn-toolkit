@@ -1148,13 +1148,12 @@ final class GalleryScenes {
     }
 
     /**
-     * Makes a whole-window scene filmable: the same pointer layer and stepped clock the component
-     * scenes get, wrapped around a scene somebody else built.
+     * Makes a whole-window screen filmable: the same pointer layer and stepped clock the
+     * component scenes get, around the root widget of a screen somebody else built.
      *
-     * <p>It re-parents the scene's root instead of asking the caller to build differently, so that
-     * a showcase entry stays one method returning one {@code Scene} whether it is filmed or not.
-     * The scene handed in is discarded: it was never bound to a window, and the root it holds is
-     * the only part that matters.
+     * <p>It takes the screen's root, in no scene, rather than a scene built around it: a scene's
+     * root belongs to that scene, and a container refuses it, so a filmed showcase entry names
+     * the widget it is built from beside the scene its still is built as.
      *
      * <p>The clock is the reason this exists rather than a pointer layer added at the call site.
      * A film is a sequence of rendered frames, not a recording of wall-clock time: with the real
@@ -1162,11 +1161,11 @@ final class GalleryScenes {
      * two runs of the same script produce different frames and nothing downstream can tell that
      * from a change somebody made.
      */
-    static Built filmable(Scene source, Widget<?> content) {
+    static Built filmable(Widget<?> screen, Widget<?> content) {
         PointerLayer pointer = new PointerLayer();
         FrameClock clock = new FrameClock();
         Stack root = new Stack().alignment(Stack.Alignment.CENTER);
-        root.add(source.root());
+        root.add(screen);
         Scene scene = new Scene(root, clock);
         // The arrow is the scene's front painter, not the last child of this stack. A child
         // paints under every overlay, so an in-scene dialog hides it completely; see

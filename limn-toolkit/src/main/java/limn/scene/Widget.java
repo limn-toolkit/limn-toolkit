@@ -454,6 +454,18 @@ public abstract class Widget<W extends Widget<W>> {
     /**
      * Appends a child (UI thread only). Protected: a widget arranges children of its own, and only a
      * {@link limn.scene.layout.Container} takes them from outside.
+     *
+     * <p>A widget that is a scene's root, or an overlay on a scene's stack, is refused before
+     * anything moves, here and on every path a widget takes a child through (a container's add, a
+     * component's setter of its content): the scene that holds it would go on naming it as its own.
+     * That scene lets go of it when it is taken off the stack ({@link Scene#removeOverlay}) or when
+     * its window closes.
+     *
+     * @param child the child to append; never {@code null}
+     * @throws NullPointerException     if {@code child} is {@code null}
+     * @throws IllegalStateException    if {@code child} already has a parent
+     * @throws IllegalArgumentException if {@code child} is an ancestor of this widget, a scene's
+     *                                  root, or an overlay on a scene's stack
      */
     protected void add(Widget<?> child) {
         Ui.checkUiThread();
@@ -476,7 +488,9 @@ public abstract class Widget<W extends Widget<W>> {
      * @throws IndexOutOfBoundsException if {@code index} is outside that range
      * @throws NullPointerException      if {@code child} is {@code null}
      * @throws IllegalStateException     if {@code child} already has a parent
-     * @throws IllegalArgumentException  if {@code child} is an ancestor of this widget
+     * @throws IllegalArgumentException  if {@code child} is an ancestor of this widget, a scene's
+     *                                   root, or an overlay on a scene's stack, as
+     *                                   {@link #add(Widget)} says
      */
     protected void add(int index, Widget<?> child) {
         Ui.checkUiThread();
@@ -540,6 +554,7 @@ public abstract class Widget<W extends Widget<W>> {
         if (child.parent != null) {
             throw new IllegalStateException("widget already has a parent");
         }
+        Scene.refuseAnotherScenesLayer(child, null, "a child in a container"); // before anything moves
         for (Widget<?> ancestor = this; ancestor != null; ancestor = ancestor.parent) {
             if (ancestor == child) {
                 throw new IllegalArgumentException("cycle: child is an ancestor of this widget");
@@ -550,8 +565,9 @@ public abstract class Widget<W extends Widget<W>> {
         List<Runnable> settled = new ArrayList<>(0); // no array until a leaving settles something
         Throwable failed = null;
         try {
-            // A popup hung in a child adopted from another scene closes as it leaves that one,
-            // and what its handler throws waits for the join to be complete and announced.
+            // A popup hung in a child coming from another scene (one a popup's handler moved while
+            // that scene removed it) closes as it leaves that one, and what its handler throws
+            // waits for the join to be complete and announced.
             child.setSceneRecursively(scene, settled);
         } catch (RuntimeException | Error error) {
             failed = HandlerFailures.add(null, error);
@@ -659,9 +675,11 @@ public abstract class Widget<W extends Widget<W>> {
      * one its place in the tree says, and a move the handler already walked into a third scene is
      * not walked over.
      *
-     * <p>A subtree that goes straight from one scene into another leaves the first, every
-     * {@link #onDetached()} told while {@link #scene()} still answers it, and then joins the
-     * second, as a removal and an add would tell it.
+     * <p>A subtree that goes straight from one scene into another (one a popup's handler moves
+     * while the first scene removes it; a scene's root or overlay is refused by every funnel
+     * before it gets here) leaves the first, every {@link #onDetached()} told while
+     * {@link #scene()} still answers it, and then joins the second, as a removal and an add would
+     * tell it.
      *
      * @param newScene the scene the subtree joins, or null when it leaves every scene
      * @param settled  where what the leavings settled is added, for {@link #runSettled}

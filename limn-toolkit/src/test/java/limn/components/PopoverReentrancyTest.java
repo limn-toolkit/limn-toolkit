@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -361,7 +362,11 @@ class PopoverReentrancyTest extends ComponentTestBase {
     }
 
     @Test
-    void addingAWidgetFromAnotherSceneCompletesWhenAHandlerThrows() {
+    void addingAnotherScenesRootIsRefusedBeforeAnyHandlerRuns() {
+        // Another scene's root, a popover open from its button: adopting it took it into this
+        // scene while the other still named it as its root (the owner's decision: refused). The
+        // refusal comes before the move, so the popover is not closed and its handler, which
+        // throws, never runs; nothing is announced on the column that would have taken it.
         Button first = new Button("First");
         Column elsewhere = new Column();
         elsewhere.add(first);
@@ -378,17 +383,14 @@ class PopoverReentrancyTest extends ComponentTestBase {
         inWindow(root);
         List<Change.Aspect> heardOnRoot = new ArrayList<>();
         root.observeChanges((source, change) -> heardOnRoot.add(change.aspect()));
-        IllegalStateException thrown = null;
-        try {
-            root.add(elsewhere); // a scene's root, adopted by another
-        } catch (IllegalStateException e) {
-            thrown = e;
-        }
-        assertNotNull(thrown, "the handler's throw is not swallowed");
-        assertSame(root, elsewhere.parent());
-        assertSame(scene, first.scene(), "the move completed");
-        assertTrue(heardOnRoot.contains(Change.Aspect.CHILDREN), "and was announced: " + heardOnRoot);
-        assertFalse(popover.isOpen());
+
+        assertThrows(IllegalArgumentException.class, () -> root.add(elsewhere));
+
+        assertNull(elsewhere.parent());
+        assertSame(elsewhere, other.root());
+        assertSame(other, first.scene(), "nothing moved");
+        assertTrue(heardOnRoot.isEmpty(), "nothing announced: " + heardOnRoot);
+        assertTrue(popover.isOpen(), "the popover hung in it stays open, its handler never run");
         owner.requestClose();
         runtime.drain();
     }
@@ -552,12 +554,12 @@ class PopoverReentrancyTest extends ComponentTestBase {
     }
 
     @Test
-    void anOnCloseTakingAnAdoptedCardOutAgainLeavesItOutOfEveryScene() {
-        // The mirror case: a card that is another window's root, a popover open from its button, is
-        // adopted into this window's column; the popover's onClose, run as the card leaves the other
-        // scene, takes the card out of the column again. The card ends out of the tree and out of
-        // every scene, told it left as often as it was told it joined: it stayed attached to this
-        // scene, parentless, listed by it and never detached.
+    void anotherWindowsRootIsRefusedAndThePopoverOpenFromItStaysOpen() {
+        // The mirror case: a card that is another window's root, a popover open from its button,
+        // added to this window's column. It was adopted, and the popover's onClose, run as the card
+        // left the other scene, could take it out of the column again. Now the add is refused before
+        // anything moves: the card stays the other window's root, attached there once, the popover
+        // open and its handler never run.
         Button filter = new Button("Filter");
         Counted card = new Counted();
         card.add(filter);
@@ -570,21 +572,30 @@ class PopoverReentrancyTest extends ComponentTestBase {
         other.setTextRuler(RULER);
         other.bind(second);
         second.frame();
+        int[] ran = {0};
         Popover popover = new Popover(new SizedBox(160, 30, new TextField())).setDisplayMode(DisplayMode.IN_SCENE)
-                .onClose(origin -> holder.remove(card));
+                .onClose(origin -> {
+                    ran[0]++;
+                    holder.remove(card);
+                });
         popover.showFor(filter);
         frames(3);
         assertTrue(popover.isOpen(), "sanity");
 
-        holder.add(card);
+        assertThrows(IllegalArgumentException.class, () -> holder.add(card));
         frames(3);
 
-        assertFalse(popover.isOpen());
-        assertNull(card.parent(), "where the handler left it");
-        assertNull(card.scene(), "out of every scene, as its place in the tree says");
-        assertNull(filter.scene());
-        assertEquals(card.attached, card.detached,
-                "told it left as often as it joined: attached " + card.attached + ", detached " + card.detached);
+        assertTrue(popover.isOpen(), "still open");
+        assertEquals(0, ran[0], "its handler never ran");
+        assertNull(card.parent());
+        assertSame(card, other.root());
+        assertSame(other, card.scene());
+        assertSame(other, filter.scene());
+        assertTrue(holder.children().isEmpty());
+        assertEquals(1, card.attached, "joined the other scene once");
+        assertEquals(0, card.detached, "and never left it");
+        popover.close();
+        frames(40);
         owner.requestClose();
         second.requestClose();
         runtime.drain();
@@ -722,6 +733,149 @@ class PopoverReentrancyTest extends ComponentTestBase {
                 again.close();
                 frames(40);
             }
+            owner.requestClose();
+            second.requestClose();
+            runtime.drain();
+        }
+    }
+
+    @Test
+    void anOnCloseThatTookTheRemovedCardIntoAThirdSceneCannotTakeItIntoAFourth() {
+        // The popover's onClose pushes the card being removed as another window's overlay, or makes
+        // it a new scene's root, and then tries to take it on: into a fourth scene's overlay stack,
+        // a new scene of its own, a column of a fourth scene. The card is that third scene's layer
+        // by then, so each is refused where it is tried, before it moves anything, and the card
+        // stays where the first move put it, told it left this window and joined that one once.
+        // The last try is not caught by the handler: the removal completes and throws it after.
+        for (boolean asRoot : new boolean[] {false, true}) {
+            String how = asRoot ? "made a new scene's root" : "pushed as another window's overlay";
+            Button filter = new Button("Filter");
+            Seen card = new Seen();
+            card.add(filter);
+            Column holder = new Column();
+            Column root = new Column();
+            root.add(holder);
+            root.add(new Button("Base"));
+            inWindow(root);
+            HeadlessWindow second = backend.open("Details", 300, 200);
+            Scene other = new Scene(new Column(), () -> now[0]);
+            other.setTextRuler(RULER);
+            other.bind(second);
+            second.frame();
+            Column fourthRoot = new Column();
+            Scene fourth = new Scene(fourthRoot, () -> now[0]);
+            holder.add(card);
+            frames(2);
+            card.joined.clear();
+            Scene[] torn = {null};
+            List<String> refused = new ArrayList<>();
+            Popover popover = new Popover(new SizedBox(160, 30, new TextField())).setDisplayMode(DisplayMode.IN_SCENE)
+                    .onClose(origin -> {
+                        if (asRoot) {
+                            torn[0] = new Scene(card, () -> now[0]);
+                            torn[0].setTextRuler(RULER);
+                        } else {
+                            other.pushOverlay(card);
+                        }
+                        try {
+                            fourth.pushOverlay(card);
+                        } catch (IllegalArgumentException e) {
+                            refused.add("pushOverlay");
+                        }
+                        try {
+                            new Scene(card);
+                        } catch (IllegalArgumentException e) {
+                            refused.add("new Scene");
+                        }
+                        if (asRoot) {
+                            try {
+                                other.pushOverlay(card);
+                            } catch (IllegalArgumentException e) {
+                                refused.add("the other window's pushOverlay");
+                            }
+                        }
+                        fourthRoot.add(card); // not caught
+                    });
+            popover.showFor(filter);
+            frames(3);
+            assertTrue(popover.isOpen(), how + ": sanity");
+
+            assertThrows(IllegalArgumentException.class, () -> holder.remove(card),
+                    how + ": the handler's uncaught refusal, thrown once the removal is complete");
+            frames(3);
+
+            assertEquals(asRoot ? List.of("pushOverlay", "new Scene", "the other window's pushOverlay")
+                    : List.of("pushOverlay", "new Scene"), refused, how);
+            Scene expected = asRoot ? torn[0] : other;
+            assertNull(card.parent(), how);
+            assertSame(expected, card.scene(), how);
+            assertSame(expected, filter.scene(), how);
+            if (asRoot) {
+                assertSame(card, torn[0].root(), how);
+            } else {
+                // Parentless, in the other window's scene and not its root: its overlay still.
+                assertFalse(other.root() == card, how);
+            }
+            assertTrue(holder.children().isEmpty(), how + ": out of the column it was removed from");
+            assertTrue(fourthRoot.children().isEmpty(), how + ": never in the fourth scene");
+            assertEquals(List.of(scene), card.left, how + ": told it left this window, once");
+            assertEquals(List.of(expected), card.joined, how + ": and joined the third scene, once");
+            if (!asRoot) {
+                other.removeOverlay(card);
+                assertNull(card.scene(), how + ": it was on the other window's stack, and comes off it");
+            }
+            owner.requestClose();
+            second.requestClose();
+            runtime.drain();
+        }
+    }
+
+    @Test
+    void anOverlayTakenOffItsStackIsNotRefusedByTheColumnItsOnCloseDocksItIn() {
+        // The scene lets go of an overlay before the walk that closes its popovers, so a handler
+        // that docks the card in a column, of this window or another, is not refused: the card is
+        // on no stack by then. It ends in the column, in that column's scene, a popover opening
+        // from its button there.
+        for (boolean otherWindow : new boolean[] {false, true}) {
+            String how = otherWindow ? "docked in another window's column" : "docked in this window's column";
+            Button filter = new Button("Filter");
+            Seen card = new Seen();
+            card.add(filter);
+            Column dock = new Column();
+            Column root = new Column();
+            root.add(new Button("Base"));
+            inWindow(root);
+            HeadlessWindow second = backend.open("Details", 300, 200);
+            Scene other = new Scene(new Column(), () -> now[0]);
+            other.setTextRuler(RULER);
+            other.bind(second);
+            second.frame();
+            if (otherWindow) {
+                ((Column) other.root()).add(dock);
+            } else {
+                root.add(dock);
+            }
+            scene.pushOverlay(card);
+            frames(2);
+            Popover popover = new Popover(new SizedBox(160, 30, new TextField())).setDisplayMode(DisplayMode.IN_SCENE)
+                    .onClose(origin -> dock.add(card));
+            popover.showFor(filter);
+            frames(3);
+            assertTrue(popover.isOpen(), how + ": sanity");
+
+            scene.removeOverlay(card);
+            frames(3);
+
+            Scene expected = otherWindow ? other : scene;
+            assertSame(dock, card.parent(), how);
+            assertSame(expected, card.scene(), how);
+            assertSame(expected, filter.scene(), how);
+            Popover again = new Popover(new SizedBox(160, 30, new TextField())).setDisplayMode(DisplayMode.IN_SCENE);
+            again.showFor(filter);
+            frames(3);
+            assertTrue(again.isOpen(), how + ": a popover opens from its button in the column");
+            again.close();
+            frames(40);
             owner.requestClose();
             second.requestClose();
             runtime.drain();

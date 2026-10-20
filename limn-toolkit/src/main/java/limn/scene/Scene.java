@@ -238,7 +238,14 @@ public final class Scene {
     /**
      * A scene over {@code root}. Subscribes to font, size-step and language changes.
      *
+     * <p>A widget belongs to one scene as its root or one of its overlays: one that is already
+     * another scene's root, or an overlay on another scene's stack, is refused, as
+     * {@link #pushOverlay(Widget)} and every container's add refuse it. That scene lets go of it
+     * when it is taken off the stack ({@link #removeOverlay}) or when its window closes.
+     *
      * @param root the widget tree to lay out, paint and dispatch to; never null
+     * @throws IllegalArgumentException if {@code root} is another scene's root or an overlay on
+     *                                  another scene's stack
      */
     public Scene(Widget<?> root) {
         this(root, System::nanoTime);
@@ -274,9 +281,15 @@ public final class Scene {
     /**
      * Injectable clock (slow-handler instrumentation and animation ticks),
      * public so component tests can drive animations deterministically.
+     *
+     * @param root  as {@link #Scene(Widget)} takes it, and refused as it refuses it
+     * @param clock what this scene reads as now, in nanoseconds
+     * @throws IllegalArgumentException if {@code root} is another scene's root or an overlay on
+     *                                  another scene's stack
      */
     public Scene(Widget<?> root, LongSupplier clock) {
-        this.root = Objects.requireNonNull(root, "root");
+        refuseAnotherScenesLayer(Objects.requireNonNull(root, "root"), null, "the root of a new scene");
+        this.root = root;
         this.clock = clock;
         List<Runnable> settled = new ArrayList<>(0);
         Throwable failed = null;
@@ -830,6 +843,16 @@ public final class Scene {
      * Tab traversal ignore the content and lower overlays). This is how modal
      * dialogs work: an in-scene overlay, no nested event loop. Focus moves to
      * the overlay's first focusable widget.
+     *
+     * <p>A widget that is another scene's root, or an overlay on another scene's stack, is refused
+     * before anything moves, as a container's add and a new scene refuse it: the scene that holds
+     * it would go on naming it as its own and laying it out at its own window's size. That scene
+     * lets go of it when it is taken off the stack ({@link #removeOverlay}) or when its window
+     * closes.
+     *
+     * @param overlay the overlay's root
+     * @throws IllegalArgumentException if {@code overlay} is another scene's root or an overlay on
+     *                                  another scene's stack
      */
     public void pushOverlay(Widget<?> overlay) {
         Ui.checkUiThread();
@@ -950,6 +973,7 @@ public final class Scene {
      *         caller rethrows once its own work is done, or null
      */
     private @Nullable Throwable stackOverlay(Widget<?> overlay, List<Runnable> settled) {
+        refuseAnotherScenesLayer(overlay, this, "an overlay of another scene"); // before anything moves
         // A drag captured before this modal opened must not keep feeding the
         // now-blocked content beneath the scrim: DRAG follows the capture, not
         // hit-testing. Synthesize its RELEASE (window blur's treatment).
@@ -998,6 +1022,8 @@ public final class Scene {
      * opened from. Closed with {@link #removeOverlay}.
      *
      * @param popup the popup's root widget
+     * @throws IllegalArgumentException if {@code popup} is another scene's root or an overlay on
+     *                                  another scene's stack, as {@link #pushOverlay(Widget)} refuses it
      */
     public void pushPopup(Widget<?> popup) {
         Ui.checkUiThread();
@@ -2305,6 +2331,52 @@ public final class Scene {
     /** @return whether {@code widget} is one of this scene's overlays, in a window that has not closed */
     boolean holdsAsLayer(Widget<?> widget) {
         return !detachedByClose && overlays.contains(widget);
+    }
+
+    /** Whether this scene has let go of its root, which is moving into another scene; see {@link #letGoOfRoot}. */
+    private boolean rootLetGo;
+
+    /**
+     * @return whether {@code widget} is this scene's root or one of its overlays, in a window that
+     *         has not closed: a layer this scene names as its own, which no other scene, container
+     *         or new scene may take
+     */
+    boolean holdsAsRootOrLayer(Widget<?> widget) {
+        return !detachedByClose && (widget == root && !rootLetGo || overlays.contains(widget));
+    }
+
+    /**
+     * Lets go of this scene's root, so that another scene may take it: a modal dialog's card
+     * moving from its own window into its owner's scene, with the window it leaves drawing nothing
+     * and answering nothing from then on but its close. Not API; see
+     * {@link limn.scene.internal.SceneAccess#letGoOfRoot}.
+     */
+    void letGoOfRoot() {
+        rootLetGo = true;
+    }
+
+    /**
+     * Refuses {@code widget} when a scene other than {@code taking} holds it as its root or one of
+     * its overlays: taken, it would leave that scene and join another while the first went on
+     * naming it as its own, its root or a layer of its stack, laying it out at its own window's
+     * size. Checked before anything moves, so a refusal closes no popup and tells no widget
+     * anything.
+     *
+     * @param widget the widget being taken
+     * @param taking the scene taking it as a layer, which may hold it already; {@code null} for a
+     *               container, which no scene's layer may join, or a new scene
+     * @param as     what it would become, for the message
+     * @throws IllegalArgumentException when another scene holds it
+     */
+    static void refuseAnotherScenesLayer(Widget<?> widget, @Nullable Scene taking, String as) {
+        Scene holder = widget.scene();
+        if (holder == null || holder == taking || !holder.holdsAsRootOrLayer(widget)) {
+            return;
+        }
+        String what = widget == holder.root ? "the root of a scene" : "an overlay on a scene's stack";
+        throw new IllegalArgumentException(widget.getClass().getName() + " is " + what + ", and cannot also be "
+                + as + ": take it off that scene first (removeOverlay for an overlay; a root belongs to its "
+                + "scene until its window closes)");
     }
 
     /**
@@ -4183,6 +4255,11 @@ public final class Scene {
             @Override
             public void pushMovedOverlay(Scene scene, Widget<?> overlay, Scene movedFrom) {
                 scene.pushOverlay(overlay, movedFrom);
+            }
+
+            @Override
+            public void letGoOfRoot(Scene scene) {
+                scene.letGoOfRoot();
             }
 
             @Override

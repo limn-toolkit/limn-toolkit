@@ -84,12 +84,20 @@ public final class ThemeEditorExample {
      * the screen in the default face and publish it without a word in the log.
      */
     public static Scene scene() {
+        return new Scene(root());
+    }
+
+    /**
+     * The screen of {@link #scene()} alone, in the typeface it asks for, for a capture that puts
+     * it in a scene of its own: the film's, on a stepped clock.
+     *
+     * @return the screen's root widget, in no scene
+     */
+    public static Widget<?> root() {
         String family = Fonts.load(Path.of("limn-demo/fonts/Inter-Variable.ttf"));
         Theme themed = Theme.current().toBuilder().fontFamily(family).build();
         Theme.setCurrent(themed);
         themed.applyFontFamily();
-
-        Scene scene = new Scene(new Padding(Insets.all(20), content()));
-        return scene;
+        return new Padding(Insets.all(20), content());
     }
 }

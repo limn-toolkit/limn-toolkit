@@ -1148,9 +1148,11 @@ public final class Dialog {
         modalScene = null;
         displayMode = DisplayMode.IN_SCENE;
         hostScene = owner;
-        // The card is the root of the scene being left, parentless, so the container that fades it
+        // The card is the root of the scene being left, parentless; that scene lets go of it, which
+        // a scene's root is refused by every container until then, so the container that fades it
         // can adopt it, and adopting it takes it out of that scene before pushOverlay puts it in
-        // this one.
+        // this one. The window left draws nothing and answers nothing but its close from here on.
+        SceneAccess.letGoOfRoot(leaving);
         overlay = new SceneOverlay(fadingCard());
         overlay.setInheritanceHost(inheritanceHostFor(owner));
         // With the keyboard, taken from the scene being left before its close could run the
@@ -1388,7 +1390,7 @@ public final class Dialog {
     /**
      * The card in the containers that fade and slide it in the scene, {@code Opacity(Transform(card))},
      * made the first time: they adopt the card, which takes it out of the scene it was the root of
-     * when it moves in from a window of its own. Neither container is a node of the accessible tree,
+     * when it moves in from a window of its own, once that scene has let go of it. Neither container is a node of the accessible tree,
      * so the card is read under the overlay where it was. The fade outside, so the opacity's picture
      * lies on the window's grid and holds the card wherever the slide draws it.
      */

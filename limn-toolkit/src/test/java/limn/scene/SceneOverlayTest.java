@@ -274,6 +274,7 @@ class SceneOverlayTest extends SceneTestBase {
         log.clear();
 
         Column overlay = new Column();
+        window.letGoOfRoot(); // as a dialog's window does, which a scene's root is refused until
         overlay.add(card); // out of the scene it was the root of
         owner.pushOverlay(overlay, window);
 
@@ -298,6 +299,7 @@ class SceneOverlayTest extends SceneTestBase {
         window.layoutPass(200, 200);
 
         Column overlay = new Column();
+        window.letGoOfRoot();
         overlay.add(card);
         owner.pushOverlay(overlay, window);
 
@@ -381,6 +383,7 @@ class SceneOverlayTest extends SceneTestBase {
         window.layoutPass(200, 200);
         window.requestFocus(typing);
         Column overlay = new Column();
+        window.letGoOfRoot();
         overlay.add(card);
         fault.armed = true;
         IllegalStateException thrown = null;

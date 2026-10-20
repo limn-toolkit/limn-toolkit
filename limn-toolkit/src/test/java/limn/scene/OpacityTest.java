@@ -1217,11 +1217,13 @@ class OpacityTest extends SceneTestBase {
         Scene a = sceneOf(content);
         a.requestFocus(victim);
         Opacity fading = faded("overlay");
-        Scene b = sceneOf(new Stack());
-        b.pushOverlay(fading);
+        // The root of b, as a dialog's card is of its own window's scene: b lets go of it, as that
+        // window's scene does, since another scene's root or overlay is refused by a push.
+        Scene b = sceneOf(fading);
         AtomicInteger arrived = new AtomicInteger();
         fading.fadeTo(0.5f, 0.3, arrived::incrementAndGet);
         advance(b, 16);
+        b.letGoOfRoot();
         try {
             a.pushOverlay(fading); // from b's frames to a's, mid-fade
         } catch (IllegalStateException expected) {

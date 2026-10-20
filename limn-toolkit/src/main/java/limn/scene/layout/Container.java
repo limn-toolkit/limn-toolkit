@@ -29,7 +29,16 @@ public abstract class Container<W extends Container<W>> extends Widget<W> {
     /** The reach {@link #paintOverflow(float)} declared, or {@link #FROM_THEME}. */
     private float paintOverflow = FROM_THEME;
 
-    /** Appends a child (UI thread only). */
+    /**
+     * Appends a child (UI thread only).
+     *
+     * @param child the child to append; never {@code null}
+     * @throws IllegalStateException    if {@code child} already has a parent
+     * @throws IllegalArgumentException if {@code child} is an ancestor of this container, a
+     *                                  scene's root, or an overlay on a scene's stack, which belongs
+     *                                  to that scene until it is taken off the stack or its window
+     *                                  closes
+     */
     @Override
     public void add(Widget<?> child) {
         Ui.checkUiThread();
@@ -41,6 +50,11 @@ public abstract class Container<W extends Container<W>> extends Widget<W> {
      *
      * @param index where the child goes, in {@code [0, children().size()]}
      * @param child the child to insert; never {@code null}
+     * @throws IndexOutOfBoundsException if {@code index} is outside that range
+     * @throws IllegalStateException     if {@code child} already has a parent
+     * @throws IllegalArgumentException  if {@code child} is an ancestor of this container, a
+     *                                   scene's root, or an overlay on a scene's stack, as
+     *                                   {@link #add(Widget)} says
      */
     @Override
     public void add(int index, Widget<?> child) {

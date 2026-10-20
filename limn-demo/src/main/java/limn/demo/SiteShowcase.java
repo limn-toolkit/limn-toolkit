@@ -6,6 +6,7 @@ import limn.graphics.Fonts;
 import limn.scene.ControlSize;
 import limn.scene.LayoutDirection;
 import limn.scene.Scene;
+import limn.scene.Widget;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -43,21 +44,34 @@ public final class SiteShowcase {
      *               still cannot show
      * @param settles whether this screen carries a live performance footer the shutter must
      *               prime before it is worth photographing: see {@link #settling()}
+     * @param filmedRoot for a filmed screen, what builds its root widget alone, which the capture
+     *               puts in a scene of its own on a stepped clock: a scene's root is refused by
+     *               every other container, so the root of the scene {@code builder} makes cannot
+     *               be taken; {@code null} exactly when the screen is not filmed. See
+     *               {@link #filmedFrom}
      */
     public record Entry(String id, String title, Locale locale, LayoutDirection direction,
                         boolean paletteInvariant, boolean warmUpPass, boolean filmed,
-                        boolean settles, Function<Theme, Scene> builder) {
+                        boolean settles, Function<Theme, Scene> builder,
+                        Function<Theme, Widget<?>> filmedRoot) {
+
+        public Entry {
+            if (filmed != (filmedRoot != null)) {
+                throw new IllegalArgumentException(id + ": a filmed screen is built from its root "
+                        + "(filmedFrom), and only a filmed one is");
+            }
+        }
 
         /** The ordinary case: the scene is built once per palette and looks different in each. */
         public Entry(String id, String title, Locale locale, Function<Theme, Scene> builder) {
-            this(id, title, locale, LayoutDirection.LTR, false, false, false, false, builder);
+            this(id, title, locale, LayoutDirection.LTR, false, false, false, false, builder, null);
         }
 
         /** Palette-invariant, captured once: the common case for a scene that pins its own theme. */
         public Entry(String id, String title, Locale locale, boolean paletteInvariant,
                 Function<Theme, Scene> builder) {
             this(id, title, locale, LayoutDirection.LTR, paletteInvariant, false, false, false,
-                    builder);
+                    builder, null);
         }
 
         /**
@@ -67,16 +81,28 @@ public final class SiteShowcase {
          * capture list follows the same rule the toolkit does.
          */
         public Entry(String id, String title, Locale locale, boolean paletteInvariant,
-                boolean warmUpPass, boolean filmed, boolean settles,
-                Function<Theme, Scene> builder) {
-            this(id, title, locale, LayoutDirection.LTR, paletteInvariant, warmUpPass, filmed,
-                    settles, builder);
+                boolean warmUpPass, boolean settles, Function<Theme, Scene> builder) {
+            this(id, title, locale, LayoutDirection.LTR, paletteInvariant, warmUpPass, false,
+                    settles, builder, null);
         }
 
         /** The same entry, captured under a right-to-left layout axis. */
         public Entry rtl() {
             return new Entry(id, title, locale, LayoutDirection.RTL, paletteInvariant, warmUpPass,
-                    filmed, settles, builder);
+                    filmed, settles, builder, filmedRoot);
+        }
+
+        /**
+         * The same entry, filmed: the capture drives a pointer over the screen {@code root}
+         * builds and writes a frame per step, in a scene of its own on a stepped clock.
+         *
+         * @param root builds the screen's root widget under a palette, as {@code builder} builds
+         *             its scene
+         * @return the filmed entry
+         */
+        public Entry filmedFrom(Function<Theme, Widget<?>> root) {
+            return new Entry(id, title, locale, direction, paletteInvariant, warmUpPass, true,
+                    settles, builder, java.util.Objects.requireNonNull(root, "root"));
         }
 
         /**
@@ -96,7 +122,7 @@ public final class SiteShowcase {
          */
         public Entry settling() {
             return new Entry(id, title, locale, direction, paletteInvariant, warmUpPass, filmed,
-                    true, builder);
+                    true, builder, filmedRoot);
         }
     }
 
@@ -123,7 +149,7 @@ public final class SiteShowcase {
         // graded sky is not one flat colour, so the driver's blank-frame guard cannot see it. The
         // first pass is the warm-up and the second overwrites it. Dropping this flag saves 2.6 s
         // and occasionally publishes an empty sky.
-        entries.add(new Entry("viewport-3d", "The 3D viewport", Locale.ENGLISH, true, true, false,
+        entries.add(new Entry("viewport-3d", "The 3D viewport", Locale.ENGLISH, true, true,
                 true, SiteShowcase::viewport));
         entries.add(new Entry("form", "A form", Locale.ENGLISH, SiteShowcase::form));
         entries.add(new Entry("dates", "Dates and periods", Locale.ENGLISH,
@@ -136,8 +162,8 @@ public final class SiteShowcase {
         entries.add(new Entry("control-size", "Every size step", Locale.ENGLISH,
                 SiteShowcase::controlSize));
         // The one filmed screen (see Entry.filmed and Films.forShowcase).
-        entries.add(new Entry("theme-editor", "The theme editor", Locale.ENGLISH, false, false,
-                true, false, theme -> editor(theme)));
+        entries.add(new Entry("theme-editor", "The theme editor", Locale.ENGLISH, theme -> editor(theme))
+                .filmedFrom(SiteShowcase::editorRoot));
         entries.addAll(mosaicTiles());
         return entries;
     }
@@ -397,6 +423,15 @@ public final class SiteShowcase {
     private static Scene editor(Theme theme) {
         Theme.setCurrent(theme);
         return retheme(limn.demo.site.ThemeEditorExample.scene(), theme);
+    }
+
+    /** The editor's screen alone, for its film, themed as {@link #editor} themes its scene. */
+    private static Widget<?> editorRoot(Theme theme) {
+        Theme.setCurrent(theme);
+        Widget<?> root = limn.demo.site.ThemeEditorExample.root();
+        Theme.setCurrent(theme);
+        root.markNeedsLayout();
+        return root;
     }
 
     /** The mosaic board, themed before it is built; see {@link #form} for why that order. */

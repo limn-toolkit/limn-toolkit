@@ -58,7 +58,8 @@ class TableTest extends ComponentTestBase {
     }
 
     private Scene scene(Table<?> table, FakeCanvas canvas) {
-        Scene scene = new Scene(table);
+        // A table asked for twice keeps the scene it is the root of: another scene refuses it.
+        Scene scene = table.scene() != null && table.scene().root() == table ? table.scene() : new Scene(table);
         scene.setTextRuler(RULER);
         scene.renderFrame(canvas);
         return scene;

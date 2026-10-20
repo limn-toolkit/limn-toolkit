@@ -887,7 +887,8 @@ that the text above does not say, dated where it departs from it.
     second. Such a move is now a leave and then a join, every `onDetached` told while `scene()`
     still answers the first, as a removal and an add would tell it. What stays open is the first
     scene's side: a scene whose root another window adopted still names it as its root (section
-    12.8). `WidgetLifecycleTest` and `PopoverReentrancyTest` have the cases.
+    12.8). *(2026-10-20: closed by refusing the adoption, decision 40; see the last note. The
+    first two moves are refused now; the third, a handler's, still leaves and joins.)* `WidgetLifecycleTest` and `PopoverReentrancyTest` have the cases.
   - **A handler that takes the leaving widget into a third scene:** the join or leave again knew
     only the two scenes the move went between. An `onClose` that pushed the card being removed as
     another window's overlay, or opened it in a window of its own as a new scene's root, had moved
@@ -958,7 +959,44 @@ site's component gallery three, the guides their sections from `StatusExample`, 
   window's place and the committed text; the control run with `-Dlimn.demo.popover.search=true`.
   On Wayland the popover is in the scene and the route is not taken.
 - **The commit on Return on macOS** (section 12.6), for every field.
-- **A scene whose root or overlay another scene takes** (the fourth review, 2026-10-20): the
-  widget leaves the first scene and joins the second, told both, but the first still names it as
-  its root, or keeps it in its overlay stack, and lays it out at its own window's size. Whether
-  taking it is refused, or leaves the first scene showing nothing, is a decision for the owner.
+- ~~**A scene whose root or overlay another scene takes**~~ (the fourth review, 2026-10-20):
+  closed the same day, refused; see the note below.
+
+## Note, 2026-10-20: a scene's root or overlay is refused by every other taker
+
+The fourth review left one case open (section 12.8): a widget that is a scene's root, or an
+overlay on its stack, taken by another scene, a container's add or a new scene, left the first
+scene and joined the second, told both, while the first still named it as its root, or kept it on
+its stack, and laid it out at its own window's size. The owner decided (decision 40) that it is
+refused, as a toolkit with a scene graph of the same shape refuses a node that is already another
+scene's root:
+
+- **Every path that takes a widget refuses it** with an `IllegalArgumentException` that says what
+  it is: every add, through the one place a child joins the tree (so a container's `add`, its
+  `add(index, …)` and any component that takes content), `Scene.pushOverlay` and `pushPopup`
+  (and the toolkit's own pushes, through the one place an overlay is stacked), and a new
+  `Scene` over it. A scene's own overlay is refused by a container of its own tree too, where it
+  would be a layer and a child at once.
+- **Before anything moves.** The check is the first step of each, so a refusal closes no popup
+  hung in the widget, runs no handler, tells no widget it left or joined, announces nothing, and
+  leaves the keyboard where it was.
+- **A widget its scene has let go of is taken as any parentless widget is:** an overlay taken off
+  the stack with `removeOverlay`, and the root of a window that closed, whose tree its close
+  detached. The toolkit's one move of a root, a modal dialog's card going from its own window into
+  its owner's scene when the owner goes fullscreen, has the scene it leaves let go of its root
+  first (`SceneAccess.letGoOfRoot`); that window draws nothing and answers nothing but its close
+  from then on, as before.
+- **The popover's `onClose` re-entrancy paths of section 12.5** still behave. A handler that puts
+  the card being removed into another window's column, pushes it as another window's overlay or
+  makes it a new scene's root is not refused, because the card is in no scene's hands at that
+  moment (its column has let go of it, and it is not a layer). A handler that then tries to take
+  it on, into a fourth scene's stack, a new scene of its own or a fourth scene's column, is refused
+  at that try: the card stays where the first move put it, told it left this window and joined
+  that one once each, and a refusal the handler does not catch is thrown by the removal once it is
+  complete, as any throw of a handler is. The fourth review's "A move straight from one scene into
+  another" now applies to that handler's move alone.
+
+`AnotherScenesLayerIsRefusedTest` has every taker against a root, an overlay and a popup of
+another scene, the same scene's overlay, the let-go cases and a popup left open by a refusal;
+`PopoverReentrancyTest` the adoption cases rewritten as refusals and the handler's fourth scene;
+`WidgetLifecycleTest` the straight move, now refused with nothing told.

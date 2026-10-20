@@ -185,14 +185,14 @@ class WidgetLifecycleTest extends SceneTestBase {
     }
 
     @Test
-    void aSubtreeMovedStraightIntoAnotherSceneLeavesTheFirstAndJoinsTheSecond() {
+    void anotherScenesRootOrOverlayIsNotMovedStraightIntoASecondScene() {
         // Another window's root adopted by this window's column, and another window's overlay pushed
-        // as this one's: neither went through a removal, and the walk moved the subtree from one
-        // scene into the other telling no widget anything. A widget that registered something in the
-        // first scene as it joined, and gives it back through scene() as it leaves, never gave it
-        // back there; one holding a GPU resource of the first window's context kept drawing it in
-        // the second. Each is now told it left the first, children first, while scene() still
-        // answers it, and then that it joined the second, as a removal and an add would tell it.
+        // as this one's: the walk moved the subtree from one scene into the other, and the first
+        // still named it as its root or kept it on its stack. Both are refused before anything
+        // moves (the owner's decision): no widget is told anything, and a GPU resource of the first
+        // window's stays there, not handed to its disposal. A subtree a popup's handler moves into
+        // a second window while the first removes it still leaves the first and joins the second;
+        // PopoverReentrancyTest has that case.
         for (boolean overlay : new boolean[] {false, true}) {
             String how = overlay ? "another window's overlay pushed here" : "another window's root adopted here";
             java.util.List<String> log = new java.util.ArrayList<>();
@@ -210,27 +210,23 @@ class WidgetLifecycleTest extends SceneTestBase {
                 first = new Scene(card);
             }
             Scene second = new Scene(new FixedBox(100, 100));
-            names.put(first, "first");
-            names.put(second, "second");
-            names.put(null, "none");
             log.clear();
 
-            if (overlay) {
-                second.pushOverlay(card);
-            } else {
-                second.root().add(card);
-            }
+            org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, () -> {
+                if (overlay) {
+                    second.pushOverlay(card);
+                } else {
+                    second.root().add(card);
+                }
+            }, how);
 
-            assertEquals(java.util.List.of("detach inner@first", "detach card@first",
-                    "attach card@second", "attach inner@second"), log, how);
-            assertSame(first, resource.sceneWhileDetaching, how + ": handed its resource to the window it left");
-            assertSame(second, resource.sceneWhileAttaching, how);
-            assertEquals(2, resource.attached, how);
-            assertEquals(1, resource.detached, how);
-            assertSame(second, card.scene(), how);
-            assertSame(second, resource.scene(), how);
+            assertEquals(java.util.List.of(), log, how);
+            assertEquals(1, resource.attached, how);
+            assertEquals(0, resource.detached, how);
+            assertSame(first, card.scene(), how);
+            assertSame(first, resource.scene(), how);
             first.drainPendingDisposals();
-            assertTrue(resource.surface.disposed, how + ": freed by the first window's next frame");
+            assertFalse(resource.surface.disposed, how + ": still the first window's");
         }
     }
 }

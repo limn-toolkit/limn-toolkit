@@ -415,10 +415,12 @@ public final class Gallery {
                             // is sticky, so the entry after the right-to-left one would
                             // otherwise photograph mirrored.
                             limn.scene.LayoutDirection.setProcessDefault(entry.direction());
+                            if (entry.filmed()) {
+                                Widget<?> root = entry.filmedRoot().apply(palette.theme());
+                                return GalleryScenes.filmable(root, root);
+                            }
                             Scene scene = entry.builder().apply(palette.theme());
-                            return entry.filmed()
-                                    ? GalleryScenes.filmable(scene, scene.root())
-                                    : new GalleryScenes.Built(scene, null, null, null);
+                            return new GalleryScenes.Built(scene, null, null, null);
                         },
                         entry.filmed() ? Films.forShowcase(entry.id()) : null);
                 // Per entry, not per pass: only the screens with a live performance footer

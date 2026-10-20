@@ -12,7 +12,6 @@ import limn.testing.HeadlessWindow;
 import limn.graphics.Canvas;
 import limn.graphics.Image;
 import limn.graphics.TextRulers;
-import limn.scene.Scene;
 import limn.testing.HeadlessUi;
 import limn.testing.NoopCanvas;
 import org.junit.jupiter.api.AfterEach;
@@ -106,7 +105,7 @@ class GalleryFilmRefusalTest {
         };
 
         GalleryEntry entry = new GalleryEntry("refused", "Refused", "gallery:refused",
-                () -> GalleryScenes.filmable(new Scene(new Button("Here")), null),
+                () -> GalleryScenes.filmable(new Button("Here"), null),
                 built -> Motion.script().from(0, 0)
                         .to("a widget the scene never built", () -> null, 0.5f, 0.5f, 4)
                         .press());

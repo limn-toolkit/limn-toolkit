@@ -13,7 +13,6 @@ import limn.testing.HeadlessWindow;
 import limn.graphics.Canvas;
 import limn.graphics.Image;
 import limn.graphics.TextRulers;
-import limn.scene.Scene;
 import limn.testing.HeadlessUi;
 import limn.testing.NoopCanvas;
 import org.junit.jupiter.api.AfterEach;
@@ -83,7 +82,7 @@ class GalleryFailureNamingTest {
     private static GalleryEntry entry(String id, AtomicBoolean built) {
         return new GalleryEntry(id, id, "gallery:" + id, () -> {
             built.set(true);
-            return GalleryScenes.filmable(new Scene(new Button("Here")), null);
+            return GalleryScenes.filmable(new Button("Here"), null);
         }, null);
     }
 

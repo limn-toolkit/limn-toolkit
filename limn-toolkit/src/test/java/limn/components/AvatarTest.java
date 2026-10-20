@@ -142,7 +142,8 @@ class AvatarTest extends AccessibleComponentTestBase {
     }
 
     private static Recorder paint(Widget<?> root, float w, float h) {
-        Scene s = new Scene(root);
+        // Painted again in the scene it is the root of: a scene's root is refused by another.
+        Scene s = root.scene() != null && root.scene().root() == root ? root.scene() : new Scene(root);
         s.setTextRuler(SCALED_RULER);
         s.layoutPass(w, h);
         Recorder canvas = new Recorder(w, h);

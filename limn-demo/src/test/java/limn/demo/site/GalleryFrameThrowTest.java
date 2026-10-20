@@ -12,7 +12,6 @@ import limn.testing.HeadlessWindow;
 import limn.graphics.Canvas;
 import limn.graphics.Image;
 import limn.graphics.TextRulers;
-import limn.scene.Scene;
 import limn.testing.HeadlessUi;
 import limn.testing.NoopCanvas;
 import org.junit.jupiter.api.AfterEach;
@@ -111,7 +110,7 @@ class GalleryFrameThrowTest {
                 });
 
         GalleryEntry entry = new GalleryEntry("broken", "Broken", "gallery:broken",
-                () -> GalleryScenes.filmable(new Scene(new Button("Here")), null), null);
+                () -> GalleryScenes.filmable(new Button("Here"), null), null);
         Gallery.Shot shot = new Gallery.Shot(entry, new Gallery.Palette("dark", Theme.limn()),
                 dir.resolve("broken-dark@2x.png"), window, false);
         Gallery.FrameWriter writer = new Gallery.FrameWriter(1, 2, (image, file) -> {

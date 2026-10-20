@@ -43,6 +43,9 @@ public final class SceneAccess {
          */
         void pushMovedOverlay(Scene scene, Widget<?> overlay, Scene movedFrom);
 
+        /** @param scene the scene that lets go of its root; see {@link SceneAccess#letGoOfRoot} */
+        void letGoOfRoot(Scene scene);
+
         /**
          * Pushes a modal overlay into {@code scene} with the keyboard on {@code first}; see
          * {@link SceneAccess#pushOverlayFocusing}.
@@ -619,6 +622,19 @@ public final class SceneAccess {
     /** @return the widget that had the keyboard in {@code scene} before the one that has it now, or null */
     public static @org.jspecify.annotations.Nullable Widget<?> focusedBefore(Scene scene) {
         return hook().focusedBefore(java.util.Objects.requireNonNull(scene, "scene"));
+    }
+
+    /**
+     * Lets {@code scene} go of its root, so that another scene, or a container on its way into one,
+     * may take it: a scene's root is refused by every add and push while its scene holds it. For a
+     * modal dialog's card moving from its own window into its owner's scene; the window left must
+     * draw nothing and answer nothing but its close from then on, since the scene still lays out
+     * and paints what was its root if asked.
+     *
+     * @param scene the scene whose root moves
+     */
+    public static void letGoOfRoot(Scene scene) {
+        hook().letGoOfRoot(java.util.Objects.requireNonNull(scene, "scene"));
     }
 
     public static void pushMovedOverlay(Scene scene, Widget<?> overlay, Scene movedFrom) {
