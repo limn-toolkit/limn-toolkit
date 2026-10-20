@@ -149,8 +149,8 @@ two sibling loops may both call their state `z`.
   decision asks for a cap.
 - **Sharing only nodes the application shares by identity** (the same Java object). Rejected: the
   IR is a value, and two nodes built apart from equal parts, as the noise in the Showcase builds
-  its corners, are the same computation. (A literal holds an array, so the records themselves
-  are not equal by their parts; the generator compares the values.)
+  its corners, are the same computation. (Amended 2026-10-20, section 7: the records are equal
+  by their parts too, a literal by its values.)
 - **Leaving the standard surface's text alone** by sharing only in application surfaces.
   Rejected: one generator, one rule. The one change it makes there (section 5) is a texel sampled
   once instead of twice, measured to draw the same pixels.
@@ -232,3 +232,11 @@ two sibling loops may both call their state `z`.
   that read a sampler through raw text twice, which linked before sharing, stopped linking, and
   the link was retried every frame. A node of an opaque type is now written where it is read,
   like a reference; the device test compiles that surface on the GPU and the software renderer.
+- **2026-10-20, review: the IR is a value in Java too.** The class said two nodes are the same
+  computation when their parts are, but `Expr.Lit` was a record over a `float[]`, equal only to
+  itself and handing out its own array, so no record holding a literal equalled its twin. A
+  literal now copies its values in and out and compares and hashes them; `Call` and `Construct`
+  copy their argument lists; and every node with children compares and hashes through a walk
+  that visits a shared node once, because a record's own `hashCode` follows each child as a tree:
+  forty squarings z ↦ z·z, 2^40 paths, never finished. Two such chains built apart compare and
+  hash in milliseconds. `toString` is still a record's, a tree as long as every path.

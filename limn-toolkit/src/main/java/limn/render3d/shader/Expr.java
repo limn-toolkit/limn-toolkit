@@ -14,9 +14,11 @@ import java.util.List;
  *
  * <p><b>A node used twice is computed once.</b> The IR is a value: two nodes are the same
  * computation when their kinds, fields and children are, whether they are one Java object or two
- * built apart. The generator writes such a node once and reads it wherever it is used, so a Java
- * method that builds a sub-expression is as cheap to call twice as once, and a variable reused
- * in a long chain does not multiply the shader's size.
+ * built apart, and {@code equals} and {@code hashCode} say so. The generator writes such a node
+ * once and reads it wherever it is used, so a Java method that builds a sub-expression is as
+ * cheap to call twice as once, and a variable reused in a long chain does not multiply the
+ * shader's size. Comparing and hashing visit a node shared by many parents once; a node's
+ * {@code toString} writes it out as a tree, as long as every path through it.
  *
  * <p>A 1.x minor release may add node types: a {@code switch} over an {@code Expr} needs a
  * {@code default} branch.
@@ -43,16 +45,44 @@ public sealed interface Expr
         }
     }
 
-    /** A numeric literal, scalar or vector by value count. */
+    /**
+     * A numeric literal, scalar or vector by value count. It keeps a copy of the values it is
+     * given and hands out a copy, and two literals of the same values are equal.
+     */
     record Lit(float[] values) implements Expr {
+        public Lit {
+            values = values.clone();
+        }
+
+        /** A literal of one to four components, matching the count given. */
+        public static Lit of(float... values) {
+            return new Lit(values);
+        }
+
         @Override
         public ShaderType type() {
             return ShaderType.ofComponents(values.length);
         }
 
-        /** A literal of one to four components, matching the count given. */
-    public static Lit of(float... values) {
-            return new Lit(values);
+        /** A copy of the values, so the literal stays what it was built as. */
+        @Override
+        public float[] values() {
+            return values.clone();
+        }
+
+        @Override
+        public boolean equals(@org.jspecify.annotations.Nullable Object other) {
+            return other instanceof Lit lit && java.util.Arrays.equals(values, lit.values);
+        }
+
+        @Override
+        public int hashCode() {
+            return java.util.Arrays.hashCode(values);
+        }
+
+        @Override
+        public String toString() {
+            return "Lit[values=" + java.util.Arrays.toString(values) + "]";
         }
     }
 
@@ -66,6 +96,16 @@ public sealed interface Expr
         public ShaderType type() {
             return ShaderType.VEC4;
         }
+
+        @Override
+        public boolean equals(@org.jspecify.annotations.Nullable Object other) {
+            return Values.equal(this, other);
+        }
+
+        @Override
+        public int hashCode() {
+            return Values.hash(this);
+        }
     }
 
     /** Component selection, e.g. {@code .rgb} (→vec3) or {@code .x} (→float). */
@@ -73,6 +113,16 @@ public sealed interface Expr
         @Override
         public ShaderType type() {
             return ShaderType.ofComponents(pattern.length());
+        }
+
+        @Override
+        public boolean equals(@org.jspecify.annotations.Nullable Object other) {
+            return Values.equal(this, other);
+        }
+
+        @Override
+        public int hashCode() {
+            return Values.hash(this);
         }
     }
 
@@ -82,14 +132,50 @@ public sealed interface Expr
         public ShaderType type() {
             return Values.type(this);
         }
+
+        @Override
+        public boolean equals(@org.jspecify.annotations.Nullable Object other) {
+            return Values.equal(this, other);
+        }
+
+        @Override
+        public int hashCode() {
+            return Values.hash(this);
+        }
     }
 
     /** A built-in or engine helper call with a declared result type. */
     record Call(String function, ShaderType type, List<Expr> args) implements Expr {
+        public Call {
+            args = List.copyOf(args);
+        }
+
+        @Override
+        public boolean equals(@org.jspecify.annotations.Nullable Object other) {
+            return Values.equal(this, other);
+        }
+
+        @Override
+        public int hashCode() {
+            return Values.hash(this);
+        }
     }
 
     /** A constructor like {@code vec4(rgb, a)} or {@code vec3(x)}. */
     record Construct(ShaderType type, List<Expr> args) implements Expr {
+        public Construct {
+            args = List.copyOf(args);
+        }
+
+        @Override
+        public boolean equals(@org.jspecify.annotations.Nullable Object other) {
+            return Values.equal(this, other);
+        }
+
+        @Override
+        public int hashCode() {
+            return Values.hash(this);
+        }
     }
 
     /**
@@ -204,6 +290,16 @@ public sealed interface Expr
         @Override
         public ShaderType type() {
             return initial.type();
+        }
+
+        @Override
+        public boolean equals(@org.jspecify.annotations.Nullable Object other) {
+            return Values.equal(this, other);
+        }
+
+        @Override
+        public int hashCode() {
+            return Values.hash(this);
         }
     }
 }
