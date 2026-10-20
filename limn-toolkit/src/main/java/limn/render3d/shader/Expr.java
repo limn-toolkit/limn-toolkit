@@ -455,6 +455,16 @@ public sealed interface Expr
                 throw new IllegalArgumentException("a loop takes 1 to " + MAX_ITERATIONS + " turns, not "
                         + maxIterations);
             }
+            // A loop rebuilt with a free name renamed passed these when it was built.
+            if (!Loops.RENAMING.get()) {
+                checkNest(states, types, initial, maxIterations, next, until);
+            }
+        }
+
+        /** The checks that walk what the loop holds: types read, turns, and what an early end allows. */
+        private static void checkNest(List<String> states, java.util.Map<String, ShaderType> types, List<Expr> initial,
+                                      int maxIterations, List<Expr> next,
+                                      @org.jspecify.annotations.Nullable Expr until) {
             List<Expr> turn = new java.util.ArrayList<>(next);
             if (until != null) {
                 turn.add(until);

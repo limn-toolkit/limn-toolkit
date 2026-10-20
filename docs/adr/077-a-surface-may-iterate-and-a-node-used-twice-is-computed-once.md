@@ -398,3 +398,11 @@ names the variables itself (`ir_s…`).
   subtrees, loops built apart and on worker threads, looping responses) whose count must equal the
   turns of the innermost loops of the generated `main()`, early ends ignored. It failed on the
   first seed before this change.
+- **2026-10-20, review 10: a renamed loop is not checked again.** Naming a loop rewrites its
+  provisional names in every loop of its turn that reads them, through the canonical
+  constructor, which counted and walked each of those nests again: at every level of a nest
+  built in turns, where the innermost loop reads every state, the cost grew as the fourth power
+  of the depth (11.8 s at 200). Renaming a free name to another free one changes no check the
+  loop passed (the new name is a level above every state under it), so the constructor skips the
+  checks that walk the nest while a rename rebuilds it. A nest 200 deep now builds and passes
+  `SurfaceOutputs` in about 0.3 s.

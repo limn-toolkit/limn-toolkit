@@ -196,4 +196,30 @@ class SurfaceBudgetTest {
                 v -> add(v, counting(s, 60, 1f)))));
         assertEquals(4 * (60 + 4), Loops.surfaceTurns(List.of(d3), null, 8));
     }
+
+    /** {@code k} loops of one turn, each built in the turn of the one around it, the innermost reading every state. */
+    private static Expr.Loop nest(int k, List<Expr> outer) {
+        return Expr.Loop.of(Expr.Lit.of(0f), 1, s -> {
+            List<Expr> all = new ArrayList<>(outer);
+            all.add(s);
+            if (k == 1) {
+                Expr sum = s;
+                for (Expr o : outer) {
+                    sum = add(sum, o);
+                }
+                return sum;
+            }
+            return add(s, nest(k - 1, all));
+        });
+    }
+
+    @Test
+    void aNestTwoHundredDeepBuildsQuickly() {
+        // Renaming each level rebuilt and recounted every loop under it again: 11.8 s at 200.
+        assertTimeoutPreemptively(Duration.ofSeconds(2), () -> {
+            Expr.Loop deep = nest(200, List.of());
+            assertEquals(1, Loops.surfaceTurns(List.of(deep), null, 8));
+            assertDoesNotThrow(() -> emitting(deep));
+        });
+    }
 }

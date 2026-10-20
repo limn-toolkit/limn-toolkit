@@ -43,6 +43,13 @@ final class Loops {
     /** How the names {@link Expr.Loop#of} gives a state's values begin: two numbers follow. */
     static final String STATE_PREFIX = "ir_state";
 
+    /**
+     * Set while {@link #rename} rebuilds a loop it renamed a free name in: the loop passed every
+     * check when it was built, and renaming does not change one, so the constructor need not
+     * count and walk its nest again, which at every level of a deep nest cost its fourth power.
+     */
+    static final ThreadLocal<Boolean> RENAMING = ThreadLocal.withInitial(() -> false);
+
     /** How the names a state has while {@link Expr.Loop#of} builds its turn begin. */
     static final String BUILDING_PREFIX = "ir_building";
 
@@ -126,7 +133,15 @@ final class Loops {
             List<Expr> next = renameAll(loop.next(), names, done);
             Expr until = loop.until() == null ? null : rename(loop.until(), names, done);
             if (initial != loop.initial() || next != loop.next() || until != loop.until()) {
-                result = new Expr.Loop(loop.states(), initial, loop.maxIterations(), next, until, loop.index());
+                // A free name renamed to another free one changes no check the loop passed: no
+                // state under it shares the new name, which is a level above them all.
+                boolean was = RENAMING.get();
+                RENAMING.set(true);
+                try {
+                    result = new Expr.Loop(loop.states(), initial, loop.maxIterations(), next, until, loop.index());
+                } finally {
+                    RENAMING.set(was);
+                }
             }
         }
         done.put(node, result);
