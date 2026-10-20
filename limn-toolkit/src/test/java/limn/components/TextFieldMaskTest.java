@@ -303,8 +303,10 @@ class TextFieldMaskTest extends AccessibleComponentTestBase {
         holding("****-****", "ABCD-EFG", 1);
         field.select(1, 3); // "BC"
         type("x");
-        assertEquals("AxDE-FG", field.text(), "not AxD--EFG");
-        assertEquals("AxDEFG", field.unmaskedText());
+        assertEquals("AxCD-EFG", field.text(), "the B overwritten, nothing moved: not AxD--EFG");
+        assertEquals("AxCDEFG", field.unmaskedText());
+        assertEquals(2, field.selectionStart(), "the C, not reached, stays selected");
+        assertEquals(3, field.selectionEnd());
 
         holding("+1 (000) 000-0000", "+1 (555) 123-4567", 0);
         field.select(0, 2); // "+1", literals alone
@@ -424,19 +426,303 @@ class TextFieldMaskTest extends AccessibleComponentTestBase {
         String[][] cases = {{"6", "1"}, {"6", "x"}, {"7", ")"}, {"6", "12"}};
         for (String[] keys : cases) {
             holding("+1 (000) 000-0000", "5551234567", 0);
-            field.select(0, field.text().length());
+            field.select(4, 5); // the first 5
             type("9");
-            assertEquals("+1 (9", field.text());
+            assertEquals("+1 (955) 123-4567", field.text());
             drive(scene).press(Keys.Z, COMMAND);
             assertEquals("+1 (555) 123-4567", field.text());
             field.setCaretPosition(Integer.parseInt(keys[0]));
             type(keys[1]);
             assertEquals("+1 (555) 123-4567", field.text(), keys[1] + " is refused");
             drive(scene).press(Keys.Z, COMMAND | Keys.MOD_SHIFT);
-            assertEquals("+1 (9", field.text(), "redo after a refused " + keys[1]);
+            assertEquals("+1 (955) 123-4567", field.text(), "redo after a refused " + keys[1]);
             drive(scene).press(Keys.Z, COMMAND);
             assertEquals("+1 (555) 123-4567", field.text(), "and undo again after " + keys[1]);
         }
+    }
+
+    // ------------------------------- a mixed pattern refuses an edit that would lose a character
+
+    @Test
+    void onAMixedPatternBackspaceInTheDigitsIsRefusedAndNothingIsHeard() {
+        holding("AAA-0000-**", "ABC-1234-XY", 7); // after the 3
+        List<Change> edits = new ArrayList<>();
+        field.observeChanges((widget, change) -> edits.add(change));
+        frame();
+        heard.clear();
+        bridge.events.clear();
+        drive(scene).press(Keys.BACKSPACE);
+        frame();
+        assertEquals("ABC-1234-XY", field.text(), "not ABC-124: the X and the Y would be lost");
+        assertEquals("ABC1234XY", field.unmaskedText());
+        assertEquals(7, field.caretPosition(), "the caret did not move");
+        assertEquals(List.of(), heard, "no handler runs");
+        assertEquals(List.of(), edits, "no watcher hears of it");
+        assertEquals(List.of(), bridge.eventsOf(AccessibleEvent.Type.CARET_MOVED), bridge.events.toString());
+        assertEquals(List.of(), bridge.eventsOf(AccessibleEvent.Type.TEXT_CHANGED), bridge.events.toString());
+    }
+
+    @Test
+    void onAMixedPatternALetterTypedBeforeOthersIsRefusedWhenOneWouldLandOnADigit() {
+        holding("AAA-0000-**", "ABC-1234-X", 2); // after the B
+        type("Q");
+        assertEquals("ABC-1234-X", field.text(), "not ABQ-1234-X: the C would land on a digit and go");
+        assertEquals(2, field.caretPosition());
+        assertEquals(List.of(), heard);
+
+        holding("AAA-0000-**", "ABC-1234-XY", 4); // after the dash: Backspace means the C
+        drive(scene).press(Keys.BACKSPACE);
+        assertEquals("ABC-1234-XY", field.text(), "the 1 would land on a letter's place");
+        drive(scene).press(Keys.DELETE);
+        assertEquals("ABC-1234-XY", field.text(), "Delete takes the 1: the X would land on a digit");
+    }
+
+    @Test
+    void onAMixedPatternAnEditWhoseCharactersStillFitIsMade() {
+        holding("AAA-0000-**", "ABC-1234-X", 7); // after the 3
+        type("5");
+        assertEquals("ABC-1235-4X", field.text(), "the 4 moves into an any position, which takes it");
+        assertEquals(List.of("ABC-1235-4X"), heard);
+
+        holding("AAA-0000-**", "ABC-1234", 5); // after the 1
+        drive(scene).press(Keys.BACKSPACE);
+        assertEquals("ABC-234", field.text(), "nothing after the digits: the 2, 3 and 4 stay digits");
+        assertEquals(4, field.caretPosition());
+    }
+
+    @Test
+    void aRefusedEditKeepsTheSelectionTheUndoHistoryAndRedo() {
+        holding("AAA-0000-**", "ABC-1234-XY", 0);
+        field.select(2, 5); // "C-1"
+        drive(scene).press(Keys.DELETE);
+        assertEquals("ABC-1234-XY", field.text(), "not AB2-34XY: the 2 would land on a letter");
+        assertEquals(2, field.selectionStart(), "the selection is as it was");
+        assertEquals(5, field.selectionEnd());
+        assertEquals(List.of(), heard);
+
+        holding("+1 (000) 000-0000", "+1 (555) 123-4567", 0);
+        field.select(0, 2); // "+1", literals alone, in a full field
+        type("9");
+        assertEquals("+1 (555) 123-4567", field.text());
+        assertEquals(0, field.selectionStart(), "a full field's refusal keeps the selection too");
+        assertEquals(2, field.selectionEnd());
+
+        // A refused key leaves no undo step of its own and keeps the redo the undo left.
+        holding("AAA-0000-**", "ABC-1234-XY", 11);
+        drive(scene).press(Keys.BACKSPACE);
+        assertEquals("ABC-1234-X", field.text(), "within the any run: made");
+        drive(scene).press(Keys.Z, COMMAND);
+        assertEquals("ABC-1234-XY", field.text());
+        field.setCaretPosition(7);
+        drive(scene).press(Keys.BACKSPACE);
+        assertEquals("ABC-1234-XY", field.text(), "refused");
+        drive(scene).press(Keys.Z, COMMAND | Keys.MOD_SHIFT);
+        assertEquals("ABC-1234-X", field.text(), "redo after the refused Backspace");
+        drive(scene).press(Keys.Z, COMMAND);
+        assertEquals("ABC-1234-XY", field.text(), "one undo, as before: the refusal left no step");
+    }
+
+    // ------------------------------------------- typing over a selection overwrites its positions
+
+    @Test
+    void typingOverASelectionOverwritesItsPositionsOneByOne() {
+        holding("AAA-0000-**", "ABC-1234-XY", 0);
+        field.select(4, 6); // "12"
+        type("5");
+        assertEquals("ABC-5234-XY", field.text(), "the 1 overwritten, nothing moved");
+        assertEquals(5, field.selectionStart(), "the 2 is what stays selected");
+        assertEquals(6, field.selectionEnd());
+        type("6");
+        assertEquals("ABC-5634-XY", field.text());
+        assertEquals(6, field.selectionStart(), "every selected position written: a caret after the last");
+        assertEquals(6, field.selectionEnd());
+        assertEquals(List.of("ABC-5234-XY", "ABC-5634-XY"), heard, "one change per keystroke");
+        drive(scene).press(Keys.Z, COMMAND);
+        assertEquals("ABC-5234-XY", field.text(), "undo takes one keystroke back");
+        drive(scene).press(Keys.Z, COMMAND);
+        assertEquals("ABC-1234-XY", field.text());
+        drive(scene).press(Keys.Z, COMMAND | Keys.MOD_SHIFT);
+        drive(scene).press(Keys.Z, COMMAND | Keys.MOD_SHIFT);
+        assertEquals("ABC-5634-XY", field.text(), "and redo puts each back");
+    }
+
+    @Test
+    void anOverwriteStoppedMidwayLeavesTheRestSelectedAndAcrossALiteralSkipsIt() {
+        holding("AAA-0000-**", "ABC-1234-XY", 0);
+        field.select(7, 10); // "4-X"
+        type("9");
+        assertEquals("ABC-1239-XY", field.text());
+        assertEquals(9, field.selectionStart(), "the X, past the dash, stays selected");
+        assertEquals(10, field.selectionEnd());
+        drive(scene).press(Keys.RIGHT);
+        assertEquals("ABC-1239-XY", field.text(), "stopping there leaves the X as it was");
+        assertEquals(10, field.caretPosition());
+    }
+
+    @Test
+    void anOverwriteKeepsTheDirectionTheSelectionWasMadeIn() {
+        holding("AAA-0000-**", "ABC-1234-XY", 6);
+        drive(scene).press(Keys.LEFT, Keys.MOD_SHIFT);
+        drive(scene).press(Keys.LEFT, Keys.MOD_SHIFT); // "12", made backwards: the caret at 4
+        type("5");
+        assertEquals("ABC-5234-XY", field.text());
+        assertEquals(5, field.selectionStart());
+        assertEquals(6, field.selectionEnd());
+        assertEquals(5, field.caretPosition(), "the caret still at the start of what is selected");
+        drive(scene).press(Keys.LEFT, Keys.MOD_SHIFT);
+        assertEquals(4, field.selectionStart(), "so Shift+Left goes on extending it");
+        assertEquals(6, field.selectionEnd());
+    }
+
+    @Test
+    void aCharacterTheNextSelectedPositionRefusesIsRefusedAndTheSelectionStays() {
+        holding("AAA-0000-**", "ABC-1234-XY", 0);
+        field.select(4, 6);
+        type("x");
+        assertEquals("ABC-1234-XY", field.text(), "a letter on a digit");
+        assertEquals(4, field.selectionStart());
+        assertEquals(6, field.selectionEnd());
+        assertEquals(List.of(), heard);
+    }
+
+    @Test
+    void pastingOverASelectionFillsItsPositionsInOrderAndDropsTheRest() {
+        TextFieldTest.MockClipboard clipboard = new TextFieldTest.MockClipboard();
+        holding("AAA-0000-**", "ABC-1234-XY", 0);
+        scene.setClipboard(clipboard);
+        field.select(4, 8); // "1234"
+        clipboard.value = "98";
+        drive(scene).press(Keys.V, COMMAND);
+        assertEquals("ABC-9834-XY", field.text(), "two positions filled, the 3 and the 4 untouched");
+        assertEquals(6, field.selectionStart(), "and still selected");
+        assertEquals(8, field.selectionEnd());
+
+        field.select(4, 6); // "98"
+        clipboard.value = "123456";
+        drive(scene).press(Keys.V, COMMAND);
+        assertEquals("ABC-1234-XY", field.text(), "what finds no selected position is dropped: nothing moves");
+        assertEquals(6, field.caretPosition());
+
+        field.select(0, field.text().length());
+        clipboard.value = "KLM-4217-Z9";
+        drive(scene).press(Keys.V, COMMAND);
+        assertEquals("KLM-4217-Z9", field.text(), "over the whole value, a new value, with its literals");
+    }
+
+    @Test
+    void aKeyTypedOverASelectionThatBeginsOnALiteralGoesToTheFirstSelectedPosition() {
+        holding("000 '9' 000", "123 9 456", 0);
+        field.select(4, 9); // "9 456": the quoted 9, then the digits
+        type("9");
+        assertEquals("123 9 956", field.text(), "the 9 is the 4's place, not the literal over again");
+        assertEquals(7, field.selectionStart());
+        assertEquals(9, field.selectionEnd());
+
+        holding("+1 (000) 000-0000", "+1 (415) 555-0123", 0);
+        field.select(1, 5); // "1 (4"
+        type("1");
+        assertEquals("+1 (115) 555-0123", field.text(), "an area code that begins with 1");
+        assertEquals(5, field.caretPosition());
+
+        // A paste is still read from where the selection begins, literals and all.
+        TextFieldTest.MockClipboard clipboard = TextFieldTest.MockClipboard.holding(") 9");
+        holding("+1 (000) 000-0000", "+1 (415) 555-0123", 0);
+        scene.setClipboard(clipboard);
+        field.select(7, 10); // ") 5"
+        drive(scene).press(Keys.V, COMMAND);
+        assertEquals("+1 (415) 955-0123", field.text(), "the pasted ) and space are the literals");
+    }
+
+    @Test
+    void aPasteOverASelectionThatEndsTheValueGoesOnIntoTheFreePositions() {
+        TextFieldTest.MockClipboard clipboard = TextFieldTest.MockClipboard.holding("9990123");
+        holding("+1 (000) 000-0000", "4155", 0);
+        scene.setClipboard(clipboard);
+        field.select(9, 10); // the 5 just typed, the last of the value
+        drive(scene).press(Keys.V, COMMAND);
+        assertEquals("+1 (415) 999-0123", field.text(), "not +1 (415) 9: nothing follows, nothing moves");
+        assertEquals(17, field.caretPosition());
+
+        clipboard.value = "345";
+        holding("AAA-0000-**", "ABC12", 0);
+        scene.setClipboard(clipboard);
+        field.select(5, 6); // the 2
+        drive(scene).press(Keys.V, COMMAND);
+        assertEquals("ABC-1345", field.text());
+
+        // With a value after the selection, the paste still fills the selection alone.
+        clipboard.value = "999";
+        holding("0000 0000", "12345", 0);
+        scene.setClipboard(clipboard);
+        field.select(3, 4); // the 4, with the 5 after it
+        drive(scene).press(Keys.V, COMMAND);
+        assertEquals("1239 5", field.text(), "the 5 stays where it is");
+    }
+
+    @Test
+    void typingOrPastingOverTheWholeValueStartsANewOne() {
+        holding("+1 (000) 000-0000", "+1 (555) 123-4567", 0);
+        drive(scene).press(Keys.A, COMMAND);
+        type("9");
+        assertEquals("+1 (9", field.text(), "Ctrl+A, then a digit: a new value, as in any field");
+        assertEquals(5, field.caretPosition());
+        assertEquals(List.of("+1 (9"), heard);
+        drive(scene).press(Keys.Z, COMMAND);
+        assertEquals("+1 (555) 123-4567", field.text(), "one undo puts the old value back");
+
+        TextFieldTest.MockClipboard clipboard = TextFieldTest.MockClipboard.holding("4155550123");
+        scene.setClipboard(clipboard);
+        drive(scene).press(Keys.A, COMMAND);
+        drive(scene).press(Keys.V, COMMAND);
+        assertEquals("+1 (415) 555-0123", field.text(), "Ctrl+A, then a paste");
+
+        field.select(4, 17); // every digit, without the +1 ( before them
+        type("7");
+        assertEquals("+1 (7", field.text(), "every position selected is the whole value, literals or not");
+
+        holding("00 kg", "12 kg", 0);
+        field.select(0, 2); // the digits, not the kg after them
+        type("3");
+        assertEquals("3", field.text(), "the literals that end the pattern go with the old value");
+    }
+
+    @Test
+    void overTheWholeValueACharacterNoPositionTakesIsRefused() {
+        holding("+1 (000) 000-0000", "+1 (555) 123-4567", 0);
+        drive(scene).press(Keys.A, COMMAND);
+        type("x");
+        assertEquals("+1 (555) 123-4567", field.text(), "not an emptied field");
+        assertEquals(0, field.selectionStart(), "and the selection stays");
+        assertEquals(17, field.selectionEnd());
+        assertEquals(List.of(), heard);
+    }
+
+    @Test
+    void aSelectionOfEveryPositionButOneIsOverwritten() {
+        holding("+1 (000) 000-0000", "+1 (555) 123-4567", 0);
+        field.select(0, 16); // all but the last 7
+        type("9");
+        assertEquals("+1 (955) 123-4567", field.text(), "the first position overwritten, nothing else");
+        assertEquals(5, field.selectionStart(), "the rest of the selection stays");
+        assertEquals(16, field.selectionEnd());
+    }
+
+    @Test
+    void aRefusedCutLeavesTheClipboardAloneAndAMadeOneFillsIt() {
+        TextFieldTest.MockClipboard clipboard = TextFieldTest.MockClipboard.holding("before");
+        holding("AAA-0000-**", "ABC-1234-XY", 0);
+        scene.setClipboard(clipboard);
+        field.select(4, 6); // "12": the X would land on a digit
+        drive(scene).press(Keys.X, COMMAND);
+        assertEquals("ABC-1234-XY", field.text());
+        assertEquals("before", clipboard.value, "a refused Cut is not a Copy");
+        assertEquals(4, field.selectionStart());
+        assertEquals(6, field.selectionEnd());
+
+        field.select(9, 11); // "XY": nothing after it
+        drive(scene).press(Keys.X, COMMAND);
+        assertEquals("ABC-1234-", field.text(), "the dash before them stays, as after a Backspace");
+        assertEquals("XY", clipboard.value, "a Cut made fills the clipboard");
     }
 
     @Test

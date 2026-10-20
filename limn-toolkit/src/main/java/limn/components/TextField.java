@@ -89,6 +89,18 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      */
     private boolean restoringHistory;
     /**
+     * Whether the mask refused the edit just fitted, which puts the text back as it was: the
+     * caret and the selection go back too, so a refused edit does nothing at all.
+     */
+    private boolean maskRefused;
+    /**
+     * Whether the edit being announced is the user typing or pasting, which over a selection that
+     * holds a position of the mask overwrites those positions instead of replacing the selection.
+     */
+    private boolean typingOver;
+    /** Whether that edit is one key typed, read from the first selected position, not a paste. */
+    private boolean typedKey;
+    /**
      * The caret and the selection as the edit being announced found them, so that an edit the
      * mask turns into nothing leaves them as they were, or reports only how they moved; {@code
      * null} for a caller's {@link #setText}, which places the caret itself.
@@ -278,11 +290,59 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * them is ever read as a character typed into a position. An edit never pushes characters
      * already typed off the end: typing or pasting into a field with no position free changes
      * nothing, as typing at the end of a full field does, and what finds no free position of a
-     * longer paste is dropped. To replace characters, select them and type over them. On a
-     * pattern whose positions are all of one kind, that is all an edit changes. On one that
-     * mixes them ({@code "AAA-0000-**"}), the characters after the edit close up, and one that
-     * lands in a position that does not take it is passed over: {@code ABC-1234-X} with a
-     * {@code Q} typed after the {@code B} reads {@code ABQ-1234-X}, its {@code C} gone.
+     * longer paste is dropped. To replace characters, select them and type over them: typing or
+     * pasting over a selection that holds positions overwrites them one by one from the first,
+     * and nothing moves. With {@code 12} of {@code ABC-1234-XY} selected, a {@code 5} reads
+     * {@code ABC-5234-XY} with the {@code 2} still selected, and a {@code 6} then
+     * {@code ABC-5634-XY} with the caret after it; stopping midway leaves what is still selected
+     * as it was, in the direction it was made. A key goes to the first selected position even
+     * when the selection begins on a literal that is the same character: the {@code 1} typed over
+     * {@code 1 (4} of {@code +1 (415)} is the area code's. A character the next selected position
+     * does not take is refused, the selection unchanged. A paste fills the selected positions in
+     * order with the characters each takes and leaves those it does not reach as they were and
+     * still selected; what is left of it is dropped where a character of the value follows the
+     * selection, and where none does, the selection ends the value and what is left fills the
+     * free positions after it, which moves nothing: {@code +1 (415) 5} with the {@code 5}
+     * selected and {@code 9990123} pasted reads {@code +1 (415) 999-0123}. Each keystroke is an
+     * undo step of its own. A selection that holds every position the text fills, with or
+     * without the literals around them ({@code Ctrl+A}, or the digits alone of
+     * {@code +1 (555) 123-4567}), is the whole value: typing or pasting over it starts a new
+     * value, as in any field, fitted afresh, so a literal typed by hand begins it as typing it
+     * into an empty field would ({@code Ctrl+A}, then {@code +}, leaves {@code +}); one from which
+     * no position takes anything and no literal is written is refused.
+     *
+     * <p>An edit that is not an overwrite (a Backspace, a Delete, a Cut, typing with nothing
+     * selected or over literals alone) moves the characters after it by as many positions as it
+     * inserts more, or fewer, than it takes. On a pattern whose positions are all of one kind
+     * each still lands in a position that takes it. On one that mixes them
+     * ({@code "AAA-0000-**"}), an edit that would move a character into a position that does not
+     * take it, where it would be lost, is refused: {@code ABC-1234-X} with a {@code Q} typed after
+     * the {@code B}, or {@code ABC-1234-XY} with Backspace among the digits, stays as it is. A
+     * digit moving within its run of digits with nothing of another kind after it, or on into an
+     * any position, still fits, and that edit is made: {@code ABC-1234-X} with a {@code 5} typed
+     * after the {@code 3} reads {@code ABC-1235-4X}. A refused edit, here or in a full field,
+     * does nothing: the text, the caret and the selection stay, no handler runs, no watcher
+     * hears of it, no undo step is left, and a refused Cut leaves the clipboard as it was. A Cut
+     * of literals alone, which the field writes back at once, copies nothing either, and leaves
+     * the caret where the selection began.
+     *
+     * <p>A masked field lays its text out left to right in every language, since what it holds
+     * is a code or a number written in a fixed shape: its groups, the stretches between
+     * literals, run left to right in the order they are written, whatever script their
+     * characters are in. In an Arabic or a Hebrew layout a card reads {@code 4111 1111 1111 1112},
+     * and in Arabic-Indic digits {@code ٤١١١ ١١١١ ١١١١ ١١١٢}, its first group on the left, and a
+     * phone {@code +1 (415) 555-0123}, not their groups reversed. Inside a group each script
+     * keeps its own direction: a group of Hebrew letters under {@code "AAA-AAA"} reads right to
+     * left within its box, and the second group follows it on the right. One shape is left to the
+     * bidirectional algorithm: a quoted literal of right-to-left letters that touches a group of
+     * them, with no space or punctuation between, is read with it as one right-to-left run, so
+     * under {@code "AAA'ש'AAA"} the second group stands on the left of the first. The text starts at the
+     * left edge of the box, where the caret, the selection, a click, a double click and the
+     * arrow keys follow it and the guide continues it to the right, so each position stays where
+     * it is as it fills; a placeholder stands there too, laid out as the text when the pattern
+     * would write it (an example value, or the pattern itself), and otherwise left to right unless
+     * its own words say otherwise. The field's icons, its trailing button and its pads still
+     * follow the layout direction.
      *
      * <p>The text already in the field is fitted at once. {@code null} takes the mask away and
      * leaves the text as it is.
@@ -305,8 +365,13 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
                 setText(fit.text(), Change.Origin.CODE);
             }
         }
-        // The guide is drawn and nothing else moves: the text, if the fitting changed it, was
-        // announced by setText, and the pattern is no part of what a reader hears.
+        // A mask decides the direction the text is laid out in, which the held lines are not keyed
+        // on when the layout reads left to right: drop them. The guide is drawn and nothing else
+        // moves: the text, if the fitting changed it, was announced by setText, and the pattern is
+        // no part of what a reader hears.
+        display = null;
+        composed = null;
+        guideHintLine = null;
         invalidate();
         return this;
     }
@@ -340,26 +405,64 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * over everything, set by an assistive technology) is fitted as a value from scratch; an undo
      * or a redo reads the text it puts back as the mask wrote it.
      */
-    private void fitToMask() {
+    private void fitToMask(boolean typed, boolean key, boolean backwards) {
         String text = model.text();
         int caret = model.cursor();
         int offset = model.damageOffset();
         int removed = model.damageRemoved();
         int inserted = model.damageInserted();
         String before = maskedText;
+        boolean editOfWritten = offset + removed <= maskedText.length()
+                && maskedText.length() - removed + inserted == text.length()
+                && text.regionMatches(0, maskedText, 0, offset)
+                && text.regionMatches(offset + inserted, maskedText, offset + removed,
+                        maskedText.length() - offset - removed);
+        int selectFrom = -1;
         limn.components.internal.text.InputMask.Conformed fit =
                 restoringHistory ? mask.written(text, caret) : null;
         if (fit != null) {
             // Put back as it was written.
+        } else if (typed && editOfWritten && removed > 0 && inserted > 0
+                && offset == selectionStartBeforeEdit && offset + removed == selectionEndBeforeEdit
+                && mask.selectsWholeValue(maskedText, offset, offset + removed)) {
+            // Typed or pasted over the whole value: a new value, as in any field. One of which
+            // no character is taken, and no literal typed by hand, is refused rather than
+            // emptying the field.
+            String fresh = text.substring(offset, offset + inserted);
+            fit = mask.conform(fresh, fresh.length());
+            if (fit.text().isEmpty()) {
+                maskRefused = true;
+                fit = new limn.components.internal.text.InputMask.Conformed(maskedText,
+                        Math.min(caret, maskedText.length()), maskedRaw);
+            }
+        } else if (typed && editOfWritten && removed > 0 && inserted > 0
+                && offset == selectionStartBeforeEdit && offset + removed == selectionEndBeforeEdit
+                && mask.holdsPosition(maskedText, offset, offset + removed)) {
+            // Typed or pasted over a selection: the selected positions are overwritten one by one
+            // and nothing moves; those not reached stay selected.
+            limn.components.internal.text.InputMask.Overwritten over = mask.overwrite(maskedText,
+                    offset, offset + removed, text.substring(offset, offset + inserted), key);
+            if (over == null) {
+                maskRefused = true;
+                fit = new limn.components.internal.text.InputMask.Conformed(maskedText,
+                        Math.min(caret, maskedText.length()), maskedRaw);
+            } else {
+                fit = new limn.components.internal.text.InputMask.Conformed(over.text(),
+                        over.selectionEnd(), over.raw());
+                selectFrom = over.selectionStart();
+            }
         } else if (offset == 0 && inserted == text.length()) {
             fit = mask.conform(text, caret);
-        } else if (offset + removed <= maskedText.length()
-                && maskedText.length() - removed + inserted == text.length()
-                && text.regionMatches(0, maskedText, 0, offset)
-                && text.regionMatches(offset + inserted, maskedText, offset + removed,
-                        maskedText.length() - offset - removed)) {
+        } else if (editOfWritten) {
             fit = mask.edit(maskedText, offset, offset + removed,
                     text.substring(offset, offset + inserted), collapsedDelete);
+            if (fit == null) {
+                // Refused: no position free for what was inserted, or a character the edit moved
+                // would land where it is not taken. The text goes back as the mask wrote it.
+                maskRefused = true;
+                fit = new limn.components.internal.text.InputMask.Conformed(maskedText,
+                        Math.min(caret, maskedText.length()), maskedRaw);
+            }
         } else {
             // The text moved by some other way than an edit of what the mask wrote.
             fit = mask.conform(text, caret);
@@ -376,6 +479,14 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
             if (aligned != model.cursor()) {
                 model.setCursor(aligned, false);
             }
+        }
+        if (selectFrom >= 0 && selectFrom != fit.caret()) {
+            // What stays selected keeps the direction it was made in: a selection made backwards
+            // keeps its caret at the start, so Shift+Left goes on extending it.
+            int anchor = backwards ? fit.caret() : selectFrom;
+            int cursor = backwards ? selectFrom : fit.caret();
+            model.setCursor(anchor, false);
+            model.setCursor(cursor, true);
         }
     }
 
@@ -698,7 +809,17 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * @return the shaped display line; never null
      */
     protected ShapedText shapeDisplay(String text, Font font) {
-        return shapeText(text, font);
+        return mask != null ? maskedLine(text, font, 0) : shapeText(text, font);
+    }
+
+    /**
+     * A line of a masked field, laid out on the pattern from entry {@code first} on: its groups,
+     * the stretches between literals, set left to right in written order, each shaped alone so
+     * its own script keeps its direction inside it.
+     */
+    private ShapedText maskedLine(String text, Font font, int first) {
+        return limn.components.internal.text.MaskedLine.shape(textRuler(), text, font,
+                mask.literals(text, first));
     }
 
     /**
@@ -746,7 +867,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         // never asks ShapedText.matches: the direction a line was shaped for is not recoverable
         // from the version, the font or the epoch, and a line shaped for the other one is wrong
         // by a fraction of a point in every geometry query asked of it.
-        ShapedText.Direction base = neutralBase();
+        ShapedText.Direction base = textBase();
         if (display == null || displayVersion != version || !f.equals(displayFont)
                 || displayEpoch != ruler.epoch() || displayBase != base) {
             display = shapeDisplay(model.text(), f);
@@ -835,14 +956,23 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         long version = model.textVersion();
         long epoch = ruler.epoch();
         int cursor = model.cursor();
-        ShapedText.Direction neutral = neutralBase();
+        ShapedText.Direction neutral = textBase();
         if (composed == null || composedVersion != version || composedCursor != cursor
                 || composedPreedit != preedit || !f.equals(composedFont) || composedEpoch != epoch
                 || composedBase != neutral) {
             String committed = model.text();
             int c = Math.min(cursor, committed.length());
             String spliced = committed.substring(0, c) + preedit + committed.substring(c);
-            composed = ruler.shape(spliced, f, ShapedText.Direction.of(spliced, neutral));
+            if (mask != null) {
+                // The committed text's literals stay literals; what is being composed is value.
+                boolean[] literal = new boolean[spliced.length()];
+                boolean[] written = mask.literals(committed, 0);
+                System.arraycopy(written, 0, literal, 0, c);
+                System.arraycopy(written, c, literal, c + preedit.length(), committed.length() - c);
+                composed = limn.components.internal.text.MaskedLine.shape(ruler, spliced, f, literal);
+            } else {
+                composed = ruler.shape(spliced, f, ShapedText.Direction.of(spliced, neutral));
+            }
             composedVersion = version;
             composedCursor = cursor;
             composedPreedit = preedit;
@@ -915,6 +1045,27 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
 
 
     /**
+     * Whether the text is laid out from the right: in a right-to-left layout, except on a masked
+     * field. A mask's text is a code, a number or a document in a fixed shape, which runs left
+     * to right in every language, so its paragraph is left to right and it starts at the
+     * content's left edge, where the guide that continues it to the right keeps every position
+     * in place as it fills. The chrome (the icons, the trailing button, the pads) still follows
+     * the layout: {@link #contentLeft} and {@link #trailingRegionX} ask {@link #isRightToLeft()}.
+     */
+    private boolean textRightToLeft() {
+        return mask == null && isRightToLeft();
+    }
+
+    /**
+     * The direction a line of the field's text falls back to where it has no strong character,
+     * and the key its held lines are kept by: the layout's, or left to right on a masked field,
+     * whose lines are shaped left to right whatever they hold.
+     */
+    private ShapedText.Direction textBase() {
+        return mask != null ? ShapedText.Direction.LTR : neutralBase();
+    }
+
+    /**
      * Physical left edge of the text area: the leading inset reading left to right, and the
      * trailing one reading right to left. Every coordinate in this widget is composed from this
      * and {@link #innerWidth}, so the leading icon, the trailing button, the clip, the caret and
@@ -936,7 +1087,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      */
     private float originX(SizeTokens t, float lineWidth) {
         float left = contentLeft(t);
-        return isRightToLeft() ? left + innerWidth(t) - lineWidth + scrollX : left - scrollX;
+        return textRightToLeft() ? left + innerWidth(t) - lineWidth + scrollX : left - scrollX;
     }
 
     /**
@@ -1018,13 +1169,18 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
             return null;
         }
         String guide = mask.guide();
-        if (maskedText.length() >= guide.length()) {
+        // By entries, which are code points: a character outside the Basic Multilingual Plane
+        // in an any position is two chars of the text and one low line of the guide.
+        int written = maskedText.codePointCount(0, maskedText.length());
+        if (written >= guide.codePointCount(0, guide.length())) {
             return null;
         }
-        String tail = guide.substring(maskedText.length());
-        if (!tail.equals(guideTailText)) {
+        String tail = guide.substring(guide.offsetByCodePoints(0, written));
+        Font f = t.body();
+        if (!tail.equals(guideTailText) || guideTailLine == null || !f.equals(guideTailLine.font())
+                || guideTailLine.epoch() != textRuler().epoch()) {
             guideTailText = tail;
-            guideTailLine = textRuler().shape(tail, t.body(), ShapedText.Direction.LTR);
+            guideTailLine = maskedLine(tail, f, written);
         }
         return guideTailLine;
     }
@@ -1054,7 +1210,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
             wanted = cursorX;
         }
         if (wanted != view) {
-            scrollX = isRightToLeft() ? lineWidth - inner - wanted : wanted;
+            scrollX = textRightToLeft() ? lineWidth - inner - wanted : wanted;
         }
         clampScrollX(t);
     }
@@ -1100,8 +1256,9 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * draws here.
      *
      * <p>Only with the caret at the end of the text and nothing selected, and only where the
-     * guide continues the line: on a line whose end is not its right edge (text that runs right
-     * to left, whose guide is drawn on the far side of it) the caret stays where it was.
+     * guide continues the line, which a masked field lays out left to right in any language: on a
+     * line whose end is not its right edge (letters that run right to left end it, so its end is
+     * the left edge of their run) the caret stays where it was.
      */
     private float guideLead(SizeTokens t, ShapedText line, float caretX) {
         if (mask == null || !isFocused() || model.hasSelection() || model.cursor() != model.length()) {
@@ -1112,10 +1269,9 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
             return 0;
         }
         if (model.length() == 0) {
-            // The guide is the hint, shaped and placed as the paint places it.
-            ShapedText hint = guideHint(t);
-            float hintStart = isRightToLeft() ? -hint.metrics().width() : 0;
-            return hintStart + hint.caretX(lead.length(), ShapedText.Affinity.UPSTREAM);
+            // The guide is the hint, shaped left to right and placed from the content's left edge,
+            // as the paint places it.
+            return guideHint(t).caretX(lead.length(), ShapedText.Affinity.UPSTREAM);
         }
         ShapedText tail = guideTail(t);
         float end = line.metrics().width();
@@ -1129,10 +1285,9 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
     private ShapedText guideHint(SizeTokens t) {
         Font f = t.body();
         String guide = mask.guide();
-        ShapedText.Direction base = ShapedText.Direction.of(guide, neutralBase());
         if (guideHintLine == null || !guideHintLine.text().equals(guide) || !f.equals(guideHintLine.font())
-                || guideHintLine.baseDirection() != base || guideHintLine.epoch() != textRuler().epoch()) {
-            guideHintLine = textRuler().shape(guide, f, base);
+                || guideHintLine.epoch() != textRuler().epoch()) {
+            guideHintLine = maskedLine(guide, f, 0);
         }
         return guideHintLine;
     }
@@ -1230,9 +1385,11 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
             // Keep the hint visible even while focused (only the caret joins it). The hint is a
             // string and not a held line, so it is shaped here for the field's own direction and
             // placed against the leading edge, which is the edge the caret is on.
-            ShapedText hintLine = guided ? guideHint(t) : textRuler().shape(hint, f,
-                    ShapedText.Direction.of(hint, neutralBase()));
-            float hintX = rtl ? left + inner - hintLine.metrics().width() : left;
+            // On a masked field the hint stands where the text will, from the left edge, and a
+            // placeholder with no letter of its own, an example such as +1 (415) 555-0123, reads
+            // left to right as that text does; one in words still reads in their direction.
+            ShapedText hintLine = guided ? guideHint(t) : placeholderLine(hint, f);
+            float hintX = textRightToLeft() ? left + inner - hintLine.metrics().width() : left;
             // The caret is where the caret box says, so the input method's window, a reader's
             // cursor and the line drawn agree: the leading edge, or past the literals a guide
             // starts with, where the first character will appear.
@@ -1285,6 +1442,18 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         // stays the box at every weight.
         Color border = borderColor(theme, focus);
         canvas.drawRoundRectBorder(0, 0, width(), height(), t.radiusMedium(), pen, border);
+    }
+
+    /**
+     * The placeholder, shaped. On a masked field a placeholder the pattern would write (an example
+     * value, or the pattern itself, as {@code AAA-0000-**}) is laid out as its text would be,
+     * group by group; one in words reads left to right unless its own words say otherwise.
+     */
+    private ShapedText placeholderLine(String hint, Font f) {
+        if (mask != null && mask.written(hint, 0) != null) {
+            return maskedLine(hint, f, 0);
+        }
+        return textRuler().shape(hint, f, ShapedText.Direction.of(hint, textBase()));
     }
 
     /**
@@ -1619,7 +1788,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
                     String pasted = clipboard().text();
                     // Pasting an empty clipboard must not destroy the selection.
                     if (!pasted.isEmpty()) {
-                        editFromUser(() -> model.insert(pasted));
+                        pasteFromUser(pasted);
                     }
                 } else {
                     handled = false;
@@ -1663,12 +1832,19 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         if (!model.hasSelection() || !allowClipboardCopy()) {
             return false;
         }
-        clipboard().setText(model.selectedText());
+        String selected = model.selectedText();
         if (cut) {
+            // The clipboard takes what was cut only once the removal is made: a mask that refuses
+            // it leaves the text, and a Cut that wrote the clipboard anyway would be a Copy.
+            String before = model.text();
             noteCaretBeforeEdit();
             model.deleteSelection();
             announceTextEdit(Change.Origin.USER);
+            if (model.text().equals(before)) {
+                return true;
+            }
         }
+        clipboard().setText(selected);
         return true;
     }
 
@@ -1680,6 +1856,8 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         }
         noteCaretBeforeEdit();
         model.insertCodePoint(cp);
+        typingOver = true;
+        typedKey = true;
         announceTextEdit(Change.Origin.USER);
         ensureCursorVisible();
         resetBlink();
@@ -1862,7 +2040,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
             public void paste() {
                 String pasted = clipboard().text();
                 if (!pasted.isEmpty()) {
-                    editFromUser(() -> model.insert(pasted));
+                    pasteFromUser(pasted);
                     ensureCursorVisible(Theme.current().tokensFor(TextField.this));
                     invalidate();
                 }
@@ -1885,19 +2063,36 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
     private void announceTextEdit(Change.Origin origin) {
         ShapedText.Position caretBefore = caretBeforeEdit;
         caretBeforeEdit = null;
+        boolean typed = typingOver;
+        boolean key = typedKey;
+        typingOver = false;
+        typedKey = false;
         if (!model.hasCharDamage()) {
             return;
         }
         if (mask != null) {
             String before = maskedText;
-            fitToMask();
+            fitToMask(typed, key, caretBefore != null && selectionStartBeforeEdit != selectionEndBeforeEdit
+                    && caretBefore.charIndex() == selectionStartBeforeEdit);
+            boolean refused = maskRefused;
+            maskRefused = false;
             if (!restoringHistory && model.text().equals(before)) {
                 // The mask refused the edit, or put back all it took: the text did not change,
-                // so no handler runs and no watcher hears of it. Only a caret that moved, past
-                // a literal typed over or off a selection, is reported.
+                // so no handler runs and no watcher hears of it. A refused edit leaves the caret
+                // and the selection where they were; otherwise only a caret that moved, past a
+                // literal typed over or off a selection, is reported.
                 model.clearCharDamage();
                 if (caretBefore != null) {
-                    if (selectionStartBeforeEdit == selectionEndBeforeEdit
+                    if (refused) {
+                        int caretAt = caretBefore.charIndex();
+                        if (selectionStartBeforeEdit != selectionEndBeforeEdit) {
+                            model.setCursor(caretAt == selectionStartBeforeEdit
+                                    ? selectionEndBeforeEdit : selectionStartBeforeEdit, false);
+                            model.setCaret(caretBefore, true);
+                        } else {
+                            model.setCaret(caretBefore, false);
+                        }
+                    } else if (selectionStartBeforeEdit == selectionEndBeforeEdit
                             && model.cursor() == caretBefore.charIndex()) {
                         model.setCaret(caretBefore, false);
                     } else {
@@ -1923,6 +2118,15 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         model.clearCharDamage();
         noteCaretBeforeEdit();
         edit.run();
+        announceTextEdit(Change.Origin.USER);
+    }
+
+    /** Pastes {@code pasted} as the user's edit: over a selection of a masked field, an overwrite. */
+    private void pasteFromUser(String pasted) {
+        model.clearCharDamage();
+        noteCaretBeforeEdit();
+        model.insert(pasted);
+        typingOver = true;
         announceTextEdit(Change.Origin.USER);
     }
 

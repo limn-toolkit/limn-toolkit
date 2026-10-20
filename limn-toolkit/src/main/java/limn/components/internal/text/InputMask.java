@@ -171,22 +171,29 @@ public final class InputMask {
      * included: a fragment pasted with its literals, or the literal under the caret typed over, is
      * taken as those literals, and the caret steps past them. With no position free, the inserted
      * characters that find none are dropped: an edit never pushes the value's own characters off
-     * the end. On a pattern that mixes kinds of position, the value's characters after the edit
-     * close up as {@link #conformRaw} fits them, and one that lands in a position refusing it is
-     * passed over.
+     * the end, and one of which nothing finds a position is refused.
+     *
+     * <p>The value's characters after the edit move by as many positions as the edit inserted
+     * more, or fewer, than it took. Each must land in a position that takes it: on a pattern whose
+     * positions are all of one kind each always does, and on one that mixes them a character that
+     * would land in a position refusing it ({@code C} on a digit of {@code AAA-0000-**}) would be
+     * lost, so the edit is refused instead. A digit moving into an any position, or within its
+     * run of digits, lands in one that takes it, and the edit is made.
      *
      * <p>A Backspace or Delete with nothing selected ({@code step} -1 or 1) that took only
      * literals, which writing the text again puts back, takes the filled character beyond them
-     * instead, as the user meant; a literal the text ended in is not put back, so it goes alone.
+     * instead, as the user meant, on the same terms; a literal the text ended in is not put back,
+     * so it goes alone.
      *
      * @param text     a text this mask wrote, such as {@link Conformed#text()}
      * @param from     where the edit's range begins in {@code text}, in chars
      * @param to       where it ends, in chars
      * @param inserted what took its place
      * @param step     -1 for a Backspace, 1 for a Delete, with nothing selected; 0 otherwise
-     * @return the text, the caret after what was inserted, and the filled characters
+     * @return the text, the caret after what was inserted, and the filled characters; or
+     *         {@code null} when the edit is refused, which leaves the text as it was
      */
-    public Conformed edit(String text, int from, int to, String inserted, int step) {
+    public @Nullable Conformed edit(String text, int from, int to, String inserted, int step) {
         int a = text.codePointCount(0, from);
         int b = a + text.codePointCount(from, to);
         StringBuilder before = new StringBuilder();
@@ -214,11 +221,19 @@ public final class InputMask {
         if (added.codePointCount(0, added.length()) > room) {
             // No position for the rest: what was inserted gives way, never the value.
             room = Math.max(room, 0);
+            if (room == 0 && !tookValue) {
+                return null;
+            }
             added = added.substring(0, added.offsetByCodePoints(0, room));
             reach = room == 0 ? 0 : slotEntry(kept + room - 1) + 1 - a;
         }
         String raw = before + added + after;
         Conformed fit = conformRaw(raw, before.length() + added.length());
+        if (fit.raw().length() != raw.length()) {
+            // A character the edit moved landed in a position of another kind, which passed over
+            // it: the edit would lose a character the user did not take, so it is not made.
+            return null;
+        }
         String fitted = fit.text();
         int written = fitted.codePointCount(0, fitted.length());
         int caretEntry = Math.max(fitted.codePointCount(0, fit.caret()), a + reach);
@@ -244,11 +259,142 @@ public final class InputMask {
             int gone = step < 0 ? kept - 1 : kept;
             if (gone >= 0 && gone < value.codePointCount(0, value.length())) {
                 String left = removeRaw(value, gone);
-                return conformRaw(left, left.offsetByCodePoints(0, gone));
+                Conformed closed = conformRaw(left, left.offsetByCodePoints(0, gone));
+                return closed.raw().length() == left.length() ? closed : null;
             }
         }
         int caret = fitted.offsetByCodePoints(0, Math.min(caretEntry, written));
         return new Conformed(fitted, caret, fit.raw());
+    }
+
+    /**
+     * What {@link #overwrite} made of a text: the text, its filled characters, and the selection
+     * left over it, {@code selectionStart == selectionEnd} for a caret.
+     */
+    public record Overwritten(String text, String raw, int selectionStart, int selectionEnd) {
+    }
+
+    /**
+     * Whether the chars {@code [from, to)} of a text this mask wrote hold a position to fill, so
+     * that typing over them {@linkplain #overwrite overwrites} rather than {@linkplain #edit edits}.
+     *
+     * @param text a text this mask wrote
+     * @param from where the range begins, in chars
+     * @param to   where it ends, in chars
+     * @return whether a position lies in the range
+     */
+    public boolean holdsPosition(String text, int from, int to) {
+        int a = text.codePointCount(0, from);
+        int b = a + text.codePointCount(from, to);
+        for (int entry = a; entry < b && entry < codePoints.length; entry++) {
+            if (slotAt[entry]) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Whether the chars {@code [from, to)} of a text this mask wrote take in its whole value:
+     * every position the text fills lies in the range, whatever literals lie in it or around it,
+     * and there is at least one. Typing or pasting over such a selection starts a new value.
+     *
+     * @param text a text this mask wrote
+     * @param from where the range begins, in chars
+     * @param to   where it ends, in chars
+     * @return whether the range holds every filled position of the text
+     */
+    public boolean selectsWholeValue(String text, int from, int to) {
+        int a = text.codePointCount(0, from);
+        int b = a + text.codePointCount(from, to);
+        int written = text.codePointCount(0, text.length());
+        boolean any = false;
+        for (int entry = 0; entry < written && entry < codePoints.length; entry++) {
+            if (slotAt[entry]) {
+                if (entry < a || entry >= b) {
+                    return false;
+                }
+                any = true;
+            }
+        }
+        return any;
+    }
+
+    /**
+     * Typing or pasting over a selection: the characters of {@code inserted} a position takes
+     * replace the selected positions one by one, from the first, and nothing moves. A paste is
+     * read from the entry the selection begins on, as {@link #edit} reads it, so a fragment carried
+     * with its literals fills the same positions as one without. A keystroke is read from the first
+     * selected position: a literal the selection begins on is selected, not under the caret, so
+     * the {@code 1} typed over {@code 1 (4} of {@code +1 (415)} is the area code's, not the
+     * literal's. Where a filled position follows
+     * the selection, what finds no selected position is dropped, since going on would move that
+     * character; where none does, the selection ends the value and what is left goes on into the
+     * free positions after it, as an {@link #edit} there would, moving nothing. The selected
+     * positions not reached keep their characters and stay selected, from the first of them to
+     * the selection's end; when every selected position was filled, the caret goes after the last
+     * character written.
+     *
+     * @param text     a text this mask wrote
+     * @param from     where the selection begins, in chars
+     * @param to       where it ends, in chars; the range holds a position
+     * @param inserted what was typed or pasted
+     * @param keystroke whether {@code inserted} is one key typed rather than a paste
+     * @return the text, its filled characters and the selection left, or {@code null} when no
+     *         character of {@code inserted} is taken by the position it would fill, which leaves
+     *         the text as it was
+     */
+    public @Nullable Overwritten overwrite(String text, int from, int to, String inserted,
+                                           boolean keystroke) {
+        int[] cps = text.codePoints().toArray();
+        int a = text.codePointCount(0, from);
+        int b = a + text.codePointCount(from, to);
+        int[] selected = new int[b - a];
+        int count = 0;
+        for (int entry = a; entry < b && entry < codePoints.length; entry++) {
+            if (slotAt[entry]) {
+                selected[count++] = entry;
+            }
+        }
+        String added = read(inserted, inserted.length(), true, keystroke ? selected[0] : a).raw();
+        if (added.codePointCount(0, added.length()) > count && !filledFrom(cps, b)) {
+            // The selection ends the value: what is left of a paste fills the free positions
+            // after it, which moves nothing, as the same paste with nothing selected would.
+            Conformed edited = edit(text, from, to, inserted, 0);
+            if (edited != null) {
+                return new Overwritten(edited.text(), edited.raw(), edited.caret(), edited.caret());
+            }
+        }
+        int[] fill = added.codePoints().limit(count).toArray();
+        if (fill.length == 0) {
+            return null;
+        }
+        for (int k = 0; k < fill.length; k++) {
+            cps[selected[k]] = fill[k];
+        }
+        String out = new String(cps, 0, cps.length);
+        StringBuilder raw = new StringBuilder(slots);
+        for (int entry = 0; entry < cps.length && entry < codePoints.length; entry++) {
+            if (slotAt[entry]) {
+                raw.appendCodePoint(cps[entry]);
+            }
+        }
+        int end = out.offsetByCodePoints(0, b);
+        if (fill.length < count) {
+            return new Overwritten(out, raw.toString(), out.offsetByCodePoints(0, selected[fill.length]), end);
+        }
+        int caret = out.offsetByCodePoints(0, selected[fill.length - 1] + 1);
+        return new Overwritten(out, raw.toString(), caret, caret);
+    }
+
+    /** Whether a text of code points {@code cps} fills a position at entry {@code from} or after. */
+    private boolean filledFrom(int[] cps, int from) {
+        for (int entry = from; entry < cps.length && entry < codePoints.length; entry++) {
+            if (slotAt[entry]) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** @return the entry of the pattern that holds the {@code index}-th position to fill */
@@ -491,6 +637,30 @@ public final class InputMask {
             out.appendCodePoint(codePoints[i]);
         }
         return out.toString();
+    }
+
+    /**
+     * Which chars of a text laid out on the pattern from entry {@code first} on belong to its
+     * literals: code point {@code k} of the text is entry {@code first + k}, as in a text this
+     * mask wrote ({@code first} 0), its guide, or the guide's unfilled tail. A code point past the
+     * pattern's end is not a literal.
+     *
+     * @param text  the text
+     * @param first the entry its first code point stands on
+     * @return one flag per char of {@code text}, both chars of a surrogate pair alike
+     */
+    public boolean[] literals(String text, int first) {
+        boolean[] out = new boolean[text.length()];
+        int entry = first;
+        for (int k = 0; k < text.length(); entry++) {
+            int width = Character.charCount(text.codePointAt(k));
+            boolean literal = entry >= 0 && entry < codePoints.length && !slotAt[entry];
+            for (int w = 0; w < width; w++) {
+                out[k + w] = literal;
+            }
+            k += width;
+        }
+        return out;
     }
 
     /**

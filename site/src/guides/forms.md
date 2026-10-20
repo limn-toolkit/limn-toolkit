@@ -91,10 +91,22 @@ the pattern arrive with its last position (`00 kg` shows `12 kg`). Characters a 
 not take are passed over, so pasting `KLM-4217-X9` and pasting `KLM4217X9` give the same text,
 and Backspace after a literal takes the character before it. An edit in the middle leaves every
 literal where the pattern has it, and a field whose positions are all filled takes nothing more,
-so a correction is made by selecting what to replace and typing over it. On a pattern that mixes
-letters, digits and any characters, like the one above, the characters after an edit close up,
-and one that lands where it is not taken is dropped: typing `Q` after the `B` of `ABC-1234-X`
-gives `ABQ-1234-X`. A user may also type the literals:
+so a correction is made by selecting what to replace and typing over it: typing or pasting over
+a selection overwrites its positions one by one and moves nothing, so with `12` of
+`ABC-1234-XY` selected, `5` gives `ABC-5234-XY` with the `2` still selected, and `6` then
+`ABC-5634-XY`. A character the next selected position does not take is refused, and a paste
+fills the selected positions in order, leaving those it does not reach selected and dropping
+what is left of it where a character of the value follows; at the end of the value it goes on
+into the free positions, so pasting `9990123` over the last `5` of `+1 (415) 5` gives
+`+1 (415) 999-0123`. A selection of the whole value (every filled position, with or without the
+literals around them, as Ctrl+A gives) is replaced as in any field: typing or pasting over it
+starts a new value. On a pattern that mixes
+letters, digits and any characters, like the one above, any other edit moves the characters after it,
+and one that would land where it is not taken would be lost, so such an edit is refused and the
+field does nothing: typing `Q` after the `B` of `ABC-1234-X`, or Backspace in the digits of
+`ABC-1234-XY`, changes nothing, while Backspace in the digits of `ABC-1234` or a `5` typed after
+the `3` of `ABC-1234-X` (the `4` moving into an any position) is made. A refused Cut copies
+nothing, and neither does a Cut of literals alone, which the field writes back at once. A user may also type the literals:
 under `'DE'00 0000` the `D` shows, then the `E`, then the digits, and typing `DE89` or `89`
 gives the same value. While the field has the keyboard the positions still to fill show after the
 text as a guide, `KLM-42__-__`, and the caret stands where the next character will appear, after
@@ -105,6 +117,18 @@ pattern: `AAA-0000-**` is syntax, not words, so say what the field expects in yo
 language, as the helper text of the field around it: "Three letters, four digits and two more".
 It is shown with or without the keyboard, where the guide shows only with it, and a reader
 hears it as the field's description.
+
+A masked field lays its text out left to right in every language: its groups, the stretches
+between literals, run left to right in the order they are written, whatever the script. In an
+Arabic or a Hebrew form a card number reads `4111 1111 1111 1112`, or `٤١١١ ١١١١ ١١١١ ١١١٢` in
+Arabic-Indic digits, and a phone `+1 (415) 555-0123`, starting at the left edge of the box, with
+the guide after it, while the field's icons and trailing button stay on the sides the layout
+puts them. Inside a group each script keeps its own direction, so a group of Hebrew letters
+reads right to left within its place. One shape is left to the bidirectional algorithm: a
+quoted literal of right-to-left letters that touches a group of them, with no space or
+punctuation between, is read with it as one right-to-left run (under `AAA'ש'AAA` the second
+group stands left of the first), so keep a space or a mark of punctuation between such a label
+and its group.
 
 Text between single quotes is literal, so a pattern can hold a `0`, an `A` or a `*` the field
 writes rather than fills: `+'0' 000` shows `+0 123`. Two single quotes are one apostrophe, inside

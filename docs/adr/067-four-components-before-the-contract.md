@@ -133,13 +133,105 @@ Markdown.
   give way, never the value's, which is what typing at the end of a full field already did and
   what "what does not fit after the last position is dropped" meant for a paste; the other
   reading, pushing the last character off, is the silent loss the audit reported. Typing the
-  literal under the caret mid-text now steps over it, as it does at the end. Unchanged, and
-  still the owner's to decide: on a pattern that mixes kinds of position (`AAA-0000-**`), the
-  characters after an edit close up, and one that lands in a position that refuses it is passed
-  over (`ABC-1234-XY`, Backspace after the 3, gives `ABC-124`: the X and the Y land in the
-  fourth digit's place). What an edit inserts on such a pattern is limited by the count of free
-  positions, so it can still close up a later character the same way; nothing an edit does
-  there turns a literal into a value.
+  literal under the caret mid-text now steps over it, as it does at the end. Left then for the
+  owner: on a pattern that mixes kinds of position (`AAA-0000-**`) the characters after an edit
+  moved along and one that landed in a position refusing it was passed over, lost
+  (`ABC-1234-XY`, Backspace after the 3, gave `ABC-124`); see the next amendment.
+- *Amended 2026-10-19:* **on a pattern that mixes kinds of position, an edit that would lose a
+  character is refused.** The owner's decision, of the three the audit offered (lose the later
+  characters, as it did; refuse the edit; keep later sections in place, which needs a model of
+  holes in the value): an edit moves the value's characters after it by as many positions as it
+  inserted more, or fewer, than it took, and when one of them would land in a position that does
+  not take it (a letter on a digit's place, a digit on a letter's), the edit is not made. The
+  field does nothing, as a full field does: the text, the caret and the selection stay, no
+  handler runs, no watcher or reader hears of it, and no undo step is left, so a redo is kept.
+  `ABC-1234-XY` with Backspace after the 3, and `ABC-1234-X` with `Q` typed after the `B`, are
+  refused. An edit whose moved characters all still fit is made: a digit moving within its run
+  of digits with nothing of another kind after it (`ABC-1234`, Backspace after the 1, gives
+  `ABC-234`), a digit or a letter moving on into an any position (`ABC-1234-X`, `5` after the 3,
+  gives `ABC-1235-4X`), any character moving within the any positions, and an edit that puts back
+  as many characters as it took, each of its kind, which moves nothing. On a pattern whose
+  positions are all of one kind every character always fits, so nothing there changes. To change
+  a letter of `ABC-1234-XY`, select it and type over it. A full field refusing an insertion now
+  keeps a selection it had, too, where it used to collapse it. (Added 2026-10-20: a refused Cut
+  writes nothing to the clipboard; it wrote the selection before offering the removal to the
+  mask, so a refused Cut was a Copy.)
+- *Amended 2026-10-19:* **a masked field lays its text out left to right in every language.**
+  The 2026-10-19 audit found the Showcase in Arabic showing the card `4111 1111 1111 1112` as
+  `1112 1111 1111 4111` and the phone placeholder `+1 (415) 555-0123` as `555-0123 (415) 1+`: a
+  value of digits, spaces and punctuation has no strong character, so its line took the layout's
+  direction as its base and the groups ran right to left. The owner's decision: no new API; a
+  masked `TextField` always lays its text out left to right, while its chrome keeps following the
+  layout. The text's paragraph is shaped left to right (the display line, a composition, the
+  guide), so the caret, the selection, hit testing and the arrow keys follow written order;
+  letters written right to left keep their own order inside the line (a Hebrew value under
+  `AAA-AAA` reads right to left, its first group on the right, as one run). The text is aligned
+  to the **left** edge of the content area, not to the start of the layout: the guide continues
+  the text to the right, and anchoring the line's left edge keeps every character where it is
+  as a position fills, where anchoring the right edge would shift the whole value by the
+  difference between a digit and a low line at each keystroke and again when the guide comes
+  and goes with the keyboard; it is also where a field written left to right in a right-to-left
+  form starts its text. The caret past the guide's literals works there as it does in a
+  left-to-right layout. A placeholder on a masked field stands at the same edge and reads left
+  to right unless its own words say otherwise, since it is most often an example of the value.
+  The leading icon, the trailing button and the pads still swap sides with the layout.
+- *Amended 2026-10-20:* **typing over a selection overwrites its positions.** The review of the
+  refusal above found that the correction route it, the Javadoc and the forms guide recommend,
+  "select them and type over them", was refused on a mixed pattern for any selection of two or
+  more characters with something of another kind after it: typing is one keystroke at a time,
+  and the first key replaced the whole selection with one character, which moved what followed
+  (`ABC-1234-XY`, `12` selected, `56` typed: nothing changed). The owner's decision: typing over a
+  selection in a masked field, of any pattern, **overwrites** the selected positions one by one
+  and moves nothing. `12` selected, `5` replaces the 1 and the selection becomes the 2; `6`
+  replaces the 2 and the caret stands after it; a user who stops midway leaves what is still
+  selected as it was. A paste is read from the entry the selection begins on, as an edit reads
+  it, so a literal carried with it is taken as the literal; a key typed is read from the first
+  selected position (amended 2026-10-20, from the second review: read from where the selection
+  begins, a `1` typed over `1 (4` of `+1 (415)` was taken for the selected literal and refused,
+  though the literal is selected, not under the caret, and the 4's place takes it); a character
+  the next selected position refuses is refused, the selection unchanged. A paste over a selection fills the
+  selected positions in order with the characters each takes, leaves those it does not reach as
+  they were and still selected, and drops the rest of the paste: nothing is pushed into the
+  positions after the selection. (Amended 2026-10-20, from the second review: where no value
+  character follows the selection, it ends the value and the rest of the paste goes on into the
+  free positions after it, as the same paste with nothing selected would, since that moves
+  nothing; `+1 (415) 5` with the 5 selected and `9990123` pasted gives `+1 (415) 999-0123`, where
+  the first version of the overwrite gave `+1 (415) 9`.) Each keystroke is its own undo step, as before. A selection
+  holding only literals is typed over as before (an insertion where it begins), and Backspace,
+  Delete and Cut over a selection remain removals under the refusal above. `insertText`, a
+  caller's write, still replaces the selection. *Amended the same day, the owner's decision 25:*
+  a selection that holds the **whole value**, every position the text fills, with or without the
+  literals inside and around it (`Ctrl+A`, or the ten digits of `+1 (555) 123-4567` without
+  `+1 (`), is not overwritten: typing or pasting over it starts a new value, as in any text field,
+  fitted afresh from what was typed or pasted (`Ctrl+A`, `9` gives `+1 (9`; under `00 kg`, the
+  digits of `12 kg` selected and `3` typed gives `3`). One from which no position takes anything
+  and no literal is written is refused, so a stray key does not empty the field. A selection of
+  every position but one is partial and overwritten as above.
+- *Amended 2026-10-20:* **a masked line keeps its groups in written order whatever the digits'
+  script.** The review of the amendment above found that a left-to-right paragraph is not enough
+  with Arabic-Indic digits (U+0660 to U+0669, which an Arabic keyboard types and the mask takes as
+  digits): the bidirectional algorithm counts numbers as right to left for the neutrals between
+  them, so the space or dash between two groups resolved right to left and `٤١١١ ١١١١ ١١١١ ١١١٢`
+  drew its first group on the right, the second group appearing left of the first while typing,
+  with the guide after the first. The owner's decision: a masked line keeps its **groups** (the
+  stretches between literals) in left-to-right order whatever the digits' script, and inside a
+  group each script keeps its own direction, so a group of Hebrew letters reads right to left
+  within the group (this replaces "a Hebrew value under `AAA-AAA` reads right to left, its first
+  group on the right": the first group is now on the left). The line is shaped group by group:
+  each group and each run of literals alone in a left-to-right paragraph, set side by side in
+  written order into one line in the text's own index space, so the caret, the selection, the
+  arrows, hit testing, a double click and the caret box the input method is given follow it
+  with no change of their own. It applies to the value, a composition in progress (what is being
+  composed counts as value), the guide and its unfilled tail, and a placeholder the pattern would
+  write. A group boundary inside a grapheme cluster moves to the cluster's end. One shape is left
+  as the algorithm reads it: a quoted literal of letters written right to left beside a group of
+  such letters is one run with it, since no level can keep two adjacent right-to-left runs apart.
+  (Added from the second review, 2026-10-20: under `AAA'ש'AAA` the second Hebrew group therefore
+  stands left of the first, and `'שם'AAA` draws its label right of the group where `'שם 'AAA`,
+  with a space before the group, draws it left; the setMask Javadoc and the forms guide now say
+  so and advise a space or punctuation between such a label and its group. A Cut of literals
+  alone, which the field writes back at once, copies nothing and leaves the caret where the
+  selection began.)
 - *Amended 2026-10-16:* **the reader no longer hears the pattern.** Read aloud, `AA-0000` is
   "A A dash zero zero zero zero" where it means two letters and four digits, in every language,
   and as the field's description it pushed out the tooltip, which the walk gives only to a node
