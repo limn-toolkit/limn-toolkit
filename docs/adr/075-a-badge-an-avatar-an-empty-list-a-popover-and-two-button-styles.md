@@ -252,7 +252,7 @@ public final class Popover {
     public Popover setAccessibleName(@Nullable I18nString name);
     public Popover onClose(@Nullable Consumer<Change.Origin> handler);
     public Popover attachTo(Button button);               // the button opens and closes it
-    public Popover detach();                              // lets go of it (2026-10-19, section 12.5)
+    public Popover detach();                              // lets go (2026-10-19, section 12.5)
 }
 ```
 
@@ -271,12 +271,13 @@ Not a widget, as `PopupMenu` and `Dialog` are not: it shows one.
   tooltip, which every widget has.
 - **Closed** by a press outside it or Escape (the user's), by the application losing the keyboard
   or the owner's fullscreen changing (an adjustment), by `close()` (code), which `onClose` hears
-  with the origin. Also by its anchor leaving the window, an adjustment (amended 2026-10-19,
-  section 12.5). Not modal (question 16): a press outside closes it and reaches nothing else, as
-  a combo box's list does.
+  with the origin. Also by its anchor leaving the window or no longer being shown, an adjustment
+  (amended 2026-10-19, section 12.5). Not modal (question 16): a press outside closes it and
+  reaches nothing else, as a combo box's list does.
 - **Focus** (question 12): on open the keyboard goes to the content's first focusable widget, or to
-  the panel when it has none (in the scene, to its layer: amended 2026-10-19, section 12.5); Tab and Shift+Tab cycle inside, as in a dialog; on close the focus
-  goes back to the anchor if it was inside. In the scene the layer holds the focus; in a window of
+  the panel when it has none (in the scene, to its layer: amended 2026-10-19, section 12.5); Tab
+  and Shift+Tab cycle inside, as in a dialog; on close the focus goes back to the anchor if it was
+  inside. In the scene the layer holds the focus; in a window of
   its own the owner keeps the desktop's focus and its keys, characters **and input-method
   composition** are routed to the popover's scene (question 13), so a field inside it types as
   any field does, a Japanese or Chinese input method included.
@@ -658,10 +659,11 @@ that the text above does not say, dated where it departs from it.
   window hanging from nothing, holding the keyboard, and the next click only closed it; an anchor
   taken out left it open, and an outer popover closed by code left the inner one saying it was
   open. `AnchoredPopup` now closes itself, so no host can forget: on open it asks its owner scene
-  to be told when the anchor leaves (`SceneAccess.observeAnchorLeaving`; `Widget.setSceneRecursively`
-  tells the scene a subtree is leaving before any `onDetached`, which covers a container, an
-  overlay and the window closing), calls `Host.dismiss(ADJUSTMENT)` and then closes if the host
-  did not. Closing, it first takes down every popup hung from a widget in its own panel
+  to be told when the anchor leaves (`SceneAccess.observeAnchorLeaving`;
+  `Widget.setSceneRecursively` tells the scene a subtree is leaving before any `onDetached`, which
+  covers a container, an overlay and the window closing), calls `Host.dismiss(ADJUSTMENT)`, and
+  closes after it if the host did not and its handlers did not show it again (see the review
+  note below). Closing, it first takes down every popup hung from a widget in its own panel
   (`SceneAccess.closePopupsHungIn`), at once and before it lets go of anything, so the inner
   popover gives the keyboard back to its button and the outer one takes it home. A popup closed
   because its anchor left puts the keyboard on nothing that is leaving; a window that has closed
@@ -691,6 +693,35 @@ that the text above does not say, dated where it departs from it.
   warns about nothing. In the walk, the root of a keyboard-driven popup is published `FOCUSABLE`
   when it is the node published `FOCUSED`, so the two presentations agree.
   `PopoverNoControlsAccessibilityTest` reads both trees and holds them to `AccessibleInvariants`.
+- **The review of these fixes** (2026-10-19, same day). The application's handlers run inside a
+  popup's close, and the fixes above had not allowed for it:
+  - **A popup shown again by a handler during its own close** (grave): an inner popover's
+    `onClose` that showed the outer one again ran half way through the outer one's close, whose
+    rest took the fresh presentation down and left the old layer over the window for good, every
+    press swallowed. `AnchoredPopup.close` now takes what the presentation holds off its fields
+    before any handler runs and tears down only that. After the anchor left it closes only while
+    the presentation is the one it was (a count), so a popover that its handler moved on to the
+    next anchor stays shown; and it never opens from an anchor not under its scene's root or an
+    overlay (`canHangFrom`, `SceneAccess.isInTree`), which a widget being taken out still answers.
+  - **The keyboard on a closing panel:** the inner popover's layer fades on top, and the outer
+    one could not give the keyboard back beneath it, so for its fade the keyboard stayed on a
+    button of the panel going away and Space opened the inner one again. An overlay now gives it
+    back when every layer above has already given it back.
+  - **One popover per button under handlers:** `attachTo` and `detach` settle both buttons and
+    both popovers before any `onClose` runs; whatever a handler does is then the end state. A
+    handler that shows the popover for the button it was taken off shows it as `showFor` does,
+    from a plain button.
+  - **A hidden anchor** (every host, not this record's alone): a popup now closes when its anchor
+    is no longer shown, hidden itself or with a container, a tab strip's page or an expander, as
+    when it leaves. The tab strip keeps its list button while the list is open, so the list does
+    not go as soon as the tabs left fit. A child a transform stops drawing is the same case for
+    the branch that makes it so (`Scene.observeAnchorLeaving` says where it calls in).
+  - **A closing layer took presses and the focus** (every in-scene popup, menus included): a
+    press during the fade now reaches what is beneath, and the closing layer takes no focus.
+  - **A handler's throw** during a removal aborted it half way; every close runs, the removal,
+    hide or overlay removal completes, and the first throw is rethrown after.
+  `PopoverReentrancyTest`, `AnchoredPopupHiddenAnchorTest`, `AnchoredPopupClosingLayerTest` and new
+  cases in `PopoverAnchorLeavesTest` and `PopoverAttachTest` hold each.
 
 ### 12.6 The input method in a popover's window, measured
 

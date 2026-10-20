@@ -192,7 +192,7 @@ public final class AnchoredPopup {
     private @Nullable Subscription anchorMoved;
     /** While open: closing it when the anchor leaves the window, or the popup it lies in closes. */
     private @Nullable Subscription anchorLeaves;
-    /** Set while it closes because its anchor left: nothing is focused on a widget on its way out. */
+    /** Set while it closes because its anchor left: nothing is focused on a widget going away. */
     private boolean anchorGone;
     /** Counts the presentations, so a close for one never takes down the one shown after it. */
     private int presentation;
@@ -578,7 +578,8 @@ public final class AnchoredPopup {
         NativeWindow closingWindow = window;
         Scene closingPopupScene = popupScene;
         Scene scene = ownerScene;
-        Subscription[] held = {cursor, route, presses, blur, popupBlur, fullscreen, anchorMoved, anchorLeaves};
+        Subscription[] held = {cursor, route, presses, blur, popupBlur, fullscreen, anchorMoved,
+                anchorLeaves};
         panel = null;
         layer = null;
         window = null;

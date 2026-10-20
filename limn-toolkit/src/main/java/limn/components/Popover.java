@@ -30,19 +30,24 @@ import java.util.function.Consumer;
  * shadow, below the anchor unless it does not fit there and above has more room.
  *
  * <p><b>It takes the keyboard.</b> On open the focus goes to the content's first focusable widget,
- * or, when it has none, to the popover itself, which a reader is then on; Tab and Shift+Tab cycle inside it, as in a dialog; on close
- * the focus is where it was, the anchor for a popover opened from a button. It shows in a window
+ * or, when it has none, to the popover itself, which a reader is then on; Tab and Shift+Tab cycle
+ * inside it, as in a dialog; on close the focus is where it was, the anchor for a popover opened
+ * from a button. It shows in a window
  * of its own where the platform allows ({@link DisplayMode#NATIVE_WINDOW}, the default, as its
  * siblings), so it can pass the window's edge; that window never takes the desktop's keyboard, and
  * the owner's keys, characters and input-method composition are delivered into it, so a field
  * inside types as any field does, a Japanese or a Chinese input method included.
  *
  * <p><b>It closes</b> on a press outside it or Escape (the user's); on the application losing the
- * keyboard, the owner's fullscreen changing, or the anchor leaving the window (an adjustment):
- * the anchor taken out by itself, with a container or a dialog it is in, or with the window, and
- * the popover it lies in closing, so a popover opened from another goes with it; and on
- * {@link #close()} (the code's). {@link #onClose} hears each with that origin. It is not modal: a press outside closes
- * it and reaches nothing else, as a combo box's list does. A question that must be answered is a
+ * keyboard, the owner's fullscreen changing, or the anchor leaving the window or no longer shown
+ * (an adjustment): the anchor taken out of the tree by itself, with a container or a dialog it is
+ * in, or with the window, even to be put back elsewhere in the window as a tool bar moves a
+ * button into its overflow; hidden, itself or with a container, a tab strip's page or an expander;
+ * and the popover it lies in closing, so a popover opened from another goes with it. The
+ * keyboard, when it was in the panel, then goes where a focused widget's goes when it is taken
+ * out or hidden: to nobody. And on {@link #close()} (the code's). {@link #onClose} hears each with
+ * that origin. It is not modal: a press outside closes it and reaches nothing else, as a combo
+ * box's list does. A question that must be answered is a
  * {@link Dialog}. It opens from {@link #showFor} or from the button {@link #attachTo} gave it, and
  * never on hover or focus: a surface that opens as the pointer passes is a tooltip.
  *

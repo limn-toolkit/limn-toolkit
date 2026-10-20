@@ -1095,8 +1095,8 @@ public final class Scene {
         // (the button that triggered the dialog), if it is still usable. Never in a window that
         // has closed, whose focus went to nobody first: a popup hung from a widget of it closes
         // as the tree leaves, and a widget focused then would be focused in a dead scene.
-        if (restore != null && restore != overlay && !detachedByClose && isInSubtree(restore, keyboardRoot())
-                && canTakeFocus(restore)) {
+        if (restore != null && restore != overlay && !detachedByClose
+                && isInSubtree(restore, keyboardRoot()) && canTakeFocus(restore)) {
             // The overlay closing is what moved the focus, not whoever closed it.
             setFocus(restore, Change.Origin.ADJUSTMENT);
         } else {
@@ -4045,8 +4045,8 @@ public final class Scene {
         keyboardBelow.add(overlay);
         closingOverlays.add(overlay);
         Widget<?> restore = overlayFocusReturn.get(index);
-        if (restore != null && restore != overlay && !detachedByClose && isInSubtree(restore, keyboardRoot())
-                && canTakeFocus(restore)) {
+        if (restore != null && restore != overlay && !detachedByClose
+                && isInSubtree(restore, keyboardRoot()) && canTakeFocus(restore)) {
             setFocus(restore, Change.Origin.ADJUSTMENT);
         } else {
             setFocus(null, Change.Origin.ADJUSTMENT);
