@@ -3770,6 +3770,11 @@ public final class Scene {
             }
 
             @Override
+            public boolean isDrawn(Widget<?> widget) {
+                return widget.isDrawnInScene();
+            }
+
+            @Override
             public boolean isInTree(Widget<?> widget) {
                 Scene scene = widget.scene();
                 return scene != null && scene.holdsInTree(widget);

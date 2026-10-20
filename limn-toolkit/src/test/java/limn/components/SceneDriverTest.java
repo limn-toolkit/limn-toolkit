@@ -101,6 +101,11 @@ class SceneDriverTest extends ComponentTestBase {
             }
 
             @Override
+            public boolean isDrawn(limn.scene.Widget<?> widget) {
+                return false;
+            }
+
+            @Override
             public void overlayCard(limn.scene.Widget<?> overlay, limn.scene.internal.OverlayCard card) {
             }
 

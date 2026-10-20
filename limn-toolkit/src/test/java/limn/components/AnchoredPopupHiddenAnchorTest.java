@@ -185,6 +185,35 @@ class AnchoredPopupHiddenAnchorTest extends ComponentTestBase {
     }
 
     @Test
+    void aPopoverIsNotShownFromAButtonATransformDrawsAsNothing() {
+        // A card's face scaled to 0: the button on it is not drawn, and the keyboard is not given
+        // to a panel hanging from it. Scrolled out of view, a widget can still be shown for.
+        Button filter = new Button("Filter");
+        limn.scene.layout.Transform face = new limn.scene.layout.Transform(filter).setScale(0);
+        Column root = new Column();
+        root.add(face);
+        inWindow(root);
+        Popover popover = new Popover(new SizedBox(160, 30, new TextField())).setDisplayMode(DisplayMode.IN_SCENE);
+        popover.showFor(filter);
+        assertFalse(popover.isOpen(), "not from a button drawn as nothing");
+        face.setScale(1);
+        frames(2);
+        popover.showFor(filter);
+        assertTrue(popover.isOpen(), "drawn again, it opens");
+    }
+
+    @Test
+    void aComboBoxOpenedInADialogBeforeItsFirstFrameOpens() {
+        ComboBox<String> combo = new ComboBox<>(List.of("One", "Two")).setDisplayMode(DisplayMode.IN_SCENE);
+        Column root = new Column();
+        root.add(new Label("Orders"));
+        inWindow(root);
+        new Dialog("Pick one", "").setDisplayMode(DisplayMode.IN_SCENE).setContent(combo).show(scene);
+        combo.open(); // before any layout: no size yet, under a card that clips
+        assertTrue(combo.isOpen(), "not laid out yet is not hidden");
+    }
+
+    @Test
     void aTabSwitchedByAButtonInThePopoverClosesIt() {
         Button details = new Button("Details");
         Column first = new Column();

@@ -997,6 +997,24 @@ public abstract class Widget<W extends Widget<W>> {
 
     // ----------------------------------------------------------------- flags
 
+    /**
+     * Whether this widget is drawn in its scene: in one, visible with every ancestor, and not drawn
+     * as nothing by a transform above it. {@link #isShowing()} without its clipping, for a popup
+     * deciding whether it can hang from a widget scrolled out of view or not laid out yet.
+     */
+    final boolean isDrawnInScene() {
+        for (Widget<?> w = this; w != null; w = w.parent) {
+            if (!w.visible || w.elsewhere) {
+                return false;
+            }
+            ChildTransform through = w.parent != null ? w.parent.childTransform : null;
+            if (through != null && through.drawsNothing) {
+                return false;
+            }
+        }
+        return scene != null;
+    }
+
     /** This widget's own visibility flag; see {@link #isShowing()} for whether it is on screen. */
     public final boolean isVisible() {
         return visible && !elsewhere;

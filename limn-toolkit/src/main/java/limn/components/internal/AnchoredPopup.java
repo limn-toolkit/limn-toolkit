@@ -235,18 +235,14 @@ public final class AnchoredPopup {
      * @param anchor a widget
      * @return whether a popup can hang from it: in a scene's tree, and not on its way out of it (a
      *         widget being taken out still answers its scene while the popups hung from it close,
-     *         and a handler of theirs may ask to show one there again), nor hidden
+     *         and a handler of theirs may ask to show one there again), nor hidden or drawn as
+     *         nothing by a transform; a widget scrolled out of view, or not laid out yet, can
      */
     public static boolean canHangFrom(Widget<?> anchor) {
-        if (anchor.scene() == null || !SceneAccess.isInTree(anchor)) {
-            return false;
-        }
-        for (Widget<?> w = anchor; w != null; w = w.parent()) {
-            if (!w.isVisible()) {
-                return false; // scrolled out of sight is still shown; hidden is not
-            }
-        }
-        return true;
+        // Drawn: visible with every ancestor and not drawn as nothing by a transform above it (a
+        // face turned away, a scale of 0). Scrolled out of a viewport, or not laid out yet (a
+        // combo box opened in a dialog just shown), it still is: isShowing() refuses both.
+        return anchor.scene() != null && SceneAccess.isInTree(anchor) && SceneAccess.isDrawn(anchor);
     }
 
     /**

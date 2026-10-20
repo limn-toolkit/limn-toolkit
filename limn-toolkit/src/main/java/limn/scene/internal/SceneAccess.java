@@ -96,6 +96,9 @@ public final class SceneAccess {
         /** @param widget a widget; see {@link SceneAccess#isInTree} */
         boolean isInTree(Widget<?> widget);
 
+        /** @param widget a widget; see {@link SceneAccess#isDrawn} */
+        boolean isDrawn(Widget<?> widget);
+
         @org.jspecify.annotations.Nullable Widget<?> focusedBefore(Scene scene);
 
         /**
@@ -542,6 +545,17 @@ public final class SceneAccess {
      */
     public static boolean isInTree(Widget<?> widget) {
         return hook().isInTree(java.util.Objects.requireNonNull(widget, "widget"));
+    }
+
+    /**
+     * @param widget a widget
+     * @return whether it is drawn in its scene: in one, visible with every ancestor, and not drawn
+     *         as nothing by a transform above it (a back face turned away, a scale of 0, a plane
+     *         seen edge-on). What {@link Widget#isShowing()} answers without its clipping: a
+     *         widget scrolled out of a viewport, or not laid out yet, is drawn
+     */
+    public static boolean isDrawn(Widget<?> widget) {
+        return hook().isDrawn(java.util.Objects.requireNonNull(widget, "widget"));
     }
 
     /** @return the widget that had the keyboard in {@code scene} before the one that has it now, or null */
