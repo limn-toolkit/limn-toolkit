@@ -202,3 +202,17 @@ The probe and the raw logs are kept outside the repository.
 - The ending gains tests of its own: the request's order and refusals over headless windows, and a
   child JVM that sends macOS's `terminate:` and watches the process end, as `ClosedWindowTest` and
   `SoftwareGlExitTest` watch theirs.
+
+## Note, 2026-10-20: only Limn implements `CloseRequest`
+
+`CloseRequest` is sealed and permits only the request the ending coordinator answers with, as the
+owner decided for the three requests a user's close puts to an application (decision 35 of the
+2026-10-19 review; the dialogs review's R6G-10), so that a 1.x release can give it a method
+without breaking an application: an open interface grows only by default methods, and a class an
+application had written against it would stop compiling at the first abstract one. The sentence
+that let an application implement it to test its handlers goes; a test asks a handler the way the
+user and the system do, with a headless window's `userClose()` and the backend's `requestQuit()`
+from `limn-test`, which no test in this repository had needed anything else for. The coordinator's
+request is a public class of `limn.backend.internal`, because the run time lets a class of another
+package implement a sealed interface only when it is public; its constructor is private.
+`CloseRequest` has not been released (it came after 0.9.0), so no released application is broken.

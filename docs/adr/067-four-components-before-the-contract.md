@@ -210,3 +210,11 @@ What remains: a closable tab's button is a button inside a tab, a structure the 
 do not cover, and it has not yet been heard by the three screen readers of the lab. The two
 settings `SECURITY.md` relies on, private reporting and Discussions, are the owner's to turn on.
 
+## Note, 2026-10-20: only Limn implements `TabbedPane.TabCloseRequest`
+
+The request a tab's close hands the handler is sealed and permits only the pane's own, as the
+owner decided for the three requests a user's close puts to an application (decision 35 of the
+2026-10-19 review), so that a 1.x release can give it a method without breaking an application,
+which an open interface allows only as a default method. A test asks a handler the way the user
+does, with a click on the tab's close button or the key that closes the selected tab, through
+`limn-test`'s scene driver. The request has not been released (it came after 0.9.0).

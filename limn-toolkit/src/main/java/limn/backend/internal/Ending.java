@@ -229,15 +229,19 @@ public final class Ending {
         boolean returned;
     }
 
-    /** A window's question. */
-    private final class Asked implements CloseRequest {
+    /**
+     * A window's question. Public only because the sealed {@link CloseRequest} permits it from
+     * another package, which the run time allows of a public class alone; nothing outside this
+     * class can make one.
+     */
+    public final class Asked implements CloseRequest {
 
         private final NativeWindow window;
         private final Reason reason;
         private final List<Consumer<Boolean>> waiting = new ArrayList<>(2);
         private boolean answered;
 
-        Asked(NativeWindow window, Reason reason) {
+        private Asked(NativeWindow window, Reason reason) {
             this.window = window;
             this.reason = reason;
         }

@@ -487,9 +487,10 @@ class DialogCancelRequestTest extends ComponentTestBase {
         click("Save");
         assertEquals("save", result.get(), "the form is not frozen by a held request");
         Dialog.CancelRequest held = asked.get(0);
-        assertTrue(held.isAnswered(), "settled by the answer");
+        assertFalse(held.isAnswered(), "settled by the answer, and not answered: neither allow nor refuse was called");
         held.allow(); // the application answering its own question late: nothing, and no throw
-        held.refuse();
+        assertTrue(held.isAnswered(), "answered now, as a window's and a tab's request count it");
+        assertThrows(IllegalStateException.class, held::refuse, "a second answer throws, as on every request");
         settle();
         assertEquals("save", result.get());
 
@@ -497,7 +498,8 @@ class DialogCancelRequestTest extends ComponentTestBase {
         press(Keys.ESCAPE);
         dialog.dismiss("closed");
         settle();
-        assertTrue(asked.get(0).isAnswered(), "settled by the application's dismiss");
+        assertFalse(asked.get(0).isAnswered(), "settled by the application's dismiss, not answered");
+        asked.get(0).refuse();
         assertEquals("closed", result.get());
     }
 

@@ -7,9 +7,13 @@ package limn.backend;
  *
  * <p>While a request is unanswered, the window is not asked again: a second click on its close
  * button asks nothing new, and an application ending waits for this answer instead of asking its
- * own question. An application may implement this interface to test its handlers.
+ * own question.
+ *
+ * <p>Only Limn implements this interface. A test asks a handler the way the user and the system
+ * do, through the headless backend of {@code limn-test}: {@code HeadlessWindow.userClose()} for a
+ * user's close, {@code Backend.requestQuit()} for an application ending.
  */
-public interface CloseRequest {
+public sealed interface CloseRequest permits limn.backend.internal.Ending.Asked {
 
     /**
      * Why the window is asked.

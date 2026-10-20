@@ -166,10 +166,16 @@ public final class Dialog {
      * }</pre>
      *
      * <p>A request the dialog settles itself, because it was answered another way (a button that is
-     * not the cancel, {@link #dismiss}, its window going away) while the request was held, is
-     * {@linkplain #isAnswered() answered}, and {@link #allow()} and {@link #refuse()} then do nothing.
+     * not the cancel, {@link #dismiss}, its window or its owner going away) while the request was
+     * held, is over: its answer, given later, then does nothing, and a second one throws, as on
+     * every request. {@link #isAnswered()} says whether {@code allow} or {@code refuse} has been
+     * called, as a window's and a tab's request do; whether the dialog has closed is its
+     * {@link Dialog#result() result}'s to say.
+     *
+     * <p>Only Limn implements this interface. A test asks a handler the way the user does, with
+     * Escape, a click or a window's close through the headless backend of {@code limn-test}.
      */
-    public interface CancelRequest {
+    public sealed interface CancelRequest permits Asked {
 
         /**
          * How the user closed the dialog.
@@ -206,7 +212,8 @@ public final class Dialog {
 
         /**
          * Closes the dialog with its cancel result, as the user's gesture would have: through the
-         * fade, or at once under less motion. UI thread only.
+         * fade, or at once under less motion; nothing, if the dialog closed another way meanwhile.
+         * UI thread only.
          *
          * @throws IllegalStateException if the request was already answered with {@code allow} or
          *                               {@code refuse}
@@ -214,14 +221,15 @@ public final class Dialog {
         void allow();
 
         /**
-         * Keeps the dialog open, with the keyboard where it was. UI thread only.
+         * Keeps the dialog open, with the keyboard where it was; nothing, if the dialog closed
+         * another way meanwhile. UI thread only.
          *
          * @throws IllegalStateException if the request was already answered with {@code allow} or
          *                               {@code refuse}
          */
         void refuse();
 
-        /** @return whether the request was answered, or settled by the dialog closing another way */
+        /** @return whether {@link #allow()} or {@link #refuse()} has been called */
         boolean isAnswered();
     }
 
@@ -619,7 +627,7 @@ public final class Dialog {
     private final class Asked implements CancelRequest {
         private final Reason reason;
         private boolean answered;
-        /** Answered for it: the dialog closed another way while it was held. */
+        /** Over: the dialog closed another way while it was held, so its answer decides nothing. */
         private boolean settled;
 
         Asked(Reason reason) {
@@ -648,12 +656,9 @@ public final class Dialog {
             answer();
         }
 
-        /** @return whether this answer is the one that counts */
+        /** @return whether this answer is the one that decides */
         private boolean answer() {
             Ui.checkUiThread();
-            if (settled) {
-                return false; // the dialog has its answer already: nothing is left to decide
-            }
             if (answered) {
                 throw new IllegalStateException("the request was already answered");
             }
@@ -661,12 +666,12 @@ public final class Dialog {
             if (pendingCancel == this) {
                 pendingCancel = null;
             }
-            return true;
+            return !settled; // settled, the dialog has its answer already: nothing is left to decide
         }
 
         @Override
         public boolean isAnswered() {
-            return answered || settled;
+            return answered;
         }
     }
 

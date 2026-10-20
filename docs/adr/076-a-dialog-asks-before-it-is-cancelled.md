@@ -117,8 +117,10 @@ Rules for the time a request is unanswered:
    buttons still answer it; a dialog opened over it freezes it, as any stacked dialog does.
 3. **An answer that arrives another way settles the request.** If the dialog is answered by another
    button, dismissed by the application or loses its surface while a request is held, the request
-   is over: `allow()` and `refuse()` then do nothing, `isAnswered()` turns true, and nothing throws,
-   since the application answering a question it asked is not its mistake.
+   is over: the answer the application gives it later does nothing, and does not throw, since the
+   application answering a question it asked is not its mistake; a second answer throws, as on
+   every request. `isAnswered()` says whether `allow()` or `refuse()` has been called, as on a
+   window's and a tab's request (amended 2026-10-20, section 5).
 4. **The keyboard is not moved by the request.** A dialog opened over the form takes it, and gives
    it back to the form when it closes, which is what stacking already does.
 
@@ -180,3 +182,16 @@ carries `window()` and `TabCloseRequest` `content()`, and that the documents giv
 other than the cancel result with `request.dialog().dismiss(result)`, which settles the request.
 `allow(String)` was the other shape offered and is not taken: an answer with a result of its own is
 not an allowed cancel, and `dismiss` already gives it without asking the handler.
+
+### 2026-10-20: the request is sealed, and `isAnswered()` means what its siblings' mean
+
+`Dialog.CancelRequest` is sealed and permits only the dialog's own request, as `CloseRequest` and
+`TabbedPane.TabCloseRequest` now are (decision 35, R6G-10), so that a 1.x release can give it a
+method without breaking an application. A test asks a handler the way the user does, with Escape, a
+click or a window's close through `limn-test`.
+
+`isAnswered()` meant "answered, or settled by the dialog closing another way", where the window's
+and the tab's mean "`allow()` or `refuse()` has been called". It now means the latter on all three:
+one word, one meaning. A settled request still takes its late answer silently, as rule 3 of 2.4
+says, and a second answer throws as everywhere; whether the dialog has closed is its `result()`'s
+to say, which `dialog()` now reaches.
