@@ -5,6 +5,7 @@ import limn.accessibility.Accessible;
 import limn.animation.Transition;
 import limn.backend.Cursor;
 import limn.components.internal.a11y.LeafActionAccessibility;
+import limn.concurrent.Subscription;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
@@ -66,8 +67,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * the keyboard (a button, a field, a check box) is refused in the media, the header and the
  * content of a card that is activated, with an {@link IllegalArgumentException} from the setter or
  * from {@code onActivate}; one that arrives later, inside a content the application changes, is
- * logged once and answers nothing, and every press and key there stays the card's. Actions go in
- * the footer. A card that is not activated takes any widget in any part.
+ * logged once and answers nothing, and every press and key there stays the card's. Moved to the
+ * footer, taken out of the card, or left in a card that is no longer clicked, it answers again as
+ * it did, and the card keeps no hold on it. Actions go in the footer. A card that is not activated
+ * takes any widget in any part.
  *
  * <p><b>To a reader.</b> A card with a title is a group named by its title, whose title is a
  * heading; a card with none is transparent, as a {@link Surface} is, so a chart in a card is the
@@ -181,8 +184,13 @@ public final class Card extends Widget<Card> {
     private MediaFit mediaFit = MediaFit.NATURAL;
     private float mediaAspect = 16f / 9f;
     private @Nullable Runnable action;
-    /** The controls this card put out of reach because they arrived in its area; given back after. */
+    /**
+     * The controls this card put out of reach because they arrived in its area; each is given back
+     * as it leaves the area, as its part is replaced, or as the card stops being clicked.
+     */
     private final List<Widget<?>> madeInert = new ArrayList<>();
+    /** The window's tree watched for a control leaving the area, while one is held out of reach. */
+    private @Nullable Subscription leavingWatch;
 
     // Where the last layout put what the card draws itself: the icon media's box and the top of
     // the footer's band, which is where the area ends and the divider is drawn.
@@ -490,6 +498,7 @@ public final class Card extends Widget<Card> {
         for (Widget<?> each : actions) {
             footer.add(each);
         }
+        giveBackWhatLeft(); // an action moved here out of the area, as the warning advises
         markNeedsLayout();
         if (had != (actions.length > 0)) {
             // The published tree changes shape: an activated card turns from a button into a
@@ -670,6 +679,7 @@ public final class Card extends Widget<Card> {
                 for (Widget<?> each : new ArrayList<>(madeInert)) {
                     giveBack(each);
                 }
+                watchLeaving();
             }
             invalidate();
             markNeedsLayout();
@@ -745,6 +755,7 @@ public final class Card extends Widget<Card> {
         if (at.isFocusable() && !madeInert.contains(at)) {
             madeInert.add(at);
             SceneAccess.setInert(at, true);
+            watchLeaving();
             if (SAID_INERT.add(at.getClass().getName())) {
                 LOG.log(System.Logger.Level.WARNING, "a " + at.getClass().getName() + " arrived in the "
                         + "area of a Card activated by a click, and answers nothing there: put it in "
@@ -762,13 +773,56 @@ public final class Card extends Widget<Card> {
     private void giveBack(Widget<?> at) {
         for (int i = madeInert.size() - 1; i >= 0; i--) {
             Widget<?> each = madeInert.get(i);
-            for (Widget<?> w = each; w != null; w = w.parent()) {
-                if (w == at) {
-                    madeInert.remove(i);
-                    SceneAccess.setInert(each, false);
-                    break;
-                }
+            if (isAtOrUnder(each, at)) {
+                madeInert.remove(i);
+                SceneAccess.setInert(each, false);
             }
+        }
+        watchLeaving();
+    }
+
+    /**
+     * Gives back every control this card put out of reach that is no longer in its area: one the
+     * application moved to the footer, as the warning tells it to, took out, or put elsewhere. It
+     * answers again where it went, and the card keeps no hold on it.
+     */
+    private void giveBackWhatLeft() {
+        for (int i = madeInert.size() - 1; i >= 0; i--) {
+            Widget<?> each = madeInert.get(i);
+            if (!isAtOrUnder(each, area)) {
+                madeInert.remove(i);
+                SceneAccess.setInert(each, false);
+            }
+        }
+        watchLeaving();
+    }
+
+    private static boolean isAtOrUnder(Widget<?> widget, Widget<?> at) {
+        for (Widget<?> w = widget; w != null; w = w.parent()) {
+            if (w == at) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Watches the window's tree while this card holds a control out of reach, so that one taken
+     * out of the area is given back as it goes, and not at the card's next layout, which a change
+     * inside a container that lays itself out alone does not bring. A control taken out while the
+     * card is in no window is given back at the card's next layout.
+     */
+    private void watchLeaving() {
+        boolean want = !madeInert.isEmpty() && scene() != null && area.scene() != null;
+        if (want && leavingWatch == null) {
+            leavingWatch = scene().observeChanges((widget, change) -> {
+                if (change.aspect() == Change.Aspect.CHILDREN) {
+                    giveBackWhatLeft();
+                }
+            });
+        } else if (!want && leavingWatch != null) {
+            leavingWatch.cancel();
+            leavingWatch = null;
         }
     }
 
@@ -1063,6 +1117,7 @@ public final class Card extends Widget<Card> {
         float inner = Math.max(0, width() - 2 * pad);
         footer.measure(Constraints.loose(inner, Constraints.UNBOUNDED_LIMIT));
         footer.layoutBox(pad, a.footerY, inner, a.footerHeight);
+        giveBackWhatLeft();
         if (action != null) {
             quietControlsInArea();
         }
@@ -1223,6 +1278,11 @@ public final class Card extends Widget<Card> {
         return footer;
     }
 
+    /** @return how many controls this card holds out of reach; for tests */
+    int inertControls() {
+        return madeInert.size();
+    }
+
     /** @return whether the pointer is over the area, as the area was told; for tests */
     boolean isAreaHovered() {
         return area.hovered;
@@ -1290,11 +1350,16 @@ public final class Card extends Widget<Card> {
         protected void onAttached() {
             super.onAttached();
             observeHover();
+            watchLeaving();
         }
 
         @Override
         protected void onDetached() {
             super.onDetached();
+            if (leavingWatch != null) {
+                leavingWatch.cancel(); // the window's tree is not this card's any more
+                leavingWatch = null;
+            }
             SceneAccess.observeHoverWithin(this, null);
             hovered = false;
             armed = false;

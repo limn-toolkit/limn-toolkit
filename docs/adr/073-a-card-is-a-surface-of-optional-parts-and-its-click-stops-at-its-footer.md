@@ -667,6 +667,13 @@ choice open, it is said here.
 - **A control found at a layout** is made inert where it is, and given back to the application,
   inert no more, when it leaves the card or the card stops being clicked. A card that stops being
   clicked with its area holding the keyboard lets the keyboard go as a removed widget does.
+  *Note, 2026-10-19 (audit CO-4):* "when it leaves the card" held only when its whole part was
+  replaced. A control taken out of a column in the content and handed to `setFooter`, as the
+  warning advises, stayed inert in the footer (no click, no focus), and the card kept a reference to
+  any such control the application discarded. It is now given back as it leaves the area: by
+  `setFooter` at once, by a watch on the window's tree (held only while the card holds a control
+  out of reach) as a container takes it out, and at the card's next layout when it was taken out
+  while the card was in no window.
 - **The group of a clicked card with a footer** is named by the title. An application that names a
   card with no title names its button; the group around it stays unnamed, the card having no way
   to read the name the application wrote.
