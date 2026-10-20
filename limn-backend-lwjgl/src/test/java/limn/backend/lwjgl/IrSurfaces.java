@@ -3,6 +3,7 @@ package limn.backend.lwjgl;
 import limn.render3d.shader.Expr;
 import limn.render3d.shader.ShaderType;
 import limn.render3d.shader.SurfaceOutputs;
+import limn.render3d.shader.TargetProfile;
 
 import java.util.List;
 
@@ -156,5 +157,16 @@ final class IrSurfaces {
                 add(new Expr.Swizzle(s, "w"), Expr.Lit.of(1f))));
         Expr.Loop loop = new Expr.Loop("acc", Expr.Lit.of(0f, 0f, 0f, 0f), 8, next, null);
         return emitting(mul(new Expr.Swizzle(loop, "rgb"), Expr.Lit.of(1f / 8)));
+    }
+
+    /**
+     * A sampler reached through raw text, read twice: the shape of a surface that names a sampler
+     * the IR has no reference for. It linked before nodes were shared, and must go on linking.
+     */
+    static SurfaceOutputs samplerThroughRawText() {
+        Expr sheet = new Expr.Raw(TargetProfile.GLSL_330, "u_sheet", ShaderType.SAMPLER2D);
+        Expr uv = ref("v_uv", ShaderType.VEC2);
+        return SurfaceOutputs.of(call("texture", ShaderType.VEC4, sheet, uv), Expr.Lit.of(0f), Expr.Lit.of(1f),
+                new Expr.Swizzle(call("texture", ShaderType.VEC4, sheet, mul(uv, Expr.Lit.of(2f))), "rgb"));
     }
 }

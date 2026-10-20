@@ -66,6 +66,7 @@ class SurfaceLoopGlTest {
         all.put("unrolled", IrSurfaces.unrolled(9));
         all.put("mandelbrot", IrSurfaces.mandelbrot(256));
         all.put("blur loop", IrSurfaces.blurLoop());
+        all.put("sampler through raw text", IrSurfaces.samplerThroughRawText());
         return all;
     }
 

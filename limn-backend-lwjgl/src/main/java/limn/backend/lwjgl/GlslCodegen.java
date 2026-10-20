@@ -213,8 +213,8 @@ final class GlslCodegen {
     /**
      * Writes the IR as GLSL, numbering it by value so that a node used twice is written once.
      * Two nodes are the same when their kind, their fields and their children's
-     * numbers are; a node that is not a literal, a reference or a swizzle of one, used by more
-     * than one parent, becomes a local, declared before the first statement that reads it in the
+     * numbers are; a node that is not a literal, a reference, a swizzle of one or a sampler, used
+     * by more than one parent, becomes a local, declared before the first statement that reads it in the
      * innermost block that sees everything it reads, and read from it wherever the names it reads
      * still mean what they meant there. A loop is written as statements and read by its variable.
      */
@@ -340,6 +340,11 @@ final class GlslCodegen {
             if (node instanceof Expr.Swizzle swizzle && trivial(swizzle.source())) {
                 return emit(swizzle.source(), scope) + "." + swizzle.pattern();
             }
+            if (opaque(node)) {
+                // A sampler is declared only as a uniform or a parameter: never a local, so it is
+                // written where it is read, however often.
+                return inline(node, scope);
+            }
             int id = id(node);
             String local = scope.local(id, reads(id));
             if (local != null) {
@@ -361,6 +366,12 @@ final class GlslCodegen {
                     .append(" = ").append(text).append(";\n");
             home.locals.put(id, name);
             return name;
+        }
+
+        /** Whether a node is of an opaque type, a sampler, which only a node declaring its type can be. */
+        private static boolean opaque(Expr node) {
+            return (node instanceof Expr.Call || node instanceof Expr.Raw || node instanceof Expr.Construct)
+                    && node.type().components == 0;
         }
 
         private static boolean trivial(Expr node) {

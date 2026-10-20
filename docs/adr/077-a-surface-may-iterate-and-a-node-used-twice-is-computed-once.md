@@ -226,3 +226,9 @@ two sibling loops may both call their state `z`.
   surface can call (no surface declares a function), accepts there only the built-ins of both
   profiles defined in non-uniform control flow and its own helpers that are arithmetic alone,
   and refuses any other name, so a function it has not read is no promise.
+- **2026-10-20, review: a sampler is never a local.** Sharing and hoisting put any node into a
+  typed local, a sampler-typed `Expr.Raw` or `Expr.Call` included, and both profiles declare an
+  opaque type only as a uniform or a parameter (GLSL ES 3.20 §4.1.7, GLSL 3.30 §4.1.7): a surface
+  that read a sampler through raw text twice, which linked before sharing, stopped linking, and
+  the link was retried every frame. A node of an opaque type is now written where it is read,
+  like a reference; the device test compiles that surface on the GPU and the software renderer.

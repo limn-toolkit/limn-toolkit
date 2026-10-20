@@ -302,4 +302,21 @@ class GlslSharingAndLoopsTest {
         assertDoesNotThrow(() -> fragment(IrSurfaces.emitting(new Expr.Construct(ShaderType.VEC3,
                 List.of(allowed)))));
     }
+
+    @Test
+    void aSamplerIsNeverALocal() {
+        // GLSL declares a sampler only as a uniform or a parameter: a local of one does not compile.
+        String twice = fragment(IrSurfaces.samplerThroughRawText());
+        assertFalse(twice.contains("sampler2D ir_"), twice);
+        assertTrue(twice.contains("    vec4 baseColor = texture((u_sheet), v_uv);\n"), twice);
+        // Read in a loop's turn, raw text reads no name of the loop and would be computed before it.
+        Expr sheet = new Expr.Raw(TargetProfile.GLSL_330, "u_sheet", ShaderType.SAMPLER2D);
+        Expr uv = ref("v_uv", ShaderType.VEC2);
+        Expr.Ref acc = new Expr.Ref("acc", ShaderType.VEC4);
+        Expr.Loop blur = new Expr.Loop("acc", Expr.Lit.of(0f, 0f, 0f, 0f), 4, add(acc,
+                call("texture", ShaderType.VEC4, sheet, add(uv, new Expr.Swizzle(acc, "xy")))), null);
+        String looped = fragment(IrSurfaces.emitting(new Expr.Swizzle(blur, "rgb")));
+        assertFalse(looped.contains("sampler2D ir_"), looped);
+        assertTrue(firstLoop(looped).contains("texture((u_sheet), (v_uv + ir_s0.xy))"), looped);
+    }
 }
