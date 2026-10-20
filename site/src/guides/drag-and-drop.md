@@ -161,7 +161,10 @@ for a view that is turned or scaled. Files dragged in from another program scrol
 the same way.
 
 Nothing turns it on. A widget of your own that scrolls through a `ScrollBar` scrolls under a
-drag like the toolkit's do.
+drag like the toolkit's do, a few points a frame through its model's `scrollBy`. Where your
+widget's offset is an estimate, as with rows of different heights measured only as they are
+built, override `scrollBy` with a move from where the content is, as the wheel makes: the default
+goes through `setOffset`, and each small step would land by the estimate.
 
 ## Your own widget as a target
 

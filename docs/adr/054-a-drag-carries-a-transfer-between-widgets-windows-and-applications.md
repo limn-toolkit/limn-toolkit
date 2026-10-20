@@ -537,3 +537,12 @@ the system, one from another program, never the keyboard's):
   changed a value under the wheel is no longer zoomed or changed by a drag resting near its edge.
 
 `DragAutoScrollTest` holds each of these, and `ShowcaseDragScrollTest` the page itself.
+
+Review of the auto-scroll (2026-10-20):
+
+- **A step is a relative move.** The bar's model gained `scrollBy(delta)`, by default
+  `setOffset(offset() + delta)`; the list, the tree and the table override it with their rows'
+  walk, the move the wheel makes. Through `setOffset` each step of a few points landed by the
+  mean row height, as a thumb drag does: over rows of different heights the rows stood on the
+  step and then leapt by twenty to eighty points in one frame (measured, 400 rows of 12 to 112
+  points, a drag 18 points into the band). `DragAutoScrollTest` holds each of the three steady.

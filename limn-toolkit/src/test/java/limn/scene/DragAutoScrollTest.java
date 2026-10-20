@@ -501,6 +501,158 @@ class DragAutoScrollTest {
         release(60, 295);
     }
 
+    /**
+     * Row heights that differ from their mean almost everywhere: short rows and tall ones, the
+     * tall ones of every height, so the estimate a jump lands by is wrong at nearly every row.
+     */
+    private static float[] mixedHeights(int count) {
+        float[] heights = new float[count];
+        java.util.Random random = new java.util.Random(7);
+        for (int i = 0; i < count; i++) {
+            heights[i] = i % 2 == 0 ? 12 : 12 + random.nextInt(100);
+        }
+        return heights;
+    }
+
+    @Test
+    void aListOfRowsOfMixedHeightsMovesSteadilyUnderADragAndNeverLeaps() {
+        float[] heights = mixedHeights(400);
+        java.util.Map<Widget<?>, Integer> rowOf = new java.util.IdentityHashMap<>();
+        List<Integer> items = new ArrayList<>();
+        for (int i = 0; i < heights.length; i++) {
+            items.add(i);
+        }
+        ListView<Integer> list = new ListView<Integer>(i -> {
+            Box row = new Box("row " + i, W, heights[i]);
+            rowOf.put(row, i);
+            return row;
+        }).setItems(items);
+        assertSteadyUnderADrag(list, rowOf);
+    }
+
+    @Test
+    void aTreeOfRowsOfMixedHeightsMovesSteadilyUnderADragAndNeverLeaps() {
+        float[] heights = mixedHeights(400);
+        java.util.Map<Widget<?>, Integer> rowOf = new java.util.IdentityHashMap<>();
+        List<Integer> leaves = new ArrayList<>();
+        for (int i = 0; i < heights.length; i++) {
+            leaves.add(i);
+        }
+        limn.components.tree.Tree<Integer> tree = new limn.components.tree.Tree<>(
+                new limn.components.tree.Tree.Model<Integer>() {
+                    @Override
+                    public List<Integer> roots() {
+                        return leaves;
+                    }
+
+                    @Override
+                    public List<Integer> children(Integer node) {
+                        return List.of();
+                    }
+
+                    @Override
+                    public Widget<?> cellFor(Integer node) {
+                        Box row = new Box("row " + node, W, heights[node]);
+                        rowOf.put(row, node);
+                        return row;
+                    }
+                });
+        assertSteadyUnderADrag(tree, rowOf);
+    }
+
+    @Test
+    void aTableOfRowsOfMixedHeightsMovesSteadilyUnderADragAndNeverLeaps() {
+        float[] heights = mixedHeights(400);
+        java.util.Map<Widget<?>, Integer> rowOf = new java.util.IdentityHashMap<>();
+        List<Integer> rows = new ArrayList<>();
+        for (int i = 0; i < heights.length; i++) {
+            rows.add(i);
+        }
+        limn.components.table.Table<Integer> table = limn.components.table.Table.of(
+                limn.components.table.Column.<Integer>widget("row", i -> {
+                    Box cell = new Box("row " + i, 40, heights[i]);
+                    rowOf.put(cell, i);
+                    return cell;
+                }));
+        table.setRows(rows);
+        assertSteadyUnderADrag(table, rowOf);
+    }
+
+    /**
+     * Drags a card into the bottom band of {@code host}, eighteen points deep, for three seconds,
+     * and holds that each frame moves every row seen in it and the frame before by the same few
+     * points the speed there gives, 7.5 a frame at 60 frames a second, and never by more. Until
+     * 2026-10-20 the step went through the bar's absolute offset, which a list of rows lands by
+     * the mean row height, building no row on the way: the rows sat on the step and then leapt by
+     * twenty to eighty points whenever the walk crossed a row of another height than the mean.
+     */
+    private void assertSteadyUnderADrag(Widget<?> host, java.util.Map<Widget<?>, Integer> rowOf) {
+        Box card = new Box("card", 60, 40);
+        card.card = "ace";
+        show(new Sheet(W, H).put(card, 0, 0).put(host, 0, 60, W, 300));
+        scene.setTextRuler(limn.testing.TestRulers.FIXED);
+        press(card);
+        move(150, 60 + 300 - 6);
+        frames(1 / 60.0, 60); // the first tick of an arming has no time behind it
+        java.util.Map<Integer, Float> before = rowsAt(host, rowOf);
+        float largest = 0;
+        float total = 0;
+        int compared = 0;
+        for (int frame = 0; frame < 180; frame++) {
+            frames(1 / 60.0, 60);
+            java.util.Map<Integer, Float> now = rowsAt(host, rowOf);
+            float moved = Float.NaN;
+            for (java.util.Map.Entry<Integer, Float> row : now.entrySet()) {
+                Float was = before.get(row.getKey());
+                if (was != null) {
+                    float step = was - row.getValue();
+                    if (!Float.isNaN(moved)) {
+                        assertEquals(moved, step, 0.01f, "every row moved together in frame " + frame);
+                    }
+                    moved = step;
+                }
+            }
+            assertFalse(Float.isNaN(moved), "a row seen in frame " + frame + " was seen in the one before");
+            assertTrue(moved >= 0, "it moves only toward the end: " + moved + " in frame " + frame);
+            largest = Math.max(largest, moved);
+            total += moved;
+            compared++;
+            before = now;
+        }
+        assertEquals(180, compared);
+        assertTrue(largest <= 7.5f + 0.05f, "no frame leaps past the speed's step of 7.5 points: " + largest);
+        assertTrue(total > 180 * 7.5f * 0.95f, "and it kept moving: " + total + " points in three seconds");
+        // On to the end, where the bar and the rows agree there is no room left.
+        frames(60, 60);
+        assertEquals(0, scene.tickerCounts()[1], "at the end no ticker asks for frames");
+        int last = -1;
+        for (int index : rowsAt(host, rowOf).keySet()) {
+            last = Math.max(last, index);
+        }
+        assertEquals(399, last, "the last row came into view");
+        release(150, 60 + 300 - 6);
+    }
+
+    /** Where each row of {@code host} shown in its box stands now, in scene points, by its index. */
+    private static java.util.Map<Integer, Float> rowsAt(Widget<?> host, java.util.Map<Widget<?>, Integer> rowOf) {
+        Rect box = onScreen(host);
+        java.util.Map<Integer, Float> at = new java.util.HashMap<>();
+        java.util.ArrayDeque<Widget<?>> walk = new java.util.ArrayDeque<>(host.children());
+        while (!walk.isEmpty()) {
+            Widget<?> widget = walk.pop();
+            walk.addAll(widget.children());
+            Integer index = rowOf.get(widget);
+            if (index == null || widget.parent() == null || !widget.isVisible()) {
+                continue;
+            }
+            Rect row = onScreen(widget);
+            if (row.bottom() > box.y() && row.y() < box.bottom()) {
+                at.put(index, row.y());
+            }
+        }
+        return at;
+    }
+
     /** A list two hundred points tall. */
     private static final class SizedList extends Widget<SizedList> {
         SizedList(ListView<String> list) {

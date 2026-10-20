@@ -97,6 +97,22 @@ public final class ScrollBar extends Widget<ScrollBar> {
 
         /** Scrolls to {@code offset} (the host clamps). */
         void setOffset(float offset);
+
+        /**
+         * Scrolls by {@code delta} from where the content is, as the wheel does (the host clamps).
+         * A drag that rests near the host's edge scrolls through this, a few points a frame.
+         *
+         * <p>The default is {@code setOffset(offset() + delta)}, which is exact where the offset
+         * is. A host whose offset is an estimate, as a list whose rows of different heights are
+         * measured only as they are built, overrides it with a move that walks the content from
+         * where it is: through {@code setOffset} each small step would land by the estimate, and
+         * the rows would stand still and then leap.
+         *
+         * @param delta how far: positive toward the end of the content
+         */
+        default void scrollBy(float delta) {
+            setOffset(offset() + delta);
+        }
     }
 
     private static final float THIN = 5;
@@ -169,7 +185,7 @@ public final class ScrollBar extends Widget<ScrollBar> {
 
             @Override
             public void scrollBy(float points) {
-                model.setOffset(model.offset() + (mirrored(isRightToLeft()) ? -points : points));
+                model.scrollBy(mirrored(isRightToLeft()) ? -points : points);
             }
         });
     }
