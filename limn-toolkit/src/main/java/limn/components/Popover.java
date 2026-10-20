@@ -147,6 +147,15 @@ public final class Popover {
     }
 
     private void closeWith(Change.Origin origin) {
+        closeWith(origin, attached);
+    }
+
+    /**
+     * @param origin who closed it
+     * @param tell   the button told it collapsed: the one it is on, or the one it was open from as
+     *               it moves to another, which never expanded
+     */
+    private void closeWith(Change.Origin origin, @Nullable Button tell) {
         if (!open) {
             return;
         }
@@ -160,9 +169,9 @@ public final class Popover {
             failed = HandlerFailures.add(failed, error);
         }
         try {
-            if (attached != null) {
-                attached.invalidateAccessible();
-                attached.notifyExpanded();
+            if (tell != null) {
+                tell.invalidateAccessible();
+                tell.notifyExpanded();
             }
             if (onClose != null) {
                 onClose.accept(origin);
@@ -342,8 +351,7 @@ public final class Popover {
      */
     private void closeIfOpenFrom(Button button) {
         if (open && anchor == button && attached != button) {
-            closeWith(Change.Origin.CODE);
-            button.notifyExpanded();
+            closeWith(Change.Origin.CODE, button);
         }
     }
 

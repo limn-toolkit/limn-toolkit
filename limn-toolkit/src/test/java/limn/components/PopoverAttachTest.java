@@ -227,6 +227,23 @@ class PopoverAttachTest extends ComponentTestBase {
     }
 
     @Test
+    void movingAPopoverOpenFromOneButtonTellsThatButtonAloneItCollapsed() {
+        scene();
+        Popover popover = popover("Filter orders").attachTo(filter);
+        click(filter);
+        assertTrue(popover.isOpen());
+        List<Change.Aspect> onFilter = new ArrayList<>();
+        List<Change.Aspect> onOther = new ArrayList<>();
+        filter.observeChanges((source, change) -> onFilter.add(change.aspect()));
+        other.observeChanges((source, change) -> onOther.add(change.aspect()));
+        popover.attachTo(other);
+        assertFalse(popover.isOpen());
+        assertEquals(1, onFilter.stream().filter(a -> a == Change.Aspect.EXPANDED).count(),
+                "the button it was open from hears it collapse once: " + onFilter);
+        assertFalse(onOther.contains(Change.Aspect.EXPANDED), "the button it moved to never expanded: " + onOther);
+    }
+
+    @Test
     void aReaderIsToldTheButtonNoLongerOpensAPopup() {
         Button button = new Button("Filter");
         Row row = new Row();
