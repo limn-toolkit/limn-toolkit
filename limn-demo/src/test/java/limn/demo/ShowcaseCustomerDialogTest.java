@@ -38,7 +38,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * The customer's form on the Showcase's Dialogs page asks nothing the user did not ask for. It
  * opened, and 0.7 s later a "Save changes?" question opened over it by itself, from a timer in the
  * page, while the user had changed nothing and closed nothing (the owner's review of 2026-10-20).
- * The question belongs to the user closing a form he changed.
+ * The question belongs to the user closing a form he changed, and it is asked over the form, which
+ * waits for the answer: Don't save and Save close both, Cancel goes back to the form as it was.
  */
 class ShowcaseCustomerDialogTest {
 
@@ -223,47 +224,71 @@ class ShowcaseCustomerDialogTest {
         }
     }
 
+    /** Types over the customer's name in the open form. */
+    private TextField changeName(String form, String to) {
+        Scene formScene = sceneOf(form);
+        TextField name = null;
+        for (Widget<?> root : roots(formScene)) {
+            List<TextField> fields = new ArrayList<>();
+            collect(root, TextField.class, f -> "Harbor Supply".equals(f.text()), fields);
+            if (!fields.isEmpty()) {
+                name = fields.get(0);
+            }
+        }
+        assertTrue(name != null, "the form shows the customer's name");
+        formScene.requestFocus(name);
+        name.selectAll();
+        drive(formScene).type(to);
+        frames(2);
+        return name;
+    }
+
+    private List<String> sortedDialogs() {
+        List<String> open = new ArrayList<>(dialogsOpen());
+        open.sort(null);
+        return open;
+    }
+
     @Test
-    void cancellingAChangedFormAsksToSaveItAndTheQuestionsCancelBringsTheFormBackAsLeft() {
+    void closingAChangedFormAsksOverItAndTheFormWaitsForTheAnswer() {
         for (boolean inWindow : new boolean[] {false, true}) {
             String what = inWindow ? "inside the window" : "in a window of its own";
+            String form = DialogsScene.Text.CUSTOMER_TITLE.get();
+            String question = DialogsScene.Text.UNSAVED_TITLE.format("Harbor Supply");
+            List<String> both = new ArrayList<>(List.of(form, question));
+            both.sort(null);
             openPage(inWindow);
             drive(scene).click(editCustomer());
             frames(40);
-            String form = DialogsScene.Text.CUSTOMER_TITLE.get();
-            String question = DialogsScene.Text.UNSAVED_TITLE.format("Harbor Supply");
-            Scene formScene = sceneOf(form);
-            TextField name = null;
-            for (Widget<?> root : roots(formScene)) {
-                List<TextField> fields = new ArrayList<>();
-                collect(root, TextField.class, f -> "Harbor Supply".equals(f.text()), fields);
-                if (!fields.isEmpty()) {
-                    name = fields.get(0);
-                }
-            }
-            assertTrue(name != null, what + ": the form shows the customer's name");
-            formScene.requestFocus(name);
-            name.selectAll();
-            drive(formScene).type("Harbor Supply Co.");
-            frames(2);
+            TextField name = changeName(form, "Harbor Supply Co.");
 
-            drive(formScene).press(Keys.ESCAPE);
+            drive(sceneOf(form)).press(Keys.ESCAPE);
             frames(60);
-            assertEquals(List.of(question), dialogsOpen(), what + ": Escape on a changed form asks");
+            assertEquals(both, sortedDialogs(), what + ": Escape on a changed form asks over the open form");
             click(question, limn.demo.ShowcaseStrings.ACTION_CANCEL.get());
             frames(60);
             assertEquals(List.of(form), dialogsOpen(), what + ": the question's Cancel goes back to the form");
             assertEquals(DialogsScene.Text.STILL_EDITING.format("Harbor Supply"), status.text(), what);
-            TextField kept = name;
-            assertEquals("Harbor Supply Co.", kept.text(), what + ": with the change as it was left");
+            assertEquals("Harbor Supply Co.", name.text(), what + ": with the change as it was left");
 
             click(form, limn.demo.ShowcaseStrings.ACTION_CANCEL.get());
             frames(60);
-            assertEquals(List.of(question), dialogsOpen(), what + ": Cancel asks too");
+            assertEquals(both, sortedDialogs(), what + ": Cancel asks too, over the form");
             click(question, DialogsScene.Text.DONT_SAVE.get());
             frames(60);
-            assertEquals(List.of(), dialogsOpen(), what + ": Don't save closes it");
+            assertEquals(List.of(), dialogsOpen(), what + ": Don't save closes both");
             assertEquals(DialogsScene.Text.DISCARDED.format("Harbor Supply"), status.text(), what);
+
+            drive(scene).click(editCustomer());
+            frames(40);
+            changeName(form, "Harbor Supply Ltd.");
+            click(form, limn.demo.ShowcaseStrings.ACTION_CANCEL.get());
+            frames(60);
+            assertEquals(both, sortedDialogs(), what + ": asked again on a new form");
+            click(question, limn.demo.ShowcaseStrings.ACTION_SAVE.get());
+            frames(60);
+            assertEquals(List.of(), dialogsOpen(), what + ": Save closes both");
+            assertEquals(DialogsScene.Text.SAVED.format("Harbor Supply"), status.text(), what);
         }
     }
 }

@@ -267,12 +267,50 @@ final class DialogsScene {
             dialog.showNonModal(preferences).thenAccept(r -> Page.report(Text.PREFERENCES_CLOSED.get()));
         });
 
-        // The customer's form, and the question a changed form asks when it is closed without
-        // saving: asked by the user's Cancel or Escape, never by the page on its own. A dialog's
-        // buttons answer it, so the question comes once the form has closed, and its Cancel
-        // brings the same form back as it was left.
-        customer.onAction(() -> editCustomer(customer, look, new CustomerForm("Harbor Supply",
-                "orders@harborsupply.example")));
+        // Two at once: the customer's form locks this window, and when the user closes it with
+        // a field changed, Cancel or Escape, the application asks about the changes over it,
+        // keeping the form open until that is answered. The upper one must be on top and
+        // answerable, and the lower one frozen until it closes.
+        customer.onAction(() -> {
+            String name = "Harbor Supply";
+            String email = "orders@harborsupply.example";
+            TextField nameField = new TextField().setText(name);
+            TextField emailField = new TextField().setText(email);
+            Column form = new Column();
+            form.gap(Page.GAP).crossAlignment(Flex.CrossAlignment.STRETCH);
+            form.add(new Field(Text.NAME, nameField));
+            form.add(new Field(Text.EMAIL, emailField));
+            Dialog lower = look.dress(new Dialog(Text.CUSTOMER_TITLE, I18nString.EMPTY))
+                    .setContent(new SizedBox(320, SizedBox.UNSET, form))
+                    .addButton(ShowcaseStrings.ACTION_CANCEL, "cancel")
+                    .addPrimaryButton(ShowcaseStrings.ACTION_SAVE, "save")
+                    .setCancelResult("cancel");
+            lower.onCancel(request -> {
+                if (nameField.text().equals(name) && emailField.text().equals(email)) {
+                    request.allow(); // nothing to lose
+                    return;
+                }
+                look.dress(new Dialog(I18nString.literal(Text.UNSAVED_TITLE.format(name)), Text.UNSAVED_BODY))
+                        .addButton(Text.DONT_SAVE, "discard")
+                        .addButton(ShowcaseStrings.ACTION_CANCEL, "cancel")
+                        .addPrimaryButton(ShowcaseStrings.ACTION_SAVE, "save")
+                        .setCancelResult("cancel")
+                        .show(customer)
+                        .thenAccept(answer -> {
+                            if ("save".equals(answer) || "discard".equals(answer)) {
+                                lower.dismiss(answer); // closes the form, and settles the request
+                            } else {
+                                request.refuse();
+                                Page.report(Text.STILL_EDITING.format(name));
+                            }
+                        });
+            });
+            lower.show(customer).thenAccept(r -> Page.report(switch (String.valueOf(r)) {
+                case "save" -> Text.SAVED.format(name);
+                case "discard" -> Text.DISCARDED.format(name);
+                default -> Text.UNCHANGED.format(name);
+            }));
+        });
 
         // Application-modal: while the data is replaced, no window of the application may edit it.
         restore.onAction(() -> look.dress(new Dialog(Text.RESTORE_TITLE, Text.RESTORE_BODY))
@@ -307,73 +345,6 @@ final class DialogsScene {
         page.add(askBeforeClosing);
         page.add(Page.hint(Text.CLOSE_HINT));
         return page;
-    }
-
-    /** The customer's two fields, kept across the form's presentations, and what they first held. */
-    private record CustomerForm(String name, String email, TextField nameField, TextField emailField,
-                                Widget<?> content) {
-
-        CustomerForm(String name, String email) {
-            this(name, email, new TextField().setText(name), new TextField().setText(email));
-        }
-
-        private CustomerForm(String name, String email, TextField nameField, TextField emailField) {
-            this(name, email, nameField, emailField, form(nameField, emailField));
-        }
-
-        private static Widget<?> form(TextField nameField, TextField emailField) {
-            Column form = new Column();
-            form.gap(Page.GAP).crossAlignment(Flex.CrossAlignment.STRETCH);
-            form.add(new Field(Text.NAME, nameField));
-            form.add(new Field(Text.EMAIL, emailField));
-            return new SizedBox(320, SizedBox.UNSET, form);
-        }
-
-        /** Whether the user left a field other than it was. */
-        boolean changed() {
-            return !nameField.text().equals(name) || !emailField.text().equals(email);
-        }
-    }
-
-    /**
-     * Shows the customer's form, window-modal. Closed with Save it saves; closed otherwise, it asks
-     * whether to save only when a field was changed, and that question's Cancel shows the form again.
-     */
-    private static void editCustomer(Button from, Presentation look, CustomerForm customer) {
-        String name = customer.name();
-        Dialog form = look.dress(new Dialog(Text.CUSTOMER_TITLE, I18nString.EMPTY))
-                .setContent(customer.content())
-                .addButton(ShowcaseStrings.ACTION_CANCEL, "cancel")
-                .addPrimaryButton(ShowcaseStrings.ACTION_SAVE, "save")
-                .setCancelResult("cancel");
-        form.show(from).thenAccept(r -> {
-            // The fields go back to no dialog, so that the question's Cancel can show them again.
-            form.setContent(null);
-            if ("save".equals(r)) {
-                Page.report(Text.SAVED.format(name));
-            } else if (!customer.changed()) {
-                Page.report(Text.UNCHANGED.format(name));
-            } else if (from.scene() == null) {
-                Page.report(Text.DISCARDED.format(name)); // the page was left: nowhere to ask
-            } else {
-                look.dress(new Dialog(I18nString.literal(Text.UNSAVED_TITLE.format(name)), Text.UNSAVED_BODY))
-                        .addButton(Text.DONT_SAVE, "discard")
-                        .addButton(ShowcaseStrings.ACTION_CANCEL, "cancel")
-                        .addPrimaryButton(ShowcaseStrings.ACTION_SAVE, "save")
-                        .setCancelResult("cancel")
-                        .show(from)
-                        .thenAccept(answer -> {
-                            if ("save".equals(answer)) {
-                                Page.report(Text.SAVED.format(name));
-                            } else if ("discard".equals(answer)) {
-                                Page.report(Text.DISCARDED.format(name));
-                            } else if (from.scene() != null) {
-                                Page.report(Text.STILL_EDITING.format(name));
-                                editCustomer(from, look, customer);
-                            }
-                        });
-            }
-        });
     }
 
     /** A row of controls at the start of the line, 12 apart. */
