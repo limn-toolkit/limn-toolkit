@@ -16,6 +16,7 @@ import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -62,13 +63,15 @@ public final class AvatarGroup extends Widget<AvatarGroup> {
     // The group's one size for initials, and what it was worked out for.
     private long initialsStamp;
     private long fitStamp = -1;
-    private long fitEpoch = -1;
+    /** The letters each circle drew, in order, as the size was worked out for them. */
+    private final List<String> fitLetters = new ArrayList<>();
     private float fitD = -1;
     private @Nullable Font fitFrom;
     private @Nullable Font fitFont;
     private @Nullable TextRuler fitRuler;
     private long fitRulerEpoch;
     private long describedEpoch = -1;
+    private @Nullable Locale describedIn;
     private boolean describedStale = true;
     private long descriptionWitness;
 
@@ -178,8 +181,9 @@ public final class AvatarGroup extends Widget<AvatarGroup> {
      * widest pair among the circles that draw initials needs to fit the part of a circle the next
      * one leaves, whichever is smaller; {@code null} when that is under a point. One size for all,
      * the last circle included, the count's "+k" too, so the stack reads even and a member joining
-     * at the end does not change the circle before it alone. Kept while the members, the font, the
-     * circle and the ruler hold.
+     * at the end does not change the circle before it alone. Kept while the members, the letters
+     * they draw, the font, the circle and the ruler hold: the letters are each member's own, in
+     * its language, which a window's or a subtree's language moves as well as the process's.
      *
      * @param full  the font an avatar alone would draw its initials in
      * @param d     the circles' diameter
@@ -187,22 +191,20 @@ public final class AvatarGroup extends Widget<AvatarGroup> {
      * @return the font, or {@code null} for no initials
      */
     @Nullable Font initialsFont(Font full, float d, TextRuler ruler) {
-        long epoch = I18n.epoch(); // the initials are upper-cased in each member's language
-        if (fitStamp == initialsStamp && fitEpoch == epoch && fitD == d && full.equals(fitFrom)
-                && fitRuler == ruler && fitRulerEpoch == ruler.epoch()) {
+        if (fitStamp == initialsStamp && fitD == d && full.equals(fitFrom) && fitRuler == ruler
+                && fitRulerEpoch == ruler.epoch() && sameLetters()) {
             return fitFont;
         }
         float r = d / 2;
         float part = step(d) - Avatar.RING;
         float size = full.size();
+        fitLetters.clear();
         for (Avatar member : members) {
-            if (member.parent() != this || member.image() != null) {
-                continue; // hidden, or a picture: no letters drawn
-            }
-            String letters = member.shownInitials();
-            if (letters.isEmpty()) {
+            String letters = drawnLetters(member);
+            if (letters == null) {
                 continue;
             }
+            fitLetters.add(letters);
             TextMetrics m = ruler.measure(letters, full);
             float room = part - edgeAt(r, m.height());
             if (m.width() > room) {
@@ -215,8 +217,28 @@ public final class AvatarGroup extends Widget<AvatarGroup> {
         fitRuler = ruler;
         fitRulerEpoch = ruler.epoch();
         fitStamp = initialsStamp;
-        fitEpoch = epoch;
         return fitFont;
+    }
+
+    /** The letters {@code member} draws in this group, or {@code null} for none. */
+    private @Nullable String drawnLetters(Avatar member) {
+        if (member.parent() != this || member.image() != null) {
+            return null; // hidden, or a picture: no letters drawn
+        }
+        String letters = member.shownInitials(); // upper-cased in the member's language
+        return letters.isEmpty() ? null : letters;
+    }
+
+    /** Whether the members draw the letters the size was worked out for, in the same order. */
+    private boolean sameLetters() {
+        int at = 0;
+        for (Avatar member : members) {
+            String letters = drawnLetters(member);
+            if (letters != null && (at >= fitLetters.size() || !letters.equals(fitLetters.get(at++)))) {
+                return false;
+            }
+        }
+        return at == fitLetters.size();
     }
 
     /**
@@ -295,7 +317,9 @@ public final class AvatarGroup extends Widget<AvatarGroup> {
     /** Every member's name, in order, joined by the language's list comma. */
     private String description() {
         long epoch = I18n.epoch();
-        if (describedStale || describedEpoch != epoch) {
+        // The process's language, and the group's own, which a window's or a subtree's moves.
+        Locale in = locale();
+        if (describedStale || describedEpoch != epoch || !in.equals(describedIn)) {
             StringBuilder names = new StringBuilder();
             String comma = ComponentStrings.COMBO_SEPARATOR.get();
             for (Avatar member : members) {
@@ -311,6 +335,7 @@ public final class AvatarGroup extends Widget<AvatarGroup> {
             }
             describedStale = false;
             describedEpoch = epoch;
+            describedIn = in;
         }
         return description;
     }

@@ -441,6 +441,47 @@ class AvatarTest extends AccessibleComponentTestBase {
     }
 
     @Test
+    void theOneSizeFollowsAWindowsLanguageThatChangesAMembersInitials() {
+        // A member named by a role whose words change with the language, "Support" here, the wide
+        // pair in Portuguese: the window switches to Portuguese and the group's size follows, and
+        // back. The size was kept while the process's language held, and a window's or a
+        // subtree's language moves only the widgets' own.
+        Locale brazilian = Locale.forLanguageTag("pt-BR");
+        limn.i18n.StringBundle roles = (key, locale) ->
+                "avatar.support".equals(key) && brazilian.equals(locale) ? CODER + " Suporte" : null;
+        Locale before = limn.i18n.I18n.locale();
+        limn.i18n.I18n.setLocale(Locale.ENGLISH);
+        limn.i18n.I18n.addBundle(roles);
+        try {
+            Avatar support = new Avatar(new limn.i18n.I18nString("avatar.support", "Support Team"));
+            AvatarGroup g = new AvatarGroup(support, new Avatar("Ana Lima"), new Avatar("Rui Costa"));
+            Scene s = new Scene(g);
+            s.setTextRuler(SCALED_RULER);
+            s.layoutPass(400, 60);
+            Recorder drawn = new Recorder(400, 60);
+            s.renderFrame(drawn);
+            assertEquals(label(), drawn.fonts.get(0).size(), 0.01f, "sanity, in English: " + drawn.texts);
+
+            s.setLocale(brazilian);
+            s.layoutPass(400, 60);
+            drawn = new Recorder(400, 60);
+            s.renderFrame(drawn);
+            assertTrue(drawn.fonts.get(0).size() < label(), "the wide pair in Portuguese sets the size: "
+                    + drawn.texts + " " + drawn.fonts);
+            assertEquals(1, drawn.fonts.stream().map(Font::size).distinct().count(), "one size: " + drawn.fonts);
+
+            g.setLocale(Locale.ENGLISH);
+            s.layoutPass(400, 60);
+            drawn = new Recorder(400, 60);
+            s.renderFrame(drawn);
+            assertEquals(label(), drawn.fonts.get(0).size(), 0.01f, "the group's own language: " + drawn.texts);
+        } finally {
+            limn.i18n.I18n.removeBundle(roles);
+            limn.i18n.I18n.setLocale(before);
+        }
+    }
+
+    @Test
     void anAvatarAloneKeepsItsInitialsCentredAtTheirSize() {
         Avatar alone = new Avatar("Mei Wong");
         float d = Theme.current().tokensFor(alone).controlHeight();
@@ -463,5 +504,29 @@ class AvatarTest extends AccessibleComponentTestBase {
         assertEquals("Person A, Person B, Person C, Person D, Eva Melo, Person F", node("Approvers").description(),
                 "a hidden member's new name reaches the description");
         assertNotEquals(-1, node.id());
+    }
+
+    @Test
+    void theDescriptionFollowsAWindowsLanguageThatRenamesAMember() {
+        // The same member named by a role: the group's description, every name, follows the
+        // window's language, which moves only the widgets' own and not the process's.
+        Locale brazilian = Locale.forLanguageTag("pt-BR");
+        limn.i18n.StringBundle roles = (key, locale) ->
+                "avatar.helpdesk".equals(key) && brazilian.equals(locale) ? "Suporte" : null;
+        Locale before = limn.i18n.I18n.locale();
+        limn.i18n.I18n.setLocale(Locale.ENGLISH);
+        limn.i18n.I18n.addBundle(roles);
+        try {
+            AvatarGroup g = new AvatarGroup(new Avatar(new limn.i18n.I18nString("avatar.helpdesk", "Support")),
+                    new Avatar("Ana Lima")).setAccessibleName("Approvers");
+            bind(g);
+            assertEquals("Support, Ana Lima", node("Approvers").description());
+            g.scene().setLocale(brazilian);
+            frame();
+            assertEquals("Suporte, Ana Lima", node("Approvers").description());
+        } finally {
+            limn.i18n.I18n.removeBundle(roles);
+            limn.i18n.I18n.setLocale(before);
+        }
     }
 }

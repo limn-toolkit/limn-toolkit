@@ -635,6 +635,12 @@ that the text above does not say, dated where it departs from it.
   default group of four showed two sizes side by side, AL, MW and HM at 11 points beside "+6" at
   13; a group too small for letters draws its count no more than its initials, the tooltip still
   naming the rest. `AvatarTest.theCountPastTheLimitIsDrawnAtTheGroupsOneSize`.)
+  (2026-10-20, the review's R5C-7: the size was kept while the process's language held, but a
+  window's or a subtree's language, `Scene.setLocale` or `Widget.setLocale`, moves only the
+  widgets' own, so a member named by a role whose initials change with the window's language kept
+  the old size, and the group's description the old names. The size is now kept while the letters
+  each circle draws hold, which are the members' own in their language, and the description while
+  the group's language holds. `AvatarTest` switches a window to Portuguese and back.)
 
 ### 12.4 Empty and loading content
 
