@@ -828,6 +828,11 @@ that the text above does not say, dated where it departs from it.
     try between it and the parent's layout and `CHILDREN` notice. Both now walk first, take the
     focus out after, as `remove` already did, and give each step a try of its own.
     `OpacityTest` has both cases.
+  - **An overlay whose attach throws:** the push holds what its walk throws and goes on, and its
+    focus step then focused the dialog's first stop, which the walk had never reached: the keyboard
+    on a widget in no scene. The keyboard now lands only on a widget in the scene (the funnel's
+    test, Tab's stops, and the focus moved content brings along), so such a push focuses what the
+    walk reached or nothing. `SceneOverlayTest` has the three pushes.
 
 ### 12.6 The input method in a popover's window, measured
 

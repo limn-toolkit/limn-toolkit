@@ -304,4 +304,94 @@ class SceneOverlayTest extends SceneTestBase {
         assertSame(first, owner.focusedWidget());
         assertEquals(List.of("gained first by traversal"), log, "as pushOverlay(Widget) would");
     }
+
+    /** A leaf whose first onAttached throws, as an application's may. */
+    static final class AttachFault extends Widget<AttachFault> {
+        boolean armed = true;
+
+        @Override
+        protected Size onMeasure(Constraints c) {
+            return c.constrain(50, 20);
+        }
+
+        @Override
+        protected void onAttached() {
+            if (armed) {
+                throw new IllegalStateException("a fault in onAttached (expected)");
+            }
+        }
+    }
+
+    @Test
+    void anOverlayWhoseAttachThrowsHandsTheKeyboardToNoWidgetTheWalkNeverReached() {
+        // A dialog whose first widget's onAttached throws, pushed with its first stop focused by
+        // traversal and with a named one: the push rethrows, and the keyboard is on no widget
+        // outside the scene. The push held the walk's throw and went on to focus the dialog's
+        // button, which the walk never reached: a keyboard handed to a widget in no scene.
+        for (boolean named : new boolean[] {false, true}) {
+            Column content = new Column();
+            PressBox opener = new PressBox("opener", log);
+            content.add(opener);
+            Scene scene = new Scene(content);
+            scene.layoutPass(200, 200);
+            scene.requestFocus(opener);
+            Column dialog = new Column();
+            dialog.add(new AttachFault());
+            PressBox inside = new PressBox("inside", log);
+            dialog.add(inside);
+            IllegalStateException thrown = null;
+            try {
+                if (named) {
+                    scene.pushOverlayFocusing(dialog, inside);
+                } else {
+                    scene.pushOverlay(dialog);
+                }
+            } catch (IllegalStateException e) {
+                thrown = e;
+            }
+            String where = named ? "pushed focusing its button" : "pushed";
+            assertEquals("a fault in onAttached (expected)", thrown == null ? null : thrown.getMessage(), where);
+            assertNull(inside.scene(), where + ": sanity, the walk never reached it");
+            Widget<?> focused = scene.focusedWidget();
+            assertTrue(focused == null || focused.scene() == scene,
+                    where + ": the keyboard is on no widget outside the scene: " + focused);
+            scene.layoutPass(200, 200);
+            drive(scene).press(Keys.TAB);
+            focused = scene.focusedWidget();
+            assertTrue(focused == null || focused.scene() == scene, where + ": nor after a Tab: " + focused);
+        }
+    }
+
+    @Test
+    void contentMovedFromAnotherSceneWhoseAttachThrowsBringsNoKeyboardTheWalkNeverReached() {
+        // A dialog's content moved into its owner's scene with a field in it focused, the move cut
+        // short by an onAttached that throws before the walk reaches the field: the keyboard does
+        // not come along to a widget in no scene.
+        FocusBox opener = new FocusBox("opener", log);
+        Scene owner = new Scene(opener);
+        owner.layoutPass(200, 200);
+        owner.requestFocus(opener);
+        Column card = new Column();
+        AttachFault fault = new AttachFault();
+        fault.armed = false;
+        FocusBox typing = new FocusBox("typing", log);
+        card.add(fault);
+        card.add(typing);
+        Scene window = new Scene(card);
+        window.layoutPass(200, 200);
+        window.requestFocus(typing);
+        Column overlay = new Column();
+        overlay.add(card);
+        fault.armed = true;
+        IllegalStateException thrown = null;
+        try {
+            owner.pushOverlay(overlay, window);
+        } catch (IllegalStateException e) {
+            thrown = e;
+        }
+        assertEquals("a fault in onAttached (expected)", thrown == null ? null : thrown.getMessage());
+        assertNull(typing.scene(), "sanity, the walk never reached it");
+        Widget<?> focused = owner.focusedWidget();
+        assertTrue(focused == null || focused.scene() == owner, "the keyboard is in the scene: " + focused);
+    }
 }

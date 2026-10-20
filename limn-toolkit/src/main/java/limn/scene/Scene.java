@@ -875,20 +875,24 @@ public final class Scene {
         Objects.requireNonNull(overlay, "overlay");
         Objects.requireNonNull(movedFrom, "movedFrom");
         Widget<?> keyboard = movedFrom == this ? null : movedFrom.focused;
-        if (keyboard == null || !isInSubtree(keyboard, overlay) || !canTakeFocus(keyboard)) {
+        if (keyboard == null || !isInSubtree(keyboard, overlay) || !reachable(keyboard)) {
             pushOverlay(overlay);
             return;
         }
         List<Runnable> settled = new ArrayList<>(0);
         Throwable failed = stackOverlay(overlay, settled);
         try {
-            boolean composed = movedFrom.letGoOfMovedFocus();
-            if (composed) {
-                dispatchBubbling(keyboard, new PreeditEvent("", 0, 0, 0));
+            if (!canTakeFocus(keyboard)) {
+                focusTraverse(false); // an onAttached cut the walk short before it reached the widget
+            } else {
+                boolean composed = movedFrom.letGoOfMovedFocus();
+                if (composed) {
+                    dispatchBubbling(keyboard, new PreeditEvent("", 0, 0, 0));
+                }
+                // CODE, the origin of pushOverlay(Widget)'s traversal: the widget this scene had
+                // focused is told of its loss exactly as that traversal would tell it.
+                setFocus(keyboard, Change.Origin.CODE, true);
             }
-            // CODE, the origin of pushOverlay(Widget)'s traversal: the widget this scene had focused
-            // is told of its loss exactly as that traversal would tell it.
-            setFocus(keyboard, Change.Origin.CODE, true);
             requestRender();
         } catch (RuntimeException | Error error) {
             failed = Widget.addFailure(failed, error);
@@ -3434,9 +3438,16 @@ public final class Scene {
      * focus applies -- this funnel, the focus an overlay gives back as it closes, the focus that
      * comes along into an overlay -- and the one Tab applies as it collects its stops. When these
      * paths read the widget's own flags alone, code and a closing dialog put the focus on a button
-     * inside a disabled form, and Enter then ran its action.
+     * inside a disabled form, and Enter then ran its action. And in this scene: an overlay whose
+     * walk an {@code onAttached} cut short holds widgets the walk never reached, and the push that
+     * went on to focus its first stop handed the keyboard to a widget in no scene.
      */
-    private static boolean canTakeFocus(Widget<?> widget) {
+    private boolean canTakeFocus(Widget<?> widget) {
+        return widget.scene() == this && reachable(widget);
+    }
+
+    /** {@link #canTakeFocus} in whichever scene the widget is, or in none yet. */
+    private static boolean reachable(Widget<?> widget) {
         return widget.isFocusable() && widget.inReach();
     }
 
@@ -3639,11 +3650,11 @@ public final class Scene {
         return focusByTraversal && focusTraversalBackward;
     }
 
-    private static void collectFocusable(Widget<?> widget, List<Widget<?>> out) {
+    private void collectFocusable(Widget<?> widget, List<Widget<?>> out) {
         if (!widget.isVisible() || !widget.isEnabled() || widget.inert) {
             return;
         }
-        if (widget.isFocusable()) {
+        if (widget.isFocusable() && widget.scene() == this) { // not one a cut-short walk never reached
             out.add(widget);
         }
         if (widget.drawsNoChildren()) {
