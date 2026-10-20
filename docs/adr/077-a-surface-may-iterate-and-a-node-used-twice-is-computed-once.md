@@ -47,7 +47,7 @@ relies on, and the rule it takes from each:
 | Implicit `int` → `float` conversion | yes | **no** | never relied on: every float literal is written with a point, the counter never meets a float |
 | User functions | yes | yes, declared at global scope before use; no recursion, not even static, in either | none generated (section 4) |
 | Derivatives (`dFdx`, `dFdy`, `fwidth`) and implicit-LOD `texture` | defined in uniform control flow | the same: undefined in non-uniform control flow | a loop that can end early may not sample, take a derivative, call a framework helper that does, or splice raw text (section 3.3) |
-| Identifiers | `gl_` and any `__` reserved | the same | generated names start with `ir_`, which an application's names and a loop's state may not |
+| Identifiers | `gl_` and any `__` reserved | the same | generated names start with `ir_`, which an application's names may not; a loop's state is named by the factory (section 3.4) |
 | Iteration limits | implementation-defined; a long draw is a driver timeout | the same; WebGL-class implementations lose the context | a cap of 1024 turns a fragment across the whole surface (section 3.2) |
 | Precision | not needed | float precision has no default in a fragment shader; `highp` required in 3.00 | the ES header gives both, as before |
 
@@ -58,25 +58,27 @@ relies on, and the rule it takes from each:
    swizzle of one, and is used by more than one parent, is written once into a local and read by
    name. The local goes in the innermost block that sees everything it reads, and before the first
    statement that uses it. This alone removes the exponential growth.
-2. **Iteration.** One new node, `Expr.Loop`, a value computed by a bounded loop: a named state of
-   a float or vector type, its initial value, a maximum count, the next state, and an optional
-   `until` that ends the loop early.
+2. **Iteration.** One new node, `Expr.Loop`, a value computed by a bounded loop: a state of a
+   float or vector type, its initial value, a maximum count, the next state, and an optional
+   `until` that ends the loop early, built by `Expr.Loop.of`, which hands the turn its state as a
+   node (amended 2026-10-20, section 7).
 3. **Neither a let nor a function** becomes a public type (section 4).
 
 ## 3. `Expr.Loop`
 
 ```java
-new Expr.Loop("z", initial, 256,          // state name, initial value, at most 256 turns
-        next,                             // the state after one turn; reads Ref("z")
-        until);                           // optional: ends the loop where it is above zero
+Expr.Loop.of(initial, 256,                // initial value, at most 256 turns
+        z -> next(z),                     // the state after one turn, given the state
+        z -> until(z));                   // optional: ends the loop where it is above zero
 ```
 
 ### 3.1 What it means
 
 Each turn first asks `until` of the state as it stands; above zero ends the loop, otherwise the
 state becomes `next`. The loop's value is the state when it ends: after `maxIterations` turns, or
-at the turn whose `until` was above zero. Inside `next` and `until` the state is
-`new Expr.Ref(state, initial.type())`; outside them the name means nothing. Generated:
+at the turn whose `until` was above zero. `next` and `until` are given the state as a node, an
+`Expr.Ref` of the initial value's type under a name the factory chooses (section 3.4); outside its
+loop it means nothing, and a surface that reads it there is refused. Generated:
 
 ```glsl
 vec4 ir_s0 = <initial>;
@@ -129,11 +131,15 @@ calls it knows to be defined, refusing every other name.
 
 ### 3.4 Names
 
-The state is named by the application, so the constructor holds it to an identifier both
-profiles accept and keeps it out of the generator's: letters, digits and `_`, a letter first, no
-`__`, not `gl_…`, not `ir_…`. A loop inside another may not reuse an enclosing loop's name, which
-would make one reference mean two values. The generator names the variable itself (`ir_s…`), so
-two sibling loops may both call their state `z`.
+*Amended 2026-10-20 (section 7, the owner's decision 38).* The state is not named by the
+application. `Expr.Loop.of` names it `ir_state` and the number of loops being built around it,
+and hands `next` and `until` the reference; a surface input may not start `ir_`, so no input can
+be read where the state is meant, and the constructor accepts no other name. A loop built inside
+another's turn gets the next number and reads the outer state by its own; a loop built apart and
+set in another's turn has the outer one's number and hides it in its own turn, where it could not
+have read it anyway. The constructor checks every reference to the state in `next` and `until`
+has the initial value's type, and `SurfaceOutputs` refuses a state read outside its loop. The
+generator names the variable itself (`ir_s…`).
 
 ## 4. Alternatives
 
@@ -256,3 +262,18 @@ two sibling loops may both call their state `z`.
   response for one light), and the generator (the response once for each of its eight lights).
   `SurfaceOutputs.turnsPerPixel(lights)` is new and public, so a backend with its own light count
   can hold a surface to it. The device test's two loops, 50 and 1024, became 50 and 974.
+- **2026-10-20, the owner's decision 38: a loop is built by a factory that hands it its state.**
+  The review found the state reached by a free-name `Ref` whose type nothing checked: a `vec2`
+  reference to a `vec4` state was accepted and failed to compile at draw time, a reference outside
+  its loop was written as a bare name, and binding by string let a state take the name of an
+  input. `Expr.Loop.of(initial, maxIterations, next)` and `of(initial, maxIterations, next, until)`
+  take `UnaryOperator<Expr>` for the turn and hand it the state, so a surface can neither misname
+  nor mistype it. The `Loop` record stays the IR node, and its `state` component stays public:
+  a record cannot hide a component or its canonical constructor, and the IR has to say which
+  references a loop binds. What changed is who chooses the value: the factory names it by
+  nesting depth (`ir_state0`, `ir_state1`, …), deterministically, so a method that builds a loop
+  twice at one depth builds one value the generator computes once, and the constructor accepts
+  no other name. A loop may now hide an enclosing state of the same name, which a loop built
+  apart and set in another's turn does; the review's fix that reads a local only where its names
+  mean the same is what keeps that right, and the device test draws such a surface shared and in
+  place to the same pixels. `Material.Surface` inputs may not start `ir_`.

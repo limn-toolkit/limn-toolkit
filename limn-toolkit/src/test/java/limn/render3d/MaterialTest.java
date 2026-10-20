@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -65,5 +66,13 @@ class MaterialTest {
         agreements += before.emissive().equals(after.emissive()) ? 1 : 0;
         agreements += before.blend() == after.blend() ? 1 : 0;
         assertEquals(4, agreements, "changing " + changed + " moved something else");
+    }
+
+    @Test
+    void aSurfaceInputMayNotTakeAGeneratorName() {
+        // A loop's state is named ir_…; an input of that name would be read where the state is meant.
+        assertThrows(IllegalArgumentException.class, () -> Material.Surface.Value.of("ir_state0", 1f));
+        assertThrows(IllegalArgumentException.class, () -> new Material.Surface.Texture("ir_t0", null));
+        Material.Surface.Value.of("u_ir", 1f);
     }
 }

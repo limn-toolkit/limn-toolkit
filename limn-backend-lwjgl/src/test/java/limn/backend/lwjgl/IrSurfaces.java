@@ -73,12 +73,11 @@ final class IrSurfaces {
      */
     static SurfaceOutputs mandelbrot(int turns) {
         Expr c = mul(sub(ref("v_uv", ShaderType.VEC2), Expr.Lit.of(0.6f, 0.5f)), Expr.Lit.of(3f, 2.4f));
-        Expr.Ref s = new Expr.Ref("s", ShaderType.VEC4);
-        Expr z = new Expr.Swizzle(s, "xy");
-        Expr next = new Expr.Construct(ShaderType.VEC4, List.of(square(z, c),
-                add(new Expr.Swizzle(s, "z"), Expr.Lit.of(1f)), Expr.Lit.of(0f)));
-        Expr until = sub(call("dot", ShaderType.FLOAT, z, z), Expr.Lit.of(256f));
-        Expr.Loop loop = new Expr.Loop("s", Expr.Lit.of(0f, 0f, 0f, 0f), turns, next, until);
+        Expr.Loop loop = Expr.Loop.of(Expr.Lit.of(0f, 0f, 0f, 0f), turns,
+                s -> new Expr.Construct(ShaderType.VEC4, List.of(square(new Expr.Swizzle(s, "xy"), c),
+                        add(new Expr.Swizzle(s, "z"), Expr.Lit.of(1f)), Expr.Lit.of(0f))),
+                s -> sub(call("dot", ShaderType.FLOAT, new Expr.Swizzle(s, "xy"), new Expr.Swizzle(s, "xy")),
+                        Expr.Lit.of(256f)));
         Expr escaped = call("max", ShaderType.FLOAT, call("length", ShaderType.FLOAT, new Expr.Swizzle(loop, "xy")),
                 Expr.Lit.of(1.0001f));
         Expr smooth = sub(add(new Expr.Swizzle(loop, "z"), Expr.Lit.of(1f)),
@@ -147,15 +146,15 @@ final class IrSurfaces {
      * so the sample is defined in it.
      */
     static SurfaceOutputs blurLoop() {
-        Expr.Ref s = new Expr.Ref("acc", ShaderType.VEC4);
         Expr uv = ref("v_uv", ShaderType.VEC2);
-        Expr offset = new Expr.Construct(ShaderType.VEC2, List.of(mul(new Expr.Swizzle(s, "w"), Expr.Lit.of(0.01f)),
-                Expr.Lit.of(0f)));
-        Expr texel = new Expr.Swizzle(new Expr.Sample((Expr.Ref) ref("u_sheet", ShaderType.SAMPLER2D),
-                add(uv, offset)), "rgb");
-        Expr next = new Expr.Construct(ShaderType.VEC4, List.of(add(new Expr.Swizzle(s, "rgb"), texel),
-                add(new Expr.Swizzle(s, "w"), Expr.Lit.of(1f))));
-        Expr.Loop loop = new Expr.Loop("acc", Expr.Lit.of(0f, 0f, 0f, 0f), 8, next, null);
+        Expr.Loop loop = Expr.Loop.of(Expr.Lit.of(0f, 0f, 0f, 0f), 8, acc -> {
+            Expr offset = new Expr.Construct(ShaderType.VEC2, List.of(
+                    mul(new Expr.Swizzle(acc, "w"), Expr.Lit.of(0.01f)), Expr.Lit.of(0f)));
+            Expr texel = new Expr.Swizzle(new Expr.Sample((Expr.Ref) ref("u_sheet", ShaderType.SAMPLER2D),
+                    add(uv, offset)), "rgb");
+            return new Expr.Construct(ShaderType.VEC4, List.of(add(new Expr.Swizzle(acc, "rgb"), texel),
+                    add(new Expr.Swizzle(acc, "w"), Expr.Lit.of(1f))));
+        });
         return emitting(mul(new Expr.Swizzle(loop, "rgb"), Expr.Lit.of(1f / 8)));
     }
 
@@ -168,5 +167,19 @@ final class IrSurfaces {
         Expr uv = ref("v_uv", ShaderType.VEC2);
         return SurfaceOutputs.of(call("texture", ShaderType.VEC4, sheet, uv), Expr.Lit.of(0f), Expr.Lit.of(1f),
                 new Expr.Swizzle(call("texture", ShaderType.VEC4, sheet, mul(uv, Expr.Lit.of(2f))), "rgb"));
+    }
+
+    /**
+     * Two loops whose states have one name, built by hand as a loop built apart and set in another's
+     * turn would be: the outer state s becomes s·2 + (s doubled twice by the inner loop), 6s,
+     * three times from (0.001, 0.002, 0.003, 1/216). The inner loop starts from the outer state and
+     * its own turn doubles the inner state, under the same name.
+     */
+    static Expr.Loop shadowingLoops() {
+        String name = Expr.Loop.of(Expr.Lit.of(0f), 1, s -> s).state();
+        Expr.Ref s = new Expr.Ref(name, ShaderType.VEC4);
+        Expr twice = mul(s, Expr.Lit.of(2f));
+        Expr.Loop inner = new Expr.Loop(name, s, 2, twice, null);
+        return new Expr.Loop(name, Expr.Lit.of(0.001f, 0.002f, 0.003f, 1f / 216), 3, add(twice, inner), null);
     }
 }

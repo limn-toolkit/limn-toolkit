@@ -127,9 +127,8 @@ class GlslSharingAndLoopsTest {
 
     @Test
     void twoLoopsInOneSurfaceEachGetTheirOwnVariables() {
-        Expr.Ref z = new Expr.Ref("z", ShaderType.FLOAT);
-        Expr.Loop half = new Expr.Loop("z", Expr.Lit.of(0f), 5, add(z, Expr.Lit.of(0.1f)), null);
-        Expr.Loop third = new Expr.Loop("z", Expr.Lit.of(0f), 3, add(z, Expr.Lit.of(0.1f)), null);
+        Expr.Loop half = Expr.Loop.of(Expr.Lit.of(0f), 5, z -> add(z, Expr.Lit.of(0.1f)));
+        Expr.Loop third = Expr.Loop.of(Expr.Lit.of(0f), 3, z -> add(z, Expr.Lit.of(0.1f)));
         String frag = fragment(IrSurfaces.emitting(new Expr.Construct(ShaderType.VEC3, List.of(half, third,
                 Expr.Lit.of(0f)))));
         assertTrue(frag.contains("float ir_s0 = 0.0;"), frag);
@@ -151,19 +150,17 @@ class GlslSharingAndLoopsTest {
 
     @Test
     void aFrameworkHelperThatTakesDerivativesIsRefusedInALoopThatCanEndEarly() {
-        Expr.Ref s = new Expr.Ref("s", ShaderType.VEC3);
         for (String helper : List.of("worldToTangent", "normalMapToWorld")) {
-            Expr next = helper.equals("worldToTangent")
-                    ? call(helper, ShaderType.VEC3, s)
-                    : call(helper, ShaderType.VEC3, s, Expr.Lit.of(1f));
-            Expr.Loop loop = new Expr.Loop("s", Expr.Lit.of(0f, 0f, 1f), 4, next,
-                    IrSurfaces.sub(new Expr.Swizzle(s, "x"), Expr.Lit.of(0.5f)));
+            Expr.Loop loop = Expr.Loop.of(Expr.Lit.of(0f, 0f, 1f), 4,
+                    s -> helper.equals("worldToTangent")
+                            ? call(helper, ShaderType.VEC3, s)
+                            : call(helper, ShaderType.VEC3, s, Expr.Lit.of(1f)),
+                    s -> sub(new Expr.Swizzle(s, "x"), Expr.Lit.of(0.5f)));
             assertThrows(IllegalArgumentException.class, () -> fragment(IrSurfaces.emitting(loop)), helper);
         }
-        Expr.Ref f = new Expr.Ref("f", ShaderType.FLOAT);
-        Expr.Loop raw = new Expr.Loop("f", Expr.Lit.of(0f), 4,
-                add(f, new Expr.Raw(TargetProfile.GLSL_330, "dFdx(v_uv.x)", ShaderType.FLOAT)),
-                IrSurfaces.sub(f, Expr.Lit.of(1f)));
+        Expr.Loop raw = Expr.Loop.of(Expr.Lit.of(0f), 4,
+                f -> add(f, new Expr.Raw(TargetProfile.GLSL_330, "dFdx(v_uv.x)", ShaderType.FLOAT)),
+                f -> sub(f, Expr.Lit.of(1f)));
         assertThrows(IllegalArgumentException.class,
                 () -> fragment(IrSurfaces.emitting(new Expr.Construct(ShaderType.VEC3, List.of(raw)))),
                 "raw text is read by nobody, so it is refused where a derivative would be undefined");
@@ -204,13 +201,14 @@ class GlslSharingAndLoopsTest {
         // depth here takes milliseconds.
         assertTimeoutPreemptively(Duration.ofSeconds(10), () -> {
             for (int steps = 12; steps <= 20; steps++) {
-                Expr.Ref s = new Expr.Ref("s", ShaderType.VEC2);
-                Expr z = s;
-                for (int i = 0; i < steps; i++) {
-                    z = IrSurfaces.square(z, Expr.Lit.of(0.25f, 0.1f));
-                }
-                Expr.Loop loop = new Expr.Loop("s", Expr.Lit.of(0f, 0f), 8, z,
-                        sub(call("dot", ShaderType.FLOAT, s, s), Expr.Lit.of(4f)));
+                int depth = steps;
+                Expr.Loop loop = Expr.Loop.of(Expr.Lit.of(0f, 0f), 8, s -> {
+                    Expr z = s;
+                    for (int i = 0; i < depth; i++) {
+                        z = IrSurfaces.square(z, Expr.Lit.of(0.25f, 0.1f));
+                    }
+                    return z;
+                }, s -> sub(call("dot", ShaderType.FLOAT, s, s), Expr.Lit.of(4f)));
                 String frag = fragment(IrSurfaces.emitting(new Expr.Construct(ShaderType.VEC3,
                         List.of(loop, Expr.Lit.of(0f)))));
                 assertTrue(frag.contains("for (int ir_i0 = 0; ir_i0 < 8; ++ir_i0) {"), "steps " + steps);
@@ -227,78 +225,66 @@ class GlslSharingAndLoopsTest {
             for (int i = 0; i < 40; i++) {
                 z = mul(z, z);
             }
-            Expr.Ref s = new Expr.Ref("s", ShaderType.VEC2);
-            Expr.Loop loop = new Expr.Loop("s", Expr.Lit.of(0f, 0f), 4, add(s, z),
-                    sub(new Expr.Swizzle(s, "x"), Expr.Lit.of(1f)));
+            Expr chain = z;
+            Expr.Loop loop = Expr.Loop.of(Expr.Lit.of(0f, 0f), 4, s -> add(s, chain),
+                    s -> sub(new Expr.Swizzle(s, "x"), Expr.Lit.of(1f)));
             String frag = fragment(IrSurfaces.emitting(new Expr.Construct(ShaderType.VEC3,
                     List.of(loop, Expr.Lit.of(0f)))));
             assertEquals(40, count(frag, "    vec2 ir_t"), "one local a step: " + frag);
         });
     }
 
+    /** The text of the loop whose counter is {@code ir_i<n>}, from its for to its closing brace. */
+    private static String loopText(String frag, int n) {
+        int start = frag.indexOf("for (int ir_i" + n + " ");
+        int indent = start - frag.lastIndexOf('\n', start) - 1;
+        String close = "\n" + " ".repeat(indent) + "}\n";
+        return frag.substring(start, frag.indexOf(close, start) + close.length());
+    }
+
     @Test
-    void aLoopsStateNamedLikeAnInputIsTheStateInsideTheLoopWhicheverIsWrittenFirst() {
-        // A Value "z" doubled by the base colour, and a loop whose state is also called z, doubled
-        // three times. The base colour is written first and its z * 2 becomes a local over the
-        // uniform; inside the loop z is the state, and that local is not what z * 2 means there.
-        Expr.Ref z = new Expr.Ref("z", ShaderType.VEC4);
-        Expr twice = mul(z, Expr.Lit.of(2f));
-        Expr.Loop loop = new Expr.Loop("z", Expr.Lit.of(1f, 1f, 1f, 1f), 3, twice, null);
-        String declared = "\nuniform vec4 z;\n";
-        String outsideFirst = GlslCodegen.generate(SurfaceOutputs.of(twice, Expr.Lit.of(0f), Expr.Lit.of(1f),
-                new Expr.Swizzle(loop, "xyz")), declared, TargetProfile.GLSL_330).fragmentSource();
-        assertTrue(outsideFirst.contains("    vec4 baseColor = ir_t0;\n"), outsideFirst);
-        assertTrue(outsideFirst.contains("    vec4 ir_t0 = (z * 2.0);\n"), outsideFirst);
-        String body = firstLoop(outsideFirst);
-        assertFalse(body.contains("ir_t0"), body);
-        assertTrue(body.contains("(ir_s0 * 2.0)"), body);
-
-        // Inside first: the loop's local is in its body, and the base colour reads the uniform.
-        String insideFirst = GlslCodegen.generate(SurfaceOutputs.of(loop, Expr.Lit.of(0f), Expr.Lit.of(1f),
-                new Expr.Swizzle(twice, "xyz")), declared, TargetProfile.GLSL_330).fragmentSource();
-        assertTrue(firstLoop(insideFirst).contains("(ir_s0 * 2.0)"), insideFirst);
-        assertTrue(insideFirst.contains("(z * 2.0)"), insideFirst);
-
-        // The same with a varying of the framework's own for the name.
-        Expr uv = ref("v_uv", ShaderType.VEC2);
-        Expr cells = call("fract", ShaderType.VEC2, mul(uv, Expr.Lit.of(3f)));
-        Expr.Loop folded = new Expr.Loop("v_uv", Expr.Lit.of(0.5f, 0.5f), 4, cells, null);
-        String varying = fragment(SurfaceOutputs.of(new Expr.Construct(ShaderType.VEC4,
-                        List.of(cells, Expr.Lit.of(0f), Expr.Lit.of(1f))), Expr.Lit.of(0f), Expr.Lit.of(1f),
-                new Expr.Construct(ShaderType.VEC3, List.of(folded, Expr.Lit.of(0f)))));
-        assertTrue(varying.contains("fract((v_uv * 3.0))"), varying);
-        String foldedBody = firstLoop(varying);
-        assertTrue(foldedBody.contains("fract((ir_s0 * 3.0))"), foldedBody);
-        assertFalse(foldedBody.contains("ir_t0"), foldedBody);
+    void aLoopHidingAnEnclosingStateReadsItsOwnInItsTurn() {
+        // Two loops whose states share a name, the inner one in the outer's turn and starting from
+        // the outer state. The outer turn doubles its state, written first as a local of the outer
+        // body; in the inner turn the name is the inner state, and that local is not what doubling
+        // it means there.
+        Expr.Loop shadowing = IrSurfaces.shadowingLoops();
+        String frag = fragment(IrSurfaces.emitting(new Expr.Swizzle(shadowing, "xyz")));
+        String outer = loopText(frag, 0);
+        assertTrue(outer.contains("vec4 ir_t0 = (ir_s0 * 2.0);"), outer);
+        String inner = loopText(frag, 1);
+        assertTrue(inner.contains("(ir_s1 * 2.0)"), frag);
+        assertFalse(inner.contains("ir_t0"), inner);
+        assertTrue(outer.contains("vec4 ir_s1 = ir_s0;"), "the inner loop starts from the outer state: " + outer);
     }
 
     @Test
     void aLoopThatCanEndEarlyCallsOnlyWhatIsDefinedWherePixelsTakeDifferentTurns() {
-        Expr.Ref s = new Expr.Ref("s", ShaderType.FLOAT);
-        Expr until = sub(s, Expr.Lit.of(1f));
-        // The framework's shadow helper samples its map choosing the level itself.
-        Expr shadow = call("shadowFactor", ShaderType.FLOAT, ref("v_worldPos", ShaderType.VEC3), s);
-        // A name the generator does not know is no promise either.
-        Expr unknown = call("wobble", ShaderType.FLOAT, s);
-        for (Expr call : List.of(shadow, unknown)) {
-            Expr.Loop loop = new Expr.Loop("s", Expr.Lit.of(0f), 4, add(s, call), until);
+        java.util.function.UnaryOperator<Expr> until = s -> sub(s, Expr.Lit.of(1f));
+        // The framework's shadow helper samples its map choosing the level itself; a name the
+        // generator does not know is no promise either.
+        for (String function : List.of("shadowFactor", "wobble")) {
+            java.util.function.UnaryOperator<Expr> next = s -> add(s, function.equals("wobble")
+                    ? call(function, ShaderType.FLOAT, s)
+                    : call(function, ShaderType.FLOAT, ref("v_worldPos", ShaderType.VEC3), s));
+            Expr.Loop loop = Expr.Loop.of(Expr.Lit.of(0f), 4, next, until);
             IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
                     () -> fragment(IrSurfaces.emitting(new Expr.Construct(ShaderType.VEC3, List.of(loop)))));
-            assertTrue(refused.getMessage().contains(((Expr.Call) call).function()), refused.getMessage());
+            assertTrue(refused.getMessage().contains(function), refused.getMessage());
             // Every pixel takes every turn of a loop without an early end: there they are defined.
-            Expr.Loop uniform = new Expr.Loop("s", Expr.Lit.of(0f), 4, add(s, call), null);
+            Expr.Loop uniform = Expr.Loop.of(Expr.Lit.of(0f), 4, next);
             assertDoesNotThrow(() -> fragment(IrSurfaces.emitting(new Expr.Construct(ShaderType.VEC3,
                     List.of(uniform)))));
         }
         // The built-ins defined anywhere, and the framework's helpers that neither sample nor take a
         // derivative, are accepted.
-        Expr ok = add(add(call("sin", ShaderType.FLOAT, s), call("dot", ShaderType.FLOAT, s, s)),
-                add(call("mix", ShaderType.FLOAT, s, Expr.Lit.of(1f), Expr.Lit.of(0.5f)),
-                        new Expr.Swizzle(call("srgbToLinear", ShaderType.VEC3,
-                                new Expr.Construct(ShaderType.VEC3, List.of(s))), "x")));
         Expr texel = new Expr.Swizzle(call("textureLod", ShaderType.VEC4, ref("u_sheet", ShaderType.SAMPLER2D),
                 ref("v_uv", ShaderType.VEC2), Expr.Lit.of(0f)), "x");
-        Expr.Loop allowed = new Expr.Loop("s", Expr.Lit.of(0f), 4, add(add(s, ok), texel), until);
+        Expr.Loop allowed = Expr.Loop.of(Expr.Lit.of(0f), 4, s -> add(add(s,
+                add(add(call("sin", ShaderType.FLOAT, s), call("dot", ShaderType.FLOAT, s, s)),
+                        add(call("mix", ShaderType.FLOAT, s, Expr.Lit.of(1f), Expr.Lit.of(0.5f)),
+                                new Expr.Swizzle(call("srgbToLinear", ShaderType.VEC3,
+                                        new Expr.Construct(ShaderType.VEC3, List.of(s))), "x")))), texel), until);
         assertDoesNotThrow(() -> fragment(IrSurfaces.emitting(new Expr.Construct(ShaderType.VEC3,
                 List.of(allowed)))));
     }
@@ -312,9 +298,8 @@ class GlslSharingAndLoopsTest {
         // Read in a loop's turn, raw text reads no name of the loop and would be computed before it.
         Expr sheet = new Expr.Raw(TargetProfile.GLSL_330, "u_sheet", ShaderType.SAMPLER2D);
         Expr uv = ref("v_uv", ShaderType.VEC2);
-        Expr.Ref acc = new Expr.Ref("acc", ShaderType.VEC4);
-        Expr.Loop blur = new Expr.Loop("acc", Expr.Lit.of(0f, 0f, 0f, 0f), 4, add(acc,
-                call("texture", ShaderType.VEC4, sheet, add(uv, new Expr.Swizzle(acc, "xy")))), null);
+        Expr.Loop blur = Expr.Loop.of(Expr.Lit.of(0f, 0f, 0f, 0f), 4, acc -> add(acc,
+                call("texture", ShaderType.VEC4, sheet, add(uv, new Expr.Swizzle(acc, "xy")))));
         String looped = fragment(IrSurfaces.emitting(new Expr.Swizzle(blur, "rgb")));
         assertFalse(looped.contains("sampler2D ir_"), looped);
         assertTrue(firstLoop(looped).contains("texture((u_sheet), (v_uv + ir_s0.xy))"), looped);
@@ -323,12 +308,11 @@ class GlslSharingAndLoopsTest {
     @Test
     void aDiffuseResponseThatLoopsIsHeldToTheCapOnceForEachLightTheGeneratorShades() {
         // 200 turns a light fit one light, and the light loop runs the response for eight: 1,600.
-        Expr.Ref f = new Expr.Ref("f", ShaderType.FLOAT);
-        Expr.Loop response = new Expr.Loop("f", Expr.Lit.of(0f), 200, add(f, Expr.Lit.of(0.001f)), null);
+        Expr.Loop response = Expr.Loop.of(Expr.Lit.of(0f), 200, f -> add(f, Expr.Lit.of(0.001f)));
         SurfaceOutputs surface = IrSurfaces.emitting(Expr.Lit.of(0f, 0f, 0f)).withDiffuseResponse(response);
         IllegalArgumentException refused = assertThrows(IllegalArgumentException.class, () -> fragment(surface));
         assertTrue(refused.getMessage().contains("1600"), refused.getMessage());
-        Expr.Loop fits = new Expr.Loop("f", Expr.Lit.of(0f), 128, add(f, Expr.Lit.of(0.001f)), null);
+        Expr.Loop fits = Expr.Loop.of(Expr.Lit.of(0f), 128, f -> add(f, Expr.Lit.of(0.001f)));
         assertDoesNotThrow(() -> fragment(IrSurfaces.emitting(Expr.Lit.of(0f, 0f, 0f)).withDiffuseResponse(fits)));
     }
 }

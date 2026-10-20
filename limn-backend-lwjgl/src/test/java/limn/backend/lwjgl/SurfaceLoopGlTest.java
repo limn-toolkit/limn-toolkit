@@ -131,12 +131,11 @@ class SurfaceLoopGlTest {
 
     @Test
     void aLoopsValueReachesThePixelWhetherItRunsOutOrEndsEarly() {
-        Expr.Ref s = new Expr.Ref("s", ShaderType.FLOAT);
-        Expr.Loop fifty = new Expr.Loop("s", Expr.Lit.of(0f), 50, IrSurfaces.add(s, Expr.Lit.of(0.01f)), null);
+        Expr.Loop fifty = Expr.Loop.of(Expr.Lit.of(0f), 50, s -> IrSurfaces.add(s, Expr.Lit.of(0.01f)));
         // Asked before each turn: 0, 0.1, 0.2, 0.3 are below 0.35 and step on; 0.4 is not. Up to
         // 974 turns, what the fifty leave of the surface's 1,024.
-        Expr.Loop early = new Expr.Loop("s", Expr.Lit.of(0f), 974, IrSurfaces.add(s, Expr.Lit.of(0.1f)),
-                IrSurfaces.sub(s, Expr.Lit.of(0.35f)));
+        Expr.Loop early = Expr.Loop.of(Expr.Lit.of(0f), 974, s -> IrSurfaces.add(s, Expr.Lit.of(0.1f)),
+                s -> IrSurfaces.sub(s, Expr.Lit.of(0.35f)));
         SurfaceOutputs both = IrSurfaces.emitting(new Expr.Construct(ShaderType.VEC3,
                 List.of(fifty, early, Expr.Lit.of(0f))));
         ScenePixels pixels = draw(context -> Material.Surface.of("test.loops", both), false);
@@ -166,14 +165,10 @@ class SurfaceLoopGlTest {
                         new Material.Surface.Texture("u_mask", context.upload(gradient(), Sampler.smooth()))),
                 List.of(new Material.Surface.Value("u_knobs", new Vec4(0.3f, 0.2f, 0, 0))), null));
         materials.put("molten", context -> Material.Surface.of("test.molten", IrSurfaces.moltenLike()));
-        // A loop's state named like one of the surface's inputs, the input read outside the loop
-        // first: inside the loop the name is the state, shared or not.
-        Expr.Ref z = new Expr.Ref("z", ShaderType.VEC4);
-        Expr twice = IrSurfaces.mul(z, Expr.Lit.of(2f));
-        Expr.Loop doubled = new Expr.Loop("z", Expr.Lit.of(0.01f, 0.02f, 0.03f, 1f), 3, twice, null);
-        materials.put("a state named like an input", context -> new Material.Surface("test.named",
-                SurfaceOutputs.of(twice, Expr.Lit.of(0f), Expr.Lit.of(0.6f), new Expr.Swizzle(doubled, "xyz")),
-                List.of(), List.of(new Material.Surface.Value("z", new Vec4(0.3f, 0.2f, 0.1f, 0.5f))), null));
+        // A loop hiding the state of the loop around it, a node over that name written in the outer
+        // turn first: inside the inner turn the name is the inner state, shared or not.
+        materials.put("a loop hiding an enclosing state", context -> Material.Surface.of("test.shadowing",
+                IrSurfaces.emitting(new Expr.Swizzle(IrSurfaces.shadowingLoops(), "xyz"))));
         boolean was = GlslCodegen.shareSubexpressions;
         try {
             // The comparison means something only where the two forms differ: the standard surface

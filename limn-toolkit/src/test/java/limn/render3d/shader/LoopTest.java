@@ -4,116 +4,164 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.function.UnaryOperator;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * A loop in the shader IR is bounded: with the loops it holds it may not ask a fragment for more
  * than {@link Expr.Loop#MAX_ITERATIONS} turns, however it nests them ({@link SurfaceBudgetTest}
- * holds a whole surface to the same cap). And a
- * loop that can end early runs in non-uniform control flow, where neither GLSL 3.30 nor GLSL ES
- * 3.00 defines a derivative or an implicit-LOD texture lookup.
+ * holds a whole surface to the same cap). Its state is a node {@link Expr.Loop#of} hands its turn,
+ * of the initial value's type wherever it is read. And a loop that can end early runs in
+ * non-uniform control flow, where neither GLSL 3.30 nor GLSL ES 3.00 defines a derivative or an
+ * implicit-LOD texture lookup.
  */
 class LoopTest {
 
-    private static final Expr.Ref Z = new Expr.Ref("z", ShaderType.VEC2);
+    private static final Expr.Lit ORIGIN = Expr.Lit.of(0f, 0f);
 
-    /** z + 1: a turn that reads the state. */
-    private static Expr step(Expr.Ref state) {
-        return new Expr.Binary(Expr.Op.ADD, state, Expr.Lit.of(1f, 1f));
+    private static Expr add(Expr a, Expr b) {
+        return new Expr.Binary(Expr.Op.ADD, a, b);
     }
 
-    private static Expr.Loop loop(String name, int turns, Expr next) {
-        return new Expr.Loop(name, Expr.Lit.of(0f, 0f), turns, next, null);
+    /** z + 1: a turn that reads the state. */
+    private static Expr step(Expr state) {
+        return add(state, Expr.Lit.of(1f, 1f));
+    }
+
+    /** z.x - 4: ends the loop once z.x passes 4. */
+    private static Expr past4(Expr state) {
+        return new Expr.Binary(Expr.Op.SUB, new Expr.Swizzle(state, "x"), Expr.Lit.of(4f));
+    }
+
+    private static Expr.Loop loop(int turns, UnaryOperator<Expr> next) {
+        return Expr.Loop.of(ORIGIN, turns, next);
     }
 
     @Test
     void aLoopIsAValueOfItsStatesType() {
-        Expr.Loop loop = loop("z", 8, step(Z));
+        Expr.Loop loop = loop(8, LoopTest::step);
         assertEquals(ShaderType.VEC2, loop.type());
+    }
+
+    @Test
+    void theTurnIsHandedItsStateAsANodeOfTheInitialValuesType() {
+        Expr[] handed = new Expr[2];
+        Expr.Loop loop = Expr.Loop.of(Expr.Lit.of(0f, 0f, 0f), 8, s -> {
+            handed[0] = s;
+            return s;
+        }, s -> {
+            handed[1] = s;
+            return new Expr.Swizzle(s, "x");
+        });
+        assertEquals(new Expr.Ref(loop.state(), ShaderType.VEC3), handed[0]);
+        assertEquals(handed[0], handed[1], "next and until read the same state");
+        assertTrue(loop.state().startsWith("ir_"), "a name no input may take: " + loop.state());
+    }
+
+    @Test
+    void aLoopBuiltTwiceAlikeIsOneValue() {
+        // A Java method that builds a loop builds an equal one each time, which the generator
+        // computes once.
+        assertEquals(loop(8, LoopTest::step), loop(8, LoopTest::step));
+    }
+
+    @Test
+    void aLoopBuiltInsideAnothersTurnReadsBothStates() {
+        Expr.Loop nested = loop(4, z -> add(z, loop(4, w -> add(w, z))));
+        Expr.Loop inner = (Expr.Loop) ((Expr.Binary) nested.next()).right();
+        assertNotEquals(nested.state(), inner.state(), "the inner state has a name of its own");
+        assertEquals(new Expr.Ref(nested.state(), ShaderType.VEC2), ((Expr.Binary) inner.next()).right(),
+                "and the inner turn reads the outer state by the outer name");
     }
 
     @Test
     void theCapIsAThousandAndTwentyFourTurns() {
         assertEquals(1024, Expr.Loop.MAX_ITERATIONS);
-        assertDoesNotThrow(() -> loop("z", 1, step(Z)));
-        assertDoesNotThrow(() -> loop("z", 1024, step(Z)));
-        assertThrows(IllegalArgumentException.class, () -> loop("z", 0, step(Z)));
-        assertThrows(IllegalArgumentException.class, () -> loop("z", 1025, step(Z)));
+        assertDoesNotThrow(() -> loop(1, LoopTest::step));
+        assertDoesNotThrow(() -> loop(1024, LoopTest::step));
+        assertThrows(IllegalArgumentException.class, () -> loop(0, LoopTest::step));
+        assertThrows(IllegalArgumentException.class, () -> loop(1025, LoopTest::step));
     }
 
     @Test
     void aNestingIsCappedByTheProductOfItsCounts() {
-        Expr.Ref w = new Expr.Ref("w", ShaderType.VEC2);
-        Expr.Loop inner32 = loop("w", 32, step(w));
-        assertDoesNotThrow(() -> loop("z", 32, new Expr.Binary(Expr.Op.ADD, Z, inner32)));
-        Expr.Loop inner64 = loop("w", 64, step(w));
-        assertThrows(IllegalArgumentException.class,
-                () -> loop("z", 32, new Expr.Binary(Expr.Op.ADD, Z, inner64)),
+        assertDoesNotThrow(() -> loop(32, z -> add(z, loop(32, LoopTest::step))));
+        assertThrows(IllegalArgumentException.class, () -> loop(32, z -> add(z, loop(64, LoopTest::step))),
                 "32 turns of 64 turns is 2048 turns a fragment");
         // A loop in the initial value runs once, before the outer one: it does not multiply.
-        assertDoesNotThrow(() -> new Expr.Loop("z", inner64, 16, step(Z), null));
+        assertDoesNotThrow(() -> Expr.Loop.of(loop(64, LoopTest::step), 16, LoopTest::step));
         // A loop in until, a turn's work like next, does multiply.
-        Expr.Ref v = new Expr.Ref("v", ShaderType.FLOAT);
-        Expr.Loop innerUntil = new Expr.Loop("v", Expr.Lit.of(0f), 64,
-                new Expr.Binary(Expr.Op.ADD, v, Expr.Lit.of(1f)), null);
-        assertThrows(IllegalArgumentException.class,
-                () -> new Expr.Loop("z", Expr.Lit.of(0f, 0f), 32, step(Z), innerUntil));
+        assertThrows(IllegalArgumentException.class, () -> Expr.Loop.of(ORIGIN, 32, LoopTest::step,
+                z -> new Expr.Swizzle(loop(64, LoopTest::step), "x")));
     }
 
     @Test
     void theNextStateIsOfTheStatesTypeAndUntilIsAFloat() {
         assertThrows(IllegalArgumentException.class,
-                () -> loop("z", 8, Expr.Lit.of(1f, 1f, 1f)), "a vec2 state cannot become a vec3");
+                () -> loop(8, z -> Expr.Lit.of(1f, 1f, 1f)), "a vec2 state cannot become a vec3");
         assertThrows(IllegalArgumentException.class,
-                () -> new Expr.Loop("z", Expr.Lit.of(0f, 0f), 8, step(Z), Expr.Lit.of(1f, 1f)));
-        assertThrows(IllegalArgumentException.class, () -> new Expr.Loop("s",
-                new Expr.Ref("u_tex", ShaderType.SAMPLER2D), 8, new Expr.Ref("s", ShaderType.SAMPLER2D), null),
-                "a sampler is not a value a loop can carry");
+                () -> Expr.Loop.of(ORIGIN, 8, LoopTest::step, z -> Expr.Lit.of(1f, 1f)));
+        assertThrows(IllegalArgumentException.class, () -> Expr.Loop.of(
+                new Expr.Ref("u_tex", ShaderType.SAMPLER2D), 8, s -> s), "a sampler is not a value a loop can carry");
     }
 
     @Test
-    void theStatesNameIsAnIdentifierEveryProfileAcceptsAndNoneOfTheGenerators() {
-        for (String bad : List.of("", "2z", "z-1", "gl_z", "ir_z", "a__b", "z w")) {
-            assertThrows(IllegalArgumentException.class, () -> loop(bad, 8, step(Z)), bad);
+    void theStateIsReadAsItsOwnTypeWhereverItIsRead() {
+        // A reference of the state's name with another type, built by hand: the generator would
+        // write vec4((ir_s0 + vec2(1.0)), ...) where ir_s0 is a vec4, which no profile compiles.
+        Expr.Loop four = Expr.Loop.of(Expr.Lit.of(0f, 0f, 0f, 0f), 4, s -> s);
+        Expr.Ref misread = new Expr.Ref(four.state(), ShaderType.VEC2);
+        Expr next = new Expr.Construct(ShaderType.VEC4, List.of(step(misread), ORIGIN));
+        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+                () -> new Expr.Loop(four.state(), four.initial(), 4, next, null));
+        assertTrue(refused.getMessage().contains("VEC2"), refused.getMessage());
+        assertThrows(IllegalArgumentException.class, () -> new Expr.Loop(four.state(), four.initial(), 4,
+                four.initial(), new Expr.Swizzle(misread, "x")), "in until too");
+    }
+
+    @Test
+    void theStatesNameIsTheOneTheFactoryGives() {
+        for (String bad : List.of("z", "s", "v_uv", "ir_z", "ir_state", "ir_state01", "gl_z")) {
+            assertThrows(IllegalArgumentException.class,
+                    () -> new Expr.Loop(bad, ORIGIN, 8, step(new Expr.Ref(bad, ShaderType.VEC2)), null), bad);
         }
-        assertDoesNotThrow(() -> loop("zOld_2", 8, step(Z)));
+        assertDoesNotThrow(() -> new Expr.Loop("ir_state3", ORIGIN, 8,
+                step(new Expr.Ref("ir_state3", ShaderType.VEC2)), null));
     }
 
     @Test
-    void aNestedLoopMayNotReuseAnEnclosingName() {
-        Expr.Loop inner = loop("z", 4, step(Z));
-        assertThrows(IllegalArgumentException.class,
-                () -> loop("z", 4, new Expr.Binary(Expr.Op.ADD, Z, inner)),
-                "one Ref(\"z\") would mean two values");
+    void aLoopBuiltApartMaySitInAnothersTurn() {
+        // Built before the outer loop, at the same depth, it has the outer state's name: inside its
+        // own turn the name is its state, which is all it could have read.
+        Expr.Loop apart = loop(4, LoopTest::step);
+        Expr.Loop outer = assertDoesNotThrow(() -> loop(8, z -> add(z, apart)));
+        assertEquals(apart.state(), outer.state());
     }
 
     @Test
     void aLoopThatCanEndEarlyTakesNoSampleAndNoDerivative() {
-        Expr until = new Expr.Binary(Expr.Op.SUB, new Expr.Swizzle(Z, "x"), Expr.Lit.of(4f));
-        Expr sampled = new Expr.Binary(Expr.Op.ADD, Z, new Expr.Swizzle(new Expr.Sample(
-                new Expr.Ref("u_tex", ShaderType.SAMPLER2D), Z), "xy"));
-        Expr derivative = new Expr.Binary(Expr.Op.ADD, Z,
-                new Expr.Call("dFdx", ShaderType.VEC2, List.of(Z)));
+        UnaryOperator<Expr> sampled = z -> add(z, new Expr.Swizzle(new Expr.Sample(
+                new Expr.Ref("u_tex", ShaderType.SAMPLER2D), z), "xy"));
+        UnaryOperator<Expr> derivative = z -> add(z, new Expr.Call("dFdx", ShaderType.VEC2, List.of(z)));
 
-        assertThrows(IllegalArgumentException.class, () -> new Expr.Loop("z", Expr.Lit.of(0f, 0f), 8, sampled, until));
-        assertThrows(IllegalArgumentException.class,
-                () -> new Expr.Loop("z", Expr.Lit.of(0f, 0f), 8, derivative, until));
+        assertThrows(IllegalArgumentException.class, () -> Expr.Loop.of(ORIGIN, 8, sampled, LoopTest::past4));
+        assertThrows(IllegalArgumentException.class, () -> Expr.Loop.of(ORIGIN, 8, derivative, LoopTest::past4));
         for (String name : List.of("dFdy", "fwidth")) {
-            Expr call = new Expr.Binary(Expr.Op.ADD, Z, new Expr.Call(name, ShaderType.VEC2, List.of(Z)));
-            assertThrows(IllegalArgumentException.class, () -> new Expr.Loop("z", Expr.Lit.of(0f, 0f), 8, call, until));
+            assertThrows(IllegalArgumentException.class, () -> Expr.Loop.of(ORIGIN, 8,
+                    z -> add(z, new Expr.Call(name, ShaderType.VEC2, List.of(z))), LoopTest::past4));
         }
         // In until too, which is read on the same turns.
-        Expr sampledUntil = new Expr.Swizzle(new Expr.Sample(
-                new Expr.Ref("u_tex", ShaderType.SAMPLER2D), Z), "x");
-        assertThrows(IllegalArgumentException.class,
-                () -> new Expr.Loop("z", Expr.Lit.of(0f, 0f), 8, step(Z), sampledUntil));
+        assertThrows(IllegalArgumentException.class, () -> Expr.Loop.of(ORIGIN, 8, LoopTest::step,
+                z -> new Expr.Swizzle(new Expr.Sample(new Expr.Ref("u_tex", ShaderType.SAMPLER2D), z), "x")));
         // Every fragment runs every turn of a loop without until: uniform, so allowed.
-        assertDoesNotThrow(() -> new Expr.Loop("z", Expr.Lit.of(0f, 0f), 8, sampled, null));
-        assertDoesNotThrow(() -> new Expr.Loop("z", Expr.Lit.of(0f, 0f), 8, derivative, null));
+        assertDoesNotThrow(() -> Expr.Loop.of(ORIGIN, 8, sampled));
+        assertDoesNotThrow(() -> Expr.Loop.of(ORIGIN, 8, derivative));
     }
 
     @Test
@@ -121,15 +169,14 @@ class LoopTest {
         // z ↦ z·z forty times, each product reading the one before twice: a type asked of each
         // child as a tree is 2^40 questions, and the loop's constructor asks its next state's type.
         assertTimeoutPreemptively(Duration.ofSeconds(5), () -> {
-            Expr z = Z;
+            Expr z = new Expr.Ref("u_z", ShaderType.VEC2);
             for (int i = 0; i < 40; i++) {
                 z = new Expr.Binary(Expr.Op.MUL, z, z);
             }
             assertEquals(ShaderType.VEC2, z.type());
             Expr chain = z;
-            assertDoesNotThrow(() -> new Expr.Loop("z", Expr.Lit.of(0f, 0f), 4,
-                    new Expr.Binary(Expr.Op.ADD, Z, chain),
-                    new Expr.Binary(Expr.Op.SUB, new Expr.Swizzle(chain, "x"), Expr.Lit.of(1f))));
+            assertDoesNotThrow(() -> Expr.Loop.of(ORIGIN, 4, s -> add(s, chain),
+                    s -> new Expr.Binary(Expr.Op.SUB, new Expr.Swizzle(chain, "x"), Expr.Lit.of(1f))));
         });
     }
 
@@ -137,25 +184,45 @@ class LoopTest {
     void aLoopThatCanEndEarlyTakesNoLookupThatPicksItsOwnLevelOfDetail() {
         // The lookups that choose a level of detail from the pixel's neighbours are undefined where
         // the neighbours took other turns, whether the IR says Sample or names the function itself.
-        Expr until = new Expr.Binary(Expr.Op.SUB, new Expr.Swizzle(Z, "x"), Expr.Lit.of(4f));
         Expr sheet = new Expr.Ref("u_tex", ShaderType.SAMPLER2D);
         for (String name : List.of("texture", "textureProj", "textureOffset", "textureProjOffset")) {
-            Expr lookup = new Expr.Binary(Expr.Op.ADD, Z, new Expr.Swizzle(
-                    new Expr.Call(name, ShaderType.VEC4, List.of(sheet, Z)), "xy"));
+            UnaryOperator<Expr> lookup = z -> add(z, new Expr.Swizzle(
+                    new Expr.Call(name, ShaderType.VEC4, List.of(sheet, z)), "xy"));
             assertThrows(IllegalArgumentException.class,
-                    () -> new Expr.Loop("z", Expr.Lit.of(0f, 0f), 8, lookup, until), name);
-            assertThrows(IllegalArgumentException.class, () -> new Expr.Loop("z", Expr.Lit.of(0f, 0f), 8,
-                    step(Z), new Expr.Swizzle(new Expr.Call(name, ShaderType.VEC4, List.of(sheet, Z)), "x")),
+                    () -> Expr.Loop.of(ORIGIN, 8, lookup, LoopTest::past4), name);
+            assertThrows(IllegalArgumentException.class, () -> Expr.Loop.of(ORIGIN, 8, LoopTest::step,
+                    z -> new Expr.Swizzle(new Expr.Call(name, ShaderType.VEC4, List.of(sheet, z)), "x")),
                     name + " in until");
-            assertDoesNotThrow(() -> new Expr.Loop("z", Expr.Lit.of(0f, 0f), 8, lookup, null),
+            assertDoesNotThrow(() -> Expr.Loop.of(ORIGIN, 8, lookup),
                     name + " where every pixel takes every turn");
         }
         // A lookup told its level, or reading one texel, needs no neighbour.
         for (String name : List.of("textureLod", "textureLodOffset", "textureProjLod", "textureGrad",
                 "textureGradOffset", "textureProjGrad", "texelFetch", "textureSize")) {
-            Expr lookup = new Expr.Binary(Expr.Op.ADD, Z, new Expr.Swizzle(
-                    new Expr.Call(name, ShaderType.VEC4, List.of(sheet, Z)), "xy"));
-            assertDoesNotThrow(() -> new Expr.Loop("z", Expr.Lit.of(0f, 0f), 8, lookup, until), name);
+            UnaryOperator<Expr> lookup = z -> add(z, new Expr.Swizzle(
+                    new Expr.Call(name, ShaderType.VEC4, List.of(sheet, z)), "xy"));
+            assertDoesNotThrow(() -> Expr.Loop.of(ORIGIN, 8, lookup, LoopTest::past4), name);
         }
+    }
+
+    @Test
+    void aStateReadOutsideItsLoopIsRefusedByTheSurface() {
+        // Kept from the turn it was handed to, the state is a name no loop binds where it is read.
+        Expr[] kept = new Expr[1];
+        Expr.Loop loop = loop(4, z -> {
+            kept[0] = z;
+            return step(z);
+        });
+        Expr outside = new Expr.Construct(ShaderType.VEC3, List.of(kept[0], Expr.Lit.of(0f)));
+        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+                () -> SurfaceOutputs.of(Expr.Lit.of(0f, 0f, 0f, 1f), Expr.Lit.of(0f), Expr.Lit.of(1f), outside));
+        assertTrue(refused.getMessage().contains(loop.state()), refused.getMessage());
+        // In another loop's initial value it is outside its own loop too.
+        Expr.Loop later = Expr.Loop.of(kept[0], 4, LoopTest::step);
+        assertThrows(IllegalArgumentException.class, () -> SurfaceOutputs.of(Expr.Lit.of(0f, 0f, 0f, 1f),
+                Expr.Lit.of(0f), Expr.Lit.of(1f), new Expr.Construct(ShaderType.VEC3, List.of(later, Expr.Lit.of(0f)))));
+        // Read where its loop binds it, it is the state.
+        assertDoesNotThrow(() -> SurfaceOutputs.of(Expr.Lit.of(0f, 0f, 0f, 1f), Expr.Lit.of(0f), Expr.Lit.of(1f),
+                new Expr.Construct(ShaderType.VEC3, List.of(loop, Expr.Lit.of(0f)))));
     }
 }

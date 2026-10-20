@@ -46,13 +46,11 @@ class ExprValueTest {
         assertEquals(a.hashCode(), b.hashCode());
         assertEquals(new Expr.Call("fract", ShaderType.VEC2, List.of(a)),
                 new Expr.Call("fract", ShaderType.VEC2, List.of(b)));
-        Expr.Ref s = new Expr.Ref("s", ShaderType.VEC2);
-        assertEquals(new Expr.Loop("s", Expr.Lit.of(0f, 0f), 8, new Expr.Binary(Expr.Op.ADD, s, a), null),
-                new Expr.Loop("s", Expr.Lit.of(0f, 0f), 8, new Expr.Binary(Expr.Op.ADD, s, b), null));
-        assertNotEquals(new Expr.Loop("s", Expr.Lit.of(0f, 0f), 8, a, null),
-                new Expr.Loop("s", Expr.Lit.of(0f, 0f), 9, a, null));
-        assertNotEquals(new Expr.Loop("s", Expr.Lit.of(0f, 0f), 8, a, null),
-                new Expr.Loop("s", Expr.Lit.of(0f, 0f), 8, a, new Expr.Swizzle(s, "x")));
+        assertEquals(Expr.Loop.of(Expr.Lit.of(0f, 0f), 8, s -> new Expr.Binary(Expr.Op.ADD, s, a)),
+                Expr.Loop.of(Expr.Lit.of(0f, 0f), 8, s -> new Expr.Binary(Expr.Op.ADD, s, b)));
+        assertNotEquals(Expr.Loop.of(Expr.Lit.of(0f, 0f), 8, s -> a), Expr.Loop.of(Expr.Lit.of(0f, 0f), 9, s -> a));
+        assertNotEquals(Expr.Loop.of(Expr.Lit.of(0f, 0f), 8, s -> a),
+                Expr.Loop.of(Expr.Lit.of(0f, 0f), 8, s -> a, s -> new Expr.Swizzle(s, "x")));
         assertNotEquals(a, new Expr.Binary(Expr.Op.SUB, ref("v_uv"), Expr.Lit.of(0.5f, 0.5f)));
     }
 

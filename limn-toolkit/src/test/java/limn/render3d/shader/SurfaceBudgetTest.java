@@ -17,15 +17,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class SurfaceBudgetTest {
 
-    private static final Expr.Ref F = new Expr.Ref("f", ShaderType.FLOAT);
-
     private static Expr add(Expr a, Expr b) {
         return new Expr.Binary(Expr.Op.ADD, a, b);
     }
 
     /** A loop of {@code turns} that adds {@code step} to a float each turn, from {@code initial}. */
     private static Expr.Loop counting(Expr initial, int turns, float step) {
-        return new Expr.Loop("f", initial, turns, add(F, Expr.Lit.of(step)), null);
+        return Expr.Loop.of(initial, turns, f -> add(f, Expr.Lit.of(step)));
     }
 
     private static SurfaceOutputs emitting(Expr... floats) {
@@ -54,23 +52,20 @@ class SurfaceBudgetTest {
     @Test
     void loopsSideBySideInOneTurnAddAndTheTurnMultipliesThem() {
         // An outer loop of 8 whose turn holds 8 loops of 128: 8 × 8 × 128 = 8,192 turns a pixel.
-        Expr.Ref g = new Expr.Ref("g", ShaderType.FLOAT);
-        Expr.Ref h = new Expr.Ref("h", ShaderType.FLOAT);
-        Expr sum = g;
-        for (int i = 0; i < 8; i++) {
-            sum = add(sum, new Expr.Loop("h", g, 128, add(h, Expr.Lit.of(i + 1f)), null));
-        }
-        Expr turn = sum;
         IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
-                () -> new Expr.Loop("g", Expr.Lit.of(0f), 8, turn, null));
+                () -> Expr.Loop.of(Expr.Lit.of(0f), 8, g -> eightLoops(g, 128)));
         assertTrue(refused.getMessage().contains("8192"), refused.getMessage());
         // Eight of 16 in a turn of 8 are 1,024: the cap, accepted.
-        Expr small = g;
+        assertDoesNotThrow(() -> Expr.Loop.of(Expr.Lit.of(0f), 8, g -> eightLoops(g, 16)));
+    }
+
+    /** {@code g} plus eight loops side by side, each of {@code turns} from {@code g}. */
+    private static Expr eightLoops(Expr g, int turns) {
+        Expr sum = g;
         for (int i = 0; i < 8; i++) {
-            small = add(small, new Expr.Loop("h", g, 16, add(h, Expr.Lit.of(i + 1f)), null));
+            sum = add(sum, counting(g, turns, i + 1f));
         }
-        Expr fits = small;
-        assertDoesNotThrow(() -> new Expr.Loop("g", Expr.Lit.of(0f), 8, fits, null));
+        return sum;
     }
 
     @Test
@@ -100,13 +95,11 @@ class SurfaceBudgetTest {
 
     @Test
     void anEscapeTimeFractalOf256TurnsFits() {
-        Expr.Ref s = new Expr.Ref("s", ShaderType.VEC4);
-        Expr z = new Expr.Swizzle(s, "xy");
-        Expr next = new Expr.Construct(ShaderType.VEC4, List.of(z, add(new Expr.Swizzle(s, "z"),
-                Expr.Lit.of(1f)), Expr.Lit.of(0f)));
-        Expr until = new Expr.Binary(Expr.Op.SUB, new Expr.Call("dot", ShaderType.FLOAT, List.of(z, z)),
-                Expr.Lit.of(256f));
-        Expr.Loop loop = new Expr.Loop("s", Expr.Lit.of(0f, 0f, 0f, 0f), 256, next, until);
+        Expr.Loop loop = Expr.Loop.of(Expr.Lit.of(0f, 0f, 0f, 0f), 256,
+                s -> new Expr.Construct(ShaderType.VEC4, List.of(new Expr.Swizzle(s, "xy"),
+                        add(new Expr.Swizzle(s, "z"), Expr.Lit.of(1f)), Expr.Lit.of(0f))),
+                s -> new Expr.Binary(Expr.Op.SUB, new Expr.Call("dot", ShaderType.FLOAT,
+                        List.of(new Expr.Swizzle(s, "xy"), new Expr.Swizzle(s, "xy"))), Expr.Lit.of(256f)));
         assertEquals(256, emitting(new Expr.Swizzle(loop, "z")).turnsPerPixel(1));
     }
 

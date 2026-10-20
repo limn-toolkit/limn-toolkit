@@ -86,7 +86,11 @@ public sealed interface Expr
         }
     }
 
-    /** A named input the framework declares (a UBO member, varying, or sampler). */
+    /**
+     * A named value: an input the framework or the surface declares (a UBO member, a varying, a
+     * sampler, a {@code Material.Surface} input), or the state of the {@link Loop} it is read in,
+     * which {@link Loop#of} hands the loop's turn.
+     */
     record Ref(String name, ShaderType type) implements Expr {
     }
 
@@ -186,24 +190,31 @@ public sealed interface Expr
     }
 
     /**
-     * A value computed by a bounded loop: a named state, its initial value, and the state after
-     * one turn, taken at most {@code maxIterations} times.
+     * A value computed by a bounded loop: a state, its initial value, and the state after one
+     * turn, taken at most {@code maxIterations} times. Build one with {@link #of}, which hands the
+     * turn its state as a node.
      *
      * <p>Each turn first asks {@code until}, when there is one, of the state as it stands: above
      * zero ends the loop; otherwise the state becomes {@code next}. The loop's value is the state
-     * when it ends. Inside {@code next} and {@code until} the state is read as
-     * {@code new Expr.Ref(state, initial.type())}, and there the name is the state even where an
-     * input of the surface or a varying of the framework has the same one; outside them the name
-     * means nothing. A part of {@code next} or {@code until} that does not read the state is
+     * when it ends. A part of {@code next} or {@code until} that does not read the state is
      * computed once, before the loop.
      *
      * <pre>{@code
      * // An escape-time fractal: z ↦ z² + c, counting turns, until |z|² passes 256.
-     * Expr.Ref s = new Expr.Ref("s", ShaderType.VEC4);           // (z.x, z.y, turns, 0)
-     * Expr next = ...;                                           // (z² + c, turns + 1, 0)
-     * Expr until = minus(dot(s.xy, s.xy), 256);                  // above zero: escaped
-     * Expr.Loop loop = new Expr.Loop("s", Expr.Lit.of(0, 0, 0, 0), 256, next, until);
+     * // The state is (z.x, z.y, turns, 0).
+     * Expr.Loop escape = Expr.Loop.of(Expr.Lit.of(0, 0, 0, 0), 256,
+     *         s -> vec4(plus(square(xy(s)), c), plus(z(s), 1), 0),   // the next state
+     *         s -> minus(dot(xy(s), xy(s)), 256));                   // above zero: escaped
      * }</pre>
+     *
+     * <p><b>The state is a node, not a name.</b> {@link #of} gives {@code next} and {@code until}
+     * the state as an {@link Ref} of the initial value's type, under a name it chooses, which a
+     * surface's inputs cannot take (they may not start {@code ir_}). That is the record's
+     * {@code state}: a record keeps its components, and the IR has to say which references a loop
+     * binds, but nothing else names it. A loop built inside another's turn gets a name of its own,
+     * so it may read the outer state; one built apart may sit in another's turn, its state hiding
+     * the outer one, which it could not have read. The state means nothing outside its loop:
+     * {@link SurfaceOutputs} refuses a surface that reads it there.
      *
      * <p><b>Bounded across a whole surface.</b> The count is a constant from 1 to
      * {@link #MAX_ITERATIONS}, and so is every turn a pixel takes in all the loops of one surface.
@@ -230,12 +241,7 @@ public sealed interface Expr
      * sample or take derivatives among them. A loop without an {@code until} runs every turn in
      * every pixel and may hold them all.
      *
-     * <p>The state's name is an identifier every profile accepts and none of the generator's:
-     * ASCII letters, digits and {@code _}, a letter first, no {@code __}, and neither
-     * {@code gl_} nor {@code ir_} at its start. A loop inside another may not reuse an enclosing
-     * loop's name; two loops side by side may.
-     *
-     * @param state         the state's name, read in {@code next} and {@code until}
+     * @param state         the state's name, as {@link #of} gives it: {@code ir_state} and a number
      * @param initial       the state before the first turn; a float or vector type
      * @param maxIterations how many turns at most, 1 to {@link #MAX_ITERATIONS}
      * @param next          the state after one turn, of the initial value's type
@@ -248,20 +254,76 @@ public sealed interface Expr
         /** The most turns a pixel may take across every loop of a surface. */
         public static final int MAX_ITERATIONS = 1024;
 
+        /** How many loops are being built around the one being built now, on this thread. */
+        private static final ThreadLocal<int[]> BUILDING = ThreadLocal.withInitial(() -> new int[1]);
+
+        /**
+         * A loop that takes every turn, in every pixel.
+         *
+         * @param initial       the state before the first turn; a float or vector type
+         * @param maxIterations how many turns, 1 to {@link #MAX_ITERATIONS}
+         * @param next          the state after one turn, given the state
+         * @return the loop, whose value is the state after the last turn
+         * @throws IllegalArgumentException as the constructor
+         */
+        public static Loop of(Expr initial, int maxIterations, java.util.function.UnaryOperator<Expr> next) {
+            return build(initial, maxIterations, next, null);
+        }
+
+        /**
+         * A loop that may end early: before each turn, {@code until} of the state above zero ends it.
+         *
+         * @param initial       the state before the first turn; a float or vector type
+         * @param maxIterations how many turns at most, 1 to {@link #MAX_ITERATIONS}
+         * @param next          the state after one turn, given the state
+         * @param until         a float above zero where the loop ends, given the state
+         * @return the loop, whose value is the state when it ends
+         * @throws IllegalArgumentException as the constructor
+         */
+        public static Loop of(Expr initial, int maxIterations, java.util.function.UnaryOperator<Expr> next,
+                              java.util.function.UnaryOperator<Expr> until) {
+            return build(initial, maxIterations, next, java.util.Objects.requireNonNull(until, "until"));
+        }
+
+        /**
+         * Names the state by how deep the loop is built, so a loop built inside another's turn reads
+         * the outer state under another name, and a method that builds a loop builds an equal one
+         * each time it is called at the same depth, which the generator then computes once.
+         */
+        private static Loop build(Expr initial, int maxIterations, java.util.function.UnaryOperator<Expr> next,
+                                  java.util.function.@org.jspecify.annotations.Nullable UnaryOperator<Expr> until) {
+            java.util.Objects.requireNonNull(initial, "initial");
+            java.util.Objects.requireNonNull(next, "next");
+            int[] depth = BUILDING.get();
+            String name = Loops.STATE_PREFIX + depth[0];
+            Expr state = new Ref(name, initial.type());
+            Expr after;
+            Expr end;
+            depth[0]++;
+            try {
+                after = next.apply(state);
+                end = until == null ? null : until.apply(state);
+            } finally {
+                depth[0]--;
+            }
+            return new Loop(name, initial, maxIterations, after, end);
+        }
+
         /**
          * Checks the loop as the class describes.
          *
-         * @throws IllegalArgumentException if the count, the turns with the loops it holds, a type or
-         *                                  the name is out of these bounds, or a loop that can end
-         *                                  early samples or takes a derivative
+         * @throws IllegalArgumentException if the count, the turns with the loops it holds, a type
+         *                                  (the state's wherever it is read included) or the name is
+         *                                  out of these bounds, or a loop that can end early samples
+         *                                  or takes a derivative
          */
         public Loop {
             java.util.Objects.requireNonNull(state, "state");
             java.util.Objects.requireNonNull(initial, "initial");
             java.util.Objects.requireNonNull(next, "next");
-            if (!state.matches("[A-Za-z][A-Za-z0-9_]*") || state.contains("__")
-                    || state.startsWith("gl_") || state.startsWith("ir_")) {
-                throw new IllegalArgumentException("not a name a loop's state can take: \"" + state + "\"");
+            if (!Loops.isStateName(state)) {
+                throw new IllegalArgumentException("a loop's state is named by Loop.of, " + Loops.STATE_PREFIX
+                        + " and a number, not \"" + state + "\"");
             }
             ShaderType type = initial.type();
             if (type.components == 0) {
@@ -278,9 +340,12 @@ public sealed interface Expr
                 throw new IllegalArgumentException("a loop takes 1 to " + MAX_ITERATIONS + " turns, not "
                         + maxIterations);
             }
-            Loops.refuseReusedNames(next, state);
-            if (until != null) {
-                Loops.refuseReusedNames(until, state);
+            ShaderType misread = Loops.misread(next, state, type);
+            if (misread == null && until != null) {
+                misread = Loops.misread(until, state, type);
+            }
+            if (misread != null) {
+                throw new IllegalArgumentException("the state is a " + type + ", read here as a " + misread);
             }
             long turns = Loops.turns(initial, maxIterations, until == null ? List.of(next) : List.of(next, until));
             if (turns > MAX_ITERATIONS) {

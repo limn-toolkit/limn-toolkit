@@ -314,18 +314,18 @@ final class GpuShaderScene {
                 Expr.Lit.of(PANEL_ASPECT, -1f));
         Expr c = add(new Expr.Swizzle(view, "xy"), mul(offset, new Expr.Swizzle(view, "z")));
 
-        Expr.Ref s = new Expr.Ref("s", ShaderType.VEC4);
-        Expr zx = new Expr.Swizzle(s, "x");
-        Expr zy = new Expr.Swizzle(s, "y");
-        Expr squared = new Expr.Construct(ShaderType.VEC2, List.of(
-                new Expr.Binary(Expr.Op.SUB, mul(zx, zx), mul(zy, zy)),
-                mul(mul(Expr.Lit.of(2f), zx), zy)));
-        Expr next = new Expr.Construct(ShaderType.VEC4, List.of(add(squared, c),
-                add(new Expr.Swizzle(s, "z"), Expr.Lit.of(1f)), Expr.Lit.of(0f)));
-        Expr until = new Expr.Binary(Expr.Op.SUB,
+        // The state is (z.x, z.y, turns, 0); the loop hands each turn the state as it stands.
+        Expr.Loop escape = Expr.Loop.of(Expr.Lit.of(0f, 0f, 0f, 0f), FRACTAL_TURNS, s -> {
+            Expr zx = new Expr.Swizzle(s, "x");
+            Expr zy = new Expr.Swizzle(s, "y");
+            Expr squared = new Expr.Construct(ShaderType.VEC2, List.of(
+                    new Expr.Binary(Expr.Op.SUB, mul(zx, zx), mul(zy, zy)),
+                    mul(mul(Expr.Lit.of(2f), zx), zy)));
+            return new Expr.Construct(ShaderType.VEC4, List.of(add(squared, c),
+                    add(new Expr.Swizzle(s, "z"), Expr.Lit.of(1f)), Expr.Lit.of(0f)));
+        }, s -> new Expr.Binary(Expr.Op.SUB,
                 call("dot", ShaderType.FLOAT, new Expr.Swizzle(s, "xy"), new Expr.Swizzle(s, "xy")),
-                Expr.Lit.of(256f));
-        Expr.Loop escape = new Expr.Loop("s", Expr.Lit.of(0f, 0f, 0f, 0f), FRACTAL_TURNS, next, until);
+                Expr.Lit.of(256f)));
 
         Expr turns = new Expr.Swizzle(escape, "z");
         Expr radius = call("max", ShaderType.FLOAT, call("length", ShaderType.FLOAT, new Expr.Swizzle(escape, "xy")),

@@ -39,36 +39,83 @@ final class Loops {
         return List.of();
     }
 
-    /**
-     * Refuses a loop under {@code node} that reuses the name of a loop holding it: {@code enclosing}
-     * is the name of the loop holding {@code node}, and every loop met on the way down adds its own.
-     */
-    static void refuseReusedNames(Expr node, String enclosing) {
-        refuseReusedNames(node, List.of(enclosing), new IdentityHashMap<>());
+    /** How the names {@link Expr.Loop#of} gives a state begin: a number follows. */
+    static final String STATE_PREFIX = "ir_state";
+
+    /** Whether {@code name} is one {@link Expr.Loop#of} gives a state. */
+    static boolean isStateName(String name) {
+        return name.matches("ir_state(0|[1-9][0-9]{0,8})");
     }
 
-    /** Memoized by node and by the names around it, so a shared node is walked once a nesting. */
-    private static void refuseReusedNames(Expr node, List<String> enclosing, Map<Expr, Set<List<String>>> seen) {
-        if (!seen.computeIfAbsent(node, n -> new java.util.HashSet<>()).add(enclosing)) {
-            return;
+    /**
+     * The type a reference to {@code state} under {@code node} has where it is not {@code type},
+     * or null. A loop under it that binds the same name hides it in its turn, not in its initial
+     * value, which is computed in the turn around it.
+     */
+    static @Nullable ShaderType misread(Expr node, String state, ShaderType type) {
+        return misread(node, state, type, Collections.newSetFromMap(new IdentityHashMap<>()));
+    }
+
+    private static @Nullable ShaderType misread(Expr node, String state, ShaderType type, Set<Expr> seen) {
+        if (!seen.add(node)) {
+            return null;
+        }
+        if (node instanceof Expr.Ref ref && ref.name().equals(state) && ref.type() != type) {
+            return ref.type();
+        }
+        List<Expr> inside = node instanceof Expr.Loop loop && loop.state().equals(state)
+                ? List.of(loop.initial()) : children(node);
+        for (Expr child : inside) {
+            ShaderType found = misread(child, state, type, seen);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
+    }
+
+    /** The name of a loop's state read under {@code roots} outside its loop, or null. */
+    static @Nullable String freeState(List<Expr> roots) {
+        Map<Expr, Set<List<String>>> seen = new IdentityHashMap<>();
+        for (Expr root : roots) {
+            String found = freeState(root, List.of(), seen);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
+    }
+
+    /** Memoized by node and by the states bound around it, so a shared node is walked once a nesting. */
+    private static @Nullable String freeState(Expr node, List<String> bound, Map<Expr, Set<List<String>>> seen) {
+        if (!seen.computeIfAbsent(node, n -> new java.util.HashSet<>()).add(bound)) {
+            return null;
+        }
+        if (node instanceof Expr.Ref ref) {
+            return isStateName(ref.name()) && !bound.contains(ref.name()) ? ref.name() : null;
         }
         if (node instanceof Expr.Loop loop) {
-            if (enclosing.contains(loop.state())) {
-                throw new IllegalArgumentException("a loop inside the loop of \"" + loop.state()
-                        + "\" names its state the same, so one reference would mean two values");
+            String found = freeState(loop.initial(), bound, seen);
+            if (found != null) {
+                return found;
             }
-            List<String> inside = new java.util.ArrayList<>(enclosing);
+            List<String> inside = new java.util.ArrayList<>(bound);
             inside.add(loop.state());
-            refuseReusedNames(loop.next(), inside, seen);
-            if (loop.until() != null) {
-                refuseReusedNames(loop.until(), inside, seen);
+            for (Expr part : turnOf(loop)) {
+                found = freeState(part, inside, seen);
+                if (found != null) {
+                    return found;
+                }
             }
-            refuseReusedNames(loop.initial(), enclosing, seen);
-            return;
+            return null;
         }
         for (Expr child : children(node)) {
-            refuseReusedNames(child, enclosing, seen);
+            String found = freeState(child, bound, seen);
+            if (found != null) {
+                return found;
+            }
         }
+        return null;
     }
 
     // ------------------------------------------------------------------ turns
