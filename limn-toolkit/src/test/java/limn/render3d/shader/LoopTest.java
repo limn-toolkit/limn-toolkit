@@ -55,7 +55,7 @@ class LoopTest {
                 "32 turns of 64 turns is 2048 turns a fragment");
         // A loop in the initial value runs once, before the outer one: it does not multiply.
         assertDoesNotThrow(() -> new Expr.Loop("z", inner64, 16, step(Z), null));
-        // Nor does a loop in until, which is a turn's work like next is: it multiplies.
+        // A loop in until, a turn's work like next, does multiply.
         Expr.Ref v = new Expr.Ref("v", ShaderType.FLOAT);
         Expr.Loop innerUntil = new Expr.Loop("v", Expr.Lit.of(0f), 64,
                 new Expr.Binary(Expr.Op.ADD, v, Expr.Lit.of(1f)), null);
