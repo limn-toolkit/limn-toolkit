@@ -18,8 +18,9 @@ import limn.scene.event.MouseEvent;
 /**
  * Generic scroll container: the child is measured unbounded on the scrolling
  * axes, painted offset by the scroll position and clipped to the viewport on
- * those axes; the wheel scrolls whenever there is overflow. The child is
- * physically positioned at {@code (-offsetX, -offsetY)}, so hit-testing and
+ * those axes; the wheel scrolls whenever there is overflow, and so does a pointer
+ * drag that rests near one of its edges, or goes past one (see {@link ScrollBar}). The
+ * child is physically positioned at {@code (-offsetX, -offsetY)}, so hit-testing and
  * event coordinates work unchanged.
  *
  * <p><b>It clips exactly on an axis it scrolls while the content overflows it there, and

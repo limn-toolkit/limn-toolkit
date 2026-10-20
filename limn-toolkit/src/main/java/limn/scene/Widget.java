@@ -155,6 +155,8 @@ public abstract class Widget<W extends Widget<W>> {
     boolean drawsAccessLetters;
     /** Where a press does not take the keyboard, for the few widgets with such a spot; see SceneAccess. */
     limn.scene.internal.@Nullable PressFocus pressFocus;
+    /** The axis this widget, a scroll bar, scrolls its parent along under a drag; see SceneAccess. */
+    limn.scene.internal.@Nullable DragScrollAxis dragScrollAxis;
     /**
      * Whether this subtree is passing out of reach: drawn and enabled as it is, but no pointer
      * lands in it and no focus moves into it. See {@link limn.scene.internal.SceneAccess#setInert}.
@@ -3174,8 +3176,10 @@ public abstract class Widget<W extends Widget<W>> {
      * A drag is over this widget, or has moved on it. A widget that would take what is offered
      * calls {@code event.accept()} and marks where the drop would land; one that says nothing
      * passes the question to its parent. It is asked again on every move, so that the answer can
-     * depend on the place. Files dragged in from the system arrive the same way, their offer
-     * holding {@code DataFormat.FILES}. Default: says nothing.
+     * depend on the place, and again when the content under a still pointer scrolls: a pointer
+     * drag resting near an edge of a scrolling view it is over, or past one, scrolls that view.
+     * Files dragged in from the system arrive the same way, their offer holding
+     * {@code DataFormat.FILES}. Default: says nothing.
      *
      * @param event what is offered and where
      */

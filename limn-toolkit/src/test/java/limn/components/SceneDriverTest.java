@@ -113,6 +113,10 @@ class SceneDriverTest extends ComponentTestBase {
             }
 
             @Override
+            public void scrollsUnderDrag(Widget<?> bar, limn.scene.internal.DragScrollAxis axis) {
+            }
+
+            @Override
             public void fieldControl(Widget<?> widget, boolean held, boolean required, boolean invalid) {
             }
 

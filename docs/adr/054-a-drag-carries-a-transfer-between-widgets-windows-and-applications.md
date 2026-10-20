@@ -198,7 +198,8 @@ Step 3, the scene's driver (`Scene`, `limn.scene.event`, `limn.transfer.Drag`), 
   moving a row within its list needs no Tab.
 - **Auto-scroll is a wheel event** sent to the accepting widget while the pointer rests within
   24 points of one of its edges, every 60 ms: whatever scrolls under a wheel scrolls under a
-  drag, with no interface of its own.
+  drag, with no interface of its own. (Replaced on 2026-10-20 by the scroll panes' own
+  edges; see the amendment at the end.)
 - **`Scene.setDragKey(key, modifiers)`** takes the two integers of `Keys`: an `Accelerator`
   belongs to the components, above the scene.
 - **Files from the system** still arrive from GLFW at the moment of the drop only: the scene asks
@@ -493,3 +494,46 @@ each measured on its guest with the drivers of step 6, scripts under `.claude/pe
   Mutter's own RemoteDesktop interface, since nothing else moves a pointer there without root.
 - Left as it is: a fractional scale's rounded picture on Wayland.
 
+
+Auto-scroll, amended (2026-10-20, the owner's run of the Showcase's drag and drop page: the logo
+dragged down toward the drop area made the page scroll UP, and it could be dropped only by
+scrolling first and dragging from outside the page). The rule of step 3, a wheel sent every
+60 ms to the widget that accepts the drop when the pointer is within 24 points of one of its
+edges, had two faults, measured on that page. It looked at the edges of the target and never at
+the scroll pane's, so nothing scrolled the page down at the window's bottom edge, and the area
+below the fold could not become a target. And when the area's top showed at the bottom of the
+window, entering it put the pointer within 24 points of the area's top: the wheel "up" went from
+the area, which does not scroll, to the page, which scrolled up by its 48-point detent and
+carried the area off from under the pointer. The sign was right for the target's edge; the edge
+was the wrong one. What replaces it, for every pointer drag (one the scene drives, one handed to
+the system, one from another program, never the keyboard's):
+
+- **A viewport is anything that scrolls through a `ScrollBar`**, the bar telling the scene its
+  axis, how far its holder can still move each way and the move itself, through an internal
+  hook: scroll views, lists, tables, trees, text areas, and a widget of an application's own
+  built on a bar. Its box, cut by the ancestors that clip it and by the
+  window, is the part on screen.
+- **From the widget under the pointer outward, the first viewport whose band along an edge holds
+  the pointer, and that can still move that way, takes that axis**; one at its limit leaves the
+  axis to the next one out whose band holds the pointer too, so a list flush with the bottom of
+  the page scrolls to its end and then the page goes on. A viewport the pointer is not over is
+  not scrolled: a list the pointer left for the page around it stays where it is, and a list at
+  its end in the middle of the page does not move the page.
+- **The band is 24 points, or a quarter of the viewport when that is less; the speed is 800
+  points a second times the square of how deep into the band the pointer is**, so it starts
+  gently, and past the edge it keeps growing, to at most 2400 points a second. It is the tick's
+  real time that multiplies it, so it is the same at any frame rate.
+- **Past the window's edge** only a drag the scene drives is still followed, and there what
+  scrolls is what was under the pointer at the window's edge nearest it; a drag the system
+  drives stops scrolling when the system says it left the window.
+- **Every step that scrolled asks the widget under the pointer again**, which has moved.
+- **The axes are physical**: a horizontal bar knows that its offset grows toward the left right to
+  left, and turns the sign; the pointer is carried into the viewport's own coordinates, so a
+  turned or scaled view scrolls toward the edge on screen.
+- **Under reduced motion it runs as it is**: it is the user's own scroll, not decoration.
+- **The wheel to the target is gone**, subsumed: every widget of the toolkit that took a drop
+  and scrolled under the wheel scrolls through a bar. A widget of an application's own that
+  scrolled under a wheel without a bar no longer scrolls under a drag; one that zoomed or
+  changed a value under the wheel is no longer zoomed or changed by a drag resting near its edge.
+
+`DragAutoScrollTest` holds each of these, and `ShowcaseDragScrollTest` the page itself.

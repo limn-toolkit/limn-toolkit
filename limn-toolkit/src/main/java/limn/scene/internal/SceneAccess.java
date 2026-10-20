@@ -119,6 +119,12 @@ public final class SceneAccess {
         void pressFocus(Widget<?> widget, PressFocus filter);
 
         /**
+         * @param bar  a scroll bar; see {@link SceneAccess#scrollsUnderDrag}
+         * @param axis the axis it scrolls its holder along
+         */
+        void scrollsUnderDrag(Widget<?> bar, DragScrollAxis axis);
+
+        /**
          * @param widget   the control a field holds; see {@link SceneAccess#fieldControl}
          * @param held     whether a field holds it
          * @param required whether that field is required
@@ -300,6 +306,17 @@ public final class SceneAccess {
      */
     public static void pressFocus(Widget<?> widget, PressFocus filter) {
         hook().pressFocus(widget, filter);
+    }
+
+    /**
+     * Says {@code bar} scrolls its parent along {@code axis}, the parent's box being the viewport:
+     * a pointer drag that rests near an edge of that box, or goes past one, scrolls it there.
+     *
+     * @param bar  a scroll bar, a child of the widget it scrolls
+     * @param axis how far that widget can scroll, and the scroll itself
+     */
+    public static void scrollsUnderDrag(Widget<?> bar, DragScrollAxis axis) {
+        hook().scrollsUnderDrag(bar, axis);
     }
 
     /**
