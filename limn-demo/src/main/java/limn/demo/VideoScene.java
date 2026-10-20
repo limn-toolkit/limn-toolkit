@@ -1944,6 +1944,8 @@ final class VideoScene {
         private boolean refreshPosted;
         /** What the button was last given: one of the texts, or a track's line as formatted. */
         private Object shown = "";
+        /** Held while attached: a track's line is formatted here, so it is written again. */
+        private limn.concurrent.Subscription language;
 
         AudioTracks(Playing open, VideoView view) {
             this.open = open;
@@ -1954,6 +1956,27 @@ final class VideoScene {
             row.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
             row.add(button);
             add(row);
+        }
+
+        /**
+         * A track's line ("Audio 1 of 2: eng") is a string formatted from a translation, which the
+         * button keeps in the language it was formatted in; so it is formatted again when the
+         * language changes, at once rather than at the next poll, which a page with one track
+         * never runs. Only while attached: the same widget is in a player window that closes.
+         */
+        @Override
+        protected void onAttached() {
+            super.onAttached();
+            language = limn.i18n.I18n.observeChanges(this::refresh);
+        }
+
+        @Override
+        protected void onDetached() {
+            if (language != null) {
+                language.cancel();
+                language = null;
+            }
+            super.onDetached();
         }
 
         private void takeTheNextTrack() {
