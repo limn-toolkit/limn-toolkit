@@ -108,11 +108,13 @@ language, as the helper text of the field around it: "Three letters, four digits
 It is shown with or without the keyboard, where the guide shows only with it, and a reader
 hears it as the field's description.
 
-A masked field lays its text out left to right in every language: in an Arabic or a Hebrew
-form a card number reads `4111 1111 1111 1112` and a phone `+1 (415) 555-0123`, starting at the
-left edge of the box, with the guide after it, while the field's icons and trailing button stay
-on the sides the layout puts them. Letters written right to left keep their own order inside
-the line.
+A masked field lays its text out left to right in every language: its groups, the stretches
+between literals, run left to right in the order they are written, whatever the script. In an
+Arabic or a Hebrew form a card number reads `4111 1111 1111 1112`, or `٤١١١ ١١١١ ١١١١ ١١١٢` in
+Arabic-Indic digits, and a phone `+1 (415) 555-0123`, starting at the left edge of the box, with
+the guide after it, while the field's icons and trailing button stay on the sides the layout
+puts them. Inside a group each script keeps its own direction, so a group of Hebrew letters
+reads right to left within its place.
 
 Text between single quotes is literal, so a pattern can hold a `0`, an `A` or a `*` the field
 writes rather than fills: `+'0' 000` shows `+0 123`. Two single quotes are one apostrophe, inside

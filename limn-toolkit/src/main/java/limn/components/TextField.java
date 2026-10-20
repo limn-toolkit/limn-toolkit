@@ -297,15 +297,19 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * left.
      *
      * <p>A masked field lays its text out left to right in every language, since what it holds
-     * is a code or a number written in a fixed shape: in an Arabic or a Hebrew layout a card
-     * reads {@code 4111 1111 1111 1112} and a phone {@code +1 (415) 555-0123}, not their groups
-     * reversed. The paragraph is left to right, and the text starts at the left edge of the
-     * box, where the caret, the selection, a click and the arrow keys follow it and the guide
-     * continues it to the right, so each position stays where it is as it fills; a placeholder
-     * stands there too, and reads left to right unless its own words say otherwise. Letters that
-     * are written right to left keep their order inside the line: a Hebrew value under
-     * {@code "AAA-AAA"} reads right to left, its first group on the right. The field's icons,
-     * its trailing button and its pads still follow the layout direction.
+     * is a code or a number written in a fixed shape: its groups, the stretches between
+     * literals, run left to right in the order they are written, whatever script their
+     * characters are in. In an Arabic or a Hebrew layout a card reads {@code 4111 1111 1111 1112},
+     * and in Arabic-Indic digits {@code ٤١١١ ١١١١ ١١١١ ١١١٢}, its first group on the left, and a
+     * phone {@code +1 (415) 555-0123}, not their groups reversed. Inside a group each script
+     * keeps its own direction: a group of Hebrew letters under {@code "AAA-AAA"} reads right to
+     * left within its box, and the second group follows it on the right. The text starts at the
+     * left edge of the box, where the caret, the selection, a click, a double click and the
+     * arrow keys follow it and the guide continues it to the right, so each position stays where
+     * it is as it fills; a placeholder stands there too, laid out as the text when the pattern
+     * would write it (an example value, or the pattern itself), and otherwise left to right unless
+     * its own words say otherwise. The field's icons, its trailing button and its pads still
+     * follow the layout direction.
      *
      * <p>The text already in the field is fitted at once. {@code null} takes the mask away and
      * leaves the text as it is.
@@ -733,7 +737,17 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * @return the shaped display line; never null
      */
     protected ShapedText shapeDisplay(String text, Font font) {
-        return mask != null ? textRuler().shape(text, font, ShapedText.Direction.LTR) : shapeText(text, font);
+        return mask != null ? maskedLine(text, font, 0) : shapeText(text, font);
+    }
+
+    /**
+     * A line of a masked field, laid out on the pattern from entry {@code first} on: its groups,
+     * the stretches between literals, set left to right in written order, each shaped alone so
+     * its own script keeps its direction inside it.
+     */
+    private ShapedText maskedLine(String text, Font font, int first) {
+        return limn.components.internal.text.MaskedLine.shape(textRuler(), text, font,
+                mask.literals(text, first));
     }
 
     /**
@@ -877,8 +891,16 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
             String committed = model.text();
             int c = Math.min(cursor, committed.length());
             String spliced = committed.substring(0, c) + preedit + committed.substring(c);
-            composed = ruler.shape(spliced, f, mask != null ? ShapedText.Direction.LTR
-                    : ShapedText.Direction.of(spliced, neutral));
+            if (mask != null) {
+                // The committed text's literals stay literals; what is being composed is value.
+                boolean[] literal = new boolean[spliced.length()];
+                boolean[] written = mask.literals(committed, 0);
+                System.arraycopy(written, 0, literal, 0, c);
+                System.arraycopy(written, c, literal, c + preedit.length(), committed.length() - c);
+                composed = limn.components.internal.text.MaskedLine.shape(ruler, spliced, f, literal);
+            } else {
+                composed = ruler.shape(spliced, f, ShapedText.Direction.of(spliced, neutral));
+            }
             composedVersion = version;
             composedCursor = cursor;
             composedPreedit = preedit;
@@ -1075,13 +1097,18 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
             return null;
         }
         String guide = mask.guide();
-        if (maskedText.length() >= guide.length()) {
+        // By entries, which are code points: a character outside the Basic Multilingual Plane
+        // in an any position is two chars of the text and one low line of the guide.
+        int written = maskedText.codePointCount(0, maskedText.length());
+        if (written >= guide.codePointCount(0, guide.length())) {
             return null;
         }
-        String tail = guide.substring(maskedText.length());
-        if (!tail.equals(guideTailText)) {
+        String tail = guide.substring(guide.offsetByCodePoints(0, written));
+        Font f = t.body();
+        if (!tail.equals(guideTailText) || guideTailLine == null || !f.equals(guideTailLine.font())
+                || guideTailLine.epoch() != textRuler().epoch()) {
             guideTailText = tail;
-            guideTailLine = textRuler().shape(tail, t.body(), ShapedText.Direction.LTR);
+            guideTailLine = maskedLine(tail, f, written);
         }
         return guideTailLine;
     }
@@ -1186,10 +1213,9 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
     private ShapedText guideHint(SizeTokens t) {
         Font f = t.body();
         String guide = mask.guide();
-        ShapedText.Direction base = ShapedText.Direction.LTR;
         if (guideHintLine == null || !guideHintLine.text().equals(guide) || !f.equals(guideHintLine.font())
-                || guideHintLine.baseDirection() != base || guideHintLine.epoch() != textRuler().epoch()) {
-            guideHintLine = textRuler().shape(guide, f, base);
+                || guideHintLine.epoch() != textRuler().epoch()) {
+            guideHintLine = maskedLine(guide, f, 0);
         }
         return guideHintLine;
     }
@@ -1290,8 +1316,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
             // On a masked field the hint stands where the text will, from the left edge, and a
             // placeholder with no letter of its own, an example such as +1 (415) 555-0123, reads
             // left to right as that text does; one in words still reads in their direction.
-            ShapedText hintLine = guided ? guideHint(t) : textRuler().shape(hint, f,
-                    ShapedText.Direction.of(hint, textBase()));
+            ShapedText hintLine = guided ? guideHint(t) : placeholderLine(hint, f);
             float hintX = textRightToLeft() ? left + inner - hintLine.metrics().width() : left;
             // The caret is where the caret box says, so the input method's window, a reader's
             // cursor and the line drawn agree: the leading edge, or past the literals a guide
@@ -1345,6 +1370,18 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         // stays the box at every weight.
         Color border = borderColor(theme, focus);
         canvas.drawRoundRectBorder(0, 0, width(), height(), t.radiusMedium(), pen, border);
+    }
+
+    /**
+     * The placeholder, shaped. On a masked field a placeholder the pattern would write (an example
+     * value, or the pattern itself, as {@code AAA-0000-**}) is laid out as its text would be,
+     * group by group; one in words reads left to right unless its own words say otherwise.
+     */
+    private ShapedText placeholderLine(String hint, Font f) {
+        if (mask != null && mask.written(hint, 0) != null) {
+            return maskedLine(hint, f, 0);
+        }
+        return textRuler().shape(hint, f, ShapedText.Direction.of(hint, textBase()));
     }
 
     /**

@@ -510,6 +510,30 @@ public final class InputMask {
     }
 
     /**
+     * Which chars of a text laid out on the pattern from entry {@code first} on belong to its
+     * literals: code point {@code k} of the text is entry {@code first + k}, as in a text this
+     * mask wrote ({@code first} 0), its guide, or the guide's unfilled tail. A code point past the
+     * pattern's end is not a literal.
+     *
+     * @param text  the text
+     * @param first the entry its first code point stands on
+     * @return one flag per char of {@code text}, both chars of a surrogate pair alike
+     */
+    public boolean[] literals(String text, int first) {
+        boolean[] out = new boolean[text.length()];
+        int entry = first;
+        for (int k = 0; k < text.length(); entry++) {
+            int width = Character.charCount(text.codePointAt(k));
+            boolean literal = entry >= 0 && entry < codePoints.length && !slotAt[entry];
+            for (int w = 0; w < width; w++) {
+                out[k + w] = literal;
+            }
+            k += width;
+        }
+        return out;
+    }
+
+    /**
      * @param text a text this mask conformed
      * @return whether every position is filled
      */

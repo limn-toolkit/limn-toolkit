@@ -133,25 +133,155 @@ class TextFieldMaskDirectionTest extends ComponentTestBase {
         }
     }
 
+    /** Digits as Arabic writes them (bidi class AN), and as Persian does (class EN). */
+    private static String arabicIndic(String ascii) {
+        return shift(ascii, 0x0660);
+    }
+
+    private static String persian(String ascii) {
+        return shift(ascii, 0x06F0);
+    }
+
+    private static String shift(String ascii, int zero) {
+        StringBuilder out = new StringBuilder();
+        ascii.codePoints().forEach(cp -> out.appendCodePoint(cp >= '0' && cp <= '9' ? zero + cp - '0' : cp));
+        return out.toString();
+    }
+
     @Test
-    void aHebrewLetterMaskStillReadsRightToLeftInsideItsLeftToRightLine() {
+    void arabicIndicAndPersianDigitsKeepTheirGroupsInWrittenOrder() {
+        // A space or a dash between two runs of Arabic-Indic digits resolves right to left when
+        // the line is shaped whole, so the first group came out on the right.
+        for (Locale locale : RIGHT_TO_LEFT) {
+            for (boolean arabic : new boolean[]{true, false}) {
+                String digits = arabic ? arabicIndic("4111111111111112") : persian("4111111111111112");
+                String shown = arabic ? arabicIndic("4111 1111 1111 1112") : persian("4111 1111 1111 1112");
+                String context = locale + (arabic ? " Arabic-Indic" : " Persian");
+                build(locale, CARD);
+                field.setText(digits);
+                assertEquals(shown, field.text());
+                assertWrittenOrder(field.displayLine(), context + " card");
+                Drawn drawn = frame();
+                assertEquals(PAD, drawn.textX.get(drawn.texts.indexOf(shown)), EPS, context);
+
+                build(locale, PHONE);
+                field.setText(arabic ? arabicIndic("4155550123") : persian("4155550123"));
+                String phone = "+1 (" + shift("415) 555-0123", arabic ? 0x0660 : 0x06F0);
+                assertEquals(phone, field.text(), "the pattern's own 1 stays as the pattern writes it");
+                assertWrittenOrder(field.displayLine(), context + " phone");
+            }
+        }
+    }
+
+    @Test
+    void aHebrewGroupReadsRightToLeftInsideItWhileTheGroupsRunLeftToRight() {
         build(Locale.forLanguageTag("he"), "AAA-AAA");
         field.setText("אבגדהו"); // alef to vav
         assertEquals("אבג-דהו", field.text());
         ShapedText line = field.displayLine();
         assertSame(ShapedText.Direction.LTR, line.baseDirection());
-        // One run of Hebrew, the dash between letters taken into it: alef on the right, the first
-        // group to the right of the second, as a Hebrew reader reads it. No letter reversed alone.
-        float previous = Float.MAX_VALUE;
-        for (int i = 0; i < 7; i++) {
-            float right = line.caretX(i, ShapedText.Affinity.DOWNSTREAM);
-            assertTrue(right < previous, "each letter to the left of the one before, at " + i);
-            previous = right;
+        // Each group reads right to left inside its own box: alef right of bet right of gimel.
+        for (int[] group : new int[][]{{0, 3}, {4, 7}}) {
+            float previous = Float.MAX_VALUE;
+            for (int i = group[0]; i < group[1]; i++) {
+                float right = line.caretX(i, ShapedText.Affinity.DOWNSTREAM);
+                assertTrue(right < previous, "each letter left of the one before it, at " + i);
+                previous = right;
+            }
         }
-        assertTrue(line.caretX(3, ShapedText.Affinity.DOWNSTREAM) > line.caretX(4, ShapedText.Affinity.DOWNSTREAM));
+        // And the groups run left to right: the first, then the dash, then the second.
+        float[] first = box(line, 0, 3);
+        float[] dash = box(line, 3, 4);
+        float[] second = box(line, 4, 7);
+        assertEquals(0, first[0], EPS, "the first group on the left");
+        assertTrue(first[1] <= dash[0] + EPS && dash[1] <= second[0] + EPS,
+                "first " + first[0] + ".." + first[1] + ", dash " + dash[0] + ".." + dash[1] + ", second "
+                        + second[0] + ".." + second[1]);
         Drawn drawn = frame();
         assertEquals(PAD, drawn.textX.get(drawn.texts.indexOf(field.text())), EPS,
                 "laid out from the content's left edge, as every masked line is");
+    }
+
+    /** The one box a range of the line covers. */
+    private static float[] box(ShapedText line, int from, int to) {
+        List<ShapedText.Span> spans = line.selection(from, to);
+        assertEquals(1, spans.size(), "one box for " + from + ".." + to + ": " + spans);
+        return new float[]{spans.get(0).x0(), spans.get(0).x1()};
+    }
+
+    @Test
+    void typingArabicIndicDigitsGrowsTheLineToTheRightWithTheGuideAfterIt() {
+        for (Locale locale : RIGHT_TO_LEFT) {
+            build(locale, CARD);
+            drive(scene).type(arabicIndic("4111"));
+            drive(scene).inputBatchEnded();
+            assertEquals(PAD + 50, frame().caretX, EPS, locale + ": past the guide's space");
+            drive(scene).type(arabicIndic("23"));
+            drive(scene).inputBatchEnded();
+            String typed = arabicIndic("4111 23");
+            assertEquals(typed, field.text());
+            assertWrittenOrder(field.displayLine(), locale + " typed");
+            Drawn drawn = frame();
+            assertEquals(PAD, drawn.textX.get(drawn.texts.indexOf(typed)), EPS);
+            assertEquals(PAD + 70, drawn.textX.get(drawn.texts.indexOf("__ ____ ____")), EPS,
+                    locale + ": the guide after the second group, not after the first");
+            assertEquals(PAD + 70, drawn.caretX, EPS, locale + ": the caret after the 3, at the end");
+            assertEquals(drawn.caretX, field.caretRect().x(), EPS, "the input method's caret box");
+
+            // A composition in the second group stays in it, to the right of the first.
+            drive(scene).preeditChanged(arabicIndic("5"), 1, 0, 1);
+            drive(scene).inputBatchEnded();
+            drawn = frame();
+            String composed = arabicIndic("4111 235");
+            assertWrittenOrder(drawn.lines.get(drawn.texts.indexOf(composed)), locale + " composing");
+            drive(scene).preeditChanged("", 0, 0, 0);
+            drive(scene).inputBatchEnded();
+        }
+    }
+
+    @Test
+    void theCaretTheSelectionAClickAndADoubleClickFollowArabicIndicGroups() {
+        for (Locale locale : RIGHT_TO_LEFT) {
+            build(locale, CARD);
+            field.setText(arabicIndic("4111222233334444"));
+            field.setCaretPosition(0);
+            float previous = -1;
+            for (int i = 1; i <= 19; i++) {
+                drive(scene).press(Keys.RIGHT);
+                assertEquals(i, field.caretPosition(), locale + ": Right moves on through the number");
+                float x = frame().caretX;
+                assertTrue(x > previous, locale + ": and to the right, at " + i);
+                previous = x;
+            }
+            click(PAD + 51);
+            assertEquals(5, field.caretPosition(), locale + ": a click on the second group's start");
+            doubleClick(PAD + 72);
+            assertEquals(5, field.selectionStart(), locale + ": a double click takes the second group");
+            assertEquals(9, field.selectionEnd());
+            List<float[]> boxes = frame().boxes;
+            float[] band = boxes.get(boxes.size() - 1);
+            assertEquals(PAD + 50, band[0], EPS, locale + ": its band where it is drawn");
+            assertEquals(40, band[1], EPS);
+        }
+    }
+
+    private void doubleClick(float localX) {
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, localX, 16, 1);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, localX, 16, 1);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, localX, 16, 2);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, localX, 16, 2);
+        drive(scene).inputBatchEnded();
+    }
+
+    @Test
+    void aPlaceholderThePatternWouldWriteKeepsItsGroupsInWrittenOrder() {
+        build(Locale.forLanguageTag("ar"), CARD);
+        String example = arabicIndic("0000 0000 0000 0000");
+        field.setPlaceholder(example);
+        scene.requestFocus(null);
+        Drawn drawn = frame();
+        assertWrittenOrder(drawn.lines.get(drawn.texts.indexOf(example)), "the placeholder");
+        assertEquals(PAD, drawn.textX.get(drawn.texts.indexOf(example)), EPS);
     }
 
     @Test

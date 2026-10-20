@@ -173,6 +173,25 @@ Markdown.
   left-to-right layout. A placeholder on a masked field stands at the same edge and reads left
   to right unless its own words say otherwise, since it is most often an example of the value.
   The leading icon, the trailing button and the pads still swap sides with the layout.
+- *Amended 2026-10-20:* **a masked line keeps its groups in written order whatever the digits'
+  script.** The review of the amendment above found that a left-to-right paragraph is not enough
+  with Arabic-Indic digits (U+0660 to U+0669, which an Arabic keyboard types and the mask takes as
+  digits): the bidirectional algorithm counts numbers as right to left for the neutrals between
+  them, so the space or dash between two groups resolved right to left and `٤١١١ ١١١١ ١١١١ ١١١٢`
+  drew its first group on the right, the second group appearing left of the first while typing,
+  with the guide after the first. The owner's decision: a masked line keeps its **groups** (the
+  stretches between literals) in left-to-right order whatever the digits' script, and inside a
+  group each script keeps its own direction, so a group of Hebrew letters reads right to left
+  within the group (this replaces "a Hebrew value under `AAA-AAA` reads right to left, its first
+  group on the right": the first group is now on the left). The line is shaped group by group:
+  each group and each run of literals alone in a left-to-right paragraph, set side by side in
+  written order into one line in the text's own index space, so the caret, the selection, the
+  arrows, hit testing, a double click and the caret box the input method is given follow it
+  with no change of their own. It applies to the value, a composition in progress (what is being
+  composed counts as value), the guide and its unfilled tail, and a placeholder the pattern would
+  write. A group boundary inside a grapheme cluster moves to the cluster's end. One shape is left
+  as the algorithm reads it: a quoted literal of letters written right to left beside a group of
+  such letters is one run with it, since no level can keep two adjacent right-to-left runs apart.
 - *Amended 2026-10-16:* **the reader no longer hears the pattern.** Read aloud, `AA-0000` is
   "A A dash zero zero zero zero" where it means two letters and four digits, in every language,
   and as the field's description it pushed out the tooltip, which the walk gives only to a node
