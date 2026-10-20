@@ -594,14 +594,20 @@ public abstract class Widget<W extends Widget<W>> {
                 } catch (RuntimeException | Error error) {
                     failed = addFailure(null, error); // a popup's handler: the removal still completes
                 }
+                // Each step in a try of its own: a throw from the focus handlers must not keep the
+                // parent from being laid out again or the removal from being announced.
                 try {
                     if (scene != null) {
                         scene.onWidgetDetached(child); // runs the application's focus and pointer handlers
                     }
+                } catch (RuntimeException | Error error) {
+                    failed = addFailure(failed, error); // rides along, and never hides the first
+                }
+                try {
                     childrenChanged();
                     notifyChange(Change.of(Change.Aspect.CHILDREN, origin));
                 } catch (RuntimeException | Error error) {
-                    failed = addFailure(failed, error); // rides along, and never hides the first
+                    failed = addFailure(failed, error);
                 }
             } finally {
                 runSettled(settled); // a handler that throws must not drop what the leaving settled

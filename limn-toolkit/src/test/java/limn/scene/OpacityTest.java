@@ -1169,6 +1169,83 @@ class OpacityTest extends SceneTestBase {
     }
 
     /**
+     * A removal whose taking the focus out runs an onFocusLost that throws: the parent is still laid
+     * out again and the removal still announced on it, the throw rethrown after. Both shared the
+     * try the throw left, so the column kept the gap where the removed row had been.
+     */
+    @Test
+    void aThrowingOnFocusLostDuringARemovalStillLaysTheParentOutAndAnnouncesIt() {
+        Probe lead = new Probe("lead", painted);
+        Probe inner = throwingOnFocusLost("inner");
+        Probe after = new Probe("after", painted);
+        Opacity fading = new Opacity(inner);
+        limn.scene.layout.Column column = new limn.scene.layout.Column();
+        column.add(lead);
+        column.add(fading);
+        column.add(after);
+        List<Change.Aspect> heard = new ArrayList<>();
+        column.observeChanges((source, change) -> heard.add(change.aspect()));
+        Scene a = sceneOf(column);
+        a.requestFocus(inner);
+        float afterY = after.y();
+        IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> column.remove(fading));
+        assertEquals("a fault in onFocusLost (expected)", thrown.getMessage(), "the handler's throw, after");
+        assertTrue(heard.contains(Change.Aspect.CHILDREN), "the removal announced on the parent: " + heard);
+        advance(a, 16);
+        assertTrue(after.y() < afterY, "and the parent laid out again: " + afterY + " -> " + after.y());
+    }
+
+    /**
+     * A dialog overlay removed while a field in it whose onFocusLost throws holds the focus, a fade
+     * in flight inside it: the overlay still leaves the scene whole, told it left, the fade settled
+     * and its onArrive run at the end of the removal, and the focus given back to the widget that
+     * opened it, the throw rethrown after. The focus step ran first and outside the try, so the
+     * overlay left the stack with its subtree never walked: still in the scene, never told it left,
+     * its fade ticking in a scene that no longer drew it, and the focus given to nobody.
+     */
+    @Test
+    void aThrowingOnFocusLostDuringAnOverlayRemovalStillTakesItOutWholeAndGivesTheFocusBack() {
+        Probe opener = new Probe("opener", painted);
+        limn.scene.layout.Column content = new limn.scene.layout.Column();
+        content.add(opener);
+        Scene a = sceneOf(content);
+        a.requestFocus(opener);
+        AtomicInteger detached = new AtomicInteger();
+        Probe field = new Probe("field", painted) {
+            @Override
+            protected void onFocusLost() {
+                throw new IllegalStateException("a fault in onFocusLost (expected)");
+            }
+
+            @Override
+            protected void onDetached() {
+                detached.incrementAndGet();
+            }
+        };
+        Opacity fading = new Opacity(field).setOpacity(0.2f);
+        limn.scene.layout.Column dialog = new limn.scene.layout.Column();
+        dialog.add(fading);
+        a.pushOverlay(dialog);
+        advance(a, 16);
+        a.requestFocus(field);
+        assertSame(field, a.focusedWidget(), "sanity");
+        AtomicInteger arrived = new AtomicInteger();
+        fading.fadeTo(1f, 0.5, arrived::incrementAndGet);
+        advance(a, 16);
+
+        IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> a.removeOverlay(dialog));
+
+        assertEquals("a fault in onFocusLost (expected)", thrown.getMessage(), "the handler's throw, after");
+        assertNull(a.topOverlay(), "out of the stack");
+        assertNull(field.scene(), "and out of the scene");
+        assertEquals(1, detached.get(), "told it left");
+        assertEquals(1, arrived.get(), "the fade settled as it left, its arrival run by the removal");
+        assertSame(opener, a.focusedWidget(), "the focus given back to the widget that opened it");
+        advance(a, 1000);
+        assertEquals(1, arrived.get(), "and nothing ticks it afterwards");
+    }
+
+    /**
      * An onArrive run by a removal that puts the container back in the same scene, under another
      * parent, and focuses it, "fade out, move, fade in" taken out mid-fade: it keeps the focus it
      * gave. The removal's own bookkeeping ran after the callback and revoked it.

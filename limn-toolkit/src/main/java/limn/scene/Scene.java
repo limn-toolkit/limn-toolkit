@@ -1117,14 +1117,23 @@ public final class Scene {
                 overlayFocusReturn.set(i, restore);
             }
         }
-        onWidgetDetached(overlay);
         List<Runnable> settled = new ArrayList<>(0);
         Throwable failed = null;
         try {
+            // The order of Widget.remove, each step in a try of its own: the walk, then the focus
+            // and pointer taken out, which run the application's handlers, then the focus given
+            // back. With the focus step first and outside, its throw left the overlay out of the
+            // stack and never walked: still in the scene, never told it left, a fade inside it
+            // ticking where nothing drew it, and the focus given back to nobody.
             try {
                 overlay.setSceneRecursively(null, settled);
             } catch (RuntimeException | Error error) {
                 failed = Widget.addFailure(null, error); // a popup's handler: the removal completes first
+            }
+            try {
+                onWidgetDetached(overlay);
+            } catch (RuntimeException | Error error) {
+                failed = Widget.addFailure(failed, error);
             }
             try {
                 restoreAfterRemoving(overlay, restore, wasTop, keptKeyboardBelow);

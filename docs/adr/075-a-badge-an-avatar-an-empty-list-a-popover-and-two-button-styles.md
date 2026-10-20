@@ -820,6 +820,14 @@ that the text above does not say, dated where it departs from it.
     the tree says (its parent's, or the scene it is the root or an overlay of); closing first and
     moving after was the other way, and would have given the keyboard back to a button on its way
     out, a focus and a loss announced in the one call. `PopoverReentrancyTest` has both cases.
+  - **A focus handler that throws during a removal:** the completion policy covered a popup's
+    handler but not an `onFocusLost`, which taking the focus out of the leaving subtree runs.
+    `Scene.removeOverlay` ran that step first and outside its try, so the throw left the overlay
+    out of the stack and never walked: still in the scene, never told it left, a fade inside it
+    ticking where nothing drew it, and the focus given back to nobody; `Widget.remove` shared one
+    try between it and the parent's layout and `CHILDREN` notice. Both now walk first, take the
+    focus out after, as `remove` already did, and give each step a try of its own.
+    `OpacityTest` has both cases.
 
 ### 12.6 The input method in a popover's window, measured
 
