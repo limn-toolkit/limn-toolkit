@@ -630,6 +630,11 @@ that the text above does not say, dated where it departs from it.
   picture draws no letters and sets no size; the "+k" circle keeps its own label. `AvatarTest`
   holds, with the test ruler, each covered circle's run inside that part both ways, one size in the
   group, and the size following a member joining, changing initials or taking a picture.
+  (2026-10-20, the owner's decision 31, after the review's R5C-6: the "+k" circle draws its count at
+  the group's one size too, in the label's own weight, where it kept the label size and the
+  default group of four showed two sizes side by side, AL, MW and HM at 11 points beside "+6" at
+  13; a group too small for letters draws its count no more than its initials, the tooltip still
+  naming the rest. `AvatarTest.theCountPastTheLimitIsDrawnAtTheGroupsOneSize`.)
 
 ### 12.4 Empty and loading content
 

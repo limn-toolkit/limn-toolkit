@@ -177,9 +177,9 @@ public final class AvatarGroup extends Widget<AvatarGroup> {
      * The font every circle of the group draws its initials in: {@code full}, or the size the
      * widest pair among the circles that draw initials needs to fit the part of a circle the next
      * one leaves, whichever is smaller; {@code null} when that is under a point. One size for all,
-     * the last circle included, so the stack reads even and a member joining at the end does not
-     * change the circle before it alone. Kept while the members, the font, the circle and the ruler
-     * hold.
+     * the last circle included, the count's "+k" too, so the stack reads even and a member joining
+     * at the end does not change the circle before it alone. Kept while the members, the font, the
+     * circle and the ruler hold.
      *
      * @param full  the font an avatar alone would draw its initials in
      * @param d     the circles' diameter
@@ -335,7 +335,8 @@ public final class AvatarGroup extends Widget<AvatarGroup> {
 
     /**
      * The last place of a group past its limit: a circle of the raised surface holding "+k" in the
-     * muted text colour, with the hidden names as its tooltip. Takes no click.
+     * muted text colour, at the size the group's initials take, with the hidden names as its
+     * tooltip. Takes no click.
      */
     private final class More extends Widget<More> {
 
@@ -384,8 +385,15 @@ public final class AvatarGroup extends Widget<AvatarGroup> {
             float cy = height() / 2;
             canvas.fillCircle(cx, cy, r + Avatar.RING, theme.surface());
             canvas.fillCircle(cx, cy, r, theme.surfaceRaised());
+            // At the group's one size for initials, so the stack reads even (the last circle takes
+            // it as every other does), in the label's own weight: a count, not a person's letters.
+            Font full = Avatar.initialsFont(this, d);
+            Font group = full == null ? null : initialsFont(full, d, textRuler());
+            if (group == null) {
+                return; // a group too small for letters: the circles alone, the tooltip still says who
+            }
+            Font font = theme.tokensFor(this).label().withSize(group.size());
             String value = text();
-            var font = theme.tokensFor(this).label();
             ShapedText.Direction base = ShapedText.Direction.of(value, neutralBase());
             if (line == null || !line.matches(value, font, base, textRuler())) {
                 line = textRuler().shape(value, font, base);

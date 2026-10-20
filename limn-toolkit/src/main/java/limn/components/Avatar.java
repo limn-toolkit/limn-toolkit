@@ -299,6 +299,31 @@ public final class Avatar extends Widget<Avatar> {
         return constraints.constrain(d, d);
     }
 
+    /**
+     * The font a circle {@code d} across draws its initials in, alone: the label font, strong,
+     * grown with the circle, so a SizedBox twice as large draws initials twice as large, where a
+     * fixed size would sit lost in the middle of it; {@code null} for a circle a point or so across,
+     * which would ask for letters of no size at all, which no font has (the tinted circle alone, a
+     * dot at that size).
+     *
+     * @param circle the widget drawing the circle, whose theme and control size it takes
+     * @param d      the circle's diameter
+     * @return the font, or {@code null} for no letters
+     */
+    static @Nullable Font initialsFont(Widget<?> circle, float d) {
+        SizeTokens t = Theme.of(circle).tokensFor(circle);
+        Font font = t.label().bold();
+        float scale = d / t.controlHeight();
+        if (scale != 1) {
+            int size = Math.round(font.size() * scale);
+            if (size < 1) {
+                return null;
+            }
+            font = font.withSize(size);
+        }
+        return font;
+    }
+
     /** The circle's diameter: the smaller side of the box, which a SizedBox may make larger. */
     private float diameter() {
         return Math.min(width(), height());
@@ -328,19 +353,9 @@ public final class Avatar extends Widget<Avatar> {
             paintSilhouette(canvas, theme, x, y, d);
             return;
         }
-        SizeTokens t = theme.tokensFor(this);
-        // The label font, strong, grown with the circle: a SizedBox twice as large draws initials
-        // twice as large, where a fixed size would sit lost in the middle of it.
-        Font font = t.label().bold();
-        float scale = d / t.controlHeight();
-        if (scale != 1) {
-            int size = Math.round(font.size() * scale);
-            if (size < 1) {
-                // A circle a point or so across would ask for letters of no size at all, which no
-                // font has: the tinted circle alone, a dot at that size.
-                return;
-            }
-            font = font.withSize(size);
+        Font font = initialsFont(this, d);
+        if (font == null) {
+            return;
         }
         AvatarGroup g = parent() instanceof AvatarGroup in ? in : null;
         if (g != null) {

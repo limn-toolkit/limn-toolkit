@@ -329,9 +329,7 @@ class AvatarTest extends AccessibleComponentTestBase {
         assertEquals(circles.size(), drawn.texts.size(), "one run per circle: " + drawn.texts);
         java.util.Set<Float> sizes = new java.util.TreeSet<>();
         for (int i = 0; i < circles.size(); i++) {
-            if (circles.get(i) instanceof Avatar) {
-                sizes.add(drawn.fonts.get(i).size());
-            }
+            sizes.add(drawn.fonts.get(i).size()); // the count's "+k" too, the owner's decision 31
         }
         assertEquals(1, sizes.size(), "one size for the group's initials: " + drawn.texts + " " + sizes);
         for (int i = 0; i < circles.size(); i++) {
@@ -425,6 +423,20 @@ class AvatarTest extends AccessibleComponentTestBase {
                     new Avatar("Rui Costa"), new Avatar("Lena Vogel"), new Avatar("Omar Haddad"));
             assertInitialsClearTheOverlap(g, rtl);
             assertFalse(g.children().get(g.children().size() - 1) instanceof Avatar, "the count is last");
+        }
+    }
+
+    @Test
+    void theCountPastTheLimitIsDrawnAtTheGroupsOneSize() {
+        // A group past its limit whose shown pairs need a smaller size than the label: the "+k"
+        // circle, the last one, draws its count at that size too, so the stack reads even. It
+        // kept the label's size, two sizes side by side in the default configuration.
+        for (boolean rtl : new boolean[] {false, true}) {
+            AvatarGroup g = new AvatarGroup(new Avatar("Ana Lima"), new Avatar(CODER + " Dev"),
+                    new Avatar("Rui Costa"), new Avatar("Lena Vogel"), new Avatar("Omar Haddad"));
+            assertEquals(2, g.hiddenCount(), "sanity: three shown and the count");
+            float size = assertInitialsClearTheOverlap(g, rtl);
+            assertTrue(size < label(), "sanity: the wide pair sets a smaller size: " + size);
         }
     }
 
