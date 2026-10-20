@@ -1069,13 +1069,10 @@ public final class Dialog {
         modalWindow = backend.createWindow(WindowConfig.styled(title.get(), w, h, style, alwaysOnTop, true)
                 .ownedBy(window).atInOwner((window.logicalWidth() - w) / 2f, (window.logicalHeight() - h) / 2f));
         modalScene.bind(modalWindow);
-        // The system closing this window is the user cancelling the dialog, asked as Escape is; an
-        // application ending lets it go, its owner's handler being where that question is asked.
+        // The system closing this window is the user cancelling the dialog, asked as Escape is. An
+        // application ending never asks it: an owned window is not asked, and closes with its
+        // owner once the windows that are asked agree.
         modalWindow.setCloseRequestHandler(request -> {
-            if (request.reason() == limn.backend.CloseRequest.Reason.APPLICATION_END) {
-                request.allow();
-                return;
-            }
             request.refuse();
             cancel(CancelRequest.Reason.WINDOW_CLOSE);
         });

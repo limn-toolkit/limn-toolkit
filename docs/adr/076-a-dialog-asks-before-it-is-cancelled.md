@@ -90,9 +90,12 @@ button the cancel result is asked about it, as the rule says, and is a dialog th
 - **The dialog's surface going away**: its owner window closing, the window it is drawn in dying,
   the OS destroying its own window. Nothing can be kept open there; the dialog resolves with the
   cancel result, as before.
-- **The application ending.** A dialog in a window of its own lets its window close when the
-  application ends (`CloseRequest.Reason.APPLICATION_END`): the question an application asks
-  before ending belongs to its windows' handlers (ADR 048), which a modal form's owner has.
+- **The application ending.** A dialog in a window of its own is never asked as the application
+  ends: its window is owned by its owner, an owned window is not asked (ADR 048), and it closes
+  with its owner, unasked, once the windows that are asked agree; the dialog then resolves with its
+  cancel result. The question an application asks before ending belongs to its windows' handlers,
+  which a modal form's owner has. (Corrected 2026-10-20: this said the dialog's window let itself
+  close when asked with `CloseRequest.Reason.APPLICATION_END`, a branch that could never run.)
 
 ### 2.3 The request
 

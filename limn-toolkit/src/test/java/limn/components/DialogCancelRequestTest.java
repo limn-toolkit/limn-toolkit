@@ -488,6 +488,32 @@ class DialogCancelRequestTest extends ComponentTestBase {
         assertEquals(List.of(), asked, "an answer is not a cancel");
     }
 
+    /**
+     * The application ending closes the dialog with its cancel result and asks its handler nothing,
+     * a request held at the time included: the question an application asks before it ends is its
+     * windows' handlers', and the dialog's own window, owned by its owner, is never asked; it closes
+     * with its owner, unasked.
+     */
+    @ParameterizedTest
+    @EnumSource(DisplayMode.class)
+    void theApplicationEndingClosesTheDialogUnaskedAndSettlesAHeldRequest(DisplayMode mode) {
+        open(mode, form(), request -> { });
+        backend.requestQuit();
+        settle();
+        assertEquals("cancel", result.get(), mode + ": closed with its cancel result");
+        assertEquals(List.of(), asked, mode + ": the application ending is not the user cancelling");
+        assertTrue(ownerWindow.isClosed());
+
+        open(mode, form(), request -> { });
+        press(Keys.ESCAPE); // held
+        backend.requestQuit();
+        settle();
+        assertEquals("cancel", result.get(), mode + ", held: closed with its cancel result");
+        assertEquals(1, asked.size(), mode + ", held: asked once, by the Escape");
+        asked.get(0).allow(); // the question answered after the end: nothing, and no throw
+        assertEquals("cancel", result.get());
+    }
+
     @ParameterizedTest
     @EnumSource(DisplayMode.class)
     void theApplicationsOwnDismissIsNeverAskedEvenWithTheCancelResult(DisplayMode mode) {
