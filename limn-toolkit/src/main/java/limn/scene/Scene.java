@@ -275,7 +275,13 @@ public final class Scene {
     public Scene(Widget<?> root, LongSupplier clock) {
         this.root = Objects.requireNonNull(root, "root");
         this.clock = clock;
-        root.setSceneRecursively(this);
+        List<Runnable> settled = new ArrayList<>(0);
+        Throwable failed = null;
+        try {
+            root.setSceneRecursively(this, settled);
+        } catch (RuntimeException | Error error) {
+            failed = Widget.addFailure(null, error); // a popup hung in a root taken from another scene
+        }
         // Subscribed HERE, not in bind(): an unbound scene (every component test, a
         // ComboBox popup scene, a Dialog's modal scene between construction and bind)
         // would otherwise never hear a global font or control-size change, and because
@@ -287,6 +293,10 @@ public final class Scene {
                 LayoutDirection.observeChanges(metricsListener),
                 limn.i18n.I18n.observeChanges(metricsListener));
         paletteListener.armed(limn.scene.internal.SceneBackground.observeChanges(paletteListener));
+        // A root taken from another scene mid-fade: once this one is whole. Nothing above runs the
+        // application's code, so nothing between can drop these.
+        Widget.runSettled(settled);
+        Widget.rethrow(failed); // what a popup's handler threw as it closed, this scene complete
     }
 
     private limn.graphics.TextRuler textRuler;
@@ -434,12 +444,16 @@ public final class Scene {
             if (locale != null) {
                 limn.i18n.I18n.retainLocale(locale);
             }
-            root.setSceneRecursively(this);
+            // Coming back from no scene, nothing in the tree is leaving one, so nothing settles and
+            // no popup closes.
+            List<Runnable> settled = new ArrayList<>(0);
+            root.setSceneRecursively(this, settled);
             for (int i = 0; i < overlays.size(); i++) {
                 if (overlays.get(i).scene() == null) {
-                    overlays.get(i).setSceneRecursively(this);
+                    overlays.get(i).setSceneRecursively(this, settled);
                 }
             }
+            Widget.runSettled(settled);
         }
         // A grafted popup is published by the scene it was grafted into, so its window is never
         // asked for a bridge (asking is what opens one) and is told why.
@@ -817,10 +831,18 @@ public final class Scene {
     public void pushOverlay(Widget<?> overlay) {
         Ui.checkUiThread();
         Objects.requireNonNull(overlay, "overlay");
-        stackOverlay(overlay);
-        // Move focus into the new modal layer.
-        focusTraverse(false);
-        requestRender();
+        List<Runnable> settled = new ArrayList<>(0);
+        Throwable failed = stackOverlay(overlay, settled);
+        try {
+            // Move focus into the new modal layer.
+            focusTraverse(false);
+            requestRender();
+        } catch (RuntimeException | Error error) {
+            failed = Widget.addFailure(failed, error);
+        } finally {
+            Widget.runSettled(settled); // a focus handler that throws must not drop them
+        }
+        Widget.rethrow(failed);
     }
 
     /**
@@ -857,15 +879,23 @@ public final class Scene {
             pushOverlay(overlay);
             return;
         }
-        stackOverlay(overlay);
-        boolean composed = movedFrom.letGoOfMovedFocus();
-        if (composed) {
-            dispatchBubbling(keyboard, new PreeditEvent("", 0, 0, 0));
+        List<Runnable> settled = new ArrayList<>(0);
+        Throwable failed = stackOverlay(overlay, settled);
+        try {
+            boolean composed = movedFrom.letGoOfMovedFocus();
+            if (composed) {
+                dispatchBubbling(keyboard, new PreeditEvent("", 0, 0, 0));
+            }
+            // CODE, the origin of pushOverlay(Widget)'s traversal: the widget this scene had focused
+            // is told of its loss exactly as that traversal would tell it.
+            setFocus(keyboard, Change.Origin.CODE, true);
+            requestRender();
+        } catch (RuntimeException | Error error) {
+            failed = Widget.addFailure(failed, error);
+        } finally {
+            Widget.runSettled(settled); // what its leaving the other scene settled, in this one
         }
-        // CODE, the origin of pushOverlay(Widget)'s traversal: the widget this scene had focused is
-        // told of its loss exactly as that traversal would tell it.
-        setFocus(keyboard, Change.Origin.CODE, true);
-        requestRender();
+        Widget.rethrow(failed);
     }
 
     /**
@@ -883,22 +913,37 @@ public final class Scene {
         Ui.checkUiThread();
         Objects.requireNonNull(overlay, "overlay");
         Objects.requireNonNull(first, "first");
-        stackOverlay(overlay);
-        if (!canTakeFocus(first) || !isInSubtree(first, overlay)) {
-            focusTraverse(false);
-        } else {
-            focusByTraversal = true;
-            try {
-                setFocus(first, Change.Origin.CODE);
-            } finally {
-                focusByTraversal = false;
+        List<Runnable> settled = new ArrayList<>(0);
+        Throwable failed = stackOverlay(overlay, settled);
+        try {
+            if (!canTakeFocus(first) || !isInSubtree(first, overlay)) {
+                focusTraverse(false);
+            } else {
+                focusByTraversal = true;
+                try {
+                    setFocus(first, Change.Origin.CODE);
+                } finally {
+                    focusByTraversal = false;
+                }
             }
+            requestRender();
+        } catch (RuntimeException | Error error) {
+            failed = Widget.addFailure(failed, error);
+        } finally {
+            Widget.runSettled(settled);
         }
-        requestRender();
+        Widget.rethrow(failed);
     }
 
-    /** Puts {@code overlay} on top, capturing input, and keeps the focus it takes to give back. */
-    private void stackOverlay(Widget<?> overlay) {
+    /**
+     * Puts {@code overlay} on top, capturing input, and keeps the focus it takes to give back.
+     *
+     * @param settled where what the overlay's leaving another scene settled goes, which the caller
+     *                runs last
+     * @return what a popup hung in the overlay threw as it closed leaving that scene, which the
+     *         caller rethrows once its own work is done, or null
+     */
+    private @Nullable Throwable stackOverlay(Widget<?> overlay, List<Runnable> settled) {
         // A drag captured before this modal opened must not keep feeding the
         // now-blocked content beneath the scrim: DRAG follows the capture, not
         // hit-testing. Synthesize its RELEASE (window blur's treatment).
@@ -908,8 +953,14 @@ public final class Scene {
         wheelLatch = null;
         overlayFocusReturn.add(focused); // remember who to focus when this closes
         overlays.add(overlay);
-        overlay.setSceneRecursively(this);
+        Throwable failed = null;
+        try {
+            overlay.setSceneRecursively(this, settled);
+        } catch (RuntimeException | Error error) {
+            failed = Widget.addFailure(null, error);
+        }
         layoutDirty = true;
+        return failed;
     }
 
     /**
@@ -1067,16 +1118,21 @@ public final class Scene {
             }
         }
         onWidgetDetached(overlay);
+        List<Runnable> settled = new ArrayList<>(0);
         Throwable failed = null;
         try {
-            overlay.setSceneRecursively(null);
-        } catch (RuntimeException | Error error) {
-            failed = Widget.addFailure(null, error); // a popup's handler: the removal completes first
-        }
-        try {
-            restoreAfterRemoving(overlay, restore, wasTop, keptKeyboardBelow);
-        } catch (RuntimeException | Error error) {
-            failed = Widget.addFailure(failed, error);
+            try {
+                overlay.setSceneRecursively(null, settled);
+            } catch (RuntimeException | Error error) {
+                failed = Widget.addFailure(null, error); // a popup's handler: the removal completes first
+            }
+            try {
+                restoreAfterRemoving(overlay, restore, wasTop, keptKeyboardBelow);
+            } catch (RuntimeException | Error error) {
+                failed = Widget.addFailure(failed, error);
+            }
+        } finally {
+            Widget.runSettled(settled); // once the focus is given back
         }
         Widget.rethrow(failed);
     }
@@ -4267,10 +4323,16 @@ public final class Scene {
     private void pushPopupLeavingKeyboard(Widget<?> popup) {
         Ui.checkUiThread();
         Objects.requireNonNull(popup, "popup");
-        stackOverlay(popup);
-        popupOverlays.add(popup);
-        keyboardBelow.add(popup);
-        requestRender();
+        List<Runnable> settled = new ArrayList<>(0);
+        Throwable failed = stackOverlay(popup, settled);
+        try {
+            popupOverlays.add(popup);
+            keyboardBelow.add(popup);
+            requestRender();
+        } finally {
+            Widget.runSettled(settled);
+        }
+        Widget.rethrow(failed);
     }
 
     /**
@@ -7075,17 +7137,19 @@ public final class Scene {
         }
         List<Widget<?>> layers = new ArrayList<>(overlays);
         layers.add(root);
+        List<Runnable> settled = new ArrayList<>(0);
         for (Widget<?> layer : layers) {
             if (layer.scene() != this) {
                 continue; // an overlay closed by a widget that was detached before it
             }
             try {
-                layer.setSceneRecursively(null);
+                layer.setSceneRecursively(null, settled); // a throw keeps what settled before it
             } catch (Throwable error) {
                 LOG.log(Level.ERROR, "a widget's detach threw during window close; teardown continues", error);
                 limn.backend.Crashes.report(limn.backend.CrashPhase.WINDOW_CLOSE, error);
             }
         }
+        Widget.runSettled(settled); // once every layer is out
     }
 
     private Runnable[] windowCloseObservers;

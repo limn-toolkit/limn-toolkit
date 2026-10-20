@@ -1,5 +1,6 @@
 package limn.backend.lwjgl;
 
+import org.jspecify.annotations.Nullable;
 import org.lwjgl.system.MemoryUtil;
 
 import java.nio.FloatBuffer;
@@ -268,6 +269,7 @@ final class GlBatch implements AutoCloseable {
         vertexCount = 0;
         flatVertices.clear();
         flatVertexCount = 0;
+        twoPassCount = 0;
         drawCalls = 0;
         scissorEnabled = false; // per-frame: partial rendering re-hints each frame
     }
@@ -399,12 +401,32 @@ final class GlBatch implements AutoCloseable {
     private int blendDstAlpha = GL_ONE_MINUS_SRC_ALPHA;
 
     /**
+     * The factors of a second pass over the same geometry, or null for one pass: a mode drawn into
+     * a group's picture that no single set of factors gives ({@link GlBlend#inGroup}).
+     */
+    private GlBlend.@Nullable Factors blendThen;
+
+    /**
      * Declares the blend factors for upcoming geometry. A change with pending
      * geometry flushes it: one extra draw call per mode switch.
      */
     void requireBlend(int srcRgb, int dstRgb, int srcAlpha, int dstAlpha) {
+        requireBlend(srcRgb, dstRgb, srcAlpha, dstAlpha, null);
+    }
+
+    /**
+     * {@link #requireBlend(int, int, int, int)} for a mode drawn in two passes: every draw of the
+     * geometry that follows is made a second time under {@code then}'s factors, the composite's
+     * too. The second pass reads what the first left, so two primitives that overlap must not share
+     * a draw; the caller flushes between them.
+     */
+    void requireBlend(GlBlend.Factors first, GlBlend.@Nullable Factors then) {
+        requireBlend(first.srcRgb(), first.dstRgb(), first.srcAlpha(), first.dstAlpha(), then);
+    }
+
+    private void requireBlend(int srcRgb, int dstRgb, int srcAlpha, int dstAlpha, GlBlend.@Nullable Factors then) {
         boolean changed = srcRgb != blendSrcRgb || dstRgb != blendDstRgb
-                || srcAlpha != blendSrcAlpha || dstAlpha != blendDstAlpha;
+                || srcAlpha != blendSrcAlpha || dstAlpha != blendDstAlpha || then != blendThen;
         if (changed && (indices.position() > 0 || flatVertexCount > 0)) {
             flush();
         }
@@ -412,6 +434,138 @@ final class GlBatch implements AutoCloseable {
         blendDstRgb = dstRgb;
         blendSrcAlpha = srcAlpha;
         blendDstAlpha = dstAlpha;
+        blendThen = then;
+    }
+
+    /**
+     * Sets the second pass's factors, when the mode in force has one: called between a draw and
+     * the same draw made again. The next {@link #applyRasterState} puts the first pass's back.
+     *
+     * @return whether there is a second pass to draw
+     */
+    private boolean secondPass() {
+        GlBlend.Factors then = blendThen;
+        if (then == null) {
+            return false;
+        }
+        glBlendFuncSeparate(then.srcRgb(), then.dstRgb(), then.srcAlpha(), then.dstAlpha());
+        return true;
+    }
+
+    // The primitives queued under a blend drawn in two passes, in order: where each one's indices
+    // (or, for the flat program, its vertices) start, and its device bounds, x0 y0 x1 y1. The
+    // second pass reads what the first left, so two primitives that overlap must not share a pass:
+    // the flush draws, both passes, each run of primitives none of which overlaps another of the
+    // run, then the next run. A glyph quad, a shape, a piece of a path is a primitive, each opened
+    // by the ensure() that reserves its room. Kept only while such a blend is in force.
+    private int[] twoPassStart = new int[16];
+    private float[] twoPassBox = new float[64];
+    /** Per primitive, how far inside its quad's edges it covers nothing that shows (see below). */
+    private float[] twoPassInset = new float[16];
+    private int twoPassCount;
+    /** The inset the next {@link #ensure} records for its primitive; 0 unless the canvas says. */
+    private float nextCoverageInset;
+
+    /**
+     * Says that the primitive the next {@link #ensure} opens covers less than a 255th of a pixel
+     * further than {@code inset} device pixels inside its quad's edges: an analytic shape, whose
+     * quad reaches a pixel past it for the antialiasing ramp, which is spent half a pixel past the
+     * edge where the shape's outline runs along an axis, as it does at the extremes its bounds are
+     * made of. Read only while a mode drawn in two passes is in force, to let two shapes a pixel
+     * apart share a run.
+     */
+    void coverageInsetForNext(float inset) {
+        nextCoverageInset = inset;
+    }
+    /** The most primitives one run tests against each other: the test is quadratic in the run. */
+    private static final int MAX_TWO_PASS_RUN = 64;
+
+    private void beginTwoPassPrimitive(int start, float x0, float y0, float x1, float y1, float inset) {
+        if (twoPassCount == twoPassStart.length) {
+            twoPassStart = java.util.Arrays.copyOf(twoPassStart, twoPassCount * 2);
+            twoPassBox = java.util.Arrays.copyOf(twoPassBox, twoPassCount * 8);
+            twoPassInset = java.util.Arrays.copyOf(twoPassInset, twoPassCount * 2);
+        }
+        twoPassStart[twoPassCount] = start;
+        twoPassInset[twoPassCount] = inset;
+        int at = twoPassCount * 4;
+        twoPassBox[at] = x0;
+        twoPassBox[at + 1] = y0;
+        twoPassBox[at + 2] = x1;
+        twoPassBox[at + 3] = y1;
+        twoPassCount++;
+    }
+
+    /**
+     * Whether primitive {@code i} can cover a pixel that any from {@code from} up to it covers:
+     * each one's bounds, moved in by its inset, taken to the pixels whose centres they hold, edges
+     * included, which are the pixels the rasterizer shades for it.
+     */
+    private boolean overlapsRun(int i, int from) {
+        int ax0 = firstPixel(twoPassBox[i * 4] + twoPassInset[i]);
+        int ay0 = firstPixel(twoPassBox[i * 4 + 1] + twoPassInset[i]);
+        int ax1 = lastPixel(twoPassBox[i * 4 + 2] - twoPassInset[i]);
+        int ay1 = lastPixel(twoPassBox[i * 4 + 3] - twoPassInset[i]);
+        for (int j = from; j < i; j++) {
+            float inset = twoPassInset[j];
+            if (ax0 <= lastPixel(twoPassBox[j * 4 + 2] - inset) && firstPixel(twoPassBox[j * 4] + inset) <= ax1
+                    && ay0 <= lastPixel(twoPassBox[j * 4 + 3] - inset)
+                    && firstPixel(twoPassBox[j * 4 + 1] + inset) <= ay1) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The first pixel whose centre lies at or past {@code edge}. */
+    private static int firstPixel(float edge) {
+        return (int) Math.ceil(edge - 0.5f);
+    }
+
+    /** The last pixel whose centre lies at or before {@code edge}. */
+    private static int lastPixel(float edge) {
+        return (int) Math.floor(edge - 0.5f);
+    }
+
+    /**
+     * Draws {@code total} queued indices (or flat vertices), both passes, run by run: a run ends
+     * before a primitive that overlaps one already in it. What precedes the first record (nothing,
+     * as the canvas emits) is a run of its own.
+     */
+    private void drawInTwoPasses(boolean indexed, int total) {
+        int n = twoPassCount;
+        int head = n == 0 ? total : twoPassStart[0];
+        if (head > 0) {
+            drawBothPasses(indexed, 0, head);
+        }
+        int runFrom = 0;
+        for (int i = 1; i <= n; i++) {
+            if (i == n || i - runFrom >= MAX_TWO_PASS_RUN || overlapsRun(i, runFrom)) {
+                int first = twoPassStart[runFrom];
+                int end = i == n ? total : twoPassStart[i];
+                if (end > first) {
+                    drawBothPasses(indexed, first, end - first);
+                }
+                runFrom = i;
+            }
+        }
+        twoPassCount = 0;
+    }
+
+    private void drawBothPasses(boolean indexed, int first, int count) {
+        glBlendFuncSeparate(blendSrcRgb, blendDstRgb, blendSrcAlpha, blendDstAlpha);
+        drawRange(indexed, first, count);
+        secondPass();
+        drawRange(indexed, first, count);
+    }
+
+    private void drawRange(boolean indexed, int first, int count) {
+        if (indexed) {
+            glDrawElements(GL_TRIANGLES, count, GL_UNSIGNED_INT, (long) first * Integer.BYTES);
+        } else {
+            glDrawArrays(GL_TRIANGLES, first, count);
+        }
+        drawCalls++;
     }
 
     /** Forgets the tracked texture (after atlas eviction deletes the pages). */
@@ -437,6 +591,14 @@ final class GlBatch implements AutoCloseable {
     }
 
     void ensure(int vertexSlots, int indexSlots) {
+        if (blendThen != null) {
+            if (flatVertexCount > 0) {
+                flushFlat(); // drawn before this primitive, and its records with it
+            }
+            beginTwoPassPrimitive(indices.position(), Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY,
+                    Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY, nextCoverageInset);
+        }
+        nextCoverageInset = 0;
         if (vertices.remaining() < vertexSlots * VERTEX_FLOATS) {
             int needed = vertices.position() + vertexSlots * VERTEX_FLOATS;
             vertices = MemoryUtil.memRealloc(vertices, Math.max(needed, vertices.capacity() * 2));
@@ -461,6 +623,13 @@ final class GlBatch implements AutoCloseable {
     void vertex(float posX, float posY, float localX, float localY, float u, float v) {
         if (flatVertexCount > 0) {
             flushFlat(); // drawn before this primitive, which the canvas asked for after it
+        }
+        if (blendThen != null && twoPassCount > 0) {
+            int at = (twoPassCount - 1) * 4; // the primitive this vertex belongs to grows to hold it
+            twoPassBox[at] = Math.min(twoPassBox[at], posX);
+            twoPassBox[at + 1] = Math.min(twoPassBox[at + 1], posY);
+            twoPassBox[at + 2] = Math.max(twoPassBox[at + 2], posX);
+            twoPassBox[at + 3] = Math.max(twoPassBox[at + 3], posY);
         }
         vertices.put(posX).put(posY)
                 .put(localX).put(localY)
@@ -491,6 +660,9 @@ final class GlBatch implements AutoCloseable {
         }
         if (flatVertices.remaining() < 6 * FLAT_VERTEX_FLOATS) {
             flatVertices = MemoryUtil.memRealloc(flatVertices, flatVertices.capacity() * 2);
+        }
+        if (blendThen != null) {
+            beginTwoPassPrimitive(flatVertexCount, x0, y0, x1, y1, 0);
         }
         flatVertex(x0, y0, r, g, b, a);
         flatVertex(x1, y0, r, g, b, a);
@@ -585,6 +757,22 @@ final class GlBatch implements AutoCloseable {
             glBindSampler(0, sampler);
         }
         applyRasterState();
+        drawCompositeOnce(alpha, clip);
+        if (secondPass()) {
+            // The pieces of one composite never overlap, so the second pass may follow them all,
+            // each piece setting its own scissor again.
+            applyRasterScissor();
+            drawCompositeOnce(alpha, clip);
+        }
+        glDisable(GL_SCISSOR_TEST);
+        if (smooth) {
+            glBindSampler(0, 0);
+        }
+        glBindVertexArray(0);
+    }
+
+    /** The composite's quad, or its pieces, under the clip, once, in the factors set now. */
+    private void drawCompositeOnce(float alpha, @Nullable DeviceClip clip) {
         if (clip == null) {
             usePlainComposite(alpha);
             glDrawArrays(GL_TRIANGLES, 0, compositeCount);
@@ -595,11 +783,6 @@ final class GlBatch implements AutoCloseable {
         } else {
             drawUnderComputedClip(alpha, clip);
         }
-        glDisable(GL_SCISSOR_TEST);
-        if (smooth) {
-            glBindSampler(0, 0);
-        }
-        glBindVertexArray(0);
     }
 
     /**
@@ -733,9 +916,13 @@ final class GlBatch implements AutoCloseable {
             glBindTexture(GL_TEXTURE_2D, textureId);
         }
         applyRasterState();
-        glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, 0);
+        if (blendThen != null) {
+            drawInTwoPasses(true, indexCount);
+        } else {
+            glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, 0);
+            drawCalls++;
+        }
         glBindVertexArray(0);
-        drawCalls++;
 
         vertices.clear();
         indices.clear();
@@ -754,9 +941,13 @@ final class GlBatch implements AutoCloseable {
         glUniform2f(flatUniformViewport, targetWidth, targetHeight);
         glUniform2f(flatUniformOrigin, targetX, targetY);
         applyRasterState();
-        glDrawArrays(GL_TRIANGLES, 0, flatVertexCount);
+        if (blendThen != null) {
+            drawInTwoPasses(false, flatVertexCount);
+        } else {
+            glDrawArrays(GL_TRIANGLES, 0, flatVertexCount);
+            drawCalls++;
+        }
         glBindVertexArray(0);
-        drawCalls++;
         flatVertices.clear();
         flatVertexCount = 0;
     }
@@ -768,6 +959,11 @@ final class GlBatch implements AutoCloseable {
         glBlendFuncSeparate(blendSrcRgb, blendDstRgb, blendSrcAlpha, blendDstAlpha);
         glDisable(GL_DEPTH_TEST);
         glDisable(GL_CULL_FACE);
+        applyRasterScissor();
+    }
+
+    /** The damage scissor while the window is the target, none in a layer. */
+    private void applyRasterScissor() {
         if (scissorEnabled && !inLayer) {
             glEnable(GL_SCISSOR_TEST);
             glScissor(scissorX, scissorY, scissorW, scissorH);

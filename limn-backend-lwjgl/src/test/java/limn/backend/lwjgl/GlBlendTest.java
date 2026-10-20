@@ -5,6 +5,8 @@ import org.junit.jupiter.api.Test;
 import org.lwjgl.opengl.GL33C;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 /**
@@ -51,11 +53,40 @@ class GlBlendTest {
     }
 
     @Test
+    void inAGroupNormalIsTheWindowsAndAdditiveSumsColourAndCoverage() {
+        GlBlend.InGroup normal = GlBlend.inGroup(BlendMode.NORMAL);
+        assertSame(GlBlend.of(BlendMode.NORMAL), normal.first());
+        assertNull(normal.then());
+        GlBlend.InGroup additive = GlBlend.inGroup(BlendMode.ADDITIVE);
+        assertEquals(GL33C.GL_ONE, additive.first().srcRgb());
+        assertEquals(GL33C.GL_ONE, additive.first().dstRgb(), "light still adds");
+        // In a group's picture the coverage is what the composite lays over the window: a glow
+        // drawn where the group drew nothing must cover as itself, or it adds to nothing; and the
+        // coverage sums as the colour does, or a channel ends above it (plus-lighter).
+        assertEquals(GL33C.GL_ONE, additive.first().srcAlpha());
+        assertEquals(GL33C.GL_ONE, additive.first().dstAlpha());
+        assertNull(additive.then(), "one pass");
+    }
+
+    @Test
+    void inAGroupMultiplyIsTheWindowsThenTheSourceWhereTheBackdropIsNot() {
+        GlBlend.InGroup multiply = GlBlend.inGroup(BlendMode.MULTIPLY);
+        assertSame(GlBlend.of(BlendMode.MULTIPLY), multiply.first(), "the window's multiply first");
+        GlBlend.Factors then = multiply.then();
+        assertNotNull(then, "and a second pass over the same geometry");
+        assertEquals(GL33C.GL_ONE_MINUS_DST_ALPHA, then.srcRgb(), "the source where the backdrop is not");
+        assertEquals(GL33C.GL_ONE, then.dstRgb());
+        assertEquals(GL33C.GL_ONE_MINUS_DST_ALPHA, then.srcAlpha());
+        assertEquals(GL33C.GL_ONE, then.dstAlpha(), "the coverage of an over");
+    }
+
+    @Test
     void everyModeResolvesToOneSharedConstant() {
         // Shared instances, not per-call allocations: this runs in the 2D emission
         // path, which is a hot loop.
         for (BlendMode mode : BlendMode.values()) {
             assertSame(GlBlend.of(mode), GlBlend.of(mode), mode.name());
+            assertSame(GlBlend.inGroup(mode), GlBlend.inGroup(mode), mode.name() + " in a group");
         }
     }
 }

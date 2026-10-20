@@ -93,7 +93,11 @@ import java.util.Objects;
  * the near edge reads a little softer too. Where the picture is seen at less than half its size,
  * a page turned far back, its detail is averaged rather than left to flicker while it turns. What
  * part of a child passes behind the eye is not drawn, and the rest is. A frosted glass inside a
- * child seen in perspective reads only what the child draws beneath it, not the window.
+ * child seen in perspective reads only what the child draws beneath it, not the window. Something
+ * inside that draws in a {@link limn.graphics.BlendMode blend mode}, a tint in
+ * {@link limn.graphics.BlendMode#MULTIPLY}, blends with the picture while the child is turned, and
+ * where the child drew nothing beneath it is drawn as itself; at rest, or only moved and scaled,
+ * there is no picture and it blends with what is beneath the container.
  *
  * <p><b>A watcher hears it</b> as {@link Change.Aspect#TRANSFORM} with origin {@code CODE} on this
  * container: every time a set changes a value, once for {@link #reset()}, and twice for a motion,
@@ -472,7 +476,13 @@ public final class Transform extends Widget<Transform> {
      * straight there whose {@code onArrive} still waits: it stops where it is, and its
      * {@code onArrive} never runs. A slide on a container that leaves its scene settles
      * at its target as it leaves and runs its {@code onArrive} then, as does one that went straight
-     * there and still waits for its seconds (a flip's swap first, if it has not run).
+     * there and still waits for its seconds (a flip's swap first, if it has not run). Both run once
+     * the container is out of the scene it left, so a motion they ask for follows the container:
+     * straight there when it is in no scene, or on the frames of the scene it went to, never on
+     * those of the window it left, and after the change that took it out has done all its own
+     * work. A callback that throws, on a frame or as its container leaves, is logged and reported
+     * as a throwing ticker is, and changes nothing for the motions beside it, the container's
+     * later ones, one it asked for before it threw, or the change.
      *
      * <p><b>A watcher hears it twice</b>, as {@link Change.Aspect#TRANSFORM}: when it starts, and when
      * it arrives or is superseded. The frames between repaint without announcing and without telling

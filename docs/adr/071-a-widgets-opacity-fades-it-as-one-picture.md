@@ -312,7 +312,10 @@ whether Limn should do the same, and for input too, and the owner kept the web p
   straight would blend each draw on its own where the picture below 1 is drawn in NORMAL and
   blended once, and a fade arriving at 1 jumped; the rule of section 2.3, the composite in the
   mode in force and the inside from NORMAL, holds at every opacity. A canvas without layers keeps
-  the mode on each draw at every opacity.)
+  the mode on each draw at every opacity. 2026-10-19, the owner's decision 17, section 8.4: a
+  mode a descendant draws in inside the layer blends with the layer, transparent where the group
+  drew nothing, as an isolated group of a web page does; at 1 under NORMAL there is still no
+  layer, so that draw blends with the window, and the fade's last frame jumps, as a page's does.)
 - **At 0, nothing is drawn**: `paintWidget` returns before the subtree, as it does for a widget
   that misses the clip. The widget is still there (section 2.1).
 - **Between, the subtree is drawn into a layer and the layer is composited with the opacity.**
@@ -792,7 +795,8 @@ for less motion, for zero seconds, for the value it has, or with no scene or no 
 (2026-10-19, sections 8 and 8.1: its `onArrive` then runs after the seconds asked for, or on the
 next turn of the UI queue for none, never inside `fadeTo`); a newer `fadeTo` or a `setOpacity` supersedes one in flight, whose `onArrive` does not
 run; one ticker per container however many fades are asked for between two frames; a container
-leaving its scene mid-fade settles at its target and runs `onArrive` then; and the owner's rule of
+leaving its scene mid-fade settles at its target and runs `onArrive` then (2026-10-19, section 8.2:
+once the walk that takes it out is over); and the owner's rule of
 decision 2, a direct set that changes the value announcing `Change.Aspect.OPACITY` each time and a
 fade only at its start and at its arrival or supersession, now announced on the container. (2026-10-18, with stage 2 of
 ADR 072: `fadeTo` refuses an infinite number of seconds with `IllegalArgumentException`, as the
@@ -971,3 +975,162 @@ window fade, a closed window flushing one that waits included. `InSceneFadeEndsT
 .underLessMotionADialogAndAPopupInAWindowCloseOnTheNextTurn` and
 `aDialogInASceneWithNoWindowResolvesOnTheNextTurn` hold the closers to the next turn (each fails
 with the closers' lengths unreduced).
+
+### 8.2 What a leaving runs, runs once the container is out, 2026-10-19
+
+The audit's MEDIUM round (OP-2) found that a container leaving its scene mid-fade ran its
+`onArrive` in the middle of the walk that takes the subtree out, while `scene()` still answered the
+scene being left. A fade asked for there, the "fade out, swap the content, fade back in" of section
+8 or a pulse, found that scene with its window and was stepped by its frames: a removed container
+kept that window rendering frames for nothing and held the subtree through its ticker, and one
+moved to another window stood still there (at 0 in the audit's probe, invisible) until the old
+window drew again, for good once it was closed, covered or minimized. That is the defect section 7.2
+and `fadeTo`'s Javadoc say a leaving settles, come back through the callback.
+
+**The fix.** A leaving still settles the fade during the walk, value and announcement, while
+`scene()` answers the scene being left; what it runs at its end, the fade's `onArrive` and a
+straight-there arrival still waiting, goes into a list that the funnel every scene change passes
+through (`Widget.setSceneRecursively`) runs once the walk is over, every widget of the subtree then
+in the scene it is going to. A fade it asks for therefore goes straight there when the container is
+in no scene, a move to another window included (the container passes through no scene between the
+two), and is stepped by the new scene's frames when the walk took it straight into one; never by the
+old window's. An `onArrive` that throws there stops neither the walk nor the others, where before it
+stopped the walk with part of the subtree still in the scene the removal took it out of; how the
+throw is reported is the amendment at the end of this section. The `Transform` container's motions
+follow the same rule (ADR 072 section 13.3).
+
+**Tests.** `OpacityTest.aFadeAskedForInTheOnArriveOfAFadeSettledByLeavingIsNotSteppedByTheSceneLeft`
+(the onArrive saw the old scene and its fade back was stepped there),
+`aPulseWhoseContainerMovesToAnotherWindowMidFadeGoesOnInThatWindow` (the pulse stood still at 0 in
+the new window), `anOnArriveThatFadesAnotherContainerLeavingWithItSeesThatOneOutToo` (an inner
+container's onArrive fading the outer one, which the walk had not cleared yet) and
+`aThrowingOnArriveRunByALeavingStopsNeitherTheOtherArrivalsNorTheLeaving`; each failed before.
+
+(2026-10-19, after the third review, R3S-4: the list first ran at the end of the walk, inside the
+funnel, and rethrew there, which was still before the caller's own work. A throw cut `remove()`
+short as before, the scene's focus left on a widget in no scene that went on receiving keys and the
+parent never laid out again; and a callback that put the container back in the same scene and
+focused it lost that focus to `remove()`'s bookkeeping a moment later. The funnel now hands the list
+back, and every caller, `add`, `remove`, `Scene.removeOverlay`, the pushes of an overlay and the
+close of a window, runs it last, once its focus, layout and announcement are done; a callback that
+throws there is logged and reported as a ticker's throw is (`CrashPhase.TICKER`) and does not come
+out of the change, which has already happened. A throw of the walk itself still runs what was
+settled before it. `OpacityTest.aThrowingOnArriveDoesNotCutTheRemovalThatSettledItShort` and
+`anOnArriveThatPutsTheContainerBackAndFocusesItKeepsThatFocus` failed before;
+`aThrowingOnArriveRunByALeavingStopsNeitherTheOtherArrivalsNorTheLeaving` now holds the report in
+place of the rethrow. 2026-10-20, after the fourth review, R4S-2: each caller runs the list in a
+`finally`, since its own work runs the application's focus and pointer handlers, and one that threw
+there dropped every settled callback unrun and untold:
+`aThrowingOnFocusLostDuringARemovalDoesNotDropTheSettledOnArrive` and
+`aThrowingOnFocusLostDuringAnOverlayPushDoesNotDropTheSettledOnArrive` failed before.)
+
+### 8.3 An `onArrive` that throws, 2026-10-19
+
+The same round (OP-3) found that a fade whose `onArrive` threw on its last frame left the group
+holding the ticker the scene had just dropped for the throw (the scene's ticker guard logs it and
+removes it). Every later `fadeTo` on that container then found "its" ticker on the same scene and
+registered none: it never moved and never arrived, for the container's whole life in that scene. A
+fault in one callback, a toast's fade in, left the fade out whose `onArrive` hides the toast without
+effect, the toast on screen taking clicks.
+
+**The fix.** The frame that arrives runs the `onArrive` under a `finally` that, on a throw, lets go
+of the dropped ticker and, if the callback asked for another fade before it threw, gives that fade a
+ticker of its own on the same scene; the throw still reaches the scene's guard, which logs and
+reports it as before. `OpacityTest.anOnArriveThatThrowsLeavesTheContainersLaterFadesFreeToMoveAndArrive`
+(the audit's scenario, a fade out and a fade after a set) and
+`aFadeAskedForByAnOnArriveThatThenThrowsStillMovesAndArrives` failed before. `Transform` likewise
+(ADR 072 section 13.4).
+
+### 8.4 A blend mode inside the group: the owner's decision 17, 2026-10-19
+
+The same round (OP-4) found that a descendant drawing in `BlendMode.MULTIPLY` inside a container
+below 1 drew nothing: inside the layer drawing starts over a transparent picture, and the window's
+multiply factors (`DST_COLOR, ONE_MINUS_SRC_ALPHA` for colour, the coverage left alone) multiply a
+transparent picture into nothing. At 1 there is no layer and the same draw multiplied the window.
+Every fade in of such content showed nothing and the multiplied draw appeared on the last frame;
+every fade out dropped it on the first (the audit's probe: 242, 166, 90, the page untouched, at any
+value below 1, and 121, 83, 90 at 1). The amendment of section 2.3 covered only a mode an ancestor
+leaves in force, which the composite carries. `ADDITIVE` was continuous only because its factors
+leave the picture's coverage at 0, so the added colour went through the composite as light added
+to the window, which is not what a group is either.
+
+**The owner's decision 17.** Inside a group below 1 a mode blends with the group's own backdrop,
+which is transparent where the group drew nothing, as an isolated group of the web's compositing
+rules does: `Cs' = (1 − αb)·Cs + αb·B(Cb, Cs)`, so with `αb = 0` the source is drawn unblended, and
+over what the group drew it blends with that. At 1 there is no group and the mode blends with the
+window, as before. The jump at the end of a fade stays, documented, as a page's own has it: the
+alternative, a layer kept at 1 for a container that has faded, would have cost a picture a frame
+for every container at rest and left a mode inside a container that never fades still blending
+with the window.
+
+**How it is drawn.** The canvas keeps the window's factors (section 2.3's composite, a translucent
+window's coverage, the 3D pass) and uses another table, `GlBlend.inGroup`, while a layer is the
+target, the premultiplied form of the formula with the coverage of an over,
+`αo = αs + αb·(1 − αs)`, for `MULTIPLY`:
+
+- `ADDITIVE`: the web's plus-lighter, `co = cs + cb` and `αo = αs + αb`, each clamped, one pass
+  (`ONE, ONE` for colour and coverage). (2026-10-19, after the third review, R3S-10: it was built
+  first with an over's coverage, `ONE, ONE_MINUS_SRC_ALPHA`, which over translucent group content
+  left a colour above its coverage, white at one half over white at one half coming to a colour of 1
+  at a coverage of 0.75, no valid premultiplied pixel, and the composite laid more light than either
+  rule gives; the sum keeps every channel within the coverage, since `cs ≤ αs` and `cb ≤ αb`. Over a
+  transparent part of the group and over opaque content the two agree. That `ADDITIVE` is isolated
+  at all the owner settled on 2026-10-20, decision 20: like the other modes, as the web's rules
+  have it, the end-of-fade jump documented; this only makes the isolated pixel valid.
+  `GlGroupBlendTest.additiveOverTranslucentGroupContentLeavesAValidPremultipliedPixel` failed
+  before, 128 of colour at 96 of coverage.)
+- `MULTIPLY`: `co = cs·(1 − αb) + cs·cb + cb·(1 − αs)`, which no single set of fixed factors gives
+  (it would need a second output of the fragment, dual-source blending, which GLSL ES 3.00, the
+  shaders' portability rule, has only as an extension). Two passes over the same geometry: the window's multiply first, `cs·cb +
+  cb·(1 − αs)` with the coverage kept, then `ONE_MINUS_DST_ALPHA, ONE` for colour and coverage, which
+  adds the source where the backdrop is not, `cs·(1 − αb)`, and grows the coverage by as much. The
+  second pass reads what the first left, so two primitives that overlap must not share a pass.
+  (2026-10-19, after the third review, R3S-9: built first with a flush before every primitive, two
+  draw calls each, and the glyph quads of one run of text as one draw, which this section called
+  exact but for "a fraction of a pixel" at an antialiased edge. It was not: over a transparent part
+  of the group the two passes of one draw lay the overlapping ink of two glyphs of the run as the
+  second under the first, not multiplied, up to 64 of 255 across the whole overlap for a tint at one
+  half. The batch now keeps, while such a mode is in force, where each primitive starts and its
+  device bounds, a glyph quad, a shape or a piece of a path each being one, and draws both passes
+  run by run, a run ending before a primitive that overlaps one already in it (at most 64 tested
+  against each other): overlapping glyphs are drawn one after the other, exact, and draws that do
+  not overlap share their two draw calls. `GlGroupBlendTest
+  .tintsInMultiplyThatDoNotOverlapShareTheirTwoPasses` holds ten tints apart inside a card to five
+  draw calls for the frame (it drew 22). Draws that overlap still take two each: the reviewer's card,
+  ten overlapping tints inside a group at one half, is 23 draw calls on the GPU and 24 on the
+  software renderer, against 4 and 5 before this section, on every frame that draws it as a picture,
+  while it fades or while it is turned, and the same as before at rest. `BlendMode`, `Canvas.saveLayer`
+  and `Transform` say so. 2026-10-20, after the fourth review, R4S-4: overlap was first judged on
+  the quads, which reach a pixel past each shape for its antialiasing, so shapes one pixel apart did
+  not share: ten in a row took 21 draw calls, a heat map of 200 cells with one-pixel gaps 383, where
+  2 outside a mode. It is now judged on the pixels each primitive can cover: its bounds taken to the
+  pixels whose centres they hold, edges included, after moving an analytic shape's bounds (a
+  rectangle, rounded or not, a circle, an ellipse, a stroke of one) in by the part of its pad where
+  the program's ramp is below a 255th, all of the pad but 0.452 of a pixel, which is where an outline
+  that runs along an axis, as it does at the extremes its bounds are made of, reaches a 255th
+  (`1 − smoothstep(−aa, aa, d)` with `aa` half a pixel there). A glyph, an image, a shadow, a path's
+  fringe keep their whole quads, which can only over-estimate. Measured on this Mac's GPU, the
+  reviewer's harness: ten rectangles or circles in a row a pixel apart, 3 draw calls (21 before);
+  the 200 cells, 9 (383; runs of 64 at most); a 43-character line at 12 and at 20 pixels, 11 and 9,
+  unchanged, since neighbouring glyphs' pictures usually share a pixel where both have ink, and
+  telling which do would mean reading the atlas. `GlGroupBlendTest
+  .tintsInMultiplyOnePixelApartShareTheirTwoPassesAndStayExact`, on the GPU and the software
+  renderer, holds twenty tints a pixel apart to four draw calls with the picture within one step of
+  NORMAL's, which it must equal over a transparent group, and tints that overlap by a pixel to more
+  than ten; it drew 19.)
+- A group composited in a mode into another group (section 2.3's ancestor mode, nested) takes the
+  same table, both passes over its quad.
+
+On an opaque backdrop both rows equal the window's, so a group that draws its own opaque background
+first is unchanged.
+
+**Tests.** `GlGroupBlendTest`, on the GPU and on a software renderer (`HeadlessGl.onSoftwareRenderer`,
+Apple's on this Mac), holds each pixel to the formula within two steps of 255 for
+`MULTIPLY` and `ADDITIVE`: over a transparent part of the group, over what the group drew, a
+translucent source over translucent group content, two draws that overlap (which fails with the two
+passes sharing one draw), a group composited in the mode over a transparent part of the outer one
+and over what it drew, and at 1 with the window; and the audit's scene through an `Opacity`
+container, which drew 242, 166, 90 at one half before and 185, 147, 173 now, and 121, 83, 90 at 1
+as before. `GlBlendTest` pins the table. The brief for this round named `SCREEN` as well; the
+toolkit has no such mode (`NORMAL`, `ADDITIVE`, `MULTIPLY`), and the table needs a row for any mode
+added later.

@@ -897,6 +897,389 @@ class OpacityTest extends SceneTestBase {
         assertNotNull(a); // A is kept by this test, not by the container
     }
 
+    /** The ticker a container's group holds, or null: what ties it to a scene's frames. */
+    private static Object heldTicker(Widget<?> container) throws ReflectiveOperationException {
+        java.lang.reflect.Field held = Widget.class.getDeclaredField("opacityGroup");
+        held.setAccessible(true);
+        java.lang.reflect.Field ticker = OpacityGroup.class.getDeclaredField("ticker");
+        ticker.setAccessible(true);
+        return ticker.get(held.get(container));
+    }
+
+    /**
+     * The cross-fade "fade out, swap, fade back in" on a container removed mid-fade: the fade back,
+     * asked for in the onArrive its leaving runs, finds the container out of the scene it left and
+     * goes straight there, where it was stepped by that scene's frames, which kept rendering for a
+     * container no longer in them.
+     */
+    @Test
+    void aFadeAskedForInTheOnArriveOfAFadeSettledByLeavingIsNotSteppedByTheSceneLeft()
+            throws ReflectiveOperationException {
+        queueOnTestClock();
+        Opacity w = faded("w");
+        Stack holder = new Stack();
+        holder.add(w);
+        Scene a = sceneOf(holder);
+        int[] before = a.tickerCounts();
+        AtomicReference<Scene> seen = new AtomicReference<>(a);
+        AtomicInteger back = new AtomicInteger();
+        w.fadeTo(0f, 0.2, () -> {
+            seen.set(w.scene());
+            w.fadeTo(1f, 0.2, back::incrementAndGet);
+        });
+        advance(a, 16);
+        advance(a, 100);
+        holder.remove(w);
+        assertNull(seen.get(), "its onArrive sees the container out of the scene it leaves");
+        assertEquals(1f, w.opacity(), "the fade back, with no scene to step it, went straight there");
+        assertNull(heldTicker(w), "and the container holds no ticker");
+        advance(a, 16);
+        assertEquals(before[0], a.tickerCounts()[0], "nor, past the frame that drops the one it left, the scene");
+        for (int i = 0; i < 20; i++) {
+            advance(a, 16);
+            assertEquals(1f, w.opacity(), "nothing of the scene left moves it");
+        }
+        assertEquals(0, back.get());
+        turnAfter(200);
+        assertEquals(1, back.get(), "the fade back arrives after its seconds, as any fade straight there");
+    }
+
+    /**
+     * A pulse on a container moved to another window mid-fade goes on in that window: the step its
+     * leaving runs goes straight there, and the next, after that step's seconds, is stepped by the
+     * new window's frames. It was stepped by the old window's, so it stood still in the new one,
+     * invisible here, until the old drew again, and for good once that one closed.
+     */
+    @Test
+    void aPulseWhoseContainerMovesToAnotherWindowMidFadeGoesOnInThatWindow() {
+        queueOnTestClock();
+        Opacity w = faded("w");
+        Stack inA = new Stack();
+        inA.add(w);
+        Scene a = sceneOf(inA);
+        int[] beforeA = a.tickerCounts();
+        AtomicInteger arrivals = new AtomicInteger();
+        Runnable[] pulse = new Runnable[1];
+        pulse[0] = () -> {
+            arrivals.incrementAndGet();
+            w.fadeTo(w.opacity() < 0.5f ? 1f : 0f, 0.3, pulse[0]);
+        };
+        w.fadeTo(0f, 0.3, pulse[0]);
+        advance(a, 16);
+        advance(a, 100);
+
+        inA.remove(w);
+        Stack inB = new Stack();
+        Scene b = sceneOf(inB);
+        inB.add(w);
+        assertEquals(1, arrivals.get(), "the fade out settled as the container left");
+        assertEquals(1f, w.opacity(), "and the step back, asked for with no scene, went straight there");
+
+        turnAfter(300); // that step's seconds: the pulse asks for the next, now in B
+        assertEquals(2, arrivals.get());
+        advance(b, 16);
+        advance(b, 150);
+        float mid = w.opacity();
+        assertTrue(mid > 0f && mid < 1f, "B's frames step it: " + mid);
+        advance(b, 200);
+        assertEquals(0f, w.opacity(), "and bring it to its target");
+        assertEquals(3, arrivals.get());
+        float inFlight = w.opacity();
+        advance(a, 16);
+        assertEquals(inFlight, w.opacity(), "the old window, drawing again, moves nothing of it");
+        assertEquals(beforeA[0], a.tickerCounts()[0], "and holds nothing of it after that frame");
+    }
+
+    /**
+     * The onArrive a leaving runs may fade another container leaving with it, here the outer one of
+     * two: it runs once the whole subtree is out, so that fade too goes straight there. Run in the
+     * middle of the walk, it found the outer container still in the scene and left a ticker there.
+     */
+    @Test
+    void anOnArriveThatFadesAnotherContainerLeavingWithItSeesThatOneOutToo()
+            throws ReflectiveOperationException {
+        Opacity inner = faded("inner");
+        Opacity outer = new Opacity(inner);
+        Stack holder = new Stack();
+        holder.add(outer);
+        Scene a = sceneOf(holder);
+        int[] before = a.tickerCounts();
+        inner.fadeTo(0f, 0.3, () -> outer.fadeTo(0.5f, 0.3, null));
+        advance(a, 16);
+        advance(a, 100);
+        holder.remove(outer);
+        assertEquals(0f, inner.opacity());
+        assertEquals(0.5f, outer.opacity(), "the outer fade went straight there");
+        assertNull(heldTicker(outer));
+        advance(a, 16);
+        assertEquals(before[0], a.tickerCounts()[0], "and the scene left holds nothing of either");
+        assertEquals(0.5f, outer.opacity());
+    }
+
+    /** Records the crashes reported while it is installed. */
+    private static final class Reported implements limn.backend.CrashHandler {
+        final List<Throwable> errors = new ArrayList<>();
+        final List<limn.backend.CrashPhase> phases = new ArrayList<>();
+
+        @Override
+        public boolean crashed(limn.backend.CrashPhase phase, Throwable error) {
+            phases.add(phase);
+            errors.add(error);
+            return true;
+        }
+    }
+
+    /**
+     * Two containers leave together and the first one's onArrive throws: the second's still runs,
+     * the subtree is out of the scene whole, and the throw is reported, as a ticker's is, and does
+     * not come out of the removal. Run in the middle of the walk, the throw stopped it there, the
+     * second container still in the scene the removal took it out of.
+     */
+    @Test
+    void aThrowingOnArriveRunByALeavingStopsNeitherTheOtherArrivalsNorTheLeaving() {
+        Reported reported = new Reported();
+        limn.backend.Crashes.install(reported);
+        try {
+            Opacity first = faded("first");
+            Opacity second = faded("second");
+            Row both = new Row();
+            both.add(first);
+            both.add(second);
+            Stack holder = new Stack();
+            holder.add(both);
+            Scene a = sceneOf(holder);
+            AtomicInteger secondArrived = new AtomicInteger();
+            IllegalStateException fault = new IllegalStateException("a fault of the application's (expected)");
+            first.fadeTo(0f, 0.3, () -> {
+                throw fault;
+            });
+            second.fadeTo(0f, 0.3, secondArrived::incrementAndGet);
+            advance(a, 16);
+            advance(a, 100);
+            holder.remove(both);
+            assertEquals(1, secondArrived.get(), "the other arrival ran");
+            assertNull(both.scene());
+            assertNull(first.scene());
+            assertNull(second.scene(), "and the whole subtree left");
+            assertEquals(List.of(fault), reported.errors, "the throw reported, once");
+            assertEquals(List.of(limn.backend.CrashPhase.TICKER), reported.phases, "as a ticker's is");
+        } finally {
+            limn.backend.Crashes.uninstall(reported);
+        }
+    }
+
+    /**
+     * A focused container removed mid-fade whose onArrive throws: the removal still does all its
+     * own work. The throw came out of the walk, before the removal had given the focus back and
+     * laid the parent out again: the scene's focus stayed on a widget in no scene, which kept
+     * receiving keys, and a gap stayed where the container had been.
+     */
+    @Test
+    void aThrowingOnArriveDoesNotCutTheRemovalThatSettledItShort() {
+        Reported reported = new Reported();
+        limn.backend.Crashes.install(reported);
+        try {
+            Probe lead = new Probe("lead", painted);
+            Probe inner = new Probe("inner", painted);
+            Probe after = new Probe("after", painted);
+            Opacity fading = new Opacity(inner);
+            limn.scene.layout.Column column = new limn.scene.layout.Column();
+            column.add(lead);
+            column.add(fading);
+            column.add(after);
+            List<Change> heard = new ArrayList<>();
+            column.observeChanges((source, change) -> heard.add(change));
+            Scene a = sceneOf(column);
+            a.requestFocus(inner);
+            assertSame(inner, a.focusedWidget());
+            float afterY = after.y();
+            fading.fadeTo(0f, 0.3, () -> {
+                throw new IllegalStateException("a fault of the application's (expected)");
+            });
+            advance(a, 16);
+            column.remove(fading);
+            assertEquals(1, reported.errors.size(), "the throw reported");
+            assertTrue(a.focusedWidget() != inner, "the focus left the removed container: " + a.focusedWidget());
+            assertTrue(heard.stream().anyMatch(c -> c.aspect() == Change.Aspect.CHILDREN),
+                    "the removal announced on the parent");
+            advance(a, 16);
+            assertTrue(after.y() < afterY, "and the parent laid out again: " + afterY + " -> " + after.y());
+        } finally {
+            limn.backend.Crashes.uninstall(reported);
+        }
+    }
+
+    /** A focusable probe whose loss of the focus throws, as an application's handler may. */
+    private Probe throwingOnFocusLost(String name) {
+        return new Probe(name, painted) {
+            @Override
+            protected void onFocusLost() {
+                throw new IllegalStateException("a fault in onFocusLost (expected)");
+            }
+        };
+    }
+
+    /**
+     * A focused container removed mid-fade whose child's onFocusLost throws as the removal takes
+     * the focus away: the fade's onArrive still runs. The removal ran the settled callbacks after
+     * its bookkeeping and not in a finally, so the throw dropped them, never run and never told.
+     */
+    @Test
+    void aThrowingOnFocusLostDuringARemovalDoesNotDropTheSettledOnArrive() {
+        Probe inner = throwingOnFocusLost("inner");
+        Opacity fading = new Opacity(inner);
+        limn.scene.layout.Column column = new limn.scene.layout.Column();
+        column.add(fading);
+        Scene a = sceneOf(column);
+        a.requestFocus(inner);
+        AtomicInteger arrived = new AtomicInteger();
+        fading.fadeTo(0f, 0.3, arrived::incrementAndGet);
+        advance(a, 16);
+        try {
+            column.remove(fading);
+        } catch (IllegalStateException expected) {
+            // the handler's own throw, which the removal does not contain: not this test's concern
+        }
+        assertEquals(1, arrived.get(), "the onArrive the leaving settled ran");
+    }
+
+    /**
+     * An overlay moved into this scene mid-fade, the focus here held by a widget whose onFocusLost
+     * throws as the push moves the focus into the overlay: the fade's onArrive still runs.
+     */
+    @Test
+    void aThrowingOnFocusLostDuringAnOverlayPushDoesNotDropTheSettledOnArrive() {
+        Probe victim = throwingOnFocusLost("victim");
+        limn.scene.layout.Column content = new limn.scene.layout.Column();
+        content.add(victim);
+        Scene a = sceneOf(content);
+        a.requestFocus(victim);
+        Opacity fading = faded("overlay");
+        Scene b = sceneOf(new Stack());
+        b.pushOverlay(fading);
+        AtomicInteger arrived = new AtomicInteger();
+        fading.fadeTo(0.5f, 0.3, arrived::incrementAndGet);
+        advance(b, 16);
+        try {
+            a.pushOverlay(fading); // from b's frames to a's, mid-fade
+        } catch (IllegalStateException expected) {
+            // the handler's own throw
+        }
+        assertEquals(1, arrived.get(), "the onArrive the move settled ran");
+    }
+
+    /**
+     * An onArrive run by a removal that puts the container back in the same scene, under another
+     * parent, and focuses it, "fade out, move, fade in" taken out mid-fade: it keeps the focus it
+     * gave. The removal's own bookkeeping ran after the callback and revoked it.
+     */
+    @Test
+    void anOnArriveThatPutsTheContainerBackAndFocusesItKeepsThatFocus() {
+        Probe inner = new Probe("inner", painted);
+        Opacity fading = new Opacity(inner);
+        limn.scene.layout.Column first = new limn.scene.layout.Column();
+        first.add(fading);
+        limn.scene.layout.Column second = new limn.scene.layout.Column();
+        limn.scene.layout.Column column = new limn.scene.layout.Column();
+        column.add(first);
+        column.add(second);
+        Scene a = sceneOf(column);
+        a.requestFocus(inner);
+        fading.fadeTo(0.2f, 0.3, () -> {
+            first.remove(fading); // nothing: the removal below has already taken it out
+            second.add(fading);
+            fading.fadeTo(1f, 0.2, null);
+            a.requestFocus(inner);
+        });
+        advance(a, 16);
+        first.remove(fading);
+        assertSame(second, fading.parent(), "back, under the other parent");
+        assertSame(a, fading.scene());
+        assertSame(inner, a.focusedWidget(), "and focused, as the onArrive asked");
+        for (int i = 0; i < 30; i++) {
+            advance(a, 16);
+        }
+        assertEquals(1f, fading.opacity(), "faded back in, on this scene's frames");
+        assertSame(inner, a.focusedWidget());
+    }
+
+    /**
+     * A toast whose fade in has an onArrive with a fault in it: the scene logs the throw and drops
+     * the ticker, and the fade out that hides the toast later still moves and arrives. The group
+     * kept the dropped ticker as its own, so every later fade on the container found "its" ticker
+     * and registered none: it never moved and never arrived, and the toast stayed on screen.
+     */
+    @Test
+    void anOnArriveThatThrowsLeavesTheContainersLaterFadesFreeToMoveAndArrive()
+            throws ReflectiveOperationException {
+        Opacity toast = faded("toast");
+        Stack holder = new Stack();
+        holder.add(toast);
+        Scene scene = sceneOf(holder);
+        int[] before = scene.tickerCounts();
+        toast.setOpacity(0f);
+        toast.fadeTo(1f, 0.1, () -> {
+            throw new IllegalStateException("a fault of the application's");
+        });
+        for (int i = 0; i < 20; i++) {
+            advance(scene, 16);
+        }
+        assertEquals(1f, toast.opacity(), "the fade in arrived, and its onArrive threw");
+        assertNull(heldTicker(toast), "the container holds no ticker the scene has dropped");
+
+        AtomicInteger hidden = new AtomicInteger();
+        toast.fadeTo(0f, 0.1, () -> {
+            hidden.incrementAndGet();
+            toast.setVisible(false);
+        });
+        advance(scene, 16);
+        advance(scene, 50);
+        float mid = toast.opacity();
+        assertTrue(mid > 0f && mid < 1f, "the fade out moves: " + mid);
+        for (int i = 0; i < 20; i++) {
+            advance(scene, 16);
+        }
+        assertEquals(0f, toast.opacity());
+        assertEquals(1, hidden.get(), "and arrives, so the toast is hidden");
+        assertEquals(before[0], scene.tickerCounts()[0], "with no ticker left behind");
+
+        toast.setOpacity(0.3f);
+        toast.fadeTo(0.9f, 0.1, null);
+        for (int i = 0; i < 20; i++) {
+            advance(scene, 16);
+        }
+        assertEquals(0.9f, toast.opacity(), "and so does any fade after it");
+    }
+
+    /**
+     * An onArrive that asks for the next fade and then throws: the fade it asked for still moves
+     * and arrives. It was left on the ticker the scene dropped for the throw, and stood still.
+     */
+    @Test
+    void aFadeAskedForByAnOnArriveThatThenThrowsStillMovesAndArrives() {
+        Opacity w = faded("w");
+        Stack holder = new Stack();
+        holder.add(w);
+        Scene scene = sceneOf(holder);
+        int[] before = scene.tickerCounts();
+        AtomicInteger back = new AtomicInteger();
+        w.fadeTo(0f, 0.1, () -> {
+            w.fadeTo(1f, 0.1, back::incrementAndGet);
+            throw new IllegalStateException("a fault of the application's, after the next step");
+        });
+        for (int i = 0; i < 12; i++) {
+            advance(scene, 16);
+        }
+        float mid = w.opacity();
+        assertTrue(mid > 0f && mid < 1f, "the fade back moves: " + mid);
+        for (int i = 0; i < 20; i++) {
+            advance(scene, 16);
+        }
+        assertEquals(1f, w.opacity());
+        assertEquals(1, back.get(), "and arrives");
+        assertEquals(before[0], scene.tickerCounts()[0]);
+    }
+
     @Test
     void aWidgetNobodyFadesHoldsNoGroup() throws ReflectiveOperationException {
         java.lang.reflect.Field held = Widget.class.getDeclaredField("opacityGroup");

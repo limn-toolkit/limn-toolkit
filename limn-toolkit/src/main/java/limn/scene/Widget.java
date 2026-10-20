@@ -47,6 +47,8 @@ import java.util.Objects;
  */
 public abstract class Widget<W extends Widget<W>> {
 
+    private static final System.Logger LOG = System.getLogger(Widget.class.getName());
+
     /**
      * This widget as its own type, which is what every setter here returns so that a chain of
      * them keeps the type it started with: {@code new Button("OK").setEnabled(false)} is a
@@ -542,22 +544,27 @@ public abstract class Widget<W extends Widget<W>> {
         }
         children.add(index, child);
         child.parent = this;
+        List<Runnable> settled = new ArrayList<>(0); // no array until a leaving settles something
         Throwable failed = null;
         try {
-            // A popup hung in a child adopted from another scene closes as it leaves that one,
-            // and what its handler throws waits for the join to be complete and announced.
-            child.setSceneRecursively(scene);
-        } catch (RuntimeException | Error error) {
-            failed = addFailure(null, error);
-        }
-        try {
-            childrenChanged();
-            // Structure is announced on the parent, from the one funnel every child joins
-            // through, so a watcher of a tree hears a mount as it happens rather than by
-            // diffing child lists.
-            notifyChange(Change.of(Change.Aspect.CHILDREN, Change.Origin.CODE));
-        } catch (RuntimeException | Error error) {
-            failed = addFailure(failed, error);
+            try {
+                // A popup hung in a child adopted from another scene closes as it leaves that one,
+                // and what its handler throws waits for the join to be complete and announced.
+                child.setSceneRecursively(scene, settled);
+            } catch (RuntimeException | Error error) {
+                failed = addFailure(null, error);
+            }
+            try {
+                childrenChanged();
+                // Structure is announced on the parent, from the one funnel every child joins
+                // through, so a watcher of a tree hears a mount as it happens rather than by
+                // diffing child lists.
+                notifyChange(Change.of(Change.Aspect.CHILDREN, Change.Origin.CODE));
+            } catch (RuntimeException | Error error) {
+                failed = addFailure(failed, error);
+            }
+        } finally {
+            runSettled(settled); // a watcher that throws must not drop what the leaving settled
         }
         rethrow(failed);
     }
@@ -579,20 +586,25 @@ public abstract class Widget<W extends Widget<W>> {
         Objects.requireNonNull(origin, "origin");
         if (children.remove(child)) {
             child.parent = null;
+            List<Runnable> settled = new ArrayList<>(0); // no array until a leaving settles something
             Throwable failed = null;
             try {
-                child.setSceneRecursively(null);
-            } catch (RuntimeException | Error error) {
-                failed = addFailure(null, error); // a popup's handler: the removal still completes
-            }
-            try {
-                if (scene != null) {
-                    scene.onWidgetDetached(child);
+                try {
+                    child.setSceneRecursively(null, settled);
+                } catch (RuntimeException | Error error) {
+                    failed = addFailure(null, error); // a popup's handler: the removal still completes
                 }
-                childrenChanged();
-                notifyChange(Change.of(Change.Aspect.CHILDREN, origin));
-            } catch (RuntimeException | Error error) {
-                failed = addFailure(failed, error); // rides along, and never hides the first
+                try {
+                    if (scene != null) {
+                        scene.onWidgetDetached(child); // runs the application's focus and pointer handlers
+                    }
+                    childrenChanged();
+                    notifyChange(Change.of(Change.Aspect.CHILDREN, origin));
+                } catch (RuntimeException | Error error) {
+                    failed = addFailure(failed, error); // rides along, and never hides the first
+                }
+            } finally {
+                runSettled(settled); // a handler that throws must not drop what the leaving settled
             }
             rethrow(failed);
         }
@@ -621,8 +633,24 @@ public abstract class Widget<W extends Widget<W>> {
      * memoized before being pushed into a scene with a different default would otherwise
      * keep a stale answer forever. Bumping here rather than in {@code add}/{@code remove}
      * is what makes the memo provably exact rather than hopefully exact.
+     *
+     * <p>A fade or a motion of a container that leaves its scene settles during the walk, while
+     * {@link #scene()} still answers the scene being left, and what it runs at its end, its
+     * {@code onArrive} and a flip's swap, is handed back to the caller, which runs it with
+     * {@link #runSettled} once its own work is done: the focus given back, the parent laid out
+     * again, the change announced. Run in the middle of the walk, a fade asked for there found the
+     * old scene and was stepped by its frames; run before the caller's work, a throw cut that work
+     * short, and a callback that put the container back and focused it lost the focus to it.
+     *
+     * <p>A popup hung from a widget of the subtree closes before the walk, and what its handlers
+     * throw is thrown once the walk is complete, with what the walk threw added to it: the caller
+     * still runs {@code settled}, in a {@code finally}, so a throwing {@code onClose} drops no
+     * fade's arrival, and finishes its own work before it rethrows.
+     *
+     * @param newScene the scene the subtree joins, or null when it leaves every scene
+     * @param settled  where what the leavings settled is added, for {@link #runSettled}
      */
-    final void setSceneRecursively(Scene newScene) {
+    final void setSceneRecursively(@Nullable Scene newScene, List<Runnable> settled) {
         Scene leaving = scene;
         Throwable failed = null;
         if (leaving != null && leaving != newScene) {
@@ -635,7 +663,11 @@ public abstract class Widget<W extends Widget<W>> {
         bumpControlSizeEpoch();
         bumpLayoutDirectionEpoch();
         bumpLocaleEpoch();
-        setSceneRecursivelyInternal(newScene);
+        try {
+            setSceneRecursivelyInternal(newScene, settled);
+        } catch (RuntimeException | Error walk) {
+            failed = addFailure(failed, walk); // what was settled before it stays in the list
+        }
         rethrow(failed);
     }
 
@@ -674,17 +706,40 @@ public abstract class Widget<W extends Widget<W>> {
         }
     }
 
-    private void setSceneRecursivelyInternal(Scene newScene) {
+    /**
+     * Runs what a walk's leavings settled, each once and in order, at the end of the change that
+     * walked: a callback that throws is logged and reported as a ticker's throw is, and neither
+     * stops the others nor reaches the caller of the change, which has already happened.
+     *
+     * @param settled what {@link #setSceneRecursively} collected; nothing for null or empty
+     */
+    static void runSettled(@Nullable List<Runnable> settled) {
+        if (settled == null) {
+            return;
+        }
+        for (int i = 0; i < settled.size(); i++) {
+            try {
+                settled.get(i).run();
+            } catch (Throwable error) {
+                LOG.log(System.Logger.Level.ERROR, "what a fade or a motion runs at its end threw as its "
+                        + "container left its scene; the change went on", error);
+                limn.backend.Crashes.report(CrashPhase.TICKER, error);
+            }
+        }
+    }
+
+    private void setSceneRecursivelyInternal(Scene newScene, List<Runnable> settled) {
         Scene old = this.scene;
         // Attach fires top-down (this before children) so a parent's onAttached
         // sees itself in a scene; detach fires bottom-up (children before this).
         boolean attaching = old == null && newScene != null;
         boolean detaching = old != null && newScene == null;
         if (old != null && newScene != old && opacityGroup != null) {
-            opacityGroup.settleOnLeaving(); // while scene() still answers the one it is leaving
+            // While scene() still answers the one it is leaving; what it runs, after the walk.
+            opacityGroup.settleOnLeaving(settled);
         }
         if (old != null && newScene != old && transformGroup != null) {
-            transformGroup.settleOnLeaving(); // likewise; its matrix may come to rest here
+            transformGroup.settleOnLeaving(settled); // likewise; its matrix may come to rest here
         }
         if (childTransform != null && newScene != old) {
             // The scene keeps the widgets that draw their children moved, for the hit test's
@@ -711,7 +766,7 @@ public abstract class Widget<W extends Widget<W>> {
         // removal at or before i would skip the sibling that shifted into slot i.
         for (int i = 0; i < children.size(); ) {
             Widget<?> child = children.get(i);
-            child.setSceneRecursivelyInternal(newScene);
+            child.setSceneRecursivelyInternal(newScene, settled);
             if (i < children.size() && children.get(i) == child) {
                 i++;
             }

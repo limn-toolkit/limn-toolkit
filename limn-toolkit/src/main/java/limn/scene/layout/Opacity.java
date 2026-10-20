@@ -43,6 +43,15 @@ import java.util.Objects;
  * child is one picture blended once in that mode at every opacity, 1 included, so a fade arriving
  * at 1 does not jump.
  *
+ * <p><b>A blend mode inside it</b>, a descendant that draws in {@link limn.graphics.BlendMode#MULTIPLY}
+ * or {@link limn.graphics.BlendMode#ADDITIVE}, blends below 1 with what the subtree itself drew
+ * beneath it, and where it drew nothing is drawn as itself, since the picture starts transparent,
+ * as an isolated group of a web page does; at 1 there is no picture, and it blends with what is
+ * beneath the container. A multiplied tint in a card fading in therefore shows as itself over the
+ * page during the fade and multiplies the page on the fade's last frame, the jump a page's own
+ * fade makes too. Where that jump matters, draw what blends with the page outside the container,
+ * or end the fade just below 1.
+ *
  * <p><b>A watcher hears it</b> as {@link Change.Aspect#OPACITY} with origin {@code CODE} on this
  * container: every time {@link #setOpacity} changes the value and never when it does not, and
  * twice for a {@link #fadeTo fade}, as it starts and as it arrives or is superseded.
@@ -134,7 +143,13 @@ public final class Opacity extends Widget<Opacity> {
      * and its {@code onArrive} never runs. A fade on a container that leaves its scene
      * (removed from the tree, moved into another window, or its window closed) settles at its target
      * as it leaves, announcing its end and running its {@code onArrive} then; one that went
-     * straight there and still waits for its seconds runs its {@code onArrive} then too.
+     * straight there and still waits for its seconds runs its {@code onArrive} then too. That
+     * {@code onArrive} runs once the container is out of the scene it left, so a fade it asks for
+     * follows the container: straight there when it is in no scene, or on the frames of the scene
+     * it went to, never on those of the window it left, and after the change that took it out has
+     * done all its own work. An {@code onArrive} that throws, on a frame or as its container
+     * leaves, is logged and reported as a throwing ticker is, and changes nothing for the
+     * container's later fades, nor for one it asked for before it threw, nor for the change.
      *
      * <p><b>A watcher hears a fade twice</b>, as {@link Change.Aspect#OPACITY} with origin
      * {@code CODE}: when it starts, and when it arrives or is superseded. The steps between set the

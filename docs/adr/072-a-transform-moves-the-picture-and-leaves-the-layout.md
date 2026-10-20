@@ -2203,3 +2203,31 @@ the front, with and without motion; one swap and the back under less motion befo
 `underLessMotionAMotionGoesStraightThereAsOneSetAndAFlipSwapsOnTheNextTurn`, the chain test (the
 swap on the turn after each flip is asked for, the arrival a period later) and
 `TransformDepthTest.underLessMotionAFlipInPerspectiveSwapsOnTheNextTurn`.
+
+### 13.3 What a leaving runs, runs once the container is out, 2026-10-19
+
+ADR 071 section 8.2's fix, for the motions: a container that leaves its scene settles its motions
+during the walk, values and announcements, and what they run, a flip's swap not yet made and then
+every `onArrive`, in the order section 13 gives, runs once the walk is over, the container out of
+the scene it left. A motion asked for there goes straight there in no scene and is stepped by the
+new scene's frames in one, never by the old window's, which stepped a slide asked for in an
+`onArrive` while the container sat still in another window.
+`TransformTest.whatALeavingRunsSeesTheContainerOutAndAMotionItAsksForIsNotSteppedByTheSceneLeft`
+and `aSwayWhoseContainerMovesToAnotherWindowMidSlideGoesOnInThatWindow` failed before.
+
+### 13.4 A callback that throws, 2026-10-19
+
+ADR 071 section 8.3's fix, for the motions, where one ticker steps all four: a frame's swap and
+arrivals run under a `finally` that, on a throw, lets go of the ticker the scene drops for it and,
+if any motion is still in flight (one beside the callback that threw, one that arrived on this frame
+and had not run its `onArrive` yet, or one the callback asked for), gives them a ticker of their own
+on the same scene, so they arrive on the next frame. Kept, the dropped ticker made every later motion
+of the container stand still, and the motions beside the throw with them.
+`TransformTest.anOnArriveThatThrowsLeavesTheContainersLaterMotionsFreeToMoveAndArrive` and
+`aSwapThatThrowsMidFlipStopsNeitherTheFlipNorAMotionBesideIt` failed before.
+(2026-10-19, after the third review, R3S-3: the guard first began after the frame's matrix was set,
+and setting it reaches application code too, a child's own reach past its box read by the frame's
+damage and, once a child that stops being drawn gives up its focus and pointer, the application's
+handlers. A throw there left the dropped ticker held as before. The guard now covers the setting of
+the matrix as well: `TransformTest.aThrowFromWhatSettingAFramesMatrixRunsLeavesLaterMotionsFreeToMove`
+failed before.)
