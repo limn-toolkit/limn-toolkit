@@ -3563,7 +3563,13 @@ public final class Scene {
 
             @Override
             public @Nullable String applicationName(Widget<?> widget) {
+                // The walk's order: the name written on the widget, then a caption bound to it,
+                // then its tooltip.
                 limn.i18n.I18nString named = widget.accessibleName();
+                if (named == null) {
+                    Widget<?> caption = widget.accessibleLabelledBy();
+                    named = caption == null ? null : caption.accessibleLabelText();
+                }
                 if (named == null) {
                     named = widget.tooltipSource();
                 }

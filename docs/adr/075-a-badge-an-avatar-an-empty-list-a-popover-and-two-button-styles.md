@@ -639,6 +639,15 @@ that the text above does not say, dated where it departs from it.
   through a weak map of holders) and one that holds the widget; the placeholder believes a content
   attached only once it is; and a content the application puts elsewhere after setting it is not
   shown, with one warning, instead of losing frames.
+- **Said only where it is seen, by the name it is heard by** (2026-10-19, the audit's CO-12 and
+  AX-4): a list in a hidden container or on a tab page not chosen, still in the window, said
+  "Loading Archived" and "Archived, 0 items", loads the user could not see; it is now busy and says
+  nothing. The test is the widget and every ancestor shown, not `isShowing()`, whose clip walk
+  counts a list built and set loading in one turn as clipped away inside a scroll view until its
+  first layout. And `SceneAccess.applicationName` now names as the walk does, the explicit name,
+  then a caption bound with `setLabelFor`, then the tooltip, so a list named by the caption the
+  accessibility guide keeps as the idiom says "Loading Contacts" and not "Loading…". A popover's
+  name from its button follows the same order.
 
 ### 12.5 Popover
 

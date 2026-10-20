@@ -172,7 +172,8 @@ public final class SceneAccess {
 
         /**
          * @param widget a widget
-         * @return the name the application gave it, or its tooltip, or {@code null}; see
+         * @return the name the application gave it, its bound caption's text, or its tooltip, or
+         *         {@code null}; see
          *         {@link SceneAccess#applicationName}
          */
         @org.jspecify.annotations.Nullable String applicationName(Widget<?> widget);
@@ -404,10 +405,11 @@ public final class SceneAccess {
     }
 
     /**
-     * What to call {@code widget} in an announcement: the name the application gave it with
-     * {@code setAccessibleName}, else its tooltip, in the language in effect; {@code null} when it
-     * has neither. A list that announces its own load says "Loading Orders" with it, since an
-     * announcement arrives with no context of its own.
+     * What to call {@code widget} in an announcement, in the order the accessible walk names its
+     * node: the name the application gave it with {@code setAccessibleName}, else the text of a
+     * caption bound to it with {@code Label.setLabelFor}, else its tooltip, in the language in
+     * effect; {@code null} when it has none. A list that announces its own load says "Loading
+     * Orders" with it, since an announcement arrives with no context of its own.
      *
      * @param widget a widget
      * @return the name, or {@code null}

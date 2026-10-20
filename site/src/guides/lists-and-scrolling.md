@@ -238,7 +238,9 @@ already on the page, or already another list's, is refused with an `IllegalArgum
 While your rows are on their way, `setLoading(true)` shows a loading content in the same place
 (a moving bar over "Loading…", or your own with `setLoadingContent`), marks the widget busy, and
 tells a reader "Loading Orders"; `setLoading(false)` after the rows are set tells them how many
-arrived, or the empty message when none did.
+arrived, or the empty message when none did. The name is the one a reader hears the widget by,
+from `setAccessibleName` or a caption bound with `setLabelFor`, and a widget on a page the user
+does not see, a hidden container or a tab not chosen, is busy and says nothing.
 
 {% snippet guide:table-empty %}
 

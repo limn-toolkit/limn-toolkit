@@ -209,8 +209,10 @@ public final class RowsPlaceholder {
     /**
      * Says the widget is loading, or has finished. The widget is published busy while it loads,
      * and a reader is told both ends: "Loading Orders" at the start, and at the end how many rows
-     * arrived ("Orders, 12 items"), or the empty message when none did. Set the rows before saying
-     * the load ended, so the count said is the one shown.
+     * arrived ("Orders, 12 items"), or the empty message when none did, the name being the one a
+     * reader hears the widget by. A widget in a hidden container or on a tab page not chosen is
+     * busy and says nothing. Set the rows before saying the load ended, so the count said is the
+     * one shown.
      *
      * @param value whether a load is running
      */
@@ -222,8 +224,8 @@ public final class RowsPlaceholder {
         loading = value;
         changed();
         Scene scene = host.widget().scene();
-        if (scene == null) {
-            return; // nobody to say it to
+        if (scene == null || !onScreen(host.widget())) {
+            return; // nobody to say it to, or a load the user cannot see: busy, and said nothing of
         }
         String name = SceneAccess.applicationName(host.widget());
         String said;
@@ -243,6 +245,21 @@ public final class RowsPlaceholder {
         if (!said.isEmpty()) {
             scene.announce(said, Accessible.Politeness.POLITE);
         }
+    }
+
+    /**
+     * Whether the widget is where the user sees it: it and every ancestor shown, so not in a
+     * hidden container nor on a tab page not chosen. Not {@link Widget#isShowing()}, which also
+     * asks the clips: a list built and set loading in one turn has no box until the next frame,
+     * and inside a scroll view it would count as clipped away, and its load go unsaid.
+     */
+    private static boolean onScreen(Widget<?> widget) {
+        for (Widget<?> w = widget; w != null; w = w.parent()) {
+            if (!w.isVisible()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** @return whether a load is running */

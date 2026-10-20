@@ -517,4 +517,86 @@ class EmptyContentTest extends AccessibleComponentTestBase {
         assertSame(page, status.parent());
         assertFalse(list.isShowingEmptyContent(), "the list does not show what it does not hold");
     }
+
+    // ------------------------------------------------------------------ what is said, and to whom
+
+    @Test
+    void aListThatIsNotShowingSaysNothingOfItsLoadAndStaysBusy() {
+        // The audit's HiddenAnnounce: a list in a hidden container and one on a tab not selected,
+        // both in the window, said "Loading Archived", "Loading Customers", "Archived, 0 items" and
+        // "Customers, 0 items", loads the user could not see.
+        ListView<String> archived = new ListView<>(Label::new);
+        archived.setItems(new ArrayList<>());
+        archived.setAccessibleName("Archived");
+        TokenColumn hiddenBox = new TokenColumn(Tokens.Role.SMALL);
+        hiddenBox.add(new SizedBox(200, 100, archived));
+        hiddenBox.setVisible(false);
+        ListView<String> customers = new ListView<>(Label::new);
+        customers.setItems(new ArrayList<>());
+        customers.setAccessibleName("Customers");
+        TabbedPane tabs = new TabbedPane();
+        tabs.addTab("Orders", new Label("orders page"));
+        tabs.addTab("People", new SizedBox(200, 100, customers));
+        TokenColumn root = new TokenColumn(Tokens.Role.SMALL);
+        root.add(hiddenBox);
+        root.add(new SizedBox(400, 200, tabs));
+        bind(root);
+        bridge.events.clear();
+
+        archived.setLoading(true);
+        customers.setLoading(true);
+        frame();
+        archived.setLoading(false);
+        customers.setLoading(false);
+        frame();
+        assertEquals(List.of(), announced(), "neither is on screen");
+
+        customers.setLoading(true);
+        tabs.setSelectedIndex(1);
+        frame();
+        assertTrue(node("Customers").states().contains(Accessible.State.BUSY),
+                "still busy when its page is chosen during the load");
+        customers.setLoading(false);
+        frame();
+        assertEquals(List.of("Customers, 0 items"), announced(), "said once it shows");
+    }
+
+    @Test
+    void aListAddedAndLoadedBeforeItsFirstFrameIsStillSaid() {
+        // Not a test of the clip: a list just built inside a scroll view has no box yet when the
+        // application starts its load in the same turn, and is on screen at the next frame.
+        TokenColumn root = new TokenColumn(Tokens.Role.SMALL);
+        bind(root);
+        ListView<String> list = list();
+        root.add(new SizedBox(300, 200, new ScrollView(list)));
+        list.setLoading(true);
+        frame();
+        assertEquals(List.of("Loading Contacts"), announced());
+    }
+
+    @Test
+    void aListNamedByABoundCaptionIsSaidByThatName() {
+        // AX-4: the caption the accessibility guide keeps as the idiom named the list to a reader
+        // and not its load ("Loading…", "2 items").
+        ListView<String> list = new ListView<>(Label::new);
+        list.setItems(names);
+        Label caption = new Label("Contacts").setLabelFor(list);
+        TokenColumn root = new TokenColumn(Tokens.Role.SMALL);
+        root.add(caption);
+        root.add(new SizedBox(300, 200, list));
+        bind(root);
+        list.setLoading(true);
+        frame();
+        names.add("Ana Lima");
+        names.add("Rui Costa");
+        list.refresh();
+        list.setLoading(false);
+        frame();
+        assertEquals(List.of("Loading Contacts", "Contacts, 2 items"), announced());
+
+        list.setAccessibleName("Address book"); // the name the application wrote wins, as in the tree
+        list.setLoading(true);
+        frame();
+        assertEquals("Loading Address book", announced().get(2));
+    }
 }

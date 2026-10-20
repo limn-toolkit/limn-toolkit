@@ -1159,9 +1159,11 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
      * Says the list is loading its rows, or has finished. While it loads with no rows, the
      * loading content shows in the viewport in place of the empty one; over rows already shown,
      * they stay. Either way the list is published busy, and a reader is told both ends: "Loading
-     * Orders" at the start, with the name given by {@code setAccessibleName}, and at the end how
-     * many rows arrived, or the empty message when none did. Set the rows first, then say the load
-     * ended, so the count said is the count shown.
+     * Orders" at the start, with the name a reader hears the list by (given by
+     * {@code setAccessibleName}, or by a caption bound with {@link Label#setLabelFor}), and at the
+     * end how many rows arrived, or the empty message when none did. A list in a hidden container
+     * or on a tab page not chosen is busy and says nothing of its load. Set the rows first, then
+     * say the load ended, so the count said is the count shown.
      *
      * @param loading whether a load is running
      * @return this list
