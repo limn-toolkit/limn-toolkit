@@ -511,11 +511,14 @@ public abstract class Widget<W extends Widget<W>> {
         children.add(index, child);
         child.parent = this;
         List<Runnable> settled = child.setSceneRecursively(scene);
-        childrenChanged();
-        // Structure is announced on the parent, from the one funnel every child joins through,
-        // so a watcher of a tree hears a mount as it happens rather than by diffing child lists.
-        notifyChange(Change.of(Change.Aspect.CHILDREN, Change.Origin.CODE));
-        runSettled(settled);
+        try {
+            childrenChanged();
+            // Structure is announced on the parent, from the one funnel every child joins through,
+            // so a watcher of a tree hears a mount as it happens rather than by diffing child lists.
+            notifyChange(Change.of(Change.Aspect.CHILDREN, Change.Origin.CODE));
+        } finally {
+            runSettled(settled); // a watcher that throws must not drop what the leaving settled
+        }
     }
 
     /** Removes a child (UI thread only); protected for the reason {@link #add(Widget)} is. */
@@ -536,12 +539,15 @@ public abstract class Widget<W extends Widget<W>> {
         if (children.remove(child)) {
             child.parent = null;
             List<Runnable> settled = child.setSceneRecursively(null);
-            if (scene != null) {
-                scene.onWidgetDetached(child);
+            try {
+                if (scene != null) {
+                    scene.onWidgetDetached(child); // runs the application's focus and pointer handlers
+                }
+                childrenChanged();
+                notifyChange(Change.of(Change.Aspect.CHILDREN, origin));
+            } finally {
+                runSettled(settled); // a handler that throws must not drop what the leaving settled
             }
-            childrenChanged();
-            notifyChange(Change.of(Change.Aspect.CHILDREN, origin));
-            runSettled(settled);
         }
     }
 

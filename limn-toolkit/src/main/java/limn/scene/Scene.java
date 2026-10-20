@@ -286,7 +286,9 @@ public final class Scene {
                 LayoutDirection.observeChanges(metricsListener),
                 limn.i18n.I18n.observeChanges(metricsListener));
         paletteListener.armed(limn.scene.internal.SceneBackground.observeChanges(paletteListener));
-        Widget.runSettled(settled); // a root taken from another scene mid-fade: once this one is whole
+        // A root taken from another scene mid-fade: once this one is whole. Nothing above runs the
+        // application's code, so nothing between can drop these.
+        Widget.runSettled(settled);
     }
 
     private limn.graphics.TextRuler textRuler;
@@ -819,10 +821,13 @@ public final class Scene {
         Ui.checkUiThread();
         Objects.requireNonNull(overlay, "overlay");
         List<Runnable> settled = stackOverlay(overlay);
-        // Move focus into the new modal layer.
-        focusTraverse(false);
-        requestRender();
-        Widget.runSettled(settled);
+        try {
+            // Move focus into the new modal layer.
+            focusTraverse(false);
+            requestRender();
+        } finally {
+            Widget.runSettled(settled); // a focus handler that throws must not drop them
+        }
     }
 
     /**
@@ -860,15 +865,18 @@ public final class Scene {
             return;
         }
         List<Runnable> settled = stackOverlay(overlay);
-        boolean composed = movedFrom.letGoOfMovedFocus();
-        if (composed) {
-            dispatchBubbling(keyboard, new PreeditEvent("", 0, 0, 0));
+        try {
+            boolean composed = movedFrom.letGoOfMovedFocus();
+            if (composed) {
+                dispatchBubbling(keyboard, new PreeditEvent("", 0, 0, 0));
+            }
+            // CODE, the origin of pushOverlay(Widget)'s traversal: the widget this scene had focused
+            // is told of its loss exactly as that traversal would tell it.
+            setFocus(keyboard, Change.Origin.CODE, true);
+            requestRender();
+        } finally {
+            Widget.runSettled(settled); // what its leaving the other scene settled, in this one
         }
-        // CODE, the origin of pushOverlay(Widget)'s traversal: the widget this scene had focused is
-        // told of its loss exactly as that traversal would tell it.
-        setFocus(keyboard, Change.Origin.CODE, true);
-        requestRender();
-        Widget.runSettled(settled); // what its leaving the other scene settled, in this one
     }
 
     /**
@@ -887,18 +895,21 @@ public final class Scene {
         Objects.requireNonNull(overlay, "overlay");
         Objects.requireNonNull(first, "first");
         List<Runnable> settled = stackOverlay(overlay);
-        if (!canTakeFocus(first) || !isInSubtree(first, overlay)) {
-            focusTraverse(false);
-        } else {
-            focusByTraversal = true;
-            try {
-                setFocus(first, Change.Origin.CODE);
-            } finally {
-                focusByTraversal = false;
+        try {
+            if (!canTakeFocus(first) || !isInSubtree(first, overlay)) {
+                focusTraverse(false);
+            } else {
+                focusByTraversal = true;
+                try {
+                    setFocus(first, Change.Origin.CODE);
+                } finally {
+                    focusByTraversal = false;
+                }
             }
+            requestRender();
+        } finally {
+            Widget.runSettled(settled);
         }
-        requestRender();
-        Widget.runSettled(settled);
     }
 
     /** Puts {@code overlay} on top, capturing input, and keeps the focus it takes to give back. */
@@ -3905,10 +3916,13 @@ public final class Scene {
         Ui.checkUiThread();
         Objects.requireNonNull(popup, "popup");
         List<Runnable> settled = stackOverlay(popup);
-        popupOverlays.add(popup);
-        keyboardBelow.add(popup);
-        requestRender();
-        Widget.runSettled(settled);
+        try {
+            popupOverlays.add(popup);
+            keyboardBelow.add(popup);
+            requestRender();
+        } finally {
+            Widget.runSettled(settled);
+        }
     }
 
     /**

@@ -1018,7 +1018,11 @@ out of the change, which has already happened. A throw of the walk itself still 
 settled before it. `OpacityTest.aThrowingOnArriveDoesNotCutTheRemovalThatSettledItShort` and
 `anOnArriveThatPutsTheContainerBackAndFocusesItKeepsThatFocus` failed before;
 `aThrowingOnArriveRunByALeavingStopsNeitherTheOtherArrivalsNorTheLeaving` now holds the report in
-place of the rethrow.)
+place of the rethrow. 2026-10-20, after the fourth review, R4S-2: each caller runs the list in a
+`finally`, since its own work runs the application's focus and pointer handlers, and one that threw
+there dropped every settled callback unrun and untold:
+`aThrowingOnFocusLostDuringARemovalDoesNotDropTheSettledOnArrive` and
+`aThrowingOnFocusLostDuringAnOverlayPushDoesNotDropTheSettledOnArrive` failed before.)
 
 ### 8.3 An `onArrive` that throws, 2026-10-19
 

@@ -1109,6 +1109,65 @@ class OpacityTest extends SceneTestBase {
         }
     }
 
+    /** A focusable probe whose loss of the focus throws, as an application's handler may. */
+    private Probe throwingOnFocusLost(String name) {
+        return new Probe(name, painted) {
+            @Override
+            protected void onFocusLost() {
+                throw new IllegalStateException("a fault in onFocusLost (expected)");
+            }
+        };
+    }
+
+    /**
+     * A focused container removed mid-fade whose child's onFocusLost throws as the removal takes
+     * the focus away: the fade's onArrive still runs. The removal ran the settled callbacks after
+     * its bookkeeping and not in a finally, so the throw dropped them, never run and never told.
+     */
+    @Test
+    void aThrowingOnFocusLostDuringARemovalDoesNotDropTheSettledOnArrive() {
+        Probe inner = throwingOnFocusLost("inner");
+        Opacity fading = new Opacity(inner);
+        limn.scene.layout.Column column = new limn.scene.layout.Column();
+        column.add(fading);
+        Scene a = sceneOf(column);
+        a.requestFocus(inner);
+        AtomicInteger arrived = new AtomicInteger();
+        fading.fadeTo(0f, 0.3, arrived::incrementAndGet);
+        advance(a, 16);
+        try {
+            column.remove(fading);
+        } catch (IllegalStateException expected) {
+            // the handler's own throw, which the removal does not contain: not this test's concern
+        }
+        assertEquals(1, arrived.get(), "the onArrive the leaving settled ran");
+    }
+
+    /**
+     * An overlay moved into this scene mid-fade, the focus here held by a widget whose onFocusLost
+     * throws as the push moves the focus into the overlay: the fade's onArrive still runs.
+     */
+    @Test
+    void aThrowingOnFocusLostDuringAnOverlayPushDoesNotDropTheSettledOnArrive() {
+        Probe victim = throwingOnFocusLost("victim");
+        limn.scene.layout.Column content = new limn.scene.layout.Column();
+        content.add(victim);
+        Scene a = sceneOf(content);
+        a.requestFocus(victim);
+        Opacity fading = faded("overlay");
+        Scene b = sceneOf(new Stack());
+        b.pushOverlay(fading);
+        AtomicInteger arrived = new AtomicInteger();
+        fading.fadeTo(0.5f, 0.3, arrived::incrementAndGet);
+        advance(b, 16);
+        try {
+            a.pushOverlay(fading); // from b's frames to a's, mid-fade
+        } catch (IllegalStateException expected) {
+            // the handler's own throw
+        }
+        assertEquals(1, arrived.get(), "the onArrive the move settled ran");
+    }
+
     /**
      * An onArrive run by a removal that puts the container back in the same scene, under another
      * parent, and focuses it, "fade out, move, fade in" taken out mid-fade: it keeps the focus it
