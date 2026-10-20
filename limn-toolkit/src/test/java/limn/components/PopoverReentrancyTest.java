@@ -727,4 +727,168 @@ class PopoverReentrancyTest extends ComponentTestBase {
             runtime.drain();
         }
     }
+
+    @Test
+    void anOnClosePuttingTheRemovedCardBackAndFocusingItKeepsTheFocusThere() {
+        // The popover's onClose puts the card being removed back into its column and focuses its
+        // button. The removal then took the focus out of the card all the same, as if it had left:
+        // the keyboard on nobody. The hard case beside it: put into a second window's column and
+        // focused there, the card has left this window, whose focus must not stay inside it.
+        for (boolean elsewhere : new boolean[] {false, true}) {
+            String how = elsewhere ? "put into a second window and focused there" : "put back and focused";
+            Button filter = new Button("Filter");
+            Column card = new Column();
+            card.add(filter);
+            Column holder = new Column();
+            Column root = new Column();
+            root.add(holder);
+            Button base = new Button("Base");
+            root.add(base);
+            inWindow(root);
+            HeadlessWindow second = backend.open("Details", 300, 200);
+            Column otherColumn = new Column();
+            Scene other = new Scene(otherColumn, () -> now[0]);
+            other.setTextRuler(RULER);
+            other.bind(second);
+            second.frame();
+            holder.add(card);
+            frames(2);
+            boolean[] once = {false};
+            Popover popover = new Popover(new SizedBox(160, 30, new TextField())).setDisplayMode(DisplayMode.IN_SCENE)
+                    .onClose(origin -> {
+                        if (!once[0]) {
+                            once[0] = true;
+                            (elsewhere ? otherColumn : holder).add(card);
+                            filter.scene().requestFocus(filter);
+                        }
+                    });
+            popover.showFor(filter);
+            frames(3);
+            assertTrue(popover.isOpen(), how + ": sanity");
+
+            holder.remove(card);
+
+            if (elsewhere) {
+                assertSame(filter, other.focusedWidget(), how);
+                Widget<?> here = scene.focusedWidget();
+                assertTrue(here == null || here.scene() == scene, how + ": this window's focus left the card: " + here);
+            } else {
+                assertSame(filter, scene.focusedWidget(), how + ": right after the removal");
+                frames(2);
+                assertSame(filter, scene.focusedWidget(), how + ": and after frames");
+            }
+            owner.requestClose();
+            second.requestClose();
+            runtime.drain();
+        }
+    }
+
+    @Test
+    void anOnClosePushingTheRemovedOverlayAgainKeepsItsKeyboard() {
+        // An overlay removed while a popover is open from its button, whose onClose pushes it again:
+        // it is back on top, and the removal then took the focus out of it and gave it back to the
+        // opener beneath, or to nobody. It keeps the keyboard its own push gave it, and removing it
+        // again gives the keyboard back to the opener. Docked into a column by the handler instead,
+        // and its button focused there, it keeps that focus.
+        for (boolean dock : new boolean[] {false, true}) {
+            String how = dock ? "docked into a column and focused" : "pushed again";
+            Button opener = new Button("Open");
+            Column holder = new Column();
+            Column root = new Column();
+            root.add(opener);
+            root.add(holder);
+            inWindow(root);
+            scene.requestFocus(opener);
+            Button filter = new Button("Filter");
+            Column card = new Column();
+            card.add(filter);
+            scene.pushOverlay(card);
+            frames(2);
+            boolean[] once = {false};
+            Popover popover = new Popover(new SizedBox(160, 30, new TextField())).setDisplayMode(DisplayMode.IN_SCENE)
+                    .onClose(origin -> {
+                        if (!once[0]) {
+                            once[0] = true;
+                            if (dock) {
+                                holder.add(card);
+                                scene.requestFocus(filter);
+                            } else {
+                                scene.pushOverlay(card);
+                            }
+                        }
+                    });
+            popover.showFor(filter);
+            frames(3);
+            assertTrue(popover.isOpen(), how + ": sanity");
+
+            scene.removeOverlay(card);
+            frames(2);
+
+            assertSame(scene, card.scene(), how);
+            assertSame(filter, scene.focusedWidget(), how + ": the keyboard stays in the card");
+            if (!dock) {
+                scene.removeOverlay(card);
+                frames(2);
+                assertSame(opener, scene.focusedWidget(), how + ": removed again, the opener has it back");
+            }
+            owner.requestClose();
+            runtime.drain();
+        }
+    }
+
+    /** A column whose own onDetached throws, as an application's may. */
+    private static final class DetachFault extends Column {
+        @Override
+        protected void onDetached() {
+            throw new IllegalStateException("a fault in onDetached (expected)");
+        }
+    }
+
+    @Test
+    void aSubtreeWhoseOwnDetachThrowsHasTheFocusTakenOutOfItAllTheSame() {
+        // The hard case beside the two above: no handler puts anything back, and the removed
+        // subtree's top widget throws from its onDetached, so the walk never clears its scene. It is
+        // out of the tree all the same, and the focus on a button inside it is taken out, by
+        // Widget.remove and by Scene.removeOverlay alike: a check that read "still in this scene" as
+        // "put back" would leave the keyboard on a widget in no scene.
+        for (boolean overlay : new boolean[] {false, true}) {
+            String how = overlay ? "an overlay removed" : "a child removed";
+            Button inside = new Button("Inside");
+            DetachFault card = new DetachFault();
+            card.add(inside);
+            Column holder = new Column();
+            Column root = new Column();
+            Button opener = new Button("Open");
+            root.add(opener);
+            root.add(holder);
+            inWindow(root);
+            scene.requestFocus(opener);
+            if (overlay) {
+                scene.pushOverlay(card);
+            } else {
+                holder.add(card);
+            }
+            frames(2);
+            scene.requestFocus(inside);
+            assertSame(inside, scene.focusedWidget(), how + ": sanity");
+
+            IllegalStateException thrown = null;
+            try {
+                if (overlay) {
+                    scene.removeOverlay(card);
+                } else {
+                    holder.remove(card);
+                }
+            } catch (IllegalStateException e) {
+                thrown = e;
+            }
+
+            assertEquals("a fault in onDetached (expected)", thrown == null ? null : thrown.getMessage(), how);
+            assertNull(card.parent(), how);
+            Widget<?> focused = scene.focusedWidget();
+            assertTrue(focused == null || focused == opener, how + ": the focus left the removed subtree: " + focused);
+            owner.requestClose();
+            runtime.drain();
+        }
+    }
 }

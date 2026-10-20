@@ -887,6 +887,12 @@ that the text above does not say, dated where it departs from it.
     made, and the check that follows asks the scene the subtree is now in too, so "the scene it is
     the root or an overlay of" above holds for any scene. `PopoverReentrancyTest` has both, and a
     handler that pushes the card and takes it out again.
+  - **The removal's later steps on what a handler put back:** `Widget.remove` took the focus out
+    of a card the handler had put back and focused, and `Scene.removeOverlay` of an overlay the
+    handler pushed again left it on top with the focus on nobody. The focus and pointer step now
+    skips a subtree that is back in the scene, and the focus given back skips an overlay pushed
+    again, or put into the tree with the focus inside it. A card the handler moved into another
+    window still has this window's focus taken out of it. `PopoverReentrancyTest` has the cases.
 
 ### 12.6 The input method in a popover's window, measured
 

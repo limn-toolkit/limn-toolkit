@@ -1133,13 +1133,19 @@ public final class Scene {
         } catch (RuntimeException | Error error) {
             failed = HandlerFailures.add(null, error); // a popup's handler: the removal completes first
         }
+        // Not for one a popup's handler put back meanwhile, pushed again or into a parent of this
+        // tree: the focus and the pointer are where it left them. One whose own onDetached threw
+        // keeps its scene too, and is not back.
+        boolean back = overlays.contains(overlay) || (overlay.parent() != null && overlay.scene() == this);
         try {
-            onWidgetDetached(overlay);
+            if (!back) {
+                onWidgetDetached(overlay);
+            }
         } catch (RuntimeException | Error error) {
             failed = HandlerFailures.add(failed, error);
         }
         try {
-            restoreAfterRemoving(overlay, restore, wasTop, keptKeyboardBelow);
+            restoreAfterRemoving(overlay, restore, wasTop, keptKeyboardBelow, back);
         } catch (RuntimeException | Error error) {
             failed = HandlerFailures.add(failed, error);
         }
@@ -1149,13 +1155,16 @@ public final class Scene {
 
     /** The rest of {@link #removeOverlay}, once the overlay is out of the scene. */
     private void restoreAfterRemoving(Widget<?> overlay, @Nullable Widget<?> restore, boolean wasTop,
-                                      boolean keptKeyboardBelow) {
+                                      boolean keptKeyboardBelow, boolean back) {
         layoutDirty = true;
         // Focus belongs to the topmost overlay. Removing a lower one (e.g. the
         // previous menu still fading out beneath the menu it was switched to) must
         // leave the current top overlay's focus untouched. One that left the keyboard beneath it
-        // never took the focus, so there is nothing to give back.
-        if (!wasTop || keptKeyboardBelow) {
+        // never took the focus, so there is nothing to give back. Nor is there for one a popup's
+        // handler pushed again as it closed, whose own push gave it the keyboard, or put into this
+        // tree and focused inside: the focus is where that handler left it.
+        if (!wasTop || keptKeyboardBelow || overlays.contains(overlay)
+                || (back && focused != null && isInSubtree(focused, overlay))) {
             requestRender();
             return;
         }

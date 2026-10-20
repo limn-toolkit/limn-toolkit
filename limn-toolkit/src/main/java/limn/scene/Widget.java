@@ -594,7 +594,10 @@ public abstract class Widget<W extends Widget<W>> {
             // Each step in a try of its own: a throw from the focus handlers must not keep the
             // parent from being laid out again or the removal from being announced.
             try {
-                if (scene != null) {
+                // Not for a child a popup's handler put back into this scene meanwhile: the focus
+                // it gave a button in it, and the pointer over it, are where it left them. Put back
+                // means in a parent again: a child whose own onDetached threw keeps its scene too.
+                if (scene != null && (child.parent == null || child.scene() != scene)) {
                     scene.onWidgetDetached(child); // runs the application's focus and pointer handlers
                 }
             } catch (RuntimeException | Error error) {
