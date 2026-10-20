@@ -1199,7 +1199,12 @@ public final class Dialog {
      * keeps it at {@code (1 - fade)} of the distance on every frame: a picture moved, where the card
      * was laid at a new place inside each frame's paint and the accessible tree walked again for it.
      */
-    private void fadeCard(float target, double seconds, @Nullable Runnable onArrive) {
+    private void fadeCard(float target, double asked, @Nullable Runnable onArrive) {
+        // No time where nothing is shown to fade, a host with no window, or while the user asks for
+        // less motion: a fade that goes straight there keeps its arrival for the seconds it asked
+        // for, and this arrival is what removes the overlay and completes the result.
+        double seconds = hostScene == null || hostScene.window() == null
+                ? 0 : limn.animation.Motion.duration(asked);
         slidingCard().slideTo(0, (1 - target) * SLIDE_DISTANCE, seconds, null);
         cardMoving = true;
         fadingCard().fadeTo(target, seconds, () -> {

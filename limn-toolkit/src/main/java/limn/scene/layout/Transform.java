@@ -138,7 +138,7 @@ public final class Transform extends Widget<Transform> {
      * layout direction, so a drawer that slides in from the end edge is the same line in either
      * direction, and {@code y} runs down. A {@link #slideTo slide} in flight is superseded: it stops
      * where it is, announces its end, and its {@code onArrive} never runs; nor does that of one gone
-     * straight there that waits for the next turn.
+     * straight there that still waits.
      *
      * @param x toward the end, in points
      * @param y down, in points
@@ -397,7 +397,7 @@ public final class Transform extends Widget<Transform> {
     /**
      * Puts every value back at rest, the origin included, and stops every motion in flight, as one
      * change: a watcher hears it once, besides the end of each motion it superseded. The callbacks
-     * of a motion gone straight there that wait for the next turn never run either.
+     * of a motion gone straight there that still wait never run either.
      *
      * @return this
      * @throws IllegalStateException off the UI thread, or from inside a paint
@@ -433,17 +433,23 @@ public final class Transform extends Widget<Transform> {
      * <p><b>Straight to the target</b>, as one {@link #setTranslation}, while the system asks for
      * less motion, for no time, for the translation the container already has, or with no frames
      * to step it: a container in no scene, or in a scene with no window. Its {@code onArrive} runs
-     * then on the next turn of the UI thread's queue, as a task {@link Ui#post} runs.
+     * then after the {@code seconds} asked for, as a task {@link Ui#postDelayed} runs, so that what
+     * follows it keeps the pace the call asked for; for no time, on the next turn of the UI thread's
+     * queue.
      *
      * <p><b>{@code onArrive} never runs inside this call</b>, whether the slide moves or goes
-     * straight there, so the next motion of a sequence can be asked for in it: where every motion
-     * goes straight there, the chain runs one arrival a turn, and the UI thread handles its events
-     * between them.
+     * straight there, so the next step of a sequence, or of motion that repeats, can be asked for in
+     * it. Such a chain keeps the pace its calls ask for, where the motions go straight there too,
+     * and the UI thread sleeps between its steps. It goes on, one step a period whether the
+     * container is shown or not, for as long as the code keeps asking, so repeating motion stops
+     * itself: when what it stands for is over, or when its container is no longer
+     * {@link #isShowing() showing}.
      *
      * <p><b>A newer slide or a {@link #setTranslation} supersedes one in flight</b>, or one gone
-     * straight there whose {@code onArrive} waits for the next turn: it stops where it is, and its
+     * straight there whose {@code onArrive} still waits: it stops where it is, and its
      * {@code onArrive} never runs. A slide on a container that leaves its scene settles
-     * at its target as it leaves and runs its {@code onArrive} then.
+     * at its target as it leaves and runs its {@code onArrive} then, as does one that went straight
+     * there and still waits for its seconds (a flip's swap first, if it has not run).
      *
      * <p><b>A watcher hears it twice</b>, as {@link Change.Aspect#TRANSFORM}: when it starts, and when
      * it arrives or is superseded. The frames between repaint without announcing and without telling
@@ -452,9 +458,9 @@ public final class Transform extends Widget<Transform> {
      * @param x        toward the end, in points
      * @param y        down, in points
      * @param seconds  how long it takes, when the system does not ask for less motion
-     * @param onArrive run once when it arrives, or on the next turn of the UI thread's queue when
-     *                 it goes straight there; never inside this call, never when it is superseded;
-     *                 may be null
+     * @param onArrive run once when it arrives, or after {@code seconds} when it goes straight there
+     *                 (on the next turn of the UI thread's queue for none); never inside this call,
+     *                 never when it is superseded; may be null
      * @return this
      * @throws IllegalArgumentException if {@code x} or {@code y} is {@code NaN} or infinite, or
      *                                  {@code seconds} is negative, {@code NaN} or infinite
@@ -482,7 +488,7 @@ public final class Transform extends Widget<Transform> {
     /**
      * Moves the {@link #setScale(float, float) scale} to {@code (sx, sy)} over {@code seconds},
      * by the rules {@link #slideTo(float, float, double, Runnable) slideTo} states: eased, on the
-     * one ticker, straight there under less motion with {@code onArrive} on the next turn and never
+     * one ticker, straight there under less motion with {@code onArrive} after its seconds and never
      * inside this call, superseded by a newer scale or a {@link #setScale}, settled as the container
      * leaves its scene, and heard twice. The glyphs of
      * the text inside are drawn again at each size the scale passes through.
@@ -490,9 +496,9 @@ public final class Transform extends Widget<Transform> {
      * @param sx       the factor along x to arrive at
      * @param sy       the factor along y to arrive at
      * @param seconds  how long it takes, when the system does not ask for less motion
-     * @param onArrive run once when it arrives, or on the next turn of the UI thread's queue when
-     *                 it goes straight there; never inside this call, never when it is superseded;
-     *                 may be null
+     * @param onArrive run once when it arrives, or after {@code seconds} when it goes straight there
+     *                 (on the next turn of the UI thread's queue for none); never inside this call,
+     *                 never when it is superseded; may be null
      * @return this
      * @throws IllegalArgumentException if a factor is {@code NaN} or infinite, or {@code seconds} is
      *                                  negative, {@code NaN} or infinite
@@ -520,17 +526,17 @@ public final class Transform extends Widget<Transform> {
     /**
      * Moves the {@link #setRotation rotation} to {@code degrees} over {@code seconds}, by the rules
      * {@link #slideTo(float, float, double, Runnable) slideTo} states: eased, on the one ticker
-     * beside a slide and a scale, straight there under less motion with {@code onArrive} on the
-     * next turn and never inside this call, superseded by a newer rotation or a
+     * beside a slide and a scale, straight there under less motion with {@code onArrive} after its
+     * seconds and never inside this call, superseded by a newer rotation or a
      * {@link #setRotation}, settled as the container leaves its scene, and heard twice. It
      * turns the short way or the long way as the numbers say: from 350 to 10 degrees is 340 degrees
      * back, and to 370 is twenty forward.
      *
      * @param degrees  the rotation to arrive at, clockwise on the screen
      * @param seconds  how long it takes, when the system does not ask for less motion
-     * @param onArrive run once when it arrives, or on the next turn of the UI thread's queue when
-     *                 it goes straight there; never inside this call, never when it is superseded;
-     *                 may be null
+     * @param onArrive run once when it arrives, or after {@code seconds} when it goes straight there
+     *                 (on the next turn of the UI thread's queue for none); never inside this call,
+     *                 never when it is superseded; may be null
      * @return this
      * @throws IllegalArgumentException if {@code degrees} is {@code NaN} or infinite, or
      *                                  {@code seconds} is negative, {@code NaN} or infinite
@@ -575,18 +581,20 @@ public final class Transform extends Widget<Transform> {
      * flip, which turns on from wherever this one had got to and runs its own {@code atEdge}, or by
      * {@link #reset()}; settled as the container leaves its scene, {@code atEdge} first if the edge
      * was not reached; heard twice. <b>While the system asks for less motion</b>, for no time, or
-     * with no frames to step it, there is no turn at all: {@code atEdge} and then {@code onArrive}
-     * run on the next turn of the UI thread's queue, and the content changes with no transition;
-     * a newer flip or a {@link #reset()} before then supersedes both, and a flip that its own
-     * {@code atEdge} supersedes does not arrive. <b>Neither runs inside this call</b>, in any case.
+     * with no frames to step it, there is no turn at all: {@code atEdge} runs on the next turn of
+     * the UI thread's queue, so the content changes at once and with no transition, and
+     * {@code onArrive} after {@code seconds} (with the swap, for none). Two flips asked for some way
+     * apart therefore swap twice, as they do when the first is past its edge as the second comes. A
+     * newer flip or a {@link #reset()} before the swap supersedes both; after it, the swap stays
+     * made and only the waiting {@code onArrive} is dropped; and a flip that its own {@code atEdge}
+     * supersedes does not arrive. <b>Neither runs inside this call</b>, in any case.
      *
      * @param direction which way the child turns over
      * @param seconds   how long the whole turn takes, when the system does not ask for less motion
      * @param atEdge    run once, with the child edge-on, or on the next turn with no turn at all;
      *                  never inside this call
-     * @param onArrive  run once when the child is flat again, or on the next turn after
-     *                  {@code atEdge} with no turn at all; never inside this call, never when it is
-     *                  superseded; may be null
+     * @param onArrive  run once when the child is flat again, or after {@code seconds} with no turn
+     *                  at all; never inside this call, never when it is superseded; may be null
      * @return this
      * @throws NullPointerException     if {@code direction} or {@code atEdge} is null
      * @throws IllegalArgumentException if {@code seconds} is negative, {@code NaN} or infinite

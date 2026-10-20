@@ -67,7 +67,7 @@ public final class Opacity extends Widget<Opacity> {
      *
      * <p>A {@link #fadeTo fade} in flight is superseded: it stops where it is and announces its
      * end first, and its {@code onArrive} never runs; so does the {@code onArrive} of one gone
-     * straight there that waits for the next turn. A watcher hears {@link Change.Aspect#OPACITY}
+     * straight there that still waits. A watcher hears {@link Change.Aspect#OPACITY}
      * every time this changes the value and never when it does not.
      *
      * <p>UI thread only; refused from inside a paint, which is re-run per pass and must not move what
@@ -117,19 +117,24 @@ public final class Opacity extends Widget<Opacity> {
      * <p><b>Straight to the target</b>, as one {@link #setOpacity} (one announcement if the value
      * changed, none if not), while the system asks for less motion, for no time, for the value the
      * container already has, or with no frames to step it: a container in no scene, or in a scene
-     * with no window. Its {@code onArrive} runs then on the next turn of the UI thread's queue, as
-     * a task {@link Ui#post} runs, and not inside this call.
+     * with no window. Its {@code onArrive} runs then after the {@code seconds} asked for, as a
+     * task {@link Ui#postDelayed} runs, so that what follows it keeps the pace the call asked for;
+     * for no time, on the next turn of the UI thread's queue.
      *
      * <p><b>{@code onArrive} never runs inside this call</b>, whether the fade moves or goes
-     * straight there, so the next fade of a pulse or of a sequence can be asked for in it: where
-     * every fade goes straight there, the chain runs one arrival a turn, and the UI thread handles
-     * its events between them.
+     * straight there, so the next step can be asked for in it: a sequence (fade out, swap the
+     * content, fade back in), or a pulse, each fade asking for the next in its {@code onArrive}.
+     * Such a chain keeps the pace its calls ask for, where the fades go straight there too, and the
+     * UI thread sleeps between its steps. It goes on, one step a period whether the container is
+     * shown or not, for as long as the code keeps asking, so a pulse stops itself: when what it
+     * stands for is over, or when its container is no longer {@link #isShowing() showing}.
      *
      * <p><b>A newer {@code fadeTo} or a {@link #setOpacity} supersedes one in flight</b>, or one
-     * gone straight there whose {@code onArrive} waits for the next turn: it stops where it is,
+     * gone straight there whose {@code onArrive} still waits: it stops where it is,
      * and its {@code onArrive} never runs. A fade on a container that leaves its scene
      * (removed from the tree, moved into another window, or its window closed) settles at its target
-     * as it leaves, announcing its end and running its {@code onArrive} then.
+     * as it leaves, announcing its end and running its {@code onArrive} then; one that went
+     * straight there and still waits for its seconds runs its {@code onArrive} then too.
      *
      * <p><b>A watcher hears a fade twice</b>, as {@link Change.Aspect#OPACITY} with origin
      * {@code CODE}: when it starts, and when it arrives or is superseded. The steps between set the
@@ -143,9 +148,9 @@ public final class Opacity extends Widget<Opacity> {
      *
      * @param target   the opacity to arrive at; clamped to 0..1
      * @param seconds  how long the fade takes, when the system does not ask for less motion
-     * @param onArrive run once when the fade arrives, or on the next turn of the UI thread's queue
-     *                 when it goes straight there; never inside this call, never when it is
-     *                 superseded; may be null
+     * @param onArrive run once when the fade arrives, or after {@code seconds} when it goes straight
+     *                 there (on the next turn of the UI thread's queue for none); never inside this
+     *                 call, never when it is superseded; may be null
      * @return this
      * @throws IllegalArgumentException if {@code target} is NaN, or {@code seconds} is negative,
      *                                  NaN or infinite

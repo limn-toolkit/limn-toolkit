@@ -340,8 +340,10 @@ class TransformRotationTest extends SceneTestBase {
 
     @Test
     void underLessMotionARotationGoesStraightThereAsOneSet() {
+        long[] queueNow = {0};
         Transform t = new Transform(new TransformTest.Leaf("w", painted));
         AccessibleHarness harness = new AccessibleHarness(runtime, t);
+        runtime.setDelayClock(() -> queueNow[0]); // after the harness, which hands it its own
         AtomicInteger arrived = new AtomicInteger();
         try (TestPreferences system = new TestPreferences()) {
             system.reduceMotion(true);
@@ -351,7 +353,10 @@ class TransformRotationTest extends SceneTestBase {
         assertEquals(0, arrived.get(), "onArrive never inside the call");
         assertEquals(List.of(TRANSFORM), transformChanges(harness), "heard as one set");
         runtime.drain();
-        assertEquals(1, arrived.get(), "arrived on the next turn");
+        assertEquals(0, arrived.get(), "nor on the next turn");
+        queueNow[0] += TimeUnit.MILLISECONDS.toNanos(500);
+        runtime.drain();
+        assertEquals(1, arrived.get(), "arrived after the half second asked for");
     }
 
     @Test

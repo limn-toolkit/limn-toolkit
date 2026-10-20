@@ -1075,10 +1075,17 @@ public final class DatePicker extends Widget<DatePicker> {
             a.name(DateStrings.CALENDAR, Accessible.NameFrom.CONTENT);
         }
 
-        /** The grid goes back to the picker once the card is gone; the next open takes it either way. */
+        /**
+         * The grid goes back to the picker once the card is gone, unless the picker was opened
+         * again before that: the end of a close comes a turn or a fade after it, and the grid is
+         * then in the panel the reopen built, which it would have left open and empty. The next
+         * close's end takes it back.
+         */
         @Override
         public void released() {
-            releaseCalendar();
+            if (!popup.isOpen()) {
+                releaseCalendar();
+            }
         }
 
         @Override

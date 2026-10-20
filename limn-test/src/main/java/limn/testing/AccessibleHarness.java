@@ -26,7 +26,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * over a widget from any module and, one day, from an application.
  *
  * <p>Time does not pass unless {@link #advanceTime} says it does, for the reason that base gives: a
- * measurement that lands in the middle of a fade depends on the machine, not on the widget. A verb
+ * measurement that lands in the middle of a fade depends on the machine, not on the widget. The
+ * scene's clock and the one the runtime's delayed tasks fall due on are one clock: the harness
+ * hands the runtime its own as it is built, so a timer, or the arrival a fade that goes straight
+ * there waits for under less motion, falls due as {@code advanceTime} passes it, as a fade that
+ * moves arrives on the scene's frames. The last harness built on a runtime is the one whose time
+ * its delayed tasks follow. A verb
  * is performed from a thread that is not the UI thread, which is the path a bridge takes, and the
  * host must return without blocking it. The scene is 400 by 300, the stub window's size; a subject
  * that wants a smaller box wraps its widget in a {@code SizedBox}.
@@ -77,20 +82,29 @@ public final class AccessibleHarness {
         this.window = Objects.requireNonNull(window, "window");
         window.accessibility = bridge;
         scene = new Scene(root, () -> nanos[0]);
+        runtime.setDelayClock(() -> nanos[0]); // one clock for the scene and the queue's timers
         scene.bind(window);
         scene.observeChanges((source, change) -> changes.add(change));
         frame();
         clearObservations();
     }
 
-    /** Renders one frame at the current scene time. */
+    /**
+     * One turn of a backend's loop: the UI queue drained, then one frame rendered at the current
+     * scene time, so that what the toolkit leaves for the next turn (the end of a fade that goes
+     * straight there among it) is done before the frame shows the tree, as on a desktop.
+     */
     public void frame() {
+        runtime.drain();
         scene.renderFrame(canvas);
     }
 
     /**
      * Moves scene time forward in steps no longer than the scene's own tick, damaging
-     * {@code damage} before each frame so that an animation on it advances.
+     * {@code damage} before each frame so that an animation on it advances: one turn of the loop,
+     * the queue drained and a frame rendered ({@link #frame()}), for each step. The runtime's delayed
+     * tasks fall due on the same clock, so a timer and a fade's waiting arrival run as their time
+     * passes.
      *
      * @param millis how far to move
      * @param damage the widget to invalidate each frame, or null

@@ -107,20 +107,39 @@ class WindowFadeTest extends SceneTestBase {
         assertEquals(1, calls.get(), "runs exactly once");
     }
 
+    /** What delayed tasks on the UI queue read as now: moved only by {@link #turnAfter}. */
+    private final long[] queueNow = {0};
+
+    /** One turn of the loop, {@code millis} after the last on the queue's clock. */
+    private void turnAfter(long millis) {
+        queueNow[0] += TimeUnit.MILLISECONDS.toNanos(millis);
+        runtime.drain();
+    }
+
     @Test
-    void headlessSceneJumpsAndArrivesOnTheNextTurn() {
+    void headlessSceneJumpsAndArrivesAfterItsSeconds() {
+        runtime.setDelayClock(() -> queueNow[0]);
         Scene scene = new Scene(new FixedBox(10, 10), clock::get); // no window bound
         AtomicInteger done = new AtomicInteger();
         scene.fadeWindow(0f, 0.2, done::incrementAndGet);
         assertEquals(0, done.get(), "no window: straight to the target, but onArrive never inside the call");
         runtime.drain();
-        assertEquals(1, done.get(), "on the next turn");
-        runtime.drain();
+        turnAfter(199);
+        assertEquals(0, done.get(), "nor before the seconds asked for");
+        turnAfter(1);
+        assertEquals(1, done.get(), "then");
+        turnAfter(1000);
         assertEquals(1, done.get(), "once");
+
+        scene.fadeWindow(1f, 0, done::incrementAndGet);
+        assertEquals(1, done.get(), "no time: not inside the call");
+        runtime.drain();
+        assertEquals(2, done.get(), "but on the next turn");
     }
 
     @Test
-    void aFadeThatGoesStraightThereArrivesOnTheNextTurnOnce() {
+    void aFadeThatGoesStraightThereArrivesOnTheNextTurnOrAfterItsSecondsOnce() {
+        runtime.setDelayClock(() -> queueNow[0]);
         RecordingWindow win = new RecordingWindow();
         Scene scene = sceneOn(win);
         AtomicInteger gone = new AtomicInteger();
@@ -132,15 +151,18 @@ class WindowFadeTest extends SceneTestBase {
 
         AtomicInteger same = new AtomicInteger();
         scene.fadeWindow(0f, 0.2, same::incrementAndGet);
-        assertEquals(0, same.get(), "the value it has: not inside the call either");
         runtime.drain();
-        runtime.drain();
+        assertEquals(0, same.get(), "the value it has, for 0.2 s: not on the next turn");
+        turnAfter(200);
+        assertEquals(1, same.get(), "after its seconds");
+        turnAfter(200);
         assertEquals(1, same.get());
         assertEquals(1, gone.get(), "and each once");
     }
 
     @Test
-    void aStraightThereFadeSupersededBeforeTheNextTurnNeverRunsItsCallback() {
+    void aStraightThereFadeSupersededBeforeItArrivesNeverRunsItsCallback() {
+        runtime.setDelayClock(() -> queueNow[0]);
         RecordingWindow win = new RecordingWindow();
         Scene scene = sceneOn(win);
         AtomicInteger gone = new AtomicInteger();
@@ -154,10 +176,17 @@ class WindowFadeTest extends SceneTestBase {
         headless.fadeWindow(1f, 0, null);
         runtime.drain();
         assertEquals(0, gone.get(), "with no window too");
+
+        headless.fadeWindow(0f, 0.3, gone::incrementAndGet);
+        turnAfter(100);
+        headless.fadeWindow(1f, 0, null);
+        turnAfter(1000);
+        assertEquals(0, gone.get(), "and one waiting for its seconds");
     }
 
     @Test
-    void aWindowClosedBeforeTheNextTurnRunsTheStraightThereCallbackOnce() {
+    void aWindowClosedBeforeTheStraightThereCallbackRunsRunsItOnce() {
+        runtime.setDelayClock(() -> queueNow[0]);
         RecordingWindow win = new RecordingWindow();
         Scene scene = sceneOn(win);
         AtomicInteger gone = new AtomicInteger();
@@ -167,10 +196,20 @@ class WindowFadeTest extends SceneTestBase {
         runtime.drain();
         runtime.drain();
         assertEquals(1, gone.get(), "and the next turn does not run it again");
+
+        RecordingWindow other = new RecordingWindow();
+        Scene waiting = sceneOn(other);
+        AtomicInteger arrived = new AtomicInteger();
+        waiting.fadeWindow(1f, 0.3, arrived::incrementAndGet); // the value it has: waits 0.3 s
+        drive(waiting).windowClosed();
+        assertEquals(1, arrived.get(), "one waiting for its seconds is flushed too");
+        turnAfter(1000);
+        assertEquals(1, arrived.get(), "once");
     }
 
     @Test
-    void aFadeChainedInItsCallbackWithNoWindowRunsOneArrivalATurn() {
+    void aFadeChainedInItsCallbackWithNoWindowSleepsBetweenSteps() {
+        runtime.setDelayClock(() -> queueNow[0]);
         Scene scene = new Scene(new FixedBox(10, 10), clock::get);
         AtomicInteger arrivals = new AtomicInteger();
         Runnable[] pulse = new Runnable[1];
@@ -179,6 +218,32 @@ class WindowFadeTest extends SceneTestBase {
             scene.fadeWindow(arrivals.get() % 2 == 0 ? 1f : 0f, 0.3, pulse[0]);
         };
         scene.fadeWindow(0f, 0.3, pulse[0]);
+        assertEquals(0, arrivals.get(), "nothing inside the call");
+        for (int step = 1; step <= 200; step++) {
+            for (int spin = 0; spin < 20; spin++) {
+                runtime.drain();
+            }
+            assertEquals(step - 1, arrivals.get(), "nothing before the period is over");
+            assertEquals(TimeUnit.MILLISECONDS.toNanos(300), runtime.nanosUntilNextDeadline(),
+                    "the loop may sleep until the next step");
+            turnAfter(300);
+            assertEquals(step, arrivals.get(), "one arrival a period");
+        }
+        scene.fadeWindow(1f, 0, null);
+        turnAfter(300);
+        assertEquals(200, arrivals.get(), "a newer fade supersedes the one waiting");
+    }
+
+    @Test
+    void aZeroSecondFadeChainedInItsCallbackRunsOneArrivalATurn() {
+        Scene scene = new Scene(new FixedBox(10, 10), clock::get);
+        AtomicInteger arrivals = new AtomicInteger();
+        Runnable[] pulse = new Runnable[1];
+        pulse[0] = () -> {
+            arrivals.incrementAndGet();
+            scene.fadeWindow(arrivals.get() % 2 == 0 ? 1f : 0f, 0, pulse[0]);
+        };
+        scene.fadeWindow(0f, 0, pulse[0]);
         assertEquals(0, arrivals.get(), "nothing inside the call");
         for (int turn = 1; turn <= 20_000; turn++) {
             runtime.drain();

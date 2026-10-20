@@ -129,4 +129,107 @@ class InSceneFadeEndsTest {
                 "the fade out took " + frames + " frames of " + FRAME + " ms from " + shown
                         + "; the whole window animation is " + animWindow + " s");
     }
+
+    /**
+     * Under less motion the toolkit's own closers ask for no time, so what they run when the
+     * surface has gone, the result of a dialog and the removal of a popup's layer, comes on the
+     * next turn of the UI queue and not after the window animation: a fade that goes straight there
+     * after asking for seconds keeps its onArrive for those seconds.
+     */
+    @Test
+    void underLessMotionADialogAndAPopupInAWindowCloseOnTheNextTurn() throws ReflectiveOperationException {
+        try (limn.testing.TestPreferences system = new limn.testing.TestPreferences()) {
+            system.reduceMotion(true);
+            bind(new Label("behind"), new limn.testing.HeadlessBackend(ui.runtime()).open("Owner", W, H));
+            Dialog dialog = new Dialog("Confirm", "Proceed?")
+                    .addPrimaryButton("OK", "ok")
+                    .setDisplayMode(DisplayMode.IN_SCENE);
+            String[] result = {null};
+            dialog.show(scene).thenAccept(r -> result[0] = r);
+            frame();
+            dialog.dismiss("closed");
+            assertEquals(null, result[0], "never inside the call");
+            ui.runtime().drain(); // the queue's clock does not move: nothing waits for seconds
+            assertEquals("closed", result[0], "the dialog resolves on the next turn");
+
+            ComboBox<String> combo = new ComboBox<>(List.of("one", "two", "three"));
+            combo.setDisplayMode(DisplayMode.IN_SCENE);
+            bind(new Padding(Insets.all(10), combo), new StubWindow(true));
+            combo.open();
+            frame();
+            java.lang.reflect.Field popup = ComboBox.class.getDeclaredField("popup");
+            popup.setAccessible(true);
+            Widget<?> panel = ((AnchoredPopup) popup.get(combo)).panel();
+            assertTrue(panel != null && panel.scene() == scene, "the list is in the scene");
+            combo.close();
+            ui.runtime().drain();
+            frame();
+            assertEquals(null, panel.scene(), "the list's layer is gone on the next turn");
+        }
+    }
+
+    /**
+     * A dialog in a scene with no window shows nothing to fade, so it asks for no time: it resolves
+     * on the next turn, as it did before a fade with seconds kept its arrival for them.
+     */
+    @Test
+    void aDialogInASceneWithNoWindowResolvesOnTheNextTurn() {
+        scene = new Scene(new Label("behind"), () -> nanos[0]);
+        scene.setTextRuler(ComponentTestBase.RULER);
+        frame();
+        Dialog dialog = new Dialog("Confirm", "Proceed?")
+                .addPrimaryButton("OK", "ok")
+                .setDisplayMode(DisplayMode.IN_SCENE);
+        String[] result = {null};
+        dialog.show(scene).thenAccept(r -> result[0] = r);
+        frame();
+        dialog.dismiss("closed");
+        ui.runtime().drain();
+        assertEquals("closed", result[0], "resolved on the next turn, with the queue's clock where it was");
+    }
+
+    /**
+     * A picker closed and opened again before its close has finished, in one handler or two clicks
+     * in one batch: the close's end hands the grid back, and it must not take it out of the panel
+     * the reopen built, which then stayed open and empty. Under less motion the close ends on the
+     * next turn; with motion, when its fade does.
+     */
+    @Test
+    void aDatePickerReopenedBeforeItsCloseEndsKeepsItsCalendar() {
+        for (boolean reduced : new boolean[] {false, true}) {
+            try (limn.testing.TestPreferences system = new limn.testing.TestPreferences()) {
+                system.reduceMotion(reduced);
+                limn.components.date.DatePicker picker = new limn.components.date.DatePicker()
+                        .setClock(java.time.Clock.fixed(java.time.Instant.parse("2026-10-19T12:00:00Z"),
+                                java.time.ZoneOffset.UTC))
+                        .setDisplayMode(DisplayMode.IN_SCENE);
+                bind(new Padding(Insets.all(10), picker), new StubWindow(true));
+                String what = reduced ? "less motion" : "with motion";
+                picker.open();
+                frame();
+                for (int i = 0; i < 30; i++) {
+                    advance(FRAME);
+                }
+                assertTrue(picker.calendar().isShowing(), what + ": open, the calendar shows");
+
+                picker.close();
+                if (!reduced) {
+                    advance(2 * FRAME); // the fade out under way
+                }
+                picker.open();
+                for (int i = 0; i < 30; i++) {
+                    advance(FRAME); // past the end of the close, whichever way it ends
+                }
+                assertTrue(picker.isOpen(), what + ": open again");
+                assertTrue(picker.calendar().parent() != null && picker.calendar().isShowing(),
+                        what + ": the reopened popup keeps its calendar");
+
+                picker.close();
+                for (int i = 0; i < 30; i++) {
+                    advance(FRAME);
+                }
+                assertEquals(null, picker.calendar().parent(), what + ": a close nobody reopens hands it back");
+            }
+        }
+    }
 }
