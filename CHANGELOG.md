@@ -237,6 +237,13 @@ Maven Central say which number that was.
   when the last picture it handed out comes back: a window closed with a video in it kept the
   whole decoder, whatever the application then closed. A closing window detaches its widgets
   now; see Changed.
+- Play on a `MediaPlayer` with a soundtrack no longer holds the UI thread while the audio device
+  opens: `start()` hands the track to the engine on a worker and returns at once (190 ms on the UI
+  thread before, 0.2 to 7 ms now, measured on an Apple Silicon Mac; 458 ms in a Showcase session on
+  the first play of its film). The player is `PLAYING` from the press, so a transport's button says
+  Pause at once, the first picture is shown and the others wait for the sound so the two begin
+  together, and a pause, a seek, a stop or a close made meanwhile reaches the track as it arrives.
+  `audio()` answers `Playback.NONE` until it does.
 - A `MediaPlayer` whose stream has ended sleeps until a seek or a start: its decoding thread
   woke fifty times a second for as long as the player was left open. And one the application
   never closes is closed when the backend ends, with a warning that names it; nothing else

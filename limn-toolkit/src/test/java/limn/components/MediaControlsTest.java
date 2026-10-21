@@ -171,6 +171,64 @@ class MediaControlsTest extends ComponentTestBase {
         assertTrue(volumeSlider().isVisible());
     }
 
+    /**
+     * Play on a clip with a soundtrack returns at once though the engine is still opening the audio
+     * device for it, and the button already says Pause: the press of a Showcase session that held
+     * the UI thread 458 ms on the first play of its clip. The track sounds on a worker.
+     */
+    @Test
+    void playReturnsAtOnceAndSaysPauseWhileTheSoundtrackIsStillOnItsWay() throws Exception {
+        java.util.concurrent.CountDownLatch open = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.CountDownLatch asked = new java.util.concurrent.CountDownLatch(1);
+        limn.sound.AudioEngine opening = new limn.sound.AudioEngine() {
+            @Override
+            public limn.sound.Playback play(limn.sound.AudioClip clip, float gain, boolean loop) {
+                return limn.sound.Playback.NONE;
+            }
+
+            @Override
+            public limn.sound.Playback playStream(AudioStreamSource source, PlayOptions options) {
+                asked.countDown();
+                try {
+                    open.await(10, java.util.concurrent.TimeUnit.SECONDS); // the device opening
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                }
+                source.close();
+                return limn.sound.Playback.NONE;
+            }
+
+            @Override
+            public boolean isAvailable() {
+                return true;
+            }
+        };
+        limn.sound.Sounds.installEngine(opening);
+        try {
+            build(LayoutDirection.LTR);
+            MediaPlayer player = new MediaPlayer(new FakeVideo()).setAudio(new FakeAudio(), PlayOptions.DEFAULTS);
+            controls.view().setPlayer(player);
+            renderAndTick();
+            assertEquals(ComponentStrings.MEDIA_PLAY, playButton().tooltipSource());
+
+            long before = System.nanoTime();
+            limn.testing.SceneDriver.drive(scene).click(playButton());
+            long took = System.nanoTime() - before;
+
+            assertTrue(asked.await(10, java.util.concurrent.TimeUnit.SECONDS), "the engine was asked");
+            assertTrue(took < java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(150),
+                    "the press waited for the audio device: " + took / 1_000_000 + " ms");
+            assertEquals(MediaPlayer.State.PLAYING, player.state());
+            assertEquals(ComponentStrings.MEDIA_PAUSE, playButton().tooltipSource(),
+                    "the button says Pause, and a reader hears it, while the sound is on its way");
+            open.countDown();
+            player.close();
+        } finally {
+            open.countDown();
+            limn.sound.Sounds.uninstallEngine(opening);
+        }
+    }
+
     @Test
     void theModesOverrideWhatTheMediaSays() {
         build(LayoutDirection.LTR);

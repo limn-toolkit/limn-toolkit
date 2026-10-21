@@ -219,6 +219,18 @@ public final class MediaPlayer implements AutoCloseable {
 
     // ---- UI thread only ----
     private Playback playback = Playback.NONE;
+    /**
+     * The audio track on its way to the engine, on a worker, or null: the engine opens the audio
+     * device the first time a process sounds anything, which is tens to hundreds of milliseconds
+     * (190 ms measured on an Apple Silicon Mac, 458 ms in a Showcase session), and a play button
+     * that did it on the UI thread froze the window for that long. The pictures wait for the sound
+     * meanwhile, so the two begin together.
+     */
+    private limn.concurrent.@Nullable Job audioStart;
+    /** Where a seek made while {@link #audioStart} ran moved the pictures, or -1: the sound joins there. */
+    private long seekedWhileAudioStarts = -1;
+    /** Whether the first picture is still to be shown while {@link #audioStart} runs. */
+    private boolean firstPictureOwed;
     private VideoClock.MasterClock master;
     private int presentPass;
     private boolean starved;
@@ -368,7 +380,12 @@ public final class MediaPlayer implements AutoCloseable {
      * {@link #restart()} is what rewinds one of those.
      *
      * <p>Starting the audio track is where its ownership passes to the engine, so it happens once
-     * and only once however many times this is called.
+     * and only once however many times this is called. It is handed over on a worker, since the
+     * engine may open the audio device to take it, which can hold a thread for a few hundred
+     * milliseconds: this returns at once, {@link #state()} is {@link State#PLAYING} from here, and
+     * the pictures are held on the first one until the track sounds (or the engine declines it), so
+     * picture and sound begin together. {@link #audio()} answers {@link Playback#NONE} until then;
+     * a pause, a seek, a stop or a close made meanwhile applies to the track as it arrives.
      *
      * @throws IllegalStateException if this player is closed
      */
@@ -545,7 +562,9 @@ public final class MediaPlayer implements AutoCloseable {
         }
         seekPresentPending = false; // the clock hands pictures out again; nothing owes one
         playback.resume();
-        clock.setPaused(false);
+        if (audioStart == null) {
+            clock.setPaused(false); // else the track's arrival lets the pictures go
+        }
     }
 
     /**
@@ -564,6 +583,7 @@ public final class MediaPlayer implements AutoCloseable {
             return;
         }
         stopDecoding();
+        cancelAudioStart();
         playback.stop();
         playback = Playback.NONE;
         if (master != null) {
@@ -673,6 +693,10 @@ public final class MediaPlayer implements AutoCloseable {
         // Before the clock: this is what makes the master report the new position, and a clock
         // re-anchored against a master still reporting the old one would score the move as a jump
         // the moment the master caught up.
+        if (audioStart != null) {
+            seekedWhileAudioStarts = micros; // the track joins the pictures here as it arrives
+            firstPictureOwed = true; // and the picture where they landed is shown meanwhile
+        }
         playback.seek(micros);
         if (master != null && !playback.canSeek()) {
             // A soundtrack that stayed where it was is on a timeline these pictures have left.
@@ -726,6 +750,7 @@ public final class MediaPlayer implements AutoCloseable {
             return;
         }
         stopDecoding();
+        cancelAudioStart();
         playback.stop();
         playback = Playback.NONE;
         if (master != null) {
@@ -778,6 +803,19 @@ public final class MediaPlayer implements AutoCloseable {
         }
         if (state != State.PLAYING) {
             return null;
+        }
+        if (audioStart != null) {
+            // The sound is on its way: the first picture is shown, and the others wait for it.
+            if (!firstPictureOwed) {
+                return null;
+            }
+            synchronized (lock) {
+                if (count == 0) {
+                    return null;
+                }
+            }
+            firstPictureOwed = false;
+            return dequeue();
         }
         while (true) {
             VideoFrame candidate;
@@ -1092,9 +1130,14 @@ public final class MediaPlayer implements AutoCloseable {
         return failure;
     }
 
+    /** @return whether {@link #start()} is handing the audio track to the engine on a worker */
+    boolean isHandingAudioOver() {
+        return audioStart != null;
+    }
+
     /** @return whether an audio track is sounding, or is waiting for {@link #start()} to sound */
     public boolean hasAudio() {
-        return audio != null || playback != Playback.NONE;
+        return audio != null || audioStart != null || playback != Playback.NONE;
     }
 
     /**
@@ -1109,8 +1152,8 @@ public final class MediaPlayer implements AutoCloseable {
 
     /**
      * @return the handle to the sounding audio track, or {@link Playback#NONE} when there is none:
-     *         because there was no track, because no device would take it, or because playback has
-     *         been stopped
+     *         because there was no track, because no device would take it, because playback has
+     *         been stopped, or because {@link #start()} is still handing the track to the engine
      */
     public Playback audio() {
         return playback;
@@ -1159,7 +1202,61 @@ public final class MediaPlayer implements AutoCloseable {
         }
         AudioStreamSource handing = audio;
         audio = null; // ownership leaves here, whatever the engine does with it
-        playback = Sounds.stream(handing, audioOptions.withLoop(looping));
+        PlayOptions options = audioOptions.withLoop(looping);
+        // The pictures wait for the sound: started apart, the track would begin a few hundred
+        // milliseconds behind pictures already running, and be dropped as a master at once.
+        clock.setPaused(true);
+        seekedWhileAudioStarts = -1;
+        firstPictureOwed = true;
+        audioStart = Ui.<Playback>work(progress -> Sounds.stream(handing, options))
+                .onSuccess(this::audioArrived)
+                .onFailure(error -> {
+                    // Sounds.stream closes the track and answers NONE on every path it knows; a
+                    // throw is the engine's defect, and the pictures play on the wall clock.
+                    Crashes.report(CrashPhase.TASK, error);
+                    audioArrived(Playback.NONE);
+                })
+                .onDiscarded(Playback::stop) // stopped or closed meanwhile: the engine closes it
+                .start();
+    }
+
+    /** Lets go of a track still on its way to the engine; the job's discard stops it if it sounds. */
+    private void cancelAudioStart() {
+        if (audioStart != null) {
+            audioStart.cancel();
+            audioStart = null;
+        }
+    }
+
+    /**
+     * The track reached the engine, or the engine declined it: it becomes the master, takes a
+     * pause or a seek made meanwhile, and the pictures go on.
+     */
+    private void audioArrived(Playback started) {
+        audioStart = null;
+        if (state == State.CLOSED || state == State.IDLE) {
+            started.stop(); // stopped or closed in the same turn the track arrived
+            return;
+        }
+        playback = started;
+        installMaster();
+        if (seekedWhileAudioStarts >= 0) {
+            long at = seekedWhileAudioStarts;
+            seekedWhileAudioStarts = -1;
+            playback.seek(at);
+            if (master != null && !playback.canSeek()) {
+                dropMaster(); // the track is on a timeline the pictures have left
+            }
+            clock.seekTo(at);
+        }
+        if (state == State.PAUSED) {
+            playback.pause();
+        } else {
+            clock.setPaused(false);
+        }
+    }
+
+    private void installMaster() {
         if (playback == Playback.NONE) {
             // A handle that reports a constant zero forever is not a timeline. Following it would
             // cost a stall's worth of held pictures before the wall clock took over, on exactly the

@@ -56,6 +56,14 @@ class MediaPlayerTest {
         ui.close();
     }
 
+    /**
+     * Lets the player hand its track to the engine, which {@link MediaPlayer#start()} does on a
+     * worker: the engine may open the audio device to take it.
+     */
+    private void handOver(MediaPlayer player) {
+        ui.pumpUntil(() -> !player.isHandingAudioOver(), 10_000_000_000L);
+    }
+
     /** Wall clock a test turns by hand. */
     private static final class Hand {
         long nanos;
@@ -460,6 +468,7 @@ class MediaPlayerTest {
             player.setAudio(new SilentSource(), PlayOptions.DEFAULTS);
             player.setLooping(true);
             player.start();
+            handOver(player);
             assertTrue(player.hasAudio());
 
             // Under the master, at the track's position.
@@ -519,6 +528,7 @@ class MediaPlayerTest {
             assertSame(Playback.NONE, player.audio());
 
             player.start();
+            handOver(player);
             assertSame(track, engine.received, "play is what hands the track over");
             pump(player, 3);
             VideoFrame first = player.takePicture();
@@ -624,6 +634,7 @@ class MediaPlayerTest {
             PlayOptions options = PlayOptions.DEFAULTS.withGain(0.6f);
             player.setAudio(track, options);
             player.start();
+            handOver(player);
 
             assertSame(track, engine.received, "the open track reached the engine");
             assertEquals(0.6f, engine.receivedOptions.gain());
@@ -685,6 +696,7 @@ class MediaPlayerTest {
         try (MediaPlayer player = manual(stream, hand, 3)) {
             player.setAudio(track, PlayOptions.DEFAULTS);
             player.start();
+            handOver(player);
 
             assertSame(Playback.NONE, player.audio(), "nothing sounds");
             assertEquals(1, track.closes, "the facade closed the track it was handed");
@@ -716,6 +728,7 @@ class MediaPlayerTest {
         try (MediaPlayer player = manual(stream, hand, 4)) {
             player.setAudio(new SilentSource(), PlayOptions.DEFAULTS);
             player.start();
+            handOver(player);
 
             pump(player, 4);
             player.takePicture().release();

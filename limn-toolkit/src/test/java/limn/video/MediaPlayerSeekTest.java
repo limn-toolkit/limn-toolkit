@@ -54,6 +54,14 @@ class MediaPlayerSeekTest {
         ui.close();
     }
 
+    /**
+     * Lets the player hand its track to the engine, which {@link MediaPlayer#start()} does on a
+     * worker: the engine may open the audio device to take it.
+     */
+    private void handOver(MediaPlayer player) {
+        ui.pumpUntil(() -> !player.isHandingAudioOver(), 10_000_000_000L);
+    }
+
     // ------------------------------------------------------------------ the pictures it is holding
 
     @Test
@@ -296,6 +304,7 @@ class MediaPlayerSeekTest {
         try (MediaPlayer player = manual(stream, hand, 3)) {
             player.setAudio(new SilentSource(), PlayOptions.DEFAULTS);
             player.start();
+            handOver(player);
             engine.handle.seconds = 0.05;
             pump(player, 4);
             VideoFrame first = player.takePicture();
@@ -330,6 +339,7 @@ class MediaPlayerSeekTest {
         try (MediaPlayer player = manual(stream, hand, 3)) {
             player.setAudio(new SilentSource(), PlayOptions.DEFAULTS);
             player.start();
+            handOver(player);
             engine.handle.seconds = 0.05;
             pump(player, 4);
             VideoFrame first = player.takePicture();
@@ -407,6 +417,7 @@ class MediaPlayerSeekTest {
             player.setAudio(new SilentSource(), PlayOptions.DEFAULTS);
             player.setLooping(true);
             player.start();
+            handOver(player);
             engine.handle.seconds = 0.05;
             pump(player, 3);
             VideoFrame first = player.takePicture();
