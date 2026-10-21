@@ -24,7 +24,10 @@ permissions:
   contents: read
 
 jobs:
+  # Parked by the owner on 2026-10-21 after its first full run: the numbers are recorded, and the
+  # job is kept so the measurement can be repeated if llvmpipe is reopened.
   llvmpipe:
+    if: ${{ false }}
     name: llvmpipe-${{ matrix.arch }}
     strategy:
       fail-fast: false
@@ -297,6 +300,24 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "javac failed" }
           .\spike\run.ps1 angle-context "" 120 -- java "-Dangle.dir=$PWD\stage\angle" -cp "tools\limn-demo-all.jar;spike\classes" AngleProbe
 
+      # ADR 003's phase 0b: the extensions behind three capability gates, buffer age, a transparent
+      # window read back from the screen (as GLFW makes it, and as a DirectComposition surface), and
+      # the swap intervals of two windows. lwjgl-opengles comes from Maven Central at the LWJGL
+      # version the demo carries, checked against Central's own SHA-1.
+      - name: Phase 0b
+        run: |
+          $jar = "tools\lwjgl-opengles-3.4.3.jar"
+          $base = "https://repo1.maven.org/maven2/org/lwjgl/lwjgl-opengles/3.4.3/lwjgl-opengles-3.4.3.jar"
+          Invoke-WebRequest $base -OutFile $jar
+          $expected = (Invoke-WebRequest "$base.sha1").Content.Trim()
+          $actual = (Get-FileHash $jar -Algorithm SHA1).Hash.ToLower()
+          if ($actual -ne $expected) { throw "lwjgl-opengles SHA-1 $actual, Central says $expected" }
+          $classes = (& jar tf tools\limn-demo-all.jar) -join "`n"
+          if ($classes -notmatch 'org/lwjgl/egl/EGL10.class') { throw "the demo jar carries no lwjgl-egl" }
+          javac -cp "tools\limn-demo-all.jar;$jar" -d spike\classes spike\Phase0bProbe.java
+          if ($LASTEXITCODE -ne 0) { throw "javac failed" }
+          .\spike\run.ps1 phase0b "" 300 -- java "-Dangle.dir=$PWD\stage\angle" -cp "tools\limn-demo-all.jar;$jar;spike\classes" Phase0bProbe
+
       - name: Summary
         if: always()
         run: |
@@ -305,6 +326,7 @@ jobs:
             '```'
             Get-Content results\machine.txt, results\sizes.txt, results\runs.txt -ErrorAction SilentlyContinue
             Get-Content results\angle-context.log -ErrorAction SilentlyContinue | Select-String -Pattern '^ANGLE|GLFW error' | ForEach-Object Line
+            Get-Content results\phase0b.log -ErrorAction SilentlyContinue | Select-String -Pattern '^P0B|Exception|at ' | ForEach-Object Line
             '```'
           } | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
 
