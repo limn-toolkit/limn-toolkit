@@ -100,7 +100,10 @@ the scroll position and selection are kept; rows past a shorter list's end leave
 A different list is `setItems`, which starts over with nothing selected. A selection
 the refresh dropped is announced as the widget's own adjustment, so a detail pane that watches
 the selection never keeps showing a record that is gone; `onSelect`, being the user's, stays
-silent.
+silent. A row a context menu or a popover hangs from is not rebuilt while its item is still in
+the list (found again by `equals`, at its new place): it keeps what it showed until the menu
+closes, then shows the item as it is now, so a timer's refresh never closes a menu under the
+pointer.
 :::
 
 ### Setting the selection yourself

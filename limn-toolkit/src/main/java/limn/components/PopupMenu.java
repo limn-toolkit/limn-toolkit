@@ -372,7 +372,8 @@ public final class PopupMenu {
      *
      * <p>The menu hangs from {@code anchor}: it closes when the anchor leaves the scene, by
      * itself, with a container or with the page {@link Scene#setRoot} replaces, and when it stops
-     * being shown, so its rows never act on a widget that has gone.
+     * being shown, so its rows never act on a widget that has gone. A row of a list, a table or a
+     * tree that a refresh keeps because its item is still there does not leave: the menu stays.
      */
     public void showAt(Widget<?> anchor, float x, float y) {
         Ui.checkUiThread();

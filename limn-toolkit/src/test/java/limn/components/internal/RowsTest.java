@@ -39,6 +39,9 @@ class RowsTest {
     private float box = 100;
     private int cursor = -1;
     private Cell focused;
+    /** The rows a popup hangs from. */
+    private final List<Cell> hung = new ArrayList<>();
+    private final limn.scene.Widget<?> owner = new limn.scene.layout.Column();
     private int mounts;
 
     private final Rows<Cell> rows = new Rows<>(new Rows.Host<Cell>() {
@@ -83,6 +86,21 @@ class RowsTest {
         @Override
         public boolean holdsFocus(Cell row) {
             return row == focused;
+        }
+
+        @Override
+        public boolean holdsPopup(Cell row) {
+            return hung.contains(row);
+        }
+
+        @Override
+        public limn.scene.Widget<?> widget() {
+            return owner;
+        }
+
+        @Override
+        public void rowsFreed() {
+            log.add("freed");
         }
 
         @Override
@@ -267,6 +285,55 @@ class RowsTest {
         rows.layout();
         assertEquals(kept, rows.mounted(1), "the same realized row, now row 1");
         assertEquals(5, rows.mountedCount());
+    }
+
+    @Test
+    void aRowAPopupHangsFromIsKeptAsItWasThroughARefreshAndLetGoOfOnceThePopupCloses() {
+        rowsOf(1000, 20);
+        rows.layout();
+        Cell three = cell(3);
+        hung.add(three);
+        log.clear();
+        // The item row 3 showed is row 2 now (a timer's refresh took a row above it out).
+        rows.refresh(c -> hung.contains(c) ? 2 : -1, true);
+        assertEquals(List.of(2), realized(), "only the hung row is carried over: " + log);
+        assertFalse(log.contains("unmount 3"), log.toString());
+        assertTrue(rows.holdsStaleRows());
+        three.row = 2; // where it stands now, which this host's position check reads
+        rows.layout();
+        assertEquals(three, rows.mounted(2), "the same realized row, at its item's new index");
+
+        // Scrolled far away, it is spared as the keyboard's row is, while the popup is open.
+        rows.scrollTo(4000, Change.Origin.USER);
+        rows.layout();
+        assertEquals(three, rows.mounted(2), "spared out of sight while the popup hangs from it");
+
+        rows.scrollTo(0, Change.Origin.USER);
+        rows.layout();
+        hung.clear(); // the popup closed
+        log.clear();
+        rows.layout();
+        assertTrue(log.contains("unmount 2"), "let go of at the pass after the popup closed: " + log);
+        assertTrue(rows.mounted(2) != null && rows.mounted(2) != three, "and realized afresh");
+        assertFalse(rows.holdsStaleRows());
+    }
+
+    @Test
+    void aRefreshLetsGoOfAHungRowWhoseItemIsGoneAndOfOneThatWouldComeBeforeAnotherKept() {
+        rowsOf(1000, 20);
+        rows.layout();
+        Cell one = cell(1);
+        Cell two = cell(2);
+        Cell four = cell(4);
+        hung.add(one);
+        hung.add(two);
+        hung.add(four);
+        log.clear();
+        // Row 1's item is gone; rows 2 and 4 traded places, which the children's order cannot follow.
+        rows.refresh(c -> c == one ? -1 : c == two ? 4 : c == four ? 2 : -1, true);
+        assertEquals(List.of(4), realized(), log.toString());
+        assertTrue(log.contains("unmount 1") && log.contains("unmount 4"), log.toString());
+        assertEquals(two, rows.mounted(4));
     }
 
     @Test

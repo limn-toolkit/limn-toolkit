@@ -24,6 +24,7 @@ import limn.scene.event.DragStartEvent;
 import limn.scene.event.DropEvent;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
+import limn.scene.internal.SceneAccess;
 import limn.transfer.DataFormat;
 import limn.transfer.Drag;
 import limn.transfer.DropAction;
@@ -189,6 +190,11 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
      * key walk, whatever order a scroll realized them in.
      */
     private final Rows<Widget<?>> engine = new Rows<>(new RowsEngineHost());
+    /**
+     * The item each realized cell was built for, read when a refresh keeps a row a popup hangs
+     * from: the list may have changed in place, and the item is what the row is found again by.
+     */
+    private final java.util.IdentityHashMap<Widget<?>, T> boundItems = new java.util.IdentityHashMap<>();
     /** Where the pass in progress puts a row's leading edge, and how wide a row is. */
     private float passRowX;
     private float passRowW;
@@ -201,14 +207,17 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
 
         @Override
         public Widget<?> mount(int index, int position) {
-            Widget<?> cell = cells.cellFor(items.get(index));
+            T item = items.get(index);
+            Widget<?> cell = cells.cellFor(item);
             add(position + 1, cell); // the bar is children() zero
             cell.setVisible(true);
+            boundItems.put(cell, item);
             return cell;
         }
 
         @Override
         public void unmount(Widget<?> cell, boolean heldFocus) {
+            boundItems.remove(cell);
             remove(cell);
             cells.recycle(cell);
             if (heldFocus) {
@@ -236,6 +245,22 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         @Override
         public boolean holdsFocus(Widget<?> cell) {
             return containsFocus(cell);
+        }
+
+        @Override
+        public boolean holdsPopup(Widget<?> cell) {
+            return SceneAccess.holdsHungPopup(cell);
+        }
+
+        @Override
+        public Widget<?> widget() {
+            return ListView.this;
+        }
+
+        @Override
+        public void rowsFreed() {
+            markNeedsContainedLayout();
+            invalidate();
         }
 
         @Override
@@ -1239,7 +1264,9 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
      * never copies or changes it. A new list is a new world: the selection and the cursor go
      * (announced as {@code SELECTION}/{@code ADJUSTMENT} when there was one), the view returns to
      * the top, and {@code CHILDREN}/{@code CODE} is announced. After changing the same list in
-     * place, call {@link #refresh()} instead. UI thread only.
+     * place, call {@link #refresh()} instead. A row a popup hangs from (its context menu, a
+     * field's own menu, a popover) whose item the new list holds is kept, as {@link #refresh()}
+     * keeps it. UI thread only.
      *
      * @param newItems the items, in the order shown
      * @return this list
@@ -1252,7 +1279,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         lead = -1;
         cursor = -1;
         rangeAnchor = -1;
-        engine.reset();
+        engine.reset(rowsWithPopupsFoundAgain(), true);
         // Contained: the rows change inside a box whose measure does not read them (the seed
         // and the columns size it), so a filter that empties and refills the rows repaints
         // the widget and never the window, its empty content coming and going included.
@@ -1386,6 +1413,53 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         return cursor;
     }
 
+    /**
+     * Answers, for each realized row a popup hangs from, the index its item has in the items now
+     * (by {@code equals}, the occurrence nearest the row it stood at that no other kept row took),
+     * or -1 when the item is gone; -1 for every other row. Read before anything is let go of.
+     */
+    private java.util.function.ToIntFunction<Widget<?>> rowsWithPopupsFoundAgain() {
+        java.util.IdentityHashMap<Widget<?>, Integer> foundAt = null;
+        java.util.BitSet taken = null;
+        for (int p = 0; p < engine.mountedCount(); p++) {
+            Widget<?> cell = engine.mountedAt(p);
+            if (!boundItems.containsKey(cell) || !SceneAccess.holdsHungPopup(cell)) {
+                continue;
+            }
+            if (foundAt == null) {
+                foundAt = new java.util.IdentityHashMap<>();
+                taken = new java.util.BitSet();
+            }
+            int at = nearestUntaken(boundItems.get(cell), engine.rowAt(p), taken);
+            if (at >= 0) {
+                taken.set(at);
+                foundAt.put(cell, at);
+            }
+        }
+        if (foundAt == null) {
+            return cell -> -1;
+        }
+        java.util.IdentityHashMap<Widget<?>, Integer> found = foundAt;
+        return cell -> found.getOrDefault(cell, -1);
+    }
+
+    /** The index of the occurrence of {@code item} nearest {@code was} not yet taken, or -1. */
+    private int nearestUntaken(@Nullable T item, int was, java.util.BitSet taken) {
+        int count = items.size();
+        for (int d = 0; d <= Math.max(was, count - was); d++) {
+            int below = was + d;
+            if (below < count && !taken.get(below) && Objects.equals(items.get(below), item)) {
+                return below;
+            }
+            int above = was - d;
+            if (d > 0 && above >= 0 && above < count && !taken.get(above)
+                    && Objects.equals(items.get(above), item)) {
+                return above;
+            }
+        }
+        return -1;
+    }
+
     /** Row count: the size of the items. */
     public int rowCount() {
         return items.size();
@@ -1403,7 +1477,15 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
      * the list is now empty), and either is announced as {@code SELECTION}/{@code ADJUSTMENT}
      * first: a watcher showing the selected record hears the list move by itself, with an origin
      * that says so, where a handler -- the user's response -- is not run. A row is its index: an
-     * item that moved in the list leaves its selection where it was. UI thread only.
+     * item that moved in the list leaves its selection where it was.
+     *
+     * <p>A row a popup hangs from (a context menu opened on it, a field's own menu, a popover) is
+     * not let go of while its item is still in the list, found again by {@code equals} at the
+     * occurrence nearest where it stood: it stays as it is, at its item's index now, so the popup
+     * stays open through a refresh a timer or a server push makes, and it is realized afresh, from
+     * the item as it is then, at the first layout after the popup closes (or at the next refresh,
+     * when a control of it holds the keyboard). When the item is gone, or the row would show
+     * another one, the row is let go of and the popup closes with it. UI thread only.
      */
     public void refresh() {
         Ui.checkUiThread();
@@ -1411,8 +1493,11 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         // Every realized row is let go of: each is bound to the OLD item at its index, and the
         // pass reuses realized rows without asking again, so without this what is in sight is
         // exactly what never refreshes. The one holding the keyboard too: it is bound to an item
-        // that may no longer exist, and the keyboard falls back to the list.
-        engine.refresh(null, -1);
+        // that may no longer exist, and the keyboard falls back to the list. But a row a popup
+        // hangs from (its context menu, a field's own menu) whose item is still in the list:
+        // letting go of it would close the menu under the pointer on every refresh a timer
+        // makes, so it stays as it is, at its item's index, until the popup closes.
+        engine.refresh(rowsWithPopupsFoundAgain(), true);
         // Contained: the rows change inside a box whose measure does not read them (the seed
         // and the columns size it), so a filter that empties and refills the rows repaints
         // the widget and never the window, its empty content coming and going included.

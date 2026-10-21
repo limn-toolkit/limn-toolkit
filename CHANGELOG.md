@@ -30,7 +30,10 @@ Maven Central say which number that was.
   over the window holding the keyboard and eating the next click, or said it was open with nothing
   shown, and a context menu's rows acted on a field that had left. A control asked to open while
   hidden or on its way out stays closed, and a date picker no longer commits a date from a calendar
-  that was never shown. A menu shown at a point of the scene hangs from no widget.
+  that was never shown. A menu shown at a point of the scene hangs from no widget. A row of a
+  `ListView`, `Table` or `Tree` that a `refresh()` or a `setItems`/`setRows` keeps because its item is
+  still in the list does not leave: a menu or a popover on it stays open through a timer's refreshes
+  and acts on that item, and the row shows the item afresh once the popup has closed.
 - A press beside an in-scene popup that is fading out reaches what is beneath it; a press on the
   fading card, such as the second click of a double click on an item, stays the popup's and never
   reaches the control under the item. Closing a popover opened from another gives the keyboard

@@ -1214,3 +1214,21 @@ The review of `setRoot` (R14S) found where the note above promised more than the
   usable afterwards. 64 is far beyond any real chain (a sign-in page that finds the user signed
   in is one hop) and small enough to stop at once. `SceneSetRootTest` follows a chain of 64
   redirects to its last page and stops two pages that redirect to each other.
+
+## Note, 2026-10-20 (second review): rows that stay, closes that are the bar's, mirrors that come back
+
+The second review of `setRoot` (R15S) found where the fixes of the first went too far or not far
+enough.
+
+- **A menu on a row and a list's refresh** (R15S-1). Once a menu hung from the widget it was
+  shown at, a `ListView`, `Table` or `Tree` closed a row's menu on every `refresh()` and
+  `setItems`/`setRows`, which let go of every realized row: a context region built in the cell
+  factory, or a field cell's own Cut/Copy/Paste menu, closed under the pointer on each refresh a
+  timer or a server push made. A row a popup hangs from is now not let go of while its item is
+  still in the list: the rows engine spares it as it spares the keyboard's row, and a refresh
+  carries it to its item's new index (`ListView` finds the item by `equals` nearest where it
+  stood, `Tree` by its node, `Table` by its record, as for a focused widget cell). A list's or
+  tree's row kept so shows what it showed until the popup closes and is realized afresh at the
+  next layout, unless a control of it holds the keyboard, which waits for the next refresh. The
+  popup closes when its item is gone or its row would show another one.
+  `RowMenusOutliveARefreshTest`.

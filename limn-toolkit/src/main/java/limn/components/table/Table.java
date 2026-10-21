@@ -43,6 +43,7 @@ import limn.scene.event.DropEvent;
 import limn.scene.event.DragStartEvent;
 import limn.scene.event.DragEvent;
 import limn.scene.event.MouseEvent;
+import limn.scene.internal.SceneAccess;
 import org.jspecify.annotations.Nullable;
 
 import java.text.Collator;
@@ -351,6 +352,21 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         @Override
         public boolean holdsFocus(Slot slot) {
             return containsFocus(slot);
+        }
+
+        @Override
+        public boolean holdsPopup(Slot slot) {
+            return holdsHungPopup(slot);
+        }
+
+        @Override
+        public Widget<?> widget() {
+            return Table.this;
+        }
+
+        @Override
+        public void rowsFreed() {
+            // Nothing is kept stale: a row kept for a popup is re-bound to its record.
         }
 
         @Override
@@ -1064,7 +1080,9 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
 
     /**
      * Hands the table the application's rows, held by reference and never copied. The selection
-     * is dropped, the sort is re-applied, and the view starts at the top. UI thread only.
+     * is dropped, the sort is re-applied, and the view starts at the top. A row a popup hangs
+     * from by one of its widget cells whose record the new rows hold is kept, as
+     * {@link #refresh()} keeps it. UI thread only.
      *
      * @param rows the rows; the table reads them on demand, so a change to the list's contents
      *             is invisible until {@link #refresh()}
@@ -1073,6 +1091,8 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
     public Table<T> setRows(List<T> rows) {
         Ui.checkUiThread();
         this.rows = Objects.requireNonNull(rows, "rows");
+        // A row a popup hangs from, by one of its widget cells, whose record the new rows hold.
+        java.util.IdentityHashMap<Slot, Integer> hung = slotsKept(null);
         boolean had = !selected.isEmpty() || lead >= 0;
         selected.clear();
         lead = -1;
@@ -1081,7 +1101,8 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         records.clear();
         resetRowIds();
         resort();
-        engine.reset(); // back to the start, and a reveal still waiting was asked of the old rows
+        // Back to the start, and a reveal still waiting was asked of the old rows.
+        unmountAllKeeping(hung, true);
         recomputeFooter();
         // Contained: the rows change inside a box whose measure does not read them (the seed
         // and the columns size it), so a filter that empties and refills the rows repaints
@@ -1517,16 +1538,22 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
      * records went, across as many refreshes as come before the next frame, and a reader's verb
      * sent before them acts on the record it named, or is refused when that record is gone. A row
      * published earlier and scrolled away since loses its node on the next refresh: the node names
-     * that record or nothing, never another. UI thread only.
+     * that record or nothing, never another.
+     *
+     * <p>A row from one of whose widget cells a popup hangs (a context menu opened on it, a
+     * popover) follows its record as the row of a focused widget cell does: its widgets stay, so
+     * the popup stays open through a refresh a timer or a server push makes; when the record is
+     * gone they are let go of and the popup closes with them. UI thread only.
      */
     public void refresh() {
         Ui.checkUiThread();
         // The nodes a reader holds first, before anything below re-mounts the rows under them.
         followPublishedRows();
         forgetOccurrences();
-        // The row whose widget cell holds the keyboard, found again before anything re-mounts.
-        Slot keep = focusedWidgetSlot();
-        int keepModel = keep == null ? -1 : findAgain(keep);
+        // The row whose widget cell holds the keyboard, and those a popup hangs from (a menu
+        // opened at a widget cell), found again before anything re-mounts: letting go of the
+        // latter would close the menu under the pointer on every refresh a timer makes.
+        java.util.IdentityHashMap<Slot, Integer> keep = slotsKept(focusedWidgetSlot());
         int count = rows.size();
         boolean moved = false;
         int wasFocusRow = focusRow;
@@ -1577,7 +1604,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
             rangeAnchor = Math.min(rangeAnchor, count - 1);
             resort();
         }
-        unmountAllKeeping(keepModel >= 0 ? keep : null, keepModel);
+        unmountAllKeeping(keep, false);
         textEpoch++;
         recomputeFooter();
         // Contained: the rows change inside a box whose measure does not read them (the seed
@@ -2040,8 +2067,13 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         int count = rows.size();
         int focusModel = focusRow >= 0 && focusRow < count ? modelOf(focusRow) : -1;
         int anchorModel = rangeAnchor >= 0 && rangeAnchor < count ? modelOf(rangeAnchor) : -1;
-        Slot keep = focusedWidgetSlot();
-        int keepModel = keep == null ? -1 : modelOf(keep.row);
+        java.util.IdentityHashMap<Slot, Integer> keep = new java.util.IdentityHashMap<>();
+        for (int p = 0; p < engine.mountedCount(); p++) {
+            Slot slot = engine.mountedAt(p);
+            if (slot.widgetCount > 0 && (containsFocus(slot) || holdsHungPopup(slot))) {
+                keep.put(slot, modelOf(slot.row));
+            }
+        }
         resort();
         int wasFocusRow = focusRow;
         if (focusModel >= 0) {
@@ -2050,7 +2082,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         if (anchorModel >= 0) {
             rangeAnchor = viewOf(anchorModel);
         }
-        unmountAllKeeping(keep, keepModel);
+        unmountAllKeeping(keep, false);
         if (focusRow >= 0) {
             // Deferred to the layout that re-places the rows: nothing is realized now, so the
             // reveal could only put the row at the top, and the least scroll needs the run.
@@ -2959,27 +2991,76 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
     }
 
     /**
-     * Releases every mounted row but {@code keep}, whose widget cell holds the keyboard and whose
-     * record stands at {@code model} now: it stays mounted, its widgets children and the focus
-     * where it is, re-bound to the row that shows its record. Until 2026-09-15 a refresh or a sort
-     * released it and handed the keyboard to the table, which is {@code ListView}'s rule for rows
-     * bound to data the list may no longer hold; a table follows its records, and a record found
-     * again is the one the widget was built for. With no row to keep this is {@link #unmountAll()}.
+     * The mounted rows to carry through a refresh, found again among the rows: {@code focused},
+     * whose widget cell holds the keyboard, and every row a popup hangs from by a widget cell.
+     *
+     * @param focused the row whose widget cell holds the keyboard, or null
+     * @return each one's record's model index now; those whose record is gone are left out
      */
-    private void unmountAllKeeping(Slot keep, int model) {
-        if (keep == null || model < 0 || model >= rows.size()) {
+    private java.util.IdentityHashMap<Slot, Integer> slotsKept(@Nullable Slot focused) {
+        java.util.IdentityHashMap<Slot, Integer> kept = new java.util.IdentityHashMap<>();
+        for (int p = 0; p < engine.mountedCount(); p++) {
+            Slot slot = engine.mountedAt(p);
+            if (slot.widgetCount > 0 && (slot == focused || holdsHungPopup(slot))) {
+                int model = findAgain(slot);
+                if (model >= 0 && !kept.containsValue(model)) {
+                    kept.put(slot, model);
+                }
+            }
+        }
+        return kept;
+    }
+
+    /** @return whether a popup hangs from one of {@code slot}'s widget cells */
+    private boolean holdsHungPopup(Slot slot) {
+        for (int c = 0; c < slot.widgets.length; c++) {
+            if (slot.widgets[c] != null && SceneAccess.holdsHungPopup(slot.widgets[c])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Releases every mounted row but those in {@code keep}, each of whose record stands at the
+     * model index it maps to now: one whose widget cell holds the keyboard, or from whose widget
+     * cell a popup hangs. Each stays mounted, its widgets children, the focus where it is and the
+     * popup open, re-bound to the row that shows its record. Until 2026-09-15 a refresh or a sort
+     * released the focused one and handed the keyboard to the table, which is {@code ListView}'s
+     * rule for rows bound to data the list may no longer hold; a table follows its records, and a
+     * record found again is the one the widget was built for. With no row to keep this is
+     * {@link #unmountAll()}.
+     *
+     * @param keep  the rows to keep, with their records' model indices now
+     * @param reset whether the view goes back to the start, for new rows altogether
+     */
+    private void unmountAllKeeping(java.util.IdentityHashMap<Slot, Integer> keep, boolean reset) {
+        java.util.IdentityHashMap<Slot, Integer> views = new java.util.IdentityHashMap<>();
+        keep.forEach((slot, model) -> {
+            if (model >= 0 && model < rows.size()) {
+                views.put(slot, viewOf(model));
+            }
+        });
+        // Every other row is let go of, and these are the only realized rows, at their new indices.
+        java.util.function.ToIntFunction<Slot> keepAt = slot -> views.getOrDefault(slot, -1);
+        if (reset) {
+            engine.reset(keepAt, false);
+        } else if (views.isEmpty()) {
             unmountAll();
             return;
+        } else {
+            engine.refresh(keepAt, false);
         }
-        int view = viewOf(model);
-        // Every other row is let go of, and this one is the only realized row, at its new index.
-        engine.refresh(keep, view);
-        keep.row = view;
-        keep.top = Float.NaN;
-        keep.id = rowIdOf(model);
-        keep.key = keyOf(rows.get(model));
-        keep.ordinalKnown = false;
-        rebind(keep);
+        for (int p = 0; p < engine.mountedCount(); p++) {
+            Slot slot = engine.mountedAt(p);
+            int model = keep.get(slot);
+            slot.row = engine.rowAt(p);
+            slot.top = Float.NaN;
+            slot.id = rowIdOf(model);
+            slot.key = keyOf(rows.get(model));
+            slot.ordinalKnown = false;
+            rebind(slot);
+        }
     }
 
     private boolean isPlaced(int index) {

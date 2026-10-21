@@ -52,7 +52,11 @@ A menu shown at a widget (`showAnchored(button, …)`, `showAt(row, x, y)`, a fi
 context menu) hangs from it as a popover hangs from its button: when the widget leaves the
 window (taken out, with the page around it when the window switches pages) or is hidden, the
 menu closes, so its rows never act on something that is gone. One shown at a point of the
-scene (`showAt(scene, x, y)`) hangs from no widget and stays until it is closed.
+scene (`showAt(scene, x, y)`) hangs from no widget and stays until it is closed. A row of a
+`ListView`, `Table` or `Tree` that a menu hangs from does not leave on a `refresh()` or a
+`setItems` while its item is still in the list: the row stays as it is until the menu closes,
+so a list a timer refreshes every second keeps its menus open, and the menu closes when its
+item is gone or its row would show another one.
 
 ## Keyboard shortcuts
 

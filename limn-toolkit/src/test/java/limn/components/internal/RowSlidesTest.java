@@ -56,6 +56,20 @@ class RowSlidesTest {
         }
 
         @Override
+        public boolean holdsPopup(Integer row) {
+            return false;
+        }
+
+        @Override
+        public limn.scene.Widget<?> widget() {
+            throw new AssertionError("no row is kept for a popup here");
+        }
+
+        @Override
+        public void rowsFreed() {
+        }
+
+        @Override
         public int cursorIndex() {
             return -1;
         }

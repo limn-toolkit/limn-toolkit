@@ -99,6 +99,12 @@ public final class SceneAccess {
         /** @param panel a closing popup's panel; see {@link SceneAccess#closePopupsHungIn} */
         void closePopupsHungIn(Widget<?> panel);
 
+        /** @param subtree a widget; see {@link SceneAccess#holdsHungPopup} */
+        boolean holdsHungPopup(Widget<?> subtree);
+
+        /** See {@link SceneAccess#observePopupLetGo}. */
+        Subscription observePopupLetGo(Scene scene, Widget<?> subtree, Runnable told);
+
         /** See {@link SceneAccess#hostOnRoot}. */
         void hostOnRoot(Scene scene, Widget<?> card);
 
@@ -587,6 +593,33 @@ public final class SceneAccess {
      */
     public static void closePopupsHungIn(Widget<?> panel) {
         hook().closePopupsHungIn(java.util.Objects.requireNonNull(panel, "panel"));
+    }
+
+    /**
+     * Whether a popup hangs from {@code subtree} or from a widget inside it (see
+     * {@link #observeAnchorLeaving}): a list asks it of a realized row before letting go of the
+     * row, which would close the popup though the row's item is still in the list. False for a
+     * widget in no scene.
+     *
+     * @param subtree a widget
+     * @return whether a popup hangs in it
+     */
+    public static boolean holdsHungPopup(Widget<?> subtree) {
+        return hook().holdsHungPopup(java.util.Objects.requireNonNull(subtree, "subtree"));
+    }
+
+    /**
+     * Tells {@code told} once, the next time a popup hung from {@code subtree} or a widget inside
+     * it closes, by any path, and then forgets it: a list that kept a row bound to what it showed
+     * before a refresh, because a popup hung from it, lets go of the row at its next pass.
+     *
+     * @param scene   the scene the subtree is in
+     * @param subtree the widget whose popups are watched
+     * @param told    runs once, on the UI thread, inside the close
+     * @return a handle that unregisters; twice is a no-op
+     */
+    public static Subscription observePopupLetGo(Scene scene, Widget<?> subtree, Runnable told) {
+        return hook().observePopupLetGo(java.util.Objects.requireNonNull(scene, "scene"), subtree, told);
     }
 
     /**

@@ -35,6 +35,7 @@ import limn.scene.event.DragStartEvent;
 import limn.scene.event.DropEvent;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
+import limn.scene.internal.SceneAccess;
 import limn.transfer.DataFormat;
 import limn.transfer.Drag;
 import limn.transfer.DropAction;
@@ -470,6 +471,22 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         }
 
         @Override
+        public boolean holdsPopup(Cell row) {
+            return SceneAccess.holdsHungPopup(row.widget);
+        }
+
+        @Override
+        public Widget<?> widget() {
+            return Tree.this;
+        }
+
+        @Override
+        public void rowsFreed() {
+            markNeedsContainedLayout();
+            invalidate();
+        }
+
+        @Override
         public int cursorIndex() {
             if (passCursor != UNKNOWN) {
                 return passCursor;
@@ -738,13 +755,23 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
      * dropped one announcement later if gone, and a step whose children nobody has fetched keeps
      * it, since confirming it would mean a load nobody asked for. The identifiers of what the model
      * no longer has are released with it.
+     *
+     * <p>A row a popup hangs from (a context menu opened on its cell, a popover) is not rebuilt
+     * while its node is still a row: its cell stays as it is, at the node's row now, so the popup
+     * stays open through a refresh a timer makes, and is built afresh at the first layout after
+     * the popup closes. When the node is no longer a row the cell is let go of and the popup
+     * closes with it.
      */
     public void refresh() {
         Ui.checkUiThread();
         recordPaths();
         loaded.clear();
         cancelAllLoads();
-        engine.refresh(null, -1);
+        // A row a popup hangs from (its context menu, a field's own menu) stays as it is where it
+        // stands, and the rebuild below carries it to its node's new row, or sets it aside for
+        // the next pass when the node is no longer a row, which closes the popup: letting go of
+        // it here would close the menu under the pointer on every refresh a timer makes.
+        engine.refresh(rowsWithPopups(), true);
         rebuildRows();
         forgetRevealedPaths();
         verifyHidden();
@@ -2316,6 +2343,28 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     private float cellLeft(SizeTokens t, int index, float w) {
         float lead = rows.get(index).depth * indent(t) + twistyBand(t);
         return Math.min(lead, Math.max(0, w - t.chevronHalfW() * 2));
+    }
+
+    /**
+     * Answers, for each realized row a popup hangs from, the row it stands at now, and -1 for
+     * every other: read before anything is let go of.
+     */
+    private java.util.function.ToIntFunction<Cell> rowsWithPopups() {
+        java.util.IdentityHashMap<Cell, Integer> at = null;
+        for (int p = 0; p < engine.mountedCount(); p++) {
+            Cell cell = engine.mountedAt(p);
+            if (SceneAccess.holdsHungPopup(cell.widget)) {
+                if (at == null) {
+                    at = new java.util.IdentityHashMap<>();
+                }
+                at.put(cell, engine.rowAt(p));
+            }
+        }
+        if (at == null) {
+            return cell -> -1;
+        }
+        java.util.IdentityHashMap<Cell, Integer> found = at;
+        return cell -> found.getOrDefault(cell, -1);
     }
 
     private @Nullable Widget<?> cellFor(int index) {

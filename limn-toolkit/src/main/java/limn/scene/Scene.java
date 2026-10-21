@@ -2629,7 +2629,62 @@ public final class Scene {
         HungPopup hung = new HungPopup(Objects.requireNonNull(anchor, "anchor"),
                 Objects.requireNonNull(gone, "gone"));
         hungPopups.add(hung);
-        return once(() -> hungPopups.remove(hung));
+        return once(() -> {
+            if (hungPopups.remove(hung)) {
+                letGo(hung.anchor());
+            }
+        });
+    }
+
+    /**
+     * Not API: whether a popup hangs from {@code subtree} or from a widget inside it; see
+     * {@link #observeAnchorLeaving}. A list asks it of a realized row before letting go of the
+     * row, which would close the popup.
+     *
+     * @param subtree a widget of this scene
+     * @return whether a popup hangs in it
+     */
+    boolean holdsHungPopup(Widget<?> subtree) {
+        for (HungPopup hung : hungPopups) {
+            if (isInSubtree(hung.anchor(), subtree)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** A watcher of the popups hung in a subtree letting go; see {@link #observePopupLetGo}. */
+    private record LetGoWatch(Widget<?> subtree, Runnable told) {
+    }
+
+    private final List<LetGoWatch> letGoWatches = new ArrayList<>();
+
+    /**
+     * Not API: tells {@code told} once, the next time a popup hung from {@code subtree} or a
+     * widget inside it lets go of its anchor (it closed, by any path), and then forgets it: a list
+     * that kept a row for a popup hears when it may let go of the row.
+     *
+     * @param subtree the widget whose popups are watched
+     * @param told    runs once, on the UI thread, inside the close
+     * @return a handle that unregisters
+     */
+    Subscription observePopupLetGo(Widget<?> subtree, Runnable told) {
+        Ui.checkUiThread();
+        LetGoWatch watch = new LetGoWatch(Objects.requireNonNull(subtree, "subtree"),
+                Objects.requireNonNull(told, "told"));
+        letGoWatches.add(watch);
+        return once(() -> letGoWatches.remove(watch));
+    }
+
+    private void letGo(Widget<?> anchor) {
+        if (letGoWatches.isEmpty()) {
+            return;
+        }
+        for (LetGoWatch watch : List.copyOf(letGoWatches)) {
+            if (isInSubtree(anchor, watch.subtree()) && letGoWatches.remove(watch)) {
+                watch.told().run();
+            }
+        }
     }
 
     /**
@@ -4698,6 +4753,17 @@ public final class Scene {
             @Override
             public Subscription observeAnchorLeaving(Scene scene, Widget<?> anchor, Runnable gone) {
                 return scene.observeAnchorLeaving(anchor, gone);
+            }
+
+            @Override
+            public boolean holdsHungPopup(Widget<?> subtree) {
+                Scene scene = subtree.scene();
+                return scene != null && scene.holdsHungPopup(subtree);
+            }
+
+            @Override
+            public Subscription observePopupLetGo(Scene scene, Widget<?> subtree, Runnable told) {
+                return scene.observePopupLetGo(subtree, told);
             }
 
             @Override

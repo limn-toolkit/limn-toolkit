@@ -1,6 +1,10 @@
 package limn.components.internal;
 
+import limn.concurrent.Subscription;
 import limn.scene.Change;
+import limn.scene.Scene;
+import limn.scene.Widget;
+import limn.scene.internal.SceneAccess;
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -16,7 +20,8 @@ import java.util.function.ToIntFunction;
  * row and how far above the box's top that row begins), which rows are realized and what each is
  * realized as, and the mean height the scroll bar's numbers are built from; and it does the
  * walk: placing rows from the anchor to the foot of the box, closing the gap a short end leaves,
- * letting go of the rows that left, keeping the one that holds the keyboard, settling a reveal.
+ * letting go of the rows that left, keeping the one that holds the keyboard and those a popup
+ * hangs from, settling a reveal.
  *
  * <p>What a row is, how tall, and where its box goes on the other axis are the widget's, behind
  * {@link Host}. So is the selection: the walk needs to know one thing of it, which row the
@@ -95,6 +100,22 @@ public final class Rows<E> {
          */
         boolean holdsFocus(E row);
 
+        /**
+         * @param row a realized row
+         * @return whether a popup (a context menu, a popover) hangs from it or from a widget
+         *         inside it, which letting go of the row would close
+         */
+        boolean holdsPopup(E row);
+
+        /** @return the widget the rows are realized in, whose popups closing frees a kept row */
+        Widget<?> widget();
+
+        /**
+         * A popup hung in a row that a refresh kept for it closed: the widget asks for its pass,
+         * which lets go of the row and realizes it afresh.
+         */
+        void rowsFreed();
+
         /** @return the row the keyboard is on while the widget itself holds it, or -1 */
         int cursorIndex();
 
@@ -120,6 +141,13 @@ public final class Rows<E> {
     private int mountedCount;
     /** Rows whose index is gone since the last pass, let go of at the next one. */
     private final List<E> orphans = new ArrayList<>();
+    /**
+     * Rows a refresh kept, bound to what they showed before it, only because a popup hung from
+     * them: let go of at the first pass after nothing hangs from them, which realizes them afresh.
+     */
+    private final List<E> heldStale = new ArrayList<>();
+    /** Asks the widget for a pass when a popup in it closes, while {@link #heldStale} has a row. */
+    private @Nullable Subscription freedWatch;
 
     private int anchorIndex;
     private float anchorTop;
@@ -147,6 +175,7 @@ public final class Rows<E> {
      */
     public void layout() {
         releaseOrphans(); // inside the pass, where the scene absorbs the removal
+        releaseFreed();
         int count = host.count();
         if (count == 0) {
             recycleExcept(0, 0, 0);
@@ -178,6 +207,26 @@ public final class Rows<E> {
         keepCursorRow(count);
         placeKeptOutside(viewH);
         updateMean();
+        watchHeld();
+    }
+
+    /**
+     * While a row is kept stale for a popup, has the next close of a popup in the widget ask for
+     * a pass, which lets the row go once nothing hangs from it: without one the row would show
+     * what it showed before the refresh until something else laid the widget out.
+     */
+    private void watchHeld() {
+        if (heldStale.isEmpty() || freedWatch != null) {
+            return;
+        }
+        Widget<?> widget = host.widget();
+        Scene scene = widget.scene();
+        if (scene != null) {
+            freedWatch = SceneAccess.observePopupLetGo(scene, widget, () -> {
+                freedWatch = null;
+                host.rowsFreed();
+            });
+        }
     }
 
     private void normalizeUp() {
@@ -252,8 +301,9 @@ public final class Rows<E> {
     /**
      * Lets go of every realized row outside {@code [from, to)}, sparing the one a control of
      * which holds the keyboard, and the cursor's while the widget holds it: a reader whose cursor
-     * follows the focus loses its place when the row it stands on is taken away. Both only while
-     * the row still exists.
+     * follows the focus loses its place when the row it stands on is taken away. Sparing too a
+     * row a popup hangs from, which letting go would close under the pointer. Each only while the
+     * row still exists.
      */
     private void recycleExcept(int from, int to, int count) {
         int cursor = host.cursorIndex();
@@ -263,13 +313,14 @@ public final class Rows<E> {
             E e = at(i);
             boolean inRun = row >= from && row < to;
             boolean hasFocus = !inRun && host.holdsFocus(e);
-            if (inRun || (row < count && (hasFocus || row == cursor))) {
+            if (inRun || (row < count && (hasFocus || row == cursor || host.holdsPopup(e)))) {
                 rows[kept] = row;
                 mounted[kept] = e;
                 heights[kept] = heights[i];
                 kept++;
                 continue;
             }
+            forgetHeld(e);
             host.unmount(e, hasFocus);
         }
         Arrays.fill(mounted, kept, mountedCount, null);
@@ -361,9 +412,54 @@ public final class Rows<E> {
 
     private void releaseOrphans() {
         for (E e : orphans) {
+            forgetHeld(e);
             host.unmount(e, host.holdsFocus(e));
         }
         orphans.clear();
+    }
+
+    /**
+     * Lets go of the rows a refresh kept for a popup that has closed since, so the pass realizes
+     * them afresh from what the widget holds now. Not one a control of which holds the keyboard
+     * (a field whose own menu that was): taken away now, it would take the keyboard from under
+     * the person who just used the menu, so it waits for the next refresh, which lets go of it
+     * by the widget's own rule for a row holding the keyboard.
+     */
+    private void releaseFreed() {
+        if (heldStale.isEmpty()) {
+            return;
+        }
+        for (E e : List.copyOf(heldStale)) {
+            if (host.holdsPopup(e) || host.holdsFocus(e)) {
+                continue;
+            }
+            forgetHeld(e);
+            for (int i = 0; i < mountedCount; i++) {
+                if (at(i) == e) {
+                    System.arraycopy(rows, i + 1, rows, i, mountedCount - i - 1);
+                    System.arraycopy(mounted, i + 1, mounted, i, mountedCount - i - 1);
+                    System.arraycopy(heights, i + 1, heights, i, mountedCount - i - 1);
+                    mountedCount--;
+                    mounted[mountedCount] = null;
+                    break;
+                }
+            }
+            host.unmount(e, host.holdsFocus(e));
+        }
+    }
+
+    private void forgetHeld(E e) {
+        if (!heldStale.isEmpty()) {
+            heldStale.removeIf(held -> held == e);
+        }
+    }
+
+    /**
+     * @return whether a refresh kept a row, bound to what it showed before, for a popup that
+     *         still hangs from it; the widget then asks for a pass when that popup closes
+     */
+    public boolean holdsStaleRows() {
+        return !heldStale.isEmpty();
     }
 
     /** @return how many rows are realized */
@@ -637,7 +733,20 @@ public final class Rows<E> {
 
     /** New rows altogether: every realized row is let go of, and the run is at its start. */
     public void reset() {
-        refresh(null, -1);
+        reset(row -> -1, false);
+    }
+
+    /**
+     * New rows altogether: every realized row is let go of but those {@code keepAt} carries over,
+     * and the run is at its start.
+     *
+     * @param keepAt answers the index a realized row's item has among the new rows, or a negative
+     *               to let go of it
+     * @param stale  whether the rows kept are bound to what they showed before; see
+     *               {@link #refresh(ToIntFunction, boolean)}
+     */
+    public void reset(ToIntFunction<? super E> keepAt, boolean stale) {
+        refresh(keepAt, stale);
         anchorIndex = 0;
         anchorTop = 0;
         revealPending = null; // a reveal still waiting was asked of the old rows
@@ -645,32 +754,62 @@ public final class Rows<E> {
 
     /**
      * The rows changed in place: every realized row is let go of, each being bound to what may no
-     * longer be there, but for one the widget carries over to the index its row now has.
+     * longer be there, but for one the widget carries over to the index its row now has and
+     * re-binds itself.
      *
      * @param keep      a realized row to carry over, or null for none
      * @param keepIndex the index its row has now
      */
     public void refresh(@Nullable E keep, int keepIndex) {
+        refresh(row -> row == keep ? keepIndex : -1, false);
+    }
+
+    /**
+     * The rows changed in place: every realized row is let go of, each being bound to what may no
+     * longer be there, but for those the widget carries over to the index their item has now.
+     *
+     * <p>A row kept {@code stale} is one the widget keeps only because a popup hangs from it, while
+     * its item is still among the rows: it shows what it showed before the refresh, and is let go
+     * of at the first pass after no popup hangs from it and no control of it holds the keyboard,
+     * which realizes it afresh. A row kept otherwise (one the widget re-binds itself) stays until
+     * the walk lets go of it.
+     *
+     * @param keepAt answers the index a realized row's item has now, or a negative to let go of
+     *               it; asked once of each, in row order. One that would no longer come after the
+     *               row kept before it is let go of, as {@link #renumber} does, since the widget's
+     *               children stand in row order
+     * @param stale  whether the rows kept are bound to what they showed before
+     */
+    public void refresh(ToIntFunction<? super E> keepAt, boolean stale) {
         releaseOrphans();
-        int keptHeight = -1;
+        int count = host.count();
+        int kept = 0;
+        int last = -1;
         for (int i = 0; i < mountedCount; i++) {
             E e = at(i);
-            if (e == keep) {
-                keptHeight = i;
+            int index = keepAt.applyAsInt(e);
+            if (index > last && index < count) {
+                last = index;
+                rows[kept] = index;
+                mounted[kept] = e;
+                heights[kept] = heights[i];
+                kept++;
                 continue;
             }
+            forgetHeld(e);
             host.unmount(e, host.holdsFocus(e));
         }
-        float h = keptHeight < 0 ? 0 : heights[keptHeight];
-        Arrays.fill(mounted, 0, mountedCount, null);
-        mountedCount = 0;
-        if (keep != null && keptHeight >= 0 && keepIndex >= 0) {
-            rows[0] = keepIndex;
-            mounted[0] = keep;
-            heights[0] = h;
-            mountedCount = 1;
+        Arrays.fill(mounted, kept, mountedCount, null);
+        mountedCount = kept;
+        if (stale) {
+            for (int i = 0; i < mountedCount; i++) {
+                E e = at(i);
+                if (heldStale.stream().noneMatch(held -> held == e)) {
+                    heldStale.add(e);
+                }
+            }
         }
-        anchorIndex = Math.max(0, Math.min(anchorIndex, Math.max(0, host.count() - 1)));
+        anchorIndex = Math.max(0, Math.min(anchorIndex, Math.max(0, count - 1)));
     }
 
     /**
