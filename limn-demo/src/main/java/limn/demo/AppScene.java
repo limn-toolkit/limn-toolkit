@@ -263,7 +263,7 @@ final class AppScene {
                         .keywords("VideoView, video, MediaPlayer, MediaControls, Poster, player, movie"),
                 new Place(ShowcaseStrings.NAV_VIEWPORT, "docs/images-and-media/#3d",
                         () -> scrolling(Viewport3DScene.tabContent())).icon("cube")
-                        .keywords("Viewport3D, 3D, glTF, model, render, scene"),
+                        .keywords("Viewport3D, 3D, glTF, model, render, scene, shader, GPU, fractal, Mandelbrot, environment, reflections, configurator, product"),
                 new Place(ShowcaseStrings.NAV_SOUND, "docs/images-and-media/#sound",
                         () -> scrolling(AudioScene.content())).icon("volume")
                         .keywords("Sounds, sound, audio, AudioClip, music, mixer, volume, pan"),

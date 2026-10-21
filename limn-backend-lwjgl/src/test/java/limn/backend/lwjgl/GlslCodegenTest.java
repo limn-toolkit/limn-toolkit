@@ -43,9 +43,11 @@ class GlslCodegenTest {
     void emitsTheStandardSurfaceExpressions() {
         String frag = standard(TargetProfile.GLSL_330).fragmentSource();
         // The five surface outputs are what the IR DAG actually produces.
+        // The texel is read for its colour and its alpha, and sampled once (ADR 077).
+        assertTrue(frag.contains("vec4 ir_t0 = texture(u_baseColorTex, v_uv);"), frag);
         assertTrue(frag.contains("vec4 baseColor = vec4(((srgbToLinear(u_baseColor.rgb) "
-                + "* srgbToLinear(texture(u_baseColorTex, v_uv).rgb)) * v_color.rgb), "
-                + "((u_baseColor.a * texture(u_baseColorTex, v_uv).a) * v_color.a));"), frag);
+                + "* srgbToLinear(ir_t0.rgb)) * v_color.rgb), "
+                + "((u_baseColor.a * ir_t0.a) * v_color.a));"), frag);
         assertTrue(frag.contains("float metallic = clamp(u_mr.x, 0.0, 1.0);"), frag);
         assertTrue(frag.contains("float roughness = clamp(u_mr.y, 0.04, 1.0);"), frag);
         assertTrue(frag.contains("vec3 emissive = (u_emissiveHasTex.xyz * v_color.rgb);"), frag);
@@ -126,7 +128,7 @@ class GlslCodegenTest {
     void everyReferenceTheSurfaceReadsIsDeclaredByTheFramework() {
         // A surface naming an input the framework does not declare compiles here and
         // fails as a GLSL link error on a device. Walking the DAG turns that into a
-        // unit failure: the shaders are never compiled anywhere in this suite.
+        // unit failure, where the device tests (SurfaceLoopGlTest) need a GL context to run.
         String frag = standard(TargetProfile.GLSL_330).fragmentSource();
         SurfaceOutputs surface = StandardSurface.metallicRoughness();
         Set<String> refs = new TreeSet<>();

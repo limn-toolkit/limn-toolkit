@@ -196,7 +196,8 @@ public sealed interface Material
      * <p><b>Inputs are named, and the names are the contract.</b> Each
      * {@link Texture} and {@link Value} is declared to the generated shader under its
      * own name, and the surface's IR reaches it with an {@link limn.render3d.shader.Expr.Ref}
-     * carrying that name and the matching type. A name that is declared and never
+     * carrying that name and the matching type. A name may not start {@code ir_}: those are the
+     * generator's, and a loop's state is one. A name that is declared and never
      * referenced is harmless; a name referenced and never declared fails to compile,
      * which is the right moment to find out.
      *
@@ -234,6 +235,14 @@ public sealed interface Material
             values = java.util.List.copyOf(values);
         }
 
+        /** Names that start {@code ir_} are the shader generator's, a loop's state among them. */
+        private static void refuseGeneratorName(String name) {
+            if (name.startsWith("ir_")) {
+                throw new IllegalArgumentException("an input's name may not start ir_, which the generator"
+                        + " names its own with: \"" + name + "\"");
+            }
+        }
+
         /** An opaque surface with no inputs of its own. */
         public static Surface of(String key, limn.render3d.shader.SurfaceOutputs outputs) {
             return new Surface(key, outputs, java.util.List.of(), java.util.List.of(), null);
@@ -257,6 +266,7 @@ public sealed interface Material
         public record Texture(String name, GpuTexture texture) {
             public Texture {
                 java.util.Objects.requireNonNull(name, "name");
+                refuseGeneratorName(name);
             }
         }
 
@@ -264,6 +274,7 @@ public sealed interface Material
         public record Value(String name, Vec4 value) {
             public Value {
                 java.util.Objects.requireNonNull(name, "name");
+                refuseGeneratorName(name);
                 java.util.Objects.requireNonNull(value, "value");
             }
 

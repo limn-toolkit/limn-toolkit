@@ -6,6 +6,7 @@ import limn.components.Theme;
 import limn.components.Viewport3D;
 import limn.math.Vec3;
 import limn.math.Vec4;
+import limn.render3d.Environment;
 import limn.render3d.Light;
 import limn.render3d.OrbitController;
 import limn.render3d.gltf.GltfLoader;
@@ -18,6 +19,9 @@ import limn.scene.Widget;
 import limn.scene.layout.Column;
 import limn.scene.layout.Flex;
 import limn.scene.layout.Padding;
+import org.jspecify.annotations.Nullable;
+
+import java.util.function.Consumer;
 
 /**
  * Loads a glTF 2.0 asset (embedded/base64, no AWT) and renders it as a retained
@@ -62,8 +66,24 @@ final class GltfScene {
         Scene3D scene;
     }
 
-    /** A viewport hosting the bundled glTF model, reused by the showcase's 3D page. */
+    /** The bundled model, as the page names it to its reader. */
+    static final String MODEL = "toy.gltf";
+
+    /** A viewport hosting the bundled glTF model. */
     static Viewport3D viewport(float width, float height) {
+        return viewport(width, height, null, null);
+    }
+
+    /**
+     * A viewport hosting the bundled glTF model, reused by the showcase's 3D page.
+     *
+     * @param sky    the environment the model stands under, which its gold box reflects; {@code null}
+     *               for none, where that metal reads as dull brown, having nothing to mirror
+     * @param loaded told the parsed model once its textures are decoded and the view can draw it,
+     *               on the UI thread; {@code null} for nobody
+     */
+    static Viewport3D viewport(float width, float height, @Nullable Environment sky,
+                               @Nullable Consumer<GltfModel> loaded) {
         Loading loading = new Loading();
 
         Viewport3D viewport = new Viewport3D().setPreferredSize(width, height);
@@ -76,6 +96,9 @@ final class GltfScene {
             // orbiting already works; there is just nothing to draw yet.
             if (loading.scene == null && loading.textures != null) {
                 loading.scene = build(loading.model, loading.textures);
+                if (sky != null) {
+                    loading.scene.environment(sky); // the skybox paints over the cleared background
+                }
             }
             if (loading.scene == null) {
                 return;
@@ -87,13 +110,16 @@ final class GltfScene {
         // No deliverIf on either job: this runs while the viewport is still being built, so it has
         // no scene yet and a liveness predicate over its attachment would refuse the only delivery
         // there is. Both handlers write plain fields and ask for a repaint, which is safe detached.
-        GltfLoader.fromResourceAsync("/limn/demo/models/toy.gltf")
+        GltfLoader.fromResourceAsync("/limn/demo/models/" + MODEL)
                 .onSuccess(model -> {
                     loading.model = model;
                     model.decodeTexturesAsync()
                             .onSuccess(textures -> {
                                 loading.textures = textures;
                                 viewport.invalidate();
+                                if (loaded != null) {
+                                    loaded.accept(model);
+                                }
                             })
                             .start();
                 })
