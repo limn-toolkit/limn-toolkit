@@ -228,6 +228,66 @@ class ShowcaseVideoPageTest {
         }
     }
 
+    /**
+     * The Showcase keeps its pages for the next visit, and a Video page left with its film open held
+     * the player (its decoding thread, its stream and the audio device) until the process ended,
+     * where the backend closed it with "A MediaPlayer was left open". The page now closes the player
+     * as it leaves the window, a page switch or the window closing alike, and opens the film again
+     * where it had reached when it is back, playing if it was.
+     */
+    @Test
+    void aPageThatLeavesClosesItsPlayerAndOpensTheFilmAgainWhereItWasWhenItIsBack() throws Exception {
+        assumeTrue(limn.video.ffmpeg.FfmpegLibrary.isAvailable(), "needs the FFmpeg native");
+        SyntheticVideoDecoder bars = new SyntheticVideoDecoder();
+        Videos.installDecoder(bars);
+        VideoScene.setSoundAllowed(true); // a player, with the film's soundtrack (no engine: silent)
+        try (HeadlessUi ui = new HeadlessUi()) {
+            limn.testing.HeadlessBackend backend = new limn.testing.HeadlessBackend(ui.runtime());
+            limn.testing.HeadlessWindow window = backend.open("Limn Showcase", 900, 700);
+            Widget<?> page = VideoScene.pageContent();
+            Column holder = new Column();
+            holder.add(page);
+            Scene scene = new Scene(holder);
+            scene.setTextRuler(limn.testing.HeadlessWindow.RULER);
+            scene.bind(window);
+            VideoView view = find(page, VideoView.class).get(0);
+            ui.pumpUntil(() -> view.player() != null, 30_000_000_000L);
+            limn.video.MediaPlayer first = view.player();
+            view.setPaused(false); // the transport's Play
+            ui.pumpUntil(() -> {
+                window.frame();
+                return first.positionMicros() > 200_000;
+            }, 30_000_000_000L);
+
+            holder.remove(page); // the Showcase showing another page
+            long leftAt = first.positionMicros();
+
+            assertEquals(limn.video.MediaPlayer.State.CLOSED, first.state(), "the player closed with the page");
+            assertNull(view.player());
+
+            holder.add(page); // and back
+            ui.pumpUntil(() -> {
+                window.frame();
+                return view.player() != null;
+            }, 30_000_000_000L);
+            limn.video.MediaPlayer again = view.player();
+            assertTrue(again != first, "a player of its own, the film opened again");
+            assertTrue(Math.abs(again.positionMicros() - leftAt) < 200_000,
+                    "at the picture it had reached: " + again.positionMicros() + " against " + leftAt);
+            ui.pumpUntil(() -> {
+                window.frame();
+                return again.state() == limn.video.MediaPlayer.State.PLAYING;
+            }, 30_000_000_000L);
+
+            window.close(); // the window closing takes the page out too
+            ui.runtime().drain();
+            assertEquals(limn.video.MediaPlayer.State.CLOSED, again.state(), "and the window closing closes it");
+        } finally {
+            VideoScene.setSoundAllowed(true);
+            Videos.uninstallDecoder(bars);
+        }
+    }
+
     @Test
     void aRunNobodyWatchesStillOpensTheClipWhileThePageIsBuilt() throws Exception {
         assumeTrue(limn.video.ffmpeg.FfmpegLibrary.isAvailable(), "needs the FFmpeg native");

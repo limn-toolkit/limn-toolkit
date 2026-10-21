@@ -940,6 +940,19 @@ final class VideoScene {
          * player and starts it again.
          */
         private boolean pausedByHiding;
+        /**
+         * Opens the entry shown again, from a position: set where the pane is part of a page (the
+         * Showcase's, the lab's tab), whose player this pane closes when the page leaves its window
+         * and opens again when it is back. Null for the pane of a window of its own, whose close
+         * closes the player.
+         */
+        private java.util.function.LongConsumer reopenAt;
+        /** Whether the player was closed as the pane left, to be opened again when it is back. */
+        private boolean closedOnLeaving;
+        /** Where the picture had reached when the pane left. */
+        private long leftAtMicros;
+        /** Whether it was playing then, and so plays again once it is back. */
+        private boolean playOnReturn;
 
         /**
          * Where the cues come from and what time to ask them about, or null when the source is not
@@ -971,6 +984,10 @@ final class VideoScene {
          * Keeps the open just started for this pane, to start it again should the pane leave its
          * scene before the open answers and come back later.
          */
+        void reopenAt(java.util.function.LongConsumer again) {
+            reopenAt = again;
+        }
+
         void reopenWith(Runnable again) {
             lastOpen = again;
             refused = false;
@@ -1007,12 +1024,40 @@ final class VideoScene {
         protected void onAttached() {
             super.onAttached();
             attachedOnce = true;
-            if (refused && opening != null && lastOpen != null) {
+            if (closedOnLeaving) {
+                // Back where it was: the entry opens again at the picture it had reached.
+                closedOnLeaving = false;
+                refused = false;
+                reopenAt.accept(leftAtMicros);
+            } else if (refused && opening != null && lastOpen != null) {
                 refused = false;
                 lastOpen.run();
             } else {
                 pollOpening();
             }
+        }
+
+        /**
+         * Closes the player and the stream as the pane leaves its window: the Showcase keeps its
+         * page for the next visit, and a page kept, or a window closed, with a player open held its
+         * decoder, its thread and the audio device until the process ended, where the backend
+         * closed it with a warning that it had been left open. {@link #onAttached} opens it again,
+         * at the picture it had reached, playing if it was.
+         */
+        @Override
+        protected void onDetached() {
+            // An open still in flight is left to answer: refused while the pane is away, it
+            // closes what it opened and the pane opens it again when it is back (refuse()).
+            if (reopenAt != null && open.opening == null && (open.player != null || open.stream != null)) {
+                leftAtMicros = view.positionMicros();
+                playOnReturn = pausedByHiding || !view.isPaused();
+                pausedByHiding = false;
+                view.setPlayer(null);
+                view.setSource(null);
+                open.closeAll();
+                closedOnLeaving = true;
+            }
+            super.onDetached();
         }
 
         /** Shows the view alone. */
@@ -1345,6 +1390,12 @@ final class VideoScene {
          * player would undo the viewer's own pause on the very next tick.
          */
         private void resumePlayer() {
+            if (playOnReturn && (open.player != null || view.source() != null)) {
+                // Opened again after the page came back, and it was playing when the page left.
+                playOnReturn = false;
+                view.setPaused(false);
+                return;
+            }
             limn.video.MediaPlayer player = open.player;
             if (player == null) {
                 return;
@@ -2456,6 +2507,7 @@ final class VideoScene {
         // switch) has to re-open THAT rather than whichever entry was last highlighted.
         Source[] current = {sources.get(initial)};
         reopen[0] = at -> play(pane, view, facts, open, current[0], sound[0], at);
+        pane.reopenAt(reopen[0]);
         restart[0] = () -> {
             if (open.player != null) {
                 // A soundtrack cannot be rewound by something that did not open it: handing it to

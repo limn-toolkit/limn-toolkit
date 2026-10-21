@@ -138,7 +138,10 @@ Maven Central say which number that was.
   that reached the page for up to half a second while the film opened. The bars are the picker's
   second entry, and the page opens on them where the video library will not load; a page left
   before its film opened opens it when it is back. The lab's `--scene video` still opens on its
-  bars, and its entry that writes a clip of its own is captioned "MP4".
+  bars, and its entry that writes a clip of its own is captioned "MP4". The page closes its player
+  when it leaves the window, for another page or with the window, and opens the film again where it
+  had reached, playing if it was, when it is back: a page left with its film open held the player
+  until the process ended, and the backend closed it with a warning that it had been left open.
 - The Showcase's Dialogs page no longer opens "Save changes to Harbor Supply?" by itself a moment
   after "Edit customer…": the question comes when the user cancels the form after changing a field,
   over the form still open, and its Cancel goes back to the form as it was left.
