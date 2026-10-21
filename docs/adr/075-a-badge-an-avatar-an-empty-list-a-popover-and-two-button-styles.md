@@ -1232,3 +1232,8 @@ enough.
   next layout, unless a control of it holds the keyboard, which waits for the next refresh. The
   popup closes when its item is gone or its row would show another one.
   `RowMenusOutliveARefreshTest`.
+- **The menu bar's collapse** (R15S-2). A menu-bar dropdown hung from the bar was closed by the
+  anchor rule ahead of the bar's own `onDetached`, and its close reached the bar as the person's
+  (`EXPANDED`, `USER`) on a page switch, a removal of the bar or hiding it. The bar now registers
+  with the same rule before its dropdown does and closes it itself, as an `ADJUSTMENT`.
+  `MenuBarCollapseOriginTest`.

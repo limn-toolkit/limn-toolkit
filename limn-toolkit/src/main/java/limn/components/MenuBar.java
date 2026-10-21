@@ -174,6 +174,13 @@ public final class MenuBar extends Widget<MenuBar> {
     /** The open dropdown's close observation, released when the bar lets the popup go. */
     private Subscription popupClosed;
     /**
+     * Closes the open dropdown when this bar leaves the scene or stops being shown (a page
+     * switch, the bar taken out or hidden) as the bar's own adjustment: registered before the
+     * dropdown hangs itself from the bar, so the scene runs it first, and the dropdown's own
+     * anchor rule then finds it closed. Released with the dropdown.
+     */
+    private @Nullable Subscription barLeaves;
+    /**
      * Whether the Alt currently held was pressed alone and nothing has been pressed since: the
      * state that separates "reaching for the menu bar" from "typing Alt+F". Cleared by any other
      * key press, which is why the bar activates on Alt's <em>release</em>: at press time a chord
@@ -1063,7 +1070,10 @@ public final class MenuBar extends Widget<MenuBar> {
         }
         popupClosed = popup.observeClose(() -> {
             // The dropdown went away on its own: dismissed, or an item chosen. Both are the
-            // user's, and both flip this bar's expanded state, which is what it announces.
+            // user's, and both flip this bar's expanded state, which is what it announces. A
+            // close the bar's leaving makes (a page switch, the bar taken out or hidden) is the
+            // bar's own, announced as ADJUSTMENT by barLeaves, which runs before the dropdown's
+            // anchor rule and releases this observer first, so it never reaches here.
             if (openPopup == popup) {
                 releasePopup();
                 if (!isFocused()) {
@@ -1086,6 +1096,11 @@ public final class MenuBar extends Widget<MenuBar> {
         popup.inScenePassThrough(this::pointOverTitle);
         openPopup = popup;
         invalidate();
+        Scene scene = scene();
+        if (scene != null) {
+            barLeaves = limn.scene.internal.SceneAccess.observeAnchorLeaving(scene, this,
+                    () -> closeMenu(Change.Origin.ADJUSTMENT));
+        }
         // Anchored on THIS widget, not on the scene: that is what makes a SMALL bar drop a
         // SMALL menu instead of one at the scene's (or the process's) default step.
         popup.showAnchored(this, title.x(), title.y(), title.width(), title.height());
@@ -1112,6 +1127,10 @@ public final class MenuBar extends Widget<MenuBar> {
         if (popupClosed != null) {
             popupClosed.cancel();
             popupClosed = null;
+        }
+        if (barLeaves != null) {
+            barLeaves.cancel();
+            barLeaves = null;
         }
         openPopup = null;
         openIndex = -1;
