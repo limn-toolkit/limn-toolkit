@@ -1204,3 +1204,13 @@ The review of `setRoot` (R14S) found where the note above promised more than the
   drop on the window goes to the new root, and the source, which left with the old one, hears the
   system's answer when the system ends it. `DragAutoScrollTest` pins it with a window whose drags
   the system carries.
+- **Redirects that never settle** (R14S-6). Each root asked for while one was being set was set
+  by a `setRoot` called from inside the change before, so two pages whose `onAttached` sent the
+  window to each other (two guards that disagree, an application's bug) recursed until a
+  `StackOverflowError`, some twenty thousand swaps later. The roots asked for are now set by a
+  loop in the outer call, one after the other, so a chain uses no more stack than one swap; and
+  after 64 roots set in one call with another still asked for, the call sets no more and throws
+  an `IllegalStateException` naming the cycle, the scene complete on the last root it set and
+  usable afterwards. 64 is far beyond any real chain (a sign-in page that finds the user signed
+  in is one hop) and small enough to stop at once. `SceneSetRootTest` follows a chain of 64
+  redirects to its last page and stops two pages that redirect to each other.

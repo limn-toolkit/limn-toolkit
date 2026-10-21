@@ -775,8 +775,12 @@ public final class Scene {
      *
      * <p>Asked again from code this call runs (an {@code onDetached} of the old root, an
      * {@code onAttached} of the new one, the handler of a popup closing), the change waits for this
-     * one to be complete and is then made; when several are asked, the last one wins. What such
-     * code throws is thrown once the change is complete.
+     * one to be complete and is then made; when several are asked, the last one wins. A root that
+     * asks for another as it joins hands the window on, and so on: after 64 roots set in one call
+     * with another still asked for, a chain that never settles (two pages whose guards disagree,
+     * each sending the window to the other as it joins), the call sets no more and throws an
+     * {@link IllegalStateException}, the scene showing the last root it set. What such code throws
+     * is thrown once the change is complete.
      *
      * <p>Refused as a new scene refuses its root, before anything moves: a widget with a parent,
      * another scene's root, an overlay on another scene's stack or on this one's, and the widget
@@ -785,6 +789,7 @@ public final class Scene {
      * @param root the new root; never null
      * @throws IllegalArgumentException if {@code root} has a parent, is another scene's root, or is
      *                                  an overlay on this or another scene's stack
+     * @throws IllegalStateException    if the roots asked for while it sets one never settle
      */
     public void setRoot(Widget<?> root) {
         Ui.checkUiThread();
@@ -801,8 +806,43 @@ public final class Scene {
             return;
         }
         refuseAsRoot(root);
-        replaceRoot(root);
+        Throwable failed = replaceRoot(root);
+        // Each root asked while one was being set, once that change is complete: a loop, not a
+        // call inside the change before, so a chain of redirects uses no more stack than one.
+        for (int asked = 0; ; asked++) {
+            Widget<?> next = rootAsked;
+            rootAsked = null;
+            if (next == null || next == this.root) {
+                break;
+            }
+            if (asked == MAX_ROOTS_ASKED_WHILE_SETTING) {
+                failed = HandlerFailures.add(failed, new IllegalStateException(
+                        "setting a scene's root never settled: " + MAX_ROOTS_ASKED_WHILE_SETTING
+                        + " roots were set, each asked for as the one before was set, and another "
+                        + "was asked for (pages that send the window on to each other as they join or "
+                        + "leave?); " + next.getClass().getName() + " was not set"));
+                break;
+            }
+            try {
+                refuseAsRoot(next);
+            } catch (RuntimeException error) {
+                failed = HandlerFailures.add(failed, error);
+                break;
+            }
+            Throwable more = replaceRoot(next);
+            if (more != null) {
+                failed = HandlerFailures.add(failed, more);
+            }
+        }
+        HandlerFailures.rethrow(failed);
     }
+
+    /**
+     * How many roots asked for while {@link #setRoot} sets one (from an {@code onAttached}, an
+     * {@code onDetached}, a closing popup's handler) one call follows, each once the change before
+     * is complete, before it stops: a chain of redirects that never settles.
+     */
+    static final int MAX_ROOTS_ASKED_WHILE_SETTING = 64;
 
     /**
      * Refuses {@code widget} as this scene's root, as a new scene refuses its root and before
@@ -873,8 +913,13 @@ public final class Scene {
         return failed;
     }
 
-    /** {@link #setRoot}, once {@code next} is known to be taken: the old root out, then {@code next} in. */
-    private void replaceRoot(Widget<?> next) {
+    /**
+     * {@link #setRoot}, once {@code next} is known to be taken: the old root out, then {@code next}
+     * in.
+     *
+     * @return what the handlers it ran threw, for the caller to throw once it is done; or null
+     */
+    private @Nullable Throwable replaceRoot(Widget<?> next) {
         Widget<?> old = root;
         // The way back of an overlay opened from the old root leads nowhere now: to the new root's
         // first stop instead, as the keyboard itself goes when it was in the old root.
@@ -889,8 +934,7 @@ public final class Scene {
             // The close walked the old root out already, and the next bind walks this one in.
             root = next;
             rootLetGo = false;
-            HandlerFailures.rethrow(rehostCards(old, null));
-            return;
+            return rehostCards(old, null);
         }
         boolean hadKeyboard = focused != null && isInSubtree(focused, old);
         // Not walked out when another scene took it after this one let go of it (a dialog's card
@@ -947,16 +991,7 @@ public final class Scene {
             firstStopOwed = false;
         }
         Widget.runSettled(settled); // once the new root is in and the keyboard placed
-        Widget<?> asked = rootAsked;
-        rootAsked = null;
-        if (asked != null && asked != root) {
-            try {
-                setRoot(asked);
-            } catch (RuntimeException | Error error) {
-                failed = HandlerFailures.add(failed, error);
-            }
-        }
-        HandlerFailures.rethrow(failed);
+        return failed;
     }
 
     /**

@@ -576,6 +576,79 @@ class SceneSetRootTest extends SceneTestBase {
         assertNull(signIn.scene());
     }
 
+    /** A page that redirects as it joins, to the next one, {@code hops} times: a chain that settles. */
+    private Page[] chain(Scene[] held, int hops) {
+        Page[] pages = new Page[hops + 1];
+        pages[hops] = new Page("page " + hops, log);
+        for (int i = hops - 1; i >= 0; i--) {
+            Page next = pages[i + 1];
+            pages[i] = new Page("page " + i, log) {
+                @Override protected void onAttached() {
+                    super.onAttached();
+                    held[0].setRoot(next);
+                }
+            };
+        }
+        return pages;
+    }
+
+    /**
+     * Each root asked as one joins is set once that change is complete, by a loop and not by a call
+     * inside the one before, so a long chain of redirects that settles uses no more stack than one.
+     */
+    @Test
+    void aLongChainOfRedirectsSettlesOnItsLastPage() {
+        Scene[] held = new Scene[1];
+        Page[] pages = chain(held, Scene.MAX_ROOTS_ASKED_WHILE_SETTING);
+        held[0] = new Scene(new Page("start", log));
+
+        held[0].setRoot(pages[0]);
+
+        assertSame(pages[pages.length - 1], held[0].root(), "every redirect followed, the last one shown");
+        for (int i = 0; i < pages.length - 1; i++) {
+            assertNull(pages[i].scene(), "page " + i + " passed through and left");
+        }
+    }
+
+    /**
+     * Two pages whose guards disagree, each sending the window to the other as it joins: an
+     * application bug that never settles. Before, every redirect was a call inside the one before
+     * and the stack overflowed after some twenty thousand; now the scene stops after its limit with
+     * an IllegalStateException that says so, on a page it has fully set, and is usable afterwards.
+     */
+    @Test
+    void twoPagesThatRedirectToEachOtherAreStoppedWithAClearRefusal() {
+        Scene[] held = new Scene[1];
+        Page[] pair = new Page[2];
+        AtomicInteger joins = new AtomicInteger();
+        for (int i = 0; i < 2; i++) {
+            int other = 1 - i;
+            pair[i] = new Page(i == 0 ? "orders" : "sign in", log) {
+                @Override protected void onAttached() {
+                    super.onAttached();
+                    joins.incrementAndGet();
+                    held[0].setRoot(pair[other]);
+                }
+            };
+        }
+        held[0] = new Scene(new Page("start", log));
+
+        IllegalStateException refused = assertThrows(IllegalStateException.class, () -> held[0].setRoot(pair[0]));
+
+        assertTrue(refused.getMessage().contains(String.valueOf(Scene.MAX_ROOTS_ASKED_WHILE_SETTING)), refused.getMessage());
+        assertEquals(Scene.MAX_ROOTS_ASKED_WHILE_SETTING + 1, joins.get(), "the first page and each redirect followed");
+        Widget<?> shown = held[0].root();
+        assertTrue(shown == pair[0] || shown == pair[1], "one of the two pages is the root");
+        assertSame(held[0], shown.scene(), "fully set");
+        Page other = shown == pair[0] ? pair[1] : pair[0];
+        assertNull(other.scene(), "the other left");
+        new Column().add(other); // and is free
+
+        Page settled = new Page("settled", log);
+        held[0].setRoot(settled);
+        assertSame(settled, held[0].root(), "the scene sets a root again afterwards");
+    }
+
     @Test
     void theLastRootAskedWhileItChangesWinsAndTheOthersAreToldNothing() {
         Page c = new Page("c", log);
