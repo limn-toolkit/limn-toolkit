@@ -415,4 +415,45 @@ class PageSwitchTest extends ComponentTestBase {
         menu.close();
         settle();
     }
+
+    // ------------------------------------------------------ a menu opened from a widget of the old page
+    //
+    // A context menu hangs from the widget it was opened at, as a popover does: it closes when
+    // that widget leaves, and the keyboard goes to the new page. Before, it stayed open across the
+    // switch, holding the keyboard, and its rows acted on the page that left (Select All selected
+    // in the departed field).
+
+    @ParameterizedTest
+    @EnumSource(DisplayMode.class)
+    void aFieldsOwnContextMenuClosesWithTheOldPage(DisplayMode mode) {
+        DisplayMode before = PopupMenu.defaultDisplayMode();
+        PopupMenu.setDefaultDisplayMode(mode);
+        try {
+            TextField old = new TextField().setText("hello world");
+            open(page(old));
+            int windows = backend.windows().size();
+            scene.requestFocus(old);
+            old.setCaretPosition(0);
+            settle();
+            drive(scene).press(limn.input.Keys.F10, limn.input.Keys.MOD_SHIFT);
+            settle();
+            boolean menuOpen = mode == DisplayMode.IN_SCENE ? scene.focusedWidget() != old
+                    : backend.windows().stream().filter(w -> !w.isClosed()).count() > windows;
+            assertTrue(menuOpen, mode + ": Shift+F10 opened the field's menu");
+            TextField first = new TextField();
+
+            scene.setRoot(page(first, new TextField()));
+            settle();
+
+            assertEquals(windows, backend.windows().stream().filter(w -> !w.isClosed()).count(),
+                    mode + ": no window of the menu's left open");
+            assertSame(first, scene.focusedWidget(), mode + ": the keyboard is on the new page");
+            drive(scene).press(limn.input.Keys.END);
+            drive(scene).press(limn.input.Keys.ENTER);
+            settle();
+            assertEquals(old.selectionStart(), old.selectionEnd(), mode + ": nothing selected in the field that left");
+        } finally {
+            PopupMenu.setDefaultDisplayMode(before);
+        }
+    }
 }

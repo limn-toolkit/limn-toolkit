@@ -1181,3 +1181,16 @@ The review of `setRoot` (R14S) found where the note above promised more than the
   root. `PageSwitchTest` asserts the new host, the new direction and size and that the old page
   is collected while a dialog (both display modes) and a menu (both) are up, and that a dialog
   shown over a widget the application named keeps it.
+- **A menu opened from a widget of the old page** (R14S-4). The note above, the `setRoot` Javadoc
+  and the widgets guide said a menu opened from the old root closes with it, but only the
+  anchored popups (popover, combo box, date picker, tab list) were hung from their anchor; a
+  `PopupMenu` (a context menu, a field's own Shift+F10 menu, any menu shown at a widget) stayed
+  open across the switch, and across a `Widget.remove` of its widget before that, holding the
+  keyboard while its rows acted on what had left (Select All selected in the departed field).
+  A menu shown at a widget now hangs from it through the same anchor-leaving rule (decision 15's
+  rule for popovers): it closes when the widget leaves the scene, by itself, with a container or
+  with the page, or stops being shown, and the keyboard, if it was in the menu, goes where R14S-2
+  sends it. A menu shown at a point of the scene hangs from no widget and stays. The note's
+  bullet above now reads true as written. `PopupMenuHangsFromItsAnchorTest` (removal of the
+  widget, of a container above it, hiding, and a menu at a point that stays) and
+  `PageSwitchTest` (a field's own menu across a page switch, in both display modes).

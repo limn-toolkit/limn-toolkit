@@ -210,6 +210,12 @@ public final class PopupMenu {
      */
     private List<LateKey> keysBeforeWindow;
     private Subscription dismissHandle;
+    /**
+     * Closes the menu when the widget it was shown at leaves the scene or stops being shown: a
+     * page switch, the row it was opened over taken out or hidden. {@code null} for a menu shown at
+     * a point of the scene, which hangs from no widget.
+     */
+    private @Nullable Subscription anchorLeaves;
     private Subscription blurHandle;
     private Subscription popupBlurHandle;
     /** Closes a menu that opened towards a window of its own when the owner changes fullscreen. */
@@ -363,13 +369,20 @@ public final class PopupMenu {
      *
      * <p>The coordinates are the anchor's <em>scene</em> coordinates (what
      * {@link limn.scene.event.MouseEvent#x()} reports), not anchor-local ones.
+     *
+     * <p>The menu hangs from {@code anchor}: it closes when the anchor leaves the scene, by
+     * itself, with a container or with the page {@link Scene#setRoot} replaces, and when it stops
+     * being shown, so its rows never act on a widget that has gone.
      */
     public void showAt(Widget<?> anchor, float x, float y) {
         Ui.checkUiThread();
         showAnchored(anchor, x, y, 0, 0);
     }
 
-    /** Opens the menu with its corner at the scene point {@code (x, y)}, at the scene's step. */
+    /**
+     * Opens the menu with its corner at the scene point {@code (x, y)}, at the scene's step. It
+     * hangs from no widget: nothing leaving the scene closes it.
+     */
     public void showAt(Scene ownerScene, float x, float y) {
         Ui.checkUiThread();
         showAnchored(ownerScene, x, y, 0, 0);
@@ -379,7 +392,7 @@ public final class PopupMenu {
      * Opens the menu attached to an anchor rectangle in {@code anchor}'s scene coordinates,
      * sized at the step resolved on {@code anchor}: it drops below the rect (a menu-bar
      * dropdown) and flips above when there is no room. A no-op for a widget outside a scene.
-     * UI thread only.
+     * Hangs from {@code anchor} as {@link #showAt(Widget, float, float)} does. UI thread only.
      */
     public void showAnchored(Widget<?> anchor, float ax, float ay, float aw, float ah) {
         Ui.checkUiThread();
@@ -415,6 +428,11 @@ public final class PopupMenu {
         }
         open = true;
         this.owner = ownerScene;
+        if (host != null) {
+            // Hung from the widget it was shown at, as a popover is: left open over a widget that
+            // went, it would hold the keyboard and every press, and its rows act on what left.
+            anchorLeaves = SceneAccess.observeAnchorLeaving(ownerScene, host, this::close);
+        }
         beginOpen(ownerScene.textRuler(), host, ownerScene);
         // Two cases give a menu no window of its own. A fullscreen window: GLFW minimizes one
         // fullscreen at a named mode when another window takes the focus, which the menu's does at
@@ -469,6 +487,10 @@ public final class PopupMenu {
             return;
         }
         open = false;
+        if (anchorLeaves != null) {
+            anchorLeaves.cancel();
+            anchorLeaves = null;
+        }
         if (keyRouteHandle != null) {
             // First: a key that arrives after this, in the batch that closed the menu, is the
             // owner's again, or the menu a menu bar walked to takes it.
