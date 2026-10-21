@@ -759,10 +759,13 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
      * <p>A row a popup hangs from (a context menu opened on its cell, a popover) is not rebuilt
      * while its node is still a row: its cell stays as it is, at the node's row now, so the popup
      * stays open through a refresh a timer makes, and is built afresh at the first layout after
-     * the popup closes. When the node is no longer a row the cell is let go of and the popup
-     * closes with it, and so is a cell the keyboard is in or returns to when its popup closes,
-     * such as a field whose own menu is open: kept, it would stay bound to the node it was built
-     * for, and an edit made in it would go there.
+     * the popup closes. The popup acts on the node the cell was built for, as the model gave it:
+     * a model that hands out new node objects equal to the old ones leaves it acting on the old
+     * object, so a menu that can outlive a refresh acts through the node's key. When the node is
+     * no longer a row the cell is let go of and the popup closes with it, and so is a cell the
+     * keyboard is in or returns to when its popup closes, such as a field whose own menu is open:
+     * kept, it would stay bound to the node it was built for, and an edit made in it would go
+     * there.
      */
     public void refresh() {
         Ui.checkUiThread();

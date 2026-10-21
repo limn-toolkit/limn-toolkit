@@ -69,6 +69,8 @@ class RowMenusOutliveARefreshTest extends ComponentTestBase {
 
     private final AtomicLong clock = new AtomicLong(TimeUnit.SECONDS.toNanos(1));
     private final List<String> ran = new ArrayList<>();
+    /** The order object each menu row acted on, in turn. */
+    private final List<Order> actedOn = new ArrayList<>();
     private DisplayMode modeBefore;
     private HeadlessBackend backend;
     private Scene scene;
@@ -144,7 +146,10 @@ class RowMenusOutliveARefreshTest extends ComponentTestBase {
     }
 
     private Menu menuFor(Order order) {
-        return new Menu().addItem("Open " + order, () -> ran.add("open " + order.number))
+        return new Menu().addItem("Open " + order, () -> {
+                    ran.add("open " + order.number);
+                    actedOn.add(order);
+                })
                 .addItem("Cancel " + order, () -> ran.add("cancel " + order.number));
     }
 
@@ -214,12 +219,18 @@ class RowMenusOutliveARefreshTest extends ComponentTestBase {
                 mode + ": and showing what the list holds now");
     }
 
+    /**
+     * A push of new objects equal to the old leaves the menu open, acting on the order its row was
+     * built for: the object the cell factory was given, equal to the list's but not the list's,
+     * which is what the documentation tells an application to act through the key for.
+     */
     @ParameterizedTest
     @EnumSource(DisplayMode.class)
     void setItemsWithTheSameOrdersKeepsTheMenuOpen(DisplayMode mode) {
         List<Widget<?>> built = new ArrayList<>();
         ListView<Order> list = regionList(built);
-        list.setItems(orders(1041, 1042, 1043));
+        List<Order> first = orders(1041, 1042, 1043);
+        list.setItems(first);
         open(list, mode);
         rightPress(row(list, 1043));
 
@@ -231,6 +242,8 @@ class RowMenusOutliveARefreshTest extends ComponentTestBase {
         assertTrue(menuOpen(mode), mode + ": a push with the same orders leaves the menu open");
         chooseFirst();
         assertEquals(List.of("open 1043"), ran, mode.name());
+        assertSame(first.get(2), actedOn.get(0), mode + ": on the object its row was built for");
+        assertNotSame(list.items().get(2), actedOn.get(0), mode + ": which is not the list's now");
     }
 
     @ParameterizedTest

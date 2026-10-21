@@ -1268,7 +1268,11 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
      * the top, and {@code CHILDREN}/{@code CODE} is announced. After changing the same list in
      * place, call {@link #refresh()} instead. A row a popup hangs from (its context menu, a
      * popover) whose item the new list holds is kept, as {@link #refresh()} keeps it, but not one
-     * the keyboard is in or returns to, such as a field whose own menu is open. UI thread only.
+     * the keyboard is in or returns to, such as a field whose own menu is open. The popup acts on
+     * the item its row was built for, as the cell factory was given it: when the new list holds
+     * new objects equal to the old, that is the old object and not the list's, so a menu that can
+     * outlive a push acts through the item's key, or finds the item in {@link #items()}, rather
+     * than changing the object it captured. UI thread only.
      *
      * @param newItems the items, in the order shown
      * @return this list
@@ -1488,8 +1492,10 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
      * its item is still in the list, found again by {@code equals} at the occurrence nearest where
      * it stood: it stays as it is, at its item's index now, so the popup stays open through a
      * refresh a timer or a server push makes, and it is realized afresh, from the item as it is
-     * then, at the first layout after the popup closes. When the item is gone, or the row would
-     * show another one, the row is let go of and the popup closes with it. So is a row the
+     * then, at the first layout after the popup closes. The popup acts on the item the row was
+     * built for, as the cell factory was given it, which is the list's own object unless the list
+     * now holds another equal to it (see {@link #setItems}). When the item is gone, or the row
+     * would show another one, the row is let go of and the popup closes with it. So is a row the
      * keyboard is in or returns to when its popup closes, such as a field whose own menu is open,
      * as a refresh lets go of the row holding the keyboard, which falls back to the list: kept,
      * the field would go on showing the item as it was, and stay bound to the object it was built

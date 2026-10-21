@@ -56,8 +56,12 @@ scene (`showAt(scene, x, y)`) hangs from no widget and stays until it is closed.
 `ListView`, `Table` or `Tree` that a menu hangs from does not leave on a `refresh()` or a
 `setItems` while its item is still in the list: the row stays as it is until the menu closes,
 so a list a timer refreshes every second keeps its menus open, and the menu closes when its
-item is gone or its row would show another one. A field's own menu in a list's or a tree's
-row is the exception: it closes on a refresh, and the keyboard goes back to the list.
+item is gone or its row would show another one. The menu acts on what its row was built with:
+after a `setItems` of new objects equal to the old ones (a server's reply), that is the old
+object, not the one the list now holds, so a menu that can outlive a push acts through the
+item's key, or finds the item in the list, rather than changing the object it captured. A
+field's own menu in a list's or a tree's row is the exception: it closes on a refresh, and the
+keyboard goes back to the list.
 
 ## Keyboard shortcuts
 

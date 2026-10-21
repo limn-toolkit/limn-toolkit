@@ -1082,7 +1082,10 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
      * Hands the table the application's rows, held by reference and never copied. The selection
      * is dropped, the sort is re-applied, and the view starts at the top. A row a popup hangs
      * from by one of its widget cells whose record the new rows hold is kept, as
-     * {@link #refresh()} keeps it. UI thread only.
+     * {@link #refresh()} keeps it: its texts show the record found again, and its widget cells
+     * stay those built for the record as it was handed then. A popup on them acts on that record,
+     * which after new objects equal to the old is the old object and not the table's, so a menu
+     * that can outlive a push acts through the record's key. UI thread only.
      *
      * @param rows the rows; the table reads them on demand, so a change to the list's contents
      *             is invisible until {@link #refresh()}
@@ -1542,8 +1545,9 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
      *
      * <p>A row from one of whose widget cells a popup hangs (a context menu opened on it, a
      * popover) follows its record as the row of a focused widget cell does: its widgets stay, so
-     * the popup stays open through a refresh a timer or a server push makes; when the record is
-     * gone they are let go of and the popup closes with them. UI thread only.
+     * the popup stays open through a refresh a timer or a server push makes, acting on the record
+     * its widget cell was built for; when the record is gone they are let go of and the popup
+     * closes with them. UI thread only.
      */
     public void refresh() {
         Ui.checkUiThread();
