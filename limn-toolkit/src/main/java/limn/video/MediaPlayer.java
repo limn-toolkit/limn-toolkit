@@ -12,6 +12,7 @@ import limn.sound.Sounds;
 import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -227,6 +228,14 @@ public final class MediaPlayer implements AutoCloseable {
      * meanwhile, so the two begin together.
      */
     private limn.concurrent.@Nullable Job audioStart;
+    /** The track {@link #audioStart} carries, which the cancel closes when the job has not taken it. */
+    private @Nullable AudioStreamSource audioStartTrack;
+    /**
+     * Who has {@link #audioStartTrack}: set once, by the job as it hands the track to the engine or
+     * by {@link #cancelAudioStart()} as it closes it, so exactly one of them owns it. A job cancelled
+     * before a worker ran it never runs its body, and the track would otherwise be closed by nobody.
+     */
+    private @Nullable AtomicBoolean audioStartTaken;
     /** Where a seek made while {@link #audioStart} ran moved the pictures, or -1: the sound joins there. */
     private long seekedWhileAudioStarts = -1;
     /** Whether the first picture is still to be shown while {@link #audioStart} runs. */
@@ -740,8 +749,9 @@ public final class MediaPlayer implements AutoCloseable {
      * interruption, and a decoder woken out of a read could leave its input at a position it cannot
      * describe.
      *
-     * <p>The audio track is closed here if it never reached the engine; if it did, the engine closed
-     * it. The video stream is <b>not</b> closed. Idempotent.
+     * <p>The audio track is closed here if it never reached the engine, one {@link #start()} was
+     * still handing over included; if it reached the engine, or reaches it after this returns, the
+     * engine is told to stop it and closes it. The video stream is <b>not</b> closed. Idempotent.
      */
     @Override
     public void close() {
@@ -1208,7 +1218,12 @@ public final class MediaPlayer implements AutoCloseable {
         clock.setPaused(true);
         seekedWhileAudioStarts = -1;
         firstPictureOwed = true;
-        audioStart = Ui.<Playback>work(progress -> Sounds.stream(handing, options))
+        AtomicBoolean taken = new AtomicBoolean();
+        audioStartTrack = handing;
+        audioStartTaken = taken;
+        audioStart = Ui.<Playback>work(progress -> taken.compareAndSet(false, true)
+                        ? Sounds.stream(handing, options)
+                        : Playback.NONE) // withdrawn first: the cancel closed it
                 .onSuccess(this::audioArrived)
                 .onFailure(error -> {
                     // Sounds.stream closes the track and answers NONE on every path it knows; a
@@ -1220,11 +1235,19 @@ public final class MediaPlayer implements AutoCloseable {
                 .start();
     }
 
-    /** Lets go of a track still on its way to the engine; the job's discard stops it if it sounds. */
+    /**
+     * Lets go of a track still on its way to the engine: closed here when the job has not taken it,
+     * and stopped by the job's discard when it has and it sounds.
+     */
     private void cancelAudioStart() {
         if (audioStart != null) {
             audioStart.cancel();
             audioStart = null;
+            if (audioStartTaken.compareAndSet(false, true)) {
+                audioStartTrack.close(); // never reached the engine, so still this player's
+            }
+            audioStartTrack = null;
+            audioStartTaken = null;
         }
     }
 
@@ -1234,6 +1257,8 @@ public final class MediaPlayer implements AutoCloseable {
      */
     private void audioArrived(Playback started) {
         audioStart = null;
+        audioStartTrack = null;
+        audioStartTaken = null;
         if (state == State.CLOSED || state == State.IDLE) {
             started.stop(); // stopped or closed in the same turn the track arrived
             return;

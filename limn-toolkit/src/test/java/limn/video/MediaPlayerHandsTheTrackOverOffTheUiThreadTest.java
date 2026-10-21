@@ -67,6 +67,15 @@ class MediaPlayerHandsTheTrackOverOffTheUiThreadTest {
                 .setClock(new VideoClock(hand::get));
     }
 
+    /** Runs the UI thread's queue until {@code done}, for ten seconds at most, and returns either way. */
+    private void pumpFor(java.util.function.BooleanSupplier done) {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (!done.getAsBoolean() && System.nanoTime() < deadline) {
+            ui.runtime().drain();
+            Thread.onSpinWait();
+        }
+    }
+
     private void arrived(MediaPlayer player) {
         engine.open.countDown();
         ui.pumpUntil(() -> !player.isHandingAudioOver(), 10_000_000_000L);
@@ -152,6 +161,158 @@ class MediaPlayerHandsTheTrackOverOffTheUiThreadTest {
 
         assertTrue(engine.handle.calls.contains("stop"), "the engine was told to stop the track it took");
         assertSame(Playback.NONE, player.audio());
+    }
+
+    /**
+     * A {@code start()} followed in the same turn by a {@code close()}, a {@code stop()} or a
+     * {@code restart()}: an autoplay a page's attach starts and the same turn's page switch closes,
+     * or {@code player.start(); if (!allowed) player.stop();}. The close usually beats the hand-over
+     * to the track, and a hand-over that was withdrawn before it took the track left it closed by
+     * nobody (1992 of 2000 in a review run), so a container kept queueing that track's packets for
+     * as long as it stayed open. Exactly one side owns the track, and it is closed exactly once.
+     */
+    @Test
+    void aCloseAStopOrARestartInTheTurnOfTheStartClosesTheTrackExactlyOnce() {
+        ClosingEngine closing = new ClosingEngine();
+        Sounds.installEngine(closing);
+        try {
+            int n = 2000;
+            List<CountingSource> tracks = new ArrayList<>();
+            for (int i = 0; i < n; i++) {
+                MediaPlayer player = player(new Hand());
+                CountingSource track = new CountingSource();
+                tracks.add(track);
+                player.setAudio(track, PlayOptions.DEFAULTS);
+                player.start();
+                switch (i % 3) {
+                    case 0 -> player.close();
+                    case 1 -> {
+                        player.stop();
+                        player.close();
+                    }
+                    default -> {
+                        player.restart(); // silent afterwards: the track went with the stop
+                        player.close();
+                    }
+                }
+            }
+            pumpFor(() -> tracks.stream().allMatch(track -> track.closes.get() > 0));
+            assertEquals(0, tracks.stream().filter(track -> track.closes.get() == 0).count(),
+                    "tracks closed by nobody");
+            for (int i = 0; i < n; i++) {
+                assertEquals(1, tracks.get(i).closes.get(), "track " + i + " closed exactly once");
+            }
+            assertEquals(closing.taken.get(), closing.stopped.get(),
+                    "every track the engine took was stopped");
+        } finally {
+            Sounds.uninstallEngine(closing);
+        }
+    }
+
+    /**
+     * The same close with every worker of the application busy, so the hand-over cannot have taken
+     * the track yet: it was closed by nobody, and the engine never saw it.
+     */
+    @Test
+    void aCloseWhileTheWorkersAreBusyClosesTheTrack() throws Exception {
+        ClosingEngine closing = new ClosingEngine();
+        Sounds.installEngine(closing);
+        CountDownLatch busy = new CountDownLatch(1);
+        CountDownLatch holding = new CountDownLatch(1);
+        limn.concurrent.Ui.<Void>work(progress -> {
+            holding.countDown();
+            busy.await(); // a slow server call of the application's
+            return null;
+        }).start();
+        try {
+            assertTrue(holding.await(10, TimeUnit.SECONDS));
+            MediaPlayer player = player(new Hand());
+            CountingSource track = new CountingSource();
+            player.setAudio(track, PlayOptions.DEFAULTS);
+            player.start();
+            player.close();
+            pumpFor(() -> track.closes.get() > 0);
+            assertEquals(1, track.closes.get(), "closed while the workers are still busy");
+            busy.countDown();
+            Thread.sleep(100);
+            ui.runtime().drain();
+            assertEquals(1, track.closes.get(), "closed exactly once");
+            assertEquals(closing.taken.get(), closing.stopped.get());
+        } finally {
+            busy.countDown();
+            Sounds.uninstallEngine(closing);
+        }
+    }
+
+    /** An audio source that counts its closes. */
+    private static final class CountingSource implements AudioStreamSource {
+        final java.util.concurrent.atomic.AtomicInteger closes = new java.util.concurrent.atomic.AtomicInteger();
+
+        @Override
+        public int channels() {
+            return 2;
+        }
+
+        @Override
+        public int sampleRate() {
+            return 44_100;
+        }
+
+        @Override
+        public int readFrames(short[] out, int maxFrames) {
+            return maxFrames;
+        }
+
+        @Override
+        public void reset() {
+        }
+
+        @Override
+        public void close() {
+            closes.incrementAndGet();
+        }
+    }
+
+    /** An engine that takes a stream at once and closes it when told to stop, as the real one does. */
+    private static final class ClosingEngine implements AudioEngine {
+        final java.util.concurrent.atomic.AtomicInteger taken = new java.util.concurrent.atomic.AtomicInteger();
+        final java.util.concurrent.atomic.AtomicInteger stopped = new java.util.concurrent.atomic.AtomicInteger();
+
+        @Override
+        public Playback play(AudioClip clip, float gain, boolean loop) {
+            return Playback.NONE;
+        }
+
+        @Override
+        public Playback playStream(AudioStreamSource source, PlayOptions options) {
+            taken.incrementAndGet();
+            return new Playback() {
+                private boolean done;
+
+                @Override
+                public synchronized void stop() {
+                    if (!done) {
+                        done = true;
+                        stopped.incrementAndGet();
+                        source.close();
+                    }
+                }
+
+                @Override
+                public boolean isPlaying() {
+                    return true;
+                }
+
+                @Override
+                public void setGain(float gain) {
+                }
+            };
+        }
+
+        @Override
+        public boolean isAvailable() {
+            return true;
+        }
     }
 
     /** An audio source with nothing in it. */
