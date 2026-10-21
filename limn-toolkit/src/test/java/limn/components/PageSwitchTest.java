@@ -59,6 +59,24 @@ class PageSwitchTest extends ComponentTestBase {
         runtime.drain();
     }
 
+    /** A window that cannot place another (fullscreen, Wayland): every popup is drawn in the scene. */
+    private void openOnAWindowThatPlacesNoOther(Column page) {
+        scene = new Scene(page, clock::get);
+        scene.setTextRuler(RULER);
+        scene.bind(new limn.testing.StubWindow(false));
+        frames();
+    }
+
+    /** {@link #settle()} for a scene bound to a window of no backend. */
+    private void frames() {
+        for (int i = 0; i < 14; i++) {
+            clock.addAndGet(TimeUnit.MILLISECONDS.toNanos(50));
+            runtime.drain();
+            scene.renderFrame(new limn.testing.NoopCanvas(600, 400));
+        }
+        runtime.drain();
+    }
+
     private static Column page(limn.scene.Widget<?>... widgets) {
         Column page = new Column();
         for (limn.scene.Widget<?> widget : widgets) {
@@ -156,5 +174,138 @@ class PageSwitchTest extends ComponentTestBase {
 
         assertSame(next, scene.root(), mode + ": the answer switched the page");
         assertSame(first, scene.focusedWidget(), mode + ": the new page's first field");
+    }
+
+    // ------------------------------------------------------- the keyboard in a popup of the old page
+    //
+    // A popup hung from the old page closes with it; when the keyboard was in that popup, not in
+    // the page, it goes to the new page's first stop, as it does in a window of the popup's own
+    // (where the page under it kept the keyboard all along). Before, the popup's close looked for
+    // a first stop in a page that had not joined yet, found none, and left the keyboard on
+    // nothing until a Tab.
+
+    @ParameterizedTest
+    @EnumSource(DisplayMode.class)
+    void theKeyboardInAPopoverOfTheOldPageGoesToTheNewPagesFirstStop(DisplayMode mode) {
+        Button opener = new Button("Account");
+        open(page(new TextField(), opener));
+        scene.requestFocus(opener);
+        TextField inPanel = new TextField();
+        Popover popover = new Popover(page(inPanel)).setDisplayMode(mode);
+        popover.showFor(opener);
+        settle();
+        if (mode == DisplayMode.IN_SCENE) {
+            scene.requestFocus(inPanel);
+            assertSame(inPanel, scene.focusedWidget(), "the keyboard is in the panel");
+        }
+        TextField first = new TextField();
+
+        scene.setRoot(page(first, new TextField()));
+
+        assertSame(first, scene.focusedWidget(), mode + ": the new page's first stop, at once");
+        settle();
+        assertFalse(popover.isOpen(), mode.name());
+        assertSame(first, scene.focusedWidget(), mode + ": and there it stays");
+    }
+
+    /** The commonest page switch: an account panel's Settings button, clicked or pressed with Space. */
+    @ParameterizedTest
+    @EnumSource(DisplayMode.class)
+    void aPopoversButtonThatSwitchesThePageGivesTheKeyboardToTheNewPagesFirstStop(DisplayMode mode) {
+        for (boolean byKey : new boolean[] {false, true}) {
+            String how = mode + (byKey ? ", Space" : ", click");
+            Button opener = new Button("Account");
+            open(page(new TextField(), opener));
+            scene.requestFocus(opener);
+            TextField first = new TextField();
+            Column settings = page(first, new TextField());
+            Button go = new Button("Settings").onAction(() -> scene.setRoot(settings));
+            Popover popover = new Popover(page(go)).setDisplayMode(mode);
+            popover.showFor(opener);
+            settle();
+            Scene panel = go.scene();
+            assertNotNull(panel, how);
+            if (byKey) {
+                panel.requestFocus(go);
+                drive(panel).press(limn.input.Keys.SPACE);
+            } else {
+                drive(panel).click(go);
+            }
+
+            assertSame(settings, scene.root(), how + ": the button switched the page");
+            assertSame(first, scene.focusedWidget(), how + ": the new page's first stop");
+            settle();
+            assertFalse(popover.isOpen(), how);
+            assertSame(first, scene.focusedWidget(), how + ": and there it stays");
+        }
+    }
+
+    @ParameterizedTest
+    @EnumSource(DisplayMode.class)
+    void anOpenComboBoxListOfTheOldPageGivesTheKeyboardToTheNewPagesFirstStop(DisplayMode mode) {
+        ComboBox<String> combo = new ComboBox<>(List.of("one", "two", "three"));
+        combo.setDisplayMode(mode);
+        open(page(combo));
+        scene.requestFocus(combo);
+        combo.open();
+        settle();
+        assertTrue(combo.isOpen(), mode.name());
+        TextField first = new TextField();
+
+        scene.setRoot(page(first, new TextField()));
+
+        assertSame(first, scene.focusedWidget(), mode + ": the new page's first stop");
+        settle();
+        assertFalse(combo.isOpen(), mode.name());
+        assertSame(first, scene.focusedWidget(), mode + ": and there it stays");
+    }
+
+    /** In the scene: the menus of a window whose bar the system does not draw. */
+    @Test
+    void anOpenMenuBarDropdownOfTheOldPageGivesTheKeyboardToTheNewPagesFirstStop() {
+        boolean letters = limn.scene.internal.AccessLetterSystem.setPresentForTests(true); // Alt+F, whatever the host
+        try {
+            MenuBar bar = new MenuBar().setDisplayMode(DisplayMode.IN_SCENE)
+                    .addMenu("&File", new Menu().addItem("Open", () -> { }));
+            openOnAWindowThatPlacesNoOther(page(bar, new TextField()));
+            drive(scene).press(limn.input.Keys.F, limn.input.Keys.MOD_ALT);
+            frames();
+            assertTrue(bar.isOpen(), "Alt+F opened the dropdown");
+            assertNotNull(scene.focusedWidget(), "the keyboard is in the dropdown");
+            TextField first = new TextField();
+
+            scene.setRoot(page(first, new TextField()));
+
+            assertSame(first, scene.focusedWidget(), "the new page's first stop");
+            frames();
+            assertFalse(bar.isOpen());
+            assertSame(first, scene.focusedWidget(), "and there it stays");
+        } finally {
+            limn.scene.internal.AccessLetterSystem.setPresentForTests(letters);
+        }
+    }
+
+    /** In the scene, as on a window that cannot place another. */
+    @Test
+    void anOpenTabListOfTheOldPageGivesTheKeyboardToTheNewPagesFirstStop() {
+        TabbedPane pane = new TabbedPane();
+        for (String title : List.of("Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot")) {
+            pane.addTab(title, new limn.scene.layout.SizedBox(60, 60));
+        }
+        openOnAWindowThatPlacesNoOther(page(new limn.scene.layout.SizedBox(200, 120, pane))); // narrower than six tabs
+        scene.focusTraverse(false); // the strip, the pane's one tab stop
+        drive(scene).keyEvent(limn.input.Keys.DOWN, true, false, limn.input.Keys.MOD_ALT);
+        drive(scene).keyEvent(limn.input.Keys.DOWN, false, false, limn.input.Keys.MOD_ALT);
+        drive(scene).inputBatchEnded();
+        frames();
+        assertTrue(pane.isTabListOpen(), "Alt+Down opened the list");
+        TextField first = new TextField();
+
+        scene.setRoot(page(first, new TextField()));
+
+        assertSame(first, scene.focusedWidget(), "the new page's first stop");
+        frames();
+        assertFalse(pane.isTabListOpen());
+        assertSame(first, scene.focusedWidget(), "and there it stays");
     }
 }

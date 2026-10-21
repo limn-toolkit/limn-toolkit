@@ -46,7 +46,7 @@ scene.setRoot(ordersPage());
 
 The page that leaves is told it left, as a widget taken out of its container is, and
 whatever it had open (a menu, a popover) closes with it. If the keyboard was on that page,
-it goes to the new page's first field. A widget belongs to one place at a time, a scene's
+or in something it had open, it goes to the new page's first field. A widget belongs to one place at a time, a scene's
 root, an overlay or a container's child, so the page that left can be shown again later or
 put anywhere else; while it is a scene's root, every other place refuses it.
 

@@ -1148,3 +1148,18 @@ handler that switches the page, a popup hung from the old root, a fade in it, th
 paths and the closed scene; `PartialRenderingTest` the whole frame, `SceneDragTest` the drag, and
 `PageSwitchTest` a popover in both display modes, a composition, a reader's tree and a dialog
 whose answer switches the page.
+
+## Note, 2026-10-20 (review): `setRoot` and what hung from the page that left
+
+The review of `setRoot` (R14S) found where the note above promised more than the code did.
+
+- **The keyboard in a popup of the old page** (R14S-2). A popover with focusable content, a combo
+  box's list, a menu bar's menu or the list of every tab, drawn in the scene and holding the
+  keyboard, closes as the old root is walked out; its close looked for the root's first stop in a
+  root that had not joined yet, found none, and left the keyboard on nothing, while the same
+  switch with the popup in a window of its own (where the page kept the keyboard all along) gave
+  the new page's first stop. An overlay that closes while the root changes now owes the new root
+  its first stop, given once the new root has joined, as when the keyboard was in the old root;
+  a widget the new root's content asks for as it joins still wins. `PageSwitchTest` switches the
+  page with the keyboard in a popover, from a popover's button (clicked and with Space), with a
+  combo box's list, a menu bar's menu and the tab list open, and asserts where the keyboard went.

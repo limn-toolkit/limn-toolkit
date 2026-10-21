@@ -762,7 +762,9 @@ public final class Scene {
      * frame lays out and paints the whole window. The overlays on the stack stay where they are.
      *
      * <p>The keyboard goes to the new root's first focusable widget, arriving as {@link
-     * #focusTraverse} puts it there, only when it was in the old root; a widget the new root's
+     * #focusTraverse} puts it there, only when it was in the old root or in a popup that closes
+     * as the old root leaves (a popover, a combo box's list, a menu bar's menu drawn in the
+     * scene, where it had taken the keyboard); a widget the new root's
      * content asks for with {@link #requestFocus} as it joins (from an {@link Widget#onAttached()})
      * is focused instead. An overlay opened while the keyboard was in the old root gives it to the
      * new root's first focusable widget when it closes, in place of the widget that left.
@@ -817,6 +819,12 @@ public final class Scene {
 
     /** Whether {@link #setRoot} is walking the old root out or the new one in; a call made meanwhile waits. */
     private boolean rootChanging;
+
+    /**
+     * Whether an overlay closed while {@link #rootChanging} owes the new root's first stop the
+     * keyboard it held: it closed as the old root left, before the new one had joined.
+     */
+    private boolean firstStopOwed;
 
     /** The root asked for while {@link #rootChanging}, set once the change is complete; else {@code null}. */
     private @Nullable Widget<?> rootAsked;
@@ -895,7 +903,7 @@ public final class Scene {
             walkMayNameDetached = true;
             try {
                 // Unless the new root's content asked for one of its widgets as it joined.
-                if (hadKeyboard && focused == null && keyboardRoot() == root) {
+                if ((hadKeyboard || firstStopOwed) && focused == null && keyboardRoot() == root) {
                     focusTraverse(false);
                 }
             } catch (RuntimeException | Error error) {
@@ -905,6 +913,7 @@ public final class Scene {
         } finally {
             ROOTS_JOINING.remove(next);
             rootChanging = false;
+            firstStopOwed = false;
         }
         Widget.runSettled(settled); // once the new root is in and the keyboard placed
         Widget<?> asked = rootAsked;
@@ -1457,7 +1466,8 @@ public final class Scene {
 
     /**
      * Gives the keyboard back as {@code overlay} closes: to {@code restore}, the widget it took it
-     * from, if that is still usable; to the root's first stop when the way back led into a root
+     * from, if that is still usable; while {@link #setRoot} changes the root, to the new root's
+     * first stop once it has joined; to the root's first stop when the way back led into a root
      * {@link #setRoot} has replaced since ({@code toFirstStop}); else to nothing.
      */
     private void focusAsOverlayCloses(Widget<?> overlay, @Nullable Widget<?> restore, boolean toFirstStop) {
@@ -1465,6 +1475,12 @@ public final class Scene {
                 && isInSubtree(restore, keyboardRoot()) && canTakeFocus(restore)) {
             // The overlay closing is what moved the focus, not whoever closed it.
             giveFocusBack(restore);
+        } else if (rootChanging && !detachedByClose) {
+            // Closed while setRoot changes the root (a popup hung from the old root, closed by its
+            // walk out): the keyboard was in the window, and the new root, which has not joined
+            // yet and has no stop, takes it at its first one once it has.
+            firstStopOwed = true;
+            setFocus(null, Change.Origin.ADJUSTMENT);
         } else if (toFirstStop && restore == null && !detachedByClose && keyboardRoot() == root) {
             focusTraverse(false, Change.Origin.ADJUSTMENT); // as the closing gives a widget back
         } else {
