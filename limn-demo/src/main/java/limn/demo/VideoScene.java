@@ -1094,7 +1094,15 @@ final class VideoScene {
          */
         void showNotice(String why) {
             opening = null;
+            // Whatever was to play again on return cannot: an entry the viewer picks next starts
+            // paused, as every video does, rather than inheriting the film that failed.
+            playOnReturn = false;
             noticeIs(why);
+        }
+
+        /** Another entry is chosen: it starts as an entry does, not as the one that left was. */
+        void forgetPlayOnReturn() {
+            playOnReturn = false;
         }
 
         /**
@@ -2558,6 +2566,7 @@ final class VideoScene {
             }
             current[0] = sources.get(index);
             describe.accept(current[0]);
+            pane.forgetPlayOnReturn();
             play(pane, view, facts, open, current[0], sound[0]);
         });
 
@@ -2570,6 +2579,7 @@ final class VideoScene {
         openFile.onAction(() -> pick(openFile, say).thenAccept(picked -> picked.ifPresent(file -> {
             current[0] = ownFile(file);
             describe.accept(current[0]);
+            pane.forgetPlayOnReturn();
             // A file somebody has just chosen is one they want to see play: from here on what
             // this view is given starts by itself. The entry the page opens on does not, since a
             // page nobody asked anything of should not start a soundtrack.

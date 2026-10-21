@@ -288,6 +288,93 @@ class ShowcaseVideoPageTest {
         }
     }
 
+    /**
+     * The bars playing as the page leaves, and opening them again failing as it comes back (the
+     * file gone, a decoder that refuses it): the page said it could not play them and kept the note
+     * that it was playing as it left, so the next entry the viewer picked started by itself,
+     * though a video starts paused.
+     */
+    @Test
+    void aFilmThatCannotBeOpenedAgainOnReturnLeavesTheNextEntryPaused() throws Exception {
+        assumeTrue(limn.video.ffmpeg.FfmpegLibrary.isAvailable(), "needs the FFmpeg native");
+        SyntheticVideoDecoder bars = new SyntheticVideoDecoder();
+        java.util.concurrent.atomic.AtomicBoolean gone = new java.util.concurrent.atomic.AtomicBoolean();
+        java.util.concurrent.atomic.AtomicInteger opened = new java.util.concurrent.atomic.AtomicInteger();
+        limn.video.VideoDecoder vanishing = new limn.video.VideoDecoder() {
+            @Override
+            public String name() {
+                return "bars that can go";
+            }
+
+            @Override
+            public boolean supports(Path file) {
+                return bars.supports(file);
+            }
+
+            @Override
+            public VideoStreamSource openStream(Path file) {
+                if (gone.get()) {
+                    throw new IllegalStateException("the file is gone");
+                }
+                opened.incrementAndGet();
+                return bars.openStream(file);
+            }
+        };
+        Videos.installDecoder(vanishing);
+        VideoScene.setSoundAllowed(true); // the clip gets a player (no engine: silent)
+        try (HeadlessUi ui = new HeadlessUi()) {
+            limn.testing.HeadlessBackend backend = new limn.testing.HeadlessBackend(ui.runtime());
+            limn.testing.HeadlessWindow window = backend.open("Limn Showcase", 900, 700);
+            Widget<?> page = VideoScene.pageContent();
+            Column holder = new Column();
+            holder.add(page);
+            Scene scene = new Scene(holder);
+            scene.setTextRuler(limn.testing.HeadlessWindow.RULER);
+            scene.bind(window);
+            VideoView view = find(page, VideoView.class).get(0);
+            ui.pumpUntil(() -> view.player() != null, 30_000_000_000L); // the clip
+            limn.video.MediaPlayer clip = view.player();
+            SegmentedControl picker = sourcePicker(page);
+            scene.requestFocus(picker);
+            limn.testing.SceneDriver.drive(scene).press(limn.input.Keys.RIGHT); // the bars
+            assertEquals(VideoScene.Text.BARS, picker.segmentSource(picker.selectedIndex()), "sanity: the bars picked");
+            ui.pumpUntil(() -> opened.get() == 1 && view.player() != clip
+                    && (view.player() != null || view.source() != null), 30_000_000_000L);
+            view.setPaused(false); // the transport's Play
+            window.frame();
+            assertFalse(view.isPaused(), "sanity: the bars play");
+
+            gone.set(true);
+            holder.remove(page); // the Showcase showing another page, the bars playing
+            holder.add(page); // and back: opening the bars again fails
+            CountDownLatch answered = new CountDownLatch(1);
+            ui.workers().execute(answered::countDown); // one worker: behind the open
+            assertTrue(answered.await(30, TimeUnit.SECONDS), "the open never finished");
+            ui.runtime().drain();
+            window.frame();
+            assertNull(view.source(), "sanity: nothing could be opened");
+            assertNull(view.player(), "sanity: nothing could be opened");
+
+            gone.set(false);
+            scene.requestFocus(picker);
+            limn.testing.SceneDriver.drive(scene).press(limn.input.Keys.LEFT); // the clip, chosen
+            assertEquals(VideoScene.Text.CLIP, picker.segmentSource(picker.selectedIndex()), "sanity: the clip picked");
+            ui.pumpUntil(() -> view.player() != null, 30_000_000_000L);
+            for (int i = 0; i < 5; i++) {
+                window.frame(); // the frames the pane resumes on
+                ui.runtime().drain();
+            }
+
+            assertTrue(view.isPaused(), "the entry chosen next starts paused, as every video does");
+            assertEquals(limn.video.MediaPlayer.State.IDLE, view.player().state());
+            window.close();
+            ui.runtime().drain();
+        } finally {
+            VideoScene.setSoundAllowed(true);
+            Videos.uninstallDecoder(vanishing);
+        }
+    }
+
     @Test
     void aRunNobodyWatchesStillOpensTheClipWhileThePageIsBuilt() throws Exception {
         assumeTrue(limn.video.ffmpeg.FfmpegLibrary.isAvailable(), "needs the FFmpeg native");
