@@ -777,11 +777,12 @@ public final class Scene {
      * {@code onAttached} of the new one, the handler of a popup closing, the {@code onArrive} of a
      * fade or a motion that ends as its container leaves), the change waits for this one to be
      * complete and is then made; when several are asked, the last one wins. A root that
-     * asks for another as it joins hands the window on, and so on: after 64 roots set in one call
-     * with another still asked for, a chain that never settles (two pages whose guards disagree,
-     * each sending the window to the other as it joins), the call sets no more and throws an
-     * {@link IllegalStateException}, the scene showing the last root it set. What such code throws
-     * is thrown once the change is complete.
+     * asks for another as it joins hands the window on, and so on: when, after the root it was
+     * given and 64 more asked for in turn, yet another is asked for, a chain that never settles
+     * (two pages whose guards disagree, each sending the window to the other as it joins), the
+     * call sets no more and throws an {@link IllegalStateException}, the scene showing the last
+     * root it set. What such code throws is thrown once the change is complete; with a chain that
+     * never settles, it is attached to that {@code IllegalStateException} as suppressed.
      *
      * <p>Refused as a new scene refuses its root, before anything moves: a widget with a parent,
      * another scene's root, an overlay on another scene's stack or on this one's, and the widget
@@ -790,7 +791,8 @@ public final class Scene {
      * @param root the new root; never null
      * @throws IllegalArgumentException if {@code root} has a parent, is another scene's root, or is
      *                                  an overlay on this or another scene's stack
-     * @throws IllegalStateException    if the roots asked for while it sets one never settle
+     * @throws IllegalStateException    if the roots asked for while it sets one never settle, with
+     *                                  what the code it ran threw, if anything, as suppressed
      */
     public void setRoot(Widget<?> root) {
         Ui.checkUiThread();
@@ -817,11 +819,18 @@ public final class Scene {
                 break;
             }
             if (asked == MAX_ROOTS_ASKED_WHILE_SETTING) {
-                failed = HandlerFailures.add(failed, new IllegalStateException(
-                        "setting a scene's root never settled: " + MAX_ROOTS_ASKED_WHILE_SETTING
-                        + " roots were set, each asked for as the one before was set, and another "
-                        + "was asked for (pages that send the window on to each other as they join or "
-                        + "leave?); " + next.getClass().getName() + " was not set"));
+                // The exception the Javadoc promises, whatever a handler threw on the way, which
+                // rides on it: attached the other way round, the caller caught the handler's.
+                IllegalStateException never = new IllegalStateException(
+                        "setting a scene's root never settled: after the root asked for, "
+                        + MAX_ROOTS_ASKED_WHILE_SETTING + " more were set, each asked for as the one "
+                        + "before was set, and another was asked for (pages that send the window on to "
+                        + "each other as they join or leave?); " + next.getClass().getName()
+                        + " was not set");
+                if (failed != null) {
+                    never.addSuppressed(failed);
+                }
+                failed = never;
                 break;
             }
             try {
@@ -840,8 +849,9 @@ public final class Scene {
 
     /**
      * How many roots asked for while {@link #setRoot} sets one (from an {@code onAttached}, an
-     * {@code onDetached}, a closing popup's handler) one call follows, each once the change before
-     * is complete, before it stops: a chain of redirects that never settles.
+     * {@code onDetached}, a closing popup's handler, a settled arrival) one call follows after the
+     * root it was given, each once the change before is complete, before it stops: a chain of
+     * redirects that never settles. One call sets this many plus one at most.
      */
     static final int MAX_ROOTS_ASKED_WHILE_SETTING = 64;
 

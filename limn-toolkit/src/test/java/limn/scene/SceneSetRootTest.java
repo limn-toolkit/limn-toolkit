@@ -650,6 +650,39 @@ class SceneSetRootTest extends SceneTestBase {
     }
 
     /**
+     * The same two disagreeing guards, one of which also throws the first time it runs: the caller
+     * still gets the IllegalStateException the Javadoc promises, with what the guard threw attached
+     * to it as suppressed. Before, the refusal was attached to the guard's throw instead, and the
+     * caller caught the guard's RuntimeException, not the documented exception.
+     */
+    @Test
+    void aChainThatNeverSettlesIsRefusedWithTheIllegalStateExceptionEvenWhenAGuardThrew() {
+        Scene[] held = new Scene[1];
+        Page[] pair = new Page[2];
+        AtomicInteger joins = new AtomicInteger();
+        RuntimeException guardFailed = new RuntimeException("guard failed once");
+        for (int i = 0; i < 2; i++) {
+            int other = 1 - i;
+            pair[i] = new Page(i == 0 ? "orders" : "sign in", log) {
+                @Override protected void onAttached() {
+                    super.onAttached();
+                    held[0].setRoot(pair[other]);
+                    if (joins.incrementAndGet() == 1) {
+                        throw guardFailed;
+                    }
+                }
+            };
+        }
+        held[0] = new Scene(new Page("start", log));
+
+        IllegalStateException refused = assertThrows(IllegalStateException.class, () -> held[0].setRoot(pair[0]));
+
+        assertEquals(List.of(guardFailed), List.of(refused.getSuppressed()), "what the guard threw, attached");
+        assertEquals(Scene.MAX_ROOTS_ASKED_WHILE_SETTING + 1, joins.get(),
+                "the root it was given and the 64 asked for in turn");
+    }
+
+    /**
      * Two pages, each fading in as it joins, whose fade's end insists the window shows that page:
      * when a page leaves mid-fade its fade is settled and its {@code onArrive} runs as the change
      * completes, sending the window back. Before, that ran after the change had ended, as a call

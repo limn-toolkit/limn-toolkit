@@ -1251,3 +1251,10 @@ enough.
   arrivals each insisted on their own page recursed until a `StackOverflowError`. A `setRoot` made
   while those run now waits for the loop as one made during the change does, and counts against
   the same cap. `SceneSetRootTest`.
+- **The refusal a chain gets** (R15S-5). When a handler in the chain had thrown (a guard that
+  throws once, an `onDetached` that fails), the cap's `IllegalStateException` was attached to that
+  throw as suppressed, and the caller caught the handler's exception, not the one the Javadoc
+  promises. The `IllegalStateException` is now always what is thrown, carrying what the handlers
+  threw as suppressed. "After 64 roots set" was also one short: the call sets the root it was given
+  and 64 more asked for in turn, and stops when yet another is asked; the Javadoc and the message
+  now say so. `SceneSetRootTest`.

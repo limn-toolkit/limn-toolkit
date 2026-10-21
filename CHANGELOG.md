@@ -1327,8 +1327,10 @@ Maven Central say which number that was.
   its widgets as it joined. A dialog shown on the scene, or a menu shown at a point of it, moves to
   the new root; one the application hung from a widget stays with that widget. A drag already
   handed to the system goes on, its drop going to the new root. A `setRoot` asked from inside the
-  change waits for it and is then made, the last one winning, and a chain that has not settled
-  after 64 roots stops with an `IllegalStateException` that names it.
+  change waits for it and is then made, the last one winning (a fade's or a motion's `onArrive`
+  that ends as its page leaves included), and a chain that has not settled after the root given
+  and 64 more stops with an `IllegalStateException` that names it, carrying what the pages'
+  handlers threw on the way.
 - `ScrollBar.Model.scrollBy(delta)`, by default `setOffset(offset() + delta)`: a model whose offset
   is an estimate, as a list's over rows of different heights is, moves by what is on screen instead.
   A drag's auto-scroll moves a bar this way.
