@@ -60,7 +60,8 @@ item is gone or its row would show another one. The menu acts on what its row wa
 after a `setItems` of new objects equal to the old ones (a server's reply), that is the old
 object, not the one the list now holds, so a menu that can outlive a push acts through the
 item's key, or finds the item in the list, rather than changing the object it captured. A
-field's own menu in a list's or a tree's row is the exception: it closes on a refresh, and the
+menu on a list's or a tree's row that holds the keyboard is the exception (a click on a field,
+a button or a check box in the row gives the row the keyboard): it closes on a refresh, and the
 keyboard goes back to the list.
 
 ## Keyboard shortcuts
