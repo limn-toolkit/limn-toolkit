@@ -50,9 +50,16 @@ class WorkBudgetTest {
 
     private HeadlessUi ui;
 
+    /**
+     * The time every scene and the UI here see unless a test moves its own: still, so what a frame
+     * costs never depends on how long the machine took to get there (a scroll bar's hold and fade
+     * read the clock, and under load the measured frame drew one command more or less).
+     */
+    private static final java.util.function.LongSupplier STILL = () -> 0L;
+
     @BeforeEach
     void start() {
-        ui = new HeadlessUi();
+        ui = new HeadlessUi(STILL);
     }
 
     @AfterEach
@@ -70,7 +77,7 @@ class WorkBudgetTest {
 
     /** One more notch of the wheel over {@code content}, framed. */
     private static Work scrolling(Widget<?> content, long[] asked) {
-        Scene scene = new Scene(content);
+        Scene scene = new Scene(content, STILL);
         scene.setTextRuler(TestRulers.FIXED);
         Work.Counting canvas = new Work.Counting(WIDTH, HEIGHT);
         scene.layoutPass(WIDTH, HEIGHT);
@@ -165,7 +172,7 @@ class WorkBudgetTest {
                 return new Label("Node " + node);
             }
         });
-        Scene scene = new Scene(tree);
+        Scene scene = new Scene(tree, STILL);
         scene.setTextRuler(TestRulers.FIXED);
         Work.Counting canvas = new Work.Counting(WIDTH, HEIGHT);
         scene.layoutPass(WIDTH, HEIGHT);
@@ -199,7 +206,7 @@ class WorkBudgetTest {
                     return order.customer();
                 })));
         table.setRows(orders(count));
-        Scene scene = new Scene(table);
+        Scene scene = new Scene(table, STILL);
         scene.setTextRuler(TestRulers.FIXED);
         Work.Counting canvas = new Work.Counting(WIDTH, HEIGHT);
         scene.layoutPass(WIDTH, HEIGHT);
@@ -438,7 +445,7 @@ class WorkBudgetTest {
         for (int i = 0; i < rows; i++) {
             column.add(new Label("Row " + i));
         }
-        Scene scene = new Scene(new limn.scene.layout.Opacity(column).setOpacity(opacity));
+        Scene scene = new Scene(new limn.scene.layout.Opacity(column).setOpacity(opacity), STILL);
         scene.setTextRuler(TestRulers.FIXED);
         Work.Counting canvas = new Work.Counting(WIDTH, HEIGHT);
         scene.layoutPass(WIDTH, HEIGHT);
@@ -521,7 +528,7 @@ class WorkBudgetTest {
                 column.add(row);
             }
         }
-        Scene scene = new Scene(column);
+        Scene scene = new Scene(column, STILL);
         scene.setTextRuler(TestRulers.FIXED);
         Work.Counting canvas = new Work.Counting(WIDTH, HEIGHT);
         scene.layoutPass(WIDTH, HEIGHT);
@@ -536,7 +543,7 @@ class WorkBudgetTest {
         column.add(new Label("At rest"));
         column.add(new Button("Does nothing"));
         column.add(new ListView<String>(Label::new).setItems(List.of("One", "Two", "Three")));
-        Scene scene = new Scene(column);
+        Scene scene = new Scene(column, STILL);
         scene.setTextRuler(TestRulers.FIXED);
         scene.bind(window);
         window.frame();
