@@ -258,6 +258,85 @@ class SelectionBackFromOverlayTest extends ComponentTestBase {
         assertEquals("hello CLIP", field.text(), menus + ": the menu's Paste replaced it");
     }
 
+    /**
+     * A listener that sets the text the field already holds when it loses the keyboard (a binding
+     * that writes its value back on blur) changes no character, so what the person had selected is
+     * still there for Cut, Copy and Paste: before, setting the text, even the same text, ended the
+     * commands' record, and in the scene they found nothing.
+     */
+    @ParameterizedTest
+    @EnumSource(DisplayMode.class)
+    void theSameTextSetOnBlurDoesNotTakeTheSelectionFromCutCopyAndPaste(DisplayMode menus) {
+        open(menus);
+        HeadlessWindow window = window();
+        window.clipboard().setText("CLIP");
+        field.observeChanges((source, change) -> {
+            if (change.aspect() == limn.scene.Change.Aspect.FOCUS && !field.isFocused()) {
+                field.setText(field.text());
+            }
+        });
+        area.observeChanges((source, change) -> {
+            if (change.aspect() == limn.scene.Change.Aspect.FOCUS && !area.isFocused()) {
+                area.setText(area.text());
+            }
+        });
+        scene.requestFocus(field);
+        field.select(6, 11);
+        settle();
+        ownMenuRow(1);
+        assertEquals("world", window.clipboard().text(), menus + ": the menu's Copy copied the selection");
+
+        field.select(6, 11);
+        settle();
+        runFirstRow(new Menu().add(MenuItem.of(MenuItem.Role.CUT)), field);
+        assertEquals("world", window.clipboard().text(), menus + ": the Cut role cut the selection");
+        assertEquals("hello ", field.text(), menus + ": and took it out");
+
+        field.setText("hello world");
+        field.select(6, 11);
+        window.clipboard().setText("CLIP");
+        settle();
+        ownMenuRow(2);
+        assertEquals("hello CLIP", field.text(), menus + ": the menu's Paste replaced it");
+
+        scene.requestFocus(area);
+        area.select(5, 8); // "one"
+        settle();
+        ownMenuRow(0);
+        assertEquals("one", window.clipboard().text(), menus + ": the area's Cut cut its selection");
+        assertEquals("line \nline two\nline three\nline four", area.text(), menus + ": and took it out");
+    }
+
+    /**
+     * The other side of the case above: a listener that sets a different text on blur (one that
+     * trims the value) changes what the selection's offsets point at, so the commands find nothing
+     * to act on rather than a range of the new text the person never selected.
+     */
+    @ParameterizedTest
+    @EnumSource(DisplayMode.class)
+    void aDifferentTextSetOnBlurLeavesTheCommandsNothingToActOn(DisplayMode menus) {
+        open(menus);
+        HeadlessWindow window = window();
+        window.clipboard().setText("CLIP");
+        field.setText("  hello world");
+        field.observeChanges((source, change) -> {
+            if (change.aspect() == limn.scene.Change.Aspect.FOCUS && !field.isFocused()) {
+                field.setText(field.text().strip());
+            }
+        });
+        scene.requestFocus(field);
+        field.select(8, 13); // "world"
+        settle();
+        ownMenuRow(1);
+        if (menus == DisplayMode.IN_SCENE) {
+            assertEquals("hello world", field.text(), menus + ": the listener trimmed the text as the menu took the keyboard");
+            assertEquals("CLIP", window.clipboard().text(), menus + ": nothing of the new text was copied");
+        } else {
+            // A menu in a window of its own leaves the field the keyboard: no blur, the selection stands.
+            assertEquals("world", window.clipboard().text(), menus + ": Copy copied the selection");
+        }
+    }
+
     @ParameterizedTest
     @EnumSource(DisplayMode.class)
     void aPasswordFieldsLeftSelectionIsNotCopiedButIsPastedOver(DisplayMode menus) {

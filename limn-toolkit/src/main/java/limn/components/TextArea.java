@@ -244,6 +244,11 @@ public final class TextArea extends Widget<TextArea> {
         boolean moved = !model.text().equals(text);
         selectionLeft = null; // the caret goes to the end of the new text, and that is what comes back
         model.setText(text);
+        if (!moved && rangeLeft != null) {
+            // The same text (a binding that writes its value back as the keyboard leaves): every
+            // character is where it was, so what was selected is still there for the commands.
+            rangeLeft[2] = model.textVersion();
+        }
         scrollX = 0;
         scrollY = 0;
         goalX = Float.NaN;
@@ -2099,7 +2104,8 @@ public final class TextArea extends Widget<TextArea> {
      * did, and each selects it again to act on it. Kept apart from {@link #selectionLeft} because
      * a caret moved while the area is away (a listener that shows the head of the value when the
      * keyboard leaves) says the selection is not to come back, not that the person chose the
-     * command over something else; only an edit of the text, or the keyboard coming back, ends it.
+     * command over something else; only an edit of the text (setting the text it already holds is
+     * not one), or the keyboard coming back, ends it.
      */
     private long @Nullable [] rangeLeft;
 

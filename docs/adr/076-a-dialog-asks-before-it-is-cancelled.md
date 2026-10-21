@@ -253,3 +253,15 @@ head of a long value) made the menu's Cut and Copy find nothing, where a menu in
 own, which leaves the field the keyboard, cut and copied the selection (R11S-6). The field now
 keeps two records: the selection to give back with the keyboard, forgotten by any set as above, and
 the selection the commands act on, ended only by an edit of the text or the keyboard coming back.
+
+### 2026-10-20 (review): the same text set on blur keeps the commands' selection
+
+Setting the text, even the text the field already held, moved the text's version, and the
+commands' record is kept for one version: a listener that writes the value back as the field loses
+the keyboard (a binding that normalises on blur and finds nothing to change) made the menu's Cut,
+Copy and Paste in the scene find nothing, as the moved caret did before the note above. Setting the
+text the field or area already holds now stamps that record with the new version, since every
+character is where it was; a different text still ends it, because the offsets would then name
+characters the person never selected. The record given back with the keyboard is forgotten as
+before: setting the text puts the caret at its end. `SelectionBackFromOverlayTest` sets the same
+text, and a trimmed one, on blur, in both display modes.
