@@ -1194,3 +1194,13 @@ The review of `setRoot` (R14S) found where the note above promised more than the
   bullet above now reads true as written. `PopupMenuHangsFromItsAnchorTest` (removal of the
   widget, of a container above it, hiding, and a menu at a point that stays) and
   `PageSwitchTest` (a field's own menu across a page switch, in both display modes).
+- **A drag the system carries** (R14S-5). The note said a drag the old root started is taken out,
+  and the Javadoc said cancelled; a drag the scene drives is, but one already handed to the system
+  (to leave the window) is not. The window's drag interface (`WindowPeer.startDrag`) has no way
+  to take a drag back, and the systems do not agree on one: Windows can refuse to continue from
+  the drag source's own callback and X11 and Wayland can withdraw what they offered, but a macOS
+  dragging session has no cancel, and Limn offers what the systems have in common. So it is
+  documented rather than cancelled, as `Widget.remove` has always left it. The Javadoc now says what happens: the drag goes on, a
+  drop on the window goes to the new root, and the source, which left with the old one, hears the
+  system's answer when the system ends it. `DragAutoScrollTest` pins it with a window whose drags
+  the system carries.

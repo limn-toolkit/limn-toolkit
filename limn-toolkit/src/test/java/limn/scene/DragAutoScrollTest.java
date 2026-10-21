@@ -647,6 +647,40 @@ class DragAutoScrollTest {
     }
 
     /**
+     * A drag the system already carries is not the scene's to cancel, and no backend can take one
+     * back from the system cleanly: a page switch while it is out leaves it running. A drop on the
+     * window then goes to the new page, and the source, which left with the old one, hears the
+     * system's answer when the system ends the drag.
+     */
+    @Test
+    void aDragTheSystemCarriesOutlivesAPageSwitchAndEndsWhenTheSystemSays() {
+        Box logo = new Box("logo", 96, 96);
+        logo.card = "logo";
+        logo.toSystem = true;
+        SystemWindow window = new SystemWindow();
+        showInSystemWindow(new Sheet(W, H).put(logo, 12, 20), window);
+        press(logo);
+        assertTrue(window.handed != null, "the drag went to the system");
+        Box area = new Box("area", W, H);
+        area.takes = true;
+
+        scene.setRoot(new Sheet(W, H).put(area, 0, 0));
+        frames(0.1, 60);
+
+        assertTrue(scene.isDragging(), "still the system's drag");
+        assertFalse(log.stream().anyMatch(s -> s.startsWith("logo:END")), "not ended by the switch: " + log);
+        limn.backend.spi.WindowInput input = limn.scene.internal.SceneAccess.input(scene);
+        limn.transfer.Offer offer = Transfer.of(CARD, "logo").asOffer();
+        input.dragOver(offer, Set.of(DropAction.COPY), 60, 60);
+        assertEquals(DropAction.COPY, input.dropped(offer, Set.of(DropAction.COPY), 60, 60),
+                "dropped on the new page");
+        window.handed.ended().accept(DropAction.COPY);
+        assertTrue(log.contains("area:DROP:logo"), log.toString());
+        assertTrue(log.contains("logo:END:COPY"), "the source hears the system's answer: " + log);
+        assertFalse(scene.isDragging());
+    }
+
+    /**
      * Where the system asks the window again only when the pointer moves (X11 and Wayland), the
      * answer of a step that scrolled a drop area under a still pointer never reached it: let go
      * there without a wiggle, and the drag ended with nothing. The scene now pushes an answer

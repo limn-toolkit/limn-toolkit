@@ -756,8 +756,11 @@ public final class Scene {
      * <p>The old root leaves the scene as a widget taken out of its container does: every widget in
      * it is told {@link Widget#onDetached()}, a popup, menu or popover opened from one of its
      * widgets closes (a menu shown at a point of the scene, at no widget, stays open), the
-     * keyboard, the pointer's hover and a press held in it are taken out, a drag it started is
-     * cancelled, and an assistive technology is told the window's content changed. It then belongs
+     * keyboard, the pointer's hover and a press held in it are taken out, a drag it started in the
+     * window is cancelled (its source told the drag ended with nothing), and an assistive
+     * technology is told the window's content changed. A drag already handed to the system, to
+     * leave the window, is the system's: it goes on, a drop on the window goes to the new root, and
+     * the source hears the system's answer when the system ends it. It then belongs
      * to no scene: it may be added to a container, pushed as an overlay, made another scene's root,
      * or given back to this one later. The new root joins as a new scene's root does, and the next
      * frame lays out and paints the whole window. The overlays on the stack stay where they are.
