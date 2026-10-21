@@ -458,8 +458,8 @@ public abstract class Widget<W extends Widget<W>> {
      * <p>A widget that is a scene's root, or an overlay on a scene's stack, is refused before
      * anything moves, here and on every path a widget takes a child through (a container's add, a
      * component's setter of its content): the scene that holds it would go on naming it as its own.
-     * That scene lets go of it when it is taken off the stack ({@link Scene#removeOverlay}) or when
-     * its window closes.
+     * That scene lets go of it when it is taken off the stack ({@link Scene#removeOverlay}), when the
+     * scene is given another root ({@link Scene#setRoot}), or when its window closes.
      *
      * @param child the child to append; never {@code null}
      * @throws NullPointerException     if {@code child} is {@code null}

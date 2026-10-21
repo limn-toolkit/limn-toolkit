@@ -131,6 +131,25 @@ class PartialRenderingTest extends SceneTestBase {
         assertFalse(canvas.log.contains("clip"));
     }
 
+    /** A new root is a whole new frame, however little the frames before it repainted. */
+    @Test
+    void aNewRootRepaintsTheWholeWindow() {
+        scene.setPartialRendering(true);
+        frame();
+        bottom.invalidate();
+        frame();
+        bottom.invalidate();
+        frame();
+        assertTrue(canvas.partialFramePainted(), "partial before");
+        PaintCountingBox page = new PaintCountingBox(400, 300);
+
+        scene.setRoot(page);
+        frame();
+
+        assertTrue(canvas.fullFramePainted(), "the whole window: " + canvas.log);
+        assertEquals(1, page.paints);
+    }
+
     @Test
     void invalidateRepaintsOnlyTheDamagedRegionAfterHistorySettles() {
         scene.setPartialRendering(true);

@@ -40,6 +40,9 @@ import limn.backend.spi.WindowPeer;
  * click synthesis and keyboard focus (Tab traversal in layout order), ticks
  * animations and runs the two-phase layout before painting.
  *
+ * <p>One scene can serve a window for its whole life: to show another page in it, give the scene
+ * another root with {@link #setRoot}.
+ *
  * <p>Per-frame pipeline (deterministic, spec order): user input (dispatched
  * from the backend's input-batch hook, before the {@code Ui.post} drain) →
  * posted tasks → animation tick → layout if dirty → paint.
@@ -129,7 +132,7 @@ public final class Scene {
     private record RawResize(float width, float height) implements Raw {
     }
 
-    private final Widget<?> root;
+    private Widget<?> root;
     private final LongSupplier clock;
     private final List<Raw> queue = new ArrayList<>();
     // GPU surfaces to release; disposal needs the owning GL context, so it is
@@ -241,8 +244,9 @@ public final class Scene {
      * <p>A widget belongs to one scene as its root or one of its overlays: one that is already
      * another scene's root, or an overlay on another scene's stack, is refused, as
      * {@link #pushOverlay(Widget)} and every container's add refuse it. That scene lets go of it
-     * when it is taken off the stack ({@link #removeOverlay}) or when its window closes. A widget
-     * that has a parent is refused too: a root has none.
+     * when it is taken off the stack ({@link #removeOverlay}), when it is given another root
+     * ({@link #setRoot}), or when its window closes. A widget that has a parent is refused too: a
+     * root has none.
      *
      * @param root the widget tree to lay out, paint and dispatch to; never null
      * @throws IllegalArgumentException if {@code root} has a parent, or is another scene's root or
@@ -460,7 +464,8 @@ public final class Scene {
      * another: the tree the close let go of comes back to it. Not what another scene, or a
      * container, took meanwhile: an overlay taken stays its taker's and is no longer on this
      * scene's stack, and a root taken refuses the bind, since a scene has no tree without its
-     * root; take the root out of where it went first.
+     * root; take the root out of where it went first, or give this scene another one with
+     * {@link #setRoot}.
      *
      * @param window the window this scene draws in and takes its input from
      * @throws IllegalStateException if this scene's window closed and its root has been taken
@@ -473,7 +478,7 @@ public final class Scene {
             throw new IllegalStateException("this scene's window closed and its root, "
                     + root.getClass().getName() + ", has been taken since, "
                     + (taker != null ? "by " + taker.getClass().getName() : "as another scene's root or overlay")
-                    + ": take it out of there before binding this scene again");
+                    + ": take it out of there, or give this scene another root with setRoot, before binding it again");
         }
         this.window = window;
         if (detachedByClose) {
@@ -547,6 +552,7 @@ public final class Scene {
         popupOverlays.remove(overlay);
         keyboardBelow.remove(overlay);
         closingOverlays.remove(overlay);
+        firstStopOnReturn.remove(overlay);
     }
 
     /** The scenes bound to a window that is open, which a change of the system's underlines repaints. */
@@ -742,6 +748,178 @@ public final class Scene {
     }
 
     /**
+     * Replaces this scene's root with {@code root}, which is how a window shows another page: one
+     * scene, bound once, given each page's tree in turn. It works whether or not the scene is bound
+     * to a window, and on a scene whose window has closed, whose next {@link #bind} brings the new
+     * root in.
+     *
+     * <p>The old root leaves the scene as a widget taken out of its container does: every widget in
+     * it is told {@link Widget#onDetached()}, a popup, menu or popover opened from it closes, the
+     * keyboard, the pointer's hover and a press held in it are taken out, a drag it started is
+     * cancelled, and an assistive technology is told the window's content changed. It then belongs
+     * to no scene: it may be added to a container, pushed as an overlay, made another scene's root,
+     * or given back to this one later. The new root joins as a new scene's root does, and the next
+     * frame lays out and paints the whole window. The overlays on the stack stay where they are.
+     *
+     * <p>The keyboard goes to the new root's first focusable widget, arriving as {@link
+     * #focusTraverse} puts it there, only when it was in the old root; a widget the new root's
+     * content asks for with {@link #requestFocus} as it joins (from an {@link Widget#onAttached()})
+     * is focused instead. An overlay opened while the keyboard was in the old root gives it to the
+     * new root's first focusable widget when it closes, in place of the widget that left.
+     *
+     * <p>Asked again from code this call runs (an {@code onDetached} of the old root, an
+     * {@code onAttached} of the new one, the handler of a popup closing), the change waits for this
+     * one to be complete and is then made; when several are asked, the last one wins. What such
+     * code throws is thrown once the change is complete.
+     *
+     * <p>Refused as a new scene refuses its root, before anything moves: a widget with a parent,
+     * another scene's root, an overlay on another scene's stack or on this one's, and the widget
+     * another call is making a scene's root. Setting the root this scene already has does nothing.
+     *
+     * @param root the new root; never null
+     * @throws IllegalArgumentException if {@code root} has a parent, is another scene's root, or is
+     *                                  an overlay on this or another scene's stack
+     */
+    public void setRoot(Widget<?> root) {
+        Ui.checkUiThread();
+        Objects.requireNonNull(root, "root");
+        if (rootChanging) {
+            if (root != this.root) {
+                refuseAsRoot(root); // the code asking hears it at once
+            }
+            rootAsked = root; // the last one asked wins, once the change in progress is complete
+            return;
+        }
+        rootAsked = null; // asked of a change that has completed since: this call is later
+        if (root == this.root) {
+            return;
+        }
+        refuseAsRoot(root);
+        replaceRoot(root);
+    }
+
+    /**
+     * Refuses {@code widget} as this scene's root, as a new scene refuses its root and before
+     * anything moves.
+     *
+     * @throws IllegalArgumentException when it has a parent, is an overlay on this scene's stack,
+     *                                  or is another scene's root or overlay
+     */
+    private void refuseAsRoot(Widget<?> widget) {
+        refuseParented(widget, "the root of a scene");
+        if (overlays.contains(widget)) {
+            throw new IllegalArgumentException(widget.getClass().getName()
+                    + " is an overlay on this scene's stack, and cannot also be the root of a scene: "
+                    + "take it off with removeOverlay first");
+        }
+        refuseAnotherScenesLayer(widget, this, "the root of a scene");
+    }
+
+    /** Whether {@link #setRoot} is walking the old root out or the new one in; a call made meanwhile waits. */
+    private boolean rootChanging;
+
+    /** The root asked for while {@link #rootChanging}, set once the change is complete; else {@code null}. */
+    private @Nullable Widget<?> rootAsked;
+
+    /**
+     * The roots {@link #setRoot} has named and not yet walked in, with their scenes: while the old
+     * root leaves, a handler it runs could otherwise take the new one, which is in no scene yet,
+     * into a container or another scene, and {@link #refuseAnotherScenesLayer} finds its scene
+     * here. UI thread only, as every scene is.
+     */
+    private static final java.util.Map<Widget<?>, Scene> ROOTS_JOINING = new java.util.IdentityHashMap<>();
+
+    /**
+     * The overlays whose way back, when they close, led into a root {@link #setRoot} replaced: they
+     * give the keyboard to the new root's first stop instead. By identity.
+     */
+    private final java.util.Set<Widget<?>> firstStopOnReturn =
+            java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+
+    /** {@link #setRoot}, once {@code next} is known to be taken: the old root out, then {@code next} in. */
+    private void replaceRoot(Widget<?> next) {
+        Widget<?> old = root;
+        // The way back of an overlay opened from the old root leads nowhere now: to the new root's
+        // first stop instead, as the keyboard itself goes when it was in the old root.
+        for (int i = 0; i < overlayFocusReturn.size(); i++) {
+            Widget<?> saved = overlayFocusReturn.get(i);
+            if (saved != null && isInSubtree(saved, old)) {
+                overlayFocusReturn.set(i, null);
+                firstStopOnReturn.add(overlays.get(i));
+            }
+        }
+        if (detachedByClose) {
+            // The close walked the old root out already, and the next bind walks this one in.
+            root = next;
+            rootLetGo = false;
+            return;
+        }
+        boolean hadKeyboard = focused != null && isInSubtree(focused, old);
+        // Not walked out when another scene took it after this one let go of it (a dialog's card
+        // moved into its owner's scene): it is that scene's.
+        boolean ours = old.scene() == this && old.parent() == null;
+        root = next; // the old root is let go of from here: a handler it runs as it leaves may take it
+        rootLetGo = false;
+        rootChanging = true;
+        ROOTS_JOINING.put(next, this);
+        List<Runnable> settled = new ArrayList<>(0);
+        Throwable failed = null;
+        try {
+            if (ours) {
+                // The order of Widget.remove, each step in a try of its own: the walk, which closes
+                // the popups hung in the old root first, then the focus and pointer taken out.
+                try {
+                    old.setSceneRecursively(null, settled);
+                } catch (RuntimeException | Error error) {
+                    failed = HandlerFailures.add(null, error);
+                }
+                // Not for an old root a popup's handler put into a container of this scene as it
+                // closed: the focus and the pointer are where that handler left them.
+                boolean back = old.parent() != null && old.scene() == this;
+                try {
+                    if (!back) {
+                        onWidgetDetached(old);
+                    }
+                } catch (RuntimeException | Error error) {
+                    failed = HandlerFailures.add(failed, error);
+                }
+            }
+            ROOTS_JOINING.remove(next);
+            next.markMeasureDirtyDeep(); // a whole new frame: it may have been laid out elsewhere
+            try {
+                next.setSceneRecursively(this, settled);
+            } catch (RuntimeException | Error error) {
+                failed = HandlerFailures.add(failed, error);
+            }
+            layoutDirty = true;
+            walkMayNameDetached = true;
+            try {
+                // Unless the new root's content asked for one of its widgets as it joined.
+                if (hadKeyboard && focused == null && keyboardRoot() == root) {
+                    focusTraverse(false);
+                }
+            } catch (RuntimeException | Error error) {
+                failed = HandlerFailures.add(failed, error);
+            }
+            requestRender(); // the whole window, and the accessible tree walked again
+        } finally {
+            ROOTS_JOINING.remove(next);
+            rootChanging = false;
+        }
+        Widget.runSettled(settled); // once the new root is in and the keyboard placed
+        Widget<?> asked = rootAsked;
+        rootAsked = null;
+        if (asked != null && asked != root) {
+            try {
+                setRoot(asked);
+            } catch (RuntimeException | Error error) {
+                failed = HandlerFailures.add(failed, error);
+            }
+        }
+        HandlerFailures.rethrow(failed);
+    }
+
+    /**
      * The first widget whose {@linkplain Widget#setId id} is {@code id}, searching the root's tree
      * in order, parents before children, then each overlay in the order it was pushed. A hidden
      * widget is found like a shown one. UI thread only.
@@ -898,8 +1076,8 @@ public final class Scene {
      * <p>A widget that is another scene's root, or an overlay on another scene's stack, is refused
      * before anything moves, as a container's add and a new scene refuse it: the scene that holds
      * it would go on naming it as its own and laying it out at its own window's size. That scene
-     * lets go of it when it is taken off the stack ({@link #removeOverlay}) or when its window
-     * closes. A widget that has a parent is refused the same way: an overlay is a root of its own,
+     * lets go of it when it is taken off the stack ({@link #removeOverlay}), when it is given
+     * another root ({@link #setRoot}), or when its window closes. A widget that has a parent is refused the same way: an overlay is a root of its own,
      * and as a container's child too it would be laid out, drawn and dispatched to twice. So are
      * this scene's own root and an overlay already on its stack, which one push holds once.
      *
@@ -1209,6 +1387,7 @@ public final class Scene {
         boolean wasTop = index == overlays.size() - 1;
         overlays.remove(index);
         Widget<?> restore = overlayFocusReturn.remove(index);
+        boolean toFirstStop = firstStopOnReturn.remove(overlay);
         // An overlay opened over this one while it held the focus saved a widget inside it (the
         // menu a menu bar's arrow walked to, opened while the one walked from was fading): that
         // overlay's way back now goes where this one's would have, or its close focused nothing.
@@ -1216,6 +1395,9 @@ public final class Scene {
             Widget<?> saved = overlayFocusReturn.get(i);
             if (saved != null && isInSubtree(saved, overlay)) {
                 overlayFocusReturn.set(i, restore);
+                if (toFirstStop) {
+                    firstStopOnReturn.add(overlays.get(i));
+                }
             }
         }
         List<Runnable> settled = new ArrayList<>(0);
@@ -1242,7 +1424,7 @@ public final class Scene {
             failed = HandlerFailures.add(failed, error);
         }
         try {
-            restoreAfterRemoving(overlay, restore, wasTop, keptKeyboardBelow, back);
+            restoreAfterRemoving(overlay, restore, toFirstStop, wasTop, keptKeyboardBelow, back);
         } catch (RuntimeException | Error error) {
             failed = HandlerFailures.add(failed, error);
         }
@@ -1251,8 +1433,8 @@ public final class Scene {
     }
 
     /** The rest of {@link #removeOverlay}, once the overlay is out of the scene. */
-    private void restoreAfterRemoving(Widget<?> overlay, @Nullable Widget<?> restore, boolean wasTop,
-                                      boolean keptKeyboardBelow, boolean back) {
+    private void restoreAfterRemoving(Widget<?> overlay, @Nullable Widget<?> restore, boolean toFirstStop,
+                                      boolean wasTop, boolean keptKeyboardBelow, boolean back) {
         layoutDirty = true;
         // Focus belongs to the topmost overlay. Removing a lower one (e.g. the
         // previous menu still fading out beneath the menu it was switched to) must
@@ -1269,14 +1451,25 @@ public final class Scene {
         // (the button that triggered the dialog), if it is still usable. Never in a window that
         // has closed, whose focus went to nobody first: a popup hung from a widget of it closes
         // as the tree leaves, and a widget focused then would be focused in a dead scene.
+        focusAsOverlayCloses(overlay, restore, toFirstStop);
+        requestRender();
+    }
+
+    /**
+     * Gives the keyboard back as {@code overlay} closes: to {@code restore}, the widget it took it
+     * from, if that is still usable; to the root's first stop when the way back led into a root
+     * {@link #setRoot} has replaced since ({@code toFirstStop}); else to nothing.
+     */
+    private void focusAsOverlayCloses(Widget<?> overlay, @Nullable Widget<?> restore, boolean toFirstStop) {
         if (restore != null && restore != overlay && !detachedByClose
                 && isInSubtree(restore, keyboardRoot()) && canTakeFocus(restore)) {
             // The overlay closing is what moved the focus, not whoever closed it.
             giveFocusBack(restore);
+        } else if (toFirstStop && restore == null && !detachedByClose && keyboardRoot() == root) {
+            focusTraverse(false, Change.Origin.ADJUSTMENT); // as the closing gives a widget back
         } else {
             setFocus(null, Change.Origin.ADJUSTMENT);
         }
-        requestRender();
     }
 
     /** @return the topmost modal overlay, or {@code null} when none is open */
@@ -2493,13 +2686,16 @@ public final class Scene {
      */
     static void refuseAnotherScenesLayer(Widget<?> widget, @Nullable Scene taking, String as) {
         Scene holder = widget.scene();
+        if (holder == null && !ROOTS_JOINING.isEmpty()) {
+            holder = ROOTS_JOINING.get(widget); // named a scene's root, not walked in yet
+        }
         if (holder == null || holder == taking || !holder.holdsAsRootOrLayer(widget)) {
             return;
         }
         String what = widget == holder.root ? "the root of a scene" : "an overlay on a scene's stack";
         throw new IllegalArgumentException(widget.getClass().getName() + " is " + what + ", and cannot also be "
-                + as + ": take it off that scene first (removeOverlay for an overlay; a root belongs to its "
-                + "scene until its window closes)");
+                + as + ": take it off that scene first (removeOverlay for an overlay, setRoot with another "
+                + "root for a root, which its window closing lets go of too)");
     }
 
     /**
@@ -4733,13 +4929,7 @@ public final class Scene {
         }
         keyboardBelow.add(overlay);
         closingOverlays.add(overlay);
-        Widget<?> restore = overlayFocusReturn.get(index);
-        if (restore != null && restore != overlay && !detachedByClose
-                && isInSubtree(restore, keyboardRoot()) && canTakeFocus(restore)) {
-            giveFocusBack(restore);
-        } else {
-            setFocus(null, Change.Origin.ADJUSTMENT);
-        }
+        focusAsOverlayCloses(overlay, overlayFocusReturn.get(index), firstStopOnReturn.contains(overlay));
         invalidateAccessible();
         requestRender();
     }

@@ -36,7 +36,7 @@ public abstract class Container<W extends Container<W>> extends Widget<W> {
      * @throws IllegalArgumentException if {@code child} already has a parent, or is an ancestor of
      *                                  this container, a scene's root, or an overlay on a scene's
      *                                  stack, which belongs to that scene until it is taken off the
-     *                                  stack or its window closes
+     *                                  stack, the scene is given another root, or its window closes
      */
     @Override
     public void add(Widget<?> child) {

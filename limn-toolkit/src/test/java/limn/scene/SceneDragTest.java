@@ -315,6 +315,24 @@ class SceneDragTest {
         assertTrue(log.contains("source:END:null"), log.toString());
     }
 
+    /** The page the drag began on replaced mid-drag: the drag ends, and the new page hears no drop. */
+    @Test
+    void aNewRootEndsADragTheOldOneStarted() {
+        press(50);
+        move(150);
+        Box next = new Box("next");
+        next.takes = true;
+        log.clear();
+
+        scene.setRoot(next);
+
+        assertFalse(scene.isDragging());
+        assertTrue(log.contains("source:END:null"), log.toString());
+        scene.layoutPass(300, 60);
+        release(50, 0);
+        assertFalse(log.stream().anyMatch(s -> s.startsWith("next:DROP")), log.toString());
+    }
+
     @Test
     void theKeyboardPicksUpWalksTheWidgetsThatAcceptChoosesAPlaceAndDrops() {
         Box second = new Box("second");

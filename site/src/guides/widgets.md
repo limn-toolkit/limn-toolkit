@@ -37,6 +37,19 @@ You mutate widgets normally after that (`label.setText(…)`, `column.add(…)`)
 scene works out what has to be measured and repainted again. You never call a repaint
 yourself.
 
+One scene can serve a window for its whole life. To show another page in it, give the scene
+another root:
+
+```java
+scene.setRoot(ordersPage());
+```
+
+The page that leaves is told it left, as a widget taken out of its container is, and
+whatever it had open (a menu, a popover) closes with it. If the keyboard was on that page,
+it goes to the new page's first field. A widget belongs to one place at a time, a scene's
+root, an overlay or a container's child, so the page that left can be shown again later or
+put anywhere else; while it is a scene's root, every other place refuses it.
+
 ## 3. There is exactly one UI thread
 
 It is the thread that created the backend, and it is the only thread allowed to touch

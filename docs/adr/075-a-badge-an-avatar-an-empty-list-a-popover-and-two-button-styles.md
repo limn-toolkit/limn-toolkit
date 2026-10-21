@@ -1091,3 +1091,60 @@ Javadoc of `Widget.add` and of `Container.add`, both overloads, says so.
 `AnotherScenesLayerIsRefusedTest` takes a parented widget with each add. A popover whose content
 an application put into a container of its own still refuses `showFor` with an
 `IllegalStateException`: there the argument is the anchor, and what is wrong is the popover's state.
+
+## Note, 2026-10-20 (decision 46): a scene gives its root up with `setRoot`
+
+Decision 40 left one way for a scene to let go of its root, its window closing. A scene that was
+never bound (one built to measure a widget, a test's scene) or that another scene's `bind`
+replaced on its window never closes, so its root could never be added anywhere or be another
+scene's root for the life of the process (R11S-5). The toolkit with a scene graph of the same shape,
+whose refusal decision 40 follows, has the answer: a scene's root can be set. The owner decided
+(decision 46) that `Scene.setRoot(Widget)` swaps a scene's root whether it is bound or not, and that
+it is how a window shows another page.
+
+- **The old root leaves completely**, in the order of a container's `remove`: the popups hung from
+  it close (in the scene or in windows of their own), the walk tells every widget `onDetached`, a
+  fade or motion running in it comes to its end and its `onArrive` runs once the change is
+  complete, then the keyboard, the hover, a press and a drag it started are taken out. It is in no
+  scene and no scene holds it: every container, push, new scene and `setRoot` takes it. The new
+  root joins as a new scene's root does, marked to measure again, and the next frame is whole: the
+  partial renderer repaints the window and the accessible tree is walked again, the window node
+  keeping its id and its children changing (`STRUCTURE_CHANGED`). Nothing caches the root widget:
+  the walk reads `Scene.root()` each time, and the bridges hold the window node, whose id the
+  walk keeps.
+- **The new root is refused as a new scene's is**, before anything moves: a widget with a parent,
+  another scene's root or overlay, and this scene's own overlay. Setting the current root does
+  nothing. While the old root leaves, the new one is in no scene yet; a handler of the old one
+  could have taken it into a container or another scene, so a root being set is found, for the
+  refusal, in a table of the roots named and not yet walked in, and refused as a root.
+- **Overlays stay.** One opened while the keyboard was in the old root saved a widget there as its
+  way back; that way back now leads to the new root's first stop, when the overlay closes or gives
+  the keyboard back early as it fades.
+- **The keyboard** goes to the new root's first stop only when it was in the old root, by the same
+  traversal a pushed overlay's first focus uses (`focusTraverse(false)`, so a field arrives as by
+  Tab, its text selected), and the change is announced as code's. A widget the new root's content
+  asks for from its `onAttached` is focused instead, as the review's R11S-2 settled for a push.
+  The widget that had the keyboard is told of its loss after its `onDetached`, as a removal tells
+  it; a composition open in it ends with the loss.
+- **Asked again while it changes** (from the old root's `onDetached`, the new root's
+  `onAttached`, a closing popup's handler), the change waits for the one in progress to be
+  complete and is then made, the last one asked winning; a refusal is still thrown at the call.
+  So a page that sends the window on as it joins (a sign-in page that finds the user signed in)
+  works, and no walk runs inside another walk of the same scene's root. A handler of the old root
+  that takes the old root itself (into an overlay's column, say) is followed as a removal follows
+  it.
+- **A scene whose window closed** takes the new root without a walk; the next `bind` walks it in.
+  `bind`'s refusal of a root taken since the close now also names `setRoot` as the way out.
+- **`SceneAccess.letGoOfRoot`**, the dialog's move into a fullscreen owner, was weighed against
+  `setRoot` and kept apart: the move carries the keyboard into the other scene telling the widget
+  nothing (a field keeps its selection, a spinner does not commit), and `setRoot` tells the old
+  root it left and takes the keyboard out, which is what a page switch must do. They share the
+  refusal: a root let go of is not held, and `setRoot` on that scene holds the new root again and
+  leaves the moved card to the scene it went to.
+
+`SceneSetRootTest` has the order, every taker of the old root, the review's two cases (a scene never
+bound, a scene replaced on its window), the refusals, the keyboard in each case, the pointer, a click
+handler that switches the page, a popup hung from the old root, a fade in it, the four re-entrant
+paths and the closed scene; `PartialRenderingTest` the whole frame, `SceneDragTest` the drag, and
+`PageSwitchTest` a popover in both display modes, a composition, a reader's tree and a dialog
+whose answer switches the page.
