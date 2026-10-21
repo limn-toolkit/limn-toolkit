@@ -135,11 +135,54 @@ class MediaPlayerHandsTheTrackOverOffTheUiThreadTest {
 
             arrived(player);
 
-            assertEquals(List.of("seek " + 10 * FRAME_MICROS, "pause"), engine.handle.calls,
+            assertEquals(List.of("seek " + 10 * FRAME_MICROS, "pause", "gain 1.0"), engine.handle.calls,
                     "the track joins the pictures where they are, and paused");
             assertEquals(MediaPlayer.State.PAUSED, player.state());
             player.resume();
-            assertEquals(List.of("seek " + 10 * FRAME_MICROS, "pause", "resume"), engine.handle.calls);
+            assertEquals(List.of("seek " + 10 * FRAME_MICROS, "pause", "gain 1.0", "resume"), engine.handle.calls);
+        } finally {
+            player.close();
+        }
+    }
+
+    /**
+     * A pause made while the engine is opening the device for the track: the engine starts what it
+     * is given before it returns, so a track started at its gain was heard for the instant between
+     * the engine's start and the pause reaching it, after the viewer had pressed Pause. It starts
+     * silent, takes the pause, and only then is given its gain.
+     */
+    @Test
+    void aPauseWhileTheTrackIsOnItsWayIsAppliedBeforeTheTrackIsHeard() throws Exception {
+        Hand hand = new Hand();
+        MediaPlayer player = player(hand);
+        try {
+            player.setAudio(new SilentSource(), PlayOptions.DEFAULTS.withGain(0.6f));
+            player.start();
+            assertTrue(engine.entered.await(10, TimeUnit.SECONDS));
+            player.pause();
+
+            arrived(player);
+
+            assertEquals(0f, engine.options.gain(), "the engine starts it silent");
+            assertEquals(List.of("pause", "gain 0.6"), engine.handle.calls,
+                    "paused first, then given the gain it was set up with");
+            player.resume();
+            assertEquals(List.of("pause", "gain 0.6", "resume"), engine.handle.calls);
+        } finally {
+            player.close();
+        }
+    }
+
+    /** Arriving with nothing made meanwhile, the track is given its gain at once. */
+    @Test
+    void aTrackArrivingWithNothingMadeMeanwhileIsGivenItsGain() throws Exception {
+        MediaPlayer player = player(new Hand());
+        try {
+            player.setAudio(new SilentSource(), PlayOptions.DEFAULTS.withGain(0.6f));
+            player.start();
+            arrived(player);
+            assertEquals(0f, engine.options.gain());
+            assertEquals(List.of("gain 0.6"), engine.handle.calls);
         } finally {
             player.close();
         }
@@ -163,6 +206,8 @@ class MediaPlayerHandsTheTrackOverOffTheUiThreadTest {
 
         assertTrue(engine.handle.calls.contains("stop"), "the engine was told to stop the track it took");
         assertSame(Playback.NONE, player.audio());
+        assertEquals(0f, engine.options.gain(), "started silent");
+        assertEquals(List.of("stop"), engine.handle.calls, "and stopped before it was given a gain: never heard");
     }
 
     /**
@@ -270,8 +315,8 @@ class MediaPlayerHandsTheTrackOverOffTheUiThreadTest {
             engine.handle.seconds = 0; // where an engine starts a track
             arrived(player);
 
-            assertTrue(engine.handle.calls.contains("seek " + at),
-                    "the track joins the pictures where they are: " + engine.handle.calls);
+            assertEquals(List.of("seek " + at, "gain 1.0"), engine.handle.calls,
+                    "the track joins the pictures where they are, and is heard from there");
             player.decodeStep(); // where the decode thread moves the stream
             assertEquals(at, stream.seekTargets.get(stream.seekTargets.size() - 1),
                     "and the pictures are moved there with it, so both are on one timeline");
@@ -344,12 +389,12 @@ class MediaPlayerHandsTheTrackOverOffTheUiThreadTest {
 
             arrived(player);
 
-            assertEquals(List.of("seek " + at, "pause"), engine.handle.calls);
+            assertEquals(List.of("seek " + at, "pause", "gain 1.0"), engine.handle.calls);
             assertEquals(MediaPlayer.State.PAUSED, player.state());
             assertEquals(at, player.positionMicros(), "where it was paused");
             player.resume();
             assertTrue(player.isFollowingAudio());
-            assertEquals(List.of("seek " + at, "pause", "resume"), engine.handle.calls);
+            assertEquals(List.of("seek " + at, "pause", "gain 1.0", "resume"), engine.handle.calls);
         } finally {
             player.close();
         }
@@ -613,6 +658,7 @@ class MediaPlayerHandsTheTrackOverOffTheUiThreadTest {
 
         @Override
         public void setGain(float gain) {
+            calls.add("gain " + gain);
         }
 
         @Override
@@ -648,6 +694,7 @@ class MediaPlayerHandsTheTrackOverOffTheUiThreadTest {
         final CountDownLatch open = new CountDownLatch(1);
         final Recording handle = new Recording();
         volatile Thread calledOn;
+        volatile PlayOptions options;
 
         @Override
         public Playback play(AudioClip clip, float gain, boolean loop) {
@@ -657,6 +704,7 @@ class MediaPlayerHandsTheTrackOverOffTheUiThreadTest {
         @Override
         public Playback playStream(AudioStreamSource source, PlayOptions options) {
             calledOn = Thread.currentThread();
+            this.options = options;
             entered.countDown();
             try {
                 open.await(10, TimeUnit.SECONDS);

@@ -637,7 +637,8 @@ class MediaPlayerTest {
             handOver(player);
 
             assertSame(track, engine.received, "the open track reached the engine");
-            assertEquals(0.6f, engine.receivedOptions.gain());
+            assertEquals(0f, engine.receivedOptions.gain(), "started silent, so nothing made meanwhile is heard");
+            assertEquals(0.6f, engine.handle.gain, "and given its gain as it arrives");
             assertSame(engine.handle, player.audio());
             assertEquals(0, track.closes, "the engine owns it now");
 
@@ -1042,6 +1043,7 @@ class MediaPlayerTest {
         double seconds;
         boolean playing = true;
         boolean stopped;
+        float gain = Float.NaN;
 
         @Override
         public void stop() {
@@ -1055,7 +1057,8 @@ class MediaPlayerTest {
         }
 
         @Override
-        public void setGain(float gain) {
+        public void setGain(float newGain) {
+            gain = newGain;
         }
 
         @Override

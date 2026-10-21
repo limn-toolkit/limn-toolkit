@@ -404,7 +404,8 @@ public final class MediaPlayer implements AutoCloseable {
      * returns at once, {@link #state()} is {@link State#PLAYING} from here, and the pictures are
      * held on the first one until the track sounds (or the engine declines it), so picture and
      * sound begin together. {@link #audio()} answers {@link Playback#NONE} until then; a pause, a
-     * seek, a stop or a close made meanwhile applies to the track as it arrives.
+     * seek, a stop or a close made meanwhile applies to the track as it arrives, before it is heard:
+     * the engine is given it silent, and it takes its gain once those are applied.
      *
      * <p><b>The pictures wait a quarter of a second at most.</b> A device that takes longer to answer
      * (an output waking up, a sound server that hangs) finds them running on the wall clock, and the
@@ -1264,6 +1265,10 @@ public final class MediaPlayer implements AutoCloseable {
      * <p>Exactly one side owns the track. {@link #run()} takes it to the engine, or
      * {@link #cancel()} (a stop, a close or a restart) takes it to close it, whichever comes first;
      * a track the engine took after a cancel is stopped, which closes it.
+     *
+     * <p>The engine is given the track at no gain. It starts what it is given before it answers, so
+     * a track given its gain there sounded for the instant between that start and a pause or a stop
+     * made meanwhile reaching it: the UI thread applies those first, and the gain last.
      */
     private final class HandOver implements Runnable {
 
@@ -1286,7 +1291,7 @@ public final class MediaPlayer implements AutoCloseable {
             Playback started = Playback.NONE;
             boolean threw = true;
             try {
-                started = Sounds.stream(track, options);
+                started = Sounds.stream(track, options.withGain(0f));
                 threw = false;
             } catch (RuntimeException error) {
                 // Sounds.stream closes the track and answers NONE on every path it knows; a throw
@@ -1335,8 +1340,16 @@ public final class MediaPlayer implements AutoCloseable {
         if (audioLate) {
             audioLate = false;
             joinLate(started);
-            return;
+        } else {
+            arrivedInTime(started);
         }
+        if (playback == started) {
+            playback.setGain(from.options.gain()); // heard from here, with what was made meanwhile applied
+        }
+    }
+
+    /** The track arrived within the grace: the pictures were waiting for it. */
+    private void arrivedInTime(Playback started) {
         playback = started;
         installMaster();
         if (seekedWhileAudioStarts >= 0) {

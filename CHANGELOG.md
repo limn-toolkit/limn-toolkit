@@ -248,8 +248,9 @@ Maven Central say which number that was.
   and the others wait for the sound so the two begin together, a quarter of a second at most: a
   device slower than that finds the pictures running on the wall clock, and the track joins them
   where they are when it arrives (one that cannot be moved there is let go, and the video plays on
-  silently). A pause, a seek, a stop or a close made meanwhile reaches the track as it arrives.
-  `audio()` answers `Playback.NONE` until it does.
+  silently). A pause, a seek, a stop or a close made meanwhile reaches the track as it arrives and
+  before it is heard: the engine starts it silent, and it takes its gain last. `audio()` answers
+  `Playback.NONE` until it arrives.
 - A `MediaPlayer` whose stream has ended sleeps until a seek or a start: its decoding thread
   woke fifty times a second for as long as the player was left open. And one the application
   never closes is closed when the backend ends, with a warning that names it; nothing else
