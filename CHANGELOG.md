@@ -21,23 +21,45 @@ Maven Central say which number that was.
   handler that throws during the removal, an overlay push or a popup's close no longer drops them.
 - An `onArrive`, or a flip's `atEdge`, that throws no longer freezes the container's later fades and
   motions; a fade asked for before the throw, and motions beside it, still arrive.
-- A `Popover`, and a combo box's, date picker's or tab strip's list, closes as an adjustment when
-  the widget it hangs from goes: taken out of the window (by itself, with a container, with a
-  dialog it was in, with the window, even to be put back elsewhere), hidden (itself, with a
-  container, a tab page or a folded expander), or drawn as nothing by a `Transform` (a face turned
-  away, a scale of 0); and at once when a popover it was opened from closes. It stayed over the
-  window holding the keyboard and eating the next click, or said it was open with nothing shown. A
-  control asked to open while hidden or on its way out stays closed, and a date picker no longer
-  commits a date from a calendar that was never shown.
+- A `Popover`, a combo box's, date picker's or tab strip's list, and a `PopupMenu` shown at a widget
+  (a field's own context menu among them) close as an adjustment when the widget they hang from
+  goes: taken out of the window (by itself, with a container, with a dialog it was in, with the
+  window, with a page `Scene.setRoot` switches away, even to be put back elsewhere), hidden (itself,
+  with a container, a tab page or a folded expander), or drawn as nothing by a `Transform` (a face
+  turned away, a scale of 0); and at once when a popover they were opened from closes. Each stayed
+  over the window holding the keyboard and eating the next click, or said it was open with nothing
+  shown, and a context menu's rows acted on a field that had left. A control asked to open while
+  hidden or on its way out stays closed, and a date picker no longer commits a date from a calendar
+  that was never shown. A menu shown at a point of the scene hangs from no widget.
 - A press beside an in-scene popup that is fading out reaches what is beneath it; a press on the
   fading card, such as the second click of a double click on an item, stays the popup's and never
   reaches the control under the item. Closing a popover opened from another gives the keyboard
   back at once, pressing beside an open editable combo box's list leaves the keyboard in its field,
   and window shortcuts work while a popup fades out.
-- An exception thrown by a popup's or a popover's `onClose` while another popup closes, or while a
-  widget is added, removed or hidden, no longer leaves a layer over the window, a popup window open
-  or the change half done; it is rethrown once everything has run, and an `OutOfMemoryError` or
-  `StackOverflowError` propagates at once.
+- An exception thrown by a popup's or a popover's `onClose`, or by a focus handler, while another
+  popup closes, while a widget is added, removed or hidden, or while an overlay is pushed or
+  removed, no longer leaves a layer over the window, a popup window open or the change half done (an
+  overlay off the stack but still in the scene, the gap of a removed row left in its column); it is
+  rethrown once everything has run. An `OutOfMemoryError` or a `StackOverflowError` leaves at once,
+  and no application code runs after it, a fade's `onArrive` included, except as a window closes:
+  the close runs every step of its teardown, and every `onArrive`, whatever one of them throws.
+- A popup's or a popover's `onClose` that moves the widget being removed leaves it where it put it:
+  back into a column of the same window or of another, onto another window's overlays, or as the
+  root of a new scene, the widget is in that scene, told `onDetached` in the window it left before
+  `onAttached` in the new one, with the focus the handler gave it, and its popovers open again; an
+  overlay the handler pushes again stays on top with its keyboard. It was left in the tree in no
+  scene, taking clicks while no popover opened from its buttons, or told nothing of the move, so
+  what it registered in one window was given back to the other.
+- A form that asks for the keyboard on one of its fields from its own `onAttached` gets it there,
+  after the field's own `onAttached`, whether it is added to a window, made a scene's root, pushed
+  as an overlay or a popup, or shown in a `Dialog` or a `Popover`: the push no longer moves on to
+  the next stop, which typed a name into the email field. The keyboard lands only on a widget in the
+  scene, so an overlay pushed while an `onAttached` in it throws no longer hands it to a widget the
+  walk never reached.
+- A face a `Transform` stops drawing that a popup's `onClose` draws again (its scale put back to 1)
+  keeps its focus. A layout that tips a plane a rounding error past edge-on closes its popovers once
+  the pass is over: a popover's `onClose` that took the card out of its column ran inside that
+  column's layout and lost the frame to an `IndexOutOfBoundsException`.
 - A `Popover` holding nothing focusable puts a screen reader on its named group, focusable and
   focused, in the scene as in a window of its own; no warning about a private class is logged.
 - A control that arrives in a clicked `Card`'s content answers again once it is moved to the footer,
@@ -51,7 +73,9 @@ Maven Central say which number that was.
   `IllegalArgumentException`, a content already in another container or one that holds the widget;
   a widget that leaves the window lets its content go, so a rebuilt page can give the same label
   to a fresh list. One already on the page was accepted, the next frame was lost to an exception and
-  the content was then drawn twice on every frame.
+  the content was then drawn twice on every frame. A list waiting for a content another list holds
+  shows it once it is let go, also after it has asked for another content held elsewhere; it
+  watched the first holder and stayed blank.
 - A list, table or tree that is hidden, on a tab page that is not selected, or on a face a
   `Transform` does not draw no longer announces "Loading Orders" or "Orders, 12 items"; it stays busy.
   The announcement names a widget labelled by a caption bound with `setLabelFor`.
@@ -102,8 +126,38 @@ Maven Central say which number that was.
   window, or for zero seconds.
 - A `DatePicker` closed and opened again before its close had ended, in one handler or within the
   close's fade, no longer shows an empty popup while `isOpen()` answers true.
-- The Showcase video page's soundtrack button follows a change of language; it kept "Generated
-  soundtrack" in the language it was built in.
+- The Showcase video page's soundtrack button follows a change of language, its "Generated
+  soundtrack" and its audio-track line ("Audio 1 of 2: eng") alike; it kept the language it was
+  built in.
+- The Showcase's Video page opens on its sample film, Big Buck Bunny, with its credit under it, and
+  opens it in the background. It showed colour bars whichever entry was picked, and froze the click
+  that reached the page for up to half a second while the film opened. The bars are the picker's
+  second entry, and the page opens on them where the video library will not load; a page left
+  before its film opened opens it when it is back. The lab's `--scene video` still opens on its
+  bars, and its entry that writes a clip of its own is captioned "MP4".
+- The Showcase's Dialogs page no longer opens "Save changes to Harbor Supply?" by itself a moment
+  after "Edit customer…": the question comes when the user cancels the form after changing a field,
+  over the form still open, and its Cancel goes back to the form as it was left.
+- A dialog with a second one open over it no longer shows a dark square at each corner of its card.
+  The veil that dims a window a modal locks, and the scene under an in-scene dialog, was painted
+  over the whole frame, so a window clear round a rounded card took half-opaque black there; clear
+  pixels stay clear now, and opaque ones darken as before (see Changed).
+- Cut, Copy and Paste from a text field's or a text area's own context menu, and Paste from an
+  application's Edit menu, act on the selection the person had when the menu opened where the menu
+  is drawn in the scene (Wayland, a fullscreen window, or as asked): Copy left the clipboard as it
+  was, Cut cut nothing and Paste went in beside the selected word, with every row enabled. The
+  selection is kept for them when a listener moves the caret, or sets the text the field already
+  holds, as the field loses the keyboard; a different text ends it, so a menu never acts on
+  characters nobody selected.
+- On X11, files dragged from a file manager built on GTK 4 are followed by the pointer: the widget
+  under it is asked as they hover, a page scrolls under them at its edge, and they are offered as
+  files alone and as a copy alone, so the source never deletes what it moved. Such a program sends
+  its later positions, or nothing at all, to another window than the one this toolkit answers drags
+  on; the pointer is now read at each turn while the drag is over the window with a button held. A
+  release over a place that refuses, after a rest, calls the drag off, as Escape does; a window of
+  this program's left for another of its windows is told the drag left; an `onDrop` that throws
+  tells the source the drop was refused, where it left it waiting. A drag of this program's own,
+  and one from a program built on GTK 3, are answered as before. Tried on Ubuntu under X11.
 - An SVG whose style sheet or class lists are built to be slow no longer freezes the UI thread on
   its first draw. One element listing 200,000 class names (1.5 MB) took 17 s to read; a rule
   `.k.aaa…` against a class `k aaa…` took 10 s at 600 KB and nearly three minutes at 2.4 MB; a rule
@@ -379,7 +433,10 @@ Maven Central say which number that was.
 - An open menu, `ComboBox` list or `DatePicker` calendar that is a window of its own closes, choosing
   nothing, when its owner enters or leaves fullscreen, as the platforms' own menus do; a native modal
   `Dialog` (the `ColorPickerButton`'s picker too) moves into the fullscreen window with its typed
-  text and focus. They stayed as windows over an owner that had changed under them.
+  text and focus. They stayed as windows over an owner that had changed under them. The dialog moves
+  also where its window is wider than its card by the shadow the toolkit draws round it, where the
+  move threw and left a dialog in neither place, and the window it left keeps no keyboard on a
+  widget it no longer holds.
 - A fill inside a rounded border no longer shows past it, and no background shows between them, at
   fractional positions: the renderer moved the border to whole device pixels and left the fill where
   it was. 88 such pixels in 16 positions at 1x, 1.25x and 2x read 0 on every machine measured.
@@ -498,11 +555,13 @@ Maven Central say which number that was.
   moves it (only the old button hears it collapse), and a detached popover still opens from
   `showFor`.
 - In limn-test, `HeadlessWindow` exposes `textInput` and `preeditCaret`, `screenPositionRequests()`,
-  `requestedScreenX()` and `requestedScreenY()`, and `RowsSubject.empty(Widget, Label)` checks a
-  list's, table's or tree's empty content. Also new since 0.9.0 and named here: `Avatar.setInitials`
-  and `setColorIndex`; `Popover.setAlignment`, `setDisplayMode` and `setAccessibleName`; and
-  `isLoading`, `isShowingEmptyContent` and `isShowingLoadingContent` on `ListView`, `Table` and `Tree`,
-  which answer what the widget shows as of its last layout.
+  `requestedScreenX()` and `requestedScreenY()`, `RowsSubject.empty(Widget, Label)` checks a list's,
+  table's or tree's empty content, and `HeadlessBackend.setCompositorShadowsPopups(boolean)` says
+  whether its compositor casts a frameless window's shadow, so a test can play a desktop that casts
+  none, where the toolkit draws its own in a margin of the window. Also new since 0.9.0 and named
+  here: `Avatar.setInitials` and `setColorIndex`; `Popover.setAlignment`, `setDisplayMode` and
+  `setAccessibleName`; and `isLoading`, `isShowingEmptyContent` and `isShowingLoadingContent` on
+  `ListView`, `Table` and `Tree`, which answer what the widget shows as of its last layout.
 - Part of a window fades as one picture in an `Opacity` container (ADR 071), which wraps one
   widget as `Padding` does: `new Opacity(panel)`. `setOpacity(float)` sets how opaque the child and
   everything under it are drawn, from 0 to 1, and `opacity()` answers it; `fadeTo(target, seconds,
@@ -600,8 +659,9 @@ Maven Central say which number that was.
   and by Ctrl+W (Cmd+W on macOS) while the keyboard is in the pane. Pressing a tab's close button
   leaves the keyboard where it was, as a browser's does, so a close refused from a dialog gives it
   back to the page being typed in. `onTabClose` is handed a `TabCloseRequest` to `allow()` or
-  `refuse()`, now or later, and a tab is not asked again while its request is unanswered;
-  closing the selected tab selects the next, or the one before when it was the last. A tab is
+  `refuse()`, now or later, and a tab is not asked again while its request is unanswered; the
+  request is sealed, made by Limn alone, and a test closes the tab as the user does. Closing the
+  selected tab selects the next, or the one before when it was the last. A tab is
   dragged along the bar, the others sliding out of its way, and moved by Ctrl+Shift+Page Up
   and Page Down (Cmd on macOS), which a screen reader hears as its new position; `onTabMove`
   hears the user's moves. `removeTab`, `moveTab`, `tabContent` and `indexOfTab` do the same
@@ -828,7 +888,7 @@ Maven Central say which number that was.
   that acts on whatever widget has the keyboard and is greyed while that widget cannot, in a
   menu bar, a context menu or a tool bar's menu, on every system. `Scene.canEdit` and
   `Scene.edit` are the same for a button, and a widget of your own takes part through
-  `Widget.onCanEdit` and `onEdit`. A text field's Cut and Copy chosen from a menu find the
+  `Widget.onCanEdit` and `onEdit`. A text field's Cut, Copy and Paste chosen from a menu act on the
   selection the field had before the menu took the keyboard, and the field has the keyboard back
   after.
 - On macOS a file panel's text fields now take cut, copy, paste and select all by their
@@ -881,19 +941,29 @@ Maven Central say which number that was.
   `Offer` that lists its formats at once and reads a value asynchronously.
   `Clipboard.set(Transfer)` and `Clipboard.content()` carry them, and `onChange` hears the
   content change.
-- Drag and drop between widgets. A widget answers `onDragStart` with a `Drag` (what it carries
-  as a `Transfer`, the actions it allows, what to hear at the end); the widget under the pointer
-  accepts in `onDragOver`, marks where the drop would land, and takes it in `onDrop`. The
-  modifier keys choose between copy, move and link as the platform does, Escape cancels, and a
-  widget that scrolls under the wheel scrolls when the pointer rests near its edge. The keyboard
-  does the same: Ctrl+Shift+D (Cmd+Shift+D on macOS, `Scene.setDragKey`) picks up on the focused
-  widget, Tab walks the widgets that accept, the arrow keys choose the place, Enter drops, and a
-  screen reader hears each step in the 21 languages.
+- Drag and drop between widgets. A widget answers `onDragStart` with a `Drag` (what it carries as a
+  `Transfer`, the actions it allows, what to hear at the end); the widget under the pointer accepts
+  in `onDragOver`, marks where the drop would land, and takes it in `onDrop`. The modifier keys
+  choose between copy, move and link as the platform does, and Escape cancels. Whatever scrolls
+  through a `ScrollBar` under the pointer (a scroll view, a list, a table, a tree, a text area, or a
+  widget of your own built on a bar) scrolls toward the edge the pointer rests near, faster the
+  nearer the edge, so a drop area out of sight comes into view: the innermost that can still move
+  first, the next one out once the pointer is in its band too; past the window's edge a drag inside
+  the window scrolls faster the farther past it. The band and the speed are the window's points
+  under a `Transform`'s scale or tilt, a list, a table or a tree of rows of mixed heights glides
+  instead of leaping, and a listener that throws during a step stops no later scroll. It runs under
+  less motion too, being the user's scroll. The keyboard does the same: Ctrl+Shift+D (Cmd+Shift+D on
+  macOS, `Scene.setDragKey`) picks up on the focused widget, Tab walks the widgets that accept, the
+  arrow keys choose the place, Enter drops, and a screen reader hears each step in the 21 languages.
 - A drag leaves its window, on Windows, macOS, X11 and Wayland: it is the system's own drag, to
   and from other programs, with the picture of what is dragged following the pointer over them,
   and what another program drags in is answered while it hovers. `Drag.withinWindow()` keeps
   one from being offered outside. `-Dlimn.drag.trace=true` prints each step of a drag handed to
-  the system.
+  the system. A drop area that an auto-scroll brings under a pointer at rest is asked again with
+  what the system now allows, and the system is told the new answer, sent only to the drag it was
+  worked out for, so a release without a move drops there on X11 and Wayland too, a file from a
+  file manager or a drag of this program's own (tried on KDE under Wayland and on Ubuntu under
+  X11); `WindowPeer.dragAnswerChanged` tells a backend of your own of such an answer.
 - `ListView` and `Tree` drag their rows. `setDragEnabled(true)` lets the user drag them out,
   the selected ones together, as `ListView.ITEMS` or `Tree.NODES` for the program's own widgets
   and as text for any other (`setDragContent` says otherwise). `onReorder` lets them be moved
@@ -1031,7 +1101,8 @@ Maven Central say which number that was.
   (`Backend.setQuitHandler`) first, then every open window's close handler, the window used last
   first and one at a time. A refusal anywhere keeps every window open; once all agree, every window
   closes and `runEventLoop()` returns `LoopEnd.QUIT`. A dialog or menu open as a window of its own
-  is not asked and closes with its owner.
+  is not asked and closes with its owner. The `QuitRequest` its handler is handed is sealed, made by
+  Limn alone; a test asks the handler with `requestQuit()`.
 - `NativeWindow.setClosePolicy(ClosePolicy)` says what an allowed user's close does: dispose the
   window (the default), hide it (`HIDE`), or end the application (`END_APPLICATION`).
 - `Backend.setLoopLifetime(LoopLifetime.UNTIL_QUIT)` keeps the loop running with no window open,
@@ -1140,7 +1211,10 @@ Maven Central say which number that was.
   the required state on every system. The line keeps its height once shown, so a form does not
   move on the first error. A text field, a text area, a combo box, a spinner, a date field and a
   date picker draw the state on their border, and a date that refuses a day says why on the line
-  by itself. A screen reader hears the caption as the control's name and the line as its
+  by itself: while a control refuses its value, its reason shows, and is read, ahead of the helper
+  text and of an `INFO` or `SUCCESS` message, which comes back once the value is accepted; an
+  application's `ERROR` or `WARNING` message still wins, and one set with `NONE` is not shown and
+  counts as none. A screen reader hears the caption as the control's name and the line as its
   description, on the part the keyboard lands on; required is `IsRequiredForForm` on Windows,
   `AXRequired` on macOS and `REQUIRED` on Linux, and an error is `IsDataValidForForm` false on
   Windows and `INVALID_ENTRY` on Linux.
@@ -1192,9 +1266,11 @@ Maven Central say which number that was.
 - `Avatar` and `AvatarGroup`: a person as a circle of their picture or their initials (the first
   grapheme of the first and the last word, upper-cased in the avatar's locale) over a chart-palette
   colour of their own, the same for the same name everywhere; a silhouette with neither. A group
-  overlaps them by a quarter and ends in "+k" past `setMaxShown` (four by default), the hidden
-  names in its tooltip. An avatar is an image named by the person; a group is one group,
-  described by every name, the hidden ones included.
+  overlaps them by a quarter and ends in "+k" past `setMaxShown` (four by default), drawn at the
+  size of the group's initials and centred on its capitals as they are, the hidden names in its
+  tooltip. An avatar is an image named by the person; a group is one group, described by every
+  name, the hidden ones included. A member's initials are read in its own language, and the
+  group's one size, its description and its tooltip follow a window's or a subtree's language.
 - `ListView`, `Table` and `Tree` show an empty content of yours whenever they hold no rows:
   `setEmptyContent(content[, message])` or `setEmptyMessage("…")`, centred in the rows' viewport
   (a table keeps its header and footer), its buttons after the widget in the Tab order, the
@@ -1215,6 +1291,16 @@ Maven Central say which number that was.
   its caption is `Theme.primaryText()`. The box is the same at every style.
 - `Dialog.addDestructiveButton`, a secondary button in the danger colour that is never the
   dialog's default: Return gives the safe answer.
+- `Dialog.onCancel(handler)` asks before the user cancels a dialog, so a form with unsaved changes
+  can ask "Save changes?" over itself. The handler is handed a `Dialog.CancelRequest` for Escape, a
+  click on the scrim of a dialog that dismisses there, a button whose result is the cancel result,
+  the system closing the dialog's own window and a screen reader's dismiss, `reason()` saying which,
+  and answers it once with `allow()` or `refuse()`, now or from another dialog's result; holding it
+  asks nothing new, a second answer throws, and a handler that throws has refused. Any other answer,
+  a Save, is `request.dialog().dismiss(result)`, which settles the request. `dismiss` from code, the
+  default button, any other button and the application ending never ask. The request is sealed,
+  made by Limn alone; a test presses the key or the button. A dialog answers Escape and Return on
+  the key's press alone and takes their repeats, so a key held down asks once.
 - `Theme.primaryText()`, the accent as text: `primary` where it reads at 4.5:1 on the canvas, a
   card and a popover, and otherwise moved toward the text colour only until it does. Derived, not a
   key of the theme file.
@@ -1228,6 +1314,42 @@ Maven Central say which number that was.
   also names the Windows features that need a later build of Windows 10 (dark system menus from
   1903, headings with their level from 1809, a tray icon sized per monitor from 1607) and what
   each falls back to.
+- `Scene.setRoot(widget)` swaps a scene's root, bound to a window or not, and is the way to switch
+  pages in a window. The old root leaves as a removed widget does (told `onDetached`, its popups
+  closed, the keyboard, the hover, a press and a drag the scene drives taken out of it, screen
+  readers told the content changed) and is then free for any container, push or scene; the new one
+  is refused as a new scene's root is, before anything moves. When the keyboard was in the old page,
+  in a popup of it too, it goes to the new page's first stop, unless the new page asked for one of
+  its widgets as it joined. A dialog shown on the scene, or a menu shown at a point of it, moves to
+  the new root; one the application hung from a widget stays with that widget. A drag already
+  handed to the system goes on, its drop going to the new root. A `setRoot` asked from inside the
+  change waits for it and is then made, the last one winning, and a chain that has not settled
+  after 64 roots stops with an `IllegalStateException` that names it.
+- `ScrollBar.Model.scrollBy(delta)`, by default `setOffset(offset() + delta)`: a model whose offset
+  is an estimate, as a list's over rows of different heights is, moves by what is on screen instead.
+  A drag's auto-scroll moves a bar this way.
+- The Showcase's 3D page has a product configurator: a desk lamp built in code from its parts,
+  turned with the pointer under a studio sky, whose colour swatches, finish and light switch blend
+  its material over a third of a second (a cut under less motion); a click on a part opens its name
+  and price in a popover at the click, and a price list and a total follow the finish and say to a
+  screen reader what a click says. A shader scene computes molten rock, a zoom into the Mandelbrot
+  set and a glowing cloud on the GPU per pixel every frame, in an application's surface written in
+  the portable shader IR, held still while the system asks for less motion; on a machine without a
+  GPU it is too slow to use. The environment's reflections and the glTF model are back in the page's
+  scene picker, and its render scale applies to every scene, the shadows included.
+- A shader surface iterates with `Expr.Loop` in `limn.render3d.shader`. `Expr.Loop.of(initial,
+  maxIterations, next)`, and the same with an `until` asked before each turn, hands `next` the state
+  as a node of the initial value's type and takes the next state back; `Expr.Loop.of(List,
+  maxIterations, next[, until])` carries several values, read with `loop.value(i)`, so a ray can
+  gather a colour and the distance it went. Every turn a pixel takes across a whole surface is held
+  to `Expr.Loop.MAX_ITERATIONS`, 1024, counted as the generated shader runs it (loops side by side
+  or chained add, a loop in another's turn that reads its state multiplies, the diffuse response
+  counts once for each of eight lights), so no surface can hang the GPU. A loop that can end early
+  may not sample a texture at an implicit level of detail or take a derivative, which the shading
+  languages leave undefined there; a state is read only inside its loop, under the name the factory
+  gives it, and a turn may not read the state of a loop already built. It compiles to both GLSL
+  profiles the toolkit targets. There is no `let` and no helper function: a Java variable holding a
+  node is computed once, and a Java method that builds nodes is already a function.
 
 ### Changed
 
@@ -1248,19 +1370,27 @@ Maven Central say which number that was.
   a scale that is 0 on either axis, a plane exactly edge-on) is out of reach as a hidden child is:
   Tab, access letters and the pointer pass it by, the focus, the hover and a held press are taken
   out of it, screen readers are told it is hidden, and it comes back by itself. A scale that arrives
-  at 0 takes the focus; turn a card over with `flipTo` to keep it.
+  at 0 takes the focus; turn a card over with `flipTo` to keep it. A set, a motion's frame or a
+  layout pass that turns a plane edge-on closes its popups and takes its focus once it is over; for
+  a layout pass, when the next frame renders, which `Scene.layoutPass` says for a caller that lays
+  out alone.
 - A widget drawing in `BlendMode.MULTIPLY` or `ADDITIVE` inside an `Opacity` container below 1, or
   inside any `Canvas.saveLayer`, a turned picture of a `Transform` included, blends with what the
   group itself drew, and is drawn as itself where the group drew nothing, as an isolated group of a
   web page is (`ADDITIVE` adds coverage as well as light). Before, `MULTIPLY` drew nothing below 1.
   At 1 there is no group and the mode blends with the window, so a fade's last frame jumps, as a web
   page's does. `MULTIPLY` there is drawn in two passes: draws that cannot cover a pixel in common
-  share them (200 heat-map cells take 9 draw calls), and each draw that can takes two of its own.
+  share them (200 heat-map cells a pixel apart take 9 draw calls), and each draw that can takes two
+  of its own. Shapes less than a device pixel apart, touching bars or tiles, each take their own,
+  since beside a corner both can cover one pixel: ten touching bars take 21 draw calls a frame while
+  their group fades.
 - A validation message reads in the language of the control it describes: a `Field` draws its
-  message, or the control's own reason, in the control's language, and `Field.validationMessage()`
-  returns that text, falling back to the control's reason (a `DateField` refusing a day) when the
-  application set none. `label()`, `helperText()` and `validationMessage()` return the text as it
-  reads, and `labelSource()`, `helperTextSource()` and `validationMessageSource()` the `I18nString`.
+  message, or the control's own reason, in the control's language, laid out in place as a new
+  message is, and `Field.validationMessage()` returns that text: the application's `ERROR` or
+  `WARNING` message, else the control's own reason while it refuses its value (a `DateField`
+  refusing a day), else an `INFO` or `SUCCESS` message; one set with `NONE` counts as none.
+  `label()`, `helperText()` and `validationMessage()` return the text as it reads, and
+  `labelSource()`, `helperTextSource()` and `validationMessageSource()` the `I18nString`.
 - Any of Limn's enums may gain constants in a 1.x minor. The promise in the README and the install
   guide and the Javadoc of every public enum say so: a `switch` over one keeps a `default` branch.
 - `Change.Aspect.ENABLED` is announced on every descendant whose `isEnabled()` changed when a
@@ -1432,7 +1562,8 @@ Maven Central say which number that was.
   show the dialog, call `requestClose()` from the answer) becomes answering the request from the
   answer; a second click on the close button while the question is open asks nothing new. To
   move, turn `() -> { …; return ok; }` into `request -> { …; if (ok) request.allow(); else
-  request.refuse(); }`. The handler is also asked when the application ends.
+  request.refuse(); }`. The handler is also asked when the application ends. `CloseRequest` is
+  sealed, made by Limn alone; a test asks the handler with `HeadlessWindow.userClose()`.
 - `Backend.runEventLoop()` returns why it ended: `LAST_WINDOW_CLOSED`, `STOPPED` or `QUIT`. Code
   that ignores it compiles as before; a backend of your own returns it.
 - On macOS, Cmd-Q, the application menu's Quit and the Dock's Quit make the same request as
@@ -1475,6 +1606,51 @@ Maven Central say which number that was.
   goes to that part too, the node a reader reaches; what the part was given itself still wins.
 - A `ListView`'s, a `Table`'s or a `Tree`'s `refresh()` and a new set of rows repaint the widget
   and not the window, and so does a child joining or leaving any widget that clips its children.
+- Every single-line control centres its text on its capitals instead of its line box: in a field, a
+  combo box, a button, a date field, a spinner, a tab, a menu row and the rest the capitals stood
+  0.1 to 0.6 pt above the centre on average, and up to a device pixel at the worst position on the
+  pixel grid. `TextRuler.capHeight(font)` and `TextRuler.centredBaseline(font, height)` are what
+  they paint with and report as their baseline, for a widget of your own to centre a line the same
+  way. A `Label` and a `TextArea` keep their lines at the top.
+- An icon beside its text stands one gap from it everywhere, `SizeTokens.gapIcon`, now 4, 5, 6, 8 or
+  10 pt by size where it was 5, 6, 8, 9 or 11: in a button, a field, a combo box, its chips and list
+  rows, a menu row and a label alike, where a button's icon stood some 2 pt further from its caption
+  than a combo's. A button's icon beside a caption stands from the button's edge as a
+  field's leading icon does, so icons line up down a form, stretched buttons included, and the
+  caption is centred in what is left; such a button asks for 8 pt less width at the default size. A
+  caption alone and an icon alone stay centred, and a `ColorPickerButton`'s chip beside a caption
+  follows the same rule.
+- A period `DatePicker` (`DatePicker.ofRange()`) packs its two dates and the dash at the start of
+  the field, in the direction it reads, the room left over after the second date; the two dates
+  split the box in halves whatever they took, the dash in the middle and the second date at the far
+  end. A click in the room left over lands in the second date, and a box too narrow for the packed
+  line still splits in halves.
+- A `Dialog` in a window of its own refuses the system's close of that window and takes it as
+  Escape: it asks `onCancel`, and closes by fading out as its other answers do, its result
+  completing after the fade. It vanished at once.
+- The veil that dims a window a modal locks, and the scene under an in-scene dialog, keeps clear
+  pixels clear and leaves opaque ones as painting over did, and dims a partly covered pixel by
+  darkening it and covering more of what is behind: a translucent locked window dims the desktop
+  seen through it again, glass at 0.6 showing a tenth of the desktop where painting over showed a
+  fifth, and a pixel two thirds covered or more becomes opaque under a half veil. On a canvas
+  without that blend, a locked window's veil is multiplied in and a dialog's painted over.
+- A text field or a text area that a closing overlay gives the keyboard back to (a dialog's
+  question, a popover, a menu drawn in the scene) has its selection back, the caret at the same end,
+  when nothing set its caret, its selection or its text meanwhile, as it does when the overlay is a
+  window of its own; an item that selected all or moved the caret keeps what it did. Tabbing in
+  still selects all, and a click places the caret. An input method's composition is not kept.
+- `SegmentedControl.onSelect` is documented as what it always was, the user's choice:
+  `setSelectedIndex` reaches the control's watchers and not that handler.
+- The GLSL generator writes a node used more than once once, into a local, so a shader grows with
+  its IR and not with every path through it: a surface of four octaves of noise draws a frame in 1.3
+  s where it took 5.4 s on Apple's software renderer, the GPU unchanged, and the built-in material
+  samples its base-colour texture once. A loop asks its exit before the work only its next state
+  needs.
+- The shader IR is a value, as its Javadoc said: `Expr.Lit.of(1).equals(Expr.Lit.of(1))`, a literal
+  copies its values in and out, and every node equals its twin built apart. Equality, hashing, a
+  node's type and `toString` visit a node shared by many parents once, `toString` writing it `#n=`
+  the first time and `#n` after, where a chain that reuses its last step took time exponential in
+  its length and forty squarings never finished.
 
 ### Breaking, and how to move
 
@@ -1595,6 +1771,31 @@ Maven Central say which number that was.
   where you emptied them. A message coloured with `setColor(theme.danger())` is `setTone(Tone.DANGER)`.
 - `Button.setSecondary(boolean)` is gone: `setSecondary(true)` is `setStyle(Button.Style.SECONDARY)`,
   and `setSecondary(false)` is the default, `Button.Style.PRIMARY`.
+- A `Button` holding an icon and no caption is square, as wide as its control height (24, 28, 32,
+  40 or 50 pt by size), its icon centred; it was the caption's padding on both sides of the icon, 58
+  by 32 at the default size. A `ColorPickerButton` with an empty caption is square the same way, its
+  chip inset by half of what the shorter side of its box leaves. Captioned buttons keep their width.
+  To keep the old width, give the button `setMinWidth` of 38, 48, 58, 72 or 88 by size;
+  `setMaxWidth` makes one narrower.
+- A widget that is a scene's root, or an overlay on a scene's stack, is refused with an
+  `IllegalArgumentException` by every container's `add`, by `Scene.pushOverlay` and `pushPopup` and
+  by `new Scene`, whether the scene is another or the one it is pushed on, before anything moves; so
+  is a widget that has a parent, by the pushes and `new Scene` as by `add`. Taken, it stayed named
+  as its first scene's root or on its stack, laid out at that window's size; pushed twice, the first
+  `removeOverlay` walked it out of the scene while it stayed on top; pushed with a parent, it was
+  laid out and drawn by both. Take it off first: `removeOverlay`, `Scene.setRoot` with another root
+  (or its window closing), or `remove` from its parent.
+- A container's `add` of a widget that already has a parent throws `IllegalArgumentException`, as
+  the pushes and `new Scene` do, where it threw `IllegalStateException`. Code that caught the old
+  type for this catches the new one.
+- `Scene.bind` of a scene whose window closed throws `IllegalStateException` when its root was taken
+  since (by a container, a push or another scene), and leaves off its stack an overlay that another
+  scene or a container took; it walked them all back in, so a widget was in two places at once. Give
+  such a scene a new root with `setRoot` before binding it again.
+- `Expr` permits a new node, `Expr.Loop`: a `switch` over the shader IR that names every node, with
+  no `default`, needs a case for it. A `Material.Surface` input whose name starts with `ir_` is
+  refused with an `IllegalArgumentException`, since the generator names its own variables so, and so
+  is a surface reading a reference so named that no loop binds; rename the input.
 
 ### Known, and left for later
 
@@ -1602,10 +1803,10 @@ Maven Central say which number that was.
   move only; with no key held it is the target's preference that decides between those two,
   not the source's; and at a fractional scale the picture that follows the pointer is rounded
   to a whole one. On X11 a program built on GTK 4 talks to the window itself from its second
-  message on and goes round the channel this toolkit answers drags on: its files are taken
-  all the same, at the drop and with no answer while they hover, and anything else it drags,
-  text for one, does not arrive. Programs built on GTK 3 and the other toolkits tried are
-  answered in full.
+  message on and goes round the channel this toolkit answers drags on: its files are followed
+  by the pointer, asked for as they hover, offered as files alone and as a copy alone, and
+  taken at the drop, but anything else it drags, text for one, does not arrive. Programs built
+  on GTK 3 and the other toolkits tried are answered in full.
 
 - In a combo holding many, VoiceOver reads each toggle as the field's new value followed by "text
   inserted", and now and then a lone "None" around the Escape that closes an editable one's list
