@@ -9,8 +9,8 @@ import org.lwjgl.system.MemoryUtil;
  *
  * <p>Limn's renderer asks for desktop OpenGL 3.3 core, which ANGLE does not offer, so the demo
  * cannot run on it; this proves only that ANGLE gives a working context on the machine. The
- * libraries come from {@code -Dangle.dir} and are loaded before GLFW asks for them by name:
- * {@code libGLESv2.dll} first, because {@code libEGL.dll} imports it.
+ * libraries come from {@code -Dangle.dir} and are loaded before GLFW asks for them by name, each
+ * after what it imports: {@code z.dll}, then {@code libGLESv2.dll}, then {@code libEGL.dll}.
  */
 public class AngleProbe {
 
@@ -20,7 +20,7 @@ public class AngleProbe {
 
     public static void main(String[] args) {
         String dir = System.getProperty("angle.dir");
-        for (String name : new String[] {"libGLESv2.dll", "libEGL.dll"}) {
+        for (String name : new String[] {"z.dll", "libGLESv2.dll", "libEGL.dll"}) {
             System.load(Path.of(dir, name).toAbsolutePath().toString());
             System.out.println("PROBE loaded " + name);
         }

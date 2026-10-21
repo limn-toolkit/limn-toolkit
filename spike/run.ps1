@@ -35,4 +35,9 @@ $seconds = [math]::Round(((Get-Date) - $started).TotalSeconds, 1)
 
 Get-Content $log
 "$Name exit=$code seconds=$seconds" | Tee-Object -Append results\runs.txt
+# A failed run does not fail the step, so it is raised as an annotation on the run's page instead
+# of hiding behind a green check.
+if ("$code" -ne "0") {
+    Write-Host "::warning title=$Name failed::exit=$code after $seconds s; the output is in results\$Name.log"
+}
 exit 0
