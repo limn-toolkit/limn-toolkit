@@ -69,10 +69,14 @@ jobs:
           "$PWD\tools\winflexbison" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
           gh release download $env:DXC_TAG --repo microsoft/DirectXShaderCompiler --pattern 'dxc_*.zip' --dir tools
           Get-ChildItem tools\dxc_*.zip | Expand-Archive -DestinationPath tools\dxc
-          iex "& { $(iwr -useb https://ps.jbang.dev) } app setup"
-          "$env:USERPROFILE\.jbang\bin" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
           $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
+          if (-not (Test-Path "$vs\VC\Auxiliary\Build\vcvarsall.bat")) { throw "no vcvarsall.bat under '$vs'" }
+          Write-Host "Visual Studio: $vs"
           "VSINSTALL=$vs" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          # The installer ends the script it runs in, so it gets a process of its own.
+          pwsh -NoProfile -Command 'iex "& { $(iwr -useb https://ps.jbang.dev) } app setup"'
+          if (-not (Test-Path "$env:USERPROFILE\.jbang\bin\jbang.cmd")) { throw "jbang did not install" }
+          "$env:USERPROFILE\.jbang\bin" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
 
       - name: Fetch Mesa
         run: git clone --depth 1 --branch $env:MESA_TAG https://gitlab.freedesktop.org/mesa/mesa.git mesa
