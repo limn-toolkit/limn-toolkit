@@ -1,0 +1,306 @@
+# Spike, not CI: two ways Limn could carry its own graphics on a Windows machine with no OpenGL
+# driver, measured on GitHub's Windows runners, which have no GPU.
+#
+# - llvmpipe: Mesa's software OpenGL 4.5, built with only that driver and LLVM linked in. Limn
+#   runs on it unchanged, so the job measures the libraries and runs the published demo through
+#   them, beside the Swing twin of its benchmark.
+# - ANGLE: OpenGL ES over Direct3D 11, built by vcpkg. Limn's renderer asks for desktop OpenGL and
+#   would need porting, so the job measures the libraries and proves a context, nothing more.
+#
+# Every licence is read before anything is built: Mesa (MIT and a few permissive others; the job
+# lists each compiled file's), LLVM (Apache-2.0 WITH LLVM-exception), ANGLE (BSD-3-Clause), zlib.
+# The CRT is linked statically in both, so no Microsoft redistributable is shipped; ANGLE needs
+# d3dcompiler_47.dll at run time, and the jobs record whether Windows itself carries it.
+#
+# Runs on a push to this branch alone. Each run is a result rather than a gate.
+name: gl-fallback-spike
+
+on:
+  push:
+    branches: [spike/mesa-d3d12-runner]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  llvmpipe:
+    name: llvmpipe-${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: windows-2025, arch: x64, java: temurin, java-arch: x64, llvm-target: X86 }
+          - { runner: windows-11-arm, arch: arm64, java: microsoft, java-arch: aarch64, llvm-target: AArch64 }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 340
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      MESA_TAG: mesa-26.2.5
+      LLVM_TAG: llvmorg-19.1.7
+      WINFLEXBISON_TAG: v2.5.25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: The machine
+        run: |
+          New-Item -ItemType Directory results | Out-Null
+          & {
+            "session=" + [System.Diagnostics.Process]::GetCurrentProcess().SessionId
+            "os=" + [Environment]::OSVersion.VersionString
+            "arch=" + $env:PROCESSOR_ARCHITECTURE
+            "cpus=" + [Environment]::ProcessorCount
+            Get-CimInstance Win32_VideoController | Format-List Name, DriverVersion | Out-String
+          } | Tee-Object results\machine.txt
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+          architecture: ${{ matrix.arch }}
+
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: ${{ matrix.java }}
+          java-version: '17'
+          architecture: ${{ matrix.java-arch }}
+
+      - name: Build tools
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python -m pip install --disable-pip-version-check meson ninja mako packaging pyyaml
+          gh release download $env:WINFLEXBISON_TAG --repo lexxmark/winflexbison --pattern 'win_flex_bison-*.zip' --dir tools
+          Get-ChildItem tools\win_flex_bison-*.zip | Expand-Archive -DestinationPath tools\winflexbison
+          "$PWD\tools\winflexbison" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+          "$PWD\llvm-install\bin" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
+          if (-not (Test-Path "$vs\VC\Auxiliary\Build\vcvarsall.bat")) { throw "no vcvarsall.bat under '$vs'" }
+          "VSINSTALL=$vs" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+
+      # Restored and saved apart, so an LLVM build survives a later step failing.
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: llvm
+        with:
+          path: llvm-install
+          key: llvm-${{ env.LLVM_TAG }}-${{ matrix.arch }}-mt-release-v1
+
+      # Mesa's Windows CI recipe (.gitlab-ci/windows/mesa_deps_build.ps1) without clang and with
+      # one target: static CRT to match Mesa's, assertions off, no compression libraries. Tools are
+      # not built, except llvm-config, which meson looks for first.
+      - name: Build LLVM
+        if: steps.llvm.outputs.cache-hit != 'true'
+        shell: cmd
+        run: |
+          call "%VSINSTALL%\VC\Auxiliary\Build\vcvarsall.bat" ${{ matrix.arch }} || exit /b 1
+          git clone -q --depth 1 --branch %LLVM_TAG% https://github.com/llvm/llvm-project llvm-project || exit /b 1
+          cmake -S llvm-project\llvm -B llvm-build -GNinja -DCMAKE_BUILD_TYPE=Release -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DCMAKE_INSTALL_PREFIX=%CD%\llvm-install -DCMAKE_CXX_FLAGS=/utf-8 -DLLVM_TARGETS_TO_BUILD=${{ matrix.llvm-target }} -DLLVM_OPTIMIZED_TABLEGEN=ON -DLLVM_ENABLE_ASSERTIONS=OFF -DLLVM_BUILD_TOOLS=OFF -DLLVM_INCLUDE_UTILS=OFF -DLLVM_INCLUDE_RUNTIMES=OFF -DLLVM_INCLUDE_TESTS=OFF -DLLVM_INCLUDE_EXAMPLES=OFF -DLLVM_INCLUDE_BENCHMARKS=OFF -DLLVM_INCLUDE_DOCS=OFF -DLLVM_ENABLE_DIA_SDK=OFF -DLLVM_ENABLE_ZLIB=OFF -DLLVM_ENABLE_ZSTD=OFF -DLLVM_ENABLE_LIBXML2=OFF -DLLVM_ENABLE_BINDINGS=OFF -Wno-dev || exit /b 1
+          cmake --build llvm-build --target install || exit /b 1
+          cmake --build llvm-build --target llvm-config || exit /b 1
+          copy llvm-build\bin\llvm-config.exe llvm-install\bin\ || exit /b 1
+          copy llvm-project\llvm\LICENSE.TXT llvm-install\LICENSE.TXT || exit /b 1
+
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: steps.llvm.outputs.cache-hit != 'true'
+        with:
+          path: llvm-install
+          key: llvm-${{ env.LLVM_TAG }}-${{ matrix.arch }}-mt-release-v1
+
+      - name: Fetch Mesa
+        run: git clone --depth 1 --branch $env:MESA_TAG https://gitlab.freedesktop.org/mesa/mesa.git mesa
+
+      - name: Build Mesa, llvmpipe only
+        shell: cmd
+        run: |
+          call "%VSINSTALL%\VC\Auxiliary\Build\vcvarsall.bat" ${{ matrix.arch }} || exit /b 1
+          llvm-config --version
+          meson setup _build mesa --default-library=shared --buildtype=release -Db_ndebug=true -Db_vscrt=mt --prefix=%CD%\_install --cmake-prefix-path=%CD%\llvm-install -Dplatforms=windows -Dllvm=enabled -Dshared-llvm=disabled -Dvulkan-drivers=[] -Dgallium-drivers=llvmpipe -Dgallium-va=disabled -Dgallium-d3d10umd=false -Dgallium-mediafoundation=disabled -Dvideo-codecs=[] -Dgles1=disabled -Dgles2=disabled -Degl=disabled -Dgbm=disabled -Dglx=disabled -Dmicrosoft-clc=disabled -Dspirv-to-dxil=false -Dgallium-rusticl=false -Dbuild-tests=false -Dwerror=false || exit /b 1
+          meson install -C _build || exit /b 1
+          dir /s /b _install > results\install-tree.txt
+          for %%f in (_install\bin\*.dll) do dumpbin /nologo /dependents %%f >> results\dependents.txt
+          type results\dependents.txt
+
+      - name: Licences of what was compiled
+        run: |
+          python -I spike\license_inventory.py _build mesa | Tee-Object results\licenses-mesa.txt | Select-Object -First 40
+          Copy-Item llvm-install\LICENSE.TXT results\LICENSE-LLVM.txt
+          Copy-Item mesa\docs\license.rst results\license-mesa.rst
+          Get-ChildItem mesa\subprojects -Recurse -Include LICENSE*, COPYING*, README* -Depth 2 -ErrorAction SilentlyContinue |
+              Where-Object { $_.DirectoryName -match 'zlib' } | Select-Object -First 3 | ForEach-Object { Copy-Item $_ "results\zlib-$($_.Name)" }
+
+      - name: Sizes
+        run: |
+          New-Item -ItemType Directory stage\mesa-llvmpipe -Force | Out-Null
+          Copy-Item _install\bin\*.dll stage\mesa-llvmpipe
+          Compress-Archive stage\mesa-llvmpipe\*.dll results\mesa-llvmpipe.zip -CompressionLevel Optimal
+          & {
+            "Mesa $env:MESA_TAG, llvmpipe only, LLVM $env:LLVM_TAG static, windows-${{ matrix.arch }}"
+            Get-ChildItem stage\mesa-llvmpipe\*.dll | ForEach-Object { "{0,-22} {1,12:N0} bytes" -f $_.Name, $_.Length }
+            "{0,-22} {1,12:N0} bytes" -f "raw", (Get-ChildItem stage\mesa-llvmpipe\*.dll | Measure-Object Length -Sum).Sum
+            "{0,-22} {1,12:N0} bytes" -f "zip", (Get-Item results\mesa-llvmpipe.zip).Length
+          } | Tee-Object results\sizes.txt
+
+      # The release's single-file demo, every platform inside: the 0.9.0 POM does not resolve
+      # on Windows (it names lwjgl-egl natives that do not exist), which main has fixed since.
+      - name: The demo, and the probe compiled against it
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download v0.9.0 --repo ${{ github.repository }} --pattern limn-demo-all.jar --dir tools
+          javac -cp tools\limn-demo-all.jar -d spike\classes spike\Probe.java
+          if ($LASTEXITCODE -ne 0) { throw "javac failed" }
+
+      - name: Control, the machine's own OpenGL
+        run: .\spike\run.ps1 control-gl-info "" 180 -- --gl-info
+
+      - name: llvmpipe, context
+        run: .\spike\run.ps1 llvmpipe-gl-info "$PWD\stage\mesa-llvmpipe" 180 -- --gl-info
+
+      - name: llvmpipe, drawing
+        run: |
+          .\spike\run.ps1 llvmpipe-kitchen "$PWD\stage\mesa-llvmpipe" 240 -- --screenshot results\llvmpipe-kitchen.png --scene kitchen-light
+          .\spike\run.ps1 llvmpipe-charts "$PWD\stage\mesa-llvmpipe" 240 -- --screenshot results\llvmpipe-charts.png --scene charts-light
+          .\spike\run.ps1 llvmpipe-viewport3d "$PWD\stage\mesa-llvmpipe" 240 -- --screenshot results\llvmpipe-viewport3d.png --scene viewport3d-light
+          .\spike\run.ps1 llvmpipe-shadows "$PWD\stage\mesa-llvmpipe" 240 -- --screenshot results\llvmpipe-shadows.png --scene shadows
+
+      - name: Benchmarks
+        run: |
+          .\spike\run.ps1 llvmpipe-bench "$PWD\stage\mesa-llvmpipe" 300 -- --bench on
+          .\spike\run.ps1 swing-bench "" 300 -- java scripts\bench\SwingBench.java
+
+      - name: Summary
+        if: always()
+        run: |
+          & {
+            "## llvmpipe, windows-${{ matrix.arch }}"
+            '```'
+            Get-Content results\machine.txt, results\sizes.txt -ErrorAction SilentlyContinue
+            ""
+            Get-Content results\licenses-mesa.txt -ErrorAction SilentlyContinue | Select-Object -First 30
+            ""
+            Get-Content results\runs.txt -ErrorAction SilentlyContinue
+            ""
+            Get-Content results\llvmpipe-gl-info.log -ErrorAction SilentlyContinue | Select-String -Pattern 'Renderer|Version|Graphics API|failed' | ForEach-Object Line
+            Get-ChildItem results\*bench.log -ErrorAction SilentlyContinue | ForEach-Object {
+              "--- $($_.Name)"
+              Get-Content $_ | Where-Object { $_ -match '^BENCHKV' }
+            }
+            '```'
+          } | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: llvmpipe-${{ matrix.arch }}
+          path: |
+            results/
+            stage/
+          retention-days: 14
+
+  angle:
+    name: angle-${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: windows-2025, arch: x64, java: temurin, java-arch: x64 }
+          - { runner: windows-11-arm, arch: arm64, java: microsoft, java-arch: aarch64 }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 180
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Whether ANGLE's one Microsoft dependency comes with Windows, and, for scale only, the size
+      # of the ANGLE the installed browsers carry (a build with every backend, not what we would ship).
+      - name: The machine
+        run: |
+          New-Item -ItemType Directory results | Out-Null
+          & {
+            "os=" + [Environment]::OSVersion.VersionString
+            "arch=" + $env:PROCESSOR_ARCHITECTURE
+            "--- d3dcompiler_47.dll in the system"
+            Get-ChildItem C:\Windows\System32\d3dcompiler_47.dll -ErrorAction SilentlyContinue | ForEach-Object { "{0} {1:N0} bytes {2}" -f $_.FullName, $_.Length, $_.VersionInfo.FileVersion }
+            "--- ANGLE inside installed browsers, for scale"
+            Get-ChildItem "C:\Program Files\Google\Chrome\Application\*\libGLESv2.dll", "C:\Program Files\Google\Chrome\Application\*\libEGL.dll", "C:\Program Files (x86)\Microsoft\Edge\Application\*\libGLESv2.dll", "C:\Program Files (x86)\Microsoft\Edge\Application\*\libEGL.dll" -ErrorAction SilentlyContinue |
+                ForEach-Object { "{0} {1:N0} bytes" -f $_.FullName, $_.Length }
+          } | Tee-Object results\machine.txt
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+          architecture: ${{ matrix.arch }}
+
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: ${{ matrix.java }}
+          java-version: '17'
+          architecture: ${{ matrix.java-arch }}
+
+      - name: vcpkg
+        run: |
+          if ($env:VCPKG_INSTALLATION_ROOT -and (Test-Path "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe")) {
+            $root = $env:VCPKG_INSTALLATION_ROOT
+          } else {
+            git clone -q https://github.com/microsoft/vcpkg C:\vcpkg-spike
+            & C:\vcpkg-spike\bootstrap-vcpkg.bat -disableMetrics
+            $root = "C:\vcpkg-spike"
+          }
+          Write-Host "vcpkg at $root"
+          "VCPKG=$root" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
+          "VSINSTALL=$vs" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+
+      # Static CRT, dynamic libraries: spike\triplets carries the two triplets.
+      - name: Build ANGLE
+        run: |
+          & "$env:VCPKG\vcpkg.exe" install "angle:${{ matrix.arch }}-windows-mt" --overlay-triplets=spike\triplets --disable-metrics
+          if ($LASTEXITCODE -ne 0) { throw "vcpkg failed" }
+          & "$env:VCPKG\vcpkg.exe" list --overlay-triplets=spike\triplets | Tee-Object results\vcpkg-list.txt
+
+      - name: Sizes, imports and licences
+        run: |
+          $installed = "$env:VCPKG\installed\${{ matrix.arch }}-windows-mt"
+          New-Item -ItemType Directory stage\angle -Force | Out-Null
+          Copy-Item "$installed\bin\*.dll" stage\angle
+          Get-ChildItem "$installed\share" -Recurse -Filter copyright | ForEach-Object { Copy-Item $_.FullName "results\copyright-$($_.Directory.Name).txt" }
+          Compress-Archive stage\angle\*.dll results\angle.zip -CompressionLevel Optimal
+          & {
+            "ANGLE from vcpkg ($((Get-Content results\vcpkg-list.txt | Select-String '^angle:').Line)), windows-${{ matrix.arch }}"
+            Get-ChildItem stage\angle\*.dll | ForEach-Object { "{0,-22} {1,12:N0} bytes" -f $_.Name, $_.Length }
+            "{0,-22} {1,12:N0} bytes" -f "raw", (Get-ChildItem stage\angle\*.dll | Measure-Object Length -Sum).Sum
+            "{0,-22} {1,12:N0} bytes" -f "zip", (Get-Item results\angle.zip).Length
+          } | Tee-Object results\sizes.txt
+          cmd /c "call `"$env:VSINSTALL\VC\Auxiliary\Build\vcvarsall.bat`" ${{ matrix.arch }} >nul && for %f in (stage\angle\*.dll) do dumpbin /nologo /dependents %f" | Tee-Object results\dependents.txt
+
+      - name: An OpenGL ES 3.0 context on Direct3D 11
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download v0.9.0 --repo ${{ github.repository }} --pattern limn-demo-all.jar --dir tools
+          javac -cp tools\limn-demo-all.jar -d spike\classes spike\AngleProbe.java
+          if ($LASTEXITCODE -ne 0) { throw "javac failed" }
+          .\spike\run.ps1 angle-context "" 120 -- java "-Dangle.dir=$PWD\stage\angle" -cp "tools\limn-demo-all.jar;spike\classes" AngleProbe
+
+      - name: Summary
+        if: always()
+        run: |
+          & {
+            "## ANGLE, windows-${{ matrix.arch }}"
+            '```'
+            Get-Content results\machine.txt, results\sizes.txt, results\runs.txt -ErrorAction SilentlyContinue
+            Get-Content results\angle-context.log -ErrorAction SilentlyContinue | Select-String -Pattern '^ANGLE|GLFW error' | ForEach-Object Line
+            '```'
+          } | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: angle-${{ matrix.arch }}
+          path: |
+            results/
+            stage/
+          retention-days: 14
