@@ -174,7 +174,7 @@ class MediaControlsTest extends ComponentTestBase {
     /**
      * Play on a clip with a soundtrack returns at once though the engine is still opening the audio
      * device for it, and the button already says Pause: the press of a Showcase session that held
-     * the UI thread 458 ms on the first play of its clip. The track sounds on a worker.
+     * the UI thread 458 ms on the first play of its clip. The track sounds on a thread of its own.
      */
     @Test
     void playReturnsAtOnceAndSaysPauseWhileTheSoundtrackIsStillOnItsWay() throws Exception {

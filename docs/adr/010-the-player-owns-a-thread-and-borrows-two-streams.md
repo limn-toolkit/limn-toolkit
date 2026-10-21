@@ -203,3 +203,22 @@ its tests and exercised by every live run of the tab.
 - **Not a change to `VideoClock`.** Every absence above is policy it already had. The one thing it
   still cannot express is `isPaused()`, which a view driven by a bare clock would use to stop asking
   for pictures; a player knows its own state, so nothing here needs it.
+
+## Note, 2026-10-20: the soundtrack is handed over on a thread of its own, and waited for a moment
+
+Pressing play hands the audio track to the engine away from the UI thread, because the engine
+opens the audio device the first time a process sounds anything (190 ms measured on an Apple
+Silicon Mac, 458 ms in a Showcase session) and a play button that did it there froze the window.
+The first version did it on the application's worker pool, and §3's reason against a shared pool
+for decoding applies to it in both directions: the application's own jobs (slow server calls, a
+poll loop) held the track back, and the pictures with it, for as long as they ran, and a device
+open that stalls held one of the application's workers. The hand-over is therefore a daemon thread
+of its own per start, which ends when the engine answers.
+
+The pictures wait on the first one for the sound so the two begin together, a quarter of a second
+at most. A device slower than that finds them running on the wall clock, and the track, when it
+arrives, joins them where they are: the pictures and the track are moved there together, as one
+seek, so a track from the pictures' own container does not move the container under the decode
+thread. A track that cannot be moved, or that arrives after the pictures ended or failed, is let
+go, and the video plays on silently, as one with no track does; so does one that never arrives.
+The cost of a slow device is the synchronisation of the first instant, never the video.

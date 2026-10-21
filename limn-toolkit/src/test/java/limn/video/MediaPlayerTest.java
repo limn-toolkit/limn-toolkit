@@ -58,7 +58,7 @@ class MediaPlayerTest {
 
     /**
      * Lets the player hand its track to the engine, which {@link MediaPlayer#start()} does on a
-     * worker: the engine may open the audio device to take it.
+     * thread of its own: the engine may open the audio device to take it.
      */
     private void handOver(MediaPlayer player) {
         ui.pumpUntil(() -> !player.isHandingAudioOver(), 10_000_000_000L);

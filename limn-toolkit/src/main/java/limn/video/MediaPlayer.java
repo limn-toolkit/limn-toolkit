@@ -73,7 +73,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  * a whole decode and promises no bound, so a pool of any size lets one stalled stream stop the
  * others, and a page of thumbnails that never appear is a failure nobody can see the cause of. The
  * honest cost is stated instead: twelve videos on a page are twelve threads, and the expensive part
- * of that is the twelve concurrent decodes, not the twelve threads.
+ * of that is the twelve concurrent decodes, not the twelve threads. Starting a soundtrack takes one
+ * more, for as long as the audio engine takes to accept it, for the same reason: see
+ * {@link #start()}.
  *
  * <h2>Pictures</h2>
  *
@@ -137,6 +139,14 @@ public final class MediaPlayer implements AutoCloseable {
      * polling interval: the difference between a player that hesitates and one that never plays.
      */
     private static final long PARK_MILLIS = 20;
+
+    /**
+     * Longest the pictures wait on the first one for a soundtrack still on its way to the engine.
+     * Long enough for a device that opens in the usual few hundred milliseconds to start both
+     * together; short enough that a device waking up, or a sound server that never answers, costs
+     * the synchronisation of the first instant rather than the video.
+     */
+    static final long AUDIO_GRACE_NANOS = 250_000_000L;
 
     private static final AtomicInteger THREAD_SERIAL = new AtomicInteger();
 
@@ -221,21 +231,20 @@ public final class MediaPlayer implements AutoCloseable {
     // ---- UI thread only ----
     private Playback playback = Playback.NONE;
     /**
-     * The audio track on its way to the engine, on a worker, or null: the engine opens the audio
-     * device the first time a process sounds anything, which is tens to hundreds of milliseconds
-     * (190 ms measured on an Apple Silicon Mac, 458 ms in a Showcase session), and a play button
-     * that did it on the UI thread froze the window for that long. The pictures wait for the sound
-     * meanwhile, so the two begin together.
+     * The audio track on its way to the engine, on a thread of its own, or null: the engine opens
+     * the audio device the first time a process sounds anything, which is tens to hundreds of
+     * milliseconds (190 ms measured on an Apple Silicon Mac, 458 ms in a Showcase session), and a
+     * play button that did it on the UI thread froze the window for that long. The pictures wait
+     * for the sound meanwhile, {@link #AUDIO_GRACE_NANOS} at most, so the two begin together.
      */
-    private limn.concurrent.@Nullable Job audioStart;
-    /** The track {@link #audioStart} carries, which the cancel closes when the job has not taken it. */
-    private @Nullable AudioStreamSource audioStartTrack;
+    private @Nullable HandOver audioStart;
+    /** When {@link #audioStart} began, on the clock's own time source, which the grace runs on. */
+    private long audioStartNanos;
     /**
-     * Who has {@link #audioStartTrack}: set once, by the job as it hands the track to the engine or
-     * by {@link #cancelAudioStart()} as it closes it, so exactly one of them owns it. A job cancelled
-     * before a worker ran it never runs its body, and the track would otherwise be closed by nobody.
+     * Whether the pictures stopped waiting for {@link #audioStart} once the grace ran out, and run
+     * on the wall clock: the track then joins them where they are when it arrives.
      */
-    private @Nullable AtomicBoolean audioStartTaken;
+    private boolean audioLate;
     /** Where a seek made while {@link #audioStart} ran moved the pictures, or -1: the sound joins there. */
     private long seekedWhileAudioStarts = -1;
     /** Whether the first picture is still to be shown while {@link #audioStart} runs. */
@@ -389,12 +398,20 @@ public final class MediaPlayer implements AutoCloseable {
      * {@link #restart()} is what rewinds one of those.
      *
      * <p>Starting the audio track is where its ownership passes to the engine, so it happens once
-     * and only once however many times this is called. It is handed over on a worker, since the
-     * engine may open the audio device to take it, which can hold a thread for a few hundred
-     * milliseconds: this returns at once, {@link #state()} is {@link State#PLAYING} from here, and
-     * the pictures are held on the first one until the track sounds (or the engine declines it), so
-     * picture and sound begin together. {@link #audio()} answers {@link Playback#NONE} until then;
-     * a pause, a seek, a stop or a close made meanwhile applies to the track as it arrives.
+     * and only once however many times this is called. It is handed over on a thread of its own
+     * (not the application's worker pool, whose jobs would hold it back), since the engine may open
+     * the audio device to take it, which can hold a thread for a few hundred milliseconds: this
+     * returns at once, {@link #state()} is {@link State#PLAYING} from here, and the pictures are
+     * held on the first one until the track sounds (or the engine declines it), so picture and
+     * sound begin together. {@link #audio()} answers {@link Playback#NONE} until then; a pause, a
+     * seek, a stop or a close made meanwhile applies to the track as it arrives.
+     *
+     * <p><b>The pictures wait a quarter of a second at most.</b> A device that takes longer to answer
+     * (an output waking up, a sound server that hangs) finds them running on the wall clock, and the
+     * track, when it arrives, joins them where they are: the pictures and the track are moved there
+     * together, which costs the pictures a short hold while the stream finds the spot. A track that
+     * cannot be moved there is let go, and the video plays on silently, as one with no track does;
+     * so does one that never arrives.
      *
      * @throws IllegalStateException if this player is closed
      */
@@ -571,8 +588,8 @@ public final class MediaPlayer implements AutoCloseable {
         }
         seekPresentPending = false; // the clock hands pictures out again; nothing owes one
         playback.resume();
-        if (audioStart == null) {
-            clock.setPaused(false); // else the track's arrival lets the pictures go
+        if (audioStart == null || audioLate) {
+            clock.setPaused(false); // else the track's arrival, or the end of the grace, lets them go
         }
     }
 
@@ -702,7 +719,7 @@ public final class MediaPlayer implements AutoCloseable {
         // Before the clock: this is what makes the master report the new position, and a clock
         // re-anchored against a master still reporting the old one would score the move as a jump
         // the moment the master caught up.
-        if (audioStart != null) {
+        if (audioStart != null && !audioLate) {
             seekedWhileAudioStarts = micros; // the track joins the pictures here as it arrives
             firstPictureOwed = true; // and the picture where they landed is shown meanwhile
         }
@@ -814,18 +831,24 @@ public final class MediaPlayer implements AutoCloseable {
         if (state != State.PLAYING) {
             return null;
         }
-        if (audioStart != null) {
-            // The sound is on its way: the first picture is shown, and the others wait for it.
-            if (!firstPictureOwed) {
-                return null;
-            }
-            synchronized (lock) {
-                if (count == 0) {
+        if (audioStart != null && !audioLate) {
+            if (clock.nanoTime() - audioStartNanos < AUDIO_GRACE_NANOS) {
+                // The sound is on its way: the first picture is shown, and the others wait for it.
+                if (!firstPictureOwed) {
                     return null;
                 }
+                synchronized (lock) {
+                    if (count == 0) {
+                        return null;
+                    }
+                }
+                firstPictureOwed = false;
+                return dequeue();
             }
-            firstPictureOwed = false;
-            return dequeue();
+            // The engine has not answered within the grace: the pictures go on the wall clock, and
+            // the track joins them where they are when it arrives (audioArrived).
+            audioLate = true;
+            clock.setPaused(false);
         }
         while (true) {
             VideoFrame candidate;
@@ -1140,7 +1163,7 @@ public final class MediaPlayer implements AutoCloseable {
         return failure;
     }
 
-    /** @return whether {@link #start()} is handing the audio track to the engine on a worker */
+    /** @return whether {@link #start()} is still handing the audio track to the engine */
     boolean isHandingAudioOver() {
         return audioStart != null;
     }
@@ -1210,57 +1233,108 @@ public final class MediaPlayer implements AutoCloseable {
         if (audio == null) {
             return; // no track, or one already handed to the engine
         }
-        AudioStreamSource handing = audio;
-        audio = null; // ownership leaves here, whatever the engine does with it
-        PlayOptions options = audioOptions.withLoop(looping);
+        HandOver handOver = new HandOver(audio, audioOptions.withLoop(looping));
+        audio = null; // ownership leaves here: the hand-over's, or a stop's or a close's to close
         // The pictures wait for the sound: started apart, the track would begin a few hundred
         // milliseconds behind pictures already running, and be dropped as a master at once.
         clock.setPaused(true);
         seekedWhileAudioStarts = -1;
         firstPictureOwed = true;
-        AtomicBoolean taken = new AtomicBoolean();
-        audioStartTrack = handing;
-        audioStartTaken = taken;
-        audioStart = Ui.<Playback>work(progress -> taken.compareAndSet(false, true)
-                        ? Sounds.stream(handing, options)
-                        : Playback.NONE) // withdrawn first: the cancel closed it
-                .onSuccess(this::audioArrived)
-                .onFailure(error -> {
-                    // Sounds.stream closes the track and answers NONE on every path it knows; a
-                    // throw is the engine's defect, and the pictures play on the wall clock.
-                    Crashes.report(CrashPhase.TASK, error);
-                    audioArrived(Playback.NONE);
-                })
-                .onDiscarded(Playback::stop) // stopped or closed meanwhile: the engine closes it
-                .start();
+        audioLate = false;
+        audioStartNanos = clock.nanoTime();
+        audioStart = handOver;
+        Threads.daemon("limn-audio-hand-over-" + THREAD_SERIAL.incrementAndGet(), handOver);
     }
 
-    /**
-     * Lets go of a track still on its way to the engine: closed here when the job has not taken it,
-     * and stopped by the job's discard when it has and it sounds.
-     */
+    /** Lets go of a track still on its way to the engine: see {@link HandOver#cancel()}. */
     private void cancelAudioStart() {
         if (audioStart != null) {
             audioStart.cancel();
             audioStart = null;
-            if (audioStartTaken.compareAndSet(false, true)) {
-                audioStartTrack.close(); // never reached the engine, so still this player's
+        }
+        audioLate = false;
+    }
+
+    /**
+     * A soundtrack on its way to the engine, on a daemon thread of its own: never on the
+     * application's worker pool, where the application's own jobs held the track back (and the
+     * pictures with it) for as long as they ran, and where a device open that stalls would hold
+     * one of the application's workers.
+     *
+     * <p>Exactly one side owns the track. {@link #run()} takes it to the engine, or
+     * {@link #cancel()} (a stop, a close or a restart) takes it to close it, whichever comes first;
+     * a track the engine took after a cancel is stopped, which closes it.
+     */
+    private final class HandOver implements Runnable {
+
+        private final AudioStreamSource track;
+        private final PlayOptions options;
+        /** Set once, by whichever side takes the track. */
+        private final AtomicBoolean taken = new AtomicBoolean();
+        private volatile boolean cancelled;
+
+        HandOver(AudioStreamSource track, PlayOptions options) {
+            this.track = track;
+            this.options = options;
+        }
+
+        @Override
+        public void run() {
+            if (!taken.compareAndSet(false, true)) {
+                return; // withdrawn first: the cancel closed it
             }
-            audioStartTrack = null;
-            audioStartTaken = null;
+            Playback started = Playback.NONE;
+            boolean threw = true;
+            try {
+                started = Sounds.stream(track, options);
+                threw = false;
+            } catch (RuntimeException error) {
+                // Sounds.stream closes the track and answers NONE on every path it knows; a throw
+                // is the engine's defect, and the pictures play on the wall clock.
+                Crashes.report(CrashPhase.TASK, error);
+            } finally {
+                if (threw) {
+                    track.close(); // idempotent by contract, and a throw may have left it open
+                }
+                deliver(started);
+            }
+        }
+
+        private void deliver(Playback started) {
+            if (cancelled) {
+                started.stop(); // stopped or closed meanwhile: the engine closes it
+                return;
+            }
+            try {
+                Ui.post(() -> audioArrived(this, started));
+            } catch (RuntimeException noUi) {
+                started.stop(); // the UI has ended, and nothing is left to hand it to
+            }
+        }
+
+        /** UI thread: closes the track if the engine has not taken it, and has it stopped if it has. */
+        void cancel() {
+            cancelled = true;
+            if (taken.compareAndSet(false, true)) {
+                track.close(); // never reached the engine, so still this player's
+            }
         }
     }
 
     /**
      * The track reached the engine, or the engine declined it: it becomes the master, takes a
-     * pause or a seek made meanwhile, and the pictures go on.
+     * pause or a seek made meanwhile, and the pictures go on. One that arrives after the grace
+     * joins the pictures where they are.
      */
-    private void audioArrived(Playback started) {
+    private void audioArrived(HandOver from, Playback started) {
+        if (audioStart != from) {
+            started.stop(); // stopped, closed or restarted in the turn it arrived: the engine closes it
+            return;
+        }
         audioStart = null;
-        audioStartTrack = null;
-        audioStartTaken = null;
-        if (state == State.CLOSED || state == State.IDLE) {
-            started.stop(); // stopped or closed in the same turn the track arrived
+        if (audioLate) {
+            audioLate = false;
+            joinLate(started);
             return;
         }
         playback = started;
@@ -1278,6 +1352,36 @@ public final class MediaPlayer implements AutoCloseable {
             playback.pause();
         } else {
             clock.setPaused(false);
+        }
+    }
+
+    /**
+     * A track that arrived after the grace, with the pictures already running on the wall clock:
+     * moved, with the pictures, to where they are, so both are on one timeline and the track times
+     * the pictures from there. One that cannot be moved, or that arrives after the pictures ended
+     * or failed, would sound out of step with them for good, and is let go.
+     */
+    private void joinLate(Playback started) {
+        if (started == Playback.NONE) {
+            return; // declined: the pictures are on the wall clock already, and stay there
+        }
+        if (state == State.ENDED || state == State.FAILED || !started.canSeek()) {
+            started.stop();
+            return;
+        }
+        long at = clock.positionMicros(); // the wall clock's, before the master is installed
+        playback = started;
+        installMaster();
+        if (video.canSeek()) {
+            // A track from the pictures' own container moves the container: seeking the pictures
+            // too keeps the two reading one position rather than racing each other.
+            seek(at, VideoStreamSource.SeekMode.EXACT);
+        } else {
+            playback.seek(at);
+            clock.seekTo(at);
+        }
+        if (state == State.PAUSED) {
+            playback.pause();
         }
     }
 

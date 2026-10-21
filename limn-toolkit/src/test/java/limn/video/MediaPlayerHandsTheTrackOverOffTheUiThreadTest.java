@@ -18,17 +18,19 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Pressing play hands the audio track to the engine on a worker: the engine may open the audio
- * device to take it, which held the UI thread 190 ms on a Mac and 458 ms in a Showcase session on
- * the first play of a clip. The player reads {@code PLAYING} at once (a transport's button shows
- * Pause and says so), the pictures wait on their first one until the track sounds so the two begin
- * together, and a pause, a seek, a stop or a close made while the track is on its way reaches it as
- * it arrives.
+ * Pressing play hands the audio track to the engine on a thread of its own: the engine may open
+ * the audio device to take it, which held the UI thread 190 ms on a Mac and 458 ms in a Showcase
+ * session on the first play of a clip. The player reads {@code PLAYING} at once (a transport's
+ * button shows Pause and says so), the pictures wait on their first one until the track sounds so
+ * the two begin together, a quarter of a second at most, and a pause, a seek, a stop or a close
+ * made while the track is on its way reaches it as it arrives.
  */
 class MediaPlayerHandsTheTrackOverOffTheUiThreadTest {
 
@@ -104,7 +106,7 @@ class MediaPlayerHandsTheTrackOverOffTheUiThreadTest {
             VideoFrame first = player.takePicture();
             assertEquals(0, first.ptsMicros(), "the first picture is shown");
             first.release();
-            hand.nanos += 10 * FRAME_MICROS * 1_000L;
+            hand.nanos += 5 * FRAME_MICROS * 1_000L; // within the grace
             player.decodeStep();
             assertEquals(null, player.takePicture(), "and held there while the sound is on its way");
 
@@ -161,6 +163,258 @@ class MediaPlayerHandsTheTrackOverOffTheUiThreadTest {
 
         assertTrue(engine.handle.calls.contains("stop"), "the engine was told to stop the track it took");
         assertSame(Playback.NONE, player.audio());
+    }
+
+    /**
+     * Holds the application's only worker (limn-test's HeadlessUi has one; a 4-core laptop has
+     * three) with a job of its own, a slow server call, until the returned latch is counted down.
+     *
+     * @return the thread the job holds
+     */
+    private Thread holdTheWorkers(CountDownLatch busy) throws Exception {
+        CountDownLatch holding = new CountDownLatch(1);
+        Thread[] worker = new Thread[1];
+        limn.concurrent.Ui.<Void>work(progress -> {
+            worker[0] = Thread.currentThread();
+            holding.countDown();
+            busy.await();
+            return null;
+        }).start();
+        assertTrue(holding.await(10, TimeUnit.SECONDS), "the job holds the worker");
+        return worker[0];
+    }
+
+    /**
+     * Play while every worker of the application is busy with its own jobs (three dashboard panels
+     * still loading on a 4-core laptop): the track reached the engine only once one of those jobs
+     * returned, so the button said Pause and the picture stayed on its first frame for as long as
+     * the application's work lasted. The hand-over is not the application's work, and several
+     * players started together each get their track.
+     */
+    @Test
+    void theTrackReachesTheEngineWhileEveryWorkerOfTheApplicationIsBusy() throws Exception {
+        engine.open.countDown(); // a device already open: the engine answers at once
+        CountDownLatch busy = new CountDownLatch(1);
+        List<MediaPlayer> players = new ArrayList<>();
+        try {
+            Thread worker = holdTheWorkers(busy);
+            for (int i = 0; i < 3; i++) {
+                MediaPlayer player = player(new Hand());
+                players.add(player);
+                player.setAudio(new SilentSource(), PlayOptions.DEFAULTS);
+                player.start();
+            }
+            pumpFor(() -> players.stream().noneMatch(MediaPlayer::isHandingAudioOver));
+
+            for (MediaPlayer player : players) {
+                assertFalse(player.isHandingAudioOver(), "the track reached the engine with the workers busy");
+                assertSame(engine.handle, player.audio());
+                assertTrue(player.isFollowingAudio(), "and times the pictures");
+            }
+            assertNotSame(worker, engine.calledOn, "not on the application's worker");
+            assertNotSame(Thread.currentThread(), engine.calledOn, "nor on the UI thread");
+        } finally {
+            busy.countDown();
+            players.forEach(MediaPlayer::close);
+        }
+    }
+
+    /**
+     * A device open that does not answer (an output waking up, a sound server that hangs): the
+     * pictures waited on their first one for as long as it took, with the player saying PLAYING
+     * and the position at 0, and for ever when it never answered. They wait a quarter of a second
+     * at most, then go on the wall clock, and the track, when it does arrive, joins them where they
+     * are: the pictures and the track are moved there together, and the track times the pictures
+     * from then on.
+     */
+    @Test
+    void aDeviceThatDoesNotAnswerCostsTheSynchronisationAndNotThePictures() throws Exception {
+        Hand hand = new Hand();
+        PooledTestStream stream = new PooledTestStream(64, 32, 8);
+        MediaPlayer player = new MediaPlayer(stream)
+                .setOwnsDecodeThread(false)
+                .setRingCapacity(3)
+                .setClock(new VideoClock(hand::get));
+        try {
+            player.setAudio(new SilentSource(), PlayOptions.DEFAULTS);
+            player.start();
+            assertTrue(engine.entered.await(10, TimeUnit.SECONDS), "the engine is opening the device");
+            for (int i = 0; i < 3; i++) {
+                player.decodeStep();
+            }
+            VideoFrame first = player.takePicture();
+            assertEquals(0, first.ptsMicros(), "the first picture is shown");
+            first.release();
+            hand.nanos += TimeUnit.MILLISECONDS.toNanos(200);
+            player.decodeStep();
+            assertNull(player.takePicture(), "and the others wait for the sound a moment");
+
+            hand.nanos += TimeUnit.MILLISECONDS.toNanos(100); // past the grace
+            int shown = 0;
+            for (int i = 0; i < 30; i++) {
+                player.decodeStep();
+                VideoFrame picture = player.takePicture();
+                if (picture != null) {
+                    shown++;
+                    picture.release();
+                }
+                hand.nanos += FRAME_MICROS * 1_000L;
+            }
+            assertTrue(shown >= 25, "the pictures go on without the sound: " + shown + " of 30 shown");
+            assertTrue(player.isHandingAudioOver(), "the device has still not answered");
+            assertEquals(MediaPlayer.State.PLAYING, player.state());
+            assertFalse(player.isFollowingAudio());
+            long at = player.positionMicros();
+            assertTrue(at > 25 * FRAME_MICROS, "the position moves: " + at);
+
+            engine.handle.seconds = 0; // where an engine starts a track
+            arrived(player);
+
+            assertTrue(engine.handle.calls.contains("seek " + at),
+                    "the track joins the pictures where they are: " + engine.handle.calls);
+            player.decodeStep(); // where the decode thread moves the stream
+            assertEquals(at, stream.seekTargets.get(stream.seekTargets.size() - 1),
+                    "and the pictures are moved there with it, so both are on one timeline");
+            assertTrue(player.isFollowingAudio(), "the track times the pictures from here");
+            for (int i = 0; i < 3; i++) {
+                player.decodeStep();
+            }
+            VideoFrame joined = player.takePicture();
+            assertTrue(joined != null && joined.ptsMicros() >= at - FRAME_MICROS,
+                    "the picture where they joined is shown");
+            joined.release();
+        } finally {
+            player.close();
+        }
+    }
+
+    /** Drives a player past the grace and a second of pictures on the wall clock, the device silent. */
+    private void playPastTheGrace(MediaPlayer player, Hand hand) throws Exception {
+        player.setAudio(new SilentSource(), PlayOptions.DEFAULTS);
+        player.start();
+        assertTrue(engine.entered.await(10, TimeUnit.SECONDS));
+        hand.nanos += MediaPlayer.AUDIO_GRACE_NANOS;
+        for (int i = 0; i < 30; i++) {
+            player.decodeStep();
+            VideoFrame picture = player.takePicture();
+            if (picture != null) {
+                picture.release();
+            }
+            hand.nanos += FRAME_MICROS * 1_000L;
+        }
+        assertTrue(player.isHandingAudioOver());
+        assertTrue(player.positionMicros() > 0, "the pictures run on the wall clock");
+    }
+
+    /**
+     * A late track the engine cannot move to where the pictures are would sound behind them for
+     * good: it is let go, and the video plays on silently, as one with no track does.
+     */
+    @Test
+    void aLateTrackThatCannotBeMovedIsLetGoAndTheVideoPlaysOnSilently() throws Exception {
+        Hand hand = new Hand();
+        MediaPlayer player = player(hand);
+        try {
+            engine.handle.seekable = false;
+            playPastTheGrace(player, hand);
+
+            arrived(player);
+
+            assertEquals(List.of("stop"), engine.handle.calls, "let go, unheard");
+            assertSame(Playback.NONE, player.audio());
+            assertFalse(player.hasAudio());
+            assertFalse(player.isFollowingAudio());
+            long before = player.positionMicros();
+            hand.nanos += 10 * FRAME_MICROS * 1_000L;
+            assertEquals(before + 10 * FRAME_MICROS, player.positionMicros(), "on the wall clock still");
+        } finally {
+            player.close();
+        }
+    }
+
+    /** A late track arriving while the viewer has paused joins the pictures there, paused. */
+    @Test
+    void aLateTrackArrivingWhilePausedJoinsThePicturesPaused() throws Exception {
+        Hand hand = new Hand();
+        MediaPlayer player = player(hand);
+        try {
+            playPastTheGrace(player, hand);
+            player.pause();
+            long at = player.positionMicros();
+
+            arrived(player);
+
+            assertEquals(List.of("seek " + at, "pause"), engine.handle.calls);
+            assertEquals(MediaPlayer.State.PAUSED, player.state());
+            assertEquals(at, player.positionMicros(), "where it was paused");
+            player.resume();
+            assertTrue(player.isFollowingAudio());
+            assertEquals(List.of("seek " + at, "pause", "resume"), engine.handle.calls);
+        } finally {
+            player.close();
+        }
+    }
+
+    /**
+     * No device, a device that fails to open, or no engine at all: nothing is held, the track is
+     * closed, and the pictures play at once on the wall clock, as a video with no track does, with
+     * every worker of the application busy too.
+     */
+    @Test
+    void withNoDeviceTheVideoPlaysSilentlyAtOnce() throws Exception {
+        AudioEngine noDevice = new ClosingEngine() {
+            @Override
+            public boolean isAvailable() {
+                return false;
+            }
+        };
+        AudioEngine failsToOpen = new ClosingEngine() {
+            @Override
+            public Playback playStream(AudioStreamSource source, PlayOptions options) {
+                source.close(); // as an engine whose device would not open does
+                return Playback.NONE;
+            }
+        };
+        CountDownLatch busy = new CountDownLatch(1);
+        try {
+            holdTheWorkers(busy);
+            for (AudioEngine each : java.util.Arrays.asList(noDevice, failsToOpen, null)) {
+                Sounds.uninstallEngine(engine);
+                if (each != null) {
+                    Sounds.installEngine(each);
+                }
+                Hand hand = new Hand();
+                MediaPlayer player = player(hand);
+                CountingSource track = new CountingSource();
+                try {
+                    player.setAudio(track, PlayOptions.DEFAULTS);
+                    player.start();
+                    pumpFor(() -> !player.isHandingAudioOver());
+                    assertFalse(player.isHandingAudioOver(), "the engine's answer arrived");
+                    assertFalse(player.hasAudio(), "no track sounds");
+                    assertEquals(1, track.closes.get(), "the track was closed");
+                    int shown = 0;
+                    for (int i = 0; i < 6; i++) { // a fifth of a second: within the grace
+                        player.decodeStep();
+                        VideoFrame picture = player.takePicture();
+                        if (picture != null) {
+                            shown++;
+                            picture.release();
+                        }
+                        hand.nanos += FRAME_MICROS * 1_000L;
+                    }
+                    assertTrue(shown >= 5, "the pictures play at once: " + shown + " of 6 shown");
+                } finally {
+                    player.close();
+                    if (each != null) {
+                        Sounds.uninstallEngine(each);
+                    }
+                }
+            }
+        } finally {
+            busy.countDown();
+            Sounds.installEngine(engine);
+        }
     }
 
     /**
@@ -274,7 +528,7 @@ class MediaPlayerHandsTheTrackOverOffTheUiThreadTest {
     }
 
     /** An engine that takes a stream at once and closes it when told to stop, as the real one does. */
-    private static final class ClosingEngine implements AudioEngine {
+    private static class ClosingEngine implements AudioEngine {
         final java.util.concurrent.atomic.AtomicInteger taken = new java.util.concurrent.atomic.AtomicInteger();
         final java.util.concurrent.atomic.AtomicInteger stopped = new java.util.concurrent.atomic.AtomicInteger();
 
@@ -345,6 +599,7 @@ class MediaPlayerHandsTheTrackOverOffTheUiThreadTest {
     private static final class Recording implements Playback {
         final List<String> calls = Collections.synchronizedList(new ArrayList<>());
         volatile double seconds;
+        volatile boolean seekable = true;
 
         @Override
         public void stop() {
@@ -373,11 +628,12 @@ class MediaPlayerHandsTheTrackOverOffTheUiThreadTest {
         @Override
         public void seek(long micros) {
             calls.add("seek " + micros);
+            seconds = micros / 1_000_000.0; // reports the new position, as the engine's handle does
         }
 
         @Override
         public boolean canSeek() {
-            return true;
+            return seekable;
         }
 
         @Override

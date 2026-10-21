@@ -173,6 +173,11 @@ public final class VideoClock {
         this.nanoClock = Objects.requireNonNull(nanoClock, "nanoClock");
     }
 
+    /** @return a reading of this clock's time source, in nanoseconds: what a player times a wait on */
+    long nanoTime() {
+        return nanoClock.getAsLong();
+    }
+
     /**
      * Installs the master position source, or null to free-run on the wall clock. Reads the new
      * master's position once, here, which arms the stall timer immediately: a master that is inert on
