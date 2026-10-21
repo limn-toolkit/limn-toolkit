@@ -649,6 +649,43 @@ class SceneSetRootTest extends SceneTestBase {
         assertSame(settled, held[0].root(), "the scene sets a root again afterwards");
     }
 
+    /**
+     * Two pages, each fading in as it joins, whose fade's end insists the window shows that page:
+     * when a page leaves mid-fade its fade is settled and its {@code onArrive} runs as the change
+     * completes, sending the window back. Before, that ran after the change had ended, as a call
+     * of its own outside the loop and its cap, and two such pages recursed until a
+     * StackOverflowError; now it waits for the loop as any root asked during the change does, and
+     * the chain stops at the same cap with the same refusal.
+     */
+    @Test
+    void redirectsFromFadesSettledAsTheirPagesLeaveStopAtTheSameCap() {
+        Scene[] held = new Scene[1];
+        Column[] pages = new Column[2];
+        AtomicInteger arrivals = new AtomicInteger();
+        for (int i = 0; i < 2; i++) {
+            int me = i;
+            Opacity fading = new Opacity(new Column());
+            pages[i] = new Column() {
+                @Override protected void onAttached() {
+                    super.onAttached();
+                    fading.fadeTo(fading.opacity() > 0.5f ? 0.2f : 1f, 10.0, () -> {
+                        arrivals.incrementAndGet();
+                        held[0].setRoot(pages[me]); // "when my fade ends, I am the page"
+                    });
+                }
+            };
+            pages[i].add(fading);
+        }
+        held[0] = new Scene(new Column());
+        held[0].setRoot(pages[0]);
+
+        IllegalStateException refused = assertThrows(IllegalStateException.class, () -> held[0].setRoot(pages[1]));
+
+        assertTrue(refused.getMessage().contains(String.valueOf(Scene.MAX_ROOTS_ASKED_WHILE_SETTING)), refused.getMessage());
+        assertTrue(arrivals.get() <= Scene.MAX_ROOTS_ASKED_WHILE_SETTING + 1, "arrivals " + arrivals.get());
+        assertSame(held[0], held[0].root().scene(), "the scene complete on the last root it set");
+    }
+
     @Test
     void theLastRootAskedWhileItChangesWinsAndTheOthersAreToldNothing() {
         Page c = new Page("c", log);

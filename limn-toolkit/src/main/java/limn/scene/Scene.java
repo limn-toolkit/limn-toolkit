@@ -774,8 +774,9 @@ public final class Scene {
      * new root's first focusable widget when it closes, in place of the widget that left.
      *
      * <p>Asked again from code this call runs (an {@code onDetached} of the old root, an
-     * {@code onAttached} of the new one, the handler of a popup closing), the change waits for this
-     * one to be complete and is then made; when several are asked, the last one wins. A root that
+     * {@code onAttached} of the new one, the handler of a popup closing, the {@code onArrive} of a
+     * fade or a motion that ends as its container leaves), the change waits for this one to be
+     * complete and is then made; when several are asked, the last one wins. A root that
      * asks for another as it joins hands the window on, and so on: after 64 roots set in one call
      * with another still asked for, a chain that never settles (two pages whose guards disagree,
      * each sending the window to the other as it joins), the call sets no more and throws an
@@ -794,7 +795,7 @@ public final class Scene {
     public void setRoot(Widget<?> root) {
         Ui.checkUiThread();
         Objects.requireNonNull(root, "root");
-        if (rootChanging) {
+        if (rootChanging || rootSettling) {
             if (root != this.root) {
                 refuseAsRoot(root); // the code asking hears it at once
             }
@@ -863,6 +864,15 @@ public final class Scene {
 
     /** Whether {@link #setRoot} is walking the old root out or the new one in; a call made meanwhile waits. */
     private boolean rootChanging;
+
+    /**
+     * Whether {@link #setRoot} is running what the change settled (a fade's or a motion's
+     * {@code onArrive} as its container left): a call made meanwhile waits as one made during the
+     * change does, so the outer call's loop sets it and counts it against the cap. Run as a call
+     * of its own, a chain of such arrivals each sending the window on recursed past the cap until
+     * the stack overflowed.
+     */
+    private boolean rootSettling;
 
     /**
      * Whether an overlay closed while {@link #rootChanging} owes the new root's first stop the
@@ -990,7 +1000,13 @@ public final class Scene {
             rootChanging = false;
             firstStopOwed = false;
         }
-        Widget.runSettled(settled); // once the new root is in and the keyboard placed
+        // Once the new root is in and the keyboard placed; a setRoot from there waits for the loop.
+        rootSettling = true;
+        try {
+            Widget.runSettled(settled);
+        } finally {
+            rootSettling = false;
+        }
         return failed;
     }
 

@@ -1245,3 +1245,9 @@ enough.
   the opener's return makes, and keeps no page that left alive. A popup root that names another
   opener (a root-hosted card re-pointed to the new page) replaces its entry.
   `OpenerMirrorAcrossPageSwitchTest`.
+- **Redirects from a settled arrival** (R15S-4). A fade's or a motion's `onArrive` that runs as its
+  container leaves is run once the change is complete, after the change had stopped deferring, so
+  a `setRoot` from there was a call of its own, outside the loop and its cap: two pages whose fade
+  arrivals each insisted on their own page recursed until a `StackOverflowError`. A `setRoot` made
+  while those run now waits for the loop as one made during the change does, and counts against
+  the same cap. `SceneSetRootTest`.
