@@ -166,7 +166,7 @@ class NativePopupCursorTest {
 
         combo.open();
         runtime.drain();
-        popup = backend.windows().get(backend.windows().size() - 1); // the closed one stays listed
+        popup = backend.windows().get(backend.windows().size() - 1); // the newest: the reopened list's
         settle(host, popup);
         asked = host.focusRequests();
         host.desktopFocus(false);

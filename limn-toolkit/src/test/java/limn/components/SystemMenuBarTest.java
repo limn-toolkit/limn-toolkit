@@ -228,7 +228,7 @@ class SystemMenuBarTest extends ComponentTestBase {
         assertTrue(system.hosts.isEmpty(), "a closed window's bar is not the system's to show");
         assertNull(bar.scene(), "the tree left the scene with its window");
         // The count, and not a weak reference to the scene: what kept a closed window was a place
-        // in this list, and the headless backend keeps every window it opened for a test to read.
+        // in this list, and the count says so whatever else may still hold the scene.
         assertEquals(before, languages.count(), "nothing of a closed window is told of a language");
     }
 
