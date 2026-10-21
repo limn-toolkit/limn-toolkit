@@ -18,7 +18,7 @@ if ($command -notlike "java *") {
         $defines += "-Dmesa.dir=$MesaDir"
         $defines += "-Dorg.lwjgl.opengl.libname=$MesaDir\opengl32.dll"
     }
-    $command = "jbang " + (($defines + "spike\Probe.java" + $Rest) -join " ")
+    $command = "java " + (($defines + "-cp" + "tools\limn-demo-all.jar;spike\classes" + "Probe" + $Rest) -join " ")
 }
 Write-Host "RUN $Name : $command"
 

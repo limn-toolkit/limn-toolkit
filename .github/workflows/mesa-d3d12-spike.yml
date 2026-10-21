@@ -73,10 +73,6 @@ jobs:
           if (-not (Test-Path "$vs\VC\Auxiliary\Build\vcvarsall.bat")) { throw "no vcvarsall.bat under '$vs'" }
           Write-Host "Visual Studio: $vs"
           "VSINSTALL=$vs" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
-          # The installer ends the script it runs in, so it gets a process of its own.
-          pwsh -NoProfile -Command 'iex "& { $(iwr -useb https://ps.jbang.dev) } app setup"'
-          if (-not (Test-Path "$env:USERPROFILE\.jbang\bin\jbang.cmd")) { throw "jbang did not install" }
-          "$env:USERPROFILE\.jbang\bin" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
 
       - name: Fetch Mesa
         run: git clone --depth 1 --branch $env:MESA_TAG https://gitlab.freedesktop.org/mesa/mesa.git mesa
@@ -122,8 +118,15 @@ jobs:
             "{0,-22} {1,12:N0} bytes" -f "zip, with dxil.dll", (Get-Item results\mesa-dxil.zip).Length
           } | Tee-Object results\sizes.txt
 
-      - name: Resolve the demo once
-        run: jbang build spike\Probe.java
+      # The release's single-file demo, every platform inside: the 0.9.0 POM does not resolve
+      # on Windows (it names lwjgl-egl natives that do not exist), which main has fixed since.
+      - name: The demo, and the probe compiled against it
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download v0.9.0 --repo ${{ github.repository }} --pattern limn-demo-all.jar --dir tools
+          javac -cp tools\limn-demo-all.jar -d spike\classes spike\Probe.java
+          if ($LASTEXITCODE -ne 0) { throw "javac failed" }
 
       # The control: the machine's own opengl32.dll, which on a machine with no vendor driver is
       # GDI Generic 1.1 and refuses Limn's 3.3 core context.

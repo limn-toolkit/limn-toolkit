@@ -1,7 +1,3 @@
-///usr/bin/env jbang "$0" "$@" ; exit $?
-//JAVA 17+
-//DEPS io.github.limn-toolkit:limn-demo:0.9.0
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -11,6 +7,10 @@ import java.util.stream.Stream;
 
 /**
  * Runs the published demo with a Mesa build loaded first, when {@code -Dmesa.dir} names one.
+ *
+ * <p>The demo is the {@code limn-demo-all.jar} attached to the v0.9.0 release, on the class path
+ * beside this class: resolving {@code limn-demo:0.9.0} from Maven Central fails on Windows,
+ * because its POM names {@code lwjgl-egl} natives that LWJGL never published (fixed after 0.9.0).
  *
  * <p>GLFW asks Windows for {@code opengl32.dll} by name, and Windows hands back a module already
  * loaded under that name wherever it came from, so loading Mesa's by full path before the demo
