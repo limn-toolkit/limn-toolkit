@@ -919,6 +919,14 @@ public final class Dialog {
      * for when a SMALL toolbar (or a LARGE settings pane) raises the dialog and the card
      * should match the surface it came from.
      *
+     * <p>The dialog keeps {@code owner} as its host until it closes, even if {@code owner} leaves
+     * the window meanwhile (taken out of its container, or with the page {@link Scene#setRoot}
+     * replaces): unlike a menu or a popover shown at a widget, it is not closed when the widget
+     * goes, since it is a question still waiting for its answer, and its card goes on taking its
+     * size step, direction and locale from {@code owner}. The widget, and the page around it,
+     * therefore stay reachable for as long as the dialog is open. A dialog that should follow the
+     * page shown in the window is shown on the {@link Scene} instead.
+     *
      * @param owner the widget whose scene the dialog is modal over, and whose step it takes
      * @return a stage that completes with the result when the dialog closes
      * @throws IllegalStateException if {@code owner} is not in a scene, or the dialog was already shown
@@ -932,7 +940,8 @@ public final class Dialog {
     }
 
     /**
-     * {@link #showToolkitModal(Scene)}, inheriting the size step from {@code owner}.
+     * {@link #showToolkitModal(Scene)}, inheriting the size step from {@code owner}, which stays
+     * the dialog's host until it closes, as {@link #show(Widget)} says.
      *
      * @param owner the widget whose scene the dialog opens over, and whose step it takes
      * @return a stage that completes with the result when the dialog closes
@@ -946,7 +955,8 @@ public final class Dialog {
     }
 
     /**
-     * {@link #showNonModal(Scene)}, inheriting the size step from {@code owner}.
+     * {@link #showNonModal(Scene)}, inheriting the size step from {@code owner}, which stays the
+     * dialog's host until it closes, as {@link #show(Widget)} says.
      *
      * @param owner the widget whose scene the dialog opens over, and whose step it takes
      * @return a stage that completes with the result when the dialog closes

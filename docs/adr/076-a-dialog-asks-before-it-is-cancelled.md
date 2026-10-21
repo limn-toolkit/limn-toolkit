@@ -279,3 +279,18 @@ text now forgets the record outright, and the same text stamps it only when it w
 before the set. `SelectionBackFromOverlayTest` runs the trim echoed back by the model on the field
 and the area, the same text set later while the menu is open, and an echo shorter than the
 selection's offsets, in both display modes.
+
+### 2026-10-20 (decision 47): a dialog shown over a widget keeps it until it closes
+
+`Dialog.show(Widget)` (and the toolkit-modal and non-modal overloads that take a widget) keeps the
+widget the application named as the dialog's host until the dialog closes, even when that widget
+leaves the window, taken out or with the page `Scene.setRoot` replaces. The owner chose this over
+the recommendation that such a dialog follow the scene's root as one shown on the `Scene` does
+(ADR 075's note on R14S-3): no anchor rule closes the dialog, because a dialog is a question still
+waiting for its answer and a menu or a popover is not, and the card goes on taking its size step,
+direction and locale from the widget given. What it costs is said where it is chosen: the widget,
+and the page around it, stay reachable while the dialog is open. An application that wants the
+dialog to follow the page shows it on the `Scene`. The Javadoc of the three overloads says it;
+`PageSwitchTest` already pins that the named widget stays the host, and
+`OpenerMirrorAcrossPageSwitchTest` that its accessible relation to the dialog comes back with its
+page.
