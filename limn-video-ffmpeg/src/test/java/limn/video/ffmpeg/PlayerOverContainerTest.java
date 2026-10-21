@@ -13,6 +13,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.concurrent.locks.LockSupport;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -29,9 +30,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * picture is due; the first thing that went wrong in the showcase went wrong there and
  * nowhere else, so it is worth its own file.
  *
- * <p>Nothing here sleeps. The player is given no decode thread and its step is turned by hand, and
- * the clock is a number this test advances, so a loaded machine makes it slower and never makes it
- * fail.
+ * <p>The player is given no decode thread and its step is turned by hand, and the clock is a number
+ * this test advances. The container still decodes on a thread of its own, and answers a read it
+ * has not finished with {@code PENDING}: the clock waits for it ({@link #turn}), so a loaded machine
+ * makes this file slower and never makes it fail. Until 2026-10-21 each pass that found nothing
+ * ready counted as a turn, and a full check on a busy machine ran out of turns at 5 or 14
+ * pictures of 30.
  */
 class PlayerOverContainerTest {
 
@@ -65,6 +69,49 @@ class PlayerOverContainerTest {
         }
     }
 
+    /** How long the container may take to decode a picture before the test gives up on it. */
+    private static final long DECODE_PATIENCE_NANOS = 30_000_000_000L;
+
+    /**
+     * One turn of the hand: a decode pass, the picture that is due if one is, and the clock moved
+     * on by a frame. While the ring is empty because the container is still decoding on its own
+     * thread, the turn waits for it instead: a picture not decoded yet is not late, and a pass that
+     * found nothing ready is not a frame of the film. Counted as turns, those passes used up the
+     * loops' bounds on a busy machine before the pictures asked for had been decoded.
+     */
+    private static VideoFrame turn(MediaPlayer player, Hand hand) {
+        long deadline = System.nanoTime() + DECODE_PATIENCE_NANOS;
+        while (true) {
+            MediaPlayer.Step step = player.decodeStep();
+            VideoFrame picture = player.takePicture();
+            if (picture != null || step != MediaPlayer.Step.IDLE || player.bufferedPictures() > 0) {
+                hand.advanceMicros(33_333);
+                return picture;
+            }
+            assertTrue(System.nanoTime() < deadline, "the container decoded nothing for 30 s");
+            LockSupport.parkNanos(100_000);
+        }
+    }
+
+    /**
+     * Fills the ring before anything is asked of it, the way a decode thread would have: decode
+     * passes until it is full or the stream has ended, waiting for the container while it is still
+     * decoding.
+     */
+    private static void fill(MediaPlayer player, int capacity) {
+        long deadline = System.nanoTime() + DECODE_PATIENCE_NANOS;
+        while (player.bufferedPictures() < capacity) {
+            MediaPlayer.Step step = player.decodeStep();
+            if (step == MediaPlayer.Step.DONE) {
+                return;
+            }
+            if (step == MediaPlayer.Step.IDLE) {
+                assertTrue(System.nanoTime() < deadline, "the container decoded nothing for 30 s");
+                LockSupport.parkNanos(100_000);
+            }
+        }
+    }
+
     @Test
     void aPlayerOverARealContainerHandsOutItsPictures() throws IOException {
         FfmpegTests.requireWriter();
@@ -79,23 +126,18 @@ class PlayerOverContainerTest {
             try {
                 player.start();
 
-                // Fill the ring before asking for anything, the way a decode thread would have.
-                for (int i = 0; i < 16; i++) {
-                    player.decodeStep();
-                }
+                fill(player, 3);
                 assertTrue(player.bufferedPictures() > 0,
                         "the decode step produced nothing at all from a real container");
 
                 int shown = 0;
                 for (int step = 0; step < 400 && shown < 30; step++) {
-                    player.decodeStep();
-                    VideoFrame picture = player.takePicture();
-                    if (picture != null) {
+                    VideoFrame picture = turn(player, hand);
+                                        if (picture != null) {
                         assertEquals(320, picture.width());
                         picture.release();
                         shown++;
                     }
-                    hand.advanceMicros(33_333);
                 }
                 assertEquals(30, shown, "the player handed out pictures as they came due");
                 assertNull(player.failure(), () -> "the decode thread failed: " + player.failure());
@@ -103,6 +145,81 @@ class PlayerOverContainerTest {
                 player.close();
             }
         }
+    }
+
+    /**
+     * A container that answers {@code PENDING} twenty times before every picture, which is what a
+     * loaded machine's decoding thread looks like from here. Every picture still arrives and is
+     * handed out: a turn waits for a picture still being decoded instead of passing the clock over
+     * it, and is one turn however many passes the wait took, so the bound on turns is a bound on
+     * the pictures asked for and not on how busy the machine is.
+     */
+    @Test
+    void aContainerThatDecodesSlowlyLosesNoPictures() throws IOException {
+        FfmpegTests.requireWriter();
+        Path clip = FfmpegTests.clip(directory, FfmpegMedia.ClipCodec.MPEG4, 160, 120, 60, 0);
+
+        try (FfmpegMedia media = FfmpegMedia.open(clip, false, FfmpegMedia.DEFAULT_SLOTS)) {
+            Hand hand = new Hand();
+            MediaPlayer player = new MediaPlayer(new Lagging(media.video(), 20))
+                    .setOwnsDecodeThread(false)
+                    .setRingCapacity(3)
+                    .setClock(new VideoClock(hand::get));
+            try {
+                player.start();
+                fill(player, 3);
+                int shown = 0;
+                for (int step = 0; step < 400 && shown < 30; step++) {
+                    VideoFrame picture = turn(player, hand);
+                    if (picture != null) {
+                        picture.release();
+                        shown++;
+                    }
+                }
+                assertEquals(30, shown, "a slow decode used up the turns or lost a picture");
+                assertNull(player.failure(), () -> "the decode thread failed: " + player.failure());
+            } finally {
+                player.close();
+            }
+        }
+    }
+
+    /** A stream that answers PENDING {@code lag} times before passing each read through. */
+    private static final class Lagging implements VideoStreamSource {
+        private final VideoStreamSource inner;
+        private final int lag;
+        private int owed;
+
+        Lagging(VideoStreamSource inner, int lag) {
+            this.inner = inner;
+            this.lag = lag;
+            this.owed = lag;
+        }
+
+        @Override
+        public Read readFrame() {
+            if (owed > 0) {
+                owed--;
+                return Read.PENDING;
+            }
+            owed = lag;
+            return inner.readFrame();
+        }
+
+        @Override public int width() { return inner.width(); }
+        @Override public int height() { return inner.height(); }
+        @Override public limn.video.PixelFormat pixelFormat() { return inner.pixelFormat(); }
+        @Override public limn.video.VideoColor color() { return inner.color(); }
+        @Override public int rotationDegrees() { return inner.rotationDegrees(); }
+        @Override public int frameRateNum() { return inner.frameRateNum(); }
+        @Override public int frameRateDen() { return inner.frameRateDen(); }
+        @Override public long durationMicros() { return inner.durationMicros(); }
+        @Override public VideoFrame frame() { return inner.frame(); }
+        @Override public void reset() { inner.reset(); }
+        @Override public boolean canReset() { return inner.canReset(); }
+        @Override public void seek(long micros, SeekMode mode) { inner.seek(micros, mode); }
+        @Override public boolean canSeek() { return inner.canSeek(); }
+        @Override public void close() { inner.close(); }
     }
 
     /**
@@ -127,18 +244,14 @@ class PlayerOverContainerTest {
                 player.setAudio(media.audio(), limn.sound.PlayOptions.DEFAULTS);
                 player.start();
 
-                for (int i = 0; i < 16; i++) {
-                    player.decodeStep();
-                }
+                fill(player, 3);
                 int shown = 0;
                 for (int step = 0; step < 400 && shown < 30; step++) {
-                    player.decodeStep();
-                    VideoFrame picture = player.takePicture();
-                    if (picture != null) {
+                    VideoFrame picture = turn(player, hand);
+                                        if (picture != null) {
                         picture.release();
                         shown++;
                     }
-                    hand.advanceMicros(33_333);
                 }
                 assertEquals(30, shown,
                         "a track that never sounded must not hold the pictures back");
@@ -181,13 +294,11 @@ class PlayerOverContainerTest {
             first.start();
             int shown = 0;
             for (int step = 0; step < 400 && shown < 10; step++) {
-                first.decodeStep();
-                VideoFrame picture = first.takePicture();
-                if (picture != null) {
+                VideoFrame picture = turn(first, hand);
+                                if (picture != null) {
                     picture.release();
                     shown++;
                 }
-                hand.advanceMicros(33_333);
             }
             assertEquals(10, shown);
             long reached = first.positionMicros();
@@ -205,13 +316,11 @@ class PlayerOverContainerTest {
 
                 int again = 0;
                 for (int step = 0; step < 400 && again < 20; step++) {
-                    second.decodeStep();
-                    VideoFrame picture = second.takePicture();
-                    if (picture != null) {
+                    VideoFrame picture = turn(second, hand);
+                                        if (picture != null) {
                         picture.release();
                         again++;
                     }
-                    hand.advanceMicros(33_333);
                 }
                 assertEquals(20, again,
                         "the pictures kept coming out of the stream the first player gave back");
@@ -245,13 +354,11 @@ class PlayerOverContainerTest {
                 int shown = 0;
                 // More pictures than the clip holds: it has to have gone round.
                 for (int step = 0; step < 2000 && shown < 50; step++) {
-                    player.decodeStep();
-                    VideoFrame picture = player.takePicture();
-                    if (picture != null) {
+                    VideoFrame picture = turn(player, hand);
+                                        if (picture != null) {
                         picture.release();
                         shown++;
                     }
-                    hand.advanceMicros(33_333);
                 }
                 assertEquals(50, shown, "a 20-picture clip on loop kept producing past its end");
                 assertNull(player.failure(), () -> "the decode thread failed: " + player.failure());
@@ -279,9 +386,7 @@ class PlayerOverContainerTest {
                     .setClock(new VideoClock(hand::get));
             try {
                 player.start();
-                for (int i = 0; i < 16; i++) {
-                    player.decodeStep();
-                }
+                fill(player, 3);
 
                 long target = 2_000_000;
                 player.seek(target, VideoStreamSource.SeekMode.EXACT);
@@ -290,9 +395,7 @@ class PlayerOverContainerTest {
 
                 VideoFrame first = null;
                 for (int step = 0; step < 400 && first == null; step++) {
-                    player.decodeStep();
-                    first = player.takePicture();
-                    hand.advanceMicros(33_333);
+                    first = turn(player, hand);
                 }
                 assertNotNull(first, "no picture arrived after the seek");
                 assertTrue(first.ptsMicros() >= target,
@@ -301,13 +404,11 @@ class PlayerOverContainerTest {
 
                 int shown = 1;
                 for (int step = 0; step < 600 && shown < 20; step++) {
-                    player.decodeStep();
-                    VideoFrame picture = player.takePicture();
-                    if (picture != null) {
+                    VideoFrame picture = turn(player, hand);
+                                        if (picture != null) {
                         picture.release();
                         shown++;
                     }
-                    hand.advanceMicros(33_333);
                 }
                 assertEquals(20, shown, "playback carried on from where the seek landed");
                 assertNull(player.failure(), () -> "the decode thread failed: " + player.failure());
@@ -339,26 +440,22 @@ class PlayerOverContainerTest {
 
                 int shown = 0;
                 for (int step = 0; step < 1500 && shown < 30; step++) {
-                    player.decodeStep();
-                    VideoFrame picture = player.takePicture();
-                    if (picture != null) {
+                    VideoFrame picture = turn(player, hand);
+                                        if (picture != null) {
                         picture.release();
                         shown++;
                     }
-                    hand.advanceMicros(33_333);
                 }
                 assertEquals(30, shown, "the fixture needs a player that has already wrapped");
 
                 player.seek(200_000, VideoStreamSource.SeekMode.EXACT);
                 int afterSeek = 0;
                 for (int step = 0; step < 1500 && afterSeek < 30; step++) {
-                    player.decodeStep();
-                    VideoFrame picture = player.takePicture();
-                    if (picture != null) {
+                    VideoFrame picture = turn(player, hand);
+                                        if (picture != null) {
                         picture.release();
                         afterSeek++;
                     }
-                    hand.advanceMicros(33_333);
                 }
                 assertEquals(30, afterSeek, "a seek mid-loop keeps looping and keeps producing");
                 assertNull(player.failure(), () -> "the decode thread failed: " + player.failure());
