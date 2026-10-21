@@ -435,5 +435,6 @@ public final class HeadlessWindow implements WindowPeer {
             owner.owned.remove(this); // an owned window that closed leaves its owner's list
         }
         backend.ending.forget(this);
+        backend.closed(this);
     }
 }

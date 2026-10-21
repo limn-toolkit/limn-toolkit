@@ -85,8 +85,9 @@ it stays in the scene.
 
 A dialog, a menu or a date picker's calendar may open as a window of its own. With no backend,
 there is nowhere for it to open. `HeadlessBackend` supplies one: every window it creates is a
-`HeadlessWindow` the test can reach, with `windows()` listing them in the order they opened
-and `scene()` answering the scene bound to each. `frame()` on a window runs one frame, and
+`HeadlessWindow` the test can reach, with `windows()` listing those still open in the order they
+opened (a window leaves the list as it closes, so keep a reference to one you look at after it
+closed) and `scene()` answering the scene bound to each. `frame()` on a window runs one frame, and
 `key(...)` presses a key in that window.
 
 A frame takes a turn of the loop, as on a desktop: `frame()` first runs what is waiting on the UI

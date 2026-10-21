@@ -1424,6 +1424,11 @@ Maven Central say which number that was.
   `HeadlessBackend.windows()` can be iterated while a frame opens or closes a window. A test whose
   posted tasks or timers must not run until it says so sees them run on the next frame or
   `advanceTime`.
+- In limn-test, `HeadlessBackend.windows()` lists the windows that have not closed: a window leaves
+  it, and the order the backend decides an ending by, as it closes, so the fixture no longer keeps a
+  closed popup's scene and its page alive (a leak check over native popups found pages only the
+  fixture held). A test that needs a window after it closed keeps its own reference, which still
+  answers `isClosed()`.
 - The in-scene fades of a `ComboBox`'s list, a `DatePicker`'s calendar, a `TabbedPane`'s list of
   every tab, a `PopupMenu`'s cascade, an in-scene `Dialog`'s card, the hover tooltip and a chart's
   tooltip panel draw their surface as one picture: halfway through, a highlight no longer shows

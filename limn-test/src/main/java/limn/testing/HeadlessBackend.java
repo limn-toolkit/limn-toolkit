@@ -111,8 +111,12 @@ public final class HeadlessBackend implements BackendPeer {
     }
 
     /**
-     * @return every window this backend created, in the order it created them; a live view, whose
-     *         iteration walks the windows there were when it began
+     * @return every window this backend created that has not closed, in the order it created
+     *         them; a live view, whose iteration walks the windows there were when it began. A
+     *         window leaves it as it closes, so that a test is not what keeps a closed window, its
+     *         scene and what that scene held alive (a native popup's page looked leaked); a test
+     *         that needs a window after it closed keeps its own reference, which still answers
+     *         {@link HeadlessWindow#isClosed()}
      */
     public List<HeadlessWindow> windows() {
         return Collections.unmodifiableList(windows);
@@ -146,7 +150,16 @@ public final class HeadlessBackend implements BackendPeer {
         return ended;
     }
 
+    /** A window closed: it leaves {@link #windows()} and the front-to-back order. */
+    void closed(HeadlessWindow window) {
+        windows.remove(window);
+        frontToBack.remove(window);
+    }
+
     void toFront(HeadlessWindow window) {
+        if (window.isClosed()) {
+            return;
+        }
         frontToBack.remove(window);
         frontToBack.add(0, window);
     }
