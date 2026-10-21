@@ -308,4 +308,111 @@ class PageSwitchTest extends ComponentTestBase {
         assertFalse(pane.isTabListOpen());
         assertSame(first, scene.focusedWidget(), "and there it stays");
     }
+
+    // ------------------------------------------------- what a card inherits from the page that left
+    //
+    // A dialog shown on the scene, or a menu shown at a point of it, has no widget to inherit its
+    // direction, size and language from but the scene's root, which the toolkit links it to. That
+    // link follows the root through setRoot: before, an open card kept resolving through the page
+    // that left (an RTL, SMALL card in an LTR, LARGE window) and held that page until it closed. A
+    // widget the application named itself stays the card's host.
+
+    /** The parentless root of {@code widget}'s card, whose host link is what it inherits through. */
+    private static limn.scene.Widget<?> cardOf(limn.scene.Widget<?> widget) {
+        limn.scene.Widget<?> w = widget;
+        while (w.parent() != null) {
+            w = w.parent();
+        }
+        return w;
+    }
+
+    private static Column directed(limn.scene.LayoutDirection direction, limn.scene.ControlSize size,
+            limn.scene.Widget<?>... widgets) {
+        Column page = page(widgets);
+        page.setLayoutDirection(direction);
+        page.setControlSize(size);
+        return page;
+    }
+
+    /** Collects until {@code page} is gone, or gives up: whether nothing holds it any more. */
+    private static boolean collected(java.lang.ref.WeakReference<?> page) {
+        for (int i = 0; i < 50 && page.get() != null; i++) {
+            System.gc();
+            try {
+                Thread.sleep(10);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        return page.get() == null;
+    }
+
+    @ParameterizedTest
+    @EnumSource(DisplayMode.class)
+    void aDialogShownOnTheSceneInheritsFromTheNewPageAndHoldsNothingOfTheOld(DisplayMode mode) {
+        open(directed(limn.scene.LayoutDirection.RTL, limn.scene.ControlSize.SMALL, new Button("Sign out")));
+        java.lang.ref.WeakReference<limn.scene.Widget<?>> old = new java.lang.ref.WeakReference<>(scene.root());
+        Label body = new Label("Your session ends in a minute.");
+        Dialog dialog = new Dialog("Session", "").setContent(body).addButton("OK", "ok").setDisplayMode(mode);
+        dialog.show(scene);
+        settle();
+        assertEquals(limn.scene.LayoutDirection.RTL, body.layoutDirection(), mode + ": from the page");
+        assertEquals(limn.scene.ControlSize.SMALL, body.controlSize(), mode + ": from the page");
+
+        Column next = directed(limn.scene.LayoutDirection.LTR, limn.scene.ControlSize.LARGE, new Button("Orders"));
+        scene.setRoot(next);
+        settle();
+
+        assertSame(next, cardOf(body).inheritanceHost(), mode + ": the card's host is the new page");
+        assertEquals(limn.scene.LayoutDirection.LTR, body.layoutDirection(), mode + ": the window's direction now");
+        assertEquals(limn.scene.ControlSize.LARGE, body.controlSize(), mode + ": the window's size now");
+        assertTrue(collected(old), mode + ": the page that left is not held while the dialog is up");
+        dialog.dismiss("ok");
+        settle();
+    }
+
+    @ParameterizedTest
+    @EnumSource(DisplayMode.class)
+    void aDialogShownOverAWidgetTheApplicationNamedKeepsThatWidgetAsItsHost(DisplayMode mode) {
+        Button signOut = new Button("Sign out");
+        open(directed(limn.scene.LayoutDirection.RTL, limn.scene.ControlSize.SMALL, signOut));
+        Label body = new Label("Your session ends in a minute.");
+        Dialog dialog = new Dialog("Session", "").setContent(body).addButton("OK", "ok").setDisplayMode(mode);
+        dialog.show(signOut);
+        settle();
+
+        scene.setRoot(directed(limn.scene.LayoutDirection.LTR, limn.scene.ControlSize.LARGE, new Button("Orders")));
+        settle();
+
+        assertSame(signOut, cardOf(body).inheritanceHost(), mode + ": the application's choice stands");
+        assertEquals(limn.scene.LayoutDirection.RTL, body.layoutDirection(), mode + ": through it");
+        dialog.dismiss("ok");
+        settle();
+    }
+
+    @ParameterizedTest
+    @EnumSource(DisplayMode.class)
+    void aMenuShownAtAPointOfTheSceneFollowsTheNewPageAndHoldsNothingOfTheOld(DisplayMode mode) {
+        open(directed(limn.scene.LayoutDirection.RTL, limn.scene.ControlSize.SMALL, new Button("Sign out")));
+        java.lang.ref.WeakReference<limn.scene.Widget<?>> old = new java.lang.ref.WeakReference<>(scene.root());
+        PopupMenu menu = new PopupMenu(new Menu().addItem("Refresh", () -> { })).setDisplayMode(mode);
+        menu.showAt(scene, 20, 20);
+        settle();
+        assertTrue(menu.isOpen(), mode.name());
+        Scene menus = mode == DisplayMode.IN_SCENE ? scene
+                : backend.windows().get(backend.windows().size() - 1).scene();
+        limn.scene.Widget<?> card = mode == DisplayMode.IN_SCENE ? cardOf(scene.focusedWidget()) : menus.root();
+        assertSame(scene.root(), card.inheritanceHost(), mode + ": hosted by the scene's root");
+
+        Column next = directed(limn.scene.LayoutDirection.LTR, limn.scene.ControlSize.LARGE, new Button("Orders"));
+        scene.setRoot(next);
+        settle();
+
+        assertTrue(menu.isOpen(), mode + ": a menu shown at no widget stays open");
+        assertSame(next, card.inheritanceHost(), mode + ": its host is the new page");
+        assertTrue(collected(old), mode + ": the page that left is not held while the menu is up");
+        menu.close();
+        settle();
+    }
 }

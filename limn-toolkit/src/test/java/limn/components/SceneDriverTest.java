@@ -104,6 +104,10 @@ class SceneDriverTest extends ComponentTestBase {
             }
 
             @Override
+            public void hostOnRoot(Scene scene, limn.scene.Widget<?> card) {
+            }
+
+            @Override
             public boolean isInTree(limn.scene.Widget<?> widget) {
                 return false;
             }

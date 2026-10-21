@@ -844,6 +844,31 @@ public final class Scene {
     private final java.util.Set<Widget<?>> firstStopOnReturn =
             java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
 
+    /**
+     * The cards whose host the toolkit chose as this scene's root, the application naming no
+     * widget (a dialog shown on the scene, a menu shown at a point of it): {@link #setRoot}
+     * re-points them to the new root, so the page that left neither styles an open card nor is
+     * held by it. Weak, so a card that closed is let go of with no unregistering.
+     */
+    private final java.util.Map<Widget<?>, Boolean> hostedOnRoot = new java.util.WeakHashMap<>();
+
+    /**
+     * Re-points the cards {@link #hostedOnRoot} that are still open on {@code old} to the root now
+     * in place.
+     */
+    private @Nullable Throwable rehostCards(Widget<?> old, @Nullable Throwable failed) {
+        for (Widget<?> card : new ArrayList<>(hostedOnRoot.keySet())) {
+            if (card.scene() != null && card.inheritanceHost() == old) {
+                try {
+                    card.setInheritanceHost(root);
+                } catch (RuntimeException | Error error) {
+                    failed = HandlerFailures.add(failed, error);
+                }
+            }
+        }
+        return failed;
+    }
+
     /** {@link #setRoot}, once {@code next} is known to be taken: the old root out, then {@code next} in. */
     private void replaceRoot(Widget<?> next) {
         Widget<?> old = root;
@@ -860,6 +885,7 @@ public final class Scene {
             // The close walked the old root out already, and the next bind walks this one in.
             root = next;
             rootLetGo = false;
+            HandlerFailures.rethrow(rehostCards(old, null));
             return;
         }
         boolean hadKeyboard = focused != null && isInSubtree(focused, old);
@@ -899,6 +925,7 @@ public final class Scene {
             } catch (RuntimeException | Error error) {
                 failed = HandlerFailures.add(failed, error);
             }
+            failed = rehostCards(old, failed);
             layoutDirty = true;
             walkMayNameDetached = true;
             try {
@@ -4632,6 +4659,13 @@ public final class Scene {
             @Override
             public Subscription observeAnchorLeaving(Scene scene, Widget<?> anchor, Runnable gone) {
                 return scene.observeAnchorLeaving(anchor, gone);
+            }
+
+            @Override
+            public void hostOnRoot(Scene scene, Widget<?> card) {
+                Ui.checkUiThread();
+                card.setInheritanceHost(scene.root);
+                scene.hostedOnRoot.put(card, Boolean.TRUE);
             }
 
             @Override

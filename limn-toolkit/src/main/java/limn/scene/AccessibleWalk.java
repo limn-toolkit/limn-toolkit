@@ -382,7 +382,10 @@ final class AccessibleWalk {
         for (int i = 0; i < foreignCount; i++) {
             // An entry outlives its popup only until the next walk here: the popup's walk answers
             // no identifier for a root it no longer publishes, and a closed popup withdrew itself.
-            if (foreignScenes[i].accessibleIdOf(foreignRoots[i]) == 0) {
+            // Nor its opener, once that has left this scene (a page switch re-pointing an open
+            // dialog's card to the new root): the popup's next walk names the new one, and the
+            // entry would otherwise hold the page that left for as long as the popup is open.
+            if (foreignScenes[i].accessibleIdOf(foreignRoots[i]) == 0 || foreignOpeners[i].scene() != scene) {
                 continue;
             }
             int opener = indexOfWidget(foreignOpeners[i]);

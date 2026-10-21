@@ -394,15 +394,19 @@ public final class PopupMenu {
      * <p>The cascade takes the step resolved on the scene's <b>root</b>, the documented
      * fallback, and the difference between "a context menu over an XSMALL data grid is XSMALL"
      * and "it is whatever the scene says". Pass the widget it belongs to
-     * ({@link #showAnchored(Widget, float, float, float, float)}) to get the former.
+     * ({@link #showAnchored(Widget, float, float, float, float)}) to get the former. When
+     * {@link Scene#setRoot} switches the page while the menu is open, the menu stays open and
+     * is hosted by the new root, holding nothing of the page that left; its columns keep the
+     * geometry they were built with until it closes.
      */
     public void showAnchored(Scene ownerScene, float ax, float ay, float aw, float ah) {
         Ui.checkUiThread();
         Objects.requireNonNull(ownerScene, "ownerScene");
-        show(ownerScene, ownerScene.root(), ax, ay, aw, ah);
+        show(ownerScene, null, ax, ay, aw, ah);
     }
 
-    private void show(Scene ownerScene, Widget<?> host, float ax, float ay, float aw, float ah) {
+    /** @param host the widget the menu belongs to, or {@code null} for the scene's root, followed through a page switch */
+    private void show(Scene ownerScene, @Nullable Widget<?> host, float ax, float ay, float aw, float ah) {
         Ui.checkUiThread();
         EditTarget.opening(ownerScene);
         NativeWindow win = ownerScene == null ? null : ownerScene.window();
@@ -411,7 +415,7 @@ public final class PopupMenu {
         }
         open = true;
         this.owner = ownerScene;
-        beginOpen(ownerScene.textRuler(), host);
+        beginOpen(ownerScene.textRuler(), host, ownerScene);
         // Two cases give a menu no window of its own. A fullscreen window: GLFW minimizes one
         // fullscreen at a named mode when another window takes the focus, which the menu's does at
         // once, and one at the mode the display is in already covers the screen, so the cascade
@@ -435,14 +439,20 @@ public final class PopupMenu {
      * overlay pushed with {@code pushOverlay}), so the tree walk cannot reach the anchor: the
      * host link is the only way the step <em>and the direction</em> get there, and it must be
      * installed before the geometry that sizes the native window is computed.
+     *
+     * @param host  the widget the menu belongs to, or {@code null} for {@code owner}'s root
+     * @param owner the scene the menu is shown on, whose root hosts it when {@code host} is
+     *              {@code null} and keeps hosting it through a page switch; {@code null} for none
      */
-    private void beginOpen(limn.graphics.TextRuler ruler, Widget<?> host) {
+    private void beginOpen(limn.graphics.TextRuler ruler, @Nullable Widget<?> host, @Nullable Scene owner) {
         surface = new MenuSurface(ruler);
         if (declaredSize != null) {
             surface.setControlSize(declaredSize);
         }
         if (host != null) {
             surface.setInheritanceHost(host);
+        } else if (owner != null) {
+            SceneAccess.hostOnRoot(owner, surface);
         }
         tokens = Theme.current().tokensFor(surface);
         // Both inherited axes are captured here, on the same line of the same method, because
@@ -947,7 +957,7 @@ public final class PopupMenu {
      */
     void showForTest(TextRuler ruler, float ax, float ay, float aw, float ah, float boundsW, float boundsH) {
         open = true;
-        beginOpen(ruler, null);
+        beginOpen(ruler, null, null);
         surface.configure(ax, ay, aw, ah, boundsW, boundsH);
         surface.reposition();
     }
@@ -1016,7 +1026,7 @@ public final class PopupMenu {
     void showInSceneForTest(Scene ownerScene, float ax, float ay, float aw, float ah) {
         open = true;
         owner = ownerScene;
-        beginOpen(ownerScene.textRuler(), ownerScene.root());
+        beginOpen(ownerScene.textRuler(), null, ownerScene);
         presentInScene(ax, ay, aw, ah);
     }
 

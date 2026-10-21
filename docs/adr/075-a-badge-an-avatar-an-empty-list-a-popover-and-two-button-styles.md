@@ -1111,7 +1111,8 @@ it is how a window shows another page.
   partial renderer repaints the window and the accessible tree is walked again, the window node
   keeping its id and its children changing (`STRUCTURE_CHANGED`). Nothing caches the root widget:
   the walk reads `Scene.root()` each time, and the bridges hold the window node, whose id the
-  walk keeps.
+  walk keeps. (Amended below, R14S-3: a dialog's or a menu's card hosted by the root did cache
+  it; it now follows the root.)
 - **The new root is refused as a new scene's is**, before anything moves: a widget with a parent,
   another scene's root or overlay, and this scene's own overlay. Setting the current root does
   nothing. While the old root leaves, the new one is in no scene yet; a handler of the old one
@@ -1163,3 +1164,20 @@ The review of `setRoot` (R14S) found where the note above promised more than the
   a widget the new root's content asks for as it joins still wins. `PageSwitchTest` switches the
   page with the keyboard in a popover, from a popover's button (clicked and with Space), with a
   combo box's list, a menu bar's menu and the tab list open, and asserts where the keyboard went.
+- **A card hosted by the root** (R14S-3). A dialog shown on a scene (`show`, `showToolkitModal`,
+  `showNonModal` with a `Scene`) and a menu shown at a point of one (`PopupMenu.showAt` and
+  `showAnchored` with a `Scene`) have no widget to inherit their size step, direction and locale
+  from, and the toolkit linked their card to `owner.root()` once, as it opened. After `setRoot`
+  the open card went on resolving through the page that left (an RTL, SMALL dialog in an LTR,
+  LARGE window) and held that page until it closed, so "nothing caches the root widget" was
+  false. The integrator decided that a host the toolkit chose as the root follows the root:
+  the scene keeps those cards (weakly), and `setRoot` re-points each one still open and still
+  hosted by the old root to the new one, which re-measures a dialog's card at once. A widget the
+  application named (`show(Widget)`, `showAt(Widget, …)`) stays the host as it was given, the
+  application's choice; a menu keeps the geometry its columns were built with until it closes.
+  The accessible walk also dropped a cross-window mirror only when the popup stopped publishing
+  its root, so a dialog in a window of its own kept the old page as the opener of its relation;
+  it now drops one whose opener has left the scene, and the popup's next walk names the new
+  root. `PageSwitchTest` asserts the new host, the new direction and size and that the old page
+  is collected while a dialog (both display modes) and a menu (both) are up, and that a dialog
+  shown over a widget the application named keeps it.

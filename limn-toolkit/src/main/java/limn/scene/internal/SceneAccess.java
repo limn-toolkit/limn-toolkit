@@ -99,6 +99,9 @@ public final class SceneAccess {
         /** @param panel a closing popup's panel; see {@link SceneAccess#closePopupsHungIn} */
         void closePopupsHungIn(Widget<?> panel);
 
+        /** See {@link SceneAccess#hostOnRoot}. */
+        void hostOnRoot(Scene scene, Widget<?> card);
+
         /** @param widget a widget; see {@link SceneAccess#isInTree} */
         boolean isInTree(Widget<?> widget);
 
@@ -584,6 +587,23 @@ public final class SceneAccess {
      */
     public static void closePopupsHungIn(Widget<?> panel) {
         hook().closePopupsHungIn(java.util.Objects.requireNonNull(panel, "panel"));
+    }
+
+    /**
+     * Links {@code card}'s inherited axes to {@code scene}'s root, and keeps them on the scene's
+     * root when {@link Scene#setRoot} replaces it: for a dialog's or a menu's card whose host the
+     * toolkit chose because the application named no widget (a dialog shown on the scene, a menu
+     * shown at a point of it). The card is re-pointed only while it is in a scene and still hosted
+     * by the root that leaves, so a card that closed, or that something linked elsewhere, is left
+     * alone; the scene holds it weakly. A widget the application named stays the card's host and
+     * is linked with {@link Widget#setInheritanceHost}, not with this.
+     *
+     * @param scene the scene whose root the card inherits from
+     * @param card  the parentless root of the card's subtree
+     */
+    public static void hostOnRoot(Scene scene, Widget<?> card) {
+        hook().hostOnRoot(java.util.Objects.requireNonNull(scene, "scene"),
+                java.util.Objects.requireNonNull(card, "card"));
     }
 
     /**

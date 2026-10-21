@@ -317,8 +317,8 @@ public final class Dialog {
     private Scene modalScene;
 
     // Where the card's step is inherited from, when the tree cannot say: the widget passed
-    // to a show(Widget) overload, else the owner scene's root. Installed as a host link on
-    // the parentless root of the card's subtree at presentation time.
+    // to a show(Widget) overload, else the owner scene's root, followed through setRoot.
+    // Installed as a host link on the parentless root of the card's subtree at presentation time.
     private Widget<?> inheritanceHost;
 
     // In-scene presentation state (null when native-window / headless).
@@ -856,6 +856,11 @@ public final class Dialog {
      * or, in {@link DisplayMode#IN_SCENE} and over a fullscreen owner, a scene-modal
      * internal overlay.
      *
+     * <p>The card takes its size step, layout direction and locale from the scene's root, and
+     * from the new root when {@link Scene#setRoot} switches the page while it is open, as every
+     * {@code Scene} overload of this class does; the {@code Widget} overloads take them from the
+     * widget given, which stays the card's host whatever happens to the page around it.
+     *
      * @param owner the scene the dialog is modal over
      * @return a stage that completes with the result when the dialog closes
      * @throws IllegalStateException if this dialog was already shown (dialogs are single-use)
@@ -988,11 +993,16 @@ public final class Dialog {
     }
 
     /**
-     * The widget the card's inherited axes resolve through when its own root is parentless:
-     * whatever a {@code show(Widget)} overload recorded, else the owner scene's root.
+     * Links {@code card}, the parentless root of the card's subtree, to the widget its inherited
+     * axes resolve through: whatever a {@code show(Widget)} overload recorded, else the owner
+     * scene's root, which a page switch replaces with the new one.
      */
-    private Widget<?> inheritanceHostFor(Scene owner) {
-        return inheritanceHost != null ? inheritanceHost : owner.root();
+    private void linkHost(Widget<?> card, Scene owner) {
+        if (inheritanceHost != null) {
+            card.setInheritanceHost(inheritanceHost);
+        } else {
+            SceneAccess.hostOnRoot(owner, card); // and on the next root, when the page switches
+        }
     }
 
     /**
@@ -1040,7 +1050,7 @@ public final class Dialog {
         int margin = windowMargin;
         Widget<?> root = margin == 0 ? panel
                 : new limn.components.internal.PopupFrame(panel, margin, () -> { });
-        root.setInheritanceHost(inheritanceHostFor(owner));
+        linkHost(root, owner);
         // A scene gives the panel a text ruler so it can be measured to size
         // the window; it is then bound to the modal window.
         // On the owner's clock, so the fade-out that destroys this window — and completes the
@@ -1162,7 +1172,7 @@ public final class Dialog {
         // window left draws nothing and answers nothing but its close from here on.
         SceneAccess.letGoOfRoot(leaving, panel);
         overlay = new SceneOverlay(fadingCard());
-        overlay.setInheritanceHost(inheritanceHostFor(owner));
+        linkHost(overlay, owner);
         // With the keyboard, taken from the scene being left before its close could run the
         // widget's focus-lost path, and never put on the first stop as if by Tab: the one would
         // drop a selection and commit a half-typed entry, the other select all of a field's text.
@@ -1372,7 +1382,7 @@ public final class Dialog {
         // overlay here, and a host link on a widget that has a parent is ignored (the tree
         // wins). The overlay is the parentless one (pushOverlay sets the scene but never a
         // parent), so it is where the chain has to be reattached, before anything measures.
-        overlay.setInheritanceHost(inheritanceHostFor(owner));
+        linkHost(overlay, owner);
         // pushOverlay captures input, confines focus and focuses the overlay's first stop; the
         // dialog names that stop itself when it is one of its buttons, so that no destructive
         // button is focused on the way.
