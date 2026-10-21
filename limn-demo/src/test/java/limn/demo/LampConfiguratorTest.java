@@ -179,6 +179,30 @@ class LampConfiguratorTest {
         assertEquals(List.of("Base", "$83.20"), lamp.popoverText(), "the price in the finish chosen");
     }
 
+    /**
+     * Every part, clicked where the page says its front is (what the lab switch for a film picks
+     * through), opens that part and no other. The bulb sits inside the shade, out of sight from the
+     * page's own view, so its front is seen from below the shade's rim: before, the bulb's point
+     * was its centre seen from the page's view, which is the shade's outside, and both the lab
+     * switch and a click there opened "Shade, $46.00".
+     */
+    @Test
+    void aClickOnTheFrontOfEveryPartOpensThatPart() {
+        open();
+        for (LampConfigurator.Part part : LampConfigurator.Part.values()) {
+            lamp.popover.close();
+            window.frame();
+            lamp.lookAtFront(part);
+            window.frame();
+            float[] front = lamp.onView(part);
+            Vec2 at = lamp.view.localToScene(front[0], front[1]);
+            drive(scene).click(at.x(), at.y());
+            window.frame();
+            assertSame(part, lamp.picked, "a click on the front of " + part);
+            assertEquals(part.name.get(), lamp.popoverText().get(0));
+        }
+    }
+
     @Test
     void aClickOnNothingOpensNothing() {
         open();

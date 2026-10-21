@@ -220,6 +220,11 @@ final class LampConfigurator {
         @Nullable Part picked;
         /** A point on the front of each part, in world space, by the parts' order. */
         Vec3[] fronts = new Vec3[0];
+        /**
+         * Where the camera stands to see the front of each part, by the parts' order: {@code null}
+         * for a part the page's own view shows, the place to look from for one it hides.
+         */
+        @Nullable Vec3[] eyes = new Vec3[0];
 
         private Built(Widget<?> widget, Viewport3D view, Choice choice, Popover popover, Label name,
                       Label price, Transition change) {
@@ -246,6 +251,21 @@ final class LampConfigurator {
             to = choice.body();
             change.snap(0f);
             change.to(1f);
+        }
+
+        /**
+         * Turns the camera to where the front of {@code part} can be seen, when the page's own
+         * view hides it, looking at it from there; else leaves the camera where it is. The orbit
+         * then goes on from there, around that part.
+         */
+        void lookAtFront(Part part) {
+            Vec3 eye = eyes[part.ordinal()];
+            if (eye == null) {
+                return;
+            }
+            view.camera().eye(eye).target(fronts[part.ordinal()]);
+            view.setController(new OrbitController(view.camera()).radiusLimits(4f, 16f));
+            view.invalidate();
         }
 
         /** @return where the front of {@code part} is on the view, in the view's own points */
@@ -429,12 +449,20 @@ final class LampConfigurator {
         // pointer: the lab switch below, and the tests.
         built.fronts = new Vec3[]{new Vec3(0.6f, 0.15f, 0.5f), hinge.add(elbow).mul(0.5f), elbow,
                 wrist.add(shadeAxis.mul(0.55f)).add(new Vec3(0, 0, 0.5f)), bulbAt};
+        // The bulb sits inside the shade, whose opening the page's view sees edge-on from above:
+        // no point of the view shows it, and its centre there lies on the shade. It is seen from
+        // below the rim, along a line 45 degrees off the shade's axis toward the side it leans to.
+        built.eyes = new Vec3[Part.values().length];
+        Vec3 underTheRim = Mat4.rotation(Quat.fromAxisAngle(Vec3.UNIT_Z, 0.3f + (float) Math.toRadians(45)))
+                .transformDirection(new Vec3(0, -1, 0));
+        built.eyes[Part.BULB.ordinal()] = bulbAt.add(underTheRim.mul(5f));
         // A lab switch for a film of the page: -Dlimn.demo.lamp.pick=Shade picks that part, by its
         // English name, as a click on the front of it would, once the page has been on screen.
         String lab = System.getProperty("limn.demo.lamp.pick");
         for (Part part : Part.values()) {
             if (part.name.english().equalsIgnoreCase(String.valueOf(lab))) {
                 limn.concurrent.Ui.postDelayed(() -> {
+                    built.lookAtFront(part);
                     float[] at = built.onView(part);
                     pick.accept(viewport.rayAt(at[0], at[1]));
                 }, 2500);
