@@ -211,10 +211,15 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
     void setText(String text, Change.Origin origin) {
         boolean moved = !model.text().equals(text);
         selectionLeft = null; // the caret goes to the end of the new text, and that is what comes back
+        long before = model.textVersion();
         model.setText(text);
-        if (!moved && rangeLeft != null) {
+        if (moved) {
+            rangeLeft = null; // its offsets name characters of a text that is gone
+        } else if (rangeLeft != null && rangeLeft[2] == before) {
             // The same text (a binding that writes its value back as the keyboard leaves): every
             // character is where it was, so what was selected is still there for the commands.
+            // Only a record that was current: one an earlier, different text ended (a binding
+            // that trims on blur and then hears its model echo the trimmed value) stays ended.
             rangeLeft[2] = model.textVersion();
         }
         // Show the head of the text; onPaint re-clamps against the real width
@@ -1667,7 +1672,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * a caret moved while the field is away (a listener that shows the head of the value when the
      * keyboard leaves) says the selection is not to come back, not that the person chose the
      * command over something else; only an edit of the text (setting the text it already holds is
-     * not one), or the keyboard coming back, ends it.
+     * not one), or the keyboard coming back, ends it, and nothing brings an ended one back.
      */
     private long @Nullable [] rangeLeft;
 

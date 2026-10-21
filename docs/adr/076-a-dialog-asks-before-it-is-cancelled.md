@@ -265,3 +265,17 @@ character is where it was; a different text still ends it, because the offsets w
 characters the person never selected. The record given back with the keyboard is forgotten as
 before: setting the text puts the caret at its end. `SelectionBackFromOverlayTest` sets the same
 text, and a trimmed one, on blur, in both display modes.
+
+### 2026-10-20 (review): an ended record stays ended
+
+The stamp above revived a record that an earlier, different text had already ended: the record is
+ended by its version going stale, not by being forgotten, and the same-text set re-stamped it
+whatever version it carried. A two-way binding does exactly that on every blur, writing the trimmed
+value (a different text) and then hearing its model echo the value back (the same text), and so
+does a refresh from the model while the menu is open. Copy then put characters of the trimmed text
+the person never selected on the clipboard, Cut took them out, and when the new text was shorter
+than the old offsets both rows were enabled and threw from the menu's action (R14S-1). A different
+text now forgets the record outright, and the same text stamps it only when it was current just
+before the set. `SelectionBackFromOverlayTest` runs the trim echoed back by the model on the field
+and the area, the same text set later while the menu is open, and an echo shorter than the
+selection's offsets, in both display modes.

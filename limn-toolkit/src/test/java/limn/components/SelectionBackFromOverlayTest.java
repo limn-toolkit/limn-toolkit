@@ -15,6 +15,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static limn.testing.SceneDriver.drive;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
@@ -110,6 +111,21 @@ class SelectionBackFromOverlayTest extends ComponentTestBase {
 
     private HeadlessWindow window() {
         return backend.windows().get(0);
+    }
+
+    /**
+     * On blur, writes the trimmed value to a model and lets the model's listener write it back
+     * into the widget, as a two-way binding does: a different text, then the same text.
+     */
+    private static void trimAndEchoOnBlur(limn.scene.Widget<?> widget, java.util.function.Supplier<String> text,
+            java.util.function.Consumer<String> set) {
+        widget.observeChanges((source, change) -> {
+            if (change.aspect() == limn.scene.Change.Aspect.FOCUS && !widget.isFocused()) {
+                String model = text.get().strip();
+                set.accept(model); // the binding writes the model
+                set.accept(model); // and the model's listener echoes it back
+            }
+        });
     }
 
     /** Moves the caret to the start whenever {@code field} loses the keyboard, as a binding that shows a value's head does. */
@@ -334,6 +350,138 @@ class SelectionBackFromOverlayTest extends ComponentTestBase {
         } else {
             // A menu in a window of its own leaves the field the keyboard: no blur, the selection stands.
             assertEquals("world", window.clipboard().text(), menus + ": Copy copied the selection");
+        }
+    }
+
+    /**
+     * A two-way binding: on blur the field writes the trimmed value to the model (a different
+     * text, which ends what the commands had), and the model's listener writes that value back
+     * into the field (the same text as it now holds). The echo must not bring back offsets that
+     * named characters of the text before the trim: before, Copy put "pply C" of "Harbor Supply
+     * Co" on the clipboard where the person had selected "Supply", and Cut left "Harbor Suo".
+     */
+    @ParameterizedTest
+    @EnumSource(DisplayMode.class)
+    void aTrimOnBlurEchoedBackByTheModelLeavesTheCommandsNothingToActOn(DisplayMode menus) {
+        open(menus);
+        HeadlessWindow window = window();
+        trimAndEchoOnBlur(field, field::text, field::setText);
+        trimAndEchoOnBlur(area, area::text, area::setText);
+        for (String row : new String[] {"Copy", "Cut"}) {
+            for (boolean inArea : new boolean[] {false, true}) {
+                String what = menus + ", " + (inArea ? "area" : "field") + ", " + row;
+                limn.scene.Widget<?> w = inArea ? area : field;
+                if (inArea) {
+                    area.setText("  Harbor Supply Co");
+                } else {
+                    field.setText("  Harbor Supply Co");
+                }
+                window.clipboard().setText("CLIP");
+                scene.requestFocus(w);
+                if (inArea) {
+                    area.select(9, 15); // "Supply"
+                } else {
+                    field.select(9, 15);
+                }
+                settle();
+                ownMenuRow(row.equals("Cut") ? 0 : 1);
+                String text = inArea ? area.text() : field.text();
+                if (menus == DisplayMode.IN_SCENE) {
+                    assertEquals("Harbor Supply Co", text, what + ": trimmed as the menu took the keyboard, and nothing cut");
+                    assertEquals("CLIP", window.clipboard().text(), what + ": nothing of the new text reached the clipboard");
+                } else {
+                    // A menu in a window of its own leaves the field the keyboard: no blur, the selection stands.
+                    assertEquals("Supply", window.clipboard().text(), what + ": acted on the selection");
+                }
+            }
+        }
+    }
+
+    /**
+     * The trim on blur, then the same value set again while the menu is open (a refresh from the
+     * model): the record the trim ended stays ended, and Copy and Cut find nothing.
+     */
+    @ParameterizedTest
+    @EnumSource(DisplayMode.class)
+    void theSameTextSetLaterWhileTheMenuIsOpenDoesNotReviveARecordATrimEnded(DisplayMode menus) {
+        open(menus);
+        HeadlessWindow window = window();
+        field.setText("  Harbor Supply Co");
+        field.observeChanges((source, change) -> {
+            if (change.aspect() == limn.scene.Change.Aspect.FOCUS && !field.isFocused()) {
+                field.setText(field.text().strip());
+            }
+        });
+        for (int row : new int[] {1, 0}) {
+            field.setText("  Harbor Supply Co");
+            window.clipboard().setText("CLIP");
+            scene.requestFocus(field);
+            field.select(9, 15); // "Supply"
+            settle();
+            drive(scene).press(Keys.F10, Keys.MOD_SHIFT);
+            settle();
+            field.setText(field.text().strip()); // the refresh, after the trim on blur in the scene
+            settle();
+            drive(scene).press(Keys.HOME);
+            for (int i = 0; i < row; i++) {
+                drive(scene).press(Keys.DOWN);
+            }
+            drive(scene).press(Keys.ENTER);
+            settle();
+            assertEquals("Harbor Supply Co", field.text(), menus + ", row " + row + ": nothing cut");
+            assertEquals("CLIP", window.clipboard().text(), menus + ", row " + row + ": nothing copied");
+        }
+    }
+
+    /**
+     * The echo of a value shorter than the offsets the person selected in: Cut and Copy must not
+     * be offered for a record that names characters the text no longer has, nor throw from the
+     * menu's action (before, both rows were enabled and both threw IndexOutOfBoundsException).
+     */
+    @ParameterizedTest
+    @EnumSource(DisplayMode.class)
+    void anEchoShorterThanTheOldSelectionOffersNoCommandAndNeverThrows(DisplayMode menus) {
+        open(menus);
+        HeadlessWindow window = window();
+        trimAndEchoOnBlur(field, field::text, field::setText);
+        trimAndEchoOnBlur(area, area::text, area::setText);
+        for (boolean inArea : new boolean[] {false, true}) {
+            String what = menus + ", " + (inArea ? "area" : "field");
+            limn.scene.Widget<?> w = inArea ? area : field;
+            if (inArea) {
+                area.setText("            Co");
+            } else {
+                field.setText("            Co");
+            }
+            window.clipboard().setText("CLIP");
+            scene.requestFocus(w);
+            if (inArea) {
+                area.select(12, 14); // "Co"
+            } else {
+                field.select(12, 14);
+            }
+            settle();
+            drive(scene).press(Keys.F10, Keys.MOD_SHIFT);
+            settle();
+            boolean canCopy = inArea ? area.onCanEdit(limn.scene.EditCommand.COPY) : field.onCanEdit(limn.scene.EditCommand.COPY);
+            boolean canCut = inArea ? area.onCanEdit(limn.scene.EditCommand.CUT) : field.onCanEdit(limn.scene.EditCommand.CUT);
+            if (menus == DisplayMode.IN_SCENE) {
+                assertEquals(false, canCopy, what + ": Copy is not offered for a record of the old text");
+                assertEquals(false, canCut, what + ": nor Cut");
+                assertDoesNotThrow(() -> {
+                    if (inArea) {
+                        area.onEdit(limn.scene.EditCommand.COPY);
+                        area.onEdit(limn.scene.EditCommand.CUT);
+                    } else {
+                        field.onEdit(limn.scene.EditCommand.COPY);
+                        field.onEdit(limn.scene.EditCommand.CUT);
+                    }
+                }, what + ": the commands do not throw");
+                assertEquals("Co", inArea ? area.text() : field.text(), what + ": nothing cut");
+                assertEquals("CLIP", window.clipboard().text(), what + ": nothing copied");
+            }
+            drive(scene).press(Keys.ESCAPE);
+            settle();
         }
     }
 
