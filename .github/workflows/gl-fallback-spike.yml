@@ -114,8 +114,20 @@ jobs:
         shell: cmd
         run: |
           call "%VSINSTALL%\VC\Auxiliary\Build\vcvarsall.bat" ${{ matrix.arch }} || exit /b 1
-          llvm-config --version
-          meson setup _build mesa --default-library=shared --buildtype=release -Db_ndebug=true -Db_vscrt=mt --prefix=%CD%\_install --cmake-prefix-path=%CD%\llvm-install -Dplatforms=windows -Dllvm=enabled -Dshared-llvm=disabled -Dvulkan-drivers=[] -Dgallium-drivers=llvmpipe -Dgallium-va=disabled -Dgallium-d3d10umd=false -Dgallium-mediafoundation=disabled -Dvideo-codecs=[] -Dgles1=disabled -Dgles2=disabled -Degl=disabled -Dgbm=disabled -Dglx=disabled -Dmicrosoft-clc=disabled -Dspirv-to-dxil=false -Dgallium-rusticl=false -Dbuild-tests=false -Dwerror=false || exit /b 1
+          if not exist llvm-install\lib\cmake\llvm\LLVMConfig.cmake (echo no LLVMConfig.cmake in llvm-install & exit /b 1)
+          rem Meson asks CMake for the newest LLVM first, and the runner image carries a newer one than
+          rem this build's, so CMake is pointed at this LLVM alone: no PATH-derived or system prefixes.
+          set LLVMDIR=%CD:\=/%/llvm-install/lib/cmake/llvm
+          > llvm.ini echo [cmake]
+          >> llvm.ini echo LLVM_DIR = '%LLVMDIR%'
+          >> llvm.ini echo CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH = 'OFF'
+          >> llvm.ini echo CMAKE_FIND_USE_CMAKE_SYSTEM_PATH = 'OFF'
+          >> llvm.ini echo CMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY = 'OFF'
+          >> llvm.ini echo CMAKE_FIND_USE_PACKAGE_REGISTRY = 'OFF'
+          type llvm.ini
+          meson setup _build mesa --native-file llvm.ini --default-library=shared --buildtype=release -Db_ndebug=true -Db_vscrt=mt --prefix=%CD%\_install --cmake-prefix-path=%CD%\llvm-install -Dplatforms=windows -Dllvm=enabled -Dshared-llvm=disabled -Dvulkan-drivers=[] -Dgallium-drivers=llvmpipe -Dgallium-va=disabled -Dgallium-d3d10umd=false -Dgallium-mediafoundation=disabled -Dvideo-codecs=[] -Dgles1=disabled -Dgles2=disabled -Degl=disabled -Dgbm=disabled -Dglx=disabled -Dmicrosoft-clc=disabled -Dspirv-to-dxil=false -Dgallium-rusticl=false -Dbuild-tests=false -Dwerror=false || exit /b 1
+          findstr /C:"Run-time dependency LLVM" _build\meson-logs\meson-log.txt
+          findstr /C:"Run-time dependency LLVM" _build\meson-logs\meson-log.txt | findstr /C:"19.1.7" >nul || (echo meson did not take the LLVM built here & exit /b 1)
           meson install -C _build || exit /b 1
           dir /s /b _install > results\install-tree.txt
           for %%f in (_install\bin\*.dll) do dumpbin /nologo /dependents %%f >> results\dependents.txt
