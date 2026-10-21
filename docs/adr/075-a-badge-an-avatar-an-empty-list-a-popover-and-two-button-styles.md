@@ -1237,3 +1237,11 @@ enough.
   (`EXPANDED`, `USER`) on a page switch, a removal of the bar or hiding it. The bar now registers
   with the same rule before its dropdown does and closes it itself, as an `ADJUSTMENT`.
   `MenuBarCollapseOriginTest`.
+- **The cross-window mirror of a named opener** (R15S-3). R14S-3's walk dropped a mirror as soon
+  as its opener left the scene, and only the popup's own walk could add it again, so a page
+  switched away and back under a dialog shown over a widget of it lost the button's
+  `CONTROLLER_FOR` for good. The entry now stays while the popup publishes its root, its opener
+  held weakly: it resolves nothing while the opener is away, names the popup again on the walk
+  the opener's return makes, and keeps no page that left alive. A popup root that names another
+  opener (a root-hosted card re-pointed to the new page) replaces its entry.
+  `OpenerMirrorAcrossPageSwitchTest`.

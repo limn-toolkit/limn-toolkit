@@ -134,8 +134,14 @@ final class AccessibleWalk {
      * in the popup's own tree. Each entry is (the opener widget here, the popup's root widget
      * there, the scene the root lives in). Grown once, reused; a few entries at most, because a
      * window has one native popup open at a time and the entry leaves with the popup.
+     *
+     * <p>The opener is held weakly. An opener that left this scene while its popup stays open (a
+     * page switched away under a dialog shown over a widget of it) keeps its entry, which simply
+     * resolves nothing while it is away and names the popup again the moment it comes back, with
+     * no walk of the popup needed; and the page that left is not kept alive by the entry.
      */
-    private Widget<?>[] foreignOpeners = new Widget<?>[4];
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private java.lang.ref.WeakReference<Widget<?>>[] foreignOpeners = new java.lang.ref.WeakReference[4];
     private Widget<?>[] foreignRoots = new Widget<?>[4];
     private Scene[] foreignScenes = new Scene[4];
     private int foreignCount;
@@ -382,13 +388,15 @@ final class AccessibleWalk {
         for (int i = 0; i < foreignCount; i++) {
             // An entry outlives its popup only until the next walk here: the popup's walk answers
             // no identifier for a root it no longer publishes, and a closed popup withdrew itself.
-            // Nor its opener, once that has left this scene (a page switch re-pointing an open
-            // dialog's card to the new root): the popup's next walk names the new one, and the
-            // entry would otherwise hold the page that left for as long as the popup is open.
-            if (foreignScenes[i].accessibleIdOf(foreignRoots[i]) == 0 || foreignOpeners[i].scene() != scene) {
+            // Nor its opener, once that has been collected. An opener that has only left this
+            // scene keeps its entry, held weakly, and resolves nothing while it is away: a page
+            // switched away and back under a dialog shown over one of its widgets names the
+            // dialog again on the walk its return makes, which the popup would not have made.
+            Widget<?> openerWidget = foreignOpeners[i].get();
+            if (openerWidget == null || foreignScenes[i].accessibleIdOf(foreignRoots[i]) == 0) {
                 continue;
             }
-            int opener = indexOfWidget(foreignOpeners[i]);
+            int opener = openerWidget.scene() == scene ? indexOfWidget(openerWidget) : -1;
             if (opener >= 0) {
                 builder.relationAt(opener, Accessible.Relation.CONTROLLER_FOR, foreignRoots[i]);
             }
@@ -456,10 +464,14 @@ final class AccessibleWalk {
      */
     boolean expectMirror(Widget<?> opener, Widget<?> root, Scene home) {
         for (int i = 0; i < foreignCount; i++) {
-            if (foreignOpeners[i] == opener && foreignRoots[i] == root) {
-                if (foreignScenes[i] == home) {
+            if (foreignRoots[i] == root) {
+                // One opener per popup root: a root that names another opener now (a dialog the
+                // scene re-pointed to the page that replaced its host) replaces the entry, so the
+                // page that left names nothing should it come back.
+                if (foreignOpeners[i].get() == opener && foreignScenes[i] == home) {
                     return false;
                 }
+                foreignOpeners[i] = new java.lang.ref.WeakReference<>(opener);
                 foreignScenes[i] = home;
                 return true;
             }
@@ -469,7 +481,7 @@ final class AccessibleWalk {
             foreignRoots = java.util.Arrays.copyOf(foreignRoots, foreignCount * 2);
             foreignScenes = java.util.Arrays.copyOf(foreignScenes, foreignCount * 2);
         }
-        foreignOpeners[foreignCount] = opener;
+        foreignOpeners[foreignCount] = new java.lang.ref.WeakReference<>(opener);
         foreignRoots[foreignCount] = root;
         foreignScenes[foreignCount] = home;
         foreignCount++;
