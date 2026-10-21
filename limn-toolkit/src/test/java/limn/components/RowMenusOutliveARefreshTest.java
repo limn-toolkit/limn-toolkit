@@ -13,6 +13,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -29,10 +30,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * A context menu opened on a row of a list, a table or a tree stays open through the refreshes a
- * timer or a server push makes while the row's item is still there, and acts on that item; it
- * closes when the item is gone or its row now shows another item. Before, a menu hung from a row
- * closed on every {@code refresh()} and {@code setItems()}, since those let go of every realized
- * row, so on a list refreshed every second the menu could not be used.
+ * timer or a server push makes while the row's item is still there, and acts on that item as the
+ * cell was built for it; it closes when the item is gone or its row now shows another item. Before,
+ * a menu hung from a row closed on every {@code refresh()} and {@code setItems()}, since those let
+ * go of every realized row, so on a list refreshed every second the menu could not be used. A page
+ * left afterwards is not held by the list's wait for the menu to close.
  */
 class RowMenusOutliveARefreshTest extends ComponentTestBase {
 
@@ -40,6 +42,8 @@ class RowMenusOutliveARefreshTest extends ComponentTestBase {
     private static final class Order {
         final int number;
         String status;
+        /** What an editable row writes. */
+        String note;
 
         Order(int number, String status) {
             this.number = number;
@@ -267,24 +271,36 @@ class RowMenusOutliveARefreshTest extends ComponentTestBase {
 
     // ---------------------------------------------------------------- ListView, a field per row
 
-    @ParameterizedTest
-    @EnumSource(DisplayMode.class)
-    void aFieldCellsOwnMenuStaysOpenThroughARefreshAndActsOnThatField(DisplayMode mode) {
-        List<Order> orders = orders(1041, 1042, 1043);
-        ListView<Order> list = new ListView<>(order -> {
+    /** A list of editable orders: each row a field, whose edits write the order's note. */
+    private static ListView<Order> fieldList() {
+        return new ListView<>(order -> {
             TextField field = new TextField().setText(order.status + " " + order.number);
+            field.onChange(text -> order.note = text);
             field.setId("row-" + order.number);
             return field;
         });
-        list.setItems(orders);
-        open(list, mode);
-        TextField field = (TextField) row(list, 1042);
+    }
+
+    /** Puts the keyboard in the row's field and opens the field's own menu, as Shift+F10 does. */
+    private TextField openFieldMenu(ListView<Order> list, int number, DisplayMode mode) {
+        TextField field = (TextField) row(list, number);
         scene.requestFocus(field);
         field.setCaretPosition(0);
         settle();
         drive(scene).press(Keys.F10, Keys.MOD_SHIFT);
         settle();
         assertTrue(menuOpen(mode), mode + ": Shift+F10 opened the field's menu");
+        return field;
+    }
+
+    @ParameterizedTest
+    @EnumSource(DisplayMode.class)
+    void aFieldCellsOwnMenuStaysOpenThroughARefreshAndActsOnThatField(DisplayMode mode) {
+        List<Order> orders = orders(1041, 1042, 1043);
+        ListView<Order> list = fieldList();
+        list.setItems(orders);
+        open(list, mode);
+        TextField field = openFieldMenu(list, 1042, mode);
 
         for (int tick = 0; tick < 3; tick++) {
             list.refresh();
@@ -300,6 +316,121 @@ class RowMenusOutliveARefreshTest extends ComponentTestBase {
         assertEquals(field.text().length(), field.selectionEnd(), mode.name());
         assertSame(field, scene.focusedWidget(), mode + ": which keeps the keyboard after the menu");
         assertSame(field, row(list, 1042), mode + ": and is not taken away as the menu closes");
+    }
+
+    // ------------------------------------------------------------- a page left keeps nothing
+
+    /** Collects until {@code ref} is gone, or gives up: whether nothing holds it any more. */
+    private static boolean collected(WeakReference<?> ref) {
+        for (int i = 0; i < 50 && ref.get() != null; i++) {
+            System.gc();
+            try {
+                Thread.sleep(10);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        return ref.get() == null;
+    }
+
+    /** Opens {@code content} on a page of its own, and answers the page weakly. */
+    private WeakReference<Widget<?>> onAPage(Widget<?> content, DisplayMode mode) {
+        limn.scene.layout.Column page = new limn.scene.layout.Column();
+        page.add(content);
+        open(page, mode);
+        return new WeakReference<>(page);
+    }
+
+    /**
+     * The case rows are kept for: a menu open on a row through a timer's refresh, and then the
+     * server removes that order, so the menu closes with its row. The list had asked the scene to
+     * tell it when a popup in it let go, and the row left the list before its menu closed, so it
+     * was never told: the scene held the list, and the whole page with it, for as long as the
+     * window lived, one page for every such visit.
+     */
+    @ParameterizedTest
+    @EnumSource(DisplayMode.class)
+    void aPageLeftAfterItsRowsMenuOutlivedARefreshAndThenItsOrderIsCollected(DisplayMode mode) {
+        WeakReference<Widget<?>> page = listPageWhoseMenuOutlivedARefreshAndThenItsOrder(mode);
+        scene.setRoot(new limn.scene.layout.Column());
+        settle();
+        assertTrue(collected(page), mode + ": nothing holds the page that left");
+    }
+
+    private WeakReference<Widget<?>> listPageWhoseMenuOutlivedARefreshAndThenItsOrder(DisplayMode mode) {
+        ListView<Order> list = regionList(new ArrayList<>());
+        List<Order> orders = orders(1041, 1042, 1043);
+        list.setItems(orders);
+        WeakReference<Widget<?>> page = onAPage(list, mode);
+        rightPress(row(list, 1042));
+        orders.forEach(o -> o.status = "paid");
+        list.refresh();
+        settle();
+        assertTrue(menuOpen(mode), mode + ": kept through the refresh");
+        orders.remove(1);
+        list.refresh();
+        settle();
+        assertFalse(menuOpen(mode), mode + ": closed with its order");
+        return page;
+    }
+
+    /** The same on a tree, whose node goes on a later refresh. */
+    @ParameterizedTest
+    @EnumSource(DisplayMode.class)
+    void aTreePageLeftAfterItsRowsMenuOutlivedARefreshAndThenItsNodeIsCollected(DisplayMode mode) {
+        WeakReference<Widget<?>> page = treePageWhoseMenuOutlivedARefreshAndThenItsNode(mode);
+        scene.setRoot(new limn.scene.layout.Column());
+        settle();
+        assertTrue(collected(page), mode + ": nothing holds the page that left");
+    }
+
+    private WeakReference<Widget<?>> treePageWhoseMenuOutlivedARefreshAndThenItsNode(DisplayMode mode) {
+        List<Order> roots = orders(1041, 1042, 1043);
+        Tree<Order> tree = orderTree(roots);
+        WeakReference<Widget<?>> page = onAPage(tree, mode);
+        rightPress(realizedRowOf(tree, w -> Objects.equals(w.id(), "row-1043")));
+        roots.add(0, new Order(2000, "new"));
+        tree.refresh();
+        settle();
+        assertTrue(menuOpen(mode), mode + ": kept through the refresh");
+        roots.remove(new Order(1043, ""));
+        tree.refresh();
+        settle();
+        assertFalse(menuOpen(mode), mode + ": closed with its node");
+        return page;
+    }
+
+    /**
+     * A field's own menu open across a refresh, closed with Escape, and the page left after the
+     * next refresh: the list had asked again to be told of a popup letting go while none was open
+     * in it, and the scene held the page. (The next refresh takes the field out of the page: a
+     * field holding the keyboard has its caret's blink queued on the test's clock, which never
+     * reaches it.)
+     */
+    @ParameterizedTest
+    @EnumSource(DisplayMode.class)
+    void aPageLeftAfterAFieldsMenuWasOpenAcrossARefreshIsCollected(DisplayMode mode) {
+        WeakReference<Widget<?>> page = fieldPageWhoseMenuWasOpenAcrossARefresh(mode);
+        scene.setRoot(new limn.scene.layout.Column());
+        settle();
+        assertTrue(collected(page), mode + ": nothing holds the page that left");
+    }
+
+    private WeakReference<Widget<?>> fieldPageWhoseMenuWasOpenAcrossARefresh(DisplayMode mode) {
+        List<Order> orders = orders(1041, 1042, 1043);
+        ListView<Order> list = fieldList();
+        list.setItems(orders);
+        WeakReference<Widget<?>> page = onAPage(list, mode);
+        openFieldMenu(list, 1042, mode);
+        orders.forEach(o -> o.status = "paid");
+        list.refresh();
+        settle();
+        drive(scene).press(Keys.ESCAPE);
+        settle();
+        list.refresh();
+        settle();
+        return page;
     }
 
     // ------------------------------------------------------------------------------- Table
@@ -339,7 +470,27 @@ class RowMenusOutliveARefreshTest extends ComponentTestBase {
     @EnumSource(DisplayMode.class)
     void aMenuOnATreeRowStaysOpenThroughRefreshAndClosesWhenItsNodeIsGone(DisplayMode mode) {
         List<Order> roots = orders(1041, 1042, 1043);
-        Tree<Order> tree = new Tree<>(new Tree.Model<Order>() {
+        Tree<Order> tree = orderTree(roots);
+        open(tree, mode);
+        Widget<?> asked = realizedRowOf(tree, w -> Objects.equals(w.id(), "row-1043"));
+        rightPress(asked);
+
+        roots.add(0, new Order(2000, "new"));
+        tree.refresh();
+        settle();
+        assertTrue(menuOpen(mode), mode + ": open through the refresh");
+        assertSame(asked, realizedRowOf(tree, w -> Objects.equals(w.id(), "row-1043")), mode.name());
+
+        roots.remove(new Order(1043, ""));
+        tree.refresh();
+        settle();
+        assertFalse(menuOpen(mode), mode + ": closed once its node is gone");
+        assertEquals(windows, openWindows(), mode.name());
+    }
+
+    /** A flat tree of orders, each row a region with the order's menu. */
+    private Tree<Order> orderTree(List<Order> roots) {
+        return new Tree<>(new Tree.Model<Order>() {
             @Override
             public List<Order> roots() {
                 return roots;
@@ -357,21 +508,6 @@ class RowMenusOutliveARefreshTest extends ComponentTestBase {
                 return region;
             }
         });
-        open(tree, mode);
-        Widget<?> asked = realizedRowOf(tree, w -> Objects.equals(w.id(), "row-1043"));
-        rightPress(asked);
-
-        roots.add(0, new Order(2000, "new"));
-        tree.refresh();
-        settle();
-        assertTrue(menuOpen(mode), mode + ": open through the refresh");
-        assertSame(asked, realizedRowOf(tree, w -> Objects.equals(w.id(), "row-1043")), mode.name());
-
-        roots.remove(new Order(1043, ""));
-        tree.refresh();
-        settle();
-        assertFalse(menuOpen(mode), mode + ": closed once its node is gone");
-        assertEquals(windows, openWindows(), mode.name());
     }
 
     private static int indexOfRealized(ListView<?> list, Widget<?> row) {

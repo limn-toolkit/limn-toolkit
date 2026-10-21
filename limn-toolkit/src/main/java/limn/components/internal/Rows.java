@@ -146,8 +146,14 @@ public final class Rows<E> {
      * them: let go of at the first pass after nothing hangs from them, which realizes them afresh.
      */
     private final List<E> heldStale = new ArrayList<>();
-    /** Asks the widget for a pass when a popup in it closes, while {@link #heldStale} has a row. */
+    /**
+     * Asks the widget for a pass when a popup in it closes, while a row of {@link #heldStale} still
+     * has a popup hanging from it, and only then: the scene holds the watch, and with it this
+     * engine, its widget and whatever page that widget is in, until a popup in the widget closes.
+     */
     private @Nullable Subscription freedWatch;
+    /** The scene {@link #freedWatch} is registered in. */
+    private @Nullable Scene freedWatchScene;
 
     private int anchorIndex;
     private float anchorTop;
@@ -213,19 +219,46 @@ public final class Rows<E> {
     /**
      * While a row is kept stale for a popup, has the next close of a popup in the widget ask for
      * a pass, which lets the row go once nothing hangs from it: without one the row would show
-     * what it showed before the refresh until something else laid the widget out.
+     * what it showed before the refresh until something else laid the widget out. Only while a
+     * kept row still has its popup, and only in the scene the widget is in now: a watch left
+     * registered with no popup to close, or in a scene the widget left, would never be told, and
+     * the scene would hold the widget and its page for as long as it lives.
      */
     private void watchHeld() {
-        if (heldStale.isEmpty() || freedWatch != null) {
-            return;
+        if (heldStale.isEmpty() && freedWatch == null) {
+            return; // the common pass: nothing kept, nothing watched
         }
         Widget<?> widget = host.widget();
         Scene scene = widget.scene();
-        if (scene != null) {
+        boolean wanted = scene != null && popupHeld();
+        if (freedWatch != null && (!wanted || freedWatchScene != scene)) {
+            cancelWatch();
+        }
+        if (wanted && freedWatch == null) {
+            freedWatchScene = scene;
             freedWatch = SceneAccess.observePopupLetGo(scene, widget, () -> {
                 freedWatch = null;
+                freedWatchScene = null;
                 host.rowsFreed();
             });
+        }
+    }
+
+    /** @return whether a popup hangs from a row a refresh kept stale */
+    private boolean popupHeld() {
+        for (E e : heldStale) {
+            if (host.holdsPopup(e)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void cancelWatch() {
+        if (freedWatch != null) {
+            freedWatch.cancel();
+            freedWatch = null;
+            freedWatchScene = null;
         }
     }
 
@@ -448,9 +481,17 @@ public final class Rows<E> {
         }
     }
 
+    /**
+     * A row is let go of: no longer kept stale, and the watch goes once no kept row has a popup
+     * left, a row whose item went taking its popup with it as it leaves the widget, where the
+     * popup's close can no longer be told to the watch.
+     */
     private void forgetHeld(E e) {
         if (!heldStale.isEmpty()) {
             heldStale.removeIf(held -> held == e);
+            if (freedWatch != null && !popupHeld()) {
+                cancelWatch();
+            }
         }
     }
 
