@@ -219,8 +219,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { runner: windows-2025, arch: x64, java: temurin, java-arch: x64 }
-          - { runner: windows-11-arm, arch: arm64, java: microsoft, java-arch: aarch64 }
+          - { runner: windows-2025, arch: x64, java: temurin, java-arch: x64, lwjgl-natives: natives-windows }
+          - { runner: windows-11-arm, arch: arm64, java: microsoft, java-arch: aarch64, lwjgl-natives: natives-windows-arm64 }
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 180
     defaults:
@@ -306,17 +306,21 @@ jobs:
       # version the demo carries, checked against Central's own SHA-1.
       - name: Phase 0b
         run: |
+          # The bindings and their JNI library, which is a jar of its own per platform.
           $jar = "tools\lwjgl-opengles-3.4.3.jar"
-          $base = "https://repo1.maven.org/maven2/org/lwjgl/lwjgl-opengles/3.4.3/lwjgl-opengles-3.4.3.jar"
-          Invoke-WebRequest $base -OutFile $jar
-          $expected = (Invoke-WebRequest "$base.sha1").Content.Trim()
-          $actual = (Get-FileHash $jar -Algorithm SHA1).Hash.ToLower()
-          if ($actual -ne $expected) { throw "lwjgl-opengles SHA-1 $actual, Central says $expected" }
+          $natives = "tools\lwjgl-opengles-3.4.3-${{ matrix.lwjgl-natives }}.jar"
+          foreach ($file in @($jar, $natives)) {
+            $url = "https://repo1.maven.org/maven2/org/lwjgl/lwjgl-opengles/3.4.3/" + (Split-Path $file -Leaf)
+            Invoke-WebRequest $url -OutFile $file
+            $expected = (Invoke-WebRequest "$url.sha1").Content.Trim()
+            $actual = (Get-FileHash $file -Algorithm SHA1).Hash.ToLower()
+            if ($actual -ne $expected) { throw "$file SHA-1 $actual, Central says $expected" }
+          }
           $classes = (& jar tf tools\limn-demo-all.jar) -join "`n"
           if ($classes -notmatch 'org/lwjgl/egl/EGL10.class') { throw "the demo jar carries no lwjgl-egl" }
           javac -cp "tools\limn-demo-all.jar;$jar" -d spike\classes spike\Phase0bProbe.java
           if ($LASTEXITCODE -ne 0) { throw "javac failed" }
-          .\spike\run.ps1 phase0b "" 300 -- java "-Dangle.dir=$PWD\stage\angle" -cp "tools\limn-demo-all.jar;$jar;spike\classes" Phase0bProbe
+          .\spike\run.ps1 phase0b "" 300 -- java "-Dangle.dir=$PWD\stage\angle" -cp "tools\limn-demo-all.jar;$jar;$natives;spike\classes" Phase0bProbe
 
       - name: Summary
         if: always()

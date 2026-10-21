@@ -99,6 +99,8 @@ public class Phase0bProbe {
         swapIntervals();
         GLFW.glfwTerminate();
         say("done");
+        // The screen reads started AWT, whose threads would otherwise keep the process alive.
+        System.exit(0);
     }
 
     // 1. Extensions, and whether each does what its gate needs.
@@ -188,6 +190,29 @@ public class Phase0bProbe {
             GLFW.glfwSwapBuffers(window);
         }
         say("buffer age per frame: " + ages.toString().trim());
+        // What the back buffer really holds after a swap, whatever the query says: each frame is
+        // cleared to a red level of its own, and before the next clear the pixel is read back and
+        // matched to the frame that drew it. The distance is the age partial rendering must assume.
+        StringBuilder observed = new StringBuilder();
+        for (int frame = 0; frame < 30; frame++) {
+            GLFW.glfwPollEvents();
+            ByteBuffer pixel = MemoryUtil.memAlloc(4);
+            GLES20.glReadPixels(5, 5, 1, 1, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, pixel);
+            int red = pixel.get(0) & 255;
+            int green = pixel.get(1) & 255;
+            MemoryUtil.memFree(pixel);
+            if (frame == 0) {
+                observed.append("start(").append(red).append(',').append(green).append(") ");
+            } else if (green == 77 && red % 8 == 0 && red / 8 < frame) {
+                observed.append(frame - red / 8).append(' ');
+            } else {
+                observed.append("?(").append(red).append(',').append(green).append(") ");
+            }
+            GLES20.glClearColor(frame * 8 / 255f, 77 / 255f, 0f, 1f);
+            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+            GLFW.glfwSwapBuffers(window);
+        }
+        say("observed back-buffer age per frame: " + observed.toString().trim());
         GLFW.glfwDestroyWindow(window);
     }
 
