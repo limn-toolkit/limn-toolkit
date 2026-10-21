@@ -249,7 +249,11 @@ public sealed interface Expr
      * than the highest level of a loop in its turn, 0 for a turn that holds none. So a loop in
      * another's turn, built there or apart, on any thread, has names of its own and may read the
      * outer state. The state means nothing outside its loop: {@link SurfaceOutputs} refuses a
-     * surface that reads it there.
+     * surface that reads it where no loop binds it, and {@link #of} refuses a turn that reads the
+     * state of a loop already built, which a part of that loop's turn read back from the record,
+     * or a reference made by hand under a state's name, does. A loop made with the canonical
+     * constructor is the IR as given: in its turn a state's name is its own state, wherever the
+     * reference came from.
      *
      * <p><b>Bounded across a whole surface.</b> The count is a constant from 1 to
      * {@link #MAX_ITERATIONS}, and so is every turn a pixel takes in all the loops of one surface.
@@ -392,6 +396,12 @@ public sealed interface Expr
             List<Expr> turn = new java.util.ArrayList<>(after);
             if (end != null) {
                 turn.add(end);
+            }
+            String foreign = Loops.foreignState(turn);
+            if (foreign != null) {
+                throw new IllegalArgumentException("the turn reads " + foreign + ", the state of a loop already"
+                        + " built, outside that loop: a part of its turn read back from the record, or a"
+                        + " reference made by hand, means nothing in another loop");
             }
             int level = Loops.level(turn);
             List<String> names = new java.util.ArrayList<>();

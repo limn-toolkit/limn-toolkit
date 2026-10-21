@@ -222,9 +222,25 @@ final class Loops {
      * loop's state outside its loop, or one of the generator's own variables.
      */
     static @Nullable String freeState(List<Expr> roots) {
+        return freeName(roots, name -> name.startsWith("ir_"));
+    }
+
+    /**
+     * The first state name {@link Expr.Loop#of} gives a built loop that a turn under construction
+     * reads where no loop in it binds it, or null. While a turn is built, the states of the loops
+     * around it still have their provisional names, and a loop built in it binds its own: a built
+     * name read free can only be another loop's state, its turn read back through the record or a
+     * reference made by hand, and the turn would read its own loop's state under it if the levels
+     * matched.
+     */
+    static @Nullable String foreignState(List<Expr> turn) {
+        return freeName(turn, Loops::isStateName);
+    }
+
+    private static @Nullable String freeName(List<Expr> roots, java.util.function.Predicate<String> watched) {
         Map<Expr, Set<List<String>>> seen = new IdentityHashMap<>();
         for (Expr root : roots) {
-            String found = freeState(root, List.of(), seen);
+            String found = freeState(root, List.of(), seen, watched);
             if (found != null) {
                 return found;
             }
@@ -233,18 +249,19 @@ final class Loops {
     }
 
     /** Memoized by node and by the states bound around it, so a shared node is walked once a nesting. */
-    private static @Nullable String freeState(Expr node, List<String> bound, Map<Expr, Set<List<String>>> seen) {
+    private static @Nullable String freeState(Expr node, List<String> bound, Map<Expr, Set<List<String>>> seen,
+                                               java.util.function.Predicate<String> watched) {
         if (!seen.computeIfAbsent(node, n -> new java.util.HashSet<>()).add(bound)) {
             return null;
         }
         if (node instanceof Expr.Ref ref) {
             // Every ir_ name is the generator's or a loop's: read where no loop binds it, it is either
             // a state out of its loop or a generated variable reached by accident.
-            return ref.name().startsWith("ir_") && !bound.contains(ref.name()) ? ref.name() : null;
+            return watched.test(ref.name()) && !bound.contains(ref.name()) ? ref.name() : null;
         }
         if (node instanceof Expr.Loop loop) {
             for (Expr start : loop.initial()) {
-                String found = freeState(start, bound, seen);
+                String found = freeState(start, bound, seen, watched);
                 if (found != null) {
                     return found;
                 }
@@ -253,7 +270,7 @@ final class Loops {
             inside.addAll(loop.states());
             String found;
             for (Expr part : turnOf(loop)) {
-                found = freeState(part, inside, seen);
+                found = freeState(part, inside, seen, watched);
                 if (found != null) {
                     return found;
                 }
@@ -261,7 +278,7 @@ final class Loops {
             return null;
         }
         for (Expr child : children(node)) {
-            String found = freeState(child, bound, seen);
+            String found = freeState(child, bound, seen, watched);
             if (found != null) {
                 return found;
             }

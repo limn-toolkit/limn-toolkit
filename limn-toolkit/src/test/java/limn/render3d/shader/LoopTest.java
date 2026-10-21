@@ -359,4 +359,28 @@ class LoopTest {
                 List.of("s"), List.of(ORIGIN), 2, List.of(ORIGIN), null, 0));
         assertTrue(refused.getMessage().contains("its level"), refused.getMessage());
     }
+
+    @Test
+    void aPartOfAnotherLoopsTurnReadsThatLoopsStateAndIsRefusedInATurn() {
+        Expr.Lit zero = Expr.Lit.of(0f);
+        // A part of a built loop's turn, read back through its record: it reads ir_state1_0, the
+        // state of the loop it was built in. Set in the turn of another loop of level 1, it would
+        // read that loop's state instead, silently.
+        Expr.Loop first = Expr.Loop.of(zero, 4, s -> add(s, Expr.Loop.of(s, 2, t -> add(t, Expr.Lit.of(1f)))));
+        Expr part = ((Expr.Binary) first.next().get(0)).right();
+        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+                () -> Expr.Loop.of(Expr.Lit.of(5f), 4, s -> add(s, part)));
+        assertTrue(refused.getMessage().contains(first.states().get(0)), refused.getMessage());
+        // In an initial value inside the turn too.
+        assertThrows(IllegalArgumentException.class, () -> Expr.Loop.of(Expr.Lit.of(5f), 4,
+                s -> add(s, Expr.Loop.of(part, 2, t -> add(t, s)))));
+        // A reference written by hand under a state's name, likewise.
+        assertThrows(IllegalArgumentException.class, () -> Expr.Loop.of(zero, 4,
+                s -> add(s, new Expr.Ref("ir_state0_0", ShaderType.FLOAT))));
+        // A loop built apart whose own turn reads its own state is its own business: accepted.
+        Expr.Loop apart = Expr.Loop.of(zero, 2, t -> add(t, Expr.Lit.of(1f)));
+        assertDoesNotThrow(() -> Expr.Loop.of(zero, 4, s -> add(s, apart)));
+        // And so is a loop built in the turn reading the outer state.
+        assertDoesNotThrow(() -> Expr.Loop.of(zero, 4, s -> add(s, Expr.Loop.of(s, 2, t -> add(t, s)))));
+    }
 }

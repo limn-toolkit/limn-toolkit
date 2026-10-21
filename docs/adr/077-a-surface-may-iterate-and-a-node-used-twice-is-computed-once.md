@@ -436,3 +436,12 @@ names the variables itself (`ir_s…`).
   not once for the surface; and two loops built alike in the turns of two sibling loops read two
   states and run in each, not once. Section 3.2 and the Javadoc now say both, and the paragraphs
   are rewrapped.
+- **2026-10-20, review 12: a turn may not read a built loop's state.** Names are levels, so a part
+  of one loop's turn read back through the record (it reads `ir_state1_0`), or a reference made by
+  hand under that name, set in the turn of another loop of level 1, read the new loop's state
+  where it meant the first's, and `SurfaceOutputs` could not tell, since the name was bound. While
+  `Loop.of` builds a turn, the loops around it still have provisional names and a loop built in
+  the turn binds its own, so a built state name read free in the turn is always another loop's:
+  `Loop.of` now refuses it, in the turn and in the initial values of loops inside it, naming it.
+  A loop made with the canonical constructor is the IR as given and is not checked for this; the
+  Javadoc says so.
