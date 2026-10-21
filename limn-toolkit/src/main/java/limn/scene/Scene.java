@@ -2679,6 +2679,27 @@ public final class Scene {
         return false;
     }
 
+    /**
+     * Not API: whether the keyboard is in {@code subtree}, or comes back to it when an overlay over
+     * it closes: a field whose own menu or popover is open holds it either way. A list asks it
+     * before keeping a row a popup hangs from through a refresh, which it does only while the row
+     * is not where the keyboard is or returns to.
+     *
+     * @param subtree a widget of this scene
+     * @return whether the keyboard is, or is due back, inside it
+     */
+    boolean holdsKeyboard(Widget<?> subtree) {
+        if (focused != null && isInSubtree(focused, subtree)) {
+            return true;
+        }
+        for (Widget<?> saved : overlayFocusReturn) {
+            if (saved != null && isInSubtree(saved, subtree)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** A watcher of the popups hung in a subtree letting go; see {@link #observePopupLetGo}. */
     private record LetGoWatch(Widget<?> subtree, Runnable told) {
     }
@@ -4785,6 +4806,12 @@ public final class Scene {
             public boolean holdsHungPopup(Widget<?> subtree) {
                 Scene scene = subtree.scene();
                 return scene != null && scene.holdsHungPopup(subtree);
+            }
+
+            @Override
+            public boolean holdsKeyboard(Widget<?> subtree) {
+                Scene scene = subtree.scene();
+                return scene != null && scene.holdsKeyboard(subtree);
             }
 
             @Override

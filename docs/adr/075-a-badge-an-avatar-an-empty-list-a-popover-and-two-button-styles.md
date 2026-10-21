@@ -1258,3 +1258,25 @@ enough.
   threw as suppressed. "After 64 roots set" was also one short: the call sets the root it was given
   and 64 more asked for in turn, and stops when yet another is asked; the Javadoc and the message
   now say so. `SceneSetRootTest`.
+
+## Note, 2026-10-20 (third review): a field's own menu goes with its row, and a kept row holds no page
+
+The third review (R16) found two things the rows kept for a popup (R15S-1) left wrong.
+
+- **A field cell kept for its own menu** (R16-4). A field whose Cut/Copy/Paste menu was open
+  across a refresh was kept, showing the item as it was, and when the menu closed with the
+  keyboard back in it, it waited for a next refresh that a one-off push never made: the row went
+  on showing the old value, and a reader read it. Worse, after a `setItems` of new objects equal
+  to the old, the field stayed bound to the object its row was built for, which was no longer the
+  list's, so an edit made in it (which the menu's Paste invites) went to an order nothing read. A
+  field is bound to the object its cell factory was given, and nothing can bind it to another, so
+  a `ListView`'s or `Tree`'s row the keyboard is in, or returns to when its popup closes, is not
+  kept: it goes as the keyboard's row always has, its menu closing and the keyboard going back
+  to the list. A kept row is let go of once its popup closes even if the keyboard came into it
+  meanwhile. `Table` is unchanged: it re-binds a kept row's texts to the record found again.
+- **The wait for a popup's close held the page** (R16-3). The engine asks the scene to tell it
+  when a popup in the widget closes; a kept row whose item a later refresh removed left the
+  widget before its menu closed, so the scene was never asked to tell, and kept the request, the
+  widget and its page, for as long as the window lived. The request is now made only while a
+  kept row still has its popup, and dropped when none does or the widget is in another scene.
+  `RowMenusOutliveARefreshTest`.

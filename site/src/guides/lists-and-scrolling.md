@@ -103,7 +103,9 @@ the selection never keeps showing a record that is gone; `onSelect`, being the u
 silent. A row a context menu or a popover hangs from is not rebuilt while its item is still in
 the list (found again by `equals`, at its new place): it keeps what it showed until the menu
 closes, then shows the item as it is now, so a timer's refresh never closes a menu under the
-pointer.
+pointer. A row the keyboard is in is rebuilt all the same, the keyboard going back to the list,
+and so is a field whose own Cut, Copy and Paste menu is open, which closes: the field would
+otherwise go on writing to the object its row was built for.
 :::
 
 ### Setting the selection yourself

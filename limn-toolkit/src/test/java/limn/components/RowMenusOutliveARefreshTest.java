@@ -33,8 +33,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * timer or a server push makes while the row's item is still there, and acts on that item as the
  * cell was built for it; it closes when the item is gone or its row now shows another item. Before,
  * a menu hung from a row closed on every {@code refresh()} and {@code setItems()}, since those let
- * go of every realized row, so on a list refreshed every second the menu could not be used. A page
- * left afterwards is not held by the list's wait for the menu to close.
+ * go of every realized row, so on a list refreshed every second the menu could not be used. A
+ * field's own menu still closes with its row, which is realized afresh for the item the list holds,
+ * and a page left afterwards is not held by the list's wait for the menu to close.
  */
 class RowMenusOutliveARefreshTest extends ComponentTestBase {
 
@@ -293,29 +294,66 @@ class RowMenusOutliveARefreshTest extends ComponentTestBase {
         return field;
     }
 
+    /**
+     * A field cell's own Cut, Copy and Paste menu closes when the list refreshes, as it did before
+     * rows were kept for their menus, and the row shows the order as it is now. Kept, the field
+     * went on showing what it showed before the refresh for as long as nothing refreshed again,
+     * with the keyboard gone elsewhere too, and a reader read that.
+     */
     @ParameterizedTest
     @EnumSource(DisplayMode.class)
-    void aFieldCellsOwnMenuStaysOpenThroughARefreshAndActsOnThatField(DisplayMode mode) {
+    void aFieldCellsOwnMenuClosesOnARefreshAndTheRowShowsTheOrderAsItIsNow(DisplayMode mode) {
         List<Order> orders = orders(1041, 1042, 1043);
         ListView<Order> list = fieldList();
         list.setItems(orders);
         open(list, mode);
         TextField field = openFieldMenu(list, 1042, mode);
 
-        for (int tick = 0; tick < 3; tick++) {
-            list.refresh();
-            settle();
-        }
-
-        assertTrue(menuOpen(mode), mode + ": the field's menu stays through the refreshes");
-        assertSame(field, row(list, 1042), mode + ": the field is the one the menu acts on");
-        drive(scene).press(Keys.END); // Select All, the last row
-        drive(scene).press(Keys.ENTER);
+        orders.forEach(o -> o.status = "paid");
+        list.refresh(); // one push, and no timer after it
         settle();
-        assertEquals(0, field.selectionStart(), mode + ": Select All acted on the field");
-        assertEquals(field.text().length(), field.selectionEnd(), mode.name());
-        assertSame(field, scene.focusedWidget(), mode + ": which keeps the keyboard after the menu");
-        assertSame(field, row(list, 1042), mode + ": and is not taken away as the menu closes");
+
+        assertFalse(menuOpen(mode), mode + ": the field's menu closed with its row");
+        assertEquals(windows, openWindows(), mode + ": no window of the menu's left open");
+        TextField now = (TextField) row(list, 1042);
+        assertNotSame(field, now, mode + ": the row is realized afresh");
+        assertEquals("paid 1042", now.text(), mode + ": showing the order as it is now");
+        assertSame(list, scene.focusedWidget(),
+                mode + ": and the keyboard falls back to the list, as a refresh has it do from a row");
+    }
+
+    /**
+     * A push of new objects equal to the old ones (a server's reply) while a field's own menu is
+     * open: kept, the field stayed bound to the object its row was built for, which is no longer in
+     * the list, so an edit made in it (which the menu's Paste invites) went to that departed order
+     * and the application's handler wrote it where nothing reads it. A field cannot be bound to
+     * another object than the one its row was built for, so its row goes with the push, and the
+     * edit lands in the order the list holds.
+     */
+    @ParameterizedTest
+    @EnumSource(DisplayMode.class)
+    void anEditAfterAPushOfNewObjectsLandsInTheOrderTheListHolds(DisplayMode mode) {
+        ListView<Order> list = fieldList();
+        List<Order> before = orders(1041, 1042, 1043);
+        list.setItems(before);
+        open(list, mode);
+        openFieldMenu(list, 1042, mode);
+
+        List<Order> pushed = orders(1041, 1042, 1043);
+        pushed.forEach(o -> o.status = "paid");
+        list.setItems(pushed);
+        settle();
+        drive(scene).press(Keys.ESCAPE);
+        settle();
+        TextField field = (TextField) row(list, 1042);
+        scene.requestFocus(field);
+        field.setCaretPosition(field.text().length());
+        settle();
+        drive(scene).type("!");
+        settle();
+
+        assertEquals(null, before.get(1).note, mode + ": nothing was written to the order that left");
+        assertEquals("paid 1042!", pushed.get(1).note, mode + ": the edit is the listed order's");
     }
 
     // ------------------------------------------------------------- a page left keeps nothing

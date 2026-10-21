@@ -453,17 +453,17 @@ public final class Rows<E> {
 
     /**
      * Lets go of the rows a refresh kept for a popup that has closed since, so the pass realizes
-     * them afresh from what the widget holds now. Not one a control of which holds the keyboard
-     * (a field whose own menu that was): taken away now, it would take the keyboard from under
-     * the person who just used the menu, so it waits for the next refresh, which lets go of it
-     * by the widget's own rule for a row holding the keyboard.
+     * them afresh from what the widget holds now. One the keyboard came into meanwhile goes too,
+     * the keyboard falling back to the widget as a refresh has it do for a row holding it: a row
+     * kept so is bound to the object it was built for, which may no longer be the list's, and an
+     * edit made in it would go there. A refresh keeps no row the keyboard is in or comes back to.
      */
     private void releaseFreed() {
         if (heldStale.isEmpty()) {
             return;
         }
         for (E e : List.copyOf(heldStale)) {
-            if (host.holdsPopup(e) || host.holdsFocus(e)) {
+            if (host.holdsPopup(e)) {
                 continue;
             }
             forgetHeld(e);
@@ -811,9 +811,9 @@ public final class Rows<E> {
      *
      * <p>A row kept {@code stale} is one the widget keeps only because a popup hangs from it, while
      * its item is still among the rows: it shows what it showed before the refresh, and is let go
-     * of at the first pass after no popup hangs from it and no control of it holds the keyboard,
-     * which realizes it afresh. A row kept otherwise (one the widget re-binds itself) stays until
-     * the walk lets go of it.
+     * of at the first pass after no popup hangs from it, which realizes it afresh, the keyboard
+     * falling back to the widget if it came into the row meanwhile. A row kept otherwise (one the
+     * widget re-binds itself) stays until the walk lets go of it.
      *
      * @param keepAt answers the index a realized row's item has now, or a negative to let go of
      *               it; asked once of each, in row order. One that would no longer come after the

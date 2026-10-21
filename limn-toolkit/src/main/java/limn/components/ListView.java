@@ -217,10 +217,12 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
 
         @Override
         public void unmount(Widget<?> cell, boolean heldFocus) {
+            // Or due back in it: a field whose own menu is open, which closes as the row leaves.
+            boolean keyboard = heldFocus || SceneAccess.holdsKeyboard(cell);
             boundItems.remove(cell);
             remove(cell);
             cells.recycle(cell);
-            if (heldFocus) {
+            if (keyboard) {
                 requestFocus(); // a row that leaves does not take the keyboard with it
             }
         }
@@ -1265,8 +1267,8 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
      * (announced as {@code SELECTION}/{@code ADJUSTMENT} when there was one), the view returns to
      * the top, and {@code CHILDREN}/{@code CODE} is announced. After changing the same list in
      * place, call {@link #refresh()} instead. A row a popup hangs from (its context menu, a
-     * field's own menu, a popover) whose item the new list holds is kept, as {@link #refresh()}
-     * keeps it. UI thread only.
+     * popover) whose item the new list holds is kept, as {@link #refresh()} keeps it, but not one
+     * the keyboard is in or returns to, such as a field whose own menu is open. UI thread only.
      *
      * @param newItems the items, in the order shown
      * @return this list
@@ -1416,14 +1418,17 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
     /**
      * Answers, for each realized row a popup hangs from, the index its item has in the items now
      * (by {@code equals}, the occurrence nearest the row it stood at that no other kept row took),
-     * or -1 when the item is gone; -1 for every other row. Read before anything is let go of.
+     * or -1 when the item is gone; -1 for every other row, and for one the keyboard is in or comes
+     * back to (a field whose own menu is open): kept, it would stay bound to the object it was
+     * built for, and an edit made in it would go there. Read before anything is let go of.
      */
     private java.util.function.ToIntFunction<Widget<?>> rowsWithPopupsFoundAgain() {
         java.util.IdentityHashMap<Widget<?>, Integer> foundAt = null;
         java.util.BitSet taken = null;
         for (int p = 0; p < engine.mountedCount(); p++) {
             Widget<?> cell = engine.mountedAt(p);
-            if (!boundItems.containsKey(cell) || !SceneAccess.holdsHungPopup(cell)) {
+            if (!boundItems.containsKey(cell) || !SceneAccess.holdsHungPopup(cell)
+                    || SceneAccess.holdsKeyboard(cell)) {
                 continue;
             }
             if (foundAt == null) {
@@ -1479,13 +1484,17 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
      * that says so, where a handler -- the user's response -- is not run. A row is its index: an
      * item that moved in the list leaves its selection where it was.
      *
-     * <p>A row a popup hangs from (a context menu opened on it, a field's own menu, a popover) is
-     * not let go of while its item is still in the list, found again by {@code equals} at the
-     * occurrence nearest where it stood: it stays as it is, at its item's index now, so the popup
-     * stays open through a refresh a timer or a server push makes, and it is realized afresh, from
-     * the item as it is then, at the first layout after the popup closes (or at the next refresh,
-     * when a control of it holds the keyboard). When the item is gone, or the row would show
-     * another one, the row is let go of and the popup closes with it. UI thread only.
+     * <p>A row a popup hangs from (a context menu opened on it, a popover) is not let go of while
+     * its item is still in the list, found again by {@code equals} at the occurrence nearest where
+     * it stood: it stays as it is, at its item's index now, so the popup stays open through a
+     * refresh a timer or a server push makes, and it is realized afresh, from the item as it is
+     * then, at the first layout after the popup closes. When the item is gone, or the row would
+     * show another one, the row is let go of and the popup closes with it. So is a row the
+     * keyboard is in or returns to when its popup closes, such as a field whose own menu is open,
+     * as a refresh lets go of the row holding the keyboard, which falls back to the list: kept,
+     * the field would go on showing the item as it was, and stay bound to the object it was built
+     * for, which after a {@link #setItems} of new objects is no longer the list's, so an edit made
+     * in it would go there. UI thread only.
      */
     public void refresh() {
         Ui.checkUiThread();
@@ -1494,9 +1503,10 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         // pass reuses realized rows without asking again, so without this what is in sight is
         // exactly what never refreshes. The one holding the keyboard too: it is bound to an item
         // that may no longer exist, and the keyboard falls back to the list. But a row a popup
-        // hangs from (its context menu, a field's own menu) whose item is still in the list:
-        // letting go of it would close the menu under the pointer on every refresh a timer
-        // makes, so it stays as it is, at its item's index, until the popup closes.
+        // hangs from (its context menu, a popover) whose item is still in the list and which
+        // the keyboard is not in or due back to: letting go of it would close the menu under the
+        // pointer on every refresh a timer makes, so it stays as it is, at its item's index,
+        // until the popup closes. A field's own menu closes with its row, as the keyboard's row.
         engine.refresh(rowsWithPopupsFoundAgain(), true);
         // Contained: the rows change inside a box whose measure does not read them (the seed
         // and the columns size it), so a filter that empties and refills the rows repaints

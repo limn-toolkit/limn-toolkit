@@ -102,6 +102,9 @@ public final class SceneAccess {
         /** @param subtree a widget; see {@link SceneAccess#holdsHungPopup} */
         boolean holdsHungPopup(Widget<?> subtree);
 
+        /** @param subtree a widget; see {@link SceneAccess#holdsKeyboard} */
+        boolean holdsKeyboard(Widget<?> subtree);
+
         /** See {@link SceneAccess#observePopupLetGo}. */
         Subscription observePopupLetGo(Scene scene, Widget<?> subtree, Runnable told);
 
@@ -606,6 +609,20 @@ public final class SceneAccess {
      */
     public static boolean holdsHungPopup(Widget<?> subtree) {
         return hook().holdsHungPopup(java.util.Objects.requireNonNull(subtree, "subtree"));
+    }
+
+    /**
+     * Whether the keyboard is in {@code subtree}, or comes back to it when an overlay over it
+     * closes (a menu or a popover opened from a control inside it): a list keeps a row a popup
+     * hangs from through a refresh only while this is false, since a row kept so is bound to the
+     * object it was built for, and an edit made in it would go there. False for a widget in no
+     * scene.
+     *
+     * @param subtree a widget
+     * @return whether the keyboard is, or is due back, inside it
+     */
+    public static boolean holdsKeyboard(Widget<?> subtree) {
+        return hook().holdsKeyboard(java.util.Objects.requireNonNull(subtree, "subtree"));
     }
 
     /**

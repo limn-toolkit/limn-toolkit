@@ -760,17 +760,20 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
      * while its node is still a row: its cell stays as it is, at the node's row now, so the popup
      * stays open through a refresh a timer makes, and is built afresh at the first layout after
      * the popup closes. When the node is no longer a row the cell is let go of and the popup
-     * closes with it.
+     * closes with it, and so is a cell the keyboard is in or returns to when its popup closes,
+     * such as a field whose own menu is open: kept, it would stay bound to the node it was built
+     * for, and an edit made in it would go there.
      */
     public void refresh() {
         Ui.checkUiThread();
         recordPaths();
         loaded.clear();
         cancelAllLoads();
-        // A row a popup hangs from (its context menu, a field's own menu) stays as it is where it
-        // stands, and the rebuild below carries it to its node's new row, or sets it aside for
-        // the next pass when the node is no longer a row, which closes the popup: letting go of
-        // it here would close the menu under the pointer on every refresh a timer makes.
+        // A row a popup hangs from (its context menu, a popover), the keyboard not in it or due
+        // back to it, stays as it is where it stands, and the rebuild below carries it to its
+        // node's new row, or sets it aside for the next pass when the node is no longer a row,
+        // which closes the popup: letting go of it here would close the menu under the pointer
+        // on every refresh a timer makes.
         engine.refresh(rowsWithPopups(), true);
         rebuildRows();
         forgetRevealedPaths();
@@ -2347,13 +2350,14 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
 
     /**
      * Answers, for each realized row a popup hangs from, the row it stands at now, and -1 for
-     * every other: read before anything is let go of.
+     * every other, and for one the keyboard is in or comes back to (a field whose own menu is
+     * open), which stays bound to the node it was built for: read before anything is let go of.
      */
     private java.util.function.ToIntFunction<Cell> rowsWithPopups() {
         java.util.IdentityHashMap<Cell, Integer> at = null;
         for (int p = 0; p < engine.mountedCount(); p++) {
             Cell cell = engine.mountedAt(p);
-            if (SceneAccess.holdsHungPopup(cell.widget)) {
+            if (SceneAccess.holdsHungPopup(cell.widget) && !SceneAccess.holdsKeyboard(cell.widget)) {
                 if (at == null) {
                     at = new java.util.IdentityHashMap<>();
                 }
@@ -2377,11 +2381,13 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
      * back to the tree when it was inside, so a row that leaves does not take the focus with it.
      */
     private void unmount(Widget<?> cell, Object key, boolean hadFocus) {
+        // Or due back in it: a field whose own menu is open, which closes as the row leaves.
+        boolean keyboard = hadFocus || SceneAccess.holdsKeyboard(cell);
         remove(cell);
         if (!(key instanceof LineKey)) {
             model.recycle(cell); // a line under a row is the tree's, and the model never built it
         }
-        if (hadFocus) {
+        if (keyboard) {
             requestFocus();
         }
     }

@@ -109,6 +109,11 @@ class SceneDriverTest extends ComponentTestBase {
             }
 
             @Override
+            public boolean holdsKeyboard(limn.scene.Widget<?> subtree) {
+                return false;
+            }
+
+            @Override
             public limn.concurrent.Subscription observePopupLetGo(Scene scene, limn.scene.Widget<?> subtree,
                                                                   Runnable told) {
                 return null;
