@@ -209,7 +209,9 @@ public sealed interface Expr
 
     /**
      * Non-portable inline GLSL, valid only for {@code target}. Codegen for any other
-     * {@link TargetProfile} rejects it: the material opted out of portability.
+     * {@link TargetProfile} rejects it: the material opted out of portability. Its text is not
+     * read: a name in it, a loop's state's among them, is not checked, and a loop's state is not
+     * declared under the name {@link Loop} gives it.
      */
     record Raw(TargetProfile target, String glsl, ShaderType type) implements Expr {
     }
@@ -253,7 +255,11 @@ public sealed interface Expr
      * state of a loop already built, which a part of that loop's turn read back from the record,
      * or a reference made by hand under a state's name, does. A loop made with the canonical
      * constructor is the IR as given: in its turn a state's name is its own state, wherever the
-     * reference came from.
+     * reference came from. A loop that {@code of} builds inside such a turn cannot name that state
+     * by hand, which it refuses as it refuses any name made by hand; build that one with the
+     * constructor as well. {@link Raw} text that names a state is not checked at all: it is the
+     * escape from portability, and the generator names a loop's variables itself, so such text
+     * may read an identifier no shader declares.
      *
      * <p><b>Bounded across a whole surface.</b> The count is a constant from 1 to
      * {@link #MAX_ITERATIONS}, and so is every turn a pixel takes in all the loops of one surface.
@@ -310,7 +316,8 @@ public sealed interface Expr
          * @param maxIterations how many turns, 1 to {@link #MAX_ITERATIONS}
          * @param next          the state after one turn, given the state
          * @return the loop, whose value is the state after the last turn
-         * @throws IllegalArgumentException as the constructor
+         * @throws IllegalArgumentException as the constructor, or if the turn reads the state of
+         *                                  a loop already built where no loop in the turn binds it
          */
         public static Loop of(Expr initial, int maxIterations,
                               java.util.function.Function<? super Expr, ? extends Expr> next) {
@@ -327,7 +334,8 @@ public sealed interface Expr
          * @param next          the state after one turn, given the state
          * @param until         a float above zero where the loop ends, given the state
          * @return the loop, whose value is the state when it ends
-         * @throws IllegalArgumentException as the constructor
+         * @throws IllegalArgumentException as the constructor, or if the turn reads the state of
+         *                                  a loop already built where no loop in the turn binds it
          */
         public static Loop of(Expr initial, int maxIterations,
                               java.util.function.Function<? super Expr, ? extends Expr> next,
@@ -345,7 +353,8 @@ public sealed interface Expr
          * @param maxIterations how many turns, 1 to {@link #MAX_ITERATIONS}
          * @param next          the values after one turn, in the same order, given the state's
          * @return the loop, whose first value it is; {@link #value(int)} reads the others
-         * @throws IllegalArgumentException as the constructor
+         * @throws IllegalArgumentException as the constructor, or if the turn reads the state of
+         *                                  a loop already built where no loop in the turn binds it
          */
         public static Loop of(List<? extends Expr> initial, int maxIterations,
                               java.util.function.Function<? super List<Expr>, ? extends List<? extends Expr>> next) {
@@ -361,7 +370,8 @@ public sealed interface Expr
          * @param next          the values after one turn, in the same order, given the state's
          * @param until         a float above zero where the loop ends, given the state's values
          * @return the loop, whose first value it is; {@link #value(int)} reads the others
-         * @throws IllegalArgumentException as the constructor
+         * @throws IllegalArgumentException as the constructor, or if the turn reads the state of
+         *                                  a loop already built where no loop in the turn binds it
          */
         public static Loop of(List<? extends Expr> initial, int maxIterations,
                               java.util.function.Function<? super List<Expr>, ? extends List<? extends Expr>> next,
