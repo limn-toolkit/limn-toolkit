@@ -248,24 +248,25 @@ public sealed interface Expr
      * references a loop binds, but nothing else names them. A loop is named by its level: one more
      * than the highest level of a loop in its turn, 0 for a turn that holds none. So a loop in
      * another's turn, built there or apart, on any thread, has names of its own and may read the
-     * outer state. The state means
-     * nothing outside its loop: {@link SurfaceOutputs} refuses a surface that reads it there.
+     * outer state. The state means nothing outside its loop: {@link SurfaceOutputs} refuses a
+     * surface that reads it there.
      *
      * <p><b>Bounded across a whole surface.</b> The count is a constant from 1 to
      * {@link #MAX_ITERATIONS}, and so is every turn a pixel takes in all the loops of one surface.
-     * The count is what the generated shader runs: a loop runs once for each turn of the innermost
-     * loop whose state it reads, however deep it was built, and once for the surface when it reads
-     * none; loops side by side, and a loop in another's initial value, add their turns; a loop
-     * read twice, for one value or several, or two built alike, is computed and counted once where
-     * it is first written. So a loop of 32 turns may hold one of 32 that reads its state, not one
-     * of 64 nor two of 32 side by side, and it may hold a loop of 512 that reads none. A loop holds
-     * itself and what it holds to the cap, and {@link SurfaceOutputs} holds the whole surface,
-     * counting the turns of its diffuse response once for each of the eight lights a pass shades
-     * with at most. So no surface asks a
-     * pixel for more than {@value #MAX_ITERATIONS} turns, in any profile. The cap bounds turns,
-     * not what a turn costs, which is the surface's as it is without a loop. {@code until} is a
-     * float rather than a boolean, so a threshold is a subtraction away; an iteration count, when
-     * a surface wants one, is a value of its state.
+     * The count is what the generated shader runs. A loop runs once for each turn of the innermost
+     * loop whose state it reads, however deep it was built; when it reads none, once for the
+     * surface, or once a light when only the diffuse response reads it. Loops side by side, and a
+     * loop in another's initial value, add their turns. A loop read twice, for one value or
+     * several, or two built alike in one turn or both reading no state, is computed and counted
+     * once; two built alike in the turns of two loops side by side read two states, and run in
+     * each. So a loop of 32 turns may hold one of 32 that reads its state, not one of 64 nor two
+     * of 32 side by side, and it may hold a loop of 512 that reads none. A loop holds itself and
+     * what it holds to the cap, and {@link SurfaceOutputs} holds the whole surface, counting the
+     * turns of its diffuse response once for each of the eight lights a pass shades with at most.
+     * So no surface asks a pixel for more than {@value #MAX_ITERATIONS} turns, in any profile.
+     * The cap bounds turns, not what a turn costs, which is the surface's as it is without a loop.
+     * {@code until} is a float rather than a boolean, so a threshold is a subtraction away; an
+     * iteration count, when a surface wants one, is a value of its state.
      *
      * <p><b>An early end is non-uniform control flow.</b> A loop with an {@code until} ends at
      * different turns in neighbouring pixels, where the shading languages leave a derivative and

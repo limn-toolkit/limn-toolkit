@@ -115,18 +115,20 @@ A part of `next` or `until` that does not read the state is computed once, befor
 `MAX_ITERATIONS` is **1024**, and it bounds every turn a pixel takes across a whole surface
 (amended 2026-10-20, section 7; it bounded the product along one nesting, and loops side by side
 were each counted alone). Loops side by side, and a loop in another's initial value, add their
-turns; a loop runs, and is counted, once for each turn of the innermost loop whose state it
-reads, and once for the surface when it reads none, so a loop of 32 turns may hold one of 32 that
-reads its state, not one of 64 nor two of 32 side by side; a loop read twice, or two built alike,
-is counted once where the generator first writes it (amended 2026-10-20, reviews 9 and 10: the
-count follows the generator's own placement, section 7). The constructor refuses a count below 1 or above the cap and a
-loop that, with what it holds, passes it; `SurfaceOutputs` refuses a surface that passes it,
-counting its diffuse response once for each of the eight lights a pass shades with at most
-(`RenderPass.addLight`: "up to 8; extras are ignored"). 1024 is four times what the
-Showcase's Mandelbrot uses and what a smooth-coloured escape-time fractal wants on screen at
-single precision, where the picture runs out of precision long before it runs out of turns. The
-cap bounds turns, not the cost of a turn: a surface with a large body still costs what it costs,
-as a surface without a loop does, but no surface asks a pixel for more than 1024 turns.
+turns; a loop runs, and is counted, once for each turn of the innermost loop whose state it reads,
+and, when it reads none, once for the surface, or once a light when only the diffuse response
+reads it. So a loop of 32 turns may hold one of 32 that reads its state, not one of 64 nor two of
+32 side by side. A loop read twice, or two built alike in one turn or both reading no state, is
+counted once where the generator first writes it; two built alike in the turns of two sibling
+loops read two states and run in each (amended 2026-10-20, reviews 9, 10 and 12: the count follows
+the generator's own placement, section 7). The constructor refuses a count below 1 or above the
+cap and a loop that, with what it holds, passes it; `SurfaceOutputs` refuses a surface that passes
+it, counting its diffuse response once for each of the eight lights a pass shades with at most
+(`RenderPass.addLight`: "up to 8; extras are ignored"). 1024 is four times what the Showcase's
+Mandelbrot uses and what a smooth-coloured escape-time fractal wants on screen at single
+precision, where the picture runs out of precision long before it runs out of turns. The cap
+bounds turns, not the cost of a turn: a surface with a large body still costs what it costs, as a
+surface without a loop does, but no surface asks a pixel for more than 1024 turns.
 
 ### 3.3 What an early-ending loop may not hold
 
@@ -429,3 +431,8 @@ names the variables itself (`ir_s…`).
   the backend: siblings 4 × 8 each, 64; one of them in the diffuse response, 288. With that
   regression put in place of `Loops`, the property test fails at seed 7 and both fixed cases
   fail (36 for 64); with `Loops` as it is, all pass.
+- **2026-10-20, review 12: the counting sentence says what the count does.** Two of its clauses
+  said less: a loop that reads no state but sits only in the diffuse response runs once a light,
+  not once for the surface; and two loops built alike in the turns of two sibling loops read two
+  states and run in each, not once. Section 3.2 and the Javadoc now say both, and the paragraphs
+  are rewrapped.
