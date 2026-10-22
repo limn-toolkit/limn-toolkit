@@ -3,7 +3,7 @@ package limn.backend.lwjgl;
 import limn.graphics.Color;
 import limn.render3d.ColorSpace;
 
-import static org.lwjgl.opengl.GL33C.glClearColor;
+import static limn.backend.lwjgl.Gl.glClearColor;
 
 /**
  * The two ways a clear colour reaches {@code glClearColor}, named, because the expression

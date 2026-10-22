@@ -110,7 +110,7 @@ public final class LwjglBackend implements BackendPeer {
     // shared audio engine, the same package applications use for rich sound.
     private final AudioClip blockedClickTone = AudioClip.tone(660f, 0.09f, 0.5f);
     // The GL entry points a window's context resolved, kept for the popups that follow it.
-    private final GlCapabilitiesCache<org.lwjgl.opengl.GLCapabilities> glCapabilities =
+    private final GlCapabilitiesCache<Object> glCapabilities =
             new GlCapabilitiesCache<>(GlCapabilitiesCache.reusesByDefault(Platform.current().os(),
                     System.getProperty(GlCapabilitiesCache.PROPERTY)));
     private final List<LwjglWindow> windows = new ArrayList<>();
@@ -1527,7 +1527,7 @@ public final class LwjglBackend implements BackendPeer {
     }
 
     /** @return the capabilities windows of one kind of context share; see {@link GlCapabilitiesCache} */
-    GlCapabilitiesCache<org.lwjgl.opengl.GLCapabilities> glCapabilities() {
+    GlCapabilitiesCache<Object> glCapabilities() {
         return glCapabilities;
     }
 

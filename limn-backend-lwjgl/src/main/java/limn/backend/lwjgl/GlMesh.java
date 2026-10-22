@@ -63,24 +63,24 @@ final class GlMesh implements GpuMesh {
         }
         this.stride = floats;
 
-        vao = GL33C.glGenVertexArrays();
-        vbo = GL33C.glGenBuffers();
-        ebo = GL33C.glGenBuffers();
-        GL33C.glBindVertexArray(vao);
-        GL33C.glBindBuffer(GL33C.GL_ARRAY_BUFFER, vbo);
-        GL33C.glBindBuffer(GL33C.GL_ELEMENT_ARRAY_BUFFER, ebo);
+        vao = Gl.glGenVertexArrays();
+        vbo = Gl.glGenBuffers();
+        ebo = Gl.glGenBuffers();
+        Gl.glBindVertexArray(vao);
+        Gl.glBindBuffer(GL33C.GL_ARRAY_BUFFER, vbo);
+        Gl.glBindBuffer(GL33C.GL_ELEMENT_ARRAY_BUFFER, ebo);
         int strideBytes = stride * Float.BYTES;
         int offset = 0;
         for (VertexAttribute a : layout) {
-            GL33C.glVertexAttribPointer(a.location, a.components, GL33C.GL_FLOAT, false,
+            Gl.glVertexAttribPointer(a.location, a.components, GL33C.GL_FLOAT, false,
                     strideBytes, (long) offset * Float.BYTES);
-            GL33C.glEnableVertexAttribArray(a.location);
+            Gl.glEnableVertexAttribArray(a.location);
             offset += a.components;
         }
         write(mesh);
-        GL33C.glBindVertexArray(0);
-        GL33C.glBindBuffer(GL33C.GL_ARRAY_BUFFER, 0);
-        GL33C.glBindBuffer(GL33C.GL_ELEMENT_ARRAY_BUFFER, 0);
+        Gl.glBindVertexArray(0);
+        Gl.glBindBuffer(GL33C.GL_ARRAY_BUFFER, 0);
+        Gl.glBindBuffer(GL33C.GL_ELEMENT_ARRAY_BUFFER, 0);
     }
 
     @Override
@@ -94,11 +94,11 @@ final class GlMesh implements GpuMesh {
             throw new IllegalArgumentException("update changes the vertex layout: uploaded with "
                     + layout + ", updated with " + mesh.presentAttributes());
         }
-        GL33C.glBindVertexArray(vao);
+        Gl.glBindVertexArray(vao);
         write(mesh);
-        GL33C.glBindVertexArray(0);
-        GL33C.glBindBuffer(GL33C.GL_ARRAY_BUFFER, 0);
-        GL33C.glBindBuffer(GL33C.GL_ELEMENT_ARRAY_BUFFER, 0);
+        Gl.glBindVertexArray(0);
+        Gl.glBindBuffer(GL33C.GL_ARRAY_BUFFER, 0);
+        Gl.glBindBuffer(GL33C.GL_ELEMENT_ARRAY_BUFFER, 0);
         revision++;
     }
 
@@ -124,10 +124,10 @@ final class GlMesh implements GpuMesh {
         this.bounds = mesh.bounds();
         this.indexCount = mesh.indexCount();
         int hint = usage == MeshUsage.DYNAMIC ? GL33C.GL_DYNAMIC_DRAW : GL33C.GL_STATIC_DRAW;
-        GL33C.glBindBuffer(GL33C.GL_ARRAY_BUFFER, vbo);
-        GL33C.glBufferData(GL33C.GL_ARRAY_BUFFER, prefix(interleaved, floats), hint);
-        GL33C.glBindBuffer(GL33C.GL_ELEMENT_ARRAY_BUFFER, ebo);
-        GL33C.glBufferData(GL33C.GL_ELEMENT_ARRAY_BUFFER, prefix(mesh.indices(), indexCount), hint);
+        Gl.glBindBuffer(GL33C.GL_ARRAY_BUFFER, vbo);
+        Gl.glBufferData(GL33C.GL_ARRAY_BUFFER, prefix(interleaved, floats), hint);
+        Gl.glBindBuffer(GL33C.GL_ELEMENT_ARRAY_BUFFER, ebo);
+        Gl.glBufferData(GL33C.GL_ELEMENT_ARRAY_BUFFER, prefix(mesh.indices(), indexCount), hint);
         this.gpuBytes = (long) floats * Float.BYTES + (long) indexCount * Integer.BYTES;
     }
 
@@ -145,9 +145,9 @@ final class GlMesh implements GpuMesh {
     }
 
     void drawTriangles() {
-        GL33C.glBindVertexArray(vao);
-        GL33C.glDrawElements(GL33C.GL_TRIANGLES, indexCount, GL33C.GL_UNSIGNED_INT, 0L);
-        GL33C.glBindVertexArray(0);
+        Gl.glBindVertexArray(vao);
+        Gl.glDrawElements(GL33C.GL_TRIANGLES, indexCount, GL33C.GL_UNSIGNED_INT, 0L);
+        Gl.glBindVertexArray(0);
     }
 
     /** Triangle count (for render stats). */
@@ -178,9 +178,9 @@ final class GlMesh implements GpuMesh {
             return;
         }
         disposed = true;
-        GL33C.glDeleteVertexArrays(vao);
-        GL33C.glDeleteBuffers(vbo);
-        GL33C.glDeleteBuffers(ebo);
+        Gl.glDeleteVertexArrays(vao);
+        Gl.glDeleteBuffers(vbo);
+        Gl.glDeleteBuffers(ebo);
         owner.forget(this);
     }
 }

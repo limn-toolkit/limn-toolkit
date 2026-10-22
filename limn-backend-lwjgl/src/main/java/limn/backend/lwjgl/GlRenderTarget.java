@@ -60,55 +60,55 @@ final class GlRenderTarget implements RenderTarget {
      * full opacity, and composited an empty layer where the group was.
      */
     private void allocate() {
-        int previousDraw = GL33C.glGetInteger(GL33C.GL_DRAW_FRAMEBUFFER_BINDING);
-        int previousRead = GL33C.glGetInteger(GL33C.GL_READ_FRAMEBUFFER_BINDING);
+        int previousDraw = Gl.glGetInteger(GL33C.GL_DRAW_FRAMEBUFFER_BINDING);
+        int previousRead = Gl.glGetInteger(GL33C.GL_READ_FRAMEBUFFER_BINDING);
         try {
             allocateBound();
         } finally {
-            GL33C.glBindFramebuffer(GL33C.GL_READ_FRAMEBUFFER, previousRead);
-            GL33C.glBindFramebuffer(GL33C.GL_DRAW_FRAMEBUFFER, previousDraw);
-            GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, 0);
-            GL33C.glBindRenderbuffer(GL33C.GL_RENDERBUFFER, 0);
+            Gl.glBindFramebuffer(GL33C.GL_READ_FRAMEBUFFER, previousRead);
+            Gl.glBindFramebuffer(GL33C.GL_DRAW_FRAMEBUFFER, previousDraw);
+            Gl.glBindTexture(GL33C.GL_TEXTURE_2D, 0);
+            Gl.glBindRenderbuffer(GL33C.GL_RENDERBUFFER, 0);
         }
     }
 
     private void allocateBound() {
-        resolveFbo = GL33C.glGenFramebuffers();
-        GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, resolveFbo);
-        colorTex = GL33C.glGenTextures();
-        GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, colorTex);
+        resolveFbo = Gl.glGenFramebuffers();
+        Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, resolveFbo);
+        colorTex = Gl.glGenTextures();
+        Gl.glBindTexture(GL33C.GL_TEXTURE_2D, colorTex);
         // RGBA16F: the target holds linear scene-referred light (ADR 004), and
         // 8 bits of linear crush the darks and clip everything over 1. The type
         // is HALF_FLOAT for the null upload; it must still be legal for the
         // internal format.
-        GL33C.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA16F, width, height, 0,
+        Gl.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA16F, width, height, 0,
                 GL33C.GL_RGBA, GL33C.GL_HALF_FLOAT, (ByteBuffer) null);
         Gl.sample2D(GL33C.GL_LINEAR, GL33C.GL_CLAMP_TO_EDGE);
-        GL33C.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
+        Gl.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
                 GL33C.GL_TEXTURE_2D, colorTex, 0);
 
         if (samples > 1) {
-            msaaFbo = GL33C.glGenFramebuffers();
-            GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, msaaFbo);
-            msaaColorRbo = GL33C.glGenRenderbuffers();
-            GL33C.glBindRenderbuffer(GL33C.GL_RENDERBUFFER, msaaColorRbo);
-            GL33C.glRenderbufferStorageMultisample(GL33C.GL_RENDERBUFFER, samples, GL33C.GL_RGBA16F, width, height);
-            GL33C.glFramebufferRenderbuffer(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
+            msaaFbo = Gl.glGenFramebuffers();
+            Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, msaaFbo);
+            msaaColorRbo = Gl.glGenRenderbuffers();
+            Gl.glBindRenderbuffer(GL33C.GL_RENDERBUFFER, msaaColorRbo);
+            Gl.glRenderbufferStorageMultisample(GL33C.GL_RENDERBUFFER, samples, GL33C.GL_RGBA16F, width, height);
+            Gl.glFramebufferRenderbuffer(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
                     GL33C.GL_RENDERBUFFER, msaaColorRbo);
-            msaaDepthRbo = GL33C.glGenRenderbuffers();
-            GL33C.glBindRenderbuffer(GL33C.GL_RENDERBUFFER, msaaDepthRbo);
-            GL33C.glRenderbufferStorageMultisample(GL33C.GL_RENDERBUFFER, samples, GL33C.GL_DEPTH_COMPONENT24, width, height);
-            GL33C.glFramebufferRenderbuffer(GL33C.GL_FRAMEBUFFER, GL33C.GL_DEPTH_ATTACHMENT,
+            msaaDepthRbo = Gl.glGenRenderbuffers();
+            Gl.glBindRenderbuffer(GL33C.GL_RENDERBUFFER, msaaDepthRbo);
+            Gl.glRenderbufferStorageMultisample(GL33C.GL_RENDERBUFFER, samples, GL33C.GL_DEPTH_COMPONENT24, width, height);
+            Gl.glFramebufferRenderbuffer(GL33C.GL_FRAMEBUFFER, GL33C.GL_DEPTH_ATTACHMENT,
                     GL33C.GL_RENDERBUFFER, msaaDepthRbo);
             requireComplete("msaa");
         } else {
-            resolveDepthRbo = GL33C.glGenRenderbuffers();
-            GL33C.glBindRenderbuffer(GL33C.GL_RENDERBUFFER, resolveDepthRbo);
-            GL33C.glRenderbufferStorage(GL33C.GL_RENDERBUFFER, GL33C.GL_DEPTH_COMPONENT24, width, height);
-            GL33C.glFramebufferRenderbuffer(GL33C.GL_FRAMEBUFFER, GL33C.GL_DEPTH_ATTACHMENT,
+            resolveDepthRbo = Gl.glGenRenderbuffers();
+            Gl.glBindRenderbuffer(GL33C.GL_RENDERBUFFER, resolveDepthRbo);
+            Gl.glRenderbufferStorage(GL33C.GL_RENDERBUFFER, GL33C.GL_DEPTH_COMPONENT24, width, height);
+            Gl.glFramebufferRenderbuffer(GL33C.GL_FRAMEBUFFER, GL33C.GL_DEPTH_ATTACHMENT,
                     GL33C.GL_RENDERBUFFER, resolveDepthRbo);
         }
-        GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, resolveFbo);
+        Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, resolveFbo);
         requireComplete("resolve");
     }
 
@@ -126,9 +126,9 @@ final class GlRenderTarget implements RenderTarget {
         if (samples <= 1) {
             return;
         }
-        GL33C.glBindFramebuffer(GL33C.GL_READ_FRAMEBUFFER, msaaFbo);
-        GL33C.glBindFramebuffer(GL33C.GL_DRAW_FRAMEBUFFER, resolveFbo);
-        GL33C.glBlitFramebuffer(0, 0, width, height, 0, 0, width, height,
+        Gl.glBindFramebuffer(GL33C.GL_READ_FRAMEBUFFER, msaaFbo);
+        Gl.glBindFramebuffer(GL33C.GL_DRAW_FRAMEBUFFER, resolveFbo);
+        Gl.glBlitFramebuffer(0, 0, width, height, 0, 0, width, height,
                 GL33C.GL_COLOR_BUFFER_BIT, GL33C.GL_NEAREST);
     }
 
@@ -193,24 +193,24 @@ final class GlRenderTarget implements RenderTarget {
     }
 
     private int[] createBloomAttachment() {
-        int previousDraw = GL33C.glGetInteger(GL33C.GL_DRAW_FRAMEBUFFER_BINDING);
-        int previousRead = GL33C.glGetInteger(GL33C.GL_READ_FRAMEBUFFER_BINDING);
+        int previousDraw = Gl.glGetInteger(GL33C.GL_DRAW_FRAMEBUFFER_BINDING);
+        int previousRead = Gl.glGetInteger(GL33C.GL_READ_FRAMEBUFFER_BINDING);
         try {
-            int fbo = GL33C.glGenFramebuffers();
-            GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, fbo);
-            int tex = GL33C.glGenTextures();
-            GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, tex);
-            GL33C.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA16F, bloomWidthPx(), bloomHeightPx(),
+            int fbo = Gl.glGenFramebuffers();
+            Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, fbo);
+            int tex = Gl.glGenTextures();
+            Gl.glBindTexture(GL33C.GL_TEXTURE_2D, tex);
+            Gl.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA16F, bloomWidthPx(), bloomHeightPx(),
                     0, GL33C.GL_RGBA, GL33C.GL_HALF_FLOAT, (ByteBuffer) null);
             Gl.sample2D(GL33C.GL_LINEAR, GL33C.GL_CLAMP_TO_EDGE);
-            GL33C.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
+            Gl.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
                     GL33C.GL_TEXTURE_2D, tex, 0);
             requireComplete("bloom");
             return new int[]{fbo, tex};
         } finally {
-            GL33C.glBindFramebuffer(GL33C.GL_READ_FRAMEBUFFER, previousRead);
-            GL33C.glBindFramebuffer(GL33C.GL_DRAW_FRAMEBUFFER, previousDraw);
-            GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, 0);
+            Gl.glBindFramebuffer(GL33C.GL_READ_FRAMEBUFFER, previousRead);
+            Gl.glBindFramebuffer(GL33C.GL_DRAW_FRAMEBUFFER, previousDraw);
+            Gl.glBindTexture(GL33C.GL_TEXTURE_2D, 0);
         }
     }
 
@@ -259,15 +259,15 @@ final class GlRenderTarget implements RenderTarget {
         }
         // Both bindings are saved because resolve() below changes both, and a read must leave the
         // GL state exactly as it found it; it can be called from anywhere inside a frame.
-        int previousDraw = GL33C.glGetInteger(GL33C.GL_DRAW_FRAMEBUFFER_BINDING);
-        int previousRead = GL33C.glGetInteger(GL33C.GL_READ_FRAMEBUFFER_BINDING);
+        int previousDraw = Gl.glGetInteger(GL33C.GL_DRAW_FRAMEBUFFER_BINDING);
+        int previousRead = Gl.glGetInteger(GL33C.GL_READ_FRAMEBUFFER_BINDING);
         resolve(); // MSAA: the composite shows the resolved image, so a read must too
         java.nio.FloatBuffer buffer = org.lwjgl.system.MemoryUtil.memAllocFloat(w * h * 4);
         try {
-            GL33C.glBindFramebuffer(GL33C.GL_READ_FRAMEBUFFER, resolveFbo);
-            GL33C.glReadBuffer(GL33C.GL_COLOR_ATTACHMENT0);
+            Gl.glBindFramebuffer(GL33C.GL_READ_FRAMEBUFFER, resolveFbo);
+            Gl.glReadBuffer(GL33C.GL_COLOR_ATTACHMENT0);
             // GL's origin is bottom-left: the top-down rectangle's first row is the last one here.
-            GL33C.glReadPixels(x, height - (y + h), w, h, GL33C.GL_RGBA, GL33C.GL_FLOAT, buffer);
+            Gl.glReadPixels(x, height - (y + h), w, h, GL33C.GL_RGBA, GL33C.GL_FLOAT, buffer);
             float[] pixels = new float[w * h * 4];
             for (int row = 0; row < h; row++) {
                 buffer.position((h - 1 - row) * w * 4);
@@ -276,8 +276,8 @@ final class GlRenderTarget implements RenderTarget {
             return pixels;
         } finally {
             org.lwjgl.system.MemoryUtil.memFree(buffer);
-            GL33C.glBindFramebuffer(GL33C.GL_READ_FRAMEBUFFER, previousRead);
-            GL33C.glBindFramebuffer(GL33C.GL_DRAW_FRAMEBUFFER, previousDraw);
+            Gl.glBindFramebuffer(GL33C.GL_READ_FRAMEBUFFER, previousRead);
+            Gl.glBindFramebuffer(GL33C.GL_DRAW_FRAMEBUFFER, previousDraw);
         }
     }
 
@@ -356,25 +356,25 @@ final class GlRenderTarget implements RenderTarget {
     }
 
     private void deleteGl() {
-        GL33C.glDeleteFramebuffers(resolveFbo);
-        GL33C.glDeleteTextures(colorTex);
+        Gl.glDeleteFramebuffers(resolveFbo);
+        Gl.glDeleteTextures(colorTex);
         colorTex = 0; // readback's disposed check; allocate() reassigns it on the resize path
         if (resolveDepthRbo != 0) {
-            GL33C.glDeleteRenderbuffers(resolveDepthRbo);
+            Gl.glDeleteRenderbuffers(resolveDepthRbo);
         }
         if (samples > 1) {
-            GL33C.glDeleteFramebuffers(msaaFbo);
-            GL33C.glDeleteRenderbuffers(msaaColorRbo);
-            GL33C.glDeleteRenderbuffers(msaaDepthRbo);
+            Gl.glDeleteFramebuffers(msaaFbo);
+            Gl.glDeleteRenderbuffers(msaaColorRbo);
+            Gl.glDeleteRenderbuffers(msaaDepthRbo);
         }
         if (bloomFboA != 0) {
             // Zeroed, unlike the main attachments: resize() re-runs allocate()
             // immediately, but the bloom pair stays lazy until the next bloomy
             // frame asks for it (at the new size).
-            GL33C.glDeleteFramebuffers(bloomFboA);
-            GL33C.glDeleteFramebuffers(bloomFboB);
-            GL33C.glDeleteTextures(bloomTexA);
-            GL33C.glDeleteTextures(bloomTexB);
+            Gl.glDeleteFramebuffers(bloomFboA);
+            Gl.glDeleteFramebuffers(bloomFboB);
+            Gl.glDeleteTextures(bloomTexA);
+            Gl.glDeleteTextures(bloomTexB);
             bloomFboA = 0;
             bloomFboB = 0;
             bloomTexA = 0;

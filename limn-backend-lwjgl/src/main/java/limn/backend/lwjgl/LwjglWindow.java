@@ -16,8 +16,6 @@ import org.lwjgl.glfw.GLFWDropCallback;
 import org.lwjgl.glfw.GLFWPreeditCallback;
 import org.lwjgl.glfw.GLFWImage;
 import org.lwjgl.glfw.GLFWVidMode;
-import org.lwjgl.opengl.GL;
-import org.lwjgl.opengl.GLCapabilities;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 import limn.backend.Platform;
@@ -115,7 +113,7 @@ import static org.lwjgl.glfw.GLFW.glfwSwapBuffers;
 import static org.lwjgl.glfw.GLFW.glfwSwapInterval;
 import static org.lwjgl.glfw.GLFW.glfwWindowHint;
 import static org.lwjgl.glfw.GLFW.glfwWindowShouldClose;
-import static org.lwjgl.opengl.GL11.glViewport;
+import static limn.backend.lwjgl.Gl.glViewport;
 import static org.lwjgl.system.MemoryUtil.NULL;
 import limn.backend.spi.WindowPeer;
 
@@ -155,7 +153,8 @@ final class LwjglWindow implements WindowPeer {
     private long imeGatedView = NULL;
     /** What {@link #setSizeLimits} last applied, for {@link #sizeLimits()}. */
     private limn.backend.SizeLimits sizeLimits = limn.backend.SizeLimits.NONE;
-    private final GLCapabilities glCapabilities;
+    /** This window's context's entry points, of the process's profile ({@link GlApi#createCapabilities}). */
+    private final Object glCapabilities;
     /** The kind of context {@link #glCapabilities} were kept for, given back when the window goes. */
     private final GlCapabilitiesCache.Key glCapabilitiesKey;
     private final GlRenderer renderer;
@@ -388,8 +387,8 @@ final class LwjglWindow implements WindowPeer {
         // Those of a living window whose context is of the same kind where the platform allows
         // it, because resolving them again is most of what opening a popup costs.
         glCapabilitiesKey = GraphicsProbe.currentContextKey(softwareGl);
-        glCapabilities = backend.glCapabilities().acquire(glCapabilitiesKey, GL::createCapabilities);
-        GL.setCapabilities(glCapabilities);
+        glCapabilities = backend.glCapabilities().acquire(glCapabilitiesKey, Gl.api()::createCapabilities);
+        Gl.api().setCapabilities(glCapabilities);
         // With the context current, as the query needs; the software macOS context has none to ask.
         bufferAgeQuery = BufferAgeQuery.forWindow(handle);
         setSwapInterval(1); // vsync
@@ -817,7 +816,7 @@ final class LwjglWindow implements WindowPeer {
     }
 
     /** @return the capabilities this window's context draws with, which it may share; for tests */
-    GLCapabilities glCapabilities() {
+    Object glCapabilities() {
         return glCapabilities;
     }
 
@@ -827,8 +826,8 @@ final class LwjglWindow implements WindowPeer {
      */
     limn.backend.GraphicsInfo readGraphicsInfo() {
         makeContextCurrent();
-        GL.setCapabilities(glCapabilities);
-        return GraphicsProbe.read(handle, glCapabilities);
+        Gl.api().setCapabilities(glCapabilities);
+        return GraphicsProbe.read(handle);
     }
 
     /** @return this window's 3D-subsystem stats (meshes/textures/targets/bytes + last-frame workload). */
@@ -1140,7 +1139,7 @@ final class LwjglWindow implements WindowPeer {
         try {
             makeContextCurrent();
             // LWJGL caps are thread-local per context: re-bind when hopping windows.
-            GL.setCapabilities(glCapabilities);
+            Gl.api().setCapabilities(glCapabilities);
             // One window per loop iteration paces on vblank; the others swap
             // free into the same one (see renderNow). The interval is
             // per-context state, so re-assert it every frame.
@@ -1159,7 +1158,7 @@ final class LwjglWindow implements WindowPeer {
                 // User code may have switched GL contexts (posting is the
                 // sanctioned path for window creation, but stay safe).
                 makeContextCurrent();
-                GL.setCapabilities(glCapabilities);
+                Gl.api().setCapabilities(glCapabilities);
                 renderer.endFrame();
             }
             swapBuffers();
@@ -1243,7 +1242,7 @@ final class LwjglWindow implements WindowPeer {
         childPopups.closeAll();
         // GL resources (VBO/shader) must die on their own context.
         makeContextCurrent();
-        GL.setCapabilities(glCapabilities);
+        Gl.api().setCapabilities(glCapabilities);
         try {
             renderer.dispose();
         } catch (RuntimeException | LinkageError error) {

@@ -137,6 +137,8 @@ dependencies {
   <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-openal</artifactId><version>${lwjgl.version}</version><classifier>${lwjgl.natives}</classifier></dependency>
   <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-opengl</artifactId><version>${lwjgl.version}</version></dependency>
   <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-opengl</artifactId><version>${lwjgl.version}</version><classifier>${lwjgl.natives}</classifier></dependency>
+  <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-opengles</artifactId><version>${lwjgl.version}</version></dependency>
+  <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-opengles</artifactId><version>${lwjgl.version}</version><classifier>${lwjgl.natives}</classifier></dependency>
   <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-stb</artifactId><version>${lwjgl.version}</version></dependency>
   <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-stb</artifactId><version>${lwjgl.version}</version><classifier>${lwjgl.natives}</classifier></dependency>
   <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-tinyfd</artifactId><version>${lwjgl.version}</version></dependency>
@@ -225,7 +227,7 @@ kinds of jar still need a word:
   // LWJGL's natives modules, by name: for ./gradlew run, and for a distribution's start scripts.
   val lwjglNatives = listOf("--add-modules", "org.lwjgl.natives,org.lwjgl.glfw.natives," +
       "org.lwjgl.harfbuzz.natives,org.lwjgl.openal.natives,org.lwjgl.opengl.natives," +
-      "org.lwjgl.stb.natives,org.lwjgl.tinyfd.natives")
+      "org.lwjgl.opengles.natives,org.lwjgl.stb.natives,org.lwjgl.tinyfd.natives")
   tasks.named<JavaExec>("run") { jvmArgs(lwjglNatives) }
   application { applicationDefaultJvmArgs += lwjglNatives }
   ```

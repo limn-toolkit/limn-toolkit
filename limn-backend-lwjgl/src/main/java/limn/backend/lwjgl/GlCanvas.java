@@ -20,7 +20,7 @@ import java.util.Objects;
 
 import static org.lwjgl.opengl.GL33C.GL_COLOR_BUFFER_BIT;
 import static org.lwjgl.opengl.GL33C.GL_STENCIL_BUFFER_BIT;
-import static org.lwjgl.opengl.GL33C.glClear;
+import static limn.backend.lwjgl.Gl.glClear;
 
 /**
  * OpenGL implementation of {@link Canvas}: applies the state stack (transform,
@@ -231,7 +231,7 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         // Built with its context current (the batch above has just made its buffers in it), and a
         // context's renderer never changes, so it is read once.
         boolean software = GraphicsProbe.isSoftwareRenderer(
-                org.lwjgl.opengl.GL33C.glGetString(org.lwjgl.opengl.GL33C.GL_RENDERER));
+                Gl.glGetString(org.lwjgl.opengl.GL33C.GL_RENDERER));
         flatInteriors = software;
         depthAtNaturalSize = software;
     }
@@ -395,7 +395,7 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         // clear() means the WHOLE framebuffer: a damage scissor left enabled by
         // the previous frame's last draw must not clip it (an empty flush above
         // issues no state calls, so the stale scissor would still be armed).
-        org.lwjgl.opengl.GL33C.glDisable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
+        Gl.glDisable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
         GlColors.clearPremultiplied(color);
         glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
     }
@@ -433,12 +433,12 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         }
         // A scissored clear REPLACES the region, including alpha 0 on the
         // translucent popup framebuffers, which no blended fill can produce.
-        org.lwjgl.opengl.GL33C.glEnable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
-        org.lwjgl.opengl.GL33C.glScissor(x0 - originX, originY + targetHeight - y1, x1 - x0, y1 - y0);
+        Gl.glEnable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
+        Gl.glScissor(x0 - originX, originY + targetHeight - y1, x1 - x0, y1 - y0);
         GlColors.clearPremultiplied(color);
         glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
         // The next batch flush re-arms the damage scissor from its own state.
-        org.lwjgl.opengl.GL33C.glDisable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
+        Gl.glDisable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
     }
 
     @Override
@@ -452,7 +452,7 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
             return null;
         }
         // A framebuffer with no alpha plane answers 255 everywhere: nothing would be see-through.
-        int alphaBits = org.lwjgl.opengl.GL33C.glGetFramebufferAttachmentParameteri(
+        int alphaBits = Gl.glGetFramebufferAttachmentParameteri(
                 org.lwjgl.opengl.GL33C.GL_FRAMEBUFFER, org.lwjgl.opengl.GL33C.GL_BACK_LEFT,
                 org.lwjgl.opengl.GL33C.GL_FRAMEBUFFER_ATTACHMENT_ALPHA_SIZE);
         if (alphaBits == 0) {
@@ -461,9 +461,9 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         batch.flush(); // what was painted so far, into the buffer
         java.nio.ByteBuffer pixels = org.lwjgl.system.MemoryUtil.memAlloc(w * h * 4);
         try {
-            org.lwjgl.opengl.GL33C.glPixelStorei(org.lwjgl.opengl.GL33C.GL_PACK_ALIGNMENT, 1);
-            org.lwjgl.opengl.GL33C.glReadBuffer(org.lwjgl.opengl.GL33C.GL_BACK);
-            org.lwjgl.opengl.GL33C.glReadPixels(x0, fbHeight - y0 - h, w, h, org.lwjgl.opengl.GL33C.GL_RGBA,
+            Gl.glPixelStorei(org.lwjgl.opengl.GL33C.GL_PACK_ALIGNMENT, 1);
+            Gl.glReadBuffer(org.lwjgl.opengl.GL33C.GL_BACK);
+            Gl.glReadPixels(x0, fbHeight - y0 - h, w, h, org.lwjgl.opengl.GL33C.GL_RGBA,
                     org.lwjgl.opengl.GL33C.GL_UNSIGNED_BYTE, pixels);
             byte[] rgba = new byte[w * h * 4];
             int stride = w * 4;
@@ -581,7 +581,7 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         // What is queued belongs to the target the layer opens over, and must reach it first.
         batch.flush();
         if (openLayers == 0) {
-            baseFramebuffer = org.lwjgl.opengl.GL33C.glGetInteger(
+            baseFramebuffer = Gl.glGetInteger(
                     org.lwjgl.opengl.GL33C.GL_DRAW_FRAMEBUFFER_BINDING);
         }
         // And on the window's grid of two by two pixels: a fragment's derivatives are taken across
@@ -617,11 +617,11 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         bindTarget(s);
         // Only the part this layer draws in is cleared: the picture may be larger than the layer,
         // and the rest of it is never sampled.
-        org.lwjgl.opengl.GL33C.glEnable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
-        org.lwjgl.opengl.GL33C.glScissor(0, 0, lw, lh);
-        org.lwjgl.opengl.GL33C.glClearColor(0f, 0f, 0f, 0f);
+        Gl.glEnable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
+        Gl.glScissor(0, 0, lw, lh);
+        Gl.glClearColor(0f, 0f, 0f, 0f);
         glClear(GL_COLOR_BUFFER_BIT);
-        org.lwjgl.opengl.GL33C.glDisable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
+        Gl.glDisable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
     }
 
     /**
@@ -802,7 +802,7 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         }
         batch.flush();
         if (openLayers == 0) {
-            baseFramebuffer = org.lwjgl.opengl.GL33C.glGetInteger(
+            baseFramebuffer = Gl.glGetInteger(
                     org.lwjgl.opengl.GL33C.GL_DRAW_FRAMEBUFFER_BINDING);
         }
         GlLayerPool.Picture picture = layers.take(lw, lh, fbWidth, fbHeight);
@@ -861,15 +861,15 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         // The part drawn and a ring of one texel past it on the sides the picture goes on: the
         // composite filters, and those texels hold an earlier frame's content otherwise. A mipmapped
         // one clears the whole picture, since every level averages what lies past the part too.
-        org.lwjgl.opengl.GL33C.glEnable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
+        Gl.glEnable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
         if (s.mipLevels > 0) {
-            org.lwjgl.opengl.GL33C.glScissor(0, 0, picture.width, picture.height);
+            Gl.glScissor(0, 0, picture.width, picture.height);
         } else {
-            org.lwjgl.opengl.GL33C.glScissor(0, 0, Math.min(picture.width, lw + 1), Math.min(picture.height, lh + 1));
+            Gl.glScissor(0, 0, Math.min(picture.width, lw + 1), Math.min(picture.height, lh + 1));
         }
-        org.lwjgl.opengl.GL33C.glClearColor(0f, 0f, 0f, 0f);
+        Gl.glClearColor(0f, 0f, 0f, 0f);
         glClear(GL_COLOR_BUFFER_BIT);
-        org.lwjgl.opengl.GL33C.glDisable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
+        Gl.glDisable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
     }
 
     /**
@@ -1108,11 +1108,11 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
      * counts them, so that the performance monitor sees the third more they hold.
      */
     private void makeMipmaps(GlLayerPool.Picture picture, int levels) {
-        org.lwjgl.opengl.GL33C.glActiveTexture(org.lwjgl.opengl.GL33C.GL_TEXTURE0);
-        org.lwjgl.opengl.GL33C.glBindTexture(org.lwjgl.opengl.GL33C.GL_TEXTURE_2D, picture.texture);
-        org.lwjgl.opengl.GL33C.glTexParameteri(org.lwjgl.opengl.GL33C.GL_TEXTURE_2D,
+        Gl.glActiveTexture(org.lwjgl.opengl.GL33C.GL_TEXTURE0);
+        Gl.glBindTexture(org.lwjgl.opengl.GL33C.GL_TEXTURE_2D, picture.texture);
+        Gl.glTexParameteri(org.lwjgl.opengl.GL33C.GL_TEXTURE_2D,
                 org.lwjgl.opengl.GL33C.GL_TEXTURE_MAX_LEVEL, levels);
-        org.lwjgl.opengl.GL33C.glGenerateMipmap(org.lwjgl.opengl.GL33C.GL_TEXTURE_2D);
+        Gl.glGenerateMipmap(org.lwjgl.opengl.GL33C.GL_TEXTURE_2D);
         picture.levels = Math.max(picture.levels, levels);
         mipmapsMade++;
     }
@@ -1223,13 +1223,13 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
     /** Binds a layer's picture as the target, or the frame's own target for null, and tells the batch. */
     private void bindTarget(State layer) {
         if (layer != null) {
-            org.lwjgl.opengl.GL33C.glBindFramebuffer(org.lwjgl.opengl.GL33C.GL_FRAMEBUFFER,
+            Gl.glBindFramebuffer(org.lwjgl.opengl.GL33C.GL_FRAMEBUFFER,
                     layer.layer.framebuffer);
-            org.lwjgl.opengl.GL33C.glViewport(0, 0, layer.layerWidth, layer.layerHeight);
+            Gl.glViewport(0, 0, layer.layerWidth, layer.layerHeight);
             batch.setTarget(true, layer.layerX, layer.layerY, layer.layerWidth, layer.layerHeight);
         } else {
-            org.lwjgl.opengl.GL33C.glBindFramebuffer(org.lwjgl.opengl.GL33C.GL_FRAMEBUFFER, baseFramebuffer);
-            org.lwjgl.opengl.GL33C.glViewport(0, 0, fbWidth, fbHeight);
+            Gl.glBindFramebuffer(org.lwjgl.opengl.GL33C.GL_FRAMEBUFFER, baseFramebuffer);
+            Gl.glViewport(0, 0, fbWidth, fbHeight);
             batch.setTarget(false, 0, 0, fbWidth, fbHeight);
         }
     }
@@ -1613,10 +1613,10 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         if (space > 0) {
             return captureInSpace(space, cx0, cy0, cx1, cy1);
         }
-        org.lwjgl.opengl.GL33C.glBindFramebuffer(org.lwjgl.opengl.GL33C.GL_READ_FRAMEBUFFER, baseFramebuffer);
+        Gl.glBindFramebuffer(org.lwjgl.opengl.GL33C.GL_READ_FRAMEBUFFER, baseFramebuffer);
         int texture = backdrop.capture(fbWidth, fbHeight, cx0, fbHeight - cy1, cx1 - cx0, cy1 - cy0);
-        org.lwjgl.opengl.GL33C.glBindFramebuffer(org.lwjgl.opengl.GL33C.GL_FRAMEBUFFER, backdrop.framebuffer());
-        org.lwjgl.opengl.GL33C.glViewport(0, 0, fbWidth, fbHeight);
+        Gl.glBindFramebuffer(org.lwjgl.opengl.GL33C.GL_FRAMEBUFFER, backdrop.framebuffer());
+        Gl.glViewport(0, 0, fbWidth, fbHeight);
         // A layer's target, so no damage scissor: the copy is not the window.
         batch.setTarget(true, 0, 0, fbWidth, fbHeight);
         GlBlend.Factors normal = GlBlend.of(limn.graphics.BlendMode.NORMAL);
@@ -1698,7 +1698,7 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
             inner = outer;
         }
         int warped = backdrop.warped(fbWidth, fbHeight); // which may bind its framebuffer, made now
-        org.lwjgl.opengl.GL33C.glBindFramebuffer(org.lwjgl.opengl.GL33C.GL_READ_FRAMEBUFFER, baseFramebuffer);
+        Gl.glBindFramebuffer(org.lwjgl.opengl.GL33C.GL_READ_FRAMEBUFFER, baseFramebuffer);
         boolean window = false;
         if (root == 0) {
             // The window's pixels the region comes from, copied as any glass's are.
@@ -1727,18 +1727,18 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
                 window = true;
             }
         }
-        org.lwjgl.opengl.GL33C.glBindFramebuffer(org.lwjgl.opengl.GL33C.GL_FRAMEBUFFER, backdrop.warpedFramebuffer());
-        org.lwjgl.opengl.GL33C.glViewport(0, 0, fbWidth, fbHeight);
+        Gl.glBindFramebuffer(org.lwjgl.opengl.GL33C.GL_FRAMEBUFFER, backdrop.warpedFramebuffer());
+        Gl.glViewport(0, 0, fbWidth, fbHeight);
         // A layer's target, so no damage scissor: the copy is not the window.
         batch.setTarget(true, 0, 0, fbWidth, fbHeight);
         GlBlend.Factors normal = GlBlend.of(limn.graphics.BlendMode.NORMAL);
         batch.requireBlend(normal.srcRgb(), normal.dstRgb(), normal.srcAlpha(), normal.dstAlpha());
         // What an earlier glass left in the region goes: the root of a backdrop reads from nothing.
-        org.lwjgl.opengl.GL33C.glEnable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
-        org.lwjgl.opengl.GL33C.glScissor(cx0, fbHeight - cy1, cx1 - cx0, cy1 - cy0);
-        org.lwjgl.opengl.GL33C.glClearColor(0f, 0f, 0f, 0f);
+        Gl.glEnable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
+        Gl.glScissor(cx0, fbHeight - cy1, cx1 - cx0, cy1 - cy0);
+        Gl.glClearColor(0f, 0f, 0f, 0f);
         glClear(GL_COLOR_BUFFER_BIT);
-        org.lwjgl.opengl.GL33C.glDisable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
+        Gl.glDisable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
         readRegion.resetTo(cx0, cy0, cx1, cy1);
         float[] corners = cornerScratch;
         float[] uvs = uvScratch;

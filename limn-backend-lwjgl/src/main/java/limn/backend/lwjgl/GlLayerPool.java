@@ -185,28 +185,28 @@ final class GlLayerPool {
     }
 
     private static Picture make(int width, int height) {
-        int texture = GL33C.glGenTextures();
-        GL33C.glActiveTexture(GL33C.GL_TEXTURE0);
-        GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
-        GL33C.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, width, height, 0,
+        int texture = Gl.glGenTextures();
+        Gl.glActiveTexture(GL33C.GL_TEXTURE0);
+        Gl.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
+        Gl.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, width, height, 0,
                 GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, (ByteBuffer) null);
         // NEAREST: the composite lays the picture back on the pixels it was drawn on, one texel to
         // one pixel, and nothing should be filtered on the way.
         Gl.sample2D(GL33C.GL_NEAREST, GL33C.GL_CLAMP_TO_EDGE);
-        int framebuffer = GL33C.glGenFramebuffers();
-        GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, framebuffer);
-        GL33C.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
+        int framebuffer = Gl.glGenFramebuffers();
+        Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, framebuffer);
+        Gl.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
                 GL33C.GL_TEXTURE_2D, texture, 0);
-        if (GL33C.glCheckFramebufferStatus(GL33C.GL_FRAMEBUFFER) != GL33C.GL_FRAMEBUFFER_COMPLETE) {
-            GL33C.glDeleteFramebuffers(framebuffer);
-            GL33C.glDeleteTextures(texture);
+        if (Gl.glCheckFramebufferStatus(GL33C.GL_FRAMEBUFFER) != GL33C.GL_FRAMEBUFFER_COMPLETE) {
+            Gl.glDeleteFramebuffers(framebuffer);
+            Gl.glDeleteTextures(texture);
             return null;
         }
         return new Picture(texture, framebuffer, width, height);
     }
 
     private static void delete(Picture p) {
-        GL33C.glDeleteFramebuffers(p.framebuffer);
-        GL33C.glDeleteTextures(p.texture);
+        Gl.glDeleteFramebuffers(p.framebuffer);
+        Gl.glDeleteTextures(p.texture);
     }
 }

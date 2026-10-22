@@ -30,25 +30,25 @@ final class GlTexture implements GpuTexture {
         this.height = data.height();
         this.mipmapped = sampler.mipmaps();
 
-        id = GL33C.glGenTextures();
-        GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, id);
-        GL33C.glPixelStorei(GL33C.GL_UNPACK_ALIGNMENT, 1);
+        id = Gl.glGenTextures();
+        Gl.glBindTexture(GL33C.GL_TEXTURE_2D, id);
+        Gl.glPixelStorei(GL33C.GL_UNPACK_ALIGNMENT, 1);
         ByteBuffer pixels = OffHeap.copyOf(data.rgba8());
         try {
-            GL33C.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, width, height, 0,
+            Gl.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, width, height, 0,
                     GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, pixels);
         } finally {
             MemoryUtil.memFree(pixels);
         }
-        GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_WRAP_S, wrap(sampler.wrapS()));
-        GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_WRAP_T, wrap(sampler.wrapT()));
-        GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MAG_FILTER, magFilter(sampler.magFilter()));
-        GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MIN_FILTER,
+        Gl.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_WRAP_S, wrap(sampler.wrapS()));
+        Gl.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_WRAP_T, wrap(sampler.wrapT()));
+        Gl.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MAG_FILTER, magFilter(sampler.magFilter()));
+        Gl.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MIN_FILTER,
                 minFilter(sampler.minFilter(), mipmapped));
         if (mipmapped) {
-            GL33C.glGenerateMipmap(GL33C.GL_TEXTURE_2D);
+            Gl.glGenerateMipmap(GL33C.GL_TEXTURE_2D);
         }
-        GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, 0);
+        Gl.glBindTexture(GL33C.GL_TEXTURE_2D, 0);
     }
 
     int id() {
@@ -95,7 +95,7 @@ final class GlTexture implements GpuTexture {
     @Override
     public void dispose() {
         if (id != 0) {
-            GL33C.glDeleteTextures(id);
+            Gl.glDeleteTextures(id);
             id = 0;
         }
         owner.forget(this);

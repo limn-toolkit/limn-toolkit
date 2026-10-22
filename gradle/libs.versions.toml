@@ -43,6 +43,7 @@ lwjgl-core = { module = "org.lwjgl:lwjgl" }
 lwjgl-glfw = { module = "org.lwjgl:lwjgl-glfw" }
 lwjgl-egl = { module = "org.lwjgl:lwjgl-egl" }
 lwjgl-opengl = { module = "org.lwjgl:lwjgl-opengl" }
+lwjgl-opengles = { module = "org.lwjgl:lwjgl-opengles" }
 lwjgl-openal = { module = "org.lwjgl:lwjgl-openal" }
 lwjgl-stb = { module = "org.lwjgl:lwjgl-stb" }
 lwjgl-harfbuzz = { module = "org.lwjgl:lwjgl-harfbuzz" }

@@ -66,12 +66,17 @@ dependencies {
     // (EGL_EXT_buffer_age). Classes only: it binds the system's libEGL, which the Wayland session
     // already has, so it adds no natives and is absent from the classifier list below.
     implementation(libs.lwjgl.egl)
+    // OpenGL ES 3.0, the profile the renderer speaks when the machine's own OpenGL is missing and
+    // the context comes from ANGLE instead (ADR 003): Direct3D 11 on Windows, Metal on macOS. Its
+    // JNI library is declared for all six platforms like every other LWJGL module's, though Linux
+    // never takes that path: the host-natives table and the POMs know one shape, and the slice is small.
+    implementation(libs.lwjgl.opengles)
     // MP3 decoding: JLayer is pure Java (no natives), the classic javazoom
     // decoder. NOTE: LGPL-licensed, kept as an isolated jar dependency.
     implementation(libs.jlayer)
 
     val lwjglVersion = libs.versions.lwjgl.get()
-    listOf("lwjgl", "lwjgl-glfw", "lwjgl-opengl", "lwjgl-openal", "lwjgl-stb", "lwjgl-harfbuzz",
+    listOf("lwjgl", "lwjgl-glfw", "lwjgl-opengl", "lwjgl-opengles", "lwjgl-openal", "lwjgl-stb", "lwjgl-harfbuzz",
             "lwjgl-tinyfd").forEach { module ->
         lwjglTargets.values.forEach { classifier ->
             runtimeOnly("org.lwjgl:$module:$lwjglVersion:$classifier")

@@ -153,7 +153,7 @@ final class GlVideoContext {
         if (vao == 0) {
             // Empty vertex array: the triangle comes from gl_VertexID, but a core
             // profile still refuses to draw with no array object bound.
-            vao = GL33C.glGenVertexArrays();
+            vao = Gl.glGenVertexArrays();
         }
     }
 
@@ -172,17 +172,17 @@ final class GlVideoContext {
         Conversion conversion = ensureProgram(rectangleTextures);
         int target = rectangleTextures ? IoSurfaces.GL_TEXTURE_RECTANGLE : GL33C.GL_TEXTURE_2D;
         ShaderProgram active = conversion.program;
-        GL33C.glGetIntegerv(GL33C.GL_FRAMEBUFFER_BINDING, previousFramebuffer);
-        GL33C.glGetIntegerv(GL33C.GL_VIEWPORT, previousViewport);
+        Gl.glGetIntegerv(GL33C.GL_FRAMEBUFFER_BINDING, previousFramebuffer);
+        Gl.glGetIntegerv(GL33C.GL_VIEWPORT, previousViewport);
         try {
-            GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, surface.framebuffer());
-            GL33C.glViewport(0, 0, surface.widthPx(), surface.heightPx());
-            GL33C.glDisable(GL33C.GL_DEPTH_TEST);
-            GL33C.glDisable(GL33C.GL_BLEND);
-            GL33C.glDisable(GL33C.GL_CULL_FACE);
+            Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, surface.framebuffer());
+            Gl.glViewport(0, 0, surface.widthPx(), surface.heightPx());
+            Gl.glDisable(GL33C.GL_DEPTH_TEST);
+            Gl.glDisable(GL33C.GL_BLEND);
+            Gl.glDisable(GL33C.GL_CULL_FACE);
             // The 2D batch may have armed a damage scissor in window space; it
             // must not clip this offscreen pass (the next flush re-arms it).
-            GL33C.glDisable(GL33C.GL_SCISSOR_TEST);
+            Gl.glDisable(GL33C.GL_SCISSOR_TEST);
 
             active.use();
             boolean interleaved = format.planeCount() == 2;
@@ -193,39 +193,39 @@ final class GlVideoContext {
             // interleaved plane, which the branch then ignores.
             bindPlane(GL33C.GL_TEXTURE2, target, conversion.uCr, 2,
                     surface.planeTexture(interleaved ? 1 : 2));
-            GL33C.glUniform1i(conversion.uInterleaved, interleaved ? 1 : 0);
-            GL33C.glUniform1i(conversion.uHeight, surface.heightPx());
-            GL33C.glUniform2i(conversion.uChromaShift,
+            Gl.glUniform1i(conversion.uInterleaved, interleaved ? 1 : 0);
+            Gl.glUniform1i(conversion.uHeight, surface.heightPx());
+            Gl.glUniform2i(conversion.uChromaShift,
                     format.chromaShiftX(), format.chromaShiftY());
             int bitDepth = format.bitDepth();
-            GL33C.glUniform1f(conversion.uSampleScale, sampleScale(format));
-            GL33C.glUniform1f(conversion.uMaxCode, format.maxCode());
-            GL33C.glUniform1f(conversion.uYScale, (float) color.yScale(bitDepth));
-            GL33C.glUniform1f(conversion.uYOffset, color.yOffset(bitDepth));
-            GL33C.glUniform1f(conversion.uChromaNeutral, color.chromaNeutral(bitDepth));
-            GL33C.glUniform1f(conversion.uCrToR, (float) color.crToR(bitDepth));
-            GL33C.glUniform1f(conversion.uCbToG, (float) color.cbToG(bitDepth));
-            GL33C.glUniform1f(conversion.uCrToG, (float) color.crToG(bitDepth));
-            GL33C.glUniform1f(conversion.uCbToB, (float) color.cbToB(bitDepth));
+            Gl.glUniform1f(conversion.uSampleScale, sampleScale(format));
+            Gl.glUniform1f(conversion.uMaxCode, format.maxCode());
+            Gl.glUniform1f(conversion.uYScale, (float) color.yScale(bitDepth));
+            Gl.glUniform1f(conversion.uYOffset, color.yOffset(bitDepth));
+            Gl.glUniform1f(conversion.uChromaNeutral, color.chromaNeutral(bitDepth));
+            Gl.glUniform1f(conversion.uCrToR, (float) color.crToR(bitDepth));
+            Gl.glUniform1f(conversion.uCbToG, (float) color.cbToG(bitDepth));
+            Gl.glUniform1f(conversion.uCrToG, (float) color.crToG(bitDepth));
+            Gl.glUniform1f(conversion.uCbToB, (float) color.cbToB(bitDepth));
 
-            GL33C.glBindVertexArray(vao);
-            GL33C.glDrawArrays(GL33C.GL_TRIANGLES, 0, 3);
-            GL33C.glBindVertexArray(0);
+            Gl.glBindVertexArray(vao);
+            Gl.glDrawArrays(GL33C.GL_TRIANGLES, 0, 3);
+            Gl.glBindVertexArray(0);
         } finally {
-            GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, previousFramebuffer[0]);
-            GL33C.glViewport(previousViewport[0], previousViewport[1],
+            Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, previousFramebuffer[0]);
+            Gl.glViewport(previousViewport[0], previousViewport[1],
                     previousViewport[2], previousViewport[3]);
             // Back to unit 0: the glyph atlas and the image cache bind and
             // upload without selecting a unit, so leaving unit 2 selected would
             // send their uploads somewhere else.
-            GL33C.glActiveTexture(GL33C.GL_TEXTURE0);
+            Gl.glActiveTexture(GL33C.GL_TEXTURE0);
         }
     }
 
     private static void bindPlane(int unit, int target, int uniform, int unitIndex, int texture) {
-        GL33C.glActiveTexture(unit);
-        GL33C.glBindTexture(target, texture);
-        GL33C.glUniform1i(uniform, unitIndex);
+        Gl.glActiveTexture(unit);
+        Gl.glBindTexture(target, texture);
+        Gl.glUniform1i(uniform, unitIndex);
     }
 
     /**
@@ -277,11 +277,11 @@ final class GlVideoContext {
      * the work issued up to here and not whatever a later window queues.
      */
     void awaitDeviceRead() {
-        long fence = GL33C.glFenceSync(GL33C.GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+        long fence = Gl.glFenceSync(GL33C.GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
         if (fence == 0L) {
             // No fence means no way to know, and guessing here is the corruption
             // this method exists to prevent.
-            GL33C.glFinish();
+            Gl.glFinish();
             return;
         }
         try {
@@ -290,13 +290,13 @@ final class GlVideoContext {
             // than a delay. A second of patience is far beyond any real
             // conversion; reaching it means the device is wedged, and finishing
             // is then the only honest thing left to try.
-            int status = GL33C.glClientWaitSync(fence, GL33C.GL_SYNC_FLUSH_COMMANDS_BIT,
+            int status = Gl.glClientWaitSync(fence, GL33C.GL_SYNC_FLUSH_COMMANDS_BIT,
                     1_000_000_000L);
             if (status == GL33C.GL_TIMEOUT_EXPIRED) {
-                GL33C.glFinish();
+                Gl.glFinish();
             }
         } finally {
-            GL33C.glDeleteSync(fence);
+            Gl.glDeleteSync(fence);
         }
     }
 
@@ -324,7 +324,7 @@ final class GlVideoContext {
             rectangle = null;
         }
         if (vao != 0) {
-            GL33C.glDeleteVertexArrays(vao);
+            Gl.glDeleteVertexArrays(vao);
             vao = 0;
         }
     }

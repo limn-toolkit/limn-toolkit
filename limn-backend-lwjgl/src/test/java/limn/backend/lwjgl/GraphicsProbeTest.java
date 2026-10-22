@@ -29,7 +29,7 @@ class GraphicsProbeTest {
     @Test
     void reportsTheContextItIsGiven() {
         HeadlessGl.assumeWindow();
-        GraphicsInfo info = GraphicsProbe.read(HeadlessGl.window(), HeadlessGl.capabilities());
+        GraphicsInfo info = GraphicsProbe.read(HeadlessGl.window());
 
         assertNull(info.failure(), "a live context is not a failure");
         assertTrue(info.available());
@@ -51,7 +51,7 @@ class GraphicsProbeTest {
     @Test
     void namesTheGrantedProfileAndNotTheRequestedOne() {
         HeadlessGl.assumeWindow();
-        GraphicsInfo info = GraphicsProbe.read(HeadlessGl.window(), HeadlessGl.capabilities());
+        GraphicsInfo info = GraphicsProbe.read(HeadlessGl.window());
 
         assertTrue(info.api().startsWith("OpenGL "), "client API: " + info.api());
         assertTrue(info.api().endsWith(" core"), "profile: " + info.api());
