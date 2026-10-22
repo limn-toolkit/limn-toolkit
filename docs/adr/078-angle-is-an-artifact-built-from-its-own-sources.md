@@ -1,8 +1,9 @@
 # ADR 078: ANGLE is an artifact of its own, built from its own sources
 
 - **Status:** Accepted, 2026-10-22. The repository `limn-angle-natives` is written and committed
-  locally (its first build runs on GitHub's runners after it is pushed); the toolkit's side, the
-  loader and the fallback, is ADR 003 §10.
+  locally; its macOS arm64 slice was built on the development Mac the same day, and the other three
+  are built by its workflows once it is pushed. The toolkit's side, the loader and the fallback, is
+  ADR 003 §10.
 - **Date:** 2026-10-22
 
 ## Context
@@ -75,3 +76,23 @@ Three ways to obtain ANGLE were open:
   its platforms (`partialPayloads`), so a payload missing a platform by accident still fails it.
 - A first build fetches several gigabytes and takes hours of CPU; it runs on the runners, never on
   a workstation by default.
+
+## What the first build taught (2026-10-22, macOS arm64, on the development Mac)
+
+- **depot_tools must be bootstrapped explicitly** when its self-update is off, or `gn` finds no Python.
+- **Xcode's Metal toolchain** is a component of its own since Xcode 26, installed with
+  `xcodebuild -downloadComponent MetalToolchain` (839 MB): ANGLE compiles its internal Metal shaders
+  ahead of time whenever it builds for the machine it runs on, with no argument to turn that off.
+- **macOS 11.0 needed one patch.** ANGLE's only availability errors at that floor were four uses of
+  `kIOMainPortDefault`, introduced in macOS 12; `patches/angle-macos-11-main-port.patch` replaces
+  them with `MACH_PORT_NULL`, the constant's value, which IOKit takes on every version. A build with
+  warnings not fatal listed every error first, so the patch is known to be the whole of it.
+- **Perfetto is left out** (`angle_enable_perfetto=false`): ANGLE's optional tracing compiled 115
+  files of it and 134 of protobuf, and its licence field ("blessing", SQLite's dedication, beside
+  BSD and Apache) was refused by the inventory, as it is meant to refuse what it does not recognise.
+  Limn traces nothing through ANGLE.
+- **The result:** `libGLESv2.dylib` 5.9 MB and `libEGL.dylib` 103 KB, arm64, install names the bare
+  file names, linking only the system's, minimum macOS 11.0; compiled from ANGLE (BSD-3-Clause, 328
+  files), abseil, libc++, libc++abi and astc-encoder (Apache-2.0), xxhash (BSD-2-Clause) and zlib.
+  The repository's own test passed on it.
+

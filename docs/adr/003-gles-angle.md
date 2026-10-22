@@ -1204,8 +1204,17 @@ On branch `claude/angle` of this repository:
 
 ### 10.4 Owed
 
-- **The payload's first build and release** (ADR 078): its scripts and workflows are written and its
-  test and rehearsal ran against the stand-in; the gn builds run first on GitHub's runners.
+- **The payload's Windows slices and its release** (ADR 078): the Windows builds need a Windows
+  machine, which is the natives workflow's; the release is the owner's push and Publish.
+
+**The payload's own macOS arm64 build, 2026-10-22,** made on the development Mac at the owner's
+request (ADR 078 records what it took). With it in place of the stand-in: all 1386 backend tests
+pass with ANGLE forced on Metal; four scenes capture as desktop OpenGL does at the same scale
+(components identical, testcard and text at most one level off, widgets 0.2% of pixels by at most
+7); and on the GPU-less macOS guest, with no property set, the window opened on it through the real
+trigger, a transparent window composed over the desktop, and scrolling ran at 46.4 paints a second
+on 5.6% CPU against 5.5 on the software renderer (animation 48 against 65, the one figure where the
+software renderer led).
 - **The Windows run:** the backend's tests on the GPU-less x64 and arm64 runners through the real
   trigger, and the captures compared with the Linux job's (Phase 4), as a job of `ci.yml` once the
   payload is on Central.
