@@ -103,11 +103,14 @@ final class GlRenderer implements GpuRenderer {
     }
 
     private void pollTimerResults() {
+        // EXT_disjoint_timer_query's one rule: a disjoint operation while queries ran makes every
+        // one of them meaningless, and reading the flag clears it, so it is read once per poll.
+        boolean disjoint = Gl.api().timerDisjoint();
         for (int i = 0; i < QUERY_RING; i++) {
             if (!timerInFlight[i]) {
                 continue;
             }
-            int available = Gl.glGetQueryObjecti(timerQueries[i],
+            int available = Gl.glGetQueryObjectui(timerQueries[i],
                     org.lwjgl.opengl.GL33C.GL_QUERY_RESULT_AVAILABLE);
             if (available == 0) {
                 continue;
@@ -115,7 +118,7 @@ final class GlRenderer implements GpuRenderer {
             long nanos = Gl.glGetQueryObjectui64(timerQueries[i],
                     org.lwjgl.opengl.GL33C.GL_QUERY_RESULT);
             timerInFlight[i] = false;
-            if (nanos > 0) { // some macOS drivers report 0, so treat as "no sample"
+            if (nanos > 0 && !disjoint) { // some macOS drivers report 0, so treat as "no sample"
                 pendingGpuMs = nanos / 1_000_000f;
             }
         }

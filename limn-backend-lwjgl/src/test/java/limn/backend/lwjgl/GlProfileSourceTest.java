@@ -109,6 +109,48 @@ class GlProfileSourceTest {
         assertEquals(List.of(), problems);
     }
 
+    /**
+     * The two properties ADR 003 §1.3 says every shader must keep for the ES header swap to be all
+     * the port needs: the desktop version line first, which {@link ShaderProgram#inProfile} replaces,
+     * and nothing ES 3.00 lacks. {@code video_convert_rect.frag} is the one exception, and it is
+     * compiled only where an IOSurface is bound to a desktop context, on macOS.
+     */
+    @Test
+    void everyShaderIsWrittenInTheSharedSubset() throws IOException {
+        Path shaders = RepositoryRoot.find().resolve("limn-backend-lwjgl/src/main/resources/limn/backend/lwjgl/shaders");
+        List<String> problems = new ArrayList<>();
+        try (Stream<Path> files = Files.list(shaders)) {
+            for (Path shader : files.sorted().toList()) {
+                String name = shader.getFileName().toString();
+                String text = Files.readString(shader);
+                if (!text.startsWith(limn.render3d.shader.TargetProfile.GLSL_330.header)) {
+                    problems.add(name + ": does not start with #version 330 core");
+                }
+                if (text.matches("(?s).*layout\\s*\\(\\s*binding.*")) {
+                    problems.add(name + ": layout(binding = …), which GLSL ES 3.00 lacks");
+                }
+                if (text.contains("sampler2DRect") && !name.equals("video_convert_rect.frag")) {
+                    problems.add(name + ": sampler2DRect, which GLSL ES 3.00 lacks");
+                }
+            }
+        }
+        assertEquals(List.of(), problems);
+    }
+
+    @Test
+    void theEsHeaderReplacesTheDesktopLineAndNothingElse() {
+        String body = "in vec2 uv;\nout vec4 color;\nvoid main() { color = vec4(uv, 0.0, 1.0); }\n";
+        String desktop = "#version 330 core\n" + body;
+        assertEquals(desktop, ShaderProgram.inProfile(desktop, limn.render3d.shader.TargetProfile.GLSL_330));
+        assertEquals(limn.render3d.shader.TargetProfile.GLSL_ES_300.header + body,
+                ShaderProgram.inProfile(desktop, limn.render3d.shader.TargetProfile.GLSL_ES_300));
+        // A text block's leading newline and indentation are not part of the version line.
+        assertEquals(limn.render3d.shader.TargetProfile.GLSL_ES_300.header + body,
+                ShaderProgram.inProfile("\n" + desktop, limn.render3d.shader.TargetProfile.GLSL_ES_300));
+        String alreadyEs = "#version 300 es\nprecision highp float;\n" + body;
+        assertEquals(alreadyEs, ShaderProgram.inProfile(alreadyEs, limn.render3d.shader.TargetProfile.GLSL_ES_300));
+    }
+
     private static List<Path> sources() throws IOException {
         Path root = RepositoryRoot.find().resolve("limn-backend-lwjgl/src/main/java/limn/backend/lwjgl");
         try (Stream<Path> files = Files.walk(root)) {

@@ -1,5 +1,7 @@
 package limn.backend.lwjgl;
 
+import limn.render3d.shader.TargetProfile;
+
 import limn.io.Resources;
 
 import static org.lwjgl.opengl.GL33C.GL_COMPILE_STATUS;
@@ -110,7 +112,7 @@ final class ShaderProgram implements AutoCloseable {
 
     private static int compile(int type, String source, String name) {
         int shader = glCreateShader(type);
-        glShaderSource(shader, source);
+        glShaderSource(shader, inProfile(source, Gl.api().shadingProfile()));
         glCompileShader(shader);
         if (glGetShaderi(shader, GL_COMPILE_STATUS) == GL_FALSE) {
             String log = glGetShaderInfoLog(shader);
@@ -118,6 +120,28 @@ final class ShaderProgram implements AutoCloseable {
             throw new IllegalStateException("shader compile failed for " + name + ":\n" + log);
         }
         return shader;
+    }
+
+    /**
+     * {@code source} for the shading language {@code profile} compiles. Every shader here is written
+     * once, in the subset GLSL 3.30 and GLSL ES 3.00 share (ADR 001, quoted at the top of each), and
+     * says so with {@code #version 330 core} as its first line; for ES that line, and only that
+     * line, becomes {@link TargetProfile#GLSL_ES_300}'s header, so the file keeps one version of
+     * the truth (ADR 003 §1.3). A source that starts any other way is the author's to answer for
+     * and is compiled as written.
+     */
+    static String inProfile(String source, TargetProfile profile) {
+        if (profile == TargetProfile.GLSL_330) {
+            return source;
+        }
+        String desktop = TargetProfile.GLSL_330.header;
+        int start = 0;
+        while (start < source.length() && Character.isWhitespace(source.charAt(start))) {
+            start++;
+        }
+        return source.startsWith(desktop, start)
+                ? profile.header + source.substring(start + desktop.length())
+                : source;
     }
 
     private static String readResource(String resource) {

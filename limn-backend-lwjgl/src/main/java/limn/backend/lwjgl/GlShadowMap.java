@@ -38,7 +38,7 @@ final class GlShadowMap {
             Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, fbo);
             Gl.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_DEPTH_ATTACHMENT,
                     GL33C.GL_TEXTURE_2D, depthTexture, 0);
-            Gl.glDrawBuffer(GL33C.GL_NONE); // depth-only: no color buffer
+            Gl.glDrawBuffers(GL33C.GL_NONE); // depth-only: no color buffer (the plural is the one ES has)
             Gl.glReadBuffer(GL33C.GL_NONE);
             Gl.requireFramebufferComplete("shadow", this::dispose);
         } finally {

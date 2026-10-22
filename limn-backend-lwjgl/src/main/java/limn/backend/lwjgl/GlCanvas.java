@@ -453,7 +453,7 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         }
         // A framebuffer with no alpha plane answers 255 everywhere: nothing would be see-through.
         int alphaBits = Gl.glGetFramebufferAttachmentParameteri(
-                org.lwjgl.opengl.GL33C.GL_FRAMEBUFFER, org.lwjgl.opengl.GL33C.GL_BACK_LEFT,
+                org.lwjgl.opengl.GL33C.GL_FRAMEBUFFER, Gl.api().defaultColorBuffer(),
                 org.lwjgl.opengl.GL33C.GL_FRAMEBUFFER_ATTACHMENT_ALPHA_SIZE);
         if (alphaBits == 0) {
             return null;

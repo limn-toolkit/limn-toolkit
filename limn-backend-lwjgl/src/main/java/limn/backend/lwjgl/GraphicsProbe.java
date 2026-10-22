@@ -124,12 +124,16 @@ final class GraphicsProbe {
             try (MemoryStack stack = MemoryStack.stackPush()) {
                 java.nio.IntBuffer answer = stack.ints(0);
                 long at = MemoryUtil.memAddress(answer);
-                org.lwjgl.system.JNI.invokePV(GL33C.GL_CONTEXT_FLAGS, at, glGetIntegerv);
-                flags = answer.get(0);
-                answer.put(0, 0);
-                org.lwjgl.system.JNI.invokePV(GL33C.GL_CONTEXT_PROFILE_MASK, at, glGetIntegerv);
-                profile = answer.get(0);
-                answer.put(0, 0);
+                // Flags and profile mask are the desktop's; ES 3.0 has neither and would answer
+                // with an error, so an ES context's key leaves them 0.
+                if (Gl.api() == DesktopGl.INSTANCE) {
+                    org.lwjgl.system.JNI.invokePV(GL33C.GL_CONTEXT_FLAGS, at, glGetIntegerv);
+                    flags = answer.get(0);
+                    answer.put(0, 0);
+                    org.lwjgl.system.JNI.invokePV(GL33C.GL_CONTEXT_PROFILE_MASK, at, glGetIntegerv);
+                    profile = answer.get(0);
+                    answer.put(0, 0);
+                }
                 org.lwjgl.system.JNI.invokePV(GL33C.GL_NUM_EXTENSIONS, at, glGetIntegerv);
                 int count = answer.get(0);
                 for (int i = 0; glGetStringi != NULL && i < count; i++) {

@@ -263,8 +263,8 @@ final class Gl {
         api.glDrawArrays(mode, first, count);
     }
 
-    static void glDrawBuffer(int buf) {
-        api.glDrawBuffer(buf);
+    static void glDrawBuffers(int buf) {
+        api.glDrawBuffers(buf);
     }
 
     static void glDrawElements(int mode, int count, int type, long indices) {
@@ -359,12 +359,8 @@ final class Gl {
         return api.glGetProgrami(program, pname);
     }
 
-    static int glGetQueryObjecti(int id, int pname) {
-        return api.glGetQueryObjecti(id, pname);
-    }
-
-    static long glGetQueryObjecti64(int id, int pname) {
-        return api.glGetQueryObjecti64(id, pname);
+    static int glGetQueryObjectui(int id, int pname) {
+        return api.glGetQueryObjectui(id, pname);
     }
 
     static long glGetQueryObjectui64(int id, int pname) {
@@ -385,10 +381,6 @@ final class Gl {
 
     static String glGetStringi(int name, int index) {
         return api.glGetStringi(name, index);
-    }
-
-    static int glGetTexLevelParameteri(int target, int level, int pname) {
-        return api.glGetTexLevelParameteri(target, level, pname);
     }
 
     static int glGetUniformBlockIndex(int program, CharSequence uniformBlockName) {

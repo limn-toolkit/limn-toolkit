@@ -1,5 +1,6 @@
 package limn.backend.lwjgl;
 
+import limn.render3d.shader.TargetProfile;
 import org.jspecify.annotations.Nullable;
 import org.lwjgl.system.FunctionProvider;
 
@@ -41,8 +42,25 @@ interface GlApi {
     /** Where this profile looks its entry points up, for the queries made before there are capabilities. */
     FunctionProvider functionProvider();
 
+    /** The shading language this profile compiles: what replaces a shader's {@code #version 330 core}. */
+    TargetProfile shadingProfile();
+
+    /**
+     * How a framebuffer query names the default framebuffer's colour buffer: {@code GL_BACK_LEFT} on
+     * the desktop, where {@code GL_BACK} is not an attachment that query accepts, and {@code GL_BACK}
+     * on ES, which has no left and right.
+     */
+    int defaultColorBuffer();
+
     /** Whether the current context can measure GPU durations (ADR 003 §4.4, gap G2). */
     boolean timerQueries();
+
+    /**
+     * Whether the GPU timings in flight are meaningless because something disjoint happened while
+     * they ran (a frequency change, a context loss): {@code EXT_disjoint_timer_query} reports it and
+     * asks that they be thrown away. Desktop timer queries have no such state, and answer false.
+     */
+    boolean timerDisjoint();
 
     /** Whether the current context can render to {@code RGBA16F} (ADR 004; ADR 003 §4.4). */
     boolean floatColorBuffer();
@@ -134,7 +152,7 @@ interface GlApi {
 
     void glDrawArrays(int mode, int first, int count);
 
-    void glDrawBuffer(int buf);
+    void glDrawBuffers(int buf);
 
     void glDrawElements(int mode, int count, int type, long indices);
 
@@ -182,9 +200,7 @@ interface GlApi {
 
     int glGetProgrami(int program, int pname);
 
-    int glGetQueryObjecti(int id, int pname);
-
-    long glGetQueryObjecti64(int id, int pname);
+    int glGetQueryObjectui(int id, int pname);
 
     long glGetQueryObjectui64(int id, int pname);
 
@@ -195,8 +211,6 @@ interface GlApi {
     String glGetString(int name);
 
     String glGetStringi(int name, int index);
-
-    int glGetTexLevelParameteri(int target, int level, int pname);
 
     int glGetUniformBlockIndex(int program, CharSequence uniformBlockName);
 

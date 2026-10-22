@@ -1,5 +1,6 @@
 package limn.backend.lwjgl;
 
+import limn.render3d.shader.TargetProfile;
 import org.jspecify.annotations.Nullable;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GL33C;
@@ -35,6 +36,21 @@ final class DesktopGl implements GlApi {
     @Override
     public FunctionProvider functionProvider() {
         return GL.getFunctionProvider();
+    }
+
+    @Override
+    public TargetProfile shadingProfile() {
+        return TargetProfile.GLSL_330;
+    }
+
+    @Override
+    public int defaultColorBuffer() {
+        return GL33C.GL_BACK_LEFT;
+    }
+
+    @Override
+    public boolean timerDisjoint() {
+        return false;
     }
 
     @Override
@@ -264,8 +280,8 @@ final class DesktopGl implements GlApi {
     }
 
     @Override
-    public void glDrawBuffer(int buf) {
-        GL33C.glDrawBuffer(buf);
+    public void glDrawBuffers(int buf) {
+        GL33C.glDrawBuffers(buf);
     }
 
     @Override
@@ -384,13 +400,8 @@ final class DesktopGl implements GlApi {
     }
 
     @Override
-    public int glGetQueryObjecti(int id, int pname) {
-        return GL33C.glGetQueryObjecti(id, pname);
-    }
-
-    @Override
-    public long glGetQueryObjecti64(int id, int pname) {
-        return GL33C.glGetQueryObjecti64(id, pname);
+    public int glGetQueryObjectui(int id, int pname) {
+        return GL33C.glGetQueryObjectui(id, pname);
     }
 
     @Override
@@ -416,11 +427,6 @@ final class DesktopGl implements GlApi {
     @Override
     public String glGetStringi(int name, int index) {
         return GL33C.glGetStringi(name, index);
-    }
-
-    @Override
-    public int glGetTexLevelParameteri(int target, int level, int pname) {
-        return GL33C.glGetTexLevelParameteri(target, level, pname);
     }
 
     @Override

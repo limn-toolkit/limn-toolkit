@@ -810,7 +810,7 @@ final class Gl3DContext {
             // by hand). GlslCodegen reproduces that shader; verified by golden +
             // pixel tests.
             pbrProgram = link(GlslCodegen.generate(
-                    StandardSurface.metallicRoughness(), TargetProfile.GLSL_330),
+                    StandardSurface.metallicRoughness(), Gl.api().shadingProfile()),
                     List.of(), List.of());
             surfacePrograms.put(PBR_KEY, pbrProgram);
         }
@@ -844,7 +844,7 @@ final class Gl3DContext {
             valueNames.add(value.name());
         }
         SurfaceProgram created = link(GlslCodegen.generate(surface.outputs(),
-                declarations(samplerNames, valueNames), TargetProfile.GLSL_330),
+                declarations(samplerNames, valueNames), Gl.api().shadingProfile()),
                 samplerNames, valueNames);
         surfacePrograms.put(surface.key(), created);
         warnOfManyPrograms();
