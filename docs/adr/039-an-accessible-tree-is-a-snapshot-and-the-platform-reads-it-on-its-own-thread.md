@@ -2605,12 +2605,16 @@ process shows (a file chooser, the print dialog, a printer's prompt for a file n
 in another process from its own thread, which the toolkit cannot move. Read before anything else of
 the process, the save chooser killed it in six runs of six and the PDF printer's prompt in every run,
 on the print system's own thread too when the print ran in the multithreaded apartment; neither an x64
-JDK nor two native ARM64 processes showing the same dialogs died, and once a client of the process had
+JDK nor a native ARM64 shell showing the same chooser, read cold, died (the system's text editor
+survived as well, but had been driven through UI Automation first), and once a client of the process had
 read anything from a thread of the multithreaded apartment, every dialog after it answered (twelve
 runs). So before the first such dialog the backend creates the system's automation client on a daemon
 thread of the multithreaded apartment and reads the desktop root's name (`UiaClientWarmUp`, ARM64
 only, once, about 16 ms); the earlier sentence that a file dialog "read whole" held only because the
-client had read the window first.
+client had read the window first. Why an ARM64 JVM differs is open: the module lists read on the guest
+before any client came show the automation core loaded in every one of these processes (a system
+dialog loads it), and the same automation and text-input modules in the x64 and the ARM64 JVM; telling
+the JVM from the ARM64 system libraries needs a minimal native program read cold, or a debugger.
 
 ~~So the `WM_GETOBJECT` handler calls `Host#republishNow()` before it returns the root provider.~~
 **Measured false on 2026-09-07, and the opposite is what works.** The handler was allowed to publish

@@ -27,10 +27,14 @@ import static org.lwjgl.system.MemoryUtil.NULL;
  * ({@code RPC_E_CANTCALLOUT_ININPUTSYNCCALL}), and nothing caught the refusal: a client reading the
  * save chooser before anything else of the process killed it in six runs of six, and the printer's
  * prompt in every run, whether the print ran in a single-threaded apartment or the multithreaded one
- * (the system then shows the prompt on a thread of its own, and that thread died instead). Neither
- * an x64 JDK on the same machine, nor two native ARM64 processes showing the same dialogs (the
- * system's text editor and its shell), died under the same client; so the first answer is the
- * question, not the dialog. Once a client of this process had read anything from a thread of the
+ * (the system then shows the prompt on a thread of its own, and that thread died instead). An x64
+ * JDK on the same machine did not die, nor did a native ARM64 shell showing the same save chooser,
+ * read cold by the same client (the system's text editor survived too, but it had been driven
+ * through UI Automation to open its print dialog, so it was not cold). Which part of an ARM64 JVM
+ * makes the difference is not known: every one of these processes had the automation core loaded
+ * before the client came (a system dialog loads it), and the x64 and ARM64 JVMs had the same
+ * automation and text-input modules, read on the guest. What is known is that the first answer is
+ * the question, not the dialog. Once a client of this process had read anything from a thread of the
  * multithreaded apartment, every dialog after it answered the outside client in every run: three of
  * three with the desktop's root read here, three of three with this process's own window, four of
  * four when the outside client had read the application's window first, and two of two through the
