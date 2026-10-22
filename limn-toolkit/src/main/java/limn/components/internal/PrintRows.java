@@ -9,9 +9,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 /**
- * What a list, a table or a tree answers a printed document that cuts it between rows (ADR 078
- * §6.2): how many rows there are, how tall each is at the width it is laid out at, how much of the
- * box is not rows (a table's header), and the row to begin the box with. A page then lays the widget
+ * What a list, a table or a tree answers a printed document that cuts it between rows: how many
+ * rows there are, how tall each is at the width it is laid out at, how much of the box is not rows
+ * (a table's header), and the row to begin the box with. A page then lays the widget
  * out exactly as tall as its header and the rows that fit, from that row: every row of the widget
  * is printed, a page's worth realized at a time, and a table's header is on every page because it is
  * on every box.

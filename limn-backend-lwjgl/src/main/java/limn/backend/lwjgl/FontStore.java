@@ -168,7 +168,7 @@ final class FontStore implements AutoCloseable {
     private Throwable heavyFallbacksFailure;
     /**
      * Completed once the heavy fallbacks have landed or failed; null until they are asked for.
-     * What a printed page waits on before it records its text for good (ADR 078 §7.2).
+     * What a printed page waits on before it records its text for good.
      */
     private java.util.concurrent.CompletableFuture<Void> heavyFallbacksDone;
     private boolean systemScanRequested;

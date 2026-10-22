@@ -5,7 +5,7 @@ import limn.backend.spi.PrintJob;
 
 import java.util.function.Consumer;
 
-/** Windows' print dialog and Direct2D's print control (ADR 078 §8.2). Not written yet: answers unavailable. */
+/** Windows' print dialog and Direct2D's print control. Not written yet: answers unavailable. */
 final class WindowsPrinter {
 
     private WindowsPrinter() {

@@ -27,7 +27,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * A canvas that writes what is drawn into it as a PDF page's content (ADR 078 §7.3): shapes as
+ * A canvas that writes what is drawn into it as a PDF page's content: shapes as
  * paths, colours and gradients as fills and shadings, layers as transparency groups, images as
  * image objects, text as Type 3 glyphs that keep their characters. What has no PDF form becomes a
  * picture at the document's raster resolution (a soft shadow), or the fallback the {@link Canvas}
@@ -653,7 +653,8 @@ final class PdfCanvas implements Canvas {
         float sx = dstW / srcW;
         float sy = dstH / srcH;
         try {
-            String name = tint.equals(Color.WHITE) ? writer.image(image, smooth()) : writer.tinted(image, tint, smooth());
+            String name = tint.equals(Color.WHITE)
+                    ? writer.image(image, smooth()) : writer.tinted(image, tint, smooth());
             StringBuilder ops = ops();
             ops.append("q\n").append(PdfPaths.rect(dstX, dstY, dstW, dstH)).append("W n\n");
             drawXObject(name, dstX - srcX * sx, dstY - srcY * sy, image.width() * sx, image.height() * sy, 1);

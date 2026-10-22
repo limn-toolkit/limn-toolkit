@@ -47,7 +47,7 @@ import org.jspecify.annotations.Nullable;
  * @param audioEngine   plays sound, or {@code null} for no audio device
  * @param audioDecoder  decodes sound files, or {@code null} when there is no audio at all
  * @param glyphOutlines the outlines of the glyphs the text ruler shapes, which a printed document
- *                      writes as text, or {@code null} for none (ADR 078 §7.2)
+ *                      writes as text, or {@code null} for none
  */
 public record BackendServices(UiRuntime ui, TextRuler textRuler, FontCatalog fontCatalog,
                               FontLoader fontLoader, ImageDecoder imageDecoder,
@@ -65,7 +65,7 @@ public record BackendServices(UiRuntime ui, TextRuler textRuler, FontCatalog fon
     }
 
     /**
-     * The services of a backend that outlines no glyph, as the record stood before ADR 078.
+     * The services of a backend that outlines no glyph, as the record stood before glyph outlines were added.
      */
     public BackendServices(UiRuntime ui, TextRuler textRuler, FontCatalog fontCatalog,
                            FontLoader fontLoader, ImageDecoder imageDecoder,

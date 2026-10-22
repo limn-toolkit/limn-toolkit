@@ -27,7 +27,7 @@ import java.util.concurrent.CompletionStage;
  * saved earlier) is printed by the calls below without a document.
  *
  * <p>The system scales a page to the printer's paper when the two differ, and never up; it does not
- * lay the document out again (ADR 078 §8.1).
+ * lay the document out again.
  *
  * <p>Each call returns at once and completes on the UI thread. It throws for a null and off the UI
  * thread, as the rest of the window's API does, and never for what the PDF holds: a file that

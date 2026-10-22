@@ -416,7 +416,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     private final Rows<Cell> engine = new Rows<>(new RowsEngineHost());
 
     static {
-        // A printed document cuts a tree between rows, a page's worth realized at a time (ADR 078 §6.2).
+        // A printed document cuts a tree between rows, a page's worth realized at a time.
         limn.components.internal.PrintRows.register(Tree.class, widget -> ((Tree<?>) widget).new PrintView());
     }
 

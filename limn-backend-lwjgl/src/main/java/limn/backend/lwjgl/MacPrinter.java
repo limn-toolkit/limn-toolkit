@@ -5,7 +5,7 @@ import limn.backend.spi.PrintJob;
 
 import java.util.function.Consumer;
 
-/** macOS's print panel over PDFKit (ADR 078 §8.2). Not written yet: answers unavailable. */
+/** macOS's print panel over PDFKit. Not written yet: answers unavailable. */
 final class MacPrinter {
 
     private MacPrinter() {

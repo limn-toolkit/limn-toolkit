@@ -8,7 +8,7 @@ import java.util.concurrent.CompletionStage;
 /**
  * What a backend's window implements so that {@link limn.backend.Printer} can print through it: the
  * system's own print dialog, owned by the window, and the hand-over of a PDF to the system once the
- * dialog is confirmed (ADR 078 §8).
+ * dialog is confirmed.
  *
  * <p>Called on the UI thread. The stage completes on the UI thread, and the UI thread is never
  * blocked while the dialog is open: the window waits, as it does for the system's file choosers.

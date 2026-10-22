@@ -9,7 +9,7 @@ import java.util.function.Function;
 
 /**
  * Where a widget that holds lines of text may be cut by a page without cutting a line in half
- * (ADR 078 §6.2): the boundaries between its lines, as offsets from its top, at the layout it last
+ *: the boundaries between its lines, as offsets from its top, at the layout it last
  * had. A widget that does not answer is cut only above or below it.
  *
  * <p>Not API. A widget registers how it answers from its own static initializer; {@code limn.print}

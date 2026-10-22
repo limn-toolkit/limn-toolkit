@@ -29,9 +29,9 @@ import java.util.Objects;
  *
  * <p>What it says it is: the frame size of the scene being painted now ({@link #setFrame}), which the
  * scene lays out to, and a content scale of the document's raster resolution over 96, so an icon
- * drawn as a bitmap is drawn at the resolution of print (ADR 078 §5.1). What it does not keep:
+ * drawn as a bitmap is drawn at the resolution of print. What it does not keep:
  * {@code clear} and {@code clearRect}, which wipe a window's frame and have nothing to wipe on paper,
- * and {@code drawSurface}, whose GPU texture no page can hold (§7.3); the first of those per page is
+ * and {@code drawSurface}, whose GPU texture no page can hold; the first of those per page is
  * logged.
  *
  * <p>UI thread only, as every canvas a scene paints into.
@@ -463,7 +463,7 @@ public final class RecordingCanvas implements Canvas {
     @Override
     public void drawSurface(GpuSurface surface, float x, float y, float w, float h) {
         // A GPU texture (a video's frame, a 3D view) has no picture a page can hold: it is left out,
-        // said once per page (ADR 078 §7.3).
+        // said once per page.
         if (!surfaceLogged) {
             surfaceLogged = true;
             LOG.log(System.Logger.Level.WARNING, "a video or 3D view is left out of a printed page: a GPU "

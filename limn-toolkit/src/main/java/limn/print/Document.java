@@ -29,7 +29,7 @@ import java.util.concurrent.CompletionStage;
 import java.util.function.Function;
 
 /**
- * What a business application prints or saves as PDF: widgets the toolkit cuts into pages (ADR 078).
+ * What a business application prints or saves as PDF: widgets the toolkit cuts into pages.
  *
  * <pre>{@code
  * Document order = Document.of(Paper.A4)
@@ -51,25 +51,26 @@ import java.util.function.Function;
  * components it shows on screen, over the same data, and does not lend it widgets that are in a
  * window: a widget belongs to one scene, and a document paints each block in a scene of its own that
  * no window shows. In that scene nothing has focus, nothing is hovered, nothing scrolls, every
- * animation is at its end, and the palette is the document's (§5.2).
+ * animation is at its end, and the palette is the document's.
  *
  * <p><b>The page.</b> A document unit is 1/96 inch, the convention a browser prints with: a body
  * label of 13 units prints at 9.75 points. Every block takes the width of the content box (the paper
  * less its margins) and as much height as it measures to; a block that does not fit in what is left
  * of a page is cut where it can be cut (between the lines of a label, between the children of a
  * column or the rows of a grid, between the rows of a list, a table or a tree), or moved whole to
- * the next page, or, taller than a page and with nowhere to cut, sliced at the page's height (§6).
+ * the next page, or, taller than a page and with nowhere to cut, sliced at the page's height.
  * A list, a table or a tree is cut between rows only as a block of its own: every row is printed,
  * a page's worth realized at a time, and a table's header is on every page. Inside another block it
  * prints the box it measures to.
  *
  * <p><b>What a page holds that a PDF cannot.</b> A soft shadow is a picture at the document's raster
  * resolution ({@link #rasterDpi}, 300 by default), as is an icon; a backdrop effect is its tint; a
- * video or a 3D view is left out, with a warning (§7.3).
+ * video or a 3D view is left out, with a warning.
  *
  * <p>UI thread only: a document holds widgets. Its pages are recorded on the UI thread when
  * {@link #writePdf} or {@link #print} is called or a {@link PrintPreview} asks for them, and again
- * once a face the text asked for has loaded; the PDF's bytes are written on a worker. A document can be written, printed and previewed any number of times; each
+ * once a face the text asked for has loaded; the PDF's bytes are written on a worker. A document
+ * can be written, printed and previewed any number of times; each
  * records its pages afresh, so what the widgets show at that moment is what is printed.
  */
 public final class Document {
@@ -339,7 +340,7 @@ public final class Document {
     /**
      * Records the pages, and records them again once no face the text asked for is still loading:
      * a script's fallback face arrives in the background on its first need, and a page recorded
-     * before it lands holds boxes where that script's text is (ADR 078 §7.2). UI thread; {@code then}
+     * before it lands holds boxes where that script's text is. UI thread; {@code then}
      * runs on the UI thread, at once when nothing was loading.
      */
     void recordSettled(java.util.function.Consumer<Pages.Result> then, java.util.function.Consumer<Throwable> failed) {
@@ -478,7 +479,7 @@ public final class Document {
      * Prints the document through the system's own print dialog, owned by {@code window}: the pages
      * are recorded on the UI thread (again once a face the text asked for has loaded), the PDF is
      * written on a worker, and the window's {@link limn.backend.Printer}
-     * hands it to the system (ADR 078 §8). The dialog chooses the printer and may save the job as PDF
+     * hands it to the system. The dialog chooses the printer and may save the job as PDF
      * where the system offers it; it scales a page to other paper, never re-flowing it.
      *
      * @param window the window that owns the dialog

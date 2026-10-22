@@ -23,7 +23,7 @@ import static org.lwjgl.util.harfbuzz.HarfBuzz.hb_font_draw_glyph;
 
 /**
  * The glyph outlines of the faces this backend's font store shapes with, for a printed page that
- * writes text as text (ADR 078 §7.2).
+ * writes text as text.
  *
  * <p>HarfBuzz draws each outline, through the font the shaper already made for the face: the face
  * that shaped the run is the face that is outlined, a TrueType, CFF or CFF2 outline alike. Where

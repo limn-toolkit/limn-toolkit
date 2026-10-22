@@ -190,7 +190,7 @@ public final class Label extends Widget<Label> {
     private final List<ShapedText> lines = new ArrayList<>();
 
     static {
-        // A printed page may cut a wrapped label between its lines (ADR 078 §6.2).
+        // A printed page may cut a wrapped label between its lines.
         limn.components.internal.LineCuts.register(Label.class, widget -> ((Label) widget).lineCuts());
     }
 

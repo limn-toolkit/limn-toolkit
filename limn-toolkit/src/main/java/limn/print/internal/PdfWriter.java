@@ -23,7 +23,7 @@ import java.util.TreeSet;
 /**
  * A document's PDF, page by page: each recorded page replayed into a {@link PdfCanvas}, its content
  * stream and the objects it names written as they come, and the fonts, the page tree and the
- * catalog written at the end (ADR 078 §7).
+ * catalog written at the end.
  *
  * <p>PDF 1.7 in DeviceRGB, the toolkit's colours being sRGB. The information dictionary carries the
  * title and "Limn" as the producer and no date, so the same pages give the same bytes; the catalog
@@ -128,7 +128,7 @@ public final class PdfWriter {
         if (name == null) {
             String mode = switch (blend) {
                 case MULTIPLY -> "/Multiply";
-                // PDF has no linear add; Screen is the nearest of its separable modes (ADR 078 §7.3).
+                // PDF has no linear add; Screen is the nearest of its separable modes.
                 case ADDITIVE -> "/Screen";
                 default -> "/Normal";
             };
@@ -172,8 +172,8 @@ public final class PdfWriter {
 
     private String shading(Paint gradient, Color start, Color end, String space) throws IOException {
         boolean gray = space.equals("/DeviceGray");
-        String c0 = gray ? Pdf.num(start.r()) : Pdf.num(start.r()) + " " + Pdf.num(start.g()) + " " + Pdf.num(start.b());
-        String c1 = gray ? Pdf.num(end.r()) : Pdf.num(end.r()) + " " + Pdf.num(end.g()) + " " + Pdf.num(end.b());
+        String c0 = gray ? Pdf.num(start.r()) : rgb(start);
+        String c1 = gray ? Pdf.num(end.r()) : rgb(end);
         String function = "<</FunctionType 2/Domain[0 1]/C0[" + c0 + "]/C1[" + c1 + "]/N 1>>";
         String body;
         if (gradient instanceof LinearGradient l) {
@@ -189,6 +189,10 @@ public final class PdfWriter {
         String name = "Sh" + (++counter);
         resources.put(name, file.object(body));
         return name;
+    }
+
+    private static String rgb(Color color) {
+        return Pdf.num(color.r()) + " " + Pdf.num(color.g()) + " " + Pdf.num(color.b());
     }
 
     /** @return a pattern painting the gradient, placed by {@code matrix} from the pattern space */
@@ -291,7 +295,8 @@ public final class PdfWriter {
     String form(PdfCanvas.Content content, float x, float y, float width, float height) throws IOException {
         String name = "Fm" + (++counter);
         resources.put(name, file.stream("/Type/XObject/Subtype/Form/BBox[" + Pdf.num(x) + " " + Pdf.num(y) + " "
-                        + Pdf.num(x + width) + " " + Pdf.num(y + height) + "]/Group<</S/Transparency/CS/DeviceRGB/I true>>"
+                        + Pdf.num(x + width) + " " + Pdf.num(y + height) + "]"
+                        + "/Group<</S/Transparency/CS/DeviceRGB/I true>>"
                         + "/Resources" + resourceDictionary(content.used()),
                 content.ops().getBytes(StandardCharsets.ISO_8859_1), true));
         return name;

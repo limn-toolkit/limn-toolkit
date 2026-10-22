@@ -844,7 +844,7 @@ public final class SceneAccess {
     }
 
     /**
-     * Makes {@code scene} the scene of a printed document's widgets (ADR 078 §5.2): its widgets
+     * Makes {@code scene} the scene of a printed document's widgets: its widgets
      * paint with {@code palette} wherever they ask for theirs through the widget, whatever the
      * process's palette is. Not API: {@code limn.print} makes a page's scenes, and nothing else does.
      *

@@ -476,7 +476,7 @@ public final class ScrollBar extends Widget<ScrollBar> {
         canvas.fillRoundRect(t[0], t[1], t[2], t[3], radius, Theme.of(this).textMuted().withAlpha(alpha));
     }
 
-    /** Whether this bar is on a printed page, where nothing scrolls and no bar is drawn (ADR 078 §5.2). */
+    /** Whether this bar is on a printed page, where nothing scrolls and no bar is drawn. */
     private boolean printed() {
         limn.scene.Scene scene = scene();
         return scene != null && limn.scene.internal.SceneAccess.printPalette(scene) != null;

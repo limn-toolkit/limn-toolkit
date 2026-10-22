@@ -3,7 +3,7 @@ package limn.print.internal;
 import limn.graphics.RoundRect;
 
 /**
- * A soft shadow as a picture, since PDF cannot blur (ADR 078 §7.3): the rounded rectangle's
+ * A soft shadow as a picture, since PDF cannot blur: the rounded rectangle's
  * coverage, blurred by a Gaussian whose deviation is half the shadow's blur, as a style sheet's
  * {@code box-shadow} reads its blur.
  *

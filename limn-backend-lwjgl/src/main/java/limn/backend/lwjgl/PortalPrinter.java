@@ -5,7 +5,7 @@ import limn.backend.spi.PrintJob;
 
 import java.util.function.Consumer;
 
-/** The desktop portal's print dialog on Linux (ADR 078 §8.2). Not written yet: answers unavailable. */
+/** The desktop portal's print dialog on Linux. Not written yet: answers unavailable. */
 final class PortalPrinter {
 
     private PortalPrinter() {

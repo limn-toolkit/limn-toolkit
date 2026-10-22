@@ -254,7 +254,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
     private final Rows<Slot> engine = new Rows<>(new RowsEngineHost());
 
     static {
-        // A printed document cuts a table between rows, a page's worth realized at a time (ADR 078 §6.2).
+        // A printed document cuts a table between rows, a page's worth realized at a time.
         limn.components.internal.PrintRows.register(Table.class, widget -> ((Table<?>) widget).new PrintView());
     }
 

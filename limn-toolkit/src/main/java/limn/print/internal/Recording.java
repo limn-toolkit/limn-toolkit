@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * One page's drawing, kept as the calls that made it: the one picture of a page (ADR 078 §7.1). The
+ * One page's drawing, kept as the calls that made it: the one picture of a page. The
  * PDF writer replays it into a canvas that writes PDF, and the preview replays it into a window's
  * canvas, so the page on screen and the page in the file come from the same calls.
  *

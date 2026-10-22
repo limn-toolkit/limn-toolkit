@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The document's text as Type 3 fonts (ADR 078 §7.2): each glyph a drawing of its outline, written
+ * The document's text as Type 3 fonts: each glyph a drawing of its outline, written
  * once, and each code of a font mapped back to the characters it stands for, so the text of the PDF
  * can be selected, copied and searched.
  *

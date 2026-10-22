@@ -192,7 +192,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
     private final Rows<Widget<?>> engine = new Rows<>(new RowsEngineHost());
 
     static {
-        // A printed document cuts a list between rows, a page's worth realized at a time (ADR 078 §6.2).
+        // A printed document cuts a list between rows, a page's worth realized at a time.
         limn.components.internal.PrintRows.register(ListView.class, widget -> ((ListView<?>) widget).new PrintView());
     }
 

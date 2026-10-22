@@ -13,7 +13,7 @@ import java.util.Map;
 /**
  * The outlines of every glyph a document's pages draw, read from the backend while the pages are
  * recorded, on the UI thread where the backend's faces live, so that the PDF can be written on a
- * worker without asking the backend anything (ADR 078 §10).
+ * worker without asking the backend anything.
  *
  * <p>An outline is kept once per face and glyph, in the face's own units, y up; a cluster drawn
  * from its characters (a colour emoji, a run whose face was evicted) is kept as the pieces the

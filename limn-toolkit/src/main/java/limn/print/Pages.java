@@ -23,7 +23,7 @@ import java.util.TreeSet;
 import java.util.function.Function;
 
 /**
- * Cuts a document into pages and records them (ADR 078 §6): the blocks laid out top to bottom in
+ * Cuts a document into pages and records them: the blocks laid out top to bottom in
  * each page's content box, a block that does not fit cut where it can be cut or moved to the next
  * page, a list, a table or a tree cut between rows with a page's worth of rows realized at a time,
  * and the header and the footer drawn on every page once the count is known.
@@ -214,7 +214,7 @@ final class Pages {
                     from = cut;
                 } else if (page.isEmpty()) {
                     // Nothing can be cut, and a whole page is not enough: the last resort, a slice
-                    // at the page's height (ADR 078 §6.1, item 4).
+                    // at the page's height.
                     page.add(new Placement(block, from, room, y, -1));
                     from += room;
                 }
@@ -244,7 +244,8 @@ final class Pages {
         if (block.natural >= 0) {
             return block.natural;
         }
-        float height = Objects.requireNonNull(block.widget).measure(new Constraints(0, contentW, 0, Constraints.UNBOUNDED_LIMIT)).height();
+        float height = Objects.requireNonNull(block.widget)
+                .measure(new Constraints(0, contentW, 0, Constraints.UNBOUNDED_LIMIT)).height();
         height = Math.max(1, (float) Math.ceil(height));
         settle(block, contentW, height);
         block.natural = height;

@@ -323,7 +323,7 @@ public final class Scene {
 
     private limn.graphics.TextRuler textRuler;
 
-    /** The palette a printed page's scene paints with (ADR 078 §5.2); null for every other scene. */
+    /** The palette a printed page's scene paints with; null for every other scene. */
     private @Nullable Object printPalette;
 
     /** Overrides the text measurer (tests use deterministic fake metrics). */

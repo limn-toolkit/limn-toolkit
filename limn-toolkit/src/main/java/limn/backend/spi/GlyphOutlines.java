@@ -10,7 +10,7 @@ import java.util.Objects;
 /**
  * The outlines of the glyphs a {@link limn.graphics.ShapedText} names, for a writer that draws text
  * as text rather than as pixels: a PDF page keeps each glyph as its outline and maps it back to the
- * characters it stands for (ADR 078 §7.2).
+ * characters it stands for.
  *
  * <p>A shaped run names its face by a number only the ruler that shaped it understands
  * ({@link limn.graphics.ShapedText.Run#faceId()}); the backend that installed that ruler is the one

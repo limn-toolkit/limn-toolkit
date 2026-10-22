@@ -545,7 +545,7 @@ public final class Theme {
         Objects.requireNonNull(widget, "widget");
         limn.scene.Scene scene = widget.scene();
         if (scene != null && limn.scene.internal.SceneAccess.printPalette(scene) instanceof Theme paper) {
-            // A printed page's scene paints with the document's palette (ADR 078 §5.2).
+            // A printed page's scene paints with the document's palette.
             return paper;
         }
         return current;
