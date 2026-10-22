@@ -1,8 +1,9 @@
 # ADR 078: A document is widgets cut into pages, and every page leaves as PDF
 
-- **Status:** Proposed, 2026-10-22, with every question answered by the owner the same day
-  (section 1); section 12 holds the measurements owed on the guests before this record can be
-  accepted. Nothing is built.
+- **Status:** Accepted and implemented, 2026-10-22. Every question was answered by the owner the
+  same day (section 1); section 12's measurements were taken on the four guests and the host, and
+  route A was measured to work on Windows; section 15 records what was built, where it departed,
+  and what stays open.
 - **Date:** 2026-10-22
 - **Scope:** what a business application prints or saves as PDF: an order, an invoice, a report of
   a table that runs to many pages, a chart. How the application describes it (widgets, in a
@@ -532,8 +533,8 @@ Probes with no toolkit window first, as for the tray, on the four guests of the 
 
 ## 15. As built (2026-10-22)
 
-Steps 1 to 4 and the guide and CHANGELOG of step 6 are built in `limn-toolkit`, at 4,107 lines in
-`limn.print` against the 5,000 to 7,000 of section 3.1's estimate; step 5 is section 15.3. What
+Every step is built: `limn.print` in `limn-toolkit`, at 4,107 lines against the 5,000 to 7,000 of
+section 3.1's estimate, and the three doors in the backend, at about 1,900 lines. What
 the build departed from, and what it found, in the order of the sections above.
 
 ### 15.1. Departures
@@ -577,9 +578,57 @@ take every transition to its end. A list, a table and a tree each register a vie
 engine (`PrintRows`), and a label its line boundaries (`LineCuts`), from their static
 initializers, in internal packages, so no public type names an internal one.
 
-### 15.3. The three doors
+### 15.3. The three doors, measured on the guests (section 12, items 1 to 3)
 
-To be filled from the doors' build and the guests' measurements (section 12, items 1 to 3).
+- **Windows, route A, on Windows 11 ARM64 (build 26100), with an x64 and an ARM64 JDK.** A plain
+  desktop process activates `Windows.Data.Pdf`, from the desktop session and from session 0 alike;
+  the renderer draws a page into a Direct2D command list, and the print control prints it with the
+  text as text: the system's PDF printer wrote embedded fonts and no image, and the host's reader
+  extracted every line. A ten-page table (a 74,510-byte PDF in) was a 131,460-byte job in 734 ms,
+  125 of them the renderer's; through the door with the dialog confirmed, 130,610 bytes. So route A
+  is the route and route B is not built. `PrintDlgExW` runs on a thread of its own, owned by the
+  window, with the document's paper in its starting `DEVMODE` (a standard paper when it is within a
+  millimetre, a custom one otherwise) and its page count; the chosen range is printed, and the
+  `DEVMODE` becomes the job's print ticket. Cancelling the dialog answers `CANCELLED`; Escape on
+  the system's "save the print output as" prompt answered `FAILED` (`0x8007003F` from the package
+  target) and is now mapped to `CANCELLED`, mapped from the measured codes and not run again since.
+  **On Windows 11 `PrintDlgEx` shows the system's modern print dialog**, hosted outside the process:
+  it disables the window while it is open, it has no preview ("this application does not support
+  print preview"), and its title is the process's name, which for an application run on a bare JDK
+  is the JDK's. A packaged application is named by its own executable.
+- **macOS, on the macOS guest (27.0).** The print panel opens as a sheet on the GLFW window, with
+  the system's preview of the pages, paper and orientation; Escape answers `CANCELLED` on the UI
+  thread, and "Save as PDF" answers `PRINTED` with a file whose text the host's reader extracts. A
+  window not shown runs the panel as a window of its own, application-modal. Every call is on the
+  macOS 11 floor: nothing used needs more than 10.7, read from the SDK's headers. Building the panel
+  the first time holds the main thread 436 to 702 ms, which is AppKit's and cannot leave it.
+- **Linux, on Ubuntu 24.04 GNOME (X11) and Fedora 44 KDE (Wayland).** The portal's `PreparePrint`
+  and `Print`, with the PDF as a sealed memory file passed over a connection of the door's own
+  (`socket`, `connect` and `sendmsg` with `SCM_RIGHTS` through libc, SASL with unix-fd negotiation);
+  the toolkit's D-Bus client gained the header field and an encoder for it, and its shared
+  connections still never negotiate descriptors. Under X11 the dialog is the portal's, transient for
+  the window and modal; under Wayland it opens with no parent, since GLFW exports no handle the
+  portal can take. "Print to file" answered `PRINTED` on both with a byte-for-byte copy of the PDF,
+  read by the guests' PDF utilities; both portals took the token on the second call without showing
+  the dialog again. The GNOME portal answers Escape on `PreparePrint` with 2 where its Cancel button
+  answers 1; both are `CANCELLED`, since no job was handed over, while a 2 from `Print` stays
+  `FAILED`. `isAvailable()` reads the portal's `version` once, waiting at most 250 ms, and keeps the
+  answer, read again in the background after a minute.
+
+### 15.5. What stays open
+
+- **A real printer queue on Linux.** Neither Linux guest has one, and making one changes the guest.
+- **Ubuntu under Wayland**, and a parent for the portal's dialog under Wayland, which needs an
+  exported toplevel GLFW does not give.
+- **Escape on the Windows save prompt** answering `CANCELLED` is mapped from the measured codes and
+  not run since.
+- **A screen reader over the preview.** It publishes a group and a scroll pane, shapes every bridge
+  already reads, so no reader run was made for it.
+- **Found while measuring, not caused by printing:** on Windows ARM64 with an ARM64 JDK, an
+  automation client walking the desktop's windows crashed the process with
+  `RPC_E_CANTCALLOUT_ININPUTSYNCCALL` inside the system's automation core, once in the window's
+  accessibility bridge with no print dialog open; the x64 JDK did not. It is a defect of the
+  accessibility bridge on that platform and is kept apart from this record.
 
 ### 15.4. Measured on the host (section 12, item 4)
 
