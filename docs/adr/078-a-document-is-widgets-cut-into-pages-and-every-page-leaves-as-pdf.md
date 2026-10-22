@@ -1,8 +1,8 @@
 # ADR 078: A document is widgets cut into pages, and every page leaves as PDF
 
-- **Status:** Proposed, 2026-10-22, with the owner's answers of the same day in section 1. Two
-  questions are still open on a recommendation (section 1.2); section 12 holds the measurements
-  owed on the guests before this record can be accepted. Nothing is built.
+- **Status:** Proposed, 2026-10-22, with every question answered by the owner the same day
+  (section 1); section 12 holds the measurements owed on the guests before this record can be
+  accepted. Nothing is built.
 - **Date:** 2026-10-22
 - **Scope:** what a business application prints or saves as PDF: an order, an invoice, a report of
   a table that runs to many pages, a chart. How the application describes it (widgets, in a
@@ -92,26 +92,23 @@ What exists that this record builds on, read at `63780536`:
    only if the measurement refuses route A.
 5. **No accessible PDF is planned now.** No tags, no PDF/UA, and the recording does not keep which
    widget drew what (section 11). A later record may take it up; it would redo the recording.
+6. **Glyphs as outlines, written as Type 3 fonts with a map back to Unicode** (section 7.2), the
+   recommendation. Text stays text: it can be selected, copied and searched, and it is sharp at
+   any zoom. It works the same for every face Limn can load (TrueType, CFF, a variable font at its
+   instance) with no font parser, because HarfBuzz already draws each outline. Embedding a subset
+   of each font file would give smaller files for long text-heavy documents and hinted text in a
+   viewer, but it needs a TrueType and a CFF subsetter written here (the LWJGL binding has no
+   `hb-subset`), and a variable font cannot be embedded at an instance at all. A later 1.x can add
+   it under the same API.
+7. **The paper is painted with the light theme of the window's theme family** (section 5.2), the
+   recommendation: `light()` for `dark()`, `limnLight()` for `limn()`, and `Document.theme(Theme)`
+   for anything else, the window's own theme included. A dark window printed as it is spends a page
+   of toner on the background, and a PDF is read later on a white page.
 
-### 1.2. Open, on the recommendation
+Answers 6 and 7 were given after the artifact question, which the owner had answered in their
+place when they were first put.
 
-The questions below were put on 2026-10-22 and not answered, because the owner answered the
-artifact question instead. The record is written on each recommendation; an answer that differs
-changes the sections named.
-
-1. **Glyphs as outlines, or fonts embedded** (section 7.2). *Recommended: outlines, written as Type 3
-   fonts with a map back to Unicode.* Text stays text: it can be selected, copied and searched, and
-   it is sharp at any zoom. It works the same for every face Limn can load (TrueType, CFF, a
-   variable font at its instance) with no font parser, because HarfBuzz already draws each outline.
-   Embedding a subset of each font file gives smaller files for long text-heavy documents and
-   hinted text in a viewer, but it needs a TrueType and a CFF subsetter written here (the LWJGL
-   binding has no `hb-subset`), and a variable font cannot be embedded at an instance at all. A
-   later 1.x can add it under the same API.
-2. **What the paper looks like** (section 5.2). *Recommended: the light theme of the window's theme
-   family by default (`light()` for `dark()`, `limnLight()` for `limn()`), and
-   `Document.theme(Theme)` for anything else.* A dark window printed as it is spends a page of
-   toner on the background, and a PDF is read later on a white page. The alternative, the window's
-   own theme, is one call away under the recommendation.
+### 1.2. Taken without a question
 
 PDF/A (the archival profile) is left for later without a question: with glyphs as outlines the
 remaining work is an sRGB output profile, XMP metadata and a validator run, and nobody has asked
@@ -154,7 +151,7 @@ chooses the printer.
 2. **A page is recorded once and every output replays the recording** (section 7.1): the PDF
    writer, the preview, and on Windows the printer if route A is refused.
 3. **The PDF is written in Java**, deterministic for the same input, with text as glyph outlines
-   that keep their Unicode (section 1.2, question 1).
+   that keep their Unicode (the owner's answer 6).
 4. **Printing hands that PDF to the system's own dialog**, owned by the window, on each of the
    three systems (section 8). The dialog chooses the printer, the copies, the range and the paper;
    the toolkit never draws a print dialog.
@@ -259,8 +256,8 @@ size it is asked for, arrives at print resolution without any change to `Icon`.
 ### 5.2. The scene a document is painted in
 
 A document's widgets live in a scene of their own that no window shows, painted with the light
-theme of the window's family unless `Document.theme(Theme)` says otherwise (section 1.2,
-question 2). In it:
+theme of the window's family unless `Document.theme(Theme)` says otherwise (the owner's
+answer 7). In it:
 
 - **Nothing has focus, nothing is hovered, nothing is pressed**: no focus ring, no caret, no hover
   wash, no pressed state.
@@ -345,8 +342,8 @@ is additive.
 
 ### 7.2. Text
 
-A glyph is written as its outline, in a Type 3 font per face and size of design (section 1.2,
-question 1), with:
+A glyph is written as its outline, in a Type 3 font per face and size of design (the owner's
+answer 6), with:
 
 - **the outline drawn by HarfBuzz** through a new SPI, `GlyphOutlines`, that the backend implements
   over `hb_font_draw_glyph` for the face number a `ShapedText` run carries: quadratics become
@@ -521,7 +518,7 @@ Probes with no toolkit window first, as for the tray, on the four guests of the 
 - **Each backend door:** the strings and structures it builds (the portal's options, the print
   ticket's paper) checked without a printer; `Printer.NONE` in every test window.
 
-## 14. Steps, once the open questions are settled
+## 14. Steps
 
 1. The recording canvas, `Path2D.forEach`, `GlyphOutlines` in the backend.
 2. The PDF writer over the recording: shapes, paints, clips, layers, images, text, the rasterized
