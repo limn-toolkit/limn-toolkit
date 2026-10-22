@@ -9,13 +9,10 @@
   document of pages), how the toolkit cuts it into pages, how a page becomes PDF, how a PDF reaches
   a printer through the system's own print dialog on each of the three systems, and how the user
   sees the pages before printing.
-- **New artifact (proposed):** `limn-print-support`, optional, a module of this repository
-  versioned with the toolkit (section 1.1, answer 3, and section 3.1).
-- **New public API (proposed):**
-  - in `limn-print-support`, the package `limn.print`: `Document`, `Paper`, `PageInfo` and
-    `PrintPreview`;
-  - in the toolkit: `NativeWindow.printer()` returning a `limn.backend.Printer`, which hands a PDF
-    to the system's print dialog; `PrintResult`; `Path2D.forEach` to read a path's curves back;
+- **New public API (proposed), all in `limn-toolkit`** (section 3.1):
+  - the package `limn.print`: `Document`, `Paper`, `PageInfo` and `PrintPreview`;
+  - `NativeWindow.printer()` returning a `limn.backend.Printer`, which hands a PDF to the system's
+    print dialog; `PrintResult`; `Path2D.forEach` to read a path's curves back;
   - in the SPI: `PrinterPeer` and `GlyphOutlines`.
 - **Compatibility:** additive for an application. `NativeWindow` gains `printer()` with no
   default, as `launcher()` has none, so every implementation of a window says what it answers; the
@@ -86,9 +83,11 @@ What exists that this record builds on, read at `63780536`:
    some format, the Linux portal prints only a file (section 8.2), and route A on Windows reads a
    PDF. Since the writer is built anyway, `Document.writePdf` is public, and saving from the
    system's dialog works as well.
-3. **An optional artifact, `limn-print-support`**, apart from the toolkit's main artifact: an
-   application that never prints does not carry the writer, the pagination or the preview. Where
-   it lives is section 3.1.
+3. **In `limn-toolkit`, because it is small.** The owner first asked for an optional artifact,
+   `limn-print-support`, so that an application that never prints would not carry the writer, the
+   pagination and the preview, and then set the rule: negligible in size, it stays in the toolkit;
+   considerable, it goes apart. Section 3.1 has the estimate, about 5,000 to 7,000 lines and 65 to
+   90 KB of the jar, and on it the owner decided: in the toolkit.
 4. **Windows: measure route A before choosing** (section 8.2, section 12 item 1). Route B is built
    only if the measurement refuses route A.
 5. **No accessible PDF is planned now.** No tags, no PDF/UA, and the recording does not keep which
@@ -163,39 +162,45 @@ chooses the printer.
 6. **What has no vector form becomes a picture at the document's resolution, and what has no
    picture at all is left out with a warning** (section 7.3); nothing fails a document.
 
-### 3.1. What is in the optional artifact, and what is in the toolkit
+### 3.1. Where it lives, and what it weighs
 
-| In `limn-print-support` (module `limn.print`), pure Java | In the toolkit and the backend |
-|---|---|
-| `Document`, `Paper`, `PageInfo`, pagination and the print scene's use | `NativeWindow.printer()`, `Printer`, `PrintResult`: a PDF handed to the system's dialog |
-| the recording canvas and the PDF writer | `Path2D.forEach` |
-| `PrintPreview` | the SPI `PrinterPeer` and `GlyphOutlines`, implemented by the backend over the systems' print calls and HarfBuzz |
-| | the hooks pagination needs inside the components: every row of a list, a table or a tree, the break points of section 6.2, and a scene with no focus, hover, caret or scroll bar (section 5.2) |
+Everything is in `limn-toolkit` and the backend; there is no artifact of its own. The estimate the
+owner decided on (2026-10-22) compares each part with code this repository already has, in its
+own style of documentation, and converts lines to bytes by the toolkit's own jar on that day:
+153,555 lines of source compile to 2.0 MB of compressed classes, about 13 bytes a line. It is an
+estimate by analogy, good to about half again either way, not a measurement.
 
-**A module of this repository, not a repository of its own.** The hooks in the last row live in
-packages the toolkit does not export (the rows engine of ADR 055 is `limn.components.internal`), and
-they change whenever a component does. The toolkit already shares such packages with its sibling
-modules by qualified exports (`exports … to limn.backend.lwjgl, limn.video.ffmpeg, …`), and adds
-`limn.print` to the list. A repository of its own would need those hooks as public API, which the
-compatibility promise then freezes until 2.0, and it would release on a cadence of its own against
-internals that move with every toolkit release. The repositories split off before (the fonts, the
-FFmpeg payload, the icon pack) are payloads that depend on no internals; this is code that does.
+| Part | Lines | Compared with |
+|---|---|---|
+| the recording canvas | 700 to 900 | the sixty-odd methods of `Canvas` |
+| the PDF writer's core: objects, cross-reference, Flate, resources | 900 to 1,200 | `PngEncoder` (300), `GifWriter` (393) |
+| drawing as PDF: curves, shadings, clips, opacity, images, rasterized shadows | 1,200 to 1,600 | |
+| text: Type 3 fonts, the maps to Unicode, `ActualText` | 600 to 900 | `HarfBuzzShaper` (540) |
+| `Document`, `Paper`, pagination, header and footer | 1,200 to 1,800 | `Rows` (888) |
+| `PrintPreview` | 600 to 900 | `Expander` (704), `Card` (1,701) |
+| **the part an optional artifact would have held** | **5,000 to 7,000, about 65 to 90 KB** | 3 to 4 % of the toolkit's 2.35 MB jar, 0.3 % of the default install's 24.8 MB |
 
-**The reasons the accessibility split was reversed do not hold here.** That split put platform code
-outside the backend and needed an exception to the architecture check for `org.lwjgl` outside it,
-and an application had to hand the bridge to its window or hear silence. Here the platform code stays
-in the backend, `limn-print-support` imports no `org.lwjgl`, and an application that prints calls
-`Document` by name, so a missing jar is a compile error rather than silence.
+What the toolkit and the backend carry in either case: the hooks in the components (every row of a
+list, a table or a tree, the break points of section 6.2, a scene with no focus, hover, caret or
+scroll bar), 600 to 1,000 lines; the API and the SPI of printing, about 300; the doors of section
+8.2, about 300 on macOS, 500 to 650 on Linux with the descriptor, and 700 to 1,000 on Windows by
+route A, to which route B would add 1,500 to 2,500, also in the backend.
 
-**Why the door to the system is in the toolkit.** It is a few hundred lines per system with no
-dependency, it is reached from a window like the launcher and the file choosers, and on its own it
-is useful: an application can print a PDF it received (an invoice from a service) with
-`window.printer().print(pdf)` and no `limn-print-support`.
+An application that never prints pays the jar's bytes and nothing at run time: no class of
+`limn.print` is loaded until one is used. Kept in the toolkit, the pagination reaches the
+components' internals (the rows engine of ADR 055 is `limn.components.internal`) as any other
+package of the module does, with no export, qualified or not, and no second artifact to version
+and publish. This follows the accessibility bridges, about 7,300 lines with no native payload,
+which were brought back into the backend because there was no payload for a split to keep apart;
+there is none here either.
+
+**Why the door to the system is useful on its own.** It is reached from a window like the launcher
+and the file choosers, and an application can print a PDF it received (an invoice from a service)
+with `window.printer().print(pdf)` without building a `Document`.
 
 ## 4. The API
 
 ```java
-// limn-print-support
 Document order = Document.of(Paper.A4)                  // default: Paper.forLocale(locale)
         .marginsMm(18, 15, 18, 15)                      // top, right, bottom, left, as Insets
         .title("Order 4512")                            // the PDF's title, the print job's name
@@ -213,7 +218,7 @@ order.print(window);                                    // CompletionStage<Print
 
 PrintPreview preview = new PrintPreview(order);         // a widget: pages, zoom, page n of m
 
-// the toolkit, without limn-print-support
+// a PDF the application already has
 window.printer().print(pdfFile, "Invoice 0091");        // CompletionStage<PrintResult>
 window.printer().isAvailable();
 ```
@@ -313,8 +318,8 @@ only the rows in view (ADR 055), and their measured height is their visible rows
 row engine's measure is the sum of every row's real height, realized a page at a time and released
 after it is recorded, so a table of 20,000 rows never holds 20,000 rows of widgets at once.
 
-The break-point contract is internal in phase 1, shared with `limn.print` by a qualified export
-(section 3.1): an application's own widget is measured whole and moved or sliced as in section 6.1.
+The break-point contract is internal in phase 1, inside the toolkit (section 3.1): an
+application's own widget is measured whole and moved or sliced as in section 6.1.
 Publishing it is additive and waits until the toolkit's own answers have been used.
 
 ### 6.3. Two passes
@@ -515,19 +520,15 @@ Probes with no toolkit window first, as for the tray, on the four guests of the 
 - **The budget:** the counts of section 10 for documents of 10 and 1,000 pages.
 - **Each backend door:** the strings and structures it builds (the portal's options, the print
   ticket's paper) checked without a printer; `Printer.NONE` in every test window.
-- **The module's boundary:** the architecture check refuses `org.lwjgl` in `limn-print-support` as
-  in every module but the backend, and the toolkit's own suite passes without the module.
 
 ## 14. Steps, once the open questions are settled
 
-1. The module `limn-print-support` in the build and the publication, the qualified export to
-   `limn.print`, and an entry in the README's list of artifacts.
-2. The recording canvas, `Path2D.forEach`, `GlyphOutlines` in the backend.
-3. The PDF writer over the recording: shapes, paints, clips, layers, images, text, the rasterized
+1. The recording canvas, `Path2D.forEach`, `GlyphOutlines` in the backend.
+2. The PDF writer over the recording: shapes, paints, clips, layers, images, text, the rasterized
    items; the golden tests and the oracle on the host.
-4. `Document`, `Paper`, `PageInfo`, the print scene, pagination and the break points of section 6.2,
+3. `Document`, `Paper`, `PageInfo`, the print scene, pagination and the break points of section 6.2,
    rows realized a page at a time.
-5. `PrintPreview`, and the Showcase page.
-6. Printing: macOS, then Linux (the descriptor), then Windows by the route section 12 chose.
-7. The guide (Printing and PDF), the CHANGELOG, and the reader runs the preview needs on the
+4. `PrintPreview`, and the Showcase page.
+5. Printing: macOS, then Linux (the descriptor), then Windows by the route section 12 chose.
+6. The guide (Printing and PDF), the CHANGELOG, and the reader runs the preview needs on the
    three systems.
