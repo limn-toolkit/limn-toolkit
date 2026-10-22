@@ -212,6 +212,51 @@ final class StbFont implements AutoCloseable {
         return name;
     }
 
+    /** @return this face's units per em, the space its outlines and advances are written in */
+    int unitsPerEm() {
+        return Math.round(1f / stbtt_ScaleForMappingEmToPixels(info, 1f));
+    }
+
+    /**
+     * Draws one glyph's outline in font units, y up, as stb_truetype reads it: the default
+     * instance of a variable face, a TrueType or CFF outline alike. What a printed page writes when
+     * HarfBuzz did not load ({@link FontOutlines}).
+     *
+     * @param glyph a glyph of this face
+     * @param out   receives the contours, each closed
+     */
+    void outline(int glyph, limn.graphics.Path2D.Visitor out) {
+        org.lwjgl.stb.STBTTVertex.Buffer shape = org.lwjgl.stb.STBTruetype.stbtt_GetGlyphShape(info, glyph);
+        if (shape == null) {
+            return; // no ink: a space
+        }
+        try {
+            boolean open = false;
+            for (int i = 0; i < shape.remaining(); i++) {
+                org.lwjgl.stb.STBTTVertex v = shape.get(i);
+                switch (v.type()) {
+                    case org.lwjgl.stb.STBTruetype.STBTT_vmove -> {
+                        if (open) {
+                            out.close();
+                        }
+                        out.moveTo(v.x(), v.y());
+                        open = true;
+                    }
+                    case org.lwjgl.stb.STBTruetype.STBTT_vline -> out.lineTo(v.x(), v.y());
+                    case org.lwjgl.stb.STBTruetype.STBTT_vcurve -> out.quadTo(v.cx(), v.cy(), v.x(), v.y());
+                    case org.lwjgl.stb.STBTruetype.STBTT_vcubic -> out.cubicTo(v.cx(), v.cy(), v.cx1(), v.cy1(),
+                            v.x(), v.y());
+                    default -> { }
+                }
+            }
+            if (open) {
+                out.close();
+            }
+        } finally {
+            org.lwjgl.stb.STBTruetype.stbtt_FreeShape(info, shape);
+        }
+    }
+
     /** Scale factor mapping font units to a given em size in pixels (CSS-like sizing). */
     float scaleForSize(float sizePx) {
         if (sizePx != lastSizePx) {

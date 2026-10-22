@@ -19,7 +19,6 @@ import limn.sound.AudioEngine;
 import limn.sound.Sounds;
 import limn.video.VideoSurfaces;
 import org.jspecify.annotations.Nullable;
-import limn.backend.spi.BackendServices;
 
 /**
  * Everything a {@link limn.backend.Backend} provides to the toolkit besides its windows, named in one place and
@@ -30,10 +29,12 @@ import limn.backend.spi.BackendServices;
  * as zero wide, with no error anywhere. A backend now builds this record in its constructor and calls
  * {@link #install()}; the record's constructor refuses a missing required service on the spot.
  *
- * <p>Five services are <b>required</b> — nothing draws without them. Four are <b>optional</b>, and
+ * <p>Five services are <b>required</b> — nothing draws without them. Five are <b>optional</b>, and
  * {@code null} is how a backend says it has none: a machine with no audio device, a backend without
- * 3D or without GPU video surfaces. The toolkit then reports the capability as unavailable
- * ({@code Sounds.isAvailable()}, {@code Graphics3D}, {@code VideoSurfaces}) rather than failing.
+ * 3D or without GPU video surfaces, one that cannot outline glyphs. The toolkit then reports the
+ * capability as unavailable ({@code Sounds.isAvailable()}, {@code Graphics3D}, {@code VideoSurfaces})
+ * or degrades (a printed document draws text it cannot outline from nothing, with a warning) rather
+ * than failing.
  *
  * @param ui            the user-interface thread's runtime, bound to the thread that will run the loop
  * @param textRuler     measures and shapes text
@@ -45,12 +46,14 @@ import limn.backend.spi.BackendServices;
  * @param videoSurfaces GPU surfaces a video view composites, or {@code null} for none
  * @param audioEngine   plays sound, or {@code null} for no audio device
  * @param audioDecoder  decodes sound files, or {@code null} when there is no audio at all
+ * @param glyphOutlines the outlines of the glyphs the text ruler shapes, which a printed document
+ *                      writes as text, or {@code null} for none (ADR 078 §7.2)
  */
 public record BackendServices(UiRuntime ui, TextRuler textRuler, FontCatalog fontCatalog,
                               FontLoader fontLoader, ImageDecoder imageDecoder,
                               SvgRenderer svgRenderer, Graphics3D.@Nullable Provider graphics3d,
                               VideoSurfaces.@Nullable Provider videoSurfaces, @Nullable AudioEngine audioEngine,
-                              @Nullable AudioDecoder audioDecoder) {
+                              @Nullable AudioDecoder audioDecoder, @Nullable GlyphOutlines glyphOutlines) {
 
     public BackendServices {
         Objects.requireNonNull(ui, "ui: a backend must provide the user-interface runtime");
@@ -59,6 +62,18 @@ public record BackendServices(UiRuntime ui, TextRuler textRuler, FontCatalog fon
         Objects.requireNonNull(fontLoader, "fontLoader (FontLoader.UNAVAILABLE when files cannot be read)");
         Objects.requireNonNull(imageDecoder, "imageDecoder: images and icons decode through it");
         Objects.requireNonNull(svgRenderer, "svgRenderer: every icon is an SVG");
+    }
+
+    /**
+     * The services of a backend that outlines no glyph, as the record stood before ADR 078.
+     */
+    public BackendServices(UiRuntime ui, TextRuler textRuler, FontCatalog fontCatalog,
+                           FontLoader fontLoader, ImageDecoder imageDecoder,
+                           SvgRenderer svgRenderer, Graphics3D.@Nullable Provider graphics3d,
+                           VideoSurfaces.@Nullable Provider videoSurfaces, @Nullable AudioEngine audioEngine,
+                           @Nullable AudioDecoder audioDecoder) {
+        this(ui, textRuler, fontCatalog, fontLoader, imageDecoder, svgRenderer, graphics3d, videoSurfaces,
+                audioEngine, audioDecoder, null);
     }
 
     /**
@@ -83,6 +98,9 @@ public record BackendServices(UiRuntime ui, TextRuler textRuler, FontCatalog fon
         }
         if (audioDecoder != null) {
             Sounds.installDecoder(audioDecoder);
+        }
+        if (glyphOutlines != null) {
+            GlyphOutlines.install(glyphOutlines);
         }
     }
 }

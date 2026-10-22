@@ -145,6 +145,24 @@ public final class SceneAccess {
         Subscription showCursorOf(Scene scene, Scene popup);
 
         /**
+         * Makes {@code scene} a page's scene, painted with {@code palette}; see
+         * {@link SceneAccess#printWith}.
+         *
+         * @param scene   the scene of a printed document's widgets
+         * @param palette the palette its widgets paint with
+         */
+        default void printWith(Scene scene, Object palette) {
+        }
+
+        /**
+         * @param scene a scene
+         * @return the palette it prints with, or null for a scene that is not a page's
+         */
+        default @org.jspecify.annotations.Nullable Object printPalette(Scene scene) {
+            return null;
+        }
+
+        /**
          * @param scene a scene
          * @return whether its access letters are drawn now: Alt held, on a system that has them
          */
@@ -823,6 +841,28 @@ public final class SceneAccess {
         java.util.Objects.requireNonNull(scene, "scene");
         java.util.Objects.requireNonNull(popup, "popup");
         return hook().showCursorOf(scene, popup);
+    }
+
+    /**
+     * Makes {@code scene} the scene of a printed document's widgets (ADR 078 §5.2): its widgets
+     * paint with {@code palette} wherever they ask for theirs through the widget, whatever the
+     * process's palette is. Not API: {@code limn.print} makes a page's scenes, and nothing else does.
+     *
+     * @param scene   a scene no window shows
+     * @param palette the palette, a {@code limn.components.Theme}
+     */
+    public static void printWith(Scene scene, Object palette) {
+        java.util.Objects.requireNonNull(scene, "scene");
+        java.util.Objects.requireNonNull(palette, "palette");
+        hook().printWith(scene, palette);
+    }
+
+    /**
+     * @param scene a scene
+     * @return the palette a page's scene paints with, or null for any other scene
+     */
+    public static @org.jspecify.annotations.Nullable Object printPalette(Scene scene) {
+        return hook().printPalette(scene);
     }
 
     private static Hook hook() {

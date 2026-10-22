@@ -252,6 +252,35 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
      * {@code children()} after the two bars, row by row in that order.
      */
     private final Rows<Slot> engine = new Rows<>(new RowsEngineHost());
+
+    static {
+        // A printed document cuts a table between rows, a page's worth realized at a time (ADR 078 §6.2).
+        limn.components.internal.PrintRows.register(Table.class, widget -> ((Table<?>) widget).new PrintView());
+    }
+
+    /** What a printed page asks of this table's rows: how many, how tall, and where the box begins. */
+    private final class PrintView implements limn.components.internal.PrintRows {
+        @Override
+        public int rowCount() {
+            return rows.size();
+        }
+
+        @Override
+        public float rowHeight(int index) {
+            return engine.realize(index);
+        }
+
+        @Override
+        public float chromeHeight() {
+            return Math.max(0, height() - rowsViewportHeight());
+        }
+
+        @Override
+        public void beginAt(int index) {
+            engine.moveViewTo(index, 0);
+            markNeedsLayout();
+        }
+    }
     private float offsetX;
     /** What the pass in progress resolved once and every row is placed by. */
     private float passRowX;

@@ -414,6 +414,35 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
      * the scene absorbs the same removal inside a pass over this subtree.
      */
     private final Rows<Cell> engine = new Rows<>(new RowsEngineHost());
+
+    static {
+        // A printed document cuts a tree between rows, a page's worth realized at a time (ADR 078 §6.2).
+        limn.components.internal.PrintRows.register(Tree.class, widget -> ((Tree<?>) widget).new PrintView());
+    }
+
+    /** What a printed page asks of this tree's rows: how many, how tall, and where the box begins. */
+    private final class PrintView implements limn.components.internal.PrintRows {
+        @Override
+        public int rowCount() {
+            return rows.size();
+        }
+
+        @Override
+        public float rowHeight(int index) {
+            return engine.realize(index);
+        }
+
+        @Override
+        public float chromeHeight() {
+            return Math.max(0, height() - viewportHeight());
+        }
+
+        @Override
+        public void beginAt(int index) {
+            engine.moveViewTo(index, 0);
+            markNeedsLayout();
+        }
+    }
     /** Reused per walk to assemble a row's derived name before comparing it with the kept one. */
     private final StringBuilder nameBuilder = new StringBuilder();
     /** Where the pass in progress puts a row's leading edge, and how wide the viewport is. */

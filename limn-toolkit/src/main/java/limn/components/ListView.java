@@ -190,6 +190,35 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
      * key walk, whatever order a scroll realized them in.
      */
     private final Rows<Widget<?>> engine = new Rows<>(new RowsEngineHost());
+
+    static {
+        // A printed document cuts a list between rows, a page's worth realized at a time (ADR 078 §6.2).
+        limn.components.internal.PrintRows.register(ListView.class, widget -> ((ListView<?>) widget).new PrintView());
+    }
+
+    /** What a printed page asks of this list's rows: how many, how tall, and where the box begins. */
+    private final class PrintView implements limn.components.internal.PrintRows {
+        @Override
+        public int rowCount() {
+            return items.size();
+        }
+
+        @Override
+        public float rowHeight(int index) {
+            return engine.realize(index);
+        }
+
+        @Override
+        public float chromeHeight() {
+            return 0; // the rows are the whole box
+        }
+
+        @Override
+        public void beginAt(int index) {
+            engine.moveViewTo(index, 0);
+            markNeedsLayout();
+        }
+    }
     /**
      * The item each realized cell was built for, read when a refresh keeps a row a popup hangs
      * from: the list may have changed in place, and the item is what the row is found again by.

@@ -188,6 +188,25 @@ public final class Label extends Widget<Label> {
     // is about to draw instead of re-measuring it per line per frame, and a wrapped line's width
     // is the width of the line AS SHAPED, which is not the width of that range of the paragraph.
     private final List<ShapedText> lines = new ArrayList<>();
+
+    static {
+        // A printed page may cut a wrapped label between its lines (ADR 078 §6.2).
+        limn.components.internal.LineCuts.register(Label.class, widget -> ((Label) widget).lineCuts());
+    }
+
+    /** The boundaries between the lines of the last layout, from the top, for a page's cut. */
+    private float[] lineCuts() {
+        if (lines.size() < 2) {
+            return new float[0];
+        }
+        float lineHeight = textRuler().measure("Hg", effectiveFont(Theme.of(this).tokensFor(this))).lineHeight();
+        float top = textTop(lineHeight);
+        float[] cuts = new float[lines.size() - 1];
+        for (int i = 1; i < lines.size(); i++) {
+            cuts[i - 1] = top + i * lineHeight;
+        }
+        return cuts;
+    }
     // How far the icon square reaches past height(), per side. Cached here rather than
     // recomputed in paintOutset() because that runs on the damage path (every invalidate()
     // and every partial-repaint cull test), while this depends only on the icon box and

@@ -157,6 +157,11 @@ final class HarfBuzzShaper {
             this.font = font;
         }
 
+        /** @return the {@code hb_font_t}, scaled to font units; valid until {@link #close()} */
+        long font() {
+            return font;
+        }
+
         @Override
         public void close() {
             if (closed) {

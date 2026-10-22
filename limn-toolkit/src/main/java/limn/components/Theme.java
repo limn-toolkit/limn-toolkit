@@ -531,10 +531,11 @@ public final class Theme {
 
     /**
      * The palette {@code widget} paints with: the one resolver every component reads its colours
-     * through. Today every widget answers the process-wide {@link #current()}; the
-     * point of asking through the widget is that a palette per subtree can be added behind this
-     * call later, as the locale, the direction and the control size already resolve per subtree,
-     * without any component changing. A static on this class rather than a method on
+     * through. A widget answers the process-wide {@link #current()}, except a widget printed in a
+     * {@code limn.print.Document}, which answers the document's palette; the point of asking
+     * through the widget is that a palette per subtree can be added behind this call, as the
+     * locale, the direction and the control size already resolve per subtree, without any
+     * component changing. A static on this class rather than a method on
      * {@code Widget}, because {@code limn.scene} names no {@code limn.components} type.
      *
      * @param widget the widget about to paint
@@ -542,6 +543,11 @@ public final class Theme {
      */
     public static Theme of(Widget<?> widget) {
         Objects.requireNonNull(widget, "widget");
+        limn.scene.Scene scene = widget.scene();
+        if (scene != null && limn.scene.internal.SceneAccess.printPalette(scene) instanceof Theme paper) {
+            // A printed page's scene paints with the document's palette (ADR 078 §5.2).
+            return paper;
+        }
         return current;
     }
 

@@ -38,6 +38,7 @@ module limn.toolkit {
     exports limn.graphics;
     exports limn.i18n;
     exports limn.input;
+    exports limn.print;
     exports limn.io;
     exports limn.math;
     exports limn.render3d;

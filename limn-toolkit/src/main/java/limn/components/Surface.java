@@ -111,12 +111,12 @@ public final class Surface extends Widget<Surface> {
 
     @Override
     protected float paintOutset() {
-        return Theme.current().elevation(elevation).reach();
+        return Theme.of(this).elevation(elevation).reach();
     }
 
     @Override
     protected void onPaint(Canvas canvas) {
-        Theme theme = Theme.current();
+        Theme theme = Theme.of(this);
         float radius = cornerRadius >= 0 ? cornerRadius : theme.tokensFor(this).radiusMedium();
         RoundRect shape = RoundRect.of(0, 0, width(), height(), radius);
         theme.drawElevation(canvas, shape, elevation);

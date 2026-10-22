@@ -24,6 +24,23 @@ public final class Path2D {
         void closePath();
     }
 
+    /**
+     * Receives a path as it was built: its moves, lines, curves and closes, in order and in the
+     * path's own coordinates. What a writer that keeps curves needs (a PDF page draws a curve as a
+     * curve), where {@link Flattened} hands out lines.
+     */
+    public interface Visitor {
+        void moveTo(float x, float y);
+
+        void lineTo(float x, float y);
+
+        void quadTo(float cx, float cy, float x, float y);
+
+        void cubicTo(float c1x, float c1y, float c2x, float c2y, float x, float y);
+
+        void close();
+    }
+
     private static final byte MOVE = 0;
     private static final byte LINE = 1;
     private static final byte QUAD = 2;
@@ -100,6 +117,44 @@ public final class Path2D {
         verbCount = 0;
         coordCount = 0;
         hasCurrentPoint = false;
+    }
+
+    /**
+     * Replays this path as it was built, curves as curves.
+     *
+     * @param out receives each segment in order
+     */
+    public void forEach(Visitor out) {
+        int ci = 0;
+        for (int vi = 0; vi < verbCount; vi++) {
+            switch (verbs[vi]) {
+                case MOVE -> out.moveTo(coords[ci++], coords[ci++]);
+                case LINE -> out.lineTo(coords[ci++], coords[ci++]);
+                case QUAD -> out.quadTo(coords[ci++], coords[ci++], coords[ci++], coords[ci++]);
+                case CUBIC -> out.cubicTo(coords[ci++], coords[ci++], coords[ci++], coords[ci++],
+                        coords[ci++], coords[ci++]);
+                case CLOSE -> out.close();
+                default -> throw new AssertionError();
+            }
+        }
+    }
+
+    /**
+     * A path of its own with the same segments: what a caller that keeps a path past the call it
+     * was handed in takes, since the one it was handed may be reset and reused for the next frame.
+     *
+     * @return the copy
+     */
+    public Path2D copy() {
+        Path2D copy = new Path2D();
+        copy.verbs = Arrays.copyOf(verbs, Math.max(16, verbCount));
+        copy.coords = Arrays.copyOf(coords, Math.max(64, coordCount));
+        copy.verbCount = verbCount;
+        copy.coordCount = coordCount;
+        copy.lastX = lastX;
+        copy.lastY = lastY;
+        copy.hasCurrentPoint = hasCurrentPoint;
+        return copy;
     }
 
     /**

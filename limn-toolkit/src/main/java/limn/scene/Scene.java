@@ -323,6 +323,9 @@ public final class Scene {
 
     private limn.graphics.TextRuler textRuler;
 
+    /** The palette a printed page's scene paints with (ADR 078 §5.2); null for every other scene. */
+    private @Nullable Object printPalette;
+
     /** Overrides the text measurer (tests use deterministic fake metrics). */
     public void setTextRuler(limn.graphics.TextRuler ruler) {
         Ui.checkUiThread();
@@ -4625,6 +4628,17 @@ public final class Scene {
 
     static {
         limn.scene.internal.SceneAccess.install(new limn.scene.internal.SceneAccess.Hook() {
+            @Override
+            public void printWith(Scene scene, Object palette) {
+                scene.printPalette = palette;
+                scene.markLayoutDirty();
+            }
+
+            @Override
+            public @Nullable Object printPalette(Scene scene) {
+                return scene.printPalette;
+            }
+
             @Override
             public long keyPresses(Scene scene) {
                 return scene.keyPresses;
