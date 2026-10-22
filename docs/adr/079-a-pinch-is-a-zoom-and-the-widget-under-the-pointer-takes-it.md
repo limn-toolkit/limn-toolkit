@@ -1,7 +1,9 @@
 # ADR 079: A pinch is a zoom, and the widget under the pointer takes it
 
-- **Status:** Proposed, 2026-10-22. Section 1 holds the owner's questions, each with a
-  recommendation; section 6 holds the measurements to take before any of it is built.
+- **Status:** Accepted, 2026-10-22: the owner took the recommendation of all seven questions of
+  section 1 the same day. Stage 0, the measurements of section 6, was taken the same day on the host
+  and three guests (section 8): every system's source works as section 2 says, and one blocker
+  outside this record was found on the way (section 8.6).
 - **Date:** 2026-10-22
 - **Scope:** the pinch on a trackpad (two fingers moving apart or together) reaching a Limn widget as
   a zoom, on macOS, Windows and Linux under X11 and Wayland. It also covers Command or Control with
@@ -66,6 +68,8 @@ What exists, read in the tree on 2026-10-22:
   - The host is a Mac with a real trackpad, which makes it the one place a real pinch is certain.
 
 ## 1. Questions for the owner
+
+**Answered 2026-10-22: every recommendation taken.**
 
 1. **The event's shape.**
    - **(a) recommended:** `MouseEvent.Type.ZOOM`, with `scale()` as the factor since the last zoom
@@ -215,3 +219,114 @@ The probes of section 6 are not shipped.
    - macOS;
    - Windows if measurement 2 holds.
 3. **Stage 2:** X11 and Wayland, each verified with the virtual touchpad or a laptop.
+
+## 8. Stage 0, measured on 2026-10-22
+
+The probes are throwaway programs and were not committed. They ran in the scratch folder of the
+session that wrote this section, and on the guests under `limn-pinch` (Linux) and
+`limn-print\pinch` (Windows).
+
+### 8.1 macOS, on the host
+
+The probe put `-magnifyWithEvent:` and `-smartMagnifyWithEvent:` on GLFW's content view class
+(`GLFWContentView`) with `class_addMethod`. The class inherits both from `NSResponder`, so the method
+added overrides them. The owner pinched in three rounds, and in the third the window drew the zoom.
+
+- **The method is called.** It was called 153, 126 and 126 times.
+- **Every pinch has a clear start and end.** It starts with phase *began* (1), continues with
+  *changed* (4) and ends with *ended* (8). The *ended* event carries a magnification of its own.
+  - Events arrive every 16.9 ms (the median of 122; 12.8 ms at the 10th percentile, 20.9 ms at the
+    90th).
+  - The magnification is the change since the last event. Multiplied as 1 + m over each gesture,
+    the nine pinches came to factors from 0.16 to 5.01.
+- **No scroll ever arrived inside a pinch.** That held even when the owner moved his hand across
+  the trackpad while pinching (a pinch of 1.9 s). The two-finger scroll came in separate blocks,
+  as GLFW's scroll, before and after.
+- **The two-finger double tap arrives** as `-smartMagnifyWithEvent:`. It is a separate event with
+  no magnification, and question 7 leaves it out.
+
+The macOS guest was not measured: on the host, a real pinch already answers the question.
+
+### 8.2 Windows, on the ARM64 guest
+
+Parallels presents itself to the guest as a pen digitizer, not a touchpad: `SM_DIGITIZER` is 0x88
+and `SM_MAXIMUMTOUCHES` is 1. A plain window logged every message. The owner pinched in two runs,
+and in the second the window drew the zoom from Control with the wheel, which he saw follow his
+fingers.
+
+- **Every pinch arrived the same way.** First `WM_KEYDOWN` of Control, then a run of
+  `WM_MOUSEWHEEL` with `MK_CONTROL` set and `GetKeyState(VK_CONTROL)` down, then `WM_KEYUP` of
+  Control. There were five pinches, of 24 to 49 wheel messages each.
+- **The two-finger scroll came separately,** as wheel messages without Control.
+- **No `WM_GESTURE`, `WM_TOUCH` or touchpad `WM_POINTER` arrived.**
+
+So the Windows column needs no native code: question 2's offer of Control with the wheel as a zoom
+takes it, and a GLFW window sees the same messages. A real precision touchpad is documented to do
+the same for an application that does not use Direct Manipulation; that was not measured, since the
+lab has none.
+
+### 8.3 Linux, X11, on the Ubuntu 24.04 guest
+
+The setup was an X session with Xorg 21.1.12 and xf86-input-libinput 1.4.0. The pinch came from a
+virtual touchpad with two contacts, through `/dev/uinput`, which the owner opened to the user with
+`setfacl` until the next reboot (question 6). libinput classified it as a clickpad (100 × 62 mm) and
+Xorg listed it as a slave pointer.
+
+- **The server answered XInput 2.4.**
+- **Selection from a second connection works.** A connection of the probe's own selected
+  `XI_GesturePinchBegin`, `Update` and `End` on GLFW's window, and the server accepted it (no error
+  after `XSync`).
+- **The pinch reached GLFW's window,** once the pointer was over it:
+  - a begin, 37 updates and an end per pinch;
+  - two fingers;
+  - `scale` cumulative since the begin, from 1.07 to 3.66 opening and down to 0.23 closing;
+  - `delta_scale` always 0, so the change between events is the ratio of two scales.
+- **The pointer's position matters.** In the first try nothing arrived on the window because the
+  pointer was over the dock: a pinch goes to the window under the pointer, as a wheel does.
+- **The scroll seen once is not the pinch's.** One run had GLFW receive 124 wheel events during and
+  after the pinches. Two repeats of the same run had none, and the run with the root selected as
+  well had none. They are recorded as not from the pinch: their source is not known, and the owner
+  was using the host's trackpad at the time.
+
+### 8.4 Linux, Wayland, on the Fedora KDE 44 guest
+
+The same virtual touchpad was used. KWin advertises `zwp_pointer_gestures_v1` at version 3, and
+`wl_seat` at version 10.
+
+- **The probe used the backend's own pieces.** It used `Wl`, the same queue and wrapper that
+  `WaylandClipboard` uses, a `wl_seat` bound again at version 5, and its own `wl_pointer`. It
+  described the gestures protocol in memory, as `xdg_activation_v1` is.
+- **The pinch reached that pointer while GLFW held its own.** `begin` named GLFW's surface and two
+  fingers. There were 72 updates over two pinches, with `scale` cumulative since the begin (1.14 to
+  3.66, then 0.96 to 0.64).
+- **No GLFW scroll arrived.**
+
+Ubuntu's GNOME session under Wayland was not measured, because the guest runs its X session.
+Changing that is the owner's call; GNOME's compositor is documented to advertise the protocol.
+
+### 8.5 What this changes in section 2
+
+- The macOS, X11 and Wayland sources are confirmed. On Windows the system's own Control-wheel is
+  the source, as proposed.
+- The factor each backend hands the scene comes from a different measure on each system:
+  - **macOS:** 1 + magnification per event;
+  - **X11 and Wayland:** this event's cumulative scale over the previous one, with 1 at a begin;
+  - **Windows:** 1.1 to the power of the wheel's detents, through question 2.
+- The virtual touchpad worked as question 6 hoped. It is how stage 2 verifies Linux. On Ubuntu it
+  needs the owner's `setfacl` again after a reboot.
+
+### 8.6 A blocker found on the way: the backend's callbacks under Java 25
+
+The Fedora guest's only JDK is 25. Under it, LWJGL 3.4.3 loads its implementation of native
+callbacks made with the platform's foreign-function API. That implementation refuses the backend's
+generic callbacks, `Ffi.callback` and `Wl.on`, with `UnsupportedOperationException: The binder must
+be parameterized with an interface`.
+
+The Wayland probe ran only with LWJGL's base classes put first on the class path. The same callbacks
+carry the macOS menu bar, the tray, the printer, the clipboard and drag on all three systems, and
+the whole Wayland data path. Every source this record adds would need one too, on macOS, X11 and
+Wayland.
+
+It is outside this record and was proposed as a task of its own. Stage 1 waits for it, or builds
+its callbacks typed, as `MacInputContextGate` does.
+
