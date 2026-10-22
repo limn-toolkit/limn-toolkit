@@ -190,6 +190,8 @@ final class ShowcaseStrings {
             new I18nString("showcase.tab.dates", "Dates");
     static final I18nString TAB_FILES =
             new I18nString("showcase.tab.files", "Files");
+    static final I18nString NAV_PRINT =
+            new I18nString("showcase.nav.print", "Printing");
     static final I18nString TAB_ABOUT =
             new I18nString("showcase.tab.about", "&About");
     static final I18nString RENDER_PARTIAL =

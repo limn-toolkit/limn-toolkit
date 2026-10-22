@@ -245,6 +245,9 @@ final class AppScene {
                 new Place(ShowcaseStrings.TAB_FILES, "docs/menus-and-dialogs/#native-file-dialogs",
                         () -> beside(FilesScene.content())).icon("folder")
                         .keywords("FileDialogs, file, file chooser, open file, save file, folder, directory"),
+                new Place(ShowcaseStrings.NAV_PRINT, "docs/printing/",
+                        () -> beside(PrintScene.content())).icon("printer")
+                        .keywords("Document, print, printing, printer, PDF, export, save as PDF, PrintPreview, preview, report, page, paper, A4, Letter, header, footer"),
                 new Place(ShowcaseStrings.NAV_COLOURS, "components/#color-picker",
                         () -> scrolling(ColorPickerScene.content())).icon("palette")
                         .keywords("ColorPicker, color picker, ColorPickerButton, color, colour, swatch, Theme, Elevation, Surface, appearance"),
