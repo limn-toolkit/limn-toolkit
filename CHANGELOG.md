@@ -22,6 +22,9 @@ Maven Central say which number that was.
   answered from a thread of its own (or of the print system's) and the first answer of the process
   killed it, in every run; the toolkit now starts UI Automation once, from a thread of COM's
   multithreaded apartment, before the first such dialog (about 16 ms, on the dialog's thread).
+  Both are an exception the system raises and catches itself, which a Java VM carrying OpenJDK's
+  change JDK-8348862 (21.0.12 builds that carry it, the 25 updates since July 2026, 26 onwards)
+  turns into a fatal error on Windows on ARM; both fixes keep it from being raised.
 - With partial rendering, a `Transform` that an in-place layout moved (a sibling shown or hidden, a
   label growing, a child hidden inside it, its wrapper hidden) left its old picture on screen and did
   not draw the new one until a whole frame, in perspective too and for a picture zoomed past the

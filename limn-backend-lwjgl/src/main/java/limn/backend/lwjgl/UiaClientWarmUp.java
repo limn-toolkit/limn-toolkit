@@ -17,28 +17,34 @@ import static org.lwjgl.system.MemoryUtil.NULL;
 /**
  * Starts UI Automation in this process from a thread of COM's multithreaded apartment, once, before
  * the first system dialog the process shows: a file chooser, the print dialog, a printer's prompt
- * for a file name. Only under an ARM64 Java on Windows, the one place it was measured to matter.
+ * for a file name. Only under an ARM64 Java on Windows, the one place it matters.
  *
  * <p><b>What it prevents, measured on Windows 11 ARM64 on 2026-10-22.</b> A system dialog in this
  * process (the save chooser, the system's PDF printer's "save the print output as" prompt) answers
  * an automation client in another process from the dialog's own thread, a single-threaded
- * apartment, inside the client's {@code SendMessage}. Under an ARM64 JDK the first such answer of
- * the process made a call out of the apartment, COM refused it
- * ({@code RPC_E_CANTCALLOUT_ININPUTSYNCCALL}), and nothing caught the refusal: a client reading the
- * save chooser before anything else of the process killed it in six runs of six, and the printer's
- * prompt in every run, whether the print ran in a single-threaded apartment or the multithreaded one
- * (the system then shows the prompt on a thread of its own, and that thread died instead). An x64
- * JDK on the same machine did not die, nor did a native ARM64 shell showing the same save chooser,
- * read cold by the same client (the system's text editor survived too, but it had been driven
- * through UI Automation to open its print dialog, so it was not cold). Which part of an ARM64 JVM
- * makes the difference is not known: every one of these processes had the automation core loaded
- * before the client came (a system dialog loads it), and the x64 and ARM64 JVMs had the same
- * automation and text-input modules, read on the guest. What is known is that the first answer is
- * the question, not the dialog. Once a client of this process had read anything from a thread of the
- * multithreaded apartment, every dialog after it answered the outside client in every run: three of
- * three with the desktop's root read here, three of three with this process's own window, four of
- * four when the outside client had read the application's window first, and two of two through the
- * printer's prompt. Two cheaper calls into the library from that thread
+ * apartment, inside the client's {@code SendMessage}. The first such answer of the process makes a
+ * call out of the apartment, and COM refuses it by raising {@code RPC_E_CANTCALLOUT_ININPUTSYNCCALL}
+ * ({@code 0x8001010d}) as an exception, which the system's own code then catches: a native program
+ * showing the same chooser, ARM64 or x64, read cold by the same client, raised it once and lived.
+ * A Java VM that carries OpenJDK's change JDK-8348862 does not let it be caught. On Windows ARM64
+ * that VM's vectored exception handler, which runs before any handler on the stack, ends the process
+ * with a fatal error report on the first raise of any exception whose code has the failure bit set,
+ * on any thread. The 21.0.12 build on the guest carries it (the change also reached the 25 updates
+ * in July 2026, and 26 onwards), and the x64 VM has no such handler. Measured: the same native
+ * program with only that ARM64 {@code jvm.dll} started in it, no Java running, died at the raise in
+ * its vectored handler, logged entering it and never returning, and died the same way with the VM's
+ * filter for unhandled exceptions replaced by its own, which was never called. A client reading the save chooser before anything else of a Java
+ * process killed it in six runs of six, and the printer's prompt in every run, whether the print ran
+ * in a single-threaded apartment or the multithreaded one (the system then shows the prompt on a
+ * thread of its own, and that thread died instead).
+ *
+ * <p>Only the first answer raises it. Once a client of this process has read anything from a thread
+ * of the multithreaded apartment, the call is not made again and nothing is raised: the native
+ * program, warmed up this way, raised nothing in three runs of three, with that VM started in it and
+ * without, and every Java dialog after a warm-up answered the outside client: three of three with the
+ * desktop's root read here, three of three with this process's own window, four of four when the
+ * outside client had read the application's window first, and two of two through the printer's
+ * prompt. Two cheaper calls into the library from that thread
  * ({@code UiaGetReservedNotSupportedValue}, {@code UiaHostProviderFromHwnd}) did not do it.
  *
  * <p>So this creates the system's automation client here, on a daemon thread of the multithreaded

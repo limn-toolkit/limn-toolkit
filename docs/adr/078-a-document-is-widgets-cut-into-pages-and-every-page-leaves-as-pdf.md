@@ -633,7 +633,9 @@ initializers, in internal packages, so no public type names an internal one.
   prompt, and is fixed by starting UI Automation from the multithreaded apartment before the first
   system dialog (`UiaClientWarmUp`, ADR 039's second amendment of that day). Neither was in
   printing's own code: moving the print to the multithreaded apartment changed nothing, since the
-  print system then shows the prompt on a thread of its own.
+  print system then shows the prompt on a thread of its own. The refusal is an exception the system
+  raises and catches itself; an ARM64 JVM carrying OpenJDK's change JDK-8348862 ends the process at
+  its first raise, which a native program with that `jvm.dll` started in it showed (ADR 039).
 
 ### 15.4. Measured on the host (section 12, item 4)
 

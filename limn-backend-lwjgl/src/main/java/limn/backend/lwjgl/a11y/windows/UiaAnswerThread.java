@@ -30,8 +30,11 @@ import java.util.function.LongSupplier;
  * <p><b>Measured on Windows 11 ARM64 on 2026-10-22, with a client that walks every top-level
  * window of the desktop.</b> Under an ARM64 JDK, {@code UiaReturnRawElementProvider} called on
  * that thread makes such a call before it asks the provider anything, the refusal is raised as an
- * exception nothing catches, and the process dies: five runs of five, a 32-bit client as well as
- * a native one. The same call made from a thread of the multithreaded apartment answered in three
+ * exception, and the process dies: five runs of five, a 32-bit client as well as a native one. The
+ * system would catch that exception itself; an ARM64 Java VM that carries OpenJDK's change
+ * JDK-8348862 ends the process at its first raise instead, from a vectored handler that runs before
+ * any handler on the stack (measured with a native program for the same refusal in a system dialog,
+ * see {@code UiaClientWarmUp}; this one was not re-run natively). The same call made from a thread of the multithreaded apartment answered in three
  * runs of three and the client read the whole tree; so did a user-interface thread that had
  * joined the multithreaded apartment itself (two of two), which is how the apartment was told
  * from everything else. An x64 JDK on the same machine never failed (three of three), which is

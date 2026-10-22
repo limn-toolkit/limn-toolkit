@@ -2611,10 +2611,32 @@ read anything from a thread of the multithreaded apartment, every dialog after i
 runs). So before the first such dialog the backend creates the system's automation client on a daemon
 thread of the multithreaded apartment and reads the desktop root's name (`UiaClientWarmUp`, ARM64
 only, once, about 16 ms); the earlier sentence that a file dialog "read whole" held only because the
-client had read the window first. Why an ARM64 JVM differs is open: the module lists read on the guest
-before any client came show the automation core loaded in every one of these processes (a system
-dialog loads it), and the same automation and text-input modules in the x64 and the ARM64 JVM; telling
-the JVM from the ARM64 system libraries needs a minimal native program read cold, or a debugger.
+client had read the window first. ~~Why an ARM64 JVM differs is open: the module lists read on the
+guest before any client came show the automation core loaded in every one of these processes (a
+system dialog loads it), and the same automation and text-input modules in the x64 and the ARM64 JVM;
+telling the JVM from the ARM64 system libraries needs a minimal native program read cold, or a
+debugger.~~
+
+**Found the same day: the system catches the refusal, the JVM does not let it.** A native program
+that shows the same save chooser on a thread of its own and never touches UI Automation, read cold by
+the same client, logged every exception raised in it: the first answer raised
+`RPC_E_CANTCALLOUT_ININPUTSYNCCALL` once, from the same frames at the same offsets as the JVM's crash
+report, and the system's own code caught it and the program lived (ARM64 eight runs of eight with the
+log read, the chooser on the window's thread or its own, one with the JVM's manifest; x64 two of two).
+Walking the stack as the dispatcher does showed handlers in the RPC runtime, COM, the automation core,
+the dialog and the window manager. The same program with only the ARM64 `jvm.dll` started in it, no
+Java running and the dialog's thread never attached, died at the raise with the JVM's crash report
+(seven of seven, one with the thread attached); with the JVM's filter for unhandled exceptions replaced by
+the program's own it died the same way and that filter was never called, while the JVM's vectored
+handler, wrapped through its import table, was entered for the exception and never returned. The
+21.0.12 build on the guest carries OpenJDK's change JDK-8348862, which on Windows AArch64 makes the
+vectored handler (it runs before any handler on the stack) report a fatal error for any exception
+whose code has the failure bit set, on any thread; the change reached the 25 updates in July 2026 and
+is in 26 onwards, and an x64 JVM has no such handler. So the cause is the exception's first raise, not
+an ARM64 system library: with the warm-up the native program raised nothing in three runs of three,
+with that JVM in it and without. Both measures here hold for that reason: each keeps the first answer
+from making the refused call. Any other system code in the process that raises and catches an error
+code of that kind would end an ARM64 JVM with that change the same way; none other was seen.
 
 ~~So the `WM_GETOBJECT` handler calls `Host#republishNow()` before it returns the root provider.~~
 **Measured false on 2026-09-07, and the opposite is what works.** The handler was allowed to publish
