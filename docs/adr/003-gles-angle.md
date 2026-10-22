@@ -1209,9 +1209,25 @@ On branch `claude/angle` of this repository:
 - **The Windows run:** the backend's tests on the GPU-less x64 and arm64 runners through the real
   trigger, and the captures compared with the Linux job's (Phase 4), as a job of `ci.yml` once the
   payload is on Central.
-- **R1** on Windows on ARM (the lab guest), once the payload's arm64 slice exists.
-- **Popup latency on Direct3D 11**, where ANGLE compiles every program through Windows' HLSL
-  compiler: the runner job's first run. On Metal it is measured and is not a cost (below).
+- **The same on the payload's own build:** the guest runs below used the C++ package manager's
+  arm64 ANGLE from the October spike as a stand-in, and the runner job repeats them over WARP.
+
+**Measured on the Windows 11 ARM64 guest, 2026-10-22**, a native arm64 JVM with ANGLE forced on
+Direct3D 11 over the hypervisor's display driver (a GPU-backed adapter, not WARP), the stand-in
+being that spike's arm64 build:
+
+- **R1 on Windows on ARM: yes.** A transparent gadget window, captured from the screen, shows its
+  cube over the windows and the wallpaper behind it.
+- **Pictures:** four scenes captured on ANGLE against the same scenes on the driver's own OpenGL on
+  the same machine: components identical, testcard and text off by at most one level on a few
+  pixels, widgets 0.11% of its pixels off by more than 24 (under the comparison's 2% bound).
+- **Popup latency, R8: a real cost on Direct3D 11, now removed.** Window creation stayed at about
+  10 ms, but the first picture took 152 to 278 ms on ANGLE against 45 to 125 ms on the driver's
+  OpenGL: every popup is a new context, and ANGLE compiled every program again through Windows' HLSL
+  compiler. `EglProgramCache` hands ANGLE an in-memory program cache through
+  `EGL_ANDROID_blob_cache` before the first window's programs are compiled, and every popup after
+  the first then took 18.1 to 20.5 ms to its first picture. On Metal, where it was never a cost,
+  the cache leaves 13.9 to 15.1 ms.
 
 **Popup latency on Metal, measured 2026-10-22** on the development Mac with `GlCapabilitiesReuseTest`'s
 child, which opens popups one at a time over an owner, now timed from asking for each popup to its

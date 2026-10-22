@@ -144,6 +144,8 @@ final class AngleFallback {
         if (!taken) {
             taken = true;
             Gl.use(GlesGl.INSTANCE);
+            // Before the first window's programs are compiled, so that every later window finds them.
+            EglProgramCache.install(org.lwjgl.glfw.GLFWNativeEGL.glfwGetEGLDisplay());
             LOG.log(System.Logger.Level.INFO, "OpenGL context: {0}, {1}; OpenGL ES 3.0, and taken by "
                     + "every window from here on; -D{2}=off refuses it, =force takes it anywhere",
                     describe(), why == null ? "requested" : "the system''s OpenGL gave none (" + why + ")",
