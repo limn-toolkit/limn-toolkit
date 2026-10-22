@@ -17,7 +17,7 @@ import static org.lwjgl.system.MemoryUtil.NULL;
  * The zero-copy video path on the OpenGL ES profile, where {@link IoSurfaces} cannot go: a
  * decoder's IOSurface plane made a texture's storage through ANGLE's
  * {@code EGL_ANGLE_iosurface_client_buffer}, as {@code CGLTexImageIOSurface2D} makes it one on a
- * desktop context (ADR 003; ADR 017 for the desktop path).
+ * desktop context.
  *
  * <p>The binding is a pbuffer made from the IOSurface plane and bound with {@code eglBindTexImage}
  * to whichever 2D texture is bound, so the texture samples the decoder's own memory. The target is

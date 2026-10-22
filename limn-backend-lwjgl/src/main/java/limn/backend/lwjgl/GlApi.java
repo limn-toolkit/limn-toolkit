@@ -10,7 +10,7 @@ import java.nio.IntBuffer;
 
 /**
  * Every OpenGL entry point this backend calls, as one interface with an implementation per profile
- * (ADR 003 §4.2): {@link DesktopGl}, OpenGL 3.3 core, which every machine with a usable driver
+ * {@link DesktopGl}, OpenGL 3.3 core, which every machine with a usable driver
  * gets, and the OpenGL ES 3.0 one a process takes when the machine's own OpenGL is missing and the
  * context comes from ANGLE instead.
  *
@@ -25,7 +25,8 @@ import java.nio.IntBuffer;
  * <p>Only the overloads the backend actually calls are here, each with the same signature as
  * LWJGL's: adding a call means adding its overload, and the ES implementation has to compile
  * against {@code GLES30}, so a call with no ES equivalent fails the build rather than a machine.
- * The handful of desktop-only ones are named in ADR 003 §1.2 and answered differently per profile.
+ * The handful of desktop-only calls (a single draw buffer, timer queries, the default
+ * framebuffer's left buffer) are answered differently per profile by the methods below.
  */
 interface GlApi {
 
@@ -52,7 +53,7 @@ interface GlApi {
      */
     int defaultColorBuffer();
 
-    /** Whether the current context can measure GPU durations (ADR 003 §4.4, gap G2). */
+    /** Whether the current context can measure GPU durations. */
     boolean timerQueries();
 
     /**
@@ -62,10 +63,10 @@ interface GlApi {
      */
     boolean timerDisjoint();
 
-    /** Whether the current context can render to {@code RGBA16F} (ADR 004; ADR 003 §4.4). */
+    /** Whether the current context can render to {@code RGBA16F}, the 3D target's format. */
     boolean floatColorBuffer();
 
-    /** Whether the current context can sample normalized 16-bit {@code R16}/{@code RG16} (ADR 016). */
+    /** Whether the current context can sample normalized 16-bit {@code R16}/{@code RG16}, for 10-bit video. */
     boolean norm16Textures();
 
     void glActiveTexture(int texture);

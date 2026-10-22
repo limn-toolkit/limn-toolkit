@@ -13,7 +13,7 @@ import java.nio.IntBuffer;
 
 /**
  * {@link GlApi} on OpenGL 3.3 core: the profile every machine with a usable OpenGL driver runs on,
- * and the only one this backend had before ADR 003's fallback. Each method is the LWJGL call of the
+ * and the only one this backend had before the OpenGL ES fallback. Each method is the LWJGL call of the
  * same name and nothing else.
  */
 final class DesktopGl implements GlApi {

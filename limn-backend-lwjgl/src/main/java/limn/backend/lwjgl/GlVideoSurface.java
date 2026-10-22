@@ -373,7 +373,7 @@ final class GlVideoSurface implements VideoSurface {
         return texture;
     }
 
-    /** Whether the process draws with OpenGL ES (ADR 003), where IOSurfaces bind through EGL. */
+    /** Whether the process draws with OpenGL ES, where IOSurfaces bind through EGL. */
     private static boolean es() {
         return Gl.api() != DesktopGl.INSTANCE;
     }

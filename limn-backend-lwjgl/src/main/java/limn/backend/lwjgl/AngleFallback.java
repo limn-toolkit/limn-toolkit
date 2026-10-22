@@ -27,9 +27,9 @@ import static org.lwjgl.glfw.GLFW.glfwWindowHint;
 import static org.lwjgl.system.MemoryUtil.NULL;
 
 /**
- * The OpenGL ES 3.0 context a window takes from ANGLE when the machine's own OpenGL gives it none
- * (ADR 003 §4.3): Direct3D 11 underneath on Windows, Metal on macOS. Desktop OpenGL stays the path
- * of every machine that has it; this is the step after it.
+ * The OpenGL ES 3.0 context a window takes from ANGLE when the machine's own OpenGL gives it none:
+ * Direct3D 11 underneath on Windows, Metal on macOS. Desktop OpenGL stays the path of every
+ * machine that has it; this is the step after it.
  *
  * <p>Which refusals lead here is decided per platform, from what each one's windowing path says
  * when it has nothing to give:
@@ -44,7 +44,7 @@ import static org.lwjgl.system.MemoryUtil.NULL;
  *       {@code GLFW_API_UNAVAILABLE}, the day the system has no OpenGL at all.</li>
  * </ul>
  *
- * <p>One profile per process (ADR 003 §4.3): the first window that takes this path switches
+ * <p>One profile per process: the first window that takes this path switches
  * {@link Gl} to {@link GlesGl} and every window after it comes here directly, without spending a
  * failed native creation each time; a process that has made a desktop context never switches.
  * {@value #PROPERTY} is {@code auto} by default, {@code force} to take the path on a machine whose

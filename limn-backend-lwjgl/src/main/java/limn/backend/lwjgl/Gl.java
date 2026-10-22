@@ -13,7 +13,7 @@ import java.nio.IntBuffer;
  *
  * <p>Every call site names {@code Gl.glFoo(…)}, or imports it statically, where it used to name
  * {@code GL33C}'s method of the same name; the methods forward to {@link #api}, which is
- * {@link DesktopGl} until a window's context comes from ANGLE (ADR 003 §4.3). One profile per
+ * {@link DesktopGl} until a window's context comes from ANGLE ({@link AngleFallback}). One profile per
  * process: {@link #use} is called before the first context's capabilities are created and not
  * again with another.
  *

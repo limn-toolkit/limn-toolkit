@@ -124,10 +124,10 @@ final class ShaderProgram implements AutoCloseable {
 
     /**
      * {@code source} for the shading language {@code profile} compiles. Every shader here is written
-     * once, in the subset GLSL 3.30 and GLSL ES 3.00 share (ADR 001, quoted at the top of each), and
+     * once, in the subset GLSL 3.30 and GLSL ES 3.00 share (the rule is quoted at the top of each), and
      * says so with {@code #version 330 core} as its first line; for ES that line, and only that
      * line, becomes {@link TargetProfile#GLSL_ES_300}'s header, so the file keeps one version of
-     * the truth (ADR 003 §1.3). A source that starts any other way is the author's to answer for
+     * the truth. A source that starts any other way is the author's to answer for
      * and is compiled as written.
      */
     static String inProfile(String source, TargetProfile profile) {

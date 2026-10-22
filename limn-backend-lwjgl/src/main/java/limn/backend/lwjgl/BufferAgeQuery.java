@@ -24,7 +24,7 @@ import static org.lwjgl.system.MemoryUtil.NULL;
  * first one and went on alternating 1 and 3, and a window that assumed 2 throughout drew its popups
  * empty. Two platforms answer the question: X11 with a GLX context ({@code GLX_EXT_buffer_age}) and
  * any EGL surface, which is every Wayland window ({@code EGL_EXT_buffer_age}). An EGL surface
- * without the extension, which is ANGLE's (ADR 003), still says through {@code EGL_SWAP_BEHAVIOR}
+ * without the extension, which is ANGLE's, still says through {@code EGL_SWAP_BEHAVIOR}
  * whether a swap preserves the back buffer, and that answers too. Native macOS and Windows
  * contexts have no such query, and neither has a GLX driver without the extension; there
  * {@link #age()} says it does not know and the window keeps its own assumption.

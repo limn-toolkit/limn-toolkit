@@ -13,8 +13,8 @@ import org.lwjgl.system.Configuration;
 /**
  * Finds and loads ANGLE, the OpenGL ES 3.0 implementation of the {@code limn-angle-natives}
  * payload, which a window falls back to when the machine's own OpenGL gives it no context
- * (ADR 003 §4.3): Direct3D 11 underneath on Windows, Metal on macOS. Never on Linux, where Mesa
- * is the answer (ADR 003 §2.3).
+ * ({@link AngleFallback}): Direct3D 11 underneath on Windows, Metal on macOS. Never on Linux,
+ * where Mesa is the answer.
  *
  * <p>Two places are looked in, in order, as for the SVG renderer ({@link LunaSvgLibrary}): a
  * directory named by {@value #LIBRARY_PROPERTY}, for a packaged application that lays its natives

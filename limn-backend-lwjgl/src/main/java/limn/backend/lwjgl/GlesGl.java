@@ -14,8 +14,8 @@ import java.nio.IntBuffer;
 
 /**
  * {@link GlApi} on OpenGL ES 3.0: the profile a process runs on once a window's context comes from
- * ANGLE because the machine's own OpenGL gave none (ADR 003 §4.3). Each method is the LWJGL ES
- * call of the same name, with the three answers ADR 003 §1.2 and §4.4 give where the desktop call
+ * ANGLE because the machine's own OpenGL gave none ({@link AngleFallback}). Each method is the LWJGL ES
+ * call of the same name, with an answer of its own where the desktop call
  * has no ES twin: GPU timings through {@code EXT_disjoint_timer_query}, and the float colour buffer
  * and 16-bit normalized textures through their extensions, which the Phase 0b and 0c probes found
  * on Direct3D 11 and on Metal.
