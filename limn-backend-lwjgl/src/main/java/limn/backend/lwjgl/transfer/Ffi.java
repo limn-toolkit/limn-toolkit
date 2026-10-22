@@ -2,7 +2,6 @@ package limn.backend.lwjgl.transfer;
 
 import org.lwjgl.system.APIUtil;
 import org.lwjgl.system.Callback;
-import org.lwjgl.system.CallbackI;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.libffi.FFICIF;
 import org.lwjgl.system.libffi.FFIType;
@@ -85,45 +84,6 @@ public final class Ffi {
         long on(long[] args);
     }
 
-    private static final class Closure extends Callback implements CallbackI {
-        private final Descriptor descriptor;
-        private final String signature;
-        private final Handler handler;
-
-        Closure(Descriptor descriptor, String signature, Handler handler) {
-            super(descriptor);
-            this.descriptor = descriptor;
-            this.signature = signature;
-            this.handler = handler;
-        }
-
-        @Override
-        public Descriptor getDescriptor() {
-            return descriptor;
-        }
-
-        @Override
-        public void callback(long ret, long args) {
-            int arrow = signature.indexOf('>');
-            long[] values = new long[arrow];
-            for (int i = 0; i < arrow; i++) {
-                long slot = memGetAddress(args + 8L * i);
-                values[i] = signature.charAt(i) == 'p' ? memGetAddress(slot) : memGetInt(slot);
-            }
-            long result = 0;
-            try {
-                result = handler.on(values);
-            } catch (Throwable failed) {
-                // Nothing may unwind into the C caller.
-                System.getLogger(Ffi.class.getName()).log(System.Logger.Level.WARNING,
-                        "a native callback failed", failed);
-            }
-            if (signature.charAt(arrow + 1) != 'v') {
-                memPutAddress(ret, result); // an integer result is widened to a register, as libffi asks
-            }
-        }
-    }
-
     /**
      * A C function that calls back into Java. The caller keeps it referenced and frees it.
      *
@@ -132,7 +92,11 @@ public final class Ffi {
      * @return the callback, whose {@code address()} is the function pointer
      */
     public static Callback callback(String signature, Handler handler) {
-        return new Closure(new Callback.Descriptor(Closure.class, MethodHandles.lookup(), cif(signature)),
+        Class<? extends FfiShapes.Shape> shape = FfiShapes.SHAPES.get(signature);
+        if (shape == null) {
+            throw new IllegalArgumentException("no callback shape for " + signature + ": add it to FfiShapes");
+        }
+        return new FfiShapes.Closure(new Callback.Descriptor(shape, MethodHandles.lookup(), cif(signature)),
                 signature, handler);
     }
 }

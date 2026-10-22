@@ -152,6 +152,7 @@ final class MacSystemPreferences {
     }
 
     /** {@code (id self, SEL _cmd, NSString *keyPath, id object, NSDictionary *change, void *context) -> void}. */
+    @FunctionalInterface
     private interface KeyValueChangedI extends CallbackI {
         Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(KeyValueChangedI.class,
                 MethodHandles.lookup(), APIUtil.apiCreateCIF(LibFFI.ffi_type_void,
@@ -179,6 +180,7 @@ final class MacSystemPreferences {
     }
 
     /** {@code (id self, SEL _cmd, NSNotification *notification) -> void}. */
+    @FunctionalInterface
     private interface NotifiedI extends CallbackI {
         Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(NotifiedI.class,
                 MethodHandles.lookup(), APIUtil.apiCreateCIF(LibFFI.ffi_type_void,

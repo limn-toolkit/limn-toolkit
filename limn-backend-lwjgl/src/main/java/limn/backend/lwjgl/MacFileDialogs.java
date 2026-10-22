@@ -271,6 +271,7 @@ final class MacFileDialogs {
     }
 
     /** {@code void (^)(NSModalResponse)}: the block's invoke, which takes the block first. */
+    @FunctionalInterface
     private interface CompletionI extends CallbackI {
         Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(CompletionI.class,
                 MethodHandles.lookup(), APIUtil.apiCreateCIF(LibFFI.ffi_type_void,

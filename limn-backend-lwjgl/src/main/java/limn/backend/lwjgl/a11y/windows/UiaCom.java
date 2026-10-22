@@ -39,6 +39,7 @@ final class UiaCom {
     }
 
     /** {@code HRESULT f(void* this)} — AddRef, Release, Invoke, SetFocus, ScrollIntoView. */
+    @FunctionalInterface
     interface P extends CallbackI {
 
         Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(P.class, MethodHandles.lookup(),
@@ -58,6 +59,7 @@ final class UiaCom {
     }
 
     /** {@code HRESULT f(void* this, T* out)} — every plain getter, and GetRuntimeId. */
+    @FunctionalInterface
     interface PP extends CallbackI {
 
         Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(PP.class, MethodHandles.lookup(),
@@ -81,6 +83,7 @@ final class UiaCom {
      * {@code LRESULT f(HWND, UINT, WPARAM, LPARAM)} — a window procedure, which is the one
      * callback here that is not a COM method and the one that returns a pointer.
      */
+    @FunctionalInterface
     interface WndProc extends CallbackI {
 
         Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(WndProc.class,
@@ -103,6 +106,7 @@ final class UiaCom {
     }
 
     /** {@code HRESULT f(void* this, double value)} — IRangeValueProvider's setter. */
+    @FunctionalInterface
     interface PD extends CallbackI {
 
         Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(PD.class, MethodHandles.lookup(),
@@ -128,6 +132,7 @@ final class UiaCom {
      * 2026-09-13, readings/windows-summary.md §2: "IScrollProvider.Scroll takes two ScrollAmount
      * (enum, 4 bytes) by value").
      */
+    @FunctionalInterface
     interface PII extends CallbackI {
 
         Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(PII.class, MethodHandles.lookup(),
@@ -149,6 +154,7 @@ final class UiaCom {
     }
 
     /** {@code HRESULT f(void* this, double horizontal, double vertical)} — SetScrollPercent. */
+    @FunctionalInterface
     interface PDD extends CallbackI {
 
         Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(PDD.class, MethodHandles.lookup(),
@@ -170,6 +176,7 @@ final class UiaCom {
     }
 
     /** {@code HRESULT f(void* this, REFIID riid, void** out)} — QueryInterface, and only it. */
+    @FunctionalInterface
     interface PPP extends CallbackI {
 
         Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(PPP.class, MethodHandles.lookup(),
@@ -194,6 +201,7 @@ final class UiaCom {
      * {@code HRESULT f(void* this, int which, T* out)} — GetPropertyValue, GetPatternProvider and
      * Navigate, which is three different meanings for one shape and the reason slot order matters.
      */
+    @FunctionalInterface
     interface PIP extends CallbackI {
 
         Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(PIP.class, MethodHandles.lookup(),
@@ -215,6 +223,7 @@ final class UiaCom {
     }
 
     /** {@code HRESULT f(void* this, int row, int column, T* out)} — IGridProvider's GetItem. */
+    @FunctionalInterface
     interface PIIP extends CallbackI {
 
         Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(PIIP.class, MethodHandles.lookup(),
@@ -238,6 +247,7 @@ final class UiaCom {
     }
 
     /** {@code HRESULT f(void* this, double x, double y, T* out)} — ElementProviderFromPoint. */
+    @FunctionalInterface
     interface PDDP extends CallbackI {
 
         Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(PDDP.class, MethodHandles.lookup(),

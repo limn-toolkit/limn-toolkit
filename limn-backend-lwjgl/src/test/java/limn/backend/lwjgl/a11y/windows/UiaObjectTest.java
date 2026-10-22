@@ -151,6 +151,13 @@ class UiaObjectTest {
             long query = UiaCom.slotOf(on0, SLOT_QUERY_INTERFACE);
             assertEquals(UiaIds.E_NO_INTERFACE, JNI.invokePPPI(on0, transform, out, query));
             assertEquals(UiaIds.E_NO_INTERFACE, JNI.invokePPPI(on0, invoke, out, query));
+            // Warmed first: on Java 25 LWJGL calls the closure through method handles that
+            // allocate until they are compiled (34 to 61 kB a thousand pairs, measured cold, and
+            // nothing after twenty thousand calls), and what is asserted is the query's own cost.
+            for (int i = 0; i < 10_000; i++) {
+                JNI.invokePPPI(on0, transform, out, query);
+                JNI.invokePPPI(on0, invoke, out, query);
+            }
             long allocated = limn.testing.AllocationProbe.leastAllocatedBy(() -> {
                 for (int i = 0; i < 1_000; i++) {
                     JNI.invokePPPI(on0, transform, out, query);

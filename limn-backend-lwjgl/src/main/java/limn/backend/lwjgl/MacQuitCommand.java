@@ -120,6 +120,7 @@ final class MacQuitCommand {
     }
 
     /** {@code (id self, SEL _cmd, id sender) -> NSApplicationTerminateReply}. */
+    @FunctionalInterface
     private interface ShouldTerminateI extends CallbackI {
         Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(ShouldTerminateI.class,
                 MethodHandles.lookup(), APIUtil.apiCreateCIF(LibFFI.ffi_type_uint64,

@@ -331,6 +331,7 @@ final class MacFullscreen {
     }
 
     /** {@code (id self, SEL _cmd, id argument) -> void}: both of the observer's methods. */
+    @FunctionalInterface
     private interface ObjectMethodI extends CallbackI {
         Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(ObjectMethodI.class,
                 MethodHandles.lookup(), APIUtil.apiCreateCIF(LibFFI.ffi_type_void,

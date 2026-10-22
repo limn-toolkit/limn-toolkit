@@ -9,10 +9,12 @@ import org.lwjgl.system.APIUtil;
 import org.lwjgl.system.Callback;
 import org.lwjgl.system.CallbackI;
 import org.lwjgl.system.JNI;
+import org.lwjgl.system.Struct;
 import org.lwjgl.system.libffi.LibFFI;
 import org.lwjgl.system.macosx.ObjCRuntime;
 
 import java.lang.invoke.MethodHandles;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -709,7 +711,7 @@ final class AxElementClass {
 
     private void addRange(String selector, NodeToRange body) {
         RangeGetter getter = new RangeGetter() {
-            @Override public long[] invoke(long self, long cmd) {
+            @Override long[] range(long self, long cmd) {
                 source.entered();
                 AccessibleNode node = source.nodeFor(self);
                 return node == null ? AxGrid.NOT_FOUND : body.apply(node);
@@ -1051,6 +1053,7 @@ final class AxElementClass {
     }
 
     /** {@code (id self, SEL _cmd) -> id}, encoding {@code @16@0:8}. */
+    @FunctionalInterface
     private interface IdGetterI extends CallbackI {
         Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(IdGetterI.class, MethodHandles.lookup(),
                 APIUtil.apiCreateCIF(LibFFI.ffi_type_pointer, LibFFI.ffi_type_pointer, LibFFI.ffi_type_pointer));
@@ -1068,6 +1071,7 @@ final class AxElementClass {
     }
 
     /** {@code (id self, SEL _cmd, id) -> id}, encoding {@code @24@0:8@16}. */
+    @FunctionalInterface
     private interface AttributeGetterI extends CallbackI {
         Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(AttributeGetterI.class,
                 MethodHandles.lookup(), APIUtil.apiCreateCIF(LibFFI.ffi_type_pointer,
@@ -1087,6 +1091,7 @@ final class AxElementClass {
     }
 
     /** {@code (id self, SEL _cmd) -> BOOL}, encoding {@code B16@0:8}. */
+    @FunctionalInterface
     private interface BoolGetterI extends CallbackI {
         Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(BoolGetterI.class, MethodHandles.lookup(),
                 APIUtil.apiCreateCIF(LibFFI.ffi_type_uint8, LibFFI.ffi_type_pointer, LibFFI.ffi_type_pointer));
@@ -1106,6 +1111,7 @@ final class AxElementClass {
     }
 
     /** {@code (id self, SEL _cmd, BOOL) -> void}, encoding {@code v20@0:8B16}. */
+    @FunctionalInterface
     private interface BoolSetterI extends CallbackI {
         Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(BoolSetterI.class, MethodHandles.lookup(),
                 APIUtil.apiCreateCIF(LibFFI.ffi_type_void, LibFFI.ffi_type_pointer,
@@ -1125,6 +1131,7 @@ final class AxElementClass {
     }
 
     /** {@code (id self, SEL _cmd, id) -> void}, encoding {@code v24@0:8@16}. */
+    @FunctionalInterface
     private interface IdSetterI extends CallbackI {
         Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(IdSetterI.class, MethodHandles.lookup(),
                 APIUtil.apiCreateCIF(LibFFI.ffi_type_void, LibFFI.ffi_type_pointer,
@@ -1142,6 +1149,7 @@ final class AxElementClass {
     }
 
     /** {@code (id self, SEL _cmd, SEL) -> BOOL}, encoding {@code B24@0:8:16}. */
+    @FunctionalInterface
     private interface SelectorGateI extends CallbackI {
         Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(SelectorGateI.class, MethodHandles.lookup(),
                 APIUtil.apiCreateCIF(LibFFI.ffi_type_uint8, LibFFI.ffi_type_pointer,
@@ -1166,6 +1174,7 @@ final class AxElementClass {
      * {@code NSString} attribute name and not a selector. Kept apart so the install cannot put one
      * closure under the other's encoding.
      */
+    @FunctionalInterface
     private interface AttributeGateI extends CallbackI {
         Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(AttributeGateI.class, MethodHandles.lookup(),
                 APIUtil.apiCreateCIF(LibFFI.ffi_type_uint8, LibFFI.ffi_type_pointer,
@@ -1185,6 +1194,7 @@ final class AxElementClass {
     }
 
     /** {@code (id self, SEL _cmd) -> NSInteger}, encoding {@code q16@0:8}. */
+    @FunctionalInterface
     private interface LongGetterI extends CallbackI {
         Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(LongGetterI.class, MethodHandles.lookup(),
                 APIUtil.apiCreateCIF(LibFFI.ffi_type_sint64, LibFFI.ffi_type_pointer, LibFFI.ffi_type_pointer));
@@ -1203,25 +1213,62 @@ final class AxElementClass {
     /**
      * {@code (id self, SEL _cmd) -> NSRange}, encoding {@code {_NSRange=QQ}16@0:8}. Two unsigned
      * 64-bit fields, which arm64 returns in x0 and x1 and libffi writes to the return block.
+     *
+     * <p>The range is written into an {@link NSRange} handed in last, the one form of a structure
+     * returned by value that LWJGL's callbacks take on Java 25 as well as through libffi: a method
+     * returning an array was refused there ("Unsupported type").
      */
+    @FunctionalInterface
     private interface RangeGetterI extends CallbackI {
         Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(RangeGetterI.class, MethodHandles.lookup(),
                 APIUtil.apiCreateCIF(AxObjC.uint64s(2), LibFFI.ffi_type_pointer, LibFFI.ffi_type_pointer));
         @Override default Callback.Descriptor getDescriptor() { return DESCRIPTOR; }
         @Override default void callback(long ret, long args) {
-            long[] range = invoke(ClosureArgs.pointer(args, 0), ClosureArgs.pointer(args, 1));
-            memPutLong(ret, range[0]);
-            memPutLong(ret + 8, range[1]);
+            invoke(ClosureArgs.pointer(args, 0), ClosureArgs.pointer(args, 1), NSRange.create(ret));
         }
-        long[] invoke(long self, long cmd);
+        void invoke(long self, long cmd, NSRange result);
     }
 
     private abstract static class RangeGetter extends Callback implements RangeGetterI, Shaped {
         protected RangeGetter() { super(RangeGetterI.DESCRIPTOR); }
         @Override public final AxSelectors.Kind kind() { return AxSelectors.Kind.RANGE; }
+
+        /** The range, location and length, as the getter answers it. */
+        abstract long[] range(long self, long cmd);
+
+        @Override public final void invoke(long self, long cmd, NSRange result) {
+            long[] range = range(self, cmd);
+            memPutLong(result.address(), range[0]);
+            memPutLong(result.address() + 8, range[1]);
+        }
+    }
+
+    /** {@code NSRange}: where a range getter's answer is written, two 64-bit fields. */
+    static final class NSRange extends Struct<NSRange> {
+        static final int SIZEOF = 16;
+
+        private NSRange(long address) {
+            super(address, null);
+        }
+
+        /** Over memory of at least {@link #SIZEOF} bytes; called by LWJGL on Java 25. */
+        public static NSRange create(long address) {
+            return new NSRange(address);
+        }
+
+        @Override
+        protected NSRange create(long address, @org.jspecify.annotations.Nullable ByteBuffer container) {
+            return new NSRange(address);
+        }
+
+        @Override
+        public int sizeof() {
+            return SIZEOF;
+        }
     }
 
     /** {@code (id self, SEL _cmd, NSInteger column, NSInteger row) -> id}, encoding {@code @32@0:8q16q24}. */
+    @FunctionalInterface
     private interface CellAtI extends CallbackI {
         Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(CellAtI.class, MethodHandles.lookup(),
                 APIUtil.apiCreateCIF(LibFFI.ffi_type_pointer, LibFFI.ffi_type_pointer,
@@ -1241,6 +1288,7 @@ final class AxElementClass {
     }
 
     /** {@code (id self, SEL _cmd, CGPoint) -> id}, encoding {@code @32@0:8{CGPoint=dd}16}. */
+    @FunctionalInterface
     private interface HitTestI extends CallbackI {
         Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(HitTestI.class, MethodHandles.lookup(),
                 APIUtil.apiCreateCIF(LibFFI.ffi_type_pointer, LibFFI.ffi_type_pointer,

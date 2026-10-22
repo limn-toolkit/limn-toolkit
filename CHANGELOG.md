@@ -10,6 +10,16 @@ Maven Central say which number that was.
 
 ### Fixed
 
+- Under Java 25 a program runs again. On macOS no window could be made at all, and elsewhere the
+  clipboard, drag and drop, the macOS menu bar, tray and printer, and every Wayland data path failed
+  or fell back silently. On Java 25 LWJGL makes a native callback with the platform's
+  foreign-function linker, which takes only a `@FunctionalInterface` interface whose one method has
+  the C function's parameters, and the backend's callbacks were not that.
+  - Every typed callback interface is now annotated.
+  - The generic callbacks have one such interface for each signature they are made with.
+  - The one callback that returned a structure as an array now writes it into a structure handed in.
+  - Every shape answers a native call on Java 25 and 21 alike, and the backend's tests pass on both.
+  - The Wayland clipboard read another program's text under Java 25.
 - On Windows on ARM under an ARM64 JDK, a program no longer dies (internal error `0x8001010d`) the
   first time a screen reader or another UI Automation client in another process asks one of its
   windows for its accessibility, as a client that walks the whole desktop does: the window's

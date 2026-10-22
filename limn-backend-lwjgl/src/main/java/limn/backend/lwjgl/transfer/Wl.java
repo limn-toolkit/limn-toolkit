@@ -2,15 +2,12 @@ package limn.backend.lwjgl.transfer;
 
 import org.lwjgl.system.APIUtil;
 import org.lwjgl.system.Callback;
-import org.lwjgl.system.CallbackI;
 import org.lwjgl.system.JNI;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.SharedLibrary;
 import org.lwjgl.system.libffi.FFICIF;
-import org.lwjgl.system.libffi.FFIType;
 import org.lwjgl.system.libffi.LibFFI;
 
-import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -27,7 +24,7 @@ import static org.lwjgl.system.MemoryUtil.nmemFree;
  *
  * <p>There is no native code of ours: a request is {@code wl_proxy_marshal_array_flags}, whose
  * arguments are an array and not a variable list, reached through libffi; a listener is a table
- * of libffi closures. The interfaces ({@code wl_seat_interface} and the like) are the library's
+ * of {@link Ffi#callback} closures. The interfaces ({@code wl_seat_interface} and the like) are the library's
  * own exported descriptions.
  */
 final class Wl {
@@ -50,41 +47,6 @@ final class Wl {
     /** What an event's handler is given: its arguments after the data pointer, widened. */
     interface Handler {
         void on(long[] args);
-    }
-
-    /** A listener entry: a C function of pointers ('p') and 32-bit integers ('i'). */
-    private static final class Closure extends Callback implements CallbackI {
-        private final Descriptor descriptor;
-        private final String signature;
-        private final Handler handler;
-
-        Closure(Descriptor descriptor, String signature, Handler handler) {
-            super(descriptor);
-            this.descriptor = descriptor;
-            this.signature = signature;
-            this.handler = handler;
-        }
-
-        @Override
-        public Descriptor getDescriptor() {
-            return descriptor;
-        }
-
-        @Override
-        public void callback(long ret, long args) {
-            long[] values = new long[signature.length()];
-            for (int i = 0; i < values.length; i++) {
-                long slot = memGetAddress(args + 8L * i);
-                values[i] = signature.charAt(i) == 'p' ? memGetAddress(slot) : memGetInt(slot);
-            }
-            try {
-                handler.on(values);
-            } catch (Throwable failed) {
-                // Nothing may unwind into libwayland's dispatch.
-                System.getLogger(Wl.class.getName()).log(System.Logger.Level.WARNING,
-                        "a Wayland event handler failed", failed);
-            }
-        }
     }
 
     /** @throws RuntimeException when the library, or an entry point, is not on this machine */
@@ -160,15 +122,17 @@ final class Wl {
         return JNI.invokePI(proxy, getVersion);
     }
 
-    /** An event handler, kept until {@link #free}. */
+    /**
+     * An event handler, kept until {@link #free}.
+     *
+     * @param signature the event's C arguments, the listener's data pointer first: {@code p} a
+     *                  pointer, {@code i} a 32-bit integer
+     */
     Callback on(String signature, Handler handler) {
-        FFIType[] types = new FFIType[signature.length()];
-        for (int i = 0; i < types.length; i++) {
-            types[i] = signature.charAt(i) == 'p' ? LibFFI.ffi_type_pointer : LibFFI.ffi_type_sint32;
-        }
-        Callback.Descriptor descriptor = new Callback.Descriptor(Closure.class, MethodHandles.lookup(),
-                APIUtil.apiCreateCIF(LibFFI.ffi_type_void, types));
-        Closure closure = new Closure(descriptor, signature, handler);
+        Callback closure = Ffi.callback(signature + ">v", args -> {
+            handler.on(args);
+            return 0;
+        });
         synchronized (closures) {
             closures.add(closure);
         }

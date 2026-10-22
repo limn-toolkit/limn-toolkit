@@ -170,6 +170,7 @@ final class MacInputContextGate {
     }
 
     /** {@code (id self, SEL _cmd) -> id}. */
+    @FunctionalInterface
     private interface InputContextGetterI extends CallbackI {
         Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(InputContextGetterI.class,
                 MethodHandles.lookup(), APIUtil.apiCreateCIF(LibFFI.ffi_type_pointer,
@@ -195,6 +196,7 @@ final class MacInputContextGate {
     }
 
     /** {@code (id self, SEL _cmd, id text) -> void}. */
+    @FunctionalInterface
     private interface TextInserterI extends CallbackI {
         Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(TextInserterI.class,
                 MethodHandles.lookup(), APIUtil.apiCreateCIF(LibFFI.ffi_type_void,
