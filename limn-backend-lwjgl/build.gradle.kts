@@ -96,6 +96,16 @@ dependencies {
         runtimeOnly("${svgPayload.module}:${svgPayload.versionConstraint.requiredVersion}:natives-$platform")
     }
 
+    // The OpenGL ES fallback (ADR 003, ADR 078): ANGLE's two libraries for Windows and macOS, from
+    // the limn-angle-natives payload, loaded only when a window's native context fails for want of
+    // a driver. api for the reason the SVG renderer's is: module-info requires limn.angle.natives.
+    // All four classifiers, always, because the machine that needs them is the one nobody expected.
+    api(libs.limn.angle.natives)
+    val anglePayload = libs.limn.angle.natives.get()
+    listOf("macos-aarch64", "macos-x86_64", "windows-aarch64", "windows-x86_64").forEach { platform ->
+        runtimeOnly("${anglePayload.module}:${anglePayload.versionConstraint.requiredVersion}:natives-$platform")
+    }
+
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testImplementation(project(":limn-test"))

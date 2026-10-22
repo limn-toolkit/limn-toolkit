@@ -572,6 +572,18 @@ Maven Central say which number that was.
 
 ### New
 
+- A machine whose OpenGL gives a window no context now runs Limn anyway, on OpenGL ES 3.0 from
+  ANGLE (ADR 003): on Windows, a machine with no OpenGL driver or one older than 3.3 (a virtual
+  machine, a remote-desktop session, a Direct3D-only GPU), over Direct3D 11; on macOS, a Mac with
+  no accelerated renderer, over Metal, before the software renderer, and a Mac with no OpenGL at all.
+  Desktop OpenGL stays the path of every machine where it works, and Linux keeps Mesa. Nothing
+  changes for an application: the backend depends on the new `limn-angle-natives` payload (ADR 078,
+  four classifiers, Windows and macOS) and loads it only on the way to the fallback; `--gl-info` and
+  `GraphicsInfo` say "EGL, ANGLE on Direct3D 11 (fallback)" when it was taken. Video keeps its
+  hardware path on macOS: a decoder's IOSurface is bound through EGL without a copy.
+  `-Dlimn.backend.angle=force` takes ANGLE on a machine whose OpenGL works, to look at the path;
+  `=off` refuses it, and the error and Windows' driver dialog are as before. The driver dialog and
+  the Compatibility Pack advice now come only when ANGLE could not give a context either.
 - `Popover.detach()` lets a button go; a button opens one popover and a popover hangs from one
   button: `attachTo` on a button that has one detaches the other, `attachTo` on another button
   moves it (only the old button hears it collapse), and a detached popover still opens from

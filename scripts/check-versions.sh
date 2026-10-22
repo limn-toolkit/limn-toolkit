@@ -44,6 +44,7 @@ pin_of() {
     limn-ffmpeg-natives)      echo limn-ffmpeg-natives ;;
     limn-icons-tabler)        echo limn-icons-tabler ;;
     limn-lunasvg-natives)     echo limn-lunasvg-natives ;;
+    limn-angle-natives)       echo limn-angle-natives ;;
     *) echo "" ;;
   esac
 }
@@ -80,8 +81,8 @@ while IFS= read -r file; do
       status=1
     fi
   done < <({
-    grep -oE "$GROUP:limn-(fonts-[a-z-]+|ffmpeg-natives|lunasvg-natives|icons-tabler):[0-9][0-9.]*[0-9]" "$file"
-    perl -0777 -ne 'while (/<artifactId>(limn-(?:fonts-[a-z-]+|ffmpeg-natives|lunasvg-natives|icons-tabler))<\/artifactId>\s*<version>([^<]+)<\/version>/g) { print "io.github.limn-toolkit:$1:$2\n" }' "$file"
+    grep -oE "$GROUP:limn-(fonts-[a-z-]+|ffmpeg-natives|lunasvg-natives|angle-natives|icons-tabler):[0-9][0-9.]*[0-9]" "$file"
+    perl -0777 -ne 'while (/<artifactId>(limn-(?:fonts-[a-z-]+|ffmpeg-natives|lunasvg-natives|angle-natives|icons-tabler))<\/artifactId>\s*<version>([^<]+)<\/version>/g) { print "io.github.limn-toolkit:$1:$2\n" }' "$file"
   } | sort -u)
   # 3. The LWJGL version a Maven recipe declares.
   lwjgl="$(catalog lwjgl)"
