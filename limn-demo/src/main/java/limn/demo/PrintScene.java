@@ -39,6 +39,7 @@ final class PrintScene {
         static final I18nString SAVE = new I18nString("showcase.print.save", "Save as PDF…");
         static final I18nString FIT_WIDTH = new I18nString("showcase.print.fitWidth", "Fit width");
         static final I18nString FIT_PAGE = new I18nString("showcase.print.fitPage", "Whole page");
+        static final I18nString CUSTOM_ZOOM = new I18nString("showcase.print.customZoom", "Custom");
         static final I18nString COMPANY = new I18nString("showcase.print.company",
                 "ACME Distribution — order 4512");
         static final I18nString CUSTOMER = new I18nString("showcase.print.customer",
@@ -74,6 +75,9 @@ final class PrintScene {
 
     private static final java.util.Currency MONEY = java.util.Currency.getInstance("USD");
 
+    /** The zoom beside its choice, in whole percents. */
+    private static final java.util.function.DoubleFunction<String> PERCENT = limn.i18n.NumberFormats.percent(0);
+
     private PrintScene() {
     }
 
@@ -85,10 +89,26 @@ final class PrintScene {
         Paper[] papers = {Paper.A4, Paper.LETTER};
         int[] paper = {Paper.forLocale(Locale.getDefault()) == Paper.LETTER ? 1 : 0};
         PrintPreview.Zoom[] zoom = {PrintPreview.Zoom.FIT_WIDTH};
+        float[] percent = {100};
         // The preview is made again for another paper, since a document's paper is its own.
         limn.scene.layout.Column holder = new limn.scene.layout.Column();
         holder.crossAlignment(Flex.CrossAlignment.STRETCH);
-        PrintPreview[] shown = {preview(papers[paper[0]], zoom[0])};
+        SegmentedControl zoomChoice = new SegmentedControl(Text.FIT_WIDTH, Text.FIT_PAGE, Text.CUSTOM_ZOOM);
+        Label zoomShown = new Label("");
+        // A zoom the user made in the preview (the wheel with Command or Control, or the keys) is
+        // the custom one, and its size is shown beside the choice.
+        java.util.function.UnaryOperator<PrintPreview> watched = preview -> {
+            preview.observeChanges((widget, change) -> {
+                if (change.aspect() == limn.scene.Change.Aspect.VALUE && change.origin() == limn.scene.Change.Origin.USER) {
+                    zoom[0] = PrintPreview.Zoom.PERCENT;
+                    percent[0] = preview.zoomPercent();
+                    zoomChoice.setSelectedIndex(2);
+                    zoomShown.setText(PERCENT.apply(percent[0] / 100));
+                }
+            });
+            return preview;
+        };
+        PrintPreview[] shown = {watched.apply(preview(papers[paper[0]], zoom[0], percent[0]))};
         holder.add(Expanded.of(shown[0], 1));
 
         SegmentedControl paperChoice = new SegmentedControl(List.of("A4", "Letter"));
@@ -96,13 +116,22 @@ final class PrintScene {
         paperChoice.onSelect(index -> {
             paper[0] = index;
             holder.remove(holder.children().get(0));
-            shown[0] = preview(papers[index], zoom[0]);
+            shown[0] = watched.apply(preview(papers[index], zoom[0], percent[0]));
             holder.add(Expanded.of(shown[0], 1));
         });
-        SegmentedControl zoomChoice = new SegmentedControl(Text.FIT_WIDTH, Text.FIT_PAGE);
         zoomChoice.onSelect(index -> {
-            zoom[0] = index == 0 ? PrintPreview.Zoom.FIT_WIDTH : PrintPreview.Zoom.FIT_PAGE;
-            shown[0].setZoom(zoom[0]);
+            zoom[0] = switch (index) {
+                case 0 -> PrintPreview.Zoom.FIT_WIDTH;
+                case 1 -> PrintPreview.Zoom.FIT_PAGE;
+                default -> PrintPreview.Zoom.PERCENT;
+            };
+            if (zoom[0] == PrintPreview.Zoom.PERCENT) {
+                shown[0].setZoomPercent(percent[0]);
+                zoomShown.setText(PERCENT.apply(percent[0] / 100));
+            } else {
+                shown[0].setZoom(zoom[0]);
+                zoomShown.setText("");
+            }
         });
 
         Button print = new Button(Text.PRINT).setStyle(Button.Style.PRIMARY);
@@ -125,6 +154,7 @@ final class PrintScene {
         toolbar.gap(Page.GAP).crossAlignment(Flex.CrossAlignment.CENTER);
         toolbar.add(paperChoice);
         toolbar.add(zoomChoice);
+        toolbar.add(zoomShown);
         toolbar.add(Expanded.of(new Label(""), 1));
         toolbar.add(save);
         toolbar.add(print);
@@ -134,8 +164,9 @@ final class PrintScene {
     }
 
     /** A preview of the order on one paper. */
-    private static PrintPreview preview(Paper paper, PrintPreview.Zoom zoom) {
-        return new PrintPreview(order(paper)).setZoom(zoom);
+    private static PrintPreview preview(Paper paper, PrintPreview.Zoom zoom, float percent) {
+        PrintPreview preview = new PrintPreview(order(paper));
+        return zoom == PrintPreview.Zoom.PERCENT ? preview.setZoomPercent(percent) : preview.setZoom(zoom);
     }
 
     /** The order as a document: its widgets are its own, made afresh for each preview and print. */

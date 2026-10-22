@@ -2,18 +2,24 @@ package limn.print;
 
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
+import limn.components.Accelerator;
 import limn.components.Elevation;
 import limn.components.ScrollView;
+import limn.components.Strokes;
 import limn.components.Theme;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Rect;
 import limn.graphics.RoundRect;
+import limn.input.Keys;
 import limn.print.internal.Recording;
+import limn.scene.Change;
 import limn.scene.Constraints;
 import limn.scene.Size;
 import limn.scene.Widget;
+import limn.scene.event.KeyEvent;
+import limn.scene.event.MouseEvent;
 import org.jspecify.annotations.Nullable;
 
 import java.util.List;
@@ -34,6 +40,13 @@ import java.util.Objects;
  * zoom that fits a whole page, fits the width, or is a percentage of the paper's real size. It is
  * the toolkit's and the same on every system, because only one of the three systems' print dialogs
  * previews an application's pages.
+ *
+ * <p>The user zooms it as a document viewer is zoomed: the wheel with Command held on macOS and
+ * Control elsewhere (Control on macOS too), around the point under the pointer, and, with the
+ * preview focused, Command or Control with {@code +} or {@code =} to zoom in, {@code -} to zoom out
+ * and {@code 0} for the paper's real size. A zoom the user made is a {@link Zoom#PERCENT} one and is
+ * announced as a {@link Change.Aspect#VALUE} change of the user's, which a toolbar showing the zoom
+ * watches. Focused, the arrows, Page Up, Page Down, Home and End scroll the pages.
  *
  * <p>A reader hears a group named "Print preview", described by the page in the middle of the view
  * and the count ("Page 3 of 12"); the pages' own text is not published to it.
@@ -61,6 +74,15 @@ public final class PrintPreview extends Widget<PrintPreview> {
     /** The space around and between sheets, in points. */
     private static final float GAP = 16;
 
+    /** What one key press zooms by, in or out. */
+    private static final float KEY_STEP = 1.25f;
+
+    /** What one wheel detent zooms by; a trackpad's fractions of a detent zoom by a fraction of it. */
+    private static final float WHEEL_STEP = 1.1f;
+
+    /** What an arrow key scrolls by, in points. */
+    private static final float ARROW_STEP = 48;
+
     private final Document document;
     private final Sheets sheets = new Sheets();
     private final ScrollView scroller = new ScrollView(sheets);
@@ -68,6 +90,8 @@ public final class PrintPreview extends Widget<PrintPreview> {
     private Zoom zoom = Zoom.FIT_WIDTH;
     private float percent = 100;
     private long refreshes;
+    /** Where the scroll view goes once a zoom the user made is laid out: x, y; null for nowhere. */
+    private float @Nullable [] pendingScroll;
 
     /**
      * @param document the document to show; its pages are recorded now
@@ -75,7 +99,10 @@ public final class PrintPreview extends Widget<PrintPreview> {
     public PrintPreview(Document document) {
         Ui.checkUiThread();
         this.document = Objects.requireNonNull(document, "document");
+        // The pages' own text is not published (the class says why); the preview speaks for them.
+        sheets.setAccessibleIgnored(true);
         add(scroller);
+        setFocusable(true);
         refresh();
     }
 
@@ -164,6 +191,131 @@ public final class PrintPreview extends Widget<PrintPreview> {
         return this;
     }
 
+    /**
+     * @return the size the sheets are shown at, as a percentage of the paper's real size on a
+     *         96-dpi screen, whichever the zoom: what a fitting zoom comes to at the view's size
+     */
+    public float zoomPercent() {
+        return scale() * 100f;
+    }
+
+    // ------------------------------------------------------------------ the user's zoom
+
+    /**
+     * Zooms by a factor the user asked for, keeping the point of the pages at a place in the view
+     * where it is.
+     *
+     * @param factor what to multiply the present size by
+     * @param viewX  the place in the view, from its left
+     * @param viewY  the place in the view, from its top
+     */
+    private void zoomBy(float factor, float viewX, float viewY) {
+        float before = scale();
+        float after = Math.max(0.10f, Math.min(8f, before * factor));
+        zoomTo(after, viewX, viewY);
+    }
+
+    private void zoomTo(float after, float viewX, float viewY) {
+        float before = scale();
+        if (after == before || pages.isEmpty()) {
+            if (after != before) {
+                percent = after * 100f;
+                zoom = Zoom.PERCENT;
+                markNeedsLayout();
+                notifyChange(Change.of(Change.Aspect.VALUE, Change.Origin.USER));
+            }
+            return;
+        }
+        // The point under the place, on its page, in the paper's own units.
+        float x = scroller.offsetX() + viewX;
+        float y = scroller.offsetY() + viewY;
+        float sheetH = pageHeight() * before;
+        float step = sheetH + GAP;
+        int page = Math.max(0, Math.min(pages.size() - 1, (int) Math.floor((y - GAP) / step)));
+        float onPageY = (y - GAP - page * step) / before;
+        float onPageX = (x - sheetLeft(before)) / before;
+        percent = after * 100f;
+        zoom = Zoom.PERCENT;
+        // The same point once the sheets have their new size, put back under the place.
+        float newY = GAP + page * (pageHeight() * after + GAP) + onPageY * after;
+        float newX = sheetLeft(after) + onPageX * after;
+        pendingScroll = new float[] {newX - viewX, newY - viewY};
+        markNeedsLayout();
+        invalidate();
+        notifyChange(Change.of(Change.Aspect.VALUE, Change.Origin.USER));
+    }
+
+    /** Where a sheet's left edge is in the column at a scale, as {@link Sheets} places it. */
+    private float sheetLeft(float s) {
+        float sheetW = pageWidth() * s;
+        float columnW = Math.max(scroller.viewportWidth(), sheetW + 2 * GAP);
+        return Math.max(GAP, (columnW - sheetW) / 2);
+    }
+
+    /** Whether a mask holds the modifier a zoom is asked with, and nothing else but Shift. */
+    private static boolean zoomChord(int modifiers) {
+        int held = modifiers & ~Keys.MOD_SHIFT;
+        return held == Accelerator.commandModifier() || held == Keys.MOD_CONTROL;
+    }
+
+    @Override
+    protected void onKeyEvent(KeyEvent event) {
+        if (!event.isPressed() || event.isConsumed()) {
+            return;
+        }
+        float middleX = scroller.viewportWidth() / 2;
+        float middleY = scroller.viewportHeight() / 2;
+        if (zoomChord(event.modifiers())) {
+            int typed = event.layoutCodePoint();
+            if (typed == '+' || typed == '=' || event.key() == Keys.EQUAL) {
+                zoomBy(KEY_STEP, middleX, middleY);
+            } else if (typed == '-' || event.key() == Keys.MINUS) {
+                zoomBy(1 / KEY_STEP, middleX, middleY);
+            } else if (typed == '0' || event.key() == Keys.NUM_0) {
+                zoomTo(1f, middleX, middleY);
+            } else {
+                return;
+            }
+            event.consume();
+            return;
+        }
+        if (event.modifiers() != 0) {
+            return;
+        }
+        float x = scroller.offsetX();
+        float y = scroller.offsetY();
+        switch (event.key()) {
+            case Keys.UP -> y -= ARROW_STEP;
+            case Keys.DOWN -> y += ARROW_STEP;
+            case Keys.LEFT -> x -= ARROW_STEP;
+            case Keys.RIGHT -> x += ARROW_STEP;
+            case Keys.PAGE_UP -> y -= scroller.viewportHeight();
+            case Keys.PAGE_DOWN -> y += scroller.viewportHeight();
+            case Keys.HOME -> y = 0;
+            case Keys.END -> y = scroller.maxOffsetY();
+            default -> {
+                return;
+            }
+        }
+        x = Math.max(0, Math.min(scroller.maxOffsetX(), x));
+        y = Math.max(0, Math.min(scroller.maxOffsetY(), y));
+        if (x != scroller.offsetX() || y != scroller.offsetY()) {
+            scroller.scrollTo(x, y);
+            invalidate();
+            event.consume();
+        }
+    }
+
+    @Override
+    protected void onFocusGained() {
+        invalidate();
+    }
+
+    @Override
+    protected void onFocusLost() {
+        invalidate();
+    }
+
     // ------------------------------------------------------------------ layout
 
     /** Document units to view points, at the zoom and the view's size. */
@@ -204,6 +356,25 @@ public final class PrintPreview extends Widget<PrintPreview> {
     protected void onLayout() {
         scroller.measure(Constraints.tight(width(), height()));
         scroller.layoutBox(0, 0, width(), height());
+        float[] to = pendingScroll;
+        if (to != null) {
+            pendingScroll = null;
+            scroller.scrollTo(Math.max(0, Math.min(scroller.maxOffsetX(), to[0])),
+                    Math.max(0, Math.min(scroller.maxOffsetY(), to[1])));
+        }
+    }
+
+    @Override
+    protected void onPaintOverlay(Canvas canvas) {
+        if (!isFocused()) {
+            return;
+        }
+        // Inside the preview's own box: the pages fill it to its edges, and a ring outside it
+        // would be cut by whatever holds the preview.
+        Theme theme = Theme.of(this);
+        float inset = Strokes.FOCUS_RING / 2;
+        canvas.drawRoundRect(inset, inset, width() - 2 * inset, height() - 2 * inset, 0,
+                Strokes.FOCUS_RING, theme.focusRing());
     }
 
     @Override
@@ -215,6 +386,18 @@ public final class PrintPreview extends Widget<PrintPreview> {
 
     /** The column of sheets inside the scroll view. */
     private final class Sheets extends Widget<Sheets> {
+
+        /** The wheel with the zoom's modifier, taken here, ahead of the scroll view around it. */
+        @Override
+        protected void onMouseEvent(MouseEvent event) {
+            if (event.type() != MouseEvent.Type.WHEEL || !zoomChord(event.modifiers()) || event.scrollY() == 0) {
+                return;
+            }
+            limn.math.Vec2 local = sceneToLocal(event.x(), event.y());
+            zoomBy((float) Math.pow(WHEEL_STEP, event.scrollY()),
+                    local.x() - scroller.offsetX(), local.y() - scroller.offsetY());
+            event.consume();
+        }
 
         @Override
         protected Size onMeasure(Constraints constraints) {

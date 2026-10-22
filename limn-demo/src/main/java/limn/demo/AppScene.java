@@ -675,6 +675,7 @@ final class AppScene {
             return content;
         }
         Button link = new Button(ShowcaseStrings.HEAD_DOCUMENTATION).setStyle(Button.Style.SECONDARY);
+        link.setIcon(limn.icons.tabler.Tabler.outline("book"));
         link.setControlSize(ControlSize.SMALL);
         link.setTooltip(SITE + place.documentation);
         link.onAction(() -> openDocumentation(link, place.documentation, status));
@@ -685,7 +686,10 @@ final class AppScene {
         head.add(link);
         limn.scene.layout.Column framed = new limn.scene.layout.Column();
         framed.gap(8).crossAlignment(Flex.CrossAlignment.STRETCH);
-        framed.add(new Padding(Insets.symmetric(0, 12), head));
+        // The pane the page sits in clips at its top edge, where the head starts: kept off it by
+        // the focus ring's reach, the link's ring is drawn whole.
+        float ring = limn.components.Strokes.FOCUS_RING_OUTSET;
+        framed.add(new Padding(new Insets(ring, 12, 0, 12), head));
         framed.add(Expanded.of(content, 1));
         return framed;
     }

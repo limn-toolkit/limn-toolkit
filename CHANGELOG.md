@@ -602,7 +602,9 @@ Maven Central say which number that was.
   selected, copied and searched in every script), soft shadows and icons as pictures at 300 dpi, a
   backdrop as its tint, video and 3D left out with a warning; the same pages give the same bytes.
   `print(window)` prints through the system's own dialog, owned by the window. `PrintPreview` shows
-  a document's pages as sheets, fitted to the width, to a page, or at a percentage. `Paper` has the
+  a document's pages as sheets, fitted to the width, to a page, or at a percentage; the user zooms
+  it with the wheel and Command (macOS) or Control held, around the pointer, or, focused, with
+  Command or Control and `+`, `-` and `0`, and `zoomPercent()` says the size shown. `Paper` has the
   ISO A and B sizes, Letter, Legal and Tabloid, any size, and `Paper.forLocale`.
 - A window prints a PDF: `NativeWindow.printer()` returns a `Printer` with `print(Path, title)`,
   `print(byte[], title)` and `isAvailable()`, answering a `PrintResult` (`PRINTED`, `CANCELLED`,
