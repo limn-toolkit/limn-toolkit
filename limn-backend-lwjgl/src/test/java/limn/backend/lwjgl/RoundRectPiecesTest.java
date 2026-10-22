@@ -366,21 +366,22 @@ class RoundRectPiecesTest {
 
     /** The samples the device shaded for one frame of {@code paint}, the clear excluded. */
     private long samples(float scale, Consumer<GlCanvas> paint) {
+        HeadlessGl.assumeDesktop("counts samples with GL_SAMPLES_PASSED, which ES 3.0 lacks");
         long[] out = new long[1];
         withTarget(() -> {
-            int query = GL33C.glGenQueries();
+            int query = Gl.glGenQueries();
             try {
                 canvas.beginFrame(WIDTH, HEIGHT, scale);
                 canvas.clear(BACKGROUND);
-                GL33C.glBeginQuery(GL33C.GL_SAMPLES_PASSED, query);
+                Gl.glBeginQuery(GL33C.GL_SAMPLES_PASSED, query);
                 canvas.save();
                 paint.accept(canvas);
                 canvas.restore();
                 canvas.endFrame();
-                GL33C.glEndQuery(GL33C.GL_SAMPLES_PASSED);
+                Gl.glEndQuery(GL33C.GL_SAMPLES_PASSED);
                 out[0] = GL33C.glGetQueryObjecti64(query, GL33C.GL_QUERY_RESULT);
             } finally {
-                GL33C.glDeleteQueries(query);
+                Gl.glDeleteQueries(query);
             }
         });
         return out[0];
@@ -400,29 +401,29 @@ class RoundRectPiecesTest {
     }
 
     private void withTarget(int width, int height, Runnable body) {
-        int texture = GL33C.glGenTextures();
-        int fbo = GL33C.glGenFramebuffers();
-        int previousFbo = GL33C.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
+        int texture = Gl.glGenTextures();
+        int fbo = Gl.glGenFramebuffers();
+        int previousFbo = Gl.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
         int[] previousViewport = new int[4];
-        GL33C.glGetIntegerv(GL33C.GL_VIEWPORT, previousViewport);
+        Gl.glGetIntegerv(GL33C.GL_VIEWPORT, previousViewport);
         try {
-            GL33C.glActiveTexture(GL33C.GL_TEXTURE0);
-            GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
-            GL33C.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, width, height, 0,
+            Gl.glActiveTexture(GL33C.GL_TEXTURE0);
+            Gl.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
+            Gl.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, width, height, 0,
                     GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, (ByteBuffer) null);
-            GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, fbo);
-            GL33C.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
+            Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, fbo);
+            Gl.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
                     GL33C.GL_TEXTURE_2D, texture, 0);
             assertEquals(GL33C.GL_FRAMEBUFFER_COMPLETE,
-                    GL33C.glCheckFramebufferStatus(GL33C.GL_FRAMEBUFFER), "render target");
-            GL33C.glViewport(0, 0, width, height);
+                    Gl.glCheckFramebufferStatus(GL33C.GL_FRAMEBUFFER), "render target");
+            Gl.glViewport(0, 0, width, height);
             body.run();
         } finally {
-            GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, previousFbo);
-            GL33C.glViewport(previousViewport[0], previousViewport[1],
+            Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, previousFbo);
+            Gl.glViewport(previousViewport[0], previousViewport[1],
                     previousViewport[2], previousViewport[3]);
-            GL33C.glDeleteFramebuffers(fbo);
-            GL33C.glDeleteTextures(texture);
+            Gl.glDeleteFramebuffers(fbo);
+            Gl.glDeleteTextures(texture);
         }
     }
 
@@ -433,8 +434,8 @@ class RoundRectPiecesTest {
     private static byte[] read(int width, int height) {
         ByteBuffer pixels = MemoryUtil.memAlloc(width * height * 4);
         try {
-            GL33C.glPixelStorei(GL33C.GL_PACK_ALIGNMENT, 1);
-            GL33C.glReadPixels(0, 0, width, height, GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, pixels);
+            Gl.glPixelStorei(GL33C.GL_PACK_ALIGNMENT, 1);
+            Gl.glReadPixels(0, 0, width, height, GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, pixels);
             byte[] out = new byte[width * height * 4];
             pixels.get(out);
             return out;

@@ -79,8 +79,12 @@ class GlProfileSourceTest {
             }
         }
         assertTrue(names.size() > 50, "the pattern found too few constants to be reading the sources: " + names);
-        // Reading a field initialises its class, and LWJGL's ES classes load libGLESv2 when they are
-        // initialised unless told not to; the values are what is wanted here, not a library.
+        // Reading a field initialises its class, and LWJGL's GL and ES classes each create their
+        // binding when initialised unless told not to. The values are what is wanted here, not a
+        // binding, and only one of the two can ever be created in a process (both claim LWJGL's
+        // missing-function table), so creating the other profile's would end a run on that one.
+        // DesktopGl and GlesGl create theirs themselves when it is not there.
+        org.lwjgl.system.Configuration.OPENGL_EXPLICIT_INIT.set(true);
         org.lwjgl.system.Configuration.OPENGLES_EXPLICIT_INIT.set(true);
         List<String> problems = new ArrayList<>();
         for (String name : names) {

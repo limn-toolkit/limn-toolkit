@@ -305,7 +305,7 @@ final class GraphicsProbe {
         }
         return switch (glfwGetWindowAttrib(window, GLFW_CONTEXT_CREATION_API)) {
             case GLFW_NATIVE_CONTEXT_API -> "native";
-            case GLFW_EGL_CONTEXT_API -> "EGL";
+            case GLFW_EGL_CONTEXT_API -> AngleFallback.taken() ? "EGL, " + AngleFallback.describe() : "EGL";
             case GLFW_OSMESA_CONTEXT_API -> "OSMesa";
             default -> "unknown";
         };

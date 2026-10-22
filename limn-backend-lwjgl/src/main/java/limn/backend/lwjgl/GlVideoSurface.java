@@ -55,6 +55,8 @@ final class GlVideoSurface implements VideoSurface {
 
     private final GlVideoContext owner;
     private final int[] planeTextures = new int[MAX_PLANES];
+    /** On the ES profile, the EGL pbuffer each plane's IOSurface binding lives in ({@link EglIoSurfaces}). */
+    private final long[] planePbuffers = new long[MAX_PLANES];
 
     private PixelFormat format;
     private int width;
@@ -100,14 +102,15 @@ final class GlVideoSurface implements VideoSurface {
         boolean device = frame.kind() != VideoFrame.Kind.PLANAR;
         if (device) {
             frame.handle();
-            if (!IoSurfaces.isAvailable() || frame.kind() != VideoFrame.Kind.IO_SURFACE) {
+            String unavailable = es() ? EglIoSurfaces.unavailableReason()
+                    : IoSurfaces.isAvailable() ? null : IoSurfaces.unavailableReason();
+            if (unavailable != null || frame.kind() != VideoFrame.Kind.IO_SURFACE) {
                 // Refused by name rather than bound as something else. The picture is already
                 // decoded and the alternative to saying so is a black rectangle, so the message
                 // names the kind and the way out: VideoFrame.toPlanar() reads it back.
                 throw new UnsupportedOperationException(
                         "this surface cannot bind a " + frame.kind() + " picture"
-                                + (IoSurfaces.isAvailable() ? ""
-                                        : " (" + IoSurfaces.unavailableReason() + ")")
+                                + (unavailable == null ? "" : " (" + unavailable + ")")
                                 + "; a consumer without the interop calls VideoFrame.toPlanar()"
                                 + " and uploads the samples instead");
             }
@@ -136,7 +139,9 @@ final class GlVideoSurface implements VideoSurface {
                 uploadPlane(frame, pictureFormat, plane);
             }
         }
-        owner.convert(this, frame.color(), pictureFormat, device);
+        // On the ES profile a bound IOSurface is a 2D texture like an uploaded plane, and the
+        // uploaded path's program reads it; only the desktop binding needs the rectangle one.
+        owner.convert(this, frame.color(), pictureFormat, device && !es());
         if (device) {
             // The caller is entitled to release the frame the moment this returns, and for a
             // borrowed IOSurface that is the moment the decoder may start overwriting it. Nothing
@@ -251,7 +256,7 @@ final class GlVideoSurface implements VideoSurface {
         // asking the wrong one either refuses a picture that would have worked
         // or admits one that fails to bind with no GL error at all.
         int maxTexture = Gl.glGetInteger(GL33C.GL_MAX_TEXTURE_SIZE);
-        int maxPlane = device
+        int maxPlane = device && !es()
                 ? Gl.glGetInteger(IoSurfaces.GL_MAX_RECTANGLE_TEXTURE_SIZE) : maxTexture;
         if (newWidth > maxTexture || newHeight > maxTexture) {
             throw new IllegalArgumentException(
@@ -356,19 +361,26 @@ final class GlVideoSurface implements VideoSurface {
      * "unfiltered", it is a filter nobody chose.
      */
     private static int createRectangleTexture() {
+        int target = deviceTarget();
         int texture = Gl.glGenTextures();
-        Gl.glBindTexture(IoSurfaces.GL_TEXTURE_RECTANGLE, texture);
-        Gl.glTexParameteri(IoSurfaces.GL_TEXTURE_RECTANGLE,
-                GL33C.GL_TEXTURE_MIN_FILTER, GL33C.GL_NEAREST);
-        Gl.glTexParameteri(IoSurfaces.GL_TEXTURE_RECTANGLE,
-                GL33C.GL_TEXTURE_MAG_FILTER, GL33C.GL_NEAREST);
+        Gl.glBindTexture(target, texture);
+        Gl.glTexParameteri(target, GL33C.GL_TEXTURE_MIN_FILTER, GL33C.GL_NEAREST);
+        Gl.glTexParameteri(target, GL33C.GL_TEXTURE_MAG_FILTER, GL33C.GL_NEAREST);
         // CLAMP_TO_EDGE is the only wrap a rectangle texture takes besides a
         // border colour; REPEAT is not legal on one at all.
-        Gl.glTexParameteri(IoSurfaces.GL_TEXTURE_RECTANGLE,
-                GL33C.GL_TEXTURE_WRAP_S, GL33C.GL_CLAMP_TO_EDGE);
-        Gl.glTexParameteri(IoSurfaces.GL_TEXTURE_RECTANGLE,
-                GL33C.GL_TEXTURE_WRAP_T, GL33C.GL_CLAMP_TO_EDGE);
+        Gl.glTexParameteri(target, GL33C.GL_TEXTURE_WRAP_S, GL33C.GL_CLAMP_TO_EDGE);
+        Gl.glTexParameteri(target, GL33C.GL_TEXTURE_WRAP_T, GL33C.GL_CLAMP_TO_EDGE);
         return texture;
+    }
+
+    /** Whether the process draws with OpenGL ES (ADR 003), where IOSurfaces bind through EGL. */
+    private static boolean es() {
+        return Gl.api() != DesktopGl.INSTANCE;
+    }
+
+    /** The target a decoder's plane is bound to: a rectangle through CGL, a 2D texture through EGL. */
+    private static int deviceTarget() {
+        return es() ? GL33C.GL_TEXTURE_2D : IoSurfaces.GL_TEXTURE_RECTANGLE;
     }
 
     /**
@@ -393,6 +405,15 @@ final class GlVideoSurface implements VideoSurface {
             int internalFormat = twoComponent
                     ? (deep ? GL33C.GL_RG16 : GL33C.GL_RG8)
                     : (deep ? GL33C.GL_R16 : GL33C.GL_R8);
+            if (es()) {
+                Gl.glBindTexture(GL33C.GL_TEXTURE_2D, planeTextures[plane]);
+                releasePbuffer(plane);
+                planePbuffers[plane] = EglIoSurfaces.bindPlane(twoComponent ? GL33C.GL_RG : GL33C.GL_RED,
+                        deep ? GL33C.GL_UNSIGNED_SHORT : GL33C.GL_UNSIGNED_BYTE,
+                        pictureFormat.planeWidth(plane, width), pictureFormat.planeHeight(plane, height),
+                        ioSurface, plane);
+                continue;
+            }
             Gl.glBindTexture(IoSurfaces.GL_TEXTURE_RECTANGLE, planeTextures[plane]);
             int error = IoSurfaces.bindPlane(internalFormat,
                     pictureFormat.planeWidth(plane, width),
@@ -491,6 +512,13 @@ final class GlVideoSurface implements VideoSurface {
         return staging;
     }
 
+    private void releasePbuffer(int plane) {
+        if (planePbuffers[plane] != 0) {
+            EglIoSurfaces.release(planePbuffers[plane]);
+            planePbuffers[plane] = 0;
+        }
+    }
+
     private void deleteGl() {
         if (colorTexture != 0) {
             // This picture may already be queued in the frame being drawn: a
@@ -499,6 +527,7 @@ final class GlVideoSurface implements VideoSurface {
             owner.flushBeforeDeletingTexture();
         }
         for (int plane = 0; plane < MAX_PLANES; plane++) {
+            releasePbuffer(plane);
             if (planeTextures[plane] != 0) {
                 Gl.glDeleteTextures(planeTextures[plane]);
                 planeTextures[plane] = 0;

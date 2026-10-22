@@ -121,7 +121,7 @@ class DragPictureTest {
     void onADenseDisplayThePictureHasTheFramesOwnPixels() {
         scale = 2f;
         int[] viewport = new int[4];
-        GL33C.glGetIntegerv(GL33C.GL_VIEWPORT, viewport);
+        Gl.glGetIntegerv(GL33C.GL_VIEWPORT, viewport);
         int w = viewport[2];
         int h = viewport[3];
         TakingWindow window = new TakingWindow();
@@ -151,7 +151,7 @@ class DragPictureTest {
     @Test
     void theSystemIsHandedTheDraggedThingAloneOnNothing() {
         int[] viewport = new int[4];
-        GL33C.glGetIntegerv(GL33C.GL_VIEWPORT, viewport);
+        Gl.glGetIntegerv(GL33C.GL_VIEWPORT, viewport);
         int w = viewport[2];
         int h = viewport[3];
         TakingWindow window = new TakingWindow();

@@ -371,6 +371,9 @@ public final class LwjglBackend implements BackendPeer {
                     MacApplication.name(this.applicationName);
                 }
             }
+            // ANGLE's backend is a hint the windowing library reads when it first makes an EGL
+            // window, which is only ever a fallback's (ADR 003 §4.3); set before init or never.
+            AngleFallback.initHints();
             initialized = glfwInit();
         } catch (UnsatisfiedLinkError missing) {
             throw nativesMissing(missing);

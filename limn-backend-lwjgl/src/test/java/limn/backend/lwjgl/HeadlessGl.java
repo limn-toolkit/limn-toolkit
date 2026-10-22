@@ -60,7 +60,7 @@ final class HeadlessGl {
     private static long window;
     /** The CGL context the fallback made current, or 0 while the context is the window's. */
     private static long cglContext;
-    private static org.lwjgl.opengl.GLCapabilities capabilities;
+    private static Object capabilities;
 
     private HeadlessGl() {
     }
@@ -87,8 +87,23 @@ final class HeadlessGl {
     }
 
     /** @return the context's capabilities; only valid after {@link #assumeAvailable()} */
-    static org.lwjgl.opengl.GLCapabilities capabilities() {
+    /** @return the context's capabilities, of the profile the process runs on ({@link Gl#api()}) */
+    static Object capabilities() {
         return capabilities;
+    }
+
+    /**
+     * Skips the calling test on the ES path: for an assertion that reads the device through a query
+     * OpenGL ES 3.0 does not have ({@code glGetTexLevelParameteri}, {@code GL_SAMPLES_PASSED}),
+     * where what the test proves about the backend is proven by the desktop run.
+     */
+    static void assumeDesktop(String why) {
+        Assumptions.assumeFalse(isEs(), why);
+    }
+
+    /** Whether the context is OpenGL ES from ANGLE (ADR 003), which some tests have to know. */
+    static boolean isEs() {
+        return open() && Gl.api() != DesktopGl.INSTANCE;
     }
 
     /**
@@ -108,13 +123,13 @@ final class HeadlessGl {
         if (!open()) {
             return false;
         }
-        return GraphicsProbe.isSoftwareRenderer(GL33C.glGetString(GL33C.GL_RENDERER));
+        return GraphicsProbe.isSoftwareRenderer(Gl.glGetString(GL33C.GL_RENDERER));
     }
 
     /** @return a short description of the device, for a failure message worth reading */
     static String describe() {
         return open()
-                ? GL33C.glGetString(GL33C.GL_RENDERER) + " / " + GL33C.glGetString(GL33C.GL_VERSION)
+                ? Gl.glGetString(GL33C.GL_RENDERER) + " / " + Gl.glGetString(GL33C.GL_VERSION)
                 : "none (" + failure + ")";
     }
 
@@ -132,6 +147,7 @@ final class HeadlessGl {
             return;
         }
         Assumptions.assumeTrue(macOs(), "a second, software context is made here only through CGL, on macOS");
+        Assumptions.assumeFalse(isEs(), "a software CGL context is desktop OpenGL, and this process runs ES");
         long context = cglContext(true);
         Assumptions.assumeTrue(context != 0L, "no software pixel format through CGL");
         try {
@@ -180,7 +196,7 @@ final class HeadlessGl {
         } else {
             GLFW.glfwMakeContextCurrent(window);
         }
-        GL.setCapabilities(capabilities);
+        Gl.api().setCapabilities(capabilities);
     }
 
     private static boolean macOs() {
@@ -197,10 +213,16 @@ final class HeadlessGl {
                 // A build's process: no icon in the Dock for a window nobody is meant to see.
                 GLFW.glfwInitHint(GLFW.GLFW_COCOA_MENUBAR, GLFW.GLFW_FALSE);
             }
+            AngleFallback.initHints();
             if (!GLFW.glfwInit()) {
                 return fallBack("glfwInit() returned false (no display?)");
             }
             GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE);
+            if (AngleFallback.forced()) {
+                // -Dlimn.backend.angle=force: the device tests run on the ES path, as a machine
+                // without an OpenGL driver runs them (ADR 003).
+                return openAngle(null);
+            }
             GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MAJOR, 3);
             GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MINOR, 3);
             GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_PROFILE, GLFW.GLFW_OPENGL_CORE_PROFILE);
@@ -213,10 +235,18 @@ final class HeadlessGl {
             }
             window = GLFW.glfwCreateWindow(16, 16, "limn video tests", 0L, 0L);
             if (window == 0L) {
+                GraphicsProbe.Failure why = GraphicsProbe.lastFailure();
+                if (AngleFallback.answers(limn.backend.Platform.current().os(), why.code())) {
+                    // The machine's own OpenGL gave nothing, as on GitHub's GPU-less Windows
+                    // runners: the tests go where an application would, to ANGLE.
+                    return openAngle(why) || fallBack("glfwCreateWindow() returned NULL (" + why + "), and ANGLE "
+                            + AngleFallback.failure());
+                }
                 return fallBack("glfwCreateWindow() returned NULL (no GL 3.3 core?)");
             }
+            AngleFallback.nativeContextMade();
             GLFW.glfwMakeContextCurrent(window);
-            capabilities = GL.createCapabilities();
+            capabilities = Gl.api().createCapabilities();
             // The window outlives every test on purpose: contexts are not
             // shared, so tearing it down between classes would mean recompiling
             // every program, and the process exits soon enough either way.
@@ -226,6 +256,43 @@ final class HeadlessGl {
             failure = error.toString();
             return false;
         }
+    }
+
+    /** This class's context from ANGLE, OpenGL ES 3.0, as {@link AngleFallback} gives a window one. */
+    private static boolean openAngle(GraphicsProbe.Failure why) {
+        window = AngleFallback.createWindow(16, 16, "limn video tests", why);
+        if (window == 0L) {
+            failure = "ANGLE gave no window: " + AngleFallback.failure();
+            return false;
+        }
+        GLFW.glfwMakeContextCurrent(window);
+        capabilities = Gl.api().createCapabilities();
+        if (((org.lwjgl.opengles.GLESCapabilities) capabilities).GL_KHR_debug) {
+            // ANGLE validates OpenGL ES strictly and says what it refused and why; a test that
+            // reads glGetError gets that sentence with the code (esErrors), which is what makes a
+            // call valid on the desktop and not on ES findable rather than a bare 0x500.
+            Gl.glEnable(org.lwjgl.opengles.KHRDebug.GL_DEBUG_OUTPUT_SYNCHRONOUS_KHR);
+            Gl.glEnable(org.lwjgl.opengles.KHRDebug.GL_DEBUG_OUTPUT_KHR);
+            debugCallback = org.lwjgl.opengles.GLDebugMessageKHRCallback.create(
+                    (source, type, id, severity, length, message, user) -> {
+                        if (type == org.lwjgl.opengles.KHRDebug.GL_DEBUG_TYPE_ERROR_KHR) {
+                            ES_ERRORS.add(org.lwjgl.opengles.GLDebugMessageKHRCallback.getMessage(length, message));
+                        }
+                    });
+            org.lwjgl.opengles.KHRDebug.glDebugMessageCallbackKHR(debugCallback, 0L);
+        }
+        available = true;
+        return true;
+    }
+
+    private static final java.util.List<String> ES_ERRORS = new java.util.concurrent.CopyOnWriteArrayList<>();
+    private static org.lwjgl.opengles.GLDebugMessageKHRCallback debugCallback;
+
+    /** @return what ANGLE said it refused since the last call, oldest first; empty off the ES path */
+    static java.util.List<String> takeEsErrors() {
+        java.util.List<String> taken = java.util.List.copyOf(ES_ERRORS);
+        ES_ERRORS.clear();
+        return taken;
     }
 
     /** GLFW gave no context: on macOS, Apple's software renderer through CGL; elsewhere none. */
@@ -243,7 +310,7 @@ final class HeadlessGl {
         }
         failure = why + "; Apple's software renderer through CGL instead";
         cglContext = context;
-        capabilities = GL.createCapabilities();
+        capabilities = Gl.api().createCapabilities();
         available = true;
         return true;
     }

@@ -23,9 +23,11 @@ import static org.lwjgl.system.MemoryUtil.NULL;
  * driver that answered 1 for twenty frames then handed over a buffer it had not presented since the
  * first one and went on alternating 1 and 3, and a window that assumed 2 throughout drew its popups
  * empty. Two platforms answer the question: X11 with a GLX context ({@code GLX_EXT_buffer_age}) and
- * any EGL surface, which is every Wayland window ({@code EGL_EXT_buffer_age}). macOS and Windows
- * have no such query, and neither has a driver without the extension; there {@link #age()} says
- * it does not know and the window keeps its own assumption.
+ * any EGL surface, which is every Wayland window ({@code EGL_EXT_buffer_age}). An EGL surface
+ * without the extension, which is ANGLE's (ADR 003), still says through {@code EGL_SWAP_BEHAVIOR}
+ * whether a swap preserves the back buffer, and that answers too. Native macOS and Windows
+ * contexts have no such query, and neither has a GLX driver without the extension; there
+ * {@link #age()} says it does not know and the window keeps its own assumption.
  *
  * <p>One per window, made with the window's context current, because the drawable is the window's
  * and the extension string is read once rather than every frame.
@@ -35,7 +37,11 @@ final class BufferAgeQuery {
     /** What {@link #age()} answers when the driver cannot say. */
     static final int UNKNOWN = -1;
 
-    private enum Kind { NONE, GLX, EGL }
+    // EGL 1.2's, which LWJGL's EGL10 does not carry.
+    private static final int EGL_SWAP_BEHAVIOR = 0x3093;
+    private static final int EGL_BUFFER_PRESERVED = 0x3094;
+
+    private enum Kind { NONE, GLX, EGL, PRESERVED, DESTROYED }
 
     private final Kind kind;
     private final long display;
@@ -55,9 +61,23 @@ final class BufferAgeQuery {
         if (egl) {
             long display = GLFWNativeEGL.glfwGetEGLDisplay();
             long surface = GLFWNativeEGL.glfwGetEGLSurface(window);
-            if (display != NULL && surface != NULL
-                    && hasExtension(EGL10.eglQueryString(display, EGL10.EGL_EXTENSIONS), "EGL_EXT_buffer_age")) {
-                return new BufferAgeQuery(Kind.EGL, display, surface);
+            if (display != NULL && surface != NULL) {
+                if (hasExtension(EGL10.eglQueryString(display, EGL10.EGL_EXTENSIONS), "EGL_EXT_buffer_age")) {
+                    return new BufferAgeQuery(Kind.EGL, display, surface);
+                }
+                // No age to ask for, but EGL still says what a swap does to the back buffer, and
+                // that is an answer: a preserved one holds the frame just presented, an age of 1
+                // by definition; any other is undefined, which is an age of 0. ANGLE is the EGL
+                // without the extension that matters here, and it is one of each: Direct3D 11
+                // preserves (age 1 on 30 frames of 30, read back on GitHub's runners), Metal
+                // destroys (read back on 2026-10-22: mostly 3, once 2, once 4, so the window's
+                // double-buffering assumption of 2 would have drawn stale pixels).
+                try (MemoryStack stack = MemoryStack.stackPush()) {
+                    IntBuffer behaviour = stack.ints(0);
+                    boolean preserved = EGL10.eglQuerySurface(display, surface, EGL_SWAP_BEHAVIOR, behaviour)
+                            && behaviour.get(0) == EGL_BUFFER_PRESERVED;
+                    return new BufferAgeQuery(preserved ? Kind.PRESERVED : Kind.DESTROYED, display, surface);
+                }
             }
         } else if (platform == GLFW.GLFW_PLATFORM_X11
                 && GLFW.glfwGetWindowAttrib(window, GLFW.GLFW_CONTEXT_CREATION_API) == GLFW.GLFW_NATIVE_CONTEXT_API) {
@@ -98,8 +118,15 @@ final class BufferAgeQuery {
      *         and before anything is drawn into the frame.
      */
     int age() {
-        if (kind == Kind.NONE) {
-            return UNKNOWN;
+        switch (kind) {
+            case NONE:
+                return UNKNOWN;
+            case PRESERVED:
+                return 1;
+            case DESTROYED:
+                return 0;
+            default:
+                break;
         }
         try (MemoryStack stack = MemoryStack.stackPush()) {
             IntBuffer value = stack.ints(0);

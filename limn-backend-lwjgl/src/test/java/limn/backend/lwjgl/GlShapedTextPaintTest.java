@@ -213,24 +213,24 @@ class GlShapedTextPaintTest {
 
     /** One frame into an offscreen texture, read back top-down, as the backdrop tests do. */
     private byte[] render(Frame frame) {
-        int texture = GL33C.glGenTextures();
-        int fbo = GL33C.glGenFramebuffers();
-        int previousFbo = GL33C.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
+        int texture = Gl.glGenTextures();
+        int fbo = Gl.glGenFramebuffers();
+        int previousFbo = Gl.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
         int[] previousViewport = new int[4];
-        GL33C.glGetIntegerv(GL33C.GL_VIEWPORT, previousViewport);
+        Gl.glGetIntegerv(GL33C.GL_VIEWPORT, previousViewport);
         try {
-            GL33C.glActiveTexture(GL33C.GL_TEXTURE0);
-            GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
-            GL33C.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, SIZE, SIZE, 0,
+            Gl.glActiveTexture(GL33C.GL_TEXTURE0);
+            Gl.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
+            Gl.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, SIZE, SIZE, 0,
                     GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, (ByteBuffer) null);
-            GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MIN_FILTER,
+            Gl.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MIN_FILTER,
                     GL33C.GL_NEAREST);
-            GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MAG_FILTER,
+            Gl.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MAG_FILTER,
                     GL33C.GL_NEAREST);
-            GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, fbo);
-            GL33C.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
+            Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, fbo);
+            Gl.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
                     GL33C.GL_TEXTURE_2D, texture, 0);
-            GL33C.glViewport(0, 0, SIZE, SIZE);
+            Gl.glViewport(0, 0, SIZE, SIZE);
 
             // Content scale 1, so a logical point is a device pixel and the atlas size is the
             // font size: the comparison is about placement, not about resampling.
@@ -240,19 +240,19 @@ class GlShapedTextPaintTest {
             canvas.endFrame();
             return readTopDown();
         } finally {
-            GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, previousFbo);
-            GL33C.glViewport(previousViewport[0], previousViewport[1],
+            Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, previousFbo);
+            Gl.glViewport(previousViewport[0], previousViewport[1],
                     previousViewport[2], previousViewport[3]);
-            GL33C.glDeleteFramebuffers(fbo);
-            GL33C.glDeleteTextures(texture);
+            Gl.glDeleteFramebuffers(fbo);
+            Gl.glDeleteTextures(texture);
         }
     }
 
     private static byte[] readTopDown() {
         ByteBuffer pixels = MemoryUtil.memAlloc(SIZE * SIZE * 4);
         try {
-            GL33C.glPixelStorei(GL33C.GL_PACK_ALIGNMENT, 1);
-            GL33C.glReadPixels(0, 0, SIZE, SIZE, GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, pixels);
+            Gl.glPixelStorei(GL33C.GL_PACK_ALIGNMENT, 1);
+            Gl.glReadPixels(0, 0, SIZE, SIZE, GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, pixels);
             byte[] out = new byte[SIZE * SIZE * 4];
             int stride = SIZE * 4;
             for (int row = 0; row < SIZE; row++) {

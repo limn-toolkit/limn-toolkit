@@ -136,31 +136,31 @@ class BlockedWindowVeilPixelTest {
     /** A framebuffer of its own in the current context, and the scenario drawn into it. */
     private final class Target {
         private final GlCanvas canvas = new GlCanvas(fonts);
-        private final int previousFbo = GL33C.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
+        private final int previousFbo = Gl.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
         private final int[] previousViewport = new int[4];
         private int texture;
         private int fbo;
 
         void run(Look look) {
-            GL33C.glGetIntegerv(GL33C.GL_VIEWPORT, previousViewport);
-            texture = GL33C.glGenTextures();
-            fbo = GL33C.glGenFramebuffers();
+            Gl.glGetIntegerv(GL33C.GL_VIEWPORT, previousViewport);
+            texture = Gl.glGenTextures();
+            fbo = Gl.glGenFramebuffers();
             try {
-                GL33C.glActiveTexture(GL33C.GL_TEXTURE0);
-                GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
-                GL33C.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, WIDTH, HEIGHT, 0,
+                Gl.glActiveTexture(GL33C.GL_TEXTURE0);
+                Gl.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
+                Gl.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, WIDTH, HEIGHT, 0,
                         GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, (ByteBuffer) null);
-                GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, fbo);
-                GL33C.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
+                Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, fbo);
+                Gl.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
                         GL33C.GL_TEXTURE_2D, texture, 0);
-                GL33C.glViewport(0, 0, WIDTH, HEIGHT);
+                Gl.glViewport(0, 0, WIDTH, HEIGHT);
                 scenario(look);
             } finally {
-                GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, previousFbo);
-                GL33C.glViewport(previousViewport[0], previousViewport[1], previousViewport[2],
+                Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, previousFbo);
+                Gl.glViewport(previousViewport[0], previousViewport[1], previousViewport[2],
                         previousViewport[3]);
-                GL33C.glDeleteFramebuffers(fbo);
-                GL33C.glDeleteTextures(texture);
+                Gl.glDeleteFramebuffers(fbo);
+                Gl.glDeleteTextures(texture);
                 canvas.dispose();
             }
         }
@@ -253,8 +253,8 @@ class BlockedWindowVeilPixelTest {
     private static byte[] read() {
         ByteBuffer pixels = MemoryUtil.memAlloc(WIDTH * HEIGHT * 4);
         try {
-            GL33C.glPixelStorei(GL33C.GL_PACK_ALIGNMENT, 1);
-            GL33C.glReadPixels(0, 0, WIDTH, HEIGHT, GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, pixels);
+            Gl.glPixelStorei(GL33C.GL_PACK_ALIGNMENT, 1);
+            Gl.glReadPixels(0, 0, WIDTH, HEIGHT, GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, pixels);
             byte[] out = new byte[WIDTH * HEIGHT * 4];
             int stride = WIDTH * 4;
             for (int row = 0; row < HEIGHT; row++) {

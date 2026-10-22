@@ -190,31 +190,31 @@ class VeilInsideALayerPixelTest {
 
     /** Draws into a framebuffer of its own, cleared, in the current context and reads it back. */
     private byte[] draw(Consumer<GlCanvas> drawing) {
-        int previousFbo = GL33C.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
+        int previousFbo = Gl.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
         int[] previousViewport = new int[4];
-        GL33C.glGetIntegerv(GL33C.GL_VIEWPORT, previousViewport);
+        Gl.glGetIntegerv(GL33C.GL_VIEWPORT, previousViewport);
         GlCanvas canvas = new GlCanvas(fonts);
-        int texture = GL33C.glGenTextures();
-        int fbo = GL33C.glGenFramebuffers();
+        int texture = Gl.glGenTextures();
+        int fbo = Gl.glGenFramebuffers();
         try {
-            GL33C.glActiveTexture(GL33C.GL_TEXTURE0);
-            GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
-            GL33C.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, WIDTH, HEIGHT, 0,
+            Gl.glActiveTexture(GL33C.GL_TEXTURE0);
+            Gl.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
+            Gl.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, WIDTH, HEIGHT, 0,
                     GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, (ByteBuffer) null);
-            GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, fbo);
-            GL33C.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
+            Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, fbo);
+            Gl.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
                     GL33C.GL_TEXTURE_2D, texture, 0);
-            GL33C.glViewport(0, 0, WIDTH, HEIGHT);
-            GL33C.glClearColor(0, 0, 0, 0);
-            GL33C.glClear(GL33C.GL_COLOR_BUFFER_BIT);
+            Gl.glViewport(0, 0, WIDTH, HEIGHT);
+            Gl.glClearColor(0, 0, 0, 0);
+            Gl.glClear(GL33C.GL_COLOR_BUFFER_BIT);
             drawing.accept(canvas);
             return read();
         } finally {
-            GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, previousFbo);
-            GL33C.glViewport(previousViewport[0], previousViewport[1], previousViewport[2],
+            Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, previousFbo);
+            Gl.glViewport(previousViewport[0], previousViewport[1], previousViewport[2],
                     previousViewport[3]);
-            GL33C.glDeleteFramebuffers(fbo);
-            GL33C.glDeleteTextures(texture);
+            Gl.glDeleteFramebuffers(fbo);
+            Gl.glDeleteTextures(texture);
             canvas.dispose();
         }
     }
@@ -231,8 +231,8 @@ class VeilInsideALayerPixelTest {
     private static byte[] read() {
         ByteBuffer pixels = MemoryUtil.memAlloc(WIDTH * HEIGHT * 4);
         try {
-            GL33C.glPixelStorei(GL33C.GL_PACK_ALIGNMENT, 1);
-            GL33C.glReadPixels(0, 0, WIDTH, HEIGHT, GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, pixels);
+            Gl.glPixelStorei(GL33C.GL_PACK_ALIGNMENT, 1);
+            Gl.glReadPixels(0, 0, WIDTH, HEIGHT, GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, pixels);
             byte[] out = new byte[WIDTH * HEIGHT * 4];
             pixels.get(out);
             return out;

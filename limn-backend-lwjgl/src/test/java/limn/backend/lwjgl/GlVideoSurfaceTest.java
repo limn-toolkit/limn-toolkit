@@ -383,40 +383,40 @@ class GlVideoSurfaceTest extends GlVideoTestBase {
     void theUploadLeavesTheUnpackStateItFound() {
         // Row length is global unpack state. Left non-zero it skews the next
         // glyph the atlas uploads, in a different class, with no clue why.
-        assertEquals(0, GL33C.glGetInteger(GL33C.GL_UNPACK_ROW_LENGTH), "before");
-        int alignmentBefore = GL33C.glGetInteger(GL33C.GL_UNPACK_ALIGNMENT);
+        assertEquals(0, Gl.glGetInteger(GL33C.GL_UNPACK_ROW_LENGTH), "before");
+        int alignmentBefore = Gl.glGetInteger(GL33C.GL_UNPACK_ALIGNMENT);
         VideoFrame frame = TestPictures.frame(9, 5, PixelFormat.I420, VideoColor.BT709_LIMITED,
                 TestPictures.pseudoRandom(45, 3), TestPictures.pseudoRandom(15, 4),
                 TestPictures.pseudoRandom(15, 5), 7, true, false);
         GlVideoSurface surface = upload(frame);
         frame.release();
-        assertEquals(0, GL33C.glGetInteger(GL33C.GL_UNPACK_ROW_LENGTH), "after");
+        assertEquals(0, Gl.glGetInteger(GL33C.GL_UNPACK_ROW_LENGTH), "after");
         // Alignment is the other half of the same global state, and this one is
         // deliberately left at 1: every uploader in this backend sets its own
         // before it uploads, and 1 is what each of them sets it to.
-        assertEquals(1, GL33C.glGetInteger(GL33C.GL_UNPACK_ALIGNMENT),
+        assertEquals(1, Gl.glGetInteger(GL33C.GL_UNPACK_ALIGNMENT),
                 "the upload set the alignment to 1 and left it there, from " + alignmentBefore);
         surface.dispose();
     }
 
     @Test
     void theConversionRestoresTheFramebufferViewportAndTextureUnit() {
-        int fboBefore = GL33C.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
+        int fboBefore = Gl.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
         int[] viewportBefore = new int[4];
-        GL33C.glGetIntegerv(GL33C.GL_VIEWPORT, viewportBefore);
+        Gl.glGetIntegerv(GL33C.GL_VIEWPORT, viewportBefore);
 
         VideoFrame frame = TestPictures.uniform(16, 9, PixelFormat.I420, VideoColor.BT709_LIMITED,
                 180, 100, 140);
         GlVideoSurface surface = upload(frame);
         frame.release();
 
-        assertEquals(fboBefore, GL33C.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING),
+        assertEquals(fboBefore, Gl.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING),
                 "the 2D pipeline keeps drawing into whatever it was drawing into");
         int[] viewportAfter = new int[4];
-        GL33C.glGetIntegerv(GL33C.GL_VIEWPORT, viewportAfter);
+        Gl.glGetIntegerv(GL33C.GL_VIEWPORT, viewportAfter);
         assertEquals(viewportBefore[2], viewportAfter[2], "viewport width");
         assertEquals(viewportBefore[3], viewportAfter[3], "viewport height");
-        assertEquals(GL33C.GL_TEXTURE0, GL33C.glGetInteger(GL33C.GL_ACTIVE_TEXTURE),
+        assertEquals(GL33C.GL_TEXTURE0, Gl.glGetInteger(GL33C.GL_ACTIVE_TEXTURE),
                 "the atlas and the image cache bind without selecting a unit");
         surface.dispose();
     }

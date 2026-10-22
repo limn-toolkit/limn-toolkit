@@ -29,6 +29,9 @@ import java.util.Objects;
 
 import static org.lwjgl.glfw.GLFW.GLFW_AUTO_ICONIFY;
 import static org.lwjgl.glfw.GLFW.GLFW_CLIENT_API;
+import static org.lwjgl.glfw.GLFW.GLFW_NATIVE_CONTEXT_API;
+import static org.lwjgl.glfw.GLFW.GLFW_CONTEXT_CREATION_API;
+import static org.lwjgl.glfw.GLFW.GLFW_API_UNAVAILABLE;
 import static org.lwjgl.glfw.GLFW.GLFW_CONTEXT_VERSION_MAJOR;
 import static org.lwjgl.glfw.GLFW.GLFW_CONTEXT_VERSION_MINOR;
 import static org.lwjgl.glfw.GLFW.GLFW_CURSOR;
@@ -322,20 +325,42 @@ final class LwjglWindow implements WindowPeer {
         // once this machine has been SEEN to refuse (or the property asks) do we
         // stop asking: a menu that reopens a hundred times must not spend a
         // hundred failed context creations, nor print a hundred GLFW errors.
-        boolean softwareGl = MACOS && (macSoftwareGl || MacSoftwareGl.forced());
-        long created = softwareGl ? NULL
-                : glfwCreateWindow(config.width(), config.height(), config.title(), NULL, NULL);
-        GraphicsProbe.Failure failure = created == NULL && !softwareGl
-                ? GraphicsProbe.lastFailure() : null;
-        if (created == NULL && (softwareGl || (MACOS && failure.code() == GLFW_FORMAT_UNAVAILABLE))) {
+        //
+        // A process already on ANGLE (ADR 003 §4.3), or asked to be, goes there directly; one that
+        // is not tries ANGLE next when the native refusal is one it answers, and on macOS the
+        // software context after that.
+        boolean angle = AngleFallback.taken() || AngleFallback.forced();
+        boolean softwareGl = !angle && MACOS && (macSoftwareGl || MacSoftwareGl.forced());
+        long created;
+        GraphicsProbe.Failure failure = null;
+        String angleFailure = null;
+        if (angle) {
+            created = AngleFallback.createWindow(config.width(), config.height(), config.title(), null);
+            angleFailure = created == NULL ? AngleFallback.failure() : null;
+        } else {
+            created = softwareGl ? NULL
+                    : glfwCreateWindow(config.width(), config.height(), config.title(), NULL, NULL);
+            failure = created == NULL && !softwareGl ? GraphicsProbe.lastFailure() : null;
+            if (created == NULL && !softwareGl && AngleFallback.answers(Platform.current().os(), failure.code())) {
+                created = AngleFallback.createWindow(config.width(), config.height(), config.title(), failure);
+                angle = created != NULL;
+                angleFailure = created == NULL ? AngleFallback.failure() : null;
+            }
+        }
+        if (created == NULL && !AngleFallback.taken()
+                && (softwareGl || (MACOS && failure != null && failure.code() == GLFW_FORMAT_UNAVAILABLE))) {
             // A macOS box whose only renderer is the software one: NSGL matches no
             // pixel format because GLFW asks every one of them for acceleration.
             // Retry for the window alone and build the context ourselves; see
             // MacSoftwareGl for what is different about it and why.
             softwareGl = true;
+            // Back to the desktop profile's hints: the ANGLE attempt may have set ES ones.
+            glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_NATIVE_CONTEXT_API);
             glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
             created = glfwCreateWindow(config.width(), config.height(), config.title(), NULL, NULL);
-            failure = created == NULL ? GraphicsProbe.lastFailure() : null;
+            if (created == NULL) {
+                failure = GraphicsProbe.lastFailure();
+            }
         }
         handle = created;
         if (handle == NULL) {
@@ -343,11 +368,14 @@ final class LwjglWindow implements WindowPeer {
             // specific ("WGL: Failed to create OpenGL context"), and naming the
             // windowing platform matters because it is picked at run time: the
             // same binary reaches X11 or Wayland depending on the session.
+            int code = failure != null ? failure.code() : GLFW_API_UNAVAILABLE;
             String message = "glfwCreateWindow failed on the "
-                    + GraphicsProbe.platformName() + " platform: " + failure
+                    + GraphicsProbe.platformName() + " platform: "
+                    + (failure != null ? failure : "no native context was asked for")
                     + "; Limn needs an OpenGL 3.3 core context"
-                    + GraphicsProbe.contextAdvice(Platform.current().os(), failure.code());
-            if (GraphicsProbe.lacksDriver(Platform.current().os(), failure.code())) {
+                    + (angleFailure != null ? ", or OpenGL ES 3.0 from ANGLE, which failed too: " + angleFailure : "")
+                    + GraphicsProbe.contextAdvice(Platform.current().os(), code);
+            if (GraphicsProbe.lacksDriver(Platform.current().os(), code)) {
                 // Launched from an icon, this process has no console and the message would
                 // reach nobody; Windows' own dialog says it first. It returns in every case.
                 WindowsDriverDialog.offer(config.title(), message);
@@ -383,6 +411,9 @@ final class LwjglWindow implements WindowPeer {
             }
         }
         nsglContext = softwareContext;
+        if (!angle) {
+            AngleFallback.nativeContextMade();
+        }
         makeContextCurrent();
         // Those of a living window whose context is of the same kind where the platform allows
         // it, because resolving them again is most of what opening a popup costs.

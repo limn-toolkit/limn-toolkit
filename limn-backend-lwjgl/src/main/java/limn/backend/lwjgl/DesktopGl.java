@@ -25,6 +25,12 @@ final class DesktopGl implements GlApi {
 
     @Override
     public Object createCapabilities() {
+        // LWJGL creates its OpenGL binding when the class is first touched, unless something in
+        // the process asked to create it by hand (Configuration.OPENGL_EXPLICIT_INIT); then it is
+        // created here. Only one of the GL and ES bindings can exist in a process.
+        if (GL.getFunctionProvider() == null) {
+            GL.create();
+        }
         return GL.createCapabilities();
     }
 

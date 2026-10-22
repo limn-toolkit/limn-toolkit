@@ -260,7 +260,8 @@ subprojects {
             // limn.test.softwareGl puts the device tests on a Mac's software renderer through CGL, the
             // context they fall back to on a Mac without a GPU (HeadlessGl), so that the fallback can
             // be run on a Mac that has one.
-            for (property in listOf("limn.video.test.clips", "limn.test.softwareGl")) {
+            for (property in listOf("limn.video.test.clips", "limn.test.softwareGl", "limn.angle.dir",
+                    "limn.backend.angle")) {
                 System.getProperty(property)?.let { systemProperty(property, it) }
             }
             // …and limn.video.test.clips has a default now: the committed corpus in media/. Decoding a real
