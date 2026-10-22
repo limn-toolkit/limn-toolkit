@@ -88,6 +88,11 @@ final class Uia {
     /**
      * Answers a window's {@code WM_GETOBJECT} with this bridge's root provider.
      *
+     * <p>Made on the calling thread unless that thread is a single-threaded apartment inside a
+     * message another thread is blocked on, where UI Automation's own call out of the apartment is
+     * refused and, under an ARM64 JDK, kills the process; there it is made on a thread of the
+     * multithreaded apartment while the caller waits ({@link UiaAnswerThread}).
+     *
      * @param hwnd     the window the message arrived for
      * @param wparam   the message's own, passed straight back
      * @param lparam   the same
@@ -98,7 +103,13 @@ final class Uia {
         if (!isAvailable()) {
             return 0;
         }
-        return JNI.invokePPPPP(hwnd, wparam, lparam, provider, RETURN_RAW_ELEMENT_PROVIDER);
+        if (provider == 0) {
+            // A withdrawal hands nothing over, and the bridge makes it under its guard, where a
+            // wait on another thread could meet a provider call waiting for that guard.
+            return JNI.invokePPPPP(hwnd, wparam, lparam, provider, RETURN_RAW_ELEMENT_PROVIDER);
+        }
+        return UiaAnswerThread.answer(
+                () -> JNI.invokePPPPP(hwnd, wparam, lparam, provider, RETURN_RAW_ELEMENT_PROVIDER));
     }
 
     /**
