@@ -209,6 +209,43 @@ class DocumentTest {
         }
     }
 
+    private static Table<Order> tableOf(int count) {
+        List<Order> orders = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            orders.add(new Order(i, "Customer " + i));
+        }
+        Table<Order> table = Table.of(
+                Column.<Order>text("Number", order -> "N" + order.number()).width(120),
+                Column.<Order>text("Customer", Order::customer).width(300));
+        table.setRows(orders);
+        return table;
+    }
+
+    /**
+     * The performance budget's rule for a document: a page of a table costs what a page costs,
+     * whatever the table holds, since a page's worth of rows is realized at a time.
+     */
+    @Test
+    void aPageOfALongTableCostsWhatAPageOfAShortOneDoes() {
+        List<Recording> short_ = Document.of(Paper.A4).add(tableOf(80)).pages();
+        List<Recording> long_ = Document.of(Paper.A4).add(tableOf(2000)).pages();
+        assertEquals(short_.get(0).size(), long_.get(0).size(), "the first page's drawing calls");
+        assertEquals(short_.get(1).size(), long_.get(1).size(), "the second page's drawing calls");
+        assertTrue(long_.size() > short_.size() * 10, "the long table does run to more pages");
+    }
+
+    @Test
+    void theSameDocumentIsCutForEachPaper() {
+        List<Drawn> onA4 = texts(Document.of(Paper.A4).add(tableOf(150)).pages());
+        List<Drawn> onLetter = texts(Document.of(Paper.LETTER).add(tableOf(150)).pages());
+        for (List<Drawn> drawn : List.of(onA4, onLetter)) {
+            for (int i = 0; i < 150; i++) {
+                String number = "N" + i;
+                assertEquals(1, drawn.stream().filter(d -> d.text().equals(number)).count(), number);
+            }
+        }
+    }
+
     @Test
     void writesAPdfFile() throws Exception {
         Path file = Files.createTempFile("limn-document", ".pdf");
