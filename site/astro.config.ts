@@ -101,6 +101,7 @@ export default defineConfig({
             { slug: "docs/lists-and-scrolling" },
             { slug: "docs/menus-and-dialogs" },
             { slug: "docs/drag-and-drop" },
+            { slug: "docs/printing" },
             { slug: "docs/charts" },
           ],
         },

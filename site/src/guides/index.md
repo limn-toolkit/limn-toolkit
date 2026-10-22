@@ -22,7 +22,9 @@ first, and both carry a complete worked example with the screenshot it produces.
 system's file choosers, handing a link or a file to the system's own programs, and an icon in
 the system's tray;
 [Drag and drop](/docs/drag-and-drop/) covers rows that rearrange, what is dragged to and from
-other programs, and the clipboard; and [Charts](/docs/charts/) covers bars, lines and donuts.
+other programs, and the clipboard; [Printing and PDF](/docs/printing/) covers saving a report
+as PDF, printing it through the system's dialog and showing a preview first; and
+[Charts](/docs/charts/) covers bars, lines and donuts.
 
 ## Making it yours
 

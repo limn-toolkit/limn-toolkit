@@ -572,6 +572,33 @@ Maven Central say which number that was.
 
 ### New
 
+- Printing and PDF (ADR 078), in a new package `limn.print`. A `Document` is widgets the toolkit
+  cuts into pages: `Document.of(Paper.A4).header(page -> …).footer(page -> …).add(widget)`,
+  `keepTogether(widget)` and `pageBreak()`, with margins, a title, a locale and a raster resolution.
+  A block that does not fit is cut between the lines of a wrapping label, between the children of a
+  column or the rows of a grid, and, for a `ListView`, `Table` or `Tree` added as a block of its
+  own, between rows: every row is printed, a page's worth realized at a time, and a table's header
+  is on every page. A header and a footer are made per page from a `PageInfo` (the number, the
+  count, the paper). The pages are painted in a scene of their own, with no focus, hover, caret or
+  scroll bar, every animation at its end, and the light palette of the theme's family unless
+  `theme(...)` says otherwise; a document unit is 1/96 inch. `writePdf(Path)` and
+  `writePdf(OutputStream)` hand back a `Work` that writes a PDF 1.7 file in Java, text kept as text
+  (each glyph its outline in a Type 3 font that maps back to its characters, so the PDF can be
+  selected, copied and searched in every script), soft shadows and icons as pictures at 300 dpi, a
+  backdrop as its tint, video and 3D left out with a warning; the same pages give the same bytes.
+  `print(window)` prints through the system's own dialog, owned by the window. `PrintPreview` shows
+  a document's pages as sheets, fitted to the width, to a page, or at a percentage. `Paper` has the
+  ISO A and B sizes, Letter, Legal and Tabloid, any size, and `Paper.forLocale`.
+- A window prints a PDF: `NativeWindow.printer()` returns a `Printer` with `print(Path, title)`,
+  `print(byte[], title)` and `isAvailable()`, answering a `PrintResult` (`PRINTED`, `CANCELLED`,
+  `UNAVAILABLE`, `FAILED`) on the UI thread; a window with no printing answers `Printer.NONE`.
+  `NativeWindow` has no default for it, so an implementation of a window outside this repository
+  adds `printer()` (`return Printer.NONE;` for a window with none).
+- `Path2D.forEach(Path2D.Visitor)` hands a path's moves, lines, curves and closes back as they were
+  built, curves as curves, and `Path2D.copy()` makes a path of its own with the same segments.
+- In the SPI, `PrinterPeer` and `PrintJob` are what a backend's window implements to print, and
+  `GlyphOutlines`, a new optional component of `BackendServices` (the old constructor stays), is
+  what outlines the glyphs a document writes as text.
 - `Popover.detach()` lets a button go; a button opens one popover and a popover hangs from one
   button: `attachTo` on a button that has one detaches the other, `attachTo` on another button
   moves it (only the old button hears it collapse), and a detached popover still opens from
