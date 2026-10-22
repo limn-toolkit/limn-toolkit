@@ -1,17 +1,22 @@
 # ADR 078: A document is widgets cut into pages, and every page leaves as PDF
 
-- **Status:** Proposed, 2026-10-22. Section 1 holds the questions only the owner can answer, each
-  with a recommendation; section 12 holds the measurements owed on the guests before this record
-  can be accepted. Nothing is built.
+- **Status:** Proposed, 2026-10-22, with the owner's answers of the same day in section 1. Two
+  questions are still open on a recommendation (section 1.2); section 12 holds the measurements
+  owed on the guests before this record can be accepted. Nothing is built.
 - **Date:** 2026-10-22
 - **Scope:** what a business application prints or saves as PDF: an order, an invoice, a report of
   a table that runs to many pages, a chart. How the application describes it (widgets, in a
   document of pages), how the toolkit cuts it into pages, how a page becomes PDF, how a PDF reaches
   a printer through the system's own print dialog on each of the three systems, and how the user
   sees the pages before printing.
-- **New public API (proposed):** a package `limn.print` with `Document`, `Paper`, `PageInfo`,
-  `PrintResult` and `PrintPreview`; `NativeWindow.printer()` returning a `limn.backend.Printer`;
-  `Path2D.forEach` to read a path's curves back; in the SPI, `PrinterPeer` and `GlyphOutlines`.
+- **New artifact (proposed):** `limn-print-support`, optional, a module of this repository
+  versioned with the toolkit (section 1.1, answer 3, and section 3.1).
+- **New public API (proposed):**
+  - in `limn-print-support`, the package `limn.print`: `Document`, `Paper`, `PageInfo` and
+    `PrintPreview`;
+  - in the toolkit: `NativeWindow.printer()` returning a `limn.backend.Printer`, which hands a PDF
+    to the system's print dialog; `PrintResult`; `Path2D.forEach` to read a path's curves back;
+  - in the SPI: `PrinterPeer` and `GlyphOutlines`.
 - **Compatibility:** additive for an application. `NativeWindow` gains `printer()` with no
   default, as `launcher()` has none, so every implementation of a window says what it answers; the
   toolkit's own are updated here and the test windows answer `Printer.NONE`. `Canvas` is unchanged.
@@ -22,8 +27,7 @@
   and [ADR 055](055-the-list-the-table-and-the-tree-walk-their-rows-with-one-engine.md) (the rows a
   page cuts between), [ADR 056](056-an-application-hands-an-address-or-a-file-to-the-system-through-its-window.md)
   (a window's door to the system, whose shape `printer()` follows, and whose Linux file-descriptor
-  limit this record meets again), and [ADR 039](039-an-accessible-tree-is-a-snapshot-and-the-platform-reads-it-on-its-own-thread.md)
-  (the accessible tree a tagged PDF would be written from, question 6).
+  limit this record meets again).
 
 ---
 
@@ -67,57 +71,52 @@ What exists that this record builds on, read at `63780536`:
   what the portal's print call takes (section 8).
 - **A rule against what Java offers.** The build's architecture check refuses `java.awt.*` and
   `javax.swing.*` in every module, so the JDK's own printing (`java.awt.print`, and `javax.print`,
-  which hands a job to the same AWT plumbing) is not available, and a PDF library would be the
-  toolkit's second run-time dependency (the first is the WebP reader of ADR 065).
+  which hands a job to the same AWT plumbing) is not available, and a PDF library would be a
+  run-time dependency the toolkit has avoided for everything it writes.
 
-## 1. Questions for the owner
+## 1. The owner's answers
 
-Each question says what the choice changes and what it costs. The rest of the record is written
-on the recommendation; an answer that differs changes the sections named.
+### 1.1. Answered (2026-10-22)
 
-1. **What phase 1 delivers.** *Recommended: export to PDF, printing on the three systems, and the
-   preview component, together.* Export alone is the cheapest and is what every system can do the
-   same way; printing adds a native door per system (section 8); the preview is a widget that
-   replays the pages the export already recorded (section 9), small once the rest exists. Corporate
-   users expect "Print…" and "Print preview" next to "Save as PDF", so shipping one without the
-   others teaches a workaround. Cost of the full phase: the largest of this record's items is the
-   Windows door (section 8, question 5).
-2. **Glyphs as outlines, or fonts embedded.** *Recommended: outlines, written as Type 3 fonts with a
-   map back to Unicode* (section 7.2). Text stays text: it can be selected, copied and searched,
-   and it is sharp at any zoom. It works the same for every face Limn can load (TrueType, CFF, a
+1. **Phase 1 delivers export to PDF, printing on the three systems and the preview, together.**
+   Corporate users expect "Print…" and "Print preview" next to "Save as PDF".
+2. **PDF stays, public.** The owner first set PDF aside, since every system's print dialog can
+   already save a PDF (a button on macOS, a printer that writes PDF on Windows, "print to file" in
+   the Linux desktops' dialogs). It came back on one fact: a page still has to reach the printer in
+   some format, the Linux portal prints only a file (section 8.2), and route A on Windows reads a
+   PDF. Since the writer is built anyway, `Document.writePdf` is public, and saving from the
+   system's dialog works as well.
+3. **An optional artifact, `limn-print-support`**, apart from the toolkit's main artifact: an
+   application that never prints does not carry the writer, the pagination or the preview. Where
+   it lives is section 3.1.
+4. **Windows: measure route A before choosing** (section 8.2, section 12 item 1). Route B is built
+   only if the measurement refuses route A.
+5. **No accessible PDF is planned now.** No tags, no PDF/UA, and the recording does not keep which
+   widget drew what (section 11). A later record may take it up; it would redo the recording.
+
+### 1.2. Open, on the recommendation
+
+The questions below were put on 2026-10-22 and not answered, because the owner answered the
+artifact question instead. The record is written on each recommendation; an answer that differs
+changes the sections named.
+
+1. **Glyphs as outlines, or fonts embedded** (section 7.2). *Recommended: outlines, written as Type 3
+   fonts with a map back to Unicode.* Text stays text: it can be selected, copied and searched, and
+   it is sharp at any zoom. It works the same for every face Limn can load (TrueType, CFF, a
    variable font at its instance) with no font parser, because HarfBuzz already draws each outline.
-   The alternative embeds a subset of each font file: smaller files for long text-heavy documents
-   and hinted text on screen in a viewer, but it needs a TrueType and a CFF subsetter written here
-   (the LWJGL binding has no `hb-subset`), and a variable font cannot be embedded at an instance at
-   all. A later 1.x can add it under the same API.
-3. **Where it lives.** *Recommended: `limn.print` in `limn-toolkit`, pure Java, with two small SPI
-   interfaces the backend implements* (glyph outlines, the system's printer). The PDF writer has no
-   third-party dependency and no native payload, which is the rule `settings.gradle.kts` states
-   for what enters the toolkit; a module of its own would be a second artifact for every
-   application that prints, which most business applications do.
-4. **What the paper looks like.** *Recommended: the light theme of the window's theme family by
-   default (`light()` for `dark()`, `limnLight()` for `limn()`), and `Document.theme(Theme)` for
-   anything else.* A dark window printed as it is spends a page of toner on the background, and a
-   PDF read later is read on a white page. The alternative, the window's own theme, is the "what you
-   see is what you print" reading, and is one call away under the recommendation.
-5. **How Windows prints a PDF.** *Recommended: measure the system's own PDF renderer first
-   (section 8.2, route A), and build the replay into Direct2D (route B) only if the measurement
-   refuses route A.* Route A keeps one picture of a page on all three systems, the PDF, and costs a
-   few hundred lines of COM. Route B is a second implementation of drawing in Direct2D, several
-   times larger, and is what remains if the system's renderer is not available to a desktop
-   process or rasterizes text.
-6. **Accessible PDF (tagged, PDF/UA) in phase 1 or after.** *Recommended: record the structure in
-   phase 1 and write the tags in phase 2.* A tagged PDF is what a screen reader reads and what
-   public-sector buyers increasingly require of the documents an application produces; Limn already
-   knows each widget's role and name (ADR 039), so a heading, a paragraph, a table with its header
-   cells, a list and a picture's description can be written as the PDF's structure tree. Recording
-   which widget painted each command costs little now and avoids redoing the recording later;
-   writing the structure tree, the role map and a check against a PDF/UA validator is a phase of
-   its own. If the owner wants it in phase 1, it becomes the largest item after the Windows door.
-7. **PDF/A (archival) in phase 1 or after.** *Recommended: after.* Invoices kept for years are
-   often required in PDF/A; with glyphs as outlines the remaining work is an sRGB output profile,
-   XMP metadata and a validator run, but nobody has asked for it yet and it adds a checked
-   conformance level to every change of the writer.
+   Embedding a subset of each font file gives smaller files for long text-heavy documents and
+   hinted text in a viewer, but it needs a TrueType and a CFF subsetter written here (the LWJGL
+   binding has no `hb-subset`), and a variable font cannot be embedded at an instance at all. A
+   later 1.x can add it under the same API.
+2. **What the paper looks like** (section 5.2). *Recommended: the light theme of the window's theme
+   family by default (`light()` for `dark()`, `limnLight()` for `limn()`), and
+   `Document.theme(Theme)` for anything else.* A dark window printed as it is spends a page of
+   toner on the background, and a PDF is read later on a white page. The alternative, the window's
+   own theme, is one call away under the recommendation.
+
+PDF/A (the archival profile) is left for later without a question: with glyphs as outlines the
+remaining work is an sRGB output profile, XMP metadata and a validator run, and nobody has asked
+for it.
 
 Two choices are taken here rather than asked, because they are technical and the record can be
 read against them: a document unit is 1/96 inch (section 5.1), and the system's print dialog may
@@ -139,8 +138,7 @@ Read on 2026-10-22, named by kind.
   embeds font subsets.
 - **A browser engine** prints a page by laying it out again at the paper's width, cutting between
   lines and table rows, repeating a table's header group on each page, and writing PDF with font
-  subsets and, when asked, tags. Its print preview is its own, the same on every system, ahead of
-  the system's dialog.
+  subsets. Its print preview is its own, the same on every system, ahead of the system's dialog.
 - **Report libraries for business applications** take a template and a data source and produce
   pages with a header, a footer, "page n of m", a band per row and a group total; they are a second
   layout engine with its own fonts, which is the cost this record avoids.
@@ -156,8 +154,8 @@ chooses the printer.
    it does not lend widgets that are in a window.
 2. **A page is recorded once and every output replays the recording** (section 7.1): the PDF
    writer, the preview, and on Windows the printer if route A is refused.
-3. **The PDF is written in Java, in the toolkit** (section 7), deterministic for the same input, with
-   text as glyph outlines that keep their Unicode (question 2).
+3. **The PDF is written in Java**, deterministic for the same input, with text as glyph outlines
+   that keep their Unicode (section 1.2, question 1).
 4. **Printing hands that PDF to the system's own dialog**, owned by the window, on each of the
    three systems (section 8). The dialog chooses the printer, the copies, the range and the paper;
    the toolkit never draws a print dialog.
@@ -165,11 +163,41 @@ chooses the printer.
 6. **What has no vector form becomes a picture at the document's resolution, and what has no
    picture at all is left out with a warning** (section 7.3); nothing fails a document.
 
+### 3.1. What is in the optional artifact, and what is in the toolkit
+
+| In `limn-print-support` (module `limn.print`), pure Java | In the toolkit and the backend |
+|---|---|
+| `Document`, `Paper`, `PageInfo`, pagination and the print scene's use | `NativeWindow.printer()`, `Printer`, `PrintResult`: a PDF handed to the system's dialog |
+| the recording canvas and the PDF writer | `Path2D.forEach` |
+| `PrintPreview` | the SPI `PrinterPeer` and `GlyphOutlines`, implemented by the backend over the systems' print calls and HarfBuzz |
+| | the hooks pagination needs inside the components: every row of a list, a table or a tree, the break points of section 6.2, and a scene with no focus, hover, caret or scroll bar (section 5.2) |
+
+**A module of this repository, not a repository of its own.** The hooks in the last row live in
+packages the toolkit does not export (the rows engine of ADR 055 is `limn.components.internal`), and
+they change whenever a component does. The toolkit already shares such packages with its sibling
+modules by qualified exports (`exports … to limn.backend.lwjgl, limn.video.ffmpeg, …`), and adds
+`limn.print` to the list. A repository of its own would need those hooks as public API, which the
+compatibility promise then freezes until 2.0, and it would release on a cadence of its own against
+internals that move with every toolkit release. The repositories split off before (the fonts, the
+FFmpeg payload, the icon pack) are payloads that depend on no internals; this is code that does.
+
+**The reasons the accessibility split was reversed do not hold here.** That split put platform code
+outside the backend and needed an exception to the architecture check for `org.lwjgl` outside it,
+and an application had to hand the bridge to its window or hear silence. Here the platform code stays
+in the backend, `limn-print-support` imports no `org.lwjgl`, and an application that prints calls
+`Document` by name, so a missing jar is a compile error rather than silence.
+
+**Why the door to the system is in the toolkit.** It is a few hundred lines per system with no
+dependency, it is reached from a window like the launcher and the file choosers, and on its own it
+is useful: an application can print a PDF it received (an invoice from a service) with
+`window.printer().print(pdf)` and no `limn-print-support`.
+
 ## 4. The API
 
 ```java
+// limn-print-support
 Document order = Document.of(Paper.A4)                  // default: Paper.forLocale(locale)
-        .marginsMm(18, 15, 18, 15)            // top, right, bottom, left, as Insets
+        .marginsMm(18, 15, 18, 15)                      // top, right, bottom, left, as Insets
         .title("Order 4512")                            // the PDF's title, the print job's name
         .header(page -> new Label("ACME Distribution"))
         .footer(page -> new Label(page.number() + " / " + page.count()))
@@ -181,15 +209,18 @@ Document order = Document.of(Paper.A4)                  // default: Paper.forLoc
 
 Work<Path> export = order.writePdf(file);              // a Work of ADR 020: progress, cancel
 order.writePdf(outputStream);
-
-window.printer().print(order)                           // CompletionStage<PrintResult>
-        .thenAccept(result -> status.setText(result.toString()));
+order.print(window);                                    // CompletionStage<PrintResult>
 
 PrintPreview preview = new PrintPreview(order);         // a widget: pages, zoom, page n of m
+
+// the toolkit, without limn-print-support
+window.printer().print(pdfFile, "Invoice 0091");        // CompletionStage<PrintResult>
+window.printer().isAvailable();
 ```
 
 - **`Document`** is built on the UI thread and holds widgets, so it is used on the UI thread; what
-  runs elsewhere is the writing of bytes (section 10).
+  runs elsewhere is the writing of bytes (section 10). `print(window)` writes the PDF and hands it
+  to `window.printer()`.
 - **`header` and `footer` are functions of a `PageInfo`** (number, count, the paper) because a
   page's number is known only once the document is cut, and the count only once it is cut to the
   end; they run once per page, after pagination.
@@ -201,8 +232,8 @@ PrintPreview preview = new PrintPreview(order);         // a widget: pages, zoom
 - **`PrintResult`** is `PRINTED` (the system took the job; no system says whether paper came
   out), `CANCELLED` (the user closed the dialog), `UNAVAILABLE` (no printing on this desktop: a
   headless window, a Linux desktop with no portal) or `FAILED` with the reason logged. As with
-  `Launcher`, `print` never throws for what the document holds; it throws for a null and off the
-  UI thread.
+  `Launcher`, a print never throws for what the document or the file holds; it throws for a null
+  and off the UI thread.
 - **`Printer.isAvailable()`** answers without asking, so an application can grey out "Print…".
   Export is always available.
 
@@ -222,7 +253,9 @@ size it is asked for, arrives at print resolution without any change to `Icon`.
 
 ### 5.2. The scene a document is painted in
 
-A document's widgets live in a scene of their own that no window shows. In it:
+A document's widgets live in a scene of their own that no window shows, painted with the light
+theme of the window's family unless `Document.theme(Theme)` says otherwise (section 1.2,
+question 2). In it:
 
 - **Nothing has focus, nothing is hovered, nothing is pressed**: no focus ring, no caret, no hover
   wash, no pressed state.
@@ -280,9 +313,9 @@ only the rows in view (ADR 055), and their measured height is their visible rows
 row engine's measure is the sum of every row's real height, realized a page at a time and released
 after it is recorded, so a table of 20,000 rows never holds 20,000 rows of widgets at once.
 
-The break-point contract is internal in phase 1: an application's own widget is measured whole
-and moved or sliced as in section 6.1. Publishing it is additive and waits until the toolkit's own
-answers have been used.
+The break-point contract is internal in phase 1, shared with `limn.print` by a qualified export
+(section 3.1): an application's own widget is measured whole and moved or sliced as in section 6.1.
+Publishing it is additive and waits until the toolkit's own answers have been used.
 
 ### 6.3. Two passes
 
@@ -297,10 +330,9 @@ never re-flows after its footer is written.
 ### 7.1. The recording
 
 A page is painted into a recording canvas, internal to `limn.print`, that keeps each call with its
-arguments (resolved to the page's coordinates and state) and, per question 6, the widget that
-issued it. The recording is the one picture of a page: the PDF writer reads it, the preview replays
-it into a window's canvas, and route B of section 8.2 would replay it into Direct2D. Nothing paints
-a page twice.
+arguments resolved to the page's coordinates and state. The recording is the one picture of a page:
+the PDF writer reads it, the preview replays it into a window's canvas, and route B of section 8.2
+would replay it into Direct2D. Nothing paints a page twice.
 
 `Path2D` gains `forEach(PathVisitor)`, the verbs and points in order, because a path read back
 through `flatten` is only straight lines; this is the one change to a published drawing type, and it
@@ -308,7 +340,8 @@ is additive.
 
 ### 7.2. Text
 
-A glyph is written as its outline, in a Type 3 font per face and size of design, with:
+A glyph is written as its outline, in a Type 3 font per face and size of design (section 1.2,
+question 1), with:
 
 - **the outline drawn by HarfBuzz** through a new SPI, `GlyphOutlines`, that the backend implements
   over `hb_font_draw_glyph` for the face number a `ShapedText` run carries: quadratics become
@@ -317,7 +350,7 @@ A glyph is written as its outline, in a Type 3 font per face and size of design,
 - **a map back to Unicode** for each glyph, from the run's clusters, so selecting, copying and
   searching the PDF give the text; where a cluster's glyphs do not map one to one in logical order
   (Arabic joining, Indic reordering, a ligature), the run is wrapped in an `/ActualText` span with
-  the cluster's characters, which is what a reader and a search use;
+  the cluster's characters, which is what a search and a copy use;
 - **each glyph written once per document** and referenced on every page that uses it.
 
 A colour emoji, which the toolkit draws from the font's bitmap strike, is written as that bitmap.
@@ -360,14 +393,19 @@ at 300 dpi.
 
 ### 8.1. What every system does the same
 
-`print(document)` shows the system's own print dialog, owned by the window, as the file choosers
-are; the user chooses the printer, the copies, the pages and the paper; the toolkit hands the
-document's PDF to the system, which spools it. **The document is laid out once, on the document's
-paper.** If the user picks other paper in the dialog, the system scales the pages to fit, never
-up; the document is not re-flowed to the dialog's paper, because macOS shows its preview of pages
-that already exist and the three systems cannot be made to re-flow at the same moment of their
-dialogs. An application that wants another paper sets it on the document, which it can offer as a
-choice of its own ahead of "Print…".
+`print` shows the system's own print dialog, owned by the window, as the file choosers are; the
+user chooses the printer, the copies, the pages and the paper; the toolkit hands the PDF to the
+system, which spools it. **A document is laid out once, on the document's paper.** If the user
+picks other paper in the dialog, the system scales the pages to fit, never up; the document is not
+re-flowed to the dialog's paper, because macOS shows its preview of pages that already exist and
+the three systems cannot be made to re-flow at the same moment of their dialogs. An application
+that wants another paper sets it on the document, which it can offer as a choice of its own ahead
+of "Print…".
+
+Saving as PDF from the dialog is the system's: macOS's PDF button, the Windows printer that writes
+PDF, the Linux dialogs' "print to file". It writes what the system made of the job, which for a PDF
+handed in is that PDF printed again; `Document.writePdf` writes the document's own file, with its
+text, and needs no dialog.
 
 ### 8.2. How each system is asked
 
@@ -378,14 +416,16 @@ choice of its own ahead of "Print…".
 | **Windows** | `PrintDlgEx`, owner the window | route A or route B, below; both go to a print job through Direct2D's print control (`ID2D1PrintControl`, Windows 8 and later) on a package target made for the printer and the print ticket the dialog chose |
 
 - **Windows, route A.** The system's PDF renderer (`Windows.Data.Pdf`) draws each page of the
-  document's PDF into a Direct2D device context whose target is a command list, and the print control
-  takes the command list as a page. The renderer's native interface is documented for
-  store-packaged applications; whether a plain desktop process may activate it, and whether a page
-  drawn this way reaches the printer as vectors and text rather than a bitmap, are the two facts
-  section 12 measures before this route is taken.
+  PDF into a Direct2D device context whose target is a command list, and the print control takes
+  the command list as a page. The renderer's native interface is documented for store-packaged
+  applications; whether a plain desktop process may activate it, and whether a page drawn this way
+  reaches the printer as vectors and text rather than a bitmap, are the two facts section 12
+  measures before this route is taken (the owner's answer 4).
 - **Windows, route B.** The recording is replayed into a Direct2D device context directly: paths as
   geometries, glyphs as the same outlines as the PDF's, pictures as bitmaps. No PDF is read; a
-  second implementation of drawing is written and kept.
+  second implementation of drawing is written and kept, and `window.printer().print(pdfFile)` for a
+  PDF the application received would then have no Windows path, since nothing on that route reads
+  a PDF.
 - **Linux, the descriptor.** The toolkit's D-Bus client sends over a Java socket channel, which
   cannot carry a descriptor. The print call needs one: a connection of its own, opened and written
   through libc (`socket`, `connect`, `sendmsg` with `SCM_RIGHTS`) through the `Ffi` the backend
@@ -403,8 +443,9 @@ choice of its own ahead of "Print…".
 `PrintPreview` is a widget that shows a document's pages as sheets on a neutral background, one or
 two side by side, with zoom (fit the page, fit the width, a percentage), the current page and the
 count, and keys to move between pages. It replays the recordings into the window's canvas, so what
-it shows is what the PDF holds, pixel for pixel at the window's scale. It is accessible as a
-document of pages: a reader hears "page 3 of 12" and, per question 6, the page's text.
+it shows is what the PDF holds, pixel for pixel at the window's scale. A screen reader hears it as
+a group of pages with "page 3 of 12"; the page's own text is not published to it (the owner's
+answer 5).
 
 The preview is the toolkit's because only macOS's dialog previews an application's pages: the
 portal's dialog and `PrintDlgEx` show none. An application puts it in a window or a dialog of its
@@ -429,10 +470,13 @@ own, with its own buttons for paper and printing; the Showcase gets a page that 
 - **No re-flow to the dialog's paper** (section 8.1).
 - **No page-setup dialog.** macOS and Windows have one and the portal has none; the application
   chooses the paper in its own interface.
+- **No accessible PDF** (the owner's answer 5): no structure tree, no tags, no PDF/UA, and no record
+  of which widget drew what. A PDF written here is read by a screen reader as its text in page
+  order, which the Unicode maps of section 7.2 give.
+- **No PDF/A** for now (section 1.2).
 - **No columns, floats, footnotes, widows and orphans rules, or a table of contents.** A report
   that needs them is a report engine; this is the page of a business application.
-- **No PDF reading, forms, signatures, encryption or annotations.** Links in the PDF, and an outline
-  (bookmarks) from headings, are phase 2 candidates with the tags of question 6.
+- **No PDF reading, forms, signatures, encryption, links or bookmarks.**
 - **No colour management beyond sRGB**, no CMYK, no spot colours.
 - **Export with no backend.** Text needs the shaping ruler and the glyph outlines, which the backend
   provides once it is initialized; a server with no display cannot initialize it on Linux, so
@@ -445,12 +489,13 @@ Probes with no toolkit window first, as for the tray, on the four guests of the 
 1. **Windows 11 (the ARM64 guest):** whether a desktop process activates `Windows.Data.Pdf` and draws
    a page into a Direct2D command list through its native interface; whether that page printed to
    the system's PDF printer keeps text as text (read back with the same renderer) or arrives as a
-   bitmap; the job's size for a ten-page table. The answer decides question 5.
+   bitmap; the job's size for a ten-page table. The answer chooses route A or B.
 2. **Fedora KDE (Wayland) and Ubuntu GNOME (X11):** `PreparePrint` and `Print` through the portal
    with a descriptor passed by `sendmsg`, the dialog parented to the window, printing to a file and
    to the guest's queue; what each desktop's portal does with a token on the second call.
 3. **macOS 26 (the guest):** the PDFKit print operation as a sheet on a GLFW window, with the panel's
-   preview, cancelled and confirmed.
+   preview, cancelled and confirmed; the availability of each call against the macOS 11 floor read
+   from the SDK's headers.
 4. **The PDF itself:** opened, its text extracted and searched by an oracle on each system that
    already has one — PDFKit on the macOS host, `Windows.Data.Pdf` on Windows, the PDF utilities a
    GNOME desktop installs — for Latin, Arabic, Devanagari and CJK text, a 20,000-row table and a
@@ -470,15 +515,19 @@ Probes with no toolkit window first, as for the tray, on the four guests of the 
 - **The budget:** the counts of section 10 for documents of 10 and 1,000 pages.
 - **Each backend door:** the strings and structures it builds (the portal's options, the print
   ticket's paper) checked without a printer; `Printer.NONE` in every test window.
+- **The module's boundary:** the architecture check refuses `org.lwjgl` in `limn-print-support` as
+  in every module but the backend, and the toolkit's own suite passes without the module.
 
-## 14. Steps, once the questions are answered
+## 14. Steps, once the open questions are settled
 
-1. The recording canvas, `Path2D.forEach`, `GlyphOutlines` in the backend.
-2. The PDF writer over the recording: shapes, paints, clips, layers, images, text, the rasterized
+1. The module `limn-print-support` in the build and the publication, the qualified export to
+   `limn.print`, and an entry in the README's list of artifacts.
+2. The recording canvas, `Path2D.forEach`, `GlyphOutlines` in the backend.
+3. The PDF writer over the recording: shapes, paints, clips, layers, images, text, the rasterized
    items; the golden tests and the oracle on the host.
-3. `Document`, `Paper`, `PageInfo`, the print scene, pagination and the break points of section 6.2,
+4. `Document`, `Paper`, `PageInfo`, the print scene, pagination and the break points of section 6.2,
    rows realized a page at a time.
-4. `PrintPreview`, and the Showcase page.
-5. Printing: macOS, then Linux (the descriptor), then Windows by the route section 12 chose.
-6. The guide (Printing and PDF), the CHANGELOG, and the reader runs the preview needs on the
+5. `PrintPreview`, and the Showcase page.
+6. Printing: macOS, then Linux (the descriptor), then Windows by the route section 12 chose.
+7. The guide (Printing and PDF), the CHANGELOG, and the reader runs the preview needs on the
    three systems.
