@@ -1204,8 +1204,20 @@ On branch `claude/angle` of this repository:
 
 ### 10.4 Owed
 
-- **The payload's Windows slices and its release** (ADR 078): the Windows builds need a Windows
-  machine, which is the natives workflow's; the release is the owner's push and Publish.
+- **The release** (ADR 078): all four slices are built and checked, the release is the owner's
+  push and Publish.
+- **The GPU-less runners:** ANGLE over WARP, through the real trigger, is `angle.yml`'s first run,
+  which needs the payload on Central. Every guest run here had a GPU-backed Direct3D 11 driver.
+
+**The payload's own Windows build, 2026-10-22,** made on the Windows 11 ARM64 guest at the owner's
+request (ADR 078). With its arm64 libraries in place of the stand-in, ANGLE forced on Direct3D 11:
+the four scenes capture as the driver's OpenGL does on the same machine (components identical,
+widgets 0.2% of pixels past 24 levels); a popup takes 24.7 to 29.1 ms to its first picture against
+46 to 51 on the driver's OpenGL; and a transparent window, captured from the screen with nothing
+else in front, shows the wallpaper and the desktop's icons around its cube. With the full payload
+(the four slices) resolved from a local repository as the backend's dependency, `check` passes,
+`OsFloorsTest` reading the real libraries, and the backend's 1387 tests pass on ANGLE extracted from
+the payload's jar.
 
 **The payload's own macOS arm64 build, 2026-10-22,** made on the development Mac at the owner's
 request (ADR 078 records what it took). With it in place of the stand-in: all 1386 backend tests

@@ -1,9 +1,9 @@
 # ADR 078: ANGLE is an artifact of its own, built from its own sources
 
 - **Status:** Accepted, 2026-10-22. The repository `limn-angle-natives` is written and committed
-  locally; its macOS arm64 slice was built on the development Mac the same day, and the other three
-  are built by its workflows once it is pushed. The toolkit's side, the loader and the fallback, is
-  ADR 003 §10.
+  locally, and all four slices were built the same day, the macOS ones on the development Mac and
+  the Windows ones on the Windows 11 ARM64 guest; its workflows build them again once it is pushed.
+  The toolkit's side, the loader and the fallback, is ADR 003 §10.
 - **Date:** 2026-10-22
 
 ## Context
@@ -95,4 +95,24 @@ Three ways to obtain ANGLE were open:
   file names, linking only the system's, minimum macOS 11.0; compiled from ANGLE (BSD-3-Clause, 328
   files), abseil, libc++, libc++abi and astc-encoder (Apache-2.0), xxhash (BSD-2-Clause) and zlib.
   The repository's own test passed on it.
+
+## What the Windows build taught (2026-10-22, on the Windows 11 ARM64 guest)
+
+- **The toolchain it asks for:** Visual Studio 2022 Build Tools with the C++ tools for x64 and
+  ARM64, the **Windows SDK 10.0.28000** (the version ANGLE's build at this commit names, not an
+  older one), and that SDK's Debugging Tools for **both** architectures. The SDK installer on an
+  ARM64 machine installs only its own architecture's debuggers; the x64 ones came from an
+  administrative extraction of the SDK's own x64 MSI.
+- **Windows PowerShell 5.1** strips the quotes inside an argument it hands a native program, so the
+  build writes `args.gn` instead of passing `--args`, and reads a script without a byte-order mark in
+  the ANSI code page, so the script is ASCII.
+- **depot_tools' ninja is a batch file** on Windows; the licence inventory runs the ninja ANGLE's
+  checkout carries, and the checks use Visual Studio's `dumpbin`, ANGLE's clang shipping no
+  `llvm-readobj`.
+- **The result:** arm64 built natively and x64 cross-compiled, about 15 minutes each on four virtual
+  CPUs. `libGLESv2.dll` 5.2 MB (arm64) and 5.5 MB (x64), `libEGL.dll` about 500 KB; each imports only
+  `KERNEL32`, `USER32`, `dxgi` and `api-ms-win-core-synch` (no C runtime, no `d3d9`, no zlib DLL);
+  sources under the same licences as macOS's, plus `volk` (MIT).
+- **The payload:** four classifier jars of 1.8 to 2.2 MB, 8.2 MB together; a consumer resolving them
+  from a local repository passed `scripts/rehearse-consumer.sh`.
 
