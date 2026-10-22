@@ -181,7 +181,7 @@ final class MacFileDialogs {
      * and was not the key one, and nothing typed reached it until it was clicked. Asked now and
      * once more after the sheet's own leaving, which is when the system would have refused.
      */
-    private static void giveTheKeyboardBack(long owner) {
+    static void giveTheKeyboardBack(long owner) {
         if (owner == NULL) {
             return;
         }

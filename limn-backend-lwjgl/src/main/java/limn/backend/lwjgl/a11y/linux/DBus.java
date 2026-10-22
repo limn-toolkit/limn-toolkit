@@ -31,10 +31,15 @@ import limn.concurrent.internal.Threads;
  *
  * Deliberate limitations:
  *  - little-endian on the wire when writing (we read either endianness);
- *  - no UNIX fd passing, and it is never negotiated: java.nio cannot do SCM_RIGHTS, and a connection
- *    that agreed to NEGOTIATE_UNIX_FD is one a peer may send a descriptor-carrying message to,
- *    which this reader could not even parse. Unnegotiated, the bus refuses to route
- *    such a message here; the type 'h' is neither read nor written;
+ *  - no UNIX fd passing on a connection over a java.nio channel, and it is never negotiated there:
+ *    java.nio cannot do SCM_RIGHTS, and a connection that agreed to NEGOTIATE_UNIX_FD is one a
+ *    peer may send a descriptor-carrying message to. Unnegotiated, the bus refuses to route such a
+ *    message here. The one exception is a connection over a {@link Wire} that can send a
+ *    descriptor (the print portal's, through libc): it negotiates, writes the type
+ *    'h' (an index into the message's descriptors, a uint32 on the wire) and the UNIX_FDS header
+ *    field. The type is written only: no reader here takes one, a body holding it is refused as
+ *    unreadable as before, and a descriptor that arrives on that connection is closed by the
+ *    kernel unread, since its wire reads without a control buffer;
  *  - no abstract-socket transport (java.net.UnixDomainSocketAddress is filesystem-path only);
  *  - method-call handlers run on the single reader thread, so a handler must not make a
  *    blocking call on the same connection.
@@ -178,7 +183,7 @@ final class DBus {
             case 'y': w.u8(((Number) v).intValue()); return;
             case 'b': w.align(4); w.u32(((Boolean) v) ? 1 : 0); return;
             case 'n': case 'q': w.align(2); w.u16(((Number) v).intValue()); return;
-            case 'i': case 'u': w.align(4); w.u32(((Number) v).intValue()); return;
+            case 'i': case 'u': case 'h': w.align(4); w.u32(((Number) v).intValue()); return;
             case 'x': case 't': w.align(8); w.u64(((Number) v).longValue()); return;
             case 'd': w.align(8); w.u64(Double.doubleToLongBits(((Number) v).doubleValue())); return;
             case 's': case 'o': w.str((String) v); return;
@@ -367,6 +372,8 @@ final class DBus {
         int serial, replySerial;
         String path, iface, member, errorName, destination, sender, signature;
         Object[] body = new Object[0];
+        /** How many descriptors travel with the message: the UNIX_FDS header field, 0 for none. */
+        int unixFds;
         byte[] raw;   // the exact bytes as they came off / went onto the wire
 
         static Msg call(String dest, String path, String iface, String member, String sig, Object... args) {
@@ -415,6 +422,7 @@ final class DBus {
             // by a test standing in for the bus.
             if (sender != null)      fields.add(new Object[] { F_SENDER, v("s", sender) });
             if (signature != null)   fields.add(new Object[] { F_SIGNATURE, v("g", signature) });
+            if (unixFds > 0)         fields.add(new Object[] { F_UNIX_FDS, v("u", unixFds) });
             write(w, "a(yv)", fields);     // starts at offset 12: 4-aligned, contents land on 16
 
             w.align(8);
@@ -469,7 +477,8 @@ final class DBus {
                     case F_DESTINATION: m.destination = (String) val.value; break;
                     case F_SENDER: m.sender = (String) val.value; break;
                     case F_SIGNATURE: m.signature = (String) val.value; break;
-                    default: break;        // UNIX_FDS and anything newer: ignored on purpose
+                    case F_UNIX_FDS: m.unixFds = val.value instanceof Number n ? n.intValue() : 0; break;
+                    default: break;        // anything newer: ignored on purpose
                 }
             }
             r.align(8);
@@ -556,9 +565,50 @@ final class DBus {
         public DBusError(String name, String text) { super(name + ": " + text); this.name = name; }
     }
 
+    /**
+     * What a connection reads and writes through: a java.nio channel for every connection but one,
+     * and libc's socket calls for the print portal's, the one that passes a descriptor.
+     */
+    interface Wire extends Closeable {
+        /** @return bytes read into {@code into}, -1 at the end of the stream */
+        int read(ByteBuffer into) throws IOException;
+
+        /** @return bytes written from {@code from}, which may be fewer than it holds */
+        int write(ByteBuffer from) throws IOException;
+
+        /**
+         * Writes all of {@code from} with {@code descriptor} attached to its first byte, as
+         * {@code SCM_RIGHTS}; only a wire that can pass one answers this.
+         */
+        default void writeWithDescriptor(ByteBuffer from, int descriptor) throws IOException {
+            throw new IOException("this connection cannot pass a descriptor");
+        }
+
+        @Override
+        void close() throws IOException;
+    }
+
+    /** A java.nio unix-domain channel as a wire. */
+    private record ChannelWire(SocketChannel channel) implements Wire {
+        @Override
+        public int read(ByteBuffer into) throws IOException {
+            return channel.read(into);
+        }
+
+        @Override
+        public int write(ByteBuffer from) throws IOException {
+            return channel.write(from);
+        }
+
+        @Override
+        public void close() throws IOException {
+            channel.close();
+        }
+    }
+
     static final class Conn implements Closeable {
         final String address;
-        private final SocketChannel ch;
+        private final Wire ch;
         private final AtomicInteger serial = new AtomicInteger(1);
         private final Object writeLock = new Object();
         private final Map<Integer, ArrayBlockingQueue<Msg>> pending = new ConcurrentHashMap<>();
@@ -571,7 +621,7 @@ final class DBus {
         /** The last reply this connection received, kept so the spike can capture raw wire bytes. */
         public volatile Msg lastReply;
 
-        private Conn(String address, SocketChannel ch) { this.address = address; this.ch = ch; }
+        private Conn(String address, Wire ch) { this.address = address; this.ch = ch; }
 
         /** Parse "unix:path=/run/user/1000/bus,guid=..." (abstract= is rejected: see class doc). */
         static String unixPathOf(String address) {
@@ -597,7 +647,7 @@ final class DBus {
             Conn c;
             try {
                 ch.connect(UnixDomainSocketAddress.of(path));
-                c = new Conn(address, ch);
+                c = new Conn(address, new ChannelWire(ch));
                 c.auth();
             } catch (IOException | RuntimeException e) {
                 // A socket that connected and then failed its handshake is still a descriptor; one
@@ -629,7 +679,7 @@ final class DBus {
             SocketChannel ch = SocketChannel.open(StandardProtocolFamily.UNIX);
             try {
                 ch.connect(UnixDomainSocketAddress.of(path));
-                Conn c = new Conn(address, ch);
+                Conn c = new Conn(address, new ChannelWire(ch));
                 c.auth();
                 return c;
             } catch (IOException | RuntimeException e) {
@@ -745,20 +795,81 @@ final class DBus {
          * @return the command lines, without their CRLF
          */
         static List<String> saslCommands(String uid) {
-            return List.of("AUTH EXTERNAL " + hex(uid.getBytes(StandardCharsets.US_ASCII)), "BEGIN");
+            return saslCommands(uid, false);
         }
 
-        /** SASL: NUL, AUTH EXTERNAL <hex uid>, OK <guid>, BEGIN. */
+        /**
+         * The SASL commands of a connection that may pass descriptors: {@code NEGOTIATE_UNIX_FD}
+         * between the two, which only the print portal's connection sends, over a wire that can
+         * carry one (see the class's note).
+         *
+         * @param uid         the numeric user id, as text
+         * @param descriptors whether to negotiate descriptor passing
+         * @return the command lines, without their CRLF
+         */
+        static List<String> saslCommands(String uid, boolean descriptors) {
+            String auth = "AUTH EXTERNAL " + hex(uid.getBytes(StandardCharsets.US_ASCII));
+            return descriptors ? List.of(auth, "NEGOTIATE_UNIX_FD", "BEGIN") : List.of(auth, "BEGIN");
+        }
+
+        /**
+         * A connection over a wire already connected to the bus, authenticated on the calling
+         * thread, which is then the only one that may use it ({@link #callHere}, {@link #readHere},
+         * {@link #writeHere}).
+         *
+         * @param descriptors whether to negotiate descriptor passing, which the bus must agree to
+         * @throws IOException when the handshake fails or the bus refuses descriptors; the wire is
+         *                     closed
+         */
+        static Conn openOnThisThread(String address, Wire wire, boolean descriptors) throws IOException {
+            Conn c = new Conn(address, wire);
+            try {
+                c.auth(descriptors);
+                return c;
+            } catch (IOException | RuntimeException e) {
+                try { wire.close(); } catch (IOException ignored) { }
+                throw e;
+            }
+        }
+
+        /**
+         * Writes one message carrying one descriptor, on the calling thread: the message's
+         * UNIX_FDS field is set to 1, and its body's 'h' value is 0.
+         *
+         * @return the serial it was sent with
+         */
+        int writeHere(Msg m, int descriptor) throws IOException {
+            synchronized (writeLock) {
+                int s = serial.getAndIncrement();
+                m.unixFds = 1;
+                ch.writeWithDescriptor(ByteBuffer.wrap(m.marshal(s)), descriptor);
+                if (TRACE) System.err.println("[->] " + m + " +fd " + descriptor);
+                return s;
+            }
+        }
+
         private void auth() throws IOException {
+            auth(false);
+        }
+
+        /** SASL: NUL, AUTH EXTERNAL <hex uid>, OK <guid>, [NEGOTIATE_UNIX_FD, AGREE_UNIX_FD,] BEGIN. */
+        private void auth(boolean descriptors) throws IOException {
             rawWrite(new byte[] { 0 });
-            List<String> commands = saslCommands(uid());
+            List<String> commands = saslCommands(uid(), descriptors);
             rawWrite((commands.get(0) + "\r\n").getBytes(StandardCharsets.US_ASCII));
             String line = readLine();
             if (TRACE) System.err.println("[sasl] <- " + line);
             if (line.startsWith("REJECTED")) throw new IOException("SASL EXTERNAL rejected: " + line);
             if (!line.startsWith("OK ")) throw new IOException("unexpected SASL reply: " + line);
             saslGuid = line.substring(3).trim();
-            rawWrite((commands.get(1) + "\r\n").getBytes(StandardCharsets.US_ASCII));
+            if (descriptors) {
+                rawWrite((commands.get(1) + "\r\n").getBytes(StandardCharsets.US_ASCII));
+                String agreed = readLine();
+                if (!agreed.startsWith("AGREE_UNIX_FD")) {
+                    throw new IOException("the bus does not pass descriptors: " + agreed);
+                }
+            }
+            rawWrite((commands.get(commands.size() - 1) + "\r\n").getBytes(StandardCharsets.US_ASCII));
         }
 
         private void readFully(ByteBuffer bb) throws IOException {
