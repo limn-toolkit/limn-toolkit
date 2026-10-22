@@ -20,7 +20,27 @@
   placed or loaded on any machine, so R1, R4 and questions 1, 2, 4 and 5 stand exactly where they
   stood. Every figure below was measured on a machine unless it says otherwise; where it is
   reasoning rather than a measurement, it says so in the same breath.
-- **Date:** 2026-07-30, the day §9.1's starting sequence was agreed; revised 2026-09-03.
+- **Revised 2026-10-22, from GitHub's hosted Windows runners**, x64 (Windows Server 2025) and
+  arm64 (Windows 11). Both have no GPU and no OpenGL driver, only `Microsoft Hyper-V Video`, which
+  is the shape §3's first item names, on the right OS at last. **The status still does not move:
+  porting is the owner's decision, and it has not been taken.** What moved is everything that
+  decision was waiting on:
+  - **Phase 0b ran on D3D11** (§7). On x64, all four of its answers came back yes: R1 (a
+    transparent window composes over the one behind it), G2's timer query, the float and norm16
+    gates of §4.4, and per-surface swap intervals (R4, from a VM, so a hint for the pacer and not
+    its number). On arm64 the same answers came back, except R1, which a screen capture there
+    could not read.
+  - **Every shader compiles and links as GLSL ES 3.00 under ANGLE's own translator** with
+    nothing but §1.3's header swap (§1.3).
+  - **ANGLE has a measured size and provenance candidate** (§5): 2.65 MB compressed on x64, built
+    by vcpkg.
+  - **The two Mesa routes §5 weighed against ANGLE were measured.** Each one ran Limn unchanged
+    on those runners: a d3d12-only build, refused for its licence, and llvmpipe, parked by the
+    owner.
+  - **Phase 1's diff has grown:** 95 entry points and about 577 call sites against 79 and 322 (§4.2).
+  - **§8's questions 2, 4 and 5 are answered, and 1 is narrowed** (§8).
+- **Date:** 2026-07-30, the day §9.1's starting sequence was agreed; revised 2026-09-03 and
+  2026-10-22.
 - **Requirements this answers** (as stated by the project owner):
   1. Keep doing everything the backend does today; no feature may be traded for portability.
   2. Reach as many machines as possible: Windows (Windows XP forward if at all possible; state
@@ -132,6 +152,18 @@ Two properties make this work, and both must be preserved by anyone editing shad
   and already what it does.
 - **No desktop-only builtins.** `fwidth` is core in ES 3.00 (it needed an extension only in ES
   2.0); `gl_FragCoord`, `texture()`, `smoothstep`, `mix` are core.
+
+**Verified 2026-10-21, at e2c2596b, by compiling rather than reading.** The table above predates
+`canvas_flat`, `canvas_composite`, `canvas_composite_clip` and `video_convert`. Every program
+the backend builds was compiled and linked through WebGL2, which is GLSL ES 3.00 exactly and is
+checked by ANGLE's own shader translator (on Metal, in this check). Each source took
+`TargetProfile.GLSL_ES_300.header` in place of `#version 330 core` and no other change. **8
+programs from 16 files, the generated PBR pair included (as its golden file), 8 compiled and
+linked, no warning.** One source cannot follow: `video_convert_rect.frag` samples
+`sampler2DRect`, which ES lacks, and exists only for macOS's IOSurface picture path, so it never
+runs on Windows; a macOS port through ANGLE would need `EGL_ANGLE_iosurface_client_buffer` there
+instead. `gl_VertexID` (in `video_convert.vert`), `texelFetch` and `textureSize` are core in ES
+3.00 and passed.
 
 ### 1.4 Constants are not a portability problem
 
@@ -470,6 +502,24 @@ Work map (call sites per file, the whole rewrite surface):
   2  GlRenderPass        1  LwjglWindow
 ```
 
+**Re-counted 2026-10-21 at e2c2596b, unchanged at 8b0df97e** (Appendix B's commands). The renderer
+has nearly doubled since this map was drawn: partial rendering's layers and backdrop (ADR 043),
+video's conversion pass, and a 3D context that kept growing. Appendix B's pattern now matches 99
+names, four of which are not GL: two method names (`glCapabilities`, `glVideo`) and GLX's buffer-age
+query. That leaves **95 GL entry points over about 577 call sites in 22 files**:
+
+```
+156  Gl3DContext        94  GlBatch          58  GlRenderTarget   44  GlCanvas
+ 36  GlVideoContext     33  GlVideoSurface   25  GlMesh           24  ShaderProgram
+ 23  GlBackdrop         15  GlShadowMap      12  ImageTextureCache 12  GlLayerPool
+ 11  GlTexture          11  GlRenderer        9  GlyphAtlas        7  GraphicsProbe
+  5  Gl                  4  LwjglWindow       2  GlColors          2  BufferAgeQuery
+  1  LwjglBackend        1  GlRenderPass
+```
+
+The sixteen added entry points are all core ES 3.0 (Appendix A). The rewrite stays mechanical,
+and it is now roughly 1.8 times the size this section priced.
+
 ### 4.3 Context selection and fallback
 
 One profile per process: mixing a desktop GL window with an ES window is legal but doubles the
@@ -564,6 +614,24 @@ reports a maximum of 4 samples against virgl's 8 there, while on Fedora it repor
 virgl. The existing clamp absorbs the difference silently, which is the behaviour it was written
 for. None of that says anything about ANGLE, where all four remain unmeasured.
 
+**Measured under ANGLE on 2026-10-22** (§7, Phase 0b), on Direct3D 11 over WARP, x64 and arm64
+alike. Each gate was checked by doing what it needs rather than by reading an extension string:
+- **Timer queries:** `EXT_disjoint_timer_query` timed one clear, 9.7 µs on x64 and 19.8 µs on
+  arm64.
+- **MSAA:** `GL_MAX_SAMPLES` is 16.
+- **Float colour rendering:** `EXT_color_buffer_float` gave a complete `RGBA16F` framebuffer and
+  accepted a 4-sample `RGBA16F` renderbuffer.
+- **Normalized 16-bit textures:** `EXT_texture_norm16` accepted an `R16` upload.
+
+So none of the four degrades on that path. The `R16UI` alternative stays a fallback for an ANGLE
+that lacks the last extension, not the plan.
+
+Three more desktop-only names surfaced in the re-count (§4.2), none costing more than a line:
+- `GL_BACK_LEFT` in `GlCanvas`'s alpha-size query becomes `GL_BACK`, which is how ES names the
+  default framebuffer's colour buffer.
+- `GL_CONTEXT_PROFILE_MASK` and `GL_CONTEXT_FLAGS` are read only by `GraphicsProbe`'s report,
+  which on ES prints the profile as "ES" instead.
+
 ---
 
 ## 5. Distribution
@@ -645,6 +713,60 @@ to ship neither and to point at the machine's own fix instead.
   of the pack than the Store (1.2404.1.0 against 1.2608.3.0 that day) and it drew all the same; the
   command stays on the winget source because winget matters most where there is no Store.
 
+**Measured 2026-10-21/22: three payloads Limn could carry itself, on machines that have no
+OpenGL.**
+
+The machines were GitHub's hosted Windows runners, x64 and arm64, described in §7's Phase 0b.
+The 2026-09-25 proof of concept never saw a shipped library draw, because the ARM64 guest emulates
+x64; these runners settle that.
+
+Each payload was:
+- built from source in the workflow, with the CRT linked statically, so no Visual C++
+  redistributable ships with it;
+- loaded by full path before GLFW;
+- licence-checked file by file.
+
+The demo was the 0.9.0 release's `limn-demo-all.jar`, and the workflow is
+`.github/workflows/gl-fallback-spike.yml` on the branch `spike/mesa-d3d12-runner`.
+
+| Payload | x64 raw / compressed | arm64 raw / compressed | Limn as it is | Licence | Outcome |
+|---|---|---|---|---|---|
+| Mesa 26.2.5, `d3d12` driver only (the driver inside the Compatibility Pack) | 17.1 / 3.9 MB | 16.8 / 3.6 MB | draws everything, 3D included, on WARP | Mesa MIT, but needs Microsoft's `dxil.dll` (+2.0 MB) | **refused for the licence** |
+| Mesa 26.2.5 `llvmpipe` + LLVM 19.1.7, linked statically | 55.0 / 20.2 MB | 50.4 / 17.9 MB | draws everything, 3D included | Mesa (MIT, with BSD, BSL-1.0, BLAKE3 and zlib files; no GPL in what is compiled) and LLVM (Apache-2.0 WITH LLVM-exception) | **parked by the owner** |
+| ANGLE `chromium_7258` from vcpkg | 6.7 / 2.65 MB | 6.8 / 2.44 MB | needs this record's port | BSD-3-Clause and zlib; `d3dcompiler_47.dll` comes with Windows | the candidate |
+
+What each row rests on:
+
+- **d3d12 needs `dxil.dll`.** Without it, a context opens and the first frame kills the process
+  with `0x80070057` (`E_INVALIDARG`), on both runners. The DirectX Shader Compiler's licence allows
+  redistributing only what its "distributables file list" names. The release package (v1.9.2609)
+  carries no such list. It also requires every redistributor to impose terms on its own users and
+  to indemnify Microsoft, which a library on Maven Central cannot ask of the applications built on
+  it. The route ends there, whatever its size.
+- **llvmpipe ran Limn unchanged.** All four scenes rendered correctly on both architectures. The
+  heavy-screen benchmark, against its Swing twin on the same runner:
+
+  | x64 | llvmpipe | d3d12 on WARP | Swing (Java2D) |
+  |---|---|---|---|
+  | Scroll | 56 paints/s, 37% CPU | 33 paints/s, 31% CPU | 33 paints/s, 3% CPU |
+  | Animation | 63 paints/s | 58 paints/s | 40 paints/s |
+  | First frame | ~0.7 s (shader JIT) | ~0.26 s | — |
+
+  On arm64 llvmpipe scrolled at 51 paints/s on 70% CPU.
+
+  One trap for whoever repeats it: meson asks CMake for the newest LLVM first, so a newer LLVM
+  installed on the machine wins over the one built for the purpose. The arm64 runner's 22.1.8
+  won, and the build corrupted the heap at the first frame. Point CMake at one LLVM (`LLVM_DIR`
+  and `CMAKE_FIND_USE_*=OFF` in meson's `[cmake]` section) and check the version meson printed.
+- **ANGLE's numbers are vcpkg's build**, which also carries the D3D9 backend. That backend offers
+  ES 2.0 only and cannot run Limn, so leaving it out would only shrink the library.
+  `libGLESv2.dll` imports a `z.dll` of its own, which loads before it.
+- **`d3dcompiler_47.dll` was found in `System32` on both runners** (Windows Server 2025 and
+  Windows 11). §5's table expected it to be missing only on Windows 7, and Limn's floor is Windows 10.
+
+Every row loads only where the machine's own OpenGL fails (`GLFW_API_UNAVAILABLE` from WGL, §4.3),
+because a payload found first would shadow every working driver.
+
 ---
 
 ## 6. Risks
@@ -653,10 +775,10 @@ Each with the failure mode and the verification that settles it, not a severity 
 
 | # | Risk | Failure mode | Settled by |
 |---|---|---|---|
-| R1 | Transparent framebuffer under EGL/ANGLE | Popups, glass dialogs and the cube gadget lose their see-through corners, or the window turns opaque black | **Phase 0b's spike, before any refactor**: a ~50-line probe, no dependency on the port. macOS/Metal on the dev machine today; Windows/D3D11 needs a Windows machine or VM (§7). Confirm afterwards with `--scene forms-popup` and `--gadget shot`. **Untouched by the 2026-09-03 lab**, and not to be read as half-answered by it: translucency *was* exercised on the macOS hand-built context, which carries surface opacity as a context parameter, but that is NSGL rather than an ANGLE swapchain and says nothing about this risk |
+| R1 | Transparent framebuffer under EGL/ANGLE | Popups, glass dialogs and the cube gadget lose their see-through corners, or the window turns opaque black | **Phase 0b's spike, before any refactor**: a ~50-line probe, no dependency on the port. macOS/Metal on the dev machine today; Windows/D3D11 needs a Windows machine or VM (§7). Confirm afterwards with `--scene forms-popup` and `--gadget shot`. **Untouched by the 2026-09-03 lab**, and not to be read as half-answered by it: translucency *was* exercised on the macOS hand-built context, which carries surface opacity as a context parameter, but that is NSGL rather than an ANGLE swapchain and says nothing about this risk. **Settled on D3D11 x64, 2026-10-22** (§7, Phase 0b): the surface GLFW makes composes over the window behind it, read back from the screen; arm64's screen could not be read there |
 | R2 | Wayland window positioning | Dropdowns/menus appear in the wrong place or not at all — **live and silent while it lasted**, because the shipped `libglfw.so` selects Wayland by itself on a Wayland session | Protocol-level fact, not a question. **Closed**, by §9.1's step 4 run to the end: reproduced against an X11 control, the `GLFW_PLATFORM_X11` stopgap shipped, and the in-scene path ComboBox lacked built — all of it recorded in [ADR 028](028-a-popup-on-wayland-is-drawn-in-the-window-that-owns-it.md). What is left is the in-scene list's clamp to the owner window (§2.3) |
 | R3 | ANGLE binary sourcing | No reproducible build; a Chromium bump silently changes the Windows floor | Pin a specific build + record its provenance in `NOTICE` before writing code against it |
-| R4 | Per-surface swap interval under ANGLE | The multi-window vsync pacer (6 cubes at 52 fps) regresses to serialized refresh/N | `--gadget 6` under ANGLE, comparing the measured fps to the numbers already recorded for the native path |
+| R4 | Per-surface swap interval under ANGLE | The multi-window vsync pacer (6 cubes at 52 fps) regresses to serialized refresh/N | `--gadget 6` under ANGLE, comparing the measured fps to the numbers already recorded for the native path. **Indicated on D3D11, 2026-10-22** (§7): two windows at intervals 1 and 0 interleave at the rate of the one alone, on runner VMs, so `--gadget 6` on real hardware remains the settling run |
 | R5 | Timer queries absent | Perf footer GPU gauge blank | Accepted; gate + dash (§4.4) |
 | R6 | GLFW + EGL on macOS is a less-travelled path | `glfwCreateWindow` fails or the context is ES 2.0 | Same run as R1 (it fails loudly, not subtly). Measured on the dev Mac and in the macOS guest: with no ANGLE present, `GLFW_CONTEXT_CREATION_API = EGL` fails at "EGL: Library not found" before any config is considered, because macOS ships no `libEGL.dylib`. That is the loud failure this row expects, and it confirms the path is only ever reachable by shipping the binaries of §5 |
 | R7 | Shader divergence after the header swap | Pixel differences between profiles that only appear on one backend | The screenshot suite is the regression net: capture every scene under both profiles and compare. `GlslCodegenTest` already pins the generated pair |
@@ -703,6 +825,61 @@ which is why it is worth writing as a probe rather than as an experiment in a sc
 a different, much smaller feature (3D and opaque windows only), and that verdict is worth having
 before Phase 1's diff, not after.
 
+**Done on Windows/D3D11, 2026-10-22.** The machines were GitHub's hosted runners, which this
+record never had: windows-2025 (x64, Windows Server 2025) and windows-11-arm (arm64, Windows 11).
+- Both run the job in an interactive session (session 2, not session 0).
+- Both offer only `Microsoft Hyper-V Video`.
+- Neither has an OpenGL driver: the unmodified demo fails there with "WGL: The driver does not
+  appear to support OpenGL", the case §3 ranks first.
+
+The setup:
+- ANGLE came from vcpkg (port `angle`, version `chromium_7258`, ANGLE 2.1.7258), built with the
+  CRT linked statically.
+- It was loaded by full path before GLFW asked for it by name.
+- The probe is `spike/Phase0bProbe.java` on the branch `spike/mesa-d3d12-runner`, run by
+  `.github/workflows/gl-fallback-spike.yml` there (run 39666214883).
+- It uses `lwjgl-opengles` 3.4.3, and the LWJGL, GLFW and EGL classes of the 0.9.0 demo jar.
+
+Answers, identical on both architectures unless marked:
+
+- **R6, does GLFW make an ANGLE context:** yes. `GLFW_ANGLE_PLATFORM_TYPE_D3D11` gives `OpenGL ES
+  3.0.0 (ANGLE 2.1.7258)` on `ANGLE (Microsoft, Microsoft Basic Render Driver … Direct3D11 vs_5_0
+  ps_5_0)`, under EGL 1.5.
+- **R1, translucency:** **yes on x64**, read back from the screen rather than from the window's
+  own framebuffer.
+  - The setup: an opaque red window, with a transparent window over it holding an opaque green
+    square and a premultiplied half-blue band. `java.awt.Robot` captured the region.
+  - It shows red through the clear, green in the square, and (127, 0, 128) in the band, the
+    exact source-over result.
+  - It works with the surface GLFW makes from `GLFW_TRANSPARENT_FRAMEBUFFER` as it is today.
+    `EGL_ANGLE_direct_composition` is also offered, and a DirectComposition surface made by hand
+    gave the same capture, but nothing needs it.
+  - **arm64 is unanswered, not failed.** The capture there showed the runner's desktop and none
+    of the probe's windows, the opaque ones included, while each window's own framebuffer read
+    back the expected values (alpha 128 in the band, 255 in the square).
+- **G2 and the gates of §4.4:** all present and working (§4.4).
+- **Buffer age:** partial rendering (ADR 043) depends on it.
+  - ANGLE on D3D11 offers no `EGL_EXT_buffer_age`; the query returns `EGL_BAD_ATTRIBUTE`.
+  - It reports `EGL_SWAP_BEHAVIOR = EGL_BUFFER_PRESERVED`, and the back buffer behaved that way:
+    30 frames each cleared to a colour of their own read back, before the next clear, as the
+    frame just presented, an age of 1 every time.
+  - So the window's own assumption, which is what Windows' native path already runs on
+    (`BufferAgeQuery`), would be 1 there, and stable. That is unlike the Linux driver that
+    alternated 1 and 3.
+- **R4, per-surface swap interval:** yes, on a 64 Hz display. These are runner VMs, so the
+  numbers are a hint and §9's caveat about a VM's pacer stands.
+
+  | Arch | Interval 1, alone | Interval 0, alone | Interleaved (1 then 0 per round) |
+  |---|---|---|---|
+  | x64 | 56.8 swaps/s | 6535 swaps/s | 54.8 rounds/s |
+  | arm64 | 65.4 swaps/s | 3448 swaps/s | 63.9 rounds/s |
+
+  The interleaved rate is paced by the one window that asked for it, not by two waits a round.
+
+The verdict this phase exists to give is therefore **go**: on the D3D11 machines that motivate the
+port, nothing found here forces the smaller re-scope. What it cannot give, the R1 answer on
+Windows on ARM, needs a machine whose screen can be read back.
+
 **Phase 1: the facade, no behaviour change.** Extract constants, introduce `GlApi` with the
 desktop implementation only, rewrite the 322 call sites. *Done when* the full screenshot suite is
 pixel-identical to `main` and 773 tests stay green. This is the largest diff and the lowest risk;
@@ -745,9 +922,14 @@ where a portable context is actually needed, and where something cheaper already
 and that changes which answers would be worth having, not what the answers are.
 
 1. **Which ANGLE build?** Determines the Windows floor and the D3D9 question. Requires a
-   provenance decision before Phase 3.
+   provenance decision before Phase 3. **Narrowed 2026-10-22:** vcpkg's `angle` port builds it
+   from source in CI on both Windows architectures with the CRT linked statically, at 2.65 MB
+   compressed for x64 (§5), which makes "a pinned port version built in a natives repository's own
+   CI" a candidate with a number; choosing it is still the decision this question asks for.
 2. **Does `GLFW_TRANSPARENT_FRAMEBUFFER` survive on the D3D11 backend?** Chromium composites
-   differently from a GLFW window; this is the single riskiest unknown (R1).
+   differently from a GLFW window; this is the single riskiest unknown (R1). **Answered
+   2026-10-22: yes, on x64**, as GLFW makes the surface (§7); unanswered on arm64, where the
+   screen could not be read back.
 3. ~~Does LWJGL 3.4.1 ship a Wayland GLFW build?~~ **Answered: yes, in the same binary.** The
    Linux artifact holds one `libglfw.so` with both backends compiled in, and GLFW 3.4 picks the
    platform at runtime; LWJGL exposes `GLFW_PLATFORM`, `glfwGetPlatform` and
@@ -764,8 +946,11 @@ and that changes which answers would be worth having, not what the answers are.
    Null EGL OSMesa`, the window platform is Wayland when asked for, and the context is 4.6 core
    under llvmpipe.
 4. **Is `eglSwapInterval` honoured per-surface by ANGLE/D3D11** the way the pacer assumes (R4)?
+   **Answered 2026-10-22: yes**, on runner VMs (§7); the pacer's own number still wants hardware.
 5. **Windows 7 target or not?** Answering "no" removes both the ANGLE-version constraint and the
-   `d3dcompiler_47.dll` shipping question.
+   `d3dcompiler_47.dll` shipping question. **Answered: no.** Limn's floor is Windows 10, read from
+   its native libraries on 2026-10-19, and `d3dcompiler_47.dll` was found in `System32` on both
+   runners (§5).
 
 ---
 
@@ -792,6 +977,13 @@ That guest now exists and has been used for everything except the thing it was w
 still owes this record is a single run: ANGLE's two libraries placed beside the launcher and the
 Phase 0b spike started in the logged-on session. Until that happens, none of §8's ANGLE questions
 moves, however much else the machine has answered.
+
+**Superseded for D3D11 on 2026-10-22 by a machine this table did not list: GitHub's hosted Windows
+runners.** They are the motivating shape itself, with no GPU, no OpenGL driver and D3D11 over WARP,
+on x64 and on native arm64, which the emulated guest is not. They are reached from a workflow,
+so nothing has to be installed on the owner's machine. They ran Phase 0b (§7) and the three
+payloads of §5. What they share with the VM above is the caveat on pacing numbers, and what they
+add is one of their own: on the arm64 runner a screen capture did not show the probe's windows.
 
 ### 9.1 Agreed starting sequence (decided 2026-07-30)
 
@@ -875,6 +1067,28 @@ glUseProgram glVertexAttribPointer glViewport
 
 `*` needs `EXT_disjoint_timer_query` (G2)  ·  `**` use the plural `glDrawBuffers` (G1)  ·
 `***` use `glGetQueryObjectuiv` (G3)
+
+**Added since, re-counted 2026-10-21 (§4.2): sixteen entry points, all core GL ES 3.0.**
+
+```
+glBindSampler glClientWaitSync glCopyTexSubImage2D glDeleteSamplers glDeleteSync glDepthMask
+glFenceSync glFinish glGenSamplers glGetFramebufferAttachmentParameteri glGetString glGetStringi
+glSamplerParameteri glUniform2i glVertexAttrib2f glVertexAttrib4f
+```
+
+`glGetFramebufferAttachmentParameteri` is LWJGL's single-value form of ES's `…iv`. Its one desktop
+argument, `GL_BACK_LEFT`, becomes `GL_BACK` (§4.4).
+
+Appendix B's pattern also matches four names that are not GL and stay outside any facade:
+- `glCapabilities` and `glVideo`, which are method names;
+- `glXQueryDrawable` and `glXQueryExtensionsString`, GLX's buffer-age query on X11.
+
+Constants grew from 68 to 100, plus the `GL_ARB_`/`GL_EXT_` prefixes the pattern also matches in
+extension-name checks. Only eight are not core ES 3.0:
+- `GL_BACK_LEFT` is one line (§4.4).
+- `GL_CONTEXT_PROFILE_MASK` and `GL_CONTEXT_FLAGS` are read only by `GraphicsProbe`'s report.
+- `GL_TIME_ELAPSED`, `GL_R16` and `GL_RG16` are §4.4's gates, measured present under ANGLE.
+- `GL_TEXTURE_RECTANGLE` and `GL_MAX_RECTANGLE_TEXTURE_SIZE` belong to macOS's IOSurface path.
 
 ## Appendix B: how this inventory was produced
 
