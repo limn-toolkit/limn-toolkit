@@ -166,6 +166,11 @@ final class FontStore implements AutoCloseable {
     // only Latin text in bundled families never pays for either.
     private boolean heavyFallbacksRequested;
     private Throwable heavyFallbacksFailure;
+    /**
+     * Completed once the heavy fallbacks have landed or failed; null until they are asked for.
+     * What a printed page waits on before it records its text for good (ADR 078 §7.2).
+     */
+    private java.util.concurrent.CompletableFuture<Void> heavyFallbacksDone;
     private boolean systemScanRequested;
     // Re-installs the backend's catalog after a background fold-in, so Fonts
     // listeners (scene relayout, font pickers) observe the change.
@@ -308,20 +313,39 @@ final class FontStore implements AutoCloseable {
             return;
         }
         heavyFallbacksRequested = true;
+        java.util.concurrent.CompletableFuture<Void> done = new java.util.concurrent.CompletableFuture<>();
+        heavyFallbacksDone = done;
         limn.concurrent.Ui.async(FontStore::parseHeavyFallbacks).whenComplete((loaded, failed) -> {
-            if (failed != null) {
-                // Without this the exception ends inside a future nobody observes, and the only
-                // symptom is CJK text rendering as boxes for the rest of the process.
-                heavyFallbacksFailure = failed;
-                LOG.log(Level.WARNING,
-                        "fallback fonts failed to load; CJK and emoji stay .notdef", failed);
-                return;
-            }
-            if (installHeavyFallbacks(loaded)) {
-                catalogChanged.run();
-                LOG.log(Level.INFO, "fallback fonts installed (background load, on first need)");
+            try {
+                landHeavyFallbacks(loaded, failed);
+            } finally {
+                done.complete(null);
             }
         });
+    }
+
+    /**
+     * @return a stage completed on the UI thread once no face this store was asked for is still
+     *         loading: at once when none is
+     */
+    java.util.concurrent.CompletionStage<Void> whenSettled() {
+        java.util.concurrent.CompletableFuture<Void> done = heavyFallbacksDone;
+        return done == null ? java.util.concurrent.CompletableFuture.completedFuture(null) : done;
+    }
+
+    private void landHeavyFallbacks(HeavyFallbacks loaded, Throwable failed) {
+        if (failed != null) {
+            // Without this the exception ends inside a future nobody observes, and the only
+            // symptom is CJK text rendering as boxes for the rest of the process.
+            heavyFallbacksFailure = failed;
+            LOG.log(Level.WARNING,
+                    "fallback fonts failed to load; CJK and emoji stay .notdef", failed);
+            return;
+        }
+        if (installHeavyFallbacks(loaded)) {
+            catalogChanged.run();
+            LOG.log(Level.INFO, "fallback fonts installed (background load, on first need)");
+        }
     }
 
     /**

@@ -466,7 +466,7 @@ public final class ScrollBar extends Widget<ScrollBar> {
     @Override
     protected void onPaint(Canvas canvas) {
         float op = effectiveOpacity();
-        if (op < 0.02f) {
+        if (op < 0.02f || printed()) {
             return;
         }
         boolean rtl = isRightToLeft(); // once for this paint, then handed down
@@ -474,6 +474,12 @@ public final class ScrollBar extends Widget<ScrollBar> {
         float radius = Math.min(t[2], t[3]) / 2;
         float alpha = (dragging ? 0.9f : hoverBar ? 0.75f : 0.5f) * op;
         canvas.fillRoundRect(t[0], t[1], t[2], t[3], radius, Theme.of(this).textMuted().withAlpha(alpha));
+    }
+
+    /** Whether this bar is on a printed page, where nothing scrolls and no bar is drawn (ADR 078 §5.2). */
+    private boolean printed() {
+        limn.scene.Scene scene = scene();
+        return scene != null && limn.scene.internal.SceneAccess.printPalette(scene) != null;
     }
 
     /** Transparent to events while effectively invisible, so it never blocks the content. */

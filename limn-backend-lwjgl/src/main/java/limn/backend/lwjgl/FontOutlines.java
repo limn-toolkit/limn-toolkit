@@ -76,6 +76,11 @@ final class FontOutlines implements GlyphOutlines {
     }
 
     @Override
+    public java.util.concurrent.CompletionStage<Void> settled() {
+        return store.whenSettled();
+    }
+
+    @Override
     public List<Piece> cluster(String characters, Font font) {
         // The walk GlCanvas.drawClusterCharacters makes, in ems instead of pixels, so the page puts
         // the same pictures and glyphs where the screen does.

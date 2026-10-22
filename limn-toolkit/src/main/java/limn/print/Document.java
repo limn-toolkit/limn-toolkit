@@ -68,8 +68,8 @@ import java.util.function.Function;
  * video or a 3D view is left out, with a warning (§7.3).
  *
  * <p>UI thread only: a document holds widgets. Its pages are recorded on the UI thread when
- * {@link #writePdf}, {@link #print} or a {@link PrintPreview} asks for them; the PDF's bytes are
- * written on a worker. A document can be written, printed and previewed any number of times; each
+ * {@link #writePdf} or {@link #print} is called or a {@link PrintPreview} asks for them, and again
+ * once a face the text asked for has loaded; the PDF's bytes are written on a worker. A document can be written, printed and previewed any number of times; each
  * records its pages afresh, so what the widgets show at that moment is what is printed.
  */
 public final class Document {
@@ -336,6 +336,60 @@ public final class Document {
         return current == Theme.limn() ? Theme.limnLight() : Theme.light();
     }
 
+    /**
+     * Records the pages, and records them again once no face the text asked for is still loading:
+     * a script's fallback face arrives in the background on its first need, and a page recorded
+     * before it lands holds boxes where that script's text is (ADR 078 §7.2). UI thread; {@code then}
+     * runs on the UI thread, at once when nothing was loading.
+     */
+    void recordSettled(java.util.function.Consumer<Pages.Result> then, java.util.function.Consumer<Throwable> failed) {
+        Pages.Result first;
+        try {
+            first = record();
+        } catch (RuntimeException | Error error) {
+            failed.accept(error);
+            return;
+        }
+        CompletableFuture<Void> settled = limn.print.internal.Outlines.current().settled().toCompletableFuture();
+        if (settled.isDone()) {
+            then.accept(first);
+            return;
+        }
+        settled.whenComplete((ignored, error) -> Ui.post(() -> {
+            try {
+                then.accept(record());
+            } catch (RuntimeException | Error again) {
+                failed.accept(again);
+            }
+        }));
+    }
+
+    /**
+     * The pages to write, from a worker: those recorded when the work was asked for, or, when a face
+     * the text asked for was still loading then, recorded again on the UI thread once it has loaded.
+     * The worker waits only for the load, which was asked for before the work began, and for a
+     * recording that asks no worker for anything, so it never waits on a worker it is keeping busy.
+     */
+    private Pages.Result settledFromWorker(Pages.Result first, CompletableFuture<Void> settled) throws Exception {
+        if (settled.isDone()) {
+            return first;
+        }
+        settled.get();
+        CompletableFuture<Pages.Result> recorded = new CompletableFuture<>();
+        Ui.post(() -> {
+            try {
+                recorded.complete(record());
+            } catch (RuntimeException | Error failed) {
+                recorded.completeExceptionally(failed);
+            }
+        });
+        try {
+            return recorded.get();
+        } catch (java.util.concurrent.ExecutionException failed) {
+            throw failed.getCause() instanceof Exception cause ? cause : failed;
+        }
+    }
+
     /** Cuts and records every page, on the UI thread. */
     Pages.Result record() {
         Ui.checkUiThread();
@@ -356,9 +410,11 @@ public final class Document {
     // ------------------------------------------------------------------ output
 
     /**
-     * Writes the document as a PDF file. The pages are recorded now, on the UI thread; the file is
-     * written by the work once it is started, on a worker, first to a temporary file beside
-     * {@code file} and then moved over it, so a failed or cancelled write leaves no half file.
+     * Writes the document as a PDF file. The pages are recorded now, on the UI thread, and recorded
+     * again once the work runs if a face the text asked for was still loading (a script's fallback
+     * face, loaded in the background on its first need); the file is written by the work on a
+     * worker, first to a temporary file beside {@code file} and then moved over it, so a failed or
+     * cancelled write leaves no half file.
      *
      * <pre>{@code
      * document.writePdf(file)
@@ -373,9 +429,11 @@ public final class Document {
      */
     public Work<Path> writePdf(Path file) {
         Objects.requireNonNull(file, "file");
-        Pages.Result pages = record();
+        Pages.Result first = record();
+        CompletableFuture<Void> settled = limn.print.internal.Outlines.current().settled().toCompletableFuture();
         Path target = file.toAbsolutePath().normalize();
         return Ui.work(progress -> {
+            Pages.Result pages = settledFromWorker(first, settled);
             Path parent = target.getParent();
             Path temporary = Files.createTempFile(parent == null ? Path.of(".") : parent,
                     target.getFileName().toString(), ".part");
@@ -399,24 +457,27 @@ public final class Document {
     }
 
     /**
-     * Writes the document as a PDF to a stream, which is not closed. The pages are recorded now, on
-     * the UI thread; the bytes are written by the work once it is started, on a worker.
+     * Writes the document as a PDF to a stream, which is not closed. The pages are recorded now, and
+     * again once the work runs if a face was still loading, as {@link #writePdf(Path)} says; the
+     * bytes are written by the work on a worker.
      *
      * @param out where to write it
      * @return the work, not started
      */
     public Work<OutputStream> writePdf(OutputStream out) {
         Objects.requireNonNull(out, "out");
-        Pages.Result pages = record();
+        Pages.Result first = record();
+        CompletableFuture<Void> settled = limn.print.internal.Outlines.current().settled().toCompletableFuture();
         return Ui.work(progress -> {
-            write(pages, out, progress);
+            write(settledFromWorker(first, settled), out, progress);
             return out;
         });
     }
 
     /**
      * Prints the document through the system's own print dialog, owned by {@code window}: the pages
-     * are recorded now, the PDF is written on a worker, and the window's {@link limn.backend.Printer}
+     * are recorded on the UI thread (again once a face the text asked for has loaded), the PDF is
+     * written on a worker, and the window's {@link limn.backend.Printer}
      * hands it to the system (ADR 078 §8). The dialog chooses the printer and may save the job as PDF
      * where the system offers it; it scales a page to other paper, never re-flowing it.
      *
@@ -429,9 +490,8 @@ public final class Document {
         if (!window.printer().isAvailable()) {
             return CompletableFuture.completedFuture(PrintResult.UNAVAILABLE);
         }
-        Pages.Result pages = record();
         CompletableFuture<PrintResult> answer = new CompletableFuture<>();
-        Ui.async(() -> {
+        recordSettled(pages -> Ui.async(() -> {
             try {
                 ByteArrayOutputStream bytes = new ByteArrayOutputStream(64 * 1024);
                 write(pages, bytes, null);
@@ -447,6 +507,9 @@ public final class Document {
             }
             window.printer().print(new PrintJob(title, pdf, paper.width(), paper.height(), pages.pages().size()))
                     .thenAccept(answer::complete);
+        }), error -> {
+            LOG.log(System.Logger.Level.WARNING, "the document's pages could not be recorded", error);
+            answer.complete(PrintResult.FAILED);
         });
         return answer;
     }

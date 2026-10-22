@@ -65,6 +65,19 @@ public interface GlyphOutlines {
      */
     List<Piece> cluster(String characters, Font font);
 
+    /**
+     * When no face this source shapes with is still loading. A face the shaper asked for while a
+     * document was recorded (a script's fallback, loaded in the background on its first need) was
+     * drawn as boxes for that recording; a document waits on this and records its pages again,
+     * where a window simply draws its next frame.
+     *
+     * @return a stage completed on the UI thread once nothing is loading; completed already when
+     *         nothing is, which the default answers
+     */
+    default java.util.concurrent.CompletionStage<Void> settled() {
+        return java.util.concurrent.CompletableFuture.completedFuture(null);
+    }
+
     /** One thing a glyphless cluster draws. */
     sealed interface Piece permits Glyph, Picture {
     }
