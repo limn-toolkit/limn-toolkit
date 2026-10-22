@@ -1119,7 +1119,7 @@ Asked one at a time, each with its motive and its cost, on 2026-10-22:
   that exists and refused a request.
 - **macOS:** `GLFW_FORMAT_UNAVAILABLE` (no accelerated renderer) or `GLFW_API_UNAVAILABLE` (no
   OpenGL at all). ANGLE comes before `MacSoftwareGl` if it measures faster on a Mac without a GPU;
-  the order is built that way and the guest measurement is owed (§10.4).
+  it did, eight times over when scrolling (§10.2).
 - **Video may gain no copy** the desktop path does not make. Only macOS decodes in hardware today
   (the FFmpeg shim attaches VideoToolbox alone); Windows and Linux upload decoded planes on either
   profile. So the condition fell on macOS, and was the go/no-go of the whole port: had ANGLE on Metal
@@ -1154,8 +1154,23 @@ locally and never shipped:
 - **Swap interval:** an interval of 0 is not honoured (120.6 swaps a second either way, on a 120 Hz
   display), and two windows swapping in turn ran 118.3 rounds a second: each surface paces alone,
   which is what the multi-window pacer needs.
-- **R1 on Metal: not measured.** The development Mac gave this session no screen capture, so the
-  composition of a transparent window over another was not read back. Owed (§10.4).
+- **R1 on Metal: failed, then fixed** — measured in the GPU-less macOS guest, whose screen can be
+  captured. A transparent gadget window drawn by ANGLE showed its cube on black where the desktop
+  should be: the windowing library makes the window non-opaque, but ANGLE draws into a Metal layer
+  of its own, and that layer is opaque. `MacAngleLayers` marks the view's layer and every layer
+  under it non-opaque once the surface exists, and the same capture then shows the cube over the
+  desktop. A control capture with no window open showed the desktop wallpaper, so the black was the
+  window's.
+
+The same guest answered two more questions, with the same stand-in ANGLE:
+
+- **The real trigger on macOS:** with no property set, the native creation failed with "NSGL: Failed
+  to find a suitable pixel format" and the window opened on ANGLE over the guest's paravirtual Metal
+  device; `--gl-info` reported it as the fallback.
+- **The order of the macOS chain, settled:** the heavy-screen benchmark scrolled a full window at
+  35.7 paints a second on ANGLE (4.7 ms a frame, 12% CPU) against 4.5 on Apple's software renderer
+  (110.5 ms a frame, 25% CPU), and animated at 59.3 against 60.9 at 5% CPU against 15%. ANGLE before
+  `MacSoftwareGl` stands.
 - **A defect of LWJGL 3.4.3:** `GLFWNativeEGL.setEGLPath` crashes GLFW on macOS before any EGL call;
   the patched GLFW indexes past the end of its one-entry library-name list there to decide a prefix.
   The loader does not use it (§10.3).
@@ -1194,9 +1209,7 @@ On branch `claude/angle` of this repository:
 - **The Windows run:** the backend's tests on the GPU-less x64 and arm64 runners through the real
   trigger, and the captures compared with the Linux job's (Phase 4), as a job of `ci.yml` once the
   payload is on Central.
-- **R1** on Metal (a screen capture of a transparent window) and on Windows on ARM (the lab guest).
-- **The macOS chain's order:** ANGLE against the software renderer on the GPU-less macOS guest,
-  scrolling a full window (1.97 frames a second on the software renderer, §4.3).
+- **R1** on Windows on ARM (the lab guest), once the payload's arm64 slice exists.
 - **Popup latency on ANGLE** (each popup a new context whose shaders ANGLE translates and compiles):
   measured nowhere yet.
 

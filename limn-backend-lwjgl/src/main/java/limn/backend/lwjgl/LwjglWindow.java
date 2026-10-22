@@ -383,6 +383,10 @@ final class LwjglWindow implements WindowPeer {
             throw new IllegalStateException(message);
         }
         cocoaWindow = MACOS ? org.lwjgl.glfw.GLFWNativeCocoa.glfwGetCocoaWindow(handle) : NULL;
+        if (MACOS && angle && config.transparent()) {
+            // ANGLE's Metal layer is opaque, and a transparent window would show black.
+            MacAngleLayers.makeTransparent(handle);
+        }
         if (config.isPopup() && !config.focusOnShow() && !config.visible()
                 && org.lwjgl.glfw.GLFW.glfwGetPlatform() == org.lwjgl.glfw.GLFW.GLFW_PLATFORM_X11) {
             // Before the first map, as GTK's menus are: GNOME on X11 focused such a popup anyway,
