@@ -197,6 +197,24 @@ registerProbeJar("macos", "limn.backend.lwjgl.a11y.macos.LiveProbe")
 registerProbeJar("windows", "limn.backend.lwjgl.a11y.windows.LiveProbe")
 registerProbeJar("linux", "limn.backend.lwjgl.a11y.linux.LiveProbe")
 
+// The print doors' probe (ADR 078 §12): a window that prints a small PDF through the system's dialog,
+// one jar for every guest, a test source for the same reason as the three above.
+tasks.register<Jar>("printProbeJar") {
+    description = "A runnable jar of the print doors' probe, for a run on a guest."
+    group = "verification"
+    archiveFileName.set("limn-print-probe.jar")
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    manifest { attributes("Main-Class" to "limn.backend.lwjgl.PrintProbe") }
+    // The classpath's own jars (limn-test's, the toolkit's test fixtures) are built by tasks the
+    // zipTree below does not carry as dependencies.
+    dependsOn(configurations.named("testRuntimeClasspath"))
+    from(sourceSets.main.get().output, sourceSets.test.get().output)
+    from(configurations.named("testRuntimeClasspath").map { classpath ->
+        classpath.filter { it.name.endsWith(".jar") }.map { zipTree(it) }
+    })
+    exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA", "module-info.class")
+}
+
 // `DesignNoteTest` reads `docs/design/accessibility.md`, which nothing else in the build looks at:
 // without this, editing the note alone leaves the task up to date and the gate stale-green — the
 // one state a rot check must not have.

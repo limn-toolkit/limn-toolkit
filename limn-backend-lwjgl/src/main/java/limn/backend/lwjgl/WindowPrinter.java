@@ -11,7 +11,7 @@ import java.util.function.Consumer;
 
 /**
  * A window's printer: the system's print dialog, owned by the window, one at a time for the
- * window, each answer delivered on the UI thread after the event that asked (ADR 078 §8). PDFKit on
+ * window, each answer delivered on the UI thread after the event that asked. PDFKit on
  * macOS, the desktop portal on Linux, {@code PrintDlgEx} and Direct2D's print control on Windows.
  */
 final class WindowPrinter implements PrinterPeer {
