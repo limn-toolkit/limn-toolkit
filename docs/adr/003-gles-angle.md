@@ -1210,6 +1210,13 @@ On branch `claude/angle` of this repository:
   trigger, and the captures compared with the Linux job's (Phase 4), as a job of `ci.yml` once the
   payload is on Central.
 - **R1** on Windows on ARM (the lab guest), once the payload's arm64 slice exists.
-- **Popup latency on ANGLE** (each popup a new context whose shaders ANGLE translates and compiles):
-  measured nowhere yet.
+- **Popup latency on Direct3D 11**, where ANGLE compiles every program through Windows' HLSL
+  compiler: the runner job's first run. On Metal it is measured and is not a cost (below).
+
+**Popup latency on Metal, measured 2026-10-22** on the development Mac with `GlCapabilitiesReuseTest`'s
+child, which opens popups one at a time over an owner, now timed from asking for each popup to its
+first picture read back (creation, the new context's programs, the draw): three runs each, 15.0,
+15.9 and 18.9 ms a popup on ANGLE against 16.5, 16.9 and 21.3 ms on desktop OpenGL; window creation
+alone 5.5 to 8.3 ms against 9.6 to 14.0. Each popup a new context whose programs ANGLE translates
+again costs nothing visible there.
 
