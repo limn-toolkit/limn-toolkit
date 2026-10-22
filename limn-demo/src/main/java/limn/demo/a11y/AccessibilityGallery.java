@@ -565,6 +565,9 @@ public final class AccessibilityGallery {
                 new Entry("Cards", List.of(Card.class),
                         List.of(Role.GROUP, Role.HEADING, Role.LABEL, Role.BUTTON),
                         AccessibilityGallery::cards),
+                new Entry("Print preview", List.of(limn.print.PrintPreview.class),
+                        List.of(Role.GROUP, Role.SCROLL_PANE),
+                        AccessibilityGallery::printPreview),
                 new Entry("Range sliders", List.of(RangeSlider.class),
                         List.of(Role.SLIDER),
                         AccessibilityGallery::rangeSliders),
@@ -914,6 +917,22 @@ public final class AccessibilityGallery {
         counts.add(Badge.ofCount(3).setTone(Tone.ACCENT).setAccessibleName("3 unread"));
         counts.add(Badge.dot(I18nString.literal("Unread")).setTone(Tone.ACCENT));
         page.add(counts);
+        return new Built(page);
+    }
+
+    private static Built printPreview() {
+        // A document of three pages in a preview: one group, named for what it is and described
+        // by the page in the middle of its view and the count, around the scroll view of sheets.
+        limn.print.Document order = limn.print.Document.of(limn.print.Paper.A5)
+                .title("Order 4512")
+                .footer(info -> new Label("Page " + info.number() + " of " + info.count()));
+        Column lines = new Column();
+        for (int i = 1; i <= 60; i++) {
+            lines.add(new Label("Line " + i));
+        }
+        order.add(lines);
+        Column page = page();
+        page.add(Expanded.of(new limn.print.PrintPreview(order), 1));
         return new Built(page);
     }
 

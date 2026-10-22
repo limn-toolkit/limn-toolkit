@@ -529,3 +529,63 @@ Probes with no toolkit window first, as for the tray, on the four guests of the 
 5. Printing: macOS, then Linux (the descriptor), then Windows by the route section 12 chose.
 6. The guide (Printing and PDF), the CHANGELOG, and the reader runs the preview needs on the
    three systems.
+
+## 15. As built (2026-10-22)
+
+Steps 1 to 4 and the guide and CHANGELOG of step 6 are built in `limn-toolkit`, at 4,107 lines in
+`limn.print` against the 5,000 to 7,000 of section 3.1's estimate; step 5 is section 15.3. What
+the build departed from, and what it found, in the order of the sections above.
+
+### 15.1. Departures
+
+- **The pages are recorded when they are asked for, all of them, and held until they are
+  written.** Sections 7.4 and 10 had a page recorded in a posted task and written in the memory of
+  one page. Recording is synchronous on the UI thread when `writePdf`, `print` or a preview asks,
+  and the PDF is written page by page on a worker from the recordings; a recording holds calls and
+  references to immutable values (shaped lines, images), not pixels. Recording in posted tasks is a 1.x change behind the same API.
+- **A document records its pages again once a face its text asked for has loaded.** Not in the
+  record, and found by the first document with Arabic and Japanese in it: a script's fallback face
+  is loaded in the background on its first need, so the first recording drew boxes where those
+  lines were, which a window heals on its next frame and a PDF would have kept. `GlyphOutlines`
+  gained `settled()`, a stage the backend completes when no face is loading; `print` and a preview
+  wait for it and record again, and `writePdf`'s work waits for it before writing, recording again
+  on the UI thread. The work waits only for a load asked for before it began, so it never waits on
+  a worker it keeps busy (a single-worker pool deadlocked the first version).
+- **A Type 3 font carries a font descriptor and a real box.** Section 7.2 did not say so. Without
+  them the macOS PDF reader extracts no text at all from a Type 3 font, ToUnicode map or not,
+  measured with a hand-written minimal file before and after.
+- **What a page's clip hides entirely is not recorded.** A paragraph cut across three pages is one
+  label painted three times under three clips, and a PDF reader extracting text reads a clipped
+  line as well as a shown one, so every page carried the whole paragraph's text. The recording
+  canvas drops text, rectangles and images whose box lies wholly outside the clip.
+- **Every block takes the content box's width.** Section 6.1 placed a narrower block by its own
+  alignment and scaled a wider one down; a block is laid out at the content width, and a widget
+  that should be narrower is wrapped in a row or a sized box. Scaling is not built.
+- **Rows are cut only in a list, a table or a tree that is a block of its own.** Inside another
+  block it prints the box it measures to, its visible rows; `keepTogether` on one does the same.
+  `TextArea` gives no line cuts and is cut above or below it.
+- **The colour space is DeviceRGB.** Section 7.3 wrote sRGB "as such"; an ICC output profile is the
+  PDF/A work section 1.2 left for later, and the viewers in use read DeviceRGB as sRGB.
+
+### 15.2. How the page scene is made
+
+`Theme.of(widget)` answers the document's palette for a widget in a page's scene, through a
+palette the scene carries (`SceneAccess.printWith`); `Surface` asked `Theme.current()` and now asks
+through the widget like every other component. A `ScrollBar` draws nothing on a page. A page's
+scene runs on a clock the document moves and at a time scale of 1,000, so three settling frames
+take every transition to its end. A list, a table and a tree each register a view of their row
+engine (`PrintRows`), and a label its line boundaries (`LineCuts`), from their static
+initializers, in internal packages, so no public type names an internal one.
+
+### 15.3. The three doors
+
+To be filled from the doors' build and the guests' measurements (section 12, items 1 to 3).
+
+### 15.4. Measured on the host (section 12, item 4)
+
+The macOS PDF reader on the host, as the oracle: a five-page document of real components with the
+bundled fonts (a heading, a wrapped Portuguese paragraph, an Arabic and a Japanese line, a card, a
+badge, a check box, a button, a donut chart and a table of 100 orders, with a header and a
+"Página n de 5" footer) is 55 KB; every line is extracted, accents included, the Arabic in reading
+order through its `ActualText`, the table's header on each page and every order once. Pictured, the
+pages match the window's drawing of the same widgets. The guests' readers are item 4's remainder.

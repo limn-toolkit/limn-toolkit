@@ -247,6 +247,21 @@ class DocumentTest {
     }
 
     @Test
+    void thePaperIsTheLightPaletteOfTheThemesFamily() {
+        limn.components.Theme was = limn.components.Theme.current();
+        try {
+            limn.components.Theme.setCurrent(limn.components.Theme.dark());
+            assertEquals(limn.components.Theme.light(), Document.of(Paper.A4).palette());
+            limn.components.Theme.setCurrent(limn.components.Theme.limn());
+            assertEquals(limn.components.Theme.limnLight(), Document.of(Paper.A4).palette());
+            assertEquals(limn.components.Theme.dark(),
+                    Document.of(Paper.A4).theme(limn.components.Theme.dark()).palette(), "one set is kept");
+        } finally {
+            limn.components.Theme.setCurrent(was);
+        }
+    }
+
+    @Test
     void writesAPdfFile() throws Exception {
         Path file = Files.createTempFile("limn-document", ".pdf");
         try {
