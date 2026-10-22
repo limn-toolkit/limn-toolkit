@@ -369,6 +369,14 @@ public sealed interface NativeWindow extends AutoCloseable permits WindowPeer {
      */
     Launcher launcher();
 
+    /**
+     * @return what prints a PDF through the system's own print dialog, owned by this window;
+     *         {@link Printer#NONE} for a window with no printing under it (headless, embedded).
+     *         No default, for the reason {@link #launcher()} has none: a "Print…" that silently
+     *         prints nothing. UI thread only.
+     */
+    Printer printer();
+
     /** @return the system clipboard */
     Clipboard clipboard();
 

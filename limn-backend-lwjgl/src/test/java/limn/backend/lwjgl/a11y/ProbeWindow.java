@@ -23,6 +23,7 @@ public final class ProbeWindow implements WindowPeer {
     /** No chooser here: every dialog answers empty, as if cancelled. */
     @Override public limn.backend.FileDialogs fileDialogs() { return limn.backend.FileDialogs.NONE; }
     @Override public limn.backend.Launcher launcher() { return limn.backend.Launcher.NONE; }
+    @Override public limn.backend.Printer printer() { return limn.backend.Printer.NONE; }
     @Override public void setTextInput(limn.backend.spi.TextInput input) { }
     @Override public void setPreeditCaretRect(float x, float y, float width, float height) { }
     @Override public void resetPreedit() { }

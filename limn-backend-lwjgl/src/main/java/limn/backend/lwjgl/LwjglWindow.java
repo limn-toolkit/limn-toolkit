@@ -173,6 +173,7 @@ final class LwjglWindow implements WindowPeer {
     private boolean charactersWanted = true;
     private @Nullable WindowFileDialogs fileDialogs;
     private limn.backend.Launcher launcher;
+    private limn.backend.Printer printer;
     private limn.backend.ClosePolicy closePolicy = limn.backend.ClosePolicy.DISPOSE;
     private WindowInput input;
     private int framebufferWidth;
@@ -1817,6 +1818,15 @@ final class LwjglWindow implements WindowPeer {
             launcher = new limn.backend.Launcher(new WindowLauncher(this));
         }
         return launcher;
+    }
+
+    @Override
+    public limn.backend.Printer printer() {
+        backend.uiRuntime().checkUiThread();
+        if (printer == null) {
+            printer = new limn.backend.Printer(new WindowPrinter(this));
+        }
+        return printer;
     }
 
     @Override
