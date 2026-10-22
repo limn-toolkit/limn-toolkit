@@ -16,7 +16,9 @@ import org.lwjgl.system.SharedLibrary;
  *
  * <p><b>Answered synchronously, on the thread that owns the window.</b> The message arrives inside
  * the backend's own message pump, so the tree handed over is the one already published and nothing
- * walks here — which is the whole reason §1.1 makes the tree a snapshot.
+ * walks here — which is the whole reason §1.1 makes the tree a snapshot. Only the one platform
+ * call that hands the provider over may run on another thread while this one waits, when a client
+ * in another process sent the message to a thread OLE made single-threaded ({@link UiaAnswerThread}).
  *
  * <p>The three constants below come from {@code winuser.h} and {@code uiautomationcoreapi.h},
  * which need a Windows SDK the guest does not carry. Unlike the identifiers and the slot orders,

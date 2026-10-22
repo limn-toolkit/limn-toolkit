@@ -10,6 +10,12 @@ Maven Central say which number that was.
 
 ### Fixed
 
+- On Windows on ARM under an ARM64 JDK, a program no longer dies (internal error `0x8001010d`) the
+  first time a screen reader or another UI Automation client in another process asks one of its
+  windows for its accessibility, as a client that walks the whole desktop does: the window's
+  provider is now handed over from a thread of COM's multithreaded apartment while the window's own
+  thread, single-threaded since OLE was set up on it for drag and drop, waits for it. An x64 JDK,
+  on the same machines, never failed.
 - With partial rendering, a `Transform` that an in-place layout moved (a sibling shown or hidden, a
   label growing, a child hidden inside it, its wrapper hidden) left its old picture on screen and did
   not draw the new one until a whole frame, in perspective too and for a picture zoomed past the

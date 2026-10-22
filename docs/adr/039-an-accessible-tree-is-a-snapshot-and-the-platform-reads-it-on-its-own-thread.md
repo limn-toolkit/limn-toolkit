@@ -2585,6 +2585,21 @@ follow are immediate and synchronous: the spike recorded 160 provider calls on t
 `UiaReturnRawElementProvider` itself — `get_ProviderOptions`, `get_HostRawElementProvider`,
 `Navigate(Parent)`, a `QueryInterface` burst — before that function returned.
 
+**Amended 2026-10-22: that one call is not always made on the main thread.** The main thread is
+OLE's single-threaded apartment (the system's drag and drop initializes it), and a client in
+another process sends `WM_GETOBJECT`, so the message is input-synchronous and COM refuses any call
+out of the apartment until it returns. On Windows 11 ARM64 under an ARM64 JDK,
+`UiaReturnRawElementProvider` made there makes such a call before it asks the provider anything, and
+the refusal (`RPC_E_CANTCALLOUT_ININPUTSYNCCALL`) killed the process in five runs of five, with a
+client that walks every top-level window; an x64 JDK on the same guest never failed. Made from a
+thread of the multithreaded apartment it answered every time, and so did a main thread that had
+joined that apartment itself. So when the calling thread is single-threaded and inside a message
+another thread is blocked on, `UiaAnswerThread` makes the call on a daemon thread of the
+multithreaded apartment while the main thread waits, bounded at 2 s; the provider calls above then
+arrive on that thread, which the provider already serves from UI Automation's own threads. Nothing
+else here moved: the tree handed over is still the one published, read by the main thread before the
+call, and a withdrawal (a `NULL` provider, made under the bridge's guard) stays on the main thread.
+
 ~~So the `WM_GETOBJECT` handler calls `Host#republishNow()` before it returns the root provider.~~
 **Measured false on 2026-09-07, and the opposite is what works.** The handler was allowed to publish
 there — the message arrives on the UI thread inside the pump — but a reader cannot take it: the
