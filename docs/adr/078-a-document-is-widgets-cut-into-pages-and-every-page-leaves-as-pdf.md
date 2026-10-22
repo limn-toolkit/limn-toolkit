@@ -624,11 +624,16 @@ initializers, in internal packages, so no public type names an internal one.
   not run since.
 - **A screen reader over the preview.** It publishes a group and a scroll pane, shapes every bridge
   already reads, so no reader run was made for it.
-- **Found while measuring, not caused by printing:** on Windows ARM64 with an ARM64 JDK, an
-  automation client walking the desktop's windows crashed the process with
+- **Found while measuring, not caused by printing, and closed the same day:** on Windows ARM64
+  with an ARM64 JDK, an automation client crashed the process with
   `RPC_E_CANTCALLOUT_ININPUTSYNCCALL` inside the system's automation core, once in the window's
-  accessibility bridge with no print dialog open; the x64 JDK did not. It is a defect of the
-  accessibility bridge on that platform and is kept apart from this record.
+  accessibility bridge and once on the print thread while the PDF printer's prompt was open. The
+  first is fixed in the bridge (ADR 039's amendment of 2026-10-22); the second is the same first
+  answer of the process made by a system dialog, the file choosers' as well as the printer's
+  prompt, and is fixed by starting UI Automation from the multithreaded apartment before the first
+  system dialog (`UiaClientWarmUp`, ADR 039's second amendment of that day). Neither was in
+  printing's own code: moving the print to the multithreaded apartment changed nothing, since the
+  print system then shows the prompt on a thread of its own.
 
 ### 15.4. Measured on the host (section 12, item 4)
 

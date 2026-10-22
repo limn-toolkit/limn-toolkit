@@ -16,6 +16,12 @@ Maven Central say which number that was.
   provider is now handed over from a thread of COM's multithreaded apartment while the window's own
   thread, single-threaded since OLE was set up on it for drag and drop, waits for it. An x64 JDK,
   on the same machines, never failed.
+- On Windows on ARM under an ARM64 JDK, a program no longer dies the same way when such a client
+  reads one of the system's dialogs the program shows before it has read anything else of the
+  program: a file chooser, the print dialog, or the system's PDF printer asking where to save. Each
+  answered from a thread of its own (or of the print system's) and the first answer of the process
+  killed it, in every run; the toolkit now starts UI Automation once, from a thread of COM's
+  multithreaded apartment, before the first such dialog (about 16 ms, on the dialog's thread).
 - With partial rendering, a `Transform` that an in-place layout moved (a sibling shown or hidden, a
   label growing, a child hidden inside it, its wrapper hidden) left its old picture on screen and did
   not draw the new one until a whole frame, in perspective too and for a picture zoomed past the

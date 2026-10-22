@@ -2600,6 +2600,18 @@ arrive on that thread, which the provider already serves from UI Automation's ow
 else here moved: the tree handed over is still the one published, read by the main thread before the
 call, and a withdrawal (a `NULL` provider, made under the bridge's guard) stays on the main thread.
 
+**Amended again the same day: the system's dialogs have the same first answer.** A system dialog the
+process shows (a file chooser, the print dialog, a printer's prompt for a file name) answers a client
+in another process from its own thread, which the toolkit cannot move. Read before anything else of
+the process, the save chooser killed it in six runs of six and the PDF printer's prompt in every run,
+on the print system's own thread too when the print ran in the multithreaded apartment; neither an x64
+JDK nor two native ARM64 processes showing the same dialogs died, and once a client of the process had
+read anything from a thread of the multithreaded apartment, every dialog after it answered (twelve
+runs). So before the first such dialog the backend creates the system's automation client on a daemon
+thread of the multithreaded apartment and reads the desktop root's name (`UiaClientWarmUp`, ARM64
+only, once, about 16 ms); the earlier sentence that a file dialog "read whole" held only because the
+client had read the window first.
+
 ~~So the `WM_GETOBJECT` handler calls `Host#republishNow()` before it returns the root provider.~~
 **Measured false on 2026-09-07, and the opposite is what works.** The handler was allowed to publish
 there — the message arrives on the UI thread inside the pump — but a reader cannot take it: the

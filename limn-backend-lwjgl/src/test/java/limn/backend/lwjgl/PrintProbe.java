@@ -76,6 +76,16 @@ public final class PrintProbe {
             Runnable[] print = new Runnable[1];
             Label status = new Label("Waiting to print.");
             print[0] = () -> {
+                if (Boolean.getBoolean("probe.saveDialog")) {
+                    // The window's own save chooser instead of a print: a system dialog in this
+                    // process, for an automation client to read.
+                    log("save chooser asked");
+                    window.fileDialogs().saveFile("Salvar teste", null, null).thenAccept(chosen -> {
+                        log("save chooser -> " + chosen);
+                        Ui.postDelayed(window::close, exit);
+                    });
+                    return;
+                }
                 int n = ++asked[0];
                 log("print " + n + " asked; available=" + window.printer().isAvailable());
                 status.setText("Print " + n + " asked.");

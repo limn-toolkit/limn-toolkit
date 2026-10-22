@@ -35,8 +35,10 @@ import java.util.function.LongSupplier;
  * runs of three and the client read the whole tree; so did a user-interface thread that had
  * joined the multithreaded apartment itself (two of two), which is how the apartment was told
  * from everything else. An x64 JDK on the same machine never failed (three of three), which is
- * why no earlier run saw it, and a system file dialog on a thread of its own in the same ARM64
- * process read whole: it is this call, made on that thread, inside that message.
+ * why no earlier run saw it. A system file dialog on a thread of its own in the same ARM64 process
+ * read whole too, but only because the client had read this window first: read before anything
+ * else of the process, the dialog's own answer died the same way, which {@code UiaClientWarmUp}
+ * answers for the system's dialogs.
  *
  * <p>So when both hold, the call is made here, on a daemon thread of the multithreaded
  * apartment, while the window's thread waits. The provider minds no thread: UI Automation calls

@@ -251,6 +251,9 @@ final class WindowsPrinter {
     // ---- the request ------------------------------------------------------------------------
 
     private static PrintResult run(long hwnd, PrintJob job) {
+        // The dialog and a printer's file prompt answer an automation client from this process's
+        // threads; see UiaClientWarmUp.
+        UiaClientWarmUp.ensure();
         int init = (int) Ffi.call(fn(Libraries.OLE32, "CoInitializeEx"), "pi>i", NULL, COINIT_APARTMENTTHREADED);
         long document = NULL;
         try {

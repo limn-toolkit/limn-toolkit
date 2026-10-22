@@ -113,6 +113,8 @@ final class WindowsFileDialogs {
         long coCreateInstance = ole32.getFunctionAddress("CoCreateInstance");
         long coTaskMemFree = ole32.getFunctionAddress("CoTaskMemFree");
         long fromPath = shell32.getFunctionAddress("SHCreateItemFromParsingName");
+        // The chooser answers an automation client from this thread; see UiaClientWarmUp.
+        UiaClientWarmUp.ensure();
         int init = JNI.invokePPI(NULL, COINIT_APARTMENTTHREADED, coInitializeEx);
         try (MemoryStack stack = MemoryStack.stackPush()) {
             boolean save = kind == WindowFileDialogs.Kind.SAVE;
