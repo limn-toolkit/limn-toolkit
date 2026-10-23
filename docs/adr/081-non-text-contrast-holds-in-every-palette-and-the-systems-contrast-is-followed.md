@@ -2,8 +2,8 @@
 
 - **Status:** Proposed, 2026-10-23, at the owner's request: an ADR to understand how to implement
   contrast as the platforms' own preferences ask, its scope WCAG 1.4.11 and EN 301 549 and nothing
-  beyond. §6 holds the questions for the owner, each with a recommendation; §0.4 lists what must be
-  measured on the guests before anything is built.
+  beyond. §6 holds the questions for the owner, each with a recommendation; §0.4 holds what the
+  four guests answered on 2026-10-23.
 - **Date:** 2026-10-23
 - **Scope:** two requirements and nothing else.
   - **WCAG 2.1 success criterion 1.4.11, Non-text Contrast (level AA)**, which EN 301 549 repeats
@@ -83,24 +83,76 @@ surface, which it allows because a legend and the tooltip name each series. Unde
 bar that is needed to read the chart needs 3:1 against the surface whatever names it; the audit
 records which series slots fall short.
 
-### 0.4 What the platforms hand an application (clause 11.7), to be measured on the guests
+### 0.4 What the platforms hand an application (clause 11.7), measured on the guests
 
-| Platform | What the user chose | What can be read |
+Measured on 2026-10-23 on the four guests, the Showcase from this branch open beside a native
+window; every setting was turned back as it was found. The contrast setting was switched by script
+on Windows (opening the theme file, as the Settings app does) and GNOME (`gsettings`), and by the
+owner in the Display panel on macOS, which a script cannot switch (ADR 047 §0). Ratios are the WCAG
+2.1 formula over the colours read, alpha blended over the colour beneath.
+
+**Windows 11 ARM64.** A contrast theme is a whole palette, and the four shipped ones differ:
+
+| Theme (file) | WINDOW | WINDOWTEXT | HOTLIGHT | GRAYTEXT | HIGHLIGHT / HIGHLIGHTTEXT | BTNFACE / BTNTEXT |
+| --- | --- | --- | --- | --- | --- | --- |
+| No. 1 (`hc1`) | #2D3236 | #FFFFFF | #70EBDE | #A6A6A6 | #A1BFDE / #212D3B | #2D3236 / #B6F6F0 |
+| No. 2 (`hc2`) | #000000 | #FFFFFF | #8080FF | #A6A6A6 | #D6B4FD / #2B2B2B | #000000 / #FFEE32 |
+| Black (`hcblack`) | #202020 | #FFFFFF | #75E9FC | #A6A6A6 | #8EE3F0 / #263B50 | #202020 / #FFFFFF |
+| White (`hcwhite`) | #FFFAEF | #3D3D3D | #1C5E75 | #676767 | #903909 / #FFF5E3 | #FFFAEF / #202020 |
+| No theme | #FFFFFF | #000000 | #0066CC | #6D6D6D | #0078D7 / #FFFFFF | #F0F0F0 / #000000 |
+
+- Every pair a component would draw clears what it needs in all four: text on the window 10.4 to
+  21:1, disabled text 5.3 to 8.6, links 6.4 to 11.5, the selection's text on it 7.0 to 8.0, the
+  selection against the window 6.8 to 11.8, button text 10.8 to 17.5. Used as given, the user's
+  colours are enough; nothing needs deriving.
+- `BTNFACE` equals `WINDOW` in all four: a button is not told from the window by its fill, only by a
+  boundary, which is §1.4's first rule.
+- Each switch arrived at a top-level window as one `WM_SYSCOLORCHANGE`, one `WM_THEMECHANGED` and
+  three or four `WM_SETTINGCHANGE`; `SPI_GETHIGHCONTRAST` answered on with the theme's name.
+- The system redrew the window's frame in the theme's colours; the Showcase's content stayed in its
+  palette in all four.
+- Not measured: a theme the user edited by hand.
+
+**Ubuntu 24.04 GNOME (X11).** The portal's `contrast` read 1 with High Contrast on and 0 with it off,
+in light and in dark (`color-scheme` 0 and 1); the theme name stayed `Yaru`. The platform's own
+widgets (a calculator, a dialog) kept light or dark and their fills, and gained a boundary on every
+button, sampled at a key's edge:
+
+| | Without High Contrast | With it |
 | --- | --- | --- |
-| Windows 10 and 11 | A **contrast theme**: a whole palette, light or dark, one of those shipped or one the user edited. | The eight colours of a contrast theme through `GetSysColor`: `COLOR_WINDOW`, `COLOR_WINDOWTEXT`, `COLOR_HOTLIGHT`, `COLOR_GRAYTEXT`, `COLOR_HIGHLIGHT`, `COLOR_HIGHLIGHTTEXT`, `COLOR_BTNFACE`, `COLOR_BTNTEXT`. The tray already reads `COLOR_WINDOWTEXT` while one is on (`WindowsTray`). A change arrives as `WM_SYSCOLORCHANGE`. |
-| macOS 11 and later | **Increase Contrast**, which keeps Light or Dark and is not a palette. | The flag, read today. |
-| GNOME | **High Contrast**, which keeps Light or Dark and is not a palette. | The portal's flag, read today. |
-| KDE Plasma | No such setting (ADR 047 §0: `contrast` stays 0). | Nothing. |
+| Light | no boundary; the fill #D4D4D4 on #FAFAFA, 1.42:1 | #7E7E7E on #FAFAFA, 3.89:1 (2.69 against the fill) |
+| Dark | no boundary; the fill #555555 on #2C2C2C, 1.87:1 | #A7A7A7 on #242424, 6.45:1 (3.35 against the fill) |
 
-To measure, each recorded in this record before it is relied on (turning the setting on in a guest
-is the owner's, as it was for ADR 047):
+The accent (the calculator's equals key) became more saturated. The Showcase did not change.
 
-1. Windows: the eight colours under each shipped contrast theme and one edited by hand, and that
-   `WM_SYSCOLORCHANGE` arrives once per switch.
-2. macOS and GNOME: a capture of the system's own controls beside a Limn window with the setting
-   off and on, light and dark, to see how much the system strengthens its own borders.
-3. All: that the native pieces Limn already uses (the macOS menu bar, tray menus, file and print
-   dialogs) follow by themselves, so that nothing of ours is needed there.
+**macOS 27 (the GPU-less guest, the Showcase on ANGLE).** With Increase Contrast on, the system
+colours resolve to new values; the named accessibility appearances resolve to the ordinary ones
+while the setting is off, so they can be read only with it on:
+
+| Light (Aqua) | Off | On |
+| --- | --- | --- |
+| `labelColor` | black at 0.85 | black, opaque |
+| `secondaryLabelColor` | black at 0.50 | black at 0.76 (10.86:1) |
+| `separatorColor` | black at 0.10 (1.25:1) | black at 0.35 (2.43:1) |
+| `gridColor` | #E6E6E6 | #A5A5A5 |
+| `controlAccentColor` | #007AFF (4.02:1) | #0040DD (7.56:1) |
+| `keyboardFocusIndicatorColor` | #0067F4 at 0.50 (2.15:1) | #0022AF, opaque (11.36:1) |
+
+In dark the same moves: separators white at 0.30 on #202020 (2.71:1), the focus indicator #469AF5
+opaque (5.59:1), the accent #1774DA. The system's own controls gained an outline (the calculator's
+keys a light ring); window backgrounds did not change. The Showcase did not change. So macOS keeps
+the palette and strengthens text, the accent and the focus ring, and leaves its separators under
+3:1: a divider is not a control's boundary, as §0.2 reads 1.4.11.
+
+**Fedora 44 KDE Plasma 6.7.** The portal's `contrast` reads 0, and the colour schemes installed are
+Breeze Classic, Dark and Light, none a high-contrast one: nothing to follow (§5).
+
+**What the readings settle.** On Windows the user's colours are a complete, already-sufficient
+palette (§1.3 takes them as given). On macOS and GNOME the platform keeps the palette and adds
+boundaries and strength, which is the strengthened copy of §1.3; GNOME's light boundary sits at
+3.89:1, so §1.3's bar for boundaries under a contrast palette is set at that level's neighbour,
+4.5:1, rather than above what the platform itself draws. Every native piece the probes showed (the
+frame, the system's own windows) followed by itself; the Showcase followed nothing.
 
 ## 1. Decision (proposed)
 
