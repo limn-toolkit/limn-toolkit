@@ -1,0 +1,227 @@
+# ADR 081: Non-text contrast holds in every palette, and the system's contrast is followed
+
+- **Status:** Proposed, 2026-10-23, at the owner's request: an ADR to understand how to implement
+  contrast as the platforms' own preferences ask, its scope WCAG 1.4.11 and EN 301 549 and nothing
+  beyond. §6 holds the questions for the owner, each with a recommendation; §0.4 lists what must be
+  measured on the guests before anything is built.
+- **Date:** 2026-10-23
+- **Scope:** two requirements and nothing else.
+  - **WCAG 2.1 success criterion 1.4.11, Non-text Contrast (level AA)**, which EN 301 549 repeats
+    for software as clause 11.1.4.11: the visual information needed to identify a user interface
+    component and its states, and the parts of a graphic needed to understand it, have a contrast
+    of at least 3:1 against the colours next to them. Inactive (disabled) components are exempt.
+  - **EN 301 549 clause 11.7, User preferences**, for colour and contrast: software that has a user
+    interface offers a mode of operation that follows the platform's settings for colour and
+    contrast.
+  Clause 11.7 also names font type, font size and the focus cursor; those are not part of this
+  record (§5).
+- **Changes:** ADR 047 §1.4, which says the toolkit reports the system's request for more contrast
+  and does nothing with it, if §6 question 3 is answered as recommended.
+- **Compatibility:** additive in the API. In behaviour, the palettes' control borders get darker or
+  lighter (§1.1), and an application that does nothing changes look while the user has a contrast
+  setting on (§1.2).
+
+## 0. What is known, and what must be measured first
+
+### 0.1 What ADR 047 decided
+
+ADR 047 made the three backends read the system's request for more contrast and report it as
+`SystemPreferences.increaseContrast()`: macOS `accessibilityDisplayShouldIncreaseContrast`, Windows
+`SPI_GETHIGHCONTRAST`, the Linux portal's `contrast`. Its §1.4 says:
+
+> The toolkit ships a High Contrast palette, and `ThemeAudit` holds every shipped palette to
+> contrast bars. Whether a system that asks for more contrast should move an application onto that
+> palette is the application's choice, as in §1.2.
+
+So today a Limn application that does nothing looks the same with contrast on as with it off, and
+the one shipped `High Contrast` palette is dark with fixed colours (black canvas, white text, yellow
+accent), whatever the user chose on the system.
+
+### 0.2 Measured today: every palette but High Contrast draws control borders at 2:1
+
+Read on 2026-10-23 from `Theme.builtins()` with `Color.contrastRatio`, the WCAG 2.1 formula:
+
+| Palette | outline on surface | outline on canvas | outline on raised | focus ring on surface | focus ring on accent |
+| --- | --- | --- | --- | --- | --- |
+| Light | 2.00 | 1.75 | 1.75 | 11.53 | 2.01 |
+| Dark | 2.00 | 2.28 | 1.71 | 9.78 | 2.01 |
+| Limn | 2.05 | 3.00 | 1.58 | 8.89 | 2.02 |
+| Limn Light | 2.22 | 2.57 | 1.89 | 14.68 | 2.20 |
+| Darkling | 2.01 | 2.68 | 1.52 | 8.13 | 2.00 |
+| Draculite | 2.01 | 2.43 | 1.56 | 9.78 | 2.00 |
+| Nordic | 2.02 | 2.50 | 1.63 | 10.06 | 2.00 |
+| Arch Dark | 2.02 | 2.50 | 1.66 | 7.35 | 2.00 |
+| Onyx Dark | 2.00 | 2.43 | 1.59 | 9.82 | 2.01 |
+| Monoko Pro | 2.00 | 2.38 | 1.64 | 4.32 | 2.00 |
+| Grovebox Dark | 2.00 | 2.38 | 1.66 | 9.85 | 2.01 |
+| Solaris Light | 2.01 | 2.39 | 1.72 | 9.09 | 2.02 |
+| Solaris Dark | 2.01 | 2.46 | 1.60 | 7.82 | 2.00 |
+| Octo Light | 2.01 | 2.34 | 1.76 | 9.85 | 2.01 |
+| High Contrast | 5.57 | 6.25 | 4.90 | 6.58 | 2.00 |
+
+This is by design: `ThemeContrastTest.bordersAndElevationAreVisible` holds `outline` at 2:1 on the
+surface, and the palettes were solved to that bar. The focus ring clears 3:1 on every surface in
+every palette (4.32 the least).
+
+What follows from it, as reasoning to be confirmed by §0.3's audit: wherever a control is
+identified by its border alone (a text field whose fill is the surface's, an unchecked check box, a
+slider's track, a radio button), the border is 1.5 to 2.3:1 against what is next to it, and 1.4.11
+asks for 3:1. A divider between two rows or the edge of a card is not a control's boundary, and
+1.4.11 does not ask anything of it. The focus ring passes where it is drawn outside the control,
+next to the canvas; drawn on an accent-filled button, it is 2:1 against that fill.
+
+### 0.3 Owed: what identifies each control and each state
+
+1.4.11 applies to what identifies a control, which a palette alone cannot tell: a field with a
+filled box may not need its border, a check box does. Before any colour moves, an audit of every
+component the toolkit ships, as a test that fails on a component added without a row: for each
+control and each of its states (unchecked, checked, selected, focused, on, current, open), the
+colour pair that carries it, and its ratio in every palette. Disabled states are listed and exempt.
+
+Charts are part of it: `ChartPalette` says that some series colours sit below 3:1 on the chart
+surface, which it allows because a legend and the tooltip name each series. Under 1.4.11 a line or
+bar that is needed to read the chart needs 3:1 against the surface whatever names it; the audit
+records which series slots fall short.
+
+### 0.4 What the platforms hand an application (clause 11.7), to be measured on the guests
+
+| Platform | What the user chose | What can be read |
+| --- | --- | --- |
+| Windows 10 and 11 | A **contrast theme**: a whole palette, light or dark, one of those shipped or one the user edited. | The eight colours of a contrast theme through `GetSysColor`: `COLOR_WINDOW`, `COLOR_WINDOWTEXT`, `COLOR_HOTLIGHT`, `COLOR_GRAYTEXT`, `COLOR_HIGHLIGHT`, `COLOR_HIGHLIGHTTEXT`, `COLOR_BTNFACE`, `COLOR_BTNTEXT`. The tray already reads `COLOR_WINDOWTEXT` while one is on (`WindowsTray`). A change arrives as `WM_SYSCOLORCHANGE`. |
+| macOS 11 and later | **Increase Contrast**, which keeps Light or Dark and is not a palette. | The flag, read today. |
+| GNOME | **High Contrast**, which keeps Light or Dark and is not a palette. | The portal's flag, read today. |
+| KDE Plasma | No such setting (ADR 047 §0: `contrast` stays 0). | Nothing. |
+
+To measure, each recorded in this record before it is relied on (turning the setting on in a guest
+is the owner's, as it was for ADR 047):
+
+1. Windows: the eight colours under each shipped contrast theme and one edited by hand, and that
+   `WM_SYSCOLORCHANGE` arrives once per switch.
+2. macOS and GNOME: a capture of the system's own controls beside a Limn window with the setting
+   off and on, light and dark, to see how much the system strengthens its own borders.
+3. All: that the native pieces Limn already uses (the macOS menu bar, tray menus, file and print
+   dialogs) follow by themselves, so that nothing of ours is needed there.
+
+## 1. Decision (proposed)
+
+### 1.1 1.4.11 holds in every palette, all the time
+
+1.4.11 is not a mode: it applies to the application as it ships. So every palette, the shipped ones
+and the contrast palettes of §1.3, meets it, and `ThemeContrastTest` holds them to it:
+
+- **A control's boundary at 3:1** against every surface a control is drawn on (canvas, surface,
+  raised surface), for every component §0.3 finds identified by its border. Two ways to get there,
+  for the owner (§6 question 1):
+  - **(a) A new token for control boundaries** at 3:1, `outline` staying at 2:1 for what is not a
+    control's boundary (dividers, card edges, a table's grid). Recommended: it changes the controls
+    and leaves the rest of each palette's look as it is.
+  - **(b) `outline` itself at 3:1** in every palette. One token fewer, and every divider and card
+    edge gets heavier too.
+- **Every state indicator at 3:1** against the colours next to it, as the audit lists them: the
+  selected row's fill against its neighbours or a mark that clears it, a check mark against its
+  box, a slider's filled track against the empty one, the focus ring against the canvas (met) and,
+  where it is drawn on an accent fill, against that fill (2:1 today; the ring moves outside the fill
+  or its colour moves).
+- **Graphical objects needed to understand content at 3:1**: icons that carry meaning are drawn in
+  text tones, which clear it; a chart's series colours clear 3:1 on the chart surface, or the
+  chart draws its series with a mark that does (§6 question 2).
+
+### 1.2 The system's request for contrast is followed by default
+
+Clause 11.7 asks for a mode that follows the platform's colour and contrast settings. Offering it
+only to applications that write the code would leave almost every Limn application without it, so
+while `increaseContrast()` is true every window paints with the contrast palette of §1.3, and goes
+back to its palette when the setting is off. `Theme.current()`, the application's choice, does not
+change: the contrast palette is laid over it behind `Theme.of(widget)`, the way a printed page's
+palette already is. This reverses ADR 047 §1.4 for contrast only; the appearance stays the
+application's choice (ADR 047 §1.2).
+
+An application can refuse (§6 question 4): an application that brings its own contrast mode
+keeps its palette while the setting is on, and the Javadoc says that clause 11.7 is then its own to
+meet.
+
+### 1.3 The contrast palette
+
+- **Windows: the user's colours.** The user chose a whole palette, so the palette is built from the
+  eight system colours and nothing of the application's: `WINDOW` for the canvas and every surface,
+  `WINDOWTEXT` for text, muted text and every boundary, `HIGHLIGHT` and `HIGHLIGHTTEXT` for
+  selection and the accent, `HOTLIGHT` for links and the focus ring, `GRAYTEXT` for disabled,
+  `BTNFACE` and `BTNTEXT` for buttons. The semantic tones (danger, success, warning, info) have no
+  system colour and take `WINDOWTEXT`. Rebuilt on every change.
+- **macOS and GNOME: a strengthened copy of the application's palette**, same light or dark and
+  same accent, derived by rule: muted text moves to text, every boundary to text, surfaces apart
+  until they reach their bar. Held to 7:1 for text on every surface and 4.5:1 for every boundary
+  and indicator, against 1.4.11's 3:1, because the user asked for more than the default.
+- The shipped `High Contrast` palette stays a palette an application may choose. It is not what the
+  system gets, since it is dark whatever the user chose.
+
+### 1.4 What a component draws under a contrast palette
+
+Colour alone does not carry everything 1.4.11 asks for under a contrast palette: on Windows the
+canvas, every surface and every button face may be the same colour, so a control the default
+palettes tell apart by fill has nothing left but its border. One flag on the palette,
+`Theme.contrast()`, true for the contrast palettes and for the shipped `High Contrast`, and while it
+is set:
+
+1. Every control draws its boundary, whatever its style, a filled control included.
+2. Hover and pressed add a boundary rather than a tint, which may not survive the system's colours.
+3. The focus ring is two pixels wide and opaque.
+4. Shadows become a boundary, and frosted backdrops and translucent popups paint opaque: a
+   translucent surface over content cannot promise any contrast.
+5. Content is left as it is: an image, a video, a 3D view. A monochrome icon takes the text colour.
+
+## 2. Alternatives considered
+
+- **Keep ADR 047 §1.4 and document a recipe for 11.7.** Almost no application would follow it.
+- **Move to the shipped `High Contrast` palette when contrast is on.** A user who chose a light
+  contrast theme on Windows gets black, and a Mac user who asked for more contrast gets a different
+  application.
+- **Strengthen by rule on Windows too.** On Windows the user chose those colours, sometimes for a
+  condition that makes others unreadable; 11.7 asks for theirs.
+- **Meet 1.4.11 only under a contrast palette.** 1.4.11 is level AA for the application as it
+  ships; a mode the user has to turn on does not meet it.
+
+## 3. What it costs
+
+- **The palettes:** one token (§1.1 a) or every `outline` (b) re-solved to 3:1 in fourteen palettes,
+  and `ThemeContrastTest`'s border bar raised with it.
+- **The audit (§0.3):** a component-by-state table as a test, and the fixes it finds.
+- **Windows:** eight `GetSysColor` calls and `WM_SYSCOLORCHANGE` in the reader that already hears
+  `WM_SETTINGCHANGE`.
+- **The toolkit:** the contrast palette resolved behind `Theme.of`, the derivation rule,
+  `Theme.contrast()` and its five rules in the components that choose those colours, the refusal.
+- **Tests:** the derived palettes held to their bars, a headless test per rule, the capture gallery
+  under the contrast palettes, a live reading on each guest.
+
+## 4. Verification, when built
+
+- `ThemeContrastTest`: every shipped palette meets §1.1; the strengthened copy of each meets §1.3;
+  the Windows palette built from each measured contrast theme maps every token.
+- The audit's test: every component and state has a row, and every row clears 3:1 in every palette.
+- Headless: with contrast on, `Theme.of` answers the contrast palette and `Theme.current()` is
+  unchanged; off again, the application's; a change is a repaint, not a relayout; the refusal keeps
+  the application's palette.
+- The capture gallery in each palette, contrast palettes included, looked at by the owner.
+- Live, on each guest: the setting turned on with the Showcase open, followed at once.
+
+## 5. What this is not
+
+- Not the rest of clause 11.7: font type, font size and the focus cursor.
+- Not other WCAG criteria (use of colour alone, text contrast, which `ThemeContrastTest` already
+  holds at 4.5:1).
+- Not the neighbouring system settings: reduce transparency, differentiate without colour.
+- Not KDE's colour schemes.
+
+## 6. Questions for the owner
+
+1. **The control boundary (§1.1):** a new token at 3:1, keeping `outline` at 2:1 for dividers and
+   card edges, or `outline` itself at 3:1? *Recommended: the new token.*
+2. **Charts (§0.3, §1.1):** series colours that clear 3:1 on the chart surface, or a mark per
+   series (a shape on each point, a dash per line) that does? *Recommended: colours that clear it*;
+   the audit says how many slots move.
+3. **Contrast followed by default (§1.2)**, reversing ADR 047 §1.4? *Recommended: yes.*
+4. **The refusal (§1.2)**, `Theme.followSystemContrast(boolean)`, beside `apply()`? *Recommended:
+   yes.*
+5. **On Windows, the user's colours (§1.3)** rather than a strengthened copy? *Recommended: yes.*
+6. **Before 1.0?** *Recommended: yes*: §1.1 and §1.2 change what an application that does nothing
+   looks like, which is cheaper before the compatibility promise than after it.
