@@ -57,6 +57,7 @@ public final class X11Clipboard implements NativeClipboard {
     private static final int SELECTION_NOTIFY = 31;
     private static final int PROPERTY_NOTIFY = 28;
     private static final int CLIENT_MESSAGE = 33;
+    private static final int GENERIC_EVENT = 35;
     private static final long PROPERTY_CHANGE_MASK = 1L << 22;
     private static final int PROPERTY_NEW_VALUE = 0;
     private static final int PROPERTY_DELETE = 1;
@@ -105,6 +106,8 @@ public final class X11Clipboard implements NativeClipboard {
     private volatile boolean closing;
     /** The drags this connection speaks for, once a window asked for them; the X thread reads it. */
     private volatile X11Drag drag;
+    /** The pinches over this program's windows, made the first time a window asks. */
+    private volatile X11Pinch pinch;
     /** How long the thread sleeps with nothing to do: shorter while a drag of ours is followed. */
     volatile int pollMillis = 250;
 
@@ -326,6 +329,11 @@ public final class X11Clipboard implements NativeClipboard {
                 }
             } else if (on != window && state == PROPERTY_DELETE) {
                 continueSend(on, property);
+            }
+        } else if (type == GENERIC_EVENT) {
+            X11Pinch gestures = pinch;
+            if (gestures != null) {
+                gestures.event(event);
             }
         } else if (type == CLIENT_MESSAGE) {
             X11Drag asked = drag;
@@ -617,6 +625,24 @@ public final class X11Clipboard implements NativeClipboard {
             drag = new X11Drag(this, ui);
         }
         return drag;
+    }
+
+    /**
+     * Sends the pinches over one of this program's windows to its input, read on this connection.
+     * Any thread.
+     *
+     * @return what forgets the window
+     */
+    public Runnable pinches(long xwindow, java.util.function.Supplier<limn.backend.spi.WindowInput> input,
+            java.util.function.DoubleUnaryOperator toLogical, limn.concurrent.UiRuntime ui) {
+        X11Pinch gestures;
+        synchronized (this) {
+            if (pinch == null) {
+                pinch = new X11Pinch(this);
+            }
+            gestures = pinch;
+        }
+        return gestures.register(xwindow, input, toLogical, ui);
     }
 
     long display() {

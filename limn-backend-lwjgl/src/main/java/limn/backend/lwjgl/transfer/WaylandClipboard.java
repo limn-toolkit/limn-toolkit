@@ -60,6 +60,7 @@ public final class WaylandClipboard implements NativeClipboard {
     private final long sourceListener;
     private final long keyboardListener;
     private final long pointerListener;
+    private final long pinchListener;
 
     /** Guards every proxy below against being ended on one thread while another sends on it. */
     private final Object lock = new Object();
@@ -68,6 +69,11 @@ public final class WaylandClipboard implements NativeClipboard {
     private long device;
     private long keyboard;
     private long pointer;
+    /** The compositor's pointer gestures, or {@code NULL} where it has none. */
+    private long gestures;
+    private long pinchInterface;
+    /** The pinch of {@link #pointer}, or {@code NULL}. Under {@link #lock}. */
+    private long pinch;
     private final Map<Long, List<String>> offers = new HashMap<>();
     private long selection;
     /** The drag (its offer's data) the last answer to a motion went to. Under {@link #lock}. */
@@ -166,7 +172,10 @@ public final class WaylandClipboard implements NativeClipboard {
                 wl.ignore("ppiiiii"),                                 // modifiers
                 wl.ignore("ppii"));                                   // repeat_info
         pointerListener = wl.table(
-                wl.ignore("ppipii"),                                  // enter
+                wl.on("ppipii", a -> {                                // enter
+                    pointerX = (int) a[4] / 256f;
+                    pointerY = (int) a[5] / 256f;
+                }),
                 wl.ignore("ppip"),                                    // leave
                 wl.on("ppiii", a -> {                                 // motion
                     pointerX = (int) a[3] / 256f;
@@ -189,6 +198,7 @@ public final class WaylandClipboard implements NativeClipboard {
         int[] compositorGlobal = new int[2];
         int[] shmGlobal = new int[2];
         int[] activationGlobal = new int[2];
+        int[] gesturesGlobal = new int[2];
         registry = wl.request(wrapper, 1, wl.function("wl_registry_interface"), 0, 0L);
         wl.listen(registry, wl.table(
                 wl.on("ppipi", a -> {
@@ -208,6 +218,9 @@ public final class WaylandClipboard implements NativeClipboard {
                     } else if (name.equals(ACTIVATION) && activationGlobal[1] == 0) {
                         activationGlobal[0] = (int) a[2];
                         activationGlobal[1] = (int) a[4];
+                    } else if (name.equals(GESTURES) && gesturesGlobal[1] == 0) {
+                        gesturesGlobal[0] = (int) a[2];
+                        gesturesGlobal[1] = (int) a[4];
                     }
                 }),
                 wl.ignore("ppi")));
@@ -225,6 +238,21 @@ public final class WaylandClipboard implements NativeClipboard {
             long[] interfaces = activationInterfaces();
             tokenInterface = interfaces[1];
             activation = wl.bind(registry, activationGlobal[0], interfaces[0], ACTIVATION, 1);
+        }
+        // A pinch on a trackpad, on the pointer this seat gives us, bound before the seat's
+        // capabilities arrive and make the pointer.
+        pinchListener = wl.table(
+                wl.on("ppiipi", a -> pinchBegan(a[4])),               // begin: serial, time, surface, fingers
+                wl.on("ppiiiii", a -> pinched((int) a[5] / 256f)),    // update: time, dx, dy, scale, rotation
+                wl.ignore("ppiii"));                                  // end: serial, time, cancelled
+        if (gesturesGlobal[1] != 0) {
+            long[] interfaces = gestureInterfaces();
+            pinchInterface = interfaces[1];
+            gestures = wl.bind(registry, gesturesGlobal[0], interfaces[0], GESTURES, 1);
+        }
+        if (PINCH_TRACE) {
+            System.err.println("limn.pinch(wayland): " + GESTURES + " v" + gesturesGlobal[1]
+                    + (gestures == NULL ? ", not bound" : ", bound"));
         }
         if (compositorGlobal[1] != 0 && shmGlobal[1] != 0) {
             // For the picture a drag shows: a surface of ours and the memory it is drawn from.
@@ -425,11 +453,100 @@ public final class WaylandClipboard implements NativeClipboard {
             if ((caps & CAPABILITY_POINTER) != 0 && pointer == NULL) {
                 pointer = wl.request(seat, 0, wl.function("wl_pointer_interface"), 0, 0L);
                 wl.listen(pointer, pointerListener);
+                if (gestures != NULL) {
+                    pinch = wl.request(gestures, 1, pinchInterface, 0, 0L, pointer); // get_pinch_gesture
+                    boolean listening = wl.listen(pinch, pinchListener);
+                    if (PINCH_TRACE) {
+                        System.err.println("limn.pinch(wayland): pinch 0x" + Long.toHexString(pinch)
+                                + " on pointer 0x" + Long.toHexString(pointer) + ", listening " + listening);
+                    }
+                }
             } else if ((caps & CAPABILITY_POINTER) == 0 && pointer != NULL) {
+                if (pinch != NULL) {
+                    wl.request(pinch, 0, NULL, Wl.DESTROY);           // destroy
+                    pinch = NULL;
+                }
                 wl.request(pointer, 1, NULL, Wl.DESTROY);             // release
                 pointer = NULL;
             }
         }
+    }
+
+    // ---- the pinch, on the dispatch thread ------------------------------------------------------
+
+    private static final String GESTURES = "zwp_pointer_gestures_v1";
+    private static final boolean PINCH_TRACE = Boolean.getBoolean("limn.pinch.trace");
+    /** The window a pinch began over, and its scale since the begin as of the last update. */
+    private @org.jspecify.annotations.Nullable Window pinchOver;
+    private float pinchScale;
+    private boolean pinchStarting;
+
+    private void pinchBegan(long surface) {
+        pinchOver = windows.get(surface);
+        if (PINCH_TRACE) {
+            System.err.println("limn.pinch(wayland): begins on surface 0x" + Long.toHexString(surface)
+                    + (pinchOver == null ? ", not a window of ours " + windows.keySet() : ", a window of ours"));
+        }
+        pinchScale = 1;
+        pinchStarting = true;
+    }
+
+    /**
+     * An update of the pinch: the compositor's scale is the one since the begin, so the factor of
+     * this event is its ratio to the last one's. The pointer moves with the fingers' centre, and
+     * the zoom is around where it is.
+     */
+    private void pinched(float scale) {
+        Window over = pinchOver;
+        if (over == null || !(scale > 0) || !(pinchScale > 0)) {
+            return;
+        }
+        float factor = scale / pinchScale;
+        if (PINCH_TRACE) {
+            System.err.println("limn.pinch(wayland): scale " + scale + ", factor " + factor);
+        }
+        pinchScale = scale;
+        boolean began = pinchStarting;
+        pinchStarting = false;
+        float x = (float) over.toLogical.applyAsDouble(pointerX);
+        float y = (float) over.toLogical.applyAsDouble(pointerY);
+        over.ui.post(() -> {
+            limn.backend.spi.WindowInput in = over.input.get();
+            if (in != null) {
+                in.zoomed(factor, x, y, began);
+                // Arrived outside the window library's batch, which is what drains a scene's
+                // input: ended here, or the last updates of a pinch waited for the next event.
+                in.inputBatchEnded();
+            }
+        });
+    }
+
+    /**
+     * The manager of the pointer gestures protocol and its pinch, at version 1, laid out as the
+     * client library reads them: like {@link #activationInterfaces}, for a protocol it does not
+     * export. The swipe is described because the manager's first request makes one.
+     *
+     * @return the manager's interface and the pinch's
+     */
+    private long[] gestureInterfaces() {
+        long surface = wl.function("wl_surface_interface");
+        long pointerInterface = wl.function("wl_pointer_interface");
+        long swipe = org.lwjgl.system.MemoryUtil.nmemCalloc(1, 40);
+        long pinchGesture = org.lwjgl.system.MemoryUtil.nmemCalloc(1, 40);
+        long gestureManager = org.lwjgl.system.MemoryUtil.nmemCalloc(1, 40);
+        fillInterface(swipe, "zwp_pointer_gesture_swipe_v1", 1, messages(message("destroy", "")), 3, messages(
+                message("begin", "uuou", NULL, NULL, surface, NULL),
+                message("update", "uff", NULL, NULL, NULL),
+                message("end", "uui", NULL, NULL, NULL)));
+        fillInterface(pinchGesture, "zwp_pointer_gesture_pinch_v1", 1, messages(message("destroy", "")), 3,
+                messages(
+                        message("begin", "uuou", NULL, NULL, surface, NULL),
+                        message("update", "uffff", NULL, NULL, NULL, NULL, NULL),
+                        message("end", "uui", NULL, NULL, NULL)));
+        fillInterface(gestureManager, GESTURES, 2, messages(
+                message("get_swipe_gesture", "no", swipe, pointerInterface),
+                message("get_pinch_gesture", "no", pinchGesture, pointerInterface)), 0, NULL);
+        return new long[] {gestureManager, pinchGesture};
     }
 
     private void newOffer(long offer) {

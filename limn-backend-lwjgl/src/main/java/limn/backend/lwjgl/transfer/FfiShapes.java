@@ -189,6 +189,12 @@ final class FfiShapes {
         void ppiiii_v(long a0, long a1, int a2, int a3, int a4, int a5);
     }
 
+    /** {@code ppiipi>v} */
+    @FunctionalInterface
+    interface PPIIPI_V extends Shape {
+        void ppiipi_v(long a0, long a1, int a2, int a3, long a4, int a5);
+    }
+
     /** {@code ppipii>v} */
     @FunctionalInterface
     interface PPIPII_V extends Shape {
@@ -239,13 +245,14 @@ final class FfiShapes {
             entry("pppip>v", PPPIP_V.class),
             entry("ppppp>v", PPPPP_V.class),
             entry("ppiiii>v", PPIIII_V.class),
+            entry("ppiipi>v", PPIIPI_V.class),
             entry("ppipii>v", PPIPII_V.class),
             entry("pppppp>v", PPPPPP_V.class),
             entry("ppiiiii>v", PPIIIII_V.class),
             entry("ppipiip>v", PPIPIIP_V.class));
 
     /** The closure: the vector form for libffi, and every shape's method for the linker. */
-    static final class Closure extends Callback implements P_I, PI_I, PP_I, PP_V, PII_I, PIP_I, PPI_V, PPP_I, PPP_P, PPP_V, PIPP_I, PPII_V, PPIP_V, PPPI_I, PPPI_V, PPPP_P, PPPP_V, PPIII_V, PPIPI_V, PPIPP_I, PPIPP_V, PPPIP_V, PPPPP_V, PPIIII_V, PPIPII_V, PPPPPP_V, PPIIIII_V, PPIPIIP_V {
+    static final class Closure extends Callback implements P_I, PI_I, PP_I, PP_V, PII_I, PIP_I, PPI_V, PPP_I, PPP_P, PPP_V, PIPP_I, PPII_V, PPIP_V, PPPI_I, PPPI_V, PPPP_P, PPPP_V, PPIII_V, PPIPI_V, PPIPP_I, PPIPP_V, PPPIP_V, PPPPP_V, PPIIII_V, PPIIPI_V, PPIPII_V, PPPPPP_V, PPIIIII_V, PPIPIIP_V {
 
         private final Callback.Descriptor descriptor;
         private final String signature;
@@ -405,6 +412,11 @@ final class FfiShapes {
 
         @Override
         public void ppiiii_v(long a0, long a1, int a2, int a3, int a4, int a5) {
+            answer(a0, a1, a2, a3, a4, a5);
+        }
+
+        @Override
+        public void ppiipi_v(long a0, long a1, int a2, int a3, long a4, int a5) {
             answer(a0, a1, a2, a3, a4, a5);
         }
 

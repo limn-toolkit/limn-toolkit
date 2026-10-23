@@ -627,7 +627,9 @@ Maven Central say which number that was.
     `WindowInput.zoomed`.
   - `PrintPreview` zooms around the pointer, and a `Viewport3D` with a camera controller moves the
     camera as with the wheel.
-  - On Linux a pinch is not read yet; the wheel with Control zooms there.
+  - On Linux it comes from XInput 2.4 under X11, from an X server of 21.1 or newer, and from the
+    compositor's pointer gestures under Wayland, through the clipboard's own connection in both.
+    Below those, the wheel with Control still zooms.
 - A window prints a PDF: `NativeWindow.printer()` returns a `Printer` with `print(Path, title)`,
   `print(byte[], title)` and `isAvailable()`, answering a `PrintResult` (`PRINTED`, `CANCELLED`,
   `UNAVAILABLE`, `FAILED`) on the UI thread; a window with no printing answers `Printer.NONE`.

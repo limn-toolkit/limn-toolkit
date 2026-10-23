@@ -531,6 +531,12 @@ final class LwjglWindow implements WindowPeer {
                     org.lwjgl.glfw.GLFWNativeX11.glfwGetX11Window(handle),
                     () -> inputBlocked() ? null : input, this::toLogical, this::reapplyCursor);
         }
+        if (backend.nativeClipboard() instanceof limn.backend.lwjgl.transfer.X11Clipboard x11) {
+            // A pinch on a trackpad, through XInput 2.4 on the same connection. Wayland's comes
+            // through the clipboard's pointer, on every window its drags know.
+            x11Pinch = x11.pinches(org.lwjgl.glfw.GLFWNativeX11.glfwGetX11Window(handle),
+                    () -> inputBlocked() ? null : input, this::toLogical, backend.uiRuntime());
+        }
         if (MACOS) {
             long view = org.lwjgl.glfw.GLFWNativeCocoa.glfwGetCocoaView(handle);
             if (MacInputContextGate.install(view)) {
@@ -1285,6 +1291,10 @@ final class LwjglWindow implements WindowPeer {
         if (windowsDrag != null) {
             windowsDrag.close();
             windowsDrag = null;
+        }
+        if (x11Pinch != null) {
+            x11Pinch.run();
+            x11Pinch = null;
         }
         if (linuxDrag != null) {
             linuxDrag.close();
@@ -2565,6 +2575,8 @@ final class LwjglWindow implements WindowPeer {
     private limn.backend.lwjgl.transfer.@org.jspecify.annotations.Nullable MacDrag macDrag;
     private limn.backend.lwjgl.transfer.@org.jspecify.annotations.Nullable WindowsDrag windowsDrag;
     private limn.backend.lwjgl.transfer.@org.jspecify.annotations.Nullable WindowDrag linuxDrag;
+    /** What forgets this window's pinches under X11, or {@code null}. */
+    private @org.jspecify.annotations.Nullable Runnable x11Pinch;
     /** Whether {@link #linuxDrag} is X11's, whose proxy some sources go round. */
     private boolean x11Drag;
 
