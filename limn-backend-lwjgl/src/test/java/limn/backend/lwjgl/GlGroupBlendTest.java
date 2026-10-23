@@ -528,43 +528,43 @@ class GlGroupBlendTest {
 
     /** One frame over {@code page} into a texture of its own; the pixel at {@code (x, y)}, alpha last. */
     private static int[] render(GlCanvas canvas, Color page, int x, int y, Consumer<GlCanvas> paint) {
-        int texture = GL33C.glGenTextures();
-        int fbo = GL33C.glGenFramebuffers();
-        int previousFbo = GL33C.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
+        int texture = Gl.glGenTextures();
+        int fbo = Gl.glGenFramebuffers();
+        int previousFbo = Gl.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
         int[] previousViewport = new int[4];
-        GL33C.glGetIntegerv(GL33C.GL_VIEWPORT, previousViewport);
+        Gl.glGetIntegerv(GL33C.GL_VIEWPORT, previousViewport);
         ByteBuffer pixel = MemoryUtil.memAlloc(4);
         try {
-            GL33C.glActiveTexture(GL33C.GL_TEXTURE0);
-            GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
-            GL33C.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, SIZE, SIZE, 0,
+            Gl.glActiveTexture(GL33C.GL_TEXTURE0);
+            Gl.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
+            Gl.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, SIZE, SIZE, 0,
                     GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, (ByteBuffer) null);
-            GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, fbo);
-            GL33C.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
+            Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, fbo);
+            Gl.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
                     GL33C.GL_TEXTURE_2D, texture, 0);
-            assertEquals(GL33C.GL_FRAMEBUFFER_COMPLETE, GL33C.glCheckFramebufferStatus(GL33C.GL_FRAMEBUFFER));
-            GL33C.glViewport(0, 0, SIZE, SIZE);
+            assertEquals(GL33C.GL_FRAMEBUFFER_COMPLETE, Gl.glCheckFramebufferStatus(GL33C.GL_FRAMEBUFFER));
+            Gl.glViewport(0, 0, SIZE, SIZE);
             canvas.beginFrame(SIZE, SIZE, 1f);
             canvas.clear(page);
             paint.accept(canvas);
             canvas.endFrame();
-            GL33C.glPixelStorei(GL33C.GL_PACK_ALIGNMENT, 1);
+            Gl.glPixelStorei(GL33C.GL_PACK_ALIGNMENT, 1);
             ByteBuffer all = MemoryUtil.memAlloc(SIZE * SIZE * 4);
             try {
-                GL33C.glReadPixels(0, 0, SIZE, SIZE, GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, all);
+                Gl.glReadPixels(0, 0, SIZE, SIZE, GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, all);
                 lastImage = new byte[SIZE * SIZE * 4];
                 all.get(lastImage);
             } finally {
                 MemoryUtil.memFree(all);
             }
-            GL33C.glReadPixels(x, SIZE - 1 - y, 1, 1, GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, pixel);
+            Gl.glReadPixels(x, SIZE - 1 - y, 1, 1, GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, pixel);
             return new int[] {pixel.get(0) & 0xFF, pixel.get(1) & 0xFF, pixel.get(2) & 0xFF, pixel.get(3) & 0xFF};
         } finally {
             MemoryUtil.memFree(pixel);
-            GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, previousFbo);
-            GL33C.glViewport(previousViewport[0], previousViewport[1], previousViewport[2], previousViewport[3]);
-            GL33C.glDeleteFramebuffers(fbo);
-            GL33C.glDeleteTextures(texture);
+            Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, previousFbo);
+            Gl.glViewport(previousViewport[0], previousViewport[1], previousViewport[2], previousViewport[3]);
+            Gl.glDeleteFramebuffers(fbo);
+            Gl.glDeleteTextures(texture);
         }
     }
 }

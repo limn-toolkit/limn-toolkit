@@ -66,12 +66,17 @@ dependencies {
     // (EGL_EXT_buffer_age). Classes only: it binds the system's libEGL, which the Wayland session
     // already has, so it adds no natives and is absent from the classifier list below.
     implementation(libs.lwjgl.egl)
+    // OpenGL ES 3.0, the profile the renderer speaks when the machine's own OpenGL is missing and
+    // the context comes from ANGLE instead (ADR 003): Direct3D 11 on Windows, Metal on macOS. Its
+    // JNI library is declared for all six platforms like every other LWJGL module's, though Linux
+    // never takes that path: the host-natives table and the POMs know one shape, and the slice is small.
+    implementation(libs.lwjgl.opengles)
     // MP3 decoding: JLayer is pure Java (no natives), the classic javazoom
     // decoder. NOTE: LGPL-licensed, kept as an isolated jar dependency.
     implementation(libs.jlayer)
 
     val lwjglVersion = libs.versions.lwjgl.get()
-    listOf("lwjgl", "lwjgl-glfw", "lwjgl-opengl", "lwjgl-openal", "lwjgl-stb", "lwjgl-harfbuzz",
+    listOf("lwjgl", "lwjgl-glfw", "lwjgl-opengl", "lwjgl-opengles", "lwjgl-openal", "lwjgl-stb", "lwjgl-harfbuzz",
             "lwjgl-tinyfd").forEach { module ->
         lwjglTargets.values.forEach { classifier ->
             runtimeOnly("org.lwjgl:$module:$lwjglVersion:$classifier")
@@ -89,6 +94,16 @@ dependencies {
     listOf("linux-aarch64", "linux-x86_64", "macos-aarch64", "macos-x86_64",
             "windows-aarch64", "windows-x86_64").forEach { platform ->
         runtimeOnly("${svgPayload.module}:${svgPayload.versionConstraint.requiredVersion}:natives-$platform")
+    }
+
+    // The OpenGL ES fallback (ADR 003, ADR 080): ANGLE's two libraries for Windows and macOS, from
+    // the limn-angle-natives payload, loaded only when a window's native context fails for want of
+    // a driver. api for the reason the SVG renderer's is: module-info requires limn.angle.natives.
+    // All four classifiers, always, because the machine that needs them is the one nobody expected.
+    api(libs.limn.angle.natives)
+    val anglePayload = libs.limn.angle.natives.get()
+    listOf("macos-aarch64", "macos-x86_64", "windows-aarch64", "windows-x86_64").forEach { platform ->
+        runtimeOnly("${anglePayload.module}:${anglePayload.versionConstraint.requiredVersion}:natives-$platform")
     }
 
     testImplementation(platform(libs.junit.bom))

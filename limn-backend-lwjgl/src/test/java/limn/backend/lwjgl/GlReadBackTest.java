@@ -46,7 +46,7 @@ class GlReadBackTest {
     @Test
     void aClearedCornerPaintedOnComesBackWithItsTransparency() {
         int[] viewport = new int[4];
-        GL33C.glGetIntegerv(GL33C.GL_VIEWPORT, viewport);
+        Gl.glGetIntegerv(GL33C.GL_VIEWPORT, viewport);
         int w = viewport[2];
         int h = viewport[3];
         renderer.beginFrame(w, h, 1f, false);

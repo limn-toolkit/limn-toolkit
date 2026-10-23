@@ -16,8 +16,6 @@ import org.lwjgl.glfw.GLFWDropCallback;
 import org.lwjgl.glfw.GLFWPreeditCallback;
 import org.lwjgl.glfw.GLFWImage;
 import org.lwjgl.glfw.GLFWVidMode;
-import org.lwjgl.opengl.GL;
-import org.lwjgl.opengl.GLCapabilities;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 import limn.backend.Platform;
@@ -31,6 +29,9 @@ import java.util.Objects;
 
 import static org.lwjgl.glfw.GLFW.GLFW_AUTO_ICONIFY;
 import static org.lwjgl.glfw.GLFW.GLFW_CLIENT_API;
+import static org.lwjgl.glfw.GLFW.GLFW_NATIVE_CONTEXT_API;
+import static org.lwjgl.glfw.GLFW.GLFW_CONTEXT_CREATION_API;
+import static org.lwjgl.glfw.GLFW.GLFW_API_UNAVAILABLE;
 import static org.lwjgl.glfw.GLFW.GLFW_CONTEXT_VERSION_MAJOR;
 import static org.lwjgl.glfw.GLFW.GLFW_CONTEXT_VERSION_MINOR;
 import static org.lwjgl.glfw.GLFW.GLFW_CURSOR;
@@ -115,7 +116,7 @@ import static org.lwjgl.glfw.GLFW.glfwSwapBuffers;
 import static org.lwjgl.glfw.GLFW.glfwSwapInterval;
 import static org.lwjgl.glfw.GLFW.glfwWindowHint;
 import static org.lwjgl.glfw.GLFW.glfwWindowShouldClose;
-import static org.lwjgl.opengl.GL11.glViewport;
+import static limn.backend.lwjgl.Gl.glViewport;
 import static org.lwjgl.system.MemoryUtil.NULL;
 import limn.backend.spi.WindowPeer;
 
@@ -155,7 +156,8 @@ final class LwjglWindow implements WindowPeer {
     private long imeGatedView = NULL;
     /** What {@link #setSizeLimits} last applied, for {@link #sizeLimits()}. */
     private limn.backend.SizeLimits sizeLimits = limn.backend.SizeLimits.NONE;
-    private final GLCapabilities glCapabilities;
+    /** This window's context's entry points, of the process's profile ({@link GlApi#createCapabilities}). */
+    private final Object glCapabilities;
     /** The kind of context {@link #glCapabilities} were kept for, given back when the window goes. */
     private final GlCapabilitiesCache.Key glCapabilitiesKey;
     private final GlRenderer renderer;
@@ -324,20 +326,42 @@ final class LwjglWindow implements WindowPeer {
         // once this machine has been SEEN to refuse (or the property asks) do we
         // stop asking: a menu that reopens a hundred times must not spend a
         // hundred failed context creations, nor print a hundred GLFW errors.
-        boolean softwareGl = MACOS && (macSoftwareGl || MacSoftwareGl.forced());
-        long created = softwareGl ? NULL
-                : glfwCreateWindow(config.width(), config.height(), config.title(), NULL, NULL);
-        GraphicsProbe.Failure failure = created == NULL && !softwareGl
-                ? GraphicsProbe.lastFailure() : null;
-        if (created == NULL && (softwareGl || (MACOS && failure.code() == GLFW_FORMAT_UNAVAILABLE))) {
+        //
+        // A process already on ANGLE (ADR 003 §4.3), or asked to be, goes there directly; one that
+        // is not tries ANGLE next when the native refusal is one it answers, and on macOS the
+        // software context after that.
+        boolean angle = AngleFallback.taken() || AngleFallback.forced();
+        boolean softwareGl = !angle && MACOS && (macSoftwareGl || MacSoftwareGl.forced());
+        long created;
+        GraphicsProbe.Failure failure = null;
+        String angleFailure = null;
+        if (angle) {
+            created = AngleFallback.createWindow(config.width(), config.height(), config.title(), null);
+            angleFailure = created == NULL ? AngleFallback.failure() : null;
+        } else {
+            created = softwareGl ? NULL
+                    : glfwCreateWindow(config.width(), config.height(), config.title(), NULL, NULL);
+            failure = created == NULL && !softwareGl ? GraphicsProbe.lastFailure() : null;
+            if (created == NULL && !softwareGl && AngleFallback.answers(Platform.current().os(), failure.code())) {
+                created = AngleFallback.createWindow(config.width(), config.height(), config.title(), failure);
+                angle = created != NULL;
+                angleFailure = created == NULL ? AngleFallback.failure() : null;
+            }
+        }
+        if (created == NULL && !AngleFallback.taken()
+                && (softwareGl || (MACOS && failure != null && failure.code() == GLFW_FORMAT_UNAVAILABLE))) {
             // A macOS box whose only renderer is the software one: NSGL matches no
             // pixel format because GLFW asks every one of them for acceleration.
             // Retry for the window alone and build the context ourselves; see
             // MacSoftwareGl for what is different about it and why.
             softwareGl = true;
+            // Back to the desktop profile's hints: the ANGLE attempt may have set ES ones.
+            glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_NATIVE_CONTEXT_API);
             glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
             created = glfwCreateWindow(config.width(), config.height(), config.title(), NULL, NULL);
-            failure = created == NULL ? GraphicsProbe.lastFailure() : null;
+            if (created == NULL) {
+                failure = GraphicsProbe.lastFailure();
+            }
         }
         handle = created;
         if (handle == NULL) {
@@ -345,11 +369,14 @@ final class LwjglWindow implements WindowPeer {
             // specific ("WGL: Failed to create OpenGL context"), and naming the
             // windowing platform matters because it is picked at run time: the
             // same binary reaches X11 or Wayland depending on the session.
+            int code = failure != null ? failure.code() : GLFW_API_UNAVAILABLE;
             String message = "glfwCreateWindow failed on the "
-                    + GraphicsProbe.platformName() + " platform: " + failure
+                    + GraphicsProbe.platformName() + " platform: "
+                    + (failure != null ? failure : "no native context was asked for")
                     + "; Limn needs an OpenGL 3.3 core context"
-                    + GraphicsProbe.contextAdvice(Platform.current().os(), failure.code());
-            if (GraphicsProbe.lacksDriver(Platform.current().os(), failure.code())) {
+                    + (angleFailure != null ? ", or OpenGL ES 3.0 from ANGLE, which failed too: " + angleFailure : "")
+                    + GraphicsProbe.contextAdvice(Platform.current().os(), code);
+            if (GraphicsProbe.lacksDriver(Platform.current().os(), code)) {
                 // Launched from an icon, this process has no console and the message would
                 // reach nobody; Windows' own dialog says it first. It returns in every case.
                 WindowsDriverDialog.offer(config.title(), message);
@@ -357,6 +384,10 @@ final class LwjglWindow implements WindowPeer {
             throw new IllegalStateException(message);
         }
         cocoaWindow = MACOS ? org.lwjgl.glfw.GLFWNativeCocoa.glfwGetCocoaWindow(handle) : NULL;
+        if (MACOS && angle && config.transparent()) {
+            // ANGLE's Metal layer is opaque, and a transparent window would show black.
+            MacAngleLayers.makeTransparent(handle);
+        }
         if (config.isPopup() && !config.focusOnShow() && !config.visible()
                 && org.lwjgl.glfw.GLFW.glfwGetPlatform() == org.lwjgl.glfw.GLFW.GLFW_PLATFORM_X11) {
             // Before the first map, as GTK's menus are: GNOME on X11 focused such a popup anyway,
@@ -385,12 +416,15 @@ final class LwjglWindow implements WindowPeer {
             }
         }
         nsglContext = softwareContext;
+        if (!angle) {
+            AngleFallback.nativeContextMade();
+        }
         makeContextCurrent();
         // Those of a living window whose context is of the same kind where the platform allows
         // it, because resolving them again is most of what opening a popup costs.
         glCapabilitiesKey = GraphicsProbe.currentContextKey(softwareGl);
-        glCapabilities = backend.glCapabilities().acquire(glCapabilitiesKey, GL::createCapabilities);
-        GL.setCapabilities(glCapabilities);
+        glCapabilities = backend.glCapabilities().acquire(glCapabilitiesKey, Gl.api()::createCapabilities);
+        Gl.api().setCapabilities(glCapabilities);
         // With the context current, as the query needs; the software macOS context has none to ask.
         bufferAgeQuery = BufferAgeQuery.forWindow(handle);
         setSwapInterval(1); // vsync
@@ -830,7 +864,7 @@ final class LwjglWindow implements WindowPeer {
     }
 
     /** @return the capabilities this window's context draws with, which it may share; for tests */
-    GLCapabilities glCapabilities() {
+    Object glCapabilities() {
         return glCapabilities;
     }
 
@@ -840,8 +874,8 @@ final class LwjglWindow implements WindowPeer {
      */
     limn.backend.GraphicsInfo readGraphicsInfo() {
         makeContextCurrent();
-        GL.setCapabilities(glCapabilities);
-        return GraphicsProbe.read(handle, glCapabilities);
+        Gl.api().setCapabilities(glCapabilities);
+        return GraphicsProbe.read(handle);
     }
 
     /** @return this window's 3D-subsystem stats (meshes/textures/targets/bytes + last-frame workload). */
@@ -1153,7 +1187,7 @@ final class LwjglWindow implements WindowPeer {
         try {
             makeContextCurrent();
             // LWJGL caps are thread-local per context: re-bind when hopping windows.
-            GL.setCapabilities(glCapabilities);
+            Gl.api().setCapabilities(glCapabilities);
             // One window per loop iteration paces on vblank; the others swap
             // free into the same one (see renderNow). The interval is
             // per-context state, so re-assert it every frame.
@@ -1172,7 +1206,7 @@ final class LwjglWindow implements WindowPeer {
                 // User code may have switched GL contexts (posting is the
                 // sanctioned path for window creation, but stay safe).
                 makeContextCurrent();
-                GL.setCapabilities(glCapabilities);
+                Gl.api().setCapabilities(glCapabilities);
                 renderer.endFrame();
             }
             swapBuffers();
@@ -1256,7 +1290,7 @@ final class LwjglWindow implements WindowPeer {
         childPopups.closeAll();
         // GL resources (VBO/shader) must die on their own context.
         makeContextCurrent();
-        GL.setCapabilities(glCapabilities);
+        Gl.api().setCapabilities(glCapabilities);
         try {
             renderer.dispose();
         } catch (RuntimeException | LinkageError error) {

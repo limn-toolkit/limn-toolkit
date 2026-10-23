@@ -102,6 +102,9 @@ class GlCapabilitiesReuseTest {
             System.exit(failed[0] ? 1 : 0);
         }
 
+        /** Milliseconds from asking for each popup to its first picture read back. */
+        private static final List<Double> firstPicture = new ArrayList<>();
+
         private static void next(LwjglBackend backend, NativeWindow owner, List<Object> popups,
                 List<Double> millis, int count, boolean[] failed) {
             if (popups.size() == count) {
@@ -125,6 +128,11 @@ class GlCapabilitiesReuseTest {
             popup.setOpacity(0f);
             popup.show();
             popup.captureNextFrame(image -> {
+                // From asking for the window to holding its first picture: creation, the first
+                // frame's programs compiled for a new context, the draw and the read-back. On the
+                // OpenGL ES path ANGLE also translates every program for its backend, once per
+                // context, which is the cost a popup could have grown by.
+                firstPicture.add((System.nanoTime() - start) / 1e6);
                 String corner = pixel(image, 1, 1);
                 String centre = pixel(image, image.width() / 2, image.height() / 2);
                 boolean right = corner.equals(hex(background)) && centre.equals(hex(square));
@@ -158,6 +166,9 @@ class GlCapabilitiesReuseTest {
             }
             System.out.println("every popup shares the owner's capabilities: " + shared);
             System.out.println("createWindow ms: " + millis);
+            System.out.printf(Locale.ROOT, "first picture after the first popup, mean ms: %.2f%n",
+                    firstPicture.subList(1, firstPicture.size()).stream().mapToDouble(Double::doubleValue)
+                            .average().orElse(0));
             List<Double> afterFirst = millis.subList(1, millis.size());
             System.out.printf(Locale.ROOT, "createWindow after the first, mean ms: %.2f%n",
                     afterFirst.stream().mapToDouble(Double::doubleValue).average().orElse(0));

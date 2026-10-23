@@ -151,8 +151,8 @@ class TransformGlyphProbe {
         long context = ProbeGl.open(software);
         try (HeadlessUi ui = new HeadlessUi(); FontStore fonts = new FontStore()) {
             Theme.setCurrent(Theme.light());
-            System.out.println("renderer: " + GL33C.glGetString(GL33C.GL_RENDERER) + " / "
-                    + GL33C.glGetString(GL33C.GL_VERSION));
+            System.out.println("renderer: " + Gl.glGetString(GL33C.GL_RENDERER) + " / "
+                    + Gl.glGetString(GL33C.GL_VERSION));
             int warm = software ? 5 : 60;
             int measured = software ? 40 : 300;
             for (int round = 1; round <= 2; round++) {
@@ -169,9 +169,9 @@ class TransformGlyphProbe {
         for (Mode mode : modes) {
             subjects.add(new Subject(mode, fonts));
         }
-        int texture = GL33C.glGenTextures();
-        int fbo = GL33C.glGenFramebuffers();
-        int query = GL33C.glGenQueries();
+        int texture = Gl.glGenTextures();
+        int fbo = Gl.glGenFramebuffers();
+        int query = Gl.glGenQueries();
         try {
             bindTarget(texture, fbo);
             for (Subject s : subjects) {
@@ -198,9 +198,9 @@ class TransformGlyphProbe {
                 s.canvas.dispose();
             }
         } finally {
-            GL33C.glDeleteQueries(query);
-            GL33C.glDeleteFramebuffers(fbo);
-            GL33C.glDeleteTextures(texture);
+            Gl.glDeleteQueries(query);
+            Gl.glDeleteFramebuffers(fbo);
+            Gl.glDeleteTextures(texture);
         }
     }
 
@@ -227,14 +227,14 @@ class TransformGlyphProbe {
 
     private void frame(Subject s, int bufferAge, int query, boolean record) throws ReflectiveOperationException {
         int glyphsBefore = glyphCount(s.canvas);
-        GL33C.glBeginQuery(GL33C.GL_TIME_ELAPSED, query);
+        Gl.glBeginQuery(GL33C.GL_TIME_ELAPSED, query);
         long start = System.nanoTime();
         s.canvas.beginFrame(WIDTH, HEIGHT, SCALE);
         s.scene.renderFrame(s.canvas, false, Float.NaN, bufferAge);
         s.canvas.endFrame();
         long issued = System.nanoTime();
-        GL33C.glEndQuery(GL33C.GL_TIME_ELAPSED);
-        GL33C.glFinish();
+        Gl.glEndQuery(GL33C.GL_TIME_ELAPSED);
+        Gl.glFinish();
         long finished = System.nanoTime();
         long gpu = GL33C.glGetQueryObjecti64(query, GL33C.GL_QUERY_RESULT);
         int rasterized = Math.max(0, glyphCount(s.canvas) - glyphsBefore);
@@ -297,13 +297,13 @@ class TransformGlyphProbe {
     // ------------------------------------------------------------------ the context and target
 
     private static void bindTarget(int texture, int fbo) {
-        GL33C.glActiveTexture(GL33C.GL_TEXTURE0);
-        GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
-        GL33C.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, WIDTH, HEIGHT, 0,
+        Gl.glActiveTexture(GL33C.GL_TEXTURE0);
+        Gl.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
+        Gl.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, WIDTH, HEIGHT, 0,
                 GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, (ByteBuffer) null);
-        GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, fbo);
-        GL33C.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
+        Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, fbo);
+        Gl.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
                 GL33C.GL_TEXTURE_2D, texture, 0);
-        GL33C.glViewport(0, 0, WIDTH, HEIGHT);
+        Gl.glViewport(0, 0, WIDTH, HEIGHT);
     }
 }

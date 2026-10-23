@@ -1,0 +1,167 @@
+# ADR 003's OpenGL ES path, on the machines it exists for.
+#
+# GitHub's Windows runners have no GPU and no OpenGL driver: every window there fails the native
+# creation with "the driver does not appear to support OpenGL" and takes ANGLE on Direct3D 11 (over
+# WARP) through the real trigger, limn.backend.angle left at auto. So this is the one place the ES
+# path runs as an application meets it, on x64 and on native arm64:
+#
+#   --gl-info      must report OpenGL ES 3.0 from ANGLE on Direct3D 11;
+#   the backend's tests, the device tests among them, on that context; a GL call valid on the
+#                  desktop and not on ES fails them, with ANGLE's own sentence for why;
+#   captures       of the demo's scenes, compared with the same scenes captured on desktop OpenGL
+#                  (Mesa's software rasteriser, on Linux): two rasterisers differ on antialiased
+#                  edges, so a scene fails only when a visible share of it differs (phase 4).
+#
+# On every push and pull request that touches the renderer, decided on 2026-10-22: the ES path is a
+# fallback almost nobody exercises, which is exactly the path that breaks unseen.
+
+name: angle
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "limn-backend-lwjgl/**"
+      - "limn-demo/**"
+      - "limn-toolkit/src/main/java/limn/render3d/**"
+      - "gradle/**"
+      - "build.gradle.kts"
+      - "scripts/compare-captures.py"
+      - ".github/workflows/angle.yml"
+  pull_request:
+    paths:
+      - "limn-backend-lwjgl/**"
+      - "limn-demo/**"
+      - "limn-toolkit/src/main/java/limn/render3d/**"
+      - "gradle/**"
+      - "build.gradle.kts"
+      - "scripts/compare-captures.py"
+      - ".github/workflows/angle.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: angle-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SCENES: components components-light widgets testcard text
+
+jobs:
+  windows:
+    name: OpenGL ES on ANGLE, windows-${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x64, runner: windows-2025, distribution: temurin, java-arch: x64 }
+          - { arch: arm64, runner: windows-11-arm, distribution: microsoft, java-arch: aarch64 }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: ${{ matrix.distribution }}
+          java-version: "21"
+          architecture: ${{ matrix.java-arch }}
+
+      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+
+      - name: The graphics stack
+        run: |
+          ./gradlew -q :limn-demo:run --args="--gl-info" | tee gl-info.txt
+          grep -q "OpenGL ES 3" gl-info.txt
+          grep -q "ANGLE on Direct3D 11" gl-info.txt
+
+      - name: The backend's tests on ANGLE
+        run: ./gradlew :limn-backend-lwjgl:test
+
+      - name: Capture the scenes
+        run: |
+          mkdir -p captures
+          for scene in $SCENES; do
+            ./gradlew -q :limn-demo:run --args="--screenshot build/angle-captures/$scene.png --scene $scene"
+          done
+          ls -l build/angle-captures
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: captures-windows-${{ matrix.arch }}
+          path: build/angle-captures/
+          if-no-files-found: error
+          retention-days: 7
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: test-reports-windows-${{ matrix.arch }}
+          path: limn-backend-lwjgl/build/reports/tests/
+          retention-days: 7
+
+  # The reference: the same scenes on desktop OpenGL, Mesa's software rasteriser, as ci.yml runs it.
+  desktop:
+    name: Desktop OpenGL reference captures
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+
+      - name: Install Xvfb and Mesa
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb libgl1-mesa-dri libglx-mesa0 libxrandr2 libxinerama1 \
+            libxcursor1 libxi6 libxxf86vm1
+
+      - name: Capture the scenes
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          for scene in $SCENES; do
+            xvfb-run -a ./gradlew -q :limn-demo:run --args="--screenshot build/angle-captures/$scene.png --scene $scene"
+          done
+          ls -l build/angle-captures
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: captures-desktop
+          path: build/angle-captures/
+          if-no-files-found: error
+          retention-days: 7
+
+  compare:
+    name: Compare ANGLE with desktop OpenGL
+    needs: [windows, desktop]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: captures-*
+          path: captures
+
+      - name: Each Windows architecture against the desktop reference
+        run: |
+          status=0
+          for arch in x64 arm64; do
+            echo "## windows-$arch" | tee -a "$GITHUB_STEP_SUMMARY"
+            python3 scripts/compare-captures.py captures/captures-desktop captures/captures-windows-$arch \
+              | tee -a "$GITHUB_STEP_SUMMARY" || status=1
+          done
+          exit $status

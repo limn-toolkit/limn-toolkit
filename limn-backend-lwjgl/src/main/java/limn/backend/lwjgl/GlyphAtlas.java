@@ -12,12 +12,12 @@ import static org.lwjgl.opengl.GL33C.GL_RED;
 import static org.lwjgl.opengl.GL33C.GL_TEXTURE_2D;
 import static org.lwjgl.opengl.GL33C.GL_UNPACK_ALIGNMENT;
 import static org.lwjgl.opengl.GL33C.GL_UNSIGNED_BYTE;
-import static org.lwjgl.opengl.GL33C.glBindTexture;
-import static org.lwjgl.opengl.GL33C.glDeleteTextures;
-import static org.lwjgl.opengl.GL33C.glGenTextures;
-import static org.lwjgl.opengl.GL33C.glPixelStorei;
-import static org.lwjgl.opengl.GL33C.glTexImage2D;
-import static org.lwjgl.opengl.GL33C.glTexSubImage2D;
+import static limn.backend.lwjgl.Gl.glBindTexture;
+import static limn.backend.lwjgl.Gl.glDeleteTextures;
+import static limn.backend.lwjgl.Gl.glGenTextures;
+import static limn.backend.lwjgl.Gl.glPixelStorei;
+import static limn.backend.lwjgl.Gl.glTexImage2D;
+import static limn.backend.lwjgl.Gl.glTexSubImage2D;
 
 /**
  * Dynamic glyph atlas: single-channel (GL_R8) texture pages filled by a

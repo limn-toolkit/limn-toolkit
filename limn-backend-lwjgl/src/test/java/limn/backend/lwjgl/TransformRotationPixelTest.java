@@ -70,21 +70,21 @@ class TransformRotationPixelTest {
         fonts = new FontStore();
         canvas = new GlCanvas(fonts);
         Theme.setCurrent(Theme.light());
-        texture = GL33C.glGenTextures();
-        fbo = GL33C.glGenFramebuffers();
-        previousFbo = GL33C.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
-        GL33C.glGetIntegerv(GL33C.GL_VIEWPORT, previousViewport);
-        GL33C.glActiveTexture(GL33C.GL_TEXTURE0);
-        GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
-        GL33C.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, WIDTH, HEIGHT, 0,
+        texture = Gl.glGenTextures();
+        fbo = Gl.glGenFramebuffers();
+        previousFbo = Gl.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
+        Gl.glGetIntegerv(GL33C.GL_VIEWPORT, previousViewport);
+        Gl.glActiveTexture(GL33C.GL_TEXTURE0);
+        Gl.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
+        Gl.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, WIDTH, HEIGHT, 0,
                 GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, (ByteBuffer) null);
-        GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MIN_FILTER, GL33C.GL_NEAREST);
-        GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MAG_FILTER, GL33C.GL_NEAREST);
-        GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, fbo);
-        GL33C.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
+        Gl.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MIN_FILTER, GL33C.GL_NEAREST);
+        Gl.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MAG_FILTER, GL33C.GL_NEAREST);
+        Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, fbo);
+        Gl.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
                 GL33C.GL_TEXTURE_2D, texture, 0);
-        assertEquals(GL33C.GL_FRAMEBUFFER_COMPLETE, GL33C.glCheckFramebufferStatus(GL33C.GL_FRAMEBUFFER));
-        GL33C.glViewport(0, 0, WIDTH, HEIGHT);
+        assertEquals(GL33C.GL_FRAMEBUFFER_COMPLETE, Gl.glCheckFramebufferStatus(GL33C.GL_FRAMEBUFFER));
+        Gl.glViewport(0, 0, WIDTH, HEIGHT);
     }
 
     @AfterEach
@@ -92,10 +92,10 @@ class TransformRotationPixelTest {
         if (canvas == null) {
             return;
         }
-        GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, previousFbo);
-        GL33C.glViewport(previousViewport[0], previousViewport[1], previousViewport[2], previousViewport[3]);
-        GL33C.glDeleteFramebuffers(fbo);
-        GL33C.glDeleteTextures(texture);
+        Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, previousFbo);
+        Gl.glViewport(previousViewport[0], previousViewport[1], previousViewport[2], previousViewport[3]);
+        Gl.glDeleteFramebuffers(fbo);
+        Gl.glDeleteTextures(texture);
         canvas.dispose();
         canvas = null;
         fonts.close();
@@ -334,8 +334,8 @@ class TransformRotationPixelTest {
     private static byte[] readTopDown() {
         ByteBuffer pixels = MemoryUtil.memAlloc(WIDTH * HEIGHT * 4);
         try {
-            GL33C.glPixelStorei(GL33C.GL_PACK_ALIGNMENT, 1);
-            GL33C.glReadPixels(0, 0, WIDTH, HEIGHT, GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, pixels);
+            Gl.glPixelStorei(GL33C.GL_PACK_ALIGNMENT, 1);
+            Gl.glReadPixels(0, 0, WIDTH, HEIGHT, GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, pixels);
             byte[] out = new byte[WIDTH * HEIGHT * 4];
             int stride = WIDTH * 4;
             for (int row = 0; row < HEIGHT; row++) {

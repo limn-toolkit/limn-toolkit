@@ -335,24 +335,24 @@ class GlBackdropTest {
      * one reads the framebuffer the one before it wrote.
      */
     private byte[] renderStack(BackdropEffect... effects) {
-        int texture = GL33C.glGenTextures();
-        int fbo = GL33C.glGenFramebuffers();
-        int previousFbo = GL33C.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
+        int texture = Gl.glGenTextures();
+        int fbo = Gl.glGenFramebuffers();
+        int previousFbo = Gl.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
         int[] previousViewport = new int[4];
-        GL33C.glGetIntegerv(GL33C.GL_VIEWPORT, previousViewport);
+        Gl.glGetIntegerv(GL33C.GL_VIEWPORT, previousViewport);
         try {
-            GL33C.glActiveTexture(GL33C.GL_TEXTURE0);
-            GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
-            GL33C.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, SIZE, SIZE, 0,
+            Gl.glActiveTexture(GL33C.GL_TEXTURE0);
+            Gl.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
+            Gl.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, SIZE, SIZE, 0,
                     GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, (ByteBuffer) null);
-            GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MIN_FILTER, GL33C.GL_NEAREST);
-            GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MAG_FILTER, GL33C.GL_NEAREST);
-            GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, fbo);
-            GL33C.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
+            Gl.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MIN_FILTER, GL33C.GL_NEAREST);
+            Gl.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MAG_FILTER, GL33C.GL_NEAREST);
+            Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, fbo);
+            Gl.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
                     GL33C.GL_TEXTURE_2D, texture, 0);
             assertEquals(GL33C.GL_FRAMEBUFFER_COMPLETE,
-                    GL33C.glCheckFramebufferStatus(GL33C.GL_FRAMEBUFFER), "render target");
-            GL33C.glViewport(0, 0, SIZE, SIZE);
+                    Gl.glCheckFramebufferStatus(GL33C.GL_FRAMEBUFFER), "render target");
+            Gl.glViewport(0, 0, SIZE, SIZE);
 
             // Content scale 1: a point is a pixel, so a rim width in points is a rim width here.
             canvas.beginFrame(SIZE, SIZE, 1f);
@@ -368,19 +368,19 @@ class GlBackdropTest {
             canvas.endFrame();
             return readTopDown(SIZE, SIZE);
         } finally {
-            GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, previousFbo);
-            GL33C.glViewport(previousViewport[0], previousViewport[1],
+            Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, previousFbo);
+            Gl.glViewport(previousViewport[0], previousViewport[1],
                     previousViewport[2], previousViewport[3]);
-            GL33C.glDeleteFramebuffers(fbo);
-            GL33C.glDeleteTextures(texture);
+            Gl.glDeleteFramebuffers(fbo);
+            Gl.glDeleteTextures(texture);
         }
     }
 
     private static byte[] readTopDown(int width, int height) {
         ByteBuffer pixels = MemoryUtil.memAlloc(width * height * 4);
         try {
-            GL33C.glPixelStorei(GL33C.GL_PACK_ALIGNMENT, 1);
-            GL33C.glReadPixels(0, 0, width, height, GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, pixels);
+            Gl.glPixelStorei(GL33C.GL_PACK_ALIGNMENT, 1);
+            Gl.glReadPixels(0, 0, width, height, GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, pixels);
             byte[] out = new byte[width * height * 4];
             int stride = width * 4;
             for (int row = 0; row < height; row++) {

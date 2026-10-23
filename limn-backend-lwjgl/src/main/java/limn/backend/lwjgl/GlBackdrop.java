@@ -37,9 +37,9 @@ final class GlBackdrop {
      */
     int capture(int framebufferWidth, int framebufferHeight, int x, int yBottomUp, int w, int h) {
         ensureSized(framebufferWidth, framebufferHeight);
-        GL33C.glActiveTexture(GL33C.GL_TEXTURE0);
-        GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
-        GL33C.glCopyTexSubImage2D(GL33C.GL_TEXTURE_2D, 0, x, yBottomUp, x, yBottomUp, w, h);
+        Gl.glActiveTexture(GL33C.GL_TEXTURE0);
+        Gl.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
+        Gl.glCopyTexSubImage2D(GL33C.GL_TEXTURE_2D, 0, x, yBottomUp, x, yBottomUp, w, h);
         return texture;
     }
 
@@ -52,12 +52,12 @@ final class GlBackdrop {
      */
     int framebuffer() {
         if (framebuffer == 0) {
-            framebuffer = GL33C.glGenFramebuffers();
-            GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, framebuffer);
-            GL33C.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
+            framebuffer = Gl.glGenFramebuffers();
+            Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, framebuffer);
+            Gl.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
                     GL33C.GL_TEXTURE_2D, texture, 0);
             int fbo = framebuffer;
-            Gl.requireFramebufferComplete("backdrop copy", () -> GL33C.glDeleteFramebuffers(fbo));
+            Gl.requireFramebufferComplete("backdrop copy", () -> Gl.glDeleteFramebuffers(fbo));
         }
         return framebuffer;
     }
@@ -77,18 +77,18 @@ final class GlBackdrop {
     int warped(int framebufferWidth, int framebufferHeight) {
         ensureSized(framebufferWidth, framebufferHeight);
         if (warpedTexture == 0) {
-            warpedTexture = GL33C.glGenTextures();
-            GL33C.glActiveTexture(GL33C.GL_TEXTURE0);
-            GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, warpedTexture);
-            GL33C.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, width, height, 0,
+            warpedTexture = Gl.glGenTextures();
+            Gl.glActiveTexture(GL33C.GL_TEXTURE0);
+            Gl.glBindTexture(GL33C.GL_TEXTURE_2D, warpedTexture);
+            Gl.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, width, height, 0,
                     GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, (ByteBuffer) null);
             Gl.sample2D(GL33C.GL_LINEAR, GL33C.GL_CLAMP_TO_EDGE);
-            warpedFramebuffer = GL33C.glGenFramebuffers();
-            GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, warpedFramebuffer);
-            GL33C.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
+            warpedFramebuffer = Gl.glGenFramebuffers();
+            Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, warpedFramebuffer);
+            Gl.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
                     GL33C.GL_TEXTURE_2D, warpedTexture, 0);
             int fbo = warpedFramebuffer;
-            Gl.requireFramebufferComplete("warped backdrop copy", () -> GL33C.glDeleteFramebuffers(fbo));
+            Gl.requireFramebufferComplete("warped backdrop copy", () -> Gl.glDeleteFramebuffers(fbo));
         }
         return warpedTexture;
     }
@@ -105,10 +105,10 @@ final class GlBackdrop {
         dispose();
         width = Math.max(1, framebufferWidth);
         height = Math.max(1, framebufferHeight);
-        texture = GL33C.glGenTextures();
-        GL33C.glActiveTexture(GL33C.GL_TEXTURE0);
-        GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
-        GL33C.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, width, height, 0,
+        texture = Gl.glGenTextures();
+        Gl.glActiveTexture(GL33C.GL_TEXTURE0);
+        Gl.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
+        Gl.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, width, height, 0,
                 GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, (ByteBuffer) null);
         // LINEAR: a refracted sample lands between texels by construction. CLAMP_TO_EDGE is a
         // second line of defence behind the shader's own clamp to the copied region.
@@ -126,19 +126,19 @@ final class GlBackdrop {
 
     void dispose() {
         if (warpedFramebuffer != 0) {
-            GL33C.glDeleteFramebuffers(warpedFramebuffer);
+            Gl.glDeleteFramebuffers(warpedFramebuffer);
             warpedFramebuffer = 0;
         }
         if (warpedTexture != 0) {
-            GL33C.glDeleteTextures(warpedTexture);
+            Gl.glDeleteTextures(warpedTexture);
             warpedTexture = 0;
         }
         if (framebuffer != 0) {
-            GL33C.glDeleteFramebuffers(framebuffer); // attached to the texture below, so it goes first
+            Gl.glDeleteFramebuffers(framebuffer); // attached to the texture below, so it goes first
             framebuffer = 0;
         }
         if (texture != 0) {
-            GL33C.glDeleteTextures(texture);
+            Gl.glDeleteTextures(texture);
             texture = 0;
         }
     }

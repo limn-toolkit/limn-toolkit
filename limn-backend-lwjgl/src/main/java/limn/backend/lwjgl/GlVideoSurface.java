@@ -55,6 +55,8 @@ final class GlVideoSurface implements VideoSurface {
 
     private final GlVideoContext owner;
     private final int[] planeTextures = new int[MAX_PLANES];
+    /** On the ES profile, the EGL pbuffer each plane's IOSurface binding lives in ({@link EglIoSurfaces}). */
+    private final long[] planePbuffers = new long[MAX_PLANES];
 
     private PixelFormat format;
     private int width;
@@ -100,14 +102,15 @@ final class GlVideoSurface implements VideoSurface {
         boolean device = frame.kind() != VideoFrame.Kind.PLANAR;
         if (device) {
             frame.handle();
-            if (!IoSurfaces.isAvailable() || frame.kind() != VideoFrame.Kind.IO_SURFACE) {
+            String unavailable = es() ? EglIoSurfaces.unavailableReason()
+                    : IoSurfaces.isAvailable() ? null : IoSurfaces.unavailableReason();
+            if (unavailable != null || frame.kind() != VideoFrame.Kind.IO_SURFACE) {
                 // Refused by name rather than bound as something else. The picture is already
                 // decoded and the alternative to saying so is a black rectangle, so the message
                 // names the kind and the way out: VideoFrame.toPlanar() reads it back.
                 throw new UnsupportedOperationException(
                         "this surface cannot bind a " + frame.kind() + " picture"
-                                + (IoSurfaces.isAvailable() ? ""
-                                        : " (" + IoSurfaces.unavailableReason() + ")")
+                                + (unavailable == null ? "" : " (" + unavailable + ")")
                                 + "; a consumer without the interop calls VideoFrame.toPlanar()"
                                 + " and uploads the samples instead");
             }
@@ -136,7 +139,9 @@ final class GlVideoSurface implements VideoSurface {
                 uploadPlane(frame, pictureFormat, plane);
             }
         }
-        owner.convert(this, frame.color(), pictureFormat, device);
+        // On the ES profile a bound IOSurface is a 2D texture like an uploaded plane, and the
+        // uploaded path's program reads it; only the desktop binding needs the rectangle one.
+        owner.convert(this, frame.color(), pictureFormat, device && !es());
         if (device) {
             // The caller is entitled to release the frame the moment this returns, and for a
             // borrowed IOSurface that is the moment the decoder may start overwriting it. Nothing
@@ -250,9 +255,9 @@ final class GlVideoSurface implements VideoSurface {
         // texture has a limit of its own and it is not GL_MAX_TEXTURE_SIZE;
         // asking the wrong one either refuses a picture that would have worked
         // or admits one that fails to bind with no GL error at all.
-        int maxTexture = GL33C.glGetInteger(GL33C.GL_MAX_TEXTURE_SIZE);
-        int maxPlane = device
-                ? GL33C.glGetInteger(IoSurfaces.GL_MAX_RECTANGLE_TEXTURE_SIZE) : maxTexture;
+        int maxTexture = Gl.glGetInteger(GL33C.GL_MAX_TEXTURE_SIZE);
+        int maxPlane = device && !es()
+                ? Gl.glGetInteger(IoSurfaces.GL_MAX_RECTANGLE_TEXTURE_SIZE) : maxTexture;
         if (newWidth > maxTexture || newHeight > maxTexture) {
             throw new IllegalArgumentException(
                     "picture " + newWidth + "x" + newHeight + " exceeds this GPU's "
@@ -269,22 +274,22 @@ final class GlVideoSurface implements VideoSurface {
         height = newHeight;
         deviceBacked = device;
 
-        int previousFbo = GL33C.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
-        GL33C.glActiveTexture(GL33C.GL_TEXTURE0);
+        int previousFbo = Gl.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
+        Gl.glActiveTexture(GL33C.GL_TEXTURE0);
         for (int plane = 0; plane < newFormat.planeCount(); plane++) {
             planeTextures[plane] = device
                     ? createRectangleTexture() : createPlaneTexture(newFormat, plane);
         }
 
-        colorTexture = GL33C.glGenTextures();
-        GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, colorTexture);
+        colorTexture = Gl.glGenTextures();
+        Gl.glBindTexture(GL33C.GL_TEXTURE_2D, colorTexture);
         // RGB10_A2 for a 10-bit picture: the same four bytes a pixel as RGBA8,
         // colour-renderable in GL 3.3 core and in ES 3.0 core, and normalized,
         // so the composite samples it exactly as it samples any other image and
         // gains no branch. RGBA8 here would quantize the conversion's own output
         // back to eight bits and make the whole depth exercise decorative.
         boolean deep = newFormat.bitDepth() > 8;
-        GL33C.glTexImage2D(GL33C.GL_TEXTURE_2D, 0,
+        Gl.glTexImage2D(GL33C.GL_TEXTURE_2D, 0,
                 deep ? GL33C.GL_RGB10_A2 : GL33C.GL_RGBA8, width, height, 0,
                 GL33C.GL_RGBA,
                 deep ? GL33C.GL_UNSIGNED_INT_2_10_10_10_REV : GL33C.GL_UNSIGNED_BYTE,
@@ -295,15 +300,15 @@ final class GlVideoSurface implements VideoSurface {
         // that heavily minified video aliases where a still image would not.
         Gl.sample2D(GL33C.GL_LINEAR, GL33C.GL_CLAMP_TO_EDGE);
 
-        framebuffer = GL33C.glGenFramebuffers();
-        GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, framebuffer);
-        GL33C.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
+        framebuffer = Gl.glGenFramebuffers();
+        Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, framebuffer);
+        Gl.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
                 GL33C.GL_TEXTURE_2D, colorTexture, 0);
-        int status = GL33C.glCheckFramebufferStatus(GL33C.GL_FRAMEBUFFER);
+        int status = Gl.glCheckFramebufferStatus(GL33C.GL_FRAMEBUFFER);
         // Restore before reacting: the caller is mid-frame, and an exception
         // thrown with this surface's FBO still bound would send the rest of the
         // window's 2D geometry into it.
-        GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, previousFbo);
+        Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, previousFbo);
         Gl.requireFramebufferComplete(status, "video", this::deleteGl);
     }
 
@@ -328,14 +333,14 @@ final class GlVideoSurface implements VideoSurface {
      * exercise exists to remove.
      */
     private int createPlaneTexture(PixelFormat pictureFormat, int plane) {
-        int texture = GL33C.glGenTextures();
-        GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
+        int texture = Gl.glGenTextures();
+        Gl.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
         boolean twoComponent = pictureFormat.componentsPerSample(plane) == 2;
         boolean deep = pictureFormat.bitDepth() > 8;
         int internalFormat = twoComponent
                 ? (deep ? GL33C.GL_RG16 : GL33C.GL_RG8)
                 : (deep ? GL33C.GL_R16 : GL33C.GL_R8);
-        GL33C.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, internalFormat,
+        Gl.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, internalFormat,
                 pictureFormat.planeWidth(plane, width), pictureFormat.planeHeight(plane, height),
                 0, twoComponent ? GL33C.GL_RG : GL33C.GL_RED,
                 deep ? GL33C.GL_UNSIGNED_SHORT : GL33C.GL_UNSIGNED_BYTE, (ByteBuffer) null);
@@ -356,19 +361,26 @@ final class GlVideoSurface implements VideoSurface {
      * "unfiltered", it is a filter nobody chose.
      */
     private static int createRectangleTexture() {
-        int texture = GL33C.glGenTextures();
-        GL33C.glBindTexture(IoSurfaces.GL_TEXTURE_RECTANGLE, texture);
-        GL33C.glTexParameteri(IoSurfaces.GL_TEXTURE_RECTANGLE,
-                GL33C.GL_TEXTURE_MIN_FILTER, GL33C.GL_NEAREST);
-        GL33C.glTexParameteri(IoSurfaces.GL_TEXTURE_RECTANGLE,
-                GL33C.GL_TEXTURE_MAG_FILTER, GL33C.GL_NEAREST);
+        int target = deviceTarget();
+        int texture = Gl.glGenTextures();
+        Gl.glBindTexture(target, texture);
+        Gl.glTexParameteri(target, GL33C.GL_TEXTURE_MIN_FILTER, GL33C.GL_NEAREST);
+        Gl.glTexParameteri(target, GL33C.GL_TEXTURE_MAG_FILTER, GL33C.GL_NEAREST);
         // CLAMP_TO_EDGE is the only wrap a rectangle texture takes besides a
         // border colour; REPEAT is not legal on one at all.
-        GL33C.glTexParameteri(IoSurfaces.GL_TEXTURE_RECTANGLE,
-                GL33C.GL_TEXTURE_WRAP_S, GL33C.GL_CLAMP_TO_EDGE);
-        GL33C.glTexParameteri(IoSurfaces.GL_TEXTURE_RECTANGLE,
-                GL33C.GL_TEXTURE_WRAP_T, GL33C.GL_CLAMP_TO_EDGE);
+        Gl.glTexParameteri(target, GL33C.GL_TEXTURE_WRAP_S, GL33C.GL_CLAMP_TO_EDGE);
+        Gl.glTexParameteri(target, GL33C.GL_TEXTURE_WRAP_T, GL33C.GL_CLAMP_TO_EDGE);
         return texture;
+    }
+
+    /** Whether the process draws with OpenGL ES, where IOSurfaces bind through EGL. */
+    private static boolean es() {
+        return Gl.api() != DesktopGl.INSTANCE;
+    }
+
+    /** The target a decoder's plane is bound to: a rectangle through CGL, a 2D texture through EGL. */
+    private static int deviceTarget() {
+        return es() ? GL33C.GL_TEXTURE_2D : IoSurfaces.GL_TEXTURE_RECTANGLE;
     }
 
     /**
@@ -387,13 +399,22 @@ final class GlVideoSurface implements VideoSurface {
      */
     private void bindPlanes(long ioSurface, PixelFormat pictureFormat) {
         boolean deep = pictureFormat.bitDepth() > 8;
-        GL33C.glActiveTexture(GL33C.GL_TEXTURE0);
+        Gl.glActiveTexture(GL33C.GL_TEXTURE0);
         for (int plane = 0; plane < pictureFormat.planeCount(); plane++) {
             boolean twoComponent = pictureFormat.componentsPerSample(plane) == 2;
             int internalFormat = twoComponent
                     ? (deep ? GL33C.GL_RG16 : GL33C.GL_RG8)
                     : (deep ? GL33C.GL_R16 : GL33C.GL_R8);
-            GL33C.glBindTexture(IoSurfaces.GL_TEXTURE_RECTANGLE, planeTextures[plane]);
+            if (es()) {
+                Gl.glBindTexture(GL33C.GL_TEXTURE_2D, planeTextures[plane]);
+                releasePbuffer(plane);
+                planePbuffers[plane] = EglIoSurfaces.bindPlane(twoComponent ? GL33C.GL_RG : GL33C.GL_RED,
+                        deep ? GL33C.GL_UNSIGNED_SHORT : GL33C.GL_UNSIGNED_BYTE,
+                        pictureFormat.planeWidth(plane, width), pictureFormat.planeHeight(plane, height),
+                        ioSurface, plane);
+                continue;
+            }
+            Gl.glBindTexture(IoSurfaces.GL_TEXTURE_RECTANGLE, planeTextures[plane]);
             int error = IoSurfaces.bindPlane(internalFormat,
                     pictureFormat.planeWidth(plane, width),
                     pictureFormat.planeHeight(plane, height),
@@ -431,13 +452,13 @@ final class GlVideoSurface implements VideoSurface {
         int glFormat = pictureFormat.componentsPerSample(plane) == 2 ? GL33C.GL_RG : GL33C.GL_RED;
         int glType = pictureFormat.bitDepth() > 8 ? GL33C.GL_UNSIGNED_SHORT : GL33C.GL_UNSIGNED_BYTE;
 
-        GL33C.glActiveTexture(GL33C.GL_TEXTURE0);
-        GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, planeTextures[plane]);
+        Gl.glActiveTexture(GL33C.GL_TEXTURE0);
+        Gl.glBindTexture(GL33C.GL_TEXTURE_2D, planeTextures[plane]);
         // Rows start at arbitrary byte counts. The default four-byte unpack
         // alignment reads every plane whose byte width is not a multiple of
         // four (which is most odd widths) one skewed row at a time, and the
         // result looks exactly like a stride bug.
-        GL33C.glPixelStorei(GL33C.GL_UNPACK_ALIGNMENT, 1);
+        Gl.glPixelStorei(GL33C.GL_UNPACK_ALIGNMENT, 1);
         try {
             // GL_UNPACK_ROW_LENGTH counts SAMPLES; a stride counts bytes. They
             // coincide only for a one-byte sample (NV12's interleaved chroma
@@ -445,21 +466,21 @@ final class GlVideoSurface implements VideoSurface {
             // number of samples cannot be expressed as a row length at all.
             // Such a plane is staged tight instead.
             if (source.isDirect() && stride % bytesPerSample == 0) {
-                GL33C.glPixelStorei(GL33C.GL_UNPACK_ROW_LENGTH, stride / bytesPerSample);
+                Gl.glPixelStorei(GL33C.GL_UNPACK_ROW_LENGTH, stride / bytesPerSample);
                 // Addressed from byte 0 rather than from the buffer's position:
                 // the planes of a pooled frame are shared state, and another
                 // consumer may have left a position behind.
-                GL33C.nglTexSubImage2D(GL33C.GL_TEXTURE_2D, 0, 0, 0, columns, rows,
+                Gl.nglTexSubImage2D(GL33C.GL_TEXTURE_2D, 0, 0, 0, columns, rows,
                         glFormat, glType, MemoryUtil.memAddress(source, 0));
             } else {
-                GL33C.glPixelStorei(GL33C.GL_UNPACK_ROW_LENGTH, 0);
-                GL33C.glTexSubImage2D(GL33C.GL_TEXTURE_2D, 0, 0, 0, columns, rows,
+                Gl.glPixelStorei(GL33C.GL_UNPACK_ROW_LENGTH, 0);
+                Gl.glTexSubImage2D(GL33C.GL_TEXTURE_2D, 0, 0, 0, columns, rows,
                         glFormat, glType, stage(source, stride, byteWidth, rows));
             }
         } finally {
             // Unpack state is global, and every other uploader in this backend
             // assumes the row length is 0.
-            GL33C.glPixelStorei(GL33C.GL_UNPACK_ROW_LENGTH, 0);
+            Gl.glPixelStorei(GL33C.GL_UNPACK_ROW_LENGTH, 0);
         }
     }
 
@@ -491,6 +512,13 @@ final class GlVideoSurface implements VideoSurface {
         return staging;
     }
 
+    private void releasePbuffer(int plane) {
+        if (planePbuffers[plane] != 0) {
+            EglIoSurfaces.release(planePbuffers[plane]);
+            planePbuffers[plane] = 0;
+        }
+    }
+
     private void deleteGl() {
         if (colorTexture != 0) {
             // This picture may already be queued in the frame being drawn: a
@@ -499,17 +527,18 @@ final class GlVideoSurface implements VideoSurface {
             owner.flushBeforeDeletingTexture();
         }
         for (int plane = 0; plane < MAX_PLANES; plane++) {
+            releasePbuffer(plane);
             if (planeTextures[plane] != 0) {
-                GL33C.glDeleteTextures(planeTextures[plane]);
+                Gl.glDeleteTextures(planeTextures[plane]);
                 planeTextures[plane] = 0;
             }
         }
         if (colorTexture != 0) {
-            GL33C.glDeleteTextures(colorTexture);
+            Gl.glDeleteTextures(colorTexture);
             colorTexture = 0;
         }
         if (framebuffer != 0) {
-            GL33C.glDeleteFramebuffers(framebuffer);
+            Gl.glDeleteFramebuffers(framebuffer);
             framebuffer = 0;
         }
         format = null;

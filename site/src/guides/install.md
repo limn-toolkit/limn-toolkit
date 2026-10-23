@@ -10,12 +10,17 @@ description: "The JDK you need, the two dependencies, the one macOS flag, and a 
   Apple's 4.1 compatibility layer, or its software renderer on a Mac with no GPU driver (a
   virtual machine). A Linux machine with no GPU at all can fall back to Mesa's software
   rasteriser, which is how the screenshots on this site are taken. A Windows machine with no
-  OpenGL driver (a virtual machine, a remote-desktop session) gets one from Microsoft's free
-  [OpenCL, OpenGL, and Vulkan Compatibility Pack](https://apps.microsoft.com/detail/9NQPSL29BFFF),
-  or `winget install Microsoft.OpenCLGLVulkanCompatibilityPack`; the error Limn stops with says
-  so. An application opened from its icon has no console to show that error, so it first shows
-  Windows' own error dialog, with buttons that open the pack in the Store or install it with
-  winget; `-Dlimn.backend.errorDialog=false` turns the dialog off.
+  OpenGL driver, or one older than 3.3 (a virtual machine, a remote-desktop session), runs on
+  OpenGL ES 3.0 from ANGLE over Direct3D 11 instead, which the backend carries and loads only
+  there; it needs a Direct3D 11 GPU of feature level 10_0 or the system's own software adapter.
+  A Mac with no OpenGL at all would do the same over Metal. Where even that gives no context, the
+  error Limn stops with names the way out: the graphics driver, or Microsoft's free
+  [OpenCL, OpenGL, and Vulkan Compatibility Pack](https://apps.microsoft.com/detail/9NQPSL29BFFF)
+  (`winget install Microsoft.OpenCLGLVulkanCompatibilityPack`). An application opened from its
+  icon has no console to show that error, so it first shows Windows' own error dialog, with
+  buttons that open the pack in the Store or install it with winget;
+  `-Dlimn.backend.errorDialog=false` turns the dialog off, and `-Dlimn.backend.angle=off` refuses
+  the ANGLE fallback.
 - **On Linux, an X11 or a Wayland session.** The same binaries serve both.
 
 ### Supported systems

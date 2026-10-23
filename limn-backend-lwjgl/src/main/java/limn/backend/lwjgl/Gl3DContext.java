@@ -184,7 +184,7 @@ final class Gl3DContext {
     }
 
     RenderTarget createTarget(int widthPx, int heightPx, int samples) {
-        int maxSamples = GL33C.glGetInteger(GL33C.GL_MAX_SAMPLES);
+        int maxSamples = Gl.glGetInteger(GL33C.GL_MAX_SAMPLES);
         int clamped = Math.max(1, Math.min(samples, Math.max(1, maxSamples)));
         GlRenderTarget target = new GlRenderTarget(this, widthPx, heightPx, clamped);
         targets.add(target);
@@ -222,20 +222,20 @@ final class Gl3DContext {
         if (!(targetHandle instanceof GlRenderTarget target)) {
             return;
         }
-        int prevFbo = GL33C.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
+        int prevFbo = Gl.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
         int[] prevViewport = new int[4];
-        GL33C.glGetIntegerv(GL33C.GL_VIEWPORT, prevViewport);
+        Gl.glGetIntegerv(GL33C.GL_VIEWPORT, prevViewport);
 
         try {
-            GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, target.renderFramebuffer());
-            GL33C.glViewport(0, 0, target.widthPx(), target.heightPx());
-            GL33C.glEnable(GL33C.GL_DEPTH_TEST);
-            GL33C.glDepthFunc(GL33C.GL_LESS);
-            GL33C.glDisable(GL33C.GL_BLEND);
-            GL33C.glDisable(GL33C.GL_CULL_FACE);
+            Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, target.renderFramebuffer());
+            Gl.glViewport(0, 0, target.widthPx(), target.heightPx());
+            Gl.glEnable(GL33C.GL_DEPTH_TEST);
+            Gl.glDepthFunc(GL33C.GL_LESS);
+            Gl.glDisable(GL33C.GL_BLEND);
+            Gl.glDisable(GL33C.GL_CULL_FACE);
             // The 2D batch may have a damage scissor active (window space);
             // it must not clip this offscreen pass (the 2D flush re-arms it).
-            GL33C.glDisable(GL33C.GL_SCISSOR_TEST);
+            Gl.glDisable(GL33C.GL_SCISSOR_TEST);
 
             float aspect = (float) target.widthPx() / target.heightPx();
             Mat4 viewProjection = camera.projection(aspect).multiply(camera.view());
@@ -247,10 +247,10 @@ final class Gl3DContext {
                 // background nothing cleared DEPTH this frame, and geometry
                 // would depth-test against the previous frame's buffer
                 // (redundant-but-harmless when a background already cleared).
-                GL33C.glClear(GL33C.GL_DEPTH_BUFFER_BIT);
-                GL33C.glDisable(GL33C.GL_DEPTH_TEST); // sky fills the background, writes no depth
+                Gl.glClear(GL33C.GL_DEPTH_BUFFER_BIT);
+                Gl.glDisable(GL33C.GL_DEPTH_TEST); // sky fills the background, writes no depth
                 renderSkybox(pass);
-                GL33C.glEnable(GL33C.GL_DEPTH_TEST);
+                Gl.glEnable(GL33C.GL_DEPTH_TEST);
             }
 
             if (pass.shadowEnabled() && !pass.draws().isEmpty()) {
@@ -292,9 +292,9 @@ final class Gl3DContext {
             // test). In a finally: user code runs inside the pass (the body, lazy
             // Raw-material compiles) and may throw; leaving the offscreen FBO
             // bound would send this and every later frame's 2D batch into it.
-            GL33C.glDisable(GL33C.GL_DEPTH_TEST);
-            GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, prevFbo);
-            GL33C.glViewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
+            Gl.glDisable(GL33C.GL_DEPTH_TEST);
+            Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, prevFbo);
+            Gl.glViewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
         }
     }
 
@@ -407,20 +407,20 @@ final class Gl3DContext {
         target.ensureBloomTargets();
         int halfW = target.bloomWidthPx();
         int halfH = target.bloomHeightPx();
-        GL33C.glDisable(GL33C.GL_DEPTH_TEST);
-        GL33C.glDisable(GL33C.GL_BLEND);
+        Gl.glDisable(GL33C.GL_DEPTH_TEST);
+        Gl.glDisable(GL33C.GL_BLEND);
 
         // Bright pass: resolved color → half-res A. Reads the texture the
         // resolve just wrote and writes elsewhere: no feedback (ADR 005 §2.3).
-        GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, target.bloomFramebufferA());
-        GL33C.glViewport(0, 0, halfW, halfH);
+        Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, target.bloomFramebufferA());
+        Gl.glViewport(0, 0, halfW, halfH);
         bloomBrightProgram.use();
-        GL33C.glActiveTexture(GL33C.GL_TEXTURE0);
-        GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, target.colorTexture());
-        GL33C.glUniform1i(uBrightSrc, 0);
-        GL33C.glUniform1f(uBrightThreshold, Math.max(0f, pass.bloomThreshold()));
-        GL33C.glBindVertexArray(bloomVao);
-        GL33C.glDrawArrays(GL33C.GL_TRIANGLES, 0, 3);
+        Gl.glActiveTexture(GL33C.GL_TEXTURE0);
+        Gl.glBindTexture(GL33C.GL_TEXTURE_2D, target.colorTexture());
+        Gl.glUniform1i(uBrightSrc, 0);
+        Gl.glUniform1f(uBrightThreshold, Math.max(0f, pass.bloomThreshold()));
+        Gl.glBindVertexArray(bloomVao);
+        Gl.glDrawArrays(GL33C.GL_TRIANGLES, 0, 3);
 
         // Separable blur, A ⇄ B: pair j samples at spacing j+1, so each pair
         // widens the Gaussian without more taps and N pairs reach
@@ -428,17 +428,17 @@ final class Gl3DContext {
         int pairs = BloomMath.blurPairs(
                 BloomMath.sigmaTexels(pass.bloomRadius(), pixelsPerPoint));
         bloomBlurProgram.use();
-        GL33C.glUniform1i(uBlurSrc, 0);
+        Gl.glUniform1i(uBlurSrc, 0);
         for (int pair = 0; pair < pairs; pair++) {
             float spacing = pair + 1;
-            GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, target.bloomFramebufferB());
-            GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, target.bloomTextureA());
-            GL33C.glUniform2f(uBlurStep, spacing / halfW, 0f);
-            GL33C.glDrawArrays(GL33C.GL_TRIANGLES, 0, 3);
-            GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, target.bloomFramebufferA());
-            GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, target.bloomTextureB());
-            GL33C.glUniform2f(uBlurStep, 0f, spacing / halfH);
-            GL33C.glDrawArrays(GL33C.GL_TRIANGLES, 0, 3);
+            Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, target.bloomFramebufferB());
+            Gl.glBindTexture(GL33C.GL_TEXTURE_2D, target.bloomTextureA());
+            Gl.glUniform2f(uBlurStep, spacing / halfW, 0f);
+            Gl.glDrawArrays(GL33C.GL_TRIANGLES, 0, 3);
+            Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, target.bloomFramebufferA());
+            Gl.glBindTexture(GL33C.GL_TEXTURE_2D, target.bloomTextureB());
+            Gl.glUniform2f(uBlurStep, 0f, spacing / halfH);
+            Gl.glDrawArrays(GL33C.GL_TRIANGLES, 0, 3);
         }
 
         // Combine (finding 3): the blurred bright layer adds back into the
@@ -449,18 +449,18 @@ final class Gl3DContext {
         // and the union is how "clamped at 1" is spelled on a float target,
         // where an additive alpha would sail past 1 and flip the composite's
         // (1 − a) negative.
-        GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, target.resolveFramebuffer());
-        GL33C.glViewport(0, 0, target.widthPx(), target.heightPx());
-        GL33C.glEnable(GL33C.GL_BLEND);
-        GL33C.glBlendFuncSeparate(GL33C.GL_ONE, GL33C.GL_ONE,
+        Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, target.resolveFramebuffer());
+        Gl.glViewport(0, 0, target.widthPx(), target.heightPx());
+        Gl.glEnable(GL33C.GL_BLEND);
+        Gl.glBlendFuncSeparate(GL33C.GL_ONE, GL33C.GL_ONE,
                 GL33C.GL_ONE, GL33C.GL_ONE_MINUS_SRC_ALPHA);
         bloomCombineProgram.use();
-        GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, target.bloomTextureA());
-        GL33C.glUniform1i(uCombineSrc, 0);
-        GL33C.glUniform1f(uCombineIntensity, pass.bloomIntensity());
-        GL33C.glDrawArrays(GL33C.GL_TRIANGLES, 0, 3);
-        GL33C.glBindVertexArray(0);
-        GL33C.glDisable(GL33C.GL_BLEND);
+        Gl.glBindTexture(GL33C.GL_TEXTURE_2D, target.bloomTextureA());
+        Gl.glUniform1i(uCombineSrc, 0);
+        Gl.glUniform1f(uCombineIntensity, pass.bloomIntensity());
+        Gl.glDrawArrays(GL33C.GL_TRIANGLES, 0, 3);
+        Gl.glBindVertexArray(0);
+        Gl.glDisable(GL33C.GL_BLEND);
     }
 
     private void ensureBloom() {
@@ -476,7 +476,7 @@ final class Gl3DContext {
         bloomCombineProgram = ShaderProgram.fromSources(BLOOM_VERT, BLOOM_COMBINE_FRAG);
         uCombineSrc = bloomCombineProgram.uniformLocation("u_src");
         uCombineIntensity = bloomCombineProgram.uniformLocation("u_intensity");
-        bloomVao = GL33C.glGenVertexArrays();
+        bloomVao = Gl.glGenVertexArrays();
     }
 
     /**
@@ -494,21 +494,21 @@ final class Gl3DContext {
         if (blended.isEmpty()) {
             return;
         }
-        GL33C.glEnable(GL33C.GL_BLEND);
-        GL33C.glDepthMask(false);
+        Gl.glEnable(GL33C.GL_BLEND);
+        Gl.glDepthMask(false);
         BlendMode active = null;
         for (int i = 0; i < blended.size(); i++) {
             GlRenderPass.Draw d = blended.get(i);
             BlendMode mode = d.material().blend();
             if (mode != active) {
                 GlBlend.Factors f = GlBlend.of(mode);
-                GL33C.glBlendFuncSeparate(f.srcRgb(), f.dstRgb(), f.srcAlpha(), f.dstAlpha());
+                Gl.glBlendFuncSeparate(f.srcRgb(), f.dstRgb(), f.srcAlpha(), f.dstAlpha());
                 active = mode;
             }
             drawMesh(d.mesh(), d.material(), d.model(), pass);
         }
-        GL33C.glDepthMask(true);
-        GL33C.glDisable(GL33C.GL_BLEND);
+        Gl.glDepthMask(true);
+        Gl.glDisable(GL33C.GL_BLEND);
     }
 
     /** Selects the material's program, binds its uniforms/UBOs, and draws the mesh. */
@@ -517,23 +517,23 @@ final class Gl3DContext {
             ensureUnlit();
             unlitProgram.use();
             Mat4.multiplyInto(pass.viewProjection(), model, scratch16);
-            GL33C.glUniformMatrix4fv(uUnlitMvp, false, scratch16);
-            GL33C.glUniform4f(uUnlitColor, unlit.color().x(), unlit.color().y(),
+            Gl.glUniformMatrix4fv(uUnlitMvp, false, scratch16);
+            Gl.glUniform4f(uUnlitColor, unlit.color().x(), unlit.color().y(),
                     unlit.color().z(), unlit.color().w());
         } else if (material instanceof Material.SimpleLit lit) {
             ensureLit();
             litProgram.use();
             Mat4.multiplyInto(pass.viewProjection(), model, scratch16);
-            GL33C.glUniformMatrix4fv(uLitMvp, false, scratch16);
+            Gl.glUniformMatrix4fv(uLitMvp, false, scratch16);
             Mat4.normalMatrixInto(model, scratch9);
-            GL33C.glUniformMatrix3fv(uLitNormal, false, scratch9);
-            GL33C.glUniform4f(uLitColor, lit.baseColor().x(), lit.baseColor().y(),
+            Gl.glUniformMatrix3fv(uLitNormal, false, scratch9);
+            Gl.glUniform4f(uLitColor, lit.baseColor().x(), lit.baseColor().y(),
                     lit.baseColor().z(), lit.baseColor().w());
             Vec3 lightDir = pass.lightDir();
             Vec3 lightColor = pass.lightColor();
-            GL33C.glUniform3f(uLitLightDir, lightDir.x(), lightDir.y(), lightDir.z());
-            GL33C.glUniform3f(uLitLightColor, lightColor.x(), lightColor.y(), lightColor.z());
-            GL33C.glUniform1f(uLitAmbient, pass.simpleAmbient());
+            Gl.glUniform3f(uLitLightDir, lightDir.x(), lightDir.y(), lightDir.z());
+            Gl.glUniform3f(uLitLightColor, lightColor.x(), lightColor.y(), lightColor.z());
+            Gl.glUniform1f(uLitAmbient, pass.simpleAmbient());
         } else if (material instanceof Material.Pbr pbr) {
             bindPbr(pbr, model);
         } else if (material instanceof Material.Surface surface) {
@@ -543,15 +543,15 @@ final class Gl3DContext {
             rp.program().use();
             if (rp.mvp() >= 0) {
                 Mat4.multiplyInto(pass.viewProjection(), model, scratch16);
-                GL33C.glUniformMatrix4fv(rp.mvp(), false, scratch16);
+                Gl.glUniformMatrix4fv(rp.mvp(), false, scratch16);
             }
             if (rp.model() >= 0) {
                 model.toArray(scratch16);
-                GL33C.glUniformMatrix4fv(rp.model(), false, scratch16);
+                Gl.glUniformMatrix4fv(rp.model(), false, scratch16);
             }
             if (rp.normalMatrix() >= 0) {
                 Mat4.normalMatrixInto(model, scratch9);
-                GL33C.glUniformMatrix3fv(rp.normalMatrix(), false, scratch9);
+                Gl.glUniformMatrix3fv(rp.normalMatrix(), false, scratch9);
             }
         }
         passDrawCalls++;
@@ -624,19 +624,19 @@ final class Gl3DContext {
         if (pass.shadowEnabled() && pass.shadowTexture() != 0) {
             if (sp.shadowVp() >= 0) {
                 pass.shadowVp().toArray(scratch16);
-                GL33C.glUniformMatrix4fv(sp.shadowVp(), false, scratch16);
+                Gl.glUniformMatrix4fv(sp.shadowVp(), false, scratch16);
             }
-            GL33C.glActiveTexture(GL33C.GL_TEXTURE1);
-            GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, pass.shadowTexture());
+            Gl.glActiveTexture(GL33C.GL_TEXTURE1);
+            Gl.glBindTexture(GL33C.GL_TEXTURE_2D, pass.shadowTexture());
             if (sp.shadowMap() >= 0) {
-                GL33C.glUniform1i(sp.shadowMap(), 1);
+                Gl.glUniform1i(sp.shadowMap(), 1);
             }
             if (sp.shadowStrength() >= 0) {
-                GL33C.glUniform1f(sp.shadowStrength(), 1f);
+                Gl.glUniform1f(sp.shadowStrength(), 1f);
             }
-            GL33C.glActiveTexture(GL33C.GL_TEXTURE0);
+            Gl.glActiveTexture(GL33C.GL_TEXTURE0);
         } else if (sp.shadowStrength() >= 0) {
-            GL33C.glUniform1f(sp.shadowStrength(), 0f);
+            Gl.glUniform1f(sp.shadowStrength(), 0f);
         }
 
         Environment env = pass.environment();
@@ -648,17 +648,17 @@ final class Gl3DContext {
                     scratch27[i * 3 + 1] = sh[i].y();
                     scratch27[i * 3 + 2] = sh[i].z();
                 }
-                GL33C.glUniform3fv(sp.sh(), scratch27);
+                Gl.glUniform3fv(sp.sh(), scratch27);
             }
             uniform3(sp.skyColor(), env.sky());
             uniform3(sp.horizonColor(), env.horizon());
             uniform3(sp.groundColor(), env.ground());
             if (sp.iblIntensity() >= 0) {
-                GL33C.glUniform1f(sp.iblIntensity(), env.intensity());
+                Gl.glUniform1f(sp.iblIntensity(), env.intensity());
             }
-            GL33C.glUniform1f(sp.iblEnabled(), 1f);
+            Gl.glUniform1f(sp.iblEnabled(), 1f);
         } else if (sp.iblEnabled() >= 0) {
-            GL33C.glUniform1f(sp.iblEnabled(), 0f);
+            Gl.glUniform1f(sp.iblEnabled(), 0f);
         }
     }
 
@@ -687,14 +687,14 @@ final class Gl3DContext {
         // Unit 2: 0 is the base colour and 1 is the shadow map, which the pass
         // preparation binds once; taking unit 1 here would clobber it from the first
         // normal-mapped draw onward and the shadows would sample this.
-        GL33C.glActiveTexture(GL33C.GL_TEXTURE2);
-        GL33C.glBindTexture(GL33C.GL_TEXTURE_2D,
+        Gl.glActiveTexture(GL33C.GL_TEXTURE2);
+        Gl.glBindTexture(GL33C.GL_TEXTURE_2D,
                 hasNormal ? ((GlTexture) normalMap.texture()).id() : flatNormalTex);
-        GL33C.glUniform1i(sp.normalTex(), 2);
-        GL33C.glActiveTexture(GL33C.GL_TEXTURE0);
+        Gl.glUniform1i(sp.normalTex(), 2);
+        Gl.glActiveTexture(GL33C.GL_TEXTURE0);
         int texture = hasTexture ? ((GlTexture) pbr.baseColorTexture()).id() : whiteTex;
-        GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
-        GL33C.glUniform1i(sp.baseColorTex(), 0);
+        Gl.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
+        Gl.glUniform1i(sp.baseColorTex(), 0);
     }
 
     /**
@@ -724,13 +724,13 @@ final class Gl3DContext {
                 continue; // declared but never referenced, so the linker dropped it
             }
             int unit = APP_TEXTURE_UNIT0 + i;
-            GL33C.glActiveTexture(GL33C.GL_TEXTURE0 + unit);
+            Gl.glActiveTexture(GL33C.GL_TEXTURE0 + unit);
             GpuTexture texture = textures.get(i).texture();
-            GL33C.glBindTexture(GL33C.GL_TEXTURE_2D,
+            Gl.glBindTexture(GL33C.GL_TEXTURE_2D,
                     texture instanceof GlTexture gl ? gl.id() : whiteTex);
-            GL33C.glUniform1i(sp.samplers()[i], unit);
+            Gl.glUniform1i(sp.samplers()[i], unit);
         }
-        GL33C.glActiveTexture(GL33C.GL_TEXTURE0);
+        Gl.glActiveTexture(GL33C.GL_TEXTURE0);
 
         List<Material.Surface.Value> values = surface.values();
         for (int i = 0; i < values.size(); i++) {
@@ -738,20 +738,20 @@ final class Gl3DContext {
                 continue;
             }
             Vec4 v = values.get(i).value();
-            GL33C.glUniform4f(sp.values()[i], v.x(), v.y(), v.z(), v.w());
+            Gl.glUniform4f(sp.values()[i], v.x(), v.y(), v.z(), v.w());
         }
     }
 
     private void bindModel(SurfaceProgram sp, Mat4 model) {
         model.toArray(scratch16);
-        GL33C.glUniformMatrix4fv(sp.model(), false, scratch16);
+        Gl.glUniformMatrix4fv(sp.model(), false, scratch16);
         Mat4.normalMatrixInto(model, scratch9);
-        GL33C.glUniformMatrix3fv(sp.normalMatrix(), false, scratch9);
+        Gl.glUniformMatrix3fv(sp.normalMatrix(), false, scratch9);
     }
 
     private static void uniform3(int location, Vec3 v) {
         if (location >= 0) {
-            GL33C.glUniform3f(location, v.x(), v.y(), v.z());
+            Gl.glUniform3f(location, v.x(), v.y(), v.z());
         }
     }
 
@@ -799,8 +799,8 @@ final class Gl3DContext {
     }
 
     private void uploadUbo(int ubo, Std140Buffer data) {
-        GL33C.glBindBuffer(GL33C.GL_UNIFORM_BUFFER, ubo);
-        GL33C.glBufferSubData(GL33C.GL_UNIFORM_BUFFER, 0L, data.buffer());
+        Gl.glBindBuffer(GL33C.GL_UNIFORM_BUFFER, ubo);
+        Gl.glBufferSubData(GL33C.GL_UNIFORM_BUFFER, 0L, data.buffer());
     }
 
     private SurfaceProgram ensurePbr() {
@@ -810,7 +810,7 @@ final class Gl3DContext {
             // by hand). GlslCodegen reproduces that shader; verified by golden +
             // pixel tests.
             pbrProgram = link(GlslCodegen.generate(
-                    StandardSurface.metallicRoughness(), TargetProfile.GLSL_330),
+                    StandardSurface.metallicRoughness(), Gl.api().shadingProfile()),
                     List.of(), List.of());
             surfacePrograms.put(PBR_KEY, pbrProgram);
         }
@@ -844,7 +844,7 @@ final class Gl3DContext {
             valueNames.add(value.name());
         }
         SurfaceProgram created = link(GlslCodegen.generate(surface.outputs(),
-                declarations(samplerNames, valueNames), TargetProfile.GLSL_330),
+                declarations(samplerNames, valueNames), Gl.api().shadingProfile()),
                 samplerNames, valueNames);
         surfacePrograms.put(surface.key(), created);
         warnOfManyPrograms();
@@ -917,35 +917,35 @@ final class Gl3DContext {
         // mesh lacking COLOR would multiply its base colour by (0, 0, 0, 1) and render
         // black; the other three are zero because zero is what a surface is asked to
         // make its identity.
-        GL33C.glVertexAttrib4f(VertexAttribute.COLOR.location, 1f, 1f, 1f, 1f);
-        GL33C.glVertexAttrib2f(VertexAttribute.UV1.location, 0f, 0f);
-        GL33C.glVertexAttrib4f(VertexAttribute.PARAMS.location, 0f, 0f, 0f, 0f);
-        GL33C.glVertexAttrib4f(VertexAttribute.PARAMS1.location, 0f, 0f, 0f, 0f);
+        Gl.glVertexAttrib4f(VertexAttribute.COLOR.location, 1f, 1f, 1f, 1f);
+        Gl.glVertexAttrib2f(VertexAttribute.UV1.location, 0f, 0f);
+        Gl.glVertexAttrib4f(VertexAttribute.PARAMS.location, 0f, 0f, 0f, 0f);
+        Gl.glVertexAttrib4f(VertexAttribute.PARAMS1.location, 0f, 0f, 0f, 0f);
     }
 
     private static int createUbo(int sizeBytes, int binding) {
-        int ubo = GL33C.glGenBuffers();
-        GL33C.glBindBuffer(GL33C.GL_UNIFORM_BUFFER, ubo);
-        GL33C.glBufferData(GL33C.GL_UNIFORM_BUFFER, sizeBytes, GL33C.GL_DYNAMIC_DRAW);
-        GL33C.glBindBufferBase(GL33C.GL_UNIFORM_BUFFER, binding, ubo);
+        int ubo = Gl.glGenBuffers();
+        Gl.glBindBuffer(GL33C.GL_UNIFORM_BUFFER, ubo);
+        Gl.glBufferData(GL33C.GL_UNIFORM_BUFFER, sizeBytes, GL33C.GL_DYNAMIC_DRAW);
+        Gl.glBindBufferBase(GL33C.GL_UNIFORM_BUFFER, binding, ubo);
         return ubo;
     }
 
     private static int createWhiteTexture() {
-        int texture = GL33C.glGenTextures();
-        GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
-        GL33C.glPixelStorei(GL33C.GL_UNPACK_ALIGNMENT, 1);
+        int texture = Gl.glGenTextures();
+        Gl.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
+        Gl.glPixelStorei(GL33C.GL_UNPACK_ALIGNMENT, 1);
         ByteBuffer white = MemoryUtil.memAlloc(4);
         try {
             white.put((byte) 0xFF).put((byte) 0xFF).put((byte) 0xFF).put((byte) 0xFF).flip();
-            GL33C.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, 1, 1, 0,
+            Gl.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, 1, 1, 0,
                     GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, white);
         } finally {
             MemoryUtil.memFree(white);
         }
-        GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MIN_FILTER, GL33C.GL_NEAREST);
-        GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MAG_FILTER, GL33C.GL_NEAREST);
-        GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, 0);
+        Gl.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MIN_FILTER, GL33C.GL_NEAREST);
+        Gl.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MAG_FILTER, GL33C.GL_NEAREST);
+        Gl.glBindTexture(GL33C.GL_TEXTURE_2D, 0);
         return texture;
     }
 
@@ -957,20 +957,20 @@ final class Gl3DContext {
      * with no map also carries a normal scale of 0.
      */
     private static int createFlatNormalTexture() {
-        int texture = GL33C.glGenTextures();
-        GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
-        GL33C.glPixelStorei(GL33C.GL_UNPACK_ALIGNMENT, 1);
+        int texture = Gl.glGenTextures();
+        Gl.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
+        Gl.glPixelStorei(GL33C.GL_UNPACK_ALIGNMENT, 1);
         ByteBuffer flat = MemoryUtil.memAlloc(4);
         try {
             flat.put((byte) 0x80).put((byte) 0x80).put((byte) 0xFF).put((byte) 0xFF).flip();
-            GL33C.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, 1, 1, 0,
+            Gl.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, 1, 1, 0,
                     GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, flat);
         } finally {
             MemoryUtil.memFree(flat);
         }
-        GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MIN_FILTER, GL33C.GL_NEAREST);
-        GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MAG_FILTER, GL33C.GL_NEAREST);
-        GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, 0);
+        Gl.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MIN_FILTER, GL33C.GL_NEAREST);
+        Gl.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MAG_FILTER, GL33C.GL_NEAREST);
+        Gl.glBindTexture(GL33C.GL_TEXTURE_2D, 0);
         return texture;
     }
 
@@ -1005,18 +1005,18 @@ final class Gl3DContext {
         Mat4 proj = Mat4.orthographic(-r, r, -r, r, r * 0.5f, r * 3.5f);
         Mat4 shadowVp = proj.multiply(view);
 
-        GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, shadowMap.framebuffer());
-        GL33C.glViewport(0, 0, shadowMap.size(), shadowMap.size());
-        GL33C.glClear(GL33C.GL_DEPTH_BUFFER_BIT);
-        GL33C.glEnable(GL33C.GL_POLYGON_OFFSET_FILL); // reduce shadow acne
-        GL33C.glPolygonOffset(2.2f, 4f);
+        Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, shadowMap.framebuffer());
+        Gl.glViewport(0, 0, shadowMap.size(), shadowMap.size());
+        Gl.glClear(GL33C.GL_DEPTH_BUFFER_BIT);
+        Gl.glEnable(GL33C.GL_POLYGON_OFFSET_FILL); // reduce shadow acne
+        Gl.glPolygonOffset(2.2f, 4f);
         depthProgram.use();
         depthDraws(pass.draws(), shadowVp);
         depthDraws(pass.shadowOnlyDraws(), shadowVp); // camera-culled casters still occlude
-        GL33C.glDisable(GL33C.GL_POLYGON_OFFSET_FILL);
+        Gl.glDisable(GL33C.GL_POLYGON_OFFSET_FILL);
 
-        GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, target.renderFramebuffer());
-        GL33C.glViewport(0, 0, target.widthPx(), target.heightPx());
+        Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, target.renderFramebuffer());
+        Gl.glViewport(0, 0, target.widthPx(), target.heightPx());
         pass.setShadowResult(shadowVp, shadowMap.depthTexture());
     }
 
@@ -1024,7 +1024,7 @@ final class Gl3DContext {
         for (int i = 0; i < draws.size(); i++) {
             GlRenderPass.Draw d = draws.get(i);
             Mat4.multiplyInto(shadowVp, d.model(), scratch16);
-            GL33C.glUniformMatrix4fv(uDepthMvp, false, scratch16);
+            Gl.glUniformMatrix4fv(uDepthMvp, false, scratch16);
             d.mesh().drawTriangles();
         }
     }
@@ -1147,16 +1147,16 @@ final class Gl3DContext {
         // invert() still allocates (once per frame with a skybox, which is fine); the
         // copy into the reused scratch avoids the extra toArray() clone.
         pass.viewProjection().invert().toArray(scratch16);
-        GL33C.glUniformMatrix4fv(uSkyInvViewProj, false, scratch16);
+        Gl.glUniformMatrix4fv(uSkyInvViewProj, false, scratch16);
         Vec3 cam = pass.cameraPos();
-        GL33C.glUniform3f(uSkyCamPos, cam.x(), cam.y(), cam.z());
+        Gl.glUniform3f(uSkyCamPos, cam.x(), cam.y(), cam.z());
         uniform3(uSkySkyColor, env.sky());
         uniform3(uSkyHorizonColor, env.horizon());
         uniform3(uSkyGroundColor, env.ground());
-        GL33C.glUniform1f(uSkyIblIntensity, env.intensity());
-        GL33C.glBindVertexArray(skyboxVao);
-        GL33C.glDrawArrays(GL33C.GL_TRIANGLES, 0, 3);
-        GL33C.glBindVertexArray(0);
+        Gl.glUniform1f(uSkyIblIntensity, env.intensity());
+        Gl.glBindVertexArray(skyboxVao);
+        Gl.glDrawArrays(GL33C.GL_TRIANGLES, 0, 3);
+        Gl.glBindVertexArray(0);
     }
 
     private void ensureSkybox() {
@@ -1170,7 +1170,7 @@ final class Gl3DContext {
         uSkyHorizonColor = skyboxProgram.uniformLocation("u_horizonColor");
         uSkyGroundColor = skyboxProgram.uniformLocation("u_groundColor");
         uSkyIblIntensity = skyboxProgram.uniformLocation("u_iblIntensity");
-        skyboxVao = GL33C.glGenVertexArrays();
+        skyboxVao = Gl.glGenVertexArrays();
     }
 
     private void ensureUnlit() {
@@ -1309,15 +1309,15 @@ final class Gl3DContext {
         passPrograms.clear();
         if (frameData != null) {
             frameData = null;
-            GL33C.glDeleteBuffers(frameUbo);
-            GL33C.glDeleteBuffers(lightsUbo);
-            GL33C.glDeleteBuffers(materialUbo);
+            Gl.glDeleteBuffers(frameUbo);
+            Gl.glDeleteBuffers(lightsUbo);
+            Gl.glDeleteBuffers(materialUbo);
             if (whiteTex != 0) {
-                GL33C.glDeleteTextures(whiteTex);
+                Gl.glDeleteTextures(whiteTex);
                 whiteTex = 0;
             }
             if (flatNormalTex != 0) {
-                GL33C.glDeleteTextures(flatNormalTex);
+                Gl.glDeleteTextures(flatNormalTex);
                 flatNormalTex = 0;
             }
         }
@@ -1332,7 +1332,7 @@ final class Gl3DContext {
         if (skyboxProgram != null) {
             skyboxProgram.close();
             skyboxProgram = null;
-            GL33C.glDeleteVertexArrays(skyboxVao);
+            Gl.glDeleteVertexArrays(skyboxVao);
         }
         if (bloomBrightProgram != null) {
             bloomBrightProgram.close();
@@ -1341,11 +1341,11 @@ final class Gl3DContext {
             bloomBlurProgram = null;
             bloomCombineProgram.close();
             bloomCombineProgram = null;
-            GL33C.glDeleteVertexArrays(bloomVao);
+            Gl.glDeleteVertexArrays(bloomVao);
         }
         if (lineProgram != null) {
-            GL33C.glDeleteVertexArrays(lineVao);
-            GL33C.glDeleteBuffers(lineVbo);
+            Gl.glDeleteVertexArrays(lineVao);
+            Gl.glDeleteBuffers(lineVbo);
             lineProgram.close();
             lineProgram = null;
         }
@@ -1399,14 +1399,14 @@ final class Gl3DContext {
             return;
         }
         ensureLineResources();
-        GL33C.glEnable(GL33C.GL_BLEND);
-        GL33C.glBlendFuncSeparate(GL33C.GL_SRC_ALPHA, GL33C.GL_ONE_MINUS_SRC_ALPHA,
+        Gl.glEnable(GL33C.GL_BLEND);
+        Gl.glBlendFuncSeparate(GL33C.GL_SRC_ALPHA, GL33C.GL_ONE_MINUS_SRC_ALPHA,
                 GL33C.GL_ZERO, GL33C.GL_ONE);
         lineProgram.use();
         pass.viewProjection().toArray(scratch16);
-        GL33C.glUniformMatrix4fv(uLineViewProjection, false, scratch16);
-        GL33C.glBindVertexArray(lineVao);
-        GL33C.glBindBuffer(GL33C.GL_ARRAY_BUFFER, lineVbo);
+        Gl.glUniformMatrix4fv(uLineViewProjection, false, scratch16);
+        Gl.glBindVertexArray(lineVao);
+        Gl.glBindBuffer(GL33C.GL_ARRAY_BUFFER, lineVbo);
         boolean depthOff = false;
         // Two passes over the list keep submission order within each bucket.
         for (int wantDepth = 1; wantDepth >= 0; wantDepth--) {
@@ -1416,20 +1416,20 @@ final class Gl3DContext {
                     continue;
                 }
                 if (!batch.depthTested() && !depthOff) {
-                    GL33C.glDisable(GL33C.GL_DEPTH_TEST);
+                    Gl.glDisable(GL33C.GL_DEPTH_TEST);
                     depthOff = true;
                 }
                 // Whole-array upload (orphaning); only vertexCount vertices are drawn.
-                GL33C.glBufferData(GL33C.GL_ARRAY_BUFFER, batch.vertices(), GL33C.GL_STREAM_DRAW);
-                GL33C.glDrawArrays(GL33C.GL_LINES, 0, batch.vertexCount());
+                Gl.glBufferData(GL33C.GL_ARRAY_BUFFER, batch.vertices(), GL33C.GL_STREAM_DRAW);
+                Gl.glDrawArrays(GL33C.GL_LINES, 0, batch.vertexCount());
                 passDrawCalls++;
             }
         }
         if (depthOff) {
-            GL33C.glEnable(GL33C.GL_DEPTH_TEST);
+            Gl.glEnable(GL33C.GL_DEPTH_TEST);
         }
-        GL33C.glDisable(GL33C.GL_BLEND);
-        GL33C.glBindVertexArray(0);
+        Gl.glDisable(GL33C.GL_BLEND);
+        Gl.glBindVertexArray(0);
     }
 
     private void ensureLineResources() {
@@ -1438,15 +1438,15 @@ final class Gl3DContext {
         }
         lineProgram = ShaderProgram.fromSources(LINE_VERT, LINE_FRAG);
         uLineViewProjection = lineProgram.uniformLocation("u_viewProjection");
-        lineVao = GL33C.glGenVertexArrays();
-        lineVbo = GL33C.glGenBuffers();
-        GL33C.glBindVertexArray(lineVao);
-        GL33C.glBindBuffer(GL33C.GL_ARRAY_BUFFER, lineVbo);
+        lineVao = Gl.glGenVertexArrays();
+        lineVbo = Gl.glGenBuffers();
+        Gl.glBindVertexArray(lineVao);
+        Gl.glBindBuffer(GL33C.GL_ARRAY_BUFFER, lineVbo);
         int stride = limn.render3d.DebugDraw.FLOATS_PER_VERTEX * Float.BYTES;
-        GL33C.glEnableVertexAttribArray(0); // position
-        GL33C.glVertexAttribPointer(0, 3, GL33C.GL_FLOAT, false, stride, 0);
-        GL33C.glEnableVertexAttribArray(3); // color
-        GL33C.glVertexAttribPointer(3, 4, GL33C.GL_FLOAT, false, stride, 3L * Float.BYTES);
-        GL33C.glBindVertexArray(0);
+        Gl.glEnableVertexAttribArray(0); // position
+        Gl.glVertexAttribPointer(0, 3, GL33C.GL_FLOAT, false, stride, 0);
+        Gl.glEnableVertexAttribArray(3); // color
+        Gl.glVertexAttribPointer(3, 4, GL33C.GL_FLOAT, false, stride, 3L * Float.BYTES);
+        Gl.glBindVertexArray(0);
     }
 }

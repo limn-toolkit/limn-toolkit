@@ -29,7 +29,7 @@ class GraphicsProbeTest {
     @Test
     void reportsTheContextItIsGiven() {
         HeadlessGl.assumeWindow();
-        GraphicsInfo info = GraphicsProbe.read(HeadlessGl.window(), HeadlessGl.capabilities());
+        GraphicsInfo info = GraphicsProbe.read(HeadlessGl.window());
 
         assertNull(info.failure(), "a live context is not a failure");
         assertTrue(info.available());
@@ -51,11 +51,19 @@ class GraphicsProbeTest {
     @Test
     void namesTheGrantedProfileAndNotTheRequestedOne() {
         HeadlessGl.assumeWindow();
-        GraphicsInfo info = GraphicsProbe.read(HeadlessGl.window(), HeadlessGl.capabilities());
+        GraphicsInfo info = GraphicsProbe.read(HeadlessGl.window());
 
-        assertTrue(info.api().startsWith("OpenGL "), "client API: " + info.api());
-        assertTrue(info.api().endsWith(" core"), "profile: " + info.api());
-        assertTrue(HeadlessGl.capabilities().OpenGL33, "the toolkit's floor is GL 3.3");
+        if (HeadlessGl.isEs()) {
+            // ANGLE's context (ADR 003): ES has no profiles, and 3.0 is the floor asked for.
+            assertTrue(info.api().startsWith("OpenGL ES 3."), "client API: " + info.api());
+            assertTrue(((org.lwjgl.opengles.GLESCapabilities) HeadlessGl.capabilities()).GLES30,
+                    "the ES path's floor is 3.0");
+        } else {
+            assertTrue(info.api().startsWith("OpenGL "), "client API: " + info.api());
+            assertTrue(info.api().endsWith(" core"), "profile: " + info.api());
+            assertTrue(((org.lwjgl.opengl.GLCapabilities) HeadlessGl.capabilities()).OpenGL33,
+                    "the toolkit's floor is GL 3.3");
+        }
         assertFalse(info.contextApi().isBlank(), "context creation API");
         assertNotEquals("unknown", info.windowPlatform(), "window platform");
     }

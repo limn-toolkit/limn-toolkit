@@ -12,6 +12,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -65,6 +66,33 @@ class PackagingRecipeTest {
         assertTrue(maven.matches("(?s).*<artifactId>limn-lunasvg-natives</artifactId><version>[^<]+</version></dependency>.*"));
         assertTrue(maven.matches("(?s).*<artifactId>limn-lunasvg-natives</artifactId><version>[^<]+</version>"
                 + "<classifier>\\$\\{limn.natives}</classifier>.*"));
+    }
+
+    /**
+     * ANGLE's payload has classifiers for Windows and macOS only (ADR 080), so the recipe cannot
+     * name it with the {@code ${limn.natives}} every profile sets: a Linux build would ask for a jar
+     * that does not exist. It is excluded, its main jar declared again, and each classifier named in
+     * the profile of its own platform and in no other.
+     */
+    @Test
+    void theMavenRecipeNamesAnglesClassifiersInTheirOwnProfilesOnly() throws IOException {
+        assertTrue(requires().contains("limn.angle.natives"));
+        String maven = mavenRecipe();
+        assertTrue(maven.contains("<exclusion><groupId>io.github.limn-toolkit</groupId>"
+                + "<artifactId>limn-angle-natives</artifactId></exclusion>"));
+        assertTrue(maven.matches("(?s).*<artifactId>limn-angle-natives</artifactId><version>[^<]+</version></dependency>.*"));
+        for (String platform : List.of("macos-aarch64", "macos-x86_64", "windows-aarch64", "windows-x86_64",
+                "linux-aarch64", "linux-x86_64")) {
+            int start = maven.indexOf("<profile><id>" + platform + "</id>");
+            assertTrue(start >= 0, "no profile " + platform);
+            String profile = maven.substring(start, maven.indexOf("</profile>", start));
+            boolean named = profile.contains("<artifactId>limn-angle-natives</artifactId>")
+                    && profile.contains("<classifier>natives-" + platform + "</classifier>");
+            assertEquals(!platform.startsWith("linux"), named,
+                    "the " + platform + " profile " + (named ? "names" : "does not name") + " ANGLE's classifier");
+        }
+        assertFalse(maven.matches("(?s).*limn-angle-natives</artifactId><version>[^<]+</version>"
+                + "<classifier>\\$\\{limn.natives}.*"), "ANGLE's classifier through ${limn.natives}");
     }
 
     private static List<String> requires() throws IOException {

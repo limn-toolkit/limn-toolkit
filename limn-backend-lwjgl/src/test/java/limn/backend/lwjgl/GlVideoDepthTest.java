@@ -139,17 +139,18 @@ class GlVideoDepthTest extends GlVideoTestBase {
 
     @Test
     void aTenBitPlaneIsUploadedAsSixteenBitTexels() {
+        HeadlessGl.assumeDesktop("reads the texel format with glGetTexLevelParameteri, which ES 3.0 lacks");
         // Read straight off the device rather than inferred from a colour: an R8 texture bound
         // where an R16 belongs still decodes to plausible-looking colours, because the top byte of
         // every sample is nearly constant across a smooth picture.
         VideoFrame frame = TestPictures.uniform(8, 8, PixelFormat.I420_10LE,
                 VideoColor.BT709_LIMITED, 512, 512, 512);
         GlVideoSurface surface = upload(frame);
-        GL33C.glActiveTexture(GL33C.GL_TEXTURE0);
-        GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, surface.planeTexture(0));
+        Gl.glActiveTexture(GL33C.GL_TEXTURE0);
+        Gl.glBindTexture(GL33C.GL_TEXTURE_2D, surface.planeTexture(0));
         assertEquals(GL33C.GL_R16, GL33C.glGetTexLevelParameteri(GL33C.GL_TEXTURE_2D, 0,
                 GL33C.GL_TEXTURE_INTERNAL_FORMAT), "a 10-bit luma plane is a 16-bit texture");
-        GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, surface.colorTexture());
+        Gl.glBindTexture(GL33C.GL_TEXTURE_2D, surface.colorTexture());
         assertEquals(GL33C.GL_RGB10_A2, GL33C.glGetTexLevelParameteri(GL33C.GL_TEXTURE_2D, 0,
                 GL33C.GL_TEXTURE_INTERNAL_FORMAT), "and the converted picture holds ten bits too");
         assertNoGlError("querying the plane formats");
@@ -159,16 +160,17 @@ class GlVideoDepthTest extends GlVideoTestBase {
 
     @Test
     void anEightBitPictureIsStillEightBitsOnBothSides() {
+        HeadlessGl.assumeDesktop("reads the texel format with glGetTexLevelParameteri, which ES 3.0 lacks");
         // The other half of the previous test, and the one that keeps every existing capture
         // byte-identical: nothing about the eight-bit path changed.
         VideoFrame frame = TestPictures.uniform(8, 8, PixelFormat.I420, VideoColor.BT709_LIMITED,
                 128, 128, 128);
         GlVideoSurface surface = upload(frame);
-        GL33C.glActiveTexture(GL33C.GL_TEXTURE0);
-        GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, surface.planeTexture(0));
+        Gl.glActiveTexture(GL33C.GL_TEXTURE0);
+        Gl.glBindTexture(GL33C.GL_TEXTURE_2D, surface.planeTexture(0));
         assertEquals(GL33C.GL_R8, GL33C.glGetTexLevelParameteri(GL33C.GL_TEXTURE_2D, 0,
                 GL33C.GL_TEXTURE_INTERNAL_FORMAT));
-        GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, surface.colorTexture());
+        Gl.glBindTexture(GL33C.GL_TEXTURE_2D, surface.colorTexture());
         assertEquals(GL33C.GL_RGBA8, GL33C.glGetTexLevelParameteri(GL33C.GL_TEXTURE_2D, 0,
                 GL33C.GL_TEXTURE_INTERNAL_FORMAT));
         frame.release();

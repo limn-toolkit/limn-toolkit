@@ -1,5 +1,7 @@
 package limn.backend.lwjgl;
 
+import limn.render3d.shader.TargetProfile;
+
 import limn.io.Resources;
 
 import static org.lwjgl.opengl.GL33C.GL_COMPILE_STATUS;
@@ -8,23 +10,23 @@ import static org.lwjgl.opengl.GL33C.GL_FRAGMENT_SHADER;
 import static org.lwjgl.opengl.GL33C.GL_INVALID_INDEX;
 import static org.lwjgl.opengl.GL33C.GL_LINK_STATUS;
 import static org.lwjgl.opengl.GL33C.GL_VERTEX_SHADER;
-import static org.lwjgl.opengl.GL33C.glAttachShader;
-import static org.lwjgl.opengl.GL33C.glCompileShader;
-import static org.lwjgl.opengl.GL33C.glCreateProgram;
-import static org.lwjgl.opengl.GL33C.glCreateShader;
-import static org.lwjgl.opengl.GL33C.glDeleteProgram;
-import static org.lwjgl.opengl.GL33C.glDeleteShader;
-import static org.lwjgl.opengl.GL33C.glDetachShader;
-import static org.lwjgl.opengl.GL33C.glGetProgramInfoLog;
-import static org.lwjgl.opengl.GL33C.glGetProgrami;
-import static org.lwjgl.opengl.GL33C.glGetShaderInfoLog;
-import static org.lwjgl.opengl.GL33C.glGetShaderi;
-import static org.lwjgl.opengl.GL33C.glGetUniformBlockIndex;
-import static org.lwjgl.opengl.GL33C.glGetUniformLocation;
-import static org.lwjgl.opengl.GL33C.glLinkProgram;
-import static org.lwjgl.opengl.GL33C.glShaderSource;
-import static org.lwjgl.opengl.GL33C.glUniformBlockBinding;
-import static org.lwjgl.opengl.GL33C.glUseProgram;
+import static limn.backend.lwjgl.Gl.glAttachShader;
+import static limn.backend.lwjgl.Gl.glCompileShader;
+import static limn.backend.lwjgl.Gl.glCreateProgram;
+import static limn.backend.lwjgl.Gl.glCreateShader;
+import static limn.backend.lwjgl.Gl.glDeleteProgram;
+import static limn.backend.lwjgl.Gl.glDeleteShader;
+import static limn.backend.lwjgl.Gl.glDetachShader;
+import static limn.backend.lwjgl.Gl.glGetProgramInfoLog;
+import static limn.backend.lwjgl.Gl.glGetProgrami;
+import static limn.backend.lwjgl.Gl.glGetShaderInfoLog;
+import static limn.backend.lwjgl.Gl.glGetShaderi;
+import static limn.backend.lwjgl.Gl.glGetUniformBlockIndex;
+import static limn.backend.lwjgl.Gl.glGetUniformLocation;
+import static limn.backend.lwjgl.Gl.glLinkProgram;
+import static limn.backend.lwjgl.Gl.glShaderSource;
+import static limn.backend.lwjgl.Gl.glUniformBlockBinding;
+import static limn.backend.lwjgl.Gl.glUseProgram;
 
 /** Compiles and links a GLSL program from classpath resources. */
 final class ShaderProgram implements AutoCloseable {
@@ -110,7 +112,7 @@ final class ShaderProgram implements AutoCloseable {
 
     private static int compile(int type, String source, String name) {
         int shader = glCreateShader(type);
-        glShaderSource(shader, source);
+        glShaderSource(shader, inProfile(source, Gl.api().shadingProfile()));
         glCompileShader(shader);
         if (glGetShaderi(shader, GL_COMPILE_STATUS) == GL_FALSE) {
             String log = glGetShaderInfoLog(shader);
@@ -118,6 +120,28 @@ final class ShaderProgram implements AutoCloseable {
             throw new IllegalStateException("shader compile failed for " + name + ":\n" + log);
         }
         return shader;
+    }
+
+    /**
+     * {@code source} for the shading language {@code profile} compiles. Every shader here is written
+     * once, in the subset GLSL 3.30 and GLSL ES 3.00 share (the rule is quoted at the top of each), and
+     * says so with {@code #version 330 core} as its first line; for ES that line, and only that
+     * line, becomes {@link TargetProfile#GLSL_ES_300}'s header, so the file keeps one version of
+     * the truth. A source that starts any other way is the author's to answer for
+     * and is compiled as written.
+     */
+    static String inProfile(String source, TargetProfile profile) {
+        if (profile == TargetProfile.GLSL_330) {
+            return source;
+        }
+        String desktop = TargetProfile.GLSL_330.header;
+        int start = 0;
+        while (start < source.length() && Character.isWhitespace(source.charAt(start))) {
+            start++;
+        }
+        return source.startsWith(desktop, start)
+                ? profile.header + source.substring(start + desktop.length())
+                : source;
     }
 
     private static String readResource(String resource) {

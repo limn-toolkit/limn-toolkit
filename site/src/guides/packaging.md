@@ -37,10 +37,11 @@ anywhere. Measured at this version, that is 24.8 MB of jars, of which one machin
 platform at a time, an installer per target, need not carry them, and an application on the
 [module path](#on-the-module-path) must not.
 
-Two of the backend's dependencies come in one classifier per platform: LWJGL's natives
-(`natives-macos-arm64`, `natives-windows`, …) and the SVG renderer's, `limn-lunasvg-natives`
-(`natives-macos-aarch64`, `natives-windows-x86_64`, …). Keeping one platform is keeping one
-classifier of each:
+Three of the backend's dependencies come in one classifier per platform: LWJGL's natives
+(`natives-macos-arm64`, `natives-windows`, …), the SVG renderer's, `limn-lunasvg-natives`
+(`natives-macos-aarch64`, `natives-windows-x86_64`, …), and ANGLE's, `limn-angle-natives`, the
+OpenGL ES fallback a machine without a usable OpenGL takes, which has classifiers for Windows and
+macOS only (Linux has Mesa). Keeping one platform is keeping one classifier of each that has it:
 
 {% tabs build Gradle Maven %}
 ```kotlin title="build.gradle.kts"
@@ -90,10 +91,12 @@ dependencies {
   <profile><id>macos-aarch64</id>
     <activation><os><family>mac</family><arch>aarch64</arch></os></activation>
     <properties><lwjgl.natives>natives-macos-arm64</lwjgl.natives><limn.natives>natives-macos-aarch64</limn.natives></properties>
+    <dependencies><dependency><groupId>io.github.limn-toolkit</groupId><artifactId>limn-angle-natives</artifactId><version>2.1.8078.0</version><classifier>natives-macos-aarch64</classifier></dependency></dependencies>
   </profile>
   <profile><id>macos-x86_64</id>
     <activation><os><family>mac</family><arch>!aarch64</arch></os></activation>
     <properties><lwjgl.natives>natives-macos</lwjgl.natives><limn.natives>natives-macos-x86_64</limn.natives></properties>
+    <dependencies><dependency><groupId>io.github.limn-toolkit</groupId><artifactId>limn-angle-natives</artifactId><version>2.1.8078.0</version><classifier>natives-macos-x86_64</classifier></dependency></dependencies>
   </profile>
   <profile><id>linux-aarch64</id>
     <activation><os><name>linux</name><arch>aarch64</arch></os></activation>
@@ -106,10 +109,12 @@ dependencies {
   <profile><id>windows-aarch64</id>
     <activation><os><family>windows</family><arch>aarch64</arch></os></activation>
     <properties><lwjgl.natives>natives-windows-arm64</lwjgl.natives><limn.natives>natives-windows-aarch64</limn.natives></properties>
+    <dependencies><dependency><groupId>io.github.limn-toolkit</groupId><artifactId>limn-angle-natives</artifactId><version>2.1.8078.0</version><classifier>natives-windows-aarch64</classifier></dependency></dependencies>
   </profile>
   <profile><id>windows-x86_64</id>
     <activation><os><family>windows</family><arch>!aarch64</arch></os></activation>
     <properties><lwjgl.natives>natives-windows</lwjgl.natives><limn.natives>natives-windows-x86_64</limn.natives></properties>
+    <dependencies><dependency><groupId>io.github.limn-toolkit</groupId><artifactId>limn-angle-natives</artifactId><version>2.1.8078.0</version><classifier>natives-windows-x86_64</classifier></dependency></dependencies>
   </profile>
 </profiles>
 
@@ -122,10 +127,13 @@ dependencies {
     <exclusions>
       <exclusion><groupId>org.lwjgl</groupId><artifactId>*</artifactId></exclusion>
       <exclusion><groupId>io.github.limn-toolkit</groupId><artifactId>limn-lunasvg-natives</artifactId></exclusion>
+      <exclusion><groupId>io.github.limn-toolkit</groupId><artifactId>limn-angle-natives</artifactId></exclusion>
     </exclusions>
   </dependency>
   <dependency><groupId>io.github.limn-toolkit</groupId><artifactId>limn-lunasvg-natives</artifactId><version>3.5.0.0</version></dependency>
   <dependency><groupId>io.github.limn-toolkit</groupId><artifactId>limn-lunasvg-natives</artifactId><version>3.5.0.0</version><classifier>${limn.natives}</classifier></dependency>
+  <!-- ANGLE's classifier is in the Windows and macOS profiles above: there is none for Linux. -->
+  <dependency><groupId>io.github.limn-toolkit</groupId><artifactId>limn-angle-natives</artifactId><version>2.1.8078.0</version></dependency>
   <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-egl</artifactId><version>${lwjgl.version}</version></dependency>
   <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl</artifactId><version>${lwjgl.version}</version></dependency>
   <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl</artifactId><version>${lwjgl.version}</version><classifier>${lwjgl.natives}</classifier></dependency>
@@ -137,6 +145,8 @@ dependencies {
   <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-openal</artifactId><version>${lwjgl.version}</version><classifier>${lwjgl.natives}</classifier></dependency>
   <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-opengl</artifactId><version>${lwjgl.version}</version></dependency>
   <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-opengl</artifactId><version>${lwjgl.version}</version><classifier>${lwjgl.natives}</classifier></dependency>
+  <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-opengles</artifactId><version>${lwjgl.version}</version></dependency>
+  <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-opengles</artifactId><version>${lwjgl.version}</version><classifier>${lwjgl.natives}</classifier></dependency>
   <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-stb</artifactId><version>${lwjgl.version}</version></dependency>
   <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-stb</artifactId><version>${lwjgl.version}</version><classifier>${lwjgl.natives}</classifier></dependency>
   <dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-tinyfd</artifactId><version>${lwjgl.version}</version></dependency>
@@ -151,8 +161,9 @@ dependencies {
 In Gradle, the rule takes the other platforms' natives out of the backend's dependencies before
 anything is downloaded, and `-PlimnTarget=windows-x86_64` on the command line packages for
 another target. Maven cannot drop one classifier of a dependency, only the whole module, so the
-backend's LWJGL and SVG renderer are excluded and declared again, each with one classifier: a
-profile per system picks the machine's, as `limn-demo`'s own POM does, and
+backend's LWJGL, SVG renderer and ANGLE are excluded and declared again, each with one classifier
+(ANGLE's inside the Windows and macOS profiles, the only ones it has one for): a profile per system
+picks the machine's, as `limn-demo`'s own POM does, and
 `-Dlwjgl.natives=natives-windows -Dlimn.natives=natives-windows-x86_64` names another. The
 versions are the ones this release was tested with; `lwjgl-egl` has no natives, because it binds
 the system's own library.
@@ -225,14 +236,15 @@ kinds of jar still need a word:
   // LWJGL's natives modules, by name: for ./gradlew run, and for a distribution's start scripts.
   val lwjglNatives = listOf("--add-modules", "org.lwjgl.natives,org.lwjgl.glfw.natives," +
       "org.lwjgl.harfbuzz.natives,org.lwjgl.openal.natives,org.lwjgl.opengl.natives," +
-      "org.lwjgl.stb.natives,org.lwjgl.tinyfd.natives")
+      "org.lwjgl.opengles.natives,org.lwjgl.stb.natives,org.lwjgl.tinyfd.natives")
   tasks.named<JavaExec>("run") { jvmArgs(lwjglNatives) }
   application { applicationDefaultJvmArgs += lwjglNatives }
   ```
 
   Or put that platform's natives jars on the class path instead. When the backend stops for want
   of them, it says which of the two went wrong, and prints this line if it is the missing one.
-  The SVG renderer's natives need neither: each platform's jar has a module name of its own.
+  The SVG renderer's natives and ANGLE's need neither: each platform's jar has a module name of
+  its own.
 - **jlayer**, the MP3 decoder. It has no module name, and the backend reads it from the class
   path, which is where Gradle puts it.
 

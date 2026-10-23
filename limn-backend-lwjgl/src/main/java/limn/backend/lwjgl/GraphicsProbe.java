@@ -4,7 +4,6 @@ import limn.backend.GraphicsInfo;
 import org.jspecify.annotations.Nullable;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.opengl.GL33C;
-import org.lwjgl.opengl.GLCapabilities;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 
@@ -55,29 +54,25 @@ final class GraphicsProbe {
     /**
      * @param window the GLFW window whose context is <em>already current</em> on
      *               the calling thread
-     * @param caps   that context's capabilities, as returned when it was created
      */
-    static GraphicsInfo read(long window, GLCapabilities caps) {
+    static GraphicsInfo read(long window) {
         List<String> extensions = extensions();
         return new GraphicsInfo(
                 platformName(),
                 glfwGetVersionString(),
                 apiName(window),
                 contextApiName(window),
-                GL33C.glGetString(GL33C.GL_VENDOR),
-                GL33C.glGetString(GL33C.GL_RENDERER),
-                GL33C.glGetString(GL33C.GL_VERSION),
-                GL33C.glGetString(GL33C.GL_SHADING_LANGUAGE_VERSION),
-                GL33C.glGetInteger(GL33C.GL_MAX_SAMPLES),
-                // Timing became core in desktop 3.3; everywhere else it is an
-                // extension, and the ES spelling of it is a different name.
-                caps.OpenGL33 || caps.GL_ARB_timer_query
-                        || extensions.contains("GL_EXT_disjoint_timer_query"),
-                // Rendering to RGBA16F and sampling R16 are both core in desktop
-                // 3.0 and both extensions on ES, where a context may have either,
-                // neither, or one without the other.
-                caps.OpenGL30 || extensions.contains("GL_EXT_color_buffer_float"),
-                caps.OpenGL30 || extensions.contains("GL_EXT_texture_norm16"),
+                Gl.glGetString(GL33C.GL_VENDOR),
+                Gl.glGetString(GL33C.GL_RENDERER),
+                Gl.glGetString(GL33C.GL_VERSION),
+                Gl.glGetString(GL33C.GL_SHADING_LANGUAGE_VERSION),
+                Gl.glGetInteger(GL33C.GL_MAX_SAMPLES),
+                // Each profile answers for its own context: core in desktop 3.3
+                // (timing) and 3.0 (the other two), extensions on ES, where a
+                // context may have any of them without the others.
+                Gl.api().timerQueries(),
+                Gl.api().floatColorBuffer(),
+                Gl.api().norm16Textures(),
                 extensions,
                 null);
     }
@@ -118,7 +113,7 @@ final class GraphicsProbe {
      * @return the key; a part a context does not answer is null or 0
      */
     static GlCapabilitiesCache.Key currentContextKey(boolean softwareGl) {
-        org.lwjgl.system.FunctionProvider functions = org.lwjgl.opengl.GL.getFunctionProvider();
+        org.lwjgl.system.FunctionProvider functions = Gl.api().functionProvider();
         long glGetString = functions == null ? NULL : functions.getFunctionAddress("glGetString");
         long glGetIntegerv = functions == null ? NULL : functions.getFunctionAddress("glGetIntegerv");
         long glGetStringi = functions == null ? NULL : functions.getFunctionAddress("glGetStringi");
@@ -129,12 +124,16 @@ final class GraphicsProbe {
             try (MemoryStack stack = MemoryStack.stackPush()) {
                 java.nio.IntBuffer answer = stack.ints(0);
                 long at = MemoryUtil.memAddress(answer);
-                org.lwjgl.system.JNI.invokePV(GL33C.GL_CONTEXT_FLAGS, at, glGetIntegerv);
-                flags = answer.get(0);
-                answer.put(0, 0);
-                org.lwjgl.system.JNI.invokePV(GL33C.GL_CONTEXT_PROFILE_MASK, at, glGetIntegerv);
-                profile = answer.get(0);
-                answer.put(0, 0);
+                // Flags and profile mask are the desktop's; ES 3.0 has neither and would answer
+                // with an error, so an ES context's key leaves them 0.
+                if (Gl.api() == DesktopGl.INSTANCE) {
+                    org.lwjgl.system.JNI.invokePV(GL33C.GL_CONTEXT_FLAGS, at, glGetIntegerv);
+                    flags = answer.get(0);
+                    answer.put(0, 0);
+                    org.lwjgl.system.JNI.invokePV(GL33C.GL_CONTEXT_PROFILE_MASK, at, glGetIntegerv);
+                    profile = answer.get(0);
+                    answer.put(0, 0);
+                }
                 org.lwjgl.system.JNI.invokePV(GL33C.GL_NUM_EXTENSIONS, at, glGetIntegerv);
                 int count = answer.get(0);
                 for (int i = 0; glGetStringi != NULL && i < count; i++) {
@@ -260,10 +259,10 @@ final class GraphicsProbe {
     }
 
     private static List<String> extensions() {
-        int count = GL33C.glGetInteger(GL33C.GL_NUM_EXTENSIONS);
+        int count = Gl.glGetInteger(GL33C.GL_NUM_EXTENSIONS);
         List<String> names = new ArrayList<>(Math.max(count, 0));
         for (int i = 0; i < count; i++) {
-            names.add(GL33C.glGetStringi(GL33C.GL_EXTENSIONS, i));
+            names.add(Gl.glGetStringi(GL33C.GL_EXTENSIONS, i));
         }
         Collections.sort(names);
         return names;
@@ -306,7 +305,7 @@ final class GraphicsProbe {
         }
         return switch (glfwGetWindowAttrib(window, GLFW_CONTEXT_CREATION_API)) {
             case GLFW_NATIVE_CONTEXT_API -> "native";
-            case GLFW_EGL_CONTEXT_API -> "EGL";
+            case GLFW_EGL_CONTEXT_API -> AngleFallback.taken() ? "EGL, " + AngleFallback.describe() : "EGL";
             case GLFW_OSMESA_CONTEXT_API -> "OSMesa";
             default -> "unknown";
         };

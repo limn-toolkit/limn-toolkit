@@ -80,7 +80,7 @@ final class GlRenderPass implements RenderPass {
         // premultiplied (ADR 004), the caller's color is authored sRGB with
         // straight alpha, so decode and premultiply on the way in.
         GlColors.clearLinearPremultiplied(r, g, b, a);
-        GL33C.glClear(GL33C.GL_COLOR_BUFFER_BIT | GL33C.GL_DEPTH_BUFFER_BIT);
+        Gl.glClear(GL33C.GL_COLOR_BUFFER_BIT | GL33C.GL_DEPTH_BUFFER_BIT);
         return this;
     }
 

@@ -75,10 +75,10 @@ class ImageTextureCacheTest {
         cache.textureFor(kept);
         assertTrue(cache.beginFrameAndEvict(), "the one this frame did not draw goes");
         assertEquals(new RenderStats(1, EIGHT_BY_FOUR), cache.stats());
-        assertFalse(GL33C.glIsTexture(droppedTexture), "and its texture with it");
+        assertFalse(Gl.glIsTexture(droppedTexture), "and its texture with it");
 
         int again = cache.textureFor(dropped);
-        assertTrue(GL33C.glIsTexture(again), "drawn again, it is uploaded again");
+        assertTrue(Gl.glIsTexture(again), "drawn again, it is uploaded again");
         assertEquals(new RenderStats(2, 2 * EIGHT_BY_FOUR), cache.stats());
     }
 

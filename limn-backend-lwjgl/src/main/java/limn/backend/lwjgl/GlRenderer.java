@@ -14,10 +14,10 @@ import static org.lwjgl.opengl.GL33C.GL_PACK_ALIGNMENT;
 import static org.lwjgl.opengl.GL33C.GL_RGBA;
 import static org.lwjgl.opengl.GL33C.GL_STENCIL_BUFFER_BIT;
 import static org.lwjgl.opengl.GL33C.GL_UNSIGNED_BYTE;
-import static org.lwjgl.opengl.GL33C.glClear;
-import static org.lwjgl.opengl.GL33C.glPixelStorei;
-import static org.lwjgl.opengl.GL33C.glReadBuffer;
-import static org.lwjgl.opengl.GL33C.glReadPixels;
+import static limn.backend.lwjgl.Gl.glClear;
+import static limn.backend.lwjgl.Gl.glPixelStorei;
+import static limn.backend.lwjgl.Gl.glReadBuffer;
+import static limn.backend.lwjgl.Gl.glReadPixels;
 
 /**
  * OpenGL {@link GpuRenderer} for one window: owns the window's {@link GlCanvas}
@@ -62,11 +62,10 @@ final class GlRenderer implements GpuRenderer {
             // Belt and braces: 3.3 core is a window-creation requirement, so
             // timer queries should always exist, but degrade to "no metric"
             // rather than crash if a driver lies.
-            org.lwjgl.opengl.GLCapabilities caps = org.lwjgl.opengl.GL.getCapabilities();
-            boolean supported = caps.OpenGL33 || caps.GL_ARB_timer_query;
+            boolean supported = Gl.api().timerQueries();
             timerQueries = supported ? new int[QUERY_RING] : new int[0];
             if (supported) {
-                org.lwjgl.opengl.GL33C.glGenQueries(timerQueries);
+                Gl.glGenQueries(timerQueries);
             }
         }
         if (timerQueries.length > 0) {
@@ -75,7 +74,7 @@ final class GlRenderer implements GpuRenderer {
             // double buffers; the scene excludes them from CPU metrics, so the
             // GPU metric mirrors that (poll above still ran).
             if (!rePresent && !timerInFlight[timerNext]) {
-                org.lwjgl.opengl.GL33C.glBeginQuery(org.lwjgl.opengl.GL33C.GL_TIME_ELAPSED,
+                Gl.glBeginQuery(org.lwjgl.opengl.GL33C.GL_TIME_ELAPSED,
                         timerQueries[timerNext]);
                 timerActive = true;
             }
@@ -90,7 +89,7 @@ final class GlRenderer implements GpuRenderer {
         // optional capture: glReadPixels stalls the pipeline and would inflate
         // screenshot frames' GPU time.
         if (timerActive) {
-            org.lwjgl.opengl.GL33C.glEndQuery(org.lwjgl.opengl.GL33C.GL_TIME_ELAPSED);
+            Gl.glEndQuery(org.lwjgl.opengl.GL33C.GL_TIME_ELAPSED);
             timerInFlight[timerNext] = true;
             timerNext = (timerNext + 1) % QUERY_RING;
             timerActive = false;
@@ -104,19 +103,22 @@ final class GlRenderer implements GpuRenderer {
     }
 
     private void pollTimerResults() {
+        // EXT_disjoint_timer_query's one rule: a disjoint operation while queries ran makes every
+        // one of them meaningless, and reading the flag clears it, so it is read once per poll.
+        boolean disjoint = Gl.api().timerDisjoint();
         for (int i = 0; i < QUERY_RING; i++) {
             if (!timerInFlight[i]) {
                 continue;
             }
-            int available = org.lwjgl.opengl.GL33C.glGetQueryObjecti(timerQueries[i],
+            int available = Gl.glGetQueryObjectui(timerQueries[i],
                     org.lwjgl.opengl.GL33C.GL_QUERY_RESULT_AVAILABLE);
             if (available == 0) {
                 continue;
             }
-            long nanos = org.lwjgl.opengl.GL33C.glGetQueryObjectui64(timerQueries[i],
+            long nanos = Gl.glGetQueryObjectui64(timerQueries[i],
                     org.lwjgl.opengl.GL33C.GL_QUERY_RESULT);
             timerInFlight[i] = false;
-            if (nanos > 0) { // some macOS drivers report 0, so treat as "no sample"
+            if (nanos > 0 && !disjoint) { // some macOS drivers report 0, so treat as "no sample"
                 pendingGpuMs = nanos / 1_000_000f;
             }
         }
@@ -146,7 +148,7 @@ final class GlRenderer implements GpuRenderer {
     void dispose() {
         // Context is current here (LwjglWindow.destroy); queries die with it.
         if (timerQueries != null && timerQueries.length > 0) {
-            org.lwjgl.opengl.GL33C.glDeleteQueries(timerQueries);
+            Gl.glDeleteQueries(timerQueries);
         }
         timerQueries = null;
         if (canvas != null) {
@@ -172,7 +174,7 @@ final class GlRenderer implements GpuRenderer {
         }
         // A damage scissor from a previous frame's last draw must not clip a
         // whole-framebuffer clear.
-        org.lwjgl.opengl.GL33C.glDisable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
+        Gl.glDisable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
         GlColors.clearPremultiplied(red, green, blue, alpha);
         glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
     }

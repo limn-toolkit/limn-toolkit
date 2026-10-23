@@ -196,17 +196,17 @@ class GlSurfaceReadbackTest {
         GlRenderTarget target = target(1);
         int fbo = target.renderFramebuffer();
         target.dispose();
-        int reused = GL33C.glGenFramebuffers();
-        GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, reused);
-        GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, 0);
+        int reused = Gl.glGenFramebuffers();
+        Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, reused);
+        Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, 0);
         try {
             org.junit.jupiter.api.Assumptions.assumeTrue(reused == fbo,
                     "this driver did not reuse the name, so there is nothing to collide with");
             target.dispose();
-            assertTrue(GL33C.glIsFramebuffer(reused),
+            assertTrue(Gl.glIsFramebuffer(reused),
                     "the framebuffer that now owns the name survives the second dispose");
         } finally {
-            GL33C.glDeleteFramebuffers(reused);
+            Gl.glDeleteFramebuffers(reused);
         }
     }
 
@@ -217,22 +217,22 @@ class GlSurfaceReadbackTest {
 
     /** Writes premultiplied linear RGBA into the target, the way a pass does. */
     private static void fill(GlRenderTarget target, float r, float g, float b, float a) {
-        GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, target.renderFramebuffer());
-        GL33C.glDisable(GL33C.GL_SCISSOR_TEST);
-        GL33C.glClearColor(r, g, b, a);
-        GL33C.glClear(GL33C.GL_COLOR_BUFFER_BIT);
-        GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, 0);
+        Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, target.renderFramebuffer());
+        Gl.glDisable(GL33C.GL_SCISSOR_TEST);
+        Gl.glClearColor(r, g, b, a);
+        Gl.glClear(GL33C.GL_COLOR_BUFFER_BIT);
+        Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, 0);
     }
 
     /** Same, restricted to a GL-space rectangle (origin bottom-left). */
     private static void scissorFill(GlRenderTarget target, int x, int y, int w, int h,
                                     float r, float g, float b, float a) {
-        GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, target.renderFramebuffer());
-        GL33C.glEnable(GL33C.GL_SCISSOR_TEST);
-        GL33C.glScissor(x, y, w, h);
-        GL33C.glClearColor(r, g, b, a);
-        GL33C.glClear(GL33C.GL_COLOR_BUFFER_BIT);
-        GL33C.glDisable(GL33C.GL_SCISSOR_TEST);
-        GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, 0);
+        Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, target.renderFramebuffer());
+        Gl.glEnable(GL33C.GL_SCISSOR_TEST);
+        Gl.glScissor(x, y, w, h);
+        Gl.glClearColor(r, g, b, a);
+        Gl.glClear(GL33C.GL_COLOR_BUFFER_BIT);
+        Gl.glDisable(GL33C.GL_SCISSOR_TEST);
+        Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, 0);
     }
 }

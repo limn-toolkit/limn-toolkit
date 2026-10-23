@@ -128,17 +128,17 @@ abstract class GlVideoTestBase {
      * name's reading order, which is what the {@code _REV} is.
      */
     private static int[] readTenBitBottomUp(int texture, int width, int height) {
-        int previousFbo = GL33C.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
-        int fbo = GL33C.glGenFramebuffers();
+        int previousFbo = Gl.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
+        int fbo = Gl.glGenFramebuffers();
         java.nio.IntBuffer packed = MemoryUtil.memAllocInt(width * height);
         try {
-            GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, fbo);
-            GL33C.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
+            Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, fbo);
+            Gl.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
                     GL33C.GL_TEXTURE_2D, texture, 0);
             assertEquals(GL33C.GL_FRAMEBUFFER_COMPLETE,
-                    GL33C.glCheckFramebufferStatus(GL33C.GL_FRAMEBUFFER), "readback FBO");
-            GL33C.glPixelStorei(GL33C.GL_PACK_ALIGNMENT, 1);
-            GL33C.glReadPixels(0, 0, width, height, GL33C.GL_RGBA,
+                    Gl.glCheckFramebufferStatus(GL33C.GL_FRAMEBUFFER), "readback FBO");
+            Gl.glPixelStorei(GL33C.GL_PACK_ALIGNMENT, 1);
+            Gl.glReadPixels(0, 0, width, height, GL33C.GL_RGBA,
                     GL33C.GL_UNSIGNED_INT_2_10_10_10_REV, packed);
             int[] out = new int[width * height * 4];
             for (int pixel = 0; pixel < width * height; pixel++) {
@@ -153,8 +153,8 @@ abstract class GlVideoTestBase {
             return out;
         } finally {
             MemoryUtil.memFree(packed);
-            GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, previousFbo);
-            GL33C.glDeleteFramebuffers(fbo);
+            Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, previousFbo);
+            Gl.glDeleteFramebuffers(fbo);
         }
     }
 
@@ -164,24 +164,24 @@ abstract class GlVideoTestBase {
      * directly; everything else goes through {@link #picture}.
      */
     protected static byte[] readBottomUp(int texture, int width, int height) {
-        int previousFbo = GL33C.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
-        int fbo = GL33C.glGenFramebuffers();
+        int previousFbo = Gl.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
+        int fbo = Gl.glGenFramebuffers();
         ByteBuffer pixels = MemoryUtil.memAlloc(width * height * 4);
         try {
-            GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, fbo);
-            GL33C.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
+            Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, fbo);
+            Gl.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
                     GL33C.GL_TEXTURE_2D, texture, 0);
             assertEquals(GL33C.GL_FRAMEBUFFER_COMPLETE,
-                    GL33C.glCheckFramebufferStatus(GL33C.GL_FRAMEBUFFER), "readback FBO");
-            GL33C.glPixelStorei(GL33C.GL_PACK_ALIGNMENT, 1);
-            GL33C.glReadPixels(0, 0, width, height, GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, pixels);
+                    Gl.glCheckFramebufferStatus(GL33C.GL_FRAMEBUFFER), "readback FBO");
+            Gl.glPixelStorei(GL33C.GL_PACK_ALIGNMENT, 1);
+            Gl.glReadPixels(0, 0, width, height, GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, pixels);
             byte[] out = new byte[width * height * 4];
             pixels.get(out);
             return out;
         } finally {
             MemoryUtil.memFree(pixels);
-            GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, previousFbo);
-            GL33C.glDeleteFramebuffers(fbo);
+            Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, previousFbo);
+            Gl.glDeleteFramebuffers(fbo);
         }
     }
 
@@ -191,35 +191,35 @@ abstract class GlVideoTestBase {
      * it, without needing a visible one.
      */
     protected byte[] renderToPicture(int width, int height, java.util.function.Consumer<GlCanvas> body) {
-        int previousFbo = GL33C.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
+        int previousFbo = Gl.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
         int[] previousViewport = new int[4];
-        GL33C.glGetIntegerv(GL33C.GL_VIEWPORT, previousViewport);
-        int texture = GL33C.glGenTextures();
-        int fbo = GL33C.glGenFramebuffers();
+        Gl.glGetIntegerv(GL33C.GL_VIEWPORT, previousViewport);
+        int texture = Gl.glGenTextures();
+        int fbo = Gl.glGenFramebuffers();
         try {
-            GL33C.glActiveTexture(GL33C.GL_TEXTURE0);
-            GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
-            GL33C.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, width, height, 0,
+            Gl.glActiveTexture(GL33C.GL_TEXTURE0);
+            Gl.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
+            Gl.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, width, height, 0,
                     GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, (ByteBuffer) null);
-            GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MIN_FILTER, GL33C.GL_NEAREST);
-            GL33C.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MAG_FILTER, GL33C.GL_NEAREST);
-            GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, fbo);
-            GL33C.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
+            Gl.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MIN_FILTER, GL33C.GL_NEAREST);
+            Gl.glTexParameteri(GL33C.GL_TEXTURE_2D, GL33C.GL_TEXTURE_MAG_FILTER, GL33C.GL_NEAREST);
+            Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, fbo);
+            Gl.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
                     GL33C.GL_TEXTURE_2D, texture, 0);
             assertEquals(GL33C.GL_FRAMEBUFFER_COMPLETE,
-                    GL33C.glCheckFramebufferStatus(GL33C.GL_FRAMEBUFFER), "render target");
-            GL33C.glViewport(0, 0, width, height);
+                    Gl.glCheckFramebufferStatus(GL33C.GL_FRAMEBUFFER), "render target");
+            Gl.glViewport(0, 0, width, height);
 
             canvas.beginFrame(width, height, 1f);
             body.accept(canvas);
             canvas.endFrame();
             return topDown(readBottomUp(texture, width, height), width, height);
         } finally {
-            GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, previousFbo);
-            GL33C.glViewport(previousViewport[0], previousViewport[1],
+            Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, previousFbo);
+            Gl.glViewport(previousViewport[0], previousViewport[1],
                     previousViewport[2], previousViewport[3]);
-            GL33C.glDeleteFramebuffers(fbo);
-            GL33C.glDeleteTextures(texture);
+            Gl.glDeleteFramebuffers(fbo);
+            Gl.glDeleteTextures(texture);
         }
     }
 
@@ -234,8 +234,10 @@ abstract class GlVideoTestBase {
     }
 
     protected static void assertNoGlError(String where) {
-        int error = GL33C.glGetError();
-        assertEquals(GL33C.GL_NO_ERROR, error, () -> where + ": GL error 0x" + Integer.toHexString(error));
+        int error = Gl.glGetError();
+        java.util.List<String> said = HeadlessGl.takeEsErrors();
+        assertEquals(GL33C.GL_NO_ERROR, error, () -> where + ": GL error 0x" + Integer.toHexString(error)
+                + (said.isEmpty() ? "" : " " + said));
     }
 
     /**

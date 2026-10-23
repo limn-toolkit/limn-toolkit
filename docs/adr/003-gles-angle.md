@@ -1,13 +1,13 @@
 # ADR 003: GL ES 3.0 as the authored profile, ANGLE as the portable context
 
-- **Status:** Proposed; **deferred, not started** (recorded 2026-09-03). §4's facade does not exist
-  in the tree, and of §7's phases only Phase 0 does; §8's questions 1, 2, 4 and 5 are as open as
-  the day they were written. The one thing §9.1 scheduled ahead of the port — the Wayland track,
-  step 4 — landed on its own as ADR 028, because it fixed a defect that existed then, and nothing
-  since has needed a context OpenGL could not give. What restarts this is exactly what §9 names: a
-  Windows 10/11 guest that answers questions 2 and 4 (R1 and R4 on D3D11), and then §9.1's step 5
-  — commit to Phase 1's call-site diff or re-scope the plan to what ANGLE turns out to do. Extends
-  ADR 001 route (a); supersedes nothing.
+- **Status:** **Accepted 2026-10-22, and implemented** as a fallback: desktop OpenGL 3.3 core stays
+  every machine's path where it works, and a window whose machine gives it none takes an OpenGL ES
+  3.0 context from ANGLE, on Direct3D 11 on Windows and on Metal on macOS. Linux has no ANGLE
+  (§2.3). §10 records the owner's decisions, what Phase 0c measured on Metal, what was built and
+  what is still owed. The payload is its own repository, `limn-angle-natives` (ADR 080). Extends ADR
+  001 route (a); supersedes nothing.
+- **Was, until 2026-10-22:** Proposed; deferred, not started (recorded 2026-09-03), waiting on a
+  Windows machine to answer R1 and R4 on D3D11 and then on the owner's decision to port.
 - **Revised 2026-09-03, from a lab that measured what "no usable OpenGL" actually is** on a
   macOS guest, two Linux guests and a Windows guest, and read GLFW's own sources at the commit the
   shipped natives were built from. **The status does not move.** What the lab changed is the
@@ -33,7 +33,7 @@
   - **Every shader compiles and links as GLSL ES 3.00 under ANGLE's own translator** with
     nothing but §1.3's header swap (§1.3).
   - **ANGLE has a measured size and provenance candidate** (§5): 2.65 MB compressed on x64, built
-    by vcpkg.
+    by a C++ package manager's port of it.
   - **The two Mesa routes §5 weighed against ANGLE were measured.** Each one ran Limn unchanged
     on those runners: a d3d12-only build, refused for its licence, and llvmpipe, parked by the
     owner.
@@ -155,7 +155,7 @@ Two properties make this work, and both must be preserved by anyone editing shad
 
 **Verified 2026-10-21, at e2c2596b, by compiling rather than reading.** The table above predates
 `canvas_flat`, `canvas_composite`, `canvas_composite_clip` and `video_convert`. Every program
-the backend builds was compiled and linked through WebGL2, which is GLSL ES 3.00 exactly and is
+the backend builds was compiled and linked through the built-in browser's WebGL 2 context, which is GLSL ES 3.00 exactly and is
 checked by ANGLE's own shader translator (on Metal, in this check). Each source took
 `TargetProfile.GLSL_ES_300.header` in place of `#version 330 core` and no other change. **8
 programs from 16 files, the generated PBR pair included (as its golden file), 8 compiled and
@@ -211,7 +211,7 @@ note is what has changed under them.
 | LWJGL 3 natives | Windows 7+ | documented; XP was never a LWJGL 3 target |
 | GLFW 3.4 | Windows 7+ | |
 | ANGLE (current) | Windows 10+ tested | ANGLE follows Chromium's support policy, which dropped Win7/8.1 in early 2023 *(unverified: check the ANGLE build you actually ship)* |
-| ANGLE D3D11 backend | feature level 9_3 hardware | this is the reach win: GPUs far older than any GL 3.3 driver |
+| ANGLE D3D11 backend | feature level 10_0 hardware for OpenGL ES 3.0 | the reach win: GPUs older than any GL 3.3 driver. *Corrected 2026-10-22:* this row said 9_3, which is ANGLE's floor for ES 2.0; Limn asks for 3.0, so a 9_3 GPU gets the driver dialog of §5 as before |
 
 **Verdict on Windows XP: not reachable, and OpenGL is not why.** A JDK that runs on XP tops out
 at Java 8; LWJGL 3 does not target XP; GLFW 3.4 does not target XP. Reaching XP is not a port, it
@@ -733,7 +733,7 @@ The demo was the 0.9.0 release's `limn-demo-all.jar`, and the workflow is
 |---|---|---|---|---|---|
 | Mesa 26.2.5, `d3d12` driver only (the driver inside the Compatibility Pack) | 17.1 / 3.9 MB | 16.8 / 3.6 MB | draws everything, 3D included, on WARP | Mesa MIT, but needs Microsoft's `dxil.dll` (+2.0 MB) | **refused for the licence** |
 | Mesa 26.2.5 `llvmpipe` + LLVM 19.1.7, linked statically | 55.0 / 20.2 MB | 50.4 / 17.9 MB | draws everything, 3D included | Mesa (MIT, with BSD, BSL-1.0, BLAKE3 and zlib files; no GPL in what is compiled) and LLVM (Apache-2.0 WITH LLVM-exception) | **parked by the owner** |
-| ANGLE `chromium_7258` from vcpkg | 6.7 / 2.65 MB | 6.8 / 2.44 MB | needs this record's port | BSD-3-Clause and zlib; `d3dcompiler_47.dll` comes with Windows | the candidate |
+| ANGLE `chromium_7258` from a C++ package manager's port | 6.7 / 2.65 MB | 6.8 / 2.44 MB | needs this record's port | BSD-3-Clause and zlib; `d3dcompiler_47.dll` comes with Windows | the candidate |
 
 What each row rests on:
 
@@ -758,7 +758,7 @@ What each row rests on:
   installed on the machine wins over the one built for the purpose. The arm64 runner's 22.1.8
   won, and the build corrupted the heap at the first frame. Point CMake at one LLVM (`LLVM_DIR`
   and `CMAKE_FIND_USE_*=OFF` in meson's `[cmake]` section) and check the version meson printed.
-- **ANGLE's numbers are vcpkg's build**, which also carries the D3D9 backend. That backend offers
+- **ANGLE's numbers are that port's build**, which also carries the D3D9 backend. That backend offers
   ES 2.0 only and cannot run Limn, so leaving it out would only shrink the library.
   `libGLESv2.dll` imports a `z.dll` of its own, which loads before it.
 - **`d3dcompiler_47.dll` was found in `System32` on both runners** (Windows Server 2025 and
@@ -833,7 +833,7 @@ record never had: windows-2025 (x64, Windows Server 2025) and windows-11-arm (ar
   appear to support OpenGL", the case §3 ranks first.
 
 The setup:
-- ANGLE came from vcpkg (port `angle`, version `chromium_7258`, ANGLE 2.1.7258), built with the
+- ANGLE came from a C++ package manager's port (version `chromium_7258`, ANGLE 2.1.7258), built with the
   CRT linked statically.
 - It was loaded by full path before GLFW asked for it by name.
 - The probe is `spike/Phase0bProbe.java` on the branch `spike/mesa-d3d12-runner`, run by
@@ -848,7 +848,7 @@ Answers, identical on both architectures unless marked:
 - **R1, translucency:** **yes on x64**, read back from the screen rather than from the window's
   own framebuffer.
   - The setup: an opaque red window, with a transparent window over it holding an opaque green
-    square and a premultiplied half-blue band. `java.awt.Robot` captured the region.
+    square and a premultiplied half-blue band. The JDK's screen capture read the region.
   - It shows red through the clear, green in the square, and (127, 0, 128) in the band, the
     exact source-over result.
   - It works with the surface GLFW makes from `GLFW_TRANSPARENT_FRAMEBUFFER` as it is today.
@@ -922,7 +922,7 @@ where a portable context is actually needed, and where something cheaper already
 and that changes which answers would be worth having, not what the answers are.
 
 1. **Which ANGLE build?** Determines the Windows floor and the D3D9 question. Requires a
-   provenance decision before Phase 3. **Narrowed 2026-10-22:** vcpkg's `angle` port builds it
+   provenance decision before Phase 3. **Narrowed 2026-10-22:** a C++ package manager's ANGLE port builds it
    from source in CI on both Windows architectures with the CRT linked statically, at 2.65 MB
    compressed for x64 (§5), which makes "a pinned port version built in a natives repository's own
    CI" a candidate with a number; choosing it is still the decision this question asks for.
@@ -1103,3 +1103,157 @@ grep -rho "GL33C\.GL_[A-Z0-9_]*\|\bGL_[A-Z0-9_]*" limn-backend-lwjgl/src/main/ja
 for f in $(grep -rl org.lwjgl.opengl limn-backend-lwjgl/src/main/java); do
   echo "$(grep -o '\bgl[A-Z][A-Za-z0-9]*(' $f | wc -l) ${f##*/}"; done | sort -rn
 ```
+
+## 10. Decided and implemented, 2026-10-22
+
+### 10.1 The owner's decisions
+
+Asked one at a time, each with its motive and its cost, on 2026-10-22:
+
+- **Scope.** Desktop OpenGL stays the default on all three systems. ANGLE is a fallback on Windows
+  (Direct3D 11) and macOS (Metal). Linux has none: Mesa answers there (§2.3), including a machine
+  with no GPU driver, and what Mesa does not cover (a system without it installed, OpenGL forwarded
+  over a remote X connection) ANGLE would not cover either.
+- **When Windows takes it:** the native creation failed with `GLFW_API_UNAVAILABLE` (no driver) or
+  `GLFW_VERSION_UNAVAILABLE` (a driver older than 3.3). Not `GLFW_FORMAT_UNAVAILABLE`, a driver
+  that exists and refused a request.
+- **macOS:** `GLFW_FORMAT_UNAVAILABLE` (no accelerated renderer) or `GLFW_API_UNAVAILABLE` (no
+  OpenGL at all). ANGLE comes before `MacSoftwareGl` if it measures faster on a Mac without a GPU;
+  it did, eight times over when scrolling (§10.2).
+- **Video may gain no copy** the desktop path does not make. Only macOS decodes in hardware today
+  (the FFmpeg shim attaches VideoToolbox alone); Windows and Linux upload decoded planes on either
+  profile. So the condition fell on macOS, and was the go/no-go of the whole port: had ANGLE on Metal
+  been unable to sample a decoder's IOSurface without a copy, the port would have been cancelled.
+- **Provenance:** ANGLE's own build (gn), from a pinned commit, in a repository of its own that
+  versions with ANGLE, as lunasvg and FFmpeg are built (ADR 080). The C++ package manager's port
+  measured in §5 is not what ships.
+- **The backend depends on the payload by default**, all four classifiers, as it does on the SVG
+  renderer's: the population is an end user who does not know the machine lacks a driver.
+- **Before 1.0.** The consumption rehearsal of 1.0 is run again after it.
+- **R4 on Windows hardware: accepted as the runner's indication** (§7, Phase 0b). On macOS it is
+  measured on the development Mac.
+- **R1 on Windows on ARM:** on the lab's ARM64 guest with the path forced.
+
+### 10.2 Phase 0c: Metal, measured on the development Mac
+
+A probe in the backend's test tree, deleted after its answers were recorded, run on an Apple M5 Max
+with an ANGLE build (Metal backend) taken from an installed application as a stand-in, used
+locally and never shipped:
+
+- **Context:** `OpenGL ES 3.0` on `ANGLE Metal Renderer`, EGL 1.5.
+- **Gates:** `EXT_color_buffer_float` (an `RGBA16F` framebuffer complete), `EXT_texture_norm16` (an
+  `R16` upload accepted), `EXT_disjoint_timer_query` and `KHR_debug`, all present. `GL_MAX_SAMPLES` 8.
+- **Video without a copy, the go/no-go: yes.** `EGL_ANGLE_iosurface_client_buffer` binds each plane
+  of an NV12 and of a P010 IOSurface to a `GL_TEXTURE_2D` (Metal offers no rectangle target), and
+  a shader's `texelFetch` read back exactly the codes written. Codes rewritten into the IOSurface
+  after the binding read back through the same binding: the texture is the decoder's memory.
+- **Buffer age:** no `EGL_EXT_buffer_age`; `EGL_SWAP_BEHAVIOR` is `EGL_BUFFER_DESTROYED`, and the age
+  read back over 30 frames was 3, with one 2 and one 4. The window's double-buffering assumption of
+  2 would have drawn stale pixels there, so an EGL surface without the extension now takes its age
+  from the swap behaviour: 1 where preserved (Direct3D 11, measured), 0 where destroyed (Metal).
+- **Swap interval:** an interval of 0 is not honoured (120.6 swaps a second either way, on a 120 Hz
+  display), and two windows swapping in turn ran 118.3 rounds a second: each surface paces alone,
+  which is what the multi-window pacer needs.
+- **R1 on Metal: failed, then fixed** — measured in the GPU-less macOS guest, whose screen can be
+  captured. A transparent gadget window drawn by ANGLE showed its cube on black where the desktop
+  should be: the windowing library makes the window non-opaque, but ANGLE draws into a Metal layer
+  of its own, and that layer is opaque. `MacAngleLayers` marks the view's layer and every layer
+  under it non-opaque once the surface exists, and the same capture then shows the cube over the
+  desktop. A control capture with no window open showed the desktop wallpaper, so the black was the
+  window's.
+
+The same guest answered two more questions, with the same stand-in ANGLE:
+
+- **The real trigger on macOS:** with no property set, the native creation failed with "NSGL: Failed
+  to find a suitable pixel format" and the window opened on ANGLE over the guest's paravirtual Metal
+  device; `--gl-info` reported it as the fallback.
+- **The order of the macOS chain, settled:** the heavy-screen benchmark scrolled a full window at
+  35.7 paints a second on ANGLE (4.7 ms a frame, 12% CPU) against 4.5 on Apple's software renderer
+  (110.5 ms a frame, 25% CPU), and animated at 59.3 against 60.9 at 5% CPU against 15%. ANGLE before
+  `MacSoftwareGl` stands.
+- **A defect of LWJGL 3.4.3:** `GLFWNativeEGL.setEGLPath` crashes GLFW on macOS before any EGL call;
+  the patched GLFW indexes past the end of its one-entry library-name list there to decide a prefix.
+  The loader does not use it (§10.3).
+
+### 10.3 What was built
+
+On branch `claude/angle` of this repository:
+
+- **The facade (Phase 1):** `GlApi` with the 107 overloads the backend and its tests call, found by
+  resolving every call site with the compiler; `DesktopGl` and `GlesGl` implement it one line a
+  method, and `Gl` forwards its static methods to the profile the process chose. The ~577 call
+  sites changed only their owner. Constants stay `GL33C`'s compile-time ones.
+- **The gaps (Phase 2):** G1 as `glDrawBuffers`; G2/G3 through the profile, with ES's disjoint flag
+  honoured; `GL_BACK_LEFT` answered per profile; the shader header swapped at compile time.
+- **The ES path (Phase 3):** `AngleLibrary` (loads `libGLESv2` then `libEGL` by full path, from
+  `limn.angle.dir` or the payload's jar), `AngleFallback` (the chain above, `limn.backend.angle` =
+  `auto`, `force` or `off`, one profile per process), the buffer-age rule of §10.2, and
+  `EglIoSurfaces` for zero-copy video on ES.
+- **Two facts the implementation had to respect:** only one of LWJGL's GL and ES bindings can be
+  created in a process (both claim its missing-function table), so nothing may touch the other
+  profile's classes; and the macOS libraries must carry their bare file name as install name,
+  because the windowing library opens `libEGL.dylib` by that name and macOS answers it with the
+  image already loaded under it.
+- **Guards that hold without a GPU:** `GlProfileSourceTest` refuses a GL call that bypasses the
+  facade, a constant whose value differs in ES 3.0 (or that ES lacks and is not answered), and a
+  shader outside the shared subset.
+- **Verified on the development Mac, ANGLE forced on Metal:** all 1386 backend tests pass, 25
+  skipped (queries ES 3.0 lacks, and a desktop-only software context); the components, testcard
+  and text scenes capture byte-identical to desktop OpenGL, and widgets differs in 283 pixels by
+  one level.
+
+### 10.4 Owed
+
+- **The release** (ADR 080): all four slices are built and checked, the release is the owner's
+  push and Publish.
+- **The GPU-less runners:** ANGLE over WARP, through the real trigger, is `angle.yml`'s first run,
+  which needs the payload on Central. Every guest run here had a GPU-backed Direct3D 11 driver.
+
+**The payload's own Windows build, 2026-10-22,** made on the Windows 11 ARM64 guest at the owner's
+request (ADR 080). With its arm64 libraries in place of the stand-in, ANGLE forced on Direct3D 11:
+the four scenes capture as the driver's OpenGL does on the same machine (components identical,
+widgets 0.2% of pixels past 24 levels); a popup takes 24.7 to 29.1 ms to its first picture against
+46 to 51 on the driver's OpenGL; and a transparent window, captured from the screen with nothing
+else in front, shows the wallpaper and the desktop's icons around its cube. With the full payload
+(the four slices) resolved from a local repository as the backend's dependency, `check` passes,
+`OsFloorsTest` reading the real libraries, and the backend's 1387 tests pass on ANGLE extracted from
+the payload's jar.
+
+**The payload's own macOS arm64 build, 2026-10-22,** made on the development Mac at the owner's
+request (ADR 080 records what it took). With it in place of the stand-in: all 1386 backend tests
+pass with ANGLE forced on Metal; four scenes capture as desktop OpenGL does at the same scale
+(components identical, testcard and text at most one level off, widgets 0.2% of pixels by at most
+7); and on the GPU-less macOS guest, with no property set, the window opened on it through the real
+trigger, a transparent window composed over the desktop, and scrolling ran at 46.4 paints a second
+on 5.6% CPU against 5.5 on the software renderer (animation 48 against 65, the one figure where the
+software renderer led).
+- **The Windows run:** the backend's tests on the GPU-less x64 and arm64 runners through the real
+  trigger, and the captures compared with the Linux job's (Phase 4), as a job of `ci.yml` once the
+  payload is on Central.
+- **The same on the payload's own build:** the guest runs below used the C++ package manager's
+  arm64 ANGLE from the October spike as a stand-in, and the runner job repeats them over WARP.
+
+**Measured on the Windows 11 ARM64 guest, 2026-10-22**, a native arm64 JVM with ANGLE forced on
+Direct3D 11 over the hypervisor's display driver (a GPU-backed adapter, not WARP), the stand-in
+being that spike's arm64 build:
+
+- **R1 on Windows on ARM: yes.** A transparent gadget window, captured from the screen, shows its
+  cube over the windows and the wallpaper behind it.
+- **Pictures:** four scenes captured on ANGLE against the same scenes on the driver's own OpenGL on
+  the same machine: components identical, testcard and text off by at most one level on a few
+  pixels, widgets 0.11% of its pixels off by more than 24 (under the comparison's 2% bound).
+- **Popup latency, R8: a real cost on Direct3D 11, now removed.** Window creation stayed at about
+  10 ms, but the first picture took 152 to 278 ms on ANGLE against 45 to 125 ms on the driver's
+  OpenGL: every popup is a new context, and ANGLE compiled every program again through Windows' HLSL
+  compiler. `EglProgramCache` hands ANGLE an in-memory program cache through
+  `EGL_ANDROID_blob_cache` before the first window's programs are compiled, and every popup after
+  the first then took 18.1 to 20.5 ms to its first picture. On Metal, where it was never a cost,
+  the cache leaves 13.9 to 15.1 ms.
+
+**Popup latency on Metal, measured 2026-10-22** on the development Mac with `GlCapabilitiesReuseTest`'s
+child, which opens popups one at a time over an owner, now timed from asking for each popup to its
+first picture read back (creation, the new context's programs, the draw): three runs each, 15.0,
+15.9 and 18.9 ms a popup on ANGLE against 16.5, 16.9 and 21.3 ms on desktop OpenGL; window creation
+alone 5.5 to 8.3 ms against 9.6 to 14.0. Each popup a new context whose programs ANGLE translates
+again costs nothing visible there.
+

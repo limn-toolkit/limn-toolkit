@@ -260,7 +260,8 @@ subprojects {
             // limn.test.softwareGl puts the device tests on a Mac's software renderer through CGL, the
             // context they fall back to on a Mac without a GPU (HeadlessGl), so that the fallback can
             // be run on a Mac that has one.
-            for (property in listOf("limn.video.test.clips", "limn.test.softwareGl")) {
+            for (property in listOf("limn.video.test.clips", "limn.test.softwareGl", "limn.angle.dir",
+                    "limn.backend.angle")) {
                 System.getProperty(property)?.let { systemProperty(property, it) }
             }
             // …and limn.video.test.clips has a default now: the committed corpus in media/. Decoding a real
@@ -429,6 +430,14 @@ val hostPlatforms = listOf(
 // The payloads that are not LWJGL's were left out of all this until the 1.0 consumption
 // rehearsal: the SVG renderer's six slices reached the demo through the backend, unexcluded, on
 // every platform, because the shape knew the LWJGL group by name and nothing else.
+// The one payload that is not for every target, and the targets it is for: ANGLE, the OpenGL ES
+// fallback of ADR 003, which Linux never takes because Mesa answers there. Named here, with its
+// platforms, so that a payload missing a platform by accident still fails the check below.
+val partialPayloads = mapOf(
+    "io.github.limn-toolkit:limn-angle-natives" to
+            setOf("macos-aarch64", "macos-x86_64", "windows-aarch64", "windows-x86_64"),
+)
+
 data class NativesSlice(
     val group: String, val module: String, val version: String, val classifier: String, val platform: String,
 ) : java.io.Serializable
@@ -461,7 +470,8 @@ fun nativesAsDeclaredByTheBackend(): BackendNatives {
             }
         }
     val platformsPerModule = slices.groupBy { "${it.group}:${it.module}" }.mapValues { (_, s) -> s.map { it.platform }.toSet() }
-    val incomplete = platformsPerModule.filterValues { it != hostPlatforms.map { p -> p.id }.toSet() }
+    val everyPlatform = hostPlatforms.map { p -> p.id }.toSet()
+    val incomplete = platformsPerModule.filter { (module, platforms) -> platforms != (partialPayloads[module] ?: everyPlatform) }
     if (lwjglModules.isEmpty() || slices.none { it.group == "org.lwjgl" } || incomplete.isNotEmpty()) {
         throw GradleException(
             "limn-backend-lwjgl declares natives for $platformsPerModule, but the host-natives table in the " +
@@ -604,7 +614,9 @@ object HostNativesPom {
             if (withoutNatives.isNotEmpty()) {
                 problems += "$id names natives of $withoutNatives, which the backend declares none of and LWJGL may not publish"
             }
-            val missing = natives.nativeModules.filter { module -> carriedModules.count { it == module } != 1 }
+            // A payload that is not for every target (partialPayloads) is owed only where it has a slice.
+            val owed = natives.slices.filter { it.platform == platform.id }.map { "${it.group}:${it.module}" }.distinct()
+            val missing = owed.filter { module -> carriedModules.count { it == module } != 1 }
             if (missing.isNotEmpty()) {
                 problems += "$id does not carry the natives of $missing exactly once"
             }

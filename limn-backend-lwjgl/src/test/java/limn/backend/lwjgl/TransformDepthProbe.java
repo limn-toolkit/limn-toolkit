@@ -188,7 +188,7 @@ class TransformDepthProbe {
             // The renderer asked for beside the one given: a variable that did not reach the test's
             // process (a configuration cached before it was set) shows here, not as wrong numbers.
             System.out.println("asked: " + System.getenv("LIMN_PROBE_RENDERER") + "; renderer: "
-                    + GL33C.glGetString(GL33C.GL_RENDERER) + " / " + GL33C.glGetString(GL33C.GL_VERSION));
+                    + Gl.glGetString(GL33C.GL_RENDERER) + " / " + Gl.glGetString(GL33C.GL_VERSION));
             int warm = software ? 5 : 60;
             int measured = software ? 40 : 300;
             String only = System.getenv("LIMN_PROBE_DEPTH_SET");
@@ -213,9 +213,9 @@ class TransformDepthProbe {
                 subjects.add(new Subject(mode, fonts));
             }
         }
-        int texture = GL33C.glGenTextures();
-        int fbo = GL33C.glGenFramebuffers();
-        int query = GL33C.glGenQueries();
+        int texture = Gl.glGenTextures();
+        int fbo = Gl.glGenFramebuffers();
+        int query = Gl.glGenQueries();
         try {
             bindTarget(texture, fbo);
             for (Subject s : subjects) {
@@ -234,22 +234,22 @@ class TransformDepthProbe {
                 s.canvas.dispose();
             }
         } finally {
-            GL33C.glDeleteQueries(query);
-            GL33C.glDeleteFramebuffers(fbo);
-            GL33C.glDeleteTextures(texture);
+            Gl.glDeleteQueries(query);
+            Gl.glDeleteFramebuffers(fbo);
+            Gl.glDeleteTextures(texture);
         }
     }
 
     private static void frame(Subject s, int bufferAge, int query, boolean record) {
         int chainsBefore = s.canvas.mipmapsMade();
-        GL33C.glBeginQuery(GL33C.GL_TIME_ELAPSED, query);
+        Gl.glBeginQuery(GL33C.GL_TIME_ELAPSED, query);
         long start = System.nanoTime();
         s.canvas.beginFrame(WIDTH, HEIGHT, SCALE);
         s.scene.renderFrame(s.canvas, false, Float.NaN, bufferAge);
         s.canvas.endFrame();
         long issued = System.nanoTime();
-        GL33C.glEndQuery(GL33C.GL_TIME_ELAPSED);
-        GL33C.glFinish();
+        Gl.glEndQuery(GL33C.GL_TIME_ELAPSED);
+        Gl.glFinish();
         long finished = System.nanoTime();
         long gpu = GL33C.glGetQueryObjecti64(query, GL33C.GL_QUERY_RESULT);
         if (record) {
@@ -276,13 +276,13 @@ class TransformDepthProbe {
     }
 
     private static void bindTarget(int texture, int fbo) {
-        GL33C.glActiveTexture(GL33C.GL_TEXTURE0);
-        GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
-        GL33C.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, WIDTH, HEIGHT, 0,
+        Gl.glActiveTexture(GL33C.GL_TEXTURE0);
+        Gl.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
+        Gl.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, WIDTH, HEIGHT, 0,
                 GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, (ByteBuffer) null);
-        GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, fbo);
-        GL33C.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
+        Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, fbo);
+        Gl.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
                 GL33C.GL_TEXTURE_2D, texture, 0);
-        GL33C.glViewport(0, 0, WIDTH, HEIGHT);
+        Gl.glViewport(0, 0, WIDTH, HEIGHT);
     }
 }

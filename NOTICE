@@ -155,6 +155,24 @@ lunasvg and plutovg, the SVG renderer
   limn-backend-lwjgl depends on the payload and on all six of its classifiers.
 
 --------------------------------------------------------------------------------
+Native libraries (the limn-angle-natives artifact; limn-backend-lwjgl; ADR 003, ADR 080)
+--------------------------------------------------------------------------------
+
+ANGLE, the OpenGL ES fallback
+  Copyright The ANGLE Project Authors
+  BSD 3-Clause License: https://chromium.googlesource.com/angle/angle/+/main/LICENSE
+  No binary is in this repository and none is built by it. libEGL and libGLESv2
+  are built with ANGLE's own build from a pinned commit, with only the Direct3D 11
+  backend for Windows and the Metal backend for macOS, in
+  https://github.com/limn-toolkit/limn-angle-natives, versioned after ANGLE. Each
+  platform's jar carries ANGLE's licence (limn/angle/native/LICENSE-angle.txt) and
+  THIRD_PARTY.txt: every source compiled into its libraries, by the directory that
+  states its licence, with the full text of each; that build refuses a licence it
+  does not recognise as one a library may redistribute. limn-backend-lwjgl depends
+  on the payload and on its four classifiers, and loads them only when a window's
+  own OpenGL context fails for want of a driver.
+
+--------------------------------------------------------------------------------
 Native libraries (the limn-ffmpeg-natives artifact; limn-video-ffmpeg only; ADR 037)
 --------------------------------------------------------------------------------
 
