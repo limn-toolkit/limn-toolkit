@@ -384,6 +384,10 @@ final class LwjglWindow implements WindowPeer {
             throw new IllegalStateException(message);
         }
         cocoaWindow = MACOS ? org.lwjgl.glfw.GLFWNativeCocoa.glfwGetCocoaWindow(handle) : NULL;
+        if (MACOS && angle) {
+            // ANGLE draws at its layer's scale, which a window born on a 1x screen had wrong.
+            MacAngleLayers.matchBackingScale(handle);
+        }
         if (MACOS && angle && config.transparent()) {
             // ANGLE's Metal layer is opaque, and a transparent window would show black.
             MacAngleLayers.makeTransparent(handle);

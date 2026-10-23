@@ -1161,6 +1161,18 @@ locally and never shipped:
   under it non-opaque once the surface exists, and the same capture then shows the cube over the
   desktop. A control capture with no window open showed the desktop wallpaper, so the black was the
   window's.
+- **A window born on a 1x screen: drawn at half size, then fixed** — seen by the owner on
+  2026-10-23 on the development Mac (a 2x built-in screen and two 1x monitors), ANGLE forced: a
+  window that opened on a 1x monitor drew the whole frame into its lower-left quarter, stayed so
+  when moved to the other 1x monitor, and came right once it had visited the 2x screen. Read from
+  the layers at creation: the window's backing scale was 1 and the framebuffer the windowing
+  library reported 1180×740, but the view's layer had a scale of 2, ANGLE's Metal layer followed it,
+  and its drawable was 2360×1480. The library sets the layer's scale only when the window's backing
+  changes, which a move between two 1x screens never does. `MacAngleLayers.matchBackingScale` gives
+  the layer the window's backing scale once the surface exists; read again 30 frames later on a
+  window born on the same 1x monitor: layer scale 1, drawable 1180×740. A window born on the 2x
+  screen and moved to a 1x one was right before and after: ANGLE follows its layer's new scale
+  within a few frames.
 
 The same guest answered two more questions, with the same stand-in ANGLE:
 

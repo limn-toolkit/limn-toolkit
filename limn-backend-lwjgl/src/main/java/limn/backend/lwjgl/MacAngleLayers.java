@@ -1,6 +1,7 @@
 package limn.backend.lwjgl;
 
 import limn.backend.lwjgl.internal.ObjC;
+import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 
 import static org.lwjgl.system.MemoryUtil.NULL;
@@ -35,6 +36,37 @@ final class MacAngleLayers {
             return;
         }
         clear(layer, 0);
+    }
+
+    /**
+     * Gives {@code window}'s layer the scale of the screen the window is on; call it after the
+     * window's EGL surface exists.
+     *
+     * <p>ANGLE sizes its drawable from the scale of the layer it was handed, and the windowing
+     * library sets that scale only when the window's backing changes. A window born on a 1x screen
+     * kept the layer's first scale of 2: its drawable was twice the framebuffer the library
+     * reported, so every frame filled the lower-left quarter of the window, and moving between 1x
+     * screens changed nothing, since the backing never changed.
+     */
+    static void matchBackingScale(long window) {
+        if (!ObjC.isAvailable()) {
+            return;
+        }
+        long view = org.lwjgl.glfw.GLFWNativeCocoa.glfwGetCocoaView(window);
+        long nsWindow = org.lwjgl.glfw.GLFWNativeCocoa.glfwGetCocoaWindow(window);
+        long layer = view == NULL ? NULL : ObjC.msg(view, "layer");
+        if (layer == NULL || nsWindow == NULL) {
+            return;
+        }
+        // Through key-value coding: the scale is a CGFloat, and an NSNumber crosses as an object.
+        long scale = ObjC.msg(nsWindow, "valueForKey:", nsString("backingScaleFactor"));
+        ObjC.msgVoid(layer, "setValue:forKey:", scale, nsString("contentsScale"));
+    }
+
+    private static long nsString(String text) {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            return ObjC.msg(ObjC.cls("NSString"), "stringWithUTF8String:", MemoryUtil.memAddress(stack.UTF8(text)));
+        }
     }
 
     private static void clear(long layer, int depth) {
