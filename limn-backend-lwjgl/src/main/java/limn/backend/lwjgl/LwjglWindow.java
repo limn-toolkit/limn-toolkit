@@ -535,6 +535,12 @@ final class LwjglWindow implements WindowPeer {
             long view = org.lwjgl.glfw.GLFWNativeCocoa.glfwGetCocoaView(handle);
             if (MacInputContextGate.install(view)) {
                 imeGatedView = view;
+                // A pinch on a trackpad, at the pointer, as a zoom the scene hands out.
+                MacPinch.install(view, (scale, began) -> {
+                    if (input != null && !inputBlocked()) {
+                        input.zoomed(scale, toLogical(eventCursorX()), toLogical(eventCursorY()), began);
+                    }
+                });
             }
             // The system's drag and drop, from and onto this view; it shares the pasteboard's
             // provider class with the clipboard, which is therefore opened first.
@@ -1266,6 +1272,7 @@ final class LwjglWindow implements WindowPeer {
         }
         Callbacks.glfwFreeCallbacks(handle);
         if (imeGatedView != NULL) {
+            MacPinch.forget(imeGatedView);
             MacInputContextGate.forget(imeGatedView);
         }
         if (cocoaWindow != NULL) {

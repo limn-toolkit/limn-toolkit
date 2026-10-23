@@ -29,8 +29,14 @@ package limn.scene.event;
  * be seen, its plane turned exactly edge-on to the viewer or its whole box behind the eye: the
  * release still arrives, to end the press, at the last scene point, where {@code sceneToLocal}
  * answers {@code NaN}. Hover events
- * ({@code ENTER}, {@code MOVE}, {@code EXIT}) and {@code WHEEL} follow the pointer and are not
- * held to this.
+ * ({@code ENTER}, {@code MOVE}, {@code EXIT}), {@code WHEEL} and {@code ZOOM} follow the pointer
+ * and are not held to this.
+ *
+ * <p>{@code ZOOM} is a request to zoom around the pointer by {@link #scale()}: a pinch on a
+ * trackpad, and the wheel turned with Command (macOS) or Control held, offered as a zoom before it
+ * is a scroll. A widget that zooms consumes it; the rest of that gesture then comes to the same
+ * widget, wherever the pointer goes, and a widget that does not zoom lets it bubble, so the wheel
+ * goes on as a scroll.
  */
 public final class MouseEvent extends InputEvent {
 
@@ -40,7 +46,7 @@ public final class MouseEvent extends InputEvent {
      * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
      * {@code default} branch.
      */
-    public enum Type { ENTER, EXIT, MOVE, DRAG, PRESS, RELEASE, CLICK, WHEEL, MOTION }
+    public enum Type { ENTER, EXIT, MOVE, DRAG, PRESS, RELEASE, CLICK, WHEEL, MOTION, ZOOM }
 
     private final Type type;
     private final float x;
@@ -50,6 +56,7 @@ public final class MouseEvent extends InputEvent {
     private final float scrollY;
     private final int modifiers;
     private final int clickCount;
+    private final float scale;
 
     /**
      * A pointer event. {@code x} and {@code y} are in <b>scene</b> coordinates, whichever widget
@@ -68,7 +75,13 @@ public final class MouseEvent extends InputEvent {
      */
     public MouseEvent(Type type, float x, float y, int button,
                       float scrollX, float scrollY, int modifiers, int clickCount) {
+        this(type, x, y, button, scrollX, scrollY, modifiers, clickCount, 1f);
+    }
+
+    private MouseEvent(Type type, float x, float y, int button, float scrollX, float scrollY,
+                       int modifiers, int clickCount, float scale) {
         this.clickCount = Math.max(1, clickCount);
+        this.scale = scale;
         this.type = type;
         this.x = x;
         this.y = y;
@@ -76,6 +89,31 @@ public final class MouseEvent extends InputEvent {
         this.scrollX = scrollX;
         this.scrollY = scrollY;
         this.modifiers = modifiers;
+    }
+
+    /**
+     * A request to zoom around a point.
+     *
+     * @param x         the point, in scene coordinates
+     * @param y         the point, in scene coordinates
+     * @param scale     what to multiply the present size by: above 1 zooms in, below 1 out
+     * @param modifiers the {@code Keys.MOD_*} bits held
+     * @return a {@link Type#ZOOM} event
+     * @throws IllegalArgumentException if {@code scale} is not a positive finite number
+     */
+    public static MouseEvent zoom(float x, float y, float scale, int modifiers) {
+        if (!(scale > 0) || Float.isInfinite(scale)) {
+            throw new IllegalArgumentException("a zoom scale is positive and finite: " + scale);
+        }
+        return new MouseEvent(Type.ZOOM, x, y, -1, 0, 0, modifiers, 1, scale);
+    }
+
+    /**
+     * @return the factor a {@link Type#ZOOM} asks for since the gesture's previous one, above 1 to
+     *         zoom in and below 1 to zoom out; 1 for every other type
+     */
+    public float scale() {
+        return scale;
     }
 
     /**
@@ -134,6 +172,7 @@ public final class MouseEvent extends InputEvent {
 
     @Override
     public String toString() {
-        return "MouseEvent[" + type + " @" + x + "," + y + (button >= 0 ? " btn" + button : "") + "]";
+        return "MouseEvent[" + type + " @" + x + "," + y + (button >= 0 ? " btn" + button : "")
+                + (type == Type.ZOOM ? " x" + scale : "") + "]";
     }
 }

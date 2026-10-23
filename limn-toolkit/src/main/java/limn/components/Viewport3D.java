@@ -392,6 +392,16 @@ public class Viewport3D extends Widget<Viewport3D> {
                     event.consume();
                 }
             }
+            case ZOOM -> {
+                // A pinch, or the wheel with the zoom's key, in the wheel's units: a controller
+                // zooms by e^(0.1 a) for an amount a, so a factor s is 10 ln s, and one detent
+                // offered as a zoom (1.1) moves the camera as one detent of the wheel does.
+                if (controller != null) {
+                    controller.zoom((float) (10 * Math.log(event.scale())));
+                    invalidate();
+                    event.consume();
+                }
+            }
             default -> {
             }
         }

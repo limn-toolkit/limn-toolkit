@@ -200,6 +200,11 @@ public final class SceneDriver implements WindowInput {
     }
 
     @Override
+    public void zoomed(float scale, float x, float y, boolean gestureBegins) {
+        input.zoomed(scale, x, y, gestureBegins);
+    }
+
+    @Override
     public void keyEvent(int key, int layoutCodePoint, boolean pressed, boolean repeat, int modifiers) {
         input.keyEvent(key, layoutCodePoint, pressed, repeat, modifiers);
     }

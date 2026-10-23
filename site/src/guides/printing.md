@@ -103,8 +103,8 @@ Put it in a window or a dialog of your own, next to your own Print and Paper but
 Showcase's Printing page does exactly this. Call `refresh()` after the data behind the document
 changes.
 
-The user zooms the preview as in a document viewer. With Command held on macOS or Control
-elsewhere, the wheel zooms around the pointer. With the preview focused, `+` zooms in, `-` zooms
+The user zooms the preview as in a document viewer. A pinch on a trackpad zooms around the
+fingers, and so does the wheel with Command held on macOS or Control elsewhere. With the preview focused, `+` zooms in, `-` zooms
 out and `0` returns to the paper's real size. The arrows and Page Up and Page Down scroll the
 pages. A zoom the user made is announced as a `VALUE` change from the user, so a toolbar that
 shows the zoom can watch for it and read `zoomPercent()`.

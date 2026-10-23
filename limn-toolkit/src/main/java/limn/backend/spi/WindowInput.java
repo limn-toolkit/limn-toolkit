@@ -58,6 +58,19 @@ public interface WindowInput {
     }
 
     /**
+     * A pinch on a trackpad: a request to zoom around the point by a factor. The backend turns
+     * its system's measure into the factor since its previous event: a magnification added to 1,
+     * or this event's scale since the gesture began over the previous one's. A system that sends
+     * the pinch as the wheel with Control held needs nothing here; the receiver offers that wheel
+     * as a zoom itself. A receiver that takes no zoom ignores it.
+     *
+     * @param scale         what to multiply the present size by, positive: above 1 zooms in
+     * @param gestureBegins whether this event is the first of a new pinch
+     */
+    default void zoomed(float scale, float x, float y, boolean gestureBegins) {
+    }
+
+    /**
      * A key went down, repeated or came up.
      *
      * @param key             the physical key, a {@code Keys} constant

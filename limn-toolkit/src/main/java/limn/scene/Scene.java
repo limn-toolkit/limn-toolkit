@@ -108,6 +108,9 @@ public final class Scene {
     private record RawScroll(float dx, float dy, float x, float y, boolean began) implements Raw {
     }
 
+    private record RawZoom(float scale, float x, float y, boolean began) implements Raw {
+    }
+
     private record RawKey(int key, int layoutCodePoint, boolean pressed, boolean repeat, int mods) implements Raw {
     }
 
@@ -1323,8 +1326,10 @@ public final class Scene {
         // hit-testing. Synthesize its RELEASE (window blur's treatment).
         cancelPointerState();
         // Nor may the rest of a wheel gesture: the scroller that took it is beneath the scrim now,
-        // and the inertia still arriving goes where hit-testing sends it, into the modal.
+        // and the inertia still arriving goes where hit-testing sends it, into the modal. A pinch
+        // in flight likewise.
         wheelLatch = null;
+        zoomLatch = null;
         overlayFocusReturn.add(focused); // remember who to focus when this closes
         overlays.add(overlay);
         Throwable failed = null;
@@ -3799,6 +3804,9 @@ public final class Scene {
         if (wheelLatch != null && isInSubtree(wheelLatch, widget)) {
             wheelLatch = null;
         }
+        if (zoomLatch != null && isInSubtree(zoomLatch, widget)) {
+            zoomLatch = null;
+        }
         // Never leave dangling references to removed/disabled/hidden subtrees,
         // and never leave the widget itself with stuck hover/pressed state:
         // synthesize the EXIT/RELEASE it will otherwise never receive.
@@ -4569,6 +4577,9 @@ public final class Scene {
                                        boolean gestureBegins) {
             Scene.this.scrolled(deltaX, deltaY, x, y, gestureBegins);
         }
+        @Override public void zoomed(float scale, float x, float y, boolean gestureBegins) {
+            Scene.this.zoomed(scale, x, y, gestureBegins);
+        }
         @Override public void keyEvent(int key, int layoutCodePoint, boolean pressed, boolean repeat,
                                        int modifiers) {
             if (keyRoute != null) {
@@ -4939,6 +4950,19 @@ public final class Scene {
         return lastClickCount;
     }
 
+    private void zoomed(float scale, float x, float y, boolean began) {
+        if (!(scale > 0) || Float.isInfinite(scale)) {
+            return;
+        }
+        Raw last = queue.isEmpty() ? null : queue.get(queue.size() - 1);
+        // Merged into the one before it as a product, never across the start of a gesture.
+        if (last instanceof RawZoom z && !began) {
+            queue.set(queue.size() - 1, new RawZoom(z.scale * scale, x, y, z.began));
+        } else {
+            queue.add(new RawZoom(scale, x, y, began));
+        }
+    }
+
     private void scrolled(float deltaX, float deltaY, float x, float y, boolean began) {
         Raw last = queue.isEmpty() ? null : queue.get(queue.size() - 1);
         // Never merged into the gesture before it: the first event of a gesture is where the
@@ -5229,11 +5253,23 @@ public final class Scene {
                 } else if (raw instanceof RawButton button) {
                     handleButton(button);
                     invalidate = true;
+                } else if (raw instanceof RawZoom zoom) {
+                    dispatchZoom(hitAt(zoom.x, zoom.y), MouseEvent.zoom(zoom.x, zoom.y, zoom.scale, modifiers),
+                            zoom.began);
+                    invalidate = true;
                 } else if (raw instanceof RawScroll scroll) {
                     if (!wheelStreamEnded(scroll.began)) {
-                        dispatchWheel(hitAt(scroll.x, scroll.y), new MouseEvent(
-                                MouseEvent.Type.WHEEL, scroll.x, scroll.y, -1, scroll.dx, scroll.dy,
-                                modifiers));
+                        Widget<?> under = hitAt(scroll.x, scroll.y);
+                        // The wheel with the zoom's key held is a zoom first, and a scroll only
+                        // where nothing under the pointer zooms.
+                        boolean zoomed = scroll.dy != 0 && isZoomChord(modifiers)
+                                && dispatchZoom(under, MouseEvent.zoom(scroll.x, scroll.y,
+                                        (float) Math.pow(WHEEL_ZOOM_STEP, scroll.dy), modifiers), scroll.began);
+                        if (!zoomed) {
+                            dispatchWheel(under, new MouseEvent(
+                                    MouseEvent.Type.WHEEL, scroll.x, scroll.y, -1, scroll.dx, scroll.dy,
+                                    modifiers));
+                        }
                         // Scrolling moves content under a stationary cursor: re-hover.
                         if (pressed == null) {
                             updateHover(hitAt(scroll.x, scroll.y));
@@ -5815,6 +5851,54 @@ public final class Scene {
                 return;
             }
         }
+    }
+
+    /** What one detent of the wheel zooms by when it is offered as a zoom. */
+    private static final float WHEEL_ZOOM_STEP = 1.1f;
+
+    /** The widget that took the zoom gesture in flight; the rest of the gesture stays with it. */
+    private @Nullable Widget<?> zoomLatch;
+    private boolean zoomSeen;
+    private long lastZoomNanos;
+
+    /**
+     * Whether a modifier mask is the one the wheel zooms with: Command on macOS, or Control there
+     * as browsers also take it, and Control elsewhere, each alone or with Shift.
+     */
+    static boolean isZoomChord(int modifiers) {
+        int held = modifiers & ~Keys.MOD_SHIFT;
+        return held == Keys.MOD_CONTROL || (MAC && held == Keys.MOD_SUPER);
+    }
+
+    /**
+     * Offers a zoom from the widget under the pointer outward, and keeps a gesture with the widget
+     * that took its first event, as {@link #dispatchWheel} keeps a wheel stream: a pinch that began
+     * over a preview goes on zooming it when the fingers carry the pointer off it. A gesture ends
+     * where the platform says the next begins, or at a pause.
+     *
+     * @return whether a widget took it
+     */
+    private boolean dispatchZoom(Widget<?> hit, MouseEvent event, boolean began) {
+        long now = clock.getAsLong();
+        boolean continuing = !began && zoomSeen && now - lastZoomNanos < WHEEL_STREAM_GAP_NANOS;
+        zoomSeen = true;
+        lastZoomNanos = now;
+        if (!continuing) {
+            zoomLatch = null;
+        }
+        Widget<?> latch = zoomLatch;
+        if (latch != null && latch.scene() == this && latch.isShowing()) {
+            timedDispatch(latch, event);
+            return true;
+        }
+        for (Widget<?> w = hit; w != null; w = w.parent()) {
+            timedDispatch(w, event);
+            if (event.isConsumed()) {
+                zoomLatch = w;
+                return true;
+            }
+        }
+        return false;
     }
 
     @SuppressWarnings("unchecked")

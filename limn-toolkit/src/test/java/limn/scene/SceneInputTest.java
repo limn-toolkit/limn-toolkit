@@ -34,6 +34,7 @@ class SceneInputTest extends SceneTestBase {
         final List<String> log;
         MouseEvent lastMouse;
         MouseEvent lastWheel;
+        MouseEvent lastZoom;
         MouseEvent.Type consumeType;
         MouseEvent.Type throwOnType;
 
@@ -49,6 +50,9 @@ class SceneInputTest extends SceneTestBase {
             lastMouse = event;
             if (event.type() == MouseEvent.Type.WHEEL) {
                 lastWheel = event;
+            }
+            if (event.type() == MouseEvent.Type.ZOOM) {
+                lastZoom = event;
             }
             if (event.type() == consumeType) {
                 event.consume();

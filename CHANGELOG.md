@@ -613,9 +613,21 @@ Maven Central say which number that was.
   backdrop as its tint, video and 3D left out with a warning; the same pages give the same bytes.
   `print(window)` prints through the system's own dialog, owned by the window. `PrintPreview` shows
   a document's pages as sheets, fitted to the width, to a page, or at a percentage; the user zooms
-  it with the wheel and Command (macOS) or Control held, around the pointer, or, focused, with
-  Command or Control and `+`, `-` and `0`, and `zoomPercent()` says the size shown. `Paper` has the
+  it with a pinch or the wheel and Command (macOS) or Control held, around the pointer, or,
+  focused, with Command or Control and `+`, `-` and `0`, and `zoomPercent()` says the size shown. `Paper` has the
   ISO A and B sizes, Letter, Legal and Tabloid, any size, and `Paper.forLocale`.
+- A pinch on a trackpad reaches the widget under the pointer as a `MouseEvent` of type `ZOOM`.
+  Its `scale()` is the factor since the event before.
+  - On macOS it comes from the system's magnification.
+  - On Windows a precision touchpad sends it as the wheel with Control, which the scene offers as
+    a zoom before it is a scroll. The wheel with Command (macOS) or Control is offered the same
+    way everywhere, so a widget zooms with one handler.
+  - The gesture stays with the widget that took its first event, as a wheel stream does.
+  - `MouseEvent.zoom(x, y, scale, modifiers)` makes one, and a backend reports one through
+    `WindowInput.zoomed`.
+  - `PrintPreview` zooms around the pointer, and a `Viewport3D` with a camera controller moves the
+    camera as with the wheel.
+  - On Linux a pinch is not read yet; the wheel with Control zooms there.
 - A window prints a PDF: `NativeWindow.printer()` returns a `Printer` with `print(Path, title)`,
   `print(byte[], title)` and `isAvailable()`, answering a `PrintResult` (`PRINTED`, `CANCELLED`,
   `UNAVAILABLE`, `FAILED`) on the UI thread; a window with no printing answers `Printer.NONE`.

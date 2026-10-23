@@ -41,9 +41,9 @@ import java.util.Objects;
  * the toolkit's and the same on every system, because only one of the three systems' print dialogs
  * previews an application's pages.
  *
- * <p>The user zooms it as a document viewer is zoomed: the wheel with Command held on macOS and
- * Control elsewhere (Control on macOS too), around the point under the pointer, and, with the
- * preview focused, Command or Control with {@code +} or {@code =} to zoom in, {@code -} to zoom out
+ * <p>The user zooms it as a document viewer is zoomed: a pinch on a trackpad, or the wheel with
+ * Command held on macOS and Control elsewhere (Control on macOS too), around the point under the
+ * pointer ({@link MouseEvent.Type#ZOOM}), and, with the preview focused, Command or Control with {@code +} or {@code =} to zoom in, {@code -} to zoom out
  * and {@code 0} for the paper's real size. A zoom the user made is a {@link Zoom#PERCENT} one and is
  * announced as a {@link Change.Aspect#VALUE} change of the user's, which a toolbar showing the zoom
  * watches. Focused, the arrows, Page Up, Page Down, Home and End scroll the pages.
@@ -76,9 +76,6 @@ public final class PrintPreview extends Widget<PrintPreview> {
 
     /** What one key press zooms by, in or out. */
     private static final float KEY_STEP = 1.25f;
-
-    /** What one wheel detent zooms by; a trackpad's fractions of a detent zoom by a fraction of it. */
-    private static final float WHEEL_STEP = 1.1f;
 
     /** What an arrow key scrolls by, in points. */
     private static final float ARROW_STEP = 48;
@@ -387,15 +384,14 @@ public final class PrintPreview extends Widget<PrintPreview> {
     /** The column of sheets inside the scroll view. */
     private final class Sheets extends Widget<Sheets> {
 
-        /** The wheel with the zoom's modifier, taken here, ahead of the scroll view around it. */
+        /** A pinch, or the wheel with the zoom's key, around the pointer. */
         @Override
         protected void onMouseEvent(MouseEvent event) {
-            if (event.type() != MouseEvent.Type.WHEEL || !zoomChord(event.modifiers()) || event.scrollY() == 0) {
+            if (event.type() != MouseEvent.Type.ZOOM) {
                 return;
             }
             limn.math.Vec2 local = sceneToLocal(event.x(), event.y());
-            zoomBy((float) Math.pow(WHEEL_STEP, event.scrollY()),
-                    local.x() - scroller.offsetX(), local.y() - scroller.offsetY());
+            zoomBy(event.scale(), local.x() - scroller.offsetX(), local.y() - scroller.offsetY());
             event.consume();
         }
 

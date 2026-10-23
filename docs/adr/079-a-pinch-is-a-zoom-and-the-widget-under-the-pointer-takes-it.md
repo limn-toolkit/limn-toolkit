@@ -3,7 +3,9 @@
 - **Status:** Accepted, 2026-10-22: the owner took the recommendation of all seven questions of
   section 1 the same day. Stage 0, the measurements of section 6, was taken the same day on the host
   and three guests (section 8): every system's source works as section 2 says, and one blocker
-  outside this record was found on the way (section 8.6).
+  outside this record was found on the way and fixed (section 8.6). Stage 1 built on 2026-10-23
+  (section 9): the event, the scene's dispatch, `PrintPreview`, `Viewport3D`, macOS and Windows;
+  stage 2, X11 and Wayland, is open.
 - **Date:** 2026-10-22
 - **Scope:** the pinch on a trackpad (two fingers moving apart or together) reaching a Limn widget as
   a zoom, on macOS, Windows and Linux under X11 and Wayland. It also covers Command or Control with
@@ -329,4 +331,79 @@ Wayland.
 
 It is outside this record and was proposed as a task of its own. Stage 1 waits for it, or builds
 its callbacks typed, as `MacInputContextGate` does.
+
+**Fixed on 2026-10-22, before stage 1.** The fix is in commit `57c14862`:
+- every typed callback interface carries `@FunctionalInterface`;
+- `Ffi.callback` and `Wl.on` have one typed shape per signature in `FfiShapes`;
+- the accessibility range getter writes into a structure handed in.
+
+Verified as follows:
+- every shape answers a native call on Java 25 and 21, on macOS and Linux;
+- the Showcase opens on Java 25;
+- the Wayland clipboard read another program's text under Java 25;
+- the backend's suite passes on both versions.
+
+`FfiShapesTest` keeps both rules for every new callback.
+
+## 9. Stage 1, built on 2026-10-23
+
+### 9.1 The event and the scene
+
+- **`MouseEvent.Type.ZOOM`** is added at the end of the enum.
+  - `MouseEvent.zoom(x, y, scale, modifiers)` makes one, and refuses a factor that is not positive
+    and finite.
+  - `scale()` answers 1 for every other type.
+- **`WindowInput.zoomed(scale, x, y, gestureBegins)`** is a default that does nothing.
+  - The scene's own input and the test driver override it.
+  - A dialog's closed window keeps ignoring it, as it ignores everything else.
+- **The scene queues zoom events as it queues the wheel's.** Consecutive ones merge into their
+  product, never across the start of a gesture.
+- **`dispatchZoom` hands a zoom out from the widget under the pointer.**
+  - It keeps the gesture with the widget that consumed its first event, until the next begins or
+    until a pause of the wheel's 150 ms.
+  - The latch is let go when that widget leaves the tree or a modal opens, as the wheel's is.
+- **The wheel with the zoom's key is offered as a zoom first.**
+  - The factor is 1.1 per detent.
+  - It becomes the `WHEEL` it was only when nothing consumed it.
+  - The key is Command or Control alone on macOS, Control alone elsewhere, with Shift allowed.
+    Alt with Control is a scroll.
+  - A widget therefore zooms with one handler, and Windows needs no native code.
+
+### 9.2 The widgets
+
+- **`PrintPreview`** handles `ZOOM` around the pointer, with the arithmetic it already had for the
+  wheel. Its own wheel-and-modifier code is gone, and it keeps its keys.
+- **`Viewport3D` with a camera controller** handles `ZOOM` as `zoom(10 ln s)`. A controller zooms by
+  `e^(0.1 a)`, so one detent offered as a zoom moves the camera as one detent of the wheel does.
+
+### 9.3 macOS
+
+`MacPinch` adds `-magnifyWithEvent:` to the class that `MacInputContextGate` moves every window's
+view into, once for the process, with the encoding read from AppKit.
+
+- Each window registers a target. The target hands `1 + magnification` to its input at GLFW's
+  cursor, with `phase` began as the start of a gesture.
+- A window whose view the gate could not move has no pinch. The wheel with Command still zooms in it.
+- The callback is typed and functional, so it is made under Java 25 as well.
+
+### 9.4 Verified
+
+Tests, all passing:
+- `SceneZoomTest`, nine tests:
+  - delivery under the pointer;
+  - the product of queued events and a new gesture never merged into the one before;
+  - the latch held across a move and let go by a new gesture or a pause;
+  - the wheel with Control as a zoom where a widget zooms, and as a zoom then a scroll where none
+    does;
+  - the plain wheel and Alt with Control as scrolls only;
+  - the factor's bounds.
+- `PrintPreviewZoomTest`, three tests: a pinch, the wheel with Control, and the keys each zoom the
+  preview, announced as the user's change of its value.
+- The suites of `limn-toolkit`, `limn-test`, the backend and the demo.
+
+On the host, the owner pinched over the Showcase's print preview: the pages zoomed with the fingers
+and the page's percentage followed.
+
+Not run: the Windows guest with this build. Measurement 2 showed the pinch arriving there as Control
+with the wheel, which section 9.1 offers as a zoom; the scene tests drive exactly that sequence.
 
