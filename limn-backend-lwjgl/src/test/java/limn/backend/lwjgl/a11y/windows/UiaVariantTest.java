@@ -190,7 +190,11 @@ class UiaVariantTest {
                 "an array is named by its number, which is the two flags together");
 
         // A string is the one payload that is a pointer to be followed, and it is followed only
-        // where oleaut32 opened -- which is not here, and is the whole of the guard.
+        // where oleaut32 opened -- which is not here, and is the whole of the guard. On Windows it
+        // opens, the made-up pointer is read, and the virtual machine died of it (the ARM64 guest,
+        // 2026-10-23), so there this last case is not run.
+        org.junit.jupiter.api.Assumptions.assumeFalse(UiaStrings.isAvailable(),
+                "oleaut32 opened: the made-up string pointer would be read");
         UiaVariant.bstr(memory, 0, 0x0000_7FFF_DEAD_BEEFL);
         assertEquals("VT_BSTR(0x7fffdeadbeef)", UiaVariant.describe(memory, 0, 40),
                 "on a machine with no oleaut32 the pointer is not dereferenced");

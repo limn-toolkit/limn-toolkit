@@ -77,8 +77,14 @@ class UiaTraceTest {
         try {
             bridge.publish(aFocusedButton(), false);
             assertFalse(UiaTrace.on(), "nothing is listening");
-            assertEquals(0L, AllocationProbe.leastAllocatedBy(bridge::isListening, 64),
-                    "the gate allocated with the trace off");
+            // Rounds of a thousand calls, the least of many: on Java 25 LWJGL makes its native call
+            // through a MemorySegment the compiler removes only once it has the call, 40 bytes a
+            // call before that (64 single calls on the Windows guest), and nothing warm.
+            assertEquals(0L, AllocationProbe.leastAllocatedBy(() -> {
+                for (int i = 0; i < 1_000; i++) {
+                    bridge.isListening();
+                }
+            }, 300), "the gate allocated with the trace off");
 
             // And with a sink it says so, which is what the zero above is a zero of. The line is
             // written when the answer CHANGES, so a fresh bridge writes exactly one.

@@ -151,21 +151,42 @@ class UiaObjectTest {
             long query = UiaCom.slotOf(on0, SLOT_QUERY_INTERFACE);
             assertEquals(UiaIds.E_NO_INTERFACE, JNI.invokePPPI(on0, transform, out, query));
             assertEquals(UiaIds.E_NO_INTERFACE, JNI.invokePPPI(on0, invoke, out, query));
-            // Warmed first: on Java 25 LWJGL calls the closure through method handles that
-            // allocate until they are compiled (34 to 61 kB a thousand pairs, measured cold, and
-            // nothing after twenty thousand calls), and what is asserted is the query's own cost.
-            for (int i = 0; i < 10_000; i++) {
-                JNI.invokePPPI(on0, transform, out, query);
-                JNI.invokePPPI(on0, invoke, out, query);
-            }
-            long allocated = limn.testing.AllocationProbe.leastAllocatedBy(() -> {
-                for (int i = 0; i < 1_000; i++) {
-                    JNI.invokePPPI(on0, transform, out, query);
-                    JNI.invokePPPI(on0, invoke, out, query);
+            // Called the way UI Automation calls it, from C: through libffi with the arguments laid
+            // out once. On Java 25 LWJGL's JNI.invokePPPI wraps the function's address in a new
+            // MemorySegment on every call, 40 bytes the compiler removes on one machine and not on
+            // another (an ARM64 Linux guest, read with the flight recorder), which counted the
+            // test's own call and not the query. Least of a few rounds, for the closure's method
+            // handles, which allocate until they are compiled.
+            long cif = org.lwjgl.system.APIUtil.apiCreateCIF(org.lwjgl.system.libffi.LibFFI.ffi_type_sint32,
+                    org.lwjgl.system.libffi.LibFFI.ffi_type_pointer, org.lwjgl.system.libffi.LibFFI.ffi_type_pointer,
+                    org.lwjgl.system.libffi.LibFFI.ffi_type_pointer).address();
+            long values = MemoryUtil.nmemAllocChecked(8 * 6);
+            long slots = MemoryUtil.nmemAllocChecked(8 * 6);
+            long ret = MemoryUtil.nmemAllocChecked(8);
+            try {
+                long[] askedFor = {transform, invoke};
+                for (int k = 0; k < 2; k++) {
+                    MemoryUtil.memPutAddress(values + 24L * k, on0);
+                    MemoryUtil.memPutAddress(values + 24L * k + 8, askedFor[k]);
+                    MemoryUtil.memPutAddress(values + 24L * k + 16, out);
+                    for (int j = 0; j < 3; j++) {
+                        MemoryUtil.memPutAddress(slots + 24L * k + 8L * j, values + 24L * k + 8L * j);
+                    }
                 }
-            }, 5);
-            assertEquals(0, allocated,
-                    "a thousand misses and a thousand unserved candidates allocate nothing");
+                long allocated = limn.testing.AllocationProbe.leastAllocatedBy(() -> {
+                    for (int i = 0; i < 1_000; i++) {
+                        org.lwjgl.system.libffi.LibFFI.nffi_call(cif, query, ret, slots);
+                        org.lwjgl.system.libffi.LibFFI.nffi_call(cif, query, ret, slots + 24);
+                    }
+                }, 50);
+                assertEquals(UiaIds.E_NO_INTERFACE, MemoryUtil.memGetInt(ret));
+                assertEquals(0, allocated,
+                        "a thousand misses and a thousand unserved candidates allocate nothing");
+            } finally {
+                MemoryUtil.nmemFree(ret);
+                MemoryUtil.nmemFree(slots);
+                MemoryUtil.nmemFree(values);
+            }
         } finally {
             MemoryUtil.nmemFree(invoke);
             MemoryUtil.nmemFree(transform);
