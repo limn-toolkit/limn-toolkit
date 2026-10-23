@@ -62,7 +62,8 @@ Maven Central say which number that was.
   the old object, so such a menu acts through the item's key), and the row shows the item afresh
   once the popup has closed. A menu on a list's or a tree's row
   that holds the keyboard (a click on a field, a button or a check box in the row gives it the
-  keyboard) still closes on a refresh, the keyboard going back to the list. A `MenuBar`'s dropdown closed so is announced as
+  keyboard) still closes on a refresh, the keyboard going back to the list; so does a field's own
+  menu in a table's row on a `setRows`, whose field would otherwise go on editing the old object. A `MenuBar`'s dropdown closed so is announced as
   the bar's own adjustment, not as the person's.
 - A press beside an in-scene popup that is fading out reaches what is beneath it; a press on the
   fading card, such as the second click of a double click on an item, stays the popup's and never

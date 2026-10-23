@@ -515,6 +515,53 @@ class RowMenusOutliveARefreshTest extends ComponentTestBase {
         assertEquals(List.of("open 1042"), ran, mode.name());
     }
 
+    /**
+     * The table's case of the push above: a widget cell's field with its own menu open when
+     * {@code setRows} hands the table new objects equal to the old. Kept, the field stayed bound
+     * to the order its column factory was given, the keyboard came back into it as the menu
+     * closed, and an edit made there went to an order the table no longer held while the table's
+     * own order kept the server's note (R17-2). The row goes with the push, as a list's does.
+     */
+    @ParameterizedTest
+    @EnumSource(DisplayMode.class)
+    void anEditInATableFieldAfterAPushOfNewObjectsLandsInTheOrderTheTableHolds(DisplayMode mode) {
+        Table<Order> table = Table.of(
+                Column.<Order, Integer>of("Number", o -> o.number, String::valueOf),
+                Column.<Order>widget("Note", order -> {
+                    TextField field = new TextField().setText(order.status + " " + order.number);
+                    field.onChange(text -> order.note = text);
+                    field.setId("row-" + order.number);
+                    return field;
+                }));
+        List<Order> before = orders(1041, 1042, 1043);
+        table.setRows(before);
+        open(table, mode);
+        TextField field = (TextField) realizedRowOf(table, w -> Objects.equals(w.id(), "row-1042"));
+        scene.requestFocus(field);
+        field.setCaretPosition(0);
+        settle();
+        drive(scene).press(Keys.F10, Keys.MOD_SHIFT);
+        settle();
+        assertTrue(menuOpen(mode), mode + ": Shift+F10 opened the field's menu");
+
+        List<Order> pushed = orders(1041, 1042, 1043);
+        pushed.forEach(o -> o.status = "paid");
+        table.setRows(pushed);
+        settle();
+        drive(scene).press(Keys.ESCAPE);
+        settle();
+        TextField now = (TextField) realizedRowOf(table, w -> Objects.equals(w.id(), "row-1042"));
+        assertEquals("paid 1042", now.text(), mode + ": the row shows the order the table holds");
+        scene.requestFocus(now);
+        now.setCaretPosition(now.text().length());
+        settle();
+        drive(scene).type("!");
+        settle();
+
+        assertEquals(null, before.get(1).note, mode + ": nothing was written to the order that left");
+        assertEquals("paid 1042!", pushed.get(1).note, mode + ": the edit is the table's order's");
+    }
+
     // -------------------------------------------------------------------------------- Tree
 
     @ParameterizedTest

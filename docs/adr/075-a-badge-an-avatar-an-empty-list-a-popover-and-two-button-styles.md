@@ -1273,7 +1273,10 @@ The third review (R16) found two things the rows kept for a popup (R15S-1) left 
   a `ListView`'s or `Tree`'s row the keyboard is in, or returns to when its popup closes, is not
   kept: it goes as the keyboard's row always has, its menu closing and the keyboard going back
   to the list. A kept row is let go of once its popup closes even if the keyboard came into it
-  meanwhile. `Table` is unchanged: it re-binds a kept row's texts to the record found again.
+  meanwhile. `Table` re-binds a kept row's texts to the record found again, but not its widget
+  cells, so the same edit went astray there (R17-2, found by the review of 2026-10-21): since
+  2026-10-23 a table's row the keyboard is in or returns to is not kept by `setRows`. It is still
+  kept by `refresh()`, whose records are the objects its widget cells were built for.
 - **The wait for a popup's close held the page** (R16-3). The engine asks the scene to tell it
   when a popup in the widget closes; a kept row whose item a later refresh removed left the
   widget before its menu closed, so the scene was never asked to tell, and kept the request, the

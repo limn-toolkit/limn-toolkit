@@ -330,6 +330,8 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
 
         @Override
         public void unmount(Slot slot, boolean heldFocus) {
+            // Or due back in it: a field whose own menu is open, which closes as the row leaves.
+            boolean keyboard = heldFocus || holdsKeyboard(slot);
             for (int c = 0; c < columns.size(); c++) {
                 if (slot.widgets[c] != null) {
                     remove(slot.widgets[c]);
@@ -340,8 +342,8 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
             if (slot.published) {
                 publishedLeftBehind = true; // a reader may hold its node; see followPublishedRows
             }
-            if (heldFocus) {
-                requestFocus();
+            if (keyboard) {
+                requestFocus(); // a row that leaves does not take the keyboard with it
             }
         }
 
@@ -1114,7 +1116,10 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
      * {@link #refresh()} keeps it: its texts show the record found again, and its widget cells
      * stay those built for the record as it was handed then. A popup on them acts on that record,
      * which after new objects equal to the old is the old object and not the table's, so a menu
-     * that can outlive a push acts through the record's key. UI thread only.
+     * that can outlive a push acts through the record's key. A row the keyboard is in or returns
+     * to when its popup closes, such as a field whose own menu is open, is not kept: the field
+     * would stay bound to the old object and an edit made in it would go there, so it goes, its
+     * menu with it, and the keyboard falls back to the table. UI thread only.
      *
      * @param rows the rows; the table reads them on demand, so a change to the list's contents
      *             is invisible until {@link #refresh()}
@@ -1124,7 +1129,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         Ui.checkUiThread();
         this.rows = Objects.requireNonNull(rows, "rows");
         // A row a popup hangs from, by one of its widget cells, whose record the new rows hold.
-        java.util.IdentityHashMap<Slot, Integer> hung = slotsKept(null);
+        java.util.IdentityHashMap<Slot, Integer> hung = slotsKept(null, false);
         boolean had = !selected.isEmpty() || lead >= 0;
         selected.clear();
         lead = -1;
@@ -1586,7 +1591,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         // The row whose widget cell holds the keyboard, and those a popup hangs from (a menu
         // opened at a widget cell), found again before anything re-mounts: letting go of the
         // latter would close the menu under the pointer on every refresh a timer makes.
-        java.util.IdentityHashMap<Slot, Integer> keep = slotsKept(focusedWidgetSlot());
+        java.util.IdentityHashMap<Slot, Integer> keep = slotsKept(focusedWidgetSlot(), true);
         int count = rows.size();
         boolean moved = false;
         int wasFocusRow = focusRow;
@@ -3027,14 +3032,19 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
      * The mounted rows to carry through a refresh, found again among the rows: {@code focused},
      * whose widget cell holds the keyboard, and every row a popup hangs from by a widget cell.
      *
-     * @param focused the row whose widget cell holds the keyboard, or null
+     * @param focused      the row whose widget cell holds the keyboard, or null
+     * @param sameRecords  whether the rows are the records the widget cells were built for, as in
+     *                     a {@link #refresh()}; after {@link #setRows} they may be new objects
+     *                     equal to the old, and a row the keyboard is in or due back to is then
+     *                     not kept, since its widget cells would edit the old object
      * @return each one's record's model index now; those whose record is gone are left out
      */
-    private java.util.IdentityHashMap<Slot, Integer> slotsKept(@Nullable Slot focused) {
+    private java.util.IdentityHashMap<Slot, Integer> slotsKept(@Nullable Slot focused, boolean sameRecords) {
         java.util.IdentityHashMap<Slot, Integer> kept = new java.util.IdentityHashMap<>();
         for (int p = 0; p < engine.mountedCount(); p++) {
             Slot slot = engine.mountedAt(p);
-            if (slot.widgetCount > 0 && (slot == focused || holdsHungPopup(slot))) {
+            if (slot.widgetCount > 0 && (slot == focused || holdsHungPopup(slot))
+                    && (sameRecords || !holdsKeyboard(slot))) {
                 int model = findAgain(slot);
                 if (model >= 0 && !kept.containsValue(model)) {
                     kept.put(slot, model);
@@ -3042,6 +3052,16 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
             }
         }
         return kept;
+    }
+
+    /** @return whether the keyboard is in one of {@code slot}'s widget cells, or due back to one */
+    private boolean holdsKeyboard(Slot slot) {
+        for (int c = 0; c < slot.widgets.length; c++) {
+            if (slot.widgets[c] != null && SceneAccess.holdsKeyboard(slot.widgets[c])) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** @return whether a popup hangs from one of {@code slot}'s widget cells */
