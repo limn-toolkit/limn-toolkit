@@ -37,6 +37,7 @@ class PrintPreviewZoomTest {
             }
         });
         scene = new Scene(preview);
+        ui.pumpUntil(() -> preview.recordedPages() > 0); // the pages arrive on the UI thread
         scene.layoutPass(800, 600);
     }
 
@@ -54,6 +55,17 @@ class PrintPreviewZoomTest {
         assertEquals(fitted * 1.5f, preview.zoomPercent(), 0.01f);
         assertEquals(1, changes.size());
         assertEquals(Change.Origin.USER, changes.get(0).origin());
+    }
+
+    @Test
+    void aZoomKeepsThePointOfThePaperUnderThePointer() {
+        // Fitted to the width, the sheet starts 16 points in, so the paper's point under x = 600
+        // is (600 - 16) / s in; zoomed twice as large it is twice as far in, and the sheets must be
+        // scrolled sideways to keep it at 600.
+        drive(scene).zoomed(2f, 600, 300, true);
+        drive(scene).inputBatchEnded();
+        scene.layoutPass(800, 600);
+        assertEquals(600 - 16, preview.scrolledX(), 1f);
     }
 
     @Test

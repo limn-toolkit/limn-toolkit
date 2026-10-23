@@ -82,7 +82,11 @@ public final class PrintPreview extends Widget<PrintPreview> {
 
     private final Document document;
     private final Sheets sheets = new Sheets();
-    private final ScrollView scroller = new ScrollView(sheets);
+    /**
+     * Both ways: a sheet zoomed past the view's width scrolls sideways too, or the point a zoom
+     * keeps under the pointer could not be kept and the sheet stayed against the left edge.
+     */
+    private final ScrollView scroller = new ScrollView(sheets, true, true);
     private List<Recording> pages = List.of();
     private Zoom zoom = Zoom.FIT_WIDTH;
     private float percent = 100;
@@ -115,7 +119,7 @@ public final class PrintPreview extends Widget<PrintPreview> {
         document.recordSettled(result -> {
             if (asked == refreshes) {
                 pages = result.pages();
-                markNeedsLayout();
+                sizeChanged();
                 invalidate();
             }
         }, failed -> {
@@ -127,6 +131,27 @@ public final class PrintPreview extends Widget<PrintPreview> {
     /** @return how many pages the document has, as last recorded */
     public int pageCount() {
         return Math.max(1, pages.size());
+    }
+
+    /**
+     * The sheets' size changed, with the zoom or the pages: they are measured inside the scroll
+     * view, which keeps its measure while its own box is the same, so they are marked themselves.
+     * Marking only the preview left the column at its old width, and a zoom kept the point under
+     * the pointer only up and down.
+     */
+    private void sizeChanged() {
+        sheets.markNeedsLayout();
+        markNeedsLayout();
+    }
+
+    /** @return how many pages the last recording that arrived has; 0 before the first; for the tests */
+    int recordedPages() {
+        return pages.size();
+    }
+
+    /** @return how far the sheets are scrolled sideways, in points; for the tests */
+    float scrolledX() {
+        return scroller.offsetX();
     }
 
     /** @return the page in the middle of the view, from 1 */
@@ -161,7 +186,7 @@ public final class PrintPreview extends Widget<PrintPreview> {
     public PrintPreview setZoom(Zoom zoom) {
         Ui.checkUiThread();
         this.zoom = Objects.requireNonNull(zoom, "zoom");
-        markNeedsLayout();
+        sizeChanged();
         return this;
     }
 
@@ -184,7 +209,7 @@ public final class PrintPreview extends Widget<PrintPreview> {
         }
         this.percent = percent;
         this.zoom = Zoom.PERCENT;
-        markNeedsLayout();
+        sizeChanged();
         return this;
     }
 
@@ -218,7 +243,7 @@ public final class PrintPreview extends Widget<PrintPreview> {
             if (after != before) {
                 percent = after * 100f;
                 zoom = Zoom.PERCENT;
-                markNeedsLayout();
+                sizeChanged();
                 notifyChange(Change.of(Change.Aspect.VALUE, Change.Origin.USER));
             }
             return;
@@ -237,7 +262,7 @@ public final class PrintPreview extends Widget<PrintPreview> {
         float newY = GAP + page * (pageHeight() * after + GAP) + onPageY * after;
         float newX = sheetLeft(after) + onPageX * after;
         pendingScroll = new float[] {newX - viewX, newY - viewY};
-        markNeedsLayout();
+        sizeChanged();
         invalidate();
         notifyChange(Change.of(Change.Aspect.VALUE, Change.Origin.USER));
     }

@@ -404,6 +404,18 @@ Tests, all passing:
 On the host, the owner pinched over the Showcase's print preview: the pages zoomed with the fingers
 and the page's percentage followed.
 
+**But the zoom was not centred on the pointer.** The sheet stayed against the left edge, as if the
+zoom were always around x = 0. Two defects of the preview caused it, both older than the pinch,
+since the wheel and the keys had them too:
+- its scroll view scrolled up and down only, so a sheet wider than the view was cut on the right;
+- a zoom marked the preview for layout but not the sheets inside the scroll view, which kept their
+  last measure, so the sideways offset that keeps the point under the pointer was clamped to 0.
+
+The scroll view now scrolls both ways, and the sheets are marked whenever their size changes, with
+the zoom or with the pages. A test checks the sideways scroll: 584 points after a pinch of 2 at
+x = 600 on a sheet fitted to the width. The owner then confirmed the zoom stays centred on the
+pointer.
+
 Not run: the Windows guest with this build. Measurement 2 showed the pinch arriving there as Control
 with the wheel, which section 9.1 offers as a zoom; the scene tests drive exactly that sequence.
 
