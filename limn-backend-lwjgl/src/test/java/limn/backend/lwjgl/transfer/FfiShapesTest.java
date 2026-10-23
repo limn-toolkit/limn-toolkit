@@ -48,7 +48,7 @@ class FfiShapesTest {
                 }
             }
         }
-        assertEquals(new TreeSet<>(), missing, "signatures with no shape in FfiShapes");
+        assertEquals(new TreeSet<>(), missing, "signatures with no shape in FfiShapes: run scripts/generate-ffi-shapes.py");
     }
 
     @Test

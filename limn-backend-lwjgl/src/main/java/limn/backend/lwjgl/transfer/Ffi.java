@@ -94,7 +94,7 @@ public final class Ffi {
     public static Callback callback(String signature, Handler handler) {
         Class<? extends FfiShapes.Shape> shape = FfiShapes.SHAPES.get(signature);
         if (shape == null) {
-            throw new IllegalArgumentException("no callback shape for " + signature + ": add it to FfiShapes");
+            throw new IllegalArgumentException("no callback shape for " + signature + ": run scripts/generate-ffi-shapes.py");
         }
         return new FfiShapes.Closure(new Callback.Descriptor(shape, MethodHandles.lookup(), cif(signature)),
                 signature, handler);

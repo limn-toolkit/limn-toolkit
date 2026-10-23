@@ -26,6 +26,8 @@ import static org.lwjgl.system.MemoryUtil.memPutAddress;
  * <p>The closure implements every shape and the vector form both, so the same object serves libffi
  * and the linker. A signature that has no shape here is refused by {@link Ffi#callback}; the test
  * of this class reads every signature the backend's sources pass and checks that each has one.
+ * The shapes, their map and the closure's methods are written by {@code scripts/generate-ffi-shapes.py}
+ * from those signatures; this header and the closure's fixed members are kept by it as they are.
  */
 final class FfiShapes {
 
