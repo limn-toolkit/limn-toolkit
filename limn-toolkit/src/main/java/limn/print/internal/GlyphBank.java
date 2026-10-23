@@ -92,10 +92,15 @@ public final class GlyphBank {
         int upem = source.unitsPerEm(faceId);
         Face made = new Face(faceId, upem, source.faceName(faceId), upem > 0 && source.isSyntheticBold(faceId));
         faces.put(faceId, made);
-        if (upem <= 0 && !warned) {
+        // Said only where it is true of what is written: never by a bank that asks no backend (the
+        // scratch frames that let a block's animations end, which are thrown away), and never
+        // while a face is still loading, since the pages are recorded again once it has loaded.
+        if (upem <= 0 && !warned && source != GlyphOutlines.NONE
+                && source.settled().toCompletableFuture().isDone()) {
             warned = true;
-            LOG.log(System.Logger.Level.WARNING, "text whose face cannot be outlined is drawn from its "
-                    + "characters' pictures where there are any, and left out where there are none");
+            LOG.log(System.Logger.Level.WARNING, "text whose face cannot be outlined (face " + faceId + ", "
+                    + source.faceName(faceId) + ") is drawn from its characters' pictures where there are "
+                    + "any, and left out where there are none");
         }
         return upem > 0 ? made : null;
     }

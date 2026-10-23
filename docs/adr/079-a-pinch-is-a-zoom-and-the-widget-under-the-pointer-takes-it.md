@@ -61,7 +61,7 @@ What exists, read in the tree on 2026-10-22:
   - On Windows, the accessibility bridge (`UiaWindow`) already replaces each window's window
     procedure. A `WM_GESTURE` would arrive there, if it is ever wanted (question 4).
 - **The lab has no real trackpad on three of the four guests.** Read on 2026-10-22:
-  - Fedora KDE 44 has only the Parallels Virtual Mouse, which offers pointer capabilities and no
+  - Fedora KDE 44 has only the hypervisor's virtual mouse, which offers pointer capabilities and no
     gestures (`libinput list-devices`), plus `/dev/uinput`.
   - Ubuntu 24.04 lists the same mouse. It has Xorg 21.1.12 (XInput 2.4) and xf86-input-libinput
     1.4.0.
@@ -193,7 +193,7 @@ The probes of section 6 are not shipped.
    phases? Does any scroll event arrive during the same pinch?
    - There is no public way to synthesize a pinch, so this needs the owner's fingers on the
      trackpad.
-   - It is repeated on the macOS guest to see whether Parallels passes the gesture through.
+   - It is repeated on the macOS guest to see whether the hypervisor passes the gesture through.
 2. **Windows, on the guest.** What does a pinch on the host's trackpad become inside the guest? A
    probe logs every message its window gets: `WM_MOUSEWHEEL` with the Control key down, `WM_GESTURE`,
    or `WM_POINTER` from the digitizer.
@@ -251,7 +251,7 @@ The macOS guest was not measured: on the host, a real pinch already answers the 
 
 ### 8.2 Windows, on the ARM64 guest
 
-Parallels presents itself to the guest as a pen digitizer, not a touchpad: `SM_DIGITIZER` is 0x88
+The hypervisor presents itself to the guest as a pen digitizer, not a touchpad: `SM_DIGITIZER` is 0x88
 and `SM_MAXIMUMTOUCHES` is 1. A plain window logged every message. The owner pinched in two runs,
 and in the second the window drew the zoom from Control with the wheel, which he saw follow his
 fingers.
