@@ -126,7 +126,7 @@ class GlProfileSourceTest {
         try (Stream<Path> files = Files.list(shaders)) {
             for (Path shader : files.sorted().toList()) {
                 String name = shader.getFileName().toString();
-                String text = Files.readString(shader);
+                String text = Files.readString(shader).replace("\r\n", "\n"); // a Windows checkout
                 if (!text.startsWith(limn.render3d.shader.TargetProfile.GLSL_330.header)) {
                     problems.add(name + ": does not start with #version 330 core");
                 }
@@ -151,6 +151,10 @@ class GlProfileSourceTest {
         // A text block's leading newline and indentation are not part of the version line.
         assertEquals(limn.render3d.shader.TargetProfile.GLSL_ES_300.header + body,
                 ShaderProgram.inProfile("\n" + desktop, limn.render3d.shader.TargetProfile.GLSL_ES_300));
+        // As a checkout on Windows writes the file: every line ends in CRLF, the version line too.
+        String crlf = desktop.replace("\n", "\r\n");
+        assertEquals(limn.render3d.shader.TargetProfile.GLSL_ES_300.header + body.replace("\n", "\r\n"),
+                ShaderProgram.inProfile(crlf, limn.render3d.shader.TargetProfile.GLSL_ES_300));
         String alreadyEs = "#version 300 es\nprecision highp float;\n" + body;
         assertEquals(alreadyEs, ShaderProgram.inProfile(alreadyEs, limn.render3d.shader.TargetProfile.GLSL_ES_300));
     }

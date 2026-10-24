@@ -6,7 +6,7 @@
 # path runs as an application meets it, on x64 and on native arm64:
 #
 #   --gl-info      must report OpenGL ES 3.0 from ANGLE on Direct3D 11;
-#   the backend's tests, the device tests among them, on that context; a GL call valid on the
+#   the backend's renderer tests, the device tests among them, on that context; a GL call valid on the
 #                  desktop and not on ES fails them, with ANGLE's own sentence for why;
 #   captures       of the demo's scenes, compared with the same scenes captured on desktop OpenGL
 #                  (Mesa's software rasteriser, on Linux): two rasterisers differ on antialiased
@@ -64,6 +64,11 @@ jobs:
       run:
         shell: bash
     steps:
+      # The runner's git writes text files with CRLF; every other platform this project is built on
+      # gets them as committed, with LF, and so do the golden files and dumps the tests read.
+      - name: Line endings as committed
+        run: git config --global core.autocrlf false
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
@@ -80,8 +85,10 @@ jobs:
           grep -q "OpenGL ES 3" gl-info.txt
           grep -q "ANGLE on Direct3D 11" gl-info.txt
 
+      # The renderer's tests: the accessibility and clipboard bridges talk to the session, not to
+      # the context, and are not what this workflow is for.
       - name: The backend's tests on ANGLE
-        run: ./gradlew :limn-backend-lwjgl:test
+        run: ./gradlew :limn-backend-lwjgl:test -PrendererTestsOnly
 
       - name: Capture the scenes
         run: |

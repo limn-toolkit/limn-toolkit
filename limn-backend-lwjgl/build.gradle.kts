@@ -143,6 +143,18 @@ tasks.withType<Test>().configureEach {
     }
 }
 
+// GitHub's GPU-less Windows runners run this module's renderer on ANGLE (.github/workflows/angle.yml)
+// with -PrendererTestsOnly, which leaves out the accessibility and clipboard bridges: they talk to
+// the desktop session rather than to the context, and run where each platform's own run is.
+if (providers.gradleProperty("rendererTestsOnly").isPresent) {
+    tasks.test {
+        filter {
+            excludeTestsMatching("limn.backend.lwjgl.a11y.*")
+            excludeTestsMatching("limn.backend.lwjgl.transfer.*")
+        }
+    }
+}
+
 // The oldest systems Limn runs on are set by its natives, and OsFloorsTest reads every one of them
 // (limn-backend-lwjgl/src/test/java/limn/backend/lwjgl/floors/OsFloors.java keeps the floors). The
 // backend's runtime classpath already carries LWJGL's and the SVG renderer's for all six platforms;

@@ -127,21 +127,32 @@ final class ShaderProgram implements AutoCloseable {
      * once, in the subset GLSL 3.30 and GLSL ES 3.00 share (the rule is quoted at the top of each), and
      * says so with {@code #version 330 core} as its first line; for ES that line, and only that
      * line, becomes {@link TargetProfile#GLSL_ES_300}'s header, so the file keeps one version of
-     * the truth. A source that starts any other way is the author's to answer for
-     * and is compiled as written.
+     * the truth. The line may end in CRLF: a checkout on Windows writes the shaders so, and the
+     * swap missed every one of them there, which handed ANGLE the desktop line. A source that
+     * starts any other way is the author's to answer for and is compiled as written.
      */
     static String inProfile(String source, TargetProfile profile) {
         if (profile == TargetProfile.GLSL_330) {
             return source;
         }
-        String desktop = TargetProfile.GLSL_330.header;
+        String header = TargetProfile.GLSL_330.header;
+        String desktop = header.substring(0, header.length() - 1); // the line, without its end
         int start = 0;
         while (start < source.length() && Character.isWhitespace(source.charAt(start))) {
             start++;
         }
-        return source.startsWith(desktop, start)
-                ? profile.header + source.substring(start + desktop.length())
-                : source;
+        if (!source.startsWith(desktop, start)) {
+            return source;
+        }
+        int end = start + desktop.length();
+        if (source.startsWith("\r\n", end)) {
+            end += 2;
+        } else if (source.startsWith("\n", end)) {
+            end += 1;
+        } else {
+            return source; // "#version 330 core" followed by more on its line is not this line
+        }
+        return profile.header + source.substring(end);
     }
 
     private static String readResource(String resource) {
