@@ -2,8 +2,8 @@
 
 - **Status:** Proposed, 2026-10-23, at the owner's request: an ADR to understand how to implement
   contrast as the platforms' own preferences ask, its scope WCAG 1.4.11 and EN 301 549 and nothing
-  beyond. §6 holds the questions for the owner, each with a recommendation; §0.4 holds what the
-  four guests answered on 2026-10-23.
+  beyond. §6 holds the questions for the owner, each with a recommendation; §0.3 holds the
+  component audit and §0.4 what the four guests answered, both on 2026-10-23.
 - **Date:** 2026-10-23
 - **Scope:** two requirements and nothing else.
   - **WCAG 2.1 success criterion 1.4.11, Non-text Contrast (level AA)**, which EN 301 549 repeats
@@ -16,7 +16,7 @@
   Clause 11.7 also names font type, font size and the focus cursor; those are not part of this
   record (§5).
 - **Changes:** ADR 047 §1.4, which says the toolkit reports the system's request for more contrast
-  and does nothing with it, if §6 question 3 is answered as recommended.
+  and does nothing with it, if §6 question 5 is answered as recommended.
 - **Compatibility:** additive in the API. In behaviour, the palettes' control borders get darker or
   lighter (§1.1), and an application that does nothing changes look while the user has a contrast
   setting on (§1.2).
@@ -70,18 +70,54 @@ asks for 3:1. A divider between two rows or the edge of a card is not a control'
 1.4.11 does not ask anything of it. The focus ring passes where it is drawn outside the control,
 next to the canvas; drawn on an accent-filled button, it is 2:1 against that fill.
 
-### 0.3 Owed: what identifies each control and each state
+### 0.3 What identifies each control and each state, audited on 2026-10-23
 
-1.4.11 applies to what identifies a control, which a palette alone cannot tell: a field with a
-filled box may not need its border, a check box does. Before any colour moves, an audit of every
-component the toolkit ships, as a test that fails on a component added without a row: for each
-control and each of its states (unchecked, checked, selected, focused, on, current, open), the
-colour pair that carries it, and its ratio in every palette. Disabled states are listed and exempt.
+`NonTextContrastAuditTest` (limn-toolkit) holds the audit. It lists, for every widget the toolkit
+ships, each state and the colour that carries it, as the component's paint writes it, with the
+paint's file and line. Beside each colour it lists the colour that sits next to it, and measures
+the pair in all 15 shipped palettes. A translucent colour is laid over what it sits on. A control
+drawn inside another surface is measured against the worst of canvas, card and popover. Two rows of
+one kind are alternatives: a field is identified by its border or by its fill. Disabled states are
+exempt and are not measured. A control identified by its text alone (a tertiary button, a list with
+no edge of its own) is listed and left to the text criteria. The test fails when a widget class
+lands with no row and no stated reason, which a removed row was seen to do. It writes the ratios
+to `build/reports/non-text-contrast.md` and asserts no bar yet: which rows must hold is §6's
+answer.
 
-Charts are part of it: `ChartPalette` says that some series colours sit below 3:1 on the chart
-surface, which it allows because a legend and the tooltip name each series. Under 1.4.11 a line or
-bar that is needed to read the chart needs 3:1 against the surface whatever names it; the audit
-records which series slots fall short.
+**82 of 123 required component states clear 3:1 in every palette.** The ones that do not fall
+into seven groups:
+
+| Group | Components and states | Colour, and its worst ratio |
+| --- | --- | --- |
+| A control's boundary in `outline` | SECONDARY Button; Checkbox unchecked and switch off; RadioButton unselected; SegmentedControl; every field box (TextField, PasswordField, SearchField, TextArea, Spinner, ComboBox, DateField, DatePicker); ColorPicker's rails; ColorPickerButton; SplitPane's divider; an OUTLINED Card | `outline`, 1.52 (Darkling) to 2.22; a field's fill is the surface, 1.00 against a card |
+| Rails and tracks | Slider and RangeSlider rail; ProgressBar track | `text` at 0.14 alpha, 1.26 (Solaris Light); ProgressBar's fill on it 2.97 (Arch Dark) |
+| ScrollBar thumb | ScrollBar at rest | `textMuted` at 0.5 alpha, 1.94 (Octo Light) |
+| Selection as a tint | Table and Tree selected rows; CalendarView's range band; ComboBox's chips | `primary` at 0.16 to 0.18 alpha, 1.23 |
+| ListView selection | a selected row | an `outline` ring, 1.52 |
+| Keyboard focus as a tint | PopupMenu's and ComboBox list's keyboard item; MenuBar's keyboard item and open menu; the active field of a focused time Spinner and DateField | `primary` at 0.20 to 0.28 alpha, 1.26 to 1.38; MenuBar's keyboard chip is `surfaceRaised`, 1.00 |
+| Charts | every default series slot; the axis line | 1.45 (slot 3, Solaris Light) to 2.57; axis `outline` 1.52 |
+
+An ELEVATED Card is its `surface` beside the canvas, 1.12 at worst, with its shadow as the only
+other cue; the audit counts the fill alone.
+
+What holds everywhere:
+- every focus ring, 3.19 at worst (Table's focused cell, on the selection tint) and 3.54 elsewhere;
+- every accent fill (a PRIMARY button, a checked box, a selected radio, a switch on, a selected day,
+  a current tab), 3.01 at worst (Arch Dark), which passes but leaves no margin;
+- validation borders and glyphs, 4.50;
+- check marks, 5.69;
+- badges' status dots, 4.50;
+- disclosure, sort and paging arrows and the field chevrons, 4.50.
+
+So the boundary token of §1.1 covers the first group, and four other groups need choices of their
+own:
+- a selected row or range: a stronger fill, or a mark beside the tint;
+- the keyboard's item in a menu or a list: today a tint, the one place where focus is shown below
+  3:1, and so also short of 2.4.7;
+- the rails and the scroll bar;
+- the charts.
+
+§6 asks about each.
 
 ### 0.4 What the platforms hand an application (clause 11.7), measured on the guests
 
@@ -188,7 +224,7 @@ change: the contrast palette is laid over it behind `Theme.of(widget)`, the way 
 palette already is. This reverses ADR 047 §1.4 for contrast only; the appearance stays the
 application's choice (ADR 047 §1.2).
 
-An application can refuse (§6 question 4): an application that brings its own contrast mode
+An application can refuse (§6 question 6): an application that brings its own contrast mode
 keeps its palette while the setting is on, and the Javadoc says that clause 11.7 is then its own to
 meet.
 
@@ -271,9 +307,16 @@ is set:
 2. **Charts (§0.3, §1.1):** series colours that clear 3:1 on the chart surface, or a mark per
    series (a shape on each point, a dash per line) that does? *Recommended: colours that clear it*;
    the audit says how many slots move.
-3. **Contrast followed by default (§1.2)**, reversing ADR 047 §1.4? *Recommended: yes.*
-4. **The refusal (§1.2)**, `Theme.followSystemContrast(boolean)`, beside `apply()`? *Recommended:
+3. **Selection and the keyboard's item (§0.3)**, today tints at 0.16 to 0.28 alpha (1.23 to
+   1.38:1): a fill strong enough to clear 3:1, which changes how every list, table, tree, menu and
+   combo looks, or the tint kept and a 2 pt mark at the row's leading edge in `primary` (3.01 and
+   up) added for selection, and the focus ring drawn round the keyboard's item as lists already do?
+   *Recommended: the mark and the ring*; they keep the look and clear the bar in every palette.
+4. **Rails, tracks and the scroll bar (§0.3)**: the rail and the thumb in the boundary token of
+   question 1 rather than translucent text? *Recommended: yes.*
+5. **Contrast followed by default (§1.2)**, reversing ADR 047 §1.4? *Recommended: yes.*
+6. **The refusal (§1.2)**, `Theme.followSystemContrast(boolean)`, beside `apply()`? *Recommended:
    yes.*
-5. **On Windows, the user's colours (§1.3)** rather than a strengthened copy? *Recommended: yes.*
-6. **Before 1.0?** *Recommended: yes*: §1.1 and §1.2 change what an application that does nothing
+7. **On Windows, the user's colours (§1.3)** rather than a strengthened copy? *Recommended: yes.*
+8. **Before 1.0?** *Recommended: yes*: §1.1 and §1.2 change what an application that does nothing
    looks like, which is cheaper before the compatibility promise than after it.
