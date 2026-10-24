@@ -1701,7 +1701,7 @@ public final class TextArea extends Widget<TextArea> {
 
         float focus = focusFade.value();
         Color border = switch (validation) {
-            case NONE -> theme.outline().lerp(theme.focusRing(), focus);
+            case NONE -> theme.controlBorder().lerp(theme.focusRing(), focus);
             case ERROR -> theme.danger();
             case WARNING -> theme.warning();
             case SUCCESS -> theme.success();

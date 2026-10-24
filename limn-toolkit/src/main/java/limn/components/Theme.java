@@ -641,7 +641,7 @@ public final class Theme {
         if (made == null) {
             // Made once per palette, for the reason track() is: a frame of text in the accent
             // must not allocate. A race makes the same value twice.
-            made = readableToward(primary, text, background, surface, surfaceRaised);
+            made = readableToward(primary, text, TEXT_CONTRAST, background, surface, surfaceRaised);
             primaryText = made;
         }
         return made;
@@ -653,16 +653,48 @@ public final class Theme {
     /** Body text's bar, WCAG 2.1's 4.5:1, which {@link #primaryText()} is moved until it clears. */
     private static final double TEXT_CONTRAST = 4.5;
 
+    /** Non-text contrast, WCAG 2.1 1.4.11's 3:1, which {@link #controlBorder()} is moved until it clears. */
+    private static final double NON_TEXT_CONTRAST = 3.0;
+
     /**
-     * {@code colour} moved toward {@code target} in steps of one hundredth until it clears body
-     * text's bar on each of {@code grounds}; {@code target} itself if no step does.
+     * The edge that identifies a control: a field's box, a check box, a radio button, a secondary
+     * button, a segmented control's track, a slider's rail, a scroll bar's thumb, a split pane's
+     * divider. {@link #outline()} where it already clears 3:1 on {@link #background()},
+     * {@link #surface()} and {@link #surfaceRaised()}, and otherwise outline moved toward
+     * {@link #text()} in steps of one hundredth only until it does: WCAG 2.1 1.4.11 asks 3:1 of
+     * what identifies a control and its states. Derived, not a token of the theme file,
+     * as {@link #primaryText()} is.
+     *
+     * <p>{@link #outline()} stays the colour of what groups or divides without being a control (a
+     * card's edge, a divider between rows, a table's header rules, a popup's edge), which 1.4.11
+     * asks nothing of, and which every shipped palette draws at about 2:1 so that it stays quiet.
+     *
+     * @return the outline, darkened in a light palette or lightened in a dark one only as far as a
+     *         control's edge needs
      */
-    private static Color readableToward(Color colour, Color target, Color... grounds) {
+    public Color controlBorder() {
+        Color made = controlBorder;
+        if (made == null) {
+            // Made once per palette: every field paints it every frame.
+            made = readableToward(outline, text, NON_TEXT_CONTRAST, background, surface, surfaceRaised);
+            controlBorder = made;
+        }
+        return made;
+    }
+
+    /** {@link #controlBorder()}, made on first use. */
+    private Color controlBorder;
+
+    /**
+     * {@code colour} moved toward {@code target} in steps of one hundredth until it clears
+     * {@code bar} on each of {@code grounds}; {@code target} itself if no step does.
+     */
+    private static Color readableToward(Color colour, Color target, double bar, Color... grounds) {
         for (int step = 0; step <= 100; step++) {
             Color candidate = colour.lerp(target, step / 100f);
             boolean clears = true;
             for (Color ground : grounds) {
-                if (Color.contrastRatio(candidate, ground) < TEXT_CONTRAST) {
+                if (Color.contrastRatio(candidate, ground) < bar) {
                     clears = false;
                     break;
                 }

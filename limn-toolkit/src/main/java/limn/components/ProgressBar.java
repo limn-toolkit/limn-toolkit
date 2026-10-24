@@ -252,7 +252,9 @@ public final class ProgressBar extends Widget<ProgressBar> {
         }
         Theme theme = Theme.of(this);
         float radius = height() / 2;
-        canvas.fillRoundRect(0, 0, width(), height(), radius, theme.track());
+        // An empty pill in the control's edge colour, the fill in the accent against the page
+        // (ADR 081): a faint track read at 1.3:1, and an accent fill on a solid grey would not.
+        canvas.drawRoundRectBorder(0, 0, width(), height(), radius, Strokes.BORDER, theme.controlBorder());
         var fillColor = isEnabled() ? theme.primary() : theme.disabledText();
 
         if (indeterminate) {

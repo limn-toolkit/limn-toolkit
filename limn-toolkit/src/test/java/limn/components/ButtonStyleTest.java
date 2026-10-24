@@ -121,7 +121,7 @@ class ButtonStyleTest extends ComponentTestBase {
         lone(Button.Style.SECONDARY, false);
         Recorder rest = frame();
         assertEquals(theme().surface(), rest.fill());
-        assertEquals(List.of(theme().outline()), rest.borders);
+        assertEquals(List.of(theme().controlBorder()), rest.borders);
         assertEquals(theme().text(), rest.ink());
 
         lone(Button.Style.SECONDARY, true);

@@ -76,8 +76,8 @@ class SliderMirroringTest extends ComponentTestBase {
     }
 
     /**
-     * Records the two round rects the track is made of (the rail, then the filled portion) and the
-     * centre of the knob, which is the one circle the slider fills.
+     * Records the two round rects the track is made of (the rail's edge, then the filled portion)
+     * and the centre of the knob, which is the one circle the slider fills.
      */
     private static final class InkCanvas extends FakeCanvas {
         final List<RoundRect> fills = new ArrayList<>();
@@ -90,6 +90,12 @@ class SliderMirroringTest extends ComponentTestBase {
         @Override
         public void fillRoundRect(RoundRect roundRect, Paint paint) {
             fills.add(roundRect);
+        }
+
+        @Override
+        public void drawRoundRectBorder(float x, float y, float width, float height, float radius,
+                                        float borderWidth, Paint paint) {
+            fills.add(RoundRect.of(x, y, width, height, radius)); // the rail, an empty pill
         }
 
         @Override

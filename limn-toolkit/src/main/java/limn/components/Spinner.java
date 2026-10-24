@@ -1214,7 +1214,7 @@ public final class Spinner extends Widget<Spinner> {
         // screen that is not one of the declared pens; at rest the lerp is the identity.
         canvas.drawRoundRectBorder(0, 0, w, h, radius, pen,
                 limn.components.internal.FieldControls.borderColor(theme, fieldState,
-                                theme.outline().lerp(theme.focusRing(), focus))
+                                theme.controlBorder().lerp(theme.focusRing(), focus))
                         .lerp(theme.danger(), refusedFlash.value()));
     }
 

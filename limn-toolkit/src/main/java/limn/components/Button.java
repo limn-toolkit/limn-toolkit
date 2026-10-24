@@ -518,7 +518,7 @@ public final class Button extends Widget<Button> {
                         : isArmed() ? theme.outline()
                         : theme.surface().lerp(theme.surfaceRaised(), h);
                 canvas.fillRoundRectWithBorder(0, 0, width(), height(), t.radiusMedium(), fill,
-                        Strokes.BORDER, theme.outline());
+                        Strokes.BORDER, theme.controlBorder());
             }
             case TERTIARY -> {
                 // No fill at rest and none disabled: the state is a tint of the caption's own

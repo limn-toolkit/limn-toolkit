@@ -336,7 +336,9 @@ public final class Slider extends Widget<Slider> {
         float rail = t.sliderRail();
         float trackTop = cy - rail / 2;
 
-        canvas.fillRoundRect(left, trackTop, tw, rail, rail / 2, theme.track());
+        // An empty pill in the control's edge colour (ADR 081): a faint fill read at 1.3:1 against
+        // the page, and an accent span on a solid grey would not stand apart from it.
+        canvas.drawRoundRectBorder(left, trackTop, tw, rail, rail / 2, Strokes.BORDER, theme.controlBorder());
         Color fillColor = enabled ? theme.primary() : theme.disabledText();
         // The fill is anchored at the end min sits at and stops under the thumb, so reading right
         // to left it starts at the thumb and runs to the track's right edge. The rail underneath

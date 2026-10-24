@@ -385,7 +385,7 @@ public final class Checkbox extends Widget<Checkbox> {
         float box = t.indicator();
         Color border = !isEnabled() ? theme.disabledFill()
                 : p > 0 ? theme.primary()
-                : theme.outline().lerp(theme.primaryHover(), hover.value());
+                : theme.controlBorder().lerp(theme.primaryHover(), hover.value());
         // Fill fades in with the animation, under the border and no further than its centre
         // line; the border lies inside the box.
         if (p > 0) { // a fill at alpha 0 draws nothing, and building its colour allocated
@@ -427,7 +427,7 @@ public final class Checkbox extends Widget<Checkbox> {
         // track fills with the accent, and an ON track has to be the full pill.
         canvas.fillRoundRect(left, top, trackW, trackH, trackH / 2, track);
         canvas.drawRoundRectBorder(left, top, trackW, trackH, trackH / 2, Strokes.BORDER,
-                theme.outline().withAlpha(1 - p));
+                theme.controlBorder().withAlpha(1 - p));
         float inset = t.switchThumbInset();
         float thumbRadius = trackH / 2 - inset;
         // The thumb's travel is a horizontal value axis, so its low end is the leading one: OFF is

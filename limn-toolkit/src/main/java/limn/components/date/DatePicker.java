@@ -1226,7 +1226,7 @@ public final class DatePicker extends Widget<DatePicker> {
                         limn.components.internal.FieldControls.larger(invalid
                                 ? limn.components.Validation.ERROR : limn.components.Validation.NONE,
                                 fieldState),
-                        theme.outline().lerp(theme.focusRing(), focus)));
+                        theme.controlBorder().lerp(theme.focusRing(), focus)));
 
         if (endField != null) {
             // The dash fills the gap the layout left between the two fields.

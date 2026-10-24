@@ -9,6 +9,7 @@ import limn.animation.Easing;
 import limn.animation.Transition;
 import limn.backend.Cursor;
 import limn.graphics.Canvas;
+import limn.graphics.Color;
 import limn.input.Keys;
 import limn.math.Vec2;
 import limn.scene.Constraints;
@@ -472,8 +473,11 @@ public final class ScrollBar extends Widget<ScrollBar> {
         boolean rtl = isRightToLeft(); // once for this paint, then handed down
         float[] t = thumbRect(rtl);
         float radius = Math.min(t[2], t[3]) / 2;
-        float alpha = (dragging ? 0.9f : hoverBar ? 0.75f : 0.5f) * op;
-        canvas.fillRoundRect(t[0], t[1], t[2], t[3], radius, Theme.of(this).textMuted().withAlpha(alpha));
+        // The control's edge colour at rest, 3:1 on every surface (ADR 081), moving toward the text
+        // colour under the pointer and while dragged; the fade dims it only as it comes and goes.
+        Theme theme = Theme.of(this);
+        Color ink = theme.controlBorder().lerp(theme.text(), dragging ? 0.5f : hoverBar ? 0.25f : 0f);
+        canvas.fillRoundRect(t[0], t[1], t[2], t[3], radius, ink.withAlpha(ink.a() * op));
     }
 
     /** Whether this bar is on a printed page, where nothing scrolls and no bar is drawn. */

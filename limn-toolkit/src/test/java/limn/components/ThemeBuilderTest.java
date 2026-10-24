@@ -61,7 +61,7 @@ class ThemeBuilderTest {
      * by decision (the accent as text, 2026-10-18), so a palette of one's own gets them without a
      * key to set. Listed here by name, so a new public colour is either a token or a decision.
      */
-    private static final Set<String> DERIVED = Set.of("primaryText");
+    private static final Set<String> DERIVED = Set.of("primaryText", "controlBorder");
 
     @Test
     void everyColourAccessorHasAToken() {

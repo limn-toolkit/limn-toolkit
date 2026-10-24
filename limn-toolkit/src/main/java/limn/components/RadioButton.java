@@ -368,7 +368,7 @@ public final class RadioButton extends Widget<RadioButton> {
         float cy = top + ring / 2;
         Color ringInk = !isEnabled() ? theme.disabledFill()
                 : p > 0 ? theme.primary()
-                : theme.outline().lerp(theme.primaryHover(), hover.value());
+                : theme.controlBorder().lerp(theme.primaryHover(), hover.value());
         canvas.drawCircle(cx, cy, ring / 2 - RING_ALIGN_INSET, Strokes.INDICATOR_BORDER, ringInk);
         if (p > 0.05f) {
             Color dot = (isEnabled() ? theme.primary() : theme.disabledText()).withAlpha(p);

@@ -538,7 +538,7 @@ public final class SplitPane extends Widget<SplitPane> {
             // through. A max() over the three would jump between tints instead: a
             // pointer leaving a focused divider has to land back on the focus tone,
             // and that is only continuous if hover was mixed on top of it.
-            Color color = theme.outline()
+            Color color = theme.controlBorder()
                     .lerp(theme.focusRing(), focus)
                     .lerp(theme.focusRing().lerp(Color.WHITE, HOVER_LIGHTEN), hovered)
                     .lerp(theme.focusRing().lerp(Color.WHITE, DRAG_LIGHTEN), dragged);

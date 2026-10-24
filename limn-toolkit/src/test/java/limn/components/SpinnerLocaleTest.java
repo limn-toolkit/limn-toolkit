@@ -437,7 +437,7 @@ class SpinnerLocaleTest extends ComponentTestBase {
      */
     private Color restingBorder() {
         Theme theme = Theme.of(spinner);
-        return theme.outline().lerp(theme.focusRing(), spinner.isFocused() ? 1f : 0f);
+        return theme.controlBorder().lerp(theme.focusRing(), spinner.isFocused() ? 1f : 0f);
     }
 
     private static void assertColor(Color expected, Color actual, String message) {

@@ -510,7 +510,7 @@ public final class SegmentedControl extends Widget<SegmentedControl> {
         LayoutDirection direction = layoutDirection();
         boolean rtl = direction.isRightToLeft();
         canvas.fillRoundRectWithBorder(trackLeft, 0, trackWidth, height(), t.radiusMedium(),
-                theme.surface(), Strokes.BORDER, theme.outline());
+                theme.surface(), Strokes.BORDER, theme.controlBorder());
 
         float indLeft = indicatorLeft.value();
         float indRight = indicatorRight.value();

@@ -456,7 +456,7 @@ public final class ColorPickerButton extends Widget<ColorPickerButton> {
         Color fill = !isEnabled() ? theme.disabledFill()
                 : isArmed() ? theme.outline()
                 : theme.surface().lerp(theme.surfaceRaised(), hover.value());
-        canvas.fillRoundRectWithBorder(0, 0, w, h, radius, fill, Strokes.BORDER, theme.outline());
+        canvas.fillRoundRectWithBorder(0, 0, w, h, radius, fill, Strokes.BORDER, theme.controlBorder());
 
         float chip = t.iconBox();
         float chipY = (h - chip) / 2;

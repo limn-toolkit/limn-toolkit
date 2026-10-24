@@ -1482,7 +1482,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
 
     private Color borderColor(Theme theme, float focus) {
         return switch (validation) {
-            case NONE -> theme.outline().lerp(theme.focusRing(), focus);
+            case NONE -> theme.controlBorder().lerp(theme.focusRing(), focus);
             case ERROR -> theme.danger();
             case WARNING -> theme.warning();
             case SUCCESS -> theme.success();

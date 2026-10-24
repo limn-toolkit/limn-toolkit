@@ -78,7 +78,7 @@ class NonTextContrastAuditTest {
 
     /** The rows a bordered field box shares: TextField, TextArea, Spinner, ComboBox, the date fields. */
     private static void field(String component, String source) {
-        row(component, "rest", "border", Kind.BOUNDARY, Theme::outline, PARENT, source);
+        row(component, "rest", "border", Kind.BOUNDARY, Theme::controlBorder, PARENT, source);
         row(component, "rest", "fill", Kind.BOUNDARY, Theme::surface, PARENT, source);
         row(component, "focused", "border (outline toward focusRing, 1 to 2 pt)", Kind.STATE,
                 Theme::focusRing, PARENT, source);
@@ -91,40 +91,40 @@ class NonTextContrastAuditTest {
         // ---------------------------------------------------------------- buttons and toggles
         row("Button", "PRIMARY", "fill", Kind.BOUNDARY, Theme::primary, PARENT, "Button.java:511");
         row("Button", "PRIMARY destructive", "fill", Kind.BOUNDARY, Theme::danger, PARENT, "Button.java:509");
-        row("Button", "SECONDARY", "border", Kind.BOUNDARY, Theme::outline, PARENT, "Button.java:520");
+        row("Button", "SECONDARY", "border", Kind.BOUNDARY, Theme::controlBorder, PARENT, "Button.java:520");
         row("Button", "SECONDARY", "fill", Kind.BOUNDARY, Theme::surface, PARENT, "Button.java:519");
         listed("Button", "TERTIARY", "no boundary at rest", Kind.TEXT_ONLY, "Button.java:528");
         row("Button", "focused", "ring outside a 1 pt gap", Kind.STATE, Theme::focusRing, PARENT, "Button.java:544");
 
-        row("Checkbox", "unchecked", "box border", Kind.BOUNDARY, Theme::outline, PARENT, "Checkbox.java:388");
+        row("Checkbox", "unchecked", "box border", Kind.BOUNDARY, Theme::controlBorder, PARENT, "Checkbox.java:388");
         row("Checkbox", "checked", "box fill", Kind.STATE, Theme::primary, PARENT, "Checkbox.java:392");
         row("Checkbox", "checked", "check mark", Kind.STATE, Theme::onPrimary, Theme::primary, "Checkbox.java:399");
         row("Checkbox", "focused", "ring", Kind.STATE, Theme::focusRing, PARENT, "Checkbox.java:345");
-        row("Checkbox", "switch off", "track border", Kind.BOUNDARY, Theme::outline, PARENT, "Checkbox.java:429");
+        row("Checkbox", "switch off", "track border", Kind.BOUNDARY, Theme::controlBorder, PARENT, "Checkbox.java:429");
         row("Checkbox", "switch off", "thumb", Kind.STATE, Theme::textMuted, Theme::surfaceRaised, "Checkbox.java:443");
         row("Checkbox", "switch on", "track", Kind.STATE, Theme::primary, PARENT, "Checkbox.java:425");
         row("Checkbox", "switch on", "thumb", Kind.STATE, Theme::onPrimary, Theme::primary, "Checkbox.java:443");
 
-        row("RadioButton", "unselected", "ring", Kind.BOUNDARY, Theme::outline, PARENT, "RadioButton.java:371");
+        row("RadioButton", "unselected", "ring", Kind.BOUNDARY, Theme::controlBorder, PARENT, "RadioButton.java:371");
         row("RadioButton", "selected", "ring and dot", Kind.STATE, Theme::primary, PARENT, "RadioButton.java:370");
         row("RadioButton", "focused", "ring", Kind.STATE, Theme::focusRing, PARENT, "RadioButton.java:415");
 
-        row("SegmentedControl", "rest", "track border", Kind.BOUNDARY, Theme::outline, PARENT, "SegmentedControl.java:512");
+        row("SegmentedControl", "rest", "track border", Kind.BOUNDARY, Theme::controlBorder, PARENT, "SegmentedControl.java:512");
         row("SegmentedControl", "selected", "pill", Kind.STATE, Theme::primary, Theme::surface, "SegmentedControl.java:517");
         row("SegmentedControl", "focused", "ring", Kind.STATE, Theme::focusRing, PARENT, "SegmentedControl.java:575");
 
         for (String slider : List.of("Slider", "RangeSlider")) {
             String src = slider + ".java";
-            row(slider, "rest", "rail (text at 0.14)", Kind.BOUNDARY, Theme::track, PARENT, src + (slider.equals("Slider") ? ":339" : ":380"));
-            row(slider, "value", "filled span", Kind.STATE, Theme::primary, Theme::track, src + (slider.equals("Slider") ? ":340" : ":386"));
+            row(slider, "rest", "rail, an empty pill's edge", Kind.BOUNDARY, Theme::controlBorder, PARENT, src + (slider.equals("Slider") ? ":339" : ":380"));
+            row(slider, "value", "filled span", Kind.STATE, Theme::primary, PARENT, src + (slider.equals("Slider") ? ":340" : ":386"));
             row(slider, "value", "knob", Kind.STATE, Theme::primary, PARENT, src + (slider.equals("Slider") ? ":363" : ":539"));
             row(slider, "focused", "ring round the knob", Kind.STATE, Theme::focusRing, PARENT, src + (slider.equals("Slider") ? ":360" : ":536"));
         }
 
-        row("ProgressBar", "any", "track (text at 0.14)", Kind.GRAPHIC, Theme::track, PARENT, "ProgressBar.java:255");
-        row("ProgressBar", "any", "fill", Kind.GRAPHIC, Theme::primary, Theme::track, "ProgressBar.java:256");
+        row("ProgressBar", "any", "track, an empty pill's edge", Kind.GRAPHIC, Theme::controlBorder, PARENT, "ProgressBar.java:255");
+        row("ProgressBar", "any", "fill", Kind.GRAPHIC, Theme::primary, PARENT, "ProgressBar.java:256");
 
-        row("ScrollBar", "rest", "thumb (textMuted at 0.5)", Kind.BOUNDARY, t -> t.textMuted().withAlpha(0.5f), PARENT, "ScrollBar.java:475");
+        row("ScrollBar", "rest", "thumb", Kind.BOUNDARY, Theme::controlBorder, PARENT, "ScrollBar.java:475");
 
         listed("Expander", "rest", "header: no boundary", Kind.TEXT_ONLY, "Expander.java:520");
         row("Expander", "open or closed", "arrow", Kind.STATE, Theme::textMuted, PARENT, "Expander.java:527");
@@ -132,11 +132,10 @@ class NonTextContrastAuditTest {
 
         row("ToolBar", "rest", "container border", Kind.DECORATION, Theme::outline, PARENT, "ToolBar.java:177");
 
-        row("SplitPane", "rest", "divider line", Kind.BOUNDARY, Theme::outline, PARENT, "SplitPane.java:541");
+        row("SplitPane", "rest", "divider line", Kind.BOUNDARY, Theme::controlBorder, PARENT, "SplitPane.java:541");
         row("SplitPane", "focused", "divider in focusRing, 2 pt", Kind.STATE, Theme::focusRing, PARENT, "SplitPane.java:542");
 
-        row("Card", "ELEVATED (clickable)", "fill, shadow beside it", Kind.BOUNDARY, Theme::surface, Theme::background, "Card.java:1260");
-        row("Card", "OUTLINED (clickable)", "edge", Kind.BOUNDARY, Theme::outline, Theme::background, "Card.java:1292");
+        row("Card", "clickable (ELEVATED, OUTLINED, FILLED)", "edge", Kind.BOUNDARY, Theme::controlBorder, Theme::background, "Card.java:1290");
         row("Card", "focused", "ring", Kind.STATE, Theme::focusRing, Theme::background, "Card.java:1551");
 
         // ---------------------------------------------------------------- fields and pickers
@@ -152,7 +151,7 @@ class NonTextContrastAuditTest {
         row("ComboBox", "rest", "chevron", Kind.GRAPHIC, Theme::textMuted, Theme::surface, "ComboBox.java:2066");
         row("ComboBox", "list, keyboard row", "row fill (primary at 0.28)", Kind.STATE, t -> t.primary().withAlpha(0.28f), Theme::surfaceRaised, "ComboBox.java:2997");
         row("ComboBox", "list, selected", "dot or check", Kind.STATE, Theme::primary, Theme::surfaceRaised, "ComboBox.java:3014");
-        row("ComboBox", "multi, chip", "chip fill (primary at 0.16)", Kind.BOUNDARY, t -> t.primary().withAlpha(0.16f), Theme::surface, "ComboBox.java:2673");
+        listed("ComboBox", "multi, chip", "pill: identified by its word, as a badge", Kind.TEXT_ONLY, "ComboBox.java:2673");
         row("ComboBox", "open", "popup edge", Kind.DECORATION, Theme::outline, PARENT, "ComboBox.java:2966");
         field("DateField", "date/DateField.java:1974");
         row("DateField", "focused", "active segment (primary at 0.20)", Kind.STATE, t -> t.primary().withAlpha(0.20f), Theme::surface, "date/DateField.java:2001");
@@ -164,9 +163,9 @@ class NonTextContrastAuditTest {
         row("CalendarView", "today", "ring", Kind.STATE, Theme::primary, PARENT, "date/CalendarView.java:1852");
         row("CalendarView", "focused", "cursor ring", Kind.STATE, Theme::focusRing, PARENT, "date/CalendarView.java:1877");
         row("CalendarView", "rest", "paging chevrons", Kind.GRAPHIC, Theme::textMuted, PARENT, "date/CalendarView.java:2070");
-        row("ColorPicker", "rest", "rail outline", Kind.BOUNDARY, Theme::outline, PARENT, "ColorPicker.java:1248");
+        row("ColorPicker", "rest", "rail outline", Kind.BOUNDARY, Theme::controlBorder, PARENT, "ColorPicker.java:1248");
         row("ColorPicker", "focused", "rail outline in focusRing", Kind.STATE, Theme::focusRing, PARENT, "ColorPicker.java:1248");
-        row("ColorPickerButton", "rest", "border", Kind.BOUNDARY, Theme::outline, PARENT, "ColorPickerButton.java:459");
+        row("ColorPickerButton", "rest", "border", Kind.BOUNDARY, Theme::controlBorder, PARENT, "ColorPickerButton.java:459");
         row("ColorPickerButton", "rest", "fill", Kind.BOUNDARY, Theme::surface, PARENT, "ColorPickerButton.java:456");
         row("ColorPickerButton", "focused", "ring", Kind.STATE, Theme::focusRing, PARENT, "ColorPickerButton.java:485");
         row("MediaControls", "rest", "button glyph on the bar", Kind.GRAPHIC, Theme::text, t -> t.surface().withAlpha(0.92f), "MediaControls.java:672");
@@ -203,7 +202,7 @@ class NonTextContrastAuditTest {
                     t -> ChartPalette.defaultFor(t).color(s), PARENT, "chart/ChartPalette.java:39");
         }
         row("Chart", "any", "grid lines (outline at 0.45)", Kind.DECORATION, t -> t.outline().withAlpha(0.45f), PARENT, "chart/CartesianChart.java:633");
-        row("Chart", "any", "axis line", Kind.GRAPHIC, Theme::outline, PARENT, "chart/CartesianChart.java:666");
+        row("Chart", "any", "axis line", Kind.GRAPHIC, Theme::controlBorder, PARENT, "chart/CartesianChart.java:666");
         for (Tone tone : Tone.values()) {
             row("Badge", "dot, " + tone.name().toLowerCase(Locale.ROOT), "dot", Kind.GRAPHIC, tone::colorIn, PARENT, "Badge.java:375");
         }

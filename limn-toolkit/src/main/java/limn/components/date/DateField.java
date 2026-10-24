@@ -1974,7 +1974,7 @@ public final class DateField extends Widget<DateField> {
         Color border = limn.components.internal.FieldControls.borderColor(theme,
                 limn.components.internal.FieldControls.larger(validity != null
                         ? limn.components.Validation.ERROR : limn.components.Validation.NONE, fieldState),
-                theme.outline().lerp(theme.focusRing(), focus));
+                theme.controlBorder().lerp(theme.focusRing(), focus));
         canvas.drawRoundRectBorder(0, 0, w, h, radius, pen, border);
     }
 

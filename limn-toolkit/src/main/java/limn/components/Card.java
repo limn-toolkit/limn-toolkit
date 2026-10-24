@@ -1287,7 +1287,12 @@ public final class Card extends Widget<Card> {
     protected void onPaintOverlay(Canvas canvas) {
         Theme theme = Theme.of(this);
         SizeTokens t = theme.tokensFor(this);
-        if (style == Style.OUTLINED || (style == Style.ELEVATED && theme.isDark())) {
+        if (action != null && style != Style.PLAIN) {
+            // A card that is a control is told from the page by an edge at 3:1 (ADR 081): its
+            // surface sits 1.1 to 1.5:1 from the page, and a shadow is no edge.
+            canvas.drawRoundRectBorder(0, 0, width(), height(), t.radiusMedium(), Strokes.HAIRLINE,
+                    theme.controlBorder());
+        } else if (style == Style.OUTLINED || (style == Style.ELEVATED && theme.isDark())) {
             // A dark palette's shadow is black on near black and does not show: a hairline does.
             canvas.drawRoundRectBorder(0, 0, width(), height(), t.radiusMedium(), Strokes.HAIRLINE,
                     theme.outline());

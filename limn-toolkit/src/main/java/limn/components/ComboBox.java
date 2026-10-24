@@ -1984,7 +1984,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         canvas.fillRoundRectWithBorder(0, 0, width(), height(), t.radiusMedium(), fill,
                 Strokes.BORDER + (Strokes.FOCUS_RING - Strokes.BORDER) * focus,
                 limn.components.internal.FieldControls.borderColor(theme, fieldState,
-                        theme.outline().lerp(theme.focusRing(), focus)));
+                        theme.controlBorder().lerp(theme.focusRing(), focus)));
 
         if (selectionMode == SelectionMode.MULTI) {
             if (showsPlaceholder()) {

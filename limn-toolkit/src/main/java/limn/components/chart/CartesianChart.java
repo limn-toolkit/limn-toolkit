@@ -631,7 +631,7 @@ public abstract class CartesianChart<W extends CartesianChart<W>> extends Chart<
 
     private void paintGrid(Canvas canvas, SizeTokens t, Theme theme) {
         Color grid = theme.outline().withAlpha(0.45f);
-        Color axisLine = theme.outline();
+        Color axisLine = theme.controlBorder(); // a graphic needed to read the chart: 3:1 (ADR 081)
         if (valueAxis.hasGrid()) {
             for (int i = 0; i < scale.tickCount(); i++) {
                 double value = scale.tick(i);

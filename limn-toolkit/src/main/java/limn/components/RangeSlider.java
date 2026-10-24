@@ -377,7 +377,9 @@ public final class RangeSlider extends Widget<RangeSlider> {
         float cy = height() / 2;
         float rail = t.sliderRail();
         float top = cy - rail / 2;
-        canvas.fillRoundRect(trackLeft(t), top, trackWidth(t), rail, rail / 2, theme.track());
+        // An empty pill in the control's edge colour, as Slider's rail (ADR 081).
+        canvas.drawRoundRectBorder(trackLeft(t), top, trackWidth(t), rail, rail / 2, Strokes.BORDER,
+                theme.controlBorder());
         float a = xOf(lower, t, rtl);
         float b = xOf(upper, t, rtl);
         float from = Math.min(a, b);

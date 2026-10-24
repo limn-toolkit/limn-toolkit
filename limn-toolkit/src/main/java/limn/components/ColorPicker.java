@@ -1251,7 +1251,7 @@ public final class ColorPicker extends Widget<ColorPicker> {
             paintRail(canvas, t, w, top, rtl);
             canvas.restore();
             canvas.drawRoundRectBorder(0, top, w, rail, radius, pen,
-                    Theme.of(this).outline().lerp(Theme.of(this).focusRing(), focus));
+                    Theme.of(this).controlBorder().lerp(Theme.of(this).focusRing(), focus));
             paintThumb(canvas, t, thumbCentreX(t, rtl), h / 2, focus);
         }
 

@@ -368,7 +368,8 @@ class SliderTest extends ComponentTestBase {
         // control whose HEIGHT is derived from a focus-ring constant. The knob's diameter
         // triples across the ramp (5 -> 12 at rest) while its outline stays INDICATOR_BORDER
         // and the ring around it stays FOCUS_RING: exactly the size-vs-weight separation the
-        // rule exists to state. The rail and the fill are fillRoundRects and record nothing.
+        // rule exists to state. The rail is an empty pill whose edge is a BORDER; the fill is a
+        // fillRoundRect and records nothing.
         //
         // The focused pass is what makes the pad visible from a test: sliderPad() includes the
         // ring's own BORDER at MEDIUM too, so the 2pt ring recorded here is fully inside the
@@ -385,14 +386,14 @@ class SliderTest extends ComponentTestBase {
             float h = box.height();
 
             List<Float> resting = strokesOf(host, w, h);
-            assertEquals(List.of(Strokes.INDICATOR_BORDER), resting,
-                    step + " at rest paints one unscaled knob outline and nothing else");
+            assertEquals(List.of(Strokes.BORDER, Strokes.INDICATOR_BORDER), resting,
+                    step + " at rest paints the rail's unscaled edge and the knob's outline, nothing else");
             assertEveryWidthIsALockedPen(resting, step);
 
             host.requestFocus(s);
             settle(host, w, h);
             List<Float> focused = strokesOf(host, w, h);
-            assertEquals(List.of(Strokes.INDICATOR_BORDER, Strokes.FOCUS_RING), focused,
+            assertEquals(List.of(Strokes.BORDER, Strokes.INDICATOR_BORDER, Strokes.FOCUS_RING), focused,
                     step + " focused adds the ring; the knob outline keeps its own weight");
             assertEveryWidthIsALockedPen(focused, step);
 
