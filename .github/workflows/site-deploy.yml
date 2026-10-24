@@ -110,7 +110,7 @@ jobs:
       # Temurin 21, matching the toolchain in build.gradle.kts; the classes still target 17
       # via options.release, and the aggregate Javadoc links the Java 17 API. The Javadoc
       # doclet differs between 17 and 21, and /api/ is themed against 21's.
-      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
           java-version: "21"
