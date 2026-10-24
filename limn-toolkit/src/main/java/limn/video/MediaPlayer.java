@@ -11,6 +11,7 @@ import limn.sound.Playback;
 import limn.sound.Sounds;
 import org.jspecify.annotations.Nullable;
 
+import java.lang.ref.WeakReference;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -413,6 +414,12 @@ public final class MediaPlayer implements AutoCloseable {
      * together, which costs the pictures a short hold while the stream finds the spot. A track that
      * cannot be moved there is let go, and the video plays on silently, as one with no track does;
      * so does one that never arrives.
+     *
+     * <p><b>The device open still holds the engine.</b> While it takes the track, a call the UI
+     * thread makes on the sound engine meanwhile waits for the open to end: a click sound through
+     * {@link limn.sound.Sounds#play}, a gain set from a slider, {@link limn.sound.Sounds#isAvailable}.
+     * An application that makes such calls around its first play opens the device beforehand with
+     * {@link limn.sound.Sounds#warmUpAsync()}, as for its first click sound.
      *
      * @throws IllegalStateException if this player is closed
      */
@@ -1185,6 +1192,36 @@ public final class MediaPlayer implements AutoCloseable {
     }
 
     /**
+     * Sets the soundtrack's gain, from 0 (silent) to 1 (as recorded), for the track sounding now and
+     * for every one this player hands to the engine later: a restart, a re-open. The track is
+     * handed over on a worker, and its handle ({@link #audio()}) exists only once the engine has
+     * answered; a gain written on that handle (a mute) reached a track that had already sounded at
+     * the options' gain from its arrival to the next write, about a tenth of a second for a control
+     * polling its handle. Set here, it is the gain the track arrives with. Overrides
+     * {@link PlayOptions#gain()} of {@link #setAudio}. UI thread only.
+     *
+     * @param gain the gain; values outside 0 to 1 are clamped
+     * @return this player
+     */
+    public MediaPlayer setGain(float gain) {
+        Ui.checkUiThread();
+        if (Float.isNaN(gain)) {
+            throw new IllegalArgumentException("a gain is a number from 0 to 1");
+        }
+        this.gain = Math.max(0f, Math.min(1f, gain));
+        playback.setGain(this.gain); // NONE ignores it: the track takes it as it arrives
+        return this;
+    }
+
+    /** @return the soundtrack's gain: what {@link #setGain} set, or the options' gain until then */
+    public float gain() {
+        return Float.isNaN(gain) ? audioOptions.gain() : gain;
+    }
+
+    /** What {@link #setGain} set, or NaN for the options' own. */
+    private float gain = Float.NaN;
+
+    /**
      * @return the handle to the sounding audio track, or {@link Playback#NONE} when there is none:
      *         because there was no track, because no device would take it, because playback has
      *         been stopped, or because {@link #start()} is still handing the track to the engine
@@ -1234,7 +1271,7 @@ public final class MediaPlayer implements AutoCloseable {
         if (audio == null) {
             return; // no track, or one already handed to the engine
         }
-        HandOver handOver = new HandOver(audio, audioOptions.withLoop(looping));
+        HandOver handOver = new HandOver(this, audio, audioOptions.withLoop(looping));
         audio = null; // ownership leaves here: the hand-over's, or a stop's or a close's to close
         // The pictures wait for the sound: started apart, the track would begin a few hundred
         // milliseconds behind pictures already running, and be dropped as a master at once.
@@ -1269,16 +1306,23 @@ public final class MediaPlayer implements AutoCloseable {
      * <p>The engine is given the track at no gain. It starts what it is given before it answers, so
      * a track given its gain there sounded for the instant between that start and a pause or a stop
      * made meanwhile reaching it: the UI thread applies those first, and the gain last.
+     *
+     * <p>It holds its player weakly. An engine whose device open never returns (a sound server
+     * that hangs) keeps the thread blocked, one per player started, and a strong hold kept every
+     * such player reachable, closed or not, with its clock, stream and listeners, until the engine
+     * answered.
      */
-    private final class HandOver implements Runnable {
+    private static final class HandOver implements Runnable {
 
+        private final WeakReference<MediaPlayer> player;
         private final AudioStreamSource track;
         private final PlayOptions options;
         /** Set once, by whichever side takes the track. */
         private final AtomicBoolean taken = new AtomicBoolean();
         private volatile boolean cancelled;
 
-        HandOver(AudioStreamSource track, PlayOptions options) {
+        HandOver(MediaPlayer player, AudioStreamSource track, PlayOptions options) {
+            this.player = new WeakReference<>(player);
             this.track = track;
             this.options = options;
         }
@@ -1311,7 +1355,14 @@ public final class MediaPlayer implements AutoCloseable {
                 return;
             }
             try {
-                Ui.post(() -> audioArrived(this, started));
+                Ui.post(() -> {
+                    MediaPlayer to = player.get();
+                    if (to == null) {
+                        started.stop(); // a player nobody holds any more: the engine closes it
+                    } else {
+                        to.audioArrived(this, started);
+                    }
+                });
             } catch (RuntimeException noUi) {
                 started.stop(); // the UI has ended, and nothing is left to hand it to
             }
@@ -1344,7 +1395,9 @@ public final class MediaPlayer implements AutoCloseable {
             arrivedInTime(started);
         }
         if (playback == started) {
-            playback.setGain(from.options.gain()); // heard from here, with what was made meanwhile applied
+            // Heard from here, with what was made meanwhile applied: the gain an application set on
+            // this player (a mute) if it set one, and otherwise the options'.
+            playback.setGain(Float.isNaN(gain) ? from.options.gain() : gain);
         }
     }
 

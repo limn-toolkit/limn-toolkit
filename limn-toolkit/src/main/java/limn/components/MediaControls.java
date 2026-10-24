@@ -19,7 +19,6 @@ import limn.scene.layout.Expanded;
 import limn.scene.layout.Flex;
 import limn.scene.layout.Row;
 import limn.scene.layout.SizedBox;
-import limn.sound.Playback;
 import limn.video.VideoStreamSource;
 import org.jspecify.annotations.Nullable;
 
@@ -126,7 +125,7 @@ public final class MediaControls extends Widget<MediaControls> {
     private boolean soundShown;
     private boolean muted;
     private float level = 1f;
-    private Playback appliedHandle;
+    private limn.video.@Nullable MediaPlayer appliedPlayer;
     private float appliedGain = Float.NaN;
     private boolean polling;
     private boolean dragging;
@@ -359,17 +358,20 @@ public final class MediaControls extends Widget<MediaControls> {
     }
 
     /**
-     * Writes the level onto whatever handle is sounding now. The handle is not stable — every
-     * restart builds a new one, and a gain set on the previous one is a gain set on nothing — so
-     * this runs on the heartbeat, guarded on both the handle and the value.
+     * Writes the level onto the player, which keeps it for the track sounding now and for the one
+     * a start hands to the engine: a handle exists only once the engine has answered, and a mute
+     * written there let up to a heartbeat of the track sound at full gain first. Guarded on both
+     * the player and the value.
      */
     private void applyGain() {
-        Playback handle = view.player() != null ? view.player().audio() : Playback.NONE;
+        limn.video.MediaPlayer player = view.player();
         float gain = muted ? 0 : level;
-        if (handle != appliedHandle || gain != appliedGain) {
-            appliedHandle = handle;
+        if (player != appliedPlayer || gain != appliedGain) {
+            appliedPlayer = player;
             appliedGain = gain;
-            handle.setGain(gain);
+            if (player != null) {
+                player.setGain(gain);
+            }
         }
     }
 

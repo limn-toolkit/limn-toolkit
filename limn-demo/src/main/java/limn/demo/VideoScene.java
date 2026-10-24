@@ -1623,7 +1623,7 @@ final class VideoScene {
         private final Runnable openSoundtrack;
         private float volume = DEFAULT_VOLUME;
         private boolean muted; // a soundtrack that exists is audible; isMuted() covers the rest
-        private limn.sound.Playback applied;
+        private limn.video.@org.jspecify.annotations.Nullable MediaPlayer applied;
         private float appliedGain = Float.NaN;
 
         SoundLevel(Playing open, Runnable openSoundtrack) {
@@ -1671,11 +1671,11 @@ final class VideoScene {
                 appliedGain = Float.NaN;
                 return;
             }
-            limn.sound.Playback playback = player.audio();
+            // On the player, which keeps it for the track it is still handing to the engine.
             float wanted = muted ? 0f : volume;
-            if (playback != applied || wanted != appliedGain) {
-                playback.setGain(wanted);
-                applied = playback;
+            if (player != applied || wanted != appliedGain) {
+                player.setGain(wanted);
+                applied = player;
                 appliedGain = wanted;
             }
         }

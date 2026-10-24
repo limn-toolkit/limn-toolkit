@@ -229,6 +229,68 @@ class MediaControlsTest extends ComponentTestBase {
         }
     }
 
+    /**
+     * A muted bar's track arrives silent and stays so: the mute is the player's gain, which the
+     * track takes as it arrives, where a mute written on the handle came a poll after the track had
+     * sounded at the options' gain.
+     */
+    @Test
+    void aMutedBarsSoundtrackArrivesSilent() {
+        List<Float> gains = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+        java.util.concurrent.atomic.AtomicBoolean arrived = new java.util.concurrent.atomic.AtomicBoolean();
+        limn.sound.Playback track = new limn.sound.Playback() {
+            @Override
+            public void stop() {
+            }
+
+            @Override
+            public boolean isPlaying() {
+                return true;
+            }
+
+            @Override
+            public void setGain(float gain) {
+                gains.add(gain);
+            }
+        };
+        limn.sound.AudioEngine engine = new limn.sound.AudioEngine() {
+            @Override
+            public limn.sound.Playback play(limn.sound.AudioClip clip, float gain, boolean loop) {
+                return limn.sound.Playback.NONE;
+            }
+
+            @Override
+            public limn.sound.Playback playStream(AudioStreamSource source, PlayOptions options) {
+                gains.add(options.gain()); // what it starts at
+                arrived.set(true);
+                return track;
+            }
+
+            @Override
+            public boolean isAvailable() {
+                return true;
+            }
+        };
+        limn.sound.Sounds.installEngine(engine);
+        try {
+            build(LayoutDirection.LTR);
+            MediaPlayer player = new MediaPlayer(new FakeVideo()).setAudio(new FakeAudio(), PlayOptions.DEFAULTS);
+            controls.view().setPlayer(player);
+            renderAndTick();
+            controls.setMuted(true);
+
+            drive(scene).click(playButton());
+            ui.pumpUntil(arrived::get);
+            ui.pumpUntil(() -> gains.size() > 1); // the UI thread took the track and set its gain
+            ui.runtime().drain();
+
+            assertTrue(gains.stream().allMatch(g -> g == 0f), "a muted bar's track sounded: " + gains);
+            player.close();
+        } finally {
+            limn.sound.Sounds.uninstallEngine(engine);
+        }
+    }
+
     @Test
     void theModesOverrideWhatTheMediaSays() {
         build(LayoutDirection.LTR);

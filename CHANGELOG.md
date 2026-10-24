@@ -283,6 +283,17 @@ Maven Central say which number that was.
   silently). A pause, a seek, a stop or a close made meanwhile reaches the track as it arrives and
   before it is heard: the engine starts it silent, and it takes its gain last. `audio()` answers
   `Playback.NONE` until it arrives.
+- A muted `MediaControls` no longer lets the start of the soundtrack through. Its mute was a gain
+  written on the track's handle, which a control polls, so a track arrived at its options' gain
+  and sounded for up to a tenth of a second before the next poll silenced it. The gain is now the
+  player's (`MediaPlayer.setGain`, see New), and the track takes it as it arrives; the bar and the
+  demo's volume set it there.
+- A closed `MediaPlayer` is not kept by a soundtrack the engine never takes. A device open that
+  never returns (a sound server that hangs) blocks one hand-over thread per player started, and
+  that thread held its player, with its clock, streams and listeners, until the engine answered; it
+  holds it weakly now. `start()` also says what the open still costs: a call the UI thread makes on
+  the engine meanwhile (a click sound, a gain, `Sounds.isAvailable`) waits for it, and
+  `Sounds.warmUpAsync()` opens the device beforehand.
 - A `MediaPlayer` whose stream has ended sleeps until a seek or a start: its decoding thread
   woke fifty times a second for as long as the player was left open. And one the application
   never closes is closed when the backend ends, with a warning that names it; nothing else
@@ -600,6 +611,9 @@ Maven Central say which number that was.
 
 ### New
 
+- `MediaPlayer.setGain(float)` and `gain()`: the soundtrack's gain, from 0 to 1, kept by the player.
+  It applies to the track sounding now and to one still on its way to the engine, which arrives
+  with it, and overrides the gain of the `PlayOptions` given to `setAudio`.
 - The system's request for more contrast is followed by default (ADR 081). While it is on,
   `Theme.of(widget)` answers a contrast palette and `Theme.current()` is kept: on Windows the
   contrast theme's own colours, read into `SystemPreferences.contrastColors()`, and on macOS and

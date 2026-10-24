@@ -614,6 +614,32 @@ class MediaPlayerHandsTheTrackOverOffTheUiThreadTest {
         }
     }
 
+    /**
+     * An engine whose device open never returns keeps the hand-over's thread blocked, and a
+     * closed player is not kept with it: a page that builds a player per visit while the sound
+     * server hangs leaves one thread per visit, not one player with its clock and stream.
+     */
+    @Test
+    void aClosedPlayerIsNotKeptByAHandOverTheEngineNeverAnswers() throws Exception {
+        java.lang.ref.WeakReference<MediaPlayer> held = startAndClose();
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (held.get() != null && System.nanoTime() < deadline) {
+            System.gc();
+            ui.runtime().drain();
+            Thread.sleep(10);
+        }
+        assertNull(held.get(), "the blocked hand-over still holds the closed player");
+    }
+
+    private java.lang.ref.WeakReference<MediaPlayer> startAndClose() throws InterruptedException {
+        MediaPlayer player = player(new Hand());
+        player.setAudio(new SilentSource(), PlayOptions.DEFAULTS);
+        player.start();
+        assertTrue(engine.entered.await(10, TimeUnit.SECONDS), "the engine is holding the track");
+        player.close();
+        return new java.lang.ref.WeakReference<>(player);
+    }
+
     /** An audio source with nothing in it. */
     private static final class SilentSource implements AudioStreamSource {
         @Override

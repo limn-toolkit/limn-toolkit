@@ -222,3 +222,13 @@ seek, so a track from the pictures' own container does not move the container un
 thread. A track that cannot be moved, or that arrives after the pictures ended or failed, is let
 go, and the video plays on silently, as one with no track does; so does one that never arrives.
 The cost of a slow device is the synchronisation of the first instant, never the video.
+
+Two costs stay with a device that is slow or never answers. The engine opens the device holding its
+own lock, so a call the UI thread makes on it during the open (a click sound, a gain from a slider,
+the question whether sound is available) waits for the open to end; the 458 ms moved from the play
+button to those calls rather than going away, and an application that makes them around its first
+play opens the device beforehand with `Sounds.warmUpAsync()`, the cure its first click sound already
+needs. And a device open that never returns keeps one hand-over thread blocked per player started,
+a daemon that ends the process with everything else. The thread holds its player weakly, so a
+closed player, with its clock, its streams and its listeners, is not kept with it, and a page that
+builds a player per visit while the sound server hangs leaves a thread per visit and nothing more.
