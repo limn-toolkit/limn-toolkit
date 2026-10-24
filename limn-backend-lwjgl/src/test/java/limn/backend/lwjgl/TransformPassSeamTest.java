@@ -486,8 +486,23 @@ class TransformPassSeamTest {
         return false;
     }
 
-    /** Every pixel within 2 of the reference, or the worst one and how many are not. */
+    /**
+     * How far a channel of the partial frame may stray from the whole one: 2, and 4 on Windows'
+     * software Direct3D (WARP), which ANGLE runs on where there is no GPU. Measured there on
+     * 2026-10-23, on GitHub's runners and on the Windows 11 ARM64 guest alike: a transform moved by
+     * a sibling's text growing left 22 to 31 pixels 4 levels darker (238,163,89 against
+     * 242,166,90) in the two columns where the redrawn region's edges cross the stripes' edges,
+     * and every other pixel identical; Metal and Mesa draw them identical. A seam, a region not
+     * drawn again, differs by far more than that.
+     */
+    private static int tolerance() {
+        String renderer = Gl.glGetString(GL33C.GL_RENDERER);
+        return renderer != null && renderer.contains("Microsoft Basic Render Driver") ? 4 : 2;
+    }
+
+    /** Every pixel within {@link #tolerance()} of the reference, or the worst one and how many are not. */
     private static void assertSame(byte[] expected, byte[] actual, String scenario) {
+        int allowed = tolerance();
         int bad = 0;
         int worst = 0;
         int where = 0;
@@ -496,7 +511,7 @@ class TransformPassSeamTest {
                 continue;
             }
             int d = Math.abs((expected[i] & 0xFF) - (actual[i] & 0xFF));
-            if (d > 2) {
+            if (d > allowed) {
                 bad++;
             }
             if (d > worst) {
