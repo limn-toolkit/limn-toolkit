@@ -4,7 +4,8 @@
   every machine's path where it works, and a window whose machine gives it none takes an OpenGL ES
   3.0 context from ANGLE, on Direct3D 11 on Windows and on Metal on macOS. Linux has no ANGLE
   (§2.3). §10 records the owner's decisions, what Phase 0c measured on Metal, what was built and
-  what is still owed. The payload is its own repository, `limn-angle-natives` (ADR 080). Extends ADR
+  what was owed, all of it closed on 2026-10-23 with the payload on Central and `angle.yml` green on
+  GitHub's GPU-less Windows runners (§10.4). The payload is its own repository, `limn-angle-natives` (ADR 080). Extends ADR
   001 route (a); supersedes nothing.
 - **Was, until 2026-10-22:** Proposed; deferred, not started (recorded 2026-09-03), waiting on a
   Windows machine to answer R1 and R4 on D3D11 and then on the owner's decision to port.
@@ -1214,12 +1215,43 @@ On branch `claude/angle` of this repository:
   and text scenes capture byte-identical to desktop OpenGL, and widgets differs in 283 pixels by
   one level.
 
-### 10.4 Owed
+### 10.4 Owed, and closed on 2026-10-23
 
-- **The release** (ADR 080): all four slices are built and checked, the release is the owner's
-  push and Publish.
-- **The GPU-less runners:** ANGLE over WARP, through the real trigger, is `angle.yml`'s first run,
-  which needs the payload on Central. Every guest run here had a GPU-backed Direct3D 11 driver.
+- **The release** (ADR 080), closed: `limn-angle-natives` 2.1.8078.0 is on Maven Central, published
+  by its `publish` workflow (the four slices built on two runners, each with its licence inventory,
+  and a consumer rehearsed before anything was uploaded), and the backend depends on it from there.
+  A run on the development Mac with ANGLE forced resolved it from Central and opened on Metal.
+- **The GPU-less runners**, closed: `angle.yml`'s run 40050995825 at `a2f6fdd2`, green on
+  `windows-2025` (x64) and `windows-11-arm` (arm64). With no property set, WGL answered "The driver
+  does not appear to support OpenGL (0x10006)" and every window opened on ANGLE over Direct3D 11,
+  whose renderer was "Microsoft Basic Render Driver", WARP; `--gl-info` reported OpenGL ES 3.0
+  through EGL, "ANGLE on Direct3D 11 (fallback)". The backend's renderer tests passed on that
+  context, the 688 of the module that are not its accessibility and clipboard bridges. The five
+  scenes, compared with the same scenes on desktop OpenGL in the Linux job (Mesa's software
+  rasteriser), all within the comparison's bound, x64 and arm64 alike but for widgets:
+
+  | Scene | Pixels that differ | By more than 24 levels | Worst |
+  | --- | --- | --- | --- |
+  | components | 0.080% | 0.000% | 7 |
+  | components-light | 0.083% | 0.000% | 6 |
+  | text | 0.100% | 0.001% | 35 |
+  | testcard | 0.567% | 0.011% | 64 |
+  | widgets | 0.320% | 0.198% (x64), 0.080% (arm64) | 72 (x64), 33 (arm64) |
+
+  The runs before it found three things, each fixed before the green one. The runner's checkout
+  writes the shaders with CRLF, and the swap of the desktop version line for the ES header looked
+  for it with LF alone, so ANGLE was handed `#version 330 core` (`9ed84f40`; an application built on
+  Windows ships its shaders so too). The workflow now checks out with the line endings as committed,
+  and leaves out the module's accessibility and clipboard tests, which failed on the runner for
+  reasons of their own (a Unix path assumed in `ClipboardTypesTest`, the runner session's UI
+  Automation clients in `UiaBridgeTest` and `UiaTraceTest`) and are the bridges', not the
+  renderer's. And `TransformPassSeamTest`'s partial frame differed from the whole one on WARP by 4
+  levels on 22 to 31 pixels, in the two columns where the redrawn region's edges cross the
+  stripes' edges, every other pixel identical (read from the frames it now saves, reproduced on the
+  Windows 11 ARM64 guest with an EGL display asked for the WARP device); Metal and Mesa draw both
+  frames the same, and the test allows 4 there and 2 elsewhere (`a2f6fdd2`).
+
+Every guest run below had a GPU-backed Direct3D 11 driver; the runners are the WARP evidence.
 
 **The payload's own Windows build, 2026-10-22,** made on the Windows 11 ARM64 guest at the owner's
 request (ADR 080). With its arm64 libraries in place of the stand-in, ANGLE forced on Direct3D 11:
@@ -1239,11 +1271,12 @@ pass with ANGLE forced on Metal; four scenes capture as desktop OpenGL does at t
 trigger, a transparent window composed over the desktop, and scrolling ran at 46.4 paints a second
 on 5.6% CPU against 5.5 on the software renderer (animation 48 against 65, the one figure where the
 software renderer led).
-- **The Windows run:** the backend's tests on the GPU-less x64 and arm64 runners through the real
-  trigger, and the captures compared with the Linux job's (Phase 4), as a job of `ci.yml` once the
-  payload is on Central.
-- **The same on the payload's own build:** the guest runs below used the C++ package manager's
-  arm64 ANGLE from the October spike as a stand-in, and the runner job repeats them over WARP.
+- **The Windows run** (closed 2026-10-23, above): the backend's tests on the GPU-less x64 and arm64
+  runners through the real trigger, and the captures compared with the Linux job's (Phase 4), run
+  by `angle.yml` rather than as a job of `ci.yml`.
+- **The same on the payload's own build** (closed, above): the guest runs below used the C++
+  package manager's arm64 ANGLE from the October spike as a stand-in, and the runner job repeated
+  them over WARP on the payload from Central.
 
 **Measured on the Windows 11 ARM64 guest, 2026-10-22**, a native arm64 JVM with ANGLE forced on
 Direct3D 11 over the hypervisor's display driver (a GPU-backed adapter, not WARP), the stand-in
