@@ -27,7 +27,9 @@ class ShowcaseLinksTest {
 
     @Test
     void everyPageOfTheGalleryLinksToAPlaceTheSiteHas() throws IOException {
-        String components = Files.readString(SITE.resolve("generated/gallery.json"));
+        // The components page's entries, from the list its manifest is written from: the manifest
+        // itself, site/src/generated/gallery.json, exists only after a capture run.
+        java.util.Set<String> components = new java.util.HashSet<>(limn.demo.site.Gallery.entryIds());
         List<String> broken = new ArrayList<>();
         int linked = 0;
         for (AppScene.Place group : AppScene.places(new Label(""), () -> new Label(""))) {
@@ -41,7 +43,7 @@ class ShowcaseLinksTest {
                 String path = link.contains("#") ? link.substring(0, link.indexOf('#')) : link;
                 String anchor = link.contains("#") ? link.substring(link.indexOf('#') + 1) : null;
                 if (path.equals("components/")) {
-                    if (anchor == null || !components.contains("\"id\": \"" + anchor + "\"")) {
+                    if (anchor == null || !components.contains(anchor)) {
                         broken.add(place.id() + ": no component " + anchor);
                     }
                 } else if (path.startsWith("docs/")) {

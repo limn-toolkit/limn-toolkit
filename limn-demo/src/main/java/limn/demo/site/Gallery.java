@@ -1176,6 +1176,17 @@ public final class Gallery {
      * third-party dependency beyond the toolkit and the decoders, and one object shape is
      * not worth acquiring one.
      */
+    /**
+     * The ids of every entry the components page shows, the ones {@code gallery.json} carries, read
+     * from the list the manifest is written from rather than from the manifest, which a checkout
+     * has only after a capture run.
+     *
+     * @return the entries' ids, in the page's order
+     */
+    public static List<String> entryIds() {
+        return GalleryScenes.entries().stream().map(GalleryEntry::id).toList();
+    }
+
     private static String manifest(List<GalleryEntry> entries) {
         StringBuilder json = new StringBuilder("{\n  \"entries\": [\n");
         for (int i = 0; i < entries.size(); i++) {

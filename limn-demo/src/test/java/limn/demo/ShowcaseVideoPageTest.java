@@ -10,6 +10,8 @@ import limn.testing.HeadlessUi;
 import limn.video.VideoStreamSource;
 import limn.video.Videos;
 import limn.video.decode.SyntheticVideoDecoder;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -45,8 +47,27 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  */
 class ShowcaseVideoPageTest {
 
+    /**
+     * The transport's icons are SVG. With no renderer every frame threw as it painted them, before
+     * the picture was asked for, and logged the throw: on GitHub's Linux runner and the Ubuntu
+     * guest a played film stayed at 0 µs for 30 s under 220,000 such logs, where the development
+     * Mac reached 200 ms at once.
+     */
+    private static final limn.graphics.SvgRenderer RENDERER =
+            limn.testfixtures.FakeSvg.renderer((svg, px) -> new limn.graphics.Image(1, 1, new byte[4]));
+
     @TempDir
     Path directory;
+
+    @BeforeEach
+    void installSvg() {
+        limn.graphics.SvgIcon.installRenderer(RENDERER);
+    }
+
+    @AfterEach
+    void uninstallSvg() {
+        limn.graphics.SvgIcon.uninstallRenderer(RENDERER);
+    }
 
     @Test
     void thePageOpensOnTheBundledClipWithItsCreditEvenWhereThePayloadCanEncode() {
