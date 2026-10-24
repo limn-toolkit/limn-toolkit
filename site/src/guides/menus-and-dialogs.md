@@ -59,10 +59,13 @@ so a list a timer refreshes every second keeps its menus open, and the menu clos
 item is gone or its row would show another one. The menu acts on what its row was built with:
 after a `setItems` of new objects equal to the old ones (a server's reply), that is the old
 object, not the one the list now holds, so a menu that can outlive a push acts through the
-item's key, or finds the item in the list, rather than changing the object it captured. A
-menu on a list's or a tree's row that holds the keyboard is the exception (a click on a field,
-a button or a check box in the row gives the row the keyboard): it closes on a refresh, and the
-keyboard goes back to the list.
+item's key, or finds the item in the list, rather than changing the object it captured. This
+holds for a menu opened from a control in the row as well (a "..." button, a combo box's list, a
+date field's calendar). The exception is a field the keyboard is in or comes back to, such as a
+field whose own Cut, Copy and Paste menu is open: its row is rebuilt on a refresh and the menu
+closes, since typing into it would otherwise go on writing to the object the row was built for.
+When the menu closes and its row is rebuilt, a control of the row that took the keyboard
+meanwhile (a click into its field) keeps it, in the row realized afresh.
 
 ## Keyboard shortcuts
 

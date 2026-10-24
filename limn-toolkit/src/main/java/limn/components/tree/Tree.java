@@ -524,6 +524,16 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         }
 
         @Override
+        public @Nullable Object keyboardPlace(Cell row) {
+            return limn.components.internal.RowKeyboard.placeIn(row.widget);
+        }
+
+        @Override
+        public void keyboardBack(Cell row, Object place) {
+            limn.components.internal.RowKeyboard.giveBack(row.widget, (int[]) place, Tree.this);
+        }
+
+        @Override
         public float viewportHeight() {
             return Tree.this.viewportHeight();
         }
@@ -2389,7 +2399,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         java.util.IdentityHashMap<Cell, Integer> at = null;
         for (int p = 0; p < engine.mountedCount(); p++) {
             Cell cell = engine.mountedAt(p);
-            if (SceneAccess.holdsHungPopup(cell.widget) && !SceneAccess.holdsKeyboard(cell.widget)) {
+            if (SceneAccess.holdsHungPopup(cell.widget) && !SceneAccess.holdsTextKeyboard(cell.widget)) {
                 if (at == null) {
                     at = new java.util.IdentityHashMap<>();
                 }
@@ -2414,7 +2424,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
      */
     private void unmount(Widget<?> cell, Object key, boolean hadFocus) {
         // Or due back in it: a field whose own menu is open, which closes as the row leaves.
-        boolean keyboard = hadFocus || SceneAccess.holdsKeyboard(cell);
+        boolean keyboard = hadFocus || (!engine.returningKeyboard() && SceneAccess.holdsKeyboard(cell));
         remove(cell);
         if (!(key instanceof LineKey)) {
             model.recycle(cell); // a line under a row is the tree's, and the model never built it

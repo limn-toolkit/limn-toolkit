@@ -105,6 +105,9 @@ public final class SceneAccess {
         /** @param subtree a widget; see {@link SceneAccess#holdsKeyboard} */
         boolean holdsKeyboard(Widget<?> subtree);
 
+        /** @param subtree a widget; see {@link SceneAccess#holdsTextKeyboard} */
+        boolean holdsTextKeyboard(Widget<?> subtree);
+
         /** See {@link SceneAccess#observePopupLetGo}. */
         Subscription observePopupLetGo(Scene scene, Widget<?> subtree, Runnable told);
 
@@ -641,6 +644,20 @@ public final class SceneAccess {
      */
     public static boolean holdsKeyboard(Widget<?> subtree) {
         return hook().holdsKeyboard(java.util.Objects.requireNonNull(subtree, "subtree"));
+    }
+
+    /**
+     * {@link #holdsKeyboard}, at a widget that takes typed text only (a field, a text area): what
+     * a list does not keep through a refresh for its popup, since what is typed there would go to
+     * the object the row was built for. A button, a check box or a combo box in the row keeps it,
+     * and the menu or the dropdown it opened stays open through a timer's refreshes. False for a
+     * widget in no scene.
+     *
+     * @param subtree a widget
+     * @return whether a text-taking widget inside it holds the keyboard or has it due back
+     */
+    public static boolean holdsTextKeyboard(Widget<?> subtree) {
+        return hook().holdsTextKeyboard(java.util.Objects.requireNonNull(subtree, "subtree"));
     }
 
     /**

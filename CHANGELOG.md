@@ -60,10 +60,12 @@ Maven Central say which number that was.
   still in the list does not leave: a menu or a popover on it stays open through a timer's refreshes
   and acts on the item as the row was built with it (after a push of new objects equal to the old,
   the old object, so such a menu acts through the item's key), and the row shows the item afresh
-  once the popup has closed. A menu on a list's or a tree's row
-  that holds the keyboard (a click on a field, a button or a check box in the row gives it the
-  keyboard) still closes on a refresh, the keyboard going back to the list; so does a field's own
-  menu in a table's row on a `setRows`, whose field would otherwise go on editing the old object. A `MenuBar`'s dropdown closed so is announced as
+  once the popup has closed. This holds for a menu opened from a control in the row too, a "..."
+  button, a combo box's list or a date field's calendar. A field's own menu is the one that
+  closes on a refresh, since the field would otherwise go on editing the object its row was
+  built for, and so is a menu on a row whose field has the keyboard due back. When a kept row is
+  rebuilt after its menu closes, a control of it that took the keyboard meanwhile, such as a
+  click into its field, keeps it in the row realized afresh. A `MenuBar`'s dropdown closed so is announced as
   the bar's own adjustment, not as the person's.
 - A press beside an in-scene popup that is fading out reaches what is beneath it; a press on the
   fading card, such as the second click of a double click on an item, stays the popup's and never

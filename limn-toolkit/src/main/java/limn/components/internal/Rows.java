@@ -119,6 +119,28 @@ public final class Rows<E> {
         /** @return the row the keyboard is on while the widget itself holds it, or -1 */
         int cursorIndex();
 
+        /**
+         * Where the keyboard is inside a row, in terms that find the same control in the row
+         * realized afresh for the same index (its path of child indexes), or {@code null} when it
+         * is not inside or the widget does not say.
+         *
+         * @param row a realized row
+         * @return the place, or {@code null}
+         */
+        default @org.jspecify.annotations.Nullable Object keyboardPlace(E row) {
+            return null;
+        }
+
+        /**
+         * Gives the keyboard to the control at {@code place} in a row realized afresh, or to the
+         * widget itself when the row has no such control that takes it.
+         *
+         * @param row   the row as realized now
+         * @param place what {@link #keyboardPlace} answered for the row it replaces
+         */
+        default void keyboardBack(E row, Object place) {
+        }
+
         /** @return the height of the rows' own box, strips and bands taken out */
         float viewportHeight();
 
@@ -191,6 +213,7 @@ public final class Rows<E> {
             placedTo = 0;
             bottom = 0;
             revealPending = null;
+            returnKeyboard(); // to the widget: the row is gone
             return;
         }
         float viewH = host.viewportHeight();
@@ -214,6 +237,7 @@ public final class Rows<E> {
         placeKeptOutside(viewH);
         updateMean();
         watchHeld();
+        returnKeyboard();
     }
 
     /**
@@ -454,9 +478,11 @@ public final class Rows<E> {
     /**
      * Lets go of the rows a refresh kept for a popup that has closed since, so the pass realizes
      * them afresh from what the widget holds now. One the keyboard came into meanwhile goes too,
-     * the keyboard falling back to the widget as a refresh has it do for a row holding it: a row
-     * kept so is bound to the object it was built for, which may no longer be the list's, and an
-     * edit made in it would go there. A refresh keeps no row the keyboard is in or comes back to.
+     * since a row kept so is bound to the object it was built for, which may no longer be the
+     * list's, and an edit made in it would go there; the keyboard goes to the same control of the
+     * row realized afresh in this pass ({@link Host#keyboardPlace}), so a click into a field of a
+     * row whose menu that click closed keeps its field, and only falls back to the widget when the
+     * row has no such control any more.
      */
     private void releaseFreed() {
         if (heldStale.isEmpty()) {
@@ -467,8 +493,10 @@ public final class Rows<E> {
                 continue;
             }
             forgetHeld(e);
+            int index = -1;
             for (int i = 0; i < mountedCount; i++) {
                 if (at(i) == e) {
+                    index = rows[i];
                     System.arraycopy(rows, i + 1, rows, i, mountedCount - i - 1);
                     System.arraycopy(mounted, i + 1, mounted, i, mountedCount - i - 1);
                     System.arraycopy(heights, i + 1, heights, i, mountedCount - i - 1);
@@ -477,8 +505,51 @@ public final class Rows<E> {
                     break;
                 }
             }
-            host.unmount(e, host.holdsFocus(e));
+            boolean focus = host.holdsFocus(e);
+            Object place = focus && index >= 0 ? host.keyboardPlace(e) : null;
+            returningKeyboard = place != null;
+            try {
+                host.unmount(e, focus && place == null);
+            } finally {
+                returningKeyboard = false;
+            }
+            if (place != null) {
+                keyboardDue = new KeyboardDue(index, place);
+            }
         }
+    }
+
+    /** Set while {@link #releaseFreed} lets go of a row whose keyboard it will hand back itself. */
+    private boolean returningKeyboard;
+
+    /**
+     * @return whether the row being let go of now has its keyboard handed back to the same control
+     *         of the row realized afresh, so the widget's {@code unmount} must not take it
+     */
+    public boolean returningKeyboard() {
+        return returningKeyboard;
+    }
+
+    /** The keyboard of a kept row let go of, due back to the same control of its row realized afresh. */
+    private record KeyboardDue(int index, Object place) {
+    }
+
+    private @org.jspecify.annotations.Nullable KeyboardDue keyboardDue;
+
+    /** Hands {@link #keyboardDue} to its row, realized by this pass, or to the widget when it was not. */
+    private void returnKeyboard() {
+        KeyboardDue due = keyboardDue;
+        if (due == null) {
+            return;
+        }
+        keyboardDue = null;
+        for (int i = 0; i < mountedCount; i++) {
+            if (rows[i] == due.index) {
+                host.keyboardBack(at(i), due.place);
+                return;
+            }
+        }
+        host.widget().requestFocus();
     }
 
     /**

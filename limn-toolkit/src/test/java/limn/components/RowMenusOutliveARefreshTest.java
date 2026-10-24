@@ -369,6 +369,111 @@ class RowMenusOutliveARefreshTest extends ComponentTestBase {
         assertEquals("paid 1042!", pushed.get(1).note, mode + ": the edit is the listed order's");
     }
 
+    // ----------------------------------------------- a row's own controls (R17-1, R17-4)
+
+    /** The open popup menus, read by the test: a "..." button's menu is the application's own. */
+    private final List<PopupMenu> shown = new ArrayList<>();
+
+    /** A list whose rows are a label, a "..." button opening the row's menu, and a note field. */
+    private ListView<Order> buttonList() {
+        return new ListView<>(order -> {
+            Button dots = new Button("...");
+            dots.setId("dots-" + order.number);
+            dots.onAction(() -> {
+                PopupMenu menu = new PopupMenu(menuFor(order));
+                shown.add(menu);
+                menu.showAnchored(dots, 0, 0, dots.width(), dots.height());
+            });
+            TextField note = new TextField().setText(order.status + " " + order.number);
+            note.setId("note-" + order.number);
+            note.onChange(text -> order.note = text);
+            limn.scene.layout.Row row = new limn.scene.layout.Row();
+            row.add(new Label(order.toString()));
+            row.add(dots);
+            row.add(note);
+            row.setId("row-" + order.number);
+            return row;
+        });
+    }
+
+    private static Widget<?> find(Widget<?> root, String id) {
+        if (id.equals(root.id())) {
+            return root;
+        }
+        for (Widget<?> child : root.children()) {
+            Widget<?> found = find(child, id);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * R17-1: a menu opened from a "..." button in a row, the usual business-app row, stays open
+     * through a timer's refreshes, as one opened from the row's label does. The rule that lets a
+     * row go when the keyboard is in it is for a field's typed text; a press on the button put the
+     * keyboard on it, and the menu closed within a second, every time.
+     */
+    @ParameterizedTest
+    @EnumSource(DisplayMode.class)
+    void aMenuOpenedFromAButtonInTheRowStaysOpenThroughATimersRefreshes(DisplayMode mode) {
+        List<Order> orders = orders(1041, 1042, 1043);
+        ListView<Order> list = buttonList();
+        list.setItems(orders);
+        open(list, mode);
+        Button dots = (Button) find(row(list, 1042), "dots-1042");
+        drive(scene).click(dots);
+        settle();
+        assertTrue(shown.get(0).isOpen(), mode + ": the button opened the row's menu");
+
+        for (int refresh = 0; refresh < 3; refresh++) {
+            orders.forEach(o -> o.status = "paid");
+            list.refresh();
+            settle();
+            assertTrue(shown.get(0).isOpen(), mode + ": open after refresh " + (refresh + 1));
+        }
+        chooseFirst();
+        assertEquals(List.of("open 1042"), ran, mode.name());
+    }
+
+    /**
+     * R17-4: a click into the note field of a row kept for its menu closes the menu and lets the
+     * row go, and the keyboard is in the note field of the row realized afresh, bound to the order
+     * the list holds; before, it went to the list, the click was undone, and the next letters
+     * typed moved the selection.
+     */
+    @ParameterizedTest
+    @EnumSource(DisplayMode.class)
+    void aClickIntoAFieldOfARowKeptForItsMenuKeepsTheKeyboardInThatField(DisplayMode mode) {
+        List<Order> before = orders(1041, 1042, 1043);
+        ListView<Order> list = buttonList();
+        list.setItems(before);
+        open(list, mode);
+        Button dots = (Button) find(row(list, 1042), "dots-1042");
+        drive(scene).click(dots);
+        settle();
+        List<Order> pushed = orders(1041, 1042, 1043);
+        pushed.forEach(o -> o.status = "paid");
+        list.setItems(pushed); // the row stays for its menu, bound to the order it was built for
+        settle();
+        assertTrue(shown.get(0).isOpen(), mode + ": kept for its menu");
+
+        shown.get(0).close(); // as the click into the field closes it, in either display mode
+        TextField note = (TextField) find(row(list, 1042), "note-1042");
+        scene.requestFocus(note);
+        settle();
+
+        Widget<?> focused = scene.focusedWidget();
+        assertTrue(focused instanceof TextField && "note-1042".equals(focused.id()),
+                mode + ": the keyboard is in the row's note field, not on the list: " + focused);
+        assertTrue(focused != note, mode + ": of the row realized afresh");
+        drive(scene).type("!");
+        settle();
+        assertEquals("paid 1042!", pushed.get(1).note, mode + ": and what is typed is the listed order's");
+        assertEquals(null, before.get(1).note, mode.name());
+    }
+
     // ------------------------------------------------------------- a page left keeps nothing
 
     /** Collects until {@code ref} is gone, or gives up: whether nothing holds it any more. */

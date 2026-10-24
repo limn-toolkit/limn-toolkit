@@ -2708,6 +2708,27 @@ public final class Scene {
         return false;
     }
 
+    /**
+     * Not API: whether the keyboard is, or is due back, inside {@code subtree} at a widget that
+     * takes typed text (a field, a text area): the one kind a list does not keep through a push of
+     * new objects for its popup, since what is typed there would go to the object it was built
+     * for. A button, a check box or a combo box keeps its row, as a context menu does.
+     *
+     * @param subtree a widget of this scene
+     * @return whether a text-taking widget inside it holds the keyboard or has it due back
+     */
+    boolean holdsTextKeyboard(Widget<?> subtree) {
+        if (focused != null && focused.acceptsTextInputInternal() && isInSubtree(focused, subtree)) {
+            return true;
+        }
+        for (Widget<?> saved : overlayFocusReturn) {
+            if (saved != null && saved.acceptsTextInputInternal() && isInSubtree(saved, subtree)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** A watcher of the popups hung in a subtree letting go; see {@link #observePopupLetGo}. */
     private record LetGoWatch(Widget<?> subtree, Runnable told) {
     }
@@ -4837,6 +4858,12 @@ public final class Scene {
             public boolean holdsKeyboard(Widget<?> subtree) {
                 Scene scene = subtree.scene();
                 return scene != null && scene.holdsKeyboard(subtree);
+            }
+
+            @Override
+            public boolean holdsTextKeyboard(Widget<?> subtree) {
+                Scene scene = subtree.scene();
+                return scene != null && scene.holdsTextKeyboard(subtree);
             }
 
             @Override

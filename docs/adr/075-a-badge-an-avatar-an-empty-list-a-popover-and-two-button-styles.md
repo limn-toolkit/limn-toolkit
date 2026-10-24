@@ -1276,7 +1276,10 @@ The third review (R16) found two things the rows kept for a popup (R15S-1) left 
   meanwhile. `Table` re-binds a kept row's texts to the record found again, but not its widget
   cells, so the same edit went astray there (R17-2, found by the review of 2026-10-21): since
   2026-10-23 a table's row the keyboard is in or returns to is not kept by `setRows`. It is still
-  kept by `refresh()`, whose records are the objects its widget cells were built for.
+  kept by `refresh()`, whose records are the objects its widget cells were built for. Since
+  2026-10-24 the rule above is narrowed to what it protects:
+  - A row is let go of only when the keyboard is in, or due back to, a widget that takes typed text (a field, a text area). A menu opened from a "..." button, a combo box or a date field in the row stays open through a timer's refreshes again (R17-1).
+  - A kept row let go of once its popup closes hands the keyboard to the same control of the row realized afresh, not to the list, so a click into its field is not undone (R17-4).
 - **The wait for a popup's close held the page** (R16-3). The engine asks the scene to tell it
   when a popup in the widget closes; a kept row whose item a later refresh removed left the
   widget before its menu closed, so the scene was never asked to tell, and kept the request, the

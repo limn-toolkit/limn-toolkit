@@ -248,7 +248,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         @Override
         public void unmount(Widget<?> cell, boolean heldFocus) {
             // Or due back in it: a field whose own menu is open, which closes as the row leaves.
-            boolean keyboard = heldFocus || SceneAccess.holdsKeyboard(cell);
+            boolean keyboard = heldFocus || (!engine.returningKeyboard() && SceneAccess.holdsKeyboard(cell));
             boundItems.remove(cell);
             remove(cell);
             cells.recycle(cell);
@@ -298,6 +298,16 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         @Override
         public int cursorIndex() {
             return isFocused() ? cursor : -1;
+        }
+
+        @Override
+        public @Nullable Object keyboardPlace(Widget<?> row) {
+            return limn.components.internal.RowKeyboard.placeIn(row);
+        }
+
+        @Override
+        public void keyboardBack(Widget<?> row, Object place) {
+            limn.components.internal.RowKeyboard.giveBack(row, (int[]) place, ListView.this);
         }
 
         @Override
@@ -1462,7 +1472,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         for (int p = 0; p < engine.mountedCount(); p++) {
             Widget<?> cell = engine.mountedAt(p);
             if (!boundItems.containsKey(cell) || !SceneAccess.holdsHungPopup(cell)
-                    || SceneAccess.holdsKeyboard(cell)) {
+                    || SceneAccess.holdsTextKeyboard(cell)) {
                 continue;
             }
             if (foundAt == null) {
