@@ -505,10 +505,35 @@ class TransformPassSeamTest {
             }
         }
         if (bad > 0) {
+            String saved = save(scenario, expected, actual);
             fail(scenario + ": the partial frame differs from the whole one in " + bad + " channel(s), worst " + worst
-                    + " at " + (where % WIDTH) + "," + (where / WIDTH));
+                    + " at " + (where % WIDTH) + "," + (where / WIDTH) + saved);
         }
         assertEquals(0, bad);
+    }
+
+    /**
+     * Writes both frames as binary PPM under build/reports/tests/pixels, where a CI run's failure
+     * artifact picks them up: a difference read only as a count cannot say whether it is a seam
+     * (a region not drawn again) or the rasteriser.
+     */
+    private static String save(String scenario, byte[] whole, byte[] partial) {
+        try {
+            java.nio.file.Path dir = java.nio.file.Path.of("build", "reports", "tests", "pixels");
+            java.nio.file.Files.createDirectories(dir);
+            String name = scenario.replaceAll("[^A-Za-z0-9]+", "-");
+            for (var frame : java.util.Map.of("whole", whole, "partial", partial).entrySet()) {
+                java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                out.writeBytes(("P6\n" + WIDTH + " " + HEIGHT + "\n255\n").getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+                for (int i = 0; i < frame.getValue().length; i += 4) {
+                    out.write(frame.getValue(), i, 3);
+                }
+                java.nio.file.Files.write(dir.resolve(name + "-" + frame.getKey() + ".ppm"), out.toByteArray());
+            }
+            return " (frames in " + dir.toAbsolutePath() + ")";
+        } catch (java.io.IOException e) {
+            return " (frames not saved: " + e + ")";
+        }
     }
 
     private static void bindTarget(int texture, int fbo) {
