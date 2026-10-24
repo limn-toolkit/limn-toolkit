@@ -236,10 +236,33 @@ SystemPreferences.observeChanges(follow);
 ```
 
 `NO_PREFERENCE` is a real answer: it is Ubuntu's default, and what a desktop without the
-settings portal gives. The same record says whether the user asked for more contrast
-(`increaseContrast()`), which the high-contrast palette answers, and whether they asked for less
-motion (`reduceMotion()`). The toolkit acts on that last one by itself: animations finish at once,
-and menus, lists and dialogs open and close without fading.
+settings portal gives. The same record says whether they asked for less motion
+(`reduceMotion()`), which the toolkit acts on by itself: animations finish at once, and menus,
+lists and dialogs open and close without fading.
+
+### More contrast
+
+When the user asks the system for more contrast (`increaseContrast()`), the toolkit follows by
+itself, and your palette choice is kept: `Theme.current()` does not change, and
+`Theme.of(widget)`, which every widget paints with, answers a contrast palette instead.
+
+- **On Windows** a contrast theme is a whole palette the user chose, light or dark, and the
+  toolkit paints with it as given: the window's colour for every surface, its text colour for all
+  text and every edge, the highlight pair for selection and the accent, the link colour for the
+  focus ring. `SystemPreferences.contrastColors()` holds those colours.
+- **On macOS and GNOME** more contrast keeps the light or dark and strengthens it, as the
+  platforms' own widgets do: your palette with its text at 7:1 and every edge, ring and accent at
+  4.5:1 on its surfaces.
+
+In a contrast palette (`theme.contrast()`, true there and for the shipped High Contrast) nothing
+casts a shadow, every button and every clickable card has its edge, and glass is drawn opaque.
+`Theme.followSystemContrast(false)` keeps your palette while more contrast is asked for; take it
+only if your application brings its own contrast mode, since following the platform's colour and
+contrast settings is what EN 301 549 clause 11.7 asks of software.
+
+Every palette, the one you build included, also draws a control's edge at 3:1 on its surfaces, as
+WCAG 2.1 1.4.11 asks: `controlBorder()` is your outline, moved toward the text colour only as far
+as that needs, and `outline()` stays the quieter edge of what groups or divides.
 
 ## Fonts
 

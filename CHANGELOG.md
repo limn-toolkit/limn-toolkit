@@ -598,6 +598,15 @@ Maven Central say which number that was.
 
 ### New
 
+- The system's request for more contrast is followed by default (ADR 081). While it is on,
+  `Theme.of(widget)` answers a contrast palette and `Theme.current()` is kept: on Windows the
+  contrast theme's own colours, read into `SystemPreferences.contrastColors()`, and on macOS and
+  GNOME the application's palette strengthened (text at 7:1, edges, rings and the accent at 4.5:1).
+  Every window repaints when it changes. `Theme.contrast()` says a palette is one; in it nothing
+  casts a shadow, every button and clickable card has its edge, and a `BackdropPanel` is opaque.
+  `Theme.followSystemContrast(false)` refuses it.
+- `Theme.controlBorder()`: the edge that identifies a control, the palette's outline moved toward
+  its text only until it clears 3:1 on its surfaces, derived as `primaryText()` is.
 - Printing and PDF (ADR 078), in a new package `limn.print`. A `Document` is widgets the toolkit
   cuts into pages: `Document.of(Paper.A4).header(page -> …).footer(page -> …).add(widget)`,
   `keepTogether(widget)` and `pageBreak()`, with margins, a title, a locale and a raster resolution.
@@ -1458,6 +1467,17 @@ Maven Central say which number that was.
 
 ### Changed
 
+- Every component's edge and state clears 3:1 against what is next to it in every shipped palette,
+  as WCAG 2.1 1.4.11 asks (ADR 081). The secondary button, the check box, the switch, the radio
+  button, the segmented control, every field box, the colour pickers, the split pane's divider and
+  a clickable card draw their edge in `controlBorder()`. A slider's rail and a progress bar's track
+  are an empty pill in it, and the scroll bar's thumb is that colour. A selected row of a list, a
+  table or a tree keeps its tint and gains a 2 pt bar in the accent at its leading edge. A calendar
+  range gets a line under its band, and the active part of a focused time spinner or date field a
+  line under it. The keyboard's item in a menu, a combo box's list, the tab list and the menu bar
+  is ringed in the focus colour. The default chart colours are solved per palette to 3:1, keeping
+  the separation of neighbouring series under colour-blind vision, and the axis line takes the
+  control edge.
 - On a masked `TextField`, an edit that would move a character into a position that does not take
   it is refused and does nothing, as typing into a full field does; before, the characters after it
   closed up and those landing on the wrong kind were dropped (`ABC-1234-XY`, Backspace among the

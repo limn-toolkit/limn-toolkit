@@ -227,8 +227,10 @@ and set the text; review by character and braille cursor routing inside a field 
 because no platform is given the rectangle of a range. A list publishes the rows it has realized
 rather than all of them, so a reader's own list navigation stops at what is on screen. Of the system's
 accessibility settings, reduced motion and increased contrast reach the toolkit: animations stop
-by themselves while motion is reduced, and `SystemPreferences.increaseContrast()` tells you when to
-apply a high-contrast palette ([Following the operating system](/docs/theming/#following-the-operating-system)).
+by themselves while motion is reduced, and every window paints with a contrast palette while more
+contrast is asked for, a Windows contrast theme's own colours included ([More contrast](/docs/theming/#more-contrast)).
+Every component's edge and every state it shows clears 3:1 against what is next to it in every
+shipped palette, as WCAG 2.1 1.4.11 asks.
 A system text scale does not reach it.
 
 Your application has a name on Linux, where the desktop lists applications and not windows.

@@ -1,5 +1,6 @@
 package limn.scene.internal;
 
+import org.jspecify.annotations.Nullable;
 import limn.scene.SystemPreferences;
 import limn.scene.SystemPreferences.ColorScheme;
 
@@ -22,10 +23,11 @@ public final class SystemPreferencesAccess {
          * @param reduceMotion        whether less motion is asked for
          * @param increaseContrast    whether more contrast is asked for
          * @param underlineAccessKeys whether access keys are underlined at all times
+         * @param contrastColors      the palette chosen for more contrast, or {@code null}
          * @return the value
          */
         SystemPreferences create(ColorScheme colorScheme, boolean reduceMotion, boolean increaseContrast,
-                boolean underlineAccessKeys);
+                boolean underlineAccessKeys, SystemPreferences.@Nullable ContrastColors contrastColors);
     }
 
     private static volatile Factory factory;
@@ -60,6 +62,24 @@ public final class SystemPreferencesAccess {
      */
     public static SystemPreferences of(ColorScheme colorScheme, boolean reduceMotion, boolean increaseContrast,
             boolean underlineAccessKeys) {
+        return of(colorScheme, reduceMotion, increaseContrast, underlineAccessKeys, null);
+    }
+
+    /**
+     * The preferences a platform reported, with the palette its user chose for more contrast.
+     *
+     * @param colorScheme         the appearance the user chose; never {@code null}
+     * @param reduceMotion        whether the user asked for less motion
+     * @param increaseContrast    whether the user asked for more contrast
+     * @param underlineAccessKeys whether the user asked for access keys to be underlined at all
+     *                            times
+     * @param contrastColors      the palette chosen for more contrast (a Windows contrast theme's
+     *                            system colours), or {@code null}
+     * @return the value
+     * @throws NullPointerException if {@code colorScheme} is {@code null}
+     */
+    public static SystemPreferences of(ColorScheme colorScheme, boolean reduceMotion, boolean increaseContrast,
+            boolean underlineAccessKeys, SystemPreferences.@Nullable ContrastColors contrastColors) {
         Factory installed = factory;
         if (installed == null) {
             // NONE is the first thing a caller would otherwise touch; reading it initializes the
@@ -67,6 +87,6 @@ public final class SystemPreferencesAccess {
             java.util.Objects.requireNonNull(SystemPreferences.NONE);
             installed = factory;
         }
-        return installed.create(colorScheme, reduceMotion, increaseContrast, underlineAccessKeys);
+        return installed.create(colorScheme, reduceMotion, increaseContrast, underlineAccessKeys, contrastColors);
     }
 }

@@ -263,9 +263,19 @@ class NonTextContrastAuditTest {
 
     @Test
     void everyComponentAndStateClearsThreeToOneInEveryPalette() throws IOException {
-        List<Theme> palettes = Theme.builtins();
+        // The shipped palettes, each one's strengthened copy (macOS and GNOME with more contrast
+        // asked for), and the palettes made of Windows' four contrast themes.
+        List<Theme> palettes = new ArrayList<>(Theme.builtins());
+        for (Theme base : Theme.builtins()) {
+            palettes.add(Theme.strengthened(base));
+        }
+        for (var system : ContrastPaletteTest.WINDOWS_THEMES.entrySet()) {
+            Theme made = Theme.fromSystemColours(Theme.limn(), system.getValue());
+            palettes.add(made.toBuilder().name("Windows " + system.getKey()).build());
+        }
         StringBuilder out = new StringBuilder("# Non-text contrast, ADR 081 §0.3\n\n");
-        out.append("Worst ratio over the palettes; the parent is the worst of canvas, card and popover.\n\n");
+        out.append("Worst ratio over the shipped palettes, their strengthened copies and Windows' four contrast "
+                + "themes; the parent is the worst of canvas, card and popover.\n\n");
         out.append("| Component | State | Element | Kind | Worst | In | Below 3:1 in | Source |\n");
         out.append("| --- | --- | --- | --- | --- | --- | --- | --- |\n");
         Map<String, Boolean> heldByState = new LinkedHashMap<>();

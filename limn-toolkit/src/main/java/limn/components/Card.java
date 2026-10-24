@@ -1292,7 +1292,7 @@ public final class Card extends Widget<Card> {
             // surface sits 1.1 to 1.5:1 from the page, and a shadow is no edge.
             canvas.drawRoundRectBorder(0, 0, width(), height(), t.radiusMedium(), Strokes.HAIRLINE,
                     theme.controlBorder());
-        } else if (style == Style.OUTLINED || (style == Style.ELEVATED && theme.isDark())) {
+        } else if (style == Style.OUTLINED || (style == Style.ELEVATED && (theme.isDark() || theme.contrast()))) {
             // A dark palette's shadow is black on near black and does not show: a hairline does.
             canvas.drawRoundRectBorder(0, 0, width(), height(), t.radiusMedium(), Strokes.HAIRLINE,
                     theme.outline());

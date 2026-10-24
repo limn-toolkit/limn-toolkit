@@ -3,6 +3,7 @@ package limn.components;
 import limn.concurrent.Ui;
 
 import limn.scene.Scene;
+import limn.scene.SystemPreferences;
 import limn.scene.Widget;
 
 import limn.animation.Easing;
@@ -293,6 +294,9 @@ public final class Theme {
      * @param level  how far it is lifted
      */
     public void drawElevation(limn.graphics.Canvas canvas, limn.graphics.RoundRect shape, Elevation level) {
+        if (contrast) {
+            return; // a contrast palette lifts nothing by a shadow: its surfaces have edges
+        }
         for (limn.graphics.Shadow layer : elevation(level).layers()) {
             canvas.drawShadow(shape, layer);
         }
@@ -538,6 +542,13 @@ public final class Theme {
      * component changing. A static on this class rather than a method on
      * {@code Widget}, because {@code limn.scene} names no {@code limn.components} type.
      *
+     * <p><b>While the system asks for more contrast</b> ({@link SystemPreferences#increaseContrast()}),
+     * a widget on screen answers the contrast palette of {@link #current()} instead: the user's
+     * own colours where the platform gives a palette (a Windows contrast theme), and otherwise
+     * {@code current()} strengthened, with text at 7:1 and every edge, ring and accent at 4.5:1 on
+     * its surfaces. {@link #current()} is unchanged, and {@link #followSystemContrast(boolean)}
+     * refuses it. A printed page keeps its document's palette.
+     *
      * @param widget the widget about to paint
      * @return the palette it paints with
      */
@@ -548,7 +559,132 @@ public final class Theme {
             // A printed page's scene paints with the document's palette.
             return paper;
         }
-        return current;
+        return followSystemContrast ? forSystemContrast(current) : current;
+    }
+
+    // ------------------------------------------------------------- the system's contrast
+
+    /** Whether {@link #of} follows the system's request for more contrast; see there. */
+    private static volatile boolean followSystemContrast = true;
+
+    /**
+     * Whether the palette every widget paints with follows the system's request for more
+     * contrast: {@code true} unless an application said otherwise. With {@code false} an
+     * application keeps its palette while the user has asked for more contrast, which leaves it
+     * to bring its own contrast mode: following the platform's colour and contrast settings is
+     * what EN 301 549 clause 11.7 asks of software. Every window repaints. UI thread.
+     *
+     * @param follow whether to follow
+     */
+    public static void followSystemContrast(boolean follow) {
+        limn.concurrent.Ui.checkUiThread();
+        if (followSystemContrast == follow) {
+            return;
+        }
+        followSystemContrast = follow;
+        limn.scene.internal.SceneBackground.changed();
+        LISTENERS.fire();
+    }
+
+    /** @return whether the palette follows the system's request for more contrast */
+    public static boolean followsSystemContrast() {
+        return followSystemContrast;
+    }
+
+    /**
+     * Whether this is a contrast palette: one made for a user who asked the system for more
+     * contrast, or the shipped High Contrast. A component draws a few things otherwise in one: no
+     * shadow, every control with its edge, an opaque backdrop.
+     *
+     * @return whether it is
+     */
+    public boolean contrast() {
+        return contrast;
+    }
+
+    /**
+     * Set once, before the palette is handed out: by {@link #asContrast} and for the shipped High
+     * Contrast. Not part of {@link #equals}: a palette read back from a file is the same palette.
+     */
+    private boolean contrast;
+
+    /** The last contrast palette made, for the base and the system colours it was made from. */
+    private record ContrastMade(Theme base, SystemPreferences.@Nullable ContrastColors colours, Theme palette) {
+    }
+
+    private static volatile @Nullable ContrastMade contrastMade;
+
+    /** {@code base}, or its contrast palette while the system asks for more contrast. Allocates nothing once made. */
+    private static Theme forSystemContrast(Theme base) {
+        SystemPreferences preferences = SystemPreferences.current();
+        if (!preferences.increaseContrast() || base.contrast) {
+            return base;
+        }
+        SystemPreferences.ContrastColors colours = preferences.contrastColors();
+        ContrastMade made = contrastMade;
+        if (made != null && made.base == base && Objects.equals(made.colours, colours)) {
+            return made.palette;
+        }
+        Theme palette = colours != null ? fromSystemColours(base, colours) : strengthened(base);
+        contrastMade = new ContrastMade(base, colours, palette);
+        return palette;
+    }
+
+    /**
+     * The palette made of the user's own colours: every surface the window's colour, all text and
+     * every edge the window's text, the selection and the accent the highlight pair, links and the
+     * focus ring the link colour, anything disabled the disabled colour. The semantic tones take
+     * the text colour, since the palette has none: their meaning comes from their icon or word.
+     * Used as given: the user chose these, and every pair clears what it needs in the themes
+     * Windows ships.
+     */
+    static Theme fromSystemColours(Theme base, SystemPreferences.ContrastColors c) {
+        boolean dark = c.window().relativeLuminance() < 0.18;
+        Theme made = new Builder(dark ? DARK : LIGHT)
+                .name(base.name + " (system contrast)").dark(dark)
+                .cornerScale(base.cornerScale).fontFamily(base.fontFamily)
+                .background(c.window()).surface(c.window()).surfaceRaised(c.window())
+                .text(c.windowText()).textMuted(c.windowText()).outline(c.windowText())
+                .focusRing(c.link())
+                .primary(c.highlight()).primaryHover(c.highlight()).primaryPressed(c.highlight())
+                .onPrimary(c.highlightText())
+                .disabledFill(c.window()).disabledText(c.disabledText())
+                .danger(c.windowText()).success(c.windowText()).warning(c.windowText()).info(c.windowText())
+                .scrim(Color.rgba(dark ? 0x000000 : 0xFFFFFF, 204 / 255f))
+                .build();
+        return asContrast(made);
+    }
+
+    /**
+     * {@code base} strengthened, as macOS and GNOME strengthen their own widgets when more
+     * contrast is asked for: the same light or dark and the same accent, text and muted text moved
+     * toward black or white until 7:1 on every surface, and the outline, the focus ring, the accent
+     * and the semantic tones moved toward that text until 4.5:1, an accent fill's text taking
+     * whichever of the canvas or the text reads better on it.
+     */
+    static Theme strengthened(Theme base) {
+        Color[] grounds = {base.background, base.surface, base.surfaceRaised};
+        Color text = readableToward(base.text, base.dark ? Color.WHITE : Color.BLACK, 7.0, grounds);
+        Color primary = readableToward(base.primary, text, TEXT_CONTRAST, grounds);
+        Color onPrimary = Color.contrastRatio(base.onPrimary, primary) >= Color.contrastRatio(base.background, primary)
+                ? base.onPrimary : base.background;
+        Theme made = base.toBuilder()
+                .name(base.name + " (more contrast)")
+                .text(text).textMuted(text)
+                .outline(readableToward(base.outline, text, TEXT_CONTRAST, grounds))
+                .focusRing(readableToward(base.focusRing, text, TEXT_CONTRAST, grounds))
+                .primary(primary).onPrimary(onPrimary).deriveAccentStates()
+                .danger(readableToward(base.danger, text, TEXT_CONTRAST, grounds))
+                .success(readableToward(base.success, text, TEXT_CONTRAST, grounds))
+                .warning(readableToward(base.warning, text, TEXT_CONTRAST, grounds))
+                .info(readableToward(base.info, text, TEXT_CONTRAST, grounds))
+                .build();
+        return asContrast(made);
+    }
+
+    private static Theme asContrast(Theme palette) {
+        palette.contrast = true;
+        return palette;
     }
 
     /**
@@ -1504,6 +1640,11 @@ public final class Theme {
         return new limn.scene.TooltipStyle(t.surfaceRaised, t.outline, t.text,
                 s.label(), s.radiusSmall(), s.tooltipPadH(), s.tooltipPadV(),
                 t.elevation(Elevation.OVERLAY).layers());
+    }
+
+    static {
+        // The shipped High Contrast is a contrast palette: no shadows, an edge on every control.
+        HIGH_CONTRAST.contrast = true;
     }
 
     static {

@@ -1,7 +1,8 @@
 # ADR 081: Non-text contrast holds in every palette, and the system's contrast is followed
 
-- **Status:** **Accepted 2026-10-24**: the owner took every recommendation of §6 (§7 records the
-  answers), and it is built before 1.0. Proposed 2026-10-23 at the owner's request, an ADR to
+- **Status:** **Accepted and implemented 2026-10-24**: the owner took every recommendation of §6
+  (§7 records the answers); §8 records what was built, what of §1.4 was not, and the live reading on
+  the guests that is still owed. Proposed 2026-10-23 at the owner's request, an ADR to
   understand how to implement contrast as the platforms' own preferences ask, its scope WCAG 1.4.11
   and EN 301 549 and nothing beyond; §0.3 holds the component audit and §0.4 what the four guests
   answered, both on 2026-10-23.
@@ -343,3 +344,39 @@ Every question took its recommendation:
 
 Once built, `NonTextContrastAuditTest` asserts the bar: every BOUNDARY, STATE and GRAPHIC row at 3:1
 in every palette, and the contrast palettes at §1.3's.
+
+## 8. Built, 2026-10-24
+
+- **1.4.11 in every palette (§1.1, answers 1 to 4).**
+  - `Theme.controlBorder()` is the palette's outline moved toward its text, in steps of one hundredth, only until it clears 3:1 on canvas, card and popover. It is derived as `primaryText()` is, so an application's palette has it without a key in the theme file.
+  - It draws the edge of every control the audit found identified by its edge:
+    - the secondary button, the check box, the switch, the radio button and the segmented control;
+    - every field box: text field, text area, spinner, combo box, date field, date picker;
+    - the colour pickers, the split pane's divider, and a clickable card.
+  - Rails and tracks: a slider's rail and a progress bar's track are an empty pill in it, with the accent against the page. A faint fill read 1.26:1, and an accent on a solid grey would not stand apart. The scroll bar's thumb is that colour.
+  - Selection:
+    - A selected row of a list, a table or a tree keeps its tint and gains a 2 pt bar in the accent at its leading edge (`Strokes.SELECTION_MARK`).
+    - A calendar range gets a line under its band.
+    - The active part of a focused time spinner or date field gets a line under it.
+  - The keyboard's item in a menu, a combo box's list, the tab list and the menu bar is ringed in the focus colour.
+  - Charts:
+    - `ChartPalette.defaultFor` solves the eight slots per palette in OKLab lightness only, keeping hue and chroma, until each clears 3:1 on canvas, card and popover. It then pushes apart any neighbouring pair the move brought under the separation the slots were chosen for: OKLab ΔE × 100 of 15 under normal vision and 8 under simulated protanopia and deuteranopia (Machado 2009).
+    - `ChartPaletteTest` checks both in all fifteen palettes with an arithmetic of its own. The axis line takes the control edge.
+  - `NonTextContrastAuditTest` now asserts the bar. All 120 required component states clear 3:1 in 34 palettes: the fifteen shipped, each one's strengthened copy, and the four made of Windows' contrast themes.
+- **The system's contrast followed (§1.2, §1.3, answers 5 to 7).**
+  - `SystemPreferences.contrastColors()` carries a Windows contrast theme's eight system colours, read by `GetSysColor` while one is on.
+  - `Theme.of(widget)` answers the contrast palette while `increaseContrast()` is true, and `Theme.current()` is unchanged:
+    - on Windows, the user's colours as given (`Theme.fromSystemColours`);
+    - elsewhere, the palette strengthened (`Theme.strengthened`): text and muted text at 7:1, outline, focus ring, accent and semantic tones at 4.5:1, and an accent's text taking whichever of the canvas or the text reads better on it.
+  - `SystemPreferences.report` repaints every scene when the request or the colours change.
+  - `Theme.followSystemContrast(false)` refuses.
+  - `ContrastPaletteTest` holds the strengthened copies to those bars and the Windows palette to its eight colours, and checks that a widget follows the request, the refusal and the withdrawal.
+- **§1.4's drawing rules, under `Theme.contrast()`** (true for the contrast palettes and the shipped High Contrast):
+  - nothing casts a shadow;
+  - every button and every elevated card wears its edge;
+  - a `BackdropPanel` paints opaque.
+- **Not built, and why:**
+  - **Rule 2 (hover as an edge).** 1.4.11 asks nothing of hover, and each hover tint stays.
+  - **Rule 3 (a 2 pt ring everywhere).** The check box's, radio button's and list's rings stay at their locked 1.5 pt, which clears 3:1 in every palette. A thicker ring is 2.4.13's, at level AAA.
+  - **Popups.** Their fills keep their 0.94 to 0.98 alpha, which keeps their contrast within a hundredth.
+- **Owed: the live reading of §4.** On each guest, the setting is to be turned on with the Showcase open, and its following seen and captured.

@@ -325,9 +325,17 @@ public final class BackdropPanel extends Padding {
 
     @Override
     protected void onPaint(Canvas canvas) {
+        Theme theme = Theme.of(this);
         float radius = cornerRadius >= 0
                 ? cornerRadius
-                : Theme.of(this).tokensFor(this).radiusLarge();
+                : theme.tokensFor(this).radiusLarge();
+        if (theme.contrast()) {
+            // Glass promises no contrast for what is drawn on it: a contrast palette paints the
+            // panel opaque, with an edge.
+            canvas.fillRoundRectWithBorder(0, 0, width(), height(), radius, theme.surface(), Strokes.BORDER,
+                    theme.outline());
+            return;
+        }
         // In order: each pass reads what the one before it wrote.
         for (BackdropEffect each : effects()) {
             canvas.fillBackdropRoundRect(0, 0, width(), height(), radius, each);

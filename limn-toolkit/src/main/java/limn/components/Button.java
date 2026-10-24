@@ -535,6 +535,12 @@ public final class Button extends Widget<Button> {
                 }
             }
         }
+        if (theme.contrast() && style != Style.SECONDARY) {
+            // A contrast palette may give a button's face the window's own colour, and a
+            // tertiary button has no face at all: every button wears its edge there.
+            canvas.drawRoundRectBorder(0, 0, width(), height(), t.radiusMedium(), Strokes.BORDER,
+                    isEnabled() ? theme.controlBorder() : theme.disabledText());
+        }
         float focus = focusFade.value();
         if (focus > 0.001f) {
             // Focus ring drawn OUTSIDE the button with a 1px gap, never over the fill (a 2px

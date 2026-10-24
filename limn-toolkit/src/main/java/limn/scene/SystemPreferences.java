@@ -1,5 +1,7 @@
 package limn.scene;
 
+import limn.graphics.Color;
+
 import limn.concurrent.Ui;
 import limn.concurrent.internal.ChangeListeners;
 import limn.scene.internal.SystemPreferencesAccess;
@@ -70,7 +72,39 @@ public final class SystemPreferences {
      * Alt is held: what a platform that says nothing reports.
      */
     public static final SystemPreferences NONE =
-            new SystemPreferences(ColorScheme.NO_PREFERENCE, false, false, false);
+            new SystemPreferences(ColorScheme.NO_PREFERENCE, false, false, false, null);
+
+    /**
+     * The palette a user chose when the platform's request for more contrast is a palette of its
+     * own: a Windows contrast theme, whose eight system colours every native application draws
+     * with. Each pair a control draws from them is the user's to read; nothing here adjusts them.
+     *
+     * @param window        the canvas of a window and of every surface on it
+     * @param windowText    text, and the edge of every control
+     * @param link          a link, and a hot item
+     * @param disabledText  anything disabled
+     * @param highlight     a selection's fill
+     * @param highlightText text on a selection
+     * @param buttonFace    a button's face
+     * @param buttonText    a button's text
+     */
+    public record ContrastColors(Color window, Color windowText, Color link, Color disabledText,
+                                 Color highlight, Color highlightText, Color buttonFace, Color buttonText) {
+
+        /**
+         * @throws NullPointerException if any colour is {@code null}
+         */
+        public ContrastColors {
+            Objects.requireNonNull(window, "window");
+            Objects.requireNonNull(windowText, "windowText");
+            Objects.requireNonNull(link, "link");
+            Objects.requireNonNull(disabledText, "disabledText");
+            Objects.requireNonNull(highlight, "highlight");
+            Objects.requireNonNull(highlightText, "highlightText");
+            Objects.requireNonNull(buttonFace, "buttonFace");
+            Objects.requireNonNull(buttonText, "buttonText");
+        }
+    }
 
     private static volatile SystemPreferences current = NONE;
 
@@ -86,20 +120,29 @@ public final class SystemPreferences {
     private final boolean reduceMotion;
     private final boolean increaseContrast;
     private final boolean underlineAccessKeys;
+    private final @Nullable ContrastColors contrastColors;
+
+    /** The preferences with no palette chosen for more contrast. */
+    SystemPreferences(ColorScheme colorScheme, boolean reduceMotion, boolean increaseContrast,
+            boolean underlineAccessKeys) {
+        this(colorScheme, reduceMotion, increaseContrast, underlineAccessKeys, null);
+    }
 
     /**
      * @param colorScheme         the appearance; never {@code null}
      * @param reduceMotion        whether less motion is asked for
      * @param increaseContrast    whether more contrast is asked for
      * @param underlineAccessKeys whether access keys are underlined at all times
+     * @param contrastColors      the palette the user chose for more contrast, or {@code null}
      * @throws NullPointerException if {@code colorScheme} is {@code null}
      */
     SystemPreferences(ColorScheme colorScheme, boolean reduceMotion, boolean increaseContrast,
-            boolean underlineAccessKeys) {
+            boolean underlineAccessKeys, @Nullable ContrastColors contrastColors) {
         this.colorScheme = Objects.requireNonNull(colorScheme, "colorScheme");
         this.reduceMotion = reduceMotion;
         this.increaseContrast = increaseContrast;
         this.underlineAccessKeys = underlineAccessKeys;
+        this.contrastColors = contrastColors;
     }
 
     /** @return the appearance the user chose, or {@link ColorScheme#NO_PREFERENCE} */
@@ -115,6 +158,15 @@ public final class SystemPreferences {
     /** @return whether the user asked for more contrast */
     public boolean increaseContrast() {
         return increaseContrast;
+    }
+
+    /**
+     * @return the palette the user chose for more contrast where the platform has one (a Windows
+     *         contrast theme, while {@link #increaseContrast()} is true); {@code null} elsewhere,
+     *         where more contrast keeps the application's palette and strengthens it
+     */
+    public @Nullable ContrastColors contrastColors() {
+        return contrastColors;
     }
 
     /**
@@ -135,19 +187,21 @@ public final class SystemPreferences {
                 && colorScheme == other.colorScheme
                 && reduceMotion == other.reduceMotion
                 && increaseContrast == other.increaseContrast
-                && underlineAccessKeys == other.underlineAccessKeys;
+                && underlineAccessKeys == other.underlineAccessKeys
+                && Objects.equals(contrastColors, other.contrastColors);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(colorScheme, reduceMotion, increaseContrast, underlineAccessKeys);
+        return Objects.hash(colorScheme, reduceMotion, increaseContrast, underlineAccessKeys, contrastColors);
     }
 
     /** Every preference by name, for a log line. */
     @Override
     public String toString() {
         return "SystemPreferences[colorScheme=" + colorScheme + ", reduceMotion=" + reduceMotion
-                + ", increaseContrast=" + increaseContrast + ", underlineAccessKeys=" + underlineAccessKeys + "]";
+                + ", increaseContrast=" + increaseContrast + ", underlineAccessKeys=" + underlineAccessKeys
+                + (contrastColors == null ? "" : ", contrastColors=" + contrastColors) + "]";
     }
 
     /**
@@ -184,7 +238,14 @@ public final class SystemPreferences {
         if (preferences.equals(current)) {
             return;
         }
+        SystemPreferences before = current;
         current = preferences;
+        if (before.increaseContrast != preferences.increaseContrast
+                || !Objects.equals(before.contrastColors, preferences.contrastColors)) {
+            // The palette every widget paints with follows contrast unless the application
+            // refused it: every scene repaints, as on a theme switch.
+            limn.scene.internal.SceneBackground.changed();
+        }
         LISTENERS.fire();
     }
 }

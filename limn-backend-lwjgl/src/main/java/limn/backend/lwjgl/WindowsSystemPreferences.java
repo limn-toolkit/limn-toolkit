@@ -86,7 +86,50 @@ final class WindowsSystemPreferences {
 
     /** @return what Windows says now */
     static SystemPreferences read() {
-        return SystemPreferencesAccess.of(scheme(), !clientAreaAnimation(), highContrast(), keyboardCues());
+        boolean contrast = highContrast();
+        return SystemPreferencesAccess.of(scheme(), !clientAreaAnimation(), contrast, keyboardCues(),
+                contrast ? contrastColors() : null);
+    }
+
+    /** {@code GetSysColor}'s indexes of the eight colours a contrast theme sets. */
+    private static final int COLOR_WINDOW = 5;
+    private static final int COLOR_WINDOWTEXT = 8;
+    private static final int COLOR_HIGHLIGHT = 13;
+    private static final int COLOR_HIGHLIGHTTEXT = 14;
+    private static final int COLOR_BTNFACE = 15;
+    private static final int COLOR_GRAYTEXT = 17;
+    private static final int COLOR_BTNTEXT = 18;
+    private static final int COLOR_HOTLIGHT = 26;
+
+    private static final long GET_SYS_COLOR = getSysColor();
+
+    private static long getSysColor() {
+        try {
+            return org.lwjgl.system.APIUtil.apiGetFunctionAddress(org.lwjgl.system.windows.User32.getLibrary(),
+                    "GetSysColor");
+        } catch (RuntimeException | LinkageError unavailable) {
+            return NULL;
+        }
+    }
+
+    /**
+     * The contrast theme's colours, read from the system colours every native control draws with
+     * while one is on: measured on 2026-10-23 under each of the four Windows ships, every pair a
+     * control draws from them already clears what it needs.
+     */
+    private static SystemPreferences.@org.jspecify.annotations.Nullable ContrastColors contrastColors() {
+        if (GET_SYS_COLOR == NULL) {
+            return null;
+        }
+        return new SystemPreferences.ContrastColors(sysColor(COLOR_WINDOW), sysColor(COLOR_WINDOWTEXT),
+                sysColor(COLOR_HOTLIGHT), sysColor(COLOR_GRAYTEXT), sysColor(COLOR_HIGHLIGHT),
+                sysColor(COLOR_HIGHLIGHTTEXT), sysColor(COLOR_BTNFACE), sysColor(COLOR_BTNTEXT));
+    }
+
+    /** One system colour: a COLORREF is 0x00BBGGRR. */
+    private static limn.graphics.Color sysColor(int index) {
+        int bgr = JNI.invokePI(index, GET_SYS_COLOR);
+        return limn.graphics.Color.rgb((bgr & 0xFF) << 16 | bgr & 0xFF00 | (bgr >> 16) & 0xFF);
     }
 
     private static ColorScheme scheme() {
