@@ -2,7 +2,7 @@
 
 - **Status:** **Accepted and implemented 2026-10-24**: the owner took every recommendation of §6
   (§7 records the answers); §8 records what was built, what of §1.4 was not, and the live reading on
-  the guests that is still owed. Proposed 2026-10-23 at the owner's request, an ADR to
+  the guests, taken the same day. Proposed 2026-10-23 at the owner's request, an ADR to
   understand how to implement contrast as the platforms' own preferences ask, its scope WCAG 1.4.11
   and EN 301 549 and nothing beyond; §0.3 holds the component audit and §0.4 what the four guests
   answered, both on 2026-10-23.
@@ -379,4 +379,13 @@ in every palette, and the contrast palettes at §1.3's.
   - **Rule 2 (hover as an edge).** 1.4.11 asks nothing of hover, and each hover tint stays.
   - **Rule 3 (a 2 pt ring everywhere).** The check box's, radio button's and list's rings stay at their locked 1.5 pt, which clears 3:1 in every palette. A thicker ring is 2.4.13's, at level AAA.
   - **Popups.** Their fills keep their 0.94 to 0.98 alpha, which keeps their contrast within a hundredth.
-- **Owed: the live reading of §4.** On each guest, the setting is to be turned on with the Showcase open, and its following seen and captured.
+- **The live reading of §4, 2026-10-24**, with the Showcase built from this record's commits, each setting turned on and put back:
+  - **Windows 11 ARM64.** The contrast theme was switched by opening its file, as the Settings app does.
+    - Under contrast theme No. 2, the Showcase painted black with white text, and its selection bar was the theme's lilac highlight.
+    - Under the white theme, it painted the #FFFAEF canvas, #3D3D3D text and a #903909 bar.
+    - The frame followed as before, and the theme was put back.
+  - **Ubuntu GNOME.** The setting was switched by `gsettings`. With High Contrast on, the portal said 1, and 58,469 pixels inside the Showcase's window changed. A field's edge went from #717985 to #9198A2 (the dark palette strengthened).
+  - **macOS 27, the GPU-less guest, on ANGLE.** The owner switched Increase Contrast on, and the System Settings toggle was switched back off by UI automation. With it on:
+    - muted text (a count, the table's header, a field's placeholder) took the text colour;
+    - field edges darkened.
+  - Every guest was left as it was found.
