@@ -130,6 +130,10 @@ The toolkit ships a High Contrast palette, and `ThemeAudit` holds every shipped 
 bars. Whether a system that asks for more contrast should move an application onto that palette is
 the application's choice, as in §1.2.
 
+*Reversed for contrast by ADR 081 (2026-10-24, the owner's answer to its question 5): while the
+system asks for more contrast, every window paints with a contrast palette by default, and
+`Theme.followSystemContrast(false)` refuses it. The appearance stays the application's choice.*
+
 ## 2. What it costs
 
 - Three backend readers and three change listeners, each small, each verified live on its guest.

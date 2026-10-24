@@ -1,10 +1,11 @@
 # ADR 081: Non-text contrast holds in every palette, and the system's contrast is followed
 
-- **Status:** Proposed, 2026-10-23, at the owner's request: an ADR to understand how to implement
-  contrast as the platforms' own preferences ask, its scope WCAG 1.4.11 and EN 301 549 and nothing
-  beyond. §6 holds the questions for the owner, each with a recommendation; §0.3 holds the
-  component audit and §0.4 what the four guests answered, both on 2026-10-23.
-- **Date:** 2026-10-23
+- **Status:** **Accepted 2026-10-24**: the owner took every recommendation of §6 (§7 records the
+  answers), and it is built before 1.0. Proposed 2026-10-23 at the owner's request, an ADR to
+  understand how to implement contrast as the platforms' own preferences ask, its scope WCAG 1.4.11
+  and EN 301 549 and nothing beyond; §0.3 holds the component audit and §0.4 what the four guests
+  answered, both on 2026-10-23.
+- **Date:** 2026-10-23, decided 2026-10-24
 - **Scope:** two requirements and nothing else.
   - **WCAG 2.1 success criterion 1.4.11, Non-text Contrast (level AA)**, which EN 301 549 repeats
     for software as clause 11.1.4.11: the visual information needed to identify a user interface
@@ -190,7 +191,7 @@ boundaries and strength, which is the strengthened copy of §1.3; GNOME's light 
 4.5:1, rather than above what the platform itself draws. Every native piece the probes showed (the
 frame, the system's own windows) followed by itself; the Showcase followed nothing.
 
-## 1. Decision (proposed)
+## 1. Decision
 
 ### 1.1 1.4.11 holds in every palette, all the time
 
@@ -320,3 +321,25 @@ is set:
 7. **On Windows, the user's colours (§1.3)** rather than a strengthened copy? *Recommended: yes.*
 8. **Before 1.0?** *Recommended: yes*: §1.1 and §1.2 change what an application that does nothing
    looks like, which is cheaper before the compatibility promise than after it.
+
+## 7. The owner's answers, 2026-10-24
+
+Every question took its recommendation:
+
+1. A new control-boundary token at 3:1 in every palette; `outline` stays at 2:1 for dividers, card
+   edges and grids.
+2. The default chart series colours are re-solved to clear 3:1 on canvas, card and popover in light
+   and dark, and the axis line takes the control-boundary token.
+3. Selection keeps its tint and gains a 2 pt mark in `primary` at the row's leading edge; the
+   keyboard's item in menus, the menu bar and lists is drawn with the focus ring, as ListView's
+   focused row already is.
+4. Slider and RangeSlider rails, ProgressBar's track and the ScrollBar's thumb take the
+   control-boundary token.
+5. The system's request for contrast is followed by default; ADR 047 §1.4 is reversed for contrast
+   only, and the appearance stays the application's (ADR 047 §1.2).
+6. The refusal is `Theme.followSystemContrast(boolean)`, beside `apply()`.
+7. On Windows the contrast palette is the user's eight system colours, used as given.
+8. Before 1.0.
+
+Once built, `NonTextContrastAuditTest` asserts the bar: every BOUNDARY, STATE and GRAPHIC row at 3:1
+in every palette, and the contrast palettes at §1.3's.
