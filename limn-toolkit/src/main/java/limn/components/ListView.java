@@ -10,6 +10,7 @@ import limn.components.internal.a11y.RowsAccessibility;
 import limn.components.internal.RowsPlaceholder;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
+import limn.graphics.Color;
 import limn.i18n.I18nString;
 import limn.input.Keys;
 import limn.internal.lang.Checks;
@@ -2064,6 +2065,18 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
             Theme theme = Theme.of(this);
             SizeTokens t = theme.tokensFor(this);
             float inset = Strokes.FOCUS_RING_THIN;
+            // Every selected row wears the bar at its leading edge, 3:1 where the outline below
+            // is a quiet 2:1 (a selected row of an unfocused list showed nothing else).
+            boolean rtl = isRightToLeft();
+            Color mark = isEnabled() ? theme.primary() : theme.disabledText();
+            for (int i = 0; i < engine.mountedCount(); i++) {
+                int row = engine.rowAt(i);
+                if (selected.get(row) && !Float.isNaN(at[i])) {
+                    Widget<?> marked = engine.mountedAt(i);
+                    limn.components.internal.SelectionMark.paint(canvas, 0, marked.y() + at[i], width(),
+                            marked.height(), rtl, mark);
+                }
+            }
             // Every selected row other than the cursor's wears the resting outline. In SINGLE the
             // selection is the cursor, so this draws nothing and the list looks as it always did.
             for (int i = 0; i < engine.mountedCount(); i++) {

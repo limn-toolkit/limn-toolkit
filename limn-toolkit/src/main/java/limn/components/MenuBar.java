@@ -669,6 +669,10 @@ public final class MenuBar extends Widget<MenuBar> {
                 Color fill = i == openIndex ? theme.primary().withAlpha(0.20f) : theme.surfaceRaised();
                 canvas.fillRoundRect(x + chip, chip, w - 2 * chip, height() - 2 * chip,
                         t.radiusSmall(), fill);
+                // The chip alone is 1.0 to 1.3:1 against the bar: the ring is what shows the
+                // keyboard's title, or the title whose menu is open, at 3:1.
+                canvas.drawRoundRect(x + chip, chip, w - 2 * chip, height() - 2 * chip,
+                        t.radiusSmall(), Strokes.FOCUS_RING_THIN, theme.focusRing());
             }
             Color ink = i == openIndex ? theme.text() : theme.textMuted().lerp(theme.text(), i == hoverIndex ? 1 : 0);
             // Titles are aligned on the leading pad, not centred in the (possibly floored) box:

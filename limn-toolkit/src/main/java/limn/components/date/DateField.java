@@ -2001,6 +2001,11 @@ public final class DateField extends Widget<DateField> {
                     canvas.fillRoundRect(x - padX, inset, pieceWidth + 2 * padX,
                             height() - 2 * inset, t.radiusSmall(),
                             theme.primary().withAlpha(0.20f * focus));
+                    // The wash alone is 1.3:1 against the field; the line under it is the 3:1
+                    // that says which part the keys change.
+                    canvas.fillRect(x - padX, height() - inset - limn.components.Strokes.SELECTION_MARK,
+                            pieceWidth + 2 * padX, limn.components.Strokes.SELECTION_MARK,
+                            theme.primary().withAlpha(focus));
                 }
                 slot++;
             }

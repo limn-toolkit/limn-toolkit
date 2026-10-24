@@ -1841,6 +1841,9 @@ public final class CalendarView extends Widget<CalendarView> {
                     // A wash rather than a fill, and square rather than rounded: the band is one
                     // shape across a week, and rounding every cell would draw it as seven pills.
                     canvas.fillRect(left, top, cellW, cellH, theme.primary().withAlpha(0.18f));
+                    // The wash alone is 1.2:1 against the month; the line under it is 3:1.
+                    canvas.fillRect(left, top + cellH - limn.components.Strokes.SELECTION_MARK, cellW,
+                            limn.components.Strokes.SELECTION_MARK, enabled ? theme.primary() : theme.disabledText());
                 }
                 if (end) {
                     canvas.fillRoundRect(left + inset, top + inset, cellW - 2 * inset,

@@ -3605,6 +3605,9 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
                 int model = modelOf(row);
                 if (selected.get(model)) {
                     canvas.fillRect(rowX, top, w, slot.height, selectionTint);
+                    // The tint alone is 1.2:1 against the rows beside it; the bar is 3:1.
+                    limn.components.internal.SelectionMark.paint(canvas, rowX, top, w, slot.height, rtl,
+                            isEnabled() ? theme.primary() : theme.disabledText());
                 } else if (striped && (row & 1) == 1) {
                     canvas.fillRect(rowX, top, w, slot.height, stripeTint);
                 }

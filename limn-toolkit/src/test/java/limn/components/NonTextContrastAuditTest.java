@@ -32,10 +32,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * is the worst of the three. Several rows of one kind for one component and state are alternatives (a
  * field is identified by its border or by its fill): the state holds if one of them clears the bar.
  *
- * <p>This test asserts only that every widget class the toolkit ships has rows, or a stated reason
- * to have none, so that a component added later is audited when it lands. The ratios are written to
- * {@code build/reports/non-text-contrast.md}; which of them must hold, and how, is the owner's
- * decision (ADR 081 §6), and the bar is asserted once it is taken.
+ * <p>Every widget class the toolkit ships has rows, or a stated reason to have none, so that a
+ * component added later is audited when it lands; and every row that identifies a component, a
+ * state or a graphic clears 3:1 in every shipped palette, as the owner decided on 2026-10-24 (ADR
+ * 081 §7). The ratios are written to {@code build/reports/non-text-contrast.md}.
  */
 class NonTextContrastAuditTest {
 
@@ -146,20 +146,20 @@ class NonTextContrastAuditTest {
         field("TextArea", "TextArea.java:1713");
         field("Spinner", "Spinner.java:1215");
         row("Spinner", "rest", "step arrows", Kind.GRAPHIC, Theme::textMuted, Theme::surface, "Spinner.java:1348");
-        row("Spinner", "TIME, focused", "active field", Kind.STATE, t -> t.primary().withAlpha(0.20f), Theme::surface, "Spinner.java:1255");
+        row("Spinner", "TIME, focused", "line under the active field", Kind.STATE, Theme::primary, Theme::surface, "Spinner.java:1258");
         field("ComboBox", "ComboBox.java:1984");
         row("ComboBox", "rest", "chevron", Kind.GRAPHIC, Theme::textMuted, Theme::surface, "ComboBox.java:2066");
-        row("ComboBox", "list, keyboard row", "row fill (primary at 0.28)", Kind.STATE, t -> t.primary().withAlpha(0.28f), Theme::surfaceRaised, "ComboBox.java:2997");
+        row("ComboBox", "list, keyboard row", "ring", Kind.STATE, Theme::focusRing, Theme::surfaceRaised, "ComboBox.java:3003");
         row("ComboBox", "list, selected", "dot or check", Kind.STATE, Theme::primary, Theme::surfaceRaised, "ComboBox.java:3014");
         listed("ComboBox", "multi, chip", "pill: identified by its word, as a badge", Kind.TEXT_ONLY, "ComboBox.java:2673");
         row("ComboBox", "open", "popup edge", Kind.DECORATION, Theme::outline, PARENT, "ComboBox.java:2966");
         field("DateField", "date/DateField.java:1974");
-        row("DateField", "focused", "active segment (primary at 0.20)", Kind.STATE, t -> t.primary().withAlpha(0.20f), Theme::surface, "date/DateField.java:2001");
+        row("DateField", "focused", "line under the active segment", Kind.STATE, Theme::primary, Theme::surface, "date/DateField.java:2005");
         field("DatePicker", "date/DatePicker.java:1224");
         row("DatePicker", "rest", "calendar glyph", Kind.GRAPHIC, Theme::textMuted, Theme::surface, "date/DatePicker.java:1352");
         row("DatePicker", "button focused", "inner ring", Kind.STATE, Theme::focusRing, Theme::surface, "date/DatePicker.java:1380");
         row("CalendarView", "selected day", "cell", Kind.STATE, Theme::primary, PARENT, "date/CalendarView.java:1846");
-        row("CalendarView", "range", "band (primary at 0.18)", Kind.STATE, t -> t.primary().withAlpha(0.18f), PARENT, "date/CalendarView.java:1843");
+        row("CalendarView", "range", "line under the band", Kind.STATE, Theme::primary, PARENT, "date/CalendarView.java:1845");
         row("CalendarView", "today", "ring", Kind.STATE, Theme::primary, PARENT, "date/CalendarView.java:1852");
         row("CalendarView", "focused", "cursor ring", Kind.STATE, Theme::focusRing, PARENT, "date/CalendarView.java:1877");
         row("CalendarView", "rest", "paging chevrons", Kind.GRAPHIC, Theme::textMuted, PARENT, "date/CalendarView.java:2070");
@@ -173,23 +173,22 @@ class NonTextContrastAuditTest {
 
         // ---------------------------------------------------------------- lists, menus, tabs
         listed("ListView", "rest", "no boundary of its own", Kind.TEXT_ONLY, "ListView.java:2030");
-        row("ListView", "selected", "row outline", Kind.STATE, Theme::outline, PARENT, "ListView.java:2073");
+        row("ListView", "selected", "bar at the leading edge", Kind.STATE, Theme::primary, PARENT, "internal/SelectionMark.java");
         row("ListView", "focused row", "ring", Kind.STATE, Theme::focusRing, PARENT, "ListView.java:2095");
         listed("Table", "rest", "no boundary of its own", Kind.TEXT_ONLY, "table/Table.java:3580");
-        row("Table", "selected", "row fill (primary at 0.18)", Kind.STATE, t -> t.primary().withAlpha(0.18f), PARENT, "table/Table.java:3571");
+        row("Table", "selected", "bar at the leading edge", Kind.STATE, Theme::primary, t -> t.primary().withAlpha(0.18f), "internal/SelectionMark.java");
         row("Table", "focused cell", "ring", Kind.STATE, Theme::focusRing, t -> t.primary().withAlpha(0.18f), "table/Table.java:3662");
         row("Table", "sorted", "sort chevron", Kind.STATE, Theme::textMuted, Theme::surfaceRaised, "table/Table.java:3760");
         row("Table", "header", "column dividers and bottom rule", Kind.DECORATION, Theme::outline, Theme::surfaceRaised, "table/Table.java:3767");
-        row("Tree", "selected", "row fill (primary at 0.18)", Kind.STATE, t -> t.primary().withAlpha(0.18f), PARENT, "tree/Tree.java:3827");
+        row("Tree", "selected", "bar at the leading edge", Kind.STATE, Theme::primary, t -> t.primary().withAlpha(0.18f), "internal/SelectionMark.java");
         row("Tree", "focused row", "ring", Kind.STATE, Theme::focusRing, t -> t.primary().withAlpha(0.18f), "tree/Tree.java:3939");
         row("Tree", "expanded or collapsed", "disclosure arrow", Kind.STATE, Theme::textMuted, PARENT, "tree/Tree.java:3973");
         row("TabbedPane", "current tab", "indicator", Kind.STATE, Theme::primary, PARENT, "TabbedPane.java:2135");
         row("TabbedPane", "focused tab", "top rule", Kind.STATE, Theme::focusRing, PARENT, "TabbedPane.java:2664");
         row("TabbedPane", "closable", "close cross", Kind.GRAPHIC, Theme::textMuted, t -> t.textMuted().withAlpha(0.12f), "TabbedPane.java:2657");
         row("TabbedPane", "rest", "rule under the strip", Kind.DECORATION, Theme::outline, PARENT, "TabbedPane.java:1816");
-        row("MenuBar", "open menu", "chip (primary at 0.20)", Kind.STATE, t -> t.primary().withAlpha(0.20f), PARENT, "MenuBar.java:669");
-        row("MenuBar", "keyboard item", "chip (surfaceRaised)", Kind.STATE, Theme::surfaceRaised, PARENT, "MenuBar.java:669");
-        row("PopupMenu", "keyboard item", "highlight (primary at 0.28)", Kind.STATE, t -> t.primary().withAlpha(0.28f), Theme::surfaceRaised, "PopupMenu.java:1454");
+        row("MenuBar", "open menu or keyboard item", "ring round the chip", Kind.STATE, Theme::focusRing, PARENT, "MenuBar.java:673");
+        row("PopupMenu", "keyboard item", "ring", Kind.STATE, Theme::focusRing, Theme::surfaceRaised, "PopupMenu.java:1459");
         row("PopupMenu", "checked", "tick", Kind.STATE, Theme::primary, Theme::surfaceRaised, "PopupMenu.java:1469");
         row("PopupMenu", "open", "card edge", Kind.DECORATION, Theme::outline, PARENT, "PopupMenu.java:1412");
         row("Popover", "open", "card edge", Kind.DECORATION, Theme::outline, PARENT, "Popover.java:537");
@@ -263,7 +262,7 @@ class NonTextContrastAuditTest {
     }
 
     @Test
-    void theRatiosAreWrittenForEveryPalette() throws IOException {
+    void everyComponentAndStateClearsThreeToOneInEveryPalette() throws IOException {
         List<Theme> palettes = Theme.builtins();
         StringBuilder out = new StringBuilder("# Non-text contrast, ADR 081 §0.3\n\n");
         out.append("Worst ratio over the palettes; the parent is the worst of canvas, card and popover.\n\n");
@@ -315,6 +314,13 @@ class NonTextContrastAuditTest {
         Files.createDirectories(report.getParent());
         Files.writeString(report, out, StandardCharsets.UTF_8);
         assertTrue(measured > 50, "the audit measured its rows");
+        List<String> failing = new ArrayList<>();
+        heldByState.forEach((state, ok) -> {
+            if (!ok) {
+                failing.add(state);
+            }
+        });
+        assertEquals(List.of(), failing, "states below 3:1 in at least one palette; see " + report.toAbsolutePath());
     }
 
     /** The row's ratio in {@code theme}, against the worst parent when the row names none. */

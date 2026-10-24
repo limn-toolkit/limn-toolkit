@@ -1254,6 +1254,10 @@ public final class Spinner extends Widget<Spinner> {
                 float inset = t.spinnerFieldInset(); // shared with the divider: one optical margin
                 canvas.fillRoundRect(fx - padX, inset, fw + 2 * padX, height() - 2 * inset,
                         t.radiusSmall(), theme.primary().withAlpha(0.20f * focus));
+                // The wash alone is 1.3:1 against the field; the line under it is the 3:1 that
+                // says which part the keys change.
+                canvas.fillRect(fx - padX, height() - inset - Strokes.SELECTION_MARK, fw + 2 * padX,
+                        Strokes.SELECTION_MARK, theme.primary().withAlpha(focus));
             }
             canvas.drawText(hh, hhX, baseline, ink);
             canvas.drawText(colon, colonX, baseline, theme.textMuted());

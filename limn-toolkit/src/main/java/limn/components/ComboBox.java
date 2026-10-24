@@ -3000,6 +3000,10 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
                     canvas.fillRoundRect(inset, top + Strokes.ROW_GUTTER,
                             width() - 2 * inset, itemH - 2 * Strokes.ROW_GUTTER,
                             t.radiusSmall(), theme.primary().withAlpha(0.28f));
+                    // The tint alone is 1.4:1 against the list; the ring is the keyboard's 3:1.
+                    canvas.drawRoundRect(inset, top + Strokes.ROW_GUTTER,
+                            width() - 2 * inset, itemH - 2 * Strokes.ROW_GUTTER,
+                            t.radiusSmall(), Strokes.FOCUS_RING_THIN, theme.focusRing());
                 }
                 if (selectionMode == SelectionMode.MULTI) {
                     if (chosen.get(rows[i])) {

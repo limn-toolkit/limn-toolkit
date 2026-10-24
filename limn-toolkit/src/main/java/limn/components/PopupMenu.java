@@ -1456,6 +1456,10 @@ public final class PopupMenu {
                     canvas.fillRoundRect(x + t.menuHiliteInsetX(), iy + t.menuHiliteInsetY(),
                             col.w - 2 * t.menuHiliteInsetX(), rowH - 2 * t.menuHiliteInsetY(),
                             t.radiusSmall(), theme.primary().withAlpha(0.28f));
+                    // The tint alone is 1.4:1 against the menu; the ring is the keyboard's 3:1.
+                    canvas.drawRoundRect(x + t.menuHiliteInsetX(), iy + t.menuHiliteInsetY(),
+                            col.w - 2 * t.menuHiliteInsetX(), rowH - 2 * t.menuHiliteInsetY(),
+                            t.radiusSmall(), Strokes.FOCUS_RING_THIN, theme.focusRing());
                 }
                 Color ink = item.isEnabled() ? theme.text() : theme.disabledText();
                 if (item.kind() == MenuItem.Kind.CHECK && item.isChecked()) {

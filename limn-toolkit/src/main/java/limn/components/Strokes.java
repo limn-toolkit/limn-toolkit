@@ -131,6 +131,14 @@ public final class Strokes {
      */
     public static final float TAB_INDICATOR = 2.5f;
 
+    /**
+     * The bar at a selected row's leading edge, in the accent: a selection's tint alone sits at
+     * about 1.2:1 against the rows beside it, and the bar is what tells a selected row apart at
+     * the 3:1 non-text contrast asks for. Locked, as the tab indicator is: a weight that reads
+     * at every control size, and a fill rather than a stroke, so no parity rule applies.
+     */
+    public static final float SELECTION_MARK = 2;
+
     // ----------------------------------------------------------- text machinery
 
     /** The text caret. */

@@ -3882,6 +3882,9 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         // two rows selected.
         if (!row.placeholder && selected.contains(row.node)) {
             canvas.fillRect(0, cell.y(), width(), cell.height(), selectionTint);
+            // The tint alone is 1.2:1 against the rows beside it; the bar is 3:1.
+            limn.components.internal.SelectionMark.paint(canvas, 0, cell.y(), width(), cell.height(),
+                    isRightToLeft(), isEnabled() ? theme.primary() : theme.disabledText());
         }
         if (row.expandable) {
             paintTwisty(canvas, theme, t, row, cell);
