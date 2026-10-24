@@ -68,7 +68,8 @@ public interface AudioEngine {
 
     /**
      * Positions the 3D listener for {@link PlayOptions#at positional}
-     * playbacks: where the "ears" are and which way they face.
+     * playbacks: where the "ears" are and which way they face. An engine whose device is not
+     * open yet keeps it and applies it as the device opens, and is never opened by this call.
      *
      * @param position the listener's world position
      * @param forward  unit vector the listener faces

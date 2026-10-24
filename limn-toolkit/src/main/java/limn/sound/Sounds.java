@@ -494,8 +494,8 @@ public final class Sounds {
     /**
      * Positions the 3D listener; see {@link AudioEngine#setListener}. No asynchronous form: it is
      * a couple of device calls, and it is typically driven per frame from a camera, where a
-     * deferred one would arrive behind the picture it belongs to. It can nonetheless be the first
-     * call that opens the audio device; see {@link #isAvailable()} for what that costs.
+     * deferred one would arrive behind the picture it belongs to. It never opens the audio device:
+     * a listener placed before the device is open is kept, and applied as it opens.
      */
     public static void setListener(limn.math.Vec3 position,
                                    limn.math.Vec3 forward, limn.math.Vec3 up) {

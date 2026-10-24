@@ -136,6 +136,10 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
     // AudioBus has identity equality, so a HashMap keys by bus instance.
     private final Map<AudioBus, Float> busGains = new HashMap<>();
     private float masterGain = 1f;
+    // OpenAL's own default listener: at the origin, facing -z, +y up.
+    private Vec3 listenerPosition = Vec3.ZERO;
+    private Vec3 listenerForward = new Vec3(0, 0, -1);
+    private Vec3 listenerUp = new Vec3(0, 1, 0);
 
     private long device;
     private long context;
@@ -206,15 +210,31 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
         refreshGains();
     }
 
+    /**
+     * Kept, and applied to the device once it is open, as the gains are: never the call that
+     * opens it. A page that placed its listener while it was built opened the device there, on
+     * the UI thread, for 120 to 590 ms on a Mac.
+     */
     @Override
     public synchronized void setListener(Vec3 position, Vec3 forward, Vec3 up) {
-        if (!ensureInitialized()) {
-            return;
+        listenerPosition = position;
+        listenerForward = forward;
+        listenerUp = up;
+        if (initialized) {
+            applyListener();
         }
-        alListener3f(AL_POSITION, position.x(), position.y(), position.z());
+    }
+
+    /** Whether the device is open: for tests of what opens it. */
+    synchronized boolean deviceOpen() {
+        return initialized;
+    }
+
+    private void applyListener() {
+        alListener3f(AL_POSITION, listenerPosition.x(), listenerPosition.y(), listenerPosition.z());
         try (org.lwjgl.system.MemoryStack stack = org.lwjgl.system.MemoryStack.stackPush()) {
-            alListenerfv(AL_ORIENTATION, stack.floats(
-                    forward.x(), forward.y(), forward.z(), up.x(), up.y(), up.z()));
+            alListenerfv(AL_ORIENTATION, stack.floats(listenerForward.x(), listenerForward.y(), listenerForward.z(),
+                    listenerUp.x(), listenerUp.y(), listenerUp.z()));
         }
     }
 
@@ -253,6 +273,7 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
         }
         AL.createCapabilities(alcCaps);
         initialized = true;
+        applyListener(); // where the application placed it before there was a device
     }
 
     private float effectiveGain(float playGain, AudioBus bus) {

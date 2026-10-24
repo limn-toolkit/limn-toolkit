@@ -281,6 +281,10 @@ final class AppScene {
 
     /** Standalone {@code --scene app}, and what the demo opens on when no scene is named. */
     static Built create() {
+        // The avatars' and the cards' pictures are painted pixel by pixel, a tenth of a second on a
+        // JVM just started: painted on a worker as the window opens, not on the first click that
+        // shows one (the Buttons page's, which took 94 to 215 ms for it).
+        Ui.async(() -> Pictures.STOCK);
         MenuBar menuBar = new MenuBar();
         Label status = new Label(ShowcaseStrings.STATUS_READY).setMuted(true);
         Page.reportTo(status);

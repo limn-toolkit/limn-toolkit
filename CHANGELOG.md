@@ -288,6 +288,10 @@ Maven Central say which number that was.
   and sounded for up to a tenth of a second before the next poll silenced it. The gain is now the
   player's (`MediaPlayer.setGain`, see New), and the track takes it as it arrives; the bar and the
   demo's volume set it there.
+- Placing the 3D listener no longer opens the audio device. `Sounds.setListener` opened it when it
+  was the first call to reach the engine, on the thread that called it: a page that placed its
+  listener while it was built held the UI thread 120 to 590 ms on a Mac. The place is kept, and
+  applied as the device opens, as the gains already were.
 - A closed `MediaPlayer` is not kept by a soundtrack the engine never takes. A device open that
   never returns (a sound server that hangs) blocks one hand-over thread per player started, and
   that thread held its player, with its clock, streams and listeners, until the engine answered; it

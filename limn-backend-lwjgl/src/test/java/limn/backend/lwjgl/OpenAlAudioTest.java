@@ -47,6 +47,33 @@ class OpenAlAudioTest {
     }
 
     /**
+     * Placing the listener never opens the device: a page that placed it while it was built opened
+     * the device on the UI thread. The place is kept, and is where the listener is once the device
+     * opens.
+     */
+    @Test
+    void theListenerIsKeptUntilTheDeviceOpensAndNeverOpensIt() {
+        OpenAlAudio audio = new OpenAlAudio();
+        try {
+            audio.setListener(new limn.math.Vec3(1, 2, 3), new limn.math.Vec3(1, 0, 0), new limn.math.Vec3(0, 1, 0));
+            org.junit.jupiter.api.Assertions.assertFalse(audio.deviceOpen(), "placing the listener opened the device");
+            org.junit.jupiter.api.Assumptions.assumeTrue(audio.isAvailable(),
+                    "needs a real audio device to read the listener back");
+            synchronized (audio) {
+                float[] x = new float[1], y = new float[1], z = new float[1];
+                org.lwjgl.openal.AL10.alGetListener3f(org.lwjgl.openal.AL10.AL_POSITION, x, y, z);
+                org.junit.jupiter.api.Assertions.assertArrayEquals(new float[] {1, 2, 3},
+                        new float[] {x[0], y[0], z[0]}, "the kept place, applied as the device opened");
+                float[] orientation = new float[6];
+                org.lwjgl.openal.AL10.alGetListenerfv(org.lwjgl.openal.AL10.AL_ORIENTATION, orientation);
+                org.junit.jupiter.api.Assertions.assertArrayEquals(new float[] {1, 0, 0, 0, 1, 0}, orientation);
+            }
+        } finally {
+            assertDoesNotThrow(audio::close);
+        }
+    }
+
+    /**
      * A clip or a stream the device would play slow does not start: the device accepts any
      * positive rate and plays one above ten times its own too slowly, saying nothing. The engine
      * refuses it the way it refuses a channel count it cannot play, with {@link Playback#NONE} and
