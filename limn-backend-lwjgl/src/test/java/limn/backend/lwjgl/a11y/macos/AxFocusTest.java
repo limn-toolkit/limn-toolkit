@@ -5,6 +5,7 @@ import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
+import limn.accessibility.internal.AccessibilityAccess;
 import limn.i18n.I18nString;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,24 +31,24 @@ class AxFocusTest {
     /** A window whose list holds the keyboard, with its second item the cursor. */
     private static AccessibleTree aFocusedListWithACursor(long cursorId) {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
         a.name(I18nString.literal("w"), Accessible.NameFrom.EXPLICIT);
-        a.inherited(true, true, true, false, false);
-        a.begin(1001, 0, Locale.ENGLISH, 10, 10, 200, 100);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 1001, 0, Locale.ENGLISH, 10, 10, 200, 100);
         a.role(Accessible.Role.LIST);
         a.name(I18nString.literal("Fruit"), Accessible.NameFrom.EXPLICIT);
         a.selection(false, false);
-        a.inherited(true, true, true, true, true);
+        AccessibilityAccess.inherited(a, true, true, true, true, true);
         for (int i = 0; i < 3; i++) {
             long id = 1002 + i;
-            a.begin(id, 1, Locale.ENGLISH, 10, 10 + 30L * i, 200, 30);
+            AccessibilityAccess.begin(a, id, 1, Locale.ENGLISH, 10, 10 + 30L * i, 200, 30);
             a.role(Accessible.Role.LIST_ITEM);
             a.name(I18nString.literal("Item " + i), Accessible.NameFrom.CONTENT);
             a.selectionItem(id == cursorId, i + 1, 3);
             if (id == cursorId) a.state(Accessible.State.ACTIVE, true);
-            a.inherited(true, true, true, false, false);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
             a.end();
         }
         a.end();
@@ -274,14 +275,14 @@ class AxFocusTest {
         bridge.publish(aFocusedListWithACursorAndTwoItems(), false);   // three rows became two
 
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        a.begin(1050, 0, Locale.ENGLISH, 10, 10, 80, 30);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 1050, 0, Locale.ENGLISH, 10, 10, 80, 30);
         a.role(Accessible.Role.BUTTON);
         a.name(I18nString.literal("OK"), Accessible.NameFrom.CONTENT);
-        a.inherited(true, true, true, true, true);
+        AccessibilityAccess.inherited(a, true, true, true, true, true);
         a.end();
         a.end();
         bridge.publish(a.publish(0, 0, 0, 1f, true), false);    // and the list is gone before the frame ends
@@ -320,24 +321,24 @@ class AxFocusTest {
 
     private static AccessibleTree aFocusedListWithACursorAndTwoItems() {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
         a.name(I18nString.literal("w"), Accessible.NameFrom.EXPLICIT);
-        a.inherited(true, true, true, false, false);
-        a.begin(1001, 0, Locale.ENGLISH, 10, 10, 200, 100);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 1001, 0, Locale.ENGLISH, 10, 10, 200, 100);
         a.role(Accessible.Role.LIST);
         a.name(I18nString.literal("Fruit"), Accessible.NameFrom.EXPLICIT);
         a.selection(false, false);
-        a.inherited(true, true, true, true, true);
+        AccessibilityAccess.inherited(a, true, true, true, true, true);
         for (int i = 0; i < 2; i++) {
             long id = 1002 + i;
-            a.begin(id, 1, Locale.ENGLISH, 10, 10 + 30L * i, 200, 30);
+            AccessibilityAccess.begin(a, id, 1, Locale.ENGLISH, 10, 10 + 30L * i, 200, 30);
             a.role(Accessible.Role.LIST_ITEM);
             a.name(I18nString.literal("Item " + i), Accessible.NameFrom.CONTENT);
             a.selectionItem(id == 1003, i + 1, 2);
             if (id == 1003) a.state(Accessible.State.ACTIVE, true);
-            a.inherited(true, true, true, false, false);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
             a.end();
         }
         a.end();
@@ -350,39 +351,39 @@ class AxFocusTest {
 
         static TwoWindows aFieldWithItsCursorInAPopup() {
             Accessibility popupWalk = new Accessibility();
-            long popupRoot = popupWalk.mint();
-            long grid = popupWalk.mint();
-            long day = popupWalk.mint();
-            popupWalk.beginWalk(200, 200, Locale.ENGLISH);
-            popupWalk.begin(popupRoot, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 200, 200);
+            long popupRoot = AccessibilityAccess.mint(popupWalk);
+            long grid = AccessibilityAccess.mint(popupWalk);
+            long day = AccessibilityAccess.mint(popupWalk);
+            AccessibilityAccess.beginWalk(popupWalk, 200, 200, Locale.ENGLISH);
+            AccessibilityAccess.begin(popupWalk, popupRoot, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 200, 200);
             popupWalk.role(Accessible.Role.WINDOW);
-            popupWalk.inherited(true, true, true, false, false);
-            popupWalk.begin(grid, 0, Locale.ENGLISH, 0, 0, 200, 200);
+            AccessibilityAccess.inherited(popupWalk, true, true, true, false, false);
+            AccessibilityAccess.begin(popupWalk, grid, 0, Locale.ENGLISH, 0, 0, 200, 200);
             popupWalk.role(Accessible.Role.GROUP);
-            popupWalk.inherited(true, true, true, false, false);
-            popupWalk.begin(day, 1, Locale.ENGLISH, 10, 10, 20, 20);
+            AccessibilityAccess.inherited(popupWalk, true, true, true, false, false);
+            AccessibilityAccess.begin(popupWalk, day, 1, Locale.ENGLISH, 10, 10, 20, 20);
             popupWalk.role(Accessible.Role.CELL);
             popupWalk.name(I18nString.literal("15"), Accessible.NameFrom.CONTENT);
             popupWalk.state(Accessible.State.ACTIVE, true);
-            popupWalk.inherited(true, true, true, false, false);
+            AccessibilityAccess.inherited(popupWalk, true, true, true, false, false);
             popupWalk.end();
             popupWalk.end();
             popupWalk.end();
             AccessibleTree popup = popupWalk.publish(0, 0, 0, 1f, true);
 
             Accessibility hostWalk = new Accessibility();
-            long hostRoot = hostWalk.mint();
-            long field = hostWalk.mint();
-            hostWalk.beginWalk(400, 300, Locale.ENGLISH);
-            hostWalk.begin(hostRoot, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+            long hostRoot = AccessibilityAccess.mint(hostWalk);
+            long field = AccessibilityAccess.mint(hostWalk);
+            AccessibilityAccess.beginWalk(hostWalk, 400, 300, Locale.ENGLISH);
+            AccessibilityAccess.begin(hostWalk, hostRoot, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
             hostWalk.role(Accessible.Role.WINDOW);
-            hostWalk.inherited(true, true, true, false, false);
-            hostWalk.begin(field, 0, Locale.ENGLISH, 10, 10, 200, 30);
+            AccessibilityAccess.inherited(hostWalk, true, true, true, false, false);
+            AccessibilityAccess.begin(hostWalk, field, 0, Locale.ENGLISH, 10, 10, 200, 30);
             hostWalk.role(Accessible.Role.TEXT_FIELD);
-            hostWalk.inherited(true, true, true, true, true);
+            AccessibilityAccess.inherited(hostWalk, true, true, true, true, true);
             hostWalk.end();
             hostWalk.end();
-            hostWalk.foreignActiveDescendant(day);
+            AccessibilityAccess.foreignActiveDescendant(hostWalk, day);
             AccessibleTree host = hostWalk.publish(field, 0, 0, 1f, true);
             assertEquals(day, host.effectiveFocus(), "the fixture: the cursor is the popup's day");
             return new TwoWindows(host, popup, field, day);
@@ -440,13 +441,13 @@ class AxFocusTest {
             // The host publishes a tree whose field has no cursor in the popup any more, and nothing
             // happens in the popup's own window: the popup's answer must follow the host's publish.
             Accessibility hostWalk = new Accessibility();
-            hostWalk.beginWalk(400, 300, Locale.ENGLISH);
-            hostWalk.begin(windows.host().root().id(), AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+            AccessibilityAccess.beginWalk(hostWalk, 400, 300, Locale.ENGLISH);
+            AccessibilityAccess.begin(hostWalk, windows.host().root().id(), AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
             hostWalk.role(Accessible.Role.WINDOW);
-            hostWalk.inherited(true, true, true, false, false);
-            hostWalk.begin(windows.field(), 0, Locale.ENGLISH, 10, 10, 200, 30);
+            AccessibilityAccess.inherited(hostWalk, true, true, true, false, false);
+            AccessibilityAccess.begin(hostWalk, windows.field(), 0, Locale.ENGLISH, 10, 10, 200, 30);
             hostWalk.role(Accessible.Role.TEXT_FIELD);
-            hostWalk.inherited(true, true, true, true, true);
+            AccessibilityAccess.inherited(hostWalk, true, true, true, true, true);
             hostWalk.end();
             hostWalk.end();
             host.publish(hostWalk.publish(windows.field(), 0, 0, 1f, true), false);

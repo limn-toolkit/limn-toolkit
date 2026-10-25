@@ -9,6 +9,7 @@ import java.lang.System.Logger.Level;
 import java.util.List;
 import java.util.Locale;
 import java.util.WeakHashMap;
+import limn.accessibility.internal.AccessibilityAccess;
 import limn.backend.spi.WindowPeer;
 
 /**
@@ -254,7 +255,7 @@ final class AccessibleWalk {
     private void walkOnce(Scene scene, float sceneWidth, float sceneHeight, boolean contents) {
         this.scene = scene;
         Locale sceneLocale = scene.locale() != null ? scene.locale() : limn.i18n.I18n.processLocale();
-        builder.beginWalk(sceneWidth, sceneHeight, sceneLocale);
+        AccessibilityAccess.beginWalk(builder, sceneWidth, sceneHeight, sceneLocale);
         count = 0;
         popupCount = 0;
         focusedId = 0;
@@ -263,9 +264,9 @@ final class AccessibleWalk {
 
         Widget<?> root = scene.root();
         if (windowNodeId == 0) {
-            windowNodeId = builder.mint();
+            windowNodeId = AccessibilityAccess.mint(builder);
         }
-        builder.begin(windowNodeId, AccessibleNode.NONE, sceneLocale, 0, 0, sceneWidth, sceneHeight);
+        AccessibilityAccess.begin(builder, windowNodeId, AccessibleNode.NONE, sceneLocale, 0, 0, sceneWidth, sceneHeight);
         record(null, windowNodeId, 0, false);
         builder.role(Accessible.Role.WINDOW);
         limn.backend.NativeWindow window = scene.window();
@@ -309,7 +310,7 @@ final class AccessibleWalk {
         // at the bind instead, and every popup, menu and dialog is created hidden and bound before
         // it is shown -- so there the bit is read from the window rather than assumed.
         boolean onScreen = contents || window == null || window.isVisible();
-        builder.inherited(layer != null, onScreen, onScreen, false, false);
+        AccessibilityAccess.inherited(builder, layer != null, onScreen, onScreen, false, false);
 
         if (!contents) {
             // The window alone. The tail still runs -- it closes the node, counts it, and resolves
@@ -317,8 +318,8 @@ final class AccessibleWalk {
             // walk's comparison reads is publish()'s own swap, exactly as on the frame path.
             builder.end();
             count = builder.nodeCount();
-            builder.resolveRelations(resolver);
-            builder.foreignActiveDescendant(0);
+            AccessibilityAccess.resolveRelations(builder, resolver);
+            AccessibilityAccess.foreignActiveDescendant(builder, 0);
             return;
         }
         keyboardScene = scene;
@@ -360,10 +361,10 @@ final class AccessibleWalk {
         count = builder.nodeCount();
 
         for (int i = 0; i < popupCount; i++) {
-            builder.relationAt(popupNodes[i], Accessible.Relation.POPUP_FOR, popupOpeners[i]);
+            AccessibilityAccess.relationAt(builder, popupNodes[i], Accessible.Relation.POPUP_FOR, popupOpeners[i]);
             int opener = indexOfWidget(popupOpeners[i]);
             if (opener >= 0) {
-                builder.relationAt(opener, Accessible.Relation.CONTROLLER_FOR,
+                AccessibilityAccess.relationAt(builder, opener, Accessible.Relation.CONTROLLER_FOR,
                         owners[popupNodes[i]]);
                 continue;
             }
@@ -398,7 +399,7 @@ final class AccessibleWalk {
             }
             int opener = openerWidget.scene() == scene ? indexOfWidget(openerWidget) : -1;
             if (opener >= 0) {
-                builder.relationAt(opener, Accessible.Relation.CONTROLLER_FOR, foreignRoots[i]);
+                AccessibilityAccess.relationAt(builder, opener, Accessible.Relation.CONTROLLER_FOR, foreignRoots[i]);
             }
             foreignOpeners[kept] = foreignOpeners[i];
             foreignRoots[kept] = foreignRoots[i];
@@ -414,9 +415,9 @@ final class AccessibleWalk {
         // Last, because a target's identifier is only knowable once every node it could name has
         // been walked, and before anything compares this walk with the last one: the comparison
         // reads what this fills in.
-        builder.resolveRelations(resolver);
-        builder.foreignActiveDescendant(popupCursorOfFocused());
-        builder.keyboardPopupAt(keyboardPopupSlot);
+        AccessibilityAccess.resolveRelations(builder, resolver);
+        AccessibilityAccess.foreignActiveDescendant(builder, popupCursorOfFocused());
+        AccessibilityAccess.keyboardPopupAt(builder, keyboardPopupSlot);
         keyboardPopupSlot = -1;
     }
 
@@ -436,7 +437,7 @@ final class AccessibleWalk {
         if (focusedId == 0 || foreignCount == 0) {
             return 0;
         }
-        long target = builder.foreignControllerTargetFrom(focusedId);
+        long target = AccessibilityAccess.foreignControllerTargetFrom(builder, focusedId);
         if (target == 0) {
             return 0;
         }
@@ -601,16 +602,16 @@ final class AccessibleWalk {
         boolean keyed = false;
         long childKey = 0;
         if (parent != null) {
-            builder.beginChildIdentity();
+            AccessibilityAccess.beginChildIdentity(builder);
             try {
                 parent.describeAccessibleChildIdentity(widget, builder);
-                if (builder.hasPendingHost()) {
+                if (AccessibilityAccess.hasPendingHost(builder)) {
                     if (parentSlot < 0) {
                         throw new IllegalStateException(parent.getClass().getName()
                                 + " hangs a child under a synthetic node but published none");
                     }
-                    host = builder.pendingHostIndex(parentSlot);
-                    if (enabled && !builder.isEnabledAt(host)) {
+                    host = AccessibilityAccess.pendingHostIndex(builder, parentSlot);
+                    if (enabled && !AccessibilityAccess.isEnabledAt(builder, host)) {
                         // A synthetic node the parent narrowed with disabled() publishes no verb,
                         // while a widget under it takes its enabled bit from the widget tree, as
                         // the scene's gate does, and would publish ENABLED and its verbs beneath a
@@ -625,40 +626,40 @@ final class AccessibleWalk {
                                 + "it withdrew");
                     }
                 }
-                long owner = host >= 0 ? builder.idAt(host) : parentId;
-                if (builder.hasPendingKey()) {
-                    childKey = builder.pendingKey();
-                    id = builder.identify(owner, childKey);
+                long owner = host >= 0 ? AccessibilityAccess.idAt(builder, host) : parentId;
+                if (AccessibilityAccess.hasPendingKey(builder)) {
+                    childKey = AccessibilityAccess.pendingKey(builder);
+                    id = AccessibilityAccess.identify(builder, owner, childKey);
                     keyed = true;
                 } else if (host >= 0) {
-                    id = builder.identify(owner, id);
+                    id = AccessibilityAccess.identify(builder, owner, id);
                     keyed = true;
                 } else if (scope != 0) {
-                    id = builder.identify(scope, id);
+                    id = AccessibilityAccess.identify(builder, scope, id);
                 }
             } finally {
-                builder.endChildIdentity();
+                AccessibilityAccess.endChildIdentity(builder);
             }
         }
         long ownScope = keyed ? id : scope;
         int under = host >= 0 ? host : into;
         float[] box = boundsScratch;
         widget.localToSceneBounds(0, 0, widget.width(), widget.height(), box);
-        int slot = builder.begin(id, under, widget.locale(), box[0] + graftDx, box[1] + graftDy,
+        int slot = AccessibilityAccess.begin(builder, id, under, widget.locale(), box[0] + graftDx, box[1] + graftDy,
                 box[2] - box[0], box[3] - box[1]);
         if (host >= 0) {
-            builder.markHosted();
+            AccessibilityAccess.markHosted(builder);
         }
 
         widget.describeAccessible(builder);
         if (parent != null) {
             // After the child's own hook, so a verb the container delegates meets the verbs the
             // child claimed for itself and the builder can refuse the one both claim.
-            builder.beginChildDescription();
+            AccessibilityAccess.beginChildDescription(builder);
             try {
                 parent.describeAccessibleChild(widget, builder);
             } finally {
-                builder.endChildDescription();
+                AccessibilityAccess.endChildDescription(builder);
             }
         }
         // Which caption names this node, if any (decision 55): the label bound to this widget,
@@ -735,7 +736,7 @@ final class AccessibleWalk {
             }
             if (!builder.hasName() && tooltip != null) {
                 builder.name(tooltip, Accessible.NameFrom.TOOLTIP);
-            } else if (!builder.hasDescription() && tooltip != null) {
+            } else if (!AccessibilityAccess.hasDescription(builder) && tooltip != null) {
                 builder.description(tooltip);
             }
         } finally {
@@ -747,7 +748,7 @@ final class AccessibleWalk {
             builder.state(Accessible.State.MODAL);
         }
 
-        if (builder.isIgnored()) {
+        if (AccessibilityAccess.isIgnored(builder)) {
             builder.drop();
             if (redirected) {
                 popRedirect();
@@ -778,7 +779,7 @@ final class AccessibleWalk {
                 // with nothing inside to take it: a node focused and not focusable is one a client
                 // that sorts focus events by focusability drops.
                 && (widget != keyboardPopupRoot || focused);
-        if (builder.declaresNothing() && !focusable && !builder.hasChildren()) {
+        if (AccessibilityAccess.declaresNothing(builder) && !focusable && !AccessibilityAccess.hasChildren(builder)) {
             warnIfItPaints(widget);
             builder.drop();
             // Hoisted under whatever this one hangs under; a keyed transparent container still
@@ -802,7 +803,7 @@ final class AccessibleWalk {
         // off an older snapshot and sends once the overlay has closed, before the next walk, is
         // the container's still, and a cleared table would hand it to the child (2026-09-15).
         keys[slot] = childKey;
-        delegated[slot] = builder.delegatedVerbsAt(slot);
+        delegated[slot] = AccessibilityAccess.delegatedVerbsAt(builder, slot);
         delegates[slot] = delegated[slot] == 0 ? null : parent;
         if (!operable || !ownVisible) {
             // A node that is not ENABLED is one the scene refuses every verb on (§1.9), so nothing
@@ -825,7 +826,7 @@ final class AccessibleWalk {
             // clipped out of a scroll viewport keeps everything: the scene reveals it and performs,
             // the way the two free verbs have always worked, so a reader may press "Chapter 20"
             // below the fold instead of being told about a button that does nothing.
-            builder.inoperableAt(slot);
+            AccessibilityAccess.inoperableAt(builder, slot);
         }
         boolean showing = widget.isShowing();
         // The rectangle the owner's clipping ancestors leave of it, once per widget, so that a
@@ -838,26 +839,26 @@ final class AccessibleWalk {
         // carries a translation and nothing else.
         boolean moved = builder.nodeCount() > slot + 1 && drawnMoved(scene, widget);
         for (int i = slot + 1; i < builder.nodeCount(); i++) {
-            if (moved && builder.isSyntheticAt(i)) {
-                builder.syntheticBoxAt(i, box);
+            if (moved && AccessibilityAccess.isSyntheticAt(builder, i)) {
+                AccessibilityAccess.syntheticBoxAt(builder, i, box);
                 widget.localToSceneBounds(box[0], box[1], box[2], box[3], box);
                 if (!Float.isNaN(box[0])) {
-                    builder.placeSyntheticAt(i, box[0] + graftDx, box[1] + graftDy,
+                    AccessibilityAccess.placeSyntheticAt(builder, i, box[0] + graftDx, box[1] + graftDy,
                             box[2] - box[0], box[3] - box[1]);
                 }
             }
-            record(widget, builder.idAt(i), i, builder.isSyntheticAt(i));
-            keys[i] = builder.syntheticKeyAt(i);
+            record(widget, AccessibilityAccess.idAt(builder, i), i, AccessibilityAccess.isSyntheticAt(builder, i));
+            keys[i] = AccessibilityAccess.syntheticKeyAt(builder, i);
             // The owner's bits, on every node the owner drew. They cannot ride on the call below:
             // that one writes to the node the walk has open, and these were closed the moment the
             // describe hook finished with them. Focusable and focused are not passed on, because a
             // thing a widget paints is not a tab stop and never holds the keyboard.
-            builder.inheritedAt(i, ownEnabled, ownVisible, showing);
+            AccessibilityAccess.inheritedAt(builder, i, ownEnabled, ownVisible, showing);
             if (clipped) {
-                builder.clipShowingAt(i, clip[0] + graftDx, clip[1] + graftDy,
+                AccessibilityAccess.clipShowingAt(builder, i, clip[0] + graftDx, clip[1] + graftDy,
                         clip[2] + graftDx, clip[3] + graftDy);
             }
-            if (!builder.isEnabledAt(i) || !ownVisible || !reachable || inert) {
+            if (!AccessibilityAccess.isEnabledAt(builder, i) || !ownVisible || !reachable || inert) {
                 // The same rule, read off the bit just published: a synthetic child is refused
                 // with its owner, and so is one its owner narrowed (a refused day, decision 30)
                 // or one under such a child. Visibility is read from the owner rather than from
@@ -865,15 +866,15 @@ final class AccessibleWalk {
                 // synthetic child may narrow enabled (disabled()) and showing (offScreen()) and
                 // there is no narrowing of visible, so inheritedAt writes the owner's flag onto
                 // every one of them (decision 66).
-                builder.inoperableAt(i);
+                AccessibilityAccess.inoperableAt(builder, i);
             }
         }
         if (focused) {
             focusedId = id;
         }
-        builder.inherited(ownEnabled, ownVisible, showing, focusable, focused);
+        AccessibilityAccess.inherited(builder, ownEnabled, ownVisible, showing, focusable, focused);
         if (focusable) {
-            builder.freeVerbs();
+            AccessibilityAccess.freeVerbs(builder);
         }
         warnIfUnnamedRole(widget, focusable);
         if (widget.parent() == null && widget.inheritanceHost() != null) {
@@ -1209,7 +1210,7 @@ final class AccessibleWalk {
             }
             builder.relation(Accessible.Relation.LABELLED_BY, label);
             String access = label.labelAccessKey();
-            if (access != null && !builder.hasAccessKey()) {
+            if (access != null && !AccessibilityAccess.hasAccessKey(builder)) {
                 builder.accessKey(access); // Alt and the caption's letter reach the control
             }
         }
@@ -1255,7 +1256,7 @@ final class AccessibleWalk {
         if (name != null) {
             builder.name(name, Accessible.NameFrom.EXPLICIT);
         }
-        builder.identifier(widget.id());
+        AccessibilityAccess.identifier(builder, widget.id());
         limn.i18n.I18nString description = carried ? null : widget.accessibleDescription();
         if (description != null) {
             builder.description(description);
@@ -1319,7 +1320,7 @@ final class AccessibleWalk {
         if (known != null) {
             return known;
         }
-        long minted = builder.mint();
+        long minted = AccessibilityAccess.mint(builder);
         serials.put(widget, minted);
         return minted;
     }
@@ -1497,6 +1498,6 @@ final class AccessibleWalk {
 
     /** Forgets what was published, so the next walk differs from nothing. */
     void forget() {
-        builder.forgetPublished();
+        AccessibilityAccess.forgetPublished(builder);
     }
 }

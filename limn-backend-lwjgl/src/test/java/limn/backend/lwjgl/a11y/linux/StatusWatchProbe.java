@@ -4,6 +4,7 @@ import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
+import limn.accessibility.internal.AccessibilityAccess;
 import limn.backend.AccessibilityBridge;
 import limn.i18n.I18nString;
 
@@ -47,24 +48,24 @@ public final class StatusWatchProbe {
      */
     private static AccessibleTree aWindow(String title, long popupFor) {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        long window = a.mint();
-        long button = a.mint();
-        a.begin(window, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        long window = AccessibilityAccess.mint(a);
+        long button = AccessibilityAccess.mint(a);
+        AccessibilityAccess.begin(a, window, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
         a.name(I18nString.literal(title), Accessible.NameFrom.EXPLICIT);
         if (popupFor != 0) {
             a.relation(Accessible.Relation.POPUP_FOR, popupFor);
         }
-        a.inherited(true, true, true, false, false);
-        a.begin(button, 0, Locale.ENGLISH, 10, 20, 160, 40);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, button, 0, Locale.ENGLISH, 10, 20, 160, 40);
         a.role(Accessible.Role.BUTTON);
         a.name(I18nString.literal("Save"), Accessible.NameFrom.CONTENT);
         a.action(Accessible.Action.PRESS);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         a.end();
         a.end();
-        a.resolveRelations((kind, target) -> (Long) target);
+        AccessibilityAccess.resolveRelations(a, (kind, target) -> (Long) target);
         return a.publish(0, 0, 0, 1f, true);
     }
 

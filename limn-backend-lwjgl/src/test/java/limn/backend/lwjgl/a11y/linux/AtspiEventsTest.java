@@ -3,6 +3,7 @@ package limn.backend.lwjgl.a11y.linux;
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleTree;
+import limn.accessibility.internal.AccessibilityAccess;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -242,16 +243,16 @@ class AtspiEventsTest {
     @Test
     void aCaretMoveCarriesTheCaretsOffsetInCharactersFromThePublishedText() {
         limn.accessibility.Accessibility a = new limn.accessibility.Accessibility();
-        a.beginWalk(400, 300, java.util.Locale.ENGLISH);
-        a.begin(1000, limn.accessibility.AccessibleNode.NONE, java.util.Locale.ENGLISH, 0, 0, 400,
+        AccessibilityAccess.beginWalk(a, 400, 300, java.util.Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, limn.accessibility.AccessibleNode.NONE, java.util.Locale.ENGLISH, 0, 0, 400,
                 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        a.begin(1001, 0, java.util.Locale.ENGLISH, 0, 0, 200, 30);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 1001, 0, java.util.Locale.ENGLISH, 0, 0, 200, 30);
         a.role(Accessible.Role.TEXT_FIELD);
         a.text("\uD83D\uDE00ab", 1, 3, limn.graphics.ShapedText.Affinity.DOWNSTREAM, 3, 3, 1,
                 null, false);
-        a.inherited(true, true, true, true, true);
+        AccessibilityAccess.inherited(a, true, true, true, true, true);
         a.end();
         a.end();
         AccessibleTree tree = a.publish(1001, 0, 0, 1f, true);
@@ -269,12 +270,12 @@ class AtspiEventsTest {
     /** A window holding one date segment whose value is {@code value} and reads {@code text}. */
     private static AccessibleTree aSegment(Double value, String text, boolean asTextField) {
         limn.accessibility.Accessibility a = new limn.accessibility.Accessibility();
-        a.beginWalk(400, 300, java.util.Locale.ENGLISH);
-        a.begin(1000, limn.accessibility.AccessibleNode.NONE, java.util.Locale.ENGLISH, 0, 0, 400,
+        AccessibilityAccess.beginWalk(a, 400, 300, java.util.Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, limn.accessibility.AccessibleNode.NONE, java.util.Locale.ENGLISH, 0, 0, 400,
                 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        a.begin(1001, 0, java.util.Locale.ENGLISH, 0, 0, 100, 20);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 1001, 0, java.util.Locale.ENGLISH, 0, 0, 100, 20);
         a.role(Accessible.Role.SPIN_BUTTON);
         if (value == null) {
             a.emptyValue(1, 12, 1, false);
@@ -286,7 +287,7 @@ class AtspiEventsTest {
             a.text(text, text.hashCode(), 0, limn.graphics.ShapedText.Affinity.UPSTREAM, 0, 0, 1,
                     null, false);
         }
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         a.end();
         a.end();
         return a.publish(0, 0, 0, 1f, true);
@@ -376,17 +377,17 @@ class AtspiEventsTest {
     /** A window holding button 1001, enabled with its verb or disabled with none, as published. */
     private static AccessibleTree aButton(boolean enabled) {
         limn.accessibility.Accessibility a = new limn.accessibility.Accessibility();
-        a.beginWalk(400, 300, java.util.Locale.ENGLISH);
-        a.begin(1000, limn.accessibility.AccessibleNode.NONE, java.util.Locale.ENGLISH, 0, 0, 400,
+        AccessibilityAccess.beginWalk(a, 400, 300, java.util.Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, limn.accessibility.AccessibleNode.NONE, java.util.Locale.ENGLISH, 0, 0, 400,
                 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        a.begin(1001, 0, java.util.Locale.ENGLISH, 0, 0, 100, 20);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 1001, 0, java.util.Locale.ENGLISH, 0, 0, 100, 20);
         a.role(Accessible.Role.BUTTON);
         if (enabled) {
             a.action(Accessible.Action.PRESS);
         }
-        a.inherited(enabled, true, true, enabled, false);
+        AccessibilityAccess.inherited(a, enabled, true, true, enabled, false);
         a.end();
         a.end();
         return a.publish(0, 0, 0, 1f, true);
@@ -441,20 +442,20 @@ class AtspiEventsTest {
     @Test
     void anExpandFlipCarriesTheDerivedCollapsedChangeWhenItMovedAndOnlyThen() {
         limn.accessibility.Accessibility a = new limn.accessibility.Accessibility();
-        a.beginWalk(400, 300, java.util.Locale.ENGLISH);
-        a.begin(1000, limn.accessibility.AccessibleNode.NONE, java.util.Locale.ENGLISH, 0, 0, 400,
+        AccessibilityAccess.beginWalk(a, 400, 300, java.util.Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, limn.accessibility.AccessibleNode.NONE, java.util.Locale.ENGLISH, 0, 0, 400,
                 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         long[] ids = {1001, 1002, 1003};
         Boolean[] facets = {true, false, null};
         for (int i = 0; i < ids.length; i++) {
-            a.begin(ids[i], 0, java.util.Locale.ENGLISH, 0, 20 * i, 100, 20);
+            AccessibilityAccess.begin(a, ids[i], 0, java.util.Locale.ENGLISH, 0, 20 * i, 100, 20);
             a.role(Accessible.Role.TREE_ITEM);
             if (facets[i] != null) {
                 a.expand(facets[i]);
             }
-            a.inherited(true, true, true, true, false);
+            AccessibilityAccess.inherited(a, true, true, true, true, false);
             a.end();
         }
         a.end();
@@ -565,17 +566,17 @@ class AtspiEventsTest {
     /** A window, and under it a panel holding an item, or the window alone. */
     private static AccessibleTree windowPanelItem(boolean withPanel) {
         limn.accessibility.Accessibility a = new limn.accessibility.Accessibility();
-        a.beginWalk(400, 300, java.util.Locale.ENGLISH);
-        a.begin(1, limn.accessibility.AccessibleNode.NONE, java.util.Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, java.util.Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1, limn.accessibility.AccessibleNode.NONE, java.util.Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         if (withPanel) {
-            a.begin(2, 0, java.util.Locale.ENGLISH, 0, 0, 100, 100);
+            AccessibilityAccess.begin(a, 2, 0, java.util.Locale.ENGLISH, 0, 0, 100, 100);
             a.role(Accessible.Role.GROUP);
-            a.inherited(true, true, true, false, false);
-            a.begin(3, 1, java.util.Locale.ENGLISH, 0, 0, 100, 20);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
+            AccessibilityAccess.begin(a, 3, 1, java.util.Locale.ENGLISH, 0, 0, 100, 20);
             a.role(Accessible.Role.LIST_ITEM);
-            a.inherited(true, true, true, false, false);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
             a.end();
             a.end();
         }

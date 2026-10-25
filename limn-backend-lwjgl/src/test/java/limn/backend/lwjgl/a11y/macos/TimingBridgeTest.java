@@ -5,6 +5,7 @@ import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
+import limn.accessibility.internal.AccessibilityAccess;
 import limn.backend.AccessibilityBridge;
 import limn.i18n.I18nString;
 import org.junit.jupiter.api.Test;
@@ -57,17 +58,17 @@ class TimingBridgeTest {
     /** A window with two buttons directly under it, so both are pushed and both can be posted on. */
     private static AccessibleTree aWindowWithTwoButtons() {
         Accessibility a = new Accessibility();
-        a.beginWalk(480, 320, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 480, 320);
+        AccessibilityAccess.beginWalk(a, 480, 320, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 480, 320);
         a.role(Accessible.Role.WINDOW);
         a.name(I18nString.literal("A window"), Accessible.NameFrom.EXPLICIT);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         for (int i = 0; i < 2; i++) {
-            a.begin(1001 + i, 0, Locale.ENGLISH, 40, 96 + 40L * i, 160, 40);
+            AccessibilityAccess.begin(a, 1001 + i, 0, Locale.ENGLISH, 40, 96 + 40L * i, 160, 40);
             a.role(Accessible.Role.BUTTON);
             a.name(I18nString.literal("Button " + i), Accessible.NameFrom.CONTENT);
             a.action(Accessible.Action.PRESS);
-            a.inherited(true, true, true, true, false);
+            AccessibilityAccess.inherited(a, true, true, true, true, false);
             a.end();
         }
         a.end();

@@ -4,6 +4,7 @@ import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
+import limn.accessibility.internal.AccessibilityAccess;
 import limn.backend.lwjgl.a11y.ProbeWindow;
 import limn.components.date.DateField;
 import limn.i18n.I18nString;
@@ -37,10 +38,10 @@ class AxValuesTest {
      *  SPIN_BUTTON 1004 (empty, no text); TEXT_FIELD 1005 ("abc"); CHECK_BOX 1006 (mixed)]. */
     private static AccessibleTree values() {
         Accessibility a = new Accessibility();
-        a.beginWalk(480, 320, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 480, 320);
+        AccessibilityAccess.beginWalk(a, 480, 320, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 480, 320);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         open(a, 1001, Accessible.Role.SLIDER);
         a.value(40, 0, 100, 1);
         a.end();
@@ -66,10 +67,10 @@ class AxValuesTest {
     }
 
     private static void open(Accessibility a, long id, Accessible.Role role) {
-        a.begin(id, 0, Locale.ENGLISH, 0, 0, 40, 20);
+        AccessibilityAccess.begin(a, id, 0, Locale.ENGLISH, 0, 0, 40, 20);
         a.role(role);
         a.name(I18nString.literal(role + " " + id), Accessible.NameFrom.EXPLICIT);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
     }
 
     @Test

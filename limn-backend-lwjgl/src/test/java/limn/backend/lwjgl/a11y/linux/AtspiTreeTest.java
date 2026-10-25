@@ -5,6 +5,7 @@ import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
 import limn.accessibility.CellFacet;
+import limn.accessibility.internal.AccessibilityAccess;
 import limn.backend.AccessibilityBridge;
 import limn.i18n.I18nString;
 import org.junit.jupiter.api.BeforeEach;
@@ -68,16 +69,16 @@ class AtspiTreeTest {
     /** A window holding one button, published the way a scene publishes one. */
     private void publishAWindowWithAButton() {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
         a.name(I18nString.literal("A window"), Accessible.NameFrom.EXPLICIT);
-        a.inherited(true, true, true, false, false);
-        int button = a.begin(1001, 0, Locale.ENGLISH, 10, 20, 160, 40);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        int button = AccessibilityAccess.begin(a, 1001, 0, Locale.ENGLISH, 10, 20, 160, 40);
         a.role(Accessible.Role.BUTTON);
         a.name(I18nString.literal("Save"), Accessible.NameFrom.CONTENT);
         a.action(Accessible.Action.PRESS);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         a.end();
         a.end();
         tree.set(a.publish(0, 200, 100, 2f, true));
@@ -91,40 +92,40 @@ class AtspiTreeTest {
      */
     private void publishAWindowWithATable() {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
         a.name(I18nString.literal("A window"), Accessible.NameFrom.EXPLICIT);
-        a.inherited(true, true, true, false, false);
-        int table = a.begin(2000, 0, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        int table = AccessibilityAccess.begin(a, 2000, 0, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.TABLE);
         a.table(3, 2);
         a.selection(false, false);
-        a.inherited(true, true, true, true, false);
-        int header = a.begin(2100, table, Locale.ENGLISH, 0, 0, 400, 30);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
+        int header = AccessibilityAccess.begin(a, 2100, table, Locale.ENGLISH, 0, 0, 400, 30);
         a.role(Accessible.Role.GROUP);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         for (int c = 0; c < 2; c++) {
-            a.begin(2101 + c, header, Locale.ENGLISH, c * 200, 0, 200, 30);
+            AccessibilityAccess.begin(a, 2101 + c, header, Locale.ENGLISH, c * 200, 0, 200, 30);
             a.role(Accessible.Role.COLUMN_HEADER);
             a.name(I18nString.literal(c == 0 ? "Name" : "Age"), Accessible.NameFrom.CONTENT);
             a.cell(-1, c);
-            a.inherited(true, true, true, false, false);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
             a.end();
         }
         a.end();
         for (int r = 0; r < 3; r++) {
-            int row = a.begin(2200 + r * 10, table, Locale.ENGLISH, 0, 30 + r * 30, 400, 30);
+            int row = AccessibilityAccess.begin(a, 2200 + r * 10, table, Locale.ENGLISH, 0, 30 + r * 30, 400, 30);
             a.role(Accessible.Role.ROW);
             a.selectionItem(r == 1, r + 1, 3);
             a.action(Accessible.Action.SELECT);
-            a.inherited(true, true, true, false, false);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
             for (int c = 0; c < 2; c++) {
-                a.begin(2201 + r * 10 + c, row, Locale.ENGLISH, c * 200, 30 + r * 30, 200, 30);
+                AccessibilityAccess.begin(a, 2201 + r * 10 + c, row, Locale.ENGLISH, c * 200, 30 + r * 30, 200, 30);
                 a.role(Accessible.Role.CELL);
                 a.name(I18nString.literal("r" + r + "c" + c), Accessible.NameFrom.CONTENT);
                 a.cell(r, c);
-                a.inherited(true, true, true, false, false);
+                AccessibilityAccess.inherited(a, true, true, true, false, false);
                 a.end();
             }
             a.end();
@@ -140,33 +141,33 @@ class AtspiTreeTest {
      */
     private void publishAWindowWithALabelledAndDescribedField() {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
         a.name(I18nString.literal("A window"), Accessible.NameFrom.EXPLICIT);
-        a.inherited(true, true, true, false, false);
-        a.begin(3001, 0, Locale.ENGLISH, 0, 0, 400, 20);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 3001, 0, Locale.ENGLISH, 0, 0, 400, 20);
         a.role(Accessible.Role.LABEL);
         a.name(I18nString.literal("Email"), Accessible.NameFrom.CONTENT);
         a.relation(Accessible.Relation.LABEL_FOR, 3002L);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         a.end();
-        a.begin(3002, 0, Locale.ENGLISH, 0, 20, 400, 32);
+        AccessibilityAccess.begin(a, 3002, 0, Locale.ENGLISH, 0, 20, 400, 32);
         a.role(Accessible.Role.TEXT_FIELD);
         a.name(I18nString.literal("Email"), Accessible.NameFrom.LABEL);
         a.description(I18nString.literal("Enter an address like ada@example.com"));
         a.relation(Accessible.Relation.LABELLED_BY, 3001L);
         a.relation(Accessible.Relation.DESCRIBED_BY, 3003L);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         a.end();
-        a.begin(3003, 0, Locale.ENGLISH, 0, 52, 400, 20);
+        AccessibilityAccess.begin(a, 3003, 0, Locale.ENGLISH, 0, 52, 400, 20);
         a.role(Accessible.Role.LABEL);
         a.name(I18nString.literal("Enter an address like ada@example.com"),
                 Accessible.NameFrom.CONTENT);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         a.end();
         a.end();
-        a.resolveRelations((kind, target) -> (Long) target);
+        AccessibilityAccess.resolveRelations(a, (kind, target) -> (Long) target);
         tree.set(a.publish(0, 200, 100, 2f, true));
     }
 
@@ -224,27 +225,27 @@ class AtspiTreeTest {
     @Test
     void aCalendarShapedGridAnswersItsCellsByRowAndColumnAndNeverByAPositionInSet() {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        int grid = a.begin(4000, 0, Locale.ENGLISH, 0, 0, 350, 100);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        int grid = AccessibilityAccess.begin(a, 4000, 0, Locale.ENGLISH, 0, 0, 350, 100);
         a.role(Accessible.Role.TABLE);
         a.table(2, 7);
         a.selection(false, true);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         for (int w = 0; w < 2; w++) {
-            int row = a.begin(4100 + w * 10, grid, Locale.ENGLISH, 0, w * 50, 350, 50);
+            int row = AccessibilityAccess.begin(a, 4100 + w * 10, grid, Locale.ENGLISH, 0, w * 50, 350, 50);
             a.role(Accessible.Role.ROW);
-            a.inherited(true, true, true, false, false);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
             for (int c = 0; c < 7; c++) {
-                a.begin(4101 + w * 10 + c, row, Locale.ENGLISH, c * 50, w * 50, 50, 50);
+                AccessibilityAccess.begin(a, 4101 + w * 10 + c, row, Locale.ENGLISH, c * 50, w * 50, 50, 50);
                 a.role(Accessible.Role.CELL);
                 a.cell(w, c);
                 int day = w * 7 + c + 1;
                 a.selectionItem(day == 10, day, 30);
                 a.action(Accessible.Action.SELECT);
-                a.inherited(true, true, true, false, false);
+                AccessibilityAccess.inherited(a, true, true, true, false, false);
                 a.end();
             }
             a.end();
@@ -275,34 +276,34 @@ class AtspiTreeTest {
     @Test
     void aColumnHeaderIsTheCellAtRowMinusOneOfItsColumnAndAFooterIsNeverOne() {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        int table = a.begin(5000, 0, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        int table = AccessibilityAccess.begin(a, 5000, 0, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.TABLE);
         a.table(1, 2);
-        a.inherited(true, true, true, true, false);
-        int row = a.begin(5010, table, Locale.ENGLISH, 0, 0, 400, 30);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
+        int row = AccessibilityAccess.begin(a, 5010, table, Locale.ENGLISH, 0, 0, 400, 30);
         a.role(Accessible.Role.ROW);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         for (int c = 0; c < 2; c++) {
-            a.begin(5011 + c, row, Locale.ENGLISH, c * 200, 0, 200, 30);
+            AccessibilityAccess.begin(a, 5011 + c, row, Locale.ENGLISH, c * 200, 0, 200, 30);
             a.role(Accessible.Role.CELL);
             a.name(I18nString.literal("r0c" + c), Accessible.NameFrom.CONTENT);
             a.cell(0, c);
-            a.inherited(true, true, true, false, false);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
             a.end();
         }
         a.end();
-        int footer = a.begin(5100, table, Locale.ENGLISH, 0, 30, 400, 30);
+        int footer = AccessibilityAccess.begin(a, 5100, table, Locale.ENGLISH, 0, 30, 400, 30);
         a.role(Accessible.Role.GROUP);
-        a.inherited(true, true, true, false, false);
-        a.begin(5102, footer, Locale.ENGLISH, 200, 30, 200, 30);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 5102, footer, Locale.ENGLISH, 200, 30, 200, 30);
         a.role(Accessible.Role.CELL);
         a.name(I18nString.literal("Total 99"), Accessible.NameFrom.CONTENT);
         a.cell(-2, 1);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         a.end();
         a.end();
         a.end();
@@ -331,15 +332,15 @@ class AtspiTreeTest {
     @Test
     void aRowSelectionPostsTheFirstOfItsCandidatesTheRowAcceptsAndNothingElse() {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        int table = a.begin(6000, 0, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        int table = AccessibilityAccess.begin(a, 6000, 0, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.TABLE);
         a.table(4, 1);
         a.selection(true, false);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         Accessible.Action[][] verbs = {
                 {Accessible.Action.SELECT, Accessible.Action.ADD_TO_SELECTION},
                 {Accessible.Action.SELECT},
@@ -347,17 +348,17 @@ class AtspiTreeTest {
                 {},
         };
         for (int r = 0; r < verbs.length; r++) {
-            int row = a.begin(6010 + r * 10, table, Locale.ENGLISH, 0, r * 30, 400, 30);
+            int row = AccessibilityAccess.begin(a, 6010 + r * 10, table, Locale.ENGLISH, 0, r * 30, 400, 30);
             a.role(Accessible.Role.ROW);
             a.selectionItem(r == 2, r + 1, verbs.length);
             if (verbs[r].length > 0) {
                 a.action(verbs[r]);
             }
-            a.inherited(true, true, true, false, false);
-            a.begin(6011 + r * 10, row, Locale.ENGLISH, 0, r * 30, 400, 30);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
+            AccessibilityAccess.begin(a, 6011 + r * 10, row, Locale.ENGLISH, 0, r * 30, 400, 30);
             a.role(Accessible.Role.CELL);
             a.cell(r, 0);
-            a.inherited(true, true, true, false, false);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
             a.end();
             a.end();
         }
@@ -401,15 +402,15 @@ class AtspiTreeTest {
     @Test
     void aTablesSelectedRowsAreItsMembersWhereverTheyHangAndNeverItsDirectRowChildren() {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        int table = a.begin(8000, 0, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        int table = AccessibilityAccess.begin(a, 8000, 0, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.TABLE);
         a.table(4, 2);
         a.selection(true, false);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         a.child(1);
         a.bounds(0, 0, 400, 120);
         a.role(Accessible.Role.GROUP);
@@ -430,17 +431,17 @@ class AtspiTreeTest {
             a.endChild();
         }
         a.endChild();
-        int loose = a.begin(8300, table, Locale.ENGLISH, 0, 90, 400, 30);
+        int loose = AccessibilityAccess.begin(a, 8300, table, Locale.ENGLISH, 0, 90, 400, 30);
         a.role(Accessible.Role.ROW);
         a.containerlessSelectionItem(true, 4, 4);
         a.action(Accessible.Action.SELECT);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         for (int c = 0; c < 2; c++) {
-            a.begin(8301 + c, loose, Locale.ENGLISH, c * 200, 90, 200, 30);
+            AccessibilityAccess.begin(a, 8301 + c, loose, Locale.ENGLISH, c * 200, 90, 200, 30);
             a.role(Accessible.Role.CELL);
             a.name(I18nString.literal("r3c" + c), Accessible.NameFrom.CONTENT);
             a.cell(3, c);
-            a.inherited(true, true, true, false, false);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
             a.end();
         }
         a.end();
@@ -494,21 +495,21 @@ class AtspiTreeTest {
      */
     private void publishAWindowWithAMultiSelectList() {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        int list = a.begin(7000, 0, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        int list = AccessibilityAccess.begin(a, 7000, 0, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.LIST);
         a.selection(true, false);
-        a.inherited(true, true, true, true, true);
-        a.begin(7001, list, Locale.ENGLISH, 390, 0, 10, 300);
+        AccessibilityAccess.inherited(a, true, true, true, true, true);
+        AccessibilityAccess.begin(a, 7001, list, Locale.ENGLISH, 390, 0, 10, 300);
         a.role(Accessible.Role.SCROLL_BAR);
         a.value(0, 0, 100, 10);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         a.end();
         for (int r = 0; r < 4; r++) {
-            a.begin(7010 + r, list, Locale.ENGLISH, 0, r * 30, 390, 30);
+            AccessibilityAccess.begin(a, 7010 + r, list, Locale.ENGLISH, 0, r * 30, 390, 30);
             a.role(Accessible.Role.LIST_ITEM);
             a.name(I18nString.literal("Row " + r), Accessible.NameFrom.CONTENT);
             boolean selected = r == 1 || r == 3;
@@ -520,7 +521,7 @@ class AtspiTreeTest {
             } else if (r == 1) {
                 a.action(Accessible.Action.SELECT, Accessible.Action.DESELECT);
             }
-            a.inherited(true, true, true, false, false);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
             a.end();
         }
         a.end();
@@ -588,11 +589,11 @@ class AtspiTreeTest {
     @Test
     void aGridsSelectedMembersAreFoundUnderItsRowsAndTheRowsAreNeverSelected() {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        int grid = a.begin(8000, 0, Locale.ENGLISH, 0, 0, 350, 100);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        int grid = AccessibilityAccess.begin(a, 8000, 0, Locale.ENGLISH, 0, 0, 350, 100);
         a.role(Accessible.Role.TABLE);
         a.table(2, 2);
         a.selection(false, true);
@@ -611,7 +612,7 @@ class AtspiTreeTest {
             }
             a.endChild();
         }
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         a.end();
         a.end();
         AccessibleTree published = a.publish(0, 0, 0, 1f, true);
@@ -639,33 +640,33 @@ class AtspiTreeTest {
      */
     private void publishAWindowWithValues() {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        a.begin(9001, 0, Locale.ENGLISH, 0, 0, 100, 30);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 9001, 0, Locale.ENGLISH, 0, 0, 100, 30);
         a.role(Accessible.Role.SPIN_BUTTON);
         a.name(I18nString.literal("Day"), Accessible.NameFrom.EXPLICIT);
         a.value(13, 1, 31, 1);
         a.valueText("13", 1);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         a.end();
-        a.begin(9002, 0, Locale.ENGLISH, 100, 0, 100, 30);
+        AccessibilityAccess.begin(a, 9002, 0, Locale.ENGLISH, 100, 0, 100, 30);
         a.role(Accessible.Role.SPIN_BUTTON);
         a.name(I18nString.literal("Month"), Accessible.NameFrom.EXPLICIT);
         a.emptyValue(1, 12, 1, false);
         a.valueText("empty", 1);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         a.end();
-        a.begin(9003, 0, Locale.ENGLISH, 200, 0, 100, 30);
+        AccessibilityAccess.begin(a, 9003, 0, Locale.ENGLISH, 200, 0, 100, 30);
         a.role(Accessible.Role.PROGRESS_BAR);
         a.value(40, 0, 100, 0, true);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         a.end();
-        a.begin(9004, 0, Locale.ENGLISH, 300, 0, 100, 30);
+        AccessibilityAccess.begin(a, 9004, 0, Locale.ENGLISH, 300, 0, 100, 30);
         a.role(Accessible.Role.SPIN_BUTTON);
         a.value(5, 0, 10, 1);
-        a.inherited(false, true, true, false, false);
+        AccessibilityAccess.inherited(a, false, true, true, false, false);
         a.end();
         a.end();
         tree.set(a.publish(0, 0, 0, 1f, true));
@@ -788,30 +789,30 @@ class AtspiTreeTest {
      */
     private void publishAWindowWithText() {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        a.begin(9101, 0, Locale.ENGLISH, 0, 0, 400, 60);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 9101, 0, Locale.ENGLISH, 0, 0, 400, 60);
         a.role(Accessible.Role.TEXT_AREA);
         a.text(FIELD, 1, 5, limn.graphics.ShapedText.Affinity.UPSTREAM, 0, 2, 2, null, false);
-        a.inherited(true, true, true, true, true);
+        AccessibilityAccess.inherited(a, true, true, true, true, true);
         a.end();
-        a.begin(9102, 0, Locale.ENGLISH, 0, 60, 100, 30);
+        AccessibilityAccess.begin(a, 9102, 0, Locale.ENGLISH, 0, 60, 100, 30);
         a.role(Accessible.Role.SPIN_BUTTON);
         a.emptyValue(1, 12, 1, false);
         a.valueText("empty", 1);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         a.end();
-        a.begin(9103, 0, Locale.ENGLISH, 100, 60, 100, 30);
+        AccessibilityAccess.begin(a, 9103, 0, Locale.ENGLISH, 100, 60, 100, 30);
         a.role(Accessible.Role.SPIN_BUTTON);
         a.value(3, 0, 10, 1);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         a.end();
-        a.begin(9104, 0, Locale.ENGLISH, 200, 60, 100, 30);
+        AccessibilityAccess.begin(a, 9104, 0, Locale.ENGLISH, 200, 60, 100, 30);
         a.role(Accessible.Role.TEXT_FIELD);
         a.text("off", 1, 0, limn.graphics.ShapedText.Affinity.UPSTREAM, 0, 0, 1, null, false);
-        a.inherited(false, true, true, false, false);
+        AccessibilityAccess.inherited(a, false, true, true, false, false);
         a.end();
         a.end();
         tree.set(a.publish(9101, 0, 0, 1f, true));
@@ -888,15 +889,15 @@ class AtspiTreeTest {
     /** A window of text nodes, one per locale, ids 9201 onwards in the order given. */
     private void publishAWindowOfTextIn(String text, String... tags) {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         for (int i = 0; i < tags.length; i++) {
-            a.begin(9201 + i, 0, Locale.forLanguageTag(tags[i]), 0, 30 * i, 400, 30);
+            AccessibilityAccess.begin(a, 9201 + i, 0, Locale.forLanguageTag(tags[i]), 0, 30 * i, 400, 30);
             a.role(Accessible.Role.TEXT_FIELD);
             a.text(text, 1, 0, limn.graphics.ShapedText.Affinity.UPSTREAM, 0, 0, 1, null, false);
-            a.inherited(true, true, true, true, false);
+            AccessibilityAccess.inherited(a, true, true, true, true, false);
             a.end();
         }
         a.end();
@@ -1008,13 +1009,13 @@ class AtspiTreeTest {
     @Test
     void anEditableTextWritesTheWholeNewStringThroughSetTextWhereTheFieldAcceptsIt() {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         String[] texts = {"a\uD83D\uDE00b", "off", "••••", "fixed"};
         for (int i = 0; i < texts.length; i++) {
-            a.begin(9201 + i, 0, Locale.ENGLISH, 0, i * 30, 400, 30);
+            AccessibilityAccess.begin(a, 9201 + i, 0, Locale.ENGLISH, 0, i * 30, 400, 30);
             a.role(i == 2 ? Accessible.Role.PASSWORD_FIELD : Accessible.Role.TEXT_FIELD);
             a.text(texts[i], i + 1, 0, limn.graphics.ShapedText.Affinity.UPSTREAM, 0, 0, 1, null,
                     i == 3);
@@ -1024,7 +1025,7 @@ class AtspiTreeTest {
             if (i == 2) {
                 a.state(Accessible.State.PASSWORD);
             }
-            a.inherited(i != 1, true, true, true, false);
+            AccessibilityAccess.inherited(a, i != 1, true, true, true, false);
             a.end();
         }
         a.end();
@@ -1073,12 +1074,12 @@ class AtspiTreeTest {
     @Test
     void theTraceWithholdsTheTextAClientWritesIntoAPasswordField() {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         for (int i = 0; i < 2; i++) {
-            a.begin(9221 + i, 0, Locale.ENGLISH, 0, i * 30, 400, 30);
+            AccessibilityAccess.begin(a, 9221 + i, 0, Locale.ENGLISH, 0, i * 30, 400, 30);
             a.role(i == 0 ? Accessible.Role.TEXT_FIELD : Accessible.Role.PASSWORD_FIELD);
             a.text(i == 0 ? "ab" : "••", 2, 0, limn.graphics.ShapedText.Affinity.UPSTREAM, 0, 0, 1,
                     null, false);
@@ -1086,7 +1087,7 @@ class AtspiTreeTest {
             if (i == 1) {
                 a.state(Accessible.State.PASSWORD);
             }
-            a.inherited(true, true, true, true, false);
+            AccessibilityAccess.inherited(a, true, true, true, true, false);
             a.end();
         }
         a.end();
@@ -1118,15 +1119,15 @@ class AtspiTreeTest {
     /** A window holding one editable, enabled field whose text is "ab". */
     private void publishAWindowWithAnEditableField() {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        a.begin(9211, 0, Locale.ENGLISH, 0, 0, 400, 30);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 9211, 0, Locale.ENGLISH, 0, 0, 400, 30);
         a.role(Accessible.Role.TEXT_FIELD);
         a.text("ab", 2, 0, limn.graphics.ShapedText.Affinity.UPSTREAM, 0, 0, 1, null, false);
         a.state(Accessible.State.EDITABLE);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         a.end();
         a.end();
         tree.set(a.publish(0, 0, 0, 1f, true));
@@ -1165,21 +1166,21 @@ class AtspiTreeTest {
     @Test
     void aRowSaysItsLevelAndWhereItIsInItsSetAsObjectAttributesAndAZeroSaysNothing() {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        int outline = a.begin(9300, 0, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        int outline = AccessibilityAccess.begin(a, 9300, 0, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.TREE);
         a.selection(false, false);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         int[][] rows = {{2, 3, 4}, {0, 0, 0}, {1, 0, 7}};
         for (int i = 0; i < rows.length; i++) {
-            a.begin(9301 + i, outline, Locale.ENGLISH, 0, i * 20, 400, 20);
+            AccessibilityAccess.begin(a, 9301 + i, outline, Locale.ENGLISH, 0, i * 20, 400, 20);
             a.role(Accessible.Role.TREE_ITEM);
             a.hierarchy(rows[i][0], i + 1, rows.length);
             a.selectionItem(false, rows[i][1], rows[i][2]);
-            a.inherited(true, true, true, false, false);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
             a.end();
         }
         a.end();
@@ -1211,46 +1212,46 @@ class AtspiTreeTest {
         for (CellFacet.Sort sorted : new CellFacet.Sort[] {
                 CellFacet.Sort.ASCENDING, CellFacet.Sort.DESCENDING}) {
             Accessibility a = new Accessibility();
-            a.beginWalk(400, 300, Locale.ENGLISH);
-            a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+            AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+            AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
             a.role(Accessible.Role.WINDOW);
-            a.inherited(true, true, true, false, false);
-            int table = a.begin(6000, 0, Locale.ENGLISH, 0, 0, 400, 300);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
+            int table = AccessibilityAccess.begin(a, 6000, 0, Locale.ENGLISH, 0, 0, 400, 300);
             a.role(Accessible.Role.TABLE);
             a.table(1, 2);
-            a.inherited(true, true, true, true, false);
-            int header = a.begin(6100, table, Locale.ENGLISH, 0, 0, 400, 30);
+            AccessibilityAccess.inherited(a, true, true, true, true, false);
+            int header = AccessibilityAccess.begin(a, 6100, table, Locale.ENGLISH, 0, 0, 400, 30);
             a.role(Accessible.Role.GROUP);
-            a.inherited(true, true, true, false, false);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
             for (int c = 0; c < 2; c++) {
-                a.begin(6101 + c, header, Locale.ENGLISH, c * 200, 0, 200, 30);
+                AccessibilityAccess.begin(a, 6101 + c, header, Locale.ENGLISH, c * 200, 0, 200, 30);
                 a.role(Accessible.Role.COLUMN_HEADER);
                 a.name(I18nString.literal(c == 0 ? "Name" : "Age"), Accessible.NameFrom.CONTENT);
                 a.cell(-1, c, c == 1 ? sorted : CellFacet.Sort.NONE);
-                a.inherited(true, true, true, false, false);
+                AccessibilityAccess.inherited(a, true, true, true, false, false);
                 a.end();
             }
             a.end();
-            int row = a.begin(6200, table, Locale.ENGLISH, 0, 30, 400, 30);
+            int row = AccessibilityAccess.begin(a, 6200, table, Locale.ENGLISH, 0, 30, 400, 30);
             a.role(Accessible.Role.ROW);
-            a.inherited(true, true, true, false, false);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
             for (int c = 0; c < 2; c++) {
-                a.begin(6201 + c, row, Locale.ENGLISH, c * 200, 30, 200, 30);
+                AccessibilityAccess.begin(a, 6201 + c, row, Locale.ENGLISH, c * 200, 30, 200, 30);
                 a.role(Accessible.Role.CELL);
                 a.name(I18nString.literal("r0c" + c), Accessible.NameFrom.CONTENT);
                 a.cell(0, c, c == 1 ? sorted : CellFacet.Sort.NONE);
-                a.inherited(true, true, true, false, false);
+                AccessibilityAccess.inherited(a, true, true, true, false, false);
                 a.end();
             }
             a.end();
-            int footer = a.begin(6300, table, Locale.ENGLISH, 0, 60, 400, 30);
+            int footer = AccessibilityAccess.begin(a, 6300, table, Locale.ENGLISH, 0, 60, 400, 30);
             a.role(Accessible.Role.GROUP);
-            a.inherited(true, true, true, false, false);
-            a.begin(6301, footer, Locale.ENGLISH, 200, 60, 200, 30);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
+            AccessibilityAccess.begin(a, 6301, footer, Locale.ENGLISH, 200, 60, 200, 30);
             a.role(Accessible.Role.CELL);
             a.name(I18nString.literal("Total 99"), Accessible.NameFrom.CONTENT);
             a.cell(-2, 1, sorted);
-            a.inherited(true, true, true, false, false);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
             a.end();
             a.end();
             a.end();
@@ -1278,31 +1279,31 @@ class AtspiTreeTest {
      */
     private void publishAWindowWithOverlappingBoxes() {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        int group = a.begin(9400, 0, Locale.ENGLISH, 20, 30, 200, 200);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        int group = AccessibilityAccess.begin(a, 9400, 0, Locale.ENGLISH, 20, 30, 200, 200);
         a.role(Accessible.Role.GROUP);
-        a.inherited(true, true, true, false, false);
-        a.begin(9401, group, Locale.ENGLISH, 30, 40, 50, 20);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 9401, group, Locale.ENGLISH, 30, 40, 50, 20);
         a.role(Accessible.Role.LABEL);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         a.end();
-        a.begin(9402, group, Locale.ENGLISH, 20, 30, 200, 200);
+        AccessibilityAccess.begin(a, 9402, group, Locale.ENGLISH, 20, 30, 200, 200);
         a.role(Accessible.Role.BUTTON);
         a.action(Accessible.Action.PRESS);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         a.end();
-        a.begin(9403, group, Locale.ENGLISH, 120, 130, 50, 50);
+        AccessibilityAccess.begin(a, 9403, group, Locale.ENGLISH, 120, 130, 50, 50);
         a.role(Accessible.Role.BUTTON);
-        a.inherited(true, true, false, false, false);
+        AccessibilityAccess.inherited(a, true, true, false, false, false);
         a.end();
         a.end();
-        a.begin(9404, 0, Locale.ENGLISH, 250, 30, 100, 30);
+        AccessibilityAccess.begin(a, 9404, 0, Locale.ENGLISH, 250, 30, 100, 30);
         a.role(Accessible.Role.TEXT_FIELD);
         a.action(Accessible.Action.FOCUS, Accessible.Action.SCROLL_INTO_VIEW);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         a.end();
         a.end();
         tree.set(a.publish(0, 200, 100, 1f, true));
@@ -1352,24 +1353,24 @@ class AtspiTreeTest {
     @Test
     void aSplitterAnswersAcrossItsWholeGrabBandThoughItIsPublishedBetweenThePanes() {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        int split = a.begin(9500, 0, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        int split = AccessibilityAccess.begin(a, 9500, 0, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.SPLIT_PANE);
-        a.inherited(true, true, true, false, false);
-        a.begin(9501, split, Locale.ENGLISH, 0, 0, 196, 300);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 9501, split, Locale.ENGLISH, 0, 0, 196, 300);
         a.role(Accessible.Role.BUTTON);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         a.end();
-        a.begin(9502, split, Locale.ENGLISH, 188, 0, 24, 300);
+        AccessibilityAccess.begin(a, 9502, split, Locale.ENGLISH, 188, 0, 24, 300);
         a.role(Accessible.Role.SPLITTER);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         a.end();
-        a.begin(9503, split, Locale.ENGLISH, 204, 0, 196, 300);
+        AccessibilityAccess.begin(a, 9503, split, Locale.ENGLISH, 204, 0, 196, 300);
         a.role(Accessible.Role.BUTTON);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         a.end();
         a.end();
         a.end();
@@ -1468,20 +1469,20 @@ class AtspiTreeTest {
      */
     private void publishAWindowWithKeys() {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
         a.name(I18nString.literal("A window"), Accessible.NameFrom.EXPLICIT);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         String[][] keys = {{"Alt+N", null}, {null, "Ctrl+S"}, {"L", "Ctrl+L"}};
         for (int i = 0; i < keys.length; i++) {
-            a.begin(1001 + i, 0, Locale.ENGLISH, 10, 20 + 50 * i, 160, 40);
+            AccessibilityAccess.begin(a, 1001 + i, 0, Locale.ENGLISH, 10, 20 + 50 * i, 160, 40);
             a.role(Accessible.Role.BUTTON);
             a.name(I18nString.literal("Button " + i), Accessible.NameFrom.CONTENT);
             a.action(Accessible.Action.PRESS);
             a.accessKey(keys[i][0]);
             a.keyBinding(keys[i][1]);
-            a.inherited(true, true, true, true, false);
+            AccessibilityAccess.inherited(a, true, true, true, true, false);
             a.end();
         }
         a.end();

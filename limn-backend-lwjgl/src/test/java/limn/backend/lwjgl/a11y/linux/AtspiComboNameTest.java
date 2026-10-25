@@ -4,6 +4,7 @@ import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
+import limn.accessibility.internal.AccessibilityAccess;
 import limn.i18n.I18nString;
 import org.junit.jupiter.api.Test;
 
@@ -21,30 +22,30 @@ class AtspiComboNameTest {
 
     private static AccessibleTree tree(boolean editable, String shown) {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        long window = a.mint();
-        long combo = a.mint();
-        long field = a.mint();
-        a.begin(window, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        long window = AccessibilityAccess.mint(a);
+        long combo = AccessibilityAccess.mint(a);
+        long field = AccessibilityAccess.mint(a);
+        AccessibilityAccess.begin(a, window, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
         a.name(I18nString.literal("Gallery"), Accessible.NameFrom.EXPLICIT);
-        a.inherited(true, true, true, false, false);
-        a.begin(combo, 0, Locale.ENGLISH, 10, 20, 160, 32);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, combo, 0, Locale.ENGLISH, 10, 20, 160, 32);
         a.role(Accessible.Role.COMBO_BOX);
         a.name(I18nString.literal("Mountain ranges"), Accessible.NameFrom.EXPLICIT);
         a.value(2, 0, 5, 1);
         a.valueText(shown, 1);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         if (editable) {
-            a.begin(field, 1, Locale.ENGLISH, 10, 20, 160, 32); // under the combo, slot 1
+            AccessibilityAccess.begin(a, field, 1, Locale.ENGLISH, 10, 20, 160, 32); // under the combo, slot 1
             a.role(Accessible.Role.TEXT_FIELD);
             a.name(I18nString.literal("Mountain ranges"), Accessible.NameFrom.EXPLICIT);
-            a.inherited(true, true, true, true, false);
+            AccessibilityAccess.inherited(a, true, true, true, true, false);
             a.end();
         }
         a.end();
         a.end();
-        a.resolveRelations((kind, target) -> (Long) target);
+        AccessibilityAccess.resolveRelations(a, (kind, target) -> (Long) target);
         return a.publish(0, 0, 0, 1f, true);
     }
 

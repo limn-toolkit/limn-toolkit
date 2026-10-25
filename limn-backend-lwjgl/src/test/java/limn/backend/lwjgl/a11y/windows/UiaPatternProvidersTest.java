@@ -5,6 +5,7 @@ import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
 import limn.accessibility.ToggleFacet;
+import limn.accessibility.internal.AccessibilityAccess;
 import limn.graphics.ShapedText;
 import limn.i18n.I18nString;
 import org.junit.jupiter.api.AfterAll;
@@ -222,7 +223,7 @@ class UiaPatternProvidersTest {
      */
     private static AccessibleTree fixture() {
         Accessibility a = new Accessibility();
-        a.beginWalk(800, 600, Locale.ENGLISH);
+        AccessibilityAccess.beginWalk(a, 800, 600, Locale.ENGLISH);
         int window = node(a, 1000, AccessibleNode.NONE, Accessible.Role.WINDOW);
         node(a, 1001, window, Accessible.Role.BUTTON);
         a.action(Accessible.Action.PRESS);
@@ -254,12 +255,12 @@ class UiaPatternProvidersTest {
         a.action(Accessible.Action.EXPAND);
         a.end();
         node(a, 1014, window, Accessible.Role.BUTTON);
-        a.inherited(false, true, true, false, false);
+        AccessibilityAccess.inherited(a, false, true, true, false, false);
         a.end();
         node(a, 1015, window, Accessible.Role.TEXT_FIELD);
         a.state(Accessible.State.EDITABLE);
         a.text("off", 4, 0, ShapedText.Affinity.DOWNSTREAM, 0, 0, 1, null, false);
-        a.inherited(false, true, true, false, false);
+        AccessibilityAccess.inherited(a, false, true, true, false, false);
         a.end();
         node(a, 1016, window, Accessible.Role.SPIN_BUTTON);
         a.value(9, 0, 10, 1, true);
@@ -267,7 +268,7 @@ class UiaPatternProvidersTest {
         a.end();
         node(a, 1018, window, Accessible.Role.LIST_ITEM);
         a.selectionItem(false, 1, 1);
-        a.inherited(false, true, true, false, false);
+        AccessibilityAccess.inherited(a, false, true, true, false, false);
         a.end();
         int list = node(a, 1008, window, Accessible.Role.LIST);
         a.selection(true, false);
@@ -371,11 +372,11 @@ class UiaPatternProvidersTest {
         a.end();
         int disabled = node(a, 1045, window, Accessible.Role.SCROLL_PANE);
         a.scroll(0, 0.5, 1, 0.5, false, true);
-        a.inherited(false, true, true, false, false);
+        AccessibilityAccess.inherited(a, false, true, true, false, false);
         node(a, 1047, disabled, Accessible.Role.SCROLL_BAR);
         a.state(Accessible.State.VERTICAL);
         a.value(0, 0, 100, 10);
-        a.inherited(false, true, true, false, false);
+        AccessibilityAccess.inherited(a, false, true, true, false, false);
         a.end();
         a.end();
         a.end();
@@ -384,10 +385,10 @@ class UiaPatternProvidersTest {
 
     /** Begins an enabled, showing node; the caller ends it. */
     private static int node(Accessibility a, long id, int parent, Accessible.Role role) {
-        int index = a.begin(id, parent, Locale.ENGLISH, 0, 0, 10, 10);
+        int index = AccessibilityAccess.begin(a, id, parent, Locale.ENGLISH, 0, 0, 10, 10);
         a.role(role);
         a.name(I18nString.literal("n" + id), Accessible.NameFrom.EXPLICIT);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         return index;
     }
 

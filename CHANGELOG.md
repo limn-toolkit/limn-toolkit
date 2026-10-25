@@ -1840,6 +1840,11 @@ Maven Central say which number that was.
 
 ### Breaking, and how to move
 
+- Forty-one methods of `Accessibility` that only the toolkit's publish step calls (`beginWalk`, `begin`,
+  `inherited`, `mint`, `idAt`, `syntheticBoxAt`, `placeSyntheticAt`, `resolveRelations`, `events` and
+  the rest) are no longer public. A widget's `onAccessibility` never called them, and an application
+  has nothing to move: what a widget says about itself (role, name, states, actions, facets) is
+  unchanged.
 - `PasswordField.setMask` refuses a pattern with `UnsupportedOperationException`. A password is not
   formatted: a mask's literals were drawn as dots, and "masked" meant two things on one field.
 - `Insets` names its sides by the reading direction: `(top, end, bottom, start)`, with `start()`

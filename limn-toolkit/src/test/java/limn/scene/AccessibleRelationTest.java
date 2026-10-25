@@ -139,7 +139,7 @@ class AccessibleRelationTest extends AccessibleTestBase {
 
         int hostFrames = window.frameRequests;
         int hostPublished = bridge.published.size();
-        long carried = scene.accessibleWalk().builder().carriedOver();
+        long carried = limn.accessibility.internal.AccessibilityAccess.carriedOver(scene.accessibleWalk().builder());
         for (int i = 0; i < 3; i++) {
             menu.invalidate();
             popup.renderFrame(canvas);
@@ -148,7 +148,7 @@ class AccessibleRelationTest extends AccessibleTestBase {
 
         assertEquals(hostFrames, window.frameRequests,
                 "three more popup walks bought the host no frame");
-        assertEquals(carried, scene.accessibleWalk().builder().carriedOver(),
+        assertEquals(carried, limn.accessibility.internal.AccessibilityAccess.carriedOver(scene.accessibleWalk().builder()),
                 "and walked nothing in it: the opener's name was not carried over again");
         assertEquals(hostPublished, bridge.published.size());
         assertEquals(node("File", popupBridge.tree()).id(),

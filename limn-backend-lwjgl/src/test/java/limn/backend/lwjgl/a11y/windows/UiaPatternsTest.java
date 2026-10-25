@@ -4,6 +4,7 @@ import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
+import limn.accessibility.internal.AccessibilityAccess;
 import limn.i18n.I18nString;
 import org.junit.jupiter.api.Test;
 
@@ -31,15 +32,15 @@ class UiaPatternsTest {
     /** A window holding one control, whose facets the caller writes. */
     private AccessibleNode publish(Accessible.Role role, Consumer<Accessibility> facets) {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        a.begin(1001, 0, Locale.ENGLISH, 10, 20, 160, 40);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 1001, 0, Locale.ENGLISH, 10, 20, 160, 40);
         a.role(role);
         a.name(I18nString.literal("A control"), Accessible.NameFrom.CONTENT);
         facets.accept(a);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         a.end();
         a.end();
         tree = a.publish(0, 0, 0, 1f, true);
@@ -194,38 +195,38 @@ class UiaPatternsTest {
     @Test
     void scrollItemIsVendedWhereTheNodePublishesScrollIntoViewAndNowhereElse() {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
 
-        a.begin(2000, 0, Locale.ENGLISH, 0, 0, 200, 300);
+        AccessibilityAccess.begin(a, 2000, 0, Locale.ENGLISH, 0, 0, 200, 300);
         a.role(Accessible.Role.SCROLL_PANE);
         a.scroll(0, 0.25, 1, 0.5, false, true);
-        a.inherited(true, true, true, false, false);
-        a.begin(2001, 1, Locale.ENGLISH, 0, 0, 200, 40);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 2001, 1, Locale.ENGLISH, 0, 0, 200, 40);
         a.role(Accessible.Role.GROUP);
-        a.inherited(true, true, true, false, false);
-        a.begin(2002, 2, Locale.ENGLISH, 0, 0, 160, 40);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 2002, 2, Locale.ENGLISH, 0, 0, 160, 40);
         a.role(Accessible.Role.BUTTON);
         a.name(I18nString.literal("Deep"), Accessible.NameFrom.CONTENT);
         a.action(Accessible.Action.PRESS, Accessible.Action.SCROLL_INTO_VIEW);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         a.end();
-        a.begin(2003, 2, Locale.ENGLISH, 0, 0, 160, 40);
+        AccessibilityAccess.begin(a, 2003, 2, Locale.ENGLISH, 0, 0, 160, 40);
         a.role(Accessible.Role.LIST_ITEM);
         a.name(I18nString.literal("Refuses"), Accessible.NameFrom.CONTENT);
         a.selectionItem(false, 1, 1);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         a.end();
         a.end();
         a.end();
 
-        a.begin(3000, 0, Locale.ENGLISH, 200, 0, 200, 40);
+        AccessibilityAccess.begin(a, 3000, 0, Locale.ENGLISH, 200, 0, 200, 40);
         a.role(Accessible.Role.BUTTON);
         a.name(I18nString.literal("Outside"), Accessible.NameFrom.CONTENT);
         a.action(Accessible.Action.PRESS);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         a.end();
         a.end();
         tree = a.publish(0, 0, 0, 1f, true);

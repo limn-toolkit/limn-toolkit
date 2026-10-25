@@ -575,7 +575,7 @@ public final class Accessibility {
      *
      * @param id the widget's id; {@code null} or empty for none
      */
-    public void identifier(@Nullable String id) {
+    void identifier(@Nullable String id) {
         slot().identifier = id == null ? "" : id;
     }
 
@@ -1214,7 +1214,7 @@ public final class Accessibility {
      *
      * @throws IllegalStateException if either verb was delegated on this node
      */
-    public void freeVerbs() {
+    void freeVerbs() {
         Slot s = slot();
         int free = (1 << Accessible.Action.FOCUS.ordinal())
                 | (1 << Accessible.Action.SCROLL_INTO_VIEW.ordinal());
@@ -1255,7 +1255,7 @@ public final class Accessibility {
     }
 
     /** @return whether this node was given an access key in this description */
-    public boolean hasAccessKey() {
+    boolean hasAccessKey() {
         return slot().accessKey != null;
     }
 
@@ -1483,7 +1483,7 @@ public final class Accessibility {
      * @param sceneHeight its height
      * @param sceneLocale the scene's own language; never {@code null}
      */
-    public void beginWalk(float sceneWidth, float sceneHeight, Locale sceneLocale) {
+    void beginWalk(float sceneWidth, float sceneHeight, Locale sceneLocale) {
         this.sceneWidth = sceneWidth;
         this.sceneHeight = sceneHeight;
         this.sceneLocale = Objects.requireNonNull(sceneLocale, "sceneLocale");
@@ -1507,7 +1507,7 @@ public final class Accessibility {
      * @param height its height
      * @return the node's index
      */
-    public int begin(long id, int parent, Locale locale,
+    int begin(long id, int parent, Locale locale,
                      float x, float y, float width, float height) {
         if (count == slots.length) {
             Slot[] grown = java.util.Arrays.copyOf(slots, slots.length * 2);
@@ -1552,7 +1552,7 @@ public final class Accessibility {
      *
      * @return whether anything was begun under the node being described
      */
-    public boolean hasChildren() {
+    boolean hasChildren() {
         return current != count - 1;
     }
 
@@ -1566,7 +1566,7 @@ public final class Accessibility {
      *
      * @return whether this node is scaffolding
      */
-    public boolean declaresNothing() {
+    boolean declaresNothing() {
         return slot().declaresNothing();
     }
 
@@ -1575,7 +1575,7 @@ public final class Accessibility {
      *
      * @return whether the widget called {@link #ignore()}
      */
-    public boolean isIgnored() {
+    boolean isIgnored() {
         return slot().ignored;
     }
 
@@ -1586,14 +1586,14 @@ public final class Accessibility {
      * until {@link #endChildIdentity()} rather than writing onto it. The publish step calls
      * this; a widget never does.
      */
-    public void beginChildIdentity() {
+    void beginChildIdentity() {
         namingChild = true;
         hasPendingKey = false;
         hasPendingHost = false;
     }
 
     /** Closes what {@link #beginChildIdentity()} opened. The publish step calls this. */
-    public void endChildIdentity() {
+    void endChildIdentity() {
         namingChild = false;
     }
 
@@ -1602,12 +1602,12 @@ public final class Accessibility {
      * open: the only window in which {@link #delegate} is accepted. The publish step calls this
      * around that hook; a widget never does.
      */
-    public void beginChildDescription() {
+    void beginChildDescription() {
         describingChild = true;
     }
 
     /** Closes what {@link #beginChildDescription()} opened. The publish step calls this. */
-    public void endChildDescription() {
+    void endChildDescription() {
         describingChild = false;
     }
 
@@ -1619,22 +1619,22 @@ public final class Accessibility {
      * @param index the node's index
      * @return the bit set; {@code 0} when nothing was delegated
      */
-    public int delegatedVerbsAt(int index) {
+    int delegatedVerbsAt(int index) {
         return slots[index].delegated;
     }
 
     /** @return whether the identity hook gave the child about to be begun a key */
-    public boolean hasPendingKey() {
+    boolean hasPendingKey() {
         return hasPendingKey;
     }
 
     /** @return the key the identity hook gave, meaningful only when {@link #hasPendingKey()} */
-    public long pendingKey() {
+    long pendingKey() {
         return pendingKey;
     }
 
     /** @return whether the identity hook hung the child under a synthetic node of its parent */
-    public boolean hasPendingHost() {
+    boolean hasPendingHost() {
         return hasPendingHost;
     }
 
@@ -1647,7 +1647,7 @@ public final class Accessibility {
      * @throws IllegalStateException if the parent declared no synthetic child with that key in
      *                               this walk
      */
-    public int pendingHostIndex(int owner) {
+    int pendingHostIndex(int owner) {
         // A widget's synthetic children are begun inside its describe hook, so they sit right
         // after its own slot and before any widget child, each followed by its own subtree; the
         // scan steps from one direct child to the next over each subtree, so a table asking for
@@ -1668,7 +1668,7 @@ public final class Accessibility {
      * its place among that node's children. The publish step calls this right after
      * {@link #begin}.
      */
-    public void markHosted() {
+    void markHosted() {
         slot().hosted = true;
     }
 
@@ -1680,7 +1680,7 @@ public final class Accessibility {
      *
      * @return the running count
      */
-    public long carriedOver() {
+    long carriedOver() {
         return carriedOver;
     }
 
@@ -1702,7 +1702,7 @@ public final class Accessibility {
      * @param focusable whether the keyboard's traversal can reach this node
      * @param focused   whether it holds the focus
      */
-    public void inherited(boolean enabled, boolean visible, boolean showing,
+    void inherited(boolean enabled, boolean visible, boolean showing,
                           boolean focusable, boolean focused) {
         Slot s = slot();
         s.states = set(s.states, Accessible.State.ENABLED, enabled);
@@ -1734,7 +1734,7 @@ public final class Accessibility {
      *                {@link #offScreen()} publishes without it either way
      * @throws IndexOutOfBoundsException if {@code index} names no node in this walk
      */
-    public void inheritedAt(int index, boolean enabled, boolean visible, boolean showing) {
+    void inheritedAt(int index, boolean enabled, boolean visible, boolean showing) {
         Objects.checkIndex(index, count);
         Slot s = slots[index];
         // Through the nesting, not one level deep (2026-09-14): a synthetic child under a
@@ -1768,7 +1768,7 @@ public final class Accessibility {
      * @param y1    its bottom edge
      * @throws IndexOutOfBoundsException if {@code index} names no node in this walk
      */
-    public void clipShowingAt(int index, float x0, float y0, float x1, float y1) {
+    void clipShowingAt(int index, float x0, float y0, float x1, float y1) {
         Objects.checkIndex(index, count);
         Slot s = slots[index];
         if (!s.synthetic) {
@@ -1795,7 +1795,7 @@ public final class Accessibility {
      * @param out   four floats to fill
      * @throws IndexOutOfBoundsException if {@code index} names no node in this walk
      */
-    public void syntheticBoxAt(int index, float[] out) {
+    void syntheticBoxAt(int index, float[] out) {
         Objects.checkIndex(index, count);
         Slot s = slots[index];
         out[0] = s.x - s.originX;
@@ -1818,7 +1818,7 @@ public final class Accessibility {
      * @param height the height
      * @throws IndexOutOfBoundsException if {@code index} names no node in this walk
      */
-    public void placeSyntheticAt(int index, float x, float y, float width, float height) {
+    void placeSyntheticAt(int index, float x, float y, float width, float height) {
         Objects.checkIndex(index, count);
         Slot s = slots[index];
         if (!s.synthetic) {
@@ -1844,7 +1844,7 @@ public final class Accessibility {
      * @return whether the node carries {@link Accessible.State#ENABLED}
      * @throws IndexOutOfBoundsException if {@code index} names no node in this walk
      */
-    public boolean isEnabledAt(int index) {
+    boolean isEnabledAt(int index) {
         Objects.checkIndex(index, count);
         return (slots[index].states & (1L << Accessible.State.ENABLED.ordinal())) != 0;
     }
@@ -1877,7 +1877,7 @@ public final class Accessibility {
      * @param index the node's index in this walk
      * @throws IndexOutOfBoundsException if {@code index} names no node in this walk
      */
-    public void inoperableAt(int index) {
+    void inoperableAt(int index) {
         Objects.checkIndex(index, count);
         Slot s = slots[index];
         s.verbs = 0;
@@ -1912,7 +1912,7 @@ public final class Accessibility {
      *
      * @return whether anything described this node
      */
-    public boolean hasDescription() {
+    boolean hasDescription() {
         return !slot().descriptionText.isEmpty();
     }
 
@@ -1923,7 +1923,7 @@ public final class Accessibility {
      * @param index the node's index
      * @return whether it was declared with {@link #child(long)}
      */
-    public boolean isSyntheticAt(int index) {
+    boolean isSyntheticAt(int index) {
         return slots[index].synthetic;
     }
 
@@ -1933,7 +1933,7 @@ public final class Accessibility {
      * @param index the node's index
      * @return the key, or {@code 0} when that node is a widget's own
      */
-    public long syntheticKeyAt(int index) {
+    long syntheticKeyAt(int index) {
         return slots[index].syntheticKey;
     }
 
@@ -1946,7 +1946,7 @@ public final class Accessibility {
      * @param target the widget at the other end, resolved at publish time
      * @throws NullPointerException if {@code kind} is {@code null}
      */
-    public void relationAt(int index, Accessible.Relation kind, @Nullable Object target) {
+    void relationAt(int index, Accessible.Relation kind, @Nullable Object target) {
         Objects.requireNonNull(kind, "kind");
         if (target != null) {
             slots[index].addRelation(kind, target);
@@ -1964,7 +1964,7 @@ public final class Accessibility {
      * @param key   the key, unique within that namespace
      * @return the identifier that pair keeps
      */
-    public long identify(long owner, long key) {
+    long identify(long owner, long key) {
         return intern(owner, key);
     }
 
@@ -1974,7 +1974,7 @@ public final class Accessibility {
      * @param index the node's index
      * @return its identifier
      */
-    public long idAt(int index) {
+    long idAt(int index) {
         return slots[index].id;
     }
 
@@ -2091,7 +2091,7 @@ public final class Accessibility {
      *                published none; never {@code null}
      * @throws NullPointerException if {@code resolve} is {@code null}
      */
-    public void resolveRelations(RelationResolver resolve) {
+    void resolveRelations(RelationResolver resolve) {
         Objects.requireNonNull(resolve, "resolve");
         for (int i = 0; i < count; i++) {
             Slot s = slots[i];
@@ -2357,7 +2357,7 @@ public final class Accessibility {
      *
      * @param slot the popup root's slot in this walk, or a negative number for none
      */
-    public void keyboardPopupAt(int slot) {
+    void keyboardPopupAt(int slot) {
         keyboardPopupCursor = slot < 0 || slot >= count ? 0 : activeDescendantIn(slots, count, slot);
     }
 
@@ -2382,7 +2382,7 @@ public final class Accessibility {
      * @param id the identifier of the popup's cursor node, minted by the popup's own scene, or
      *           {@code 0}
      */
-    public void foreignActiveDescendant(long id) {
+    void foreignActiveDescendant(long id) {
         foreignActiveDescendant = id;
     }
 
@@ -2397,7 +2397,7 @@ public final class Accessibility {
      * @return the popup root's identifier, or {@code 0} when no such relation is published on
      *         the node or above it, or the identifier names nothing this walk published
      */
-    public long foreignControllerTargetFrom(long nodeId) {
+    long foreignControllerTargetFrom(long nodeId) {
         for (int at = indexIn(slots, count, nodeId); at != AccessibleNode.NONE;
                 at = slots[at].parent) {
             Slot s = slots[at];
@@ -2417,7 +2417,7 @@ public final class Accessibility {
      *
      * @return the events; empty when the two trees agreed, and never modifiable
      */
-    public List<AccessibleEvent> events() {
+    List<AccessibleEvent> events() {
         return java.util.Collections.unmodifiableList(events);
     }
 
@@ -3044,7 +3044,7 @@ public final class Accessibility {
      * Forgets what was published, so the next walk differs from nothing and publishes everything.
      * The publish step calls this when a scene is bound over a window that held another one.
      */
-    public void forgetPublished() {
+    void forgetPublished() {
         previousCount = 0;
         publishedActiveDescendant = 0;
         publishedForeignActiveDescendant = 0;
@@ -3098,14 +3098,14 @@ public final class Accessibility {
      *
      * @return an identifier no other node in the process has had, and never {@code 0}
      */
-    public long mint() {
+    long mint() {
         return (sceneTag << SERIAL_BITS) | ++nextIdentifier;
     }
 
     /**
      * @return the tag every identifier this builder mints carries: the scene's, never {@code 0}
      */
-    public long sceneTag() {
+    long sceneTag() {
         return sceneTag;
     }
 
@@ -3116,7 +3116,7 @@ public final class Accessibility {
      * @return the tag of the builder that minted it, or {@code 0} for an identifier no builder
      *         minted
      */
-    public static long sceneTagOf(long id) {
+    static long sceneTagOf(long id) {
         return id >>> SERIAL_BITS;
     }
 
@@ -3222,5 +3222,217 @@ public final class Accessibility {
         long x = value * 0x9E3779B97F4A7C15L;
         x ^= x >>> 29;
         return x & Long.MAX_VALUE;
+    }
+
+    static {
+        // The publish step reaches these through limn.accessibility.internal.AccessibilityAccess,
+        // which only this class can install: a widget describing itself never calls them.
+        limn.accessibility.internal.AccessibilityAccess.install(
+                new limn.accessibility.internal.AccessibilityAccess.Hook() {
+            @Override
+            public int begin(Accessibility a, long id, int parent, Locale locale, float x, float y, float width, float height) {
+                return a.begin(id, parent, locale, x, y, width, height);
+            }
+
+            @Override
+            public void beginChildDescription(Accessibility a) {
+                a.beginChildDescription();
+            }
+
+            @Override
+            public void beginChildIdentity(Accessibility a) {
+                a.beginChildIdentity();
+            }
+
+            @Override
+            public void beginWalk(Accessibility a, float sceneWidth, float sceneHeight, Locale sceneLocale) {
+                a.beginWalk(sceneWidth, sceneHeight, sceneLocale);
+            }
+
+            @Override
+            public long carriedOver(Accessibility a) {
+                return a.carriedOver();
+            }
+
+            @Override
+            public void clipShowingAt(Accessibility a, int index, float x0, float y0, float x1, float y1) {
+                a.clipShowingAt(index, x0, y0, x1, y1);
+            }
+
+            @Override
+            public boolean declaresNothing(Accessibility a) {
+                return a.declaresNothing();
+            }
+
+            @Override
+            public int delegatedVerbsAt(Accessibility a, int index) {
+                return a.delegatedVerbsAt(index);
+            }
+
+            @Override
+            public void endChildDescription(Accessibility a) {
+                a.endChildDescription();
+            }
+
+            @Override
+            public void endChildIdentity(Accessibility a) {
+                a.endChildIdentity();
+            }
+
+            @Override
+            public List<AccessibleEvent> events(Accessibility a) {
+                return a.events();
+            }
+
+            @Override
+            public void foreignActiveDescendant(Accessibility a, long id) {
+                a.foreignActiveDescendant(id);
+            }
+
+            @Override
+            public long foreignControllerTargetFrom(Accessibility a, long nodeId) {
+                return a.foreignControllerTargetFrom(nodeId);
+            }
+
+            @Override
+            public void forgetPublished(Accessibility a) {
+                a.forgetPublished();
+            }
+
+            @Override
+            public void freeVerbs(Accessibility a) {
+                a.freeVerbs();
+            }
+
+            @Override
+            public boolean hasAccessKey(Accessibility a) {
+                return a.hasAccessKey();
+            }
+
+            @Override
+            public boolean hasChildren(Accessibility a) {
+                return a.hasChildren();
+            }
+
+            @Override
+            public boolean hasDescription(Accessibility a) {
+                return a.hasDescription();
+            }
+
+            @Override
+            public boolean hasPendingHost(Accessibility a) {
+                return a.hasPendingHost();
+            }
+
+            @Override
+            public boolean hasPendingKey(Accessibility a) {
+                return a.hasPendingKey();
+            }
+
+            @Override
+            public long idAt(Accessibility a, int index) {
+                return a.idAt(index);
+            }
+
+            @Override
+            public void identifier(Accessibility a, @Nullable String id) {
+                a.identifier(id);
+            }
+
+            @Override
+            public long identify(Accessibility a, long owner, long key) {
+                return a.identify(owner, key);
+            }
+
+            @Override
+            public void inherited(Accessibility a, boolean enabled, boolean visible, boolean showing, boolean focusable, boolean focused) {
+                a.inherited(enabled, visible, showing, focusable, focused);
+            }
+
+            @Override
+            public void inheritedAt(Accessibility a, int index, boolean enabled, boolean visible, boolean showing) {
+                a.inheritedAt(index, enabled, visible, showing);
+            }
+
+            @Override
+            public void inoperableAt(Accessibility a, int index) {
+                a.inoperableAt(index);
+            }
+
+            @Override
+            public boolean isEnabledAt(Accessibility a, int index) {
+                return a.isEnabledAt(index);
+            }
+
+            @Override
+            public boolean isIgnored(Accessibility a) {
+                return a.isIgnored();
+            }
+
+            @Override
+            public boolean isSyntheticAt(Accessibility a, int index) {
+                return a.isSyntheticAt(index);
+            }
+
+            @Override
+            public void keyboardPopupAt(Accessibility a, int slot) {
+                a.keyboardPopupAt(slot);
+            }
+
+            @Override
+            public void markHosted(Accessibility a) {
+                a.markHosted();
+            }
+
+            @Override
+            public long mint(Accessibility a) {
+                return a.mint();
+            }
+
+            @Override
+            public int pendingHostIndex(Accessibility a, int owner) {
+                return a.pendingHostIndex(owner);
+            }
+
+            @Override
+            public long pendingKey(Accessibility a) {
+                return a.pendingKey();
+            }
+
+            @Override
+            public void placeSyntheticAt(Accessibility a, int index, float x, float y, float width, float height) {
+                a.placeSyntheticAt(index, x, y, width, height);
+            }
+
+            @Override
+            public void relationAt(Accessibility a, int index, Accessible.Relation kind, @Nullable Object target) {
+                a.relationAt(index, kind, target);
+            }
+
+            @Override
+            public void resolveRelations(Accessibility a, RelationResolver resolve) {
+                a.resolveRelations(resolve);
+            }
+
+            @Override
+            public long sceneTag(Accessibility a) {
+                return a.sceneTag();
+            }
+
+            @Override
+            public long sceneTagOf(long id) {
+                return Accessibility.sceneTagOf(id);
+            }
+
+            @Override
+            public void syntheticBoxAt(Accessibility a, int index, float[] out) {
+                a.syntheticBoxAt(index, out);
+            }
+
+            @Override
+            public long syntheticKeyAt(Accessibility a, int index) {
+                return a.syntheticKeyAt(index);
+            }
+        });
     }
 }

@@ -6,6 +6,7 @@ import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
 import limn.accessibility.Shape;
 import limn.accessibility.ToggleFacet;
+import limn.accessibility.internal.AccessibilityAccess;
 import limn.graphics.Rect;
 import limn.graphics.ShapedText;
 import limn.i18n.I18nString;
@@ -129,15 +130,15 @@ class AtspiShapesTest {
 
     private AccessibleNode publish(Accessible.Role role, Consumer<Accessibility> facets) {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        a.begin(1001, 0, Locale.ENGLISH, 10, 20, 160, 40);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 1001, 0, Locale.ENGLISH, 10, 20, 160, 40);
         a.role(role);
         a.name(I18nString.literal("A control"), Accessible.NameFrom.CONTENT);
         facets.accept(a);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         a.end();
         a.end();
         AccessibleTree tree = a.publish(0, 0, 0, 1f, true);

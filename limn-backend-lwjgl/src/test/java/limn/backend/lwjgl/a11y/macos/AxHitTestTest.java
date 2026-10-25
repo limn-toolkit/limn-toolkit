@@ -4,6 +4,7 @@ import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
+import limn.accessibility.internal.AccessibilityAccess;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -22,24 +23,24 @@ class AxHitTestTest {
     /** Three siblings: a wide one, a later one over its right half, and a hidden one over both. */
     private static List<AccessibleNode> overlapping() {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        int group = a.begin(1001, 0, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        int group = AccessibilityAccess.begin(a, 1001, 0, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.GROUP);
-        a.inherited(true, true, true, false, false);
-        a.begin(1002, group, Locale.ENGLISH, 0, 0, 400, 100);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 1002, group, Locale.ENGLISH, 0, 0, 400, 100);
         a.role(Accessible.Role.BUTTON);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         a.end();
-        a.begin(1003, group, Locale.ENGLISH, 200, 0, 200, 100);
+        AccessibilityAccess.begin(a, 1003, group, Locale.ENGLISH, 200, 0, 200, 100);
         a.role(Accessible.Role.BUTTON);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         a.end();
-        a.begin(1004, group, Locale.ENGLISH, 0, 0, 400, 100);
+        AccessibilityAccess.begin(a, 1004, group, Locale.ENGLISH, 0, 0, 400, 100);
         a.role(Accessible.Role.BUTTON);
-        a.inherited(true, false, false, false, false);
+        AccessibilityAccess.inherited(a, true, false, false, false, false);
         a.end();
         a.end();
         a.end();

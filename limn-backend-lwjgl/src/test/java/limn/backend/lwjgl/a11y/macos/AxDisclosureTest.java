@@ -5,6 +5,7 @@ import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
+import limn.accessibility.internal.AccessibilityAccess;
 import limn.i18n.I18nString;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,32 +39,32 @@ class AxDisclosureTest {
     /** The outline, realizing only the rows named by {@code realized} (indices into {@link #NAMES}). */
     private static AccessibleTree anOutline(int... realized) {
         Accessibility a = new Accessibility();
-        a.beginWalk(480, 320, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 480, 320);
+        AccessibilityAccess.beginWalk(a, 480, 320, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 480, 320);
         a.role(Accessible.Role.WINDOW);
         a.name(I18nString.literal("w"), Accessible.NameFrom.EXPLICIT);
-        a.inherited(true, true, true, false, false);
-        int tree = a.begin(1001, 0, Locale.ENGLISH, 0, 0, 200, 300);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        int tree = AccessibilityAccess.begin(a, 1001, 0, Locale.ENGLISH, 0, 0, 200, 300);
         a.role(Accessible.Role.TREE);
         a.name(I18nString.literal("Files"), Accessible.NameFrom.EXPLICIT);
         a.selection(false, false);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         for (int r : realized) {
-            a.begin(1010 + r, tree, Locale.ENGLISH, 0, 24L * r, 200, 24);
+            AccessibilityAccess.begin(a, 1010 + r, tree, Locale.ENGLISH, 0, 24L * r, 200, 24);
             a.role(Accessible.Role.TREE_ITEM);
             a.name(I18nString.literal(NAMES[r]), Accessible.NameFrom.CONTENT);
             a.selectionItem(false, 1, 1);
             a.hierarchy(ROWS[r][0], ROWS[r][1], 6);
             if (ROWS[r][2] != 0) a.expand(ROWS[r][2] == 2);
-            a.inherited(true, true, true, false, false);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
             a.end();
         }
         a.end();
-        a.begin(1020, 0, Locale.ENGLISH, 220, 0, 100, 24);
+        AccessibilityAccess.begin(a, 1020, 0, Locale.ENGLISH, 220, 0, 100, 24);
         a.role(Accessible.Role.COMBO_BOX);
         a.name(I18nString.literal("Kind"), Accessible.NameFrom.EXPLICIT);
         a.expand(true);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         a.end();
         a.end();
         return a.publish(0, 0, 0, 1f, true);
@@ -142,19 +143,19 @@ class AxDisclosureTest {
     @Test
     void aLevelOfZeroPublishesNoDisclosureLevel() {
         Accessibility a = new Accessibility();
-        a.beginWalk(480, 320, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 480, 320);
+        AccessibilityAccess.beginWalk(a, 480, 320, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 480, 320);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        int tree = a.begin(1001, 0, Locale.ENGLISH, 0, 0, 200, 300);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        int tree = AccessibilityAccess.begin(a, 1001, 0, Locale.ENGLISH, 0, 0, 200, 300);
         a.role(Accessible.Role.TREE);
         a.selection(false, false);
-        a.inherited(true, true, true, false, false);
-        a.begin(1002, tree, Locale.ENGLISH, 0, 0, 200, 24);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 1002, tree, Locale.ENGLISH, 0, 0, 200, 24);
         a.role(Accessible.Role.TREE_ITEM);
         a.selectionItem(false, 1, 1);
         a.hierarchy(0, 3, 9);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         a.end();
         a.end();
         a.end();

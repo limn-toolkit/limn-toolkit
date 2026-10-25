@@ -5,6 +5,7 @@ import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
+import limn.accessibility.internal.AccessibilityAccess;
 import limn.backend.AccessibilityBridge;
 import limn.i18n.I18nString;
 import org.junit.jupiter.api.Test;
@@ -36,21 +37,21 @@ class AxBridgeTest {
     /** A window with a group, and a button inside the group: three levels, which is the point. */
     private static AccessibleTree aNestedWindow(int buttons) {
         Accessibility a = new Accessibility();
-        a.beginWalk(480, 320, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 480, 320);
+        AccessibilityAccess.beginWalk(a, 480, 320, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 480, 320);
         a.role(Accessible.Role.WINDOW);
         a.name(I18nString.literal("A window"), Accessible.NameFrom.EXPLICIT);
-        a.inherited(true, true, true, false, false);
-        a.begin(1001, 0, Locale.ENGLISH, 20, 60, 200, 200);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 1001, 0, Locale.ENGLISH, 20, 60, 200, 200);
         a.role(Accessible.Role.GROUP);
         a.name(I18nString.literal("A group"), Accessible.NameFrom.CONTENT);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         for (int i = 0; i < buttons; i++) {
-            a.begin(1002 + i, 1, Locale.ENGLISH, 40, 96 + 40L * i, 160, 40);
+            AccessibilityAccess.begin(a, 1002 + i, 1, Locale.ENGLISH, 40, 96 + 40L * i, 160, 40);
             a.role(Accessible.Role.BUTTON);
             a.name(I18nString.literal("Button " + i), Accessible.NameFrom.CONTENT);
             a.action(Accessible.Action.PRESS);
-            a.inherited(true, true, true, true, false);
+            AccessibilityAccess.inherited(a, true, true, true, true, false);
             a.end();
         }
         a.end();
@@ -61,16 +62,16 @@ class AxBridgeTest {
     /** A window whose root has two children, where {@link #aNestedWindow} has one. */
     private static AccessibleTree aWindowWithTwoGroups() {
         Accessibility a = new Accessibility();
-        a.beginWalk(480, 320, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 480, 320);
+        AccessibilityAccess.beginWalk(a, 480, 320, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 480, 320);
         a.role(Accessible.Role.WINDOW);
         a.name(I18nString.literal("A window"), Accessible.NameFrom.EXPLICIT);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         for (int i = 0; i < 2; i++) {
-            a.begin(1001 + 10L * i, 0, Locale.ENGLISH, 20, 60 + 100L * i, 200, 80);
+            AccessibilityAccess.begin(a, 1001 + 10L * i, 0, Locale.ENGLISH, 20, 60 + 100L * i, 200, 80);
             a.role(Accessible.Role.GROUP);
             a.name(I18nString.literal("Group " + i), Accessible.NameFrom.CONTENT);
-            a.inherited(true, true, true, false, false);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
             a.end();
         }
         a.end();
@@ -80,22 +81,22 @@ class AxBridgeTest {
     /** The same window, with one node holding the keyboard. */
     private static AccessibleTree aNestedWindowWithFocus(long focusedId) {
         Accessibility a = new Accessibility();
-        a.beginWalk(480, 320, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 480, 320);
+        AccessibilityAccess.beginWalk(a, 480, 320, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 480, 320);
         a.role(Accessible.Role.WINDOW);
         a.name(I18nString.literal("A window"), Accessible.NameFrom.EXPLICIT);
-        a.inherited(true, true, true, false, false);
-        a.begin(1001, 0, Locale.ENGLISH, 20, 60, 200, 200);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 1001, 0, Locale.ENGLISH, 20, 60, 200, 200);
         a.role(Accessible.Role.GROUP);
         a.name(I18nString.literal("A group"), Accessible.NameFrom.CONTENT);
-        a.inherited(true, true, true, false, false);
-        a.begin(1002, 1, Locale.ENGLISH, 40, 96, 160, 40);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 1002, 1, Locale.ENGLISH, 40, 96, 160, 40);
         a.role(Accessible.Role.BUTTON);
         a.name(I18nString.literal("Button 0"), Accessible.NameFrom.CONTENT);
         a.action(Accessible.Action.PRESS);
         // Focus is the tree's stamp (the focusedId handed to publish), not a bit a describe
         // hook may write: the builder refuses FOCUSED, and the bridge answers from the stamp.
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         a.end();
         a.end();
         a.end();
@@ -233,36 +234,36 @@ class AxBridgeTest {
     /** The nested window, with the group's first button labelled by and described by its siblings. */
     private static AccessibleTree aNestedWindowWithRelations() {
         Accessibility a = new Accessibility();
-        a.beginWalk(480, 320, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 480, 320);
+        AccessibilityAccess.beginWalk(a, 480, 320, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 480, 320);
         a.role(Accessible.Role.WINDOW);
         a.name(I18nString.literal("A window"), Accessible.NameFrom.EXPLICIT);
-        a.inherited(true, true, true, false, false);
-        a.begin(1001, 0, Locale.ENGLISH, 20, 60, 200, 200);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 1001, 0, Locale.ENGLISH, 20, 60, 200, 200);
         a.role(Accessible.Role.GROUP);
         a.name(I18nString.literal("A group"), Accessible.NameFrom.CONTENT);
-        a.inherited(true, true, true, false, false);
-        a.begin(1002, 1, Locale.ENGLISH, 40, 96, 160, 40);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 1002, 1, Locale.ENGLISH, 40, 96, 160, 40);
         a.role(Accessible.Role.LABEL);
         a.name(I18nString.literal("Email"), Accessible.NameFrom.CONTENT);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         a.end();
-        a.begin(1003, 1, Locale.ENGLISH, 40, 136, 160, 40);
+        AccessibilityAccess.begin(a, 1003, 1, Locale.ENGLISH, 40, 136, 160, 40);
         a.role(Accessible.Role.TEXT_FIELD);
         a.name(I18nString.literal("Email"), Accessible.NameFrom.LABEL);
         a.relation(Accessible.Relation.LABELLED_BY, 1002L);
         a.relation(Accessible.Relation.DESCRIBED_BY, 1004L);
         a.relation(Accessible.Relation.POPUP_FOR, 1000L);  // the elided window root: not vended
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         a.end();
-        a.begin(1004, 1, Locale.ENGLISH, 40, 176, 160, 40);
+        AccessibilityAccess.begin(a, 1004, 1, Locale.ENGLISH, 40, 176, 160, 40);
         a.role(Accessible.Role.LABEL);
         a.name(I18nString.literal("Enter an address"), Accessible.NameFrom.CONTENT);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         a.end();
         a.end();
         a.end();
-        a.resolveRelations((kind, target) -> (Long) target);
+        AccessibilityAccess.resolveRelations(a, (kind, target) -> (Long) target);
         return a.publish(0, 0, 0, 1f, true);
     }
 
@@ -295,14 +296,14 @@ class AxBridgeTest {
      */
     private static AccessibleTree aPopupWindow() {
         Accessibility a = new Accessibility();
-        a.beginWalk(200, 200, Locale.ENGLISH);
-        a.begin(2000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 200, 200);
+        AccessibilityAccess.beginWalk(a, 200, 200, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 2000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 200, 200);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        a.begin(2001, 0, Locale.ENGLISH, 0, 0, 200, 200);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 2001, 0, Locale.ENGLISH, 0, 0, 200, 200);
         a.role(Accessible.Role.GROUP);
         a.name(I18nString.literal("September 2026"), Accessible.NameFrom.CONTENT);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         a.end();
         a.end();
         return a.publish(0, 0, 0, 1f, true);
@@ -314,19 +315,19 @@ class AxBridgeTest {
      */
     private static AccessibleTree aWindowOpening(long popupRoot, long insidePopup) {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        a.begin(1001, 0, Locale.ENGLISH, 10, 10, 200, 30);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 1001, 0, Locale.ENGLISH, 10, 10, 200, 30);
         a.role(Accessible.Role.TEXT_FIELD);
         a.name(I18nString.literal("Date"), Accessible.NameFrom.LABEL);
         a.relation(Accessible.Relation.CONTROLLER_FOR, popupRoot);
         a.relation(Accessible.Relation.DESCRIBED_BY, insidePopup);
-        a.inherited(true, true, true, true, true);
+        AccessibilityAccess.inherited(a, true, true, true, true, true);
         a.end();
         a.end();
-        a.resolveRelations((kind, target) -> (Long) target);
+        AccessibilityAccess.resolveRelations(a, (kind, target) -> (Long) target);
         return a.publish(1001, 0, 0, 1f, true);
     }
 

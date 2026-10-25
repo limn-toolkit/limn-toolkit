@@ -4,6 +4,7 @@ import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
+import limn.accessibility.internal.AccessibilityAccess;
 import limn.i18n.I18nString;
 import org.junit.jupiter.api.Test;
 
@@ -27,29 +28,29 @@ class UiaFragmentTest {
      */
     private static AccessibleTree scene(int screenX, int screenY, float factor, long focusedId) {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
         a.name(I18nString.literal("A window"), Accessible.NameFrom.EXPLICIT);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
 
-        a.begin(1001, 0, Locale.ENGLISH, 0, 0, 200, 100);
+        AccessibilityAccess.begin(a, 1001, 0, Locale.ENGLISH, 0, 0, 200, 100);
         a.role(Accessible.Role.GROUP);
         a.name(I18nString.literal("Left"), Accessible.NameFrom.EXPLICIT);
-        a.inherited(true, true, true, false, false);
-        a.begin(1002, 1, Locale.ENGLISH, 10, 20, 100, 40);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 1002, 1, Locale.ENGLISH, 10, 20, 100, 40);
         a.role(Accessible.Role.BUTTON);
         a.name(I18nString.literal("Save"), Accessible.NameFrom.CONTENT);
         a.action(Accessible.Action.PRESS);
-        a.inherited(true, true, true, true, focusedId == 1002);
+        AccessibilityAccess.inherited(a, true, true, true, true, focusedId == 1002);
         a.end();
         a.end();
 
-        a.begin(1003, 0, Locale.ENGLISH, 200, 0, 200, 100);
+        AccessibilityAccess.begin(a, 1003, 0, Locale.ENGLISH, 200, 0, 200, 100);
         a.role(Accessible.Role.BUTTON);
         a.name(I18nString.literal("Cancel"), Accessible.NameFrom.CONTENT);
         a.action(Accessible.Action.PRESS);
-        a.inherited(true, true, true, true, focusedId == 1003);
+        AccessibilityAccess.inherited(a, true, true, true, true, focusedId == 1003);
         a.end();
         a.end();
         return a.publish(focusedId, screenX, screenY, factor, true);
@@ -92,33 +93,33 @@ class UiaFragmentTest {
      */
     private static AccessibleTree aTree() {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        int tree = a.begin(2000, 0, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        int tree = AccessibilityAccess.begin(a, 2000, 0, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.TREE);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         long[] ids = {2009, 2001, 2002, 2003, 2004, 2005, 2006, 2007};
         int[] levels = {2, 1, 2, 3, 3, 2, 1, 2};
         for (int i = 0; i < ids.length; i++) {
-            int row = a.begin(ids[i], tree, Locale.ENGLISH, 0, 20 * i, 400, 20);
+            int row = AccessibilityAccess.begin(a, ids[i], tree, Locale.ENGLISH, 0, 20 * i, 400, 20);
             a.role(Accessible.Role.TREE_ITEM);
             a.name(I18nString.literal("row " + ids[i]), Accessible.NameFrom.EXPLICIT);
             a.hierarchy(levels[i], i + 1, ids.length);
-            a.inherited(true, true, true, false, false);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
             if (ids[i] == 2002) {
-                a.begin(2010, row, Locale.ENGLISH, 0, 20 * i, 100, 20);
+                AccessibilityAccess.begin(a, 2010, row, Locale.ENGLISH, 0, 20 * i, 100, 20);
                 a.role(Accessible.Role.LABEL);
-                a.inherited(true, true, true, false, false);
+                AccessibilityAccess.inherited(a, true, true, true, false, false);
                 a.end();
             }
             a.end();
         }
-        a.begin(2008, tree, Locale.ENGLISH, 390, 0, 10, 300);
+        AccessibilityAccess.begin(a, 2008, tree, Locale.ENGLISH, 390, 0, 10, 300);
         a.role(Accessible.Role.SCROLL_BAR);
         a.state(Accessible.State.VERTICAL);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         a.end();
         a.end();
         a.end();
@@ -141,22 +142,22 @@ class UiaFragmentTest {
      */
     private static AccessibleTree aScrolledTree() {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        int tree = a.begin(3000, 0, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        int tree = AccessibilityAccess.begin(a, 3000, 0, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.TREE);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         long[] ids = {3001, 3002, 3003, 3004, 3005};
         int[] levels = {1, 2, 3, 2, 3};
         int[] rows = {1, 51, 52, 53, 0};
         for (int i = 0; i < ids.length; i++) {
-            a.begin(ids[i], tree, Locale.ENGLISH, 0, 20 * i, 400, 20);
+            AccessibilityAccess.begin(a, ids[i], tree, Locale.ENGLISH, 0, 20 * i, 400, 20);
             a.role(Accessible.Role.TREE_ITEM);
             a.name(I18nString.literal("row " + ids[i]), Accessible.NameFrom.EXPLICIT);
             a.hierarchy(levels[i], rows[i], 90);
-            a.inherited(true, true, true, false, false);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
             a.end();
         }
         a.end();
@@ -342,21 +343,21 @@ class UiaFragmentTest {
     @Test
     void theFocusIsTheActiveDescendantOfTheFocusedContainer() {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        a.begin(1001, 0, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 1001, 0, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.TABLE);
         a.selection(false, false);
-        a.inherited(true, true, true, true, true);
-        a.begin(1002, 1, Locale.ENGLISH, 0, 0, 400, 20);
+        AccessibilityAccess.inherited(a, true, true, true, true, true);
+        AccessibilityAccess.begin(a, 1002, 1, Locale.ENGLISH, 0, 0, 400, 20);
         a.role(Accessible.Role.ROW);
-        a.inherited(true, true, true, false, false);
-        a.begin(1003, 2, Locale.ENGLISH, 0, 0, 400, 20);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 1003, 2, Locale.ENGLISH, 0, 0, 400, 20);
         a.role(Accessible.Role.CELL);
         a.state(Accessible.State.ACTIVE, true);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         a.end();
         a.end();
         a.end();
@@ -410,14 +411,14 @@ class UiaFragmentTest {
     @Test
     void aDisabledControlIsStillFoundUnderThePointer() {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        a.begin(1001, 0, Locale.ENGLISH, 10, 20, 100, 40);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 1001, 0, Locale.ENGLISH, 10, 20, 100, 40);
         a.role(Accessible.Role.BUTTON);
         a.name(I18nString.literal("Save"), Accessible.NameFrom.CONTENT);
-        a.inherited(false, true, true, false, false);
+        AccessibilityAccess.inherited(a, false, true, true, false, false);
         a.end();
         a.end();
         AccessibleTree tree = a.publish(0, 0, 0, 1f, true);
@@ -439,19 +440,19 @@ class UiaFragmentTest {
     @Test
     void aScrolledAwayNodeDoesNotAnswerForAPointInsideItsViewport() {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        a.begin(1001, 0, Locale.ENGLISH, 0, 0, 200, 100);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 1001, 0, Locale.ENGLISH, 0, 0, 200, 100);
         a.role(Accessible.Role.SCROLL_PANE);
         a.scroll(0, 0.5, 1, 0.5, false, true);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         // Its box overlaps the viewport, and the walk says it is not showing.
-        a.begin(1002, 1, Locale.ENGLISH, 0, 0, 200, 40);
+        AccessibilityAccess.begin(a, 1002, 1, Locale.ENGLISH, 0, 0, 200, 40);
         a.role(Accessible.Role.LIST_ITEM);
         a.name(I18nString.literal("Row"), Accessible.NameFrom.CONTENT);
-        a.inherited(true, true, false, false, false);
+        AccessibilityAccess.inherited(a, true, true, false, false, false);
         a.end();
         a.end();
         a.end();
@@ -469,19 +470,19 @@ class UiaFragmentTest {
     @Test
     void whereSiblingsOverlapTheLaterOneAnswersBecauseItIsPaintedOnTop() {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        a.begin(1001, 0, Locale.ENGLISH, 0, 0, 200, 100);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 1001, 0, Locale.ENGLISH, 0, 0, 200, 100);
         a.role(Accessible.Role.BUTTON);
         a.name(I18nString.literal("Underneath"), Accessible.NameFrom.CONTENT);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         a.end();
-        a.begin(1002, 0, Locale.ENGLISH, 0, 0, 200, 100);
+        AccessibilityAccess.begin(a, 1002, 0, Locale.ENGLISH, 0, 0, 200, 100);
         a.role(Accessible.Role.MENU);
         a.name(I18nString.literal("On top"), Accessible.NameFrom.EXPLICIT);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         a.end();
         a.end();
         AccessibleTree tree = a.publish(0, 0, 0, 1f, true);
@@ -500,26 +501,26 @@ class UiaFragmentTest {
     @Test
     void aSplitterAnswersAcrossItsWholeGrabBandThoughItIsPublishedBetweenThePanes() {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        int split = a.begin(1001, 0, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        int split = AccessibilityAccess.begin(a, 1001, 0, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.SPLIT_PANE);
-        a.inherited(true, true, true, false, false);
-        a.begin(1002, split, Locale.ENGLISH, 0, 0, 195.5f, 300);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 1002, split, Locale.ENGLISH, 0, 0, 195.5f, 300);
         a.role(Accessible.Role.BUTTON);
         a.name(I18nString.literal("Left"), Accessible.NameFrom.CONTENT);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         a.end();
-        a.begin(1003, split, Locale.ENGLISH, 188, 0, 24, 300);
+        AccessibilityAccess.begin(a, 1003, split, Locale.ENGLISH, 188, 0, 24, 300);
         a.role(Accessible.Role.SPLITTER);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         a.end();
-        a.begin(1004, split, Locale.ENGLISH, 204.5f, 0, 195.5f, 300);
+        AccessibilityAccess.begin(a, 1004, split, Locale.ENGLISH, 204.5f, 0, 195.5f, 300);
         a.role(Accessible.Role.BUTTON);
         a.name(I18nString.literal("Right"), Accessible.NameFrom.CONTENT);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         a.end();
         a.end();
         a.end();

@@ -4,6 +4,7 @@ import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
+import limn.accessibility.internal.AccessibilityAccess;
 import limn.backend.AccessibilityBridge;
 import limn.i18n.I18nString;
 import org.junit.jupiter.api.Test;
@@ -112,24 +113,24 @@ class AtspiApplicationTest {
      */
     private static Published aWindow(String title, long popupFor) {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        long window = a.mint();
-        long control = a.mint();
-        a.begin(window, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        long window = AccessibilityAccess.mint(a);
+        long control = AccessibilityAccess.mint(a);
+        AccessibilityAccess.begin(a, window, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
         a.name(I18nString.literal(title), Accessible.NameFrom.EXPLICIT);
         if (popupFor != 0) {
             a.relation(Accessible.Relation.POPUP_FOR, popupFor);
         }
-        a.inherited(true, true, true, false, false);
-        a.begin(control, 0, Locale.ENGLISH, 10, 20, 160, 40);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, control, 0, Locale.ENGLISH, 10, 20, 160, 40);
         a.role(Accessible.Role.BUTTON);
         a.name(I18nString.literal(title + " button"), Accessible.NameFrom.CONTENT);
         a.action(Accessible.Action.PRESS);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         a.end();
         a.end();
-        a.resolveRelations((kind, target) -> (Long) target);
+        AccessibilityAccess.resolveRelations(a, (kind, target) -> (Long) target);
         return new Published(a.publish(0, 0, 0, 1f, true), window, control);
     }
 
@@ -665,25 +666,25 @@ class AtspiApplicationTest {
         List<limn.accessibility.AccessibleEvent> publish(boolean active, long focused,
                                                          java.util.function.LongPredicate showing,
                                                          long... buttons) {
-            a.beginWalk(400, 300, Locale.ENGLISH);
-            a.begin(root, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+            AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+            AccessibilityAccess.begin(a, root, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
             a.role(Accessible.Role.WINDOW);
             a.name(I18nString.literal(title), Accessible.NameFrom.EXPLICIT);
             if (active) {
                 a.state(Accessible.State.ACTIVE);
             }
-            a.inherited(true, true, true, false, false);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
             for (long id : buttons) {
-                a.begin(id, 0, Locale.ENGLISH, 10, 20 + (id - root - 1) * 50, 160, 40);
+                AccessibilityAccess.begin(a, id, 0, Locale.ENGLISH, 10, 20 + (id - root - 1) * 50, 160, 40);
                 a.role(Accessible.Role.BUTTON);
                 a.name(I18nString.literal("Button " + id), Accessible.NameFrom.CONTENT);
-                a.inherited(true, true, showing.test(id), true, focused == id);
+                AccessibilityAccess.inherited(a, true, true, showing.test(id), true, focused == id);
                 a.end();
             }
             a.end();
             AccessibleTree tree = a.publish(focused, 0, 0, 1f, true);
             window.publish(tree, false);
-            List<limn.accessibility.AccessibleEvent> events = List.copyOf(a.events());
+            List<limn.accessibility.AccessibleEvent> events = List.copyOf(AccessibilityAccess.events(a));
             for (limn.accessibility.AccessibleEvent event : events) {
                 window.emit(event);
             }
@@ -1034,28 +1035,28 @@ class AtspiApplicationTest {
         AtspiBridge window = app.window();
         Accessibility a = new Accessibility();
         java.util.function.IntConsumer publish = shown -> {
-            a.beginWalk(400, 300, Locale.ENGLISH);
-            a.begin(4000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+            AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+            AccessibilityAccess.begin(a, 4000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
             a.role(Accessible.Role.WINDOW);
             a.state(Accessible.State.ACTIVE);
-            a.inherited(true, true, true, false, false);
-            a.begin(4001, 0, Locale.ENGLISH, 0, 0, 400, 300);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
+            AccessibilityAccess.begin(a, 4001, 0, Locale.ENGLISH, 0, 0, 400, 300);
             a.role(Accessible.Role.LIST);
-            a.inherited(true, true, true, true, true);
+            AccessibilityAccess.inherited(a, true, true, true, true, true);
             for (int i = 0; i < 300; i++) {
-                a.begin(4002 + i, 1, Locale.ENGLISH, 0, i * 20, 400, 20);
+                AccessibilityAccess.begin(a, 4002 + i, 1, Locale.ENGLISH, 0, i * 20, 400, 20);
                 a.role(Accessible.Role.LIST_ITEM);
                 a.name(I18nString.literal("Row " + i), Accessible.NameFrom.CONTENT);
                 if (i == 7) {
                     a.state(Accessible.State.ACTIVE);
                 }
-                a.inherited(true, true, i < shown, true, false);
+                AccessibilityAccess.inherited(a, true, true, i < shown, true, false);
                 a.end();
             }
             a.end();
             a.end();
             window.publish(a.publish(4001, 0, 0, 1f, true), false);
-            for (limn.accessibility.AccessibleEvent event : List.copyOf(a.events())) {
+            for (limn.accessibility.AccessibleEvent event : List.copyOf(AccessibilityAccess.events(a))) {
                 window.emit(event);
             }
             window.frameEnded();  // every frame ends, as a scene ends it
@@ -1098,36 +1099,36 @@ class AtspiApplicationTest {
         AtspiBridge window = app.window();
         Accessibility a = new Accessibility();
         java.util.function.BiConsumer<String, Integer> publish = (text, cursor) -> {
-            a.beginWalk(400, 300, Locale.ENGLISH);
-            a.begin(5000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+            AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+            AccessibilityAccess.begin(a, 5000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
             a.role(Accessible.Role.WINDOW);
             a.state(Accessible.State.ACTIVE);
-            a.inherited(true, true, true, false, false);
-            a.begin(5001, 0, Locale.ENGLISH, 0, 0, 400, 20);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
+            AccessibilityAccess.begin(a, 5001, 0, Locale.ENGLISH, 0, 0, 400, 20);
             a.role(Accessible.Role.TEXT_FIELD);
             a.name(I18nString.literal("Mountain ranges"), Accessible.NameFrom.LABEL);
             a.text(text, text.hashCode(), text.length(), limn.graphics.ShapedText.Affinity.DOWNSTREAM,
                     text.length(), text.length(), 1, null, false);
-            a.inherited(true, true, true, true, true);
-            a.begin(5002, 1, Locale.ENGLISH, 0, 20, 400, 60);
+            AccessibilityAccess.inherited(a, true, true, true, true, true);
+            AccessibilityAccess.begin(a, 5002, 1, Locale.ENGLISH, 0, 20, 400, 60);
             a.role(Accessible.Role.LIST);
-            a.inherited(true, true, cursor >= 0, false, false);
+            AccessibilityAccess.inherited(a, true, true, cursor >= 0, false, false);
             String[] rows = {"Alps", "Atlas", "Carpathians"};
             for (int i = 0; i < rows.length; i++) {
-                a.begin(5003 + i, 2, Locale.ENGLISH, 0, 20 + i * 20, 400, 20);
+                AccessibilityAccess.begin(a, 5003 + i, 2, Locale.ENGLISH, 0, 20 + i * 20, 400, 20);
                 a.role(Accessible.Role.LIST_ITEM);
                 a.name(I18nString.literal(rows[i]), Accessible.NameFrom.CONTENT);
                 if (i == cursor) {
                     a.state(Accessible.State.ACTIVE);
                 }
-                a.inherited(true, true, cursor >= 0, false, false);
+                AccessibilityAccess.inherited(a, true, true, cursor >= 0, false, false);
                 a.end();
             }
             a.end();
             a.end();
             a.end();
             window.publish(a.publish(5001, 0, 0, 1f, true), false);
-            for (limn.accessibility.AccessibleEvent event : List.copyOf(a.events())) {
+            for (limn.accessibility.AccessibleEvent event : List.copyOf(AccessibilityAccess.events(a))) {
                 window.emit(event);
             }
             window.frameEnded();
@@ -1184,35 +1185,35 @@ class AtspiApplicationTest {
         // that row; -1: the list is gone and the combo holds the keyboard
         java.util.function.BiConsumer<Integer, Integer> publish = (selected, cursor) -> {
             boolean open = cursor >= 0;
-            a.beginWalk(400, 300, Locale.ENGLISH);
-            int root = a.begin(6000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+            AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+            int root = AccessibilityAccess.begin(a, 6000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
             a.role(Accessible.Role.WINDOW);
             a.state(Accessible.State.ACTIVE);
-            a.inherited(true, true, true, false, false);
-            a.begin(6001, root, Locale.ENGLISH, 0, 0, 200, 20);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
+            AccessibilityAccess.begin(a, 6001, root, Locale.ENGLISH, 0, 0, 200, 20);
             a.role(Accessible.Role.COMBO_BOX);
             a.name(I18nString.literal(rows[selected]), Accessible.NameFrom.CONTENT);
             a.expand(open);
             a.value(selected, 0, rows.length - 1, 1);
             a.valueText(rows[selected], selected);
-            a.inherited(true, true, true, !open, !open);
+            AccessibilityAccess.inherited(a, true, true, true, !open, !open);
             a.end();
             if (open) {
-                int layer = a.begin(6002, root, Locale.ENGLISH, 0, 20, 200, 60);
+                int layer = AccessibilityAccess.begin(a, 6002, root, Locale.ENGLISH, 0, 20, 200, 60);
                 a.role(Accessible.Role.GROUP);
                 a.name(I18nString.literal("Mountain ranges"), Accessible.NameFrom.CONTENT);
-                a.inherited(true, true, true, true, true);
-                int list = a.begin(6003, layer, Locale.ENGLISH, 0, 20, 200, 60);
+                AccessibilityAccess.inherited(a, true, true, true, true, true);
+                int list = AccessibilityAccess.begin(a, 6003, layer, Locale.ENGLISH, 0, 20, 200, 60);
                 a.role(Accessible.Role.LIST);
-                a.inherited(true, true, true, false, false);
+                AccessibilityAccess.inherited(a, true, true, true, false, false);
                 for (int i = 0; i < rows.length; i++) {
-                    a.begin(6004 + i, list, Locale.ENGLISH, 0, 20 + i * 20, 200, 20);
+                    AccessibilityAccess.begin(a, 6004 + i, list, Locale.ENGLISH, 0, 20 + i * 20, 200, 20);
                     a.role(Accessible.Role.LIST_ITEM);
                     a.name(I18nString.literal(rows[i]), Accessible.NameFrom.CONTENT);
                     if (i == cursor) {
                         a.state(Accessible.State.ACTIVE);
                     }
-                    a.inherited(true, true, true, false, false);
+                    AccessibilityAccess.inherited(a, true, true, true, false, false);
                     a.end();
                 }
                 a.end();
@@ -1220,7 +1221,7 @@ class AtspiApplicationTest {
             }
             a.end();
             window.publish(a.publish(open ? 6002 : 6001, 0, 0, 1f, true), false);
-            for (limn.accessibility.AccessibleEvent event : List.copyOf(a.events())) {
+            for (limn.accessibility.AccessibleEvent event : List.copyOf(AccessibilityAccess.events(a))) {
                 window.emit(event);
             }
             window.frameEnded();
@@ -1366,21 +1367,21 @@ class AtspiApplicationTest {
         AtspiBridge window = app.window();
         Accessibility a = new Accessibility();
         java.util.function.Consumer<Boolean> publish = expanded -> {
-            a.beginWalk(400, 300, Locale.ENGLISH);
-            a.begin(5000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+            AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+            AccessibilityAccess.begin(a, 5000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
             a.role(Accessible.Role.WINDOW);
-            a.inherited(true, true, true, false, false);
-            a.begin(5001, 0, Locale.ENGLISH, 0, 0, 100, 20);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
+            AccessibilityAccess.begin(a, 5001, 0, Locale.ENGLISH, 0, 0, 100, 20);
             a.role(Accessible.Role.TREE_ITEM);
             a.name(I18nString.literal("Media"), Accessible.NameFrom.EXPLICIT);
             if (expanded != null) {
                 a.expand(expanded);
             }
-            a.inherited(true, true, true, true, false);
+            AccessibilityAccess.inherited(a, true, true, true, true, false);
             a.end();
             a.end();
             window.publish(a.publish(0, 0, 0, 1f, true), false);
-            for (limn.accessibility.AccessibleEvent event : List.copyOf(a.events())) {
+            for (limn.accessibility.AccessibleEvent event : List.copyOf(AccessibilityAccess.events(a))) {
                 window.emit(event);
             }
         };

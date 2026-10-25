@@ -59,4 +59,5 @@ module limn.toolkit {
     exports limn.io.internal to limn.backend.lwjgl, limn.video.ffmpeg;
     exports limn.i18n.internal to limn.backend.lwjgl;
     exports limn.scene.internal to limn.backend.lwjgl, limn.test;
+    exports limn.accessibility.internal to limn.backend.lwjgl, limn.test;
 }

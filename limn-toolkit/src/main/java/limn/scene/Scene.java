@@ -654,7 +654,7 @@ public final class Scene {
                 WindowPeer.of(window).supportsAbsolutePositioning());
         publishedTree = tree;
         bridge.publish(tree, false);
-        List<limn.accessibility.AccessibleEvent> events = accessibleWalk.builder().events();
+        List<limn.accessibility.AccessibleEvent> events = limn.accessibility.internal.AccessibilityAccess.events(accessibleWalk.builder());
         for (int i = 0; i < events.size(); i++) {
             bridge.emit(events.get(i));
         }
@@ -2435,7 +2435,7 @@ public final class Scene {
                 window == null || WindowPeer.of(window).supportsAbsolutePositioning());
         publishedTree = tree;
         bridge.publish(tree, reentrant);
-        List<limn.accessibility.AccessibleEvent> events = accessibleWalk.builder().events();
+        List<limn.accessibility.AccessibleEvent> events = limn.accessibility.internal.AccessibilityAccess.events(accessibleWalk.builder());
         for (int i = 0; i < events.size(); i++) {
             bridge.emit(events.get(i));
         }

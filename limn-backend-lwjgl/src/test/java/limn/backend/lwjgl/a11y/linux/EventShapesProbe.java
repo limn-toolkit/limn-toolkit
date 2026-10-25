@@ -5,6 +5,7 @@ import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
+import limn.accessibility.internal.AccessibilityAccess;
 import limn.backend.AccessibilityBridge;
 import limn.graphics.ShapedText;
 import limn.i18n.I18nString;
@@ -57,62 +58,62 @@ public final class EventShapesProbe {
     }
 
     private static AccessibleTree build(Accessibility a, State s) {
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(WINDOW, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, WINDOW, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
         a.name(I18nString.literal("Limn event probe"), Accessible.NameFrom.EXPLICIT);
         if (s.active) {
             a.state(Accessible.State.ACTIVE);
         }
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
 
-        a.begin(LIST, 0, Locale.ENGLISH, 0, 0, 200, 100);
+        AccessibilityAccess.begin(a, LIST, 0, Locale.ENGLISH, 0, 0, 200, 100);
         a.role(Accessible.Role.LIST);
         a.name(I18nString.literal("Rows"), Accessible.NameFrom.EXPLICIT);
         a.selection(false, false);
-        a.inherited(true, true, true, true, s.focused == LIST);
+        AccessibilityAccess.inherited(a, true, true, true, true, s.focused == LIST);
         for (int i = 0; i < s.rows.size(); i++) {
             long row = s.rows.get(i);
-            a.begin(row, 1, Locale.ENGLISH, 0, 20 * i, 200, 20);
+            AccessibilityAccess.begin(a, row, 1, Locale.ENGLISH, 0, 20 * i, 200, 20);
             a.role(Accessible.Role.LIST_ITEM);
             a.name(I18nString.literal("Row " + (row - FIRST_ROW + 1)), Accessible.NameFrom.CONTENT);
             a.selectionItem(row == s.cursor, i + 1, s.rows.size());
             if (row == s.cursor && s.focused == LIST) {
                 a.state(Accessible.State.ACTIVE);
             }
-            a.inherited(true, true, true, false, false);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
             a.end();
         }
         a.end();
 
-        a.begin(FIELD, 0, Locale.ENGLISH, 0, 110, 200, 30);
+        AccessibilityAccess.begin(a, FIELD, 0, Locale.ENGLISH, 0, 110, 200, 30);
         a.role(Accessible.Role.TEXT_FIELD);
         a.name(I18nString.literal("Note"), Accessible.NameFrom.EXPLICIT);
         a.text(s.text, s.text.hashCode(), s.caret, ShapedText.Affinity.DOWNSTREAM, s.caret, s.caret,
                 1, null, false);
-        a.inherited(true, true, true, true, s.focused == FIELD);
+        AccessibilityAccess.inherited(a, true, true, true, true, s.focused == FIELD);
         a.end();
 
-        a.begin(BRANCH, 0, Locale.ENGLISH, 0, 150, 200, 20);
+        AccessibilityAccess.begin(a, BRANCH, 0, Locale.ENGLISH, 0, 150, 200, 20);
         a.role(Accessible.Role.TREE_ITEM);
         a.name(I18nString.literal("Media"), Accessible.NameFrom.CONTENT);
         if (s.expanded != null) {
             a.expand(s.expanded);
         }
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         a.end();
 
-        a.begin(BUTTON, 0, Locale.ENGLISH, 0, 180, 100, 30);
+        AccessibilityAccess.begin(a, BUTTON, 0, Locale.ENGLISH, 0, 180, 100, 30);
         a.role(Accessible.Role.BUTTON);
         a.name(I18nString.literal("Save"), Accessible.NameFrom.CONTENT);
-        a.inherited(true, true, true, true, s.focused == BUTTON);
+        AccessibilityAccess.inherited(a, true, true, true, true, s.focused == BUTTON);
         a.end();
 
         for (int i = 0; i < 300; i++) {
-            a.begin(FIRST_LABEL + i, 0, Locale.ENGLISH, 220, i, 100, 1);
+            AccessibilityAccess.begin(a, FIRST_LABEL + i, 0, Locale.ENGLISH, 220, i, 100, 1);
             a.role(Accessible.Role.LABEL);
             a.name(I18nString.literal("Label " + i), Accessible.NameFrom.CONTENT);
-            a.inherited(true, true, s.labelsShowing, false, false);
+            AccessibilityAccess.inherited(a, true, true, s.labelsShowing, false, false);
             a.end();
         }
         a.end();
@@ -123,7 +124,7 @@ public final class EventShapesProbe {
         System.out.println(Instant.now() + " STEP " + label);
         AccessibleTree tree = build(a, s);
         bridge.publish(tree, false);
-        List<AccessibleEvent> events = List.copyOf(a.events());
+        List<AccessibleEvent> events = List.copyOf(AccessibilityAccess.events(a));
         for (AccessibleEvent event : events) {
             bridge.emit(event);
         }

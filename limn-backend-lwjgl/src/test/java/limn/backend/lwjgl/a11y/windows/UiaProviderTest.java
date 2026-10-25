@@ -4,6 +4,7 @@ import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
+import limn.accessibility.internal.AccessibilityAccess;
 import limn.i18n.I18nString;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -146,16 +147,16 @@ class UiaProviderTest {
     /** A window holding one button, published the way a scene publishes one. */
     private void publishAWindowWithAButton() {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
         a.name(I18nString.literal("A window"), Accessible.NameFrom.EXPLICIT);
-        a.inherited(true, true, true, false, false);
-        a.begin(1001, 0, Locale.ENGLISH, 10, 20, 160, 40);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 1001, 0, Locale.ENGLISH, 10, 20, 160, 40);
         a.role(Accessible.Role.BUTTON);
         a.name(I18nString.literal("Save"), Accessible.NameFrom.CONTENT);
         a.action(Accessible.Action.PRESS);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         a.end();
         a.end();
         published.set(a.publish(0, 0, 0, 1f, true));
@@ -167,33 +168,33 @@ class UiaProviderTest {
      */
     private void publishAWindowWithALabelledAndDescribedField() {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
         a.name(I18nString.literal("A window"), Accessible.NameFrom.EXPLICIT);
-        a.inherited(true, true, true, false, false);
-        a.begin(3001, 0, Locale.ENGLISH, 0, 0, 400, 20);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 3001, 0, Locale.ENGLISH, 0, 0, 400, 20);
         a.role(Accessible.Role.LABEL);
         a.name(I18nString.literal("Email"), Accessible.NameFrom.CONTENT);
         a.relation(Accessible.Relation.LABEL_FOR, 3002L);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         a.end();
-        a.begin(3002, 0, Locale.ENGLISH, 0, 20, 400, 32);
+        AccessibilityAccess.begin(a, 3002, 0, Locale.ENGLISH, 0, 20, 400, 32);
         a.role(Accessible.Role.TEXT_FIELD);
         a.name(I18nString.literal("Email"), Accessible.NameFrom.LABEL);
         a.description(I18nString.literal("Enter an address like ada@example.com"));
         a.relation(Accessible.Relation.LABELLED_BY, 3001L);
         a.relation(Accessible.Relation.DESCRIBED_BY, 3003L);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         a.end();
-        a.begin(3003, 0, Locale.ENGLISH, 0, 52, 400, 20);
+        AccessibilityAccess.begin(a, 3003, 0, Locale.ENGLISH, 0, 52, 400, 20);
         a.role(Accessible.Role.LABEL);
         a.name(I18nString.literal("Enter an address like ada@example.com"),
                 Accessible.NameFrom.CONTENT);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         a.end();
         a.end();
-        a.resolveRelations((kind, target) -> (Long) target);
+        AccessibilityAccess.resolveRelations(a, (kind, target) -> (Long) target);
         published.set(a.publish(0, 0, 0, 1f, true));
     }
 
@@ -334,12 +335,12 @@ class UiaProviderTest {
         otherWindowHolds.add(FOREIGN_POPUP_ROOT + 1);
         otherWindowHolds.add(FOREIGN_POPUP_ROOT + 2);
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
         a.name(I18nString.literal("A window"), Accessible.NameFrom.EXPLICIT);
-        a.inherited(true, true, true, false, false);
-        a.begin(4001, 0, Locale.ENGLISH, 0, 0, 400, 32);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 4001, 0, Locale.ENGLISH, 0, 0, 400, 32);
         a.role(Accessible.Role.COMBO_BOX);
         a.name(I18nString.literal("Size"), Accessible.NameFrom.LABEL);
         a.relation(Accessible.Relation.CONTROLLER_FOR, FOREIGN_POPUP_ROOT);
@@ -347,24 +348,24 @@ class UiaProviderTest {
         a.relation(Accessible.Relation.DESCRIBED_BY, FOREIGN_POPUP_ROOT + 2);
         a.relation(Accessible.Relation.DESCRIBED_BY, 4002L);
         a.relation(Accessible.Relation.DESCRIBED_BY, GONE_FROM_EVERY_WINDOW);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         a.end();
-        a.begin(4002, 0, Locale.ENGLISH, 0, 40, 400, 20);
+        AccessibilityAccess.begin(a, 4002, 0, Locale.ENGLISH, 0, 40, 400, 20);
         a.role(Accessible.Role.LABEL);
         a.name(I18nString.literal("Pick a size"), Accessible.NameFrom.CONTENT);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         a.end();
-        a.begin(4003, 0, Locale.ENGLISH, 0, 60, 400, 20);
+        AccessibilityAccess.begin(a, 4003, 0, Locale.ENGLISH, 0, 60, 400, 20);
         a.role(Accessible.Role.TEXT_FIELD);
         a.name(I18nString.literal("Notes"), Accessible.NameFrom.LABEL);
         a.relation(Accessible.Relation.LABELLED_BY, GONE_FROM_EVERY_WINDOW);
         // And a POPUP_FOR naming a node this window DOES hold, so that what the test below reads
         // is the relation being carried by no property rather than a target nobody holds.
         a.relation(Accessible.Relation.POPUP_FOR, 4001L);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         a.end();
         a.end();
-        a.resolveRelations((kind, target) -> (Long) target);
+        AccessibilityAccess.resolveRelations(a, (kind, target) -> (Long) target);
         published.set(a.publish(0, 0, 0, 1f, true));
     }
 
@@ -509,10 +510,10 @@ class UiaProviderTest {
         try {
             // Republished without the button, which is what closing a dialog does to its contents.
             Accessibility a = new Accessibility();
-            a.beginWalk(400, 300, Locale.ENGLISH);
-            a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+            AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+            AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
             a.role(Accessible.Role.WINDOW);
-            a.inherited(true, true, true, false, false);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
             a.end();
             published.set(a.publish(0, 0, 0, 1f, true));
 

@@ -5,6 +5,7 @@ import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
 import limn.accessibility.CellFacet;
+import limn.accessibility.internal.AccessibilityAccess;
 import limn.backend.lwjgl.a11y.ProbeWindow;
 import limn.components.table.Column;
 import limn.components.table.Table;
@@ -77,19 +78,19 @@ class AxGridTest {
         private int begun = 1;
 
         Shape() {
-            a.beginWalk(480, 320, Locale.ENGLISH);
-            a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 480, 320);
+            AccessibilityAccess.beginWalk(a, 480, 320, Locale.ENGLISH);
+            AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 480, 320);
             a.role(Accessible.Role.WINDOW);
             a.name(I18nString.literal("A window"), Accessible.NameFrom.EXPLICIT);
-            a.inherited(true, true, true, false, false);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
         }
 
         int open(long id, int parent, Accessible.Role role, boolean showing) {
-            int index = a.begin(id, parent, Locale.ENGLISH, 0, 0, 40, 20);
+            int index = AccessibilityAccess.begin(a, id, parent, Locale.ENGLISH, 0, 0, 40, 20);
             begun = index + 1;
             a.role(role);
             a.name(I18nString.literal(role + " " + id), Accessible.NameFrom.CONTENT);
-            a.inherited(true, true, showing, false, false);
+            AccessibilityAccess.inherited(a, true, true, showing, false, false);
             return index;
         }
 
@@ -104,7 +105,7 @@ class AxGridTest {
             int index = begun++;
             a.role(role);
             a.name(I18nString.literal(role + " " + key), Accessible.NameFrom.CONTENT);
-            a.inherited(true, true, true, false, false);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
             return index;
         }
 

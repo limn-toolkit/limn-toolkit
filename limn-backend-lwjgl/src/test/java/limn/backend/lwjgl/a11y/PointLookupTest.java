@@ -4,6 +4,7 @@ import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
+import limn.accessibility.internal.AccessibilityAccess;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -21,19 +22,19 @@ class PointLookupTest {
     /** A split pane's children as it publishes them: two contents with the splitter between. */
     private static List<AccessibleNode> splitChildren() {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        int split = a.begin(1001, 0, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        int split = AccessibilityAccess.begin(a, 1001, 0, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.SPLIT_PANE);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         Accessible.Role[] roles = {Accessible.Role.BUTTON, Accessible.Role.LABEL,
                 Accessible.Role.SPLITTER, Accessible.Role.BUTTON};
         for (int i = 0; i < roles.length; i++) {
-            a.begin(1002 + i, split, Locale.ENGLISH, i * 100, 0, 100, 300);
+            AccessibilityAccess.begin(a, 1002 + i, split, Locale.ENGLISH, i * 100, 0, 100, 300);
             a.role(roles[i]);
-            a.inherited(true, true, true, false, false);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
             a.end();
         }
         a.end();

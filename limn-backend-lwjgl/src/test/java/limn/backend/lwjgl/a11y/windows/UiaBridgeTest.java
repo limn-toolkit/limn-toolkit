@@ -5,6 +5,7 @@ import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleTree;
+import limn.accessibility.internal.AccessibilityAccess;
 import limn.backend.AccessibilityBridge;
 import limn.i18n.I18nString;
 import org.junit.jupiter.api.Test;
@@ -38,18 +39,18 @@ class UiaBridgeTest {
     private static AccessibleTree aWindowWith(Accessible.Role role, boolean pressable,
                                               boolean focused) {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
         a.name(I18nString.literal("A window"), Accessible.NameFrom.EXPLICIT);
-        a.inherited(true, true, true, false, false);
-        a.begin(1001, 0, Locale.ENGLISH, 10, 20, 160, 40);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 1001, 0, Locale.ENGLISH, 10, 20, 160, 40);
         a.role(role);
         a.name(I18nString.literal("Save"), Accessible.NameFrom.CONTENT);
         if (pressable) {
             a.action(Accessible.Action.PRESS);
         }
-        a.inherited(true, true, true, true, focused);
+        AccessibilityAccess.inherited(a, true, true, true, true, focused);
         a.end();
         a.end();
         return a.publish(focused ? 1001 : 0, 0, 0, 1f, true);
@@ -161,17 +162,17 @@ class UiaBridgeTest {
     /** A window holding one CELL (1001), carrying a selection item or not: a calendar's day. */
     private static AccessibleTree aWindowWithACell(boolean selectionItem) {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        a.begin(1001, 0, Locale.ENGLISH, 10, 20, 40, 40);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 1001, 0, Locale.ENGLISH, 10, 20, 40, 40);
         a.role(Accessible.Role.CELL);
         a.name(I18nString.literal("15"), Accessible.NameFrom.CONTENT);
         if (selectionItem) {
             a.selectionItem(false, 15, 30);
         }
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         a.end();
         a.end();
         return a.publish(0, 0, 0, 1f, true);
@@ -652,11 +653,11 @@ class UiaBridgeTest {
 
     private static AccessibleTree aWindowWithout() {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
         a.name(I18nString.literal("A window"), Accessible.NameFrom.EXPLICIT);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         a.end();
         return a.publish(0, 0, 0, 1f, true);
     }
@@ -964,24 +965,24 @@ class UiaBridgeTest {
      */
     private static AccessibleTree aFocusedTable(boolean cursorOnFirstRow) {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        int table = a.begin(1001, 0, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        int table = AccessibilityAccess.begin(a, 1001, 0, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.TABLE);
         a.table(2, 1);
         a.selection(false, false);
-        a.inherited(true, true, true, true, true);
+        AccessibilityAccess.inherited(a, true, true, true, true, true);
         for (int r = 0; r < 2; r++) {
-            int row = a.begin(1002 + 2L * r, table, Locale.ENGLISH, 0, 20 * r, 400, 20);
+            int row = AccessibilityAccess.begin(a, 1002 + 2L * r, table, Locale.ENGLISH, 0, 20 * r, 400, 20);
             a.role(Accessible.Role.ROW);
-            a.inherited(true, true, true, false, false);
-            a.begin(1003 + 2L * r, row, Locale.ENGLISH, 0, 20 * r, 400, 20);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
+            AccessibilityAccess.begin(a, 1003 + 2L * r, row, Locale.ENGLISH, 0, 20 * r, 400, 20);
             a.role(Accessible.Role.CELL);
             a.cell(r, 0);
             a.state(Accessible.State.ACTIVE, (r == 0) == cursorOnFirstRow);
-            a.inherited(true, true, true, false, false);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
             a.end();
             a.end();
         }
@@ -1416,19 +1417,19 @@ class UiaBridgeTest {
      */
     private static AccessibleTree aTableSortedOnItsSecondColumn(boolean busy) {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        int table = a.begin(2000, 0, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        int table = AccessibilityAccess.begin(a, 2000, 0, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.TABLE);
         a.table(1, 2);
-        a.inherited(true, true, true, false, false);
-        int header = a.begin(2100, table, Locale.ENGLISH, 0, 0, 400, 30);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        int header = AccessibilityAccess.begin(a, 2100, table, Locale.ENGLISH, 0, 0, 400, 30);
         a.role(Accessible.Role.GROUP);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         for (int c = 0; c < 2; c++) {
-            a.begin(2101 + c, header, Locale.ENGLISH, c * 200, 0, 200, 30);
+            AccessibilityAccess.begin(a, 2101 + c, header, Locale.ENGLISH, c * 200, 0, 200, 30);
             a.role(Accessible.Role.COLUMN_HEADER);
             a.name(I18nString.literal(c == 0 ? "Name" : "Age"), Accessible.NameFrom.CONTENT);
             a.cell(-1, c, c == 1 ? limn.accessibility.CellFacet.Sort.ASCENDING
@@ -1441,30 +1442,30 @@ class UiaBridgeTest {
             } else {
                 a.description(I18nString.literal("Click to sort by name"));
             }
-            a.inherited(true, true, true, false, false);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
             a.end();
         }
         a.end();
-        int row = a.begin(2200, table, Locale.ENGLISH, 0, 30, 400, 30);
+        int row = AccessibilityAccess.begin(a, 2200, table, Locale.ENGLISH, 0, 30, 400, 30);
         a.role(Accessible.Role.ROW);
-        a.inherited(true, true, true, false, false);
-        a.begin(2201, row, Locale.ENGLISH, 200, 30, 200, 30);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 2201, row, Locale.ENGLISH, 200, 30, 200, 30);
         a.role(Accessible.Role.CELL);
         a.name(I18nString.literal("42"), Accessible.NameFrom.CONTENT);
         a.description(I18nString.literal("Years since joining"));
         a.cell(0, 1, limn.accessibility.CellFacet.Sort.ASCENDING);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         a.end();
         a.end();
-        int footer = a.begin(2300, table, Locale.ENGLISH, 0, 60, 400, 30);
+        int footer = AccessibilityAccess.begin(a, 2300, table, Locale.ENGLISH, 0, 60, 400, 30);
         a.role(Accessible.Role.GROUP);
-        a.inherited(true, true, true, false, false);
-        a.begin(2301, footer, Locale.ENGLISH, 200, 60, 200, 30);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 2301, footer, Locale.ENGLISH, 200, 60, 200, 30);
         a.role(Accessible.Role.CELL);
         a.name(I18nString.literal("Total 99"), Accessible.NameFrom.CONTENT);
         a.description(I18nString.literal("The column's total"));
         a.cell(-2, 1, limn.accessibility.CellFacet.Sort.DESCENDING);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         a.end();
         a.end();
         a.end();
@@ -1504,33 +1505,33 @@ class UiaBridgeTest {
 
         static TwoWindows aFieldWithItsCursorInAPopup() {
             Accessibility popupWalk = new Accessibility();
-            long popupRoot = popupWalk.mint();
-            long day = popupWalk.mint();
-            popupWalk.beginWalk(200, 200, Locale.ENGLISH);
-            popupWalk.begin(popupRoot, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 200, 200);
+            long popupRoot = AccessibilityAccess.mint(popupWalk);
+            long day = AccessibilityAccess.mint(popupWalk);
+            AccessibilityAccess.beginWalk(popupWalk, 200, 200, Locale.ENGLISH);
+            AccessibilityAccess.begin(popupWalk, popupRoot, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 200, 200);
             popupWalk.role(Accessible.Role.WINDOW);
-            popupWalk.inherited(true, true, true, false, false);
-            popupWalk.begin(day, 0, Locale.ENGLISH, 10, 10, 20, 20);
+            AccessibilityAccess.inherited(popupWalk, true, true, true, false, false);
+            AccessibilityAccess.begin(popupWalk, day, 0, Locale.ENGLISH, 10, 10, 20, 20);
             popupWalk.role(Accessible.Role.CELL);
             popupWalk.state(Accessible.State.ACTIVE, true);
-            popupWalk.inherited(true, true, true, false, false);
+            AccessibilityAccess.inherited(popupWalk, true, true, true, false, false);
             popupWalk.end();
             popupWalk.end();
             AccessibleTree popupTree = popupWalk.publish(0, 0, 0, 1f, true);
 
             Accessibility hostWalk = new Accessibility();
-            long hostRoot = hostWalk.mint();
-            long field = hostWalk.mint();
-            hostWalk.beginWalk(400, 300, Locale.ENGLISH);
-            hostWalk.begin(hostRoot, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+            long hostRoot = AccessibilityAccess.mint(hostWalk);
+            long field = AccessibilityAccess.mint(hostWalk);
+            AccessibilityAccess.beginWalk(hostWalk, 400, 300, Locale.ENGLISH);
+            AccessibilityAccess.begin(hostWalk, hostRoot, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
             hostWalk.role(Accessible.Role.WINDOW);
-            hostWalk.inherited(true, true, true, false, false);
-            hostWalk.begin(field, 0, Locale.ENGLISH, 10, 10, 200, 30);
+            AccessibilityAccess.inherited(hostWalk, true, true, true, false, false);
+            AccessibilityAccess.begin(hostWalk, field, 0, Locale.ENGLISH, 10, 10, 200, 30);
             hostWalk.role(Accessible.Role.TEXT_FIELD);
-            hostWalk.inherited(true, true, true, true, true);
+            AccessibilityAccess.inherited(hostWalk, true, true, true, true, true);
             hostWalk.end();
             hostWalk.end();
-            hostWalk.foreignActiveDescendant(day);
+            AccessibilityAccess.foreignActiveDescendant(hostWalk, day);
             AccessibleTree hostTree = hostWalk.publish(field, 0, 0, 1f, true);
             assertEquals(day, hostTree.effectiveFocus(), "the fixture: the cursor is the popup's day");
             return new TwoWindows(hostTree, popupTree, field, popupRoot, day);
@@ -2042,14 +2043,14 @@ class UiaBridgeTest {
     /** A LIST (1001, multi when asked) holding two rows, 1002 selected and 1003 not. */
     private static AccessibleTree aList(boolean multi, boolean secondSelected) {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        int list = a.begin(1001, 0, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        int list = AccessibilityAccess.begin(a, 1001, 0, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.LIST);
         a.selection(multi, false);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         a.child(2);
         a.role(Accessible.Role.LIST_ITEM);
         a.selectionItem(true, 1, 2);
@@ -2118,15 +2119,15 @@ class UiaBridgeTest {
                     "a list that does not scroll serves no IScrollProvider");
 
             Accessibility a = new Accessibility();
-            a.beginWalk(400, 300, Locale.ENGLISH);
-            a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+            AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+            AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
             a.role(Accessible.Role.WINDOW);
-            a.inherited(true, true, true, false, false);
-            a.begin(1001, 0, Locale.ENGLISH, 0, 0, 400, 300);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
+            AccessibilityAccess.begin(a, 1001, 0, Locale.ENGLISH, 0, 0, 400, 300);
             a.role(Accessible.Role.LIST);
             a.selection(false, false);
             a.scroll(0, 0.5, 1, 0.25, false, true);
-            a.inherited(true, true, true, true, false);
+            AccessibilityAccess.inherited(a, true, true, true, true, false);
             a.end();
             a.end();
             bridge.publish(a.publish(0, 0, 0, 1f, true), false);
@@ -2270,26 +2271,26 @@ class UiaBridgeTest {
      */
     private static AccessibleTree aWindowWithValues() {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        a.begin(1001, 0, Locale.ENGLISH, 0, 0, 100, 20);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 1001, 0, Locale.ENGLISH, 0, 0, 100, 20);
         a.role(Accessible.Role.SLIDER);
         a.value(41, 0, 100, 1);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         a.end();
-        a.begin(1002, 0, Locale.ENGLISH, 0, 30, 100, 20);
+        AccessibilityAccess.begin(a, 1002, 0, Locale.ENGLISH, 0, 30, 100, 20);
         a.role(Accessible.Role.SPIN_BUTTON);
         a.value(450, 0, 1439, 1);
         a.valueText("07:30", 1);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         a.end();
-        a.begin(1003, 0, Locale.ENGLISH, 0, 60, 100, 20);
+        AccessibilityAccess.begin(a, 1003, 0, Locale.ENGLISH, 0, 60, 100, 20);
         a.role(Accessible.Role.SPIN_BUTTON);
         a.emptyValue(1, 31, 1, false);
         a.valueText("empty", 1);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         a.end();
         a.end();
         return a.publish(0, 0, 0, 1f, true);

@@ -6,6 +6,7 @@ import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
 import limn.accessibility.Shape;
 import limn.accessibility.ToggleFacet;
+import limn.accessibility.internal.AccessibilityAccess;
 import limn.graphics.Rect;
 import limn.graphics.ShapedText;
 import limn.i18n.I18nString;
@@ -205,22 +206,22 @@ class AxShapesTest {
     /** A list of three rows, the first selected, published through the bridge. */
     private AccessibleTree publishList() {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        int list = a.begin(1001, 0, Locale.ENGLISH, 10, 20, 160, 90);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        int list = AccessibilityAccess.begin(a, 1001, 0, Locale.ENGLISH, 10, 20, 160, 90);
         a.role(Accessible.Role.LIST);
         a.name(I18nString.literal("A list"), Accessible.NameFrom.CONTENT);
         a.selection(false, false);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         for (int i = 0; i < 3; i++) {
-            a.begin(1002 + i, list, Locale.ENGLISH, 10, 20 + 30 * i, 160, 30);
+            AccessibilityAccess.begin(a, 1002 + i, list, Locale.ENGLISH, 10, 20 + 30 * i, 160, 30);
             a.role(Accessible.Role.LIST_ITEM);
             a.name(I18nString.literal("Row " + i), Accessible.NameFrom.CONTENT);
             a.selectionItem(i == 0, i + 1, 3);
             a.action(Accessible.Action.SELECT);
-            a.inherited(true, true, true, false, false);
+            AccessibilityAccess.inherited(a, true, true, true, false, false);
             a.end();
         }
         a.end();
@@ -234,15 +235,15 @@ class AxShapesTest {
 
     private AccessibleNode publish(Accessible.Role role, Consumer<Accessibility> facets) {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        a.begin(1001, 0, Locale.ENGLISH, 10, 20, 160, 40);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 1001, 0, Locale.ENGLISH, 10, 20, 160, 40);
         a.role(role);
         a.name(I18nString.literal("A control"), Accessible.NameFrom.CONTENT);
         facets.accept(a);
-        a.inherited(true, true, true, true, false);
+        AccessibilityAccess.inherited(a, true, true, true, true, false);
         a.end();
         a.end();
         AccessibleTree tree = a.publish(0, 0, 0, 1f, true);

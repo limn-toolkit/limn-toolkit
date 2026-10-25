@@ -260,12 +260,12 @@ class AccessibleIdentityTest extends AccessibleTestBase {
         pool.firstRow = 3;
         bind(pool);
         frame();
-        long before = scene.accessibleWalk().builder().carriedOver();
+        long before = limn.accessibility.internal.AccessibilityAccess.carriedOver(scene.accessibleWalk().builder());
 
         pool.invalidate();
         frame();
 
-        assertEquals(before + 2, scene.accessibleWalk().builder().carriedOver(),
+        assertEquals(before + 2, limn.accessibility.internal.AccessibilityAccess.carriedOver(scene.accessibleWalk().builder()),
                 "the two keyed rows' names were carried over, not resolved again");
         assertEquals("row 3", node("row 3").name());
     }

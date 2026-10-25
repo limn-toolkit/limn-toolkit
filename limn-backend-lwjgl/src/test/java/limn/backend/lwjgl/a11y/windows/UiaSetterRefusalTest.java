@@ -4,6 +4,7 @@ import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
+import limn.accessibility.internal.AccessibilityAccess;
 import limn.graphics.ShapedText;
 import limn.i18n.I18nString;
 import org.junit.jupiter.api.Test;
@@ -91,22 +92,22 @@ class UiaSetterRefusalTest {
     /** A window holding a slider (1001) and a text field (1002), enabled or not. */
     private void publish(boolean enabled) {
         Accessibility a = new Accessibility();
-        a.beginWalk(400, 300, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        AccessibilityAccess.beginWalk(a, 400, 300, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
         a.role(Accessible.Role.WINDOW);
-        a.inherited(true, true, true, false, false);
-        a.begin(1001, 0, Locale.ENGLISH, 10, 20, 160, 40);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
+        AccessibilityAccess.begin(a, 1001, 0, Locale.ENGLISH, 10, 20, 160, 40);
         a.role(Accessible.Role.SLIDER);
         a.name(I18nString.literal("Level"), Accessible.NameFrom.EXPLICIT);
         a.value(40, 0, 100, 1);
-        a.inherited(enabled, true, true, enabled, false);
+        AccessibilityAccess.inherited(a, enabled, true, true, enabled, false);
         a.end();
-        a.begin(1002, 0, Locale.ENGLISH, 10, 80, 160, 40);
+        AccessibilityAccess.begin(a, 1002, 0, Locale.ENGLISH, 10, 80, 160, 40);
         a.role(Accessible.Role.TEXT_FIELD);
         a.name(I18nString.literal("Notes"), Accessible.NameFrom.EXPLICIT);
         a.state(Accessible.State.EDITABLE);
         a.text("draft", 1, 0, ShapedText.Affinity.DOWNSTREAM, 0, 0, 1, null, false);
-        a.inherited(enabled, true, true, enabled, false);
+        AccessibilityAccess.inherited(a, enabled, true, true, enabled, false);
         a.end();
         a.end();
         tree = a.publish(0, 0, 0, 1f, true);

@@ -4,6 +4,7 @@ import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
+import limn.accessibility.internal.AccessibilityAccess;
 import limn.i18n.I18nString;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,11 +27,11 @@ class AxGateTest {
      */
     private static AccessibleTree aWindow() {
         Accessibility a = new Accessibility();
-        a.beginWalk(480, 320, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 480, 320);
+        AccessibilityAccess.beginWalk(a, 480, 320, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 480, 320);
         a.role(Accessible.Role.WINDOW);
         a.name(I18nString.literal("w"), Accessible.NameFrom.EXPLICIT);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         int table = open(a, 1001, 0, Accessible.Role.TABLE);
         a.table(2, 2);
         a.selection(false, false);
@@ -65,10 +66,10 @@ class AxGateTest {
     }
 
     private static int open(Accessibility a, long id, int parent, Accessible.Role role) {
-        int index = a.begin(id, parent, Locale.ENGLISH, 0, 0, 40, 20);
+        int index = AccessibilityAccess.begin(a, id, parent, Locale.ENGLISH, 0, 0, 40, 20);
         a.role(role);
         a.name(I18nString.literal(role + " " + id), Accessible.NameFrom.CONTENT);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         return index;
     }
 
@@ -127,11 +128,11 @@ class AxGateTest {
     @Test
     void aHeaderACellLookupAndARangeAreOfferedOnlyWhereTheyHaveAnAnswer() {
         Accessibility a = new Accessibility();
-        a.beginWalk(480, 320, Locale.ENGLISH);
-        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 480, 320);
+        AccessibilityAccess.beginWalk(a, 480, 320, Locale.ENGLISH);
+        AccessibilityAccess.begin(a, 1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 480, 320);
         a.role(Accessible.Role.WINDOW);
         a.name(I18nString.literal("w"), Accessible.NameFrom.EXPLICIT);
-        a.inherited(true, true, true, false, false);
+        AccessibilityAccess.inherited(a, true, true, true, false, false);
         int table = open(a, 1101, 0, Accessible.Role.TABLE);
         a.table(1, 2);
         int header = open(a, 1102, table, Accessible.Role.GROUP);
