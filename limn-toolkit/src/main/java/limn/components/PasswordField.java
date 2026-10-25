@@ -363,6 +363,7 @@ public final class PasswordField extends TextField {
      */
     @Override
     public TextField setMask(@Nullable String pattern) {
+        Ui.checkUiThread();
         if (pattern != null) {
             throw new UnsupportedOperationException("a PasswordField takes no input mask: " + pattern);
         }
