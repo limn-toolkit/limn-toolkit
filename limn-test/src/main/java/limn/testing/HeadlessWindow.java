@@ -265,10 +265,11 @@ public final class HeadlessWindow implements WindowPeer {
     }
 
     /**
-     * A display exactly the size of this window, at scale one. A native popup menu refuses to
-     * open on a window with no display at all, since its work area is what the cascade is kept
-     * inside; a combo's popup and a dialog tolerate its absence. So the display is answered, and
-     * it is this window's own rectangle, which is the only screen a headless window has.
+     * A display exactly the size of this window, at scale one. A popup menu in a window of its own
+     * keeps its cascade inside the display's work area, and on a window with no display at all it
+     * is drawn in the scene instead; a combo's popup and a dialog tolerate its absence. So the
+     * display is answered, letting a menu here take the path it takes on a desktop, and it is this
+     * window's own rectangle, which is the only screen a headless window has.
      */
     private final Display display = new Display() {
         @Override public String id() { return "headless"; }

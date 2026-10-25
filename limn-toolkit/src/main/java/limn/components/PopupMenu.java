@@ -59,21 +59,24 @@ import limn.backend.spi.BackendPeer;
  *
  * <p>It grabs keyboard focus while open (arrows navigate, Enter chooses, Esc
  * closes); a press back in the owner window, an item choice, or Esc dismisses.
- * Requires a windowed scene; headless scenes have no display to place it on.
+ * Requires a scene bound to a window that is still open: a scene in no window, or in one that
+ * has closed, has nowhere to draw it, and the menu opens nothing there.
  *
  * <p><b>Two presentations:</b> a window of its own, or an overlay inside the owner window;
  * same cascade, flip, clamp and navigation either way, but an overlay is clamped to that window
  * rather than to the display, so a menu near the bottom edge has less room than it would
  * elsewhere. {@link #setDisplayMode} chooses; {@link #displayMode()} answers what was actually
- * used, which is not always the same thing. Two cases have no choice and always draw in scene: a
+ * used, which is not always the same thing. Three cases have no choice and always draw in scene: a
  * {@linkplain limn.backend.NativeWindow#isFullscreen() fullscreen} window, which at a named mode
  * is minimized as soon as another window takes the focus, as a menu's does at once, and which at
- * the mode the display is in already covers the screen, so the menu loses nothing inside it; and
+ * the mode the display is in already covers the screen, so the menu loses nothing inside it;
  * any window reporting no {@link limn.backend.spi.WindowPeer#supportsAbsolutePositioning()}
- * (Wayland), where a menu window would open somewhere other than the anchor. Both are asked when
- * the menu opens; a menu already open in a window of its own when the owner enters or leaves
- * fullscreen closes instead, cascade and all, as if dismissed, running no item: see
- * {@link DisplayMode}.
+ * (Wayland), where a menu window would open somewhere other than the anchor; and a window
+ * reporting no {@linkplain limn.backend.NativeWindow#display() display}, as one does where the
+ * windowing system lists no monitor, the only one asleep or a session with none, which leaves no
+ * work area to keep a menu window inside. All three are asked when the menu opens; a menu already
+ * open in a window of its own when the owner enters or leaves fullscreen closes instead, cascade
+ * and all, as if dismissed, running no item: see {@link DisplayMode}.
  *
  * <pre>{@code
  * new PopupMenu(menu).showAt(grid, mouseX, mouseY); // context menu at the pointer
@@ -403,8 +406,8 @@ public final class PopupMenu {
     }
 
     /**
-     * Opens the menu attached to an anchor rectangle in scene coordinates. A no-op on a
-     * headless scene (no display to place the window on). UI thread only.
+     * Opens the menu attached to an anchor rectangle in scene coordinates. A no-op on a scene
+     * bound to no window, or to one that has closed. UI thread only.
      *
      * <p>The cascade takes the step resolved on the scene's <b>root</b>, the documented
      * fallback, and the difference between "a context menu over an XSMALL data grid is XSMALL"
@@ -425,8 +428,8 @@ public final class PopupMenu {
         Ui.checkUiThread();
         EditTarget.opening(ownerScene);
         NativeWindow win = ownerScene == null ? null : ownerScene.window();
-        if (open || rootMenu.isEmpty() || win == null || win.display() == null) {
-            return; // native menus need a real window + display
+        if (open || rootMenu.isEmpty() || win == null || win.isClosed()) {
+            return; // a menu is drawn in its owner's window or beside it, and there is none
         }
         open = true;
         this.owner = ownerScene;
@@ -436,17 +439,23 @@ public final class PopupMenu {
             anchorLeaves = SceneAccess.observeAnchorLeaving(ownerScene, host, this::close);
         }
         beginOpen(ownerScene.textRuler(), host, ownerScene);
-        // Two cases give a menu no window of its own. A fullscreen window: GLFW minimizes one
+        // Three cases give a menu no window of its own. A fullscreen window: GLFW minimizes one
         // fullscreen at a named mode when another window takes the focus, which the menu's does at
         // once, and one at the mode the display is in already covers the screen, so the cascade
-        // loses nothing drawn inside it. And Wayland has no way to put one where the anchor is: the
+        // loses nothing drawn inside it. Wayland has no way to put one where the anchor is: the
         // cascade would open near the middle of the display, wearing whatever frame the compositor
-        // decorates toplevels with. Both fall back to an in-scene overlay drawn inside the owner
-        // window.
-        if (requested == DisplayMode.IN_SCENE || !FloatingSurfaces.anchoredWindowAvailable(win)) {
+        // decorates toplevels with. And a window that reports no display, as one does where the
+        // windowing system lists no monitor (the only one asleep, a session with none): the
+        // cascade in a window of its own is flipped and clamped against a display's work area, and
+        // there is none to read. All three fall back to an in-scene overlay drawn inside the owner
+        // window, which needs nothing of the display. Read once: the work area the cascade is
+        // placed against is the one this decision saw.
+        limn.backend.Display display = win.display();
+        if (requested == DisplayMode.IN_SCENE || display == null
+                || !FloatingSurfaces.anchoredWindowAvailable(win)) {
             presentInScene(ax, ay, aw, ah);
         } else {
-            presentNative(ax, ay, aw, ah);
+            presentNative(display.workArea(), ax, ay, aw, ah);
         }
     }
 
@@ -738,7 +747,11 @@ public final class PopupMenu {
 
     // --------------------------------------------------- in-scene fallback
 
-    /** Fullscreen fallback: draw the menu as an overlay inside the owner scene (no window). */
+    /**
+     * Draws the menu as an overlay inside the owner scene (no window): asked for, or the fallback
+     * over a fullscreen window, on Wayland and over a window that reports no display. Reads
+     * nothing of the display; its bounds are the scene's.
+     */
     private void presentInScene(float ax, float ay, float aw, float ah) {
         inScene = true;
         surface.fillScene = true;            // bounds track the scene (set in onLayout)
@@ -766,9 +779,10 @@ public final class PopupMenu {
 
     // ----------------------------------------------------------- native window
 
-    private void presentNative(float ax, float ay, float aw, float ah) {
+    /** @param area the work area of the owner's display, which the cascade is kept inside */
+    private void presentNative(ScreenRect area, float ax, float ay, float aw, float ah) {
         parentWindow = owner.window();
-        workArea = parentWindow.display().workArea();
+        workArea = area;
         screenFactor = parentWindow.logicalToScreenFactor();
         workAreaScreenX = workArea.x();
         workAreaScreenY = workArea.y();
@@ -1001,9 +1015,10 @@ public final class PopupMenu {
      *
      * <p><b>A preference, not a guarantee</b>, and only in one direction: a menu asked for
      * {@code NATIVE_WINDOW} still draws in scene on Wayland, where a menu window does not land
-     * where the anchor is, and in a fullscreen window, for the reasons {@link DisplayMode} gives.
-     * {@code IN_SCENE} is always honoured; it needs nothing from the platform. Read
-     * {@link #displayMode()} for what happened.
+     * where the anchor is, in a fullscreen window, for the reasons {@link DisplayMode} gives, and
+     * in a window that reports no display, with no work area to keep a menu window inside.
+     * {@code IN_SCENE} is always honoured; it needs nothing from the platform, a display
+     * included. Read {@link #displayMode()} for what happened.
      *
      * <p>Takes effect on the next open; a menu already on screen is not re-presented under it.
      */

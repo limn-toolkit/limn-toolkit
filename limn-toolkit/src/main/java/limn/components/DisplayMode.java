@@ -9,7 +9,7 @@ import limn.backend.NativeWindow;
  * and they answer it by the same rules.
  *
  * <p><b>It is a preference, never a guarantee.</b> Over two kinds of window
- * {@link #NATIVE_WINDOW} is not offered at all:
+ * {@link #NATIVE_WINDOW} is not offered at all, and over a third not to a menu:
  *
  * <ul>
  *   <li><b>A {@linkplain NativeWindow#isFullscreen() fullscreen} window</b>, of either kind, for
@@ -33,6 +33,12 @@ import limn.backend.NativeWindow;
  *       list, a calendar hanging from its field. A dialog, including the colour picker's, has no
  *       anchor to line up with, so it stays a window there and the compositor places it, which is
  *       where a dialog belongs.</li>
+ *   <li><b>A window that reports no {@linkplain NativeWindow#display() display}</b>, for a
+ *       {@link PopupMenu}: one does where the windowing system lists no monitor, the only one
+ *       asleep or a session with none. A menu's window is kept inside the display's work area,
+ *       each column flipped and clamped against it, and there is no work area to read. A
+ *       drop-down list, a calendar and a dialog still open a window of their own there, placed
+ *       against their owner with no edge of a display to keep inside.</li>
  * </ul>
  *
  * <p>So a surface asked for {@code NATIVE_WINDOW} may be drawn in-scene anyway, and each of these
@@ -78,7 +84,7 @@ public enum DisplayMode {
     /**
      * An overlay drawn inside the owner's window. Always available, on every platform, and the
      * only presentation over a fullscreen window and on a platform that cannot position a window
-     * at an anchor.
+     * at an anchor, and a menu's over a window that reports no display.
      */
     IN_SCENE
 }

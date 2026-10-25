@@ -52,10 +52,11 @@ final class Poses {
      * menu is open: it is process-wide, and every later entry should be captured as it was.
      *
      * <p>A right-click that opens nothing fails the capture, loudly, rather than publishing a card
-     * of a list under the name of a menu. The one known way there: {@code PopupMenu} opens nothing
-     * on a window that reports no display, in the scene included, and a capture run in which the
-     * windowing system reports no monitor at all has a window like that: one on a Mac did, on
-     * 2026-10-25, and drew this card as a list with nothing open over it.
+     * of a list under the name of a menu. It has happened: until 2026-10-25 {@code PopupMenu}
+     * opened nothing on a window that reports no display, in the scene included, and a capture run
+     * on a Mac that day, in which the windowing system listed no monitor, drew this card as a list
+     * with nothing open over it. A menu is drawn in the scene on such a window now; the check
+     * stays for whatever else leaves the gesture with nothing open.
      */
     private static void popupMenu(GalleryScenes.Built built) {
         ListView<?> list = (ListView<?>) only(built.content(), ListView.class);
@@ -88,11 +89,8 @@ final class Poses {
             top = top.parent();
         }
         if (top == null || top == built.scene().root()) {
-            throw new IllegalStateException("the right-click on \"" + selected + "\" opened no menu"
-                    + (built.scene().window().display() == null
-                    ? ": the window reports no display, and PopupMenu opens nothing on such a"
-                    + " window, in the scene included; capture where a monitor is visible"
-                    : ""));
+            throw new IllegalStateException("the right-click on \"" + selected
+                    + "\" opened no menu");
         }
     }
 
