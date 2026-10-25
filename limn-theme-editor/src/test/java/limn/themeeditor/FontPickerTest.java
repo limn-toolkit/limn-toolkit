@@ -211,4 +211,31 @@ class FontPickerTest extends EditorTestBase {
             Fonts.setDefaultFamily(null);
         }
     }
+
+    @Test
+    void anEditorKeptPastItsBackendAsksTheNextOneForTheFamilyItWasWaitingFor() {
+        HeldLoader first = new HeldLoader();
+        Fonts.installLoader(first);
+        ThemeEditor editor = new ThemeEditor(Theme.dark()); // applies live, the default
+        try {
+            editor.setTheme(Theme.dark().toBuilder().fontFamily("Menlo").build());
+            assertEquals(List.of("Menlo"), first.asked);
+        } finally {
+            Fonts.uninstallLoader(first); // the backend shuts down with the read still out
+        }
+        replaceRuntime(); // and a later one starts in the same process
+
+        HeldLoader second = new HeldLoader();
+        Fonts.installLoader(second);
+        try {
+            editor.setToken(Theme.Token.PRIMARY, Color.rgb(0x4FD1C5)); // the palette, Menlo in it
+            assertEquals(List.of("Menlo"), second.asked,
+                    "the answer from the backend that is gone never comes: this one is asked");
+            second.land();
+            assertEquals("Menlo", Fonts.defaultFamily());
+        } finally {
+            Fonts.uninstallLoader(second);
+            Fonts.setDefaultFamily(null);
+        }
+    }
 }

@@ -207,7 +207,10 @@ something keeps it honest.
 
 `TextRuler.epoch()` moves when the ruler would shape the same string differently: a family
 registered, the catalog replaced as system enumeration finishes, the default family switched, a
-face folded in or evicted. It must **not** move for a content-scale change, for the reason above.
+face folded in or evicted. Not for a face read ahead arriving while nothing stands in for its
+family, nor for one read for a switch a later choice overtook being let go of before anything
+resolved it: neither changes how any string shapes. It must **not** move for a content-scale
+change, for the reason above.
 Epochs are drawn from one process-wide counter rather than numbered per ruler, because `matches`
 compares a held stamp against whatever ruler it is handed and two rulers numbering independently
 would eventually both answer the same number.

@@ -40,11 +40,19 @@ public final class Fonts {
     private static volatile String defaultFamily = Font.DEFAULT_FAMILY;
     private static final ChangeListeners listeners = new ChangeListeners();
     /**
-     * The answer of the one {@link #setDefaultFamilyWhenResident} still waiting for its faces, or
-     * {@code null}. Its identity is the request's: a read that lands and finds another answer here
-     * was overtaken, and switches nothing. UI thread.
+     * The one {@link #setDefaultFamilyWhenResident} still waiting for its faces, or {@code null}.
+     * Its answer's identity is the request's: a read that lands and finds another answer here was
+     * overtaken, and switches nothing. UI thread.
      */
-    private static @Nullable CompletableFuture<Boolean> pendingSwitch;
+    private static @Nullable PendingSwitch pendingSwitch;
+
+    /**
+     * A switch waiting for its faces: the family, the callback the loader was handed for it, which
+     * is what {@link FontLoader#withdraw} names when the switch is overtaken, and its answer.
+     */
+    private record PendingSwitch(String family, Runnable whenResident,
+                                 CompletableFuture<Boolean> answer) {
+    }
 
     private Fonts() {
     }
@@ -144,7 +152,7 @@ public final class Fonts {
 
     /** Hands a preload to the installed loader, answering itself the names that need no read. */
     private static void preload(String family, Runnable whenResident) {
-        if (family.isBlank() || family.equalsIgnoreCase(Font.DEFAULT_FAMILY)) {
+        if (answeredHere(family)) {
             // The alias names the embedded face, which the backend carries itself, and a blank
             // name names nothing. Still answered on a later turn, as every other answer is, so a
             // caller never has to tell the two kinds apart.
@@ -152,6 +160,11 @@ public final class Fonts {
             return;
         }
         LOADER.current().preload(family, whenResident);
+    }
+
+    /** Whether {@link #preload} answers {@code family} itself rather than asking the loader. */
+    private static boolean answeredHere(String family) {
+        return family.isBlank() || family.equalsIgnoreCase(Font.DEFAULT_FAMILY);
     }
 
     /**
@@ -218,9 +231,13 @@ public final class Fonts {
      * <p><b>The later choice wins.</b> A font picker moving through a list asks once per entry,
      * and only the last request switches: an earlier one whose read lands afterwards leaves the
      * default family where the later call put it, or is about to, and answers {@code false}.
-     * What its read produced stays resident, so stepping back to that family is cheap. Asking
-     * again for the family a pending call names replaces that call too: the first stage answers
-     * {@code false} and the second {@code true}, and the backend reads the faces once for both.
+     * The overtaken request is {@linkplain FontLoader#withdraw withdrawn} from the backend, whose
+     * read cannot be called back once started, and what that read produces disturbs nothing: it
+     * lays nothing out again, and the backend keeps it only in room it can make without letting
+     * go of a face in use, so stepping back to that family is cheap while the backend has room
+     * for it, and costs another read off the UI thread when it had none. Asking again for the
+     * family a pending call names replaces that call too: the first stage answers {@code false}
+     * and the second {@code true}, and the backend reads the faces once for both.
      *
      * <p>A family the operating system does not have is switched to as {@code setDefaultFamily}
      * would switch to it, and then resolves to the toolkit's embedded face. If the backend shuts
@@ -240,17 +257,19 @@ public final class Fonts {
         Ui.checkUiThread();
         String value = normalized(family);
         abandonPendingSwitch();
-        CompletableFuture<Boolean> request = new CompletableFuture<>();
-        pendingSwitch = request;
-        preload(value, () -> {
-            if (pendingSwitch != request) {
+        CompletableFuture<Boolean> answer = new CompletableFuture<>();
+        Runnable whenResident = () -> {
+            PendingSwitch pending = pendingSwitch;
+            if (pending == null || pending.answer() != answer) {
                 return; // overtaken: the later call has answered this one already
             }
             pendingSwitch = null;
             switchTo(value);
-            request.complete(true);
-        });
-        return request.minimalCompletionStage();
+            answer.complete(true);
+        };
+        pendingSwitch = new PendingSwitch(value, whenResident, answer);
+        preload(value, whenResident);
+        return answer.minimalCompletionStage();
     }
 
     /** Makes {@code value} the default family and tells the listeners, if it is not already. */
@@ -264,16 +283,21 @@ public final class Fonts {
 
     /**
      * Withdraws the switch {@link #setDefaultFamilyWhenResident} is waiting to make, answering it
-     * {@code false} on the UI thread's next turn rather than inside the call that overtook it.
+     * {@code false} on the UI thread's next turn rather than inside the call that overtook it, and
+     * takes its request back from the loader, so that a read landing with nobody left wanting it
+     * disturbs nothing in the backend (see {@link FontLoader#withdraw}).
      */
     private static void abandonPendingSwitch() {
-        CompletableFuture<Boolean> abandoned = pendingSwitch;
+        PendingSwitch abandoned = pendingSwitch;
         if (abandoned == null) {
             return;
         }
         pendingSwitch = null;
+        if (!answeredHere(abandoned.family())) {
+            LOADER.current().withdraw(abandoned.family(), abandoned.whenResident());
+        }
         if (Ui.isInstalled()) {
-            Ui.post(() -> abandoned.complete(false));
+            Ui.post(() -> abandoned.answer().complete(false));
         }
     }
 

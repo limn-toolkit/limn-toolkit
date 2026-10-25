@@ -9,12 +9,15 @@ import java.lang.System.Logger.Level;
 import java.util.ArrayList;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeSet;
 
 /**
@@ -40,9 +43,11 @@ import java.util.TreeSet;
  * <p><b>System fonts.</b> Families enumerated from the OS (see {@link SystemFonts})
  * are registered as lightweight descriptors and their faces are loaded <em>lazily</em>,
  * only when a family is actually selected. To bound memory, at most
- * {@link #MAX_SYSTEM_FACES} system faces stay resident at once (LRU-evicted);
- * the bundled faces are pinned. The family {@link Font#DEFAULT_FAMILY} resolves to
- * is {@link Fonts#defaultFamily()}, so switching it re-fonts the whole UI at runtime.
+ * {@link #MAX_SYSTEM_FACES} system faces stay resident at once (see
+ * {@link #evictSystemBeyondCap} for which go: never the default family's, and
+ * faces nothing has asked for before any other); the bundled faces are pinned.
+ * The family {@link Font#DEFAULT_FAMILY} resolves to is
+ * {@link Fonts#defaultFamily()}, so switching it re-fonts the whole UI at runtime.
  *
  * <p><b>Selecting a system family costs a file read.</b> That read happens inside
  * {@link #resolve}, which runs on the UI thread inside a measure or a paint, and
@@ -183,10 +188,25 @@ final class FontStore implements AutoCloseable {
     private final LinkedHashMap<String, StbFont> loadedSystem = new LinkedHashMap<>(16, 0.75f, true);
     /** Reverse of {@link #loadedSystem}, so a memoized resolve can touch its LRU entry. */
     private final Map<StbFont, String> loadedSystemKeys = new IdentityHashMap<>();
+    /** The family key each face of {@link #loadedSystem} belongs to, which eviction spares by. */
+    private final Map<StbFont, String> loadedSystemFamilies = new IdentityHashMap<>();
+    /**
+     * Faces of {@link #loadedSystem} that a read nobody wanted any more brought in (see
+     * {@link #installPreloaded}) and that no resolve has asked for since. Nothing draws with one,
+     * no memoized resolution and no shaped text names one, so letting go of one costs a read on a
+     * worker if the family is asked for again, never a frame, and nothing has to lay out again.
+     */
+    private final Set<StbFont> readAhead = Collections.newSetFromMap(new IdentityHashMap<>());
     private final TreeSet<String> familyNames = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
 
     /** Handed back by {@link Fonts#observeChanges} in the constructor, cancelled in {@link #close}. */
     private Subscription fontsSubscription;
+    /**
+     * How many times {@link Fonts} has told its listeners of a change, this store among them: a
+     * landing read compares it across the callbacks it runs to learn whether one of them (a font
+     * switch) already had every scene lay out again.
+     */
+    private long fontsChanges;
 
     // ------------------------------------------------------------------ shaping epoch
     //
@@ -286,7 +306,13 @@ final class FontStore implements AutoCloseable {
         this.menuSymbols = menuSymbols;
 
         this.fallback = roboto;
-        this.fontsSubscription = Fonts.observeChanges(this::resolutionChanged);
+        this.fontsSubscription = Fonts.observeChanges(this::fontsChanged);
+    }
+
+    /** A catalog or default-family change: the families may resolve to other faces now. */
+    private void fontsChanged() {
+        fontsChanges++;
+        resolutionChanged();
     }
 
     // -------------------------------------------------- background fallbacks
@@ -583,14 +609,25 @@ final class FontStore implements AutoCloseable {
     }
 
     private int assignId(StbFont face) {
-        int id = nextFaceId++;
-        faceIds.put(face, id);
-        facesById.put(id, face);
+        int id = registerId(face);
         // A face arriving is a residency change, and a held ShapedText cannot see it: the string
         // that fell back to Roboto a moment ago resolves to this face now, and would keep drawing
         // yesterday's glyphs through the very relayout that exists to fix it. The three calls from
         // the constructor bump a counter nobody has read yet, which costs nothing.
         epoch = EPOCHS.incrementAndGet();
+        return id;
+    }
+
+    /**
+     * Gives {@code face} its id without moving the epoch, for the one arrival that changes no
+     * resolution: a preloaded system face that nothing stood in for while it was read (see
+     * {@link #installPreloaded}). Moving the epoch there would have every held ShapedText shaped
+     * again on its next paint, once per read that lands.
+     */
+    private int registerId(StbFont face) {
+        int id = nextFaceId++;
+        faceIds.put(face, id);
+        facesById.put(id, face);
         return id;
     }
 
@@ -690,6 +727,12 @@ final class FontStore implements AutoCloseable {
     private final Map<String, List<Runnable>> preloading = new HashMap<>();
     /** Family key -> callbacks waiting for the OS enumeration before they can load. */
     private final Map<String, List<Runnable>> awaitingScan = new HashMap<>();
+    /**
+     * Families a resolve stood in for with the global fallback while their read was out (see
+     * {@link #resolveSystem}): text is laid out in the wrong face, so the read landing has to say
+     * so. Each is dropped as its read lands or fails.
+     */
+    private final Set<String> stoodIn = new HashSet<>();
 
     /** One face parsed off the UI thread, with the cache key it installs under. */
     private record LoadedFace(String key, StbFont face) {
@@ -714,25 +757,28 @@ final class FontStore implements AutoCloseable {
      *
      * <p>{@code whenResident} runs on the UI thread, on a later frame, once the
      * faces are resident; or, having loaded nothing, when the family is a
-     * bundled one, is already resident, or is unknown to the operating system.
-     * It never runs synchronously, so a caller may flip its own state inside it
-     * without re-entering this. It does not run at all if the store is closed
-     * first; the faces the load produced are then freed on a worker thread.
+     * bundled one, is already resident, is unknown to the operating system, or
+     * is a blank name. It runs once and never synchronously, so a caller may
+     * flip its own state inside it without re-entering this. It does not run at
+     * all if the store is closed first; the faces the load produced are then
+     * freed on a worker thread.
      *
-     * <p>The load is idempotent and cannot be withdrawn: two requests for one
-     * family share a single file read, and what a read produces goes into the
-     * shared face cache, where it is worth the same whether or not whoever
-     * asked still wants it. A caller that can change its mind (a font picker
-     * moving through a list) must therefore check, inside {@code whenResident},
-     * that the family it asked for is still the one it wants, as
-     * {@link Fonts#setDefaultFamilyWhenResident} does.
+     * <p>The load is idempotent, and once started it is not called back: two
+     * requests for one family share a single file read. What a caller can take
+     * back is its request, through {@link #withdrawPreload}, as
+     * {@link Fonts#setDefaultFamilyWhenResident} does for a switch a later
+     * choice overtook; a caller that does not must check, inside
+     * {@code whenResident}, that the family it asked for is still the one it
+     * wants. A read that lands with no request left on it, for a family nothing
+     * names, disturbs nothing: see {@link #installPreloaded}.
      *
      * <p>Italic faces are deliberately not preloaded: at most
      * {@link #MAX_SYSTEM_FACES} system faces stay resident, and regular plus
      * bold is what a UI needs on the frame after a switch.
      *
      * @param family       the family name, matched case-insensitively;
-     *                     {@code null} or blank does nothing at all
+     *                     {@code null} or blank reads nothing and is answered
+     *                     on a later frame, as every other answer is
      * @param whenResident run on the UI thread when the faces are resident, or
      *                     {@code null} for no callback
      */
@@ -740,10 +786,13 @@ final class FontStore implements AutoCloseable {
         limn.concurrent.Ui.checkUiThread();
         Runnable done = whenResident == null ? () -> { } : whenResident;
         String key = family == null ? "" : family.toLowerCase(Locale.ROOT).trim();
-        if (closed || key.isEmpty() || !limn.concurrent.Ui.isInstalled()) {
+        if (closed || !limn.concurrent.Ui.isInstalled()) {
             return;
         }
-        if (byFamily.containsKey(key)) {
+        if (key.isEmpty() || byFamily.containsKey(key)) {
+            // A blank name names nothing to read, and FontLoader.preload answers "nothing to read"
+            // like any other answer: once, on a later turn.
+            //
             // Bundled: resolve takes the bundled face before any system face of the same name, so
             // reading the system's copy (Roboto is installed on many Linux desktops) would fill
             // the resident set with faces nothing draws, and waiting for the enumeration to learn
@@ -767,11 +816,42 @@ final class FontStore implements AutoCloseable {
     }
 
     /**
+     * Takes back a request {@link #preloadFamily} was given: {@code whenResident} will not run.
+     * A read already under way goes on, since it may serve another request and cannot be called
+     * back, but it lands as one nobody wants unless something else does (see
+     * {@link #installPreloaded}); a read still waiting for the enumeration with no request left
+     * is never started. Does nothing for a request already answered or never made. UI thread.
+     *
+     * @param family       the family as it was asked for, matched case-insensitively
+     * @param whenResident the callback passed with it, the same instance
+     */
+    void withdrawPreload(String family, Runnable whenResident) {
+        String key = family == null ? "" : family.toLowerCase(Locale.ROOT).trim();
+        if (closed || key.isEmpty()) {
+            return;
+        }
+        List<Runnable> reading = preloading.get(key);
+        if (reading != null) {
+            reading.remove(whenResident); // the key stays: the read is still out
+        }
+        List<Runnable> waiting = awaitingScan.get(key);
+        if (waiting != null && waiting.remove(whenResident) && waiting.isEmpty()) {
+            awaitingScan.remove(key);
+        }
+    }
+
+    /** @return whether a read of {@code family} is out or waiting for the enumeration (tests) */
+    boolean readInFlight(String family) {
+        String key = family.toLowerCase(Locale.ROOT).trim();
+        return preloading.containsKey(key) || awaitingScan.containsKey(key);
+    }
+
+    /**
      * The loader the backend installs through {@link Fonts#installLoader}: {@link #loadFile} for
-     * a file the application ships, and {@link #preloadFamily} for
-     * {@link limn.graphics.FontLoader#preload}, which is how {@link Fonts#preload} and
-     * {@link Fonts#setDefaultFamilyWhenResident} reach this store. The same instance each call,
-     * because the backend uninstalls by identity.
+     * a file the application ships, and {@link #preloadFamily} and {@link #withdrawPreload} for
+     * {@link limn.graphics.FontLoader#preload} and {@link limn.graphics.FontLoader#withdraw},
+     * which is how {@link Fonts#preload} and {@link Fonts#setDefaultFamilyWhenResident} reach
+     * this store. The same instance each call, because the backend uninstalls by identity.
      */
     limn.graphics.FontLoader loader() {
         return loader;
@@ -787,6 +867,11 @@ final class FontStore implements AutoCloseable {
         public void preload(String family, Runnable whenResident) {
             preloadFamily(family, whenResident);
         }
+
+        @Override
+        public void withdraw(String family, Runnable whenResident) {
+            withdrawPreload(family, whenResident);
+        }
     };
 
     /** Starts (or skips) the background read for {@code key}. UI thread. */
@@ -795,8 +880,13 @@ final class FontStore implements AutoCloseable {
         List<SystemFonts.Face> picks = candidates == null ? List.of() : preloadPicks(candidates);
         List<SystemFonts.Face> missing = new ArrayList<>(picks.size());
         for (SystemFonts.Face pick : picks) {
-            if (!loadedSystem.containsKey(key + suffix(pick.bold(), pick.italic()))) {
+            StbFont resident = loadedSystem.get(key + suffix(pick.bold(), pick.italic())); // a touch
+            if (resident == null) {
                 missing.add(pick);
+            } else {
+                // Asked for again, a picker stepped back to a family it passed: wanted now, so a
+                // read nobody wants must not close it before the switch it is for is made.
+                readAhead.remove(resident);
             }
         }
         if (missing.isEmpty()) {
@@ -814,7 +904,7 @@ final class FontStore implements AutoCloseable {
                     .deliverIf(() -> !closed)
                     .onDiscarded(PreloadedFamily::close)
                     .onSuccess(loaded -> installPreloaded(key, loaded))
-                    .onFailure(error -> finishPreload(key, error))
+                    .onFailure(error -> failPreload(key, error))
                     .start();
         } catch (RuntimeException error) {
             // The pool refused the work (shutting down). Record nothing: a family
@@ -862,43 +952,91 @@ final class FontStore implements AutoCloseable {
         return new PreloadedFamily(loaded);
     }
 
-    /** Folds a background-parsed family in and wakes its waiters. UI thread. */
+    /**
+     * Folds a background-parsed family in and wakes its waiters. UI thread.
+     *
+     * <p>What the faces may cost the rest of the store depends on whether anything still wants
+     * them. They are wanted while a request is still on the read (a switch no later choice
+     * overtook, a {@link Fonts#preload}), when the family is the default family, and when a
+     * resolve stood in for the family while it was read. Then they go in as a face a resolve read
+     * goes in: {@link #evictSystemBeyondCap} makes room, never out of these faces nor the default
+     * family's; and when something stood in, the memo is dropped before a waiter can resolve
+     * again, and every scene is told to lay out again unless a waiter's own switch already told
+     * it.
+     *
+     * <p>A read nobody wants any more, the overtaken entries of a font picker stepped through a
+     * list, disturbs nothing. Its faces are kept only in room that closing other faces nobody has
+     * asked for makes, and are closed themselves when there is none: no face a resolve asked for
+     * is closed, the epoch does not move, and nothing lays out again. Stepping a picker through
+     * ten families lays the UI out once, for the switch the last one makes, and leaves the family
+     * the UI was drawn in resident.
+     */
     private void installPreloaded(String key, PreloadedFamily loaded) {
-        boolean changed = false;
-        for (LoadedFace entry : loaded.faces()) {
+        List<Runnable> waiting = preloading.remove(key);
+        boolean stood = stoodIn.remove(key);
+        boolean wanted = stood || (waiting != null && !waiting.isEmpty())
+                || key.equals(defaultFamilyKey());
+        Set<StbFont> arrived = Collections.newSetFromMap(new IdentityHashMap<>());
+        // In reverse, so the regular is the younger: a read nobody wants, with room for one face,
+        // keeps the face its family is drawn in first.
+        for (int i = loaded.faces().size() - 1; i >= 0; i--) {
+            LoadedFace entry = loaded.faces().get(i);
             if (loadedSystem.containsKey(entry.key())) {
                 entry.face().close(); // a synchronous resolve won the race
                 continue;
             }
-            assignId(entry.face());
-            loadedSystem.put(entry.key(), entry.face());
-            loadedSystemKeys.put(entry.face(), entry.key());
-            changed = true;
+            // No epoch: nothing resolved this family to another face while it was read, unless
+            // something stood in, and the resolutionChanged below moves the epoch for that.
+            registerId(entry.face());
+            putSystemFace(entry.key(), key, entry.face());
+            arrived.add(entry.face());
+            if (!wanted) {
+                readAhead.add(entry.face());
+            }
         }
-        if (changed) {
-            evictSystemBeyondCap();
-            resolutionChanged(); // text that fell back to Roboto now resolves to the real face
+        if (!wanted) {
+            evictSystemBeyondCap(true, Set.of());
+            return;
         }
-        finishPreload(key, null);
-        if (changed) {
-            // The same fold-in notification the fallback fonts use: scenes
-            // relayout, so text drawn in the stand-in face picks up this one.
+        evictSystemBeyondCap(false, arrived);
+        if (stood) {
+            resolutionChanged(); // the stand-in is memoized: drop it before a waiter resolves
+        }
+        long changesBefore = fontsChanges;
+        runWaiters(waiting);
+        if (stood && fontsChanges == changesBefore) {
+            // The same fold-in notification the fallback fonts use: scenes relayout, so text
+            // drawn in the stand-in face picks up this one.
             catalogChanged.run();
         }
     }
 
-    /** Drops the in-flight record and runs its waiters. UI thread. */
-    private void finishPreload(String key, Throwable failure) {
-        if (failure != null) {
-            LOG.log(Level.WARNING, "font preload failed for " + key, failure);
-        }
-        List<Runnable> waiting = preloading.remove(key);
+    /** A read that failed: logged, and its waiters told, the family resolving as it would have. */
+    private void failPreload(String key, Throwable failure) {
+        LOG.log(Level.WARNING, "font preload failed for " + key, failure);
+        stoodIn.remove(key);
+        runWaiters(preloading.remove(key));
+    }
+
+    private static void runWaiters(List<Runnable> waiting) {
         if (waiting == null) {
             return;
         }
         for (Runnable waiter : waiting) {
             waiter.run();
         }
+    }
+
+    /** The key of the family {@link Font#DEFAULT_FAMILY} resolves to, as a resolve reads it. */
+    private static String defaultFamilyKey() {
+        return Fonts.defaultFamily().toLowerCase(Locale.ROOT);
+    }
+
+    /** Makes {@code face} resident under {@code key}, as one of {@code family}'s faces. */
+    private void putSystemFace(String key, String family, StbFont face) {
+        loadedSystem.put(key, face);
+        loadedSystemKeys.put(face, key);
+        loadedSystemFamilies.put(face, family);
     }
 
     /** @return every selectable family (bundled + system), sorted case-insensitively. */
@@ -1027,12 +1165,15 @@ final class FontStore implements AutoCloseable {
         String key = family + suffix(pick.bold(), pick.italic());
         StbFont cached = loadedSystem.get(key); // access-order touch
         if (cached != null) {
+            readAhead.remove(cached); // asked for: in use from now on, like a face a resolve read
             return cached;
         }
         if (preloading.containsKey(family)) {
             // A worker is already reading this family. Doing it again here would
             // block a frame on a read that is about to land anyway: stand in with
-            // the global fallback and let the fold-in re-resolve.
+            // the global fallback and let the fold-in re-resolve, which it knows
+            // to do from this record.
+            stoodIn.add(family);
             return null;
         }
         StbFont face;
@@ -1052,9 +1193,8 @@ final class FontStore implements AutoCloseable {
             return null;
         }
         assignId(face);
-        loadedSystem.put(key, face);
-        loadedSystemKeys.put(face, key);
-        evictSystemBeyondCap();
+        putSystemFace(key, family, face);
+        evictSystemBeyondCap(false, Set.of(face));
         return face;
     }
 
@@ -1071,20 +1211,48 @@ final class FontStore implements AutoCloseable {
         return regular != null ? regular : faces.get(0);
     }
 
-    /** Closes the least-recently-used system faces until within the memory cap. */
-    private void evictSystemBeyondCap() {
-        var iterator = loadedSystem.entrySet().iterator();
+    /**
+     * Closes resident system faces, eldest first, until at most {@link #MAX_SYSTEM_FACES} remain;
+     * never one of {@code keep}, nor one of the default family's, which draws the whole UI and
+     * which the next frame would otherwise read again on the UI thread.
+     *
+     * <p>Faces in {@link #readAhead} go first: nothing draws with them and nothing names them, so
+     * closing one clears no memo and moves no epoch. With {@code readAheadOnly} nothing else goes,
+     * which is how a read nobody wants is kept from closing a face in use. Otherwise the least
+     * recently used of the rest follow, each of which a memoized resolution or a held
+     * {@code ShapedText} may name, so closing one clears the one and moves the epoch for the other.
+     */
+    private void evictSystemBeyondCap(boolean readAheadOnly, Set<StbFont> keep) {
+        String defaultFamily = defaultFamilyKey();
+        evictPass(true, keep, defaultFamily);
+        if (!readAheadOnly) {
+            evictPass(false, keep, defaultFamily);
+        }
+    }
+
+    /** One walk of {@link #evictSystemBeyondCap}, over the read-ahead faces alone or over all. */
+    private void evictPass(boolean readAheadOnly, Set<StbFont> keep, String defaultFamily) {
+        var iterator = loadedSystem.values().iterator();
         while (loadedSystem.size() > MAX_SYSTEM_FACES && iterator.hasNext()) {
-            StbFont evicted = iterator.next().getValue(); // eldest first (access-order)
+            StbFont evicted = iterator.next(); // eldest first (access-order)
+            boolean unasked = readAhead.contains(evicted);
+            if ((readAheadOnly && !unasked) || keep.contains(evicted)
+                    || defaultFamily.equals(loadedSystemFamilies.get(evicted))) {
+                continue;
+            }
             iterator.remove();
             loadedSystemKeys.remove(evicted);
+            loadedSystemFamilies.remove(evicted);
+            readAhead.remove(evicted);
             Integer evictedId = faceIds.remove(evicted);
             if (evictedId != null) {
                 // Both directions, or a held ShapedText's run would still resolve its id to a face
                 // whose native memory is about to be freed, and paint from a closed atlas source.
                 facesById.remove(evictedId);
             }
-            resolutionChanged(); // a cached resolution may point at the evicted face
+            if (!unasked) {
+                resolutionChanged(); // a cached resolution may point at the evicted face
+            }
             evicted.close();
         }
     }
@@ -1245,6 +1413,7 @@ final class FontStore implements AutoCloseable {
         // on a worker; their waiters are never called, the store being gone.
         preloading.clear();
         awaitingScan.clear();
+        stoodIn.clear();
         fontsSubscription.cancel();
         if (colorEmoji != null) {
             colorEmoji.close();
@@ -1256,5 +1425,7 @@ final class FontStore implements AutoCloseable {
             face.close();
         }
         loadedSystem.clear();
+        loadedSystemFamilies.clear();
+        readAhead.clear();
     }
 }

@@ -15,7 +15,7 @@ import java.nio.file.Path;
  *
  * <p>It is also where {@link Fonts#preload} reaches the backend: {@link #preload} reads a
  * family's faces ahead of their first use, and its default, for a loader that keeps nothing
- * resident, reads nothing.
+ * resident, reads nothing. {@link #withdraw} takes back a request a later choice overtook.
  */
 @FunctionalInterface
 public interface FontLoader {
@@ -52,8 +52,9 @@ public interface FontLoader {
      * nothing to read: a family it carries itself, one already resident, one it does not know.
      * It runs it exactly once and <b>never inside this call</b>, so a caller may change its own
      * state there without re-entering this; it need not run it at all once the backend has shut
-     * down, when there is no UI thread left to run it on. Two requests for one family may share
-     * one read, and a read once started is not withdrawn.
+     * down, when there is no UI thread left to run it on, or once the request has been
+     * {@linkplain #withdraw withdrawn}. Two requests for one family may share one read, and a
+     * read once started need not stop: what {@code withdraw} takes back is the request.
      *
      * <p>The default reads nothing and runs {@code whenResident} on the UI thread's next turn,
      * which is right for a loader that keeps no face resident, {@link #UNAVAILABLE} among them.
@@ -64,6 +65,29 @@ public interface FontLoader {
      */
     default void preload(String family, Runnable whenResident) {
         limn.concurrent.Ui.post(whenResident);
+    }
+
+    /**
+     * Takes back a {@link #preload} request: whoever passed {@code whenResident} for
+     * {@code family} no longer wants the faces. What {@link Fonts} calls on the request of a
+     * {@link Fonts#setDefaultFamilyWhenResident} that a later choice overtook; an application
+     * calls neither.
+     *
+     * <p>Called on the UI thread. An implementation need not run {@code whenResident} any more,
+     * and need not stop a read already under way, which may serve another request for the family
+     * too. A read that lands with no request left on it, for a family nothing draws in, is one
+     * nobody wants: an implementation that keeps a bounded number of faces resident keeps its
+     * faces only in room it can make without letting go of a face in use, and has nothing laid out
+     * again for them. That is what keeps a font picker stepped through a list from re-laying out
+     * the UI once per entry it passed, and from evicting the family the UI is drawn in.
+     *
+     * <p>The default does nothing, which is right for a loader that keeps no face resident: the
+     * callback still runs, and {@code Fonts} ignores it.
+     *
+     * @param family       the family named in the request, as it was passed to {@link #preload}
+     * @param whenResident the callback passed with it, the same instance
+     */
+    default void withdraw(String family, Runnable whenResident) {
     }
 
     /** No backend / headless: there is nothing that can parse a font file. */

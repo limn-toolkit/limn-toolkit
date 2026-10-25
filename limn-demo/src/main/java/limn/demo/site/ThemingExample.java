@@ -43,15 +43,14 @@ public final class ThemingExample {
 
         private Subscription listening;
         private List<String> shown = List.of();
-
-        FontPicker() {
-            rebuild();
-        }
+        private ComboBox<String> picker;
 
         @Override
         protected void onAttached() {
-            // The list grows once the operating system's families have been read.
-            listening = Fonts.observeChanges(this::rebuild);
+            // The list grows once the operating system's families have been read, and the font
+            // can be switched elsewhere: by a theme, from another screen.
+            listening = Fonts.observeChanges(this::refresh);
+            refresh(); // what moved while this was off screen told no listener
         }
 
         @Override
@@ -59,21 +58,22 @@ public final class ThemingExample {
             listening.cancel();
         }
 
-        private void rebuild() {
+        private void refresh() {
             List<String> families = new ArrayList<>();
             families.add(Font.DEFAULT_FAMILY); // the toolkit's own face
             families.addAll(Fonts.available());
-            if (families.equals(shown)) {
-                return; // the font switched, the list did not
+            if (!families.equals(shown)) {
+                shown = families;
+                ComboBox<String> combo = new ComboBox<>(families,
+                        family -> family.equals(Font.DEFAULT_FAMILY) ? "Default" : family);
+                // Worn once its faces have been read off the UI thread; a later pick overtakes it.
+                combo.onSelect(() -> Fonts.setDefaultFamilyWhenResident(combo.selectedItem()));
+                List.copyOf(children()).forEach(this::remove);
+                add(combo);
+                picker = combo;
             }
-            shown = families;
-            ComboBox<String> picker = new ComboBox<>(families,
-                    family -> family.equals(Font.DEFAULT_FAMILY) ? "Default" : family);
-            picker.setSelectedIndex(Math.max(0, families.indexOf(Fonts.defaultFamily())));
-            // Worn once its faces have been read off the UI thread; a later pick overtakes it.
-            picker.onSelect(() -> Fonts.setDefaultFamilyWhenResident(picker.selectedItem()));
-            List.copyOf(children()).forEach(this::remove);
-            add(picker);
+            // The font in use, however it was chosen; this write is not a pick.
+            picker.setSelectedIndex(Math.max(0, shown.indexOf(Fonts.defaultFamily())));
         }
     }
     // #endregion

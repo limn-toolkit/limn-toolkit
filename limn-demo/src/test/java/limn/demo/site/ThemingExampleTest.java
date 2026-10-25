@@ -9,6 +9,7 @@ import limn.graphics.Fonts;
 import limn.i18n.I18nString;
 import limn.input.Keys;
 import limn.scene.Scene;
+import limn.scene.layout.Row;
 import limn.testing.HeadlessUi;
 import limn.testing.TestRulers;
 import org.junit.jupiter.api.Test;
@@ -87,6 +88,46 @@ class ThemingExampleTest {
                 assertEquals("Arial", Fonts.defaultFamily());
                 assertSame(combo, picker.children().get(0), "a switch of the font keeps the list");
             } finally {
+                Fonts.setDefaultFamily(null);
+                Fonts.installCatalog(FontCatalog.EMPTY);
+            }
+        }
+    }
+
+    @Test
+    void theFontPickerCatchesUpWhenItReturnsAndFollowsASwitchMadeElsewhere() {
+        Theme before = Theme.current();
+        try (HeadlessUi ui = new HeadlessUi()) {
+            try {
+                Fonts.installCatalog(() -> List.of("Roboto"));
+                ThemingExample.FontPicker picker = new ThemingExample.FontPicker();
+                Row page = new Row();
+                page.add(picker);
+                Scene scene = new Scene(page);
+                scene.setTextRuler(TestRulers.FIXED);
+                scene.layoutPass(300, 600);
+                ComboBox<?> shown = (ComboBox<?>) picker.children().get(0);
+
+                // A settings page closed while the system's families land and a theme changes
+                // the font: neither reaches a picker that is not listening.
+                page.remove(picker);
+                Fonts.installCatalog(() -> List.of("Arial", "Roboto"));
+                Fonts.setDefaultFamily("Arial");
+                page.add(picker);
+                ComboBox<?> back = (ComboBox<?>) picker.children().get(0);
+                assertNotSame(shown, back, "reopened on the list as it is now");
+                assertEquals("Arial", back.selectedItem(), "showing the font in use");
+
+                Fonts.setDefaultFamily(null); // switched from somewhere else, on screen
+                assertEquals(Font.DEFAULT_FAMILY, back.selectedItem());
+                assertSame(back, picker.children().get(0), "the list did not move, so it stays");
+
+                Theme.dark().toBuilder().fontFamily("Arial").build().apply();
+                ui.runtime().drain(); // the palette's font switches on the next turn
+                assertEquals("Arial", back.selectedItem(), "a theme's font is followed too");
+                assertEquals("Arial", Fonts.defaultFamily(), "and following it switched nothing");
+            } finally {
+                Theme.setCurrent(before);
                 Fonts.setDefaultFamily(null);
                 Fonts.installCatalog(FontCatalog.EMPTY);
             }

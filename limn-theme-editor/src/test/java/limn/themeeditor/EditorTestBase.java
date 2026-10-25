@@ -40,4 +40,14 @@ abstract class EditorTestBase {
         Theme.setCurrent(Theme.dark());
         ui.close();
     }
+
+    /**
+     * Closes this test's runtime and installs another, as a backend shut down and a later one
+     * started in the same process do; the new one is closed after the test.
+     */
+    void replaceRuntime() {
+        ui.close();
+        ui = new HeadlessUi();
+        runtime = ui.runtime();
+    }
 }

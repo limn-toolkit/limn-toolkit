@@ -3,6 +3,7 @@ package limn.backend.lwjgl;
 import limn.concurrent.Subscription;
 import limn.concurrent.UiRuntime;
 import limn.graphics.Font;
+import limn.graphics.FontCatalog;
 import limn.graphics.FontLoader;
 import limn.graphics.Fonts;
 import limn.testing.HeadlessUi;
@@ -15,7 +16,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -63,6 +66,8 @@ class FontStorePreloadTest {
         SystemFonts.Face probeFace = probeFace();
         try (FontStore store = new FontStore()) {
             store.setSystemFaces(List.of(probeFace));
+            AtomicInteger laidOut = new AtomicInteger();
+            store.setCatalogChangedNotifier(laidOut::incrementAndGet);
             AtomicBoolean resident = new AtomicBoolean();
             store.preloadFamily(PROBE_FAMILY, () -> resident.set(true));
             assertFalse(resident.get(), "the callback must never run inline");
@@ -74,6 +79,184 @@ class FontStorePreloadTest {
             pumpUntil(resident::get);
             assertNotSame(store.resolve(Font.of(14)), store.resolve(probe),
                     "the fold-in re-resolves the family to the face it read");
+            assertEquals(1, laidOut.get(), "and has the text laid out in the stand-in laid out again");
+        }
+    }
+
+    @Test
+    void anOvertakenReadLaysNothingOutAgainAndClosesNoFaceInUse() throws IOException {
+        List<SystemFonts.Face> faces = new ArrayList<>();
+        for (String family : List.of("Current", "Other One", "Other Two", "Overtaken")) {
+            faces.addAll(regularAndBold(family));
+        }
+        try (FontStore store = new FontStore()) {
+            store.setSystemFaces(faces);
+            AtomicInteger laidOut = new AtomicInteger();
+            store.setCatalogChangedNotifier(laidOut::incrementAndGet);
+            FontLoader loader = store.loader();
+            Fonts.installLoader(loader);
+            try {
+                // The UI drawn in one family and two labels in families of their own: six faces,
+                // the most the store keeps, and every one of them in use.
+                Fonts.setDefaultFamily("Current");
+                store.resolve(Font.of(14));
+                store.resolve(Font.of(14).bold());
+                for (String family : List.of("Other One", "Other Two")) {
+                    store.resolve(new Font(family, 14));
+                    store.resolve(new Font(family, 14).bold());
+                }
+                long epoch = store.epoch();
+
+                Fonts.setDefaultFamilyWhenResident("Overtaken");
+                Fonts.setDefaultFamily("Current"); // the later choice, the family in force
+                pumpUntil(() -> !store.readInFlight("Overtaken"));
+                runtime.drain();
+
+                assertEquals(0, laidOut.get(), "nothing was drawn in the family it read for");
+                assertEquals(epoch, store.epoch(), "and no shaped text has to be shaped again");
+                deleteFiles("Current", "Other One", "Other Two", "Overtaken");
+                for (String family : List.of("Current", "Other One", "Other Two")) {
+                    assertEquals(family + " Regular", store.resolve(new Font(family, 14)).name(),
+                            "a face in use is not closed to make room for a read nobody wants");
+                    assertEquals(family + " Bold", store.resolve(new Font(family, 14).bold()).name());
+                }
+                assertEquals("Roboto", store.resolve(new Font("Overtaken", 14)).name(),
+                        "with no room but what closing a face in use would make, the read's own "
+                                + "faces are the ones let go of");
+            } finally {
+                Fonts.setDefaultFamily(null);
+                Fonts.uninstallLoader(loader);
+            }
+        }
+    }
+
+    @Test
+    void aPickerSteppedThroughFamiliesLaysOutOnceAndKeepsTheFamilyTheUiWasDrawnIn()
+            throws IOException {
+        List<String> steps = List.of("Step A", "Step B", "Step C", "Step D");
+        List<SystemFonts.Face> faces = new ArrayList<>(regularAndBold("Current"));
+        for (String step : steps) {
+            faces.addAll(regularAndBold(step));
+        }
+        try (FontStore store = new FontStore()) {
+            store.setSystemFaces(faces);
+            AtomicInteger catalogs = new AtomicInteger();
+            FontCatalog catalog = store::families;
+            // What the backend installs: a catalog notification is a Fonts change, which every
+            // scene lays out again for.
+            store.setCatalogChangedNotifier(() -> {
+                catalogs.incrementAndGet();
+                Fonts.installCatalog(catalog);
+            });
+            FontLoader loader = store.loader();
+            Fonts.installLoader(loader);
+            Fonts.setDefaultFamily("Current");
+            store.resolve(Font.of(14));
+            store.resolve(Font.of(14).bold());
+            AtomicInteger layouts = new AtomicInteger();
+            Subscription relayout = Fonts.observeChanges(layouts::incrementAndGet);
+            try {
+                CompletionStage<Boolean> last = null;
+                for (String step : steps) {
+                    last = Fonts.setDefaultFamilyWhenResident(step); // one pick per entry passed
+                }
+                AtomicReference<Boolean> switched = new AtomicReference<>();
+                last.thenAccept(switched::set);
+                pumpUntil(() -> switched.get() != null
+                        && steps.stream().noneMatch(store::readInFlight));
+                runtime.drain();
+
+                assertTrue(switched.get());
+                assertEquals("Step D", Fonts.defaultFamily());
+                assertEquals(1, layouts.get(),
+                        "one switch, one layout: the three reads it overtook laid nothing out");
+                assertEquals(0, catalogs.get());
+                deleteFiles("Current", "Step D");
+                assertEquals("Step D Regular", store.resolve(Font.of(14)).name());
+                assertEquals("Step D Bold", store.resolve(Font.of(14).bold()).name());
+                assertEquals("Current Regular", store.resolve(new Font("Current", 14)).name(),
+                        "the family the UI was drawn in until the switch is still resident, "
+                                + "whichever order the reads landed in");
+                assertEquals("Current Bold", store.resolve(new Font("Current", 14).bold()).name());
+            } finally {
+                relayout.cancel();
+                Fonts.setDefaultFamily(null);
+                Fonts.uninstallLoader(loader);
+                Fonts.uninstallCatalog(catalog);
+            }
+        }
+    }
+
+    @Test
+    void aWithdrawnRequestIsNotAnsweredAndItsReadStaysWhereThereIsRoom() throws IOException {
+        try (FontStore store = new FontStore()) {
+            store.setSystemFaces(regularAndBold(PROBE_FAMILY));
+            AtomicInteger laidOut = new AtomicInteger();
+            store.setCatalogChangedNotifier(laidOut::incrementAndGet);
+            AtomicInteger answers = new AtomicInteger();
+            Runnable answer = answers::incrementAndGet;
+            store.preloadFamily(PROBE_FAMILY, answer);
+            long epoch = store.epoch();
+            store.withdrawPreload(PROBE_FAMILY, answer);
+            assertTrue(store.readInFlight(PROBE_FAMILY), "a read once started is not called back");
+
+            pumpUntil(() -> !store.readInFlight(PROBE_FAMILY));
+            runtime.drain();
+            assertEquals(0, answers.get(), "a withdrawn request is not answered");
+            assertEquals(0, laidOut.get());
+            assertEquals(epoch, store.epoch());
+            deleteFiles(PROBE_FAMILY);
+            assertEquals(PROBE_FAMILY + " Regular", store.resolve(new Font(PROBE_FAMILY, 14)).name(),
+                    "with room to spare, what the read produced is kept, so asking again is cheap");
+        }
+    }
+
+    @Test
+    void aFamilyAskedForAgainIsNotClosedForAReadNobodyWants() throws IOException {
+        List<SystemFonts.Face> faces = new ArrayList<>();
+        for (String family : List.of("Current", "Other", "Passed", "Next")) {
+            faces.addAll(regularAndBold(family));
+        }
+        try (FontStore store = new FontStore()) {
+            store.setSystemFaces(faces);
+            Fonts.setDefaultFamily("Current");
+            try {
+                store.resolve(Font.of(14));
+                store.resolve(Font.of(14).bold());
+                store.resolve(new Font("Other", 14));
+                store.resolve(new Font("Other", 14).bold());
+                landOvertaken(store, "Passed"); // a picker went past it: kept, in the last room
+                store.preloadFamily("Passed", () -> { }); // and came back to it
+
+                landOvertaken(store, "Next"); // a read it overtook again lands now
+                deleteFiles("Passed");
+                assertEquals("Passed Regular", store.resolve(new Font("Passed", 14)).name(),
+                        "a family asked for again is wanted, and a read nobody wants closes it not");
+                assertEquals("Passed Bold", store.resolve(new Font("Passed", 14).bold()).name());
+            } finally {
+                Fonts.setDefaultFamily(null);
+            }
+        }
+    }
+
+    /** Asks for {@code family}, takes the request back and waits for the read to land. */
+    private void landOvertaken(FontStore store, String family) {
+        Runnable answer = () -> { };
+        store.preloadFamily(family, answer);
+        store.withdrawPreload(family, answer);
+        pumpUntil(() -> !store.readInFlight(family));
+        runtime.drain();
+    }
+
+    @Test
+    void aRequestWithdrawnBeforeTheEnumerationLandsLeavesNothingToRead() {
+        try (FontStore store = new FontStore()) {
+            Runnable answer = () -> { };
+            store.preloadFamily(PROBE_FAMILY, answer);
+            assertTrue(store.readInFlight(PROBE_FAMILY), "waiting for the enumeration");
+            store.withdrawPreload(PROBE_FAMILY, answer);
+            assertFalse(store.readInFlight(PROBE_FAMILY),
+                    "with no request left, nothing is read when the enumeration lands");
         }
     }
 
@@ -124,13 +307,15 @@ class FontStorePreloadTest {
     }
 
     @Test
-    void anEmptyFamilyDoesNothingAtAll() {
+    void anEmptyFamilyReadsNothingAndIsStillAnsweredOnALaterFrame() {
         try (FontStore store = new FontStore()) {
             AtomicInteger answers = new AtomicInteger();
             store.preloadFamily(null, answers::incrementAndGet);
             store.preloadFamily("   ", answers::incrementAndGet);
+            assertEquals(0, answers.get(), "never inline, even with nothing to read");
             runtime.drain();
-            assertEquals(0, answers.get());
+            assertEquals(2, answers.get(),
+                    "a loader answers once when there is nothing to read, as FontLoader.preload says");
             assertFalse(store.systemScanRequested(), "nothing to look for, nothing to enumerate");
         }
     }
@@ -222,6 +407,26 @@ class FontStorePreloadTest {
                 Fonts.setDefaultFamily(null);
                 Fonts.uninstallLoader(loader);
             }
+        }
+    }
+
+    /**
+     * A family of two faces, the bundled Roboto Regular and Bold each copied to a file of the
+     * family's own, so that deleting them proves what is resident; see {@link #deleteFiles}.
+     */
+    private List<SystemFonts.Face> regularAndBold(String family) throws IOException {
+        return List.of(
+                new SystemFonts.Face(family, "Regular",
+                        copyOfBundled("Roboto-Regular.ttf", family + "-regular.ttf"), 0, false, false),
+                new SystemFonts.Face(family, "Bold",
+                        copyOfBundled("Roboto-Bold.ttf", family + "-bold.ttf"), 0, true, false));
+    }
+
+    /** Takes the families' files of {@link #regularAndBold} away: a read of them now fails. */
+    private void deleteFiles(String... families) throws IOException {
+        for (String family : families) {
+            Files.delete(tempDir.resolve(family + "-regular.ttf"));
+            Files.delete(tempDir.resolve(family + "-bold.ttf"));
         }
     }
 
