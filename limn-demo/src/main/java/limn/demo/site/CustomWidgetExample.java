@@ -116,7 +116,8 @@ public final class CustomWidgetExample {
         protected void onMouseEvent(MouseEvent event) {
             if (event.type() == MouseEvent.Type.PRESS && isEnabled()) {
                 requestFocus();
-                int slot = (int) (event.x() / height());
+                float x = sceneToLocal(event.x(), event.y()).x();   // the event is in the scene's coordinates
+                int slot = (int) (x / height());
                 int dot = isRightToLeft() ? MAX - 1 - slot : slot;
                 apply(dot + 1, Change.Origin.USER);
                 event.consume();

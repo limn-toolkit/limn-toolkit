@@ -123,8 +123,9 @@ Files.writeString(file, ThemeFormat.write(brand));
 Theme loaded = ThemeFormat.load(file);
 ```
 
-The extension is `.limntheme` (`ThemeFormat.EXTENSION`). Loading is one line and needs
-nothing but `limn-toolkit`, which is the point of the split below.
+The file's extension is `.limntheme`; `ThemeFormat.EXTENSION` holds it without the dot, so a
+name is built as `"ocean." + ThemeFormat.EXTENSION`. Loading is one line and needs nothing but
+`limn-toolkit`, which is the point of the split below.
 
 ## Building one in the theme editor
 
@@ -155,6 +156,7 @@ loads in an application that has never heard of it.
 | `primary` `primaryHover` `primaryPressed` `onPrimary` | the accent and the ink that sits on it |
 | `text` `textMuted` | body text and the quieter kind |
 | `outline` `focusRing` | borders and the focus ring |
+| `controlBorder` | the edge of a control, derived from `outline` to clear 3:1: see [More contrast](#more-contrast) |
 | `disabledFill` `disabledText` | unavailable controls |
 | `danger` `success` `warning` `info` | the four states |
 | `scrim` | the veil a modal dialog lays over what it blocks |

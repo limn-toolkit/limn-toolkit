@@ -157,10 +157,12 @@ is the job for bytes in memory.
 
 ## Video
 
-`VideoView` is a widget. Give it a source and it plays:
+`VideoView` is a widget that shows a stream your application opened. It never opens a file,
+never closes what it is given and knows nothing about decoders, so the rest of this section is
+where the stream comes from:
 
 ```java
-VideoView view = new VideoView(source);
+VideoView view = new VideoView();
 view.setFit(VideoView.Fit.CONTAIN);
 view.setLooping(true);
 ```
@@ -216,20 +218,84 @@ part in layout like a label does. The decoder behind it is a separate concern:
   ```
   {% endtabs %}
 
-Subtitles ride along with the video's own container: select the track before you start
-reading, and the player hands you timed text to draw however your design wants it.
+### Where the stream comes from
+
+A backend brings an image decoder and an audio engine, and no video decoder: one has a size and
+a licence, so which a process carries is the application's choice. Install it once, where the
+application starts, and open a file with `Videos.openAsync`, which does the slow part (the
+header, the probe, the decoder, and the first time the native library) on the worker pool and
+hands the stream over on the UI thread:
+
+{% snippet guide:video-open %}
+
+A video starts paused, showing its poster, until something asks it to run: `setPaused(false)` as
+above, a play button, or `setAutoplay(true)` before the stream is set. `Videos.open` is the same
+open on the calling thread, for setup code, and `Videos.canOpen(file)` answers cheaply whether an
+installed decoder claims a file, for a control deciding whether to enable itself. The stream is
+yours to close: the view leaves it open when it is replaced or taken out of the window, so that
+one stream can be shown twice or handed on.
+
+### A film with its sound
+
+A stream is pictures alone. A film with a soundtrack plays through a `MediaPlayer`, which
+decodes ahead on a thread of its own and times the pictures by the sound. `FfmpegMedia`, from
+`limn-video-ffmpeg`, opens the container and hands over both tracks:
+
+{% snippet guide:video-player %}
+
+`view.setPlayer(player)` shows what the player decoded, and the view's pause, seek and looping
+then drive the player, so the sound pauses with the picture. `setControlsVisible(true)` lays the
+built-in `MediaControls` over the picture: play and pause, a scrub bar, the position, and, while
+the media can sound, a mute button and a volume. The bar is a widget of its own as well:
+`new MediaControls(view)` puts it anywhere, under the picture say, and `addLeading` and
+`addTrailing` take widgets of yours into its row, a track chooser or a subtitle button. From
+code, `player.setGain(0.5f)` sets the soundtrack's volume, from 0 to 1. Close the player before
+the container, as `Film` does: closing the player joins its decode thread, and after it nothing
+reads the container. A film in two languages has two soundtracks: `media.audioTracks()` lists
+them and `media.audio(index)` opens the one asked for.
+
+**Before it plays.** What a video shows before its first play is its poster: the first picture
+unless you say otherwise, `setPoster(Poster.at(Duration.ofSeconds(12)))` for the picture at a
+time, `Poster.image(image)` for a picture of yours, or `Poster.none()` for the bar colour alone.
+Playback starts from the beginning whichever it is, and an image poster reads nothing from the
+stream until then.
+
+**Subtitles** come out of the container as text and timing, and drawing them is yours, so they can
+be restyled, moved or turned off. `media.subtitleTracks()` lists them,
+`media.selectSubtitles(index)` chooses one (none is chosen when a film opens, whatever the file
+marks as its default), and `media.subtitles().activeAt(time)` answers the cues on screen at the
+player's position, which is what `subtitleLines` above reads. Draw them in a widget stacked over
+the view.
 
 ## 3D
 
 `Viewport3D` renders a scene to a texture and composites it as a 2D layer, so it is another
-ordinary widget:
+ordinary widget: a dialog draws over it and a scroll view clips it. What it draws is its
+renderer's, a callback handed a render pass every frame, and the usual one draws a `Scene3D`,
+which is what a glTF model loads into:
 
-```java
-Viewport3D viewport = new Viewport3D();
-viewport.setRenderer(renderer);
-viewport.setPreferredSize(480, 320);
-viewport.frameContent(model.bounds());
-```
+{% snippet guide:gltf %}
+
+Read that in order:
+
+- **`GltfLoader` reads the model** off the UI thread: `loadAsync(path)`, `fromResourceAsync` for
+  one bundled with the application, or the synchronous `load` for setup code. It reads `.gltf`
+  with its buffers embedded and `.glb`: the node hierarchy, the meshes and the metallic-roughness
+  materials with their textures; skinning and animation are not read. `decodeTexturesAsync`
+  decodes the pictures on the worker pool too.
+- **`toScene3D` uploads it**, inside a frame, since it needs the graphics context: that is why it
+  runs in the renderer, once, when the decoded model has arrived. The `Scene3D` it returns owns
+  what it uploaded, and `dispose()` frees it, which `observeDispose` runs when the viewport leaves
+  its window.
+- **A scene is nodes.** `scene.root()` takes a `MeshNode`, a mesh with a `Material` and a place,
+  and a `LightNode` with a `Light`: `Light.Directional`, `Light.Point` or `Light.Spot`. A
+  material is `Material.Pbr`, metallic-roughness, in most scenes; `Material.Unlit` ignores the
+  lights. `background`, `ambient`, `exposure`, `castShadows` and `environment`, a sky the metals
+  reflect, are the scene's own.
+- **The camera** is `viewport.camera()`: `eye`, `target` and `fovy` place it, and
+  `viewport.frameContent(scene.bounds())` backs it off until the whole model is in the frame. An
+  `OrbitController` circles the target as the pointer drags and zooms with the wheel and with a
+  pinch; a `FlyController` turns the camera where it stands and flies forward and back.
 
 It renders physically-based materials to a linear high-dynamic-range target and applies the
 display transform once, when the result is composited, which is why a bright highlight in
@@ -241,6 +307,15 @@ when something changes, which is what you want for a static model on a laptop ba
 next rendered frame as an `Image`.
 
 {% shot viewport-3d "The 3D viewport, composited into an ordinary window." %}
+
+**A surface of your own.** `Material.Surface` takes a shader written in Java rather than in a
+shading language: `limn.render3d.shader` is a small typed language of `Expr` nodes, and a surface
+is the `SurfaceOutputs` they compute, a base colour, a roughness, an emission and the rest, which
+the backend turns into the shader its graphics API runs. `StandardSurface.metallicRoughness()` is
+the built-in material written that way, and the model for one of your own. An `Expr.Loop` repeats
+a step a bounded number of times, at most `Expr.Loop.MAX_ITERATIONS` (1024), with an optional
+condition that ends it early, so a fractal or a ray marched through a volume is one node; a node
+used in two places is computed once.
 
 ## A file that is not what it claims to be
 
@@ -268,6 +343,11 @@ every size a file claims to what the file can back, so a small file cannot ask f
 heap, and a damaged one is refused. The one exception is video: what the video library
 cannot open arrives as its own `FfmpegException`, since it does not tell a broken file from
 one it does not play.
+
+A file that crashes a reader, hangs it or makes it ask for all of memory is a security bug in
+Limn: report it privately, as
+[SECURITY.md](https://github.com/limn-toolkit/limn-toolkit/blob/main/SECURITY.md) describes, and
+not in a public issue.
 
 **What should come only from you, or from a source you trust:** a font. The library that
 draws a font's outlines checks nothing a font says about itself, and a font made to break it

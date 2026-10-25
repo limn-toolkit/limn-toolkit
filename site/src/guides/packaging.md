@@ -9,10 +9,10 @@ Two things beyond your own code:
 
 1. **The toolkit jars**: `limn-toolkit` and `limn-backend-lwjgl`. The
    dependency block you develop with is the one you ship: the backend declares its native
-   binaries, LWJGL's and the SVG renderer's, for every desktop platform, x64 and ARM alike, so
-   there is no per-platform classifier to remember at packaging time. The JVM loads the slice
-   for the machine it lands on; the rest sit inert. To ship one platform's alone, see
-   [Natives for one platform](#natives-for-one-platform).
+   binaries, LWJGL's, the SVG renderer's and, for Windows and macOS, ANGLE's, for every desktop
+   platform, x64 and ARM alike, so there is no per-platform classifier to remember at packaging
+   time. The JVM loads the slice for the machine it lands on; the rest sit inert. To ship one
+   platform's alone, see [Natives for one platform](#natives-for-one-platform).
 2. **A JDK 17 or newer**, unless you are confident your users already have one. Bundling it
    is usually the right answer for a desktop application.
 
@@ -270,8 +270,11 @@ things to check:
 
 - **Startup on a machine with no JDK installed**, if you bundled one.
 - **The window opens on macOS.** If it exits instantly, the flag did not reach the JVM.
-- **A software-rendering fallback**, if your users might be on a virtual machine or a remote
-  desktop. The toolkit runs against Mesa's software rasteriser; it is slower, and it works.
+- **A machine without a usable OpenGL**, if your users might be on a virtual machine or a remote
+  desktop. On Windows and macOS the backend runs there on OpenGL ES from ANGLE, over Direct3D 11
+  or Metal, which it carries; on Linux it runs against Mesa's software rasteriser. Either is
+  slower than a GPU's own driver, and it works. `-Dlimn.backend.angle=force` takes the ANGLE path
+  on a machine whose OpenGL works, so it can be tried before a user meets it.
 
 When a machine you cannot reach will not start it, ask the machine: `Backend.graphicsInfo()`
 reports the windowing platform, the driver and the graphics context the backend actually

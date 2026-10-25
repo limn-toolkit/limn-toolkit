@@ -1,6 +1,6 @@
 ---
 title: "Menus and dialogs"
-description: "Menu bars, context menus, dialogs and the native file chooser: the parts of a desktop application that leave the window."
+description: "Menu bars, shortcuts and access letters, context menus, dialogs, a window's frame and icon, and the native file chooser: the parts of a desktop application that leave the window."
 ---
 
 ## Menus
@@ -94,6 +94,56 @@ did not use, so `Ctrl+C` in a text field copies from the field whatever your men
 **On macOS, with the bar in the system's, it is the other way around:** the system runs the
 bar's item before your window sees the key. That is why the six editing commands are not
 items you write an action for.
+
+### Access letters
+
+An `&` before a letter marks it as the control's access letter, in the text of a menu title, a
+menu item, a `Button`, a `Checkbox`, a `RadioButton`, and a `Label` that names a control with
+`setLabelFor`, which a `Field`'s caption is. The `&` is not shown, and the letter is underlined
+when the letters are:
+
+```java
+bar.addMenu("&File", file);
+file.addItem("&Open…", this::open);
+Button save = new Button("&Save");
+Checkbox wrap = new Checkbox("&Word wrap");
+Label caption = new Label("&Name").setLabelFor(nameField);
+```
+
+Alt and the letter open the menu bar's menu, press the button, flip the check box, select the
+radio button, or bring the keyboard to the control the label names; in an open menu the item's
+letter alone chooses it. A letter reaches the window, or the topmost modal dialog in it, and never
+the window beneath a modal. The window's own controls come before the menu bar's titles, so the
+form in use wins a letter both have. Where two controls share a letter, each press moves the
+keyboard to the next of them and presses neither, as Windows' own dialogs do, and the toolkit
+logs the duplicate once, so a translator's collision shows up in development. Hidden and
+disabled controls are passed over.
+
+**The letter belongs to the word, so it is in the translated text.** Each translation picks its
+own, "&File" in English and "&Arquivo" in Portuguese, and a change of language moves it. Chinese,
+Japanese and Korean strings carry the English letter in parentheses after the word,
+"ファイル(&F)", as their Windows applications do. `&&` is one ampersand ("R&&D" shows "R&D"), and
+an `&` before anything but a letter or a digit is text, so "Terms & conditions" needs nothing. Only
+the first mark counts; a second is drawn as text and logged. For strings that carry no mark,
+`MenuItem.setMnemonic(char)` and `MenuBar.addMenu(title, letter, menu)` give a letter apart from
+the text, and where the text has a mark, the mark wins. A `Label` not bound to a control, a tab, a
+combo box, a segmented control and an expander take no letter, and show an `&` as written: their
+own keys, Ctrl+Tab, the arrows, typing, already reach them.
+
+**When the letters show.** On Windows and Linux a letter is underlined while Alt is held, and in a
+menu opened from the keyboard, which is what both systems do by default. Where Windows is set to
+underline access keys at all times, `SystemPreferences.current().underlineAccessKeys()` says so
+and the letters stay drawn. macOS has no access letters: there the mark is dropped, a trailing
+"(&F)" with it, and Option with a letter goes on typing its character.
+
+**What a screen reader is told.** The letter is published as the control's access key,
+"Alt+S", as a native control's is: UI Automation's AccessKey on Windows and the key binding on
+Linux. A menu item's is its letter alone, since an open menu takes it without Alt, and its
+shortcut stays beside it. macOS publishes none.
+
+To quote a marked string in a sentence, a status line or a log, read it as its words with
+`I18nString.withoutAccessLetter()`: "&Open" reads "Open" and "名前(&N)" reads "名前", in whichever
+language is in effect when it is read.
 
 ## Undo, cut, copy and paste
 
@@ -357,6 +407,32 @@ it; an answer given that way settles the request, and a late `allow()` or `refus
 nothing. A handler that throws has refused, so the dialog stays open. It works the same in both
 display modes and under less motion, being asked before anything fades.
 
+## A window's frame, and its icon
+
+`WindowConfig.of(title, width, height)` is the ordinary window: the system's title bar and border,
+resizable, opaque, shown at once and taking the keyboard. Each of those is a call on the
+configuration, which answers a copy:
+
+```java
+NativeWindow tools = backend.createWindow(WindowConfig.of("Tools", 240, 420)
+        .floating(true)                  // stays above the application's other windows
+        .resizable(false));
+NativeWindow splash = backend.createWindow(WindowConfig.styled("Starting", 480, 300,
+        WindowStyle.UNDECORATED_TRANSLUCENT, true, false));
+```
+
+`decorated(false)` leaves out the system's frame; `transparent(true)` gives the window a
+transparent framebuffer, so what it draws with an alpha below 1 shows the desktop behind it,
+rounded corners or a translucent panel; `floating(true)` keeps it above the others.
+`WindowConfig.styled` takes them together, the frame and the transparency as a `WindowStyle`
+(`DECORATED`, `UNDECORATED_OPAQUE` or `UNDECORATED_TRANSLUCENT`), then whether it floats and
+whether showing it takes the keyboard. A styled window is created hidden, so place it, then call
+`show()`.
+
+`window.setIcon(images…)` sets the picture in the title bar and the task bar from one or more
+sizes, and the system picks the closest; 16 to 48 pixels covers the usual places. macOS takes the
+application's icon from its bundle instead, and some Wayland compositors ignore a window's own.
+
 ## Closing a window, and ending the application
 
 A window asks its close handler before it closes, and the handler may answer later, which
@@ -423,16 +499,17 @@ To act when any of it changes, whoever did it, observe the window's state:
 
 ```java
 window.observeState(state -> {
-    preferences.put("window", state.bounds());       // its place and size, to open there next time
+    settings.saveWindowBounds(state.bounds());      // your own storage: Limn keeps none
     pause.setEnabled(!state.minimized());
 });
 ```
 
-The listener is told on the UI thread after the window is shown or hidden, minimized, maximized
-or restored, enters or leaves fullscreen, is moved or changes size, with a `WindowState` of all
-of it; `window.state()` and `window.bounds()` answer the same at any time. Under Wayland a
-window is told neither that it is minimized nor where it is, so there `minimized` is `false`
-and the place is the origin.
+`settings` stands for wherever your application keeps what it remembers: the window's place and
+size, saved there, is what opens it in the same place next time. The listener is told on the UI
+thread after the window is shown or hidden, minimized, maximized or restored, enters or leaves
+fullscreen, is moved or changes size, with a `WindowState` of all of it; `window.state()` and
+`window.bounds()` answer the same at any time. Under Wayland a window is told neither that it is
+minimized nor where it is, so there `minimized` is `false` and the place is the origin.
 
 ## Native file dialogs
 

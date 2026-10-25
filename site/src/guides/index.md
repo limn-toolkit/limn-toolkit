@@ -3,7 +3,7 @@ title: "Documentation"
 description: "Everything you need to build a desktop application with Limn: install, layout, forms, theming, and shipping."
 ---
 
-Limn is a UI toolkit for desktop Java. You add two dependencies, write plain Java, and get
+Limn is a UI toolkit for desktop Java. You add one dependency, write plain Java, and get
 a window with your own widgets in it. There is no markup language, no annotation processor
 and no build plugin; a screen is a method that returns a widget.
 
@@ -40,7 +40,11 @@ not have.
 
 [Background work](/docs/background-work/) is the one rule that will bite you if you skip it:
 anything slow goes off the UI thread, and the toolkit gives you a shape for that.
+[Performance](/docs/performance/) says what a frame costs and how to keep it small,
+[Testing](/docs/testing/) drives a screen from a test with no display, and
 [Packaging](/docs/packaging/) turns the result into something you can send someone.
+[Troubleshooting](/docs/troubleshooting/) is where to look when a machine you sent it to will
+not start it, or a message you have not met before appears.
 
 :::note[Looking for the API?]
 Every class, method and parameter is in the [API reference](/api/). This guide explains how

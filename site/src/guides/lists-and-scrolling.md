@@ -307,10 +307,10 @@ publishes a busy state beside them, but no screen reader speaks one, and the "Lo
 deliberately not a row the cursor can stand on, so a reader steps over that as well. The tree
 announces the load instead, in three sentences named after the branch: "Loading *branch*" when a
 lazy load begins, "*branch*, 3 items" when its children arrive, counted in the reader's language,
-and "*branch* empty" when it lands on nothing. Each is polite, so NVDA and Orca say it when they
-finish what they are saying; VoiceOver has no level that waits, so there it is posted high and
-interrupts, since otherwise it is held behind VoiceOver's own hint for seconds. An eager branch
-that runs no load announces nothing.
+and "*branch* empty" when it lands on nothing. Each is polite, so a screen reader on Windows and
+Orca say it when they finish what they are saying; VoiceOver has no level that waits, so there it
+is posted high and interrupts, since otherwise it is held behind VoiceOver's own hint for seconds.
+An eager branch that runs no load announces nothing.
 
 The example overrides `isLeaf` because an entry already knows whether it is a folder; left alone,
 the tree reads `children` and calls a node a leaf only when its children are known and there are

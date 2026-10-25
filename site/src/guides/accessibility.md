@@ -6,10 +6,10 @@ description: "What a screen reader says about a Limn window on Windows, macOS an
 ## What you get without doing anything
 
 A Limn window publishes itself to the platform's own accessibility API: UI Automation on
-Windows, NSAccessibility on macOS and AT-SPI2 on Linux. NVDA, VoiceOver and Orca read it the
-way they read a native application, and your program contains no platform code for that: the
-backend opens the bridge the first time anything asks, and there is nothing to install or
-register.
+Windows, NSAccessibility on macOS and AT-SPI2 on Linux. Screen readers on Windows, VoiceOver and
+Orca read it the way they read a native application, and your program contains no platform code
+for that: the backend opens the bridge the first time anything asks, and there is nothing to
+install or register.
 
 Every widget describes itself. A button is a button, a check box says whether it is checked, a
 slider says its value and its range, a text field says what it holds and where the caret is, a
@@ -94,6 +94,11 @@ description says what is wrong. The asterisk after a required field's caption is
 read: the state says it. A caption, a description or a state given to a date picker lands on the
 field inside it, where the keyboard is.
 
+An access letter, the `&` before a letter in a caption, a button's or a menu item's text, is
+published as the control's access key, "Alt+N", as a native control's is: UI Automation's
+AccessKey on Windows, the key binding on Linux, and nothing on macOS, which has no access letters
+([Access letters](/docs/menus-and-dialogs/#access-letters)).
+
 A picture that the text beside it already describes is decoration. Mark it ignored, and it
 leaves the tree entirely; leave it unmarked and it is published as an image with no name, on
 purpose, so that a check like the one below finds it and the decision is yours.
@@ -169,27 +174,28 @@ transcript above.
 
 ## What readers say
 
-NVDA on Windows, VoiceOver on macOS and Orca on Linux have each been driven over every
-component on this site, a keystroke at a time. They agree on the essentials: a cursor move is
-spoken, a value change is spoken as the new value alone, and moving onto a control says its name,
-its role and its value. The differences below are the reader's and not the toolkit's. The toolkit
-publishes the same facts on all three platforms, so a screen should not depend on any one of them.
+A screen reader on Windows, VoiceOver on macOS and Orca on Linux have each been driven over
+every component on this site, a keystroke at a time; below, "the Windows reader" is the first of
+them. They agree on the essentials: a cursor move is spoken, a value change is spoken as the new
+value alone, and moving onto a control says its name, its role and its value. The differences
+below are the reader's and not the toolkit's. The toolkit publishes the same facts on all three
+platforms, so a screen should not depend on any one of them.
 
-- **A row.** NVDA speaks the level, the name, the state and the position, and in a grid the
-  column. Orca speaks the name and the level, and reads a table row out as its cells in order.
-  VoiceOver speaks the row, its state and how many rows it holds, and in a table the cell and,
-  as the cursor moves along a row, its column.
-- **A position in a set.** Published everywhere. NVDA speaks it unasked. Orca speaks it only
-  when the user has turned on its own position option, which is off by default. VoiceOver never
-  speaks it. Where a row's place carries meaning, draw it as well.
+- **A row.** The Windows reader speaks the level, the name, the state and the position, and in a
+  grid the column. Orca speaks the name and the level, and reads a table row out as its cells in
+  order. VoiceOver speaks the row, its state and how many rows it holds, and in a table the cell
+  and, as the cursor moves along a row, its column.
+- **A position in a set.** Published everywhere. The Windows reader speaks it unasked. Orca speaks
+  it only when the user has turned on its own position option, which is off by default. VoiceOver
+  never speaks it. Where a row's place carries meaning, draw it as well.
 - **A selection change.** VoiceOver says a row was added to or removed from the selection and
   how many rows are selected, none and all included. Orca says a row was selected or unselected,
-  and that all items were selected. NVDA says a list's row is not selected when it leaves, and
-  nothing at a select-all or when Space takes a table's row out from one of its cells, as in
-  Windows' own lists and grids. Where the change is the point of the screen, say it in the
+  and that all items were selected. The Windows reader says a list's row is not selected when it
+  leaves, and nothing at a select-all or when Space takes a table's row out from one of its cells,
+  as in Windows' own lists and grids. Where the change is the point of the screen, say it in the
   interface.
-- **A sort.** NVDA and Orca speak the direction when a header sorts; VoiceOver is given it and
-  does not read it out.
+- **A sort.** The Windows reader and Orca speak the direction when a header sorts; VoiceOver is
+  given it and does not read it out.
 - **A busy state.** Published, and spoken by none of them, which is why a tree announces its
   loads in words ([Lists and scrolling](/docs/lists-and-scrolling/) has the three sentences).
 - **Something out of reach.** A refused day or an unavailable action is said in each reader's
