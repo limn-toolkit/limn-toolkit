@@ -461,6 +461,32 @@ class DocumentTest {
         }
     }
 
+    /**
+     * A table's last page shows no sliver of the row before it. The page lays the table out as tall
+     * as its header and the rows it took, summed from the header down, and the table's rows sum
+     * them again from the top of their box; with rows 32.537 units tall plus their padding, the last
+     * of A5's three pages came out a hundred-thousandth taller than its rows, which read as a scroll
+     * past the end: the previous page's last row was mounted above them, its stripe shown in a band
+     * 0.000015 units tall at the top of the rows.
+     */
+    @Test
+    void aTablesLastPageShowsNoSliverOfTheRowBefore() {
+        List<Order> orders = new ArrayList<>();
+        for (int i = 0; i < 30; i++) {
+            orders.add(new Order(i, "Customer " + i));
+        }
+        Table<Order> table = Table.of(
+                Column.<Order>text("Number", order -> "N" + order.number()).width(120),
+                Column.<Order>widget("Box", order -> new Tall(32.537f)).width(100));
+        table.setRows(orders);
+        List<Recording> pages = Document.of(Paper.A5).add(table).pages();
+        assertEquals(3, pages.size());
+        for (Shown fill : shown(pages)) {
+            assertTrue(fill.foot() - fill.top() >= 0.01f, "page " + fill.page() + " shows a fill "
+                    + (fill.foot() - fill.top()) + " units tall at " + fill.top());
+        }
+    }
+
     @Test
     void writesAPdfFile() throws Exception {
         Path file = Files.createTempFile("limn-document", ".pdf");
