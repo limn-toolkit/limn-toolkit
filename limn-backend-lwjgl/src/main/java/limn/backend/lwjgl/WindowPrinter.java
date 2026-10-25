@@ -59,7 +59,7 @@ final class WindowPrinter implements PrinterPeer {
         };
         try {
             if (PLATFORM.isMacOs()) {
-                MacPrinter.print(window.cocoaWindow(), window.isVisible(), job, done);
+                MacPrinter.print(window::cocoaWindow, window.isVisible(), job, done);
             } else if (PLATFORM.isWindows()) {
                 WindowsPrinter.print(window.nativeHandle(), job, done);
             } else {

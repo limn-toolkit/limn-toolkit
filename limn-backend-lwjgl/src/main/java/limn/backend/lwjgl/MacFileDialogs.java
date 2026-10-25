@@ -21,6 +21,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.LongConsumer;
+import java.util.function.LongSupplier;
 
 import static org.lwjgl.system.MemoryUtil.NULL;
 
@@ -55,8 +57,12 @@ final class MacFileDialogs {
     private static long descriptor = NULL;
     private static long globalBlockIsa = NULL;
 
-    private record Pending(long panel, long owner, WindowFileDialogs.Kind kind, Consumer<List<Path>> answer) {
+    /** {@code owner} answers the sheet's {@code NSWindow} while it lives, {@code NULL} after and for none. */
+    private record Pending(long panel, LongSupplier owner, WindowFileDialogs.Kind kind, Consumer<List<Path>> answer) {
     }
+
+    /** The owner of a panel that opened as a window of its own: none. */
+    static final LongSupplier NO_OWNER = () -> NULL;
 
     private MacFileDialogs() {
     }
@@ -64,14 +70,16 @@ final class MacFileDialogs {
     /**
      * Opens a panel on {@code owner}.
      *
-     * @param nsWindow the owner's {@code NSWindow}
+     * @param owner    the owner's {@code NSWindow} while it lives, and {@code NULL} once it is
+     *                 destroyed ({@link LwjglWindow#cocoaWindow}); asked again after the answer
      * @param onScreen whether the owner is shown, which is what a sheet needs
      * @param answer   the chosen paths, empty when cancelled; called on the UI thread, after the
      *                 event that answered
      * @return whether a panel opened; {@code false} is logged, and the caller answers empty
      */
-    static boolean open(long nsWindow, boolean onScreen, WindowFileDialogs.Kind kind, String title, @Nullable Path initial,
-                        FileDialogs.@Nullable Filter filter, Consumer<List<Path>> answer) {
+    static boolean open(LongSupplier owner, boolean onScreen, WindowFileDialogs.Kind kind, String title,
+                        @Nullable Path initial, FileDialogs.@Nullable Filter filter, Consumer<List<Path>> answer) {
+        long nsWindow = owner.getAsLong();
         try {
             if (!ready()) {
                 return false;
@@ -103,7 +111,7 @@ final class MacFileDialogs {
             MemoryUtil.memPutInt(block + 12, 0);
             MemoryUtil.memPutAddress(block + 16, invoke.address());
             MemoryUtil.memPutAddress(block + 24, descriptor);
-            PENDING.put(block, new Pending(panel, onScreen ? nsWindow : NULL, kind, answer));
+            PENDING.put(block, new Pending(panel, onScreen && nsWindow != NULL ? owner : NO_OWNER, kind, answer));
             if (onScreen && nsWindow != NULL) {
                 ObjC.msgVoid(panel, "beginSheetModalForWindow:completionHandler:", nsWindow, block);
             } else {
@@ -180,24 +188,47 @@ final class MacFileDialogs {
      * application with none: measured, a window whose panel was dismissed stayed the main window
      * and was not the key one, and nothing typed reached it until it was clicked. Asked now and
      * once more after the sheet's own leaving, which is when the system would have refused.
+     *
+     * <p><b>The window is asked for at each ask, never kept.</b> The answer this follows may close
+     * it ({@code document.print(window).thenAccept(r -> window.close())} runs inside the print
+     * panel's answer, after the first ask), and GLFW releases the {@code NSWindow} as it destroys
+     * the window, so a pointer kept for the second ask messaged a freed object 400 ms later.
+     * {@code owner} answers {@code NULL} once the window is destroyed: {@link LwjglWindow#cocoaWindow}
+     * does, its window marked destroyed before GLFW lets go of it, on this thread. Retaining the
+     * {@code NSWindow} for the second ask would not do: it would keep the window's content view
+     * alive past {@code glfwDestroyWindow}, still pointing at GLFW's freed window.
+     *
+     * @param owner the owner's {@code NSWindow} now, or {@code NULL} once it is gone or for none
      */
-    static void giveTheKeyboardBack(long owner) {
-        if (owner == NULL) {
-            return;
-        }
-        Runnable ask = () -> {
-            try {
-                long app = ObjC.msg(ObjC.cls("NSApplication"), "sharedApplication");
-                if (ObjC.msg(app, "keyWindow") == NULL && ObjC.msg(app, "isActive") != 0
-                        && ObjC.msg(owner, "isVisible") != 0 && ObjC.msg(owner, "attachedSheet") == NULL) {
-                    ObjC.msgVoid(owner, "makeKeyWindow");
-                }
-            } catch (RuntimeException error) {
-                LOG.log(Level.DEBUG, "the owner of a file panel was not made the key window again", error);
+    static void giveTheKeyboardBack(LongSupplier owner) {
+        giveTheKeyboardBack(owner, MacFileDialogs::makeKeyWhenNoneIs);
+    }
+
+    /** {@link #giveTheKeyboardBack(LongSupplier)} with what is asked of a live window handed in, for a test. */
+    static void giveTheKeyboardBack(LongSupplier owner, LongConsumer ask) {
+        Runnable once = () -> {
+            long window = owner.getAsLong();
+            if (window != NULL) {
+                ask.accept(window);
             }
         };
-        ask.run();
-        limn.concurrent.Ui.postDelayed(ask, 400);
+        if (owner.getAsLong() == NULL) {
+            return; // no sheet's owner, or one already gone
+        }
+        once.run();
+        limn.concurrent.Ui.postDelayed(once, 400);
+    }
+
+    private static void makeKeyWhenNoneIs(long owner) {
+        try {
+            long app = ObjC.msg(ObjC.cls("NSApplication"), "sharedApplication");
+            if (ObjC.msg(app, "keyWindow") == NULL && ObjC.msg(app, "isActive") != 0
+                    && ObjC.msg(owner, "isVisible") != 0 && ObjC.msg(owner, "attachedSheet") == NULL) {
+                ObjC.msgVoid(owner, "makeKeyWindow");
+            }
+        } catch (RuntimeException error) {
+            LOG.log(Level.DEBUG, "the owner of a panel was not made the key window again", error);
+        }
     }
 
     private static void addPath(List<Path> into, long url) {

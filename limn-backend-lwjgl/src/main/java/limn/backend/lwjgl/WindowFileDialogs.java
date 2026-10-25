@@ -98,7 +98,7 @@ final class WindowFileDialogs implements FileDialogs {
         };
         boolean opened = true;
         if (MACOS) {
-            opened = MacFileDialogs.open(window.cocoaWindow(), window.isVisible(), kind, title, initial,
+            opened = MacFileDialogs.open(window::cocoaWindow, window.isVisible(), kind, title, initial,
                     filter, done);
         } else if (WINDOWS) {
             WindowsFileDialogs.open(window.nativeHandle(), kind, title, initial, filter, done);

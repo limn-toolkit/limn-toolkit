@@ -18,6 +18,7 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 
 import static org.lwjgl.system.MemoryUtil.NULL;
 
@@ -95,7 +96,12 @@ final class MacPrinter {
     private static final Map<Long, Pending> PENDING = new HashMap<>();
     private static long nextContext = 1;
 
-    private record Pending(long operation, long document, long printInfo, long owner,
+    /**
+     * {@code owner} answers the sheet's {@code NSWindow} while it lives and {@code NULL} once it is
+     * destroyed, never a pointer kept from when the sheet opened: see
+     * {@link MacFileDialogs#giveTheKeyboardBack(LongSupplier)}.
+     */
+    private record Pending(long operation, long document, long printInfo, LongSupplier owner,
                            Consumer<PrintResult> done) {
     }
 
@@ -133,12 +139,14 @@ final class MacPrinter {
     /**
      * Shows the print panel for the job, as a sheet on {@code nsWindow} when it is on screen.
      *
-     * @param nsWindow the owner's {@code NSWindow}
+     * @param owner    the owner's {@code NSWindow} while it lives, and {@code NULL} once it is
+     *                 destroyed ({@link LwjglWindow#cocoaWindow}); asked again after the answer
      * @param onScreen whether the owner is shown, which is what a sheet needs
      * @param job      what to print
      * @param done     the answer, called on the UI thread after the event that answered
      */
-    static void print(long nsWindow, boolean onScreen, PrintJob job, Consumer<PrintResult> done) {
+    static void print(LongSupplier owner, boolean onScreen, PrintJob job, Consumer<PrintResult> done) {
+        long nsWindow = owner.getAsLong();
         if (!isAvailable() || !ready()) {
             done.accept(PrintResult.UNAVAILABLE);
             return;
@@ -190,7 +198,8 @@ final class MacPrinter {
         }
 
         long context = nextContext++;
-        Pending pending = new Pending(operation, document, printInfo, onScreen ? nsWindow : NULL, done);
+        Pending pending = new Pending(operation, document, printInfo,
+                onScreen && nsWindow != NULL ? owner : MacFileDialogs.NO_OWNER, done);
         PENDING.put(context, pending);
         if (onScreen && nsWindow != NULL) {
             ObjC.msg(operation, "runOperationModalForWindow:delegate:didRunSelector:contextInfo:", nsWindow,
