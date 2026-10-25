@@ -958,10 +958,6 @@ final class AppScene {
             panel.setVisible(false);
         }
 
-        boolean isOpen() {
-            return open;
-        }
-
         /** Names the widget Escape hands the keyboard back to, when the main one wraps it. */
         void focusHome(Widget<?> widget) {
             this.focusHome = widget;

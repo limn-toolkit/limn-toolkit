@@ -116,10 +116,6 @@ final class GpuShaderScene {
         void speed(float value) {
             speed = Math.max(0, value);
         }
-
-        double time() {
-            return time;
-        }
     }
 
     // --------------------------------------------------------------- the surface

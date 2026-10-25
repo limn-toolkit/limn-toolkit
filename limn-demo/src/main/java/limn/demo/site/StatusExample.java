@@ -14,7 +14,6 @@ import limn.components.Tone;
 import limn.components.table.Column;
 import limn.components.table.Table;
 import limn.concurrent.Ui;
-import limn.scene.Widget;
 import limn.scene.layout.Flex;
 import limn.scene.layout.Row;
 
@@ -135,21 +134,4 @@ final class StatusExample {
                 .setCancelResult("keep");
     }
     // #endregion
-
-    /** Everything above on one page, for a print. */
-    static Widget<?> page() {
-        limn.scene.layout.Column page = new limn.scene.layout.Column();
-        page.gap(16);
-        page.add(actions());
-        Row badges = new Row();
-        badges.gap(8);
-        for (Status status : Status.values()) {
-            badges.add(statusBadge(status));
-        }
-        badges.add(unread(3));
-        page.add(badges);
-        page.add(approvers(List.of("Ana Lima", "Rui Costa", "Mei Chen", "Omar Haddad", "Lena Vogel")));
-        page.add(filterButton(new TextField(), new Checkbox(Checkbox.Variant.BOX, "Overdue only")));
-        return page;
-    }
 }

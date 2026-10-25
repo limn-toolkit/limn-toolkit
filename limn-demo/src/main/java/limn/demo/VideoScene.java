@@ -975,7 +975,7 @@ final class VideoScene {
                 // Over the picture, which is where every player puts it and (in a showcase
                 // tab a couple of hundred points tall) the only place it is visible at all. Below
                 // the picture it lands past the fold, which is the same trap the ordering comment
-                // in tabContent() records for the prose.
+                // in tabContent(float, float, List, boolean) records for the prose.
                 add(transport);
             }
         }
@@ -2354,23 +2354,11 @@ final class VideoScene {
     }
 
     /**
-     * How big the picture box is inside the showcase's Video page.
+     * How big the picture box is in the standalone scene, which has a window to itself.
      *
-     * <p><b>The height is the bounded axis; the width is free.</b> The transport bar is drawn
-     * over the picture's lower edge, so a taller box carries the bar further down the tab body
-     * until the bar is cut in half by it, while the same box made wider costs nothing. That is
-     * why this one grows sideways and the standalone scene, which has a window to itself, grows
-     * both ways. A capture that cannot show a control is not a verification of it, so a change
-     * to the height is checked against the video page rather than guessed:
-     * the bar disappearing from that picture is the symptom, and it is silent.
-     *
-     * <p>Deliberately not 16:9, in both boxes: a picture whose ratio matches its box shows
-     * nothing about letterboxing, and the three fits would all look the same.
+     * <p>Deliberately not 16:9: a picture whose ratio matches its box shows nothing about
+     * letterboxing, and the three fits would all look the same.
      */
-    private static final float TAB_PICTURE_WIDTH = 620;
-    private static final float TAB_PICTURE_HEIGHT = 128;
-
-    /** How big it is in the standalone scene, which has a window to itself. */
     private static final float SCENE_PICTURE_WIDTH = 640;
     private static final float SCENE_PICTURE_HEIGHT = 320;
 
@@ -2409,11 +2397,6 @@ final class VideoScene {
      */
     private static List<Source> pageSources() {
         return List.of(SAMPLE_CLIP, sourcesNamed(List.of("Bars")).get(0));
-    }
-
-    /** the showcase's Video page. */
-    static Widget<?> tabContent() {
-        return tabContent(TAB_PICTURE_WIDTH, TAB_PICTURE_HEIGHT, pageSources(), true);
     }
 
     /** The application's Video page: the same two sources in a picture as tall as the 3D viewport's. */

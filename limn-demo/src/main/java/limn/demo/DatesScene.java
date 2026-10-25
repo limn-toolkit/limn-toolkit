@@ -61,21 +61,12 @@ final class DatesScene {
     record Built(Scene scene, DatePicker picker, CalendarView grid) {
     }
 
-    /** Standalone {@code --scene dates}. */
-    static Scene create(boolean light) {
-        return build(light).scene();
-    }
-
-    /** {@code --scene dates-months} / {@code dates-years}: the two choosers the header climbs to. */
-    static Scene create(boolean light, CalendarView.View view) {
-        return create(light, view, false);
-    }
-
     /**
-     * The same two, with {@code -cursor} giving the grid the keyboard: what a person sees the
-     * instant Ctrl (or Cmd) and Up climb out of the days (2026-09-15). The cell on
-     * show carries the cursor ring from that frame; until that date the chooser was drawn with no
-     * ring at all until the first arrow, so this pair is the render of the change.
+     * {@code --scene dates-months} / {@code dates-years}: the two choosers the header climbs to,
+     * and, with {@code -cursor}, the grid holding the keyboard: what a person sees the instant Ctrl
+     * (or Cmd) and Up climb out of the days (2026-09-15). The cell on show carries the cursor ring
+     * from that frame; until that date the chooser was drawn with no ring at all until the first
+     * arrow, so this pair is the render of the change.
      *
      * @param light  which palette
      * @param view   the chooser to show
@@ -165,7 +156,10 @@ final class DatesScene {
         return scene;
     }
 
-    /** The same, with the picker handed back for the popup capture. */
+    /**
+     * {@code --scene dates}, {@code dates-light} and {@code dates-popup}, with the picker handed
+     * back for the popup capture.
+     */
     static Built build(boolean light) {
         Theme.setCurrent(light ? Theme.light() : Theme.dark());
         // In-scene on purpose: a native popup is a window of its own and is absent from a capture

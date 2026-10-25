@@ -45,10 +45,9 @@ import java.util.List;
  * clears to alpha 0, the premultiplied surface composite, and dynamic
  * mouse-passthrough so empty space stays click-through.
  *
- * <p>Run: {@code ./gradlew :limn-demo:run --args="--gadget [n]"}, or the
- * showcase's "Launch cube" button (each click adds a cube to the shared
- * overlay). Left-drag moves a cube, right-click removes it (the last removal
- * closes the overlay), ESC closes.
+ * <p>Run: {@code ./gradlew :limn-demo:run --args="--gadget [n]"}. Left-drag
+ * moves a cube, right-click removes it (the last removal closes the overlay),
+ * ESC closes.
  * {@code --gadget shot <file.png>} renders one cube head-on, headless, for
  * texture-orientation verification (see {@link #shot}).
  */
@@ -98,45 +97,9 @@ final class CubeGadget {
      */
     static void run(int count, boolean preciseHitTest) {
         try (Backend backend = new LwjglBackend()) {
-            sharedOverlay = spawnOverlay(backend, count);
-            sharedOverlay.preciseHitTest = preciseHitTest;
+            Overlay overlay = spawnOverlay(backend, count);
+            overlay.preciseHitTest = preciseHitTest;
             backend.runEventLoop();
-        }
-    }
-
-    // The overlay every "Launch cube" click feeds. One per process: the demo
-    // runs a single backend; a click after the overlay closed (last cube
-    // removed, ESC) simply builds a fresh one.
-    private static Overlay sharedOverlay;
-
-    /**
-     * "Launch cube": adds one cube to the shared fullscreen
-     * overlay, creating it on the first click (rendering flags inherited from
-     * the launching scene so the partial/debug toggles carry over).
-     */
-    static void spawn(Backend backend, Scene owner) {
-        if (sharedOverlay != null && !sharedOverlay.window.isClosed()) {
-            sharedOverlay.spawn(1);
-            return;
-        }
-        sharedOverlay = spawnOverlay(backend, 1);
-        Scene overlayScene = sharedOverlay.scene();
-        if (owner != null && overlayScene != null) {
-            overlayScene.inheritRenderingFlags(owner);
-        }
-    }
-
-    /**
-     * "Clear cubes": closes the shared overlay (every cube at
-     * once) if one is open. (ESC or right-clicking the last cube does the
-     * same from the overlay itself.)
-     */
-    static void closeOverlay() {
-        if (sharedOverlay != null) {
-            if (!sharedOverlay.window.isClosed()) {
-                sharedOverlay.window.requestClose();
-            }
-            sharedOverlay = null; // next "Launch cube" builds a fresh swarm
         }
     }
 
@@ -598,11 +561,6 @@ final class CubeGadget {
                 window.requestClose(); // nothing left to show
             }
             viewport.invalidate();
-        }
-
-        /** Adds {@code n} more cubes on the next frame (the "Launch cube" button). */
-        void spawn(int n) {
-            pendingSpawns += n;
         }
 
         /**

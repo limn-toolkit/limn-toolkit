@@ -7,7 +7,6 @@ import limn.components.TextField;
 import limn.components.Theme;
 import limn.graphics.Font;
 import limn.graphics.Fonts;
-import limn.scene.Scene;
 import limn.scene.Widget;
 import limn.scene.layout.Column;
 import limn.scene.layout.Flex;
@@ -30,11 +29,6 @@ final class FontsScene {
     }
 
     private FontsScene() {
-    }
-
-    /** The tab/scene body (the showcase uses this). */
-    static Widget<?> content() {
-        return build().widget();
     }
 
     /** Builds the body and exposes the editable field + its insert action. */
@@ -95,11 +89,6 @@ final class FontsScene {
     /** One "Name: sample text" line with a muted script label. */
     private static Widget<?> sample(String script, String text) {
         return new Label(script + ":  " + text).setFont(Theme.current().body());
-    }
-
-    static Scene create(boolean lightTheme) {
-        Theme.setCurrent(lightTheme ? Theme.light() : Theme.dark());
-        return new Scene(content());
     }
 
     /**

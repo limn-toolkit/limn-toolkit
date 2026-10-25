@@ -69,17 +69,6 @@ public final class TreeExample {
         }
     }
 
-    /** The sample tree the guide shows. */
-    public static Tree<Entry> tree(Label status) {
-        List<Entry> roots = List.of(
-                Entry.folder("src",
-                        Entry.folder("main", Entry.file("App.java"), Entry.file("Window.java")),
-                        Entry.folder("test", Entry.file("AppTest.java"))),
-                Entry.unread("build"),
-                Entry.file("README.md"));
-        return tree(roots, status);
-    }
-
     // #region guide:tree
     /**
      * A tree over the application's own objects: roots, a children provider, and a cell widget.
