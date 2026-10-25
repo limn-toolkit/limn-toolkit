@@ -714,10 +714,11 @@ final class FontStore implements AutoCloseable {
      *
      * <p>{@code whenResident} runs on the UI thread, on a later frame, once the
      * faces are resident; or, having loaded nothing, when the family is a
-     * bundled one, is already resident, or is unknown to the operating system.
-     * It never runs synchronously, so a caller may flip its own state inside it
-     * without re-entering this. It does not run at all if the store is closed
-     * first; the faces the load produced are then freed on a worker thread.
+     * bundled one, is already resident, is unknown to the operating system, or
+     * is a blank name. It runs once and never synchronously, so a caller may
+     * flip its own state inside it without re-entering this. It does not run at
+     * all if the store is closed first; the faces the load produced are then
+     * freed on a worker thread.
      *
      * <p>The load is idempotent and cannot be withdrawn: two requests for one
      * family share a single file read, and what a read produces goes into the
@@ -732,7 +733,8 @@ final class FontStore implements AutoCloseable {
      * bold is what a UI needs on the frame after a switch.
      *
      * @param family       the family name, matched case-insensitively;
-     *                     {@code null} or blank does nothing at all
+     *                     {@code null} or blank reads nothing and is answered
+     *                     on a later frame, as every other answer is
      * @param whenResident run on the UI thread when the faces are resident, or
      *                     {@code null} for no callback
      */
@@ -740,10 +742,13 @@ final class FontStore implements AutoCloseable {
         limn.concurrent.Ui.checkUiThread();
         Runnable done = whenResident == null ? () -> { } : whenResident;
         String key = family == null ? "" : family.toLowerCase(Locale.ROOT).trim();
-        if (closed || key.isEmpty() || !limn.concurrent.Ui.isInstalled()) {
+        if (closed || !limn.concurrent.Ui.isInstalled()) {
             return;
         }
-        if (byFamily.containsKey(key)) {
+        if (key.isEmpty() || byFamily.containsKey(key)) {
+            // A blank name names nothing to read, and FontLoader.preload answers "nothing to read"
+            // like any other answer: once, on a later turn.
+            //
             // Bundled: resolve takes the bundled face before any system face of the same name, so
             // reading the system's copy (Roboto is installed on many Linux desktops) would fill
             // the resident set with faces nothing draws, and waiting for the enumeration to learn

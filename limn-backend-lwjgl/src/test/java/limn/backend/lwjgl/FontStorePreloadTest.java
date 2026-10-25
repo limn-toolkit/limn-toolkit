@@ -124,13 +124,15 @@ class FontStorePreloadTest {
     }
 
     @Test
-    void anEmptyFamilyDoesNothingAtAll() {
+    void anEmptyFamilyReadsNothingAndIsStillAnsweredOnALaterFrame() {
         try (FontStore store = new FontStore()) {
             AtomicInteger answers = new AtomicInteger();
             store.preloadFamily(null, answers::incrementAndGet);
             store.preloadFamily("   ", answers::incrementAndGet);
+            assertEquals(0, answers.get(), "never inline, even with nothing to read");
             runtime.drain();
-            assertEquals(0, answers.get());
+            assertEquals(2, answers.get(),
+                    "a loader answers once when there is nothing to read, as FontLoader.preload says");
             assertFalse(store.systemScanRequested(), "nothing to look for, nothing to enumerate");
         }
     }
