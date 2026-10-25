@@ -235,7 +235,7 @@ export const zhHant: Catalog = {
     "預設字型 Roboto 採用 Apache-2.0。用於其他文字與表情符號的 Noto 遞補字型，以及選單用來書寫快速鍵的小型符號字型，以 SIL Open Font License 1.1 散布。選用的圖示套件 <code>limn-icons-tabler</code> 採用 MIT。每個隨附元件及其授權都列在專案的 NOTICE 檔案中。",
   "licence.mp3.heading": "MP3 解碼採用 LGPL",
   "licence.mp3.body":
-    "MP3 支援來自 JLayer，它是 LGPL-2.1，未經修改地使用，並作為一個獨立的 jar 保存在音訊解碼介面之後。只排除這一個相依套件，WAV 與 Ogg Vorbis 照常可用，不過後端仍帶有上文提到的 LGPL 音訊輸出 OpenAL Soft。",
+    "MP3 支援來自 JLayer，它是 LGPL-2.1，未經修改地使用，並作為一個獨立的 jar 保存在音訊解碼介面之後。只排除這一個相依套件，失去的只有 MP3：MP3 屆時會作為後端不讀取的格式被拒絕，WAV 與 Ogg Vorbis 照常可用。這樣去掉的是一個 LGPL 元件，而不是全部：後端仍帶有上文提到的 LGPL 音訊輸出 OpenAL Soft。",
   "licence.ffmpeg.heading": "FFmpeg 影片，以及隨之散布的東西",
   "licence.ffmpeg.body":
     "選用的影片解碼器支援 MP4 與 Matroska 中的 H.264、HEVC、VP9 與 VP8，動態連結一份精簡的 FFmpeg，以 LGPL-2.1-或更高版本 建置。<b>它的原生庫是一個獨立的構件 <code>limn-ffmpeg-natives</code>，每個桌面目標一個 classifier，另有 <code>limn-video-ffmpeg-natives-all</code> 列出全部，作為涵蓋所有平台的整套依賴</b>，因此包含 <code>limn-video-ffmpeg</code> 及這些庫的散布就是在散布 FFmpeg，而這些 jar 各自帶著授權條款全文與必要的聲明。它們是動態連結且可替換的，這正是該授權的要求。沒有別的東西依賴這個模組：拿掉它，其他媒體格式照舊運作。",

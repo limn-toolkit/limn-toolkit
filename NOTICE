@@ -158,12 +158,14 @@ JLayer 1.0.1 (javazoom:jlayer), for MP3 decoding
   anyone can replace by re-packing the jar, with the licence text beside them
   at META-INF/licenses/LGPL-2.1.txt.
 
-  It is a required runtime dependency of limn-backend-lwjgl as built: the
-  backend's one audio decoder, which reads WAV and Ogg Vorbis as well as MP3,
-  links against JLayer's classes, and the backend constructs that decoder when
-  it starts, so a build that excludes the jar fails with NoClassDefFoundError
-  rather than losing MP3 alone. Excluding it would not leave the backend free of
-  LGPL code in any case: OpenAL Soft, above, is LGPL too.
+  It is an ordinary runtime dependency of limn-backend-lwjgl, so an application
+  decodes MP3 unless it excludes the jar, and one that excludes it loses MP3
+  alone. The backend names JLayer's classes in one source file, whose classes
+  are loaded only to decode an MP3; without the jar an MP3 is refused as any
+  format the backend does not read is, with an UnsupportedOperationException
+  naming the jar, and WAV and Ogg Vorbis decode as before. Excluding it removes
+  one LGPL component, not every one: OpenAL Soft, above, is LGPL too, and the
+  backend always ships it.
 
 JUnit 6: JUnit Jupiter and the JUnit Platform (test-only, not distributed)
   Eclipse Public License 2.0: https://www.eclipse.org/legal/epl-2.0/

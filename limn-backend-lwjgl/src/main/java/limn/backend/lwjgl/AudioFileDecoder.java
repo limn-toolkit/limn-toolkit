@@ -24,9 +24,12 @@ import static org.lwjgl.stb.STBVorbis.stb_vorbis_open_memory;
  *   <li><b>WAV</b> (uncompressed RIFF/PCM: 8/16/24-bit integer or 32-bit float,
  *       mono/stereo), parsed here;</li>
  *   <li><b>Ogg Vorbis</b>, decoded with stb_vorbis;</li>
- *   <li><b>MP3</b>, decoded with JLayer (pure Java, no natives; LGPL jar).</li>
+ *   <li><b>MP3</b>, decoded with JLayer (pure Java, no natives; LGPL jar) in
+ *       {@link Mp3Decoder}, the one class that names it.</li>
  * </ul>
- * MP4/AAC are rejected with a clear message: no bundled decoder handles them.
+ * MP4/AAC are rejected with a clear message: no bundled decoder handles them. So is MP3 when an
+ * application has excluded JLayer, an ordinary dependency it may leave out: the message names the
+ * jar, and WAV and Ogg Vorbis decode without it.
  *
  * <p>A WAV or Ogg Vorbis at a sample rate above {@link OpenAlAudio#MAX_SAMPLE_RATE}
  * is refused with {@link UnsupportedOperationException}, whole or streamed:
@@ -35,17 +38,6 @@ import static org.lwjgl.stb.STBVorbis.stb_vorbis_open_memory;
  * format has no rate above 48 kHz.
  */
 final class AudioFileDecoder implements AudioDecoder {
-
-    static {
-        // jlayer, the MP3 decoder, has no module name and so sits on the class path, which a named
-        // module does not read unless it says so. Said here, before any line that names a jlayer
-        // class is linked; on the class path this module is unnamed and reads everything already.
-        Module self = AudioFileDecoder.class.getModule();
-        ClassLoader loader = AudioFileDecoder.class.getClassLoader();
-        if (self.isNamed() && loader != null) {
-            self.addReads(loader.getUnnamedModule());
-        }
-    }
 
     /**
      * Decodes {@code fileBytes} fully into 16-bit PCM on the calling thread:
@@ -57,7 +49,8 @@ final class AudioFileDecoder implements AudioDecoder {
      *
      * @param fileBytes the encoded file; at least 12 bytes, enough to identify
      * @throws limn.io.MalformedContentException if the bytes are too few or malformed
-     * @throws UnsupportedOperationException if no bundled decoder handles them
+     * @throws UnsupportedOperationException if no bundled decoder handles them, an MP3 among
+     *                                       them when JLayer was left out
      */
     @Override
     public AudioClip decode(byte[] fileBytes) {
@@ -71,7 +64,8 @@ final class AudioFileDecoder implements AudioDecoder {
             return decodeOgg(fileBytes);
         }
         if (isMp3(fileBytes)) {
-            return decodeMp3(fileBytes);
+            requireJlayer("cannot decode MP3");
+            return Mp3Decoder.decode(fileBytes);
         }
         throw new UnsupportedOperationException(
                 "unsupported audio format (" + sniff(fileBytes) + "); this backend decodes "
@@ -278,7 +272,8 @@ final class AudioFileDecoder implements AudioDecoder {
      *       compressed, and that is what streaming buys: the decoded form would
      *       be an order of magnitude larger.</li>
      *   <li><b>MP3</b>: reads the whole encoded file and decodes its first
-     *       frame to learn the channel count and sample rate.</li>
+     *       frame to learn the channel count and sample rate. When JLayer was
+     *       left out, refused as unsupported with only the 12 bytes sniffed read.</li>
      * </ul>
      * So for two of the three formats this is a full file read plus a decode
      * before it returns, which is a frozen window if it happens on the UI
@@ -311,7 +306,8 @@ final class AudioFileDecoder implements AudioDecoder {
             return new OggStreamSource(file);
         }
         if (isMp3(head)) {
-            return new Mp3StreamSource(file);
+            requireJlayer("cannot stream " + file);
+            return new Mp3Decoder.StreamSource(file);
         }
         throw new UnsupportedOperationException(
                 "cannot stream " + file + " (" + sniff(head) + "); streaming supports "
@@ -560,9 +556,52 @@ final class AudioFileDecoder implements AudioDecoder {
     }
 
     // ------------------------------------------------------------------ MP3
-    // Decoded with JLayer (javazoom): pure Java, no natives, LGPL jar. The
-    // decoder is frame-based (~26 ms / 1152 samples per MPEG frame), which
-    // maps directly onto both the full decode and the streaming source.
+    // Recognised here and decoded in Mp3Decoder, with JLayer (javazoom): pure Java, no natives,
+    // LGPL jar. No line of this class names a JLayer class, so it links without the jar.
+
+    /** The JLayer class asked for to learn whether the jar is there: the decoder every MP3 needs. */
+    private static final String JLAYER_PROBE = "javazoom.jl.decoder.Decoder";
+
+    /**
+     * Whether JLayer is there to decode MP3 with, asked once, the first time an MP3 is: by name, of
+     * this class's own loader, which neither links nor initializes it. An application may exclude
+     * the jar, an ordinary dependency of this backend, and then nothing of {@link Mp3Decoder} is
+     * loaded.
+     */
+    private static final class Jlayer {
+        static final boolean PRESENT = present();
+
+        private static boolean present() {
+            Class<?> decoder;
+            try {
+                decoder = Class.forName(JLAYER_PROBE, false, AudioFileDecoder.class.getClassLoader());
+            } catch (ClassNotFoundException | LinkageError absent) {
+                return false;
+            }
+            // jlayer has no module name and so sits on the class path, which a named module does not
+            // read unless it says so; said here, before Mp3Decoder links a single jlayer class. On
+            // the class path this module is unnamed and reads everything already.
+            Module self = AudioFileDecoder.class.getModule();
+            if (self.isNamed()) {
+                self.addReads(decoder.getModule());
+            }
+            return true;
+        }
+    }
+
+    /**
+     * Refuses an MP3 the way any format this decoder does not read is refused, when JLayer was left
+     * out, naming the jar that would read it.
+     *
+     * @param what what cannot be done, which starts the message
+     * @throws UnsupportedOperationException if JLayer is not there
+     */
+    private static void requireJlayer(String what) {
+        if (!Jlayer.PRESENT) {
+            throw new UnsupportedOperationException(what + " without JLayer (javazoom:jlayer), which "
+                    + "is not on the class path; this backend decodes WAV and Ogg Vorbis without it");
+        }
+    }
 
     /** ID3v2 tag or a bare MPEG audio sync word. */
     private static boolean isMp3(byte[] b) {
@@ -599,7 +638,8 @@ final class AudioFileDecoder implements AudioDecoder {
         return (int) end;
     }
 
-    private static java.io.InputStream audioAfterTag(byte[] bytes) {
+    /** The bytes of an MP3 from {@link #audioStart}, which is what the decoder is handed. */
+    static java.io.InputStream audioAfterTag(byte[] bytes) {
         int start = audioStart(bytes);
         return new java.io.ByteArrayInputStream(bytes, start, bytes.length - start);
     }
@@ -613,177 +653,12 @@ final class AudioFileDecoder implements AudioDecoder {
     static final int MAX_DECODED_SAMPLES = 1 << 28;
 
     /** The next size of a growing sample array, refused past the ceiling. */
-    private static int grown(int current, int needed, String format) {
+    static int grown(int current, int needed, String format) {
         if (needed > MAX_DECODED_SAMPLES) {
             throw new UnsupportedOperationException(format + " decodes to more than " + MAX_DECODED_SAMPLES
                     + " samples, too long to decode whole: stream it");
         }
         return (int) Math.min(MAX_DECODED_SAMPLES, Math.max((long) current * 2, needed));
-    }
-
-    private static AudioClip decodeMp3(byte[] bytes) {
-        javazoom.jl.decoder.Bitstream bitstream =
-                new javazoom.jl.decoder.Bitstream(audioAfterTag(bytes));
-        javazoom.jl.decoder.Decoder decoder = new javazoom.jl.decoder.Decoder();
-        short[] pcm = new short[1 << 16];
-        int used = 0;
-        int channels = 0;
-        int sampleRate = 0;
-        try {
-            while (true) {
-                javazoom.jl.decoder.Header header = bitstream.readFrame();
-                if (header == null) {
-                    break;
-                }
-                javazoom.jl.decoder.SampleBuffer frame =
-                        (javazoom.jl.decoder.SampleBuffer) decoder.decodeFrame(header, bitstream);
-                if (channels == 0) {
-                    channels = frame.getChannelCount();
-                    sampleRate = frame.getSampleFrequency();
-                }
-                int length = frame.getBufferLength();
-                if (used + length > pcm.length) {
-                    pcm = java.util.Arrays.copyOf(pcm, grown(pcm.length, used + length, "MP3"));
-                }
-                // The decoder REUSES its output buffer; copy before the next frame.
-                System.arraycopy(frame.getBuffer(), 0, pcm, used, length);
-                used += length;
-                bitstream.closeFrame();
-            }
-            bitstream.close();
-        } catch (javazoom.jl.decoder.JavaLayerException | RuntimeException error) {
-            // The decoder is a library's: on damaged frames it also throws what it never
-            // declared, an index past one of its own tables, and that is the file's fault too.
-            if (error instanceof UnsupportedOperationException tooLong) {
-                throw tooLong;
-            }
-            throw new MalformedContentException("audio", "malformed MP3", error);
-        }
-        if (channels == 0 || used == 0) {
-            throw new MalformedContentException("audio", "MP3 contains no decodable audio frames");
-        }
-        return AudioClip.of(java.util.Arrays.copyOf(pcm, used - used % channels),
-                channels, sampleRate);
-    }
-
-    /**
-     * JLayer frame-by-frame reader; the ENCODED bytes stay in memory (a few MB)
-     * and decoding happens per MPEG frame with a small carry buffer. Reset
-     * reopens the bitstream over the same bytes.
-     */
-    static final class Mp3StreamSource implements limn.sound.AudioStreamSource {
-        private final byte[] encoded;
-        private javazoom.jl.decoder.Bitstream bitstream;
-        private javazoom.jl.decoder.Decoder decoder;
-        private final int channels;
-        private final int sampleRate;
-        private short[] carry = new short[2304]; // one MPEG frame, stereo
-        private int carryLen;
-        private int carryPos;
-        private boolean ended;
-
-        Mp3StreamSource(java.nio.file.Path file) {
-            encoded = limn.io.Resources.bytes(file, "MP3 stream");
-            openBitstream();
-            // Prime the first frame: validates the file and learns the format
-            // before playStream asks for channels()/sampleRate().
-            if (!decodeIntoCarry()) {
-                close();
-                throw new MalformedContentException("audio", "MP3 contains no decodable audio frames: " + file);
-            }
-            channels = primedChannels;
-            sampleRate = primedRate;
-        }
-
-        private int primedChannels;
-        private int primedRate;
-
-        private void openBitstream() {
-            bitstream = new javazoom.jl.decoder.Bitstream(audioAfterTag(encoded));
-            decoder = new javazoom.jl.decoder.Decoder();
-            ended = false;
-        }
-
-        /** Decodes ONE MPEG frame into the carry buffer. @return false at EOF. */
-        private boolean decodeIntoCarry() {
-            if (ended || bitstream == null) {
-                return false;
-            }
-            try {
-                javazoom.jl.decoder.Header header = bitstream.readFrame();
-                if (header == null) {
-                    ended = true;
-                    return false;
-                }
-                javazoom.jl.decoder.SampleBuffer frame =
-                        (javazoom.jl.decoder.SampleBuffer) decoder.decodeFrame(header, bitstream);
-                primedChannels = frame.getChannelCount();
-                primedRate = frame.getSampleFrequency();
-                int length = frame.getBufferLength();
-                if (carry.length < length) {
-                    carry = new short[length];
-                }
-                System.arraycopy(frame.getBuffer(), 0, carry, 0, length);
-                carryLen = length;
-                carryPos = 0;
-                bitstream.closeFrame();
-                return length > 0;
-            } catch (javazoom.jl.decoder.JavaLayerException | RuntimeException error) {
-                ended = true; // best-effort: a corrupt tail ends the stream, whatever the decoder threw
-                return false;
-            }
-        }
-
-        @Override
-        public int channels() {
-            return channels;
-        }
-
-        @Override
-        public int sampleRate() {
-            return sampleRate;
-        }
-
-        @Override
-        public int readFrames(short[] out, int maxFrames) {
-            int wanted = maxFrames * channels;
-            int written = 0;
-            while (written < wanted) {
-                if (carryPos >= carryLen && !decodeIntoCarry()) {
-                    break;
-                }
-                int chunk = Math.min(wanted - written, carryLen - carryPos);
-                System.arraycopy(carry, carryPos, out, written, chunk);
-                carryPos += chunk;
-                written += chunk;
-            }
-            return written / channels;
-        }
-
-        @Override
-        public void reset() {
-            closeBitstream();
-            openBitstream();
-            carryLen = 0;
-            carryPos = 0;
-        }
-
-        @Override
-        public void close() {
-            closeBitstream();
-        }
-
-        private void closeBitstream() {
-            if (bitstream != null) {
-                try {
-                    bitstream.close();
-                } catch (javazoom.jl.decoder.JavaLayerException ignored) {
-                    // releasing on shutdown: nothing actionable
-                }
-                bitstream = null;
-                decoder = null;
-            }
-        }
     }
 
     // -------------------------------------------------------------- sniffing

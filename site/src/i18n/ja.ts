@@ -236,7 +236,7 @@ export const ja: Catalog = {
     "既定のフォントである Roboto は Apache-2.0 です。ほかの文字体系と絵文字のための Noto のフォールバックフォント、そしてメニューがショートカットを書くのに使う小さな記号フォントは、SIL Open Font License 1.1 で配布されています。オプションのアイコンパック <code>limn-icons-tabler</code> は MIT です。同梱コンポーネントはすべて、ライセンスとともにプロジェクトの NOTICE ファイルに記載しています。",
   "licence.mp3.heading": "MP3 のデコードは LGPL",
   "licence.mp3.body":
-    "MP3 対応は LGPL-2.1 の JLayer によるもので、改変せずに使い、音声デコーダーのインターフェイスの背後に独立した jar として保たれています。この依存だけを除外しても WAV と Ogg Vorbis はそのまま動きますが、バックエンドには上で触れた LGPL の音声出力、OpenAL Soft が残ります。",
+    "MP3 対応は LGPL-2.1 の JLayer によるもので、改変せずに使い、音声デコーダーのインターフェイスの背後に独立した jar として保たれています。この依存だけを除外して失われるのは MP3 だけです。MP3 はバックエンドが読まない形式として拒否され、WAV と Ogg Vorbis はそのまま動きます。それで外れる LGPL のコンポーネントは一つで、すべてではありません。バックエンドには上で触れた LGPL の音声出力、OpenAL Soft が残ります。",
   "licence.ffmpeg.heading": "FFmpeg による動画と、一緒に配布されるもの",
   "licence.ffmpeg.body":
     "任意の動画デコーダは、MP4 と Matroska の H.264、HEVC、VP9、VP8 を扱い、削り込んだ FFmpeg を LGPL-2.1-or-later として動的にリンクします。<b>そのネイティブライブラリは独立したアーティファクト <code>limn-ffmpeg-natives</code> で、デスクトップ対象ごとに 1 つの classifier があり、どこにでも配れる一括版として <code>limn-video-ffmpeg-natives-all</code> がそのすべてを指定します</b>。したがって <code>limn-video-ffmpeg</code> とそれらのライブラリを含む配布物は FFmpeg を配布していることになり、それぞれの jar がライセンス本文と必要な告知を併せて運びます。動的リンクで差し替え可能であり、それがこのライセンスの求めるところです。この module に依存しているものは他にありません。外してしまえば、ほかのメディア形式はすべてそのまま動きます。",

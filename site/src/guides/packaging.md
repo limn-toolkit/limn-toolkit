@@ -246,7 +246,10 @@ kinds of jar still need a word:
   The SVG renderer's natives and ANGLE's need neither: each platform's jar has a module name of
   its own.
 - **jlayer**, the MP3 decoder. It has no module name, and the backend reads it from the class
-  path, which is where Gradle puts it.
+  path, which is where Gradle puts it. It is LGPL, and an application may leave it out with
+  `exclude(group = "javazoom", module = "jlayer")` on the backend's dependency and lose MP3
+  alone: an MP3 is then refused with an `UnsupportedOperationException`, and WAV and Ogg Vorbis
+  decode as before.
 
 **Your own resources.** On the module path, a module's resources are private to it. The
 toolkit can still load one by name, with `Images.fromResource` or `PropertyBundle.family`, in

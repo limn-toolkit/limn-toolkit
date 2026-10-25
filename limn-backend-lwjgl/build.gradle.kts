@@ -72,7 +72,9 @@ dependencies {
     // never takes that path: the host-natives table and the POMs know one shape, and the slice is small.
     implementation(libs.lwjgl.opengles)
     // MP3 decoding: JLayer is pure Java (no natives), the classic javazoom
-    // decoder. NOTE: LGPL-licensed, kept as an isolated jar dependency.
+    // decoder. NOTE: LGPL-licensed, kept as an isolated jar dependency that an application may
+    // exclude: only Mp3Decoder names its classes, so without it MP3 is refused as unsupported and
+    // WAV and Ogg Vorbis decode as before (AudioFileDecoderWithoutJlayerTest).
     implementation(libs.jlayer)
 
     val lwjglVersion = libs.versions.lwjgl.get()

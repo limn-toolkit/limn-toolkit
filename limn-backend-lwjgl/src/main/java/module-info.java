@@ -5,7 +5,8 @@
  * <p>Only {@code limn.backend.lwjgl} is exported; the bridges and the native helpers in
  * {@code limn.backend.lwjgl.internal} are this module's own. jlayer, the
  * MP3 decoder, has no module name and belongs on the class path, which this module reads for it
- * ({@code AudioFileDecoder}).
+ * when it is there ({@code AudioFileDecoder}). Nothing here requires it: an application may exclude
+ * it and lose MP3 alone.
  */
 module limn.backend.lwjgl {
     requires transitive limn.toolkit;

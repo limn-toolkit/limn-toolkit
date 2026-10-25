@@ -425,6 +425,11 @@ Maven Central say which number that was.
 - A range `DatePicker` clears the period in its grid when one end is cleared.
 - VoiceOver's point lookup answers the sibling painted on top where two overlap, and skips a child
   that is not showing, as Windows and AT-SPI already did.
+- An application that excludes JLayer (`javazoom:jlayer`), the LGPL MP3 decoder, starts and
+  loses MP3 alone, as NOTICE said it could. The backend's audio decoder caught one of JLayer's
+  exception types, so it could not be loaded without the jar, and `new LwjglBackend()` threw
+  `NoClassDefFoundError`. An MP3 is now refused with an `UnsupportedOperationException` that names
+  the jar, and WAV and Ogg Vorbis decode as before, on the class path and the module path.
 - An MP3 whose ID3v2 tag claims more bytes than the file holds is refused before anything is
   allocated. Sixteen bytes made the decoder allocate 268 MB, and a looping stream again per loop.
 - A WAV with no format chunk, no channels or no data throws `IllegalArgumentException` as a
