@@ -119,9 +119,10 @@ success.
   means one sets the palette while the other paints. One driver, one list.
 - A still whose subject exists only after a gesture is posed, not built open: `Poses` right-clicks
   the popup-menu entry's list after the first frame, and the warm-up settles the menu. The scene
-  stays the code a reader copies. `PopupMenu` opens nothing on a window that reports no display,
-  `IN_SCENE` included, and a run on a Mac on 2026-10-25 saw no monitor through GLFW with its
-  screen on; the pose fails the capture there rather than publish a list under a menu's name.
+  stays the code a reader copies. A right-click that opens nothing fails the capture rather than
+  publish a list under a menu's name. A run on a Mac on 2026-10-25 failed so: GLFW listed no
+  monitor in it with the screen on, and `PopupMenu` then opened nothing on a window that reports
+  no display, `IN_SCENE` included. It draws in the scene there now, and that run captures.
 - The frame loop renders as fast as it can, so wall-clock time barely advances and warmup frames do
   not settle an animation; gallery scenes step `Scene`'s injectable clock a fixed 20 ms per read.
   The performance footer is the opposite case: it latches on a once-per-second wall-clock heartbeat,

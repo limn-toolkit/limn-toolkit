@@ -18,8 +18,9 @@ import limn.testing.HeadlessWindow;
 import limn.testing.NoopCanvas;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -43,7 +44,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * could tell: the still is drawn, the manifest is satisfied.
  *
  * <p>The driver runs as it does in {@code Gallery.main}, over a headless window whose renderer
- * hands back a drawn capture, with the transcript keeper the capture installs as its bridge.
+ * hands back a drawn capture, with the transcript keeper the capture installs as its bridge. And
+ * once over the same window reporting no display, as a capture's window does where the windowing
+ * system lists no monitor: a run on a Mac on 2026-10-25 had one, and the pose failed it there, a
+ * menu opening nothing over such a window until that day.
  */
 class GalleryPoseTest {
 
@@ -76,8 +80,10 @@ class GalleryPoseTest {
         ui.close();
     }
 
-    @Test
-    void thePopupMenuCardIsCapturedWithTheRightClicksMenuOpenInTheCapturedWindow() throws IOException {
+    @ParameterizedTest(name = "reports a display: {0}")
+    @ValueSource(booleans = {true, false})
+    void thePopupMenuCardIsCapturedWithTheRightClicksMenuOpenInTheCapturedWindow(
+            boolean reportsDisplay) throws IOException {
         HeadlessBackend backend = new HeadlessBackend(runtime);
         HeadlessWindow inner = backend.open("Limn UI: gallery", WIDTH, HEIGHT);
         Gallery.TreeKeeper keeper = new Gallery.TreeKeeper();
@@ -91,6 +97,10 @@ class GalleryPoseTest {
                     }
                     if (method.getName().equals("accessibility") && method.getParameterCount() == 0) {
                         return keeper; // what Gallery.main installs, so the transcript is written
+                    }
+                    if (!reportsDisplay && method.getName().equals("display")
+                            && method.getParameterCount() == 0) {
+                        return null; // no monitor listed
                     }
                     try {
                         return method.invoke(inner, args);
