@@ -627,6 +627,12 @@ Maven Central say which number that was.
 
 ### New
 
+- A window that draws no frames, covered on macOS or minimized, still finishes the toolkit's own
+  fades: a dialog dismissed by code completes its `result()`, an overlay fading out is removed, a
+  popup's window closes. They waited for the user to look at the window again. While a wall-time
+  animation runs in a window, the scene checks every quarter of a second whether frames come, and
+  advances those animations without one when they do not; the application's own scene-time
+  animation waits for frames, as before.
 - Typed `clear…()` methods beside the setters whose `null` takes something away but does not
   compile, because `null` fits two of their overloads: `Card.clearTitle`, `clearSubtitle` and
   `clearMedia`, `Expander.clearSummary`, `Field.clearLabel` and `clearHelperText`, `clearEmptyMessage`

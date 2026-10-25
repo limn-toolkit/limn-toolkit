@@ -4410,6 +4410,54 @@ public final class Scene {
         Objects.requireNonNull(ticker);
         realTimeTickers.add(ticker);
         addTicker(ticker);
+        armFramelessWatch();
+    }
+
+    /**
+     * How long wall-time tickers may go without a frame before they are advanced without one.
+     * A window that is covered (macOS skips its frames) or minimized renders nothing, and a fade
+     * that completes a dialog's result or removes an overlay then waited for the user to look at
+     * the window again; background code that dismissed a dialog was held until then.
+     */
+    private static final long FRAMELESS_MILLIS = 250;
+    /** The posted check for a stall of wall-time tickers, at most one; {@code null} when none is. */
+    private @Nullable Subscription framelessWatch;
+    /** When tickAnimations last ran, on this scene's clock; for the frameless watch. */
+    private long lastAnimationNanos = Long.MIN_VALUE;
+
+    private void armFramelessWatch() {
+        // Only a scene in a window: one in none never draws, and is advanced by whoever drives it.
+        if (framelessWatch == null && window() != null) {
+            framelessWatch = Ui.postDelayed(this::framelessCheck, FRAMELESS_MILLIS);
+        }
+    }
+
+    /** The last wall-time ticker finished: nothing is left to watch, and an idle scene posts nothing. */
+    private void disarmFramelessWatch() {
+        Subscription watch = framelessWatch;
+        if (watch != null) {
+            framelessWatch = null;
+            watch.cancel();
+        }
+    }
+
+    /**
+     * Advances the wall-time tickers when no frame has for a while, and looks again while any is
+     * left. Scene-time tickers are content, and stay where they are until frames come back.
+     */
+    private void framelessCheck() {
+        framelessWatch = null;
+        if (realTimeTickers.isEmpty()) {
+            return;
+        }
+        long now = clock.getAsLong();
+        if (lastAnimationNanos == Long.MIN_VALUE
+                || now - lastAnimationNanos >= TimeUnit.MILLISECONDS.toNanos(FRAMELESS_MILLIS)) {
+            tickAnimations(true);
+        }
+        if (!realTimeTickers.isEmpty()) {
+            armFramelessWatch();
+        }
     }
 
     /**
@@ -4470,11 +4518,22 @@ public final class Scene {
 
     /** Package-private so tests can advance registered tickers without a Canvas. */
     void tickAnimations() {
+        tickAnimations(false);
+    }
+
+    /**
+     * Advances the registered tickers by the time since they last ran.
+     *
+     * @param frameless a tick with no frame behind it, from {@link #framelessCheck}: only the
+     *                  wall-time tickers move, and no frame is asked for
+     */
+    private void tickAnimations(boolean frameless) {
         if (tickers.isEmpty()) {
             lastTickNanos = -1;
             return;
         }
         long now = clock.getAsLong();
+        lastAnimationNanos = now;
         // A newly-registered ticker starts at dt == 0 (its own first frame), even if
         // other animations were already running this frame; see the tickStep field.
         double elapsed = lastTickNanos < 0 ? 0 : (now - lastTickNanos) / 1e9;
@@ -4482,7 +4541,7 @@ public final class Scene {
         // Clamp BEFORE scaling: the clamp guards against a stalled wall clock, the scale is the
         // app's intent. Scaling first would let a 4-second stall through at scale 0.25.
         tickDtReal = Math.min(elapsed, MAX_TICK_SECONDS);
-        double factor = paused ? 0 : timeScale;
+        double factor = paused || frameless ? 0 : timeScale;
         tickDtScene = tickDtReal * factor;
         sceneTimeFrozen = factor == 0;
         tickingInProgress = true;
@@ -4494,6 +4553,12 @@ public final class Scene {
         if (!pendingTickers.isEmpty()) { // tickers registered during this pass
             tickers.addAll(pendingTickers);
             pendingTickers.clear();
+        }
+        if (realTimeTickers.isEmpty()) {
+            disarmFramelessWatch();
+        }
+        if (frameless) {
+            return; // the next frame, whenever one comes, carries on from here
         }
         if (needsAnotherAnimationFrame()) {
             scheduleFrame(); // keep animating next frame (tickers invalidate what they move)
