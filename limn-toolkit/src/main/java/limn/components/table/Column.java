@@ -103,6 +103,8 @@ public final class Column<T> {
     private I18nString footerText;
     private Function<List<T>, Object> footer;
     private BiFunction<Object, Locale, String> footerFormat;
+    /** The tables showing this column, told when a setter changes it; held weakly. */
+    private final List<java.lang.ref.WeakReference<Table<T>>> tables = new java.util.ArrayList<>(1);
 
     private Column(I18nString title, Function<T, Object> value,
                    BiFunction<Object, Locale, String> format, Function<T, Widget<?>> widget) {
@@ -361,6 +363,7 @@ public final class Column<T> {
     public Column<T> comparator(@Nullable Comparator<T> comparator) {
         Ui.checkUiThread();
         this.comparator = comparator;
+        changed(false);
         return this;
     }
 
@@ -375,6 +378,7 @@ public final class Column<T> {
     public Column<T> sortable(boolean sortable) {
         Ui.checkUiThread();
         this.sortable = sortable;
+        changed(false);
         return this;
     }
 
@@ -393,6 +397,7 @@ public final class Column<T> {
     public Column<T> align(Alignment alignment) {
         Ui.checkUiThread();
         this.alignment = Objects.requireNonNull(alignment, "alignment");
+        changed(false);
         return this;
     }
 
@@ -411,6 +416,7 @@ public final class Column<T> {
     public Column<T> width(float points) {
         Ui.checkUiThread();
         this.preferredWidth = Math.max(minWidth, points);
+        changed(false);
         return this;
     }
 
@@ -429,6 +435,7 @@ public final class Column<T> {
             // The width layout starts from is the dragged one while there is one.
             draggedWidth = Math.max(minWidth, draggedWidth);
         }
+        changed(false);
         return this;
     }
 
@@ -444,6 +451,7 @@ public final class Column<T> {
     public Column<T> weight(float weight) {
         Ui.checkUiThread();
         this.weight = Math.max(0, weight);
+        changed(false);
         return this;
     }
 
@@ -452,9 +460,8 @@ public final class Column<T> {
      * reader, builds no widget for its cells when it is a {@linkplain #widget widget column},
      * and keeps its widths for when it returns. The change is picked up by the table's next
      * layout, which releases a hidden widget column's widgets and builds a newly shown one's
-     * and leaves every other cell's widget alone, a focused one included:
-     * {@link limn.scene.Widget#markNeedsLayout() markNeedsLayout()} on the table asks for that
-     * layout. {@link Table#refresh()} asks for one too, and as every refresh does rebuilds the
+     * and leaves every other cell's widget alone, a focused one included; the table asks for
+     * that layout itself. {@link Table#refresh()} asks for one too, and as every refresh does rebuilds the
      * realized rows except the one whose widget cell holds the keyboard, which stays with its
      * record while the list still holds it (and hands the keyboard to the table when its own
      * column is the one hidden, or its record is gone). A focus cell,
@@ -467,12 +474,31 @@ public final class Column<T> {
     public Column<T> visible(boolean visible) {
         Ui.checkUiThread();
         this.visible = visible;
+        changed(false);
         return this;
     }
 
     /** @return whether the column is shown */
     public boolean isVisible() {
         return visible;
+    }
+
+    /** A table took this column: it is told from now on when a setter changes it. */
+    void joined(Table<T> table) {
+        tables.removeIf(held -> held.get() == null);
+        tables.add(new java.lang.ref.WeakReference<>(table));
+    }
+
+    /** Tells every table showing this column that it changed; {@code footer} when its footer did. */
+    private void changed(boolean footer) {
+        for (int i = tables.size() - 1; i >= 0; i--) {
+            Table<T> table = tables.get(i).get();
+            if (table == null) {
+                tables.remove(i);
+            } else {
+                table.columnChanged(footer);
+            }
+        }
     }
 
     // ------------------------------------------------------------------------------- footer
@@ -488,6 +514,7 @@ public final class Column<T> {
         Ui.checkUiThread();
         this.footerText = text;
         this.footer = null;
+        changed(true);
         return this;
     }
 
@@ -515,6 +542,7 @@ public final class Column<T> {
         this.footerText = null;
         this.footer = summary == null ? null : summary::apply;
         this.footerFormat = format;
+        changed(true);
         return this;
     }
 
@@ -606,6 +634,7 @@ public final class Column<T> {
         this.footerText = null;
         this.footer = rows -> (double) rows.size();
         this.footerFormat = (v, locale) -> number.apply(((Number) v).doubleValue());
+        changed(true);
         return this;
     }
 
@@ -631,6 +660,7 @@ public final class Column<T> {
             return aggregate.of(numbers);
         };
         this.footerFormat = (v, locale) -> number.apply(((Number) v).doubleValue());
+        changed(true);
         return this;
     }
 
@@ -658,6 +688,7 @@ public final class Column<T> {
     public void resetWidth() {
         Ui.checkUiThread();
         draggedWidth = -1;
+        changed(false);
     }
 
     /**

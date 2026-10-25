@@ -1071,6 +1071,9 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
             throw new IllegalArgumentException("a table takes at most " + COLUMN_MASK + " columns");
         }
         this.columns = new ArrayList<>(List.copyOf(columns));
+        for (Column<T> column : this.columns) {
+            column.joined(this);
+        }
         setFocusable(true);
         vBar = new ScrollBar(ScrollBar.Orientation.VERTICAL, new ScrollBar.Model() {
             @Override
@@ -1583,8 +1586,9 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
     }
 
     /**
-     * Re-reads the rows and re-lays out: call after the list's contents change, or after a
-     * column's width, visibility or alignment does. The sort is re-applied and the scroll
+     * Re-reads the rows and re-lays out: call after the list's contents change. A column's
+     * setters need no call: the table takes a change to its width, visibility, alignment or
+     * footer by itself. The sort is re-applied and the scroll
      * position is kept, clamped.
      *
      * <p><b>A row is its record</b>: the selection, the lead, the focus cell and the range anchor
@@ -2466,6 +2470,20 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
      * Reads every column's footer cell from the rows: once per {@link #setRows} and
      * {@link #refresh}, and once more when the language moves, never per frame.
      */
+    /**
+     * A column of this table changed through one of its setters, after the table was made: its
+     * width, share, alignment, visibility or sorting is taken by the next layout and paint, and
+     * its footer is computed again at once when that is what changed. A setter did nothing on a
+     * live table before, and an application had to know to ask for the layout or a refresh.
+     */
+    void columnChanged(boolean footer) {
+        if (footer) {
+            recomputeFooter();
+        }
+        markNeedsLayout();
+        invalidate();
+    }
+
     private void recomputeFooter() {
         if (footerTexts.length < columns.size()) {
             footerTexts = new String[columns.size()];

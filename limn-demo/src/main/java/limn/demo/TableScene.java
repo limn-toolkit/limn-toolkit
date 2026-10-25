@@ -210,10 +210,7 @@ final class TableScene {
         columns.onAction(() -> {
             Menu menu = new Menu();
             for (Column<Item> column : List.of(category, warehouse, reserved, reorder, cost, counted)) {
-                menu.addCheck(column.title(), column.isVisible(), shown -> {
-                    column.visible(shown);
-                    table.markNeedsLayout();
-                });
+                menu.addCheck(column.title(), column.isVisible(), column::visible);
             }
             new PopupMenu(menu).showAnchored(columns, 0, 0, columns.width(), columns.height());
         });
@@ -242,7 +239,6 @@ final class TableScene {
                 }
             }
             product.footer(kinds.get(kind));
-            table.refresh();
         });
         Label summaryLabel = new Label(Text.SUMMARY).setLabelFor(summary);
 
