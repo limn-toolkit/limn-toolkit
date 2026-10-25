@@ -181,6 +181,38 @@ class RowsTest {
         assertEquals(-10f, rows.anchorTop());
     }
 
+    /**
+     * A box a hair taller than the rows that fill it ends where they do: a printed page lays a
+     * table out exactly as tall as the rows it took, summed in another order, and the two sums
+     * came out a hundred-thousandth apart. At the end of the rows the hair read as a scroll past
+     * the end, and closing it pulled the row before in as a sliver at the box's top; with rows
+     * after them, the next one was placed in the hair at the foot.
+     */
+    @Test
+    void aHairOfFloatErrorAtTheFootIsNeitherClosedNorFilled() {
+        rowsOf(10, 20.1f);
+        float three = 0;
+        for (int i = 0; i < 3; i++) {
+            three += 20.1f; // as the walk sums them, from the box's top
+        }
+        box = three + 1e-4f;
+        rows.moveViewTo(7, 0);
+        rows.layout();
+        assertEquals(List.of(7, 8, 9), realized(), "the last three rows, and no sliver of row 6 above them");
+        assertEquals(7, rows.anchorIndex());
+        assertEquals(0f, rows.anchorTop(), "nothing moved down by the hair");
+
+        rows.moveViewTo(2, 0);
+        rows.layout();
+        assertEquals(List.of(2, 3, 4), realized(), "and no sliver of row 5 at the foot");
+
+        box = three + 0.5f;
+        rows.moveViewTo(7, 0);
+        rows.layout();
+        assertEquals(6, rows.anchorIndex(), "a real gap at the end is still closed");
+        assertEquals(0.5f - 20.1f, rows.anchorTop(), 1e-4f);
+    }
+
     @Test
     void rowsShorterThanTheBoxStayAtItsTop() {
         rowsOf(3, 20);

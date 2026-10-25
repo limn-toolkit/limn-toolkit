@@ -1,5 +1,6 @@
 package limn.backend;
 
+import limn.backend.internal.PrintAnswers;
 import limn.backend.spi.PrintJob;
 import limn.backend.spi.PrinterPeer;
 import limn.concurrent.Ui;
@@ -29,10 +30,10 @@ import java.util.concurrent.CompletionStage;
  * <p>The system scales a page to the printer's paper when the two differ, and never up; it does not
  * lay the document out again.
  *
- * <p>Each call returns at once and completes on the UI thread. It throws for a null and off the UI
- * thread, as the rest of the window's API does, and never for what the PDF holds: a file that
- * cannot be read, or a system that refuses the bytes, completes with {@link PrintResult#FAILED} and
- * a {@code WARNING} saying why.
+ * <p>Each call returns at once and completes on the UI thread. It throws for a null, a blank title
+ * and off the UI thread, as the rest of the window's API does, at the call and before anything is
+ * read, and never for what the PDF holds: a file that cannot be read, or a system that refuses the
+ * bytes, completes with {@link PrintResult#FAILED} and a {@code WARNING} saying why.
  */
 public final class Printer {
 
@@ -69,10 +70,11 @@ public final class Printer {
      * @param pdf   the file; read on a thread of its own
      * @param title the job's name in the system's queue; never blank
      * @return what became of it, completed on the UI thread
+     * @throws IllegalArgumentException if {@code title} is blank, here, before the file is read
      */
     public CompletionStage<PrintResult> print(Path pdf, String title) {
         Objects.requireNonNull(pdf, "pdf");
-        Objects.requireNonNull(title, "title");
+        checkTitle(title);
         Ui.checkUiThread();
         if (!peer.isAvailable()) {
             return CompletableFuture.completedFuture(PrintResult.UNAVAILABLE);
@@ -87,12 +89,19 @@ public final class Printer {
                         unreadable);
                 return null;
             }
-        }).thenAccept(bytes -> {
+        }).whenComplete((bytes, unread) -> {
+            if (unread != null) {
+                // Memory, for a file too large to hold: the read's stage failed, and the caller's
+                // was never completed.
+                LOG.log(System.Logger.Level.WARNING, "not printed, the file could not be read: " + file, unread);
+                answer.complete(PrintResult.FAILED);
+                return;
+            }
             if (bytes == null) {
                 answer.complete(PrintResult.FAILED);
                 return;
             }
-            print(new PrintJob(title, bytes, 0, 0, -1)).thenAccept(answer::complete);
+            PrintAnswers.answerWith(() -> print(new PrintJob(title, bytes, 0, 0, -1)), answer, title);
         });
         return answer;
     }
@@ -103,6 +112,7 @@ public final class Printer {
      * @param pdf   a complete PDF file; not copied, and not to be changed until the stage completes
      * @param title the job's name in the system's queue; never blank
      * @return what became of it, completed on the UI thread
+     * @throws IllegalArgumentException if {@code title} is blank
      */
     public CompletionStage<PrintResult> print(byte[] pdf, String title) {
         return print(new PrintJob(title, pdf, 0, 0, -1));
@@ -126,6 +136,17 @@ public final class Printer {
             return CompletableFuture.completedFuture(PrintResult.FAILED);
         }
         return peer.print(job);
+    }
+
+    /**
+     * Refuses a job's name at the call, as {@link PrintJob} does: {@link #print(Path, String)} makes
+     * its job only once the file is read, on the UI thread after a worker, where a refusal ended the
+     * dependent stage and the one the caller holds never completed.
+     */
+    private static void checkTitle(String title) {
+        if (Objects.requireNonNull(title, "title").isBlank()) {
+            throw new IllegalArgumentException("a print job needs a name");
+        }
     }
 
     /** A PDF begins with its header; anything else would reach the system's spooler as garbage. */

@@ -346,6 +346,147 @@ class DocumentTest {
         assertEquals((int) Math.ceil(300 / room), document.pageCount());
     }
 
+    /** A leaf as tall as it is made, filled in one colour, so a page shows where it is drawn. */
+    private static final class Filled extends Widget<Filled> {
+        private final float tall;
+        private final limn.graphics.Color colour;
+
+        Filled(float tall, limn.graphics.Color colour) {
+            this.tall = tall;
+            this.colour = colour;
+        }
+
+        @Override
+        protected Size onMeasure(Constraints constraints) {
+            return constraints.constrain(10, tall);
+        }
+
+        @Override
+        protected void onPaint(Canvas canvas) {
+            canvas.fillRect(0, 0, width(), height(), colour);
+        }
+    }
+
+    /** What of a fill a page shows, from its top to its foot on the page, under the clip it was drawn in. */
+    private record Shown(int page, limn.graphics.Color colour, float top, float foot) {
+    }
+
+    /** Every fill each page shows, cut by its clip, in the page's own units. */
+    private static List<Shown> shown(List<Recording> pages) {
+        List<Shown> out = new ArrayList<>();
+        for (int i = 0; i < pages.size(); i++) {
+            int page = i + 1;
+            pages.get(i).replay(new NoopCanvas(1000, 1000) {
+                private final List<float[]> stack = new ArrayList<>();
+                private float dy;
+                private float clipTop = -Float.MAX_VALUE;
+                private float clipFoot = Float.MAX_VALUE;
+
+                @Override
+                public void save() {
+                    super.save();
+                    stack.add(new float[] {dy, clipTop, clipFoot});
+                }
+
+                @Override
+                public void restore() {
+                    super.restore();
+                    if (!stack.isEmpty()) {
+                        float[] was = stack.remove(stack.size() - 1);
+                        dy = was[0];
+                        clipTop = was[1];
+                        clipFoot = was[2];
+                    }
+                }
+
+                @Override
+                public void translate(float x, float y) {
+                    dy += y;
+                }
+
+                @Override
+                public void clipRect(float x, float y, float w, float h) {
+                    clipTop = Math.max(clipTop, dy + y);
+                    clipFoot = Math.min(clipFoot, dy + y + h);
+                }
+
+                @Override
+                public void fillRect(float x, float y, float w, float h, Paint paint) {
+                    float top = Math.max(clipTop, dy + y);
+                    float foot = Math.min(clipFoot, dy + y + h);
+                    if (foot > top && paint instanceof limn.graphics.Color colour) {
+                        out.add(new Shown(page, colour, top, foot));
+                    }
+                }
+            });
+        }
+        return out;
+    }
+
+    /**
+     * A header that grows on every pass still leaves the content under it: the last cut is made at
+     * the heights the pages are drawn with. A4 keeps 978.5 units between its default margins, and a
+     * block of 93,000 units with nowhere to cut runs to 97 pages under a header of 10, 98 under 20,
+     * 99 under 30 and 100 under 40; this header is 10 units taller for each of those counts, so it
+     * grew on each of the three passes. The passes stopped at the last measure, and the pages were
+     * cut for a header of 30 and drawn with one of 40 over the top of the content. One that would
+     * grow a fourth time, to 50 at 100 pages, is drawn in the 40 the last cut kept, cut at its foot.
+     */
+    @Test
+    void aHeaderStillGrowingOnTheLastPassNeverRunsOverTheContent() {
+        limn.graphics.Color headerColour = new limn.graphics.Color(1, 0, 0, 1);
+        limn.graphics.Color contentColour = new limn.graphics.Color(0, 0, 1, 1);
+        for (int growths : new int[] {3, 4}) {
+            Document document = Document.of(Paper.A4)
+                    .header(page -> new Filled(10 + 10 * Math.max(0, Math.min(growths, page.count() - 96)),
+                            headerColour))
+                    .add(new Filled(93_000, contentColour));
+            List<Recording> pages = document.pages();
+            List<Shown> fills = shown(pages);
+            for (int page = 1; page <= pages.size(); page++) {
+                int p = page;
+                Shown header = fills.stream().filter(f -> f.page() == p && f.colour().equals(headerColour))
+                        .findFirst().orElseThrow();
+                for (Shown content : fills) {
+                    if (content.page() == p && content.colour().equals(contentColour)) {
+                        assertTrue(content.top() >= header.foot() - 0.01f, growths + " growths, page " + page
+                                + ": the content begins at " + content.top() + ", under the header's foot at "
+                                + header.foot());
+                    }
+                }
+                assertEquals(40, header.foot() - header.top(), 0.01f,
+                        growths + " growths: the header of page " + page + " has the room the last cut kept");
+            }
+            assertEquals(100, pages.size(), growths + " growths: cut for the header the pages are drawn with");
+        }
+    }
+
+    /**
+     * A table's last page shows no sliver of the row before it. The page lays the table out as tall
+     * as its header and the rows it took, summed from the header down, and the table's rows sum
+     * them again from the top of their box; with rows 32.537 units tall plus their padding, the last
+     * of A5's three pages came out a hundred-thousandth taller than its rows, which read as a scroll
+     * past the end: the previous page's last row was mounted above them, its stripe shown in a band
+     * 0.000015 units tall at the top of the rows.
+     */
+    @Test
+    void aTablesLastPageShowsNoSliverOfTheRowBefore() {
+        List<Order> orders = new ArrayList<>();
+        for (int i = 0; i < 30; i++) {
+            orders.add(new Order(i, "Customer " + i));
+        }
+        Table<Order> table = Table.of(
+                Column.<Order>text("Number", order -> "N" + order.number()).width(120),
+                Column.<Order>widget("Box", order -> new Tall(32.537f)).width(100));
+        table.setRows(orders);
+        List<Recording> pages = Document.of(Paper.A5).add(table).pages();
+        assertEquals(3, pages.size());
+        for (Shown fill : shown(pages)) {
+            assertTrue(fill.foot() - fill.top() >= 0.01f, "page " + fill.page() + " shows a fill "
+                    + (fill.foot() - fill.top()) + " units tall at " + fill.top());
+        }
+    }
+
     @Test
     void writesAPdfFile() throws Exception {
         Path file = Files.createTempFile("limn-document", ".pdf");

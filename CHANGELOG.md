@@ -730,10 +730,15 @@ Maven Central say which number that was.
   (each glyph its outline in a Type 3 font that maps back to its characters, so the PDF can be
   selected, copied and searched in every script), soft shadows and icons as pictures at 300 dpi, a
   backdrop as its tint, video and 3D left out with a warning; the same pages give the same bytes.
-  `print(window)` prints through the system's own dialog, owned by the window. `PrintPreview` shows
+  `print(window)` prints through the system's own dialog, owned by the window. A PDF, a print and a
+  preview record their pages again once a script's fallback face, loaded in the background on its
+  first need, has landed, waiting ten seconds at most and never on the UI thread; after that they go
+  on with the faces there are, and say so in a warning. `PrintPreview` shows
   a document's pages as sheets, fitted to the width, to a page, or at a percentage; the user zooms
   it with a pinch or the wheel and Command (macOS) or Control held, around the pointer, or,
-  focused, with Command or Control and `+`, `-` and `0`, and `zoomPercent()` says the size shown. `Paper` has the
+  focused, with Command or Control and `+`, `-` and `0`, and `zoomPercent()` says the size shown;
+  when recording the pages again once a face has loaded fails, the pages before stay on show and
+  `failure()` says why, announced as a `VALIDITY` change. `Paper` has the
   ISO A and B sizes, Letter, Legal and Tabloid, any size, and `Paper.forLocale`.
 - A pinch on a trackpad reaches the widget under the pointer as a `MouseEvent` of type `ZOOM`.
   Its `scale()` is the factor since the event before.
@@ -751,7 +756,8 @@ Maven Central say which number that was.
     Below those, the wheel with Control still zooms.
 - A window prints a PDF: `NativeWindow.printer()` returns a `Printer` with `print(Path, title)`,
   `print(byte[], title)` and `isAvailable()`, answering a `PrintResult` (`PRINTED`, `CANCELLED`,
-  `UNAVAILABLE`, `FAILED`) on the UI thread; a window with no printing answers `Printer.NONE`.
+  `UNAVAILABLE`, `FAILED`) on the UI thread, a blank title refused at the call; a window with no
+  printing answers `Printer.NONE`.
   `NativeWindow` has no default for it, so an implementation of a window outside this repository
   adds `printer()` (`return Printer.NONE;` for a window with none).
 - `Path2D.forEach(Path2D.Visitor)` hands a path's moves, lines, curves and closes back as they were

@@ -52,7 +52,10 @@ import java.util.Objects;
  * and the count ("Page 3 of 12"); the pages' own text is not published to it.
  *
  * <p>The pages are recorded when the preview is made and again by {@link #refresh()}; a face the
- * text asked for that was still loading records them again once it has loaded. UI thread only.
+ * text asked for that was still loading records them again once it has loaded, or after ten
+ * seconds without it, with a warning. A recording made again that fails, when nobody is in a call
+ * to hear it, leaves the pages recorded before on show, and {@link #failure()} says why. UI thread
+ * only.
  */
 public final class PrintPreview extends Widget<PrintPreview> {
 
@@ -80,6 +83,8 @@ public final class PrintPreview extends Widget<PrintPreview> {
     /** What an arrow key scrolls by, in points. */
     private static final float ARROW_STEP = 48;
 
+    private static final System.Logger LOG = System.getLogger(PrintPreview.class.getName());
+
     private final Document document;
     private final Sheets sheets = new Sheets();
     /**
@@ -91,6 +96,8 @@ public final class PrintPreview extends Widget<PrintPreview> {
     private Zoom zoom = Zoom.FIT_WIDTH;
     private float percent = 100;
     private long refreshes;
+    /** Why the pages shown are not the last recording's, or null; see {@link #failure()}. */
+    private @Nullable RuntimeException failure;
     /** Where the scroll view goes once a zoom the user made is laid out: x, y; null for nowhere. */
     private float @Nullable [] pendingScroll;
 
@@ -120,16 +127,63 @@ public final class PrintPreview extends Widget<PrintPreview> {
     public PrintPreview refresh() {
         Ui.checkUiThread();
         long asked = ++refreshes;
-        document.recordSettled(result -> {
-            if (asked == refreshes) {
-                pages = result.pages();
-                sizeChanged();
-                invalidate();
-            }
-        }, failed -> {
-            throw failed instanceof RuntimeException runtime ? runtime : new IllegalStateException(failed);
-        });
+        boolean[] inCall = {true};
+        try {
+            document.recordSettled(Document.FACE_WAIT_MILLIS, result -> {
+                if (asked == refreshes) {
+                    show(result.pages(), null);
+                }
+            }, (failed, before) -> {
+                RuntimeException why = failed instanceof RuntimeException runtime ? runtime
+                        : new IllegalStateException(failed);
+                if (inCall[0] || before == null) {
+                    throw why; // the recording this call made: its caller hears it, as documented
+                }
+                // The recording made again once a face loaded, in a posted task: a throw there
+                // reached only the loop's crash log, and the preview went on showing what it had
+                // shown, nothing at all for a first recording, without a word. It shows the
+                // recording that succeeded instead, and says why.
+                if (asked == refreshes) {
+                    LOG.log(System.Logger.Level.WARNING, "the print preview's pages could not be recorded again"
+                            + " once a face had loaded, so it shows the pages recorded before", why);
+                    show(before.pages(), why);
+                }
+            });
+        } finally {
+            inCall[0] = false;
+        }
         return this;
+    }
+
+    /** Shows a recording, and says once when why it is not the last one changed. */
+    private void show(List<Recording> recorded, @Nullable RuntimeException why) {
+        pages = recorded;
+        boolean moved = failure != why;
+        failure = why;
+        sizeChanged();
+        invalidate();
+        if (moved) {
+            notifyChange(Change.of(Change.Aspect.VALIDITY, Change.Origin.CODE));
+        }
+    }
+
+    /**
+     * Why the pages shown are not the document's last recording, or null when they are.
+     *
+     * <p>A face the text asked for that was still loading records the pages again once it has
+     * loaded, after the constructor or {@link #refresh()} has returned, so no caller is there to
+     * hear a throw. That recording can fail where the first did not: a header or a footer that
+     * measures taller in the face that loaded can leave less than the quarter inch {@link Document}
+     * requires. The preview then keeps showing the pages recorded before the face loaded, logs a
+     * warning, answers the exception here, and announces a {@link Change.Aspect#VALIDITY} change,
+     * which a dialog around it watches to say that the document cannot be printed as it is. The
+     * next recording that succeeds clears it, with another such change.
+     *
+     * @return the {@link IllegalStateException} the recording made again threw (or what wraps any
+     *         other failure), or null
+     */
+    public @Nullable RuntimeException failure() {
+        return failure;
     }
 
     /** @return how many pages the document has, as last recorded */

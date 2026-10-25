@@ -662,23 +662,45 @@ final class WindowsPrinter {
         PointerBuffer out = stack.mallocPointer(1);
         check("CreateStreamOnHGlobal", (int) Ffi.call(fn(Libraries.OLE32, "CreateStreamOnHGlobal"), "pip>i", NULL, 1,
                 MemoryUtil.memAddress(out)));
-        long stream = out.get(0);
-        ByteBuffer printer = stack.UTF16(chosen.printer);
-        check("PTOpenProvider", (int) Ffi.call(fn(Libraries.PRNTVPT, "PTOpenProvider"), "pip>i",
-                MemoryUtil.memAddress(printer), 1, MemoryUtil.memAddress(out)));
-        long provider = out.get(0);
+        // The stream and the memory it owns were let go of only when the conversion was refused;
+        // a printer whose provider would not open (PTOpenProvider failing) leaked them.
+        return filledOrReleased(out.get(0), stream -> {
+            ByteBuffer printer = stack.UTF16(chosen.printer);
+            check("PTOpenProvider", (int) Ffi.call(fn(Libraries.PRNTVPT, "PTOpenProvider"), "pip>i",
+                    MemoryUtil.memAddress(printer), 1, MemoryUtil.memAddress(out)));
+            long provider = out.get(0);
+            try {
+                check("PTConvertDevModeToPrintTicket", (int) Ffi.call(fn(Libraries.PRNTVPT,
+                        "PTConvertDevModeToPrintTicket"), "pipip>i", provider, chosen.devModeSize, chosen.devMode,
+                        K_PT_JOB_SCOPE, stream));
+            } finally {
+                Ffi.call(fn(Libraries.PRNTVPT, "PTCloseProvider"), "p>i", provider);
+            }
+            com(stream, STREAM_SEEK, "pip", 0L, 0, NULL); // LARGE_INTEGER 0, STREAM_SEEK_SET
+        }, WindowsPrinter::release);
+    }
+
+    /**
+     * Hands on a COM object just made once {@code fill} has filled it, and releases it when
+     * {@code fill} throws, whatever it throws: until it is handed on, nothing else holds it.
+     *
+     * @param object  the object, made by the caller
+     * @param fill    what makes it ready
+     * @param release lets go of it ({@link #release} for a COM object)
+     * @return {@code object}, filled
+     */
+    static long filledOrReleased(long object, java.util.function.LongConsumer fill,
+                                 java.util.function.LongConsumer release) {
+        boolean filled = false;
         try {
-            check("PTConvertDevModeToPrintTicket", (int) Ffi.call(fn(Libraries.PRNTVPT,
-                    "PTConvertDevModeToPrintTicket"), "pipip>i", provider, chosen.devModeSize, chosen.devMode,
-                    K_PT_JOB_SCOPE, stream));
-        } catch (IllegalStateException refused) {
-            release(stream);
-            throw refused;
+            fill.accept(object);
+            filled = true;
+            return object;
         } finally {
-            Ffi.call(fn(Libraries.PRNTVPT, "PTCloseProvider"), "p>i", provider);
+            if (!filled) {
+                release.accept(object);
+            }
         }
-        com(stream, STREAM_SEEK, "pip", 0L, 0, NULL); // LARGE_INTEGER 0, STREAM_SEEK_SET
-        return stream;
     }
 
     private static long create(MemoryStack stack, String clsid, String iid) {

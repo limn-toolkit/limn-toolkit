@@ -156,6 +156,19 @@ public final class Rows<E> {
         void scrolled(Change.Origin origin);
     }
 
+    /**
+     * How far apart two sums of the same rows' heights may come out and still be the same edge:
+     * float error, not a scroll, the hundredth of a unit a printed page's cut allows itself too
+     * ({@code limn.print.Pages}). A page lays a list, a table or a tree out exactly as tall as the
+     * rows it took, summed from the table's header down, and this walk sums them again from the
+     * box's top. On a table's last page the two came out a hundred-thousandth apart: the box read as
+     * scrolled past the end, the gap was closed by pulling the row before in, and that row was
+     * mounted as a sliver at the box's top and every row moved down by that much; a box a little
+     * shorter than its rows mounted the next page's first row as a sliver at its foot the same way.
+     * A gap or an overhang within this much of the box's foot is neither closed nor placed.
+     */
+    static final float SLACK = 0.01f;
+
     private final Host<E> host;
     private int[] rows = new int[16];
     private Object[] mounted = new Object[16];
@@ -224,7 +237,7 @@ public final class Rows<E> {
             settleReveal(count, viewH);
         }
         bottom = placeDown(count, viewH);
-        if (bottom < viewH && !(anchorIndex == 0 && anchorTop >= 0)) {
+        if (bottom < viewH - SLACK && !(anchorIndex == 0 && anchorTop >= 0)) {
             // Scrolled past the end: close the gap at the foot, unless the rows are shorter than
             // the box, which then stay at its top.
             anchorTop += viewH - bottom;
@@ -344,7 +357,7 @@ public final class Rows<E> {
     private float placeDown(int count, float viewH) {
         float y = anchorTop;
         int i = anchorIndex;
-        while (i < count && y < viewH + overscan) {
+        while (i < count && y < viewH + overscan - SLACK) {
             float h = height(i);
             host.place(at(indexOfRow(i)), i, y, h);
             y += h;

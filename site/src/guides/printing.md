@@ -103,6 +103,13 @@ Put it in a window or a dialog of your own, next to your own Print and Paper but
 Showcase's Printing page does exactly this. Call `refresh()` after the data behind the document
 changes.
 
+The pages are recorded when the preview is made and on each `refresh()`, and a recording that
+fails then throws to you. When the text needs a font that is still loading in the background, as a
+script's fallback is the first time, the pages are recorded once more when it arrives. If that
+later recording fails, say because a header is taller in the real font and no longer fits, the
+preview keeps the pages it had and `failure()` says why. The preview announces a `VALIDITY` change
+when that happens, and again when a later recording succeeds, so your dialog can tell the user.
+
 The user zooms the preview as in a document viewer. A pinch on a trackpad zooms around the
 fingers, and so does the wheel with Command held on macOS or Control elsewhere. With the preview focused, `+` zooms in, `-` zooms
 out and `0` returns to the paper's real size. The arrows and Page Up and Page Down scroll the

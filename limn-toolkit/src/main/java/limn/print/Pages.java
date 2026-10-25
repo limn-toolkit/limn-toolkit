@@ -41,8 +41,15 @@ final class Pages {
     private static final long SETTLE_NANOS = 1_000_000_000L;
     private static final double SETTLE_SCALE = 1000;
 
-    /** How many times the header and footer may grow the reserved space before the cut is final. */
-    private static final int MAX_PASSES = 3;
+    private static final System.Logger LOG = System.getLogger(Document.class.getName());
+
+    /**
+     * How many times the header and the footer may grow the room they keep, each growth followed by
+     * a cut at the new heights, before the cut is final. The last cut is always made at the heights
+     * the pages are drawn with, so the content never runs under an edge; an edge that a final count
+     * makes taller still is drawn in the room the cut kept, cut at its foot, with a warning.
+     */
+    static final int MAX_PASSES = 3;
 
     /**
      * The smallest content box a page lays anything out in, each way, in document units: a
@@ -119,9 +126,12 @@ final class Pages {
         }
         float header = measure(document.header(), 1, 1);
         float footer = measure(document.footer(), 1, 1);
-        List<List<Placement>> layout = List.of();
-        for (int pass = 0; pass < MAX_PASSES; pass++) {
-            layout = cut(blocks, header, footer);
+        List<List<Placement>> layout = cut(blocks, header, footer);
+        // Every growth is followed by a cut at the grown heights, so the layout that is drawn was
+        // always cut with the heights its edges are drawn at. The loop stopped after its last
+        // measure, and a header that grew on that pass was drawn taller than the room the cut had
+        // left it, over the top of the content.
+        for (int pass = 1; pass <= MAX_PASSES; pass++) {
             int count = Math.max(1, layout.size());
             float wantHeader = header;
             float wantFooter = footer;
@@ -134,20 +144,32 @@ final class Pages {
             }
             header = wantHeader;
             footer = wantFooter;
+            layout = cut(blocks, header, footer);
         }
         if (layout.isEmpty()) {
             layout = List.of(List.of()); // a document with nothing in it is one blank page
         }
         List<Recording> pages = new ArrayList<>(layout.size());
+        String outgrown = null;
         for (int i = 0; i < layout.size(); i++) {
             RecordingCanvas canvas = new RecordingCanvas(pageW, pageH, rasterScale, glyphs);
             PageInfo info = new PageInfo(i + 1, layout.size(), document.paper());
-            paintEdge(canvas, document.header(), info, top, header);
+            float tallHeader = paintEdge(canvas, document.header(), info, top, header);
             for (Placement placement : layout.get(i)) {
                 paint(canvas, placement);
             }
-            paintEdge(canvas, document.footer(), info, pageH - bottomMargin - footer, footer);
+            float tallFooter = paintEdge(canvas, document.footer(), info, pageH - bottomMargin - footer, footer);
+            if (outgrown == null && (tallHeader > header || tallFooter > footer)) {
+                outgrown = String.format(Locale.ROOT, "page %d's %s measures %.1f units and its page keeps %.1f",
+                        i + 1, tallHeader > header ? "header" : "footer",
+                        tallHeader > header ? tallHeader : tallFooter, tallHeader > header ? header : footer);
+            }
             pages.add(canvas.finish());
+        }
+        if (outgrown != null) {
+            LOG.log(System.Logger.Level.WARNING, "\"{0}\": the header or the footer still grew with the page count"
+                    + " after {1} cuts, and {2}, so the taller ones are drawn cut at the foot of the room kept",
+                    document.title(), MAX_PASSES + 1, outgrown);
         }
         return new Result(pages, glyphs, document.paper().width(), document.paper().height());
     }
@@ -386,16 +408,26 @@ final class Pages {
         }
     }
 
-    /** Draws a header or a footer for one page, in a scene made for it and let go of after. */
-    private void paintEdge(RecordingCanvas canvas, @Nullable Function<PageInfo, Widget<?>> edge, PageInfo info,
-                           float y, float height) {
-        if (edge == null || height <= 0) {
-            return;
+    /**
+     * Draws a header or a footer for one page, in a scene made for it and let go of after, in the
+     * room the cut kept for it and cut at that room's foot.
+     *
+     * @return how tall this page's edge measures, which is more than {@code height} only for an
+     *         edge still growing when the passes ran out; 0 for none
+     */
+    private float paintEdge(RecordingCanvas canvas, @Nullable Function<PageInfo, Widget<?>> edge, PageInfo info,
+                            float y, float height) {
+        if (edge == null) {
+            return 0;
         }
         Widget<?> widget = edge.apply(info);
         long[] now = {0};
         Scene scene = scene(widget, now);
         try {
+            float measured = heightOf(widget);
+            if (height <= 0) {
+                return measured;
+            }
             settleScene(scene, now, contentW, height);
             int depth = canvas.saveCount();
             canvas.save();
@@ -409,6 +441,7 @@ final class Pages {
                 canvas.restoreToCount(depth);
                 canvas.setFrame(pageW, pageH);
             }
+            return measured;
         } finally {
             release(scene);
         }
@@ -423,11 +456,15 @@ final class Pages {
         long[] now = {0};
         Scene scene = scene(widget, now);
         try {
-            return (float) Math.ceil(widget.measure(new Constraints(0, contentW, 0, Constraints.UNBOUNDED_LIMIT))
-                    .height());
+            return heightOf(widget);
         } finally {
             release(scene);
         }
+    }
+
+    /** An edge's height at the content width, in whole units, measured in its page's scene. */
+    private float heightOf(Widget<?> widget) {
+        return (float) Math.ceil(widget.measure(new Constraints(0, contentW, 0, Constraints.UNBOUNDED_LIMIT)).height());
     }
 
     // ------------------------------------------------------------------ scenes

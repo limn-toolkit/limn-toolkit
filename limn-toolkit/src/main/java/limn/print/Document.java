@@ -26,6 +26,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
 /**
@@ -78,13 +80,26 @@ import java.util.function.Function;
  *
  * <p>UI thread only: a document holds widgets. Its pages are recorded on the UI thread when
  * {@link #writePdf} or {@link #print} is called or a {@link PrintPreview} asks for them, and again
- * once a face the text asked for has loaded; the PDF's bytes are written on a worker. A document
+ * once a face the text asked for has loaded, or after ten seconds without it, with a warning; the
+ * PDF's bytes are written on a worker. A document
  * can be written, printed and previewed any number of times; each
  * records its pages afresh, so what the widgets show at that moment is what is printed.
  */
 public final class Document {
 
     private static final System.Logger LOG = System.getLogger(Document.class.getName());
+
+    /**
+     * How long a PDF, a print or a preview waits for a face its text asked for that is still
+     * loading, before it records the pages with the faces it has: ten seconds. A script's fallback
+     * faces load in the background in well under that from the toolkit's own font files; a load
+     * still running after it is stuck (a worker pool kept busy by something else, a font on a drive
+     * that stopped answering), and a print that waited on it for ever neither showed its dialog nor
+     * completed, and a PDF's work held a worker until the process ended. When the wait runs out the
+     * pages are recorded once more, so a face that has loaded meanwhile is used, a warning says so,
+     * and text in a face still missing prints as boxes.
+     */
+    static final long FACE_WAIT_MILLIS = 10_000;
 
     /** One entry of the flow: a widget, or a page break alone. */
     private record Entry(@Nullable Widget<?> widget, boolean keepTogether, boolean breakBefore) {
@@ -170,7 +185,10 @@ public final class Document {
     /**
      * Sets what is drawn at the top of every page: a new widget for each page, made when the page is
      * drawn, since a page's number is known only once the document is cut, and its count only once it
-     * is cut to the end. The tallest of them is the room every page keeps for it.
+     * is cut to the end. The tallest of them is the room every page keeps for it: the document is cut
+     * again each time the count makes one taller, up to three times, and one taller still after that
+     * is drawn in the room the last cut kept, cut at its foot, with a warning; the content never runs
+     * under it.
      *
      * @param header makes a page's header, or null for none
      * @return this document
@@ -349,17 +367,24 @@ public final class Document {
     }
 
     /**
-     * Records the pages, and records them again once no face the text asked for is still loading:
-     * a script's fallback face arrives in the background on its first need, and a page recorded
-     * before it lands holds boxes where that script's text is. UI thread; {@code then}
-     * runs on the UI thread, at once when nothing was loading.
+     * Records the pages, and records them again once no face the text asked for is still loading,
+     * or once {@code waitMillis} have passed and one still is ({@link #FACE_WAIT_MILLIS} says why
+     * it is bounded): a script's fallback face arrives in the background on its first need, and a
+     * page recorded before it lands holds boxes where that script's text is. UI thread; the UI
+     * thread never waits, and {@code then} runs on it, at once when nothing was loading.
+     *
+     * <p>{@code failed} hears what a recording threw, with the recording made before the face
+     * loaded when it is the second that threw, or null when it is the first, which it hears inside
+     * this call: the second can fail where the first did not, a header measuring taller in the face
+     * that loaded than in the one it was first measured in.
      */
-    void recordSettled(java.util.function.Consumer<Pages.Result> then, java.util.function.Consumer<Throwable> failed) {
+    void recordSettled(long waitMillis, java.util.function.Consumer<Pages.Result> then,
+                       java.util.function.BiConsumer<Throwable, Pages.@Nullable Result> failed) {
         Pages.Result first;
         try {
             first = record();
         } catch (RuntimeException | Error error) {
-            failed.accept(error);
+            failed.accept(error, null);
             return;
         }
         CompletableFuture<Void> settled = limn.print.internal.Outlines.current().settled().toCompletableFuture();
@@ -367,26 +392,37 @@ public final class Document {
             then.accept(first);
             return;
         }
-        settled.whenComplete((ignored, error) -> Ui.post(() -> {
+        // A copy carries the deadline, so the stage the backend shares with every other waiter is
+        // left as it is.
+        settled.copy().orTimeout(waitMillis, TimeUnit.MILLISECONDS).whenComplete((ignored, error) -> Ui.post(() -> {
+            if (unwrap(error) instanceof TimeoutException) {
+                warnUnsettled(waitMillis);
+            }
             try {
                 then.accept(record());
             } catch (RuntimeException | Error again) {
-                failed.accept(again);
+                failed.accept(again, first);
             }
         }));
     }
 
     /**
      * The pages to write, from a worker: those recorded when the work was asked for, or, when a face
-     * the text asked for was still loading then, recorded again on the UI thread once it has loaded.
-     * The worker waits only for the load, which was asked for before the work began, and for a
-     * recording that asks no worker for anything, so it never waits on a worker it is keeping busy.
+     * the text asked for was still loading then, recorded again on the UI thread once it has loaded
+     * or once the worker has waited {@code waitMillis} for it. The worker waits only for the load,
+     * which was asked for before the work began, and for a recording that asks no worker for
+     * anything, so it never waits on a worker it is keeping busy.
      */
-    private Pages.Result settledFromWorker(Pages.Result first, CompletableFuture<Void> settled) throws Exception {
+    private Pages.Result settledFromWorker(Pages.Result first, CompletableFuture<Void> settled, long waitMillis)
+            throws Exception {
         if (settled.isDone()) {
             return first;
         }
-        settled.get();
+        try {
+            settled.get(waitMillis, TimeUnit.MILLISECONDS);
+        } catch (TimeoutException slow) {
+            warnUnsettled(waitMillis);
+        }
         CompletableFuture<Pages.Result> recorded = new CompletableFuture<>();
         Ui.post(() -> {
             try {
@@ -400,6 +436,18 @@ public final class Document {
         } catch (java.util.concurrent.ExecutionException failed) {
             throw failed.getCause() instanceof Exception cause ? cause : failed;
         }
+    }
+
+    /** Says once, for the output that waited, that it goes on with the faces it has. */
+    private void warnUnsettled(long waitMillis) {
+        LOG.log(System.Logger.Level.WARNING, "\"{0}\": a face its text asked for was still loading after {1} ms;"
+                + " the pages are recorded with the faces that have loaded, and text in that face prints as"
+                + " boxes", title, Long.toString(waitMillis));
+    }
+
+    private static @Nullable Throwable unwrap(@Nullable Throwable error) {
+        return error instanceof java.util.concurrent.CompletionException wrapped && wrapped.getCause() != null
+                ? wrapped.getCause() : error;
     }
 
     /** Cuts and records every page, on the UI thread. */
@@ -424,9 +472,10 @@ public final class Document {
     /**
      * Writes the document as a PDF file. The pages are recorded now, on the UI thread, and recorded
      * again once the work runs if a face the text asked for was still loading (a script's fallback
-     * face, loaded in the background on its first need); the file is written by the work on a
-     * worker, first to a temporary file beside {@code file} and then moved over it, so a failed or
-     * cancelled write leaves no half file.
+     * face, loaded in the background on its first need), as soon as it has loaded or after ten
+     * seconds without it, with a warning; the file is written by the work on a worker, first to a
+     * temporary file beside {@code file} and then moved over it, so a failed or cancelled write
+     * leaves no half file.
      *
      * <pre>{@code
      * document.writePdf(file)
@@ -443,12 +492,17 @@ public final class Document {
      *         pages are recorded, before any work exists
      */
     public Work<Path> writePdf(Path file) {
+        return writePdf(file, FACE_WAIT_MILLIS);
+    }
+
+    /** {@link #writePdf(Path)} with how long the work waits for a face still loading; for the tests. */
+    Work<Path> writePdf(Path file, long faceWaitMillis) {
         Objects.requireNonNull(file, "file");
         Pages.Result first = record();
         CompletableFuture<Void> settled = limn.print.internal.Outlines.current().settled().toCompletableFuture();
         Path target = file.toAbsolutePath().normalize();
         return Ui.work(progress -> {
-            Pages.Result pages = settledFromWorker(first, settled);
+            Pages.Result pages = settledFromWorker(first, settled, faceWaitMillis);
             Path parent = target.getParent();
             Path temporary = Files.createTempFile(parent == null ? Path.of(".") : parent,
                     target.getFileName().toString(), ".part");
@@ -481,19 +535,25 @@ public final class Document {
      * @throws IllegalStateException as {@link #writePdf(Path)} does
      */
     public Work<OutputStream> writePdf(OutputStream out) {
+        return writePdf(out, FACE_WAIT_MILLIS);
+    }
+
+    /** {@link #writePdf(OutputStream)} with how long the work waits for a face still loading; for the tests. */
+    Work<OutputStream> writePdf(OutputStream out, long faceWaitMillis) {
         Objects.requireNonNull(out, "out");
         Pages.Result first = record();
         CompletableFuture<Void> settled = limn.print.internal.Outlines.current().settled().toCompletableFuture();
         return Ui.work(progress -> {
-            write(settledFromWorker(first, settled), out, progress);
+            write(settledFromWorker(first, settled, faceWaitMillis), out, progress);
             return out;
         });
     }
 
     /**
      * Prints the document through the system's own print dialog, owned by {@code window}: the pages
-     * are recorded on the UI thread (again once a face the text asked for has loaded), the PDF is
-     * written on a worker, and the window's {@link limn.backend.Printer}
+     * are recorded on the UI thread (again once a face the text asked for has loaded, or after ten
+     * seconds without it, with a warning), the PDF is written on a worker, and the window's
+     * {@link limn.backend.Printer}
      * hands it to the system. The dialog chooses the printer and may save the job as PDF
      * where the system offers it; it scales a page to other paper, never re-flowing it.
      *
@@ -505,13 +565,18 @@ public final class Document {
      * @return what became of it, completed on the UI thread
      */
     public CompletionStage<PrintResult> print(NativeWindow window) {
+        return print(window, FACE_WAIT_MILLIS);
+    }
+
+    /** {@link #print(NativeWindow)} with how long it waits for a face still loading; for the tests. */
+    CompletionStage<PrintResult> print(NativeWindow window, long faceWaitMillis) {
         Objects.requireNonNull(window, "window");
         Ui.checkUiThread();
         if (!window.printer().isAvailable()) {
             return CompletableFuture.completedFuture(PrintResult.UNAVAILABLE);
         }
         CompletableFuture<PrintResult> answer = new CompletableFuture<>();
-        recordSettled(pages -> Ui.async(() -> {
+        recordSettled(faceWaitMillis, pages -> Ui.async(() -> {
             try {
                 ByteArrayOutputStream bytes = new ByteArrayOutputStream(64 * 1024);
                 write(pages, bytes, null);
@@ -520,14 +585,21 @@ public final class Document {
                 LOG.log(System.Logger.Level.WARNING, "the document's PDF could not be written", failed);
                 return null;
             }
-        }).thenAccept(pdf -> {
+        }).whenComplete((pdf, unwritten) -> {
+            if (unwritten != null) {
+                // An Error writing it (memory, for a document too large to hold as bytes) failed the
+                // stage, and the one the caller holds was never completed.
+                LOG.log(System.Logger.Level.WARNING, "the document's PDF could not be written", unwritten);
+                answer.complete(PrintResult.FAILED);
+                return;
+            }
             if (pdf == null) {
                 answer.complete(PrintResult.FAILED);
                 return;
             }
-            window.printer().print(new PrintJob(title, pdf, paper.width(), paper.height(), pages.pages().size()))
-                    .thenAccept(answer::complete);
-        }), error -> {
+            limn.backend.internal.PrintAnswers.answerWith(() -> window.printer().print(
+                    new PrintJob(title, pdf, paper.width(), paper.height(), pages.pages().size())), answer, title);
+        }), (error, before) -> {
             LOG.log(System.Logger.Level.WARNING, "the document's pages could not be recorded", error);
             answer.complete(PrintResult.FAILED);
         });
