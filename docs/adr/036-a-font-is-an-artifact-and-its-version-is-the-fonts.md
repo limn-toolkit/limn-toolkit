@@ -106,3 +106,22 @@ was tested with" — is a claim only this repository can make.
 path), rejected because its 1.9 MB is as stable as the CJK face's 16 MB and the same
 mechanism now exists either way; what "required" needed was not residence in the jar but a
 loud construction-time failure, which `FontStore` provides.
+
+## Note, 2026-10-25: Roboto versions with its upstream release too
+
+Roboto was the one face the version scheme above did not reach. Its build predated the
+repository, so `limn-fonts-roboto` versioned itself plainly, `1.0.0` to `1.0.2`, and carried a
+Regular from upstream's `v2.138` beside a Bold, an Italic and a Bold Italic from a 2015 build
+(`2.001047`) whose ascent and descent, 2146 and −555 font units, were not Regular's 1900 and
+−500. `limn-fonts-roboto 2.138.0` takes all four from `v2.138`, the last release of Roboto 2
+(googlefonts/roboto-2), as every other face is taken from its upstream. Regular is the same
+bytes. The other three share Regular's vertical metrics now, so a bold or italic line is as tall
+as a regular one, a ninth shorter than it was; across printable ASCII their advances move by at
+most one font unit in Bold and ten in the italics (a pangram 0.8% narrower in italic).
+
+`VendoredFontsTest` pins Roboto's four faces from this version on. The digest table this ADR
+describes held only the Noto faces, so the one-line bump that replaced three of Roboto's failed
+nothing; it now fails until the new digests are written in, as a bump of any other face does.
+Nothing failed for the metrics either, because no test measured a bold or italic face through the
+backend: `FontStoreTest` now holds all four styles to the vertical ratios `TestRulers.SCALED`
+lays controls out with.

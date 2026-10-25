@@ -2,8 +2,11 @@ package limn.backend.lwjgl;
 
 import limn.graphics.Font;
 import limn.graphics.Fonts;
+import limn.graphics.TextMetrics;
+import limn.testing.TestRulers;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -52,6 +55,29 @@ class FontStoreTest {
             Set<Integer> ids = Set.of(store.faceId(regular), store.faceId(bold),
                     store.faceId(italic), store.faceId(boldItalic));
             assertEquals(4, ids.size(), "each face needs a distinct id");
+        }
+    }
+
+    /**
+     * A bold, italic or bold italic line is as tall as a regular one, and all four have the
+     * vertical ratios {@link TestRulers#SCALED} lays controls out with. Until limn-fonts-roboto
+     * 2.138.0 the three style faces came from a 2015 build whose ascent and descent (2146 and -555
+     * font units) were a ninth larger than Regular's (1900 and -500): a label made bold grew about
+     * 2 pt at 14 pt, and SCALED was the backend's answer for regular text alone.
+     */
+    @Test
+    void everyStyleHasTheRegularFacesVerticalMetrics() {
+        try (FontStore store = new FontStore()) {
+            Font regular = Font.of(14);
+            TextMetrics expected = TestRulers.SCALED.measure("Hg", regular);
+            for (Font style : List.of(regular, regular.bold(), regular.italic(),
+                    regular.boldItalic())) {
+                StbFont face = store.resolve(style);
+                TextMetrics measured = face.measure("Hg", style.size());
+                assertEquals(expected.ascent(), measured.ascent(), 1e-4f, face.name());
+                assertEquals(expected.descent(), measured.descent(), 1e-4f, face.name());
+                assertEquals(expected.lineHeight(), measured.lineHeight(), 1e-4f, face.name());
+            }
         }
     }
 

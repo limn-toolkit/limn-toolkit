@@ -8,10 +8,11 @@ import java.security.MessageDigest;
 import java.util.HexFormat;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
- * The Noto faces on this suite's classpath — the limn-fonts artifacts' resources, since ADR 036
- * moved them out of this module — are the builds this suite was written against, byte for byte.
+ * The faces on this suite's classpath — the limn-fonts artifacts' resources, since ADR 036 moved
+ * them out of this module — are the builds this suite was written against, byte for byte.
  *
  * <p>They are parsed by stb, which is C, so what they are is worth more than a comment saying what
  * they should be. The faces now version apart from this repository, and that is exactly why this
@@ -25,8 +26,27 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * for is not coverage but <em>layout</em> — the conjuncts, the reordering and the contextual forms
  * pinned in {@code ComplexScriptFallbackTest} are properties of a particular build's GSUB, not of
  * the script — so a different Noto Sans Arabic would be a face that renders and a suite that lies.
+ *
+ * <p>Roboto is pinned for the first reason, and was not until its first bump: 1.0.2 to 2.138.0
+ * moved three of its four faces to builds whose ascent and descent are a ninth smaller, and
+ * nothing here failed. It is every widget's default face and the one the measured facts are
+ * written in (ADR 002's control heights, ADR 031's advances, {@code TestRulers.SCALED}), so its
+ * digests are the ones a bump most needs to stop at. Unlike the Noto faces it is not optional:
+ * the backend refuses to start without it.
  */
 class VendoredFontsTest {
+
+    @Test
+    void theShippedRobotoFacesAreTheOnesTheFetchScriptPins() throws Exception {
+        assertRequired("Roboto-Regular.ttf",
+                "f3edb8058e523f5612bfd99d0745e661568ad85e1b6217bc62f786fabae624c6");
+        assertRequired("Roboto-Bold.ttf",
+                "2ca2b3bfc2c2d43fa8f2b7227982d735fd537ecf113a4c56cc2d292bcc3106c8");
+        assertRequired("Roboto-Italic.ttf",
+                "2b4076dd3f5a7fadfca760ef45557a0d437af983284652fc149535c5bd93d493");
+        assertRequired("Roboto-BoldItalic.ttf",
+                "03ccd7a9d4493577d5b7da5440d01a24bd4f6bf05f48c2e114ef24b752859323");
+    }
 
     @Test
     void theShippedNotoFacesAreTheOnesTheFetchScriptPins() throws Exception {
@@ -61,6 +81,20 @@ class VendoredFontsTest {
             Assumptions.assumeTrue(in != null, file + " is optional");
             bytes = in.readAllBytes();
         }
+        assertDigest(file, sha256, bytes);
+    }
+
+    private static void assertRequired(String file, String sha256) throws Exception {
+        byte[] bytes;
+        try (InputStream in = VendoredFontsTest.class.getResourceAsStream(
+                "/limn/fonts/" + file)) {
+            assertNotNull(in, file + " arrives with limn-fonts-roboto, which the backend requires");
+            bytes = in.readAllBytes();
+        }
+        assertDigest(file, sha256, bytes);
+    }
+
+    private static void assertDigest(String file, String sha256, byte[] bytes) throws Exception {
         assertEquals(sha256, HexFormat.of().formatHex(
                         MessageDigest.getInstance("SHA-256").digest(bytes)),
                 file + " is not the build this suite's layout facts were verified against");

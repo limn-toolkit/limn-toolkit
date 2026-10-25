@@ -14,7 +14,7 @@ glavo-webp = "0.2.0"
 # this toolkit (ADR 036). Bumping one of these swaps megabytes of binary nobody reviews in a
 # one-line diff; VendoredFontsTest is what makes that diff fail until the new build's digests
 # and ComplexScriptFallbackTest's layout facts are re-verified against it.
-limn-fonts-roboto = "1.0.2"
+limn-fonts-roboto = "2.138.0"
 limn-fonts-noto-cjk = "2.004.2"
 limn-fonts-noto-emoji = "2.057.0"
 limn-fonts-noto-scripts = "1.0.3"

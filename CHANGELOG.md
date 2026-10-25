@@ -1810,6 +1810,13 @@ Maven Central say which number that was.
   cover Unicode 18.0; of the four script families only Devanagari moved (2.006 to 2.007, the same
   glyphs, rehinted), and text lays out as before. An application that names the two artifacts
   itself moves them to those versions.
+- Roboto now comes from its official `v2.138` release, as `limn-fonts-roboto` 2.138.0, which the
+  backend brings. The regular face is the same. The bold, italic and bold italic faces share its
+  vertical metrics, where the 2015 build they came from had an ascent and a descent a ninth larger,
+  so a line of bold or italic text is as tall as a regular one: a bold or italic `Label` and a
+  chart's title are about 2 pt shorter at 14 pt, and what is laid out below them moves up. The
+  italic faces are slightly narrower (0.8% over a pangram). An application that names the artifact
+  itself moves it to that version.
 - The guides and the demo name `limn-icons-tabler` 3.48.0.1: 36 more icons than 3.46, none removed
   or moved, so code that names a constant compiles unchanged; and the jar names itself as the
   module `limn.icons.tabler`, so an application on the module path can require it, which with

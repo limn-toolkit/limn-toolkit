@@ -60,14 +60,16 @@ this toolkit was tested with are pinned in gradle/libs.versions.toml, and
 limn-fonts-all (published from here) names the optional three at those versions.
 
 Roboto (limn-fonts-roboto; Regular, Bold, Italic, Bold Italic)
-  Copyright Google Inc.
+  Copyright 2011 Google Inc.
   Apache License 2.0: full text in the jar at limn/fonts/Roboto-LICENSE.txt
-  Roboto 2, the generation of the family Google published under the Apache
-  License (https://github.com/googlefonts/roboto-2), and not under the SIL Open
-  Font License like every other face here: Roboto 3 moved to the OFL, and none
-  of its faces is in the jar, so moving to it would be a change of licence.
-  The default family and the last resort every resolve degrades to: a required
-  runtime dependency of limn-backend-lwjgl, so it arrives with the backend.
+  The four unhinted faces of upstream's v2.138 release, the last of Roboto 2
+  (https://github.com/googlefonts/roboto-2), and the licence file that release
+  carries: Roboto 2 is the generation of the family Google published under the
+  Apache License, and not under the SIL Open Font License like every other face
+  here; Roboto 3 moved to the OFL, and none of its faces is in the jar, so moving
+  to it would be a change of licence. The default family and the last resort
+  every resolve degrades to: a required runtime dependency of limn-backend-lwjgl,
+  so it arrives with the backend.
 
 Noto Sans Arabic, Noto Sans Hebrew, Noto Sans Devanagari, Noto Sans Thai
 (limn-fonts-noto-scripts; the complex-script fallbacks)

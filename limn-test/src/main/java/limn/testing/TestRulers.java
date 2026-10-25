@@ -23,10 +23,11 @@ public final class TestRulers {
 
     /**
      * A ruler that scales with the font, for control-size assertions. It uses the embedded
-     * Roboto's real vertical ratios (em 2048, ascent 1900, descent -500, line gap 0): ascent
-     * 0.927734em, descent 0.244141em, line height 1.171875em, with a flat 0.6em advance per code
-     * point. {@link #FIXED} is font-blind, so a MEDIUM control measured under it was never the
-     * shipped MEDIUM; every "MEDIUM is the identity" baseline has to be captured under this one.
+     * Roboto's real vertical ratios, which its four faces share (em 2048, ascent 1900, descent
+     * -500, line gap 0): ascent 0.927734em, descent 0.244141em, line height 1.171875em, with a
+     * flat 0.6em advance per code point. {@link #FIXED} is font-blind, so a MEDIUM control
+     * measured under it was never the shipped MEDIUM; every "MEDIUM is the identity" baseline has
+     * to be captured under this one.
      */
     public static final TextRuler SCALED = (text, font) -> {
         float s = font.size();
